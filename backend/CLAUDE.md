@@ -185,3 +185,15 @@ Postgres будет доступен на `localhost:5432`, база `argumentma
 - Не писать бесполезные комментарии вида `// увеличиваем счётчик`
 - Не коммитить закомментированный код
 - Не лезть в `../frontend/` и корень репы без явного запроса
+
+## Git-коммиты
+
+Используем Conventional Commits с scope для монорепы:
+- `<тип>(backend): описание`
+- Типы: feat, fix, chore, docs, refactor, test, style, perf, build, ci
+- Примеры:
+    - `feat(backend): add POST /api/v1/topics endpoint`
+    - `chore(backend): bump spring boot to 3.3.5`
+    - `docs: update ADR-004`
+- Scope `(backend)` обязателен для изменений в backend/
+- Scope не нужен для изменений в корне репы или общей документации

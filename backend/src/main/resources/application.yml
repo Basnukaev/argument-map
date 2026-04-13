@@ -1,0 +1,28 @@
+server:
+  port: 9090
+
+spring:
+  application:
+    name: argument-map
+
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/argumentmap
+    username: argmap
+    password: argmap
+
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+
+# Заглушка. Datasource конфигурируется через Testcontainers @ServiceConnection.

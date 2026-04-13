@@ -2,11 +2,11 @@
 
 ## Этап 0. Инициализация проекта
 
-- [ ] Сгенерировать Spring Boot проект (Spring Initializr): Java 21,
-      Spring Boot 3.3+, зависимости: Web, JDBC, Liquibase, PostgreSQL Driver,
+- [x] Сгенерировать Spring Boot проект (Spring Initializr): Java 21,
+      Spring Boot 3.5.0, зависимости: Web, JDBC, Liquibase, PostgreSQL Driver,
       Testcontainers, Validation
-- [ ] Настроить `application.yml` (datasource, Liquibase, профили `local`/`test`)
-- [ ] Проверить, что приложение поднимается и Liquibase подключается к БД
+- [x] Настроить `application.yml` (datasource, Liquibase, профили `local`/`test`)
+- [x] Проверить, что приложение поднимается и Liquibase подключается к БД
 
 ## Этап 1. Схема БД (Liquibase)
 

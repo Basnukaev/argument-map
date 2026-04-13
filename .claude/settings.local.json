@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(java --version)",
+      "Read(//usr/lib/**)",
+      "Read(//usr/local/lib/**)",
+      "Read(//mnt/c/**)",
+      "Bash(mvn --version)",
+      "Bash(docker info:*)",
+      "Bash(docker compose:*)",
+      "Bash(./mvnw compile:*)",
+      "Bash(timeout 30 ./mvnw spring-boot:run -q)",
+      "Bash(echo \"EXIT_CODE=$?\")",
+      "Bash(timeout 20 ./mvnw spring-boot:run -q)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  },
+  "outputStyle": "Explanatory"
+}
