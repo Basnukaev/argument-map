@@ -59,4 +59,47 @@ UPDATE databasechangeloglock SET locked = false, lockgranteddate = null, lockedb
 
 ---
 
+## PG JDBC не выводит SQL-тип для Instant
+**Симптом:** при вставке через `jdbcTemplate.update(..., instant)` драйвер
+падает с `PSQLException: Can't infer the SQL type to use for an instance
+of java.time.Instant. Use setObject() with an explicit Types value`
+
+**Причина:** `Instant` не несёт zone-информации, а PG-драйвер отказывается
+делать имплицитный выбор между `timestamp` и `timestamptz`. Для других
+типов (`UUID`, `String`, `Integer`) вывод работает
+
+**Решение:** конвертировать `Instant` → `OffsetDateTime.ofInstant(instant,
+ZoneOffset.UTC)` перед передачей в `jdbcTemplate`. На чтение —
+`rs.getObject("col", OffsetDateTime.class).toInstant()`. В проекте есть
+утилита `repository.JdbcTimes` с методами `odt(Instant)` и `instant(ResultSet, String)`
+
+---
+
+## Failsafe plugin в Spring Boot parent — только pluginManagement
+**Симптом:** `./mvnw verify` запускает только `*Test`-классы, игнорирует
+`*IT`-классы. Smoke-тест проходит, интеграционные не запускаются
+
+**Причина:** Spring Boot parent объявляет `maven-failsafe-plugin` в
+`pluginManagement` (фиксирует версию), но не привязывает goal'ы.
+Surefire (default) сканирует только `*Test`, Failsafe — только `*IT`,
+но без явного `<execution>` Failsafe не запустится
+
+**Решение:** добавить в `pom.xml` в блок `<plugins>`:
+```xml
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-failsafe-plugin</artifactId>
+    <executions>
+        <execution>
+            <goals>
+                <goal>integration-test</goal>
+                <goal>verify</goal>
+            </goals>
+        </execution>
+    </executions>
+</plugin>
+```
+
+---
+
 <!-- Добавлять новые ловушки сюда по мере их обнаружения -->

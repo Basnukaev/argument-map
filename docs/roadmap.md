@@ -28,19 +28,24 @@
 
 ## Этап 2. Доменная модель и репозитории
 
-- [ ] Java records для всех сущностей (`Topic`, `Node`, `Edge`, `Source`,
+- [x] Java records для всех сущностей (`Topic`, `Node`, `Edge`, `Source`,
       `Authority`, `NodeSource`, `NodeAuthority`, `Revision`)
-- [ ] Enum'ы: `NodeType`, `EdgeType`, `NodeStatus`, `SourceType`, `Stance`
-- [ ] Репозитории на JDBC Template + RowMapper:
-  - [ ] `TopicRepository`
-  - [ ] `NodeRepository`
-  - [ ] `EdgeRepository`
-  - [ ] `SourceRepository`
-  - [ ] `AuthorityRepository`
-  - [ ] `NodeSourceRepository`
-  - [ ] `NodeAuthorityRepository`
-  - [ ] `RevisionRepository`
-- [ ] Интеграционные тесты на каждый репозиторий (CRUD)
+- [x] Enum'ы: `NodeType`, `EdgeType`, `NodeStatus`, `SourceType`, `Stance`,
+      `Reliability`
+- [x] Репозитории на JDBC Template + RowMapper:
+  - [x] `TopicRepository`
+  - [x] `NodeRepository`
+  - [x] `EdgeRepository`
+  - [x] `SourceRepository`
+  - [x] `AuthorityRepository`
+  - [x] `NodeSourceRepository`
+  - [x] `NodeAuthorityRepository`
+  - [x] `RevisionRepository`
+- [x] Интеграционные тесты на каждый репозиторий (CRUD)
+- [x] Утилита `JdbcTimes` (конвертация `Instant ↔ OffsetDateTime` для
+      TIMESTAMPTZ, см. gotcha в `gotchas.md`)
+- [x] Привязка `maven-failsafe-plugin` в `pom.xml` (чтобы `./mvnw verify`
+      запускал `*IT`-тесты)
 
 ## Этап 3. Бизнес-логика
 

@@ -13,6 +13,114 @@
 
 ---
 
+## 2026-04-20 — Сессия 3 (backend) — доменная модель и репозитории
+
+### Сделано
+- Enum'ы в `backend/src/main/java/ru/basnukaev/argumentmap/domain/`:
+  `NodeType`, `EdgeType`, `NodeStatus`, `SourceType`, `Stance`, `Reliability`
+- Java records (все иммутабельные, без Lombok):
+  `Topic`, `Node`, `Edge`, `Source`, `Authority`, `NodeSource`, `NodeAuthority`,
+  `Revision`. Timestamps — `Instant`, id — `UUID`
+- JDBC-репозитории в `repository/`:
+  - `TopicRepository` — save/findById/findAll/updateRootNodeId/deleteById
+  - `NodeRepository` — save/findById/findByTopicId/update/updateStatus/deleteById
+  - `EdgeRepository` — save/findById/findBy{From,To}NodeId/findByTopicId(JOIN)/deleteById
+  - `SourceRepository` — CRUD + searchByTitle (ILIKE), metadata через `?::jsonb`
+  - `AuthorityRepository` — CRUD + searchByName
+  - `NodeSourceRepository` — save/findByIds/findByNodeId/findBySourceId/delete
+  - `NodeAuthorityRepository` — аналогично со `stance`
+  - `RevisionRepository` — save/findById/findByNodeId (без delete — журнал)
+- Утилита `repository.JdbcTimes` — конвертация `Instant ↔ OffsetDateTime`
+  для колонок `TIMESTAMPTZ` (см. gotcha)
+- Интеграционные тесты на каждый репозиторий (`*IT.java`), Testcontainers
+  Postgres 16, `@Transactional` + rollback. Фикстуры через
+  `jdbcTemplate.update(...)`, не через тестируемый репозиторий
+  (testing-strategy.md). Всего 45 тестов, `./mvnw verify` — зелёные
+- Привязка `maven-failsafe-plugin` в `pom.xml` — без неё `verify` не
+  запускал `*IT`-тесты (объявление есть в Spring Boot parent, но только
+  в `pluginManagement`)
+- `TestcontainersConfiguration` сделан `public`, чтобы импортировать
+  из под-пакета `repository`
+- Добавлены 2 gotcha в `docs/gotchas.md`:
+  1. PG JDBC не выводит SQL-тип для `Instant` (нужен `OffsetDateTime`)
+  2. Failsafe plugin в Spring Boot parent требует явного `<execution>`
+
+### Решения
+- **Контракт `save(T)`:** репозиторий принимает полностью заполненный
+  record (id + timestamps). Генерация id и вычисление `Instant.now()` —
+  ответственность сервисного слоя. Репозиторий остаётся тупым CRUD,
+  тесты детерминированы (точные assertions по timestamp), политика
+  генерации изолирована
+- **Instant в доменных моделях, OffsetDateTime на границе с JDBC:**
+  доменная модель не знает о JDBC-ограничениях. Конвертация вынесена
+  в утилиту `JdbcTimes` рядом с репозиториями
+- **jsonb через `?::jsonb` cast в SQL:** проще `PGobject`, работает
+  для nullable значений, читабельно. Проверено тестом
+  `metadataJsonb_isQueryableWithJsonbOperators` с оператором `@>`
+- **Композитный PK у M:N таблиц:** `NodeSource` и `NodeAuthority` не
+  имеют surrogate id. Методы `findByIds(a, b)` и `delete(a, b)` работают
+  по паре ключей напрямую
+- **`findByTopicId` у `EdgeRepository` — через JOIN `nodes`:** рёбра
+  не содержат прямого `topic_id`, выбираются через `e.from_node_id =
+  n.id`. Инвариант "ребро не пересекает границу темы" будет проверяться
+  в `EdgeService` при создании (Этап 3)
+- **`RevisionRepository` без `deleteById`:** revisions — исторический
+  журнал, удалять только каскадно через удаление узла (что уже настроено
+  в миграции 11). Принцип YAGNI
+- **Reliability как enum (новый):** в roadmap не был в списке — добавил
+  в том же духе, что остальные enum'ы, чтобы покрыть CHECK-ограничение
+  `reliability IN ('SAHIH','HASAN','DAIF')`. Уже упоминался в прошлом
+  progress (сессия 2)
+
+### Проблемы
+- `PSQLException: Can't infer the SQL type to use for an instance of
+  java.time.Instant` — pgjdbc не маппит `Instant` через `setObject`
+  без явного Types. Решено утилитой `JdbcTimes.odt(Instant)`
+  (`OffsetDateTime.ofInstant(instant, ZoneOffset.UTC)`). Записано в
+  `gotchas.md`
+- `./mvnw verify` не запускал `*IT`-тесты — Spring Boot parent объявляет
+  Failsafe в `pluginManagement`, но не привязывает goal'ы. Решено
+  явным `<execution>` в `pom.xml`. Записано в `gotchas.md`
+
+### Следующий шаг
+**Этап 3 из roadmap: бизнес-логика (сервисный слой).**
+
+Задачи по roadmap:
+- `TopicService` — создание темы с корневым вопросом транзакционно.
+  Паттерн: создать `Topic` без `root_node_id`, создать `Node`
+  (QUESTION), `topicRepository.updateRootNodeId(...)` — всё в одной
+  транзакции (`@Transactional` на методе)
+- `NodeService` — создание/редактирование/удаление, запись в `revisions`
+  при каждом редактировании (`content_before` = старое, `content_after`
+  = новое). Использовать `Instant.now()` для timestamps здесь
+- `EdgeService` — создание/удаление рёбер. Валидация: оба узла в одной
+  теме (инвариант, используемый в `EdgeRepository.findByTopicId`)
+- `GraphService` — загрузка всего графа темы одним-двумя запросами
+  (узлы темы + рёбра темы). Возвращает агрегат `{nodes, edges}`
+- `StatusCalculationService` — MVP-алгоритм пересчёта из `architecture.md`:
+  1. Без входящих рёбер → `UNVERIFIED`
+  2. Supports все от `REFUTED` + есть `STANDING` refute → `REFUTED`
+  3. Есть `STANDING` supports И `STANDING` refutes → `DISPUTED`
+  4. Есть `STANDING` supports, нет `STANDING` refutes → `STANDING`
+  5. `INVALIDATES` — жёстче `REFUTES`
+- Тесты сервисов: unit с Mockito для мапперов/логики, integration через
+  Testcontainers для транзакционности
+- Особое внимание — fixture-графам для `StatusCalculationService` (см.
+  testing-strategy.md): минимум 4 сценария + 4 граничных
+
+### Важные нюансы для Этапа 3
+- На сервисах — `@Transactional`, не на репозиториях и не на контроллерах
+  (см. coding-standards.md)
+- Не использовать `@Transactional(readOnly = true)` вперемешку с `true` —
+  разделять явно
+- Доменные исключения (`TopicNotFoundException`, `NodeNotFoundException`,
+  `InvalidEdgeException`) — в пакете `ru.basnukaev.argumentmap.exception`
+- Начать рекомендую с `TopicService` — самая простая операция-с-транзакцией,
+  задаёт шаблон. Потом `NodeService`, потом `EdgeService`, потом
+  `GraphService`, потом `StatusCalculationService` (самый сложный)
+
+---
+
 ## 2026-04-20 — Сессия 2 (backend) — Liquibase-миграции схемы БД
 
 ### Сделано

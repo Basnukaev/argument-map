@@ -16,7 +16,12 @@
       "Bash(git commit:*)",
       "Bash(./mvnw test *)",
       "Bash(./mvnw verify *)",
-      "Bash(git restore *)"
+      "Bash(git restore *)",
+      "Bash(./mvnw -Dtest='TopicRepositoryIT,NodeRepositoryIT,EdgeRepositoryIT' test)",
+      "Bash(git -C /mnt/c/my_folders/projects/argument-map status)",
+      "Bash(git -C /mnt/c/my_folders/projects/argument-map diff --stat)",
+      "Bash(git -C /mnt/c/my_folders/projects/argument-map add backend/src/main/java/ru/basnukaev/argumentmap/domain/ backend/src/main/java/ru/basnukaev/argumentmap/repository/ backend/src/test/java/ru/basnukaev/argumentmap/repository/ backend/src/test/java/ru/basnukaev/argumentmap/TestcontainersConfiguration.java)",
+      "Bash(git *)"
     ]
   },
   "outputStyle": "Explanatory"
