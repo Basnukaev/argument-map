@@ -141,24 +141,24 @@ M:N связи. `NodeSource` содержит точную цитату и ко�
 ## REST API (предварительный эскиз)
 
 ```
-POST   /api/topics                       — создать тему
-GET    /api/topics/{id}                  — получить тему с корневым узлом
-GET    /api/topics/{id}/graph            — получить весь граф темы
+POST   /api/v1/topics                       — создать тему
+GET    /api/v1/topics/{id}                  — получить тему с корневым узлом
+GET    /api/v1/topics/{id}/graph            — получить весь граф темы
 
-POST   /api/nodes                        — создать узел
-PATCH  /api/nodes/{id}                   — обновить содержимое (→ revision)
-DELETE /api/nodes/{id}                   — удалить узел (каскад)
+POST   /api/v1/nodes                        — создать узел
+PATCH  /api/v1/nodes/{id}                   — обновить содержимое (→ revision)
+DELETE /api/v1/nodes/{id}                   — удалить узел (каскад)
 
-POST   /api/edges                        — создать связь (→ пересчёт статусов)
-DELETE /api/edges/{id}                   — удалить связь
+POST   /api/v1/edges                        — создать связь (→ пересчёт статусов)
+DELETE /api/v1/edges/{id}                   — удалить связь
 
-POST   /api/sources                      — добавить источник в справочник
-GET    /api/sources?q=...                — поиск по справочнику
-POST   /api/nodes/{id}/sources           — привязать источник к узлу
+POST   /api/v1/sources                      — добавить источник в справочник
+GET    /api/v1/sources?q=...                — поиск по справочнику
+POST   /api/v1/nodes/{id}/sources           — привязать источник к узлу
 
-POST   /api/authorities                  — добавить учёного
-GET    /api/authorities?q=...            — поиск
-POST   /api/nodes/{id}/authorities       — привязать учёного к узлу
+POST   /api/v1/authorities                  — добавить учёного
+GET    /api/v1/authorities?q=...            — поиск
+POST   /api/v1/nodes/{id}/authorities       — привязать учёного к узлу
 ```
 
 Детальный OpenAPI-контракт — следующий шаг после Liquibase-миграции.
