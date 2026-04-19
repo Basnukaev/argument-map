@@ -48,11 +48,14 @@ API-first приложение для построения карт аргуме
 - `../docs/er-diagram.md` — ER-диаграмма (Mermaid)
 - `../docs/glossary.md` — термины проекта (Topic, Node, Edge, Claim, и т.д.)
 - `../docs/api-contract.md` — контракт API с фронтендом
+- `../docs/session-workflow.md` — компактный чек-лист сессии
+- `../docs/git-workflow.md` — Conventional Commits, правила ветвления
 
 ### Бэкенд-специфичная документация (`docs/`)
 - `docs/coding-standards.md` — стандарты кода, SOLID, KISS, правила комментариев
 - `docs/antipatterns.md` — антипаттерны Java/SQL/API, которых избегаем
 - `docs/api-design.md` — правила дизайна REST API (формат, пагинация, ошибки)
+- `docs/testing-strategy.md` — стратегия тестирования, fixture-графы
 
 ## Работа с документацией (КРИТИЧНО)
 

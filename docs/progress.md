@@ -13,6 +13,59 @@
 
 ---
 
+## 2026-04-20 — Сессия 1.5 (backend) — укрепление фундамента
+
+### Сделано
+- Создан `.editorconfig` в корне репы (единообразие отступов,
+  окончания строк)
+- Создан `.gitattributes` в корне репы + нормализация line endings
+  (защита от CRLF/LF проблем на Windows+WSL)
+- Установлен `spring.profiles.default: local` в application.yml
+  (приложение стартует корректно из IDE и jar, не только из Maven)
+- Добавлен `spring-boot-starter-actuator` в pom.xml
+  (для /actuator/health и будущих метрик)
+- Синхронизирован API-префикс `/api/v1/` в architecture.md
+  (был `/api/`, расходился с api-design.md и api-contract.md)
+- Добавлено примечание о порядке ADR в decisions.md
+- Создан `docs/session-workflow.md` — компактный чек-лист сессии
+- Создан `backend/docs/testing-strategy.md` — стратегия тестирования,
+  включая подход к тестированию графовых обходов
+- Создан `docs/git-workflow.md` — Conventional Commits, scope
+  для монорепы, правила ветвления
+- Создан `.github/workflows/README.md` — заготовка для будущего CI
+
+### Решения
+- Дефолтный профиль = local (чтобы не ломалось при запуске из IDE)
+- Actuator добавлен сейчас, а не позже — документация уже ссылается на него
+- Testing strategy зафиксирована до начала написания тестов
+
+### Проблемы
+- Нет
+
+### Следующий шаг
+**Этап 1 из roadmap: Liquibase-миграции схемы БД.**
+
+Создать миграции по списку из roadmap:
+1. `20260413-01-create-extensions` (uuid-ossp)
+2. `20260413-02-create-users-table`
+3. `20260413-03-create-topics-table`
+4. `20260413-04-create-nodes-table` + индексы
+5. `20260413-05-add-root-node-fk-to-topics` (циркулярный FK, см. gotchas.md)
+6. `20260413-06-create-edges-table` + индексы
+7. `20260413-07-create-sources-table` + GIN-индекс на metadata
+8. `20260413-08-create-authorities-table`
+9. `20260413-09-create-node-sources-table`
+10. `20260413-10-create-node-authorities-table`
+11. `20260413-11-create-revisions-table`
+12. Smoke-тест: Testcontainers + Liquibase прогоняет все миграции
+
+Автор всех changeset'ов: `Abdula Basnukaev`.
+Формат: TEXT + CHECK constraints для enum'ов (см. antipatterns.md).
+Индексы на FK — в той же миграции (см. antipatterns.md).
+TIMESTAMPTZ, не TIMESTAMP (см. antipatterns.md).
+
+---
+
 ## 2026-04-13 — Сессия 1 (backend)
 
 ### Сделано
