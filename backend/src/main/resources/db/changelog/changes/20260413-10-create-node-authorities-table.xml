@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260413-10-create-node-authorities-table" author="Abdula Basnukaev">
+        <comment>
+            M:N связка узел↔авторитет с позицией учёного (HOLDS/OPPOSES/NEUTRAL).
+            stance — TEXT + CHECK по общему правилу проекта.
+        </comment>
+        <sql>
+            CREATE TABLE node_authorities (
+                node_id         UUID NOT NULL REFERENCES nodes(id)       ON DELETE CASCADE,
+                authority_id    UUID NOT NULL REFERENCES authorities(id) ON DELETE CASCADE,
+                stance          TEXT NOT NULL
+                                CHECK (stance IN ('HOLDS','OPPOSES','NEUTRAL')),
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                PRIMARY KEY (node_id, authority_id)
+            );
+            CREATE INDEX idx_node_authorities_authority_id ON node_authorities(authority_id);
+        </sql>
+        <rollback>
+            <sql>DROP TABLE node_authorities;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

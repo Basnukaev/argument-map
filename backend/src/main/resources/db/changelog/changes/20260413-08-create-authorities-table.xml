@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260413-08-create-authorities-table" author="Abdula Basnukaev">
+        <comment>
+            Справочник авторитетов/учёных. era и madhab — свободный текст, без enum:
+            набор эпох и мазхабов открыт, жёсткий CHECK был бы помехой. Поиск по ним —
+            через обычные B-tree индексы. metadata JSONB — для расширения без миграции.
+        </comment>
+        <sql>
+            CREATE TABLE authorities (
+                id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                name        TEXT NOT NULL,
+                bio         TEXT,
+                era         TEXT,
+                madhab      TEXT,
+                metadata    JSONB,
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_authorities_name          ON authorities(name);
+            CREATE INDEX idx_authorities_era           ON authorities(era);
+            CREATE INDEX idx_authorities_madhab        ON authorities(madhab);
+            CREATE INDEX idx_authorities_metadata_gin  ON authorities USING GIN (metadata);
+        </sql>
+        <rollback>
+            <sql>DROP TABLE authorities;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

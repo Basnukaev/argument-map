@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260413-09-create-node-sources-table" author="Abdula Basnukaev">
+        <comment>
+            M:N связка узел↔источник с метаданными цитирования (точная цитата, контекст).
+            Композитный PK (node_id, source_id) автоматически индексирует node_id;
+            отдельный индекс на source_id нужен для обратной выборки "в каких узлах
+            используется этот источник".
+        </comment>
+        <sql>
+            CREATE TABLE node_sources (
+                node_id     UUID NOT NULL REFERENCES nodes(id)   ON DELETE CASCADE,
+                source_id   UUID NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+                quote       TEXT,
+                context     TEXT,
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                PRIMARY KEY (node_id, source_id)
+            );
+            CREATE INDEX idx_node_sources_source_id ON node_sources(source_id);
+        </sql>
+        <rollback>
+            <sql>DROP TABLE node_sources;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

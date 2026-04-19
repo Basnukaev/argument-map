@@ -12,19 +12,19 @@
 
 Каждая миграция — отдельный changeset, автор `Abdula Basnukaev`.
 
-- [ ] `20260413-01-create-extensions` — `CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`
-- [ ] `20260413-02-create-users-table` — пока минимальная (id, username, email)
-- [ ] `20260413-03-create-topics-table`
-- [ ] `20260413-04-create-nodes-table` + индексы по `topic_id`, `status`
-- [ ] `20260413-05-add-root-node-fk-to-topics` (циркулярный FK добавляем отдельно)
-- [ ] `20260413-06-create-edges-table` + индексы по `from_node_id`, `to_node_id`, `edge_type`
-- [ ] `20260413-07-create-sources-table` + GIN-индекс на `metadata`
-- [ ] `20260413-08-create-authorities-table`
-- [ ] `20260413-09-create-node-sources-table`
-- [ ] `20260413-10-create-node-authorities-table`
-- [ ] `20260413-11-create-revisions-table`
-- [ ] Интеграционный smoke-тест: Testcontainers поднимает Postgres, Liquibase
-      прогоняет все миграции без ошибок
+- [x] `20260413-01-create-extensions` — `CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`
+- [x] `20260413-02-create-users-table` — пока минимальная (id, username, email)
+- [x] `20260413-03-create-topics-table`
+- [x] `20260413-04-create-nodes-table` + индексы по `topic_id`, `status`
+- [x] `20260413-05-add-root-node-fk-to-topics` (циркулярный FK добавляем отдельно)
+- [x] `20260413-06-create-edges-table` + индексы по `from_node_id`, `to_node_id`, `edge_type`
+- [x] `20260413-07-create-sources-table` + GIN-индекс на `metadata`
+- [x] `20260413-08-create-authorities-table`
+- [x] `20260413-09-create-node-sources-table`
+- [x] `20260413-10-create-node-authorities-table`
+- [x] `20260413-11-create-revisions-table`
+- [x] Интеграционный smoke-тест: Testcontainers поднимает Postgres, Liquibase
+      прогоняет все миграции без ошибок (`ArgumentMapApplicationTests.contextLoads`)
 
 ## Этап 2. Доменная модель и репозитории
 

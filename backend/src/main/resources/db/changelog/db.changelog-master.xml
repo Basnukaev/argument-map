@@ -5,6 +5,16 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
                             https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
 
-    <!-- Миграции будут добавлены на Этапе 1 -->
+    <include file="db/changelog/changes/20260413-01-create-extensions.xml"/>
+    <include file="db/changelog/changes/20260413-02-create-users-table.xml"/>
+    <include file="db/changelog/changes/20260413-03-create-topics-table.xml"/>
+    <include file="db/changelog/changes/20260413-04-create-nodes-table.xml"/>
+    <include file="db/changelog/changes/20260413-05-add-root-node-fk-to-topics.xml"/>
+    <include file="db/changelog/changes/20260413-06-create-edges-table.xml"/>
+    <include file="db/changelog/changes/20260413-07-create-sources-table.xml"/>
+    <include file="db/changelog/changes/20260413-08-create-authorities-table.xml"/>
+    <include file="db/changelog/changes/20260413-09-create-node-sources-table.xml"/>
+    <include file="db/changelog/changes/20260413-10-create-node-authorities-table.xml"/>
+    <include file="db/changelog/changes/20260413-11-create-revisions-table.xml"/>
 
 </databaseChangeLog>

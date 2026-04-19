@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260413-02-create-users-table" author="Abdula Basnukaev">
+        <comment>Минимальная таблица пользователей. Аутентификация и расширенный профиль — позже.</comment>
+        <sql>
+            CREATE TABLE users (
+                id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                username    TEXT NOT NULL UNIQUE,
+                email       TEXT NOT NULL UNIQUE,
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+        </sql>
+        <rollback>
+            <sql>DROP TABLE users;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

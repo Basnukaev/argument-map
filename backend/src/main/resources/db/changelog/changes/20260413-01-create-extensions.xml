@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260413-01-create-extensions" author="Abdula Basnukaev">
+        <comment>Расширение uuid-ossp для генерации UUID на стороне БД (uuid_generate_v4).</comment>
+        <sql>CREATE EXTENSION IF NOT EXISTS "uuid-ossp";</sql>
+        <rollback>
+            <sql>DROP EXTENSION IF EXISTS "uuid-ossp";</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

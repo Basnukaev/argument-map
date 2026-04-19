@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260413-03-create-topics-table" author="Abdula Basnukaev">
+        <comment>
+            Темы (контейнеры дискуссий). root_node_id создаётся без FK — таблицы nodes
+            ещё нет (циркулярная зависимость topics↔nodes). FK будет добавлен в миграции 05.
+        </comment>
+        <sql>
+            CREATE TABLE topics (
+                id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                title           TEXT NOT NULL,
+                description     TEXT,
+                root_node_id    UUID,
+                created_by      UUID NOT NULL REFERENCES users(id),
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_topics_created_by ON topics(created_by);
+        </sql>
+        <rollback>
+            <sql>DROP TABLE topics;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

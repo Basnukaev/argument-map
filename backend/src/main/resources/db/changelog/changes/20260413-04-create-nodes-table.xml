@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260413-04-create-nodes-table" author="Abdula Basnukaev">
+        <comment>
+            Узлы графа (полиморфные через дискриминатор node_type). Enum'ы хранятся
+            как TEXT + CHECK — проще эволюция, чем нативный ENUM Postgres (ADR в antipatterns.md).
+            Индексы на topic_id и status — для выборок по теме и фильтрации по статусу.
+        </comment>
+        <sql>
+            CREATE TABLE nodes (
+                id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                topic_id    UUID NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+                node_type   TEXT NOT NULL
+                            CHECK (node_type IN ('QUESTION','CLAIM','ARGUMENT','EVIDENCE')),
+                content     TEXT NOT NULL,
+                status      TEXT NOT NULL DEFAULT 'UNVERIFIED'
+                            CHECK (status IN ('STANDING','DISPUTED','REFUTED','UNVERIFIED')),
+                weight      INTEGER NOT NULL DEFAULT 5
+                            CHECK (weight BETWEEN 1 AND 10),
+                created_by  UUID NOT NULL REFERENCES users(id),
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_nodes_topic_id   ON nodes(topic_id);
+            CREATE INDEX idx_nodes_status     ON nodes(status);
+            CREATE INDEX idx_nodes_created_by ON nodes(created_by);
+        </sql>
+        <rollback>
+            <sql>DROP TABLE nodes;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

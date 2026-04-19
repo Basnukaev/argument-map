@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260413-06-create-edges-table" author="Abdula Basnukaev">
+        <comment>
+            Типизированные направленные рёбра графа. Индексы на from_node_id и
+            to_node_id нужны для обхода графа в обе стороны (входящие/исходящие рёбра
+            узла). Индекс на edge_type — для фильтрации по типу связи при пересчёте
+            статусов (выбрать все REFUTES-рёбра, например).
+        </comment>
+        <sql>
+            CREATE TABLE edges (
+                id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                from_node_id    UUID NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+                to_node_id      UUID NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+                edge_type       TEXT NOT NULL
+                                CHECK (edge_type IN ('SUPPORTS','REFUTES','QUALIFIES','INVALIDATES','RESPONDS_TO')),
+                rationale       TEXT,
+                created_by      UUID NOT NULL REFERENCES users(id),
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_edges_from_node_id ON edges(from_node_id);
+            CREATE INDEX idx_edges_to_node_id   ON edges(to_node_id);
+            CREATE INDEX idx_edges_edge_type    ON edges(edge_type);
+            CREATE INDEX idx_edges_created_by   ON edges(created_by);
+        </sql>
+        <rollback>
+            <sql>DROP TABLE edges;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

@@ -13,6 +13,74 @@
 
 ---
 
+## 2026-04-20 — Сессия 2 (backend) — Liquibase-миграции схемы БД
+
+### Сделано
+- Создано 11 changeset-файлов в `backend/src/main/resources/db/changelog/changes/`:
+  - `20260413-01-create-extensions.xml` — `uuid-ossp`
+  - `20260413-02-create-users-table.xml` — минимальные `users` (id, username,
+    email, created_at)
+  - `20260413-03-create-topics-table.xml` — `topics` с `root_node_id` без FK
+    (циркулярная зависимость topics↔nodes)
+  - `20260413-04-create-nodes-table.xml` — `nodes` + CHECK на
+    `node_type`/`status`/`weight`, индексы на `topic_id`, `status`, `created_by`
+  - `20260413-05-add-root-node-fk-to-topics.xml` — замыкающий FK
+    `topics.root_node_id → nodes.id ON DELETE SET NULL` + индекс
+  - `20260413-06-create-edges-table.xml` — `edges` + CHECK на `edge_type`,
+    индексы на `from_node_id`, `to_node_id`, `edge_type`, `created_by`
+  - `20260413-07-create-sources-table.xml` — `sources` + `reliability` CHECK,
+    GIN-индекс на `metadata`
+  - `20260413-08-create-authorities-table.xml` — `authorities` + GIN на `metadata`,
+    индексы на `name`, `era`, `madhab`
+  - `20260413-09-create-node-sources-table.xml` — M:N с композитным PK + индекс
+    на `source_id`
+  - `20260413-10-create-node-authorities-table.xml` — M:N со `stance`
+    CHECK + индекс на `authority_id`
+  - `20260413-11-create-revisions-table.xml` — история изменений узлов
+- Обновлён `db.changelog-master.xml` — `<include>` всех 11 файлов в порядке
+  применения
+- Smoke-тест `ArgumentMapApplicationTests.contextLoads()` проходит:
+  Testcontainers поднимает Postgres 16-alpine, Liquibase прогоняет 11 changeset'ов
+  (`Run: 11, Previously run: 0`), BUILD SUCCESS
+- У каждого changeset'а прописан `<rollback>` (обратимость миграции)
+
+### Решения
+- Формат миграций: XML с raw `<sql>` внутри `<changeSet>`. Нативные теги
+  Liquibase (`<createTable>` и т.п.) не используем — `<sql>` проще и лучше
+  переносит CHECK constraints, GIN-индексы и композитные PK
+- Циркулярный FK `topics.root_node_id → nodes.id` вынесен в отдельную
+  миграцию 05 (см. gotchas.md)
+- Enum'ы хранятся как `TEXT + CHECK` (см. antipatterns.md), значения uppercase
+  для консистенции с Java enum (`.name()`)
+- `reliability` в `sources` — uppercase `SAHIH/HASAN/DAIF` (в `er-diagram.md`
+  было lowercase, но uppercase лучше ложится на Java-enum — уточнение
+  документации будет в отдельном коммите при необходимости)
+- Индексы на FK создаются в той же миграции, что и таблица (antipatterns.md)
+- `ON DELETE CASCADE` — для дочерних сущностей (`nodes.topic_id`, `edges.*`,
+  `node_sources.*`, `node_authorities.*`, `revisions.node_id`)
+- `ON DELETE SET NULL` — для `topics.root_node_id` (удаление корневого узла
+  не должно удалять тему)
+- Все `timestamp` поля — `TIMESTAMPTZ` с `DEFAULT now()`
+
+### Проблемы
+- XML parse error в миграции 07: символ `&` в комментарии должен
+  экранироваться (`&amp;`). Решено: переформулировал комментарий без
+  спецсимволов. На будущее — или CDATA, или `&amp;` в XML-комментариях
+
+### Следующий шаг
+**Этап 2 из roadmap: доменная модель и репозитории.**
+
+Ждём подтверждения пользователя перед стартом Этапа 2. Задачи этапа:
+- Java records для всех сущностей (`Topic`, `Node`, `Edge`, `Source`,
+  `Authority`, `NodeSource`, `NodeAuthority`, `Revision`)
+- Enum'ы: `NodeType`, `EdgeType`, `NodeStatus`, `SourceType`, `Stance`,
+  `Reliability` (SAHIH/HASAN/DAIF)
+- JDBC Template репозитории с RowMapper'ами
+- Интеграционные тесты на каждый репозиторий (CRUD), фикстуры через
+  `jdbcTemplate.update(...)` (см. testing-strategy.md)
+
+---
+
 ## 2026-04-20 — Сессия 1.5 (backend) — укрепление фундамента
 
 ### Сделано

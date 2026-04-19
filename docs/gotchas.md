@@ -43,4 +43,20 @@ UPDATE databasechangeloglock SET locked = false, lockgranteddate = null, lockedb
 
 ---
 
+## Символ `&` в Liquibase XML-changeset'ах
+**Симптом:** Liquibase падает при парсинге миграции с ошибкой
+`The entity name must immediately follow the '&' in the entity reference`
+(SAXParseException)
+
+**Причина:** в XML символ `&` зарезервирован под entity-ссылки
+(`&amp;`, `&lt;`, и т.п.). Ломается даже в комментариях `<comment>` и
+обычных `<sql>`-блоках
+
+**Решение:**
+- в тексте комментариев избегать `&` (переформулировать) или экранировать `&amp;`
+- в SQL-блоках, где `&` нужен (например, jsonb-оператор `?&`) — оборачивать
+  содержимое в `<![CDATA[ ... ]]>`
+
+---
+
 <!-- Добавлять новые ловушки сюда по мере их обнаружения -->

@@ -13,7 +13,10 @@
       "Bash(echo \"EXIT_CODE=$?\")",
       "Bash(timeout 20 ./mvnw spring-boot:run -q)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(./mvnw test *)",
+      "Bash(./mvnw verify *)",
+      "Bash(git restore *)"
     ]
   },
   "outputStyle": "Explanatory"

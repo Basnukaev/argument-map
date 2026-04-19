@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260413-11-create-revisions-table" author="Abdula Basnukaev">
+        <comment>
+            История изменений содержимого узла. Hard delete узла каскадно удалит
+            и его историю — это осознанный выбор, soft delete не используем
+            (см. antipatterns.md и архитектурное решение "hard delete + история").
+            Индекс на node_id — основной паттерн выборки "вся история данного узла".
+        </comment>
+        <sql>
+            CREATE TABLE revisions (
+                id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                node_id         UUID NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+                content_before  TEXT,
+                content_after   TEXT NOT NULL,
+                changed_by      UUID NOT NULL REFERENCES users(id),
+                changed_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_revisions_node_id    ON revisions(node_id);
+            CREATE INDEX idx_revisions_changed_by ON revisions(changed_by);
+        </sql>
+        <rollback>
+            <sql>DROP TABLE revisions;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

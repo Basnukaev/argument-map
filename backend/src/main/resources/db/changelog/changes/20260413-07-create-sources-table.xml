@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260413-07-create-sources-table" author="Abdula Basnukaev">
+        <comment>
+            Справочник источников (Коран, хадисы, книги, статьи, URL). metadata —
+            JSONB для тип-специфичных полей (сура/аят для QURAN, сборник/номер для
+            HADITH и т.п.). GIN-индекс даёт эффективный поиск по произвольным
+            ключам в metadata через jsonb-операторы (containment и key-exists).
+            reliability используется только для хадисов (SAHIH/HASAN/DAIF),
+            для остальных типов — NULL. Значения uppercase для консистенции с Java-enum.
+        </comment>
+        <sql>
+            CREATE TABLE sources (
+                id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                source_type     TEXT NOT NULL
+                                CHECK (source_type IN ('QURAN','HADITH','BOOK','ARTICLE','URL')),
+                title           TEXT NOT NULL,
+                citation        TEXT,
+                reliability     TEXT
+                                CHECK (reliability IS NULL OR reliability IN ('SAHIH','HASAN','DAIF')),
+                metadata        JSONB,
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_sources_source_type  ON sources(source_type);
+            CREATE INDEX idx_sources_metadata_gin ON sources USING GIN (metadata);
+        </sql>
+        <rollback>
+            <sql>DROP TABLE sources;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
