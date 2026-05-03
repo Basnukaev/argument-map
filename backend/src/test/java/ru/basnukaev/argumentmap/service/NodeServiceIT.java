@@ -138,4 +138,48 @@ class NodeServiceIT {
         assertThatThrownBy(() -> nodeService.getRevisions(UUID.randomUUID()))
                 .isInstanceOf(NodeNotFoundException.class);
     }
+
+    @Test
+    void deleteNode_triggersStatusRecalc_dependentNodesUpdated() {
+        // standingSource (STANDING) → support → claim (DISPUTED через refuter)
+        //                                       ← refute от refuter (STANDING)
+        // удаляем refuter → каскад удалит ребро → claim должен пересчитаться в STANDING
+        UUID standingSource = insertWithStatus(NodeStatus.STANDING);
+        UUID refuter = insertWithStatus(NodeStatus.STANDING);
+        UUID claim = insertWithStatus(NodeStatus.UNVERIFIED);
+        insertEdge(standingSource, claim, "SUPPORTS");
+        insertEdge(refuter, claim, "REFUTES");
+        // первичный пересчёт делаем "вручную" чтобы привести claim к DISPUTED
+        nodeService.deleteNode(insertWithStatus(NodeStatus.UNVERIFIED));  // тригер пересчёта
+        assertThat(nodeRepository.findById(claim).orElseThrow().status())
+                .isEqualTo(NodeStatus.DISPUTED);
+
+        nodeService.deleteNode(refuter);
+
+        // после удаления refuter — рёбра от него каскадно ушли → claim видит только supports
+        assertThat(nodeRepository.findById(claim).orElseThrow().status())
+                .isEqualTo(NodeStatus.STANDING);
+    }
+
+    private UUID insertWithStatus(NodeStatus status) {
+        UUID id = UUID.randomUUID();
+        java.time.Instant now = java.time.Instant.now();
+        jdbcTemplate.update(
+                "INSERT INTO nodes (id, topic_id, node_type, content, status, weight, "
+                        + "created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                id, topicId, NodeType.CLAIM.name(), "c", status.name(),
+                5, userId, ru.basnukaev.argumentmap.repository.JdbcTimes.odt(now),
+                ru.basnukaev.argumentmap.repository.JdbcTimes.odt(now)
+        );
+        return id;
+    }
+
+    private void insertEdge(UUID from, UUID to, String type) {
+        jdbcTemplate.update(
+                "INSERT INTO edges (id, from_node_id, to_node_id, edge_type, created_by, created_at) "
+                        + "VALUES (?, ?, ?, ?, ?, ?)",
+                UUID.randomUUID(), from, to, type, userId,
+                ru.basnukaev.argumentmap.repository.JdbcTimes.odt(java.time.Instant.now())
+        );
+    }
 }

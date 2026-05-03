@@ -23,13 +23,16 @@ public class NodeService {
     private final NodeRepository nodeRepository;
     private final TopicRepository topicRepository;
     private final RevisionRepository revisionRepository;
+    private final StatusCalculationService statusCalculationService;
 
     public NodeService(NodeRepository nodeRepository,
                        TopicRepository topicRepository,
-                       RevisionRepository revisionRepository) {
+                       RevisionRepository revisionRepository,
+                       StatusCalculationService statusCalculationService) {
         this.nodeRepository = nodeRepository;
         this.topicRepository = topicRepository;
         this.revisionRepository = revisionRepository;
+        this.statusCalculationService = statusCalculationService;
     }
 
     @Transactional
@@ -75,12 +78,10 @@ public class NodeService {
 
     @Transactional
     public void deleteNode(UUID nodeId) {
-        // findById нужен, чтобы (а) бросить NodeNotFoundException если нет,
-        // (б) на шаге 6 этапа 3 — извлечь topicId до удаления для пересчёта
-        nodeRepository.findById(nodeId)
+        Node existing = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new NodeNotFoundException(nodeId));
         nodeRepository.deleteById(nodeId);
-        // TODO Этап 3 шаг 6: statusCalculationService.recalculateTopic(existing.topicId())
+        statusCalculationService.recalculateTopic(existing.topicId());
     }
 
     @Transactional(readOnly = true)
