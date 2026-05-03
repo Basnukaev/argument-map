@@ -117,12 +117,18 @@ M:N связи. `NodeSource` содержит точную цитату и ко�
 
 **MVP-версия** (простая, жадная):
 
-1. Узел без входящих рёбер — `UNVERIFIED`, пока не оценён.
-2. Узел, все supporting рёбра которого идут от `REFUTED` узлов, а есть
-   хотя бы одно `STANDING` refuting ребро — помечается `REFUTED`.
-3. Узел, у которого есть и `STANDING` supports, и `STANDING` refutes —
-   `DISPUTED`.
-4. Узел с `STANDING` supports и без `STANDING` refutes — `STANDING`.
+1. Узел без входящих "влияющих" рёбер (`SUPPORTS`/`REFUTES`/`INVALIDATES`)
+   сохраняет текущий статус. Default — `UNVERIFIED` (проставляется при
+   создании узла); ручная пометка статуса (потенциально на Этапе 6+)
+   переживёт пересчёт, пока на узел никто не ссылается влияющим ребром.
+2. `INVALIDATES` от `STANDING`-источника — жёсткий kill: цель → `REFUTED`
+   безусловно, даже если у цели есть `STANDING` supports (см. ADR-007).
+3. Узел с входящими `SUPPORTS`/`REFUTES` рёбрами:
+   - есть `STANDING` supports и `STANDING` refutes → `DISPUTED`
+   - есть `STANDING` supports, нет `STANDING` refutes → `STANDING`
+   - нет `STANDING` supports, есть `STANDING` refutes → `REFUTED`
+   - все источники не-`STANDING` (`REFUTED`/`UNVERIFIED`) → `UNVERIFIED`
+4. `QUALIFIES` и `RESPONDS_TO` рёбра в алгоритм не входят (ADR-007).
 
 `INVALIDATES` действует на ребро или узел как "жёсткое" опровержение,
 сильнее чем `REFUTES`.
