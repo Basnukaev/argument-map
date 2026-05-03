@@ -75,9 +75,17 @@
 
 ## Этап 5. Справочники и поиск
 
-- [ ] `SourceService` + REST: CRUD, поиск по названию/типу
-- [ ] `AuthorityService` + REST: CRUD, поиск по имени/эпохе/мазхабу
-- [ ] Привязка источников и авторитетов к узлам
+- [x] `SourceService` + REST: CRUD, поиск по названию (`?q=...`)
+- [x] `AuthorityService` + REST: CRUD, поиск по имени (`?q=...`)
+- [x] Привязка источников и авторитетов к узлам через
+      `NodeSourceService` / `NodeAuthorityService`
+- [x] Бизнес-валидация: `reliability` только для `SourceType.HADITH`
+      (`InvalidSourceException` → 422)
+- [x] `api-contract.md` — заполнены секции Sources/Authorities/привязок
+- [ ] TODO после-MVP: пагинация для GET-list эндпоинтов
+      (`/sources`, `/authorities`) — пока не нужна, справочники маленькие
+- [ ] TODO после-MVP: фильтрация `?type=`, `?reliability=`, `?era=`,
+      `?madhab=` — пока есть только `?q=`
 
 ## Этап 6. Улучшения (после MVP)
 

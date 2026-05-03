@@ -21,7 +21,13 @@
       "Bash(git -C /mnt/c/my_folders/projects/argument-map status)",
       "Bash(git -C /mnt/c/my_folders/projects/argument-map diff --stat)",
       "Bash(git -C /mnt/c/my_folders/projects/argument-map add backend/src/main/java/ru/basnukaev/argumentmap/domain/ backend/src/main/java/ru/basnukaev/argumentmap/repository/ backend/src/test/java/ru/basnukaev/argumentmap/repository/ backend/src/test/java/ru/basnukaev/argumentmap/TestcontainersConfiguration.java)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(./mvnw -Dit.test=TopicServiceIT -DfailIfNoTests=false verify)",
+      "Bash(./mvnw -Dit.test='TopicServiceIT,NodeServiceIT' -DfailIfNoTests=false verify)",
+      "Bash(./mvnw -Dtest=StatusCalculationServiceTest test)",
+      "Bash(./mvnw -Dtest='StatusCalculationServiceTest#claimSupportedByStanding_becomesStanding' test)",
+      "Bash(./mvnw dependency:resolve -q)",
+      "Bash(./mvnw -Dit.test=TopicControllerIT -DfailIfNoTests=false verify)"
     ]
   },
   "outputStyle": "Explanatory"

@@ -13,6 +13,125 @@
 
 ---
 
+## 2026-05-03 — Сессия 6 (backend) — справочники и поиск (Этап 5)
+
+### Сделано
+- 3 новых исключения (`exception/`):
+  `SourceNotFoundException`, `AuthorityNotFoundException`,
+  `InvalidSourceException`
+- 4 сервиса (`service/`):
+  - `SourceService` — CRUD + searchByTitle. Бизнес-правило:
+    `reliability != null` запрещён для `SourceType != HADITH`
+    (бросает `InvalidSourceException`)
+  - `AuthorityService` — CRUD + searchByName
+  - `NodeSourceService` — `attachSource` / `getNodeSources` /
+    `detachSource`. Валидирует существование узла и источника
+  - `NodeAuthorityService` — то же со `stance`
+- 8 DTO (`web/dto/`):
+  - `CreateSourceRequest`, `SourceResponse` (metadata как `JsonNode`)
+  - `CreateAuthorityRequest`, `AuthorityResponse`
+  - `AttachSourceRequest`, `NodeSourceResponse`
+  - `AttachAuthorityRequest`, `NodeAuthorityResponse`
+- `DtoMappers` дополнен:
+  - Методы `toResponse(Source/Authority/NodeSource/NodeAuthority)`
+  - Утилиты `jsonToString(JsonNode)` / `jsonFromString(String)` через
+    статический `ObjectMapper` для конверсии jsonb-колонок
+- 4 контроллера (`web/controller/`):
+  - `SourceController` — POST/GET-list (с `?q`)/GET-one/DELETE
+  - `AuthorityController` — то же
+  - `NodeSourceController` — POST/GET/DELETE на
+    `/api/v1/nodes/{nodeId}/sources`
+  - `NodeAuthorityController` — то же на `/authorities`
+- `GlobalExceptionHandler` дополнен — 3 новых обработчика
+  (`source-not-found`, `authority-not-found`, `invalid-source`)
+- 32 новых интеграционных теста (всего 136):
+  - `SourceControllerIT` — 10 тестов (создание HADITH/BOOK,
+    бизнес-валидация reliability, поиск, удаление)
+  - `AuthorityControllerIT` — 8 тестов
+  - `NodeSourceControllerIT` — 7 тестов
+  - `NodeAuthorityControllerIT` — 7 тестов
+- `api-contract.md` дополнен v1: секции Sources/Authorities/привязок
+  + 4 новых типа Response + новые `type`-коды
+
+### Решения
+- **`metadata` (jsonb) как `JsonNode` в DTO:** Jackson обрабатывает
+  туда-обратно прозрачно. В domain — `String` (raw JSON), маппер
+  делает `JSON.readTree(string)` на чтение и `node.toString()` на
+  запись. Спрятано в `DtoMappers.jsonFromString` /
+  `DtoMappers.jsonToString`. Альтернатива (`Map<String,Object>`)
+  потребовала бы `@Component`-маппер с инжектом Spring `ObjectMapper` -
+  не оправдано
+- **`NodeSourceResponse`/`NodeAuthorityResponse` без вложенного
+  `Source`/`Authority`:** возвращаются только метаданные привязки
+  (`{nodeId, sourceId, quote, context, createdAt}`). Если фронту
+  нужны полные данные источника - отдельный запрос на
+  `/sources/{id}`. Минимальный payload, нет N+1 на бэке. При
+  необходимости встроим nested позже без breaking change (новое поле
+  не ломает клиентов)
+- **`reliability` валидируется в сервисе, не на БД-CHECK:** в БД
+  `reliability` принимает любое из `SAHIH/HASAN/DAIF` (или null) для
+  любого `source_type`. Семантическое правило "только для HADITH" —
+  на сервисном слое. Гибче добавлять новые типы источников, у которых
+  тоже может быть reliability
+- **Поиск через `?q=...`:** соответствует резервации в `api-design.md`
+  ("`q` - зарезервированный параметр для текстового поиска").
+  Реализация: `ILIKE '%query%'` на `title` / `name` через
+  `searchByTitle` / `searchByName` репозиториев Этапа 2
+- **Пагинация откладывается:** справочники маленькие, KISS. TODO
+  отмечен в roadmap. Для полноценной пагинации потребуется
+  `PageResponse<T>`/`PageInfo` records, `findAllPaged(offset, limit)`
+  в репо, валидация `?page`/`?size`. Не блокирует MVP
+- **DELETE на `/nodes/{nodeId}/sources/{sourceId}` возвращает 404
+  если привязка не существует (`source-not-found`):** строго говоря,
+  привязки не было; но различать "источника нет в справочнике" vs
+  "привязки нет" не требуется для UX. Достаточно одного 404
+- **Метаданные в JSON request — нативный объект, не строка:**
+  фронт передаёт `{"metadata": {"book": 1}}`, а не
+  `{"metadata": "{\"book\":1}"}`. Jackson десериализует в `JsonNode`,
+  валидируется как обычный JSON. Это корректнее по api-design.md
+  ("JSON в запросах")
+
+### Проблемы
+- Нет
+
+### Следующий шаг
+**Этап 6: улучшения после MVP.**
+
+По roadmap:
+- Полнотекстовый поиск по содержимому узлов (Postgres `tsvector`)
+- Реализация Dung's argumentation framework (продвинутый алгоритм
+  пересчёта статусов)
+- Импорт/экспорт темы в JSON
+- Аутентификация и авторизация (Spring Security, JWT) - в т.ч.
+  миграция с `X-User-Id` (ADR-006) на `Authentication`
+- Голосование за вес аргументов
+
+Каждая задача — отдельный мини-проект, можно делать независимо.
+
+Альтернативно: **Этап 7 — фронтенд.** Бэкенд API стабилен и
+задокументирован (`api-contract.md` + Swagger UI). Можно начинать
+фронт. Подготовительные шаги:
+1. Выбрать фреймворк (React / Vue / Svelte) → ADR
+2. Выбрать библиотеку графов (React Flow / Cytoscape / D3) → ADR
+3. Создать `frontend/` папку, `frontend/CLAUDE.md`,
+   `frontend/docs/coding-standards.md`,
+   `frontend/docs/ui-guidelines.md`
+4. Сборка (Vite/Next), TypeScript, линтер
+5. Сгенерировать TS-клиент из `/v3/api-docs` через
+   `openapi-typescript`
+
+### Важные нюансы
+- Бэкенд готов к новым клиентам: API стабилен, OpenAPI генерится,
+  `api-contract.md` синхронизирован
+- Перед запуском фронта - убедиться что CORS настроен (см.
+  `api-design.md`); сейчас не настроен, потребуется
+  `WebMvcConfigurer` или Spring Security
+- Когда появится Spring Security — заменить `CurrentUserArgumentResolver`
+  на стандартный `@AuthenticationPrincipal`. Контракты сервисов не
+  меняются (ADR-006)
+
+---
+
 ## 2026-05-03 — Сессия 5 (backend) — REST API (Этап 4)
 
 ### Сделано

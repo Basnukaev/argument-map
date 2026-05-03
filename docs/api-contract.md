@@ -5,8 +5,9 @@
 
 ## Статус
 
-✅ **v1, Этап 4** - реализованы эндпоинты для тем, узлов, рёбер, графа,
-ревизий. Источники и авторитеты появятся после Этапа 5.
+✅ **v1, Этапы 4-5** - реализованы все эндпоинты MVP: темы, узлы, рёбра,
+граф, ревизии, источники, авторитеты, привязка источников и авторитетов
+к узлам.
 
 OpenAPI-спецификация: `/v3/api-docs` (JSON), Swagger UI: `/swagger-ui/index.html`.
 
@@ -240,11 +241,161 @@ OpenAPI-спецификация: `/v3/api-docs` (JSON), Swagger UI: `/swagger-u
 
 ### Источники (Sources)
 
-_Появятся после Этапа 5._
+#### POST /api/v1/sources
+
+Создать источник в справочнике.
+
+**Запрос:**
+```json
+{
+  "sourceType": "QURAN|HADITH|BOOK|ARTICLE|URL",
+  "title": "Сахих аль-Бухари",
+  "citation": "том 1, хадис 4",
+  "reliability": "SAHIH|HASAN|DAIF",
+  "metadata": { "collection": "bukhari", "book": 1, "hadith": 4 }
+}
+```
+- `title`: 1-500 символов, обязательно
+- `citation`: до 2000 символов, опционально
+- `reliability`: только для `sourceType=HADITH`. Для других типов
+  обязан быть `null` - иначе 422 (`invalid-source`)
+- `metadata`: произвольный JSON-объект, опционально
+
+**Ответ (201 Created):**
+- Заголовок `Location: /api/v1/sources/{id}`
+- Тело: `SourceResponse`
+
+**Ошибки:**
+- `400` - невалидные поля
+- `422` - `reliability` указан для не-`HADITH`
+
+#### GET /api/v1/sources
+
+Список источников или поиск по названию.
+
+**Параметры:**
+- `q` (опционально) - подстрока для поиска по `title` (case-insensitive)
+
+**Ответ (200 OK):** массив `SourceResponse`.
+
+#### GET /api/v1/sources/{sourceId}
+
+Один источник.
+
+**Ошибки:** `404` - не найден (`source-not-found`).
+
+#### DELETE /api/v1/sources/{sourceId}
+
+Удалить источник. Каскадно удаляет привязки к узлам.
+
+**Ответ:** `204 No Content`.
+
+**Ошибки:** `404`.
 
 ### Авторитеты (Authorities)
 
-_Появятся после Этапа 5._
+#### POST /api/v1/authorities
+
+Создать авторитет.
+
+**Запрос:**
+```json
+{
+  "name": "Ибн Таймия",
+  "bio": "Известный учёный...",
+  "era": "XIII-XIV век",
+  "madhab": "ханбалитский",
+  "metadata": { "birth_year": 1263 }
+}
+```
+- `name`: 1-500 символов, обязательно
+- `bio`: до 10000 символов, опционально
+- `era`: до 100 символов, опционально
+- `madhab`: до 100 символов, опционально
+- `metadata`: произвольный JSON, опционально
+
+**Ответ (201 Created):**
+- Заголовок `Location: /api/v1/authorities/{id}`
+- Тело: `AuthorityResponse`
+
+**Ошибки:** `400` - невалидные поля.
+
+#### GET /api/v1/authorities
+
+Список или поиск по имени (`q`).
+
+**Ответ (200 OK):** массив `AuthorityResponse`.
+
+#### GET /api/v1/authorities/{authorityId}
+
+Один авторитет. `404` если не найден (`authority-not-found`).
+
+#### DELETE /api/v1/authorities/{authorityId}
+
+Удаление + каскад привязок. `204` или `404`.
+
+### Привязка источников к узлам
+
+#### POST /api/v1/nodes/{nodeId}/sources
+
+Привязать источник к узлу.
+
+**Запрос:**
+```json
+{
+  "sourceId": "uuid",
+  "quote": "точная цитата",
+  "context": "комментарий по использованию"
+}
+```
+- `quote`: до 10000 символов, опционально
+- `context`: до 2000 символов, опционально
+
+**Ответ (201 Created):** `NodeSourceResponse`.
+
+**Ошибки:**
+- `400` - невалидные поля
+- `404` - узел или источник не найден
+
+#### GET /api/v1/nodes/{nodeId}/sources
+
+Список источников, привязанных к узлу. `404` если узел не найден.
+
+**Ответ (200 OK):** массив `NodeSourceResponse`.
+
+#### DELETE /api/v1/nodes/{nodeId}/sources/{sourceId}
+
+Отвязать источник.
+
+**Ответ:** `204 No Content`. `404` - привязка не найдена.
+
+### Привязка авторитетов к узлам
+
+#### POST /api/v1/nodes/{nodeId}/authorities
+
+Привязать авторитет к узлу с указанием позиции.
+
+**Запрос:**
+```json
+{
+  "authorityId": "uuid",
+  "stance": "HOLDS|OPPOSES|NEUTRAL"
+}
+```
+
+**Ответ (201 Created):** `NodeAuthorityResponse`.
+
+**Ошибки:**
+- `400` - невалидные поля
+- `404` - узел или авторитет не найден
+
+#### GET /api/v1/nodes/{nodeId}/authorities
+
+Список авторитетов узла со `stance`. `404` если узел не найден.
+
+#### DELETE /api/v1/nodes/{nodeId}/authorities/{authorityId}
+
+Отвязать авторитет. `204` или `404`.
 
 ## Общие типы ответов
 
@@ -300,6 +451,53 @@ _Появятся после Этапа 5._
 }
 ```
 
+### SourceResponse
+```json
+{
+  "id": "uuid",
+  "sourceType": "QURAN|HADITH|BOOK|ARTICLE|URL",
+  "title": "string",
+  "citation": "string|null",
+  "reliability": "SAHIH|HASAN|DAIF|null",
+  "metadata": { ... } | null,
+  "createdAt": "iso8601"
+}
+```
+
+### AuthorityResponse
+```json
+{
+  "id": "uuid",
+  "name": "string",
+  "bio": "string|null",
+  "era": "string|null",
+  "madhab": "string|null",
+  "metadata": { ... } | null,
+  "createdAt": "iso8601"
+}
+```
+
+### NodeSourceResponse
+```json
+{
+  "nodeId": "uuid",
+  "sourceId": "uuid",
+  "quote": "string|null",
+  "context": "string|null",
+  "createdAt": "iso8601"
+}
+```
+
+### NodeAuthorityResponse
+```json
+{
+  "nodeId": "uuid",
+  "authorityId": "uuid",
+  "stance": "HOLDS|OPPOSES|NEUTRAL",
+  "createdAt": "iso8601"
+}
+```
+
 ### GraphResponse
 ```json
 {
@@ -324,7 +522,10 @@ _Появятся после Этапа 5._
 - `topic-not-found` (404)
 - `node-not-found` (404)
 - `edge-not-found` (404)
+- `source-not-found` (404)
+- `authority-not-found` (404)
 - `invalid-edge` (422)
+- `invalid-source` (422)
 - `missing-user-header` (400)
 - `data-integrity-violation` (422)
 - `validation` (400) - дополнительно поле `errors`
@@ -350,3 +551,4 @@ _Появятся после Этапа 5._
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
 | 2026-05-03 | v1 | первая версия: Topics, Nodes, Edges, Graph, Revisions | реализация Этапа 4 |
+| 2026-05-03 | v1 | добавлены Sources, Authorities, NodeSources, NodeAuthorities | реализация Этапа 5 |
