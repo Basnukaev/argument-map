@@ -13,6 +13,109 @@
 
 ---
 
+## 2026-05-03 — Сессия 5 (backend) — REST API (Этап 4)
+
+### Сделано
+- Добавлена зависимость `springdoc-openapi-starter-webmvc-ui:2.8.0`
+  в `pom.xml`. Spring Boot 3.5 совместим
+- `GlobalExceptionHandler` (`@RestControllerAdvice`) с Problem Details
+  (RFC 7807) для всех доменных исключений + Bean Validation +
+  `DataIntegrityViolation`. Spring сам выставляет
+  `Content-Type: application/problem+json`
+- Новое исключение `MissingUserHeaderException` для невалидного
+  / отсутствующего `X-User-Id`
+- 9 DTO в `web/dto/`:
+  - `CreateTopicRequest`, `TopicResponse`
+  - `CreateNodeRequest`, `UpdateNodeRequest`, `NodeResponse`
+  - `CreateEdgeRequest`, `EdgeResponse`
+  - `RevisionResponse`, `GraphResponse`
+- `DtoMappers` (`web/mapper/`) — статические методы маппинга
+  `domain → DTO`, без MapStruct (объёма мало)
+- `@CurrentUser` аннотация + `CurrentUserArgumentResolver` —
+  читает `X-User-Id`, парсит UUID, инжектит в контроллерные методы.
+  Существование пользователя не валидирует здесь — пускаем БД-FK
+  поймать на write (→ 422)
+- `WebMvcConfig` — регистрация резолвера в Spring MVC
+- 3 контроллера в `web/controller/`:
+  - `TopicController` — POST/GET/GET-one/DELETE/GET-graph
+  - `NodeController` — POST/PATCH/DELETE/GET-revisions
+  - `EdgeController` — POST/DELETE
+- 4 интеграционных теста (29 тестов всего):
+  - `TopicControllerIT` — 10 тестов
+  - `NodeControllerIT` — 9 тестов
+  - `EdgeControllerIT` — 7 тестов
+  - `OpenApiIT` — 3 теста (доступность `/v3/api-docs` со всеми
+    эндпоинтами; редирект `/swagger-ui.html`; загрузка
+    `/swagger-ui/index.html`)
+- `api-contract.md` обновлён v1 — описаны все эндпоинты + примеры
+  запросов/ответов + список Problem Details type-кодов
+- Все 104 теста проходят (`./mvnw verify`)
+
+### Решения
+- Маппинг через статический utility-класс `DtoMappers` — KISS, нет
+  MapStruct (соглашение из roadmap "ручные, без MapStruct — слишком
+  мало маппинга")
+- `createdBy` в Response DTO — UUID, не вложенный объект `UserSummary`.
+  Если фронту понадобится `username` — добавим `UserSummary` позже.
+  KISS до явного use-case
+- `@CurrentUser` + argument resolver вместо `@RequestHeader` на каждом
+  методе — DRY. Параметр контроллера выглядит как `UUID userId`,
+  без шумной аннотации заголовка
+- В резолвере UUID не валидируется на существование в БД —
+  FK-нарушение поймёт `INSERT` в репозитории, переведётся в 422 через
+  `GlobalExceptionHandler`. Меньше круглых походов к БД, документировано
+  в `api-contract.md`
+- `ProblemDetail` из Spring Framework 6 — нативно поддержан Spring
+  Boot 3, не нужны сторонние библиотеки. `setProperty("errors", ...)`
+  для расширения тела `validation` ошибки
+- Для `MethodArgumentNotValidException` написан кастомный обработчик
+  — Spring Boot по умолчанию сам отвечает Problem Details, но без поля
+  `errors[]`, которое требует api-design.md
+- `DELETE` эндпоинты не требуют `X-User-Id` — не нужно знать "кто",
+  достаточно "что". Авторизация (Этап 6) добавит контроль "может ли
+  этот юзер удалять"
+
+### Проблемы
+- Нет
+
+### Следующий шаг
+**Этап 5 из roadmap: справочники и поиск.**
+
+Задачи по roadmap:
+- `SourceService` + REST: CRUD, поиск по названию/типу
+- `AuthorityService` + REST: CRUD, поиск по имени/эпохе/мазхабу
+- Привязка источников и авторитетов к узлам через
+  `NodeSourceService` / `NodeAuthorityService`
+
+Эндпоинты по `architecture.md`:
+- `POST /api/v1/sources` — добавить источник
+- `GET /api/v1/sources?q=...` — поиск
+- `POST /api/v1/nodes/{id}/sources` — привязать
+- `POST /api/v1/authorities` / `GET /api/v1/authorities?q=...`
+- `POST /api/v1/nodes/{id}/authorities` — привязать со `stance`
+
+Уже готово на Этапе 2: `SourceRepository`, `AuthorityRepository`,
+`NodeSourceRepository`, `NodeAuthorityRepository` — с `searchByTitle` /
+`searchByName`. Нужны сервисы (тонкие, без сложной логики), DTO,
+контроллеры.
+
+### Важные нюансы для Этапа 5
+- Поиск через `?q=...` (как зарезервировано в `api-design.md`)
+- Пагинация по правилам `api-design.md` — offset-based с `page`/`size`
+  / `sort`. Для MVP списки могут быть без пагинации (KISS), но
+  посмотреть на объём — если очерёдно 1000+ источников, добавить
+- `NodeSource`/`NodeAuthority` — composite-key, отдельные эндпоинты
+  с двумя параметрами в URL (`/nodes/{nodeId}/sources/{sourceId}`)
+- Метаданные `sources.metadata` (jsonb) — в DTO как `Map<String,
+  Object>` или сырая строка JSON. Решить: `Object` (Jackson сам
+  парсит/сериализует) проще для фронта
+- Привязка источника к узлу — POST с телом `{quote, context}`
+- `Reliability` enum (`SAHIH`/`HASAN`/`DAIF`) только для
+  `SourceType.HADITH`. Валидация бизнес-правила в сервисе:
+  `reliability != null` запрещён для не-`HADITH`
+
+---
+
 ## 2026-05-03 — Сессия 4 (backend) — сервисный слой (Этап 3)
 
 ### Сделано

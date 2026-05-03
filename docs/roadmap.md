@@ -63,12 +63,15 @@
 
 ## Этап 4. REST API
 
-- [ ] DTO + мапперы (ручные, без MapStruct — слишком мало маппинга)
-- [ ] Контроллеры (см. эскиз в `architecture.md`)
-- [ ] Глобальный `@ControllerAdvice` с обработкой исключений
-- [ ] Валидация входных DTO (`@Valid`, аннотации)
-- [ ] OpenAPI-спецификация через `springdoc-openapi`
-- [ ] Интеграционные тесты контроллеров через `MockMvc` + Testcontainers
+- [x] DTO + мапперы (ручные, без MapStruct — слишком мало маппинга)
+- [x] Контроллеры (см. эскиз в `architecture.md`)
+- [x] Глобальный `@ControllerAdvice` с Problem Details (RFC 7807)
+- [x] Валидация входных DTO (`@Valid`, аннотации)
+- [x] OpenAPI-спецификация через `springdoc-openapi`
+- [x] Интеграционные тесты контроллеров через `MockMvc` + Testcontainers
+- [x] `X-User-Id` заголовок через `@CurrentUser` + argument resolver
+      (ADR-006)
+- [x] `api-contract.md` — описаны все эндпоинты v1
 
 ## Этап 5. Справочники и поиск
 
