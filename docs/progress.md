@@ -13,6 +13,126 @@
 
 ---
 
+## 2026-05-03 — Сессия 7 (frontend) — подготовка документации фронта
+
+Это **разовая сессия по подготовке** — кода фронта не пишем.
+Создаётся документация и структура `frontend/` для запуска
+полноценной разработки в следующей сессии (запускается из
+`cd ../frontend && claude`).
+
+### Сделано
+- 2 новых ADR в `docs/decisions.md`:
+  - **ADR-008** — React 19 + TypeScript + Vite для фронтенда
+  - **ADR-009** — React Flow (`@xyflow/react`) для визуализации графа.
+    Рассмотрены и отклонены: Cytoscape.js, D3, vis.js
+- Создана структура `frontend/`:
+  - `frontend/CLAUDE.md` — конфиг для Claude Code, аналог
+    `backend/CLAUDE.md`. Стек, документация, соглашения по коду,
+    структура папок, тесты, локальная разработка, git-коммиты
+  - `frontend/docs/coding-standards.md` — TS/React стандарты:
+    SOLID/KISS/DRY/YAGNI в контексте React, TypeScript strict,
+    union literal types вместо enum, правила хуков, React Flow
+    специфика (`nodeTypes` вне компонента), именование, обработка
+    ошибок Problem Details, тесты через Vitest + RTL + MSW
+  - `frontend/docs/ui-guidelines.md` — дизайн-система: цвета
+    статусов узлов (зелёный/жёлтый/красный/серый), стили рёбер по
+    типу (включая пунктирный INVALIDATES), спецификация кастомного
+    узла React Flow, layout страниц (`/topics`, `/topics/new`,
+    `/topics/{id}`), компоненты, responsive (desktop-first 1024px+),
+    a11y
+- Обновлён Этап 7 в `docs/roadmap.md`:
+  - Подзадача "выбор фреймворка" и "библиотеки графа" закрыты
+    (ADR-008, ADR-009)
+  - Подзадача "создать CLAUDE.md / coding-standards / ui-guidelines"
+    закрыта
+  - Добавлены конкретные подзадачи для инициализации проекта,
+    генерации API-типов, MVP-страниц, после-MVP функций
+
+### Решения
+- **React + React Flow стек.** Главные мотиваторы:
+  - React Flow — единственная библиотека, дающая Miro-подобный UX
+    drag-and-drop за дни, не месяцы
+  - React даёт максимум ресурсов для разработчика без JS-опыта
+  - TypeScript обязателен для синхронизации с
+    `api-contract.md` через `openapi-typescript`
+- **Tailwind CSS** для стилизации. Никаких отдельных CSS-файлов.
+  Если набор классов повторяется в 3+ местах — компонент или
+  `cva` для вариантов
+- **Zustand** для стейт-менеджмента вместо Redux — простота, малый
+  объём boilerplate. Для MVP более чем достаточно
+- **MSW для моков API в тестах** — перехватывает на уровне fetch,
+  максимально близко к реальной работе
+- **Без TypeScript `enum`** — union literal types
+  (`type NodeStatus = 'STANDING' | ...`). Нет runtime-объекта,
+  нативно сериализуется в JSON, лучше tree-shaking
+- **Цветовая палитра статусов:** зелёный/жёлтый/красный/серый.
+  Это центральная визуальная семантика проекта — пользователь
+  видит результат алгоритма пересчёта одним взглядом
+- **Стили рёбер:** `INVALIDATES` — жирная пунктирная (визуально
+  отделена от обычных REFUTES, отражает kill-семантику ADR-007)
+- **Desktop-first.** Граф плохо работает на мобилках; на узких
+  экранах — сообщение "откройте на десктопе" с read-only-режимом
+- **`generate-api` через `openapi-typescript`** — типы фронта
+  всегда в синхроне с бэком. Если расходятся — это бажный
+  бэк (см. правило `api-contract.md`)
+
+### Проблемы
+- Нет
+
+### Следующий шаг
+**Инициализация `frontend/` проекта.** Запускается из новой сессии:
+```bash
+cd ../frontend && claude
+```
+
+Конкретные шаги первой `(frontend)` сессии:
+1. `npm create vite@latest .` — выбрать React + TypeScript
+2. Установить зависимости:
+   - `@xyflow/react` (React Flow)
+   - `@tanstack/react-router` или `react-router` (v7)
+   - `zustand`
+   - `tailwindcss`, `@tailwindcss/vite`, `postcss`, `autoprefixer`
+   - `lucide-react` (иконки)
+   - dev: `openapi-typescript`, `msw`, `vitest`,
+     `@testing-library/react`, `@testing-library/user-event`,
+     `@testing-library/jest-dom`, `@types/node`
+3. Настройка Tailwind: `tailwind.config.js`, импорт в
+   `src/index.css`
+4. Настройка `vite.config.ts`: alias `@` = `src/`, proxy `/api/*` →
+   `http://localhost:9090`
+5. Настройка `tsconfig.json`: `strict: true`,
+   `noUncheckedIndexedAccess: true`, paths для `@/*`
+6. ESLint + Prettier (через `eslint-config-prettier`)
+7. Скрипт `generate-api`:
+   `openapi-typescript http://localhost:9090/v3/api-docs -o
+   src/api/types.ts`
+8. Базовая структура:
+   - `src/App.tsx` с роутером (placeholder страницы `/topics`,
+     `/topics/new`, `/topics/{id}`)
+   - `src/components/ui/Button.tsx` — первый базовый компонент
+     для проверки Tailwind
+9. Проверить: `npm run dev` поднимает приложение, `npm run build`
+   собирает, `npm run test` прогоняет (пока пусто), `npm run
+   generate-api` генерит типы (требует поднятого бэка)
+10. Commit: `chore(frontend): initial vite + react + ts setup`
+
+После этого — переход к MVP-страницам по чек-листу из roadmap
+Этап 7.
+
+### Важные нюансы для следующей сессии
+- Бэк должен быть запущен (`docker compose up -d` для Postgres,
+  `cd ../backend && ./mvnw spring-boot:run`) для генерации API-типов
+- Перед запросами с фронта — проверить что бэк отвечает на
+  `localhost:9090/v3/api-docs`
+- CORS не настроен на беке — для dev используем Vite proxy.
+  Когда понадобится прямой запрос (production) — настроим CORS
+  через `WebMvcConfigurer` (см. `api-design.md`)
+- `X-User-Id` заголовок — пока временный (ADR-006). Фронт-клиент
+  должен прокидывать его на каждый мутирующий запрос. Можно через
+  fetch-обёртку, читающую UUID из localStorage / стейта
+
+---
+
 ## 2026-05-03 — Сессия 6 (backend) — справочники и поиск (Этап 5)
 
 ### Сделано
