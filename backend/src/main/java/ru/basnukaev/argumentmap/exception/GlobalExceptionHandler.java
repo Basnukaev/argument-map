@@ -43,6 +43,24 @@ public class GlobalExceptionHandler {
                 "Невалидное ребро", "invalid-edge", ex.getMessage());
     }
 
+    @ExceptionHandler(SourceNotFoundException.class)
+    public ProblemDetail handleSourceNotFound(SourceNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "Источник не найден",
+                "source-not-found", ex.getMessage());
+    }
+
+    @ExceptionHandler(AuthorityNotFoundException.class)
+    public ProblemDetail handleAuthorityNotFound(AuthorityNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "Авторитет не найден",
+                "authority-not-found", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidSourceException.class)
+    public ProblemDetail handleInvalidSource(InvalidSourceException ex) {
+        return problem(HttpStatus.UNPROCESSABLE_ENTITY,
+                "Невалидный источник", "invalid-source", ex.getMessage());
+    }
+
     @ExceptionHandler(MissingUserHeaderException.class)
     public ProblemDetail handleMissingUser(MissingUserHeaderException ex) {
         return problem(HttpStatus.BAD_REQUEST,
