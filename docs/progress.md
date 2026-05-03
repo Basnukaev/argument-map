@@ -13,6 +13,126 @@
 
 ---
 
+## 2026-05-03 — Сессия 4 (backend) — сервисный слой (Этап 3)
+
+### Сделано
+- Брейнсторм Этапа 3 → дизайн в
+  `docs/superpowers/specs/2026-05-03-stage-3-services-design.md`
+- 2 новых ADR:
+  - **ADR-006** — `createdBy` через HTTP-заголовок `X-User-Id` до
+    появления Spring Security (Этап 6)
+  - **ADR-007** — вклад типов рёбер в алгоритм пересчёта статусов:
+    `SUPPORTS`/`REFUTES` — обычные, `INVALIDATES` — kill-switch,
+    `QUALIFIES`/`RESPONDS_TO` — не входят
+- Уточнение правила 1 в `architecture.md`: узел без влияющих входящих
+  рёбер сохраняет текущий статус (вместо принудительного `UNVERIFIED`).
+  Это поддерживает будущую ручную пометку статуса и делает алгоритм
+  устойчивым к сценарию "удалили последнее ребро" — статус не
+  обнуляется, а отражает фактическое состояние графа
+- 4 доменных исключения в `exception/`:
+  `TopicNotFoundException`, `NodeNotFoundException`,
+  `EdgeNotFoundException`, `InvalidEdgeException`
+- 5 сервисов в `service/`:
+  - `TopicService` — `createTopic` (создаёт root QUESTION
+    транзакционно, обходя циркулярный FK), `getTopic`, `listTopics`,
+    `deleteTopic`
+  - `NodeService` — `createNode`, `updateContent` (пишет revision),
+    `deleteNode` (триггерит recalc), `getRevisions`
+  - `EdgeService` — `createEdge` (валидация self-loop / cross-topic,
+    триггерит recalc), `deleteEdge` (триггерит recalc)
+  - `GraphService` — `getGraph(topicId) → GraphView{topic, nodes,
+    edges}` (плоская форма, как у graph-библиотек React Flow / Cytoscape)
+  - `StatusCalculationService` — фикспоинт-итерация в памяти, в БД
+    пишутся только дельты, `MAX_ITERATIONS = max(20, nodes*2)`
+- `GraphView` record (`service/GraphView.java`)
+- 75 тестов всего (было 46 после Этапа 2):
+  - `StatusCalculationServiceTest` — 14 unit-тестов (моки), все
+    сценарии из testing-strategy.md
+  - `StatusCalculationServiceIT` — 3 интеграционных
+  - `TopicServiceIT` — 6
+  - `NodeServiceIT` — 9 (включая recalc через `deleteNode`)
+  - `EdgeServiceIT` — 9 (включая recalc через `createEdge`/`deleteEdge`,
+    cross-topic, self-loop)
+  - `GraphServiceIT` — 3
+- Все коммиты по смыслу (5 коммитов на этап)
+- Сохранена feedback-память в
+  `~/.claude/projects/.../memory/feedback_decision_authority.md` —
+  правило "решаю сам, спрашиваю только при дилеммах; ADR только когда
+  через месяц возникнет вопрос почему"
+
+### Решения
+- Дизайн зафиксирован в spec-документе со ссылками на ADR-006/007
+- Транзакционность: `@Transactional` строго на сервисах, не на
+  репозиториях/контроллерах. `StatusCalculationService` без аннотации
+  (присоединяется к транзакции вызывающего)
+- `TopicService.createTopic` пишет root-узел через `NodeRepository`
+  напрямую (а не через `NodeService.createNode`), потому что
+  `NodeService` валидирует "тема существует", а тема ещё в незакоммиченной
+  транзакции
+- `EdgeService.deleteEdge` извлекает `topicId` через
+  `nodeRepository.findById(existing.fromNodeId())` до удаления —
+  иначе после удаления неоткуда взять topicId для пересчёта
+- `NodeService.deleteNode` аналогично — `findById` до `deleteById`
+- Алгоритм статусов: фикспоинт по графу в памяти, batch-update в БД
+  только дельт. `INVALIDATES` от STANDING-источника = kill (REFUTED
+  безусловно, бьёт STANDING supports). `QUALIFIES`/`RESPONDS_TO` —
+  не влияют
+
+### Проблемы
+- В первой версии алгоритма "узел без влияющих рёбер → UNVERIFIED"
+  ломал тесты с STANDING-источниками: алгоритм сбрасывал источник в
+  UNVERIFIED, и цепочка не работала. Решено: уточнено правило 1 в
+  `architecture.md` — узел без влияющих рёбер сохраняет статус. Это
+  совместимо с буквой "пока не оценён" из оригинального правила и
+  открывает дорогу к будущей ручной пометке (Этап 6+)
+- Spring DI требовал явного добавления `StatusCalculationService` в
+  конструкторы `EdgeService`/`NodeService` на шаге 6 — не упало, но
+  потребовало внимательности с порядком реализации (сначала SCS,
+  потом подключение)
+
+### Следующий шаг
+**Этап 4 из roadmap: REST API.**
+
+Задачи по roadmap:
+- DTO + ручные мапперы (без MapStruct — слишком мало маппинга по
+  ADR-неявному соглашению Этапа 4)
+- Контроллеры по эскизу из `architecture.md`:
+  - `POST /api/v1/topics` → `TopicService.createTopic`
+  - `GET /api/v1/topics`, `GET /api/v1/topics/{id}`,
+    `DELETE /api/v1/topics/{id}`
+  - `GET /api/v1/topics/{id}/graph` → `GraphService.getGraph`
+  - `POST /api/v1/nodes`, `PATCH /api/v1/nodes/{id}`,
+    `DELETE /api/v1/nodes/{id}`, `GET /api/v1/nodes/{id}/revisions`
+  - `POST /api/v1/edges`, `DELETE /api/v1/edges/{id}`
+- Глобальный `@ControllerAdvice` с маппингом доменных исключений на
+  HTTP-коды:
+  - `*NotFoundException` → 404
+  - `InvalidEdgeException` → 422
+  - `DataIntegrityViolationException` → 422 (FK нарушения)
+  - `MethodArgumentNotValidException` → 400 (Bean Validation)
+- Bean Validation на DTO через `@Valid`/`@NotNull`/`@NotBlank`/`@Size`
+- OpenAPI-спецификация через `springdoc-openapi` (надо добавить
+  зависимость в pom.xml — обсудить перед добавлением, см. CLAUDE.md
+  "Не добавлять зависимости без обсуждения")
+- `X-User-Id` заголовок (ADR-006): извлечение в контроллере, валидация
+  существования юзера в `users`, проброс UUID в сервис. Возможно через
+  `HandlerMethodArgumentResolver` или `@RequestHeader` на каждом методе
+  (обсудить)
+- Интеграционные тесты контроллеров через `MockMvc` + Testcontainers
+
+### Важные нюансы для Этапа 4
+- `api-contract.md` обновлять синхронно с каждым новым эндпоинтом
+- Имена JSON-полей — `camelCase` (Jackson default OK, но проверить)
+- Не возвращать доменные `Node`/`Edge`/`Topic` напрямую — DTO
+  (`NodeResponse`, `TopicResponse`, и т.д.)
+- DTO-структура для `GraphView` — `GraphResponse{topic, nodes[], edges[]}`,
+  плоская
+- `Idempotency-Key` для POST не делаем (запланировано на потом)
+- Пагинация для `GET /api/v1/topics` пока не нужна, но при появлении
+  скриниться по правилам `api-design.md`
+
+---
+
 ## 2026-04-20 — Сессия 3 (backend) — доменная модель и репозитории
 
 ### Сделано
