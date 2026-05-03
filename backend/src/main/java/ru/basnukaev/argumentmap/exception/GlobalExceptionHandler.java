@@ -1,0 +1,90 @@
+package ru.basnukaev.argumentmap.exception;
+
+import java.net.URI;
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+/**
+ * Глобальный обработчик исключений → Problem Details (RFC 7807).
+ * Spring сам выставит Content-Type: application/problem+json.
+ */
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final String ERROR_TYPE_BASE = "https://argumentmap.example/errors/";
+
+    @ExceptionHandler(TopicNotFoundException.class)
+    public ProblemDetail handleTopicNotFound(TopicNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "Тема не найдена", "topic-not-found", ex.getMessage());
+    }
+
+    @ExceptionHandler(NodeNotFoundException.class)
+    public ProblemDetail handleNodeNotFound(NodeNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "Узел не найден", "node-not-found", ex.getMessage());
+    }
+
+    @ExceptionHandler(EdgeNotFoundException.class)
+    public ProblemDetail handleEdgeNotFound(EdgeNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "Ребро не найдено", "edge-not-found", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidEdgeException.class)
+    public ProblemDetail handleInvalidEdge(InvalidEdgeException ex) {
+        return problem(HttpStatus.UNPROCESSABLE_ENTITY,
+                "Невалидное ребро", "invalid-edge", ex.getMessage());
+    }
+
+    @ExceptionHandler(MissingUserHeaderException.class)
+    public ProblemDetail handleMissingUser(MissingUserHeaderException ex) {
+        return problem(HttpStatus.BAD_REQUEST,
+                "Отсутствует или невалидный заголовок X-User-Id",
+                "missing-user-header", ex.getMessage());
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ProblemDetail handleDataIntegrity(DataIntegrityViolationException ex) {
+        log.warn("Нарушение целостности данных: {}", ex.getMessage());
+        return problem(HttpStatus.UNPROCESSABLE_ENTITY,
+                "Нарушение целостности данных",
+                "data-integrity-violation",
+                "Запрос нарушает ограничение БД (FK, unique или CHECK)");
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ProblemDetail handleValidation(MethodArgumentNotValidException ex) {
+        ProblemDetail problem = problem(HttpStatus.BAD_REQUEST,
+                "Ошибка валидации", "validation",
+                "Запрос содержит невалидные поля");
+        List<FieldError> errors = ex.getBindingResult().getFieldErrors().stream()
+                .map(fe -> new FieldError(fe.getField(),
+                        fe.getDefaultMessage() != null ? fe.getDefaultMessage() : "невалидное значение"))
+                .toList();
+        problem.setProperty("errors", errors);
+        return problem;
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ProblemDetail handleIllegalArgument(IllegalArgumentException ex) {
+        return problem(HttpStatus.BAD_REQUEST,
+                "Некорректный аргумент", "illegal-argument", ex.getMessage());
+    }
+
+    private ProblemDetail problem(HttpStatus status, String title, String typeSlug, String detail) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(status, detail);
+        pd.setTitle(title);
+        pd.setType(URI.create(ERROR_TYPE_BASE + typeSlug));
+        return pd;
+    }
+
+    public record FieldError(String field, String message) {
+    }
+}
