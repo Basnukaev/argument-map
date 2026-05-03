@@ -10,6 +10,12 @@ spring:
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.xml
 
+app:
+  cors:
+    # Список разрешённых origin'ов через запятую. По умолчанию пусто
+    # (никакие cross-origin запросы не разрешены). Переопределяется по профилям.
+    allowed-origins: ""
+
 ---
 spring:
   config:
@@ -21,6 +27,11 @@ spring:
     username: argmap
     password: argmap
 
+# Vite dev на 5173, preview на 4173
+app:
+  cors:
+    allowed-origins: "http://localhost:5173,http://localhost:4173"
+
 ---
 spring:
   config:
@@ -28,3 +39,8 @@ spring:
       on-profile: test
 
 # Заглушка. Datasource конфигурируется через Testcontainers @ServiceConnection.
+
+# Тестовый профиль использует фиксированные origin'ы для CorsIT
+app:
+  cors:
+    allowed-origins: "http://localhost:5173"
