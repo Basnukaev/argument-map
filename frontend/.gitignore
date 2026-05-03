@@ -1,0 +1,38 @@
+# Сборка
+dist/
+dist-ssr/
+*.local
+
+# Зависимости
+node_modules/
+
+# Логи
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Тесты
+coverage/
+
+# Локальные настройки IDE
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Переменные окружения
+.env.local
+.env.*.local
+
+# Артефакты TS
+*.tsbuildinfo
+
+# OpenAPI-сгенерированные типы (генерируются через npm run generate-api)
+# Можно коммитить, можно не коммитить - решим позже. Пока коммитим.

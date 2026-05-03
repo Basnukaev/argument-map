@@ -107,13 +107,17 @@
       `@xyflow/react`)
 - [x] Создать `frontend/CLAUDE.md`, `frontend/docs/coding-standards.md`,
       `frontend/docs/ui-guidelines.md`
-- [ ] Инициализация проекта: `npm create vite@latest`, TypeScript,
-      настройка Tailwind, React Router v7, Zustand
+- [x] Инициализация проекта: Vite + React 19 + TypeScript strict,
+      Tailwind v4, React Router v7, Zustand 5, ESLint 9 flat config,
+      Prettier, Vitest 3 + RTL + jsdom + jest-dom + MSW
+- [x] CORS-настройка на беке для dev (`app.cors.allowed-origins` в
+      `application.yml`, `WebMvcConfig.addCorsMappings`). Решено не
+      делать Vite proxy - фронт ходит напрямую через `VITE_API_URL`,
+      CORS на беке - идентично продакшну
 - [ ] Генерация TS-типов из OpenAPI бэка через `openapi-typescript`
-      (`npm run generate-api`)
-- [ ] Настройка proxy в `vite.config.ts`: `/api/*` → `localhost:9090`
-- [ ] Базовый layout: header, роутинг между страницами
-- [ ] CORS-настройка на беке для dev (если потребуется поверх proxy)
+      (`npm run generate-api` - скрипт прописан, прогон при запущенном беке)
+- [ ] Базовый layout: header, footer (кроме страницы графа), общий
+      контейнер (роутинг между страницами уже работает)
 
 ### MVP фронта
 - [ ] Страница `/topics` — список тем (`GET /api/v1/topics`)

@@ -13,6 +13,154 @@
 
 ---
 
+## 2026-05-03 — Сессия 8 (frontend) — Vite-инициализация + CORS на беке
+
+### Сделано
+- **Backend (отдельный коммит `ea54350`):** настройка CORS
+  - `application.yml`: новое свойство `app.cors.allowed-origins`. В дефолте
+    пусто (никакие cross-origin не разрешены), в `local`-профиле -
+    `http://localhost:5173,http://localhost:4173` (Vite dev и preview),
+    в `test` - `http://localhost:5173`
+  - `WebMvcConfig.addCorsMappings(CorsRegistry)` - mapping `/api/**` с
+    методами `GET/POST/PATCH/PUT/DELETE/OPTIONS`, заголовками
+    `Content-Type, Authorization, Idempotency-Key, X-User-Id`,
+    exposed `Location`, `allowCredentials=false`, `maxAge=3600`. Если
+    список origin'ов пуст - mapping не регистрируется (безопасный дефолт)
+  - `CorsIT.java` - 4 теста (preflight allowed/forbidden, simple GET с
+    Origin / без Origin). Всего 140/140 тестов зелёные (`./mvnw verify`)
+- **Frontend - инициализирован вручную в существующей папке** (не через
+  `npm create vite` чтобы не возиться с overwrite на непустой папке):
+  - `package.json`: scripts `dev/build/preview/test/test:run/lint/format/format:check/generate-api`
+  - Runtime deps: `react@19.2`, `react-dom@19.2`, `@xyflow/react@12.10`,
+    `react-router@7.14`, `zustand@5.0`, `lucide-react@1.14`
+  - Dev deps: `vite@6.4`, `@vitejs/plugin-react`, `typescript@5.9`,
+    `@types/{react,react-dom,node}`, `tailwindcss@4` + `@tailwindcss/vite`
+    + `@tailwindcss/oxide-linux-x64-gnu` (нативный биндинг), `eslint@9`
+    + `@eslint/js` + `typescript-eslint` + `eslint-plugin-react-hooks` +
+    `eslint-plugin-react-refresh` + `eslint-config-prettier` +
+    `prettier`, `globals`, `openapi-typescript@7`, `vitest@3.2` +
+    `@testing-library/{react,user-event,jest-dom}` + `jsdom` + `msw`
+- TypeScript strict: `tsconfig.json` (project refs), `tsconfig.app.json`
+  (`strict`, `noUncheckedIndexedAccess`, paths `@/*`),
+  `tsconfig.node.json`
+- `vite.config.ts`: alias `@` → `src/`, плагины `react()` + `tailwindcss()`,
+  vitest-конфиг (`globals: true`, `environment: 'jsdom'`, setup-файл)
+- `eslint.config.js` flat config: typescript-eslint recommended, react-hooks,
+  react-refresh, prettier (отключает конфликтующие правила)
+- `.prettierrc.json`: 100 char, single quote, trailing comma all
+- `.env.example` с `VITE_API_URL` и `VITE_DEV_USER_ID` (UUID для `X-User-Id`
+  по ADR-006); `.env.local` в `.gitignore`
+- Базовая структура:
+  - `index.html`, `src/main.tsx` с `BrowserRouter`, `src/App.tsx` с
+    роутами `/topics`, `/topics/new`, `/topics/{id}`, `/` → редирект на `/topics`
+  - `src/index.css` с `@import "tailwindcss"` (v4 синтаксис, без
+    @tailwind base/components/utilities)
+  - `src/components/ui/Button.tsx` - варианты `primary/secondary/danger`,
+    проброс `disabled` и нативных props
+  - `src/pages/{TopicListPage,CreateTopicPage,TopicGraphPage}.tsx` -
+    заглушки с навигацией между страницами
+  - `src/test-setup.ts` (jest-dom матчеры),
+    `src/components/ui/Button.test.tsx` - 4 теста (рендер, клик,
+    вариант, disabled)
+- Прогоны: `npm run build` OK (234kB JS / 75kB gzip),
+  `npm run lint` OK, `npm run test:run` 4/4 OK, `npm run dev` отвечает
+  HTTP 200 на `:5173`
+
+### Решения
+- **CORS вместо Vite proxy.** Фронт ходит напрямую на `VITE_API_URL`,
+  бэк отвечает `Access-Control-Allow-Origin`. Идентично продакшну, нет
+  магии proxy-rewrite. Запись в roadmap об этом обновлена
+- **React Router v7 (не `react-router-dom`).** `npm install react-router`
+  без явной версии резолверр взял `6.30.3` - принудительно поставил
+  `@latest` (`7.14.2`). В v7 `react-router-dom` deprecated, основной
+  пакет - `react-router`
+- **Lucide-react 1.x** - пакет действительно перешёл с `0.x` на `1.x`,
+  не подозрительная версия
+- **TypeScript 5.9** (не 6.x). Latest typescript@6 несовместим с
+  `openapi-typescript@7.13` (peer `^5.x`). Откат на 5.x не требует
+  изменений в коде
+- **Tailwind CSS v4 без postcss/autoprefixer.** В v4 не нужны - плагин
+  `@tailwindcss/vite` всё делает через Lightning CSS. CSS-импорт - через
+  `@import "tailwindcss"`, не `@tailwind`-директивы
+- **ESLint 9 flat config** (`eslint.config.js`), не legacy `.eslintrc.json`
+- **Не создавать пустые папки `src/api/`, `/stores/`, `/hooks/`,
+  `/types/`, `/utils/` заранее** - YAGNI. Появятся вместе с первым
+  файлом в них
+- **`X-User-Id` через `.env.local`** для dev: `VITE_DEV_USER_ID` будет
+  вшиваться в fetch-обёртку. Когда появится Spring Security - заменим
+  на токен (ADR-006)
+
+### Проблемы
+- **npm 9.2.0 (Debian apt-пакет) криво обрабатывал proxy-auth.** Все
+  попытки (`--proxy` флаги, `npm_config_*` env-переменные) возвращали
+  `407 Proxy Authentication Required`, при том что `curl` с теми же
+  кредами успешно скачивал страницы registry. После обновления npm до
+  10.9.3 заработало через стандартные env `HTTPS_PROXY`/`HTTP_PROXY`
+  без явной настройки. Записано в gotchas
+- **TypeScript 6.x latest несовместим с openapi-typescript@7** -
+  откатил на `^5.7`, npm подтянул `5.9.3`. На будущее: при апгрейде
+  TS до 6.x ждать поддержки от openapi-typescript
+- **Tailwind v4 native binding `@tailwindcss/oxide-linux-x64-gnu`** не
+  подтянулся как optionalDependency через прокси (известный bug npm
+  с optional deps). Поставил явно как dev-dep. На других платформах
+  (Mac, Windows) понадобится свой `@tailwindcss/oxide-*-*-*` -
+  записано в gotchas
+
+### Следующий шаг
+**Подключение фронта к бэк-API.**
+
+1. **Создать пользователя в БД для dev** (нужен для `X-User-Id`):
+   ```sql
+   INSERT INTO users (id, username, email, created_at) VALUES
+   (gen_random_uuid(), 'abdullah', 'a@example.com', now())
+   RETURNING id;
+   ```
+   Полученный UUID положить в `frontend/.env.local`:
+   ```
+   VITE_API_URL=http://localhost:9090
+   VITE_DEV_USER_ID=<тот самый UUID>
+   ```
+2. **Сгенерировать TS-типы из OpenAPI** (бэк должен быть запущен):
+   ```bash
+   npm run generate-api
+   ```
+   → создаст `src/api/types.ts` с типами всех Request/Response DTO
+3. **Создать fetch-обёртку** `src/api/client.ts`:
+   - читает `VITE_API_URL` (по умолчанию `http://localhost:9090`)
+   - на мутирующих запросах (POST/PATCH/DELETE) добавляет
+     `X-User-Id: ${VITE_DEV_USER_ID}` (читает из env, в будущем - из
+     стейта/токена)
+   - парсит Problem Details (RFC 7807) ответы 4xx/5xx, выбрасывает
+     типизированное исключение `ApiError` с полями `type`, `title`,
+     `status`, `detail`, опционально `errors[]` для validation
+   - возвращает уже типизированные данные через generic `ApiClient`,
+     совместимый с типами из `src/api/types.ts`
+4. **Реализовать `TopicListPage`:**
+   - useEffect → `GET /api/v1/topics`
+   - отрисовать карточки тем (id, title, createdAt) + кнопка "создать"
+   - обработка loading / error / empty состояний
+5. **Реализовать `CreateTopicPage`:**
+   - форма (`title`, `initialQuestion` для корневого узла)
+   - submit → `POST /api/v1/topics` → редирект на `/topics/{id}`
+   - валидация на клиенте + отображение Problem Details ошибок с бэка
+6. **Первый Zustand-стор** `src/stores/topicStore.ts` если списочное
+   состояние понадобится shared между страницами; на этапе MVP можно и
+   через React Query / локальный useState - решить по необходимости
+
+### Важные нюансы для следующей сессии
+- Бэк должен быть запущен (`docker compose up -d` для Postgres + бэк на
+  :9090). CORS уже настроен в этой сессии - запросы пройдут
+- В `users` таблице должен быть пользователь, чьим UUID мы будем
+  заполнять `VITE_DEV_USER_ID`. Без него мутации (POST/PATCH/DELETE)
+  упадут с 422 на FK-нарушение `created_by`
+- При установке новых npm-зависимостей через прокси нужен **npm 10+**
+  (на Debian/WSL стандартный 9.2.0 не работает) - выполнить
+  `npm install -g npm@latest` если переустановка
+- `node_modules/.cache/` если HMR начнёт глючить - удалить и
+  перезапустить dev-сервер
+
+---
+
 ## 2026-05-03 — Сессия 7 (frontend) — подготовка документации фронта
 
 Это **разовая сессия по подготовке** — кода фронта не пишем.

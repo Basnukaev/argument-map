@@ -102,4 +102,49 @@ Surefire (default) сканирует только `*Test`, Failsafe — тол�
 
 ---
 
+## npm 9 (Debian/WSL apt-пакет) криво работает с proxy-auth
+**Симптом:** `npm install <package>` через корпоративный прокси
+возвращает `npm ERR! code E407 - 407 Proxy Authentication Required`,
+при том что `curl -x "$HTTPS_PROXY" https://registry.npmjs.org/...`
+успешно качает с теми же кредами
+
+**Причина:** npm 9.x (в частности 9.2.0 из репов Debian/Ubuntu) не
+передаёт заголовок `Proxy-Authorization` корректно. Ни флаги
+`--proxy`/`--https-proxy`, ни env-переменные `npm_config_proxy` не
+помогают. Только запись кредов в `.npmrc` файл срабатывает - но
+ставит креды на диск в открытом виде
+
+**Решение:** обновить npm до 10.x: `npm install -g npm@latest`. После
+этого env-переменные `HTTPS_PROXY`/`HTTP_PROXY` подцепляются
+автоматически, ничего настраивать не нужно
+
+---
+
+## Tailwind v4 native binding `@tailwindcss/oxide-*` не подтягивается через прокси
+**Симптом:** `npm run build` или `npm run dev` падает с
+`Error: Cannot find native binding. npm has a bug related to
+optional dependencies` от `@tailwindcss/oxide/index.js`
+
+**Причина:** Tailwind v4 написан на Rust (через napi-rs),
+платформо-специфичные нативные бинари упакованы как
+`@tailwindcss/oxide-{linux-x64-gnu, darwin-arm64, win32-x64-msvc, ...}`
+и подключаются как optionalDependencies. Через медленный/нестабильный
+прокси npm иногда пропускает optional-deps без ошибки, оставляя
+основной пакет установленным, но без бинаря для текущей платформы
+
+**Решение:** поставить нужный native-биндинг явно для своей платформы:
+```bash
+# Linux x86_64 (WSL, Ubuntu)
+npm install -D @tailwindcss/oxide-linux-x64-gnu
+# macOS Apple Silicon
+npm install -D @tailwindcss/oxide-darwin-arm64
+# Windows x64
+npm install -D @tailwindcss/oxide-win32-x64-msvc
+```
+
+Альтернатива (требует надёжного интернета): удалить `node_modules` и
+`package-lock.json`, прогнать `npm install` заново
+
+---
+
 <!-- Добавлять новые ловушки сюда по мере их обнаружения -->
