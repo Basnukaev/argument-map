@@ -12,7 +12,6 @@ public record NodeResponse(
         NodeType nodeType,
         String content,
         NodeStatus status,
-        int weight,
         UUID createdBy,
         Instant createdAt,
         Instant updatedAt

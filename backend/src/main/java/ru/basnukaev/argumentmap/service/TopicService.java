@@ -18,8 +18,6 @@ import ru.basnukaev.argumentmap.repository.TopicRepository;
 @Service
 public class TopicService {
 
-    private static final int DEFAULT_NODE_WEIGHT = 5;
-
     private final TopicRepository topicRepository;
     private final NodeRepository nodeRepository;
 
@@ -48,7 +46,7 @@ public class TopicService {
         Node rootQuestion = new Node(
                 UUID.randomUUID(), topic.id(), NodeType.QUESTION,
                 rootQuestionContent, NodeStatus.UNVERIFIED,
-                DEFAULT_NODE_WEIGHT, userId, now, now
+                userId, now, now
         );
         nodeRepository.save(rootQuestion);
 

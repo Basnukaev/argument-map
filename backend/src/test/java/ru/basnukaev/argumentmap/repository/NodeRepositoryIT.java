@@ -56,7 +56,7 @@ class NodeRepositoryIT {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
         Node node = new Node(
                 UUID.randomUUID(), topicId, NodeType.CLAIM,
-                "Мавлид допустим", NodeStatus.STANDING, 7,
+                "Мавлид допустим", NodeStatus.STANDING,
                 userId, now, now
         );
 
@@ -69,7 +69,6 @@ class NodeRepositoryIT {
         assertThat(reloaded.nodeType()).isEqualTo(NodeType.CLAIM);
         assertThat(reloaded.content()).isEqualTo("Мавлид допустим");
         assertThat(reloaded.status()).isEqualTo(NodeStatus.STANDING);
-        assertThat(reloaded.weight()).isEqualTo(7);
         assertThat(reloaded.createdAt()).isEqualTo(now);
         assertThat(reloaded.updatedAt()).isEqualTo(now);
     }
@@ -92,14 +91,14 @@ class NodeRepositoryIT {
     }
 
     @Test
-    void update_changesContentStatusWeightAndTimestamp() {
+    void update_changesContentStatusAndTimestamp() {
         Instant created = Instant.now().minusSeconds(300).truncatedTo(ChronoUnit.MICROS);
         UUID nodeId = insertNode(topicId, "old", created);
 
         Instant updatedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
         Node updated = new Node(
                 nodeId, topicId, NodeType.QUESTION,
-                "new content", NodeStatus.DISPUTED, 9,
+                "new content", NodeStatus.DISPUTED,
                 userId, created, updatedAt
         );
         nodeRepository.update(updated);
@@ -107,7 +106,6 @@ class NodeRepositoryIT {
         Node reloaded = nodeRepository.findById(nodeId).orElseThrow();
         assertThat(reloaded.content()).isEqualTo("new content");
         assertThat(reloaded.status()).isEqualTo(NodeStatus.DISPUTED);
-        assertThat(reloaded.weight()).isEqualTo(9);
         assertThat(reloaded.updatedAt()).isEqualTo(updatedAt);
         assertThat(reloaded.createdAt()).isEqualTo(created);
     }
@@ -144,10 +142,10 @@ class NodeRepositoryIT {
     private UUID insertNode(UUID topic, String content, Instant when) {
         UUID id = UUID.randomUUID();
         jdbcTemplate.update(
-                "INSERT INTO nodes (id, topic_id, node_type, content, status, weight, "
-                        + "created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO nodes (id, topic_id, node_type, content, status, "
+                        + "created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 id, topic, NodeType.ARGUMENT.name(), content, NodeStatus.UNVERIFIED.name(),
-                5, userId, odt(when), odt(when)
+                userId, odt(when), odt(when)
         );
         return id;
     }

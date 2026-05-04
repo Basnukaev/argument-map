@@ -57,12 +57,11 @@ class NodeServiceIT {
     @Test
     void createNode_setsUnverifiedStatusAndTimestamps() {
         Node node = nodeService.createNode(
-                topicId, NodeType.CLAIM, "Тезис", 7, userId
+                topicId, NodeType.CLAIM, "Тезис", userId
         );
 
         assertThat(node.id()).isNotNull();
         assertThat(node.status()).isEqualTo(NodeStatus.UNVERIFIED);
-        assertThat(node.weight()).isEqualTo(7);
         assertThat(node.createdAt()).isNotNull();
         assertThat(node.updatedAt()).isEqualTo(node.createdAt());
 
@@ -75,13 +74,13 @@ class NodeServiceIT {
         UUID missingTopic = UUID.randomUUID();
 
         assertThatThrownBy(() -> nodeService.createNode(
-                missingTopic, NodeType.CLAIM, "x", 5, userId
+                missingTopic, NodeType.CLAIM, "x", userId
         )).isInstanceOf(TopicNotFoundException.class);
     }
 
     @Test
     void updateContent_writesRevision_withOldAndNewContent() throws InterruptedException {
-        Node node = nodeService.createNode(topicId, NodeType.CLAIM, "старый", 5, userId);
+        Node node = nodeService.createNode(topicId, NodeType.CLAIM, "старый", userId);
         Thread.sleep(2);  // гарантия отличающегося updated_at
 
         Node updated = nodeService.updateContent(node.id(), "новый", userId);
@@ -99,7 +98,7 @@ class NodeServiceIT {
 
     @Test
     void updateContent_multipleEdits_buildsLinearHistory() {
-        Node node = nodeService.createNode(topicId, NodeType.CLAIM, "v1", 5, userId);
+        Node node = nodeService.createNode(topicId, NodeType.CLAIM, "v1", userId);
         nodeService.updateContent(node.id(), "v2", userId);
         nodeService.updateContent(node.id(), "v3", userId);
 
@@ -120,7 +119,7 @@ class NodeServiceIT {
 
     @Test
     void deleteNode_removesNode() {
-        Node node = nodeService.createNode(topicId, NodeType.CLAIM, "x", 5, userId);
+        Node node = nodeService.createNode(topicId, NodeType.CLAIM, "x", userId);
 
         nodeService.deleteNode(node.id());
 
@@ -165,10 +164,10 @@ class NodeServiceIT {
         UUID id = UUID.randomUUID();
         java.time.Instant now = java.time.Instant.now();
         jdbcTemplate.update(
-                "INSERT INTO nodes (id, topic_id, node_type, content, status, weight, "
-                        + "created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO nodes (id, topic_id, node_type, content, status, "
+                        + "created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 id, topicId, NodeType.CLAIM.name(), "c", status.name(),
-                5, userId, ru.basnukaev.argumentmap.repository.JdbcTimes.odt(now),
+                userId, ru.basnukaev.argumentmap.repository.JdbcTimes.odt(now),
                 ru.basnukaev.argumentmap.repository.JdbcTimes.odt(now)
         );
         return id;

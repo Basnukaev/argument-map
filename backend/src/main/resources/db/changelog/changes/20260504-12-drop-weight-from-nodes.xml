@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260504-12-drop-weight-from-nodes" author="Abdula Basnukaev">
+        <comment>
+            Удаление колонки weight из nodes (ADR-011). Поле было субъективной
+            оценкой автора 1-10, не использовалось в StatusCalculationService,
+            на UI вызывало путаницу. Будущая категориальная разметка
+            ("факт"/"мнение"/...) появится отдельно после авторизации (Stage 6).
+        </comment>
+        <sql>
+            ALTER TABLE nodes DROP COLUMN weight;
+        </sql>
+        <rollback>
+            <sql>
+                ALTER TABLE nodes ADD COLUMN weight INTEGER NOT NULL DEFAULT 5
+                    CHECK (weight BETWEEN 1 AND 10);
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

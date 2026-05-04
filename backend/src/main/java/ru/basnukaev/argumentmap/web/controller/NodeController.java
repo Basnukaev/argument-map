@@ -38,8 +38,7 @@ public class NodeController {
     public ResponseEntity<NodeResponse> create(@Valid @RequestBody CreateNodeRequest request,
                                                @CurrentUser UUID userId) {
         Node created = nodeService.createNode(
-                request.topicId(), request.nodeType(), request.content(),
-                request.weight(), userId
+                request.topicId(), request.nodeType(), request.content(), userId
         );
         return ResponseEntity.created(URI.create("/api/v1/nodes/" + created.id()))
                 .body(DtoMappers.toResponse(created));

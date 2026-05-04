@@ -36,15 +36,14 @@ public class NodeService {
     }
 
     @Transactional
-    public Node createNode(UUID topicId, NodeType type, String content,
-                           int weight, UUID userId) {
+    public Node createNode(UUID topicId, NodeType type, String content, UUID userId) {
         if (topicRepository.findById(topicId).isEmpty()) {
             throw new TopicNotFoundException(topicId);
         }
         Instant now = Instant.now();
         Node node = new Node(
                 UUID.randomUUID(), topicId, type, content,
-                NodeStatus.UNVERIFIED, weight, userId, now, now
+                NodeStatus.UNVERIFIED, userId, now, now
         );
         nodeRepository.save(node);
         return node;
@@ -69,7 +68,7 @@ public class NodeService {
 
         Node updated = new Node(
                 existing.id(), existing.topicId(), existing.nodeType(),
-                newContent, existing.status(), existing.weight(),
+                newContent, existing.status(),
                 existing.createdBy(), existing.createdAt(), now
         );
         nodeRepository.update(updated);

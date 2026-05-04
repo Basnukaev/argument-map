@@ -62,7 +62,7 @@ class NodeControllerIT {
 
     @Test
     void createNode_returns201() throws Exception {
-        var req = new CreateNodeRequest(topicId, NodeType.CLAIM, "Тезис", 5);
+        var req = new CreateNodeRequest(topicId, NodeType.CLAIM, "Тезис");
 
         mockMvc.perform(post("/api/v1/nodes")
                         .header("X-User-Id", userId.toString())
@@ -72,13 +72,12 @@ class NodeControllerIT {
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.topicId").value(topicId.toString()))
                 .andExpect(jsonPath("$.nodeType").value("CLAIM"))
-                .andExpect(jsonPath("$.status").value("UNVERIFIED"))
-                .andExpect(jsonPath("$.weight").value(5));
+                .andExpect(jsonPath("$.status").value("UNVERIFIED"));
     }
 
     @Test
     void createNode_whenTopicMissing_returns404() throws Exception {
-        var req = new CreateNodeRequest(UUID.randomUUID(), NodeType.CLAIM, "x", 5);
+        var req = new CreateNodeRequest(UUID.randomUUID(), NodeType.CLAIM, "x");
 
         mockMvc.perform(post("/api/v1/nodes")
                         .header("X-User-Id", userId.toString())
@@ -89,20 +88,8 @@ class NodeControllerIT {
     }
 
     @Test
-    void createNode_invalidWeight_returns400_validationError() throws Exception {
-        var req = new CreateNodeRequest(topicId, NodeType.CLAIM, "x", 99);
-
-        mockMvc.perform(post("/api/v1/nodes")
-                        .header("X-User-Id", userId.toString())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[?(@.field=='weight')]").exists());
-    }
-
-    @Test
     void createNode_blankContent_returns400() throws Exception {
-        var req = new CreateNodeRequest(topicId, NodeType.CLAIM, "   ", 5);
+        var req = new CreateNodeRequest(topicId, NodeType.CLAIM, "   ");
 
         mockMvc.perform(post("/api/v1/nodes")
                         .header("X-User-Id", userId.toString())
@@ -164,7 +151,7 @@ class NodeControllerIT {
     }
 
     private UUID createNode(String content) throws Exception {
-        var req = new CreateNodeRequest(topicId, NodeType.CLAIM, content, 5);
+        var req = new CreateNodeRequest(topicId, NodeType.CLAIM, content);
         String json = mockMvc.perform(post("/api/v1/nodes")
                         .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)

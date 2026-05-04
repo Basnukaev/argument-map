@@ -153,10 +153,9 @@ class EdgeRepositoryIT {
         UUID id = UUID.randomUUID();
         Instant now = Instant.now();
         jdbcTemplate.update(
-                "INSERT INTO nodes (id, topic_id, node_type, content, status, weight, "
-                        + "created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                id, topic, NodeType.CLAIM.name(), "content", NodeStatus.UNVERIFIED.name(),
-                5, userId, odt(now), odt(now)
+                "INSERT INTO nodes (id, topic_id, node_type, content, status, "
+                        + "created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                id, topic, NodeType.CLAIM.name(), "content", NodeStatus.UNVERIFIED.name(), userId, odt(now), odt(now)
         );
         return id;
     }

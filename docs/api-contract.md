@@ -147,11 +147,9 @@ OpenAPI-спецификация: `/v3/api-docs` (JSON), Swagger UI: `/swagger-u
 {
   "topicId": "uuid",
   "nodeType": "QUESTION|CLAIM|ARGUMENT|EVIDENCE",
-  "content": "string, 1-10000 символов",
-  "weight": 5
+  "content": "string, 1-10000 символов"
 }
 ```
-- `weight`: int, 1-10, обязательно
 
 **Ответ (201 Created):**
 - Заголовок `Location: /api/v1/nodes/{id}`
@@ -419,7 +417,6 @@ OpenAPI-спецификация: `/v3/api-docs` (JSON), Swagger UI: `/swagger-u
   "nodeType": "QUESTION|CLAIM|ARGUMENT|EVIDENCE",
   "content": "string",
   "status": "STANDING|DISPUTED|REFUTED|UNVERIFIED",
-  "weight": 5,
   "createdBy": "uuid",
   "createdAt": "iso8601",
   "updatedAt": "iso8601"
@@ -541,7 +538,7 @@ OpenAPI-спецификация: `/v3/api-docs` (JSON), Swagger UI: `/swagger-u
   "instance": "/api/v1/nodes",
   "errors": [
     { "field": "content", "message": "не должно быть пустым" },
-    { "field": "weight", "message": "должно быть от 1 до 10" }
+    { "field": "topicId", "message": "не может быть null" }
   ]
 }
 ```
@@ -550,5 +547,6 @@ OpenAPI-спецификация: `/v3/api-docs` (JSON), Swagger UI: `/swagger-u
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-04 | v1 | Удалено поле `weight` из `Node`/`CreateNodeRequest`/`NodeResponse` | ADR-011: weight субъективен, не используется в StatusCalculation. Заменим категориальной разметкой после auth (Stage 6) |
 | 2026-05-03 | v1 | первая версия: Topics, Nodes, Edges, Graph, Revisions | реализация Этапа 4 |
 | 2026-05-03 | v1 | добавлены Sources, Authorities, NodeSources, NodeAuthorities | реализация Этапа 5 |

@@ -55,8 +55,8 @@ class GraphServiceIT {
     @Test
     void getGraph_returnsTopicNodesAndEdges() {
         Topic topic = topicService.createTopic("T", null, "Корневой вопрос?", userId);
-        Node claim = nodeService.createNode(topic.id(), NodeType.CLAIM, "Тезис", 5, userId);
-        Node argument = nodeService.createNode(topic.id(), NodeType.ARGUMENT, "Довод", 5, userId);
+        Node claim = nodeService.createNode(topic.id(), NodeType.CLAIM, "Тезис", userId);
+        Node argument = nodeService.createNode(topic.id(), NodeType.ARGUMENT, "Довод", userId);
         Edge support = edgeService.createEdge(argument.id(), claim.id(), EdgeType.SUPPORTS, null, userId);
 
         GraphView graph = graphService.getGraph(topic.id());

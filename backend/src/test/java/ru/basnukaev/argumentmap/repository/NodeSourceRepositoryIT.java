@@ -132,10 +132,9 @@ class NodeSourceRepositoryIT {
         UUID id = UUID.randomUUID();
         Instant now = Instant.now();
         jdbcTemplate.update(
-                "INSERT INTO nodes (id, topic_id, node_type, content, status, weight, "
-                        + "created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                id, topic, NodeType.CLAIM.name(), "c", NodeStatus.UNVERIFIED.name(),
-                5, creator, odt(now), odt(now)
+                "INSERT INTO nodes (id, topic_id, node_type, content, status, "
+                        + "created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                id, topic, NodeType.CLAIM.name(), "c", NodeStatus.UNVERIFIED.name(), creator, odt(now), odt(now)
         );
         return id;
     }

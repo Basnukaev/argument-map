@@ -47,7 +47,7 @@ public final class DtoMappers {
     public static NodeResponse toResponse(Node node) {
         return new NodeResponse(
                 node.id(), node.topicId(), node.nodeType(), node.content(),
-                node.status(), node.weight(), node.createdBy(),
+                node.status(), node.createdBy(),
                 node.createdAt(), node.updatedAt()
         );
     }

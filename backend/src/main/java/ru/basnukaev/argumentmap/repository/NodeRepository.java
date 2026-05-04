@@ -20,7 +20,7 @@ import ru.basnukaev.argumentmap.domain.NodeType;
 public class NodeRepository {
 
     private static final String COLUMNS =
-            "id, topic_id, node_type, content, status, weight, created_by, created_at, updated_at";
+            "id, topic_id, node_type, content, status, created_by, created_at, updated_at";
 
     private static final RowMapper<Node> ROW_MAPPER = (rs, rn) -> new Node(
             rs.getObject("id", UUID.class),
@@ -28,7 +28,6 @@ public class NodeRepository {
             NodeType.valueOf(rs.getString("node_type")),
             rs.getString("content"),
             NodeStatus.valueOf(rs.getString("status")),
-            rs.getInt("weight"),
             rs.getObject("created_by", UUID.class),
             instant(rs, "created_at"),
             instant(rs, "updated_at")
@@ -42,13 +41,12 @@ public class NodeRepository {
 
     public Node save(Node node) {
         jdbcTemplate.update(
-                "INSERT INTO nodes (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO nodes (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 node.id(),
                 node.topicId(),
                 node.nodeType().name(),
                 node.content(),
                 node.status().name(),
-                node.weight(),
                 node.createdBy(),
                 odt(node.createdAt()),
                 odt(node.updatedAt())
@@ -74,10 +72,9 @@ public class NodeRepository {
 
     public void update(Node node) {
         jdbcTemplate.update(
-                "UPDATE nodes SET content = ?, status = ?, weight = ?, updated_at = ? WHERE id = ?",
+                "UPDATE nodes SET content = ?, status = ?, updated_at = ? WHERE id = ?",
                 node.content(),
                 node.status().name(),
-                node.weight(),
                 odt(node.updatedAt()),
                 node.id()
         );
