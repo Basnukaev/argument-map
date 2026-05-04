@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//mnt/c/my_folders/projects/argument-map/backend/**)",
+      "Bash(./mvnw verify *)",
+      "Bash(npm -v)",
+      "Bash(npm init *)",
+      "Bash(npm install *)",
+      "Bash(npm view *)",
+      "Bash(npm uninstall *)",
+      "Bash(npm run *)",
+      "Bash(curl -sS -o /dev/null -w \"backend: HTTP %{http_code}\\\\n\" http://localhost:9090/v3/api-docs)",
+      "Bash(curl -sS -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:9090/v3/api-docs)",
+      "Bash(curl -sS http://localhost:9090/api/v1/topics)",
+      "Bash(awk '/\"\\\\/api\\\\/v1\\\\/topics\":/,/\"\\\\/api\\\\/v1\\\\/sources\":/' src/api/types.ts)",
+      "Bash(awk '/^\\\\s+list:/,/^\\\\s+[a-z]+_[0-9]+:|^\\\\s+create:/' src/api/types.ts)",
+      "Bash(awk '/^\\\\s+create:/,/^\\\\s+[a-z]+_[0-9]+:|^\\\\s+list_[0-9]+:|^\\\\s+get:/' src/api/types.ts)",
+      "Bash(curl -sS -X POST http://localhost:9090/api/v1/topics -H 'Content-Type: application/json' -H 'X-User-Id: 14561248-0bfd-4a62-8395-d40a6972182a' -d '{\"title\":\"Тестовая тема\",\"description\":\"smoke-test\",\"rootQuestion\":\"Это просто проверка?\"}')",
+      "Bash(curl -sS -X OPTIONS http://localhost:9090/api/v1/topics -H 'Origin: http://localhost:5173' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: Content-Type, X-User-Id' -i)",
+      "Bash(curl -sS http://localhost:9090/api/v1/topics -H 'Origin: http://localhost:5173' -i)",
+      "Bash(node *)",
+      "Bash(python3 -c \"import sys,json; topics=json.load\\(sys.stdin\\); [print\\(t['id'], '-', t['title']\\) for t in topics]\")",
+      "Bash(curl -sS http://localhost:9090/api/v1/topics/__TRACKED_VAR__/graph)",
+      "Bash(python3 -m json.tool)",
+      "Bash(kill 53281)",
+      "Bash(kill 56785 56592 56572)",
+      "Bash(curl -sS -X POST http://localhost:9090/api/v1/nodes -H 'Content-Type: application/json' -H 'X-User-Id: 14561248-0bfd-4a62-8395-d40a6972182a' -d '{\"topicId\":\"1d2124ba-724a-43d3-9c4f-0bf23bce6ea6\",\"nodeType\":\"CLAIM\",\"content\":\"Мавлид является дозволенной практикой\",\"weight\":7}')",
+      "Bash(curl -sS http://localhost:9090/api/v1/topics/1d2124ba-724a-43d3-9c4f-0bf23bce6ea6/graph)",
+      "Bash(python3 -c \"import sys,json; g=json.load\\(sys.stdin\\); print\\(f\\\\\"nodes: {len\\(g['nodes']\\)}, edges: {len\\(g['edges']\\)}\\\\\"\\); [print\\(f\\\\\"  {n['nodeType']}: {n['content']} \\(status={n['status']}, w={n['weight']}\\)\\\\\"\\) for n in g['nodes']]\")",
+      "Bash(curl -sS -X POST http://localhost:9090/api/v1/edges -H 'Content-Type: application/json' -H 'X-User-Id: 14561248-0bfd-4a62-8395-d40a6972182a' -d '{\"fromNodeId\":\"fcfdb3b8-cff1-4e10-a3b6-5b314445d714\",\"toNodeId\":\"fcb67bb9-2c98-485b-b723-829273aab2bf\",\"edgeType\":\"SUPPORTS\",\"rationale\":\"тест из CLI\"}')",
+      "Bash(python3 -c \"import sys,json; g=json.load\\(sys.stdin\\); print\\(f\\\\\"nodes: {len\\(g['nodes']\\)}, edges: {len\\(g['edges']\\)}\\\\\"\\); [print\\(f\\\\\"  edge: {e['fromNodeId'][:8]} → {e['toNodeId'][:8]} [{e['edgeType']}]\\\\\"\\) for e in g['edges']]; [print\\(f\\\\\"  node {n['nodeType']}: status={n['status']}\\\\\"\\) for n in g['nodes']]\")",
+      "Bash(python3 -c \"import sys,json; g=json.load\\(sys.stdin\\); print\\(f\\\\\"nodes: {len\\(g['nodes']\\)}, edges: {len\\(g['edges']\\)}\\\\\"\\)\")",
+      "Bash(curl -sS -X DELETE -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:9090/api/v1/edges/582e6db9-fe99-4ea6-8a5d-20457b574fda)"
+    ]
+  }
+}

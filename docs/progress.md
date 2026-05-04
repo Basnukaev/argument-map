@@ -13,6 +13,151 @@
 
 ---
 
+## 2026-05-04 — Сессия 11 (frontend) — D1-фиксы + D2 (мутации графа)
+
+Продолжение сессии 10. Поднялись до полного CRUD на графе.
+
+### Сделано
+- **D1-фиксы** (отдельный коммит `7e53d38`):
+  - В `TopicGraphPage` использованы `useNodesState`/`useEdgesState` +
+    `onNodesChange`/`onEdgesChange` props в `<ReactFlow>`. Без них
+    React Flow в **полностью controlled mode** игнорировал drag,
+    selection и pan узла - все интерактивы были no-op. После фикса:
+    клик на узел toggle'ит selected, click на pane снимает выделение,
+    drag перетаскивает узел
+  - MiniMap получил `nodeColor` callback (hex по статусу узла),
+    `nodeStrokeColor`/`nodeStrokeWidth` для контрастной обводки,
+    `maskColor` для лёгкой тени за viewport
+  - `vite.config.ts` теперь с `server.watch.usePolling: true` и
+    `interval: 300` - WSL2 через DrvFs не получает inotify-events с
+    `/mnt/c/*`, polling - стандартный workaround. HMR заработал
+  - `gotchas.md`: записан Vite HMR в WSL2 + про springdoc-quirk (был
+    раньше)
+- **D2.a - добавление узла** (коммит `3b106be`):
+  - `src/components/ui/Modal.tsx` - переиспользуемая модалка на
+    нативном `<dialog>` (focus trap, Escape, role=dialog from
+    platform). Backdrop click закрывает
+  - `src/components/graph/AddNodeModal.tsx` - форма создания узла:
+    - 4 type-карточки (radio): QUESTION/CLAIM/ARGUMENT/EVIDENCE с
+      hint'ами
+    - textarea для content (required, max 10000)
+    - range slider для weight (1-10, default 5)
+    - submit → POST `/api/v1/nodes`, on success → onCreated() +
+      onClose() + reset
+    - field-errors из Problem Details `errors[]` собираются в одну
+      строку и показываются над кнопками
+  - В `TopicGraphPage`: toolbar через React Flow `<Panel
+    position="top-left">` с кнопкой "+ Узел"; в empty-state
+    кнопка "Добавить первый узел"; `refreshKey` state триггерит
+    refetch графа (зависимость useEffect)
+  - 5 тестов на AddNodeModal через MSW
+- **D2.b - добавление ребра** (коммит `beb9865`):
+  - `src/components/graph/AddEdgeModal.tsx`:
+    - select "Откуда" со всеми узлами (формат `[TYPE] preview...`)
+    - select "Куда" - исключает уже выбранный "Откуда" (нет
+      self-loop)
+    - 5 type-карточек (radio): SUPPORTS / REFUTES / INVALIDATES
+      (hint про kill-семантику ADR-007) / QUALIFIES / RESPONDS_TO
+    - optional textarea для rationale (max 2000)
+    - submit → POST `/api/v1/edges`
+  - В `TopicGraphPage`: кнопка "+ Связь" в toolbar; disabled пока
+    узлов <2 (с title-hint "Нужно минимум 2 узла")
+  - 5 тестов на AddEdgeModal
+- **D2.c - удаление выделенного** (коммит `c4c5c0d`):
+  - `apiDeleteRaw(path, options)` в client.ts - аналог `apiGetRaw`
+    для динамических путей `/api/v1/nodes/{id}` /
+    `/api/v1/edges/{id}`
+  - В `TopicGraphPage`: state `selectedNodeIds` /
+    `selectedEdgeIds` обновляется через `onSelectionChange`
+    callback от React Flow (получает `{nodes, edges}` объекты)
+  - Кнопка "Удалить (N)" в toolbar (variant=danger) с count
+    выделенных, disabled когда selectedCount=0
+  - `handleDelete()`: `window.confirm` подтверждение, потом
+    последовательно DELETE'ит сначала рёбра, потом узлы. 404
+    игнорируются как "уже удалено каскадом". При реальной ошибке -
+    `window.alert` + state cleanup. После успеха - refetch графа
+  - 1 тест на `apiDeleteRaw` (X-User-Id, динамический путь)
+- **Прогоны**: lint OK, build OK (535kB / gzip 175kB - подросло из-за
+  React Flow, dagre, lucide), тесты **39/39** OK (было 28, +11). E2E
+  через curl: создал CLAIM-узел, потом SUPPORTS-ребро от него к
+  QUESTION, потом удалил ребро - всё работает на бэке как ожидалось
+
+### Решения
+- **Modal на native `<dialog>`** вместо роллим-свой:
+  - доступность из коробки (focus trap, Escape, role=dialog)
+  - backdrop через CSS `:backdrop` псевдо-селектор + Tailwind
+    `backdrop:bg-black/40`
+  - меньше кода, меньше багов. Минус - `showModal()`/`close()` не
+    реализованы в jsdom, в тестах нужен mock на
+    `HTMLDialogElement.prototype` (полифил из 4 строчек,
+    добавлен в `beforeAll` каждого dialog-теста)
+- **Удаление: рёбра первыми, потом узлы.** Бэк настроен с CASCADE на
+  edges → когда удаляется узел, его рёбра уходят автоматически. Если
+  пользователь выбрал и узел, и его ребро, и удалить узел первым -
+  при попытке удалить ребро получим 404. Удаляем рёбра первыми -
+  узел пока на месте, всё чисто. 404 на остальных запросах
+  игнорируем (already gone)
+- **`window.confirm`/`window.alert` для подтверждений** - простота,
+  доступность, нет зависимости от рендера. Можно потом заменить на
+  кастомные диалоги если потребуется лучший UX
+- **Refetch вместо local-state mutations.** После создания/удаления
+  - просто инкрементируем `refreshKey`, useEffect перезагружает
+  весь граф. Альтернатива - местный update без запроса - быстрее
+  визуально, но сложнее (особенно для алгоритма пересчёта статусов
+  на бэке - после `INVALIDATES` рёбер могут поменяться статусы
+  любых других узлов). На MVP refetch достаточно
+
+### Проблемы
+- HMR не работал на WSL2 + `/mnt/c/*` - решено `usePolling: true`
+  (см gotchas.md)
+- Selection/drag не работали из-за controlled mode без callbacks -
+  решено `useNodesState`
+- MiniMap не показывал кастомные узлы - решено `nodeColor` callback
+- jsdom не реализует `HTMLDialogElement.showModal()/close()` -
+  полифил в `beforeAll` тестов модалок
+
+### Следующий шаг
+**D3: side-panel деталей узла + редактирование + ревизии.**
+
+После клика на одиночный узел справа открывается панель:
+- Полный контент (без truncate)
+- Метаданные: тип, статус, weight, createdBy, createdAt, updatedAt
+- Кнопка "Редактировать" → inline-форма или модалка → PATCH
+  `/api/v1/nodes/{id}` (DTO `UpdateNodeRequest`: content, weight,
+  status?). После успеха - refetch
+- Список ревизий через GET `/api/v1/nodes/{id}/revisions` -
+  collapse-able секция, каждая ревизия с changedAt + diff
+  contentBefore/contentAfter
+- (после-MVP) привязки источников/авторитетов
+
+UX:
+- Side-panel абсолютно позиционирована справа (как Miro), узкая
+  колонка ~360px
+- При выборе нескольких узлов - панель скрывается (или показывает
+  "выбрано N узлов")
+- Закрытие панели - крестик или клик на фон
+- Не блокирует pan/zoom графа - только overlay на правом крае
+
+Файлы:
+- `src/components/graph/NodeDetailsPanel.tsx` - сама панель
+- `src/components/graph/EditNodeModal.tsx` - модалка PATCH (или
+  inline-форма прямо в панели)
+- TopicGraphPage: useState selectedNodeId (extracted из
+  selectedNodeIds), отображает панель при ровно одном выделенном
+
+### Важные нюансы
+- Бэк должен быть запущен в WSL2. Текущая тестовая тема:
+  `1d2124ba-...`, в ней 2 узла (QUESTION + CLAIM), 0 рёбер
+- В `users` юзер `14561248-...`, `.env.local` правильный
+- `npm run dev` после правок vite.config.ts один раз перезапустить -
+  потом HMR работает на каждое сохранение
+- Backend-задача (всё ещё открыта): починить springdoc + `@CurrentUser`
+- Bundle 535kB / gzip 175kB - можно code-split через React.lazy
+  для `TopicGraphPage` (граф нужен только на одной странице),
+  снизит initial bundle до ~150kB. Решим когда захочется
+
+---
+
 ## 2026-05-04 — Сессия 10 (frontend) — граф темы на React Flow (D1: read-only)
 
 Это первый из трёх подэтапов страницы графа. D1 - read-only скелет

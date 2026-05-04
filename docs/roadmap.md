@@ -145,10 +145,13 @@
       подписью типа
 - [x] Автолейаут через `dagre` (`src/utils/graphLayout.ts`,
       горизонтально LR, корень слева, `nodesep: 60, ranksep: 120`)
-- [ ] Добавление узла через модалку (`POST /api/v1/nodes`)
-- [ ] Добавление связи через модалку (`POST /api/v1/edges`)
-- [ ] Удаление узла и связи (`DELETE /api/v1/nodes/{id}`,
-      `DELETE /api/v1/edges/{id}`)
+- [x] Добавление узла через модалку (`POST /api/v1/nodes`,
+      `AddNodeModal.tsx`, кнопка "+ Узел" в toolbar)
+- [x] Добавление связи через модалку (`POST /api/v1/edges`,
+      `AddEdgeModal.tsx`, кнопка "+ Связь" disabled пока узлов <2)
+- [x] Удаление узла и связи (`DELETE /api/v1/nodes/{id}`,
+      `DELETE /api/v1/edges/{id}`, кнопка "Удалить (N)" в toolbar -
+      рёбра удаляются первыми, потом узлы; 404 = already gone)
 - [ ] Боковая панель деталей узла: контент, вес, источники, авторитеты,
       ревизии
 - [ ] Редактирование контента узла (`PATCH /api/v1/nodes/{id}`)
