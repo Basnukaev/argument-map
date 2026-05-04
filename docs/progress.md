@@ -13,6 +13,134 @@
 
 ---
 
+## 2026-05-05 — Сессия 12 (full-stack) — этап 8: семантика связей
+
+Закрыт целиком этап 8 - на беке и фронте теперь действует матрица
+допустимых пар `(fromType, edgeType, toType)` из ADR-010.
+
+### Сделано
+- **Бэк** (`feat(backend): enforce edge semantics matrix per ADR-010`,
+  коммит `89fb97e`):
+  - `EdgeSemantics.java` (`service/`) - источник истины матрицы как
+    `Map<NodeType, Map<NodeType, Set<EdgeType>>>` ровно из таблицы
+    ADR-010 + `isAllowed(from, edge, to)` / `getAllowed(from, to)`
+  - `EdgeService.createEdge` - после self-loop/cross-topic-проверок
+    зовёт `EdgeSemantics.isAllowed(...)`, при `false` бросает
+    `InvalidEdgeException("тип связи X недопустим для пары (Y -> Z)")`,
+    глобальный handler уже мапит на 422 `invalid-edge`
+  - `EdgeSemanticsTest.java` - `@TestFactory` динамически разворачивает
+    все 4×4×5=80 пар + 16 сочетаний `getAllowed` (96 кейсов). Зеркалит
+    спецификацию во вторую копию матрицы внутри теста, чтобы рассинхрон
+    кода и спеки сразу падал
+  - `EdgeServiceIT` +4 теста: 1 запрещённая (QUESTION SUPPORTS ARGUMENT)
+    + 3 положительных по новым ячейкам (EVIDENCE→CLAIM SUPPORTS,
+    ARGUMENT→ARGUMENT INVALIDATES, CLAIM→QUESTION RESPONDS_TO);
+    `EdgeControllerIT` +1: 422 invalid-edge end-to-end
+  - 144/144 IT-тестов зелёные. Существующие тесты не регрессировали -
+    везде использовалось CLAIM↔CLAIM SUPPORTS/REFUTES или ARGUMENT→CLAIM
+    SUPPORTS, всё разрешено матрицей
+- **Фронт-1** (`feat(frontend): add edge semantics rules and filter
+  AddEdgeModal`, коммит `0c1017b`):
+  - `src/utils/edgeRules.ts` - `EDGE_MATRIX` (типизированная копия из
+    ADR-010), `getAllowedEdgeTypes`, `isEdgeAllowed`,
+    `getContextualEdgeLabel` (контекстные подписи из таблицы ADR-010:
+    EVIDENCE SUPPORTS = "доказывает", ARGUMENT→CLAIM SUPPORTS =
+    "поддерживает", CLAIM→CLAIM SUPPORTS = "согласуется с" и т.п.).
+    Плюс `NODE_TYPE_EMOJI` (❓📢💬📄) и `EDGE_TYPE_ICON` (✓✗⊗↳↩)
+  - `AddEdgeModal.tsx` - под пару (from, to) фильтруются radio-кнопки
+    типа связи. Если allowed-пусто (CLAIM→ARGUMENT и подобные) -
+    amber-блок "Эту пару узлов нельзя соединить (X → Y). См. ADR-010"
+    + submit disabled. Префикс `[CLAIM]` в `<option>` заменён на
+    эмодзи. Авто-переключение текущего edgeType при смене пары
+    реализовано через derived state (`effectiveEdgeType`), без
+    `useEffect`/cascading-renders
+  - `edgeRules.test.ts` (14 кейсов) и `AddEdgeModal.test.tsx` (8
+    кейсов, +2 новых: запрещённая пара показывает заглушку, авто-
+    переключение типа)
+- **Фронт-2** (`feat(frontend): contextual edge labels and toolbar
+  label toggle`, коммит `b61c2ab`):
+  - `CustomEdge.tsx` - принимает `fromType`/`toType`/`showLabel` через
+    `data`. Подпись на бейдже = `getContextualEdgeLabel(...)`. Юникод-
+    маркер из `EDGE_TYPE_ICON` всегда виден; текст подписи скрывается
+    при `showLabel=false`
+  - `TopicGraphPage.tsx` - state `showEdgeLabels` с инициализацией и
+    sync в `localStorage` (`argmap.showEdgeLabels`, default true).
+    Кнопка-тоггл в `<Panel>` (`Eye`/`EyeOff` lucide), с `aria-pressed`.
+    `buildFlow` строит `Map<id, NodeType>` из `rawNodes` и кладёт
+    `fromType`/`toType` в `data` каждого ребра, плюс прокидывает
+    `showEdgeLabels`
+  - `graphLayout.test.ts` фикстура обновлена под новые поля
+    `CustomEdgeData`. Отдельный `CustomEdge.test.tsx` не делал -
+    `EdgeLabelRenderer` требует ReactFlow store, мокать его в jsdom
+    неоправданно сложно; вся логика подписей покрыта `edgeRules.test.ts`
+- Прогоны: `./mvnw verify` 144/144 (бэк), `npm run lint` чистый,
+  `npm run build` ОК (538kB / gzip 175kB - +3kB от edgeRules),
+  `npm test` 56/56 (было 39 + 14 edgeRules + 3 новых
+  AddEdgeModal = 56)
+
+### Решения
+- **Эмодзи (📢❓💬📄) в `<option>` вместо lucide SVG** - SVG-иконку в
+  нативный `<option>` положить нельзя, переход на custom dropdown - это
+  +30-50 строк UI и тестов. Эмодзи - дешёвый компромисс на MVP.
+  Если визуально не зайдёт - сделаем custom dropdown отдельной задачей
+- **Юникод-маркер на бейдже ребра вместо lucide SVG** - в
+  `EdgeLabelRenderer` div SVG можно, но юникод проще, не тянет
+  дополнительный рендер и узнаваем (✓ за, ✗ против, ⊗ kill)
+- **Авто-переключение `edgeType` через derived state** (а не через
+  useEffect+setState) - eslint правило `react-hooks/set-state-in-effect`
+  ругается на каскадные ре-рендеры. Чистое derived value читается
+  один раз за рендер, никаких лишних обновлений
+- **Двойная матрица (бэк + фронт) с зеркальной копией в тесте** -
+  принимаем дублирование. Бэк - последняя линия защиты, фронт -
+  UX. Без бэка можно было бы создать запрещённую пару прямым POST.
+  Тесты со встроенной "spec" матрицей внутри теста ловят рассинхрон
+  кода и ADR-010
+- **Контекстные подписи в `getContextualEdgeLabel`, а не в
+  CustomEdge** - правила сложные (зависят от тройки), легче читать
+  и тестировать в чистой функции
+
+### Проблемы
+- Транзиентный фейл `./mvnw verify`: первый запуск упал на
+  Testcontainers `Connection refused` (Docker Desktop притормозил
+  между fork'ами JVM). Повторный запуск - 144/144 зелёные. Если
+  будет повторяться - можно поставить `surefire.forkCount=1` или
+  перейти на `reuse=true` testcontainer-режим
+- `EdgeLabelRenderer` из `@xyflow/react` использует портал и
+  `useStoreApi` - rendered standalone в jsdom падает. Поэтому
+  CustomEdge unit-теста нет; покрытие через `edgeRules.test.ts`
+  и ручной smoke
+
+### Следующий шаг
+**Этап 9: Miro-подобный UX в графе** ИЛИ исходный D3 (side-panel
+деталей узла + редактирование + ревизии).
+
+Etап 9 более амбициозный (4 handles, drag-create, контекстные меню,
+z-index, сохранение позиций) - это ключевой UX продукта. D3 проще,
+покрывает закрытие текущего MVP-функционала (детальный просмотр
+узла, история ревизий).
+
+Открыто: бэк-задача `springdoc + @CurrentUser` (springdoc неправильно
+видит `userId` параметр контроллеров). Не блокирует фронт, но
+портит OpenAPI-схему.
+
+### Важные нюансы
+- Перед визуальным smoke этап 8 - запустить бэк
+  (`cd ../backend && ./mvnw spring-boot:run` в WSL2) и пересоздать
+  Mawlid-граф через `scripts/seed-mawlid.sh` - текущая тема `640a7ac7-...`
+  ещё в БД. Тогги "подписи рёбер" в правом-верхнем тулбаре
+  (Eye/EyeOff). Создать запрещённое ребро через UI теперь невозможно
+  (фильтр режет в AddEdgeModal); если попробовать через прямой curl -
+  бэк ответит 422 `invalid-edge`
+- Bundle 538kB / gzip 175kB - можно code-split TopicGraphPage через
+  React.lazy, упасть до ~150kB initial. Решим когда захочется
+- ADR-010 описывает контекстные подписи, в коде они в
+  `getContextualEdgeLabel`. Если матрица меняется - менять и в
+  `EdgeSemantics.java` (бэк), и в `EDGE_MATRIX` (фронт), и в
+  `EdgeSemanticsTest` SPEC, и в `edgeRules.test.ts`. ADR-010 -
+  источник истины
+
+---
+
 ## 2026-05-04 — Сессия 11 (frontend) — D1-фиксы + D2 (мутации графа)
 
 Продолжение сессии 10. Поднялись до полного CRUD на графе.

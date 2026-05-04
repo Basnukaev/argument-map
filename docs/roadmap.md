@@ -172,29 +172,29 @@
 правила и более читаемая визуализация цепочек.
 
 ### Бэк
-- [ ] **Матрица допустимых пар** `(fromType, edgeType, toType)` -
-      бизнес-валидация в `EdgeService.createEdge`. Нарушение → 422
-      `invalid-edge` с конкретным detail. Аналогично self-loop /
-      cross-topic. Юнит-тесты на каждую запрещённую пару
-- [ ] **ADR-010** на семантику типов связей: какие пары разрешены и
-      почему (язык: QUESTION пассивен, EVIDENCE - доказательная база,
-      ARGUMENT - инструмент за/против, CLAIM - центральный участник)
-- [ ] Дополнить `architecture.md` секцией "Семантика связей" с
-      матрицей и примерами
+- [x] **Матрица допустимых пар** `(fromType, edgeType, toType)` -
+      `EdgeSemantics` + валидация в `EdgeService.createEdge`. Нарушение
+      → 422 `invalid-edge`. Юнит-тесты `EdgeSemanticsTest` (96
+      динамических) + IT в `EdgeServiceIT`/`EdgeControllerIT`
+- [x] **ADR-010** на семантику типов связей с матрицей и табличкой
+      контекстных подписей
+- [x] Дополнить `architecture.md` секцией "Семантика связей"
+      (сделано в коммите 8c92e32)
 
 ### Фронт
-- [ ] Та же матрица в `src/utils/edgeRules.ts`, фильтрация edgeType
-      вариантов в `AddEdgeModal` под выбранную пару (from, to). Если
-      ни один тип не подходит - подсказка "эту пару нельзя соединить"
-- [ ] Контекстные подписи рёбер (`(fromType, edgeType, toType) →
-      label`). Например `SUPPORTS`: EVIDENCE→ARGUMENT/CLAIM = "доказывает",
-      ARGUMENT→CLAIM = "поддерживает", CLAIM→CLAIM = "согласуется с"
-- [ ] **Иконки вместо `[CLAIM]`/`[QUESTION]` префиксов** в селектах
-      AddEdgeModal - использовать те же иконки что в NodeCard
-      (CircleHelp / Megaphone / MessageSquareQuote / FileText)
-- [ ] **Toggle "Подписи рёбер"** в toolbar - hide/show text на бейджах
-      рёбер (иконка ✓/✗/⊗ остаётся всегда). По умолчанию - показывать.
-      Сохранение состояния в localStorage
+- [x] Та же матрица в `src/utils/edgeRules.ts` + `getAllowedEdgeTypes`
+      / `isEdgeAllowed` / `getContextualEdgeLabel`. Фильтрация
+      `edgeType` в `AddEdgeModal` под выбранную пару, заглушка "Эту
+      пару узлов нельзя соединить" с упоминанием ADR-010
+- [x] Контекстные подписи рёбер - `CustomEdge` использует
+      `getContextualEdgeLabel(fromType, edgeType, toType)`
+- [x] Эмодзи (📢❓💬📄) в селектах `AddEdgeModal` вместо `[CLAIM]`/
+      `[QUESTION]` префиксов. lucide-SVG в `<option>` использовать
+      нельзя - эмодзи как первый шаг (custom dropdown - на потом если
+      потребуется)
+- [x] **Toggle "Подписи рёбер"** в toolbar (Eye/EyeOff). Юникод-маркер
+      ✓/✗/⊗/↳/↩ на бейдже остаётся всегда, текст подписи скрывается.
+      Сохранение в localStorage (`argmap.showEdgeLabels`)
 
 ## Этап 9. Miro-подобный UX в графе
 
