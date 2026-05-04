@@ -6,6 +6,7 @@ import {
   Controls,
   MiniMap,
   Panel,
+  MarkerType,
   useNodesState,
   useEdgesState,
   type ReactFlowProps,
@@ -111,6 +112,16 @@ const STATUS_MINIMAP_COLOR: Record<NonNullable<NodeCardData['status']>, string> 
   DISPUTED: '#f59e0b',
   REFUTED: '#ef4444',
   UNVERIFIED: '#9ca3af',
+};
+
+// Цвета маркеров-стрелок на конце ребра. Совпадают со stroke в CustomEdge,
+// чтобы стрелка была того же цвета что и линия
+const EDGE_ARROW_COLOR: Record<NonNullable<EdgeDto['edgeType']>, string> = {
+  SUPPORTS: '#22c55e',
+  REFUTES: '#ef4444',
+  INVALIDATES: '#b91c1c',
+  QUALIFIES: '#3b82f6',
+  RESPONDS_TO: '#9ca3af',
 };
 
 interface GraphProps {
@@ -276,13 +287,22 @@ function buildFlow(graph: GraphResponse): { nodes: NodeCardNode[]; edges: Custom
       (e): e is EdgeDto & { id: string; fromNodeId: string; toNodeId: string } =>
         Boolean(e.id && e.fromNodeId && e.toNodeId),
     )
-    .map((e) => ({
-      id: e.id,
-      source: e.fromNodeId,
-      target: e.toNodeId,
-      type: 'argumentEdge' as const,
-      data: { edgeType: e.edgeType ?? 'SUPPORTS', rationale: e.rationale },
-    }));
+    .map((e) => {
+      const edgeType = e.edgeType ?? 'SUPPORTS';
+      return {
+        id: e.id,
+        source: e.fromNodeId,
+        target: e.toNodeId,
+        type: 'argumentEdge' as const,
+        data: { edgeType, rationale: e.rationale },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: EDGE_ARROW_COLOR[edgeType],
+          width: 18,
+          height: 18,
+        },
+      };
+    });
 
   return { nodes: layoutGraph(rawNodes, rawEdges), edges: rawEdges };
 }

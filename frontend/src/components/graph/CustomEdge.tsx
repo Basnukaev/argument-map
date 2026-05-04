@@ -47,7 +47,17 @@ const TYPE_STYLES: Record<EdgeType, StyleSpec> = {
 };
 
 function CustomEdge(props: EdgeProps<CustomEdgeEdge>) {
-  const { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, selected } = props;
+  const {
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+    data,
+    selected,
+    markerEnd,
+  } = props;
 
   const edgeType = data?.edgeType ?? 'SUPPORTS';
   const style = TYPE_STYLES[edgeType];
@@ -66,6 +76,7 @@ function CustomEdge(props: EdgeProps<CustomEdgeEdge>) {
     <>
       <BaseEdge
         path={edgePath}
+        markerEnd={markerEnd}
         style={{
           stroke: style.stroke,
           strokeWidth: selected ? style.strokeWidth + 1 : style.strokeWidth,
