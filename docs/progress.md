@@ -13,6 +13,155 @@
 
 ---
 
+## 2026-05-04 — Сессия 10 (frontend) — граф темы на React Flow (D1: read-only)
+
+Это первый из трёх подэтапов страницы графа. D1 - read-only скелет
+(загрузка, кастомные узлы и рёбра, dagre layout, zoom/pan/select).
+D2 (модалки добавления + удаление) и D3 (side-панель + редактирование)
+- в следующих сессиях.
+
+### Сделано
+- **`@xyflow/react/dist/style.css`** подключён в `src/index.css` после
+  Tailwind import - стили React Flow теперь грузятся вместе с
+  приложением
+- **`dagre@0.8` + `@types/dagre`** добавлены в зависимости
+- **`src/components/graph/NodeCard.tsx`** - кастомный узел React Flow:
+  - 4 цветовые схемы по `status`: STANDING (зелёная рамка/фон),
+    DISPUTED (янтарная), REFUTED (красная), UNVERIFIED (серая)
+  - 4 иконки lucide-react по `nodeType`: QUESTION → CircleHelp,
+    CLAIM → Megaphone, ARGUMENT → MessageSquareQuote,
+    EVIDENCE → FileText
+  - заголовок (иконка + локализованный label типа), тело с truncate
+    до 150 символов и full-text tooltip, footer с 10-точечной
+    диаграммой веса + надписью `N/10`
+  - `Handle` сверху (target) и снизу (source) для подключения рёбер
+  - выделение при `selected` через `ring-2 ring-blue-400`
+- **`src/components/graph/CustomEdge.tsx`** - кастомное ребро:
+  - 5 стилей по `edgeType`:
+    - SUPPORTS - зелёная (`#22c55e`), толщина 2
+    - REFUTES - красная (`#ef4444`), толщина 2
+    - INVALIDATES - тёмно-красная (`#b91c1c`), толщина 3, **пунктир**
+      `8 4` (kill-семантика, ADR-007)
+    - QUALIFIES - синяя (`#3b82f6`), толщина 2
+    - RESPONDS_TO - серая (`#9ca3af`), толщина 1.5, opacity 0.7
+  - bezier-путь через `getBezierPath`, badge с локализованной
+    подписью (`поддерживает`/`опровергает`/`аннулирует`/`уточняет`/
+    `отвечает`) рендерится через `EdgeLabelRenderer`
+  - утолщение на 1px при `selected`
+- **`src/utils/graphLayout.ts`** - автолейаут через dagre:
+  - размеры узлов: 288x140 (соответствует w-72 + контент)
+  - LR-направление по умолчанию (горизонтально, корень слева),
+    `nodesep: 60`, `ranksep: 120`
+  - конвертация: dagre отдаёт центр узла, React Flow ждёт верхний
+    левый угол - вычитаем половину размеров
+- **`src/api/client.ts` расширен**: добавлен `apiGetRaw<T>(path,
+  options)` для динамических путей (`/api/v1/topics/${id}/graph`),
+  которые TS не выводит из `keyof paths`. Тип ответа явный:
+  `apiGetRaw<GraphResponse>(...)`
+- **`src/pages/TopicGraphPage.tsx`** полностью переписан:
+  - 3 ViewState (loading / success / error) с шапкой (title темы +
+    description) + кнопкой "К списку"
+  - в success при пустом графе - empty-state "В этом графе пока нет
+    узлов" (плейсхолдер до D2)
+  - в success с узлами - `<ReactFlow>` с `Background`, `Controls`,
+    `MiniMap`, `fitView`, `proOptions.hideAttribution`
+  - `nodeTypes`/`edgeTypes` объявлены **на модульном уровне** (не в
+    компоненте) - стабильные ссылки между рендерами,
+    coding-standards.md
+  - `buildFlow(graph)` мапит `GraphResponse` → `{nodes, edges}` для
+    React Flow с фильтрацией null-id
+- **Тесты**:
+  - `graphLayout.test.ts` (5): количество узлов, разные позиции,
+    LR-направление, сохранение data, пустой граф
+  - `TopicGraphPage.test.tsx` (5): loading, header с title и
+    description, empty-state, ошибка 404, ссылка "К списку"
+  - `ResizeObserver` mock в `test-setup.ts` для jsdom (требуется
+    React Flow, без него падает `ReactFlow` рендер)
+- **Прогоны**: lint OK, build OK (524kB / gzip 171kB - React Flow и
+  dagre добавили вес, warning про 500kB threshold не блокер для MVP),
+  тесты 28/28 OK (было 18, +10 новых)
+
+### Решения
+- **`apiGetRaw<T>` для динамических путей.** Альтернатива - сделать
+  path-builder с подстановкой параметров через `keyof paths`, но это
+  большой рефакторинг client.ts. На MVP `apiGetRaw` с явным типом
+  ответа достаточно. Когда появится 5+ эндпоинтов с path-параметрами -
+  сделаем builder
+- **`nodeTypes`/`edgeTypes` на модульном уровне** (не useMemo внутри
+  компонента) - простейший способ обеспечить стабильную ссылку. Внутри
+  компонента через `useMemo([])` будет тот же эффект, но больше шума
+- **Цветовая палитра ребра в CustomEdge - hex напрямую**, не через
+  Tailwind. React Flow рендерит SVG `<path>` - Tailwind-классы
+  `stroke-*` работают только если SVG element это поддерживает; нативный
+  Bezier `path` принимает `style.stroke`. Hex-литералы в одном месте
+  (`TYPE_STYLES`) проще чем настройка Tailwind для SVG strokes
+- **Локализованные подписи рёбер на бейджах** (`поддерживает` вместо
+  `SUPPORTS`) - читаемее на UI, не мешает что в типе всё ещё англ. enum
+- **D1/D2/D3 разбивка**: D1 (read-only граф) - валидное самостоятельное
+  значение даже без редактирования. Пользователь уже видит созданную
+  тему как граф, может масштабировать, перемещать. D2 (мутации) и D3
+  (детали) - инкрементальные
+
+### Проблемы
+- TS не выводит keyof paths из template-literal с интерполяцией. Решено
+  через `apiGetRaw<T>` (см выше)
+- Bundle 524kB после сборки (warning chunk-size). React Flow + dagre +
+  lucide. Не блокер для MVP. Можно фиксить через React.lazy для
+  TopicGraphPage (граф нужен только на одной странице) - решим позже
+
+### Следующий шаг
+**Граф D2: модалки добавления узла/ребра + удаление выделенного.**
+
+1. **Toolbar над графом** (правый верхний угол области графа,
+   рядом с MiniMap):
+   - кнопка "+ Узел" → открывает модалку создания узла
+   - кнопка "+ Связь" → открывает модалку создания ребра (требует
+     минимум 2 узла на графе)
+   - кнопка "Удалить" - активна когда `selectedNodes.length > 0` или
+     `selectedEdges.length > 0`. По клику - confirm + DELETE
+2. **Модалка создания узла** (`src/components/graph/AddNodeModal.tsx`):
+   - поля: `nodeType` (radio: QUESTION/CLAIM/ARGUMENT/EVIDENCE),
+     `content` (textarea, max 10000), `weight` (slider 1-10, default 5)
+   - submit → `POST /api/v1/nodes` с `{topicId, nodeType, content,
+     weight}` (apiPost существует)
+3. **Модалка создания ребра** (`src/components/graph/AddEdgeModal.tsx`):
+   - поля: `from` (select из существующих узлов), `to` (select),
+     `edgeType` (radio: SUPPORTS/REFUTES/INVALIDATES/QUALIFIES/
+     RESPONDS_TO), `rationale` (optional textarea)
+   - валидация: from != to, оба узла из текущей темы
+   - submit → `POST /api/v1/edges`
+4. **Удаление выделенных**: React Flow даёт `onSelectionChange` callback
+   с `{nodes, edges}`. Кнопка "Удалить" → confirm-диалог с числом
+   удаляемых элементов → серия `DELETE`-запросов → re-fetch графа
+5. **Refetch графа после мутаций** - простой подход: после успешного
+   POST/DELETE заново вызвать `apiGetRaw<GraphResponse>(...)`. Когда
+   появится частое мутирование - оптимизируем на local state update
+   без перезагрузки
+6. **Базовый UI-компонент Modal** (`src/components/ui/Modal.tsx`) если
+   ещё нет: backdrop, contains close-on-Esc, focus trap, портал в
+   `document.body`. Можно через нативный `<dialog>` HTMLElement -
+   доступность из коробки
+
+### Важные нюансы для D2
+- Текущий тестовый topic с одним QUESTION-узлом:
+  `1d2124ba-724a-43d3-9c4f-0bf23bce6ea6` (создан через curl). Для
+  визуальной проверки полного графа - создать ещё узлов и рёбер
+  через curl или через будущий UI
+- Backend `POST /api/v1/nodes` ожидает `topicId` в теле; `topicId`
+  берём из `useParams`. Для рёбер - `fromNodeId`/`toNodeId`
+- API возвращает `Source`/`Authority` запросы только для уже
+  существующих узлов (после реализации D2). D3 (side-панель) тогда
+  сможет читать `GET /api/v1/nodes/{id}/sources`,
+  `/authorities`, `/revisions`
+- React Flow `onNodesChange`/`onEdgesChange` - если хотим drag узлов
+  с обратной записью позиции на бэк, потребуется новый PATCH
+  `/api/v1/nodes/{id}/position` (его пока нет). Для D2 позиции
+  локальные - dagre пересчитывает после refetch
+- Backend-задача (всё ещё открыта): починить springdoc + `@CurrentUser`
+  - параметр `userId` должен исчезнуть из OpenAPI
+
+---
+
 ## 2026-05-03 — Сессия 9 (frontend) — API-клиент + список тем + создание темы
 
 ### Сделано

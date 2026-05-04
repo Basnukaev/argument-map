@@ -129,14 +129,22 @@
 - [x] Страница `/topics/new` — создание темы (`POST /api/v1/topics`,
       форма title/description/rootQuestion, валидация полей через
       `errors[]` Problem Details, redirect на `/topics/{newId}`)
-- [ ] Страница `/topics/{id}` — граф темы (`GET /api/v1/topics/{id}/graph`)
-      на React Flow с базовыми узлами и рёбрами
-- [ ] Кастомные узлы: карточки с цветом по статусу
-      (`STANDING`/`DISPUTED`/`REFUTED`/`UNVERIFIED`), иконкой по типу,
-      контентом, весом
-- [ ] Кастомные рёбра: стили и подписи по типу (`SUPPORTS`/`REFUTES`/
-      `INVALIDATES`/`QUALIFIES`/`RESPONDS_TO`)
-- [ ] Автолейаут через `dagre` (горизонтально, корень слева)
+- [x] Страница `/topics/{id}` — граф темы (`GET /api/v1/topics/{id}/graph`)
+      на React Flow с базовыми узлами и рёбрами + загрузочные/error/empty
+      состояния, MiniMap, Controls, fitView
+- [x] Кастомные узлы (`src/components/graph/NodeCard.tsx`): карточки с
+      цветом по статусу
+      (`STANDING`/`DISPUTED`/`REFUTED`/`UNVERIFIED`), иконкой по типу
+      (lucide-react: `CircleHelp`/`Megaphone`/`MessageSquareQuote`/
+      `FileText`), контентом (truncate 150 символов с tooltip), весом
+      (10-точечная диаграмма)
+- [x] Кастомные рёбра (`src/components/graph/CustomEdge.tsx`):
+      `SUPPORTS` (зелёный), `REFUTES` (красный), `INVALIDATES`
+      (тёмно-красный жирный пунктир, ADR-007), `QUALIFIES` (синий),
+      `RESPONDS_TO` (тонкий серый полупрозрачный). Bezier-путь, badge с
+      подписью типа
+- [x] Автолейаут через `dagre` (`src/utils/graphLayout.ts`,
+      горизонтально LR, корень слева, `nodesep: 60, ranksep: 120`)
 - [ ] Добавление узла через модалку (`POST /api/v1/nodes`)
 - [ ] Добавление связи через модалку (`POST /api/v1/edges`)
 - [ ] Удаление узла и связи (`DELETE /api/v1/nodes/{id}`,

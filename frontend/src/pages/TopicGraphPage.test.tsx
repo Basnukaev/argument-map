@@ -1,0 +1,95 @@
+import { describe, it, expect } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, Routes, Route } from 'react-router';
+import { http, HttpResponse } from 'msw';
+import { server } from '@/test/server';
+import TopicGraphPage from './TopicGraphPage';
+
+const BASE = 'http://test.local';
+const TOPIC_ID = 't-1';
+
+function renderPage() {
+  return render(
+    <MemoryRouter initialEntries={[`/topics/${TOPIC_ID}`]}>
+      <Routes>
+        <Route path="/topics/:topicId" element={<TopicGraphPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe('TopicGraphPage', () => {
+  it('показывает "Загрузка графа" пока запрос идёт', () => {
+    server.use(
+      http.get(`${BASE}/api/v1/topics/${TOPIC_ID}/graph`, async () => {
+        await new Promise((r) => setTimeout(r, 1000));
+        return HttpResponse.json({ topic: {}, nodes: [], edges: [] });
+      }),
+    );
+    renderPage();
+    expect(screen.getByText('Загрузка графа')).toBeInTheDocument();
+  });
+
+  it('рендерит заголовок с title темы и описание', async () => {
+    server.use(
+      http.get(`${BASE}/api/v1/topics/${TOPIC_ID}/graph`, () =>
+        HttpResponse.json({
+          topic: { id: TOPIC_ID, title: 'Дозволенность мавлида', description: 'Разбор позиций' },
+          nodes: [],
+          edges: [],
+        }),
+      ),
+    );
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText('Дозволенность мавлида')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Разбор позиций')).toBeInTheDocument();
+  });
+
+  it('показывает empty-state когда нет узлов', async () => {
+    server.use(
+      http.get(`${BASE}/api/v1/topics/${TOPIC_ID}/graph`, () =>
+        HttpResponse.json({ topic: { id: TOPIC_ID, title: 'T' }, nodes: [], edges: [] }),
+      ),
+    );
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText(/В этом графе пока нет узлов/i)).toBeInTheDocument();
+    });
+  });
+
+  it('показывает ошибку при 404 с Problem Details', async () => {
+    server.use(
+      http.get(`${BASE}/api/v1/topics/${TOPIC_ID}/graph`, () =>
+        HttpResponse.json(
+          {
+            type: 'https://argumentmap.example/errors/topic-not-found',
+            title: 'Тема не найдена',
+            status: 404,
+            detail: `Тема с id=${TOPIC_ID} не найдена`,
+          },
+          { status: 404 },
+        ),
+      ),
+    );
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText('Ошибка')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/не найдена/i)).toBeInTheDocument();
+  });
+
+  it('ссылка "К списку" указывает на /topics', async () => {
+    server.use(
+      http.get(`${BASE}/api/v1/topics/${TOPIC_ID}/graph`, () =>
+        HttpResponse.json({ topic: { id: TOPIC_ID, title: 'T' }, nodes: [], edges: [] }),
+      ),
+    );
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText('T')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('link', { name: 'К списку' })).toHaveAttribute('href', '/topics');
+  });
+});

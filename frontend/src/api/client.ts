@@ -116,6 +116,18 @@ export async function apiGet<P extends keyof paths>(
   return request(path as string, { method: 'GET', signal: options?.signal });
 }
 
+/**
+ * Сырой GET с явным типом ответа. Для динамических путей (с подстановкой
+ * параметров типа `/api/v1/topics/${id}/graph`), которые TS не выводит из
+ * `keyof paths`. Тип ответа подставляется руками: `apiGetRaw<GraphResponse>(...)`.
+ */
+export async function apiGetRaw<T>(
+  path: string,
+  options?: { signal?: AbortSignal },
+): Promise<T> {
+  return request<T>(path, { method: 'GET', signal: options?.signal });
+}
+
 export async function apiPost<P extends keyof paths>(
   path: P,
   body: RequestBody<P, 'post'>,
