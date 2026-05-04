@@ -310,8 +310,6 @@ export interface components {
             /** @enum {string} */
             nodeType: "QUESTION" | "CLAIM" | "ARGUMENT" | "EVIDENCE";
             content: string;
-            /** Format: int32 */
-            weight?: number;
         };
         NodeResponse: {
             /** Format: uuid */
@@ -323,8 +321,6 @@ export interface components {
             content?: string;
             /** @enum {string} */
             status?: "STANDING" | "DISPUTED" | "REFUTED" | "UNVERIFIED";
-            /** Format: int32 */
-            weight?: number;
             /** Format: uuid */
             createdBy?: string;
             /** Format: date-time */

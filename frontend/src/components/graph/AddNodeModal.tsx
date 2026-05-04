@@ -26,14 +26,12 @@ const TYPE_OPTIONS: Array<{ value: NodeType; label: string; hint: string }> = [
 function AddNodeModal({ open, topicId, onClose, onCreated }: Props) {
   const [nodeType, setNodeType] = useState<NodeType>('CLAIM');
   const [content, setContent] = useState('');
-  const [weight, setWeight] = useState(5);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function reset() {
     setNodeType('CLAIM');
     setContent('');
-    setWeight(5);
     setError(null);
     setSubmitting(false);
   }
@@ -53,7 +51,6 @@ function AddNodeModal({ open, topicId, onClose, onCreated }: Props) {
         topicId,
         nodeType,
         content: content.trim(),
-        weight,
       });
       reset();
       onCreated();
@@ -117,23 +114,6 @@ function AddNodeModal({ open, topicId, onClose, onCreated }: Props) {
             maxLength={10000}
             disabled={submitting}
             className="block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="node-weight" className="mb-1 block text-sm font-medium text-gray-700">
-            Вес: <span className="font-mono">{weight}/10</span>
-          </label>
-          <input
-            id="node-weight"
-            type="range"
-            min={1}
-            max={10}
-            step={1}
-            value={weight}
-            onChange={(e) => setWeight(Number(e.target.value))}
-            disabled={submitting}
-            className="w-full"
           />
         </div>
 

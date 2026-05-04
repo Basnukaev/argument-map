@@ -70,7 +70,6 @@ describe('AddNodeModal', () => {
       topicId: TOPIC_ID,
       nodeType: 'ARGUMENT',
       content: 'Тестовый аргумент',
-      weight: 5,
     });
   });
 
@@ -112,7 +111,7 @@ describe('AddNodeModal', () => {
     expect(onCreated).not.toHaveBeenCalled();
   });
 
-  it('по умолчанию выбран тип CLAIM, weight=5', async () => {
+  it('по умолчанию выбран тип CLAIM', async () => {
     let received: unknown = null;
     server.use(
       http.post(`${BASE}/api/v1/nodes`, async ({ request }) => {
@@ -128,7 +127,7 @@ describe('AddNodeModal', () => {
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
     await waitFor(() => {
-      expect(received).toMatchObject({ nodeType: 'CLAIM', weight: 5 });
+      expect(received).toMatchObject({ nodeType: 'CLAIM' });
     });
   });
 });

@@ -1,10 +1,14 @@
 #!/bin/bash
+# Создаёт тестовый граф "Дозволенность Мавлида" - один центральный CLAIM,
+# вокруг него ARGUMENT за/против с EVIDENCE-обоснованиями. Используются
+# все 5 типов рёбер: SUPPORTS, REFUTES, INVALIDATES, QUALIFIES, RESPONDS_TO.
+#
+# Идемпотентен: каждый запуск создаёт НОВУЮ тему (uuid'ы новые).
+# Используется как regression-визуал для UI-проверок графа.
 set -e
 USER="14561248-0bfd-4a62-8395-d40a6972182a"
 H_CT="Content-Type: application/json"
 H_USR="X-User-Id: $USER"
-
-extract_id() { python3 -c "import sys,json; print(json.load(sys.stdin)['id'])"; }
 
 post_topic() {
   curl -sS -X POST http://localhost:9090/api/v1/topics \
@@ -13,7 +17,7 @@ post_topic() {
 
 post_node() {
   curl -sS -X POST http://localhost:9090/api/v1/nodes \
-    -H "$H_CT" -H "$H_USR" -d "$1" | extract_id
+    -H "$H_CT" -H "$H_USR" -d "$1" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])"
 }
 
 post_edge() {
@@ -21,7 +25,15 @@ post_edge() {
     -H "$H_CT" -H "$H_USR" -d "$1"
 }
 
-echo "=== Создание темы ==="
+mknode() {
+  python3 -c "import json,sys; print(json.dumps({'topicId':'$TOPIC_ID','nodeType':sys.argv[1],'content':sys.argv[2]}))" "$1" "$2"
+}
+
+mkedge() {
+  python3 -c "import json,sys; print(json.dumps({'fromNodeId':sys.argv[1],'toNodeId':sys.argv[2],'edgeType':sys.argv[3],'rationale':sys.argv[4] if len(sys.argv)>4 else None}))" "$1" "$2" "$3" "$4"
+}
+
+echo "=== Тема + корневой вопрос ==="
 TOPIC_JSON=$(post_topic '{
   "title": "Дозволенность Мавлида ан-Наби",
   "description": "Спор о дозволенности празднования дня рождения Пророка ﷺ",
@@ -30,78 +42,61 @@ TOPIC_JSON=$(post_topic '{
 TOPIC_ID=$(echo "$TOPIC_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
 Q_ROOT=$(echo "$TOPIC_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['rootNodeId'])")
 echo "Topic: $TOPIC_ID"
-echo "Q_ROOT (корневой вопрос): $Q_ROOT"
+echo "Q_ROOT: $Q_ROOT"
 
 echo ""
-echo "=== Создание узлов ==="
+echo "=== Узлы ==="
 
-mkclaim() {
-  post_node "$(python3 -c "import json,sys; print(json.dumps({'topicId':'$TOPIC_ID','nodeType':'CLAIM','content':sys.argv[1],'weight':int(sys.argv[2])}))" "$1" "$2")"
-}
-mkarg() {
-  post_node "$(python3 -c "import json,sys; print(json.dumps({'topicId':'$TOPIC_ID','nodeType':'ARGUMENT','content':sys.argv[1],'weight':int(sys.argv[2])}))" "$1" "$2")"
-}
-mkev() {
-  post_node "$(python3 -c "import json,sys; print(json.dumps({'topicId':'$TOPIC_ID','nodeType':'EVIDENCE','content':sys.argv[1],'weight':int(sys.argv[2])}))" "$1" "$2")"
-}
-mkq() {
-  post_node "$(python3 -c "import json,sys; print(json.dumps({'topicId':'$TOPIC_ID','nodeType':'QUESTION','content':sys.argv[1],'weight':int(sys.argv[2])}))" "$1" "$2")"
-}
+C_MAIN=$(post_node "$(mknode CLAIM "Мавлид является дозволенной практикой")")
+echo "C_MAIN (главный тезис): $C_MAIN"
 
-C_ALLOW=$(mkclaim "Мавлид является дозволенной практикой" 7)
-echo "C_ALLOW: $C_ALLOW"
-C_FORBID=$(mkclaim "Мавлид является запрещённой бидʿа" 6)
-echo "C_FORBID: $C_FORBID"
-C_FINAL=$(mkclaim "Мавлид дозволен при отсутствии харамных элементов (смешения полов, излишеств, ширка)" 9)
-echo "C_FINAL: $C_FINAL"
+ARG_FOR_1=$(post_node "$(mknode ARGUMENT "Празднование - выражение любви к Пророку ﷺ, что является обязанностью верующего")")
+echo "ARG_FOR_1: $ARG_FOR_1"
+ARG_FOR_2=$(post_node "$(mknode ARGUMENT "Это \"бидʿа хасана\" (хорошее нововведение) - отдельная категория в богословии")")
+echo "ARG_FOR_2: $ARG_FOR_2"
+ARG_AGAINST_1=$(post_node "$(mknode ARGUMENT "Любая бидʿа в религии есть заблуждение - так сказал Пророк ﷺ")")
+echo "ARG_AGAINST_1: $ARG_AGAINST_1"
+ARG_AGAINST_2=$(post_node "$(mknode ARGUMENT "Сахаба и саляф не праздновали Мавлид")")
+echo "ARG_AGAINST_2: $ARG_AGAINST_2"
 
-ARG_A1=$(mkarg "Празднование - выражение любви к Пророку ﷺ, что является обязанностью верующего" 8)
-echo "ARG_A1: $ARG_A1"
-ARG_A2=$(mkarg "Это \"бидʿа хасана\" (хорошее нововведение), как разделили учёные" 7)
-echo "ARG_A2: $ARG_A2"
-ARG_B1=$(mkarg "Любая бидʿа в религии есть заблуждение - так сказал Пророк ﷺ" 8)
-echo "ARG_B1: $ARG_B1"
-ARG_B2=$(mkarg "Сахаба и первые три поколения (саляф) не праздновали Мавлид" 7)
-echo "ARG_B2: $ARG_B2"
+EV_FOR_1=$(post_node "$(mknode EVIDENCE "Хадис: \"Не уверует никто из вас, пока я не стану ему любимее, чем его отец, дитя и все люди\" (Бухари, Муслим)")")
+echo "EV_FOR_1: $EV_FOR_1"
+EV_FOR_2=$(post_node "$(mknode EVIDENCE "Трактат имама ас-Суюти \"Хусн уль-максид фи амаль аль-маулид\" с богословским разделением бидʿа на пять видов")")
+echo "EV_FOR_2: $EV_FOR_2"
+EV_AGAINST_1=$(post_node "$(mknode EVIDENCE "Хадис: \"Каждое нововведение - бидʿа, и каждая бидʿа - заблуждение\" (Муслим)")")
+echo "EV_AGAINST_1: $EV_AGAINST_1"
 
-EV_A1=$(mkev "Хадис: \"Не уверует никто из вас, пока я не стану любимее ему, чем его отец, дитя и все люди\" (Бухари, Муслим)" 9)
-echo "EV_A1: $EV_A1"
-EV_A2=$(mkev "Трактат имама ас-Суюти \"Хусн уль-максид фи амаль аль-маулид\" с богословским разделением бидʿа на пять видов" 8)
-echo "EV_A2: $EV_A2"
-EV_B1=$(mkev "Хадис: \"Каждое нововведение - бидʿа, и каждая бидʿа - заблуждение\" (Муслим)" 9)
-echo "EV_B1: $EV_B1"
-
-Q_QUALIFY=$(mkq "Не приводит ли празднование к харамным практикам (смешение полов, ширк, излишество)?" 6)
+Q_QUALIFY=$(post_node "$(mknode QUESTION "Не приводит ли празднование к харамным практикам (смешение полов, ширк, излишество)?")")
 echo "Q_QUALIFY: $Q_QUALIFY"
 
 echo ""
-echo "=== Создание связей ==="
+echo "=== Рёбра ==="
 
-mkedge() {
-  post_edge "$(python3 -c "import json,sys; print(json.dumps({'fromNodeId':sys.argv[1],'toNodeId':sys.argv[2],'edgeType':sys.argv[3],'rationale':sys.argv[4] if len(sys.argv)>4 else None}))" "$1" "$2" "$3" "$4")"
-}
+# Ветка ЗА: ARGUMENT -SUPPORTS-> C_MAIN, EVIDENCE -SUPPORTS-> ARGUMENT
+post_edge "$(mkedge $ARG_FOR_1 $C_MAIN SUPPORTS 'Любовь к Пророку обязывает чтить день его рождения')"
+post_edge "$(mkedge $EV_FOR_1 $ARG_FOR_1 SUPPORTS 'Хадис прямо обязывает любить Пророка')"
+post_edge "$(mkedge $ARG_FOR_2 $C_MAIN SUPPORTS 'Категория бидʿа хасана легитимизирует Мавлид')"
+post_edge "$(mkedge $EV_FOR_2 $ARG_FOR_2 SUPPORTS 'Богословское разделение бидʿа даёт основание')"
 
-# CLAIMs за Мавлид
-mkedge "$ARG_A1" "$C_ALLOW" "SUPPORTS" "Любовь к Пророку обязывает чтить день его рождения"
-mkedge "$EV_A1" "$ARG_A1" "SUPPORTS" "Хадис прямо обязывает любить Пророка"
-mkedge "$ARG_A2" "$C_ALLOW" "SUPPORTS" "Категория бидʿа хасана легитимизирует Мавлид"
-mkedge "$EV_A2" "$ARG_A2" "SUPPORTS" "Богословское разделение даёт основание"
+# Ветка ПРОТИВ: ARGUMENT -REFUTES-> C_MAIN, EVIDENCE -SUPPORTS-> ARGUMENT
+post_edge "$(mkedge $ARG_AGAINST_1 $C_MAIN REFUTES 'Прямое толкование запрета на бидʿа')"
+post_edge "$(mkedge $EV_AGAINST_1 $ARG_AGAINST_1 SUPPORTS 'Хадис в Сахих Муслим')"
+post_edge "$(mkedge $ARG_AGAINST_2 $C_MAIN REFUTES 'Лучшее поколение - саляф - служит образцом')"
 
-# CLAIMs против Мавлида
-mkedge "$ARG_B1" "$C_FORBID" "SUPPORTS" "Прямое толкование хадиса о бидʿа"
-mkedge "$EV_B1" "$ARG_B1" "SUPPORTS" "Хадис в Сахих Муслим"
-mkedge "$ARG_B2" "$C_FORBID" "SUPPORTS" "Лучшее поколение - саляф - служит образцом"
+# Мета-опровержение: трактат ас-Суюти аннулирует общий запрет "любая бидʿа = заблуждение"
+post_edge "$(mkedge $EV_FOR_2 $ARG_AGAINST_1 INVALIDATES 'Богословское разделение бидʿа аннулирует обобщение')"
 
-# Мета-опровержение
-mkedge "$EV_A2" "$ARG_B1" "INVALIDATES" "Трактат ас-Суюти аннулирует обобщение \"любая бидʿа = заблуждение\""
+# Уточнение: вопрос о харамных элементах сужает применимость C_MAIN
+post_edge "$(mkedge $Q_QUALIFY $C_MAIN QUALIFIES 'Дозволено только при отсутствии харама')"
 
-# Финальный вывод
-mkedge "$C_ALLOW" "$C_FINAL" "SUPPORTS" "Сторона разрешения поддерживает финальный вывод"
-mkedge "$C_FORBID" "$C_FINAL" "REFUTES" "Сторона запрета противоречит финальному выводу"
-mkedge "$Q_QUALIFY" "$C_FINAL" "QUALIFIES" "Уточняющий вопрос задаёт границу: только при отсутствии харама"
-mkedge "$C_FINAL" "$Q_ROOT" "RESPONDS_TO" "Финальный вывод отвечает на корневой вопрос"
+# Главный тезис отвечает на корневой вопрос
+post_edge "$(mkedge $C_MAIN $Q_ROOT RESPONDS_TO 'Тезис как ответ на вопрос темы')"
 
 echo ""
 echo "=== Готово ==="
 echo "Topic ID: $TOPIC_ID"
 echo "Открой: http://localhost:5173/topics/$TOPIC_ID"
+echo ""
+echo "Состав: 10 узлов (1 root QUESTION, 1 уточняющий QUESTION, 1 главный CLAIM,"
+echo "       4 ARGUMENT, 3 EVIDENCE)"
+echo "       10 рёбер: 5 SUPPORTS, 2 REFUTES, 1 INVALIDATES, 1 QUALIFIES, 1 RESPONDS_TO"

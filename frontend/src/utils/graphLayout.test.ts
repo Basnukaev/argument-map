@@ -8,7 +8,7 @@ function makeNode(id: string): NodeCardNode {
     id,
     type: 'argumentNode',
     position: { x: 0, y: 0 },
-    data: { id, content: id, nodeType: 'CLAIM', status: 'UNVERIFIED', weight: 5 },
+    data: { id, content: id, nodeType: 'CLAIM', status: 'UNVERIFIED' },
   };
 }
 
