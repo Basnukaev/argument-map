@@ -16,6 +16,7 @@ import Button from '@/components/ui/Button';
 import NodeCard, { type NodeCardNode, type NodeCardData } from '@/components/graph/NodeCard';
 import CustomEdge, { type CustomEdgeEdge } from '@/components/graph/CustomEdge';
 import AddNodeModal from '@/components/graph/AddNodeModal';
+import AddEdgeModal from '@/components/graph/AddEdgeModal';
 import { layoutGraph } from '@/utils/graphLayout';
 import { apiGetRaw, ApiError } from '@/api/client';
 import type { components } from '@/api/types';
@@ -124,6 +125,10 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<NodeCardNode>(initial.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<CustomEdgeEdge>(initial.edges);
   const [addNodeOpen, setAddNodeOpen] = useState(false);
+  const [addEdgeOpen, setAddEdgeOpen] = useState(false);
+
+  const rawNodeDtos = useMemo(() => graph.nodes ?? [], [graph.nodes]);
+  const canAddEdge = rawNodeDtos.length >= 2;
 
   // initial меняется при перезагрузке графа (после мутаций) - синхронизируем
   useEffect(() => {
@@ -174,6 +179,15 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
             <Button onClick={() => setAddNodeOpen(true)} className="!px-3 !py-1.5 text-sm">
               <Plus size={16} className="mr-1" /> Узел
             </Button>
+            <Button
+              onClick={() => setAddEdgeOpen(true)}
+              disabled={!canAddEdge}
+              variant="secondary"
+              className="!px-3 !py-1.5 text-sm"
+              title={canAddEdge ? undefined : 'Нужно минимум 2 узла'}
+            >
+              <Plus size={16} className="mr-1" /> Связь
+            </Button>
           </Panel>
         </ReactFlow>
       )}
@@ -182,6 +196,13 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
         open={addNodeOpen}
         topicId={topicId}
         onClose={() => setAddNodeOpen(false)}
+        onCreated={onRefetch}
+      />
+
+      <AddEdgeModal
+        open={addEdgeOpen}
+        nodes={rawNodeDtos}
+        onClose={() => setAddEdgeOpen(false)}
         onCreated={onRefetch}
       />
     </>
