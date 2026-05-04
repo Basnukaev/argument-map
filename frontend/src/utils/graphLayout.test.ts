@@ -18,7 +18,7 @@ function makeEdge(id: string, from: string, to: string): CustomEdgeEdge {
     source: from,
     target: to,
     type: 'argumentEdge',
-    data: { edgeType: 'SUPPORTS' },
+    data: { edgeType: 'SUPPORTS', fromType: 'CLAIM', toType: 'CLAIM' },
   };
 }
 

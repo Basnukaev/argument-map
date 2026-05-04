@@ -1,24 +1,17 @@
 import { BaseEdge, EdgeLabelRenderer, getBezierPath } from '@xyflow/react';
 import type { EdgeProps, Edge } from '@xyflow/react';
-import type { components } from '@/api/types';
-
-type EdgeDto = components['schemas']['EdgeResponse'];
-type EdgeType = NonNullable<EdgeDto['edgeType']>;
+import { getContextualEdgeLabel, EDGE_TYPE_ICON } from '@/utils/edgeRules';
+import type { EdgeType, NodeType } from '@/utils/edgeRules';
 
 export type CustomEdgeData = {
   edgeType: EdgeType;
+  fromType: NodeType;
+  toType: NodeType;
   rationale?: string;
+  showLabel?: boolean;
 };
 
 export type CustomEdgeEdge = Edge<CustomEdgeData, 'argumentEdge'>;
-
-const TYPE_LABELS: Record<EdgeType, string> = {
-  SUPPORTS: 'поддерживает',
-  REFUTES: 'опровергает',
-  INVALIDATES: 'аннулирует',
-  QUALIFIES: 'уточняет',
-  RESPONDS_TO: 'отвечает',
-};
 
 interface StyleSpec {
   stroke: string;
@@ -61,7 +54,12 @@ function CustomEdge(props: EdgeProps<CustomEdgeEdge>) {
 
   const edgeType = data?.edgeType ?? 'SUPPORTS';
   const style = TYPE_STYLES[edgeType];
-  const label = TYPE_LABELS[edgeType];
+  const icon = EDGE_TYPE_ICON[edgeType];
+  const showLabel = data?.showLabel ?? true;
+  const label =
+    data?.fromType && data?.toType
+      ? getContextualEdgeLabel(data.fromType, edgeType, data.toType)
+      : '';
 
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -86,12 +84,13 @@ function CustomEdge(props: EdgeProps<CustomEdgeEdge>) {
       />
       <EdgeLabelRenderer>
         <div
-          className={`pointer-events-none absolute rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${style.badge}`}
+          className={`pointer-events-none absolute flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${style.badge}`}
           style={{
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
           }}
         >
-          {label}
+          <span aria-hidden="true">{icon}</span>
+          {showLabel && label && <span>{label}</span>}
         </div>
       </EdgeLabelRenderer>
     </>

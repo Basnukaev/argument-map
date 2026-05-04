@@ -12,7 +12,7 @@ import {
   type ReactFlowProps,
   type Node,
 } from '@xyflow/react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import NodeCard, { type NodeCardNode, type NodeCardData } from '@/components/graph/NodeCard';
 import CustomEdge, { type CustomEdgeEdge } from '@/components/graph/CustomEdge';
@@ -130,8 +130,22 @@ interface GraphProps {
   onRefetch: () => void;
 }
 
+const SHOW_LABELS_LS_KEY = 'argmap.showEdgeLabels';
+
+function readShowLabels(): boolean {
+  if (typeof window === 'undefined') return true;
+  const raw = window.localStorage.getItem(SHOW_LABELS_LS_KEY);
+  return raw === null ? true : raw === 'true';
+}
+
 function Graph({ graph, topicId, onRefetch }: GraphProps) {
-  const initial = useMemo(() => buildFlow(graph), [graph]);
+  const [showEdgeLabels, setShowEdgeLabels] = useState<boolean>(readShowLabels);
+
+  useEffect(() => {
+    window.localStorage.setItem(SHOW_LABELS_LS_KEY, String(showEdgeLabels));
+  }, [showEdgeLabels]);
+
+  const initial = useMemo(() => buildFlow(graph, showEdgeLabels), [graph, showEdgeLabels]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<NodeCardNode>(initial.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<CustomEdgeEdge>(initial.edges);
@@ -251,6 +265,16 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
               <Trash2 size={16} className="mr-1" />
               {deleting ? 'Удаляем' : `Удалить${selectedCount > 0 ? ` (${selectedCount})` : ''}`}
             </Button>
+            <Button
+              onClick={() => setShowEdgeLabels((v) => !v)}
+              variant="secondary"
+              className="!px-3 !py-1.5 text-sm"
+              title={showEdgeLabels ? 'Скрыть подписи рёбер' : 'Показать подписи рёбер'}
+              aria-label={showEdgeLabels ? 'Скрыть подписи' : 'Показать подписи'}
+              aria-pressed={showEdgeLabels}
+            >
+              {showEdgeLabels ? <Eye size={16} /> : <EyeOff size={16} />}
+            </Button>
           </Panel>
         </ReactFlow>
       )}
@@ -272,7 +296,10 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
   );
 }
 
-function buildFlow(graph: GraphResponse): { nodes: NodeCardNode[]; edges: CustomEdgeEdge[] } {
+function buildFlow(
+  graph: GraphResponse,
+  showEdgeLabels: boolean,
+): { nodes: NodeCardNode[]; edges: CustomEdgeEdge[] } {
   const rawNodes: NodeCardNode[] = (graph.nodes ?? [])
     .filter((n): n is NodeDto & { id: string } => Boolean(n.id))
     .map((n) => ({
@@ -282,6 +309,12 @@ function buildFlow(graph: GraphResponse): { nodes: NodeCardNode[]; edges: Custom
       data: n,
     }));
 
+  // быстрый поиск типа узла по id - нужен чтобы прокинуть в data ребра
+  const nodeTypeById = new Map<string, NonNullable<NodeDto['nodeType']>>();
+  for (const n of rawNodes) {
+    if (n.data.nodeType) nodeTypeById.set(n.id, n.data.nodeType);
+  }
+
   const rawEdges: CustomEdgeEdge[] = (graph.edges ?? [])
     .filter(
       (e): e is EdgeDto & { id: string; fromNodeId: string; toNodeId: string } =>
@@ -289,12 +322,20 @@ function buildFlow(graph: GraphResponse): { nodes: NodeCardNode[]; edges: Custom
     )
     .map((e) => {
       const edgeType = e.edgeType ?? 'SUPPORTS';
+      const fromType = nodeTypeById.get(e.fromNodeId) ?? 'CLAIM';
+      const toType = nodeTypeById.get(e.toNodeId) ?? 'CLAIM';
       return {
         id: e.id,
         source: e.fromNodeId,
         target: e.toNodeId,
         type: 'argumentEdge' as const,
-        data: { edgeType, rationale: e.rationale },
+        data: {
+          edgeType,
+          fromType,
+          toType,
+          rationale: e.rationale,
+          showLabel: showEdgeLabels,
+        },
         markerEnd: {
           type: MarkerType.ArrowClosed,
           color: EDGE_ARROW_COLOR[edgeType],
