@@ -7,6 +7,7 @@ import type { components } from '@/api/types';
 import {
   getAllowedEdgeTypes,
   NODE_TYPE_EMOJI,
+  NODE_TYPE_LABEL,
   type EdgeType,
   type NodeType,
 } from '@/utils/edgeRules';
@@ -34,7 +35,8 @@ function previewContent(node: NodeDto): string {
   const content = node.content ?? '';
   const trimmed = content.length > PREVIEW_LEN ? `${content.slice(0, PREVIEW_LEN)}…` : content;
   const emoji = node.nodeType ? NODE_TYPE_EMOJI[node.nodeType] : '·';
-  return `${emoji} ${trimmed || '(без содержимого)'}`;
+  const label = node.nodeType ? NODE_TYPE_LABEL[node.nodeType] : '?';
+  return `${emoji} ${label}: ${trimmed || '(без содержимого)'}`;
 }
 
 function AddEdgeModal({ open, nodes, onClose, onCreated }: Props) {

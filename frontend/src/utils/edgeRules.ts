@@ -84,13 +84,25 @@ const EDGE_DEFAULT_LABEL: Record<EdgeType, string> = {
 
 /**
  * Эмодзи для типа узла - используется в местах где нельзя положить SVG-иконку
- * (например, внутри `<option>`).
+ * (например, внутри `<option>`). Эмодзи 📢 и 💬 визуально близкие, поэтому
+ * рядом всегда показываем `NODE_TYPE_LABEL` для однозначности.
  */
 export const NODE_TYPE_EMOJI: Record<NodeType, string> = {
   QUESTION: '❓',
   CLAIM: '📢',
   ARGUMENT: '💬',
   EVIDENCE: '📄',
+};
+
+/**
+ * Короткие русские метки типов узлов. Должны совпадать с заголовками в
+ * `NodeCard` (Вопрос/Тезис/Довод/Свидетельство).
+ */
+export const NODE_TYPE_LABEL: Record<NodeType, string> = {
+  QUESTION: 'Вопрос',
+  CLAIM: 'Тезис',
+  ARGUMENT: 'Довод',
+  EVIDENCE: 'Свид.',
 };
 
 /**
