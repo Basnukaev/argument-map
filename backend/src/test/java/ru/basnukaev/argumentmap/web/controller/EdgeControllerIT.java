@@ -158,13 +158,31 @@ class EdgeControllerIT {
     }
 
     private UUID insertNode(UUID topic) {
+        return insertNodeWithType(topic, NodeType.CLAIM);
+    }
+
+    private UUID insertNodeWithType(UUID topic, NodeType nodeType) {
         UUID id = UUID.randomUUID();
         Instant now = Instant.now();
         jdbcTemplate.update(
                 "INSERT INTO nodes (id, topic_id, node_type, content, status, "
                         + "created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                id, topic, NodeType.CLAIM.name(), "c", NodeStatus.UNVERIFIED.name(), userId, odt(now), odt(now)
+                id, topic, nodeType.name(), "c", NodeStatus.UNVERIFIED.name(), userId, odt(now), odt(now)
         );
         return id;
+    }
+
+    @Test
+    void createEdge_disallowedPair_returns422() throws Exception {
+        UUID question = insertNodeWithType(topicId, NodeType.QUESTION);
+        var req = new CreateEdgeRequest(question, nodeA, EdgeType.SUPPORTS, null);
+
+        mockMvc.perform(post("/api/v1/edges")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.type").value(containsString("invalid-edge")))
+                .andExpect(jsonPath("$.detail").value(containsString("недопустим")));
     }
 }

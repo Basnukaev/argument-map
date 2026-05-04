@@ -42,6 +42,11 @@ public class EdgeService {
         if (!from.topicId().equals(to.topicId())) {
             throw new InvalidEdgeException("ребро не может пересекать границу темы");
         }
+        if (!EdgeSemantics.isAllowed(from.nodeType(), type, to.nodeType())) {
+            throw new InvalidEdgeException(
+                    "тип связи %s недопустим для пары (%s -> %s)".formatted(
+                            type, from.nodeType(), to.nodeType()));
+        }
 
         Edge edge = new Edge(
                 UUID.randomUUID(), fromNodeId, toNodeId, type,

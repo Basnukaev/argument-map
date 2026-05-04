@@ -175,13 +175,60 @@ class EdgeServiceIT {
     }
 
     private UUID insertNode(UUID topic) {
+        return insertNodeWithType(topic, NodeType.CLAIM);
+    }
+
+    private UUID insertNodeWithType(UUID topic, NodeType nodeType) {
         UUID id = UUID.randomUUID();
         Instant now = Instant.now();
         jdbcTemplate.update(
                 "INSERT INTO nodes (id, topic_id, node_type, content, status, "
                         + "created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                id, topic, NodeType.CLAIM.name(), "c", NodeStatus.UNVERIFIED.name(), userId, odt(now), odt(now)
+                id, topic, nodeType.name(), "c", NodeStatus.UNVERIFIED.name(), userId, odt(now), odt(now)
         );
         return id;
+    }
+
+    @Test
+    void createEdge_disallowedPair_throwsInvalidEdge() {
+        UUID question = insertNodeWithType(topicId, NodeType.QUESTION);
+        UUID argument = insertNodeWithType(topicId, NodeType.ARGUMENT);
+
+        assertThatThrownBy(() -> edgeService.createEdge(
+                question, argument, EdgeType.SUPPORTS, null, userId
+        )).isInstanceOf(InvalidEdgeException.class)
+          .hasMessageContaining("недопустим")
+          .hasMessageContaining("QUESTION")
+          .hasMessageContaining("ARGUMENT");
+    }
+
+    @Test
+    void createEdge_evidenceSupportsClaim_succeeds() {
+        UUID evidence = insertNodeWithType(topicId, NodeType.EVIDENCE);
+        UUID claim = insertNodeWithType(topicId, NodeType.CLAIM);
+
+        Edge edge = edgeService.createEdge(evidence, claim, EdgeType.SUPPORTS, null, userId);
+
+        assertThat(edge.id()).isNotNull();
+    }
+
+    @Test
+    void createEdge_argumentInvalidatesArgument_succeeds() {
+        UUID arg1 = insertNodeWithType(topicId, NodeType.ARGUMENT);
+        UUID arg2 = insertNodeWithType(topicId, NodeType.ARGUMENT);
+
+        Edge edge = edgeService.createEdge(arg1, arg2, EdgeType.INVALIDATES, null, userId);
+
+        assertThat(edge.id()).isNotNull();
+    }
+
+    @Test
+    void createEdge_claimRespondsToQuestion_succeeds() {
+        UUID claim = insertNodeWithType(topicId, NodeType.CLAIM);
+        UUID question = insertNodeWithType(topicId, NodeType.QUESTION);
+
+        Edge edge = edgeService.createEdge(claim, question, EdgeType.RESPONDS_TO, null, userId);
+
+        assertThat(edge.id()).isNotNull();
     }
 }
