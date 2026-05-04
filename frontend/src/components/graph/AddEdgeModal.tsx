@@ -4,9 +4,13 @@ import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import { apiPost, ApiError } from '@/api/client';
 import type { components } from '@/api/types';
+import {
+  getAllowedEdgeTypes,
+  NODE_TYPE_EMOJI,
+  type EdgeType,
+  type NodeType,
+} from '@/utils/edgeRules';
 
-type CreateEdgeRequest = components['schemas']['CreateEdgeRequest'];
-type EdgeType = CreateEdgeRequest['edgeType'];
 type NodeDto = components['schemas']['NodeResponse'];
 
 interface Props {
@@ -16,24 +20,21 @@ interface Props {
   onCreated: () => void;
 }
 
-const TYPE_OPTIONS: Array<{ value: EdgeType; label: string; hint: string }> = [
-  { value: 'SUPPORTS', label: 'Поддерживает', hint: 'Аргумент за тезис' },
-  { value: 'REFUTES', label: 'Опровергает', hint: 'Аргумент против' },
-  {
-    value: 'INVALIDATES',
-    label: 'Аннулирует',
-    hint: 'Жёсткое мета-опровержение (kill)',
-  },
-  { value: 'QUALIFIES', label: 'Уточняет', hint: 'Сужает применимость' },
-  { value: 'RESPONDS_TO', label: 'Отвечает', hint: 'Реплика-ответ' },
-];
+const TYPE_LABELS: Record<EdgeType, { label: string; hint: string }> = {
+  SUPPORTS: { label: 'Поддерживает', hint: 'Аргумент за тезис' },
+  REFUTES: { label: 'Опровергает', hint: 'Аргумент против' },
+  INVALIDATES: { label: 'Аннулирует', hint: 'Жёсткое мета-опровержение (kill)' },
+  QUALIFIES: { label: 'Уточняет', hint: 'Сужает применимость' },
+  RESPONDS_TO: { label: 'Отвечает', hint: 'Реплика-ответ' },
+};
 
 const PREVIEW_LEN = 60;
 
 function previewContent(node: NodeDto): string {
   const content = node.content ?? '';
   const trimmed = content.length > PREVIEW_LEN ? `${content.slice(0, PREVIEW_LEN)}…` : content;
-  return `[${node.nodeType ?? '?'}] ${trimmed || '(без содержимого)'}`;
+  const emoji = node.nodeType ? NODE_TYPE_EMOJI[node.nodeType] : '·';
+  return `${emoji} ${trimmed || '(без содержимого)'}`;
 }
 
 function AddEdgeModal({ open, nodes, onClose, onCreated }: Props) {
@@ -43,6 +44,21 @@ function AddEdgeModal({ open, nodes, onClose, onCreated }: Props) {
   const [rationale, setRationale] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const fromNode = nodes.find((n) => n.id === fromNodeId);
+  const toNode = nodes.find((n) => n.id === toNodeId);
+  const allowedTypes: readonly EdgeType[] =
+    fromNode?.nodeType && toNode?.nodeType
+      ? getAllowedEdgeTypes(fromNode.nodeType as NodeType, toNode.nodeType as NodeType)
+      : [];
+  const pairSelected = Boolean(fromNodeId && toNodeId && fromNodeId !== toNodeId);
+  const pairAllowed = pairSelected && allowedTypes.length > 0;
+
+  // если выбранный пользователем тип не подходит под текущую пару -
+  // подставляем первый разрешённый. Это derived state без useEffect/setState.
+  const effectiveEdgeType: EdgeType = pairAllowed
+    ? (allowedTypes.includes(edgeType) ? edgeType : allowedTypes[0]!)
+    : edgeType;
 
   function reset() {
     setFromNodeId('');
@@ -63,6 +79,9 @@ function AddEdgeModal({ open, nodes, onClose, onCreated }: Props) {
     if (!fromNodeId) return 'Выбери исходный узел';
     if (!toNodeId) return 'Выбери целевой узел';
     if (fromNodeId === toNodeId) return 'Исходный и целевой узлы должны различаться';
+    if (!allowedTypes.includes(effectiveEdgeType)) {
+      return 'Эту пару узлов нельзя соединить выбранным типом';
+    }
     return null;
   }
 
@@ -79,7 +98,7 @@ function AddEdgeModal({ open, nodes, onClose, onCreated }: Props) {
       await apiPost('/api/v1/edges', {
         fromNodeId,
         toNodeId,
-        edgeType,
+        edgeType: effectiveEdgeType,
         rationale: rationale.trim() || undefined,
       });
       reset();
@@ -152,34 +171,49 @@ function AddEdgeModal({ open, nodes, onClose, onCreated }: Props) {
 
         <fieldset disabled={submitting} className="space-y-2">
           <legend className="text-sm font-medium text-gray-700">Тип связи</legend>
-          <div className="space-y-1.5">
-            {TYPE_OPTIONS.map((option) => {
-              const selected = edgeType === option.value;
-              return (
-                <label
-                  key={option.value}
-                  className={`flex cursor-pointer items-start gap-2 rounded-md border p-2 transition-colors ${
-                    selected
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-400'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="edgeType"
-                    value={option.value}
-                    checked={selected}
-                    onChange={() => setEdgeType(option.value)}
-                    className="mt-0.5"
-                  />
-                  <div className="flex-1">
-                    <div className="font-medium text-gray-900">{option.label}</div>
-                    <div className="text-xs text-gray-500">{option.hint}</div>
-                  </div>
-                </label>
-              );
-            })}
-          </div>
+          {!pairSelected && (
+            <p className="text-xs text-gray-500">Сначала выбери оба узла</p>
+          )}
+          {pairSelected && !pairAllowed && (
+            <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+              Эту пару узлов нельзя соединить
+              {fromNode?.nodeType && toNode?.nodeType
+                ? ` (${fromNode.nodeType} → ${toNode.nodeType})`
+                : ''}
+              . См. ADR-010.
+            </p>
+          )}
+          {pairAllowed && (
+            <div className="space-y-1.5">
+              {allowedTypes.map((value) => {
+                const meta = TYPE_LABELS[value];
+                const selected = effectiveEdgeType === value;
+                return (
+                  <label
+                    key={value}
+                    className={`flex cursor-pointer items-start gap-2 rounded-md border p-2 transition-colors ${
+                      selected
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-400'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="edgeType"
+                      value={value}
+                      checked={selected}
+                      onChange={() => setEdgeType(value)}
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">{meta.label}</div>
+                      <div className="text-xs text-gray-500">{meta.hint}</div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          )}
         </fieldset>
 
         <div>
@@ -208,7 +242,7 @@ function AddEdgeModal({ open, nodes, onClose, onCreated }: Props) {
           <Button type="button" variant="secondary" onClick={handleClose} disabled={submitting}>
             Отмена
           </Button>
-          <Button type="submit" disabled={submitting}>
+          <Button type="submit" disabled={submitting || !pairAllowed}>
             {submitting ? 'Создаём' : 'Создать'}
           </Button>
         </div>
