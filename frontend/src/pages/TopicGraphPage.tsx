@@ -11,14 +11,14 @@ import {
   type ReactFlowProps,
   type Node,
 } from '@xyflow/react';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import NodeCard, { type NodeCardNode, type NodeCardData } from '@/components/graph/NodeCard';
 import CustomEdge, { type CustomEdgeEdge } from '@/components/graph/CustomEdge';
 import AddNodeModal from '@/components/graph/AddNodeModal';
 import AddEdgeModal from '@/components/graph/AddEdgeModal';
 import { layoutGraph } from '@/utils/graphLayout';
-import { apiGetRaw, ApiError } from '@/api/client';
+import { apiDeleteRaw, apiGetRaw, ApiError } from '@/api/client';
 import type { components } from '@/api/types';
 
 type GraphResponse = components['schemas']['GraphResponse'];
@@ -126,9 +126,48 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<CustomEdgeEdge>(initial.edges);
   const [addNodeOpen, setAddNodeOpen] = useState(false);
   const [addEdgeOpen, setAddEdgeOpen] = useState(false);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
+  const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
 
   const rawNodeDtos = useMemo(() => graph.nodes ?? [], [graph.nodes]);
   const canAddEdge = rawNodeDtos.length >= 2;
+  const selectedCount = selectedNodeIds.length + selectedEdgeIds.length;
+
+  async function handleDelete() {
+    if (selectedCount === 0) return;
+    const confirmed = window.confirm(
+      `Удалить ${selectedNodeIds.length} узл(а) и ${selectedEdgeIds.length} связ(и)?`,
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    try {
+      // рёбра первыми - так не получим 404 если узел уже удалит ребро каскадом
+      for (const edgeId of selectedEdgeIds) {
+        try {
+          await apiDeleteRaw(`/api/v1/edges/${edgeId}`);
+        } catch (e: unknown) {
+          if (!(e instanceof ApiError && e.status === 404)) throw e;
+        }
+      }
+      for (const nodeId of selectedNodeIds) {
+        try {
+          await apiDeleteRaw(`/api/v1/nodes/${nodeId}`);
+        } catch (e: unknown) {
+          if (!(e instanceof ApiError && e.status === 404)) throw e;
+        }
+      }
+      setSelectedNodeIds([]);
+      setSelectedEdgeIds([]);
+      onRefetch();
+    } catch (e: unknown) {
+      const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
+      window.alert(`Не удалось удалить: ${msg}`);
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   // initial меняется при перезагрузке графа (после мутаций) - синхронизируем
   useEffect(() => {
@@ -151,6 +190,10 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
+          onSelectionChange={({ nodes: ns, edges: es }) => {
+            setSelectedNodeIds(ns.map((n) => n.id));
+            setSelectedEdgeIds(es.map((e) => e.id));
+          }}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView
@@ -187,6 +230,15 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
               title={canAddEdge ? undefined : 'Нужно минимум 2 узла'}
             >
               <Plus size={16} className="mr-1" /> Связь
+            </Button>
+            <Button
+              onClick={handleDelete}
+              disabled={selectedCount === 0 || deleting}
+              variant="danger"
+              className="!px-3 !py-1.5 text-sm"
+            >
+              <Trash2 size={16} className="mr-1" />
+              {deleting ? 'Удаляем' : `Удалить${selectedCount > 0 ? ` (${selectedCount})` : ''}`}
             </Button>
           </Panel>
         </ReactFlow>

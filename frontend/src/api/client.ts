@@ -151,6 +151,16 @@ export async function apiDelete<P extends keyof paths>(
   await request(path as string, { method: 'DELETE', signal: options?.signal });
 }
 
+/**
+ * Сырой DELETE для динамических путей (по аналогии с apiGetRaw).
+ */
+export async function apiDeleteRaw(
+  path: string,
+  options?: { signal?: AbortSignal },
+): Promise<void> {
+  await request<void>(path, { method: 'DELETE', signal: options?.signal });
+}
+
 // === Helper-типы для извлечения тела запроса/ответа из openapi-typescript ===
 //
 // Springdoc выводит контент-типы как "*/*" (не "application/json"), пока бэк

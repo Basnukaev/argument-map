@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
-import { apiGet, apiPost, apiDelete, ApiError } from '@/api/client';
+import { apiGet, apiPost, apiDelete, apiDeleteRaw, ApiError } from '@/api/client';
 
 const BASE = 'http://test.local';
 const USER_ID = '00000000-0000-0000-0000-000000000001';
@@ -104,5 +104,19 @@ describe('api/client', () => {
     );
     const result = await apiDelete('/api/v1/topics/{topicId}'.replace('{topicId}', 'abc') as never);
     expect(result).toBeUndefined();
+  });
+
+  it('apiDeleteRaw отправляет X-User-Id и работает с динамическим путём', async () => {
+    let captured: string | null = null;
+    server.use(
+      http.delete(`${BASE}/api/v1/nodes/abc-123`, ({ request }) => {
+        captured = request.headers.get('X-User-Id');
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    await apiDeleteRaw('/api/v1/nodes/abc-123');
+
+    expect(captured).toBe(USER_ID);
   });
 });
