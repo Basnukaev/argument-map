@@ -18,6 +18,7 @@ import NodeCard, { type NodeCardNode, type NodeCardData } from '@/components/gra
 import CustomEdge, { type CustomEdgeEdge } from '@/components/graph/CustomEdge';
 import AddNodeModal from '@/components/graph/AddNodeModal';
 import AddEdgeModal from '@/components/graph/AddEdgeModal';
+import NodeDetailsPanel from '@/components/graph/NodeDetailsPanel';
 import { layoutGraph } from '@/utils/graphLayout';
 import { apiDeleteRaw, apiGetRaw, ApiError } from '@/api/client';
 import type { components } from '@/api/types';
@@ -159,6 +160,17 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
   const canAddEdge = rawNodeDtos.length >= 2;
   const selectedCount = selectedNodeIds.length + selectedEdgeIds.length;
 
+  // панель деталей открыта только при выборе ровно одного узла без рёбер
+  const detailNode = useMemo(() => {
+    if (selectedNodeIds.length !== 1 || selectedEdgeIds.length !== 0) return null;
+    return rawNodeDtos.find((n) => n.id === selectedNodeIds[0]) ?? null;
+  }, [selectedNodeIds, selectedEdgeIds, rawNodeDtos]);
+
+  const closeDetail = useCallback(() => {
+    // снимаем выделение через RF state - onSelectionChange сам почистит ids
+    setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
+  }, [setNodes]);
+
   async function handleDelete() {
     if (selectedCount === 0) return;
     const confirmed = window.confirm(
@@ -292,6 +304,8 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
         onClose={() => setAddEdgeOpen(false)}
         onCreated={onRefetch}
       />
+
+      {detailNode && <NodeDetailsPanel node={detailNode} onClose={closeDetail} />}
     </>
   );
 }
