@@ -43,4 +43,52 @@ describe('NodeDetailsPanel', () => {
     render(<NodeDetailsPanel node={makeNode()} onClose={vi.fn()} />);
     expect(screen.getByRole('complementary', { name: 'Детали узла' })).toBeInTheDocument();
   });
+
+  it('бейдж статуса показывает русскую метку и цвет', () => {
+    render(<NodeDetailsPanel node={makeNode({ status: 'DISPUTED' })} onClose={vi.fn()} />);
+    const badge = screen.getByTestId('status-badge');
+    expect(badge).toHaveTextContent('Спорный');
+    expect(badge.className).toContain('bg-amber-100');
+  });
+
+  it('метаданные содержат дату создания и id автора', () => {
+    render(
+      <NodeDetailsPanel
+        node={makeNode({
+          createdAt: '2026-05-04T12:34:00Z',
+          updatedAt: '2026-05-04T12:34:00Z',
+          createdBy: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        })}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/мая 2026 г\./)).toBeInTheDocument();
+    expect(screen.getByText('aaaaaaaa')).toBeInTheDocument();
+  });
+
+  it('строка "Обновлён" не показана если updatedAt совпадает с createdAt', () => {
+    render(
+      <NodeDetailsPanel
+        node={makeNode({
+          createdAt: '2026-05-04T10:00:00Z',
+          updatedAt: '2026-05-04T10:00:00Z',
+        })}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText('Обновлён')).not.toBeInTheDocument();
+  });
+
+  it('строка "Обновлён" показана если updatedAt отличается', () => {
+    render(
+      <NodeDetailsPanel
+        node={makeNode({
+          createdAt: '2026-05-04T10:00:00Z',
+          updatedAt: '2026-05-05T11:00:00Z',
+        })}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Обновлён')).toBeInTheDocument();
+  });
 });
