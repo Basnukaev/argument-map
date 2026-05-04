@@ -38,3 +38,8 @@ Thumbs.db
 
 ### Docker ###
 postgres-data/
+
+# Скриншоты в корне (отправляются мне для ревью, не должны попадать в репо)
+/img*.png
+/img*.gif
+/img*.jpg
