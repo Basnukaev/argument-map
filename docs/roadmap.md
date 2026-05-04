@@ -114,14 +114,21 @@
       `application.yml`, `WebMvcConfig.addCorsMappings`). Решено не
       делать Vite proxy - фронт ходит напрямую через `VITE_API_URL`,
       CORS на беке - идентично продакшну
-- [ ] Генерация TS-типов из OpenAPI бэка через `openapi-typescript`
-      (`npm run generate-api` - скрипт прописан, прогон при запущенном беке)
+- [x] Генерация TS-типов из OpenAPI бэка через `openapi-typescript`
+      (`src/api/types.ts`, скрипт `npm run generate-api`)
 - [ ] Базовый layout: header, footer (кроме страницы графа), общий
       контейнер (роутинг между страницами уже работает)
 
 ### MVP фронта
-- [ ] Страница `/topics` — список тем (`GET /api/v1/topics`)
-- [ ] Страница `/topics/new` — создание темы (`POST /api/v1/topics`)
+- [x] `src/api/client.ts` — типизированный fetch-клиент с `X-User-Id`
+      заголовком (ADR-006), парсингом Problem Details (RFC 7807) и
+      классом `ApiError`
+- [x] Страница `/topics` — список тем (`GET /api/v1/topics`,
+      4 ViewState: loading / empty / list / error, карточки с title и
+      датой создания)
+- [x] Страница `/topics/new` — создание темы (`POST /api/v1/topics`,
+      форма title/description/rootQuestion, валидация полей через
+      `errors[]` Problem Details, redirect на `/topics/{newId}`)
 - [ ] Страница `/topics/{id}` — граф темы (`GET /api/v1/topics/{id}/graph`)
       на React Flow с базовыми узлами и рёбрами
 - [ ] Кастомные узлы: карточки с цветом по статусу

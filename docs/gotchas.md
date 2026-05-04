@@ -120,6 +120,31 @@ Surefire (default) сканирует только `*Test`, Failsafe — тол�
 
 ---
 
+## Springdoc-openapi не знает про `@CurrentUser` - показывает `userId` как query
+**Симптом:** в `/v3/api-docs` для мутирующих эндпоинтов (POST/PATCH) видно
+параметр `userId` типа `query` (или просто `string`), хотя реально бэк
+его игнорирует и читает заголовок `X-User-Id`. После
+`openapi-typescript` фронт получает в `parameters.query.userId` тип
+`string` - вводит в заблуждение
+
+**Причина:** контроллеры используют кастомный `@CurrentUser UUID userId`
+параметр (резолвится `CurrentUserArgumentResolver` из заголовка
+`X-User-Id`, ADR-006). Springdoc не имеет хука распознать кастомный
+`HandlerMethodArgumentResolver` и интерпретирует параметр как обычный
+query-string
+
+**Решение (на фронте):** игнорировать `parameters.query.userId` -
+отправлять `X-User-Id` заголовок как раньше. Бэк его всё равно читает,
+а query-параметр не используется
+
+**Решение (на беке, future task):** добавить аннотации springdoc на
+параметры `@CurrentUser` или зарегистрировать `OperationCustomizer`,
+который перепишет параметр на header. Альтернатива - заменить
+кастомный resolver на стандартный `@RequestHeader("X-User-Id")` (но
+это размыкнет ADR-006 abstraction)
+
+---
+
 ## Tailwind v4 native binding `@tailwindcss/oxide-*` не подтягивается через прокси
 **Симптом:** `npm run build` или `npm run dev` падает с
 `Error: Cannot find native binding. npm has a bug related to

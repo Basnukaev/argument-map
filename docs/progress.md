@@ -13,6 +13,153 @@
 
 ---
 
+## 2026-05-03 — Сессия 9 (frontend) — API-клиент + список тем + создание темы
+
+### Сделано
+- **Юзер для dev-окружения**: пользователь создал запись в `users`
+  (UUID `14561248-0bfd-4a62-8395-d40a6972182a`, username Claude),
+  записан в `frontend/.env.local` (в gitignore) как `VITE_DEV_USER_ID`
+  + `VITE_API_URL=http://localhost:9090`
+- **Бэк перезапущен в WSL2** (был в Windows - WSL2 не достукивался по
+  localhost:9090, через Windows-host-IP timeout от firewall). В WSL2
+  `cd ../backend && ./mvnw spring-boot:run` поднимается за ~7 сек,
+  актуальная база рабочая
+- **`npm run generate-api`** - сгенерировал `src/api/types.ts`
+  (1004 строки) - все эндпоинты v1, схемы Topic/Node/Edge/Source/
+  Authority и т.д.
+- **`src/api/client.ts`**: типизированный fetch-клиент
+  - `apiGet<P extends keyof paths>`, `apiPost`, `apiPatch`, `apiDelete`
+  - автоинжекция `X-User-Id` из `import.meta.env.VITE_DEV_USER_ID` в
+    мутирующие запросы (POST/PATCH/PUT/DELETE)
+  - класс `ApiError extends Error` с распарсенным `ProblemDetails`
+    (RFC 7807) + helper `is(suffix)` для match по type-коду
+    (`error.is('topic-not-found')`)
+  - 204 → undefined, 4xx/5xx с JSON-телом → `ApiError`, 4xx/5xx без
+    тела → `ApiError` со статус-текстом
+  - helper-типы под springdoc-quirk: контент-тип `*/*` (springdoc) и
+    `application/json` оба обрабатываются
+- **`src/pages/TopicListPage.tsx`** - список тем
+  - 4 ViewState: `loading` / `success-empty` / `success-list` / `error`
+  - GET `/api/v1/topics` через `apiGet`, AbortController на cleanup
+  - карточки тем (title, description, дата создания) со ссылкой на
+    граф `/topics/{id}`
+  - filter с type-narrowing для надёжных id (springdoc делает все поля
+    optional - см gotchas)
+  - визуально: bg-gray-50, white card с hover, blue accent
+- **`src/pages/CreateTopicPage.tsx`** - форма создания
+  - три поля: `title` (required, max 500), `description` (optional,
+    max 2000), `rootQuestion` (required, max 1000) - превратится в
+    корневой QUESTION-узел
+  - кнопка "Создать" disabled пока обязательные поля пусты
+  - submit → POST `/api/v1/topics` → redirect на `/topics/{newId}`
+  - field-errors из `errors[]` отображаются под соответствующим полем
+  - общая ошибка из `detail` отображается над кнопками
+  - кнопка "Отмена" возвращает на `/topics`
+- **MSW + RTL setup для тестов**:
+  - `src/test/server.ts` - `setupServer()` без дефолтных handlers
+  - `src/test-setup.ts` - listen/reset/close через
+    `onUnhandledRequest: 'error'` + `vi.stubEnv` для VITE_*
+  - 6 тестов на api/client (X-User-Id only-on-mutation, ApiError
+    парсинг, type.is(suffix), errors[] валидация, 204 → undefined)
+  - 4 теста на TopicListPage (loading, empty, list, 5xx ошибка)
+  - 4 теста на CreateTopicPage (disabled-button, success-redirect,
+    field-errors, общая ошибка)
+- **Прогоны**: lint OK, build OK (239kB / gzip 76kB), тесты 18/18 OK,
+  E2E через curl (preflight + GET с Origin) OK - реальный POST в
+  бэк создал тему `1d2124ba-...` с auto-generated rootNodeId
+
+### Решения
+- **Доменные types создавать пока не буду** (YAGNI). Springdoc делает
+  все поля Response optional. Использую `TopicResponse` напрямую +
+  `??` для дефолтов + filter с type-narrowing где нужны required поля.
+  Когда количество страниц вырастет и появится дублирование - сделаю
+  слой мапперов
+- **Без middleware для fetch** (axios, ky, react-query) - нативный
+  `fetch` + типизированный wrapper. На MVP достаточно. React Query
+  заведу когда появится кэширование между страницами или optimistic
+  updates
+- **`erasableSyntaxOnly: true`** в `tsconfig.app.json` запрещает
+  parameter properties в конструкторе. Переписал `ApiError` на явные
+  поля. Это TS-флаг для верификации что код полностью erasable
+  (валидный JS без TS-only синтаксиса)
+- **Springdoc показывает кастомный `@CurrentUser` параметр как
+  `query.userId`**, хотя реально читается из заголовка `X-User-Id`.
+  Не блокер для фронта - я в `client.ts` вообще не использую
+  parameters, только requestBody. Записал в gotchas как backend-task
+  для будущего фикса (через `@Parameter(in = HEADER)` или
+  `OperationCustomizer`)
+- **Тесты - явные handlers per-test** (`server.use(...)`) вместо
+  глобального handlers.ts. Тест видит свои моки рядом с assertions,
+  любой неожиданный запрос падает (`onUnhandledRequest: 'error'`)
+
+### Проблемы
+- **Кросс-сетевая проблема WSL2 ↔ Windows**: бэк запущенный на
+  Windows не достукивался из WSL по localhost:9090 (firewall режет
+  входящие 9090 от WSL). Решение: перезапустить бэк в WSL2 - там
+  Java/Maven уже работают, всё в одной плоскости
+- Springdoc + кастомный resolver - см. выше
+- `erasableSyntaxOnly` - см. выше
+
+### Следующий шаг
+**Страница графа `/topics/{id}` на React Flow.**
+
+Это самый большой кусок MVP - заслуживает отдельной сессии.
+Приблизительный план:
+
+1. **Загрузка графа**: `apiGet('/api/v1/topics/{topicId}/graph')`
+   возвращает `GraphResponse{topic, nodes, edges}`. Использовать
+   useEffect + ViewState (loading/success/error) как в TopicListPage
+2. **CSS React Flow**: `import '@xyflow/react/dist/style.css'`
+   в `src/index.css` или в самой странице
+3. **Кастомный узел** (`src/components/graph/NodeCard.tsx`) - см
+   `frontend/docs/ui-guidelines.md` секция "Кастомный узел":
+   - цвет фона/border по статусу: STANDING (зелёный), DISPUTED
+     (жёлтый), REFUTED (красный), UNVERIFIED (серый)
+   - иконка по nodeType (lucide-react): QUESTION → HelpCircle,
+     CLAIM → Megaphone, ARGUMENT → MessageSquareQuote, EVIDENCE →
+     FileText
+   - контент с truncate (3 строки), weight в углу
+4. **Кастомное ребро** (`src/components/graph/CustomEdge.tsx`) - см
+   `frontend/docs/ui-guidelines.md` секция "Стили рёбер":
+   - SUPPORTS / REFUTES - стандартный bezier
+   - INVALIDATES - жирный пунктир (kill-семантика, ADR-007)
+   - QUALIFIES / RESPONDS_TO - тонкий + полупрозрачный
+     (не алгоритмические, ADR-007)
+   - подпись с типом
+5. **Автолейаут через dagre**: `npm install dagre @types/dagre`,
+   горизонтальный layout (rankdir LR), корневой QUESTION слева
+6. **Toolbar** в верхнем углу графа:
+   - "Добавить узел" → модалка с CreateNodeRequest
+   - "Добавить связь" → модалка (выбор from/to из существующих
+     узлов + edgeType)
+   - "Удалить" - активна когда выделено узел/ребро
+7. **Side-панель деталей узла** при выборе:
+   - контент, вес, источники, авторитеты (через
+     `GET /api/v1/nodes/{id}/sources`, `/authorities`),
+     ревизии (`GET /api/v1/nodes/{id}/revisions`)
+   - редактирование контента (PATCH `/api/v1/nodes/{id}`)
+8. **Hot-update** после мутаций - re-fetch графа после каждого
+   POST/PATCH/DELETE (можно потом оптимизировать на local state
+   update)
+
+### Важные нюансы
+- Бэк должен быть запущен в WSL2 (`./mvnw spring-boot:run`).
+  Postgres-контейнер `argumentmap-postgres` healthy
+- В `users` есть юзер UUID `14561248-...`, прописан в `.env.local`
+- React Flow требует deterministic key/id для узлов и рёбер -
+  использовать `id` из бэка
+- `nodeTypes` и `edgeTypes` объявлять **вне** компонента (или через
+  `useMemo`) - иначе ReactFlow ругается на каждый рендер (см
+  `coding-standards.md`)
+- Для тестов React Flow требуется `ResizeObserver` mock в jsdom -
+  при первом тесте граф-компонента возможно понадобится
+  `vi.stubGlobal('ResizeObserver', class { ... })` в test-setup
+- Backend-задача (отдельно): починить springdoc + `@CurrentUser` -
+  параметр `userId` должен исчезнуть из OpenAPI, вместо него -
+  header `X-User-Id`
+
+---
+
 ## 2026-05-03 — Сессия 8 (frontend) — Vite-инициализация + CORS на беке
 
 ### Сделано
