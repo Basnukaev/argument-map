@@ -1,4 +1,7 @@
-import { X } from 'lucide-react';
+import { useState } from 'react';
+import { X, Pencil } from 'lucide-react';
+import Button from '@/components/ui/Button';
+import { apiPatchRaw, ApiError } from '@/api/client';
 import type { components } from '@/api/types';
 import { NODE_TYPE_EMOJI, NODE_TYPE_LABEL, type NodeType } from '@/utils/edgeRules';
 
@@ -8,6 +11,8 @@ type NodeStatus = NonNullable<NodeDto['status']>;
 interface Props {
   node: NodeDto;
   onClose: () => void;
+  /** вызывается после успешного PATCH - чтобы родитель refetch'нул граф */
+  onUpdated: () => void;
 }
 
 const STATUS_LABEL: Record<NodeStatus, string> = {
@@ -17,7 +22,6 @@ const STATUS_LABEL: Record<NodeStatus, string> = {
   UNVERIFIED: 'Не оценён',
 };
 
-// Цвета бейджа - те же что для карточки узла, чтобы была визуальная связка
 const STATUS_BADGE: Record<NodeStatus, string> = {
   STANDING: 'bg-green-100 text-green-900 border-green-500',
   DISPUTED: 'bg-amber-100 text-amber-900 border-amber-500',
@@ -40,18 +44,61 @@ function formatDate(iso?: string): string {
   return DATE_FORMAT.format(d);
 }
 
-// UUID показываем сокращённо (первые 8 символов) с full в tooltip
 function shortId(id?: string): string {
   if (!id) return '—';
   return id.slice(0, 8);
 }
 
-function NodeDetailsPanel({ node, onClose }: Props) {
+function NodeDetailsPanel({ node, onClose, onUpdated }: Props) {
   const nodeType: NodeType = node.nodeType ?? 'CLAIM';
   const status: NodeStatus = node.status ?? 'UNVERIFIED';
   const content = node.content ?? '';
   const wasUpdated =
     node.updatedAt && node.createdAt && node.updatedAt !== node.createdAt;
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(content);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  function startEdit() {
+    setDraft(content);
+    setSaveError(null);
+    setEditing(true);
+  }
+
+  function cancelEdit() {
+    if (saving) return;
+    setEditing(false);
+    setSaveError(null);
+  }
+
+  async function save() {
+    if (!node.id) return;
+    const trimmed = draft.trim();
+    if (!trimmed || trimmed === content) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await apiPatchRaw<NodeDto>(`/api/v1/nodes/${node.id}`, { content: trimmed });
+      setEditing(false);
+      onUpdated();
+    } catch (e: unknown) {
+      if (e instanceof ApiError) {
+        const fieldErrors = e.problem.errors?.map((er) => `${er.field}: ${er.message}`).join('; ');
+        setSaveError(fieldErrors || e.problem.detail || e.problem.title);
+      } else if (e instanceof Error) {
+        setSaveError(e.message);
+      } else {
+        setSaveError('Не удалось сохранить');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <aside
@@ -86,10 +133,59 @@ function NodeDetailsPanel({ node, onClose }: Props) {
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-5">
         <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Содержание
-          </h3>
-          {content ? (
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Содержание
+            </h3>
+            {!editing && (
+              <button
+                type="button"
+                onClick={startEdit}
+                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+              >
+                <Pencil size={12} />
+                Редактировать
+              </button>
+            )}
+          </div>
+
+          {editing ? (
+            <div className="space-y-2">
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                rows={6}
+                maxLength={10000}
+                disabled={saving}
+                aria-label="Содержание узла"
+                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              />
+              {saveError && (
+                <div className="rounded-md border border-red-300 bg-red-50 p-2 text-xs text-red-800">
+                  {saveError}
+                </div>
+              )}
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={cancelEdit}
+                  disabled={saving}
+                  className="!px-3 !py-1.5 text-sm"
+                >
+                  Отмена
+                </Button>
+                <Button
+                  type="button"
+                  onClick={save}
+                  disabled={saving || !draft.trim()}
+                  className="!px-3 !py-1.5 text-sm"
+                >
+                  {saving ? 'Сохраняем' : 'Сохранить'}
+                </Button>
+              </div>
+            </div>
+          ) : content ? (
             <p className="whitespace-pre-wrap break-words text-sm text-gray-900">{content}</p>
           ) : (
             <p className="text-sm italic text-gray-500">(пусто)</p>

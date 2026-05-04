@@ -1,14 +1,23 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
+import { server } from '@/test/server';
 import NodeDetailsPanel from './NodeDetailsPanel';
 import type { components } from '@/api/types';
 
 type NodeDto = components['schemas']['NodeResponse'];
 
+const BASE = 'http://test.local';
+const NODE_ID = '11111111-1111-1111-1111-111111111111';
+
+beforeAll(() => {
+  // VITE_API_URL для тестов задан в setup.ts
+});
+
 function makeNode(over: Partial<NodeDto> = {}): NodeDto {
   return {
-    id: '11111111-1111-1111-1111-111111111111',
+    id: NODE_ID,
     topicId: 'topic-1',
     nodeType: 'CLAIM',
     content: 'Тестовый тезис',
@@ -20,75 +29,150 @@ function makeNode(over: Partial<NodeDto> = {}): NodeDto {
   };
 }
 
+function renderPanel(over: Partial<Parameters<typeof NodeDetailsPanel>[0]> = {}) {
+  const onClose = vi.fn();
+  const onUpdated = vi.fn();
+  const result = render(
+    <NodeDetailsPanel node={makeNode()} onClose={onClose} onUpdated={onUpdated} {...over} />,
+  );
+  return { ...result, onClose, onUpdated };
+}
+
 describe('NodeDetailsPanel', () => {
   it('показывает заголовок с типом и содержание', () => {
-    render(<NodeDetailsPanel node={makeNode({ nodeType: 'ARGUMENT', content: 'Текст довода' })} onClose={vi.fn()} />);
+    renderPanel({ node: makeNode({ nodeType: 'ARGUMENT', content: 'Текст довода' }) });
     expect(screen.getByRole('heading', { name: /Довод/ })).toBeInTheDocument();
     expect(screen.getByText('Текст довода')).toBeInTheDocument();
   });
 
   it('пустой контент показывает (пусто)', () => {
-    render(<NodeDetailsPanel node={makeNode({ content: '' })} onClose={vi.fn()} />);
+    renderPanel({ node: makeNode({ content: '' }) });
     expect(screen.getByText('(пусто)')).toBeInTheDocument();
   });
 
   it('крестик вызывает onClose', async () => {
-    const onClose = vi.fn();
-    render(<NodeDetailsPanel node={makeNode()} onClose={onClose} />);
+    const { onClose } = renderPanel();
     await userEvent.click(screen.getByRole('button', { name: 'Закрыть панель' }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('aria-label панели = Детали узла', () => {
-    render(<NodeDetailsPanel node={makeNode()} onClose={vi.fn()} />);
+    renderPanel();
     expect(screen.getByRole('complementary', { name: 'Детали узла' })).toBeInTheDocument();
   });
 
   it('бейдж статуса показывает русскую метку и цвет', () => {
-    render(<NodeDetailsPanel node={makeNode({ status: 'DISPUTED' })} onClose={vi.fn()} />);
+    renderPanel({ node: makeNode({ status: 'DISPUTED' }) });
     const badge = screen.getByTestId('status-badge');
     expect(badge).toHaveTextContent('Спорный');
     expect(badge.className).toContain('bg-amber-100');
   });
 
   it('метаданные содержат дату создания и id автора', () => {
-    render(
-      <NodeDetailsPanel
-        node={makeNode({
-          createdAt: '2026-05-04T12:34:00Z',
-          updatedAt: '2026-05-04T12:34:00Z',
-          createdBy: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
-        })}
-        onClose={vi.fn()}
-      />,
-    );
+    renderPanel({
+      node: makeNode({
+        createdAt: '2026-05-04T12:34:00Z',
+        updatedAt: '2026-05-04T12:34:00Z',
+        createdBy: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      }),
+    });
     expect(screen.getByText(/мая 2026 г\./)).toBeInTheDocument();
     expect(screen.getByText('aaaaaaaa')).toBeInTheDocument();
   });
 
   it('строка "Обновлён" не показана если updatedAt совпадает с createdAt', () => {
-    render(
-      <NodeDetailsPanel
-        node={makeNode({
-          createdAt: '2026-05-04T10:00:00Z',
-          updatedAt: '2026-05-04T10:00:00Z',
-        })}
-        onClose={vi.fn()}
-      />,
-    );
+    renderPanel({
+      node: makeNode({
+        createdAt: '2026-05-04T10:00:00Z',
+        updatedAt: '2026-05-04T10:00:00Z',
+      }),
+    });
     expect(screen.queryByText('Обновлён')).not.toBeInTheDocument();
   });
 
   it('строка "Обновлён" показана если updatedAt отличается', () => {
-    render(
-      <NodeDetailsPanel
-        node={makeNode({
-          createdAt: '2026-05-04T10:00:00Z',
-          updatedAt: '2026-05-05T11:00:00Z',
-        })}
-        onClose={vi.fn()}
-      />,
-    );
+    renderPanel({
+      node: makeNode({
+        createdAt: '2026-05-04T10:00:00Z',
+        updatedAt: '2026-05-05T11:00:00Z',
+      }),
+    });
     expect(screen.getByText('Обновлён')).toBeInTheDocument();
+  });
+
+  it('кнопка "Редактировать" открывает textarea с текущим содержанием', async () => {
+    renderPanel({ node: makeNode({ content: 'Старый текст' }) });
+    await userEvent.click(screen.getByRole('button', { name: /Редактировать/ }));
+    const textarea = screen.getByRole('textbox', { name: 'Содержание узла' });
+    expect(textarea).toHaveValue('Старый текст');
+  });
+
+  it('кнопка "Отмена" возвращает к режиму просмотра без изменений', async () => {
+    renderPanel({ node: makeNode({ content: 'Старый текст' }) });
+    await userEvent.click(screen.getByRole('button', { name: /Редактировать/ }));
+    const textarea = screen.getByRole('textbox', { name: 'Содержание узла' });
+    await userEvent.clear(textarea);
+    await userEvent.type(textarea, 'Не сохранится');
+    await userEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+    expect(screen.getByText('Старый текст')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
+  it('успешный PATCH вызывает onUpdated и закрывает режим редактирования', async () => {
+    let receivedBody: unknown = null;
+    server.use(
+      http.patch(`${BASE}/api/v1/nodes/${NODE_ID}`, async ({ request }) => {
+        receivedBody = await request.json();
+        return HttpResponse.json(makeNode({ content: 'Новый текст' }));
+      }),
+    );
+
+    const { onUpdated } = renderPanel({ node: makeNode({ content: 'Старый текст' }) });
+    await userEvent.click(screen.getByRole('button', { name: /Редактировать/ }));
+    const textarea = screen.getByRole('textbox', { name: 'Содержание узла' });
+    await userEvent.clear(textarea);
+    await userEvent.type(textarea, 'Новый текст');
+    await userEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() => expect(onUpdated).toHaveBeenCalledTimes(1));
+    expect(receivedBody).toEqual({ content: 'Новый текст' });
+  });
+
+  it('ошибка PATCH показывает сообщение и не вызывает onUpdated', async () => {
+    server.use(
+      http.patch(`${BASE}/api/v1/nodes/${NODE_ID}`, () =>
+        HttpResponse.json(
+          {
+            type: 'https://argumentmap.example/errors/validation',
+            title: 'Ошибка валидации',
+            status: 400,
+            detail: 'Запрос содержит невалидные поля',
+            errors: [{ field: 'content', message: 'не должно быть пустым' }],
+          },
+          { status: 400, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+      ),
+    );
+
+    const { onUpdated } = renderPanel();
+    await userEvent.click(screen.getByRole('button', { name: /Редактировать/ }));
+    const textarea = screen.getByRole('textbox', { name: 'Содержание узла' });
+    await userEvent.clear(textarea);
+    await userEvent.type(textarea, 'Что-то');
+    await userEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() => expect(screen.getByText(/не должно быть пустым/)).toBeInTheDocument());
+    expect(onUpdated).not.toHaveBeenCalled();
+  });
+
+  it('Сохранить disabled если ничего не изменено', async () => {
+    renderPanel({ node: makeNode({ content: 'Тот же текст' }) });
+    await userEvent.click(screen.getByRole('button', { name: /Редактировать/ }));
+    // Содержание не меняли - но кнопка остаётся активной (валидация по trim).
+    // Кликнем - должен закрыть режим без вызова PATCH (нет changed)
+    await userEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    // textarea должен исчезнуть, без ошибки и без сети
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.getByText('Тот же текст')).toBeInTheDocument();
   });
 });

@@ -206,10 +206,22 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
     }
   }
 
-  // initial меняется при перезагрузке графа (после мутаций) - синхронизируем
+  // initial меняется при перезагрузке графа (после мутаций) - синхронизируем,
+  // сохраняя выделение по id (чтобы панель деталей не закрывалась после PATCH)
   useEffect(() => {
-    setNodes(initial.nodes);
-    setEdges(initial.edges);
+    setNodes(
+      initial.nodes.map((n) =>
+        selectedNodeIds.includes(n.id) ? { ...n, selected: true } : n,
+      ),
+    );
+    setEdges(
+      initial.edges.map((e) =>
+        selectedEdgeIds.includes(e.id) ? { ...e, selected: true } : e,
+      ),
+    );
+    // selectedNodeIds/Ids - намеренно не в deps: иначе любой клик пере-инициализировал бы граф.
+    // initial меняется только при refetch, и тогда восстанавливаем selection по последнему известному snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial.nodes, initial.edges, setNodes, setEdges]);
 
   const isEmpty = initial.nodes.length === 0;
@@ -305,7 +317,9 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
         onCreated={onRefetch}
       />
 
-      {detailNode && <NodeDetailsPanel node={detailNode} onClose={closeDetail} />}
+      {detailNode && (
+        <NodeDetailsPanel node={detailNode} onClose={closeDetail} onUpdated={onRefetch} />
+      )}
     </>
   );
 }

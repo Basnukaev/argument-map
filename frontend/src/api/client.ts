@@ -161,6 +161,17 @@ export async function apiDeleteRaw(
   await request<void>(path, { method: 'DELETE', signal: options?.signal });
 }
 
+/**
+ * Сырой PATCH для динамических путей. Тип ответа подставляется руками.
+ */
+export async function apiPatchRaw<T>(
+  path: string,
+  body: unknown,
+  options?: { signal?: AbortSignal },
+): Promise<T> {
+  return request<T>(path, { method: 'PATCH', body, signal: options?.signal });
+}
+
 // === Helper-типы для извлечения тела запроса/ответа из openapi-typescript ===
 //
 // Springdoc выводит контент-типы как "*/*" (не "application/json"), пока бэк
