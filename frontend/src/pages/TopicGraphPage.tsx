@@ -5,10 +5,13 @@ import {
   Background,
   Controls,
   MiniMap,
+  useNodesState,
+  useEdgesState,
   type ReactFlowProps,
+  type Node,
 } from '@xyflow/react';
 import Button from '@/components/ui/Button';
-import NodeCard, { type NodeCardNode } from '@/components/graph/NodeCard';
+import NodeCard, { type NodeCardNode, type NodeCardData } from '@/components/graph/NodeCard';
 import CustomEdge, { type CustomEdgeEdge } from '@/components/graph/CustomEdge';
 import { layoutGraph } from '@/utils/graphLayout';
 import { apiGetRaw, ApiError } from '@/api/client';
@@ -92,10 +95,27 @@ function TopicGraphPage() {
   );
 }
 
-function Graph({ graph }: { graph: GraphResponse }) {
-  const { nodes, edges } = useMemo(() => buildFlow(graph), [graph]);
+// Цвета статусов для MiniMap (для самого узла - в NodeCard через Tailwind).
+// Дублирование с NodeCard приемлемо: MiniMap получает простой hex
+const STATUS_MINIMAP_COLOR: Record<NonNullable<NodeCardData['status']>, string> = {
+  STANDING: '#22c55e',
+  DISPUTED: '#f59e0b',
+  REFUTED: '#ef4444',
+  UNVERIFIED: '#9ca3af',
+};
 
-  if (nodes.length === 0) {
+function Graph({ graph }: { graph: GraphResponse }) {
+  const initial = useMemo(() => buildFlow(graph), [graph]);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState<NodeCardNode>(initial.nodes);
+  const [edges, , onEdgesChange] = useEdgesState<CustomEdgeEdge>(initial.edges);
+
+  // initial меняется при перезагрузке графа (после мутаций) - синхронизируем
+  useEffect(() => {
+    setNodes(initial.nodes);
+  }, [initial.nodes, setNodes]);
+
+  if (initial.nodes.length === 0) {
     return (
       <div className="absolute inset-0 flex items-center justify-center p-8 text-center text-gray-500">
         В этом графе пока нет узлов. Добавление появится в следующей итерации
@@ -107,6 +127,8 @@ function Graph({ graph }: { graph: GraphResponse }) {
     <ReactFlow
       nodes={nodes}
       edges={edges}
+      onNodesChange={onNodesChange}
+      onEdgesChange={onEdgesChange}
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}
       fitView
@@ -116,7 +138,21 @@ function Graph({ graph }: { graph: GraphResponse }) {
     >
       <Background gap={24} size={1} />
       <Controls position="bottom-right" showInteractive={false} />
-      <MiniMap pannable zoomable position="top-right" className="!bg-white" />
+      <MiniMap
+        pannable
+        zoomable
+        position="top-right"
+        className="!bg-white !border !border-gray-300"
+        nodeColor={(node: Node) => {
+          const data = node.data as NodeCardData | undefined;
+          const status = data?.status ?? 'UNVERIFIED';
+          return STATUS_MINIMAP_COLOR[status];
+        }}
+        nodeStrokeColor="#1f2937"
+        nodeStrokeWidth={3}
+        nodeBorderRadius={4}
+        maskColor="rgba(0,0,0,0.08)"
+      />
     </ReactFlow>
   );
 }

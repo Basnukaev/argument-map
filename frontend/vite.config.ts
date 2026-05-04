@@ -13,6 +13,12 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // WSL2 + проект на /mnt/c/* не получает file-system events с DrvFs.
+    // Принудительный polling - HMR начинает срабатывать на каждое сохранение
+    watch: {
+      usePolling: true,
+      interval: 300,
+    },
   },
   test: {
     globals: true,
