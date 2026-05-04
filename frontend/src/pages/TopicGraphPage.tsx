@@ -1,18 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import {
   ReactFlow,
   Background,
   Controls,
   MiniMap,
+  Panel,
   useNodesState,
   useEdgesState,
   type ReactFlowProps,
   type Node,
 } from '@xyflow/react';
+import { Plus } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import NodeCard, { type NodeCardNode, type NodeCardData } from '@/components/graph/NodeCard';
 import CustomEdge, { type CustomEdgeEdge } from '@/components/graph/CustomEdge';
+import AddNodeModal from '@/components/graph/AddNodeModal';
 import { layoutGraph } from '@/utils/graphLayout';
 import { apiGetRaw, ApiError } from '@/api/client';
 import type { components } from '@/api/types';
@@ -34,6 +37,9 @@ type ViewState =
 function TopicGraphPage() {
   const { topicId } = useParams<{ topicId: string }>();
   const [state, setState] = useState<ViewState>({ kind: 'loading' });
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const refetch = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   useEffect(() => {
     if (!topicId) return;
@@ -55,7 +61,7 @@ function TopicGraphPage() {
         setState({ kind: 'error', message });
       });
     return () => controller.abort();
-  }, [topicId]);
+  }, [topicId, refreshKey]);
 
   return (
     <div className="flex h-screen flex-col bg-gray-50">
@@ -89,7 +95,9 @@ function TopicGraphPage() {
           </div>
         )}
 
-        {state.kind === 'success' && <Graph graph={state.graph} />}
+        {state.kind === 'success' && topicId && (
+          <Graph graph={state.graph} topicId={topicId} onRefetch={refetch} />
+        )}
       </main>
     </div>
   );
@@ -104,56 +112,79 @@ const STATUS_MINIMAP_COLOR: Record<NonNullable<NodeCardData['status']>, string> 
   UNVERIFIED: '#9ca3af',
 };
 
-function Graph({ graph }: { graph: GraphResponse }) {
+interface GraphProps {
+  graph: GraphResponse;
+  topicId: string;
+  onRefetch: () => void;
+}
+
+function Graph({ graph, topicId, onRefetch }: GraphProps) {
   const initial = useMemo(() => buildFlow(graph), [graph]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<NodeCardNode>(initial.nodes);
-  const [edges, , onEdgesChange] = useEdgesState<CustomEdgeEdge>(initial.edges);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<CustomEdgeEdge>(initial.edges);
+  const [addNodeOpen, setAddNodeOpen] = useState(false);
 
   // initial меняется при перезагрузке графа (после мутаций) - синхронизируем
   useEffect(() => {
     setNodes(initial.nodes);
-  }, [initial.nodes, setNodes]);
+    setEdges(initial.edges);
+  }, [initial.nodes, initial.edges, setNodes, setEdges]);
 
-  if (initial.nodes.length === 0) {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center p-8 text-center text-gray-500">
-        В этом графе пока нет узлов. Добавление появится в следующей итерации
-      </div>
-    );
-  }
+  const isEmpty = initial.nodes.length === 0;
 
   return (
-    <ReactFlow
-      nodes={nodes}
-      edges={edges}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      nodeTypes={nodeTypes}
-      edgeTypes={edgeTypes}
-      fitView
-      minZoom={0.2}
-      maxZoom={1.5}
-      proOptions={{ hideAttribution: true }}
-    >
-      <Background gap={24} size={1} />
-      <Controls position="bottom-right" showInteractive={false} />
-      <MiniMap
-        pannable
-        zoomable
-        position="top-right"
-        className="!bg-white !border !border-gray-300"
-        nodeColor={(node: Node) => {
-          const data = node.data as NodeCardData | undefined;
-          const status = data?.status ?? 'UNVERIFIED';
-          return STATUS_MINIMAP_COLOR[status];
-        }}
-        nodeStrokeColor="#1f2937"
-        nodeStrokeWidth={3}
-        nodeBorderRadius={4}
-        maskColor="rgba(0,0,0,0.08)"
+    <>
+      {isEmpty ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-8 text-center">
+          <p className="text-gray-500">В этом графе пока нет узлов</p>
+          <Button onClick={() => setAddNodeOpen(true)}>Добавить первый узел</Button>
+        </div>
+      ) : (
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          fitView
+          minZoom={0.2}
+          maxZoom={1.5}
+          proOptions={{ hideAttribution: true }}
+        >
+          <Background gap={24} size={1} />
+          <Controls position="bottom-right" showInteractive={false} />
+          <MiniMap
+            pannable
+            zoomable
+            position="top-right"
+            className="!bg-white !border !border-gray-300"
+            nodeColor={(node: Node) => {
+              const data = node.data as NodeCardData | undefined;
+              const status = data?.status ?? 'UNVERIFIED';
+              return STATUS_MINIMAP_COLOR[status];
+            }}
+            nodeStrokeColor="#1f2937"
+            nodeStrokeWidth={3}
+            nodeBorderRadius={4}
+            maskColor="rgba(0,0,0,0.08)"
+          />
+          <Panel position="top-left" className="!m-3 flex gap-2">
+            <Button onClick={() => setAddNodeOpen(true)} className="!px-3 !py-1.5 text-sm">
+              <Plus size={16} className="mr-1" /> Узел
+            </Button>
+          </Panel>
+        </ReactFlow>
+      )}
+
+      <AddNodeModal
+        open={addNodeOpen}
+        topicId={topicId}
+        onClose={() => setAddNodeOpen(false)}
+        onCreated={onRefetch}
       />
-    </ReactFlow>
+    </>
   );
 }
 
