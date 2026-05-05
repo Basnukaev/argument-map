@@ -181,6 +181,12 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
+  // id узла/ребра, для которого открыта панель деталей. Не зависит от
+  // selection: drag триггерит selection без открытия панели. Открывается
+  // через double-click или "Редактировать" в контекстном меню
+  const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
+  const [detailEdgeId, setDetailEdgeId] = useState<string | null>(null);
+
   // флаг "начать редактирование сразу" для NodeDetailsPanel - срабатывает
   // когда пользователь нажал "Редактировать" в контекстном меню узла.
   // Сбрасывается при закрытии панели или смене выделения
@@ -397,6 +403,28 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
     setNodeDraft(null);
   }
 
+  // double-click на узле/ребре открывает панель деталей. Single click
+  // только выделяет (через RF onSelectionChange) - drag не открывает панель
+  const handleNodeDoubleClick = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      setDetailNodeId(node.id);
+      setDetailEdgeId(null);
+      setEditTargetNodeId(null);
+      setEditTargetEdgeId(null);
+    },
+    [],
+  );
+
+  const handleEdgeDoubleClick = useCallback(
+    (_event: React.MouseEvent, edge: Edge) => {
+      setDetailEdgeId(edge.id);
+      setDetailNodeId(null);
+      setEditTargetNodeId(null);
+      setEditTargetEdgeId(null);
+    },
+    [],
+  );
+
   // правый клик на узле - "Редактировать", "Удалить"
   const handleNodeContextMenu = useCallback(
     (event: React.MouseEvent, node: Node) => {
@@ -411,15 +439,13 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
             label: 'Редактировать',
             icon: Pencil,
             onClick: () => {
-              // явно проставляем selectedNodeIds (не полагаемся только на
-              // onSelectionChange от RF) + ставим флаг editTarget чтобы
-              // NodeDetailsPanel смонтировался в режиме editing
-              setSelectedNodeIds([node.id]);
-              setSelectedEdgeIds([]);
-              setNodes((nds) =>
-                nds.map((n) => ({ ...n, selected: n.id === node.id })),
-              );
+              // открываем панель и переходим сразу в edit-режим через
+              // editTargetNodeId. detailEdgeId сбрасываем чтобы не было
+              // двух одновременных panels
+              setDetailNodeId(node.id);
+              setDetailEdgeId(null);
               setEditTargetNodeId(node.id);
+              setEditTargetEdgeId(null);
             },
           },
           {
@@ -462,15 +488,11 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
             label: 'Редактировать',
             icon: Pencil,
             onClick: () => {
-              // выделяем ребро + ставим editTarget чтобы EdgeDetailsPanel
-              // открылась в режиме editing (через key-trick перемонтирования)
-              setSelectedEdgeIds([edge.id]);
-              setSelectedNodeIds([]);
-              setEdges((eds) =>
-                eds.map((e) => ({ ...e, selected: e.id === edge.id })),
-              );
-              setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
+              // открываем панель ребра в edit-режиме
+              setDetailEdgeId(edge.id);
+              setDetailNodeId(null);
               setEditTargetEdgeId(edge.id);
+              setEditTargetNodeId(null);
             },
           },
           {
@@ -516,35 +538,34 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
   const canAddEdge = rawNodeDtos.length >= 2;
   const selectedCount = selectedNodeIds.length + selectedEdgeIds.length;
 
-  // панель деталей узла открыта только при выборе ровно одного узла без рёбер
+  // панель деталей узла открыта когда detailNodeId выставлен (через
+  // double-click или контекстное меню "Редактировать"). Не зависит от
+  // selection - можно перетаскивать узел без всплывания панели
   const detailNode = useMemo(() => {
-    if (selectedNodeIds.length !== 1 || selectedEdgeIds.length !== 0) return null;
-    return rawNodeDtos.find((n) => n.id === selectedNodeIds[0]) ?? null;
-  }, [selectedNodeIds, selectedEdgeIds, rawNodeDtos]);
+    if (!detailNodeId) return null;
+    return rawNodeDtos.find((n) => n.id === detailNodeId) ?? null;
+  }, [detailNodeId, rawNodeDtos]);
 
   const rawEdgeDtos = useMemo(() => graph.edges ?? [], [graph.edges]);
 
-  // панель деталей ребра открыта только при выборе ровно одного ребра без узлов.
+  // панель деталей ребра открыта когда detailEdgeId выставлен.
   // Содержит сам edge dto + резолвленные from/to узлы для превью
   const detailEdge = useMemo(() => {
-    if (selectedEdgeIds.length !== 1 || selectedNodeIds.length !== 0) return null;
-    const edge = rawEdgeDtos.find((e) => e.id === selectedEdgeIds[0]);
+    if (!detailEdgeId) return null;
+    const edge = rawEdgeDtos.find((e) => e.id === detailEdgeId);
     if (!edge) return null;
     const fromNode = rawNodeDtos.find((n) => n.id === edge.fromNodeId);
     const toNode = rawNodeDtos.find((n) => n.id === edge.toNodeId);
     if (!fromNode || !toNode) return null;
     return { edge, fromNode, toNode };
-  }, [selectedEdgeIds, selectedNodeIds, rawEdgeDtos, rawNodeDtos]);
+  }, [detailEdgeId, rawEdgeDtos, rawNodeDtos]);
 
   const closeDetail = useCallback(() => {
-    // снимаем выделение через RF state - onSelectionChange сам почистит ids.
-    // Также сбрасываем editTarget'ы чтобы при следующем выделении не открылся
-    // режим editing
-    setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
-    setEdges((eds) => eds.map((e) => ({ ...e, selected: false })));
+    setDetailNodeId(null);
+    setDetailEdgeId(null);
     setEditTargetNodeId(null);
     setEditTargetEdgeId(null);
-  }, [setNodes, setEdges]);
+  }, []);
 
   async function handleDelete() {
     if (selectedCount === 0) return;
@@ -621,6 +642,8 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
           onPaneContextMenu={handlePaneContextMenu}
           onNodeContextMenu={handleNodeContextMenu}
           onEdgeContextMenu={handleEdgeContextMenu}
+          onNodeDoubleClick={handleNodeDoubleClick}
+          onEdgeDoubleClick={handleEdgeDoubleClick}
           connectionMode={ConnectionMode.Loose}
           onSelectionChange={handleSelectionChange}
           nodeTypes={nodeTypes}
