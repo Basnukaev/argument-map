@@ -42,7 +42,6 @@ GET    /api/v1/nodes/{nodeId}/revisions         — история измене�
 Если действие не вписывается в CRUD, использовать sub-resource:
 ```
 POST /api/v1/topics/{topicId}/graph/recalculate   — принудительный пересчёт
-POST /api/v1/nodes/{nodeId}/weight                — изменить вес
 ```
 
 Не превращать в RPC-style (`POST /api/v1/recalculateGraph`).
@@ -97,16 +96,18 @@ POST /api/v1/nodes/{nodeId}/weight                — изменить вес
   "content": "Мавлид является дозволенным",
   "nodeType": "CLAIM",
   "status": "DISPUTED",
-  "weight": 7,
+  "posX": 100.5,
+  "posY": -42.0,
   "topicId": "...",
-  "createdBy": {
-    "id": "...",
-    "username": "abdullah"
-  },
+  "createdBy": "550e8400-e29b-41d4-a716-446655440002",
   "createdAt": "2026-04-13T10:30:00Z",
   "updatedAt": "2026-04-13T11:45:00Z"
 }
 ```
+
+`createdBy` — UUID существующего пользователя из `users`. Не
+вложенный объект - в проекте используется ADR-006 (`X-User-Id`),
+полноценный `UserSummary` появится с авторизацией (Stage 6).
 
 ### Списки с пагинацией
 ```json
@@ -149,7 +150,7 @@ POST /api/v1/nodes/{nodeId}/weight                — изменить вес
   "instance": "/api/v1/nodes",
   "errors": [
     { "field": "content", "message": "не должно быть пустым" },
-    { "field": "weight", "message": "должно быть от 1 до 10" }
+    { "field": "topicId", "message": "не может быть null" }
   ]
 }
 ```
@@ -197,7 +198,7 @@ GET /api/v1/sources?type=HADITH&reliability=sahih
 ### Сортировка
 ```
 GET /api/v1/topics?sort=createdAt,desc
-GET /api/v1/nodes?sort=weight,desc&sort=createdAt,asc
+GET /api/v1/nodes?sort=createdAt,asc
 ```
 
 Валидировать, что поле сортировки — в белом списке. Не пропускать
@@ -246,8 +247,7 @@ GET /api/v1/nodes?q=мавлид
 public record CreateNodeRequest(
     @NotNull UUID topicId,
     @NotNull NodeType nodeType,
-    @NotBlank @Size(max = 10000) String content,
-    @Min(1) @Max(10) int weight
+    @NotBlank @Size(max = 10000) String content
 ) {}
 ```
 
@@ -283,12 +283,17 @@ public record CreateNodeRequest(
 ```java
 public record NodeSummary(UUID id, NodeType nodeType, String contentPreview, NodeStatus status) {}
 public record NodeResponse(UUID id, UUID topicId, NodeType nodeType, String content,
-                           NodeStatus status, int weight, UserSummary createdBy,
-                           Instant createdAt, Instant updatedAt) {}
+                           NodeStatus status, Double posX, Double posY,
+                           UUID createdBy, Instant createdAt, Instant updatedAt) {}
 public record NodeDetail(NodeResponse node, List<EdgeResponse> incomingEdges,
                          List<EdgeResponse> outgoingEdges, List<SourceSummary> sources,
                          List<AuthoritySummary> authorities) {}
 ```
+
+Поле `createdBy` — `UUID` (не вложенный `UserSummary`). До Stage 6
+(полноценная авторизация) пользователь идентифицируется заголовком
+`X-User-Id` (ADR-006). Когда появится Spring Security — превратится
+в `UserSummary` с `username`.
 
 ## Bulk-операции
 

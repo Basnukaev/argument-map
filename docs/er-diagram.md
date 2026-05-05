@@ -25,7 +25,8 @@ erDiagram
         string node_type "QUESTION|CLAIM|ARGUMENT|EVIDENCE"
         text content
         string status "STANDING|DISPUTED|REFUTED|UNVERIFIED"
-        int weight "субъективная сила 1-10"
+        double pos_x "nullable - координата X на канвасе"
+        double pos_y "nullable - координата Y на канвасе"
         uuid created_by FK
         timestamp created_at
         timestamp updated_at
@@ -101,3 +102,13 @@ erDiagram
 - **NODE ↔ AUTHORITY** (M:N через NODE_AUTHORITY): аналогично, с полем
   `stance` — позиция учёного относительно узла.
 - **NODE → REVISION** (1:N): история изменений содержимого узла.
+
+## История изменений схемы
+
+- Поле `NODE.weight` (int 1-10) удалено в миграции 12 (ADR-011) -
+  субъективная оценка не использовалась в `StatusCalculation`,
+  заменим категориальной разметкой после auth (Stage 6)
+- Поля `NODE.pos_x`/`NODE.pos_y` (DOUBLE PRECISION nullable) добавлены
+  в миграции 13 (ADR-012) - координаты узла на канвасе для
+  Miro-подобного UX, сохраняются при drag-and-drop через
+  `PATCH /api/v1/nodes/{id}`
