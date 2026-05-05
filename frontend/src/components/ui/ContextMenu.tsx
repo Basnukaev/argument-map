@@ -1,0 +1,88 @@
+import { useEffect, useRef } from 'react';
+import type { ComponentType, ReactNode } from 'react';
+
+export interface ContextMenuItem {
+  /** уникальный id - используется как key */
+  id: string;
+  label: string;
+  icon?: ComponentType<{ size?: number; className?: string }>;
+  /** для деструктивных пунктов (удаление) - красная подпись */
+  danger?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}
+
+interface Props {
+  /** координаты в viewport (clientX/clientY) */
+  x: number;
+  y: number;
+  items: ContextMenuItem[];
+  onClose: () => void;
+  /** опциональный заголовок над пунктами - например, тип узла */
+  header?: ReactNode;
+}
+
+/**
+ * Универсальное контекстное меню. Закрывается при клике/правом-клике
+ * вне меню и при Escape. Позиционируется через fixed по clientX/Y -
+ * подходит для onContextMenu событий.
+ */
+function ContextMenu({ x, y, items, onClose, header }: Props) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onPointerDown(event: PointerEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        onClose();
+      }
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      role="menu"
+      style={{ left: x, top: y }}
+      className="fixed z-50 min-w-44 rounded-md border border-gray-200 bg-white py-1 shadow-lg"
+    >
+      {header && (
+        <div className="border-b border-gray-100 px-3 py-1.5 text-xs text-gray-500">
+          {header}
+        </div>
+      )}
+      {items.map((item) => {
+        const Icon = item.icon;
+        const colorClass = item.danger
+          ? 'text-red-700 hover:bg-red-50'
+          : 'text-gray-800 hover:bg-gray-100';
+        return (
+          <button
+            key={item.id}
+            type="button"
+            role="menuitem"
+            disabled={item.disabled}
+            onClick={() => {
+              item.onClick();
+              onClose();
+            }}
+            className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${colorClass}`}
+          >
+            {Icon && <Icon size={14} />}
+            <span>{item.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export default ContextMenu;

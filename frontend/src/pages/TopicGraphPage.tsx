@@ -12,10 +12,12 @@ import {
   useEdgesState,
   type ReactFlowProps,
   type Node,
+  type Edge,
   type Connection,
 } from '@xyflow/react';
-import { Plus, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, Pencil } from 'lucide-react';
 import Button from '@/components/ui/Button';
+import ContextMenu, { type ContextMenuItem } from '@/components/ui/ContextMenu';
 import NodeCard, { type NodeCardNode, type NodeCardData } from '@/components/graph/NodeCard';
 import CustomEdge, { type CustomEdgeEdge } from '@/components/graph/CustomEdge';
 import AddNodeModal from '@/components/graph/AddNodeModal';
@@ -163,6 +165,17 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
 
+  // контекстное меню (правый клик). Хранится как { координаты + items }
+  // или null когда меню закрыто
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    items: ContextMenuItem[];
+    header?: string;
+  } | null>(null);
+
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+
   const rawNodeDtos = useMemo(() => graph.nodes ?? [], [graph.nodes]);
 
   // drag из handle одного узла на handle другого - проверяем матрицу
@@ -215,6 +228,115 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
         toast.error(`Не удалось сохранить позицию: ${msg}`);
       });
     },
+    [],
+  );
+
+  // удаление одного узла или ребра по id - вызывается из контекстного меню
+  // Без window.confirm, потому что отдельный контекстный пункт уже выражает
+  // намерение пользователя
+  async function deleteOneNode(nodeId: string) {
+    try {
+      await apiDeleteRaw(`/api/v1/nodes/${nodeId}`);
+      onRefetch();
+    } catch (e: unknown) {
+      if (e instanceof ApiError && e.status === 404) {
+        onRefetch();
+        return;
+      }
+      const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
+      toast.error(`Не удалось удалить узел: ${msg}`);
+    }
+  }
+
+  async function deleteOneEdge(edgeId: string) {
+    try {
+      await apiDeleteRaw(`/api/v1/edges/${edgeId}`);
+      onRefetch();
+    } catch (e: unknown) {
+      if (e instanceof ApiError && e.status === 404) {
+        onRefetch();
+        return;
+      }
+      const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
+      toast.error(`Не удалось удалить связь: ${msg}`);
+    }
+  }
+
+  // правый клик на pane - "Создать узел здесь"
+  const handlePaneContextMenu = useCallback(
+    (event: React.MouseEvent | MouseEvent) => {
+      event.preventDefault();
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        header: 'Холст',
+        items: [
+          {
+            id: 'create-node',
+            label: 'Создать узел здесь',
+            icon: Plus,
+            onClick: () => setAddNodeOpen(true),
+          },
+        ],
+      });
+    },
+    [],
+  );
+
+  // правый клик на узле - "Редактировать", "Удалить"
+  const handleNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      event.preventDefault();
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        header: 'Узел',
+        items: [
+          {
+            id: 'edit-node',
+            label: 'Редактировать',
+            icon: Pencil,
+            onClick: () => {
+              // выделяем узел - откроется боковая панель деталей
+              setNodes((nds) =>
+                nds.map((n) => ({ ...n, selected: n.id === node.id })),
+              );
+            },
+          },
+          {
+            id: 'delete-node',
+            label: 'Удалить',
+            icon: Trash2,
+            danger: true,
+            onClick: () => void deleteOneNode(node.id),
+          },
+        ],
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [setNodes],
+  );
+
+  // правый клик на ребре - "Удалить"
+  const handleEdgeContextMenu = useCallback(
+    (event: React.MouseEvent, edge: Edge) => {
+      event.preventDefault();
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        header: 'Связь',
+        items: [
+          {
+            id: 'delete-edge',
+            label: 'Удалить',
+            icon: Trash2,
+            danger: true,
+            onClick: () => void deleteOneEdge(edge.id),
+          },
+        ],
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -316,6 +438,9 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
           onEdgesChange={onEdgesChange}
           onConnect={handleConnect}
           onNodeDragStop={handleNodeDragStop}
+          onPaneContextMenu={handlePaneContextMenu}
+          onNodeContextMenu={handleNodeContextMenu}
+          onEdgeContextMenu={handleEdgeContextMenu}
           connectionMode={ConnectionMode.Loose}
           onSelectionChange={handleSelectionChange}
           nodeTypes={nodeTypes}
@@ -405,6 +530,16 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
           node={detailNode}
           onClose={closeDetail}
           onUpdated={onRefetch}
+        />
+      )}
+
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={contextMenu.items}
+          header={contextMenu.header}
+          onClose={closeContextMenu}
         />
       )}
     </>
