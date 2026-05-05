@@ -243,6 +243,49 @@ OpenAPI-спецификация: `/v3/api-docs` (JSON), Swagger UI: `/swagger-u
   - `invalid-edge`: ребро от узла к самому себе
   - `invalid-edge`: узлы из разных тем
 
+#### PATCH /api/v1/edges/{edgeId}
+
+Частичное обновление ребра. Поля null/отсутствующие сохраняют текущее
+значение, не-null - применяются. Финальное состояние ребра валидируется
+целиком (selfloop, граница темы, матрица ADR-010). Если валидация не
+проходит - 422 и ребро в БД не меняется (всё-или-ничего, ADR-014).
+Используется фронтом для reconnect (перетаскивание конца ребра на
+другой handle).
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+**Запрос:** все поля опциональные (хотя бы одно должно быть указано):
+```json
+{
+  "fromNodeId": "uuid",
+  "toNodeId": "uuid",
+  "edgeType": "SUPPORTS|REFUTES|QUALIFIES|INVALIDATES|RESPONDS_TO",
+  "rationale": "string, 0-2000 символов",
+  "sourceHandle": "top|right|bottom|left",
+  "targetHandle": "top|right|bottom|left"
+}
+```
+
+Замечание: через PATCH нельзя "очистить" rationale/sourceHandle/
+targetHandle (выставить null) - null трактуется как "не передано". Для
+очистки в MVP не предусмотрено, потребуется отдельный feature.
+
+**Ответ (200 OK):** `EdgeResponse` с финальным состоянием ребра.
+
+**Поведение пересчёта статусов:**
+- Если изменился `fromNodeId`/`toNodeId`/`edgeType` - пересчёт темы
+- Если только `rationale`/`sourceHandle`/`targetHandle` - пересчёт не нужен
+
+**Ошибки:**
+- `400` - все поля null (`illegal-argument`) или невалидные значения
+  полей (`validation`)
+- `404` - ребро не найдено (`edge-not-found`) или один из новых
+  `fromNodeId`/`toNodeId` указывает на несуществующий узел (`node-not-found`)
+- `422` - `invalid-edge`:
+  - ребро от узла к самому себе
+  - узлы из разных тем
+  - тип связи недопустим для пары типов узлов (ADR-010)
+
 #### DELETE /api/v1/edges/{edgeId}
 
 Удалить ребро. Триггерит пересчёт статусов темы.
@@ -571,6 +614,7 @@ OpenAPI-спецификация: `/v3/api-docs` (JSON), Swagger UI: `/swagger-u
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-05 | v1 | Добавлен `PATCH /api/v1/edges/{id}` с `UpdateEdgeRequest` (все поля opt). Финальное состояние валидируется целиком (selfloop / topic boundary / ADR-010), ребро меняется атомарно или 422 | ADR-014: reconnect edges - перетаскивание конца ребра на другой handle. Универсальный partial PATCH вместо sub-resource `/reconnect`, чтобы не плодить API surface |
 | 2026-05-05 | v1 | `EdgeResponse` получил `sourceHandle`/`targetHandle` (String, nullable). `CreateEdgeRequest` принимает opt одноимённые поля | этап 9 / F.b: drag-create в RF выбирает конкретные стороны handles, после refetch уважается исходный выбор пользователя |
 | 2026-05-05 | v1 | `NodeResponse` получил `posX`/`posY` (Double, nullable). `UpdateNodeRequest` принимает opt `posX`+`posY` без revision | этап 9 Miro UX: drag-and-drop позиции узлов сохраняются на беке |
 | 2026-05-04 | v1 | Удалено поле `weight` из `Node`/`CreateNodeRequest`/`NodeResponse` | ADR-011: weight субъективен, не используется в StatusCalculation. Заменим категориальной разметкой после auth (Stage 6) |

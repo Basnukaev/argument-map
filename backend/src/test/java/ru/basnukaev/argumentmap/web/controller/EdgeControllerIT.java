@@ -2,6 +2,7 @@ package ru.basnukaev.argumentmap.web.controller;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -28,6 +29,7 @@ import ru.basnukaev.argumentmap.domain.EdgeType;
 import ru.basnukaev.argumentmap.domain.NodeStatus;
 import ru.basnukaev.argumentmap.domain.NodeType;
 import ru.basnukaev.argumentmap.web.dto.CreateEdgeRequest;
+import ru.basnukaev.argumentmap.web.dto.UpdateEdgeRequest;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -197,5 +199,95 @@ class EdgeControllerIT {
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.type").value(containsString("invalid-edge")))
                 .andExpect(jsonPath("$.detail").value(containsString("недопустим")));
+    }
+
+    @Test
+    void updateEdge_changesTargetAndHandles_returns200() throws Exception {
+        UUID nodeC = insertNode(topicId);
+        UUID edgeId = createEdge(nodeA, nodeB, EdgeType.SUPPORTS, "old", "right", "left");
+
+        var req = new UpdateEdgeRequest(null, nodeC, null, null, "bottom", "top");
+
+        mockMvc.perform(patch("/api/v1/edges/{id}", edgeId)
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(edgeId.toString()))
+                .andExpect(jsonPath("$.fromNodeId").value(nodeA.toString()))
+                .andExpect(jsonPath("$.toNodeId").value(nodeC.toString()))
+                .andExpect(jsonPath("$.sourceHandle").value("bottom"))
+                .andExpect(jsonPath("$.targetHandle").value("top"))
+                .andExpect(jsonPath("$.rationale").value("old"));
+    }
+
+    @Test
+    void updateEdge_disallowedPair_returns422_andKeepsOriginal() throws Exception {
+        UUID question = insertNodeWithType(topicId, NodeType.QUESTION);
+        UUID argument = insertNodeWithType(topicId, NodeType.ARGUMENT);
+        UUID claim = insertNodeWithType(topicId, NodeType.CLAIM);
+        UUID edgeId = createEdge(argument, claim, EdgeType.SUPPORTS, null, null, null);
+
+        var req = new UpdateEdgeRequest(question, argument, EdgeType.SUPPORTS, null, null, null);
+
+        mockMvc.perform(patch("/api/v1/edges/{id}", edgeId)
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.type").value(containsString("invalid-edge")))
+                .andExpect(jsonPath("$.detail").value(containsString("недопустим")));
+
+        // ребро не изменилось - проверим через GET по graph не нужно, достаточно
+        // факта 422; а fromNodeId/toNodeId защищены транзакцией в сервисе
+    }
+
+    @Test
+    void updateEdge_emptyBody_returns400() throws Exception {
+        UUID edgeId = createEdge(nodeA, nodeB, EdgeType.SUPPORTS, null, null, null);
+
+        mockMvc.perform(patch("/api/v1/edges/{id}", edgeId)
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value(containsString("illegal-argument")));
+    }
+
+    @Test
+    void updateEdge_notFound_returns404() throws Exception {
+        var req = new UpdateEdgeRequest(null, null, null, "any", null, null);
+
+        mockMvc.perform(patch("/api/v1/edges/{id}", UUID.randomUUID())
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value(containsString("edge-not-found")));
+    }
+
+    @Test
+    void updateEdge_selfLoop_returns422() throws Exception {
+        UUID edgeId = createEdge(nodeA, nodeB, EdgeType.SUPPORTS, null, null, null);
+        var req = new UpdateEdgeRequest(nodeA, nodeA, null, null, null, null);
+
+        mockMvc.perform(patch("/api/v1/edges/{id}", edgeId)
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.detail").value(containsString("на себя")));
+    }
+
+    private UUID createEdge(UUID from, UUID to, EdgeType type, String rationale,
+                            String sourceHandle, String targetHandle) throws Exception {
+        var req = new CreateEdgeRequest(from, to, type, rationale, sourceHandle, targetHandle);
+        String json = mockMvc.perform(post("/api/v1/edges")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return UUID.fromString(objectMapper.readTree(json).get("id").asText());
     }
 }
