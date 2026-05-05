@@ -476,10 +476,11 @@ export interface operations {
     };
     create: {
         parameters: {
-            query: {
-                userId: string;
+            query?: never;
+            header: {
+                /** @description UUID текущего пользователя (ADR-006, временно до Spring Security в Этапе 6) */
+                "X-User-Id": string;
             };
-            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -548,10 +549,11 @@ export interface operations {
     };
     create_2: {
         parameters: {
-            query: {
-                userId: string;
+            query?: never;
+            header: {
+                /** @description UUID текущего пользователя (ADR-006, временно до Spring Security в Этапе 6) */
+                "X-User-Id": string;
             };
-            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -670,10 +672,11 @@ export interface operations {
     };
     create_3: {
         parameters: {
-            query: {
-                userId: string;
+            query?: never;
+            header: {
+                /** @description UUID текущего пользователя (ADR-006, временно до Spring Security в Этапе 6) */
+                "X-User-Id": string;
             };
-            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -762,10 +765,11 @@ export interface operations {
     };
     update: {
         parameters: {
-            query: {
-                userId: string;
+            query?: never;
+            header: {
+                /** @description UUID текущего пользователя (ADR-006, временно до Spring Security в Этапе 6) */
+                "X-User-Id": string;
             };
-            header?: never;
             path: {
                 nodeId: string;
             };

@@ -52,4 +52,37 @@ class OpenApiIT {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Swagger UI")));
     }
+
+    @Test
+    void mutatingEndpoint_exposesXUserIdHeader_notQueryParam() throws Exception {
+        // POST /api/v1/topics использует @CurrentUser - проверяем что
+        // OperationCustomizer переписал query.userId на header X-User-Id
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                // в параметрах операции есть header X-User-Id с типом uuid
+                .andExpect(jsonPath(
+                        "$.paths./api/v1/topics.post.parameters[?(@.name=='X-User-Id' && @.in=='header')].required"
+                ).value(true))
+                .andExpect(jsonPath(
+                        "$.paths./api/v1/topics.post.parameters[?(@.name=='X-User-Id' && @.in=='header')].schema.format"
+                ).value("uuid"))
+                // и нет query userId
+                .andExpect(jsonPath(
+                        "$.paths./api/v1/topics.post.parameters[?(@.name=='userId' && @.in=='query')]"
+                ).isEmpty());
+    }
+
+    @Test
+    void multipleMutatingEndpoints_haveXUserIdHeader() throws Exception {
+        // PATCH /api/v1/edges/{edgeId} тоже использует @CurrentUser - проверяем
+        // что customizer применяется ко всем @CurrentUser операциям, не только к POST topics
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                        "$.paths./api/v1/nodes.post.parameters[?(@.name=='X-User-Id' && @.in=='header')].required"
+                ).value(true))
+                .andExpect(jsonPath(
+                        "$.paths./api/v1/edges.post.parameters[?(@.name=='X-User-Id' && @.in=='header')].required"
+                ).value(true));
+    }
 }

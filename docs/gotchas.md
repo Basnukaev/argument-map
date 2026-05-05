@@ -171,6 +171,15 @@ query-string
 кастомный resolver на стандартный `@RequestHeader("X-User-Id")` (но
 это размыкнет ADR-006 abstraction)
 
+**Update 2026-05-05 (сессия 16):** реализован `OperationCustomizer`
+в `config/OpenApiConfig.java`. Для каждой операции с параметром,
+помеченным `@CurrentUser`, customizer удаляет автогенерированный
+`query.userId` и добавляет `header X-User-Id` (required, type=string,
+format=uuid). После regen-api на фронте контроллеры теперь имеют
+правильную типизацию `parameters.header['X-User-Id']: string` вместо
+`parameters.query.userId: string`. Гочча больше не актуальна, но
+оставлена для истории
+
 ---
 
 ## Tailwind v4 native binding `@tailwindcss/oxide-*` не подтягивается через прокси

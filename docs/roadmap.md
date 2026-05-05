@@ -317,6 +317,10 @@ git log; средняя фича (3+ коммитов или новый файл
       пока не нужна, справочники маленькие
 - [ ] Фильтрация `?type=`, `?reliability=`, `?era=`, `?madhab=` -
       пока есть только `?q=`
-- [ ] **springdoc + @CurrentUser** правильно в OpenAPI - сейчас
-      параметр `userId` показывается как query (gotcha в
-      `gotchas.md`). Бэк-долг с этапа 4
+- [x] **springdoc + @CurrentUser** правильно в OpenAPI - реализовано
+      в сессии 16 через `OperationCustomizer` в
+      `config/OpenApiConfig.java`. Удаляет автогенерированный
+      `query.userId` и добавляет `header X-User-Id` (required,
+      uuid). После regen-api фронт получает правильную типизацию
+      `parameters.header['X-User-Id']: string`. Гочча в `gotchas.md`
+      помечена как Update/решённая
