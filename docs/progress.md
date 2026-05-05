@@ -13,6 +13,180 @@
 
 ---
 
+## 2026-05-05 — Сессия 15 (full-stack) — F (handles persistence) + UX фиксы + рефакторинг docs
+
+Большая сессия после Miro UX (сессия 14). Закрыта sourceHandle/
+targetHandle persistence (full-stack F.a-c, ADR-013), сделан
+рефакторинг структуры roadmap.md, синхронизирована документация с
+ADR-011/012, написан reusable session-start-prompt и усилены
+правила ведения документации в CLAUDE.md.
+
+### Сделано
+8 коммитов:
+
+- **`ccb3a79` refactor roadmap** - унифицированная структура: этапы
+  плоские (кроме full-stack этапа 8 с Бэк/Фронт), отдельный раздел
+  "Cross-cutting / инфраструктура" (Modal, Toast, ContextMenu),
+  отдельный "Бэклог" (после-MVP идеи). Toast больше не висит [ ] в
+  этапе 9 - перенесён в Cross-cutting со статусом [x] и пометкой
+  "введена в этапе 9"
+- **`e786cb4` sync docs** с ADR-011/012:
+  - er-diagram.md: NODE без weight, добавлены pos_x/pos_y
+    (DOUBLE PRECISION nullable), новая секция "История изменений
+    схемы"
+  - architecture.md: "Frontend (позже)" → "Frontend (React 19+
+    React Flow)", абзац про API-first переписан
+  - glossary.md: weight → "Удалённые понятия", добавлены 4 термина
+    (EdgeSemantics, Kill-switch, Mixed layout, Toast)
+  - backend/docs/api-design.md: убран weight из всех примеров
+    (sub-resource /weight, единичный ресурс, ошибки валидации,
+    сортировка, CreateNodeRequest example, NodeResponse в DTO Types),
+    createdBy теперь UUID а не UserSummary (соответствует ADR-006)
+  - backend/docs/coding-standards.md: пример комментария с weight
+    заменён на пример kill-switch семантики INVALIDATES (ADR-007)
+- **`e8ec01a` stronger doc rules** в frontend/CLAUDE.md и backend/
+  CLAUDE.md - таблица "что произошло в коммите → что обновить"
+  (8 строк), 2 списка тревожных триггеров (для ADR и gotcha),
+  правило "не дожидайся конца сессии для документации". Также
+  создан docs/SESSION_START_PROMPT.md - reusable шаблон для старта
+  новой сессии после исчерпания контекста текущей
+- **F.a `2e5bb26` бэк-схема handle persistence**:
+  - миграция 14: source_handle/target_handle (VARCHAR(20) nullable)
+    в edges
+  - Edge record расширен sourceHandle/targetHandle, везде где
+    конструируется Edge - null/null или конкретные значения
+  - EdgeRepository: ROW_MAPPER, COLUMNS, save() с +2 колонками
+  - EdgeService.createEdge получил перегрузку с handle параметрами;
+    старая (без handle) делегирует с null/null - для bulk-импорта и
+    тестовых фикстур
+  - ADR-013 в decisions.md (аналогия с ADR-012)
+  - er-diagram.md: EDGE с source_handle/target_handle
+  - +1 IT EdgeRepositoryIT
+- **F.b `b41fa98` бэк-API**:
+  - CreateEdgeRequest принимает opt sourceHandle/targetHandle
+    (@Size(max=20))
+  - EdgeController.create передаёт их в сервис
+  - EdgeResponse расширен полями
+  - DtoMappers.toResponse(Edge) пробрасывает
+  - api-contract.md: POST /edges и EdgeResponse дополнены, история
+    изменений
+  - +1 IT EdgeControllerIT (createEdge_withHandles_persistsAndReturnsThem)
+  - 6 существующих тестов CreateEdgeRequest обновлены на null/null
+- **F.c `5e66149` фронт persistence**:
+  - regen openapi-types
+  - в TopicGraphPage handleConnect сохраняет
+    connection.sourceHandle/targetHandle в edgeDraft
+  - AddEdgeModal принимает initialSourceHandle/initialTargetHandle,
+    передаёт в POST
+  - buildFlow прокидывает edge.sourceHandle/targetHandle на верхнем
+    уровне RF Edge - RF использует для рендера от конкретной точки.
+    Если null - auto-routing как раньше
+  - key AddEdgeModal включает handle поля
+  - +1 unit-тест AddEdgeModal на handle в POST
+- **`0d13a79` fix edit-from-context-menu**:
+  - "Редактировать" в контекстном меню узла не открывал панель в
+    режиме редактирования - только выделял узел через setNodes,
+    onSelectionChange RF не доходил до detailNode useMemo до
+    закрытия меню. Симптом: пользователь жмёт "Редактировать", и
+    ничего не происходит
+  - решение: явное setSelectedNodeIds([id]) + setEditTargetNodeId(id)
+    + key NodeDetailsPanel включает 'edit'/'view' для перемонтирования
+  - NodeDetailsPanel принимает initialEditing prop, useState
+    инициализируется им
+  - +1 unit-тест NodeDetailsPanel
+- **`c09b6f5` fix create-node-at-cursor**:
+  - "Создать узел здесь" из контекстного меню pane не передавал
+    координаты курсора, новый узел получал posX=null и ставился в
+    дефолтное место
+  - решение: viewport-координаты курсора (clientX/Y) конвертируются
+    через rfInstance.screenToFlowPosition() в координаты канваса
+    (учёт zoom/pan)
+  - rfInstance заполняется через onInit RF
+  - AddNodeModal принимает initialPosX/Y, после POST делает PATCH
+    с координатами (ошибка PATCH игнорируется - узел уже создан,
+    в худшем случае встанет в дефолт)
+  - POST /nodes на беке расширять не стал - PATCH через client.ts
+    уже есть, два запроса оптимистично работают, без ADR
+
+### Прогоны
+- backend `./mvnw verify`: 150/150 IT (было 148 + 2 новых на handle)
+- frontend `npm run lint` чисто, `npm run build` ОК (~553kB / gzip
+  180kB), `npm test` 96/96 (было 88 + 8 новых: F.c +1 AddEdgeModal,
+  +1 NodeDetailsPanel initialEditing, рефакторинг тестов
+  предыдущего этапа)
+
+### Решения
+- **ADR-013** для handle persistence - аналогия с ADR-012 для
+  координат узлов. Альтернативы: localStorage, "только локально"
+  (теряется смысл 4-handles), отдельная таблица edge_handles
+  (оверкилл). Выбрана колонки в `edges`
+- **ContextMenu structure refactor**: разделил roadmap на этапы +
+  Cross-cutting + Бэклог. Введение объясняет правило "когда фича
+  попадает в roadmap" - микро-фикс git log only, средняя фича
+  попадает в этап/cross-cutting/бэклог
+- **Усиление doc rules в CLAUDE.md** - таблица триггеров после
+  каждого feat/fix коммита. Это ответ на пропуск ADR-012 в сессии
+  14 (пришлось дописывать после явного вопроса пользователя)
+- **SESSION_START_PROMPT.md как reusable шаблон** - подробный
+  стартовый промпт для новой сессии. Содержит протокол чтения
+  docs, текущее состояние, инфраструктуру (порты/UUID/тема),
+  указатели на ключевые файлы, правила работы. Должен обновляться
+  в конце каждой сессии
+- **Edit-from-context: явный setSelectedNodeIds + key-trick для
+  initialEditing** - не полагаемся только на onSelectionChange RF.
+  Прямой setState + key для перемонтирования NodeDetailsPanel в
+  режиме editing
+- **Create-here через POST + PATCH вместо расширения POST**: для
+  одной UX фичи добавлять posX/posY в CreateNodeRequest - оверкилл.
+  Два запроса оптимистично работают, ошибка PATCH игнорируется
+
+### Проблемы
+- TS2322 при типизации `useState<ReactFlowInstance | null>` без
+  generics - конфликт OnNodesChange<NodeCardNode> vs <Node>.
+  Решение: явно `useState<ReactFlowInstance<NodeCardNode,
+  CustomEdgeEdge> | null>`
+- Edge record рост до 9 полей при добавлении handle - все
+  конструкторы (3 в коде + 4 в тестах) пришлось расширить null/null.
+  Compactный конструктор не вариант (record имеет canonical только)
+
+### Следующий шаг
+**Reconnect edges** (#3 фидбек пользователя) - возможность
+перетащить конец существующего ребра на другую точку. Два варианта:
+- **A** PATCH /api/v1/edges/{id} для full update (fromNodeId/
+  toNodeId/edgeType/rationale/sourceHandle/targetHandle), повторная
+  валидация EdgeSemantics. Бэк-долг ~60 мин. Чище, без гонок
+- **B** DELETE + POST на фронте в onReconnect. ~20 мин, без бэк
+  изменений. Минусы: id ребра меняется, теоретическая гонка
+  refetch между DELETE и POST
+
+Перед стартом - выбрать A или B (документировать через ADR-014
+если A). Делать в чистой сессии (контекст текущей плотный).
+
+**Бэклог** (по приоритету после reconnect):
+- координаты при "Создать здесь" нерешены полностью если хочется
+  чтобы POST принимал posX/posY и возвращал в одном запросе
+  (сейчас два) - но текущий PATCH-after-POST оптимистично работает
+- AddEdgeModal полировка (custom dropdown с lucide-иконками)
+- code-split TopicGraphPage через React.lazy (bundle 553kB)
+- smart edge routing если 4-handles + dagre мало
+- бэк-долг springdoc + @CurrentUser
+
+### Важные нюансы
+- Сегодняшняя сессия выполнена в один длинный заход. ADR-013
+  написан по ходу (по новым правилам CLAUDE.md), не в конце - это
+  отвечает на пропуски сессии 14
+- session_start_prompt.md создан в `docs/` - перед использованием в
+  новой сессии обновить TODO/коммиты/состояние
+- AddNodeModal POST + PATCH работает, но при ошибке PATCH узел
+  останется без координат. Игнорируем - пользователь сам drag'нет.
+  Если станет проблемой - расширить POST opt полями
+- screenToFlowPosition вызывается в handlePaneContextMenu callback;
+  если rfInstance ещё не инициализирован (момент до onInit) -
+  координаты не сохранятся, узел встанет в дефолт. На практике
+  onInit срабатывает мгновенно после mount
+
+---
+
 ## 2026-05-05 — Сессия 14 (full-stack) — этап 9 целиком: Miro UX
 
 Закрыт целиком этап 9 - 4 handles + drag-create + контекстное меню +

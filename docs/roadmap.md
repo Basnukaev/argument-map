@@ -269,18 +269,28 @@ git log; средняя фича (3+ коммитов или новый файл
       опции, подсветка выбранной пары на самом графе
 - [ ] **Smart edge routing** (опционально, если 4-handles + dagre
       мало) - elkjs или custom edge с pathfinding
-- [ ] **Сохранение `sourceHandle`/`targetHandle` для edge** -
-      full-stack аналог posX/posY: миграция БД (2 nullable VARCHAR
-      в `edges`), Edge модель/DTO/RowMapper, фронт onConnect
+- [x] **Сохранение `sourceHandle`/`targetHandle` для edge** -
+      full-stack (ADR-013): миграция 14 (2 nullable VARCHAR(20)
+      в `edges`), Edge модель/DTO/RowMapper, EdgeService.createEdge
+      имеет перегрузку с handle параметрами. Фронт `onConnect`
       передаёт `connection.sourceHandle`/`targetHandle` в POST
-      /edges, при рендере edge использует эти поля. Сейчас
-      drag из любой точки handle работает, но после refetch RF
-      auto-routing'ом выбирает стороны по позициям, не уважая
-      исходный выбор пользователя
-- [ ] **Координаты при "Создать здесь"** из контекстного меню pane -
-      сейчас clientX/Y не передаются в AddNodeModal, новый узел
-      получает posX=null. Нужно: расширить `POST /nodes` принимать
-      opt posX/posY (либо фронт делает POST + PATCH)
+      /edges, при рендере edge использует эти поля на верхнем
+      уровне RF Edge. Реализовано в сессии 15 (F.a-c)
+- [x] **Координаты при "Создать здесь"** из контекстного меню
+      pane - сделано через `screenToFlowPosition` для конверсии
+      viewport→flow + AddNodeModal делает PATCH с координатами
+      после POST. POST /nodes на беке расширять не стал (ADR не
+      нужен, два оптимистичных запроса работают). Реализовано в
+      сессии 15 (`c09b6f5`)
+- [ ] **Reconnect edges** - перетащить конец существующего ребра
+      на другую точку handle. Два варианта реализации:
+      - A: PATCH /api/v1/edges/{id} с full update (fromNodeId/
+        toNodeId/edgeType/rationale/sourceHandle/targetHandle) +
+        повторная валидация EdgeSemantics. Бэк-долг ~60 мин. Чище
+        долгосрочно, нет гонок. Требует ADR-014
+      - B: DELETE + POST на фронте в onReconnect. ~20 мин, без
+        бэк-изменений. Минусы: id ребра меняется, теоретическая
+        гонка refetch между DELETE и POST
 - [ ] **Z-index full-stack persistence** для узлов и рёбер
       (миграция + поле + DTO + фронт). Сейчас локально, при refetch
       теряется. Делать только если станет критично - z-order между

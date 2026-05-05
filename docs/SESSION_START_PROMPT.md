@@ -63,11 +63,11 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 5. ЖДИ ПОДТВЕРЖДЕНИЕ. Не начинай работу без него.
 
 ══════════════════════════════════════════════
-ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-05 после сессии 14)
+ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-05 после сессии 15)
 ══════════════════════════════════════════════
 
 ЗАКРЫТО:
-- Бэк: этапы 0-5 целиком, 148+ IT тестов
+- Бэк: этапы 0-5 целиком, 150+ IT тестов
 - Фронт MVP (этап 7): TopicListPage, CreateTopicPage, TopicGraphPage
   с полным CRUD + side-panel деталей узла + редактирование + ревизии
 - Этап 8: семантика связей (ADR-010 матрица, бэк-валидация, фронт
@@ -75,24 +75,30 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 - Этап 9 целиком: 4 handles, drag-create, контекстное меню (правый
   клик на pane/узле/ребре), z-index управление, persistence позиций
   узлов (full-stack миграция БД pos_x/pos_y, ADR-012)
-- Toast-инфраструктура: useToastStore + Toaster компонент
-- ADR-011 удаление weight, ADR-012 координаты узлов
+- Cross-cutting: Toast-инфраструктура (useToastStore + Toaster),
+  ContextMenu, Modal
+- ADR-011 (удаление weight), ADR-012 (координаты узлов),
+  ADR-013 (handle persistence)
+- F (sessия 15): sourceHandle/targetHandle persistence для рёбер
+  - drag через конкретные стороны handles сохраняется и при
+  refetch уважается. Миграция 14 в БД, ADR-013
+- UX фиксы (сессия 15): "Создать здесь" с координатами курсора,
+  "Редактировать" из контекстного меню сразу открывает edit-режим
 
 ОТКРЫТО (по приоритету): <!-- AUTOFILL -->
-1. **sourceHandle/targetHandle persistence для edges** (full-stack)
-   - аналог posX/posY: миграция БД (2 nullable VARCHAR в edges),
-     Edge модель/DTO, фронт onConnect передаёт в POST /edges,
-     CustomEdgeData при render использует. Сейчас drag-create
-     работает но после refetch RF auto-routing'ом выбирает стороны
-     по позициям, не уважая исходный выбор пользователя
-2. **Координаты при "Создать здесь"** из контекстного меню pane
-   - сейчас ContextMenu pane не передаёт clientX/Y в AddNodeModal,
-     новый узел получает posX=null. Нужно: расширить POST /nodes
-     принимать opt posX/posY (либо фронт делает POST + PATCH)
-3. **Smart edge routing** (опционально): elkjs или custom edge с
+1. **Reconnect edges** - перетащить конец существующего ребра на
+   другой handle. Два варианта реализации - **выбрать ДО старта**:
+   - A: PATCH /api/v1/edges/{id} full update (~60 мин, full-stack
+     + ADR-014, чище долгосрочно)
+   - B: DELETE + POST в onReconnect (~20 мин, фронт-only, минусы:
+     id ребра меняется, гонка refetch)
+2. **AddEdgeModal полировка**: кастомный dropdown с lucide-иконками
+   вместо нативных select. Сейчас эмодзи 📢/💬 (Тезис/Довод)
+   визуально близки. Также: подсветка выбранной пары на графе
+3. **Code-split TopicGraphPage через React.lazy** - bundle 553kB,
+   подбирается к 600kB. lazy-импорт упасёт initial до ~150kB
+4. **Smart edge routing** (опционально): elkjs или custom edge с
    pathfinding, если 4-handles + dagre мало
-4. **AddEdgeModal полировка**: кастомный dropdown с lucide-иконками
-   вместо нативных select (после-MVP)
 5. **Бэк-долг с этапа 4**: springdoc + @CurrentUser - параметр
    userId неправильно в OpenAPI
 
