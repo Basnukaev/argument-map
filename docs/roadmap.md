@@ -306,9 +306,11 @@ git log; средняя фича (3+ коммитов или новый файл
       (миграция + поле + DTO + фронт). Сейчас локально, при refetch
       теряется. Делать только если станет критично - z-order между
       сессиями редко важен
-- [ ] **Code-split TopicGraphPage через React.lazy** - bundle 552kB
-      / gzip 180kB подбирается к 600kB. Lazy-импорт упасёт initial
-      bundle до ~150kB
+- [x] **Code-split TopicGraphPage через React.lazy** - реализовано
+      в сессии 16. Initial bundle упал с 567kB / gzip 183kB до 248kB
+      / gzip 79kB (-2.3×). Граф (RF, dagre, графовые компоненты) -
+      отдельный chunk 319kB / gzip 104kB, подгружается при переходе
+      на `/topics/{id}`. Suspense fallback показывает "Загрузка графа"
 
 ### Бэк
 - [ ] Пагинация для GET-list эндпоинтов (`/sources`, `/authorities`) -
