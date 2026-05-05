@@ -10,6 +10,7 @@ import {
   ConnectionMode,
   useNodesState,
   useEdgesState,
+  reconnectEdge,
   type ReactFlowProps,
   type Node,
   type Edge,
@@ -266,8 +267,13 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
   // reconnect - перетащить конец существующего ребра на другой handle/узел.
   // Тип ребра сохраняется, меняются только концы и handle'ы. Если новая пара
   // (fromType, edgeType, toType) запрещена матрицей ADR-010 - toast, ребро
-  // не меняется. Иначе PATCH /edges/{id} + refetch (ADR-014).
-  // RF без обновления state оставит ребро в старом виде до refetch
+  // не меняется. Иначе optimistic update local state через reconnectEdge,
+  // потом PATCH /edges/{id} + refetch (ADR-014).
+  //
+  // Без optimistic update RF откатывал бы ребро на исходное место сразу
+  // после drop, и только через ~100мс (после refetch) ребро становилось бы
+  // в новое положение - заметный flicker. С reconnectEdge - ребро встаёт в
+  // новое место мгновенно, refetch синхронизирует с бэк-state в фоне
   const handleReconnect = useCallback(
     (oldEdge: Edge, newConnection: Connection) => {
       if (!newConnection.source || !newConnection.target) return;
@@ -290,6 +296,11 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
         return;
       }
 
+      // мгновенно обновляем local state - ребро встаёт в новое место без flicker.
+      // cast: oldEdge - это всегда наш CustomEdgeEdge (RF не знает narrow-тип
+      // из дженерика onReconnect), reconnectEdge возвращает массив того же типа
+      setEdges((eds) => reconnectEdge(oldEdge as CustomEdgeEdge, newConnection, eds));
+
       apiPatchRaw(`/api/v1/edges/${oldEdge.id}`, {
         fromNodeId: newConnection.source,
         toNodeId: newConnection.target,
@@ -303,9 +314,12 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
               ? `${e.problem.title}${e.problem.detail ? ': ' + e.problem.detail : ''}`
               : (e as Error).message;
           toast.error(`Не удалось пересоединить: ${msg}`);
+          // refetch вернёт ребро к серверному состоянию - оптимистичное
+          // обновление будет откачено
+          onRefetch();
         });
     },
-    [rawNodeDtos, onRefetch],
+    [rawNodeDtos, onRefetch, setEdges],
   );
 
   // drag-end - отправляем PATCH с координатами. Не ждём ответ, оптимистично.
