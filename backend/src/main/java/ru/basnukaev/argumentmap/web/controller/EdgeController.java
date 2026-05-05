@@ -34,7 +34,9 @@ public class EdgeController {
                                                @CurrentUser UUID userId) {
         Edge created = edgeService.createEdge(
                 request.fromNodeId(), request.toNodeId(),
-                request.edgeType(), request.rationale(), userId
+                request.edgeType(), request.rationale(),
+                request.sourceHandle(), request.targetHandle(),
+                userId
         );
         return ResponseEntity.created(URI.create("/api/v1/edges/" + created.id()))
                 .body(DtoMappers.toResponse(created));

@@ -11,6 +11,8 @@ public record EdgeResponse(
         UUID toNodeId,
         EdgeType edgeType,
         String rationale,
+        String sourceHandle,
+        String targetHandle,
         UUID createdBy,
         Instant createdAt
 ) {

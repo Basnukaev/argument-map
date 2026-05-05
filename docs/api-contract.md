@@ -223,9 +223,14 @@ OpenAPI-спецификация: `/v3/api-docs` (JSON), Swagger UI: `/swagger-u
   "fromNodeId": "uuid",
   "toNodeId": "uuid",
   "edgeType": "SUPPORTS|REFUTES|QUALIFIES|INVALIDATES|RESPONDS_TO",
-  "rationale": "string, 0-2000 символов, опционально"
+  "rationale": "string, 0-2000 символов, опционально",
+  "sourceHandle": "top|right|bottom|left, опционально",
+  "targetHandle": "top|right|bottom|left, опционально"
 }
 ```
+- `sourceHandle`/`targetHandle` - id точки подключения ребра на
+  сторонах узлов (для UI с 4-handles React Flow). Опциональные:
+  если не указаны, фронт применит auto-routing по позициям
 
 **Ответ (201 Created):**
 - Заголовок `Location: /api/v1/edges/{id}`
@@ -445,10 +450,15 @@ OpenAPI-спецификация: `/v3/api-docs` (JSON), Swagger UI: `/swagger-u
   "toNodeId": "uuid",
   "edgeType": "SUPPORTS|REFUTES|QUALIFIES|INVALIDATES|RESPONDS_TO",
   "rationale": "string|null",
+  "sourceHandle": "string|null",
+  "targetHandle": "string|null",
   "createdBy": "uuid",
   "createdAt": "iso8601"
 }
 ```
+`sourceHandle`/`targetHandle` - id точки подключения ребра на
+сторонах узлов. `null` для рёбер созданных не через drag-create
+(например, через bulk-импорт) - фронт применит auto-routing.
 
 ### RevisionResponse
 ```json
@@ -561,6 +571,7 @@ OpenAPI-спецификация: `/v3/api-docs` (JSON), Swagger UI: `/swagger-u
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-05 | v1 | `EdgeResponse` получил `sourceHandle`/`targetHandle` (String, nullable). `CreateEdgeRequest` принимает opt одноимённые поля | этап 9 / F.b: drag-create в RF выбирает конкретные стороны handles, после refetch уважается исходный выбор пользователя |
 | 2026-05-05 | v1 | `NodeResponse` получил `posX`/`posY` (Double, nullable). `UpdateNodeRequest` принимает opt `posX`+`posY` без revision | этап 9 Miro UX: drag-and-drop позиции узлов сохраняются на беке |
 | 2026-05-04 | v1 | Удалено поле `weight` из `Node`/`CreateNodeRequest`/`NodeResponse` | ADR-011: weight субъективен, не используется в StatusCalculation. Заменим категориальной разметкой после auth (Stage 6) |
 | 2026-05-03 | v1 | первая версия: Topics, Nodes, Edges, Graph, Revisions | реализация Этапа 4 |

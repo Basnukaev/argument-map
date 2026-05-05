@@ -67,7 +67,7 @@ class EdgeControllerIT {
 
     @Test
     void createEdge_returns201() throws Exception {
-        var req = new CreateEdgeRequest(nodeA, nodeB, EdgeType.SUPPORTS, "потому что");
+        var req = new CreateEdgeRequest(nodeA, nodeB, EdgeType.SUPPORTS, "потому что", null, null);
 
         mockMvc.perform(post("/api/v1/edges")
                         .header("X-User-Id", userId.toString())
@@ -82,7 +82,7 @@ class EdgeControllerIT {
 
     @Test
     void createEdge_selfLoop_returns422() throws Exception {
-        var req = new CreateEdgeRequest(nodeA, nodeA, EdgeType.SUPPORTS, null);
+        var req = new CreateEdgeRequest(nodeA, nodeA, EdgeType.SUPPORTS, null, null, null);
 
         mockMvc.perform(post("/api/v1/edges")
                         .header("X-User-Id", userId.toString())
@@ -101,7 +101,7 @@ class EdgeControllerIT {
                 otherTopic, "Other", userId
         );
         UUID foreign = insertNode(otherTopic);
-        var req = new CreateEdgeRequest(nodeA, foreign, EdgeType.SUPPORTS, null);
+        var req = new CreateEdgeRequest(nodeA, foreign, EdgeType.SUPPORTS, null, null, null);
 
         mockMvc.perform(post("/api/v1/edges")
                         .header("X-User-Id", userId.toString())
@@ -113,7 +113,7 @@ class EdgeControllerIT {
 
     @Test
     void createEdge_missingFromNode_returns404() throws Exception {
-        var req = new CreateEdgeRequest(UUID.randomUUID(), nodeB, EdgeType.SUPPORTS, null);
+        var req = new CreateEdgeRequest(UUID.randomUUID(), nodeB, EdgeType.SUPPORTS, null, null, null);
 
         mockMvc.perform(post("/api/v1/edges")
                         .header("X-User-Id", userId.toString())
@@ -137,8 +137,21 @@ class EdgeControllerIT {
     }
 
     @Test
+    void createEdge_withHandles_persistsAndReturnsThem() throws Exception {
+        var req = new CreateEdgeRequest(nodeA, nodeB, EdgeType.SUPPORTS, null, "right", "left");
+
+        mockMvc.perform(post("/api/v1/edges")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.sourceHandle").value("right"))
+                .andExpect(jsonPath("$.targetHandle").value("left"));
+    }
+
+    @Test
     void deleteEdge_existing_returns204() throws Exception {
-        var req = new CreateEdgeRequest(nodeA, nodeB, EdgeType.REFUTES, null);
+        var req = new CreateEdgeRequest(nodeA, nodeB, EdgeType.REFUTES, null, null, null);
         String json = mockMvc.perform(post("/api/v1/edges")
                         .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -175,7 +188,7 @@ class EdgeControllerIT {
     @Test
     void createEdge_disallowedPair_returns422() throws Exception {
         UUID question = insertNodeWithType(topicId, NodeType.QUESTION);
-        var req = new CreateEdgeRequest(question, nodeA, EdgeType.SUPPORTS, null);
+        var req = new CreateEdgeRequest(question, nodeA, EdgeType.SUPPORTS, null, null, null);
 
         mockMvc.perform(post("/api/v1/edges")
                         .header("X-User-Id", userId.toString())

@@ -57,7 +57,9 @@ public final class DtoMappers {
     public static EdgeResponse toResponse(Edge edge) {
         return new EdgeResponse(
                 edge.id(), edge.fromNodeId(), edge.toNodeId(),
-                edge.edgeType(), edge.rationale(), edge.createdBy(), edge.createdAt()
+                edge.edgeType(), edge.rationale(),
+                edge.sourceHandle(), edge.targetHandle(),
+                edge.createdBy(), edge.createdAt()
         );
     }
 
