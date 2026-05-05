@@ -25,6 +25,7 @@ import CustomEdge, { type CustomEdgeEdge } from '@/components/graph/CustomEdge';
 import AddNodeModal from '@/components/graph/AddNodeModal';
 import AddEdgeModal from '@/components/graph/AddEdgeModal';
 import NodeDetailsPanel from '@/components/graph/NodeDetailsPanel';
+import EdgeDetailsPanel from '@/components/graph/EdgeDetailsPanel';
 import { layoutGraph } from '@/utils/graphLayout';
 import { apiDeleteRaw, apiGetRaw, apiPatchRaw, ApiError } from '@/api/client';
 import { getAllowedEdgeTypes, isEdgeAllowed, NODE_TYPE_LABEL } from '@/utils/edgeRules';
@@ -193,6 +194,8 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
   // когда пользователь нажал "Редактировать" в контекстном меню узла.
   // Сбрасывается при закрытии панели или смене выделения
   const [editTargetNodeId, setEditTargetNodeId] = useState<string | null>(null);
+  // аналогично для EdgeDetailsPanel
+  const [editTargetEdgeId, setEditTargetEdgeId] = useState<string | null>(null);
 
   // счётчики z-index для "на передний/задний план". Не сохраняются на беке -
   // только локально пока открыт граф. При refetch сбрасываются на дефолт RF.
@@ -454,7 +457,7 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
     [setNodes],
   );
 
-  // правый клик на ребре - "Удалить"
+  // правый клик на ребре - "Редактировать", "На передний/задний план", "Удалить"
   const handleEdgeContextMenu = useCallback(
     (event: React.MouseEvent, edge: Edge) => {
       event.preventDefault();
@@ -463,6 +466,22 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
         y: event.clientY,
         header: 'Связь',
         items: [
+          {
+            id: 'edit-edge',
+            label: 'Редактировать',
+            icon: Pencil,
+            onClick: () => {
+              // выделяем ребро + ставим editTarget чтобы EdgeDetailsPanel
+              // открылась в режиме editing (через key-trick перемонтирования)
+              setSelectedEdgeIds([edge.id]);
+              setSelectedNodeIds([]);
+              setEdges((eds) =>
+                eds.map((e) => ({ ...e, selected: e.id === edge.id })),
+              );
+              setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
+              setEditTargetEdgeId(edge.id);
+            },
+          },
           {
             id: 'bring-front',
             label: 'На передний план',
@@ -486,7 +505,7 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [setEdges, setNodes],
   );
 
   // RF onSelectionChange срабатывает при каждом setNodes - даже если selection
@@ -506,19 +525,35 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
   const canAddEdge = rawNodeDtos.length >= 2;
   const selectedCount = selectedNodeIds.length + selectedEdgeIds.length;
 
-  // панель деталей открыта только при выборе ровно одного узла без рёбер
+  // панель деталей узла открыта только при выборе ровно одного узла без рёбер
   const detailNode = useMemo(() => {
     if (selectedNodeIds.length !== 1 || selectedEdgeIds.length !== 0) return null;
     return rawNodeDtos.find((n) => n.id === selectedNodeIds[0]) ?? null;
   }, [selectedNodeIds, selectedEdgeIds, rawNodeDtos]);
 
+  const rawEdgeDtos = useMemo(() => graph.edges ?? [], [graph.edges]);
+
+  // панель деталей ребра открыта только при выборе ровно одного ребра без узлов.
+  // Содержит сам edge dto + резолвленные from/to узлы для превью
+  const detailEdge = useMemo(() => {
+    if (selectedEdgeIds.length !== 1 || selectedNodeIds.length !== 0) return null;
+    const edge = rawEdgeDtos.find((e) => e.id === selectedEdgeIds[0]);
+    if (!edge) return null;
+    const fromNode = rawNodeDtos.find((n) => n.id === edge.fromNodeId);
+    const toNode = rawNodeDtos.find((n) => n.id === edge.toNodeId);
+    if (!fromNode || !toNode) return null;
+    return { edge, fromNode, toNode };
+  }, [selectedEdgeIds, selectedNodeIds, rawEdgeDtos, rawNodeDtos]);
+
   const closeDetail = useCallback(() => {
     // снимаем выделение через RF state - onSelectionChange сам почистит ids.
-    // Также сбрасываем editTarget чтобы при следующем выделении не открылся
+    // Также сбрасываем editTarget'ы чтобы при следующем выделении не открылся
     // режим editing
     setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
+    setEdges((eds) => eds.map((e) => ({ ...e, selected: false })));
     setEditTargetNodeId(null);
-  }, [setNodes]);
+    setEditTargetEdgeId(null);
+  }, [setNodes, setEdges]);
 
   async function handleDelete() {
     if (selectedCount === 0) return;
@@ -697,6 +732,21 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
           onClose={closeDetail}
           onUpdated={onRefetch}
           initialEditing={editTargetNodeId === detailNode.id}
+        />
+      )}
+
+      {detailEdge && (
+        <EdgeDetailsPanel
+          // key включает edgeType+rationale (после save они меняются - чистый
+          // mount) и editTarget (чтобы при клике из меню панель открылась в editing).
+          // Edge не имеет updatedAt - используем сами поля как маркер изменения
+          key={`${detailEdge.edge.id}-${detailEdge.edge.edgeType}-${detailEdge.edge.rationale ?? ''}-${editTargetEdgeId === detailEdge.edge.id ? 'edit' : 'view'}`}
+          edge={detailEdge.edge}
+          fromNode={detailEdge.fromNode}
+          toNode={detailEdge.toNode}
+          onClose={closeDetail}
+          onUpdated={onRefetch}
+          initialEditing={editTargetEdgeId === detailEdge.edge.id}
         />
       )}
 
