@@ -9,6 +9,8 @@ public record Edge(
         UUID toNodeId,
         EdgeType edgeType,
         String rationale,
+        String sourceHandle,
+        String targetHandle,
         UUID createdBy,
         Instant createdAt
 ) {

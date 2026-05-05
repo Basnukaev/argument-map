@@ -63,7 +63,7 @@ class EdgeRepositoryIT {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
         Edge edge = new Edge(
                 UUID.randomUUID(), nodeA, nodeB, EdgeType.SUPPORTS,
-                "потому что хадис", userId, now
+                "потому что хадис", null, null, userId, now
         );
 
         edgeRepository.save(edge);
@@ -75,6 +75,8 @@ class EdgeRepositoryIT {
         assertThat(reloaded.toNodeId()).isEqualTo(nodeB);
         assertThat(reloaded.edgeType()).isEqualTo(EdgeType.SUPPORTS);
         assertThat(reloaded.rationale()).isEqualTo("потому что хадис");
+        assertThat(reloaded.sourceHandle()).isNull();
+        assertThat(reloaded.targetHandle()).isNull();
         assertThat(reloaded.createdAt()).isEqualTo(now);
     }
 
@@ -82,12 +84,25 @@ class EdgeRepositoryIT {
     void save_withNullRationale_worksFine() {
         Edge edge = new Edge(
                 UUID.randomUUID(), nodeA, nodeB, EdgeType.REFUTES,
-                null, userId, Instant.now()
+                null, null, null, userId, Instant.now()
         );
         edgeRepository.save(edge);
 
         assertThat(edgeRepository.findById(edge.id())).isPresent()
                 .get().extracting(Edge::rationale).isNull();
+    }
+
+    @Test
+    void save_persistsSourceAndTargetHandle() {
+        Edge edge = new Edge(
+                UUID.randomUUID(), nodeA, nodeB, EdgeType.SUPPORTS,
+                null, "right", "left", userId, Instant.now()
+        );
+        edgeRepository.save(edge);
+
+        Edge reloaded = edgeRepository.findById(edge.id()).orElseThrow();
+        assertThat(reloaded.sourceHandle()).isEqualTo("right");
+        assertThat(reloaded.targetHandle()).isEqualTo("left");
     }
 
     @Test

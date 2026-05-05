@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260505-14-add-handle-ids-to-edges" author="Abdula Basnukaev">
+        <comment>
+            Добавление source_handle и target_handle - id точек подключения
+            ребра на узлах (top/right/bottom/left). При drag-create в React
+            Flow пользователь выбирает конкретные стороны двух узлов; без
+            сохранения после refetch эта информация терялась и edge
+            отображался по умолчанию (auto-routing по позициям). Колонки
+            nullable - старые рёбра без сохранённых сторон при загрузке
+            используют RF auto-routing как раньше.
+        </comment>
+        <addColumn tableName="edges">
+            <column name="source_handle" type="VARCHAR(20)"/>
+            <column name="target_handle" type="VARCHAR(20)"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

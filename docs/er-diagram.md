@@ -38,6 +38,8 @@ erDiagram
         uuid to_node_id FK
         string edge_type "SUPPORTS|REFUTES|QUALIFIES|INVALIDATES|RESPONDS_TO"
         text rationale "опционально: почему эта связь"
+        string source_handle "nullable - сторона подключения у from"
+        string target_handle "nullable - сторона подключения у to"
         uuid created_by FK
         timestamp created_at
     }
@@ -112,3 +114,8 @@ erDiagram
   в миграции 13 (ADR-012) - координаты узла на канвасе для
   Miro-подобного UX, сохраняются при drag-and-drop через
   `PATCH /api/v1/nodes/{id}`
+- Поля `EDGE.source_handle`/`EDGE.target_handle` (VARCHAR(20) nullable)
+  добавлены в миграции 14 (ADR-013) - id точек подключения ребра
+  на сторонах узлов (`top`/`right`/`bottom`/`left`). Сохраняются
+  при drag-create в RF, при рендере уважают исходный выбор
+  пользователя вместо auto-routing

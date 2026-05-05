@@ -18,7 +18,7 @@ import ru.basnukaev.argumentmap.domain.EdgeType;
 public class EdgeRepository {
 
     private static final String COLUMNS =
-            "id, from_node_id, to_node_id, edge_type, rationale, created_by, created_at";
+            "id, from_node_id, to_node_id, edge_type, rationale, source_handle, target_handle, created_by, created_at";
 
     private static final RowMapper<Edge> ROW_MAPPER = (rs, rn) -> new Edge(
             rs.getObject("id", UUID.class),
@@ -26,6 +26,8 @@ public class EdgeRepository {
             rs.getObject("to_node_id", UUID.class),
             EdgeType.valueOf(rs.getString("edge_type")),
             rs.getString("rationale"),
+            rs.getString("source_handle"),
+            rs.getString("target_handle"),
             rs.getObject("created_by", UUID.class),
             instant(rs, "created_at")
     );
@@ -38,12 +40,14 @@ public class EdgeRepository {
 
     public Edge save(Edge edge) {
         jdbcTemplate.update(
-                "INSERT INTO edges (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO edges (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 edge.id(),
                 edge.fromNodeId(),
                 edge.toNodeId(),
                 edge.edgeType().name(),
                 edge.rationale(),
+                edge.sourceHandle(),
+                edge.targetHandle(),
                 edge.createdBy(),
                 odt(edge.createdAt())
         );
@@ -83,7 +87,7 @@ public class EdgeRepository {
     public List<Edge> findByTopicId(UUID topicId) {
         return jdbcTemplate.query(
                 "SELECT e.id, e.from_node_id, e.to_node_id, e.edge_type, e.rationale, "
-                        + "e.created_by, e.created_at "
+                        + "e.source_handle, e.target_handle, e.created_by, e.created_at "
                         + "FROM edges e JOIN nodes n ON n.id = e.from_node_id "
                         + "WHERE n.topic_id = ? ORDER BY e.created_at",
                 ROW_MAPPER,

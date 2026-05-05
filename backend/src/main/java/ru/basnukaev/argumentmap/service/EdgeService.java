@@ -29,9 +29,22 @@ public class EdgeService {
         this.statusCalculationService = statusCalculationService;
     }
 
+    /**
+     * Перегрузка без sourceHandle/targetHandle - для случаев когда сторона
+     * подключения не важна (например, ребро создано не через UI drag,
+     * а через bulk-импорт или тестовую фикстуру). Эквивалентно вызову
+     * с null/null
+     */
     @Transactional
     public Edge createEdge(UUID fromNodeId, UUID toNodeId, EdgeType type,
                            String rationale, UUID userId) {
+        return createEdge(fromNodeId, toNodeId, type, rationale, null, null, userId);
+    }
+
+    @Transactional
+    public Edge createEdge(UUID fromNodeId, UUID toNodeId, EdgeType type,
+                           String rationale, String sourceHandle, String targetHandle,
+                           UUID userId) {
         if (fromNodeId.equals(toNodeId)) {
             throw new InvalidEdgeException("узел не может ссылаться на себя");
         }
@@ -50,7 +63,7 @@ public class EdgeService {
 
         Edge edge = new Edge(
                 UUID.randomUUID(), fromNodeId, toNodeId, type,
-                rationale, userId, Instant.now()
+                rationale, sourceHandle, targetHandle, userId, Instant.now()
         );
         edgeRepository.save(edge);
         statusCalculationService.recalculateTopic(from.topicId());
