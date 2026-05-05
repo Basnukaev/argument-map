@@ -43,10 +43,29 @@ public class NodeService {
         Instant now = Instant.now();
         Node node = new Node(
                 UUID.randomUUID(), topicId, type, content,
-                NodeStatus.UNVERIFIED, userId, now, now
+                NodeStatus.UNVERIFIED, null, null,
+                userId, now, now
         );
         nodeRepository.save(node);
         return node;
+    }
+
+    /**
+     * Обновление координат узла на канвасе. Не пишет revision, не меняет
+     * updatedAt, не триггерит пересчёт статусов. Бросает NodeNotFoundException
+     * если узла нет.
+     */
+    @Transactional
+    public Node updatePosition(UUID nodeId, Double posX, Double posY) {
+        Node existing = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new NodeNotFoundException(nodeId));
+        nodeRepository.updatePosition(nodeId, posX, posY);
+        return new Node(
+                existing.id(), existing.topicId(), existing.nodeType(),
+                existing.content(), existing.status(),
+                posX, posY,
+                existing.createdBy(), existing.createdAt(), existing.updatedAt()
+        );
     }
 
     /**
@@ -69,6 +88,7 @@ public class NodeService {
         Node updated = new Node(
                 existing.id(), existing.topicId(), existing.nodeType(),
                 newContent, existing.status(),
+                existing.posX(), existing.posY(),
                 existing.createdBy(), existing.createdAt(), now
         );
         nodeRepository.update(updated);

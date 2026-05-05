@@ -17,5 +17,6 @@
     <include file="db/changelog/changes/20260413-10-create-node-authorities-table.xml"/>
     <include file="db/changelog/changes/20260413-11-create-revisions-table.xml"/>
     <include file="db/changelog/changes/20260504-12-drop-weight-from-nodes.xml"/>
+    <include file="db/changelog/changes/20260505-13-add-position-to-nodes.xml"/>
 
 </databaseChangeLog>

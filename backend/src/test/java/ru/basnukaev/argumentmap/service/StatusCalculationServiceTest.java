@@ -255,7 +255,7 @@ class StatusCalculationServiceTest {
 
     private Node node(UUID id, NodeStatus status) {
         Instant now = Instant.now();
-        return new Node(id, topicId, NodeType.CLAIM, "c", status, userId, now, now);
+        return new Node(id, topicId, NodeType.CLAIM, "c", status, null, null, userId, now, now);
     }
 
     private Edge edge(UUID from, UUID to, EdgeType type) {

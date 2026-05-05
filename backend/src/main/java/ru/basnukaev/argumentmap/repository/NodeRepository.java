@@ -20,7 +20,7 @@ import ru.basnukaev.argumentmap.domain.NodeType;
 public class NodeRepository {
 
     private static final String COLUMNS =
-            "id, topic_id, node_type, content, status, created_by, created_at, updated_at";
+            "id, topic_id, node_type, content, status, pos_x, pos_y, created_by, created_at, updated_at";
 
     private static final RowMapper<Node> ROW_MAPPER = (rs, rn) -> new Node(
             rs.getObject("id", UUID.class),
@@ -28,6 +28,8 @@ public class NodeRepository {
             NodeType.valueOf(rs.getString("node_type")),
             rs.getString("content"),
             NodeStatus.valueOf(rs.getString("status")),
+            (Double) rs.getObject("pos_x"),
+            (Double) rs.getObject("pos_y"),
             rs.getObject("created_by", UUID.class),
             instant(rs, "created_at"),
             instant(rs, "updated_at")
@@ -41,12 +43,14 @@ public class NodeRepository {
 
     public Node save(Node node) {
         jdbcTemplate.update(
-                "INSERT INTO nodes (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO nodes (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 node.id(),
                 node.topicId(),
                 node.nodeType().name(),
                 node.content(),
                 node.status().name(),
+                node.posX(),
+                node.posY(),
                 node.createdBy(),
                 odt(node.createdAt()),
                 odt(node.updatedAt())
@@ -87,6 +91,20 @@ public class NodeRepository {
                 odt(updatedAt),
                 nodeId
         );
+    }
+
+    /**
+     * Обновление координат узла на канвасе. Не пишет revision (позиция -
+     * не часть содержимого), не меняет updatedAt. Возвращает true если
+     * запись существовала и была обновлена.
+     */
+    public boolean updatePosition(UUID nodeId, Double posX, Double posY) {
+        return jdbcTemplate.update(
+                "UPDATE nodes SET pos_x = ?, pos_y = ? WHERE id = ?",
+                posX,
+                posY,
+                nodeId
+        ) > 0;
     }
 
     public boolean deleteById(UUID id) {

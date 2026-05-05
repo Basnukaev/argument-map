@@ -57,6 +57,7 @@ class NodeRepositoryIT {
         Node node = new Node(
                 UUID.randomUUID(), topicId, NodeType.CLAIM,
                 "Мавлид допустим", NodeStatus.STANDING,
+                null, null,
                 userId, now, now
         );
 
@@ -69,8 +70,30 @@ class NodeRepositoryIT {
         assertThat(reloaded.nodeType()).isEqualTo(NodeType.CLAIM);
         assertThat(reloaded.content()).isEqualTo("Мавлид допустим");
         assertThat(reloaded.status()).isEqualTo(NodeStatus.STANDING);
+        assertThat(reloaded.posX()).isNull();
+        assertThat(reloaded.posY()).isNull();
         assertThat(reloaded.createdAt()).isEqualTo(now);
         assertThat(reloaded.updatedAt()).isEqualTo(now);
+    }
+
+    @Test
+    void updatePosition_persistsCoordinates_andDoesNotTouchUpdatedAt() {
+        Instant created = Instant.now().minusSeconds(60).truncatedTo(ChronoUnit.MICROS);
+        UUID nodeId = insertNode(topicId, "x", created);
+
+        boolean updated = nodeRepository.updatePosition(nodeId, 123.45, -67.89);
+
+        assertThat(updated).isTrue();
+        Node reloaded = nodeRepository.findById(nodeId).orElseThrow();
+        assertThat(reloaded.posX()).isEqualTo(123.45);
+        assertThat(reloaded.posY()).isEqualTo(-67.89);
+        assertThat(reloaded.updatedAt()).isEqualTo(created);
+    }
+
+    @Test
+    void updatePosition_returnsFalse_whenNodeNotFound() {
+        boolean updated = nodeRepository.updatePosition(UUID.randomUUID(), 0.0, 0.0);
+        assertThat(updated).isFalse();
     }
 
     @Test
@@ -99,6 +122,7 @@ class NodeRepositoryIT {
         Node updated = new Node(
                 nodeId, topicId, NodeType.QUESTION,
                 "new content", NodeStatus.DISPUTED,
+                null, null,
                 userId, created, updatedAt
         );
         nodeRepository.update(updated);

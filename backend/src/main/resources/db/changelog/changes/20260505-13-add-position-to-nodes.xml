@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260505-13-add-position-to-nodes" author="Abdula Basnukaev">
+        <comment>
+            Добавление координат узла на канвасе (этап 9 Miro UX). Когда
+            пользователь перетаскивает узел drag-and-drop, фронт сохраняет
+            позицию через PATCH. При следующем открытии графа layout уважает
+            сохранённые координаты вместо пересчёта через dagre. Колонки
+            nullable - старые узлы без позиции при загрузке получают
+            автолейаут (как сейчас).
+        </comment>
+        <addColumn tableName="nodes">
+            <column name="pos_x" type="DOUBLE PRECISION"/>
+            <column name="pos_y" type="DOUBLE PRECISION"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>
