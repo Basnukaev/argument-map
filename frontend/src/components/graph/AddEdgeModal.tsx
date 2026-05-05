@@ -2,13 +2,12 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
+import NodeSelect from '@/components/graph/NodeSelect';
 import { apiPost, ApiError } from '@/api/client';
 import type { components } from '@/api/types';
 import {
   EDGE_TYPE_META,
   getAllowedEdgeTypes,
-  NODE_TYPE_EMOJI,
-  NODE_TYPE_LABEL,
   type EdgeType,
   type NodeType,
 } from '@/utils/edgeRules';
@@ -26,16 +25,6 @@ interface Props {
   initialTargetHandle?: string;
   onClose: () => void;
   onCreated: () => void;
-}
-
-const PREVIEW_LEN = 60;
-
-function previewContent(node: NodeDto): string {
-  const content = node.content ?? '';
-  const trimmed = content.length > PREVIEW_LEN ? `${content.slice(0, PREVIEW_LEN)}…` : content;
-  const emoji = node.nodeType ? NODE_TYPE_EMOJI[node.nodeType] : '·';
-  const label = node.nodeType ? NODE_TYPE_LABEL[node.nodeType] : '?';
-  return `${emoji} ${label}: ${trimmed || '(без содержимого)'}`;
 }
 
 function AddEdgeModal({
@@ -129,7 +118,7 @@ function AddEdgeModal({
     }
   }
 
-  const selectClass =
+  const inputClass =
     'block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200';
 
   return (
@@ -140,44 +129,27 @@ function AddEdgeModal({
             <label htmlFor="edge-from" className="mb-1 block text-sm font-medium text-gray-700">
               Откуда
             </label>
-            <select
+            <NodeSelect
               id="edge-from"
               value={fromNodeId}
-              onChange={(e) => setFromNodeId(e.target.value)}
-              className={selectClass}
-              required
-            >
-              <option value="">- выбрать узел -</option>
-              {nodes
-                .filter((n): n is NodeDto & { id: string } => Boolean(n.id))
-                .map((n) => (
-                  <option key={n.id} value={n.id}>
-                    {previewContent(n)}
-                  </option>
-                ))}
-            </select>
+              onChange={setFromNodeId}
+              options={nodes}
+              disabled={submitting}
+            />
           </div>
 
           <div>
             <label htmlFor="edge-to" className="mb-1 block text-sm font-medium text-gray-700">
               Куда
             </label>
-            <select
+            <NodeSelect
               id="edge-to"
               value={toNodeId}
-              onChange={(e) => setToNodeId(e.target.value)}
-              className={selectClass}
-              required
-            >
-              <option value="">- выбрать узел -</option>
-              {nodes
-                .filter((n): n is NodeDto & { id: string } => Boolean(n.id) && n.id !== fromNodeId)
-                .map((n) => (
-                  <option key={n.id} value={n.id}>
-                    {previewContent(n)}
-                  </option>
-                ))}
-            </select>
+              onChange={setToNodeId}
+              options={nodes}
+              excludeId={fromNodeId}
+              disabled={submitting}
+            />
           </div>
         </fieldset>
 
@@ -246,7 +218,7 @@ function AddEdgeModal({
             rows={2}
             maxLength={2000}
             disabled={submitting}
-            className={selectClass}
+            className={inputClass}
             placeholder="Почему эта связь?"
           />
         </div>

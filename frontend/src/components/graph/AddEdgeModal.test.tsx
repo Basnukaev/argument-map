@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
@@ -7,6 +7,7 @@ import AddEdgeModal from './AddEdgeModal';
 import type { components } from '@/api/types';
 
 type NodeDto = components['schemas']['NodeResponse'];
+type UserEvent = ReturnType<typeof userEvent.setup>;
 
 const BASE = 'http://test.local';
 
@@ -29,7 +30,7 @@ const NODES: NodeDto[] = [
   { id: 'n1', nodeType: 'QUESTION', content: 'Корневой вопрос' },
   { id: 'n2', nodeType: 'CLAIM', content: 'Тезис А' },
   { id: 'n3', nodeType: 'ARGUMENT', content: 'Аргумент за А' },
-  { id: 'n4', nodeType: 'EVIDENCE', content: 'Свидетельство' },
+  { id: 'n4', nodeType: 'EVIDENCE', content: 'Хадис из аль-Бухари' },
 ];
 
 function renderModal(props: Partial<Parameters<typeof AddEdgeModal>[0]> = {}) {
@@ -41,19 +42,30 @@ function renderModal(props: Partial<Parameters<typeof AddEdgeModal>[0]> = {}) {
   return { ...result, onClose, onCreated };
 }
 
+/**
+ * Открывает кастомный NodeSelect dropdown по lable, кликает option
+ * с заданным content. Эквивалент userEvent.selectOptions для нативного select.
+ */
+async function pickNode(user: UserEvent, fieldLabel: string, optionContent: string) {
+  await user.click(screen.getByLabelText(fieldLabel));
+  const listbox = await screen.findByRole('listbox');
+  await user.click(within(listbox).getByText(optionContent));
+}
+
 describe('AddEdgeModal', () => {
-  it('select "Куда" исключает выбранный узел из "Откуда"', async () => {
+  it('"Куда" исключает выбранный в "Откуда" узел из своих опций', async () => {
     const user = userEvent.setup();
     renderModal();
 
-    await user.selectOptions(screen.getByLabelText('Откуда'), 'n1');
+    await pickNode(user, 'Откуда', 'Корневой вопрос'); // n1
 
-    const toSelect = screen.getByLabelText('Куда') as HTMLSelectElement;
-    const optionValues = Array.from(toSelect.options).map((o) => o.value);
-    expect(optionValues).not.toContain('n1');
-    expect(optionValues).toContain('n2');
-    expect(optionValues).toContain('n3');
-    expect(optionValues).toContain('n4');
+    // открываем "Куда" - в списке не должно быть "Корневой вопрос"
+    await user.click(screen.getByLabelText('Куда'));
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).queryByText('Корневой вопрос')).not.toBeInTheDocument();
+    expect(within(listbox).getByText('Тезис А')).toBeInTheDocument();
+    expect(within(listbox).getByText('Аргумент за А')).toBeInTheDocument();
+    expect(within(listbox).getByText('Хадис из аль-Бухари')).toBeInTheDocument();
   });
 
   it('успешный POST /edges с дефолтным SUPPORTS для разрешённой пары ARGUMENT→CLAIM', async () => {
@@ -68,8 +80,8 @@ describe('AddEdgeModal', () => {
     const user = userEvent.setup();
     const { onCreated, onClose } = renderModal();
 
-    await user.selectOptions(screen.getByLabelText('Откуда'), 'n3');
-    await user.selectOptions(screen.getByLabelText('Куда'), 'n2');
+    await pickNode(user, 'Откуда', 'Аргумент за А'); // n3
+    await pickNode(user, 'Куда', 'Тезис А'); // n2
 
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
@@ -96,8 +108,8 @@ describe('AddEdgeModal', () => {
     const user = userEvent.setup();
     renderModal();
 
-    await user.selectOptions(screen.getByLabelText('Откуда'), 'n4');
-    await user.selectOptions(screen.getByLabelText('Куда'), 'n3');
+    await pickNode(user, 'Откуда', 'Хадис из аль-Бухари'); // n4
+    await pickNode(user, 'Куда', 'Аргумент за А'); // n3
     await user.click(screen.getByLabelText(/Аннулирует/i));
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
@@ -110,10 +122,12 @@ describe('AddEdgeModal', () => {
     const user = userEvent.setup();
     const { onCreated } = renderModal();
 
-    await user.click(screen.getByRole('button', { name: 'Создать' }));
+    // Создать disabled пока пара не выбрана и не разрешена
+    const submit = screen.getByRole('button', { name: 'Создать' }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+    await user.click(submit);
 
     expect(onCreated).not.toHaveBeenCalled();
-    // HTML5 required не даст сабмиту пройти
   });
 
   it('показывает 422 ошибку с detail', async () => {
@@ -134,8 +148,8 @@ describe('AddEdgeModal', () => {
     const user = userEvent.setup();
     const { onCreated } = renderModal();
 
-    await user.selectOptions(screen.getByLabelText('Откуда'), 'n3');
-    await user.selectOptions(screen.getByLabelText('Куда'), 'n2');
+    await pickNode(user, 'Откуда', 'Аргумент за А'); // n3
+    await pickNode(user, 'Куда', 'Тезис А'); // n2
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
     await waitFor(() => {
@@ -148,8 +162,8 @@ describe('AddEdgeModal', () => {
     const user = userEvent.setup();
     renderModal();
 
-    await user.selectOptions(screen.getByLabelText('Откуда'), 'n2'); // CLAIM
-    await user.selectOptions(screen.getByLabelText('Куда'), 'n3'); // ARGUMENT
+    await pickNode(user, 'Откуда', 'Тезис А'); // CLAIM
+    await pickNode(user, 'Куда', 'Аргумент за А'); // ARGUMENT
 
     expect(screen.getByText(/Эту пару узлов нельзя соединить/)).toBeInTheDocument();
     expect(screen.queryByLabelText(/Поддерживает/i)).not.toBeInTheDocument();
@@ -161,8 +175,8 @@ describe('AddEdgeModal', () => {
     const user = userEvent.setup();
     renderModal();
 
-    await user.selectOptions(screen.getByLabelText('Откуда'), 'n1'); // QUESTION
-    await user.selectOptions(screen.getByLabelText('Куда'), 'n2'); // CLAIM
+    await pickNode(user, 'Откуда', 'Корневой вопрос'); // QUESTION
+    await pickNode(user, 'Куда', 'Тезис А'); // CLAIM
 
     expect(screen.getByLabelText(/Уточняет/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/Поддерживает/i)).not.toBeInTheDocument();
@@ -182,12 +196,12 @@ describe('AddEdgeModal', () => {
     renderModal();
 
     // ARGUMENT → CLAIM: SUPPORTS разрешён (дефолт)
-    await user.selectOptions(screen.getByLabelText('Откуда'), 'n3');
-    await user.selectOptions(screen.getByLabelText('Куда'), 'n2');
+    await pickNode(user, 'Откуда', 'Аргумент за А'); // n3
+    await pickNode(user, 'Куда', 'Тезис А'); // n2
     expect((screen.getByLabelText(/Поддерживает/i) as HTMLInputElement).checked).toBe(true);
 
     // меняем from на QUESTION: QUESTION → CLAIM запрещает SUPPORTS, остаётся QUALIFIES
-    await user.selectOptions(screen.getByLabelText('Откуда'), 'n1');
+    await pickNode(user, 'Откуда', 'Корневой вопрос'); // n1
 
     await waitFor(() => {
       expect((screen.getByLabelText(/Уточняет/i) as HTMLInputElement).checked).toBe(true);
@@ -202,18 +216,18 @@ describe('AddEdgeModal', () => {
   it('initialFromId/initialToId предзаполняют поля для drag-create', () => {
     renderModal({ initialFromId: 'n3', initialToId: 'n2' });
 
-    const fromSelect = screen.getByLabelText('Откуда') as HTMLSelectElement;
-    const toSelect = screen.getByLabelText('Куда') as HTMLSelectElement;
-    expect(fromSelect.value).toBe('n3');
-    expect(toSelect.value).toBe('n2');
+    // триггеры показывают content выбранных узлов
+    expect(screen.getByLabelText('Откуда')).toHaveTextContent('Аргумент за А');
+    expect(screen.getByLabelText('Куда')).toHaveTextContent('Тезис А');
     // SUPPORTS - первый разрешённый для ARGUMENT → CLAIM, должен быть отмечен
     expect((screen.getByLabelText(/Поддерживает/i) as HTMLInputElement).checked).toBe(true);
   });
 
-  it('только initialFromId - "Откуда" предзаполнено, "Куда" пусто', () => {
+  it('только initialFromId - "Откуда" предзаполнено, "Куда" пусто (placeholder)', () => {
     renderModal({ initialFromId: 'n3' });
-    expect((screen.getByLabelText('Откуда') as HTMLSelectElement).value).toBe('n3');
-    expect((screen.getByLabelText('Куда') as HTMLSelectElement).value).toBe('');
+    expect(screen.getByLabelText('Откуда')).toHaveTextContent('Аргумент за А');
+    // в "Куда" виден placeholder "- выбрать узел -"
+    expect(screen.getByLabelText('Куда')).toHaveTextContent('- выбрать узел -');
   });
 
   it('initialSourceHandle/initialTargetHandle уезжают в POST /edges', async () => {

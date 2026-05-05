@@ -284,9 +284,13 @@ git log; средняя фича (3+ коммитов или новый файл
       эмодзи (📢/💬 → Megaphone/MessageSquareQuote и т.п.). Извлечён
       NODE_TYPE_META + EDGE_TYPE_META в edgeRules.ts, иконки
       совпадают с NodeCard и CustomEdge на графе. Реализовано в
-      сессии 16. Остаётся открытым: кастомный dropdown с иконками
-      для `<select>` "Откуда"/"Куда" в AddEdgeModal (там длинный
-      список узлов, нативный `<select>` не поддерживает SVG)
+      сессии 16
+- [x] **Кастомный NodeSelect для выбора узла** - заменяет нативный
+      `<select>` "Откуда"/"Куда" в AddEdgeModal. Триггер показывает
+      lucide-иконку типа + content, dropdown с теми же опциями плюс
+      цветной dot статуса узла. Закрывается по клику вне, Escape,
+      выбору. excludeId фильтрует уже выбранный узел. Реализовано
+      в сессии 16
 - [ ] **Smart edge routing** (опционально, если 4-handles + dagre
       мало) - elkjs или custom edge с pathfinding
 - [x] **Сохранение `sourceHandle`/`targetHandle` для edge** -
