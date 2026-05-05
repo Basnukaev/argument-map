@@ -43,11 +43,12 @@ function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
   const ringClass = selected ? 'ring-2 ring-blue-400 ring-offset-2' : '';
 
   // 4 handles по одному на сторону. ReactFlow в connectionMode='loose'
-  // позволяет коннектиться source↔source, поэтому не нужны парные target.
-  // Размер 16x16px чтобы было удобно попасть мышкой; визуально невидимы пока
+  // позволяет коннектиться source↔source, поэтому парные target не нужны.
+  // Визуально handle 12x12, но через ::before расширяем hit-area до 28x28
+  // (inset-[-8px]) - удобно попадать мышкой. Сами точки невидимы пока
   // не наведут на узел (group-hover) - даёт Miro-эффект.
   const handleClass =
-    '!w-4 !h-4 !bg-blue-500 !border-2 !border-white opacity-0 group-hover:opacity-100 transition-opacity cursor-crosshair';
+    '!w-3 !h-3 !bg-blue-500 !border-2 !border-white opacity-0 group-hover:opacity-100 transition-opacity cursor-crosshair before:absolute before:inset-[-8px] before:content-[""]';
 
   return (
     <div
