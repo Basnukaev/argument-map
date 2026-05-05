@@ -200,4 +200,52 @@ npm install -D @tailwindcss/oxide-win32-x64-msvc
 
 ---
 
+## React Flow `onSelectionChange` infinite loop при inline-handler
+**Симптом:** "Maximum update depth exceeded" в консоли через несколько
+действий с графом (drag, click). Стек: `onSelectionChange` → `setState`
+→ снова `onSelectionChange` → ... до краша. Воспроизводится сложно -
+зависит от количества drag'ов и порядка действий.
+
+**Причина:** inline arrow handler `({nodes, edges}) =>
+setSelectedNodeIds(nodes.map(n => n.id))` создаёт новый `[]` массив
+каждый вызов. `useState` сравнивает по `Object.is(prev, next)` -
+для разных ссылок всегда `false` → re-render → React Flow снова
+триггерит `onSelectionChange` (например после `setNodes`) → опять
+новый `[]` → бесконечный цикл
+
+**Решение:** для всех RF callbacks (`onSelectionChange`, `onConnect`,
+`onNodeDragStop` и т.д.) ВСЕГДА:
+1. `useCallback(handler, [])` - стабильная ссылка не пересоздаётся
+2. Функциональный setter со сравнением содержимого:
+   ```ts
+   setSelectedNodeIds(prev => sameIds(prev, next) ? prev : next);
+   ```
+   `sameIds` - поверхностное сравнение `string[]` (длина + поэлементно).
+   Возвращаем `prev` (ту же ссылку) если содержимое не изменилось -
+   `useState` видит ту же ссылку, не вызывает re-render
+
+См. `TopicGraphPage.tsx:handleSelectionChange` + helper `sameIds()`.
+
+---
+
+## React Flow `elevateNodesOnSelect=true` по дефолту перетирает явный zIndex
+**Симптом:** "На задний план" из контекстного меню как будто не работает -
+узел остаётся поверх остальных. Стоит снять выделение (клик на pane) -
+сразу уезжает на задний план
+
+**Причина:** RF default `elevateNodesOnSelect=true` (и для рёбер тоже).
+RF автоматически кладёт selected узел поверх остальных через внутренний
+zIndex-boost. Это перебивает наш явный `node.zIndex` из контекстного меню
+
+**Решение:** на `<ReactFlow>` поставить
+```tsx
+elevateNodesOnSelect={false}
+elevateEdgesOnSelect={false}
+```
+Тогда selected узел остаётся в своём слое (синяя обводка показывает
+выделение, но не меняет visually order). Z-order контролируется только
+явным `zIndex`
+
+---
+
 <!-- Добавлять новые ловушки сюда по мере их обнаружения -->
