@@ -12,6 +12,8 @@ public record NodeResponse(
         NodeType nodeType,
         String content,
         NodeStatus status,
+        Double posX,
+        Double posY,
         UUID createdBy,
         Instant createdAt,
         Instant updatedAt

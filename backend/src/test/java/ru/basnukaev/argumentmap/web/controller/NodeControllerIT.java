@@ -102,7 +102,7 @@ class NodeControllerIT {
     @Test
     void updateContent_returns200_andWritesRevision() throws Exception {
         UUID nodeId = createNode("старый");
-        var req = new UpdateNodeRequest("новый");
+        var req = new UpdateNodeRequest("новый", null, null);
 
         mockMvc.perform(patch("/api/v1/nodes/{id}", nodeId)
                         .header("X-User-Id", userId.toString())
@@ -120,7 +120,7 @@ class NodeControllerIT {
 
     @Test
     void updateContent_whenNodeMissing_returns404() throws Exception {
-        var req = new UpdateNodeRequest("x");
+        var req = new UpdateNodeRequest("x", null, null);
 
         mockMvc.perform(patch("/api/v1/nodes/{id}", UUID.randomUUID())
                         .header("X-User-Id", userId.toString())
@@ -128,6 +128,37 @@ class NodeControllerIT {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value(containsString("node-not-found")));
+    }
+
+    @Test
+    void updatePosition_returns200_andPersists_andDoesNotWriteRevision() throws Exception {
+        UUID nodeId = createNode("x");
+        var req = new UpdateNodeRequest(null, 100.5, -42.0);
+
+        mockMvc.perform(patch("/api/v1/nodes/{id}", nodeId)
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posX").value(100.5))
+                .andExpect(jsonPath("$.posY").value(-42.0));
+
+        // позиция не пишет revision - список должен быть пустой
+        mockMvc.perform(get("/api/v1/nodes/{id}/revisions", nodeId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void updateNode_emptyBody_returns400() throws Exception {
+        UUID nodeId = createNode("x");
+        var req = new UpdateNodeRequest(null, null, null);
+
+        mockMvc.perform(patch("/api/v1/nodes/{id}", nodeId)
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

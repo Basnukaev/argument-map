@@ -44,12 +44,33 @@ public class NodeController {
                 .body(DtoMappers.toResponse(created));
     }
 
+    /**
+     * PATCH принимает opt content и/или opt posX+posY. Если есть content -
+     * пишется revision (обновляется содержимое). Если есть pos - меняются
+     * координаты на канвасе (без revision, без updatedAt). Можно оба сразу -
+     * выполнятся последовательно, ответ содержит финальное состояние узла.
+     * Пустой запрос (без полей) - 400 validation.
+     */
     @PatchMapping("/{nodeId}")
-    public NodeResponse updateContent(@PathVariable UUID nodeId,
-                                      @Valid @RequestBody UpdateNodeRequest request,
-                                      @CurrentUser UUID userId) {
-        Node updated = nodeService.updateContent(nodeId, request.content(), userId);
-        return DtoMappers.toResponse(updated);
+    public NodeResponse update(@PathVariable UUID nodeId,
+                               @Valid @RequestBody UpdateNodeRequest request,
+                               @CurrentUser UUID userId) {
+        boolean hasContent = request.content() != null;
+        boolean hasPosition = request.posX() != null && request.posY() != null;
+        if (!hasContent && !hasPosition) {
+            throw new IllegalArgumentException(
+                    "Хотя бы одно из полей (content или posX+posY) должно быть указано"
+            );
+        }
+
+        Node node = null;
+        if (hasContent) {
+            node = nodeService.updateContent(nodeId, request.content(), userId);
+        }
+        if (hasPosition) {
+            node = nodeService.updatePosition(nodeId, request.posX(), request.posY());
+        }
+        return DtoMappers.toResponse(node);
     }
 
     @DeleteMapping("/{nodeId}")

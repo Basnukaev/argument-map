@@ -161,22 +161,32 @@ OpenAPI-спецификация: `/v3/api-docs` (JSON), Swagger UI: `/swagger-u
 
 #### PATCH /api/v1/nodes/{nodeId}
 
-Обновить содержимое узла. Пишет revision (before/after). Не триггерит
-пересчёт статусов (content не входит в алгоритм).
+Обновить узел. Все поля опциональные, но **хотя бы одно** должно быть
+указано. Если только `content` - пишется revision (before/after), не
+триггерит пересчёт статусов. Если только `posX`+`posY` - меняются
+координаты на канвасе, не пишется revision, не меняется `updatedAt`.
+Если оба - оба применяются последовательно, ответ содержит финальное
+состояние узла.
 
 **Заголовки:** `X-User-Id: <uuid>` (обязательно)
 
 **Запрос:**
 ```json
 {
-  "content": "новое содержимое"
+  "content": "новое содержимое",
+  "posX": 100.5,
+  "posY": -42.0
 }
 ```
+- `content`: 1-10000 символов, опционально
+- `posX`: число, опционально - X-координата на канвасе
+- `posY`: число, опционально - Y-координата на канвасе. `posX` и
+  `posY` всегда вместе (один без другого игнорируется)
 
 **Ответ (200 OK):** обновлённый `NodeResponse`.
 
 **Ошибки:**
-- `400` - невалидное содержимое
+- `400` - невалидное содержимое или пустое тело без полей
 - `404` - узел не найден
 
 #### DELETE /api/v1/nodes/{nodeId}
@@ -417,11 +427,15 @@ OpenAPI-спецификация: `/v3/api-docs` (JSON), Swagger UI: `/swagger-u
   "nodeType": "QUESTION|CLAIM|ARGUMENT|EVIDENCE",
   "content": "string",
   "status": "STANDING|DISPUTED|REFUTED|UNVERIFIED",
+  "posX": 123.45,
+  "posY": -67.89,
   "createdBy": "uuid",
   "createdAt": "iso8601",
   "updatedAt": "iso8601"
 }
 ```
+`posX`/`posY` - координаты узла на канвасе графа. `null` для
+узлов, которые ещё не перетаскивались (фронт применит автолейаут).
 
 ### EdgeResponse
 ```json
@@ -547,6 +561,7 @@ OpenAPI-спецификация: `/v3/api-docs` (JSON), Swagger UI: `/swagger-u
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-05 | v1 | `NodeResponse` получил `posX`/`posY` (Double, nullable). `UpdateNodeRequest` принимает opt `posX`+`posY` без revision | этап 9 Miro UX: drag-and-drop позиции узлов сохраняются на беке |
 | 2026-05-04 | v1 | Удалено поле `weight` из `Node`/`CreateNodeRequest`/`NodeResponse` | ADR-011: weight субъективен, не используется в StatusCalculation. Заменим категориальной разметкой после auth (Stage 6) |
 | 2026-05-03 | v1 | первая версия: Topics, Nodes, Edges, Graph, Revisions | реализация Этапа 4 |
 | 2026-05-03 | v1 | добавлены Sources, Authorities, NodeSources, NodeAuthorities | реализация Этапа 5 |
