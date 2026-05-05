@@ -282,15 +282,13 @@ git log; средняя фича (3+ коммитов или новый файл
       после POST. POST /nodes на беке расширять не стал (ADR не
       нужен, два оптимистичных запроса работают). Реализовано в
       сессии 15 (`c09b6f5`)
-- [ ] **Reconnect edges** - перетащить конец существующего ребра
-      на другую точку handle. Два варианта реализации:
-      - A: PATCH /api/v1/edges/{id} с full update (fromNodeId/
-        toNodeId/edgeType/rationale/sourceHandle/targetHandle) +
-        повторная валидация EdgeSemantics. Бэк-долг ~60 мин. Чище
-        долгосрочно, нет гонок. Требует ADR-014
-      - B: DELETE + POST на фронте в onReconnect. ~20 мин, без
-        бэк-изменений. Минусы: id ребра меняется, теоретическая
-        гонка refetch между DELETE и POST
+- [x] **Reconnect edges** - перетащить конец существующего ребра
+      на другой handle/узел. Реализован вариант A (ADR-014): partial
+      `PATCH /api/v1/edges/{id}` с финальной валидацией ADR-010.
+      На фронте `onReconnect` callback сохраняет тип ребра, при
+      запрещённой паре - toast и ребро не меняется. Атомарно через
+      `@Transactional`. Реализовано в сессии 16 (`be66013` бэк сервис,
+      `58be1eb` REST + ADR + api-contract, A.c фронт)
 - [ ] **Z-index full-stack persistence** для узлов и рёбер
       (миграция + поле + DTO + фронт). Сейчас локально, при refetch
       теряется. Делать только если станет критично - z-order между

@@ -132,6 +132,22 @@ export interface paths {
         patch: operations["update"];
         trace?: never;
     };
+    "/api/v1/edges/{edgeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["delete_1"];
+        options?: never;
+        head?: never;
+        patch: operations["update_1"];
+        trace?: never;
+    };
     "/api/v1/topics/{topicId}": {
         parameters: {
             query?: never;
@@ -142,7 +158,7 @@ export interface paths {
         get: operations["getOne"];
         put?: never;
         post?: never;
-        delete: operations["delete_1"];
+        delete: operations["delete_2"];
         options?: never;
         head?: never;
         patch?: never;
@@ -174,7 +190,7 @@ export interface paths {
         get: operations["getOne_1"];
         put?: never;
         post?: never;
-        delete: operations["delete_2"];
+        delete: operations["delete_3"];
         options?: never;
         head?: never;
         patch?: never;
@@ -206,7 +222,7 @@ export interface paths {
         get: operations["getOne_2"];
         put?: never;
         post?: never;
-        delete: operations["delete_3"];
+        delete: operations["delete_4"];
         options?: never;
         head?: never;
         patch?: never;
@@ -239,22 +255,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["detach_1"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/edges/{edgeId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["delete_4"];
         options?: never;
         head?: never;
         patch?: never;
@@ -416,6 +416,17 @@ export interface components {
             posX?: number;
             /** Format: double */
             posY?: number;
+        };
+        UpdateEdgeRequest: {
+            /** Format: uuid */
+            fromNodeId?: string;
+            /** Format: uuid */
+            toNodeId?: string;
+            /** @enum {string} */
+            edgeType?: "SUPPORTS" | "REFUTES" | "QUALIFIES" | "INVALIDATES" | "RESPONDS_TO";
+            rationale?: string;
+            sourceHandle?: string;
+            targetHandle?: string;
         };
         GraphResponse: {
             topic?: components["schemas"]["TopicResponse"];
@@ -777,6 +788,52 @@ export interface operations {
             };
         };
     };
+    delete_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                edgeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                edgeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateEdgeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["EdgeResponse"];
+                };
+            };
+        };
+    };
     getOne: {
         parameters: {
             query?: never;
@@ -799,7 +856,7 @@ export interface operations {
             };
         };
     };
-    delete_1: {
+    delete_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -863,7 +920,7 @@ export interface operations {
             };
         };
     };
-    delete_2: {
+    delete_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -927,7 +984,7 @@ export interface operations {
             };
         };
     };
-    delete_3: {
+    delete_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -975,26 +1032,6 @@ export interface operations {
             path: {
                 nodeId: string;
                 authorityId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    delete_4: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                edgeId: string;
             };
             cookie?: never;
         };

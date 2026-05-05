@@ -26,7 +26,7 @@ import AddEdgeModal from '@/components/graph/AddEdgeModal';
 import NodeDetailsPanel from '@/components/graph/NodeDetailsPanel';
 import { layoutGraph } from '@/utils/graphLayout';
 import { apiDeleteRaw, apiGetRaw, apiPatchRaw, ApiError } from '@/api/client';
-import { getAllowedEdgeTypes, NODE_TYPE_LABEL } from '@/utils/edgeRules';
+import { getAllowedEdgeTypes, isEdgeAllowed, NODE_TYPE_LABEL } from '@/utils/edgeRules';
 import { toast } from '@/stores/toastStore';
 import type { components } from '@/api/types';
 
@@ -262,6 +262,51 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
     }
     setAddEdgeOpen(true);
   }
+
+  // reconnect - перетащить конец существующего ребра на другой handle/узел.
+  // Тип ребра сохраняется, меняются только концы и handle'ы. Если новая пара
+  // (fromType, edgeType, toType) запрещена матрицей ADR-010 - toast, ребро
+  // не меняется. Иначе PATCH /edges/{id} + refetch (ADR-014).
+  // RF без обновления state оставит ребро в старом виде до refetch
+  const handleReconnect = useCallback(
+    (oldEdge: Edge, newConnection: Connection) => {
+      if (!newConnection.source || !newConnection.target) return;
+      if (newConnection.source === newConnection.target) {
+        toast.warning('Узел не может ссылаться на себя');
+        return;
+      }
+
+      const fromNode = rawNodeDtos.find((n) => n.id === newConnection.source);
+      const toNode = rawNodeDtos.find((n) => n.id === newConnection.target);
+      if (!fromNode?.nodeType || !toNode?.nodeType) return;
+
+      const edgeType = (oldEdge.data as { edgeType?: EdgeDto['edgeType'] } | undefined)?.edgeType;
+      if (!edgeType) return;
+
+      if (!isEdgeAllowed(fromNode.nodeType, edgeType, toNode.nodeType)) {
+        toast.warning(
+          `${NODE_TYPE_LABEL[fromNode.nodeType]} → ${NODE_TYPE_LABEL[toNode.nodeType]}: тип "${edgeType}" недопустим для этой пары (см. ADR-010)`,
+        );
+        return;
+      }
+
+      apiPatchRaw(`/api/v1/edges/${oldEdge.id}`, {
+        fromNodeId: newConnection.source,
+        toNodeId: newConnection.target,
+        sourceHandle: newConnection.sourceHandle ?? undefined,
+        targetHandle: newConnection.targetHandle ?? undefined,
+      })
+        .then(() => onRefetch())
+        .catch((e: unknown) => {
+          const msg =
+            e instanceof ApiError
+              ? `${e.problem.title}${e.problem.detail ? ': ' + e.problem.detail : ''}`
+              : (e as Error).message;
+          toast.error(`Не удалось пересоединить: ${msg}`);
+        });
+    },
+    [rawNodeDtos, onRefetch],
+  );
 
   // drag-end - отправляем PATCH с координатами. Не ждём ответ, оптимистично.
   // При ошибке - toast, рефетч пересчитает layout с прежними координатами
@@ -530,6 +575,7 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={handleConnect}
+          onReconnect={handleReconnect}
           onNodeDragStop={handleNodeDragStop}
           onInit={setRfInstance}
           onPaneContextMenu={handlePaneContextMenu}
