@@ -13,6 +13,160 @@
 
 ---
 
+## 2026-05-05 — Сессия 14 (full-stack) — этап 9 целиком: Miro UX
+
+Закрыт целиком этап 9 - 4 handles + drag-create + контекстное меню +
+z-index + сохранение позиций (full-stack с миграцией БД). Граф теперь
+ведёт себя как Miro: drag за handle создаёт связь, правый клик открывает
+меню, dragged позиции сохраняются между сессиями.
+
+### Сделано
+12 коммитов в одной сессии. Подэтапы по UI и full-stack кускам:
+
+**E.a и его фиксы**:
+- **`8db313c` E.a** - 4 handles на узле + drag-create. NodeCard добавлены
+  4 source-handles. RF onConnect открывает AddEdgeModal с предзаполнением
+  from/to. AddEdgeModal расширен `initialFromId`/`initialToId`, key-trick
+  для перемонтирования при разных preset
+- **`ca35a53` fix loose mode** - изначально 8 handles (source+target в
+  одной точке) перепутывали from/to в onConnect. Перешли на 4 handles
+  type='source' + `connectionMode='loose'`. Размер 16x16 с cursor-crosshair
+- **`fd437c1` fix hit-area** - вернул визуальный размер 12x12 (как
+  было) но добавил ::before pseudo-element с inset:-8px - hit-area
+  28x28 без визуального разрастания
+- **`8ecda7d` toast система** - общая инфраструктура. Zustand
+  `useToastStore` + Toaster компонент. 4 типа (error/warning/info/success)
+  с разными default ttl. API: `toast.warning('...')` без хука. Иконки
+  lucide, ARIA aria-live=polite
+- **`fc967ab` fix блокировка** - drag запрещённой пары теперь не
+  открывает модалку, а показывает toast.warning с указанием пары и
+  ссылкой на ADR-010. Кнопка "+ Связь" с одним выделенным узлом
+  предзаполняет "Откуда"
+
+**E.b сохранение позиций** (full-stack):
+- **`58860ef` E.b.1 бэк schema** - миграция 13 `pos_x`/`pos_y`
+  (DOUBLE PRECISION nullable), Node record расширен, NodeRowMapper
+  читает координаты, `NodeRepository.updatePosition(id, x, y)` -
+  изолированный метод без revision и updatedAt. NodeService.updatePosition
+  бросает NodeNotFoundException
+- **`5bc737c` E.b.2 REST API** - UpdateNodeRequest принимает opt
+  content / opt posX+posY (либо/либо, либо оба). Только posX+posY → не
+  пишется revision, не меняется updatedAt. Пустое тело → 400. Контракт
+  api-contract.md обновлён, NodeResponse расширен polями posX/posY
+- **`df3b211` E.b.3 фронт persistence** - регенерация openapi-types,
+  layoutGraph уважает сохранённые координаты, `onNodeDragStop` → PATCH
+  (оптимистично). Ошибка → toast.error
+- **`87b718f` fix mixed layout** - изначально `all-or-nothing`: если
+  хотя бы у одного узла нет posX/posY → dagre перетирал ВСЕ ручные
+  позиции. Стало 3 режима: все сохранены → as-is; ни у одного нет →
+  dagre всех; смешано → сохранённые на местах, fresh столбцом справа
+
+**E.c контекстное меню**:
+- **`779731a` fix infinite loop** - inline onSelectionChange с
+  setSelectedNodeIds([...]) создавал новые [] массивы → useState видел
+  новую ссылку → re-render → RF опять вызывал onSelectionChange →
+  бесконечный цикл при множественных drag'ах ("Maximum update depth
+  exceeded"). Решение: useCallback([]) + функциональный update со
+  сравнением sameIds(prev, next)
+- **`e852411` E.c контекстное меню** - универсальный ContextMenu.tsx
+  (props x/y/items/header/onClose, click outside + Escape).
+  В TopicGraphPage три обработчика: pane "Создать здесь", узел
+  "Редактировать"/"Удалить", ребро "Удалить". deleteOneNode/Edge -
+  немедленный DELETE без window.confirm (сам факт пункта = намерение)
+
+**E.d z-index**:
+- **`abb6d63` E.d z-index** - в контекстное меню узла и ребра
+  добавлены "На передний план" / "На задний план". `zRef = useRef({
+  max: 10, min: 0 })` локально - не сохраняется на беке. На "front"
+  инкремент max и присвоение через setNodes/setEdges. Альтернатива
+  full-stack persistence как posX/posY - оставлено на потом
+
+Прогоны: backend `./mvnw verify` 148/148 (было 144 + 4 новых: 2
+NodeRepositoryIT + 2 NodeControllerIT). Frontend `npm run lint` чисто,
+`npm run build` ОК (~552kB / gzip 180kB), `npm test` 94/94 (было 56 +
+38 за сессии 13-14: NodeDetailsPanel 17, ContextMenu 6, Toaster 4,
+toastStore 5, AddEdgeModal +2, layout +3, NodeDetailsPanel в сессии
+13 17 = накопилось 94).
+
+### Решения
+- **`connectionMode='loose'` вместо парных source+target handles** -
+  один Handle на сторону, RF разрешает source↔source при loose. Чище
+  DOM, нет конфликтов на mousedown между двумя handles в одной точке
+- **toast система через Zustand-store** - вместо react-hot-toast/sonner
+  библиотек. Преимущества: полный контроль над дизайном (Tailwind),
+  легко расширить (action-кнопка, custom ttl), нулевая внешняя зависимость.
+  Стоимость - ~80 строк кода в `toastStore.ts` + `Toaster.tsx`
+- **посохранение позиций через расширение PATCH /nodes/{id}, не отдельный
+  /position эндпоинт** - один универсальный PATCH принимает opt content
+  и/или opt posX+posY, фронту проще (один apiPatchRaw). Семантическая
+  ассимметрия (content пишет revision, position нет) обрабатывается в
+  NodeService по флагу. Альтернатива - два эндпоинта - больше API
+  surface за то же
+- **layout mixed-режим** - после первого `all-or-nothing` поняли что
+  при создании нового узла в существующем dragged-графе теряются ручные
+  позиции. Mixed-режим (saved as-is + fresh столбцом) компромисс: новые
+  узлы могут оказаться не в самом удобном месте, но пользователь
+  drag'нет один раз и зафиксирует
+- **z-index только локально без бэка** - частая операция (несколько
+  кликов в одной сессии), но редко важна между сессиями (после refetch
+  обычно не критично сохранять). Избегаем full-stack стоимости
+- **stable callbacks + sameIds для useState массивов** - идиома
+  обязательная для RF callbacks, добавлена в memory как feedback
+
+### Проблемы
+- **Двойной liquibase-include миграции** - первый `Edit` master.xml
+  для миграции 13 потерялся (вероятно WSL DrvFs/9P проблема). Тесты
+  падали `pos_x column does not exist`. Поправилось повторным Edit и
+  `clean verify`. Если повторится - проверять `git diff` после каждого
+  Edit на критичных файлах
+- **Infinite loop с onSelectionChange** - см. fix `779731a`. Поймали
+  только на boundary случае (много drag'ов), unit-тесты не покрыли.
+  В будущем для RF callbacks ВСЕГДА useCallback + сравнение содержимого
+- **TS2322 ConnectionMode "loose"** - изначально передавал строку,
+  TS требует enum. Импортировал `ConnectionMode.Loose` вместо `'loose'`
+- **Тесты Toaster - render before show**: при `render(<Toaster/>)` →
+  `toast.info(...)` Zustand-обновление не реактивно отображалось в
+  тесте (видимо act-wrapping). Решение: сначала добавляем toast,
+  потом render + findByX async query
+
+### Следующий шаг
+**Smart edge routing** (опционально, если 4 handles + dagre мало):
+- elkjs вместо dagre или custom edge с pathfinding
+- Делается только если визуально пути рёбер некрасивые
+
+**Бэк-долг (с этапа 4)**: springdoc + @CurrentUser - параметр
+`userId` неправильно в OpenAPI. Не блокирует, но портит автоген типов
+
+**После-MVP полировка**:
+- AddEdgeModal: кастомный dropdown с lucide-иконками вместо нативных
+  select, цветовая индикация типа в опции
+- Подсветка выбранной пары на графе при открытой AddEdgeModal
+- z-index full-stack persistence (если потребуется)
+- Code-split TopicGraphPage через React.lazy (bundle 552kB → ~150kB
+  initial)
+
+### Важные нюансы
+- React 19 StrictMode в dev делает двойной mount → видны 2 GET
+  graph при загрузке страницы. Один отменяется через AbortController.
+  В production будет один. Это **не баг**
+- В контекстном меню узла "Редактировать" просто выделяет узел -
+  открывается боковая панель. Чтобы сразу попасть в режим editing
+  пришлось бы передавать prop initialEditing - не делал, MVP-достаточно
+- z-index не сохраняется между сессиями. Если пользователь сделал
+  несколько front/back и перезагрузил страницу - порядок сбросился к
+  дефолту RF. По симптомам не критично (визуально узлы стоят так же,
+  просто z неявный)
+- При создании нового узла в graph где есть сохранённые позиции -
+  новый узел через `posX=null` рисуется столбцом справа от max(posX).
+  Это не очень эстетично если пользователь хотел положить в конкретное
+  место. Для этого должны идти "Создать здесь" из контекстного меню
+  с координатами курсора - сейчас контекстное меню НЕ передаёт
+  координаты в AddNodeModal. Это TODO, см. **после-MVP**
+- Bundle 552kB / gzip 180kB - подобрался к 600kB. Code-split
+  TopicGraphPage остановит рост, когда пойдёт дальнейший функционал
+
+---
+
 ## 2026-05-05 — Сессия 13 (frontend) — D3: side-panel деталей узла
 
 Закрыт последний MVP-кусок этапа 7 - side-panel с метаданными,
