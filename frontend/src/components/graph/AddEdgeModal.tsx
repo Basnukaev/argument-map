@@ -20,6 +20,9 @@ interface Props {
   /** предзаполнение для drag-create через handles */
   initialFromId?: string;
   initialToId?: string;
+  /** id точек подключения (top/right/bottom/left) - только для drag-create */
+  initialSourceHandle?: string;
+  initialTargetHandle?: string;
   onClose: () => void;
   onCreated: () => void;
 }
@@ -47,6 +50,8 @@ function AddEdgeModal({
   nodes,
   initialFromId = '',
   initialToId = '',
+  initialSourceHandle,
+  initialTargetHandle,
   onClose,
   onCreated,
 }: Props) {
@@ -112,6 +117,8 @@ function AddEdgeModal({
         toNodeId,
         edgeType: effectiveEdgeType,
         rationale: rationale.trim() || undefined,
+        sourceHandle: initialSourceHandle,
+        targetHandle: initialTargetHandle,
       });
       reset();
       onCreated();

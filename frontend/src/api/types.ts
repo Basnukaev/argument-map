@@ -372,6 +372,8 @@ export interface components {
             /** @enum {string} */
             edgeType: "SUPPORTS" | "REFUTES" | "QUALIFIES" | "INVALIDATES" | "RESPONDS_TO";
             rationale?: string;
+            sourceHandle?: string;
+            targetHandle?: string;
         };
         EdgeResponse: {
             /** Format: uuid */
@@ -383,6 +385,8 @@ export interface components {
             /** @enum {string} */
             edgeType?: "SUPPORTS" | "REFUTES" | "QUALIFIES" | "INVALIDATES" | "RESPONDS_TO";
             rationale?: string;
+            sourceHandle?: string;
+            targetHandle?: string;
             /** Format: uuid */
             createdBy?: string;
             /** Format: date-time */

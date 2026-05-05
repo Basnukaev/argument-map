@@ -215,4 +215,32 @@ describe('AddEdgeModal', () => {
     expect((screen.getByLabelText('Откуда') as HTMLSelectElement).value).toBe('n3');
     expect((screen.getByLabelText('Куда') as HTMLSelectElement).value).toBe('');
   });
+
+  it('initialSourceHandle/initialTargetHandle уезжают в POST /edges', async () => {
+    let received: unknown = null;
+    server.use(
+      http.post(`${BASE}/api/v1/edges`, async ({ request }) => {
+        received = await request.json();
+        return HttpResponse.json({ id: 'e-handles' });
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderModal({
+      initialFromId: 'n3',
+      initialToId: 'n2',
+      initialSourceHandle: 'right',
+      initialTargetHandle: 'left',
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Создать' }));
+    await waitFor(() => {
+      expect(received).toMatchObject({
+        fromNodeId: 'n3',
+        toNodeId: 'n2',
+        sourceHandle: 'right',
+        targetHandle: 'left',
+      });
+    });
+  });
 });

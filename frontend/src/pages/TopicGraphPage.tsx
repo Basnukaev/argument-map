@@ -158,9 +158,14 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<CustomEdgeEdge>(initial.edges);
   const [addNodeOpen, setAddNodeOpen] = useState(false);
   const [addEdgeOpen, setAddEdgeOpen] = useState(false);
-  // preset для AddEdgeModal: из drag-create приходят оба, из "+ Связь"
-  // с выделенным узлом - только from. Поля опциональные
-  const [edgeDraft, setEdgeDraft] = useState<{ from?: string; to?: string } | null>(null);
+  // preset для AddEdgeModal: из drag-create приходят from/to и handle-стороны,
+  // из "+ Связь" с выделенным узлом - только from. Поля опциональные
+  const [edgeDraft, setEdgeDraft] = useState<{
+    from?: string;
+    to?: string;
+    sourceHandle?: string;
+    targetHandle?: string;
+  } | null>(null);
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
@@ -222,7 +227,12 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
         return;
       }
 
-      setEdgeDraft({ from: connection.source, to: connection.target });
+      setEdgeDraft({
+        from: connection.source,
+        to: connection.target,
+        sourceHandle: connection.sourceHandle ?? undefined,
+        targetHandle: connection.targetHandle ?? undefined,
+      });
       setAddEdgeOpen(true);
     },
     [rawNodeDtos],
@@ -566,11 +576,13 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
       <AddEdgeModal
         // key включает edgeDraft чтобы переоткрытие с другими initial values
         // дало чистый state без useEffect-сброса (eslint set-state-in-effect)
-        key={`addEdge-${edgeDraft?.from ?? ''}-${edgeDraft?.to ?? ''}`}
+        key={`addEdge-${edgeDraft?.from ?? ''}-${edgeDraft?.to ?? ''}-${edgeDraft?.sourceHandle ?? ''}-${edgeDraft?.targetHandle ?? ''}`}
         open={addEdgeOpen}
         nodes={rawNodeDtos}
         initialFromId={edgeDraft?.from}
         initialToId={edgeDraft?.to}
+        initialSourceHandle={edgeDraft?.sourceHandle}
+        initialTargetHandle={edgeDraft?.targetHandle}
         onClose={closeAddEdge}
         onCreated={onRefetch}
       />
@@ -639,6 +651,11 @@ function buildFlow(
         id: e.id,
         source: e.fromNodeId,
         target: e.toNodeId,
+        // sourceHandle/targetHandle на верхнем уровне - RF использует
+        // их для рендера ребра от конкретной точки. Если null - RF
+        // применит auto-routing по позициям узлов (как раньше)
+        sourceHandle: e.sourceHandle ?? undefined,
+        targetHandle: e.targetHandle ?? undefined,
         type: 'argumentEdge' as const,
         data: {
           edgeType,
