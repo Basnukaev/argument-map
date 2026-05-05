@@ -1,12 +1,18 @@
 import { useState } from 'react';
-import { X, Pencil } from 'lucide-react';
+import { X, Pencil, ChevronDown, ChevronRight } from 'lucide-react';
 import Button from '@/components/ui/Button';
-import { apiPatchRaw, ApiError } from '@/api/client';
+import { apiGetRaw, apiPatchRaw, ApiError } from '@/api/client';
 import type { components } from '@/api/types';
 import { NODE_TYPE_EMOJI, NODE_TYPE_LABEL, type NodeType } from '@/utils/edgeRules';
 
 type NodeDto = components['schemas']['NodeResponse'];
+type RevisionDto = components['schemas']['RevisionResponse'];
 type NodeStatus = NonNullable<NodeDto['status']>;
+type RevisionsState =
+  | { kind: 'not-loaded' }
+  | { kind: 'loading' }
+  | { kind: 'loaded'; revisions: RevisionDto[] }
+  | { kind: 'error'; message: string };
 
 interface Props {
   node: NodeDto;
@@ -60,6 +66,41 @@ function NodeDetailsPanel({ node, onClose, onUpdated }: Props) {
   const [draft, setDraft] = useState(content);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [revisionsState, setRevisionsState] = useState<RevisionsState>({ kind: 'not-loaded' });
+
+  // Состояние истории намеренно не сбрасывается на изменение node.updatedAt -
+  // вместо этого в TopicGraphPage компонент перерендеривается через key,
+  // что даёт чистое монтирование без каскадных setState в effect.
+
+  function toggleHistory() {
+    if (historyOpen) {
+      setHistoryOpen(false);
+      return;
+    }
+    setHistoryOpen(true);
+    if (revisionsState.kind === 'not-loaded') {
+      void loadRevisions();
+    }
+  }
+
+  async function loadRevisions() {
+    if (!node.id) return;
+    setRevisionsState({ kind: 'loading' });
+    try {
+      const list = await apiGetRaw<RevisionDto[]>(`/api/v1/nodes/${node.id}/revisions`);
+      setRevisionsState({ kind: 'loaded', revisions: list });
+    } catch (e: unknown) {
+      const message =
+        e instanceof ApiError
+          ? e.problem.detail || e.problem.title
+          : e instanceof Error
+            ? e.message
+            : 'Не удалось загрузить историю';
+      setRevisionsState({ kind: 'error', message });
+    }
+  }
 
   function startEdit() {
     setDraft(content);
@@ -217,6 +258,57 @@ function NodeDetailsPanel({ node, onClose, onUpdated }: Props) {
               {shortId(node.id)}
             </dd>
           </dl>
+        </section>
+
+        <section>
+          <button
+            type="button"
+            onClick={toggleHistory}
+            aria-expanded={historyOpen}
+            className="flex w-full items-center gap-1 text-xs font-semibold uppercase tracking-wide text-gray-500 hover:text-gray-700"
+          >
+            {historyOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            История изменений
+          </button>
+
+          {historyOpen && (
+            <div className="mt-2 space-y-2 text-sm">
+              {revisionsState.kind === 'loading' && (
+                <p className="text-gray-500">Загрузка</p>
+              )}
+              {revisionsState.kind === 'error' && (
+                <p className="text-red-700">Ошибка: {revisionsState.message}</p>
+              )}
+              {revisionsState.kind === 'loaded' && revisionsState.revisions.length === 0 && (
+                <p className="italic text-gray-500">Изменений ещё не было</p>
+              )}
+              {revisionsState.kind === 'loaded' &&
+                revisionsState.revisions.length > 0 &&
+                [...revisionsState.revisions]
+                  .sort((a, b) => (b.changedAt ?? '').localeCompare(a.changedAt ?? ''))
+                  .map((r) => (
+                    <article
+                      key={r.id}
+                      className="rounded-md border border-gray-200 bg-gray-50 p-2 text-xs"
+                    >
+                      <header className="mb-1 flex items-center justify-between text-gray-500">
+                        <time dateTime={r.changedAt}>{formatDate(r.changedAt)}</time>
+                        <span className="font-mono" title={r.changedBy}>
+                          {shortId(r.changedBy)}
+                        </span>
+                      </header>
+                      {r.contentBefore && (
+                        <p className="rounded bg-red-100 px-2 py-1 text-red-900 line-through whitespace-pre-wrap break-words">
+                          {r.contentBefore}
+                        </p>
+                      )}
+                      <p className="mt-1 rounded bg-green-100 px-2 py-1 text-green-900 whitespace-pre-wrap break-words">
+                        {r.contentAfter ?? ''}
+                      </p>
+                    </article>
+                  ))}
+            </div>
+          )}
         </section>
       </div>
     </aside>

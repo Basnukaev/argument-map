@@ -175,4 +175,67 @@ describe('NodeDetailsPanel', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.getByText('Тот же текст')).toBeInTheDocument();
   });
+
+  it('история закрыта по умолчанию, GET не вызывается', () => {
+    let called = false;
+    server.use(
+      http.get(`${BASE}/api/v1/nodes/${NODE_ID}/revisions`, () => {
+        called = true;
+        return HttpResponse.json([]);
+      }),
+    );
+    renderPanel();
+    const toggle = screen.getByRole('button', { name: /История изменений/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(called).toBe(false);
+  });
+
+  it('первое открытие истории вызывает GET и рендерит список', async () => {
+    server.use(
+      http.get(`${BASE}/api/v1/nodes/${NODE_ID}/revisions`, () =>
+        HttpResponse.json([
+          {
+            id: 'r1',
+            nodeId: NODE_ID,
+            contentBefore: 'было',
+            contentAfter: 'стало',
+            changedBy: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+            changedAt: '2026-05-04T15:00:00Z',
+          },
+        ]),
+      ),
+    );
+    renderPanel();
+    await userEvent.click(screen.getByRole('button', { name: /История изменений/ }));
+    expect(await screen.findByText('было')).toBeInTheDocument();
+    expect(screen.getByText('стало')).toBeInTheDocument();
+  });
+
+  it('пустой массив ревизий показывает "Изменений ещё не было"', async () => {
+    server.use(
+      http.get(`${BASE}/api/v1/nodes/${NODE_ID}/revisions`, () => HttpResponse.json([])),
+    );
+    renderPanel();
+    await userEvent.click(screen.getByRole('button', { name: /История изменений/ }));
+    expect(await screen.findByText('Изменений ещё не было')).toBeInTheDocument();
+  });
+
+  it('ошибка GET показывает сообщение об ошибке', async () => {
+    server.use(
+      http.get(`${BASE}/api/v1/nodes/${NODE_ID}/revisions`, () =>
+        HttpResponse.json(
+          {
+            type: 'https://argumentmap.example/errors/node-not-found',
+            title: 'Узел не найден',
+            status: 404,
+            detail: 'Нет такого узла',
+          },
+          { status: 404, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+      ),
+    );
+    renderPanel();
+    await userEvent.click(screen.getByRole('button', { name: /История изменений/ }));
+    expect(await screen.findByText(/Нет такого узла/)).toBeInTheDocument();
+  });
 });

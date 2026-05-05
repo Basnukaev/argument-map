@@ -318,7 +318,14 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
       />
 
       {detailNode && (
-        <NodeDetailsPanel node={detailNode} onClose={closeDetail} onUpdated={onRefetch} />
+        <NodeDetailsPanel
+          // key включает updatedAt чтобы после save компонент перемонтировался
+          // с чистым state (свернутая история, не-loaded ревизии)
+          key={`${detailNode.id}-${detailNode.updatedAt ?? ''}`}
+          node={detailNode}
+          onClose={closeDetail}
+          onUpdated={onRefetch}
+        />
       )}
     </>
   );
