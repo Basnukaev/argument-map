@@ -198,4 +198,15 @@ describe('AddEdgeModal', () => {
       expect(received).toMatchObject({ edgeType: 'QUALIFIES' });
     });
   });
+
+  it('initialFromId/initialToId предзаполняют поля для drag-create', () => {
+    renderModal({ initialFromId: 'n3', initialToId: 'n2' });
+
+    const fromSelect = screen.getByLabelText('Откуда') as HTMLSelectElement;
+    const toSelect = screen.getByLabelText('Куда') as HTMLSelectElement;
+    expect(fromSelect.value).toBe('n3');
+    expect(toSelect.value).toBe('n2');
+    // SUPPORTS - первый разрешённый для ARGUMENT → CLAIM, должен быть отмечен
+    expect((screen.getByLabelText(/Поддерживает/i) as HTMLInputElement).checked).toBe(true);
+  });
 });

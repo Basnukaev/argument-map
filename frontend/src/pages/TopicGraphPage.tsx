@@ -11,6 +11,7 @@ import {
   useEdgesState,
   type ReactFlowProps,
   type Node,
+  type Connection,
 } from '@xyflow/react';
 import { Plus, Trash2, Eye, EyeOff } from 'lucide-react';
 import Button from '@/components/ui/Button';
@@ -152,9 +153,25 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<CustomEdgeEdge>(initial.edges);
   const [addNodeOpen, setAddNodeOpen] = useState(false);
   const [addEdgeOpen, setAddEdgeOpen] = useState(false);
+  // дополнительный preset для AddEdgeModal при drag-create через handles
+  const [edgeDraft, setEdgeDraft] = useState<{ from: string; to: string } | null>(null);
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
+
+  // drag из handle одного узла на handle другого - открываем AddEdgeModal
+  // с предзаполненными from/to. Сохранение через onCreated → refetch графа
+  const handleConnect = useCallback((connection: Connection) => {
+    if (!connection.source || !connection.target) return;
+    if (connection.source === connection.target) return;
+    setEdgeDraft({ from: connection.source, to: connection.target });
+    setAddEdgeOpen(true);
+  }, []);
+
+  function closeAddEdge() {
+    setAddEdgeOpen(false);
+    setEdgeDraft(null);
+  }
 
   const rawNodeDtos = useMemo(() => graph.nodes ?? [], [graph.nodes]);
   const canAddEdge = rawNodeDtos.length >= 2;
@@ -239,6 +256,7 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
+          onConnect={handleConnect}
           onSelectionChange={({ nodes: ns, edges: es }) => {
             setSelectedNodeIds(ns.map((n) => n.id));
             setSelectedEdgeIds(es.map((e) => e.id));
@@ -311,9 +329,14 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
       />
 
       <AddEdgeModal
+        // key включает edgeDraft чтобы переоткрытие с другими initial values
+        // дало чистый state без useEffect-сброса (eslint set-state-in-effect)
+        key={`addEdge-${edgeDraft?.from ?? ''}-${edgeDraft?.to ?? ''}`}
         open={addEdgeOpen}
         nodes={rawNodeDtos}
-        onClose={() => setAddEdgeOpen(false)}
+        initialFromId={edgeDraft?.from}
+        initialToId={edgeDraft?.to}
+        onClose={closeAddEdge}
         onCreated={onRefetch}
       />
 

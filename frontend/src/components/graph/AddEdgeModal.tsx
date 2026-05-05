@@ -17,6 +17,9 @@ type NodeDto = components['schemas']['NodeResponse'];
 interface Props {
   open: boolean;
   nodes: NodeDto[];
+  /** предзаполнение для drag-create через handles */
+  initialFromId?: string;
+  initialToId?: string;
   onClose: () => void;
   onCreated: () => void;
 }
@@ -39,9 +42,16 @@ function previewContent(node: NodeDto): string {
   return `${emoji} ${label}: ${trimmed || '(без содержимого)'}`;
 }
 
-function AddEdgeModal({ open, nodes, onClose, onCreated }: Props) {
-  const [fromNodeId, setFromNodeId] = useState('');
-  const [toNodeId, setToNodeId] = useState('');
+function AddEdgeModal({
+  open,
+  nodes,
+  initialFromId = '',
+  initialToId = '',
+  onClose,
+  onCreated,
+}: Props) {
+  const [fromNodeId, setFromNodeId] = useState(initialFromId);
+  const [toNodeId, setToNodeId] = useState(initialToId);
   const [edgeType, setEdgeType] = useState<EdgeType>('SUPPORTS');
   const [rationale, setRationale] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -63,8 +73,8 @@ function AddEdgeModal({ open, nodes, onClose, onCreated }: Props) {
     : edgeType;
 
   function reset() {
-    setFromNodeId('');
-    setToNodeId('');
+    setFromNodeId(initialFromId);
+    setToNodeId(initialToId);
     setEdgeType('SUPPORTS');
     setRationale('');
     setError(null);
