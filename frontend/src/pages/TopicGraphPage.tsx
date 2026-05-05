@@ -22,7 +22,7 @@ import AddNodeModal from '@/components/graph/AddNodeModal';
 import AddEdgeModal from '@/components/graph/AddEdgeModal';
 import NodeDetailsPanel from '@/components/graph/NodeDetailsPanel';
 import { layoutGraph } from '@/utils/graphLayout';
-import { apiDeleteRaw, apiGetRaw, ApiError } from '@/api/client';
+import { apiDeleteRaw, apiGetRaw, apiPatchRaw, ApiError } from '@/api/client';
 import { getAllowedEdgeTypes, NODE_TYPE_LABEL } from '@/utils/edgeRules';
 import { toast } from '@/stores/toastStore';
 import type { components } from '@/api/types';
@@ -202,6 +202,21 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
     }
     setAddEdgeOpen(true);
   }
+
+  // drag-end - отправляем PATCH с координатами. Не ждём ответ, оптимистично.
+  // При ошибке - toast, рефетч пересчитает layout с прежними координатами
+  const handleNodeDragStop = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      apiPatchRaw(`/api/v1/nodes/${node.id}`, {
+        posX: node.position.x,
+        posY: node.position.y,
+      }).catch((e: unknown) => {
+        const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
+        toast.error(`Не удалось сохранить позицию: ${msg}`);
+      });
+    },
+    [],
+  );
   const canAddEdge = rawNodeDtos.length >= 2;
   const selectedCount = selectedNodeIds.length + selectedEdgeIds.length;
 
@@ -285,6 +300,7 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={handleConnect}
+          onNodeDragStop={handleNodeDragStop}
           connectionMode={ConnectionMode.Loose}
           onSelectionChange={({ nodes: ns, edges: es }) => {
             setSelectedNodeIds(ns.map((n) => n.id));

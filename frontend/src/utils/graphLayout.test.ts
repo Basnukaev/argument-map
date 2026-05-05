@@ -63,4 +63,27 @@ describe('layoutGraph', () => {
   it('обрабатывает пустой граф без падения', () => {
     expect(layoutGraph([], [])).toEqual([]);
   });
+
+  it('если у всех узлов есть posX/posY - layout уважает их', () => {
+    const a = makeNode('a');
+    a.data = { ...a.data, posX: 100, posY: 200 };
+    const b = makeNode('b');
+    b.data = { ...b.data, posX: 500, posY: -50 };
+
+    const result = layoutGraph([a, b], [makeEdge('e', 'a', 'b')]);
+
+    expect(result.find((n) => n.id === 'a')!.position).toEqual({ x: 100, y: 200 });
+    expect(result.find((n) => n.id === 'b')!.position).toEqual({ x: 500, y: -50 });
+  });
+
+  it('если хотя бы у одного узла нет posX/posY - dagre считает все', () => {
+    const saved = makeNode('saved');
+    saved.data = { ...saved.data, posX: 999, posY: 999 };
+    const fresh = makeNode('fresh'); // без posX/posY
+
+    const result = layoutGraph([saved, fresh], [makeEdge('e', 'saved', 'fresh')]);
+
+    // saved узел НЕ окажется в (999, 999) - dagre перетрёт обоих
+    expect(result.find((n) => n.id === 'saved')!.position).not.toEqual({ x: 999, y: 999 });
+  });
 });

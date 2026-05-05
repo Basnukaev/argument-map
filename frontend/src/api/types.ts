@@ -129,7 +129,7 @@ export interface paths {
         delete: operations["delete"];
         options?: never;
         head?: never;
-        patch: operations["updateContent"];
+        patch: operations["update"];
         trace?: never;
     };
     "/api/v1/topics/{topicId}": {
@@ -321,6 +321,10 @@ export interface components {
             content?: string;
             /** @enum {string} */
             status?: "STANDING" | "DISPUTED" | "REFUTED" | "UNVERIFIED";
+            /** Format: double */
+            posX?: number;
+            /** Format: double */
+            posY?: number;
             /** Format: uuid */
             createdBy?: string;
             /** Format: date-time */
@@ -403,7 +407,11 @@ export interface components {
             createdAt?: string;
         };
         UpdateNodeRequest: {
-            content: string;
+            content?: string;
+            /** Format: double */
+            posX?: number;
+            /** Format: double */
+            posY?: number;
         };
         GraphResponse: {
             topic?: components["schemas"]["TopicResponse"];
@@ -737,7 +745,7 @@ export interface operations {
             };
         };
     };
-    updateContent: {
+    update: {
         parameters: {
             query: {
                 userId: string;
