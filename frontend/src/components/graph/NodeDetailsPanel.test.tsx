@@ -220,6 +220,13 @@ describe('NodeDetailsPanel', () => {
     expect(await screen.findByText('Изменений ещё не было')).toBeInTheDocument();
   });
 
+  it('initialEditing=true монтирует панель сразу в режиме редактирования', () => {
+    renderPanel({ node: makeNode({ content: 'старый' }), initialEditing: true });
+    const textarea = screen.getByRole('textbox', { name: 'Содержание узла' });
+    expect(textarea).toBeInTheDocument();
+    expect(textarea).toHaveValue('старый');
+  });
+
   it('ошибка GET показывает сообщение об ошибке', async () => {
     server.use(
       http.get(`${BASE}/api/v1/nodes/${NODE_ID}/revisions`, () =>

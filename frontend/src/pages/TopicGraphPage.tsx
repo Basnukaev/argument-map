@@ -181,6 +181,11 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
+  // флаг "начать редактирование сразу" для NodeDetailsPanel - срабатывает
+  // когда пользователь нажал "Редактировать" в контекстном меню узла.
+  // Сбрасывается при закрытии панели или смене выделения
+  const [editTargetNodeId, setEditTargetNodeId] = useState<string | null>(null);
+
   // счётчики z-index для "на передний/задний план". Не сохраняются на беке -
   // только локально пока открыт граф. При refetch сбрасываются на дефолт RF.
   const zRef = useRef({ max: 10, min: 0 });
@@ -332,10 +337,15 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
             label: 'Редактировать',
             icon: Pencil,
             onClick: () => {
-              // выделяем узел - откроется боковая панель деталей
+              // явно проставляем selectedNodeIds (не полагаемся только на
+              // onSelectionChange от RF) + ставим флаг editTarget чтобы
+              // NodeDetailsPanel смонтировался в режиме editing
+              setSelectedNodeIds([node.id]);
+              setSelectedEdgeIds([]);
               setNodes((nds) =>
                 nds.map((n) => ({ ...n, selected: n.id === node.id })),
               );
+              setEditTargetNodeId(node.id);
             },
           },
           {
@@ -423,8 +433,11 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
   }, [selectedNodeIds, selectedEdgeIds, rawNodeDtos]);
 
   const closeDetail = useCallback(() => {
-    // снимаем выделение через RF state - onSelectionChange сам почистит ids
+    // снимаем выделение через RF state - onSelectionChange сам почистит ids.
+    // Также сбрасываем editTarget чтобы при следующем выделении не открылся
+    // режим editing
     setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
+    setEditTargetNodeId(null);
   }, [setNodes]);
 
   async function handleDelete() {
@@ -589,12 +602,14 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
 
       {detailNode && (
         <NodeDetailsPanel
-          // key включает updatedAt чтобы после save компонент перемонтировался
-          // с чистым state (свернутая история, не-loaded ревизии)
-          key={`${detailNode.id}-${detailNode.updatedAt ?? ''}`}
+          // key включает updatedAt и editTarget чтобы компонент
+          // перемонтировался при save (чистый state) и при клике
+          // "Редактировать" из контекстного меню (открыться в editing)
+          key={`${detailNode.id}-${detailNode.updatedAt ?? ''}-${editTargetNodeId === detailNode.id ? 'edit' : 'view'}`}
           node={detailNode}
           onClose={closeDetail}
           onUpdated={onRefetch}
+          initialEditing={editTargetNodeId === detailNode.id}
         />
       )}
 

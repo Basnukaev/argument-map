@@ -19,6 +19,9 @@ interface Props {
   onClose: () => void;
   /** вызывается после успешного PATCH - чтобы родитель refetch'нул граф */
   onUpdated: () => void;
+  /** если true - панель сразу открывается в режиме редактирования контента
+   * (используется когда пользователь нажал "Редактировать" в контекстном меню) */
+  initialEditing?: boolean;
 }
 
 const STATUS_LABEL: Record<NodeStatus, string> = {
@@ -55,14 +58,14 @@ function shortId(id?: string): string {
   return id.slice(0, 8);
 }
 
-function NodeDetailsPanel({ node, onClose, onUpdated }: Props) {
+function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: Props) {
   const nodeType: NodeType = node.nodeType ?? 'CLAIM';
   const status: NodeStatus = node.status ?? 'UNVERIFIED';
   const content = node.content ?? '';
   const wasUpdated =
     node.updatedAt && node.createdAt && node.updatedAt !== node.createdAt;
 
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(initialEditing);
   const [draft, setDraft] = useState(content);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
