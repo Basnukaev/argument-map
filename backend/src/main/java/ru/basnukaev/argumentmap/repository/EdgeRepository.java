@@ -54,6 +54,24 @@ public class EdgeRepository {
         return edge;
     }
 
+    /**
+     * Обновляет ребро по id - все поля кроме id, created_by, created_at.
+     * Возвращает true если запись существовала и была обновлена.
+     */
+    public boolean update(Edge edge) {
+        return jdbcTemplate.update(
+                "UPDATE edges SET from_node_id = ?, to_node_id = ?, edge_type = ?, "
+                        + "rationale = ?, source_handle = ?, target_handle = ? WHERE id = ?",
+                edge.fromNodeId(),
+                edge.toNodeId(),
+                edge.edgeType().name(),
+                edge.rationale(),
+                edge.sourceHandle(),
+                edge.targetHandle(),
+                edge.id()
+        ) > 0;
+    }
+
     public Optional<Edge> findById(UUID id) {
         return jdbcTemplate.query(
                 "SELECT " + COLUMNS + " FROM edges WHERE id = ?",

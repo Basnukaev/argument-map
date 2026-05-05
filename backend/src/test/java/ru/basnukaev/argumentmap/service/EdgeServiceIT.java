@@ -231,4 +231,115 @@ class EdgeServiceIT {
 
         assertThat(edge.id()).isNotNull();
     }
+
+    @Test
+    void updateEdge_changesTargetNode_persistsAndRecalcsStatuses() {
+        UUID nodeC = insertNode(topicId);
+        Edge original = edgeService.createEdge(
+                nodeA, nodeB, EdgeType.SUPPORTS, "потому что", "right", "left", userId
+        );
+
+        Edge updated = edgeService.updateEdge(
+                original.id(), null, nodeC, null, null, null, null
+        );
+
+        assertThat(updated.fromNodeId()).isEqualTo(nodeA);
+        assertThat(updated.toNodeId()).isEqualTo(nodeC);
+        assertThat(updated.edgeType()).isEqualTo(EdgeType.SUPPORTS);
+        assertThat(updated.rationale()).isEqualTo("потому что");
+        assertThat(updated.sourceHandle()).isEqualTo("right");
+        assertThat(updated.targetHandle()).isEqualTo("left");
+        Edge reloaded = edgeRepository.findById(original.id()).orElseThrow();
+        assertThat(reloaded.toNodeId()).isEqualTo(nodeC);
+    }
+
+    @Test
+    void updateEdge_partialHandleUpdate_keepsOtherFields() {
+        Edge original = edgeService.createEdge(
+                nodeA, nodeB, EdgeType.SUPPORTS, "обоснование", "right", "left", userId
+        );
+
+        Edge updated = edgeService.updateEdge(
+                original.id(), null, null, null, null, "bottom", "top"
+        );
+
+        assertThat(updated.fromNodeId()).isEqualTo(nodeA);
+        assertThat(updated.toNodeId()).isEqualTo(nodeB);
+        assertThat(updated.edgeType()).isEqualTo(EdgeType.SUPPORTS);
+        assertThat(updated.rationale()).isEqualTo("обоснование");
+        assertThat(updated.sourceHandle()).isEqualTo("bottom");
+        assertThat(updated.targetHandle()).isEqualTo("top");
+    }
+
+    @Test
+    void updateEdge_disallowedPair_throwsAndKeepsOriginal() {
+        UUID question = insertNodeWithType(topicId, NodeType.QUESTION);
+        UUID argument = insertNodeWithType(topicId, NodeType.ARGUMENT);
+        UUID claim = insertNodeWithType(topicId, NodeType.CLAIM);
+        Edge original = edgeService.createEdge(
+                argument, claim, EdgeType.SUPPORTS, "ok", null, null, userId
+        );
+
+        assertThatThrownBy(() -> edgeService.updateEdge(
+                original.id(), question, argument, EdgeType.SUPPORTS, null, null, null
+        )).isInstanceOf(InvalidEdgeException.class)
+          .hasMessageContaining("недопустим");
+
+        Edge reloaded = edgeRepository.findById(original.id()).orElseThrow();
+        assertThat(reloaded.fromNodeId()).isEqualTo(argument);
+        assertThat(reloaded.toNodeId()).isEqualTo(claim);
+        assertThat(reloaded.edgeType()).isEqualTo(EdgeType.SUPPORTS);
+    }
+
+    @Test
+    void updateEdge_selfLoop_throwsAndKeepsOriginal() {
+        Edge original = edgeService.createEdge(nodeA, nodeB, EdgeType.SUPPORTS, null, userId);
+
+        assertThatThrownBy(() -> edgeService.updateEdge(
+                original.id(), nodeA, nodeA, null, null, null, null
+        )).isInstanceOf(InvalidEdgeException.class)
+          .hasMessageContaining("на себя");
+
+        Edge reloaded = edgeRepository.findById(original.id()).orElseThrow();
+        assertThat(reloaded.toNodeId()).isEqualTo(nodeB);
+    }
+
+    @Test
+    void updateEdge_crossTopic_throwsAndKeepsOriginal() {
+        UUID otherTopic = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO topics (id, title, created_by) VALUES (?, ?, ?)",
+                otherTopic, "Other", userId
+        );
+        UUID foreign = insertNode(otherTopic);
+        Edge original = edgeService.createEdge(nodeA, nodeB, EdgeType.SUPPORTS, null, userId);
+
+        assertThatThrownBy(() -> edgeService.updateEdge(
+                original.id(), null, foreign, null, null, null, null
+        )).isInstanceOf(InvalidEdgeException.class)
+          .hasMessageContaining("границу темы");
+
+        Edge reloaded = edgeRepository.findById(original.id()).orElseThrow();
+        assertThat(reloaded.toNodeId()).isEqualTo(nodeB);
+    }
+
+    @Test
+    void updateEdge_whenNotFound_throws() {
+        assertThatThrownBy(() -> edgeService.updateEdge(
+                UUID.randomUUID(), null, null, null, null, null, null
+        )).isInstanceOf(EdgeNotFoundException.class);
+    }
+
+    @Test
+    void updateEdge_changeFromNodeOnly_persists() {
+        UUID nodeC = insertNode(topicId);
+        Edge original = edgeService.createEdge(nodeA, nodeB, EdgeType.SUPPORTS, null, userId);
+
+        Edge updated = edgeService.updateEdge(
+                original.id(), nodeC, null, null, null, null, null
+        );
+
+        assertThat(updated.fromNodeId()).isEqualTo(nodeC);
+        assertThat(updated.toNodeId()).isEqualTo(nodeB);
+    }
 }

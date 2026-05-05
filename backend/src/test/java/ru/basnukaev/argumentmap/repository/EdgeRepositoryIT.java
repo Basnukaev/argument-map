@@ -146,6 +146,41 @@ class EdgeRepositoryIT {
     }
 
     @Test
+    void update_changesAllUpdatableFields() {
+        UUID edgeId = UUID.randomUUID();
+        Edge original = new Edge(
+                edgeId, nodeA, nodeB, EdgeType.SUPPORTS,
+                "первое обоснование", "right", "left", userId, Instant.now()
+        );
+        edgeRepository.save(original);
+
+        Edge updated = new Edge(
+                edgeId, nodeA, nodeC, EdgeType.REFUTES,
+                "новое обоснование", "bottom", "top", userId, original.createdAt()
+        );
+        boolean ok = edgeRepository.update(updated);
+
+        assertThat(ok).isTrue();
+        Edge reloaded = edgeRepository.findById(edgeId).orElseThrow();
+        assertThat(reloaded.fromNodeId()).isEqualTo(nodeA);
+        assertThat(reloaded.toNodeId()).isEqualTo(nodeC);
+        assertThat(reloaded.edgeType()).isEqualTo(EdgeType.REFUTES);
+        assertThat(reloaded.rationale()).isEqualTo("новое обоснование");
+        assertThat(reloaded.sourceHandle()).isEqualTo("bottom");
+        assertThat(reloaded.targetHandle()).isEqualTo("top");
+    }
+
+    @Test
+    void update_whenEdgeMissing_returnsFalse() {
+        Edge ghost = new Edge(
+                UUID.randomUUID(), nodeA, nodeB, EdgeType.SUPPORTS,
+                null, null, null, userId, Instant.now()
+        );
+
+        assertThat(edgeRepository.update(ghost)).isFalse();
+    }
+
+    @Test
     void deleteById_removesEdge() {
         UUID edgeId = insertEdge(nodeA, nodeB, EdgeType.INVALIDATES);
 

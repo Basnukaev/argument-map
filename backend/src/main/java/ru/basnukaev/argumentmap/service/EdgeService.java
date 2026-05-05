@@ -80,4 +80,64 @@ public class EdgeService {
         edgeRepository.deleteById(edgeId);
         statusCalculationService.recalculateTopic(topicId);
     }
+
+    /**
+     * Partial update ребра. Все поля null в аргументах сохраняют текущее
+     * значение, не-null - применяются. Финальное состояние валидируется
+     * целиком (selfloop, граница темы, матрица ADR-010). При нарушении
+     * валидации выбрасывается InvalidEdgeException и в БД ничего не
+     * меняется - @Transactional откатит транзакцию.
+     *
+     * Ограничение: через этот метод нельзя "очистить" rationale или
+     * handle'ы (выставить в null). Для MVP не нужно - reconnect всегда
+     * передаёт конкретные значения. Если потребуется - отдельный feature
+     * с явным sentinel или JsonNullable.
+     *
+     * Если изменился fromNode/toNode/edgeType - пересчитываем статусы темы.
+     * Если только rationale/handle'ы - пересчёт не нужен (на алгоритм не влияют).
+     */
+    @Transactional
+    public Edge updateEdge(UUID edgeId, UUID fromNodeId, UUID toNodeId, EdgeType edgeType,
+                           String rationale, String sourceHandle, String targetHandle) {
+        Edge existing = edgeRepository.findById(edgeId)
+                .orElseThrow(() -> new EdgeNotFoundException(edgeId));
+
+        UUID newFromId = fromNodeId != null ? fromNodeId : existing.fromNodeId();
+        UUID newToId = toNodeId != null ? toNodeId : existing.toNodeId();
+        EdgeType newType = edgeType != null ? edgeType : existing.edgeType();
+        String newRationale = rationale != null ? rationale : existing.rationale();
+        String newSourceHandle = sourceHandle != null ? sourceHandle : existing.sourceHandle();
+        String newTargetHandle = targetHandle != null ? targetHandle : existing.targetHandle();
+
+        if (newFromId.equals(newToId)) {
+            throw new InvalidEdgeException("узел не может ссылаться на себя");
+        }
+        Node from = nodeRepository.findById(newFromId)
+                .orElseThrow(() -> new NodeNotFoundException(newFromId));
+        Node to = nodeRepository.findById(newToId)
+                .orElseThrow(() -> new NodeNotFoundException(newToId));
+        if (!from.topicId().equals(to.topicId())) {
+            throw new InvalidEdgeException("ребро не может пересекать границу темы");
+        }
+        if (!EdgeSemantics.isAllowed(from.nodeType(), newType, to.nodeType())) {
+            throw new InvalidEdgeException(
+                    "тип связи %s недопустим для пары (%s -> %s)".formatted(
+                            newType, from.nodeType(), to.nodeType()));
+        }
+
+        Edge updated = new Edge(
+                existing.id(), newFromId, newToId, newType,
+                newRationale, newSourceHandle, newTargetHandle,
+                existing.createdBy(), existing.createdAt()
+        );
+        edgeRepository.update(updated);
+
+        boolean structuralChange = !existing.fromNodeId().equals(newFromId)
+                || !existing.toNodeId().equals(newToId)
+                || existing.edgeType() != newType;
+        if (structuralChange) {
+            statusCalculationService.recalculateTopic(from.topicId());
+        }
+        return updated;
+    }
 }
