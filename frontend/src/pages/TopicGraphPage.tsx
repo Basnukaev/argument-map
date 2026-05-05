@@ -23,6 +23,8 @@ import AddEdgeModal from '@/components/graph/AddEdgeModal';
 import NodeDetailsPanel from '@/components/graph/NodeDetailsPanel';
 import { layoutGraph } from '@/utils/graphLayout';
 import { apiDeleteRaw, apiGetRaw, ApiError } from '@/api/client';
+import { getAllowedEdgeTypes, NODE_TYPE_LABEL } from '@/utils/edgeRules';
+import { toast } from '@/stores/toastStore';
 import type { components } from '@/api/types';
 
 type GraphResponse = components['schemas']['GraphResponse'];
@@ -154,27 +156,52 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<CustomEdgeEdge>(initial.edges);
   const [addNodeOpen, setAddNodeOpen] = useState(false);
   const [addEdgeOpen, setAddEdgeOpen] = useState(false);
-  // дополнительный preset для AddEdgeModal при drag-create через handles
-  const [edgeDraft, setEdgeDraft] = useState<{ from: string; to: string } | null>(null);
+  // preset для AddEdgeModal: из drag-create приходят оба, из "+ Связь"
+  // с выделенным узлом - только from. Поля опциональные
+  const [edgeDraft, setEdgeDraft] = useState<{ from?: string; to?: string } | null>(null);
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
 
-  // drag из handle одного узла на handle другого - открываем AddEdgeModal
-  // с предзаполненными from/to. Сохранение через onCreated → refetch графа
-  const handleConnect = useCallback((connection: Connection) => {
-    if (!connection.source || !connection.target) return;
-    if (connection.source === connection.target) return;
-    setEdgeDraft({ from: connection.source, to: connection.target });
-    setAddEdgeOpen(true);
-  }, []);
+  const rawNodeDtos = useMemo(() => graph.nodes ?? [], [graph.nodes]);
+
+  // drag из handle одного узла на handle другого - проверяем матрицу
+  // ADR-010 ДО открытия модалки. Запрещённую пару показываем тостом
+  const handleConnect = useCallback(
+    (connection: Connection) => {
+      if (!connection.source || !connection.target) return;
+      if (connection.source === connection.target) return;
+
+      const fromNode = rawNodeDtos.find((n) => n.id === connection.source);
+      const toNode = rawNodeDtos.find((n) => n.id === connection.target);
+      if (!fromNode?.nodeType || !toNode?.nodeType) return;
+
+      const allowed = getAllowedEdgeTypes(fromNode.nodeType, toNode.nodeType);
+      if (allowed.length === 0) {
+        toast.warning(
+          `${NODE_TYPE_LABEL[fromNode.nodeType]} → ${NODE_TYPE_LABEL[toNode.nodeType]}: эту пару нельзя соединить (см. ADR-010)`,
+        );
+        return;
+      }
+
+      setEdgeDraft({ from: connection.source, to: connection.target });
+      setAddEdgeOpen(true);
+    },
+    [rawNodeDtos],
+  );
 
   function closeAddEdge() {
     setAddEdgeOpen(false);
     setEdgeDraft(null);
   }
 
-  const rawNodeDtos = useMemo(() => graph.nodes ?? [], [graph.nodes]);
+  // кнопка "+ Связь" в toolbar: если выделен один узел - предзаполнить "Откуда"
+  function openAddEdge() {
+    if (selectedNodeIds.length === 1) {
+      setEdgeDraft({ from: selectedNodeIds[0] });
+    }
+    setAddEdgeOpen(true);
+  }
   const canAddEdge = rawNodeDtos.length >= 2;
   const selectedCount = selectedNodeIds.length + selectedEdgeIds.length;
 
@@ -292,7 +319,7 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
               <Plus size={16} className="mr-1" /> Узел
             </Button>
             <Button
-              onClick={() => setAddEdgeOpen(true)}
+              onClick={openAddEdge}
               disabled={!canAddEdge}
               variant="secondary"
               className="!px-3 !py-1.5 text-sm"

@@ -209,4 +209,10 @@ describe('AddEdgeModal', () => {
     // SUPPORTS - первый разрешённый для ARGUMENT → CLAIM, должен быть отмечен
     expect((screen.getByLabelText(/Поддерживает/i) as HTMLInputElement).checked).toBe(true);
   });
+
+  it('только initialFromId - "Откуда" предзаполнено, "Куда" пусто', () => {
+    renderModal({ initialFromId: 'n3' });
+    expect((screen.getByLabelText('Откуда') as HTMLSelectElement).value).toBe('n3');
+    expect((screen.getByLabelText('Куда') as HTMLSelectElement).value).toBe('');
+  });
 });
