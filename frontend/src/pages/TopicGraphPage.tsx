@@ -497,6 +497,10 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
           fitView
           minZoom={0.2}
           maxZoom={1.5}
+          // не подкидывать selected узел/ребро поверх остальных - z-order
+          // полностью контролируется явным zIndex (контекстное меню E.d)
+          elevateNodesOnSelect={false}
+          elevateEdgesOnSelect={false}
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={24} size={1} />

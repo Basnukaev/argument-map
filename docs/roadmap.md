@@ -239,6 +239,15 @@
       routing** с обходом препятствий - либо `elkjs` вместо dagre,
       либо custom edge с pathfinding. Пока 4 handles + dagre дают
       приемлемый результат, оставляем как nice-to-have
+- [ ] **Сохранение `sourceHandle`/`targetHandle` для edge** -
+      full-stack аналог posX/posY: миграция БД (2 nullable
+      VARCHAR в `edges`), Edge модель/DTO/RowMapper, контракт
+      api-contract.md, фронт onConnect передаёт `connection.sourceHandle`
+      и `targetHandle` в POST /edges, при рендере edge получает
+      эти поля через CustomEdgeData. Сейчас drag из любой точки
+      handle работает, но после refetch RF выбирает стороны
+      auto-routing'ом по позициям, не уважая исходный выбор
+      пользователя
 - [x] Сохранять позиции узлов после drag - full-stack:
       миграция БД `pos_x`/`pos_y` (DOUBLE PRECISION nullable),
       PATCH `/api/v1/nodes/{id}` принимает opt `posX`+`posY` без
