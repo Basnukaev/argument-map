@@ -5,6 +5,7 @@ import Button from '@/components/ui/Button';
 import { apiPost, ApiError } from '@/api/client';
 import type { components } from '@/api/types';
 import {
+  EDGE_TYPE_META,
   getAllowedEdgeTypes,
   NODE_TYPE_EMOJI,
   NODE_TYPE_LABEL,
@@ -26,14 +27,6 @@ interface Props {
   onClose: () => void;
   onCreated: () => void;
 }
-
-const TYPE_LABELS: Record<EdgeType, { label: string; hint: string }> = {
-  SUPPORTS: { label: 'Поддерживает', hint: 'Аргумент за тезис' },
-  REFUTES: { label: 'Опровергает', hint: 'Аргумент против' },
-  INVALIDATES: { label: 'Аннулирует', hint: 'Жёсткое мета-опровержение (kill)' },
-  QUALIFIES: { label: 'Уточняет', hint: 'Сужает применимость' },
-  RESPONDS_TO: { label: 'Отвечает', hint: 'Реплика-ответ' },
-};
 
 const PREVIEW_LEN = 60;
 
@@ -205,7 +198,8 @@ function AddEdgeModal({
           {pairAllowed && (
             <div className="space-y-1.5">
               {allowedTypes.map((value) => {
-                const meta = TYPE_LABELS[value];
+                const meta = EDGE_TYPE_META[value];
+                const { Icon } = meta;
                 const selected = effectiveEdgeType === value;
                 return (
                   <label
@@ -222,7 +216,13 @@ function AddEdgeModal({
                       value={value}
                       checked={selected}
                       onChange={() => setEdgeType(value)}
-                      className="mt-0.5"
+                      className="sr-only"
+                    />
+                    <Icon
+                      size={20}
+                      strokeWidth={2.5}
+                      className={`mt-0.5 shrink-0 ${meta.colorClass}`}
+                      aria-hidden="true"
                     />
                     <div className="flex-1">
                       <div className="font-medium text-gray-900">{meta.label}</div>

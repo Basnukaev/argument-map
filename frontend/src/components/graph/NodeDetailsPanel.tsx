@@ -3,7 +3,7 @@ import { X, Pencil, ChevronDown, ChevronRight } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { apiGetRaw, apiPatchRaw, ApiError } from '@/api/client';
 import type { components } from '@/api/types';
-import { NODE_TYPE_EMOJI, NODE_TYPE_LABEL, type NodeType } from '@/utils/edgeRules';
+import { NODE_TYPE_META, type NodeType } from '@/utils/edgeRules';
 
 type NodeDto = components['schemas']['NodeResponse'];
 type RevisionDto = components['schemas']['RevisionResponse'];
@@ -60,6 +60,8 @@ function shortId(id?: string): string {
 
 function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: Props) {
   const nodeType: NodeType = node.nodeType ?? 'CLAIM';
+  const typeMeta = NODE_TYPE_META[nodeType];
+  const TypeIcon = typeMeta.Icon;
   const status: NodeStatus = node.status ?? 'UNVERIFIED';
   const content = node.content ?? '';
   const wasUpdated =
@@ -152,11 +154,9 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
     >
       <header className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-xl" aria-hidden="true">
-            {NODE_TYPE_EMOJI[nodeType]}
-          </span>
+          <TypeIcon size={20} strokeWidth={2} className="shrink-0 text-gray-700" aria-hidden="true" />
           <h2 className="text-base font-semibold text-gray-900 truncate">
-            {NODE_TYPE_LABEL[nodeType]}
+            {typeMeta.label}
           </h2>
           <span
             className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[status]}`}

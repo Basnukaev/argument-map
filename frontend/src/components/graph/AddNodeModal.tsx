@@ -3,11 +3,10 @@ import type { FormEvent } from 'react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import { apiPost, apiPatchRaw, ApiError } from '@/api/client';
+import { NODE_TYPE_META, type NodeType } from '@/utils/edgeRules';
 import type { components } from '@/api/types';
 
-type CreateNodeRequest = components['schemas']['CreateNodeRequest'];
 type NodeResponse = components['schemas']['NodeResponse'];
-type NodeType = CreateNodeRequest['nodeType'];
 
 interface Props {
   open: boolean;
@@ -22,12 +21,7 @@ interface Props {
   initialPosY?: number;
 }
 
-const TYPE_OPTIONS: Array<{ value: NodeType; label: string; hint: string }> = [
-  { value: 'QUESTION', label: 'Вопрос', hint: 'Корневой или уточняющий вопрос' },
-  { value: 'CLAIM', label: 'Тезис', hint: 'Утверждение которое доказывают' },
-  { value: 'ARGUMENT', label: 'Довод', hint: 'Аргумент за/против тезиса' },
-  { value: 'EVIDENCE', label: 'Свидетельство', hint: 'Хадис, цитата, факт' },
-];
+const TYPE_ORDER: readonly NodeType[] = ['QUESTION', 'CLAIM', 'ARGUMENT', 'EVIDENCE'];
 
 function AddNodeModal({ open, topicId, onClose, onCreated, initialPosX, initialPosY }: Props) {
   const [nodeType, setNodeType] = useState<NodeType>('CLAIM');
@@ -96,12 +90,14 @@ function AddNodeModal({ open, topicId, onClose, onCreated, initialPosX, initialP
         <fieldset disabled={submitting} className="space-y-2">
           <legend className="text-sm font-medium text-gray-700">Тип</legend>
           <div className="grid grid-cols-2 gap-2">
-            {TYPE_OPTIONS.map((option) => {
-              const selected = nodeType === option.value;
+            {TYPE_ORDER.map((value) => {
+              const meta = NODE_TYPE_META[value];
+              const { Icon } = meta;
+              const selected = nodeType === value;
               return (
                 <label
-                  key={option.value}
-                  className={`flex cursor-pointer flex-col rounded-md border p-2 transition-colors ${
+                  key={value}
+                  className={`flex cursor-pointer items-start gap-2 rounded-md border p-2 transition-colors ${
                     selected
                       ? 'border-blue-500 bg-blue-50'
                       : 'border-gray-200 hover:border-gray-400'
@@ -110,13 +106,20 @@ function AddNodeModal({ open, topicId, onClose, onCreated, initialPosX, initialP
                   <input
                     type="radio"
                     name="nodeType"
-                    value={option.value}
+                    value={value}
                     checked={selected}
-                    onChange={() => setNodeType(option.value)}
+                    onChange={() => setNodeType(value)}
                     className="sr-only"
                   />
-                  <span className="font-medium text-gray-900">{option.label}</span>
-                  <span className="mt-0.5 text-xs text-gray-500">{option.hint}</span>
+                  <Icon
+                    size={18}
+                    className={`mt-0.5 shrink-0 ${selected ? 'text-blue-600' : 'text-gray-500'}`}
+                    aria-hidden="true"
+                  />
+                  <span className="flex flex-col">
+                    <span className="font-medium text-gray-900">{meta.label}</span>
+                    <span className="mt-0.5 text-xs text-gray-500">{meta.hint}</span>
+                  </span>
                 </label>
               );
             })}

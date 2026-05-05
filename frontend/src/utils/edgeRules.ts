@@ -1,3 +1,15 @@
+import {
+  CircleHelp,
+  Megaphone,
+  MessageSquareQuote,
+  FileText,
+  Check,
+  X,
+  Ban,
+  ChevronsRight,
+  Reply,
+  type LucideIcon,
+} from 'lucide-react';
 import type { components } from '@/api/types';
 
 type CreateEdgeRequest = components['schemas']['CreateEdgeRequest'];
@@ -106,7 +118,8 @@ export const NODE_TYPE_LABEL: Record<NodeType, string> = {
 };
 
 /**
- * Юникод-маркер типа ребра - используется на бейджах когда подписи скрыты.
+ * Юникод-маркер типа ребра - используется на бейджах когда подписи скрыты
+ * (CustomEdge). В крупных UI (модалки, панели) используется EDGE_TYPE_META.Icon
  */
 export const EDGE_TYPE_ICON: Record<EdgeType, string> = {
   SUPPORTS: '✓',
@@ -114,4 +127,33 @@ export const EDGE_TYPE_ICON: Record<EdgeType, string> = {
   INVALIDATES: '⊗',
   QUALIFIES: '↳',
   RESPONDS_TO: '↩',
+};
+
+/**
+ * Метаданные типа узла для UI: lucide-иконка совпадает с тем что показывает
+ * NodeCard на графе - так пользователь видит один и тот же символ и в карточке,
+ * и при выборе типа в модалке. Решает проблему близких эмодзи 📢/💬
+ * (Тезис/Довод) в шрифте операционной системы.
+ */
+export const NODE_TYPE_META: Record<NodeType, { label: string; hint: string; Icon: LucideIcon }> = {
+  QUESTION: { label: 'Вопрос', hint: 'Корневой или уточняющий вопрос', Icon: CircleHelp },
+  CLAIM: { label: 'Тезис', hint: 'Утверждение которое доказывают', Icon: Megaphone },
+  ARGUMENT: { label: 'Довод', hint: 'Аргумент за/против тезиса', Icon: MessageSquareQuote },
+  EVIDENCE: { label: 'Свидетельство', hint: 'Хадис, цитата, факт', Icon: FileText },
+};
+
+/**
+ * Метаданные типа ребра для UI: lucide-иконка + tailwind-цвет совпадают с
+ * CustomEdge (стрелки на графе). Используется в AddEdgeModal radio-list и
+ * EdgeDetailsPanel header / edit-режим
+ */
+export const EDGE_TYPE_META: Record<
+  EdgeType,
+  { label: string; hint: string; Icon: LucideIcon; colorClass: string }
+> = {
+  SUPPORTS: { label: 'Поддерживает', hint: 'Аргумент за тезис', Icon: Check, colorClass: 'text-green-600' },
+  REFUTES: { label: 'Опровергает', hint: 'Аргумент против', Icon: X, colorClass: 'text-red-600' },
+  INVALIDATES: { label: 'Аннулирует', hint: 'Жёсткое мета-опровержение (kill)', Icon: Ban, colorClass: 'text-red-800' },
+  QUALIFIES: { label: 'Уточняет', hint: 'Сужает применимость', Icon: ChevronsRight, colorClass: 'text-blue-600' },
+  RESPONDS_TO: { label: 'Отвечает', hint: 'Реплика-ответ', Icon: Reply, colorClass: 'text-gray-500' },
 };

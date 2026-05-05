@@ -279,12 +279,14 @@ git log; средняя фича (3+ коммитов или новый файл
 - [ ] Тёмная тема
 - [ ] Аутентификация (когда появится на беке, Этап 6)
 - [ ] Локализация (i18n) при появлении второй локали
-- [ ] **UI-полировка `AddEdgeModal`:** заменить нативные `<select>`
-      на кастомный dropdown с lucide-иконками (CircleHelp /
-      Megaphone / MessageSquareQuote / FileText). Сейчас эмодзи
-      📢/💬 (Тезис/Довод) визуально близки, различаются только
-      текстовой меткой. Также: цветовая индикация типа узла в
-      опции, подсветка выбранной пары на самом графе
+- [x] **UI-полировка radio-list типов** в AddNodeModal/AddEdgeModal/
+      EdgeDetailsPanel/NodeDetailsPanel - lucide-иконки вместо
+      эмодзи (📢/💬 → Megaphone/MessageSquareQuote и т.п.). Извлечён
+      NODE_TYPE_META + EDGE_TYPE_META в edgeRules.ts, иконки
+      совпадают с NodeCard и CustomEdge на графе. Реализовано в
+      сессии 16. Остаётся открытым: кастомный dropdown с иконками
+      для `<select>` "Откуда"/"Куда" в AddEdgeModal (там длинный
+      список узлов, нативный `<select>` не поддерживает SVG)
 - [ ] **Smart edge routing** (опционально, если 4-handles + dagre
       мало) - elkjs или custom edge с pathfinding
 - [x] **Сохранение `sourceHandle`/`targetHandle` для edge** -

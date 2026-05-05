@@ -4,7 +4,7 @@ import Button from '@/components/ui/Button';
 import { apiPatchRaw, ApiError } from '@/api/client';
 import type { components } from '@/api/types';
 import {
-  EDGE_TYPE_ICON,
+  EDGE_TYPE_META,
   getAllowedEdgeTypes,
   getContextualEdgeLabel,
   NODE_TYPE_EMOJI,
@@ -27,14 +27,6 @@ interface Props {
    * (используется когда пользователь нажал "Редактировать" в контекстном меню) */
   initialEditing?: boolean;
 }
-
-const EDGE_TYPE_LABEL: Record<EdgeType, { label: string; hint: string }> = {
-  SUPPORTS: { label: 'Поддерживает', hint: 'Аргумент за тезис' },
-  REFUTES: { label: 'Опровергает', hint: 'Аргумент против' },
-  INVALIDATES: { label: 'Аннулирует', hint: 'Жёсткое мета-опровержение (kill)' },
-  QUALIFIES: { label: 'Уточняет', hint: 'Сужает применимость' },
-  RESPONDS_TO: { label: 'Отвечает', hint: 'Реплика-ответ' },
-};
 
 const DATE_FORMAT = new Intl.DateTimeFormat('ru-RU', {
   day: 'numeric',
@@ -132,6 +124,8 @@ function EdgeDetailsPanel({ edge, fromNode, toNode, onClose, onUpdated, initialE
   }
 
   const contextualLabel = getContextualEdgeLabel(fromType, currentEdgeType, toType);
+  const currentMeta = EDGE_TYPE_META[currentEdgeType];
+  const HeaderIcon = currentMeta.Icon;
 
   return (
     <aside
@@ -141,11 +135,14 @@ function EdgeDetailsPanel({ edge, fromNode, toNode, onClose, onUpdated, initialE
     >
       <header className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="text-xl" aria-hidden="true">
-            {EDGE_TYPE_ICON[currentEdgeType]}
-          </span>
+          <HeaderIcon
+            size={20}
+            strokeWidth={2.5}
+            className={`shrink-0 ${currentMeta.colorClass}`}
+            aria-hidden="true"
+          />
           <h2 className="truncate text-base font-semibold text-gray-900">
-            {EDGE_TYPE_LABEL[currentEdgeType].label}
+            {currentMeta.label}
           </h2>
           <span className="text-xs text-gray-500">{contextualLabel}</span>
         </div>
@@ -200,7 +197,8 @@ function EdgeDetailsPanel({ edge, fromNode, toNode, onClose, onUpdated, initialE
                 </p>
               )}
               {allowedTypes.map((value) => {
-                const meta = EDGE_TYPE_LABEL[value];
+                const meta = EDGE_TYPE_META[value];
+                const { Icon } = meta;
                 const selected = draftType === value;
                 return (
                   <label
@@ -218,7 +216,13 @@ function EdgeDetailsPanel({ edge, fromNode, toNode, onClose, onUpdated, initialE
                       checked={selected}
                       onChange={() => setDraftType(value)}
                       disabled={saving}
-                      className="mt-0.5"
+                      className="sr-only"
+                    />
+                    <Icon
+                      size={20}
+                      strokeWidth={2.5}
+                      className={`mt-0.5 shrink-0 ${meta.colorClass}`}
+                      aria-hidden="true"
                     />
                     <div className="flex-1">
                       <div className="font-medium text-gray-900">{meta.label}</div>
@@ -230,8 +234,8 @@ function EdgeDetailsPanel({ edge, fromNode, toNode, onClose, onUpdated, initialE
             </div>
           ) : (
             <p className="text-sm text-gray-900">
-              <span className="font-medium">{EDGE_TYPE_LABEL[currentEdgeType].label}</span>
-              <span className="text-gray-500"> - {EDGE_TYPE_LABEL[currentEdgeType].hint}</span>
+              <span className="font-medium">{currentMeta.label}</span>
+              <span className="text-gray-500"> - {currentMeta.hint}</span>
             </p>
           )}
         </section>
