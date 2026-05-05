@@ -76,14 +76,35 @@ describe('layoutGraph', () => {
     expect(result.find((n) => n.id === 'b')!.position).toEqual({ x: 500, y: -50 });
   });
 
-  it('если хотя бы у одного узла нет posX/posY - dagre считает все', () => {
-    const saved = makeNode('saved');
-    saved.data = { ...saved.data, posX: 999, posY: 999 };
+  it('смешанный режим: сохранённые узлы остаются on their positions, fresh - справа', () => {
+    const a = makeNode('a');
+    a.data = { ...a.data, posX: 100, posY: 200 };
+    const b = makeNode('b');
+    b.data = { ...b.data, posX: 500, posY: 300 };
     const fresh = makeNode('fresh'); // без posX/posY
 
-    const result = layoutGraph([saved, fresh], [makeEdge('e', 'saved', 'fresh')]);
+    const result = layoutGraph([a, b, fresh], [makeEdge('e', 'a', 'b')]);
 
-    // saved узел НЕ окажется в (999, 999) - dagre перетрёт обоих
-    expect(result.find((n) => n.id === 'saved')!.position).not.toEqual({ x: 999, y: 999 });
+    // сохранённые остаются на своих местах
+    expect(result.find((n) => n.id === 'a')!.position).toEqual({ x: 100, y: 200 });
+    expect(result.find((n) => n.id === 'b')!.position).toEqual({ x: 500, y: 300 });
+    // fresh - правее всех сохранённых (maxX = 500 + gap 400 = 900)
+    const freshPos = result.find((n) => n.id === 'fresh')!.position;
+    expect(freshPos.x).toBeGreaterThan(500);
+    expect(freshPos.x).toBe(900);
+  });
+
+  it('смешанный режим: несколько fresh узлов столбцом', () => {
+    const saved = makeNode('saved');
+    saved.data = { ...saved.data, posX: 0, posY: 0 };
+    const f1 = makeNode('f1');
+    const f2 = makeNode('f2');
+
+    const result = layoutGraph([saved, f1, f2], []);
+
+    const f1Pos = result.find((n) => n.id === 'f1')!.position;
+    const f2Pos = result.find((n) => n.id === 'f2')!.position;
+    expect(f1Pos.x).toBe(f2Pos.x); // одна колонка
+    expect(f2Pos.y).toBeGreaterThan(f1Pos.y); // f2 ниже f1
   });
 });
