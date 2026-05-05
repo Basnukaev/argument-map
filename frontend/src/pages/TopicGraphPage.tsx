@@ -4,7 +4,6 @@ import {
   ReactFlow,
   Background,
   Controls,
-  MiniMap,
   Panel,
   MarkerType,
   ConnectionMode,
@@ -20,12 +19,13 @@ import {
 import { Plus, Trash2, Eye, EyeOff, Pencil, ArrowUp, ArrowDown } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import ContextMenu, { type ContextMenuItem } from '@/components/ui/ContextMenu';
-import NodeCard, { type NodeCardNode, type NodeCardData } from '@/components/graph/NodeCard';
+import NodeCard, { type NodeCardNode } from '@/components/graph/NodeCard';
 import CustomEdge, { type CustomEdgeEdge } from '@/components/graph/CustomEdge';
 import AddNodeModal from '@/components/graph/AddNodeModal';
 import AddEdgeModal from '@/components/graph/AddEdgeModal';
 import NodeDetailsPanel from '@/components/graph/NodeDetailsPanel';
 import EdgeDetailsPanel from '@/components/graph/EdgeDetailsPanel';
+import GraphMiniMap from '@/components/graph/GraphMiniMap';
 import { layoutGraph } from '@/utils/graphLayout';
 import { apiDeleteRaw, apiGetRaw, apiPatchRaw, ApiError } from '@/api/client';
 import { getAllowedEdgeTypes, isEdgeAllowed, NODE_TYPE_LABEL } from '@/utils/edgeRules';
@@ -114,15 +114,6 @@ function TopicGraphPage() {
     </div>
   );
 }
-
-// Цвета статусов для MiniMap (для самого узла - в NodeCard через Tailwind).
-// Дублирование с NodeCard приемлемо: MiniMap получает простой hex
-const STATUS_MINIMAP_COLOR: Record<NonNullable<NodeCardData['status']>, string> = {
-  STANDING: '#22c55e',
-  DISPUTED: '#f59e0b',
-  REFUTED: '#ef4444',
-  UNVERIFIED: '#9ca3af',
-};
 
 // Цвета маркеров-стрелок на конце ребра. Совпадают со stroke в CustomEdge,
 // чтобы стрелка была того же цвета что и линия
@@ -645,21 +636,7 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
         >
           <Background gap={24} size={1} />
           <Controls position="bottom-right" showInteractive={false} />
-          <MiniMap
-            pannable
-            zoomable
-            position="top-right"
-            className="!bg-white !border !border-gray-300"
-            nodeColor={(node: Node) => {
-              const data = node.data as NodeCardData | undefined;
-              const status = data?.status ?? 'UNVERIFIED';
-              return STATUS_MINIMAP_COLOR[status];
-            }}
-            nodeStrokeColor="#1f2937"
-            nodeStrokeWidth={3}
-            nodeBorderRadius={4}
-            maskColor="rgba(0,0,0,0.08)"
-          />
+          <GraphMiniMap />
           <Panel position="top-left" className="!m-3 flex gap-2">
             <Button onClick={() => setAddNodeOpen(true)} className="!px-3 !py-1.5 text-sm">
               <Plus size={16} className="mr-1" /> Узел

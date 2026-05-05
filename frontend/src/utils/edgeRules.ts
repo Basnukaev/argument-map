@@ -118,18 +118,6 @@ export const NODE_TYPE_LABEL: Record<NodeType, string> = {
 };
 
 /**
- * Юникод-маркер типа ребра - используется на бейджах когда подписи скрыты
- * (CustomEdge). В крупных UI (модалки, панели) используется EDGE_TYPE_META.Icon
- */
-export const EDGE_TYPE_ICON: Record<EdgeType, string> = {
-  SUPPORTS: '✓',
-  REFUTES: '✗',
-  INVALIDATES: '⊗',
-  QUALIFIES: '↳',
-  RESPONDS_TO: '↩',
-};
-
-/**
  * Метаданные типа узла для UI: lucide-иконка совпадает с тем что показывает
  * NodeCard на графе - так пользователь видит один и тот же символ и в карточке,
  * и при выборе типа в модалке. Решает проблему близких эмодзи 📢/💬

@@ -6,7 +6,7 @@ import {
   getContextualEdgeLabel,
   NODE_TYPE_EMOJI,
   NODE_TYPE_LABEL,
-  EDGE_TYPE_ICON,
+  EDGE_TYPE_META,
   type NodeType,
   type EdgeType,
 } from './edgeRules';
@@ -102,9 +102,14 @@ describe('маркеры', () => {
     });
   });
 
-  it('EDGE_TYPE_ICON определён для всех типов', () => {
+  it('EDGE_TYPE_META содержит Icon, label, hint, colorClass для всех типов', () => {
     for (const t of EDGE_TYPES) {
-      expect(EDGE_TYPE_ICON[t]).toBeTruthy();
+      const meta = EDGE_TYPE_META[t];
+      expect(meta).toBeDefined();
+      expect(meta.Icon).toBeTruthy();
+      expect(meta.label).toBeTruthy();
+      expect(meta.hint).toBeTruthy();
+      expect(meta.colorClass).toMatch(/^text-/);
     }
   });
 });

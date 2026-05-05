@@ -1,6 +1,6 @@
 import { BaseEdge, EdgeLabelRenderer, getBezierPath } from '@xyflow/react';
 import type { EdgeProps, Edge } from '@xyflow/react';
-import { getContextualEdgeLabel, EDGE_TYPE_ICON } from '@/utils/edgeRules';
+import { getContextualEdgeLabel, EDGE_TYPE_META } from '@/utils/edgeRules';
 import type { EdgeType, NodeType } from '@/utils/edgeRules';
 
 export type CustomEdgeData = {
@@ -54,7 +54,7 @@ function CustomEdge(props: EdgeProps<CustomEdgeEdge>) {
 
   const edgeType = data?.edgeType ?? 'SUPPORTS';
   const style = TYPE_STYLES[edgeType];
-  const icon = EDGE_TYPE_ICON[edgeType];
+  const Icon = EDGE_TYPE_META[edgeType].Icon;
   const showLabel = data?.showLabel ?? true;
   const label =
     data?.fromType && data?.toType
@@ -89,7 +89,7 @@ function CustomEdge(props: EdgeProps<CustomEdgeEdge>) {
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
           }}
         >
-          <span aria-hidden="true">{icon}</span>
+          <Icon size={12} strokeWidth={2.5} aria-hidden="true" className="shrink-0" />
           {showLabel && label && <span>{label}</span>}
         </div>
       </EdgeLabelRenderer>
