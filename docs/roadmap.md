@@ -1,5 +1,21 @@
 # Roadmap
 
+Карта работ по проекту. Структура:
+- Этапы 0-N - последовательность активных задач, выполняемых строго
+  или почти строго по порядку. Полностью закрытые этапы остаются
+  историей. Внутри этапа - плоский список пунктов; для full-stack
+  этапов допустимы подразделы `Бэк`/`Фронт`
+- `Cross-cutting / инфраструктура` - сквозные куски кода которые не
+  привязаны к одному этапу (тосты, общие UI-компоненты). Каждый с
+  пометкой "введено в этапе X"
+- `Бэклог` - идеи и задачи без привязки к этапу: либо после-MVP,
+  либо требуют сначала других фич. Когда созревает - переходит в
+  активный этап или становится новым этапом
+
+Правило для записи: микро-фикс (≤2 коммитов) остаётся только в
+git log; средняя фича (3+ коммитов или новый файл/модуль) попадает
+в roadmap (текущий этап, Cross-cutting или Бэклог по смыслу).
+
 ## Этап 0. Инициализация проекта
 
 - [x] Сгенерировать Spring Boot проект (Spring Initializr): Java 21,
@@ -82,12 +98,8 @@
 - [x] Бизнес-валидация: `reliability` только для `SourceType.HADITH`
       (`InvalidSourceException` → 422)
 - [x] `api-contract.md` — заполнены секции Sources/Authorities/привязок
-- [ ] TODO после-MVP: пагинация для GET-list эндпоинтов
-      (`/sources`, `/authorities`) — пока не нужна, справочники маленькие
-- [ ] TODO после-MVP: фильтрация `?type=`, `?reliability=`, `?era=`,
-      `?madhab=` — пока есть только `?q=`
 
-## Этап 6. Улучшения (после MVP)
+## Этап 6. Улучшения бэкенда (после MVP)
 
 - [ ] Полнотекстовый поиск по содержимому узлов (Postgres `tsvector`)
 - [ ] Реализация Dung's argumentation framework для продвинутого пересчёта
@@ -95,13 +107,11 @@
 - [ ] Аутентификация и авторизация (Spring Security, JWT)
 - [ ] Голосование за вес аргументов
 
-## Этап 7. Фронтенд
+## Этап 7. Фронтенд - MVP графа
 
-Появится как отдельная папка `frontend/` в корне репы (см. ADR-005).
-Запускается после стабилизации бэкенд-API (Этапы 4-5 завершены —
-`api-contract.md` v1 заполнен).
+Появился как отдельная папка `frontend/` в корне репы (см. ADR-005).
+Начат после стабилизации бэкенд-API (Этапы 4-5 завершены).
 
-### Подготовка
 - [x] Выбрать фреймворк — **ADR-008** (React 19 + TypeScript + Vite)
 - [x] Выбрать библиотеку визуализации графа — **ADR-009** (React Flow,
       `@xyflow/react`)
@@ -111,15 +121,9 @@
       Tailwind v4, React Router v7, Zustand 5, ESLint 9 flat config,
       Prettier, Vitest 3 + RTL + jsdom + jest-dom + MSW
 - [x] CORS-настройка на беке для dev (`app.cors.allowed-origins` в
-      `application.yml`, `WebMvcConfig.addCorsMappings`). Решено не
-      делать Vite proxy - фронт ходит напрямую через `VITE_API_URL`,
-      CORS на беке - идентично продакшну
+      `application.yml`, `WebMvcConfig.addCorsMappings`)
 - [x] Генерация TS-типов из OpenAPI бэка через `openapi-typescript`
       (`src/api/types.ts`, скрипт `npm run generate-api`)
-- [ ] Базовый layout: header, footer (кроме страницы графа), общий
-      контейнер (роутинг между страницами уже работает)
-
-### MVP фронта
 - [x] `src/api/client.ts` — типизированный fetch-клиент с `X-User-Id`
       заголовком (ADR-006), парсингом Problem Details (RFC 7807) и
       классом `ApiError`
@@ -136,8 +140,7 @@
       цветом по статусу
       (`STANDING`/`DISPUTED`/`REFUTED`/`UNVERIFIED`), иконкой по типу
       (lucide-react: `CircleHelp`/`Megaphone`/`MessageSquareQuote`/
-      `FileText`), контентом (truncate 150 символов с tooltip), весом
-      (10-точечная диаграмма)
+      `FileText`), контентом (truncate 150 символов с tooltip)
 - [x] Кастомные рёбра (`src/components/graph/CustomEdge.tsx`):
       `SUPPORTS` (зелёный), `REFUTES` (красный), `INVALIDATES`
       (тёмно-красный жирный пунктир, ADR-007), `QUALIFIES` (синий),
@@ -161,27 +164,12 @@
       `apiPatchRaw` в client.ts, кнопка "Редактировать" в панели,
       onUpdated → refetch графа, сохранение selected по id чтобы
       панель не закрывалась)
-
-### Позже (после-MVP фронта)
-- [ ] Привязка источников / авторитетов к узлам через UI
-      (`POST /api/v1/nodes/{id}/sources`, `/authorities`)
-- [ ] Полнотекстовый поиск (когда появится на беке, Этап 6)
-- [ ] Экспорт графа в PNG / SVG
-- [ ] Тёмная тема
-- [ ] Аутентификация (когда появится на беке, Этап 6)
-- [ ] Локализация (i18n) при появлении второй локали
-- [ ] **UI-полировка `AddEdgeModal`:** заменить нативные `<select>` на
-      кастомный dropdown с lucide-иконками (CircleHelp / Megaphone /
-      MessageSquareQuote / FileText) - тех же что в `NodeCard`. Сейчас
-      используются эмодзи 📢/💬 (Тезис/Довод) которые визуально близки -
-      различаются только за счёт текстовой метки `Тезис:` / `Довод:`.
-      Также рассмотреть: цветовая индикация типа узла в опции (фон или
-      левая полоса под цвет статуса), визуальная подсветка выбранной
-      пары на самом графе при открытой модалке
+- [ ] Базовый layout: header, footer (кроме страницы графа), общий
+      контейнер (роутинг между страницами уже работает)
 
 ## Этап 8. Семантика связей и логическая валидация
 
-Зачем: сейчас разрешено любое сочетание (fromNodeType, edgeType, toNodeType),
+Зачем: разрешено любое сочетание (fromNodeType, edgeType, toNodeType),
 включая бессмысленные ("вопрос опровергает тезис"). Нужны логические
 правила и более читаемая визуализация цепочек.
 
@@ -193,7 +181,6 @@
 - [x] **ADR-010** на семантику типов связей с матрицей и табличкой
       контекстных подписей
 - [x] Дополнить `architecture.md` секцией "Семантика связей"
-      (сделано в коммите 8c92e32)
 
 ### Фронт
 - [x] Та же матрица в `src/utils/edgeRules.ts` + `getAllowedEdgeTypes`
@@ -203,10 +190,8 @@
 - [x] Контекстные подписи рёбер - `CustomEdge` использует
       `getContextualEdgeLabel(fromType, edgeType, toType)`
 - [x] Эмодзи (📢❓💬📄) в селектах `AddEdgeModal` вместо `[CLAIM]`/
-      `[QUESTION]` префиксов. lucide-SVG в `<option>` использовать
-      нельзя - эмодзи как первый шаг (custom dropdown - на потом если
-      потребуется)
-- [x] **Toggle "Подписи рёбер"** в toolbar (Eye/EyeOff). Юникод-маркер
+      `[QUESTION]` префиксов
+- [x] Toggle "Подписи рёбер" в toolbar (Eye/EyeOff). Юникод-маркер
       ✓/✗/⊗/↳/↩ на бейдже остаётся всегда, текст подписи скрывается.
       Сохранение в localStorage (`argmap.showEdgeLabels`)
 
@@ -214,7 +199,7 @@
 
 Зачем: текущий toolbar с модалками работает, но неудобен. В Miro
 пользователь создаёт связи перетаскиванием, использует контекстные
-меню и управляет z-order'ом. Это ключевой UX продукта.
+меню и управляет z-order'ом.
 
 - [x] **4 handles** на узле (top/right/bottom/left). 4 handle'а
       type='source', `connectionMode='loose'` - source↔source.
@@ -225,37 +210,90 @@
       AddEdgeModal с предзаполненными from/to (если разрешено).
       Запрещённая пара показывает toast.warning с указанием пары
       и ссылкой на ADR-010, модалка не открывается
-- [x] **Контекстное меню (правый клик)** - универсальный
-      компонент `ContextMenu.tsx`:
+- [x] **Контекстное меню (правый клик)** через универсальный
+      `ContextMenu`:
       - на pane: "Создать узел здесь" (открывает AddNodeModal)
       - на узле: "Редактировать" (выделяет узел → панель деталей),
         "На передний план", "На задний план", "Удалить"
       - на ребре: "На передний план", "На задний план", "Удалить"
-      - закрытие на click outside и Escape
 - [x] **Z-index управление** через контекстное меню. `zRef` =
-      useRef({max, min}) - не сохраняется на беке, только локально
-      пока открыт граф. После refetch сбрасывается
-- [ ] (опционально, если простого dagre-роутинга мало) **Smart edge
-      routing** с обходом препятствий - либо `elkjs` вместо dagre,
-      либо custom edge с pathfinding. Пока 4 handles + dagre дают
-      приемлемый результат, оставляем как nice-to-have
+      useRef({max, min}) - локально. После refetch сбрасывается
+      к дефолту RF
+- [x] **Сохранение позиций узлов после drag** - full-stack
+      (ADR-012): миграция БД `pos_x`/`pos_y` (DOUBLE PRECISION
+      nullable), PATCH `/api/v1/nodes/{id}` принимает opt
+      `posX`+`posY` без revision, фронт `onNodeDragStop` → PATCH
+      (оптимистично), `layoutGraph` mixed-режим: сохранённые as-is,
+      fresh - столбцом справа
+- [x] `elevateNodesOnSelect={false}` чтобы явный zIndex из
+      контекстного меню не перебивался автоматическим elevate'ом
+      RF при выделении
+
+## Cross-cutting / инфраструктура
+
+Сквозные куски кода которые не привязаны к одному этапу. Каждый с
+пометкой "введено в этапе X".
+
+- [x] **Modal** (`src/components/ui/Modal.tsx`) - на нативном
+      `<dialog>` с focus trap, Escape, role=dialog. Введён в
+      **этапе 7** для AddNodeModal/AddEdgeModal
+- [x] **Toast-система** (`src/stores/toastStore.ts` +
+      `src/components/ui/Toaster.tsx`) - Zustand-store с 4 типами
+      (`error`/`warning`/`info`/`success`) и auto-dismiss. API:
+      `toast.warning('...')` без хука, можно из любого callback.
+      Введена в **этапе 9** как ответ на drag-create запрещённых
+      пар, теперь общая инфраструктура для алертов
+- [x] **ContextMenu** (`src/components/ui/ContextMenu.tsx`) -
+      универсальный компонент для правых кликов с поддержкой
+      header, danger-пунктов, иконок lucide. Введён в **этапе 9**
+      для меню pane/node/edge
+
+## Бэклог
+
+Идеи и задачи без привязки к этапу. Когда задача созревает - переходит
+в активный этап или становится новым этапом.
+
+### Фронт
+- [ ] Привязка источников/авторитетов к узлам через UI
+      (`POST /api/v1/nodes/{id}/sources`, `/authorities`)
+- [ ] Полнотекстовый поиск (когда появится на беке, Этап 6)
+- [ ] Экспорт графа в PNG / SVG
+- [ ] Тёмная тема
+- [ ] Аутентификация (когда появится на беке, Этап 6)
+- [ ] Локализация (i18n) при появлении второй локали
+- [ ] **UI-полировка `AddEdgeModal`:** заменить нативные `<select>`
+      на кастомный dropdown с lucide-иконками (CircleHelp /
+      Megaphone / MessageSquareQuote / FileText). Сейчас эмодзи
+      📢/💬 (Тезис/Довод) визуально близки, различаются только
+      текстовой меткой. Также: цветовая индикация типа узла в
+      опции, подсветка выбранной пары на самом графе
+- [ ] **Smart edge routing** (опционально, если 4-handles + dagre
+      мало) - elkjs или custom edge с pathfinding
 - [ ] **Сохранение `sourceHandle`/`targetHandle` для edge** -
-      full-stack аналог posX/posY: миграция БД (2 nullable
-      VARCHAR в `edges`), Edge модель/DTO/RowMapper, контракт
-      api-contract.md, фронт onConnect передаёт `connection.sourceHandle`
-      и `targetHandle` в POST /edges, при рендере edge получает
-      эти поля через CustomEdgeData. Сейчас drag из любой точки
-      handle работает, но после refetch RF выбирает стороны
-      auto-routing'ом по позициям, не уважая исходный выбор
-      пользователя
-- [x] Сохранять позиции узлов после drag - full-stack:
-      миграция БД `pos_x`/`pos_y` (DOUBLE PRECISION nullable),
-      PATCH `/api/v1/nodes/{id}` принимает opt `posX`+`posY` без
-      revision, фронт `onNodeDragStop` → PATCH (оптимистично),
-      `layoutGraph` уважает сохранённые координаты (mixed-режим:
-      сохранённые as-is, fresh - столбцом справа)
-- [ ] **Toast-система** для общих уведомлений (`useToastStore` +
-      `Toaster.tsx`) - инфраструктура для будущих алертов; уже
-      используется при drag-create запрещённой пары и при ошибке
-      сохранения позиции. Считать **закрытым кросс-этапным**
-      инфраструктурным куском
+      full-stack аналог posX/posY: миграция БД (2 nullable VARCHAR
+      в `edges`), Edge модель/DTO/RowMapper, фронт onConnect
+      передаёт `connection.sourceHandle`/`targetHandle` в POST
+      /edges, при рендере edge использует эти поля. Сейчас
+      drag из любой точки handle работает, но после refetch RF
+      auto-routing'ом выбирает стороны по позициям, не уважая
+      исходный выбор пользователя
+- [ ] **Координаты при "Создать здесь"** из контекстного меню pane -
+      сейчас clientX/Y не передаются в AddNodeModal, новый узел
+      получает posX=null. Нужно: расширить `POST /nodes` принимать
+      opt posX/posY (либо фронт делает POST + PATCH)
+- [ ] **Z-index full-stack persistence** для узлов и рёбер
+      (миграция + поле + DTO + фронт). Сейчас локально, при refetch
+      теряется. Делать только если станет критично - z-order между
+      сессиями редко важен
+- [ ] **Code-split TopicGraphPage через React.lazy** - bundle 552kB
+      / gzip 180kB подбирается к 600kB. Lazy-импорт упасёт initial
+      bundle до ~150kB
+
+### Бэк
+- [ ] Пагинация для GET-list эндпоинтов (`/sources`, `/authorities`) -
+      пока не нужна, справочники маленькие
+- [ ] Фильтрация `?type=`, `?reliability=`, `?era=`, `?madhab=` -
+      пока есть только `?q=`
+- [ ] **springdoc + @CurrentUser** правильно в OpenAPI - сейчас
+      параметр `userId` показывается как query (gotcha в
+      `gotchas.md`). Бэк-долг с этапа 4
