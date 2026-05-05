@@ -217,6 +217,21 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
     },
     [],
   );
+
+  // RF onSelectionChange срабатывает при каждом setNodes - даже если selection
+  // не изменилась. Inline `({nodes, edges}) => setSelectedNodeIds(nodes.map(...))`
+  // создавал новые [] массивы каждый раз -> useState считает их разными ->
+  // re-render -> снова onSelectionChange -> infinite loop. Решение: stable
+  // callback через useCallback + функциональный update со сравнением содержимого
+  const handleSelectionChange = useCallback(
+    ({ nodes: ns, edges: es }: { nodes: Node[]; edges: { id: string }[] }) => {
+      const nextNodeIds = ns.map((n) => n.id);
+      const nextEdgeIds = es.map((e) => e.id);
+      setSelectedNodeIds((prev) => (sameIds(prev, nextNodeIds) ? prev : nextNodeIds));
+      setSelectedEdgeIds((prev) => (sameIds(prev, nextEdgeIds) ? prev : nextEdgeIds));
+    },
+    [],
+  );
   const canAddEdge = rawNodeDtos.length >= 2;
   const selectedCount = selectedNodeIds.length + selectedEdgeIds.length;
 
@@ -302,10 +317,7 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
           onConnect={handleConnect}
           onNodeDragStop={handleNodeDragStop}
           connectionMode={ConnectionMode.Loose}
-          onSelectionChange={({ nodes: ns, edges: es }) => {
-            setSelectedNodeIds(ns.map((n) => n.id));
-            setSelectedEdgeIds(es.map((e) => e.id));
-          }}
+          onSelectionChange={handleSelectionChange}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView
@@ -397,6 +409,14 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
       )}
     </>
   );
+}
+
+// поверхностное сравнение массивов id - чтобы не пере-устанавливать
+// selectedNodeIds/selectedEdgeIds если содержимое не изменилось
+function sameIds(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
 }
 
 function buildFlow(
