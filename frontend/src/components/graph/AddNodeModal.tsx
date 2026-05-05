@@ -2,10 +2,11 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
-import { apiPost, ApiError } from '@/api/client';
+import { apiPost, apiPatchRaw, ApiError } from '@/api/client';
 import type { components } from '@/api/types';
 
 type CreateNodeRequest = components['schemas']['CreateNodeRequest'];
+type NodeResponse = components['schemas']['NodeResponse'];
 type NodeType = CreateNodeRequest['nodeType'];
 
 interface Props {
@@ -14,6 +15,11 @@ interface Props {
   onClose: () => void;
   /** вызывается после успешного создания - для refetch графа */
   onCreated: () => void;
+  /** опциональные координаты на канвасе для нового узла. Если переданы,
+   * после успешного POST дополнительно PATCH'им posX/posY. Используется
+   * при создании через "Создать узел здесь" из контекстного меню pane */
+  initialPosX?: number;
+  initialPosY?: number;
 }
 
 const TYPE_OPTIONS: Array<{ value: NodeType; label: string; hint: string }> = [
@@ -23,7 +29,7 @@ const TYPE_OPTIONS: Array<{ value: NodeType; label: string; hint: string }> = [
   { value: 'EVIDENCE', label: 'Свидетельство', hint: 'Хадис, цитата, факт' },
 ];
 
-function AddNodeModal({ open, topicId, onClose, onCreated }: Props) {
+function AddNodeModal({ open, topicId, onClose, onCreated, initialPosX, initialPosY }: Props) {
   const [nodeType, setNodeType] = useState<NodeType>('CLAIM');
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -47,11 +53,27 @@ function AddNodeModal({ open, topicId, onClose, onCreated }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      await apiPost('/api/v1/nodes', {
+      const created = await apiPost('/api/v1/nodes', {
         topicId,
         nodeType,
         content: content.trim(),
-      });
+      }) as NodeResponse;
+
+      // если переданы координаты - сразу PATCH'им (POST не принимает
+      // posX/posY чтобы не делать full-stack изменения для одной фичи).
+      // Игнорируем ошибку второго запроса - узел уже создан, в худшем
+      // случае встанет в дефолтное место и пользователь dragнет его сам
+      if (initialPosX !== undefined && initialPosY !== undefined && created.id) {
+        try {
+          await apiPatchRaw(`/api/v1/nodes/${created.id}`, {
+            posX: initialPosX,
+            posY: initialPosY,
+          });
+        } catch {
+          // позиционирование - не блокирующая ошибка
+        }
+      }
+
       reset();
       onCreated();
       onClose();

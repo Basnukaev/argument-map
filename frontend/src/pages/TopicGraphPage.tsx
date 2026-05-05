@@ -14,6 +14,7 @@ import {
   type Node,
   type Edge,
   type Connection,
+  type ReactFlowInstance,
 } from '@xyflow/react';
 import { Plus, Trash2, Eye, EyeOff, Pencil, ArrowUp, ArrowDown } from 'lucide-react';
 import Button from '@/components/ui/Button';
@@ -158,6 +159,12 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<CustomEdgeEdge>(initial.edges);
   const [addNodeOpen, setAddNodeOpen] = useState(false);
   const [addEdgeOpen, setAddEdgeOpen] = useState(false);
+  // опциональные координаты для нового узла из "Создать здесь" в
+  // контекстном меню pane. Передаются в AddNodeModal через initialPosX/Y
+  const [nodeDraft, setNodeDraft] = useState<{ posX: number; posY: number } | null>(null);
+  // RF instance нужен для screenToFlowPosition (конверсия viewport-координат
+  // курсора в координаты канваса с учётом zoom/pan)
+  const [rfInstance, setRfInstance] = useState<ReactFlowInstance<NodeCardNode, CustomEdgeEdge> | null>(null);
   // preset для AddEdgeModal: из drag-create приходят from/to и handle-стороны,
   // из "+ Связь" с выделенным узлом - только from. Поля опциональные
   const [edgeDraft, setEdgeDraft] = useState<{
@@ -302,10 +309,16 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
     }
   }
 
-  // правый клик на pane - "Создать узел здесь"
+  // правый клик на pane - "Создать узел здесь" с координатами курсора
   const handlePaneContextMenu = useCallback(
     (event: React.MouseEvent | MouseEvent) => {
       event.preventDefault();
+      // конвертируем viewport-координаты в координаты канваса RF (учёт
+      // zoom/pan) - после создания узел встанет точно туда куда нажали
+      const flowPos = rfInstance?.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
       setContextMenu({
         x: event.clientX,
         y: event.clientY,
@@ -315,13 +328,21 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
             id: 'create-node',
             label: 'Создать узел здесь',
             icon: Plus,
-            onClick: () => setAddNodeOpen(true),
+            onClick: () => {
+              if (flowPos) setNodeDraft({ posX: flowPos.x, posY: flowPos.y });
+              setAddNodeOpen(true);
+            },
           },
         ],
       });
     },
-    [],
+    [rfInstance],
   );
+
+  function closeAddNode() {
+    setAddNodeOpen(false);
+    setNodeDraft(null);
+  }
 
   // правый клик на узле - "Редактировать", "Удалить"
   const handleNodeContextMenu = useCallback(
@@ -510,6 +531,7 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
           onEdgesChange={onEdgesChange}
           onConnect={handleConnect}
           onNodeDragStop={handleNodeDragStop}
+          onInit={setRfInstance}
           onPaneContextMenu={handlePaneContextMenu}
           onNodeContextMenu={handleNodeContextMenu}
           onEdgeContextMenu={handleEdgeContextMenu}
@@ -580,9 +602,14 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
       )}
 
       <AddNodeModal
+        // key включает nodeDraft чтобы при создании через "+" из toolbar
+        // и через "Создать здесь" получались чистые initial values
+        key={`addNode-${nodeDraft?.posX ?? ''}-${nodeDraft?.posY ?? ''}`}
         open={addNodeOpen}
         topicId={topicId}
-        onClose={() => setAddNodeOpen(false)}
+        initialPosX={nodeDraft?.posX}
+        initialPosY={nodeDraft?.posY}
+        onClose={closeAddNode}
         onCreated={onRefetch}
       />
 
