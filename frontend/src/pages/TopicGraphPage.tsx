@@ -7,6 +7,7 @@ import {
   MiniMap,
   Panel,
   MarkerType,
+  ConnectionMode,
   useNodesState,
   useEdgesState,
   type ReactFlowProps,
@@ -257,6 +258,7 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={handleConnect}
+          connectionMode={ConnectionMode.Loose}
           onSelectionChange={({ nodes: ns, edges: es }) => {
             setSelectedNodeIds(ns.map((n) => n.id));
             setSelectedEdgeIds(es.map((e) => e.id));
