@@ -13,6 +13,159 @@
 
 ---
 
+## 2026-05-05 — Сессия 13 (frontend) — D3: side-panel деталей узла
+
+Закрыт последний MVP-кусок этапа 7 - side-panel с метаданными,
+редактированием контента и историей ревизий. После этого MVP
+фронта целиком собран: список тем → создание темы → граф с CRUD
+узлов и рёбер → детальный просмотр и редактирование узла.
+
+### Сделано
+4 подэтапа, каждый отдельным коммитом, между ними lint+build+test.
+
+- **D3.a** layout side-panel (`feat(frontend): add node details
+  side-panel skeleton`, коммит `beab311`):
+  - `src/components/graph/NodeDetailsPanel.tsx` - aside, fixed
+    right с шириной w-96, header (эмодзи типа + название + крестик),
+    body со scroll
+  - открывается в `TopicGraphPage` когда `selectedNodeIds.length === 1
+    && selectedEdgeIds.length === 0`. detailNode вычисляется через
+    useMemo из rawNodeDtos
+  - закрытие через крестик: `setNodes((nds) => nds.map(n =>
+    {...n, selected: false}))` - RF сам через onSelectionChange
+    почистит selectedNodeIds → detailNode=null → панель скроется
+  - Esc обрабатывается React Flow штатно (снимает выделение) -
+    не нужен отдельный keydown handler
+  - 4 теста на skeleton: заголовок, пустой контент, крестик,
+    role/aria
+- **D3.b** метаданные (`feat(frontend): add status badge and
+  metadata to node details panel`, коммит `99cb7bd`):
+  - бейдж статуса в header (Устоявшийся / Спорный / Опровергнут /
+    Не оценён) с цветами как у NodeCard
+  - definition list (dl/dt/dd): Создан, Обновлён (только если
+    updatedAt != createdAt), Автор и ID (первые 8 символов UUID
+    в monospace, полный в title)
+  - даты через `Intl.DateTimeFormat('ru-RU', {day, month, year,
+    hour, minute})` - "4 мая 2026 г. в 15:34"
+  - словарь STATUS_LABEL взят из `glossary.md` и
+    `frontend/docs/ui-guidelines.md` (источник истины терминов)
+  - +4 теста: бейдж статуса, дата + автор, скрытие/показ
+    "Обновлён"
+- **D3.c** редактирование (`feat(frontend): edit node content
+  from details panel`, коммит `a01ddf4`):
+  - `apiPatchRaw(path, body, options)` в `client.ts` - аналог
+    `apiGetRaw`/`apiDeleteRaw` для динамических путей
+  - кнопка "Редактировать" в секции "Содержание" → переход в
+    режим editing: textarea с draft + Сохранить / Отмена
+  - PATCH `/api/v1/nodes/{id}` с `{content}` → `onUpdated()` →
+    refetch графа; при ошибке 400 errors[] из Problem Details
+    собираются в строку под textarea, режим не закрывается
+  - "Сохранить" без изменений просто закрывает режим без сетевого
+    запроса (`trimmed === content`)
+  - в `TopicGraphPage` синхронизация `useNodesState` теперь
+    сохраняет `selected:true` для известных id при сбросе из
+    initial - иначе после refetch detailNode=null и панель
+    закрывалась бы
+  - smoke через curl: PATCH работает, бэк отвечает 200 с обновлённым
+    Node + пишет revision с before/after
+  - +5 тестов: открытие textarea, отмена, успешный PATCH с проверкой
+    тела, ошибка validation, no-op save
+- **D3.d** ревизии (`feat(frontend): add lazy revisions section
+  to node details panel`, коммит `7e5ee52`):
+  - collapse-секция "История изменений" с chevron, закрыта по
+    умолчанию. GET `/api/v1/nodes/{id}/revisions` срабатывает
+    только при первом открытии (lazy)
+  - каждая ревизия: time, короткий id автора, contentBefore
+    (red-100 + line-through) и contentAfter (green-100). Сортировка
+    по changedAt desc
+  - 4 состояния: not-loaded / loading / loaded / error
+  - после save panel перемонтируется через `key=${id}-${updatedAt}`
+    в TopicGraphPage - чистый state без cascading setState в effect
+    (eslint правило `react-hooks/set-state-in-effect`)
+  - +4 теста: закрыта по умолчанию (нет GET), успешная загрузка
+    списка, пустой массив, ошибка
+- Прогоны на каждом подэтапе: `npm run lint` чисто, `npm run build`
+  ОК (~544kB / gzip 178kB - +6kB от панели), `npm run test:run`
+  74/74 в финале (было 56 + 18 новых на NodeDetailsPanel = 74)
+
+### Решения
+- **`key={id-updatedAt}` вместо useEffect-сброса state** - eslint
+  rule `react-hooks/set-state-in-effect` запрещает каскадные
+  ре-рендеры. `key`-trick на компоненте идиоматичен для React:
+  изменение updatedAt = новый key = remount = чистый state без
+  ручного сброса
+- **Сохранение selected при refetch графа** - useEffect
+  синхронизации `setNodes(initial.nodes)` теперь маппит со
+  спред'ом `{ ...n, selected: selectedNodeIds.includes(n.id) ?
+  true : n.selected }`. Иначе после save → refetch → initial.nodes
+  без selected:true → onSelectionChange чистит ids → панель
+  закрывается. С учётом savetected панель остаётся видна с
+  обновлённым контентом и сброшенной историей
+- **Lazy-загрузка ревизий** - не делаем GET при каждом
+  открытии панели, только при первом раскрытии "Истории".
+  Большинство пользователей не открывают её - экономим запрос
+- **Diff визуально через bg-color вместо word-level** - простой
+  before/after с line-through. Word-level diff (через diff-match-patch)
+  - после-MVP, сейчас не критично
+- **Reset state через key, не через useEffect** - см. выше
+- **Бейдж типа в header вместо отдельной секции** - компактнее,
+  визуально объединяет тип + статус в один заголовок
+- **`apiPatchRaw` отдельный, не через keyof paths** - типы из
+  openapi-typescript плохо выводятся для динамических путей.
+  Уже есть прецедент `apiGetRaw`/`apiDeleteRaw`
+
+### Проблемы
+- Линтер `react-hooks/set-state-in-effect` ругался на
+  `useEffect(() => { setRevisionsState(...); setHistoryOpen(false);
+  }, [node.id, node.updatedAt])`. Решение - `key` на компоненте
+  в TopicGraphPage; useEffect удалён, state свежий после remount
+- В тесте формата дат `Intl.DateTimeFormat('ru-RU')` в Node 22
+  выдаёт `"4 мая 2026 г. в 15:34"` (предлог "в", не запятая) -
+  тест поправлен на `/мая 2026 г\./`
+- В тесте про метаданные дефолтный `updatedAt` создавал второй
+  совпадающий matcher - переопределили `updatedAt = createdAt`
+  чтобы блок "Обновлён" не рендерился
+
+### Следующий шаг
+**Этап 9: Miro-подобный UX в графе** (по приоритету) или
+полировка-доделка после-MVP. Этап 9 более амбициозный и важный
+для UX:
+- 4 handles на узле (top/right/bottom/left) вместо 2
+- drag-create ребра: hover → точки + → drag → drop → AddEdgeModal
+  с предзаполненными from/to (или сразу SUPPORTS)
+- контекстное меню (правый клик): на узле/ребре/pane разные
+  действия
+- z-index управление через context-menu
+- сохранение позиций после drag - PATCH `/api/v1/nodes/{id}`
+  с `posX`/`posY` (нужен новый эндпоинт на беке + миграция БД)
+
+Бэк-долг (с этапа 4): springdoc + @CurrentUser - параметр
+`userId` неправильно в OpenAPI-схеме. Не блокирует фронт, но
+портит автоген типов
+
+После-MVP полировка `AddEdgeModal`: кастомный dropdown с lucide-
+иконками вместо нативных select, подсветка пары на графе при
+открытой модалке
+
+### Важные нюансы
+- Side-panel перекрывает MiniMap (z-10 vs MiniMap position
+  top-right). MiniMap визуальный, не интерактивный - пока ОК.
+  Если будет мешать - либо скрывать MiniMap при открытой панели,
+  либо смещать MiniMap влево
+- Сохранение selected при refetch - **изменение поведения** в
+  TopicGraphPage. До этого сессии 11 после любого refetch
+  selection сбрасывался. Сейчас только из-за наличия панели
+  деталей это пришлось поменять. Если кому-то понадобится
+  явный сброс - вызвать `setSelectedNodeIds([])` явно
+- Bundle 545kB / gzip 178kB - подбираемся к 550kB. Code-split
+  через React.lazy на TopicGraphPage снизит initial до ~150kB.
+  Решим когда захочется
+- При расширении схемы Node (`posX`/`posY` в этапе 9) - просто
+  пере-генерация типов из OpenAPI и форматирование в `dl` блоке
+  панели; ничего ломаться не должно
+
+---
+
 ## 2026-05-05 — Сессия 12 (full-stack) — этап 8: семантика связей
 
 Закрыт целиком этап 8 - на беке и фронте теперь действует матрица
