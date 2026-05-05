@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import {
   ReactFlow,
@@ -15,7 +15,7 @@ import {
   type Edge,
   type Connection,
 } from '@xyflow/react';
-import { Plus, Trash2, Eye, EyeOff, Pencil } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, Pencil, ArrowUp, ArrowDown } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import ContextMenu, { type ContextMenuItem } from '@/components/ui/ContextMenu';
 import NodeCard, { type NodeCardNode, type NodeCardData } from '@/components/graph/NodeCard';
@@ -176,6 +176,31 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
+  // счётчики z-index для "на передний/задний план". Не сохраняются на беке -
+  // только локально пока открыт граф. При refetch сбрасываются на дефолт RF.
+  const zRef = useRef({ max: 10, min: 0 });
+
+  function bringNodeToFront(id: string) {
+    zRef.current.max += 1;
+    const z = zRef.current.max;
+    setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, zIndex: z } : n)));
+  }
+  function sendNodeToBack(id: string) {
+    zRef.current.min -= 1;
+    const z = zRef.current.min;
+    setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, zIndex: z } : n)));
+  }
+  function bringEdgeToFront(id: string) {
+    zRef.current.max += 1;
+    const z = zRef.current.max;
+    setEdges((eds) => eds.map((e) => (e.id === id ? { ...e, zIndex: z } : e)));
+  }
+  function sendEdgeToBack(id: string) {
+    zRef.current.min -= 1;
+    const z = zRef.current.min;
+    setEdges((eds) => eds.map((e) => (e.id === id ? { ...e, zIndex: z } : e)));
+  }
+
   const rawNodeDtos = useMemo(() => graph.nodes ?? [], [graph.nodes]);
 
   // drag из handle одного узла на handle другого - проверяем матрицу
@@ -304,6 +329,18 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
             },
           },
           {
+            id: 'bring-front',
+            label: 'На передний план',
+            icon: ArrowUp,
+            onClick: () => bringNodeToFront(node.id),
+          },
+          {
+            id: 'send-back',
+            label: 'На задний план',
+            icon: ArrowDown,
+            onClick: () => sendNodeToBack(node.id),
+          },
+          {
             id: 'delete-node',
             label: 'Удалить',
             icon: Trash2,
@@ -326,6 +363,18 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
         y: event.clientY,
         header: 'Связь',
         items: [
+          {
+            id: 'bring-front',
+            label: 'На передний план',
+            icon: ArrowUp,
+            onClick: () => bringEdgeToFront(edge.id),
+          },
+          {
+            id: 'send-back',
+            label: 'На задний план',
+            icon: ArrowDown,
+            onClick: () => sendEdgeToBack(edge.id),
+          },
           {
             id: 'delete-edge',
             label: 'Удалить',
