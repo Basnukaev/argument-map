@@ -4,6 +4,7 @@ import {
   ReactFlow,
   Background,
   Controls,
+  MiniMap,
   Panel,
   MarkerType,
   ConnectionMode,
@@ -19,13 +20,12 @@ import {
 import { Plus, Trash2, Eye, EyeOff, Pencil, ArrowUp, ArrowDown } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import ContextMenu, { type ContextMenuItem } from '@/components/ui/ContextMenu';
-import NodeCard, { type NodeCardNode } from '@/components/graph/NodeCard';
+import NodeCard, { type NodeCardNode, type NodeCardData } from '@/components/graph/NodeCard';
 import CustomEdge, { type CustomEdgeEdge } from '@/components/graph/CustomEdge';
 import AddNodeModal from '@/components/graph/AddNodeModal';
 import AddEdgeModal from '@/components/graph/AddEdgeModal';
 import NodeDetailsPanel from '@/components/graph/NodeDetailsPanel';
 import EdgeDetailsPanel from '@/components/graph/EdgeDetailsPanel';
-import GraphMiniMap from '@/components/graph/GraphMiniMap';
 import { layoutGraph } from '@/utils/graphLayout';
 import { apiDeleteRaw, apiGetRaw, apiPatchRaw, ApiError } from '@/api/client';
 import { getAllowedEdgeTypes, isEdgeAllowed, NODE_TYPE_LABEL } from '@/utils/edgeRules';
@@ -114,6 +114,17 @@ function TopicGraphPage() {
     </div>
   );
 }
+
+// Цвета MiniMap nodes по типу - дают разнообразие даже когда все узлы
+// UNVERIFIED. При появлении STANDING/DISPUTED/REFUTED статус показывается
+// через тёмную обводку (nodeStrokeColor). Hex'ы дублируют GraphMiniMap.TYPE_FILL,
+// здесь приходится литералом - RF MiniMap не понимает Tailwind-классы
+const STATUS_MINIMAP_COLOR: Record<NonNullable<NodeCardData['nodeType']>, string> = {
+  QUESTION: '#a78bfa',
+  CLAIM: '#3b82f6',
+  ARGUMENT: '#f59e0b',
+  EVIDENCE: '#10b981',
+};
 
 // Цвета маркеров-стрелок на конце ребра. Совпадают со stroke в CustomEdge,
 // чтобы стрелка была того же цвета что и линия
@@ -567,6 +578,57 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
     setEditTargetEdgeId(null);
   }, []);
 
+  // Escape с очередью:
+  // 1. если фокус внутри sidebar → сразу закрыть его (юзер кликнул в панель)
+  // 2. иначе если есть выделение → снять выделение
+  // 3. иначе если открыта панель → закрыть её
+  // Open dialog (Modal) или ContextMenu - пропускаем, они закроются сами
+  useEffect(() => {
+    function onEsc(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+
+      // нативный <dialog open> закроется сам (showModal API)
+      if (document.querySelector('dialog[open]')) return;
+      // ContextMenu имеет свой Esc-обработчик через onClose
+      if (contextMenu) return;
+
+      const active = document.activeElement;
+      const inSidebar =
+        active instanceof HTMLElement && active.closest('aside[role="complementary"]');
+      const hasSelection = selectedNodeIds.length > 0 || selectedEdgeIds.length > 0;
+      const hasDetail = detailNodeId !== null || detailEdgeId !== null;
+
+      if (inSidebar && hasDetail) {
+        closeDetail();
+        e.preventDefault();
+        return;
+      }
+      if (hasSelection) {
+        setSelectedNodeIds([]);
+        setSelectedEdgeIds([]);
+        setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
+        setEdges((eds) => eds.map((edge) => ({ ...edge, selected: false })));
+        e.preventDefault();
+        return;
+      }
+      if (hasDetail) {
+        closeDetail();
+        e.preventDefault();
+      }
+    }
+    document.addEventListener('keydown', onEsc);
+    return () => document.removeEventListener('keydown', onEsc);
+  }, [
+    selectedNodeIds.length,
+    selectedEdgeIds.length,
+    detailNodeId,
+    detailEdgeId,
+    contextMenu,
+    closeDetail,
+    setNodes,
+    setEdges,
+  ]);
+
   async function handleDelete() {
     if (selectedCount === 0) return;
     const confirmed = window.confirm(
@@ -659,7 +721,21 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
         >
           <Background gap={24} size={1} />
           <Controls position="bottom-right" showInteractive={false} />
-          <GraphMiniMap />
+          <MiniMap
+            pannable
+            zoomable
+            position="top-right"
+            className="!bg-white !border !border-gray-300"
+            nodeColor={(node: Node) => {
+              const data = node.data as NodeCardData | undefined;
+              const nodeType = data?.nodeType ?? 'CLAIM';
+              return STATUS_MINIMAP_COLOR[nodeType];
+            }}
+            nodeStrokeColor="#1f2937"
+            nodeStrokeWidth={3}
+            nodeBorderRadius={4}
+            maskColor="rgba(0,0,0,0.08)"
+          />
           <Panel position="top-left" className="!m-3 flex gap-2">
             <Button onClick={() => setAddNodeOpen(true)} className="!px-3 !py-1.5 text-sm">
               <Plus size={16} className="mr-1" /> Узел

@@ -5,10 +5,9 @@ import { apiPatchRaw, ApiError } from '@/api/client';
 import type { components } from '@/api/types';
 import {
   EDGE_TYPE_META,
+  NODE_TYPE_META,
   getAllowedEdgeTypes,
   getContextualEdgeLabel,
-  NODE_TYPE_EMOJI,
-  NODE_TYPE_LABEL,
   type EdgeType,
   type NodeType,
 } from '@/utils/edgeRules';
@@ -58,6 +57,10 @@ function nodePreview(node: NodeDto): string {
 function EdgeDetailsPanel({ edge, fromNode, toNode, onClose, onUpdated, initialEditing = false }: Props) {
   const fromType: NodeType = fromNode.nodeType ?? 'CLAIM';
   const toType: NodeType = toNode.nodeType ?? 'CLAIM';
+  const fromMeta = NODE_TYPE_META[fromType];
+  const toMeta = NODE_TYPE_META[toType];
+  const FromIcon = fromMeta.Icon;
+  const ToIcon = toMeta.Icon;
   const currentEdgeType: EdgeType = edge.edgeType ?? 'SUPPORTS';
   const currentRationale = edge.rationale ?? '';
 
@@ -163,8 +166,8 @@ function EdgeDetailsPanel({ edge, fromNode, toNode, onClose, onUpdated, initialE
           </h3>
           <div className="rounded-md border border-gray-200 bg-gray-50 p-2 text-sm">
             <div className="flex items-center gap-1 text-xs text-gray-500">
-              <span aria-hidden="true">{NODE_TYPE_EMOJI[fromType]}</span>
-              <span>{NODE_TYPE_LABEL[fromType]}</span>
+              <FromIcon size={12} className="text-gray-500" aria-hidden="true" />
+              <span>{fromMeta.label}</span>
             </div>
             <p className="mt-1 whitespace-pre-wrap break-words text-gray-900">
               {nodePreview(fromNode)}
@@ -246,8 +249,8 @@ function EdgeDetailsPanel({ edge, fromNode, toNode, onClose, onUpdated, initialE
           </h3>
           <div className="rounded-md border border-gray-200 bg-gray-50 p-2 text-sm">
             <div className="flex items-center gap-1 text-xs text-gray-500">
-              <span aria-hidden="true">{NODE_TYPE_EMOJI[toType]}</span>
-              <span>{NODE_TYPE_LABEL[toType]}</span>
+              <ToIcon size={12} className="text-gray-500" aria-hidden="true" />
+              <span>{toMeta.label}</span>
             </div>
             <p className="mt-1 whitespace-pre-wrap break-words text-gray-900">
               {nodePreview(toNode)}

@@ -18,11 +18,14 @@ interface Props {
   id?: string;
 }
 
-const STATUS_DOT: Record<NodeStatus, string> = {
+// Точка показывается только для оценённых узлов. UNVERIFIED намеренно
+// без точки - иначе на свежем графе все узлы получают визуально одинаковую
+// серую точку, бесполезный шум
+const STATUS_DOT: Record<NodeStatus, string | null> = {
   STANDING: 'bg-green-500',
   DISPUTED: 'bg-amber-500',
   REFUTED: 'bg-red-500',
-  UNVERIFIED: 'bg-gray-400',
+  UNVERIFIED: null,
 };
 
 const STATUS_LABEL: Record<NodeStatus, string> = {
@@ -163,11 +166,13 @@ function NodeOptionInline({ node, compact = true }: InlineProps) {
       <span className="flex-1 min-w-0">
         <span className="flex items-center gap-2">
           <span className="text-xs font-medium text-gray-500">{meta.label}</span>
-          <span
-            className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[status]}`}
-            title={STATUS_LABEL[status]}
-            aria-label={STATUS_LABEL[status]}
-          />
+          {STATUS_DOT[status] && (
+            <span
+              className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[status]}`}
+              title={STATUS_LABEL[status]}
+              aria-label={STATUS_LABEL[status]}
+            />
+          )}
         </span>
         <span className={`block text-gray-900 ${compact ? 'truncate' : 'whitespace-pre-wrap break-words'}`}>
           {previewContent(node)}

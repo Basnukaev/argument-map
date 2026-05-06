@@ -4,7 +4,6 @@ import {
   getAllowedEdgeTypes,
   isEdgeAllowed,
   getContextualEdgeLabel,
-  NODE_TYPE_EMOJI,
   NODE_TYPE_LABEL,
   EDGE_TYPE_META,
   type NodeType,
@@ -87,12 +86,6 @@ describe('getContextualEdgeLabel', () => {
 });
 
 describe('маркеры', () => {
-  it('NODE_TYPE_EMOJI определён для всех типов', () => {
-    for (const t of NODE_TYPES) {
-      expect(NODE_TYPE_EMOJI[t]).toBeTruthy();
-    }
-  });
-
   it('NODE_TYPE_LABEL содержит русские метки для всех типов', () => {
     expect(NODE_TYPE_LABEL).toEqual({
       QUESTION: 'Вопрос',
