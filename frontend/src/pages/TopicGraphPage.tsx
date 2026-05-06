@@ -156,6 +156,33 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
 
   const [nodes, setNodes, onNodesChange] = useNodesState<NodeCardNode>(initial.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<CustomEdgeEdge>(initial.edges);
+
+  // Узлы из бэка без posX/posY - dagre проставляет им позиции на фронте,
+  // но эти позиции живут только в RF-state. При следующем refetch и
+  // создании нового узла (получает свой posX/posY на бэке) layoutGraph
+  // переходит в mixed-режим - сохранённые остаются, а dagre-узлы прыгают
+  // столбцом справа. Чтобы сохранить layout стабильным - сразу PATCH'им
+  // все узлы без координат. Через ~2 сек граф становится full-saved
+  useEffect(() => {
+    const freshFromBackend = (graph.nodes ?? []).filter(
+      (n) => n.id && (n.posX == null || n.posY == null),
+    );
+    if (freshFromBackend.length === 0) return;
+    for (const dto of freshFromBackend) {
+      const layouted = initial.nodes.find((n) => n.id === dto.id);
+      if (!layouted) continue;
+      apiPatchRaw(`/api/v1/nodes/${dto.id}`, {
+        posX: layouted.position.x,
+        posY: layouted.position.y,
+      }).catch(() => {
+        // не блокирующая ошибка - узел останется без координат на бэке,
+        // на следующем рефетче снова попадёт в эту ветку
+      });
+    }
+    // намеренно не зависим от initial.nodes - они могли поменяться от
+    // showEdgeLabels (build перерасчёт), но позиции уже зафиксированы
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graph]);
   const [addNodeOpen, setAddNodeOpen] = useState(false);
   const [addEdgeOpen, setAddEdgeOpen] = useState(false);
   // черновик для AddNodeModal: координаты "Создать здесь" из меню pane

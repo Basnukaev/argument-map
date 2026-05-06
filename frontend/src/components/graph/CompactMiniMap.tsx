@@ -2,34 +2,31 @@ import { useState, useRef, useCallback } from 'react';
 import { useNodes, useEdges, useStore, useReactFlow } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
 import { Maximize2, Minimize2 } from 'lucide-react';
-import { NODE_TYPE_META, type NodeType, type EdgeType } from '@/utils/edgeRules';
+import type { NodeType, EdgeType } from '@/utils/edgeRules';
 import type { components } from '@/api/types';
 
 type NodeDto = components['schemas']['NodeResponse'];
-type NodeStatus = NonNullable<NodeDto['status']>;
 
-const STATUS_FILL: Record<NodeStatus, string> = {
-  STANDING: '#dcfce7',
-  DISPUTED: '#fef3c7',
-  REFUTED: '#fee2e2',
-  UNVERIFIED: '#f9fafb',
+// fill узла на minimap - по типу. Цветной "квадратик типа" даёт
+// читаемую палитру: фиолет=Вопрос, синий=Тезис, янтарь=Довод, зелёный=Свид.
+// Совпадает с шапкой NodeCard (см. AddNodeModal radio-list)
+const TYPE_FILL: Record<NodeType, string> = {
+  QUESTION: '#c4b5fd',
+  CLAIM: '#93c5fd',
+  ARGUMENT: '#fcd34d',
+  EVIDENCE: '#6ee7b7',
 };
 
-const STATUS_STROKE: Record<NodeStatus, string> = {
+// stroke узла на minimap - по статусу. Серый для UNVERIFIED не отвлекает,
+// цвет загорается когда статус известен
+const STATUS_STROKE: Record<NonNullable<NodeDto['status']>, string> = {
   STANDING: '#16a34a',
   DISPUTED: '#d97706',
   REFUTED: '#dc2626',
-  UNVERIFIED: '#9ca3af',
+  UNVERIFIED: '#6b7280',
 };
 
-const TYPE_FILL_HEAD: Record<NodeType, string> = {
-  QUESTION: '#a78bfa',
-  CLAIM: '#3b82f6',
-  ARGUMENT: '#f59e0b',
-  EVIDENCE: '#10b981',
-};
-
-// hex для рёбер - совпадают с EDGE_HEX в CustomEdge
+// hex рёбер - совпадают со stroke в CustomEdge
 const EDGE_HEX: Record<EdgeType, string> = {
   SUPPORTS: '#22c55e',
   REFUTES: '#ef4444',
@@ -38,13 +35,13 @@ const EDGE_HEX: Record<EdgeType, string> = {
   RESPONDS_TO: '#9ca3af',
 };
 
-const PAD = 16;
-// размеры виджета: компактный и развёрнутый. Высота auto чтобы сохранить
-// пропорции графа без растяжения
-const COMPACT_W = 280;
-const COMPACT_H = 200;
-const EXPANDED_W = 520;
-const EXPANDED_H = 380;
+const PAD = 60;
+// Размеры контейнера. Compact - достаточный чтобы видеть структуру,
+// expanded - в 2x для рассмотрения деталей
+const COMPACT_W = 240;
+const COMPACT_H = 170;
+const EXPANDED_W = 480;
+const EXPANDED_H = 340;
 
 interface BBox {
   minX: number;
@@ -156,20 +153,20 @@ function CompactMiniMap() {
 
   return (
     <div
-      className="absolute right-3 top-3 z-10 rounded-md border border-gray-300 bg-white shadow-md"
+      className="absolute right-3 top-3 z-10 overflow-hidden rounded-md border border-gray-300 bg-white shadow-md"
       style={{ width: W }}
     >
-      <div className="flex items-center justify-between border-b border-gray-200 px-2 py-1">
-        <span className="text-xs font-medium text-gray-500">Мини-карта</span>
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          aria-label={expanded ? 'Свернуть мини-карту' : 'Развернуть мини-карту'}
-          className="rounded p-0.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-        >
-          {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setExpanded((v) => !v);
+        }}
+        aria-label={expanded ? 'Свернуть мини-карту' : 'Развернуть мини-карту'}
+        className="absolute right-1 top-1 z-10 rounded bg-white/90 p-1 text-gray-500 shadow-sm hover:bg-white hover:text-gray-700"
+      >
+        {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+      </button>
       <svg
         ref={svgRef}
         width={W}
@@ -177,7 +174,7 @@ function CompactMiniMap() {
         viewBox={`${view.minX} ${view.minY} ${viewW} ${viewH}`}
         preserveAspectRatio="xMidYMid meet"
         onClick={handleClick}
-        className="block cursor-pointer"
+        className="block cursor-pointer bg-gray-50"
         aria-label="Мини-карта графа"
       >
         {/* рёбра под узлами */}
@@ -194,55 +191,35 @@ function CompactMiniMap() {
               x2={b.cx}
               y2={b.cy}
               stroke={EDGE_HEX[edgeType]}
-              strokeWidth={Math.max(2, viewW / W * 1.5)}
-              opacity={0.75}
+              strokeWidth={2}
+              opacity={0.85}
               vectorEffect="non-scaling-stroke"
             />
           );
         })}
 
-        {/* узлы */}
+        {/* узлы как простые заполненные rect - цвет по типу,
+            обводка по статусу. Без текста: на масштабах compact он
+            нечитаем, в expanded - всё равно мелковат. Тип читается через цвет */}
         {nodes.map((n: Node) => {
           const data = n.data as NodeDto | undefined;
           const nodeType: NodeType = data?.nodeType ?? 'CLAIM';
-          const status: NodeStatus = data?.status ?? 'UNVERIFIED';
+          const status = data?.status ?? 'UNVERIFIED';
           const w = n.measured?.width ?? n.width ?? 288;
           const h = n.measured?.height ?? n.height ?? 120;
-          const headH = 26;
           return (
-            <g key={n.id}>
-              <rect
-                x={n.position.x}
-                y={n.position.y}
-                width={w}
-                height={h}
-                rx={6}
-                fill={STATUS_FILL[status]}
-                stroke={STATUS_STROKE[status]}
-                strokeWidth={2}
-                vectorEffect="non-scaling-stroke"
-              />
-              {/* "шапка" узла - цвет по типу */}
-              <rect
-                x={n.position.x}
-                y={n.position.y}
-                width={w}
-                height={headH}
-                rx={6}
-                fill={TYPE_FILL_HEAD[nodeType]}
-                opacity={0.25}
-              />
-              <text
-                x={n.position.x + 8}
-                y={n.position.y + headH - 8}
-                fontSize={Math.max(11, viewW / W * 11)}
-                fill="#1f2937"
-                fontWeight={600}
-                style={{ userSelect: 'none' }}
-              >
-                {NODE_TYPE_META[nodeType].label}
-              </text>
-            </g>
+            <rect
+              key={n.id}
+              x={n.position.x}
+              y={n.position.y}
+              width={w}
+              height={h}
+              rx={8}
+              fill={TYPE_FILL[nodeType]}
+              stroke={STATUS_STROKE[status]}
+              strokeWidth={status === 'UNVERIFIED' ? 1 : 3}
+              vectorEffect="non-scaling-stroke"
+            />
           );
         })}
 
@@ -252,7 +229,7 @@ function CompactMiniMap() {
           y={viewport.y}
           width={viewport.w}
           height={viewport.h}
-          fill="rgba(59,130,246,0.08)"
+          fill="rgba(59,130,246,0.10)"
           stroke="#3b82f6"
           strokeWidth={2}
           strokeDasharray="6 4"
