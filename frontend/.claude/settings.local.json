@@ -30,7 +30,17 @@
       "Bash(curl -sS -X POST http://localhost:9090/api/v1/edges -H 'Content-Type: application/json' -H 'X-User-Id: 14561248-0bfd-4a62-8395-d40a6972182a' -d '{\"fromNodeId\":\"fcfdb3b8-cff1-4e10-a3b6-5b314445d714\",\"toNodeId\":\"fcb67bb9-2c98-485b-b723-829273aab2bf\",\"edgeType\":\"SUPPORTS\",\"rationale\":\"тест из CLI\"}')",
       "Bash(python3 -c \"import sys,json; g=json.load\\(sys.stdin\\); print\\(f\\\\\"nodes: {len\\(g['nodes']\\)}, edges: {len\\(g['edges']\\)}\\\\\"\\); [print\\(f\\\\\"  edge: {e['fromNodeId'][:8]} → {e['toNodeId'][:8]} [{e['edgeType']}]\\\\\"\\) for e in g['edges']]; [print\\(f\\\\\"  node {n['nodeType']}: status={n['status']}\\\\\"\\) for n in g['nodes']]\")",
       "Bash(python3 -c \"import sys,json; g=json.load\\(sys.stdin\\); print\\(f\\\\\"nodes: {len\\(g['nodes']\\)}, edges: {len\\(g['edges']\\)}\\\\\"\\)\")",
-      "Bash(curl -sS -X DELETE -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:9090/api/v1/edges/582e6db9-fe99-4ea6-8a5d-20457b574fda)"
+      "Bash(curl -sS -X DELETE -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:9090/api/v1/edges/582e6db9-fe99-4ea6-8a5d-20457b574fda)",
+      "Bash(mkdir -p /mnt/c/my_folders/projects/argument-map/scripts)",
+      "Bash(cp /tmp/seed-mawlid.sh /mnt/c/my_folders/projects/argument-map/scripts/seed-mawlid.sh)",
+      "Bash(./mvnw test-compile *)",
+      "Bash(perl -0777 -i -pe ' *)",
+      "Bash(perl -0777 -i -pe 's/\\(\\\\.name\\\\\\(\\\\\\)\\),\\\\s*\\\\d+,\\\\s*/$1, /g' ru/basnukaev/argumentmap/service/EdgeServiceIT.java ru/basnukaev/argumentmap/service/StatusCalculationServiceIT.java)",
+      "Read(//tmp/**)",
+      "Bash(curl -sS http://localhost:9090/v3/api-docs)",
+      "Bash(kill 73882)",
+      "Bash(curl -sS -o /dev/null -w \"topics: HTTP %{http_code}\\\\n\" http://localhost:9090/api/v1/topics)",
+      "Bash(/mnt/c/my_folders/projects/argument-map/scripts/seed-mawlid.sh)"
     ]
   }
 }

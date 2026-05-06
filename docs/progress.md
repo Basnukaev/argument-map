@@ -13,6 +13,220 @@
 
 ---
 
+## 2026-05-05 — 2026-05-06 — Сессия 16 (full-stack) — Этап 10 (reconnect + edge edit), большой polish + контекстные "Добавить связанный" + custom minimap
+
+Самая большая сессия. Целиком закрыт новый Этап 10 (редактирование
+рёбер: reconnect через PATCH + EdgeDetailsPanel), бэк-долг springdoc,
+ввели lucide-иконки везде где была эмодзи близнецы, code-split,
+двойной клик для деталей, Esc-очередь, контекстные пункты "Добавить
+связанный X" по матрице ADR-010 с auto-edge, smart positioning со
+spiral search, position backfill чтобы layout не прыгал, custom
+minimap с edges.
+
+### Сделано
+18 коммитов. Делю на блоки по фичам:
+
+**A. Reconnect edges (этап 10, ADR-014)** - 4 коммита
+- `be66013` `feat(backend): EdgeService.updateEdge` + EdgeRepository.update +
+  UpdateEdgeRequest DTO. Финальное состояние ребра валидируется целиком
+  (selfloop / topic-boundary / ADR-010), при invalid - 422 и rollback.
+  +9 IT (EdgeServiceIT 7 новых, EdgeRepositoryIT 2)
+- `58be1eb` `feat(backend): PATCH /api/v1/edges/{id}` через partial
+  UpdateEdgeRequest. Empty body → 400 illegal-argument. ADR-014 в
+  decisions.md, api-contract.md обновлён. +5 IT (EdgeControllerIT)
+- `8dfd02f` `feat(frontend): wire reconnect edges` - onReconnect
+  callback в TopicGraphPage, валидация ADR-010 на фронте перед PATCH,
+  toast.warning при запрещённой паре. Regen openapi-types
+- `26d69b0` `fix(frontend): optimistic update on edge reconnect` -
+  через `reconnectEdge` helper из @xyflow/react. Без него RF
+  откатывал ребро на ~100мс между drop и refetch - заметный flicker
+
+**B. EdgeDetailsPanel** - 1 коммит
+- `1c80d3a` `feat(frontend): EdgeDetailsPanel` - новый компонент по
+  паттерну NodeDetailsPanel. Header с типом+иконкой+контекстная
+  подпись (ADR-010), секции from/type/to/rationale/метаданные.
+  Edit-режим с radio-buttons (только разрешённые типы для пары) +
+  textarea, PATCH с только изменёнными полями. Контекстное меню edge
+  → "Редактировать" сразу открывает edit. +10 unit-тестов
+
+**C. Polish + perf + бэк-долг** - 5 коммитов
+- `15ac6fb` `refactor(frontend): lucide icons` для типов узлов и рёбер
+  во всех модалках/панелях/badge на стрелках. Извлечены NODE_TYPE_META
+  и EDGE_TYPE_META в edgeRules.ts (Icon + label + hint + colorClass).
+  Эмодзи 📢/💬 (CLAIM/ARGUMENT) убраны - в OS-шрифтах визуально близкие
+- `bf172eb` `perf(frontend): code-split TopicGraphPage` через
+  React.lazy. Initial bundle 567kB→248kB (gzip 79kB), graph chunk
+  319kB. Suspense fallback "Загрузка графа"
+- `d473167` `fix(backend): expose X-User-Id as header in OpenAPI` -
+  OperationCustomizer удаляет автогенерированный query.userId и
+  добавляет header X-User-Id (required, format=uuid) для всех
+  операций с @CurrentUser. Закрывает gotcha с этапа 4. После regen
+  фронт получил `parameters.header['X-User-Id']: string`. +2 IT
+- `008ebca` `feat(frontend): NodeSelect dropdown` заменяет нативный
+  `<select>` "Откуда"/"Куда" в AddEdgeModal. Триггер - кнопка с
+  lucide-иконкой типа + status dot + content. Dropdown с теми же
+  опциями, закрывается по клику вне/Esc/выбору. excludeId фильтрует
+  уже выбранный узел. +9 unit-тестов
+- `b13440b` `chore: untrack screenshots` - случайно попали 4 PNG'а с
+  кириллическими именами в коммит `26d69b0`. Удалены, .gitignore
+  расширен с `/img*.png` до `/*.{png,gif,jpg,jpeg,webp}` чтобы любые
+  скрины в корне игнорились
+
+**D. UX итерации после первого UI smoke** - 3 коммита
+- `96f962c` `fix(frontend): unify edge icons + edge-aware minimap` -
+  badges на рёбрах перевели на lucide (были юникод ✓✗⊗↳↩, не
+  совпадали с EdgeDetailsPanel). EDGE_TYPE_ICON удалена. Первая
+  попытка кастомного GraphMiniMap с SVG-узлами+едгами - но без
+  pan/zoom/viewport-rect
+- `2352927` `fix(frontend): open details panel on double-click` -
+  раньше панель открывалась при single-click → drag тоже триггерил
+  selection и панель мигала. Введены detailNodeId/detailEdgeId
+  отдельно от selection. Single click - selection (для multi-delete),
+  double click - панель. Контекстное меню "Редактировать" тоже
+  выставляет detail*Id с editTarget*Id
+- `e667464` `fix(frontend): finish lucide migration, restore RF MiniMap, ESC queue`:
+  - EdgeDetailsPanel from/to блоки переведены с NODE_TYPE_EMOJI на
+    lucide (NODE_TYPE_EMOJI удалена)
+  - UNVERIFIED status dot в NodeSelect скрыт - все серые dots = шум
+  - GraphMiniMap откатили обратно к стандартному RF MiniMap (с pan/
+    zoom/viewport-rectangle/click-to-navigate). Узлы раскрашены по
+    типу для разнообразия даже когда все UNVERIFIED
+  - Esc-очередь в TopicGraphPage: фокус в sidebar+Esc → закрыть
+    панель; иначе 1й Esc снимает selection, 2й закрывает панель.
+    Modal/ContextMenu пропускаем (у них свой Esc)
+
+**E. Контекстное меню "Добавить связанный X" + smart positioning + custom minimap** - 5 коммитов
+- `455d1df` `feat(frontend): contextual "Add related node" menu and faithful minimap`:
+  - getRelatedNodeOptions(anchorType) в edgeRules.ts: для CLAIM 5
+    опций (подтв./опр. довод, подтв./опр. свидетельство, уточняющий
+    вопрос), для ARGUMENT 2 (аннулирующий аргумент, аннулирующее
+    свидетельство), для QUESTION 2 (тезис-ответ, уточняющий вопрос),
+    для EVIDENCE - пусто (только источник по матрице)
+  - AddNodeModal расширен autoEdge {anchorNodeId, edgeType,
+    direction} - после POST /nodes сразу POST /edges.
+    initialNodeType + lockNodeType блокируют выбор типа
+  - ContextMenu поддерживает `separator: true` items - hr-разделитель
+  - GraphMiniMapNode - foreignObject + CSS scale-копия NodeCard в RF
+    MiniMap.nodeComponent
+- `1136fe3` `feat(frontend): smarter add-related placement and richer minimap`:
+  - findFreePosition - первая итерация: 9 candidates вокруг anchor
+    с bbox-overlap проверкой
+  - CompactMiniMap - полностью кастомный SVG mini-map
+    (useNodes/useEdges/useStore(transform/width/height) +
+    useReactFlow(setViewport)). Показывает узлы как rect с типом-
+    окрашенной шапкой и label, edges как линии, viewport rectangle.
+    Click → центрирование камеры. Toggle compact/expanded
+- `6550ccd` `fix(frontend): backfill posX/posY on load, simplify minimap`:
+  - useEffect в Graph: при изменении graph PATCH'ит posX/posY для
+    всех узлов где они null (использует computed-from-dagre
+    позиции). Через ~1-2 сек граф становится full-saved, mixed-
+    layout проблема исчезает
+  - CompactMiniMap упрощён: узлы теперь один rounded rect (fill =
+    тип, stroke = статус), без header strip и label-текста.
+    Toolbar header убран, expand toggle - плавающая кнопка в углу
+- `9431048` `fix(frontend): preserve node positions through refetch and search wider`:
+  - layoutGraph принимает `previousNodes` hint. Mixed-режим: для
+    fresh узлов которые УЖЕ были в previous - возвращаем их позицию
+    (не "столбец справа"). TopicGraphPage ведёт lastNodesRef из RF
+    state, передаёт в buildFlow
+  - findFreePosition spiral search - 6 колец, до ~24 кандидатов
+    вокруг anchor, всё на правильной стороне
+- `048ae9d` `fix(frontend): use latest nodes snapshot when finding free spot`:
+  - handleNodeContextMenu закешил `nodes` из первого рендера
+    (deps=[setNodes]). Первый клик использовал актуальный snapshot
+    и работал, второй+ читал stale - не видел только что добавленный
+    узел. Решение: читать lastNodesRef.current внутри onClick.
+    Anchor резолвить через ref на случай если узел подвинули
+
+### Прогоны
+- backend `./mvnw verify`: 166/166 IT (было 150 → +9 EdgeServiceIT,
+  +5 EdgeControllerIT, +2 EdgeRepositoryIT, +2 OpenApiIT)
+- frontend `npm run lint` чисто, `npm run build` ОК
+  (initial 248kB / gzip 79kB; graph chunk 328kB / gzip 107kB),
+  `npm test` 114/114 (было 96 → +9 NodeSelect, +10 EdgeDetailsPanel
+  - 1 EMOJI test)
+
+### Решения
+- **ADR-014** (Reconnect edges) - выбрали вариант A (PATCH /edges/{id}
+  с partial update) из 4 рассмотренных альтернатив (DELETE+POST,
+  sub-resource /reconnect, PUT full replace, partial PATCH).
+  Атомарность через @Transactional, единый endpoint для любых будущих
+  edits ребра. ADR-014 в decisions.md
+- **lucide-иконки везде** - единый визуальный язык для типов узлов и
+  рёбер. NODE_TYPE_META + EDGE_TYPE_META в edgeRules.ts как single
+  source of truth (Icon + label + hint + colorClass). Цвета совпадают
+  с NodeCard и CustomEdge - визуальная консистентность от модалки до
+  канваса
+- **OperationCustomizer вместо @Parameter** на каждом @CurrentUser -
+  customizer применяется ко всем операциям без дублирования.
+  Альтернативу @RequestHeader отклонили - размывает ADR-006 abstraction
+- **detailNodeId/detailEdgeId отдельно от selection** - selection
+  для multi-delete, detail panel - для view/edit. Открытие по
+  double-click, не single
+- **previousNodes hint в layoutGraph** - сохраняет позиции fresh
+  узлов между refetch'ами. Альтернатива (full dagre всех при
+  mixed) переместила бы saved-узлы - неприемлемо если юзер их drag'нул
+- **Backfill posX/posY на первой загрузке** - lazy-fix mixed-layout
+  проблемы. Через ~1-2 сек граф становится allSaved=true, дальше
+  всё стабильно. Альтернатива (синхронный wait) - блокировал бы UI
+- **CompactMiniMap кастомный, не RF MiniMap** - стандартный не
+  рисует edges. Через `useStore({transform, width, height})` +
+  `useReactFlow().setViewport` получили pan/zoom-равноправие со
+  стандартом, плюс edges как линии. После итераций упростили: один
+  rounded rect вместо foreignObject-копии NodeCard
+
+### Проблемы
+- **stale closure в useCallback** - handleNodeContextMenu закешил
+  старый `nodes`. Поймали через UI ("узлы накладываются после
+  второго клика"). Решение: useRef с актуальным snapshot. Записали
+  в gotchas.md
+- **layoutGraph mixed mode перепрыгивал fresh узлы** - старая
+  логика "столбец справа" срабатывала при добавлении нового узла с
+  координатами. Через UI поймали как "связанные узлы все меняют
+  позицию при добавлении нового". Решение: previousNodes hint +
+  backfill. Записано в gotchas.md
+- **Кириллические имена скриншотов не подпадали под /img*.png в
+  .gitignore** - случайно закоммитил 4 png'а Абдулы. Расширили до
+  `/*.{png,gif,jpg,jpeg,webp}`
+- **TS error: ReactFlow Transform - tuple, не объект** - при попытке
+  деструктурировать `{ x, y, zoom }` падал TS. Правильно `[tx, ty,
+  zoom] = useStore(s => s.transform)`
+- **react-hooks/refs eslint в React 19** - чтение `.current` в
+  useMemo блокируется правилом. Сознательно сделали eslint-disable
+  с обоснованием в комментарии (нужен passive snapshot, не
+  реактивность)
+
+### Следующий шаг
+Большие фичи покрыты, теперь логичные направления:
+
+1. **Привязка источников и авторитетов через UI** - бэк-API готов
+   с этапа 5, на фронте ничего нет. Из NodeDetailsPanel должна
+   быть секция "Источники" / "Авторитеты" с поиском + привязкой
+   через POST /api/v1/nodes/{id}/sources и
+   /api/v1/nodes/{id}/authorities. Большая фича, ~3+ часов
+2. **Экспорт графа в PNG/SVG** - через `html-to-image` или
+   `dom-to-image`. Кнопка в toolbar. Средняя фича
+3. **Smart edge routing** через elkjs - если визуально стандартное
+   bezier мешает на плотных графах. Опционально
+4. **Тёмная тема** - Tailwind dark variant + toggle в header
+5. **Z-index full-stack persistence** для узлов и рёбер - сейчас
+   только локально пока граф открыт
+
+Бэклог:
+- Полнотекстовый поиск (когда появится на беке, Этап 6)
+- Аутентификация (когда появится на беке, Этап 6)
+- Локализация (i18n) - YAGNI пока одна локаль
+
+Заметки на новый сезон:
+- Помни про **stale closure в useCallback** - всегда использовать
+  ref для актуального snapshot если deps стабильные
+- Помни про **layoutGraph + previousNodes hint** - не забывай
+  передавать его при rebuild
+- В новой сессии обновить SESSION_START_PROMPT.md TODO список,
+  убрать закрытые пункты
+
+---
+
 ## 2026-05-05 — Сессия 15 (full-stack) — F (handles persistence) + UX фиксы + рефакторинг docs
 
 Большая сессия после Miro UX (сессия 14). Закрыта sourceHandle/

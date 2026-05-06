@@ -58,16 +58,21 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
      дилеммах. ADR только когда через месяц возникнет вопрос почему
    - React key-trick для reset state (НЕ useEffect-сброс)
    - Stable callbacks + sameIds для RF массивов (анти-инфинит-луп)
+   - Stale closure в useCallback с dynamic data → useRef для
+     актуального snapshot (см. gotchas.md)
+   - layoutGraph mixed-режим может перебросить fresh узлы. Решено
+     через backfill posX/posY на load + previousNodes hint
+     (см. gotchas.md)
 4. Скажи Абдуле: "вижу - последний раз X. Следующее по приоритету -
    Y. Продолжаем с этого или хочешь другое?"
 5. ЖДИ ПОДТВЕРЖДЕНИЕ. Не начинай работу без него.
 
 ══════════════════════════════════════════════
-ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-05 после сессии 15)
+ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-06 после сессии 16)
 ══════════════════════════════════════════════
 
 ЗАКРЫТО:
-- Бэк: этапы 0-5 целиком, 150+ IT тестов
+- Бэк: этапы 0-5 целиком, 166 IT тестов
 - Фронт MVP (этап 7): TopicListPage, CreateTopicPage, TopicGraphPage
   с полным CRUD + side-panel деталей узла + редактирование + ревизии
 - Этап 8: семантика связей (ADR-010 матрица, бэк-валидация, фронт
@@ -75,32 +80,41 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 - Этап 9 целиком: 4 handles, drag-create, контекстное меню (правый
   клик на pane/узле/ребре), z-index управление, persistence позиций
   узлов (full-stack миграция БД pos_x/pos_y, ADR-012)
-- Cross-cutting: Toast-инфраструктура (useToastStore + Toaster),
-  ContextMenu, Modal
-- ADR-011 (удаление weight), ADR-012 (координаты узлов),
-  ADR-013 (handle persistence)
-- F (sessия 15): sourceHandle/targetHandle persistence для рёбер
-  - drag через конкретные стороны handles сохраняется и при
-  refetch уважается. Миграция 14 в БД, ADR-013
-- UX фиксы (сессия 15): "Создать здесь" с координатами курсора,
-  "Редактировать" из контекстного меню сразу открывает edit-режим
+- Этап 10 целиком (сессия 16): reconnect edges (ADR-014, partial
+  PATCH /api/v1/edges/{id}, optimistic update без flicker),
+  EdgeDetailsPanel (аналог NodeDetailsPanel для рёбер с edit-режимом)
+- Cross-cutting: Toast, ContextMenu (с separator items), Modal,
+  NodeSelect (custom dropdown с lucide-иконками), CompactMiniMap
+  (кастомный с edges + viewport rect + click-to-navigate + expand toggle)
+- ADR-011-014 (weight removal, node positions, handle persistence,
+  reconnect edges)
+- Polish (сессия 16): lucide-иконки везде где была эмодзи;
+  NODE_TYPE_META + EDGE_TYPE_META в edgeRules.ts; code-split
+  TopicGraphPage (initial 248kB / gzip 79kB, graph chunk 328kB);
+  springdoc OpenApiCustomizer экспонирует X-User-Id как header
+  (бэк-долг с этапа 4 закрыт); Esc-очередь (фокус→sidebar→selection);
+  details panel на double-click вместо single (drag не открывает
+  панель); контекстное меню "Добавить связанный X" по матрице
+  ADR-010 с auto-edge; smart positioning с spiral search для
+  нового узла; backfill posX/posY на первой загрузке +
+  previousNodes hint в layoutGraph (узлы не прыгают между refetch'ами)
 
 ОТКРЫТО (по приоритету): <!-- AUTOFILL -->
-1. **Reconnect edges** - перетащить конец существующего ребра на
-   другой handle. Два варианта реализации - **выбрать ДО старта**:
-   - A: PATCH /api/v1/edges/{id} full update (~60 мин, full-stack
-     + ADR-014, чище долгосрочно)
-   - B: DELETE + POST в onReconnect (~20 мин, фронт-only, минусы:
-     id ребра меняется, гонка refetch)
-2. **AddEdgeModal полировка**: кастомный dropdown с lucide-иконками
-   вместо нативных select. Сейчас эмодзи 📢/💬 (Тезис/Довод)
-   визуально близки. Также: подсветка выбранной пары на графе
-3. **Code-split TopicGraphPage через React.lazy** - bundle 553kB,
-   подбирается к 600kB. lazy-импорт упасёт initial до ~150kB
-4. **Smart edge routing** (опционально): elkjs или custom edge с
-   pathfinding, если 4-handles + dagre мало
-5. **Бэк-долг с этапа 4**: springdoc + @CurrentUser - параметр
-   userId неправильно в OpenAPI
+1. **Привязка источников и авторитетов через UI** - бэк-API готов
+   с этапа 5 (`POST /api/v1/nodes/{id}/sources|authorities`,
+   `GET /sources?q=`), на фронте ничего нет. В NodeDetailsPanel
+   секция "Источники"/"Авторитеты" с поиском + привязкой. Большая
+   фича ~3+ часов. Закрывает центральную domain-логику проекта
+   (граф аргументов с источниками)
+2. **Экспорт графа в PNG/SVG** через `html-to-image` или
+   `dom-to-image`. Кнопка в toolbar. Полезно для шаринга карт
+3. **Smart edge routing** через elkjs - если на плотных графах
+   bezier пересечения мешают. Опционально
+4. **Тёмная тема** - Tailwind dark variant + toggle. Средняя
+5. **Z-index full-stack persistence** для узлов и рёбер - сейчас
+   только локально пока граф открыт. При refetch сбрасывается
+6. **Полнотекстовый поиск** - blocked на бэк (Этап 6)
+7. **Аутентификация** - blocked на бэк (Этап 6)
 
 ИНФРАСТРУКТУРА:
 - Postgres контейнер: argumentmap-postgres на :5432 (docker ps)
@@ -117,18 +131,29 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 КЛЮЧЕВЫЕ ФАЙЛЫ:
 - frontend/src/pages/TopicGraphPage.tsx — hub-страница графа,
   собирает все компоненты (RF, NodeCard, CustomEdge, AddNodeModal,
-  AddEdgeModal, NodeDetailsPanel, ContextMenu)
-- frontend/src/components/graph/ — узлы и рёбра
-- frontend/src/components/ui/ — переиспользуемые (Modal, Button,
-  Toaster, ContextMenu)
-- frontend/src/utils/edgeRules.ts — матрица ADR-010
-- frontend/src/utils/graphLayout.ts — layout (mixed-режим dagre+saved)
+  AddEdgeModal, NodeDetailsPanel, EdgeDetailsPanel, ContextMenu,
+  CompactMiniMap). lastNodesRef + backfill posX/posY useEffect.
+  findFreePosition spiral search. Esc-очередь
+- frontend/src/components/graph/ — NodeCard, CustomEdge,
+  AddNodeModal (с autoEdge), AddEdgeModal, NodeDetailsPanel,
+  EdgeDetailsPanel, NodeSelect (custom dropdown), CompactMiniMap
+- frontend/src/components/ui/ — Modal, Button, Toaster,
+  ContextMenu (с separator support)
+- frontend/src/utils/edgeRules.ts — матрица ADR-010,
+  NODE_TYPE_META, EDGE_TYPE_META, getRelatedNodeOptions
+- frontend/src/utils/graphLayout.ts — layout с allSaved/noneSaved/
+  mixed режимами + previousNodes hint
 - frontend/src/stores/toastStore.ts — Zustand toast-store
 - frontend/src/api/client.ts — apiGetRaw/apiPostRaw/apiPatchRaw/
   apiDeleteRaw + ApiError
+- frontend/src/App.tsx — React.lazy для TopicGraphPage
+- backend service/ EdgeService.java — createEdge + updateEdge
+  partial с финальной валидацией
 - backend service/ EdgeSemantics.java — матрица ADR-010 на беке
 - backend service/ NodeService.updatePosition — изолированный
   метод без revision и updatedAt
+- backend config/ OpenApiConfig.java — OperationCustomizer
+  для X-User-Id header вместо query.userId
 
 ══════════════════════════════════════════════
 КАК РАБОТАТЬ
@@ -211,12 +236,15 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 После прочтения 5+ файлов из START-OF-SESSION PROTOCOL начни ответ
 с короткого summary последнего состояния и предложения. Например:
 
-"вижу - в сессии 14 закрыли этап 9 целиком (Miro UX, координаты
-узлов на канвасе сохраняются, контекстное меню, z-index). 14
-коммитов, всё зелёное (148 IT, 94 unit). По приоритету следующее:
-sourceHandle/targetHandle persistence для edges (full-stack аналог
-posX/posY) - закрывает второй пользовательский фидбек после E.a.
-Поехали?"
+"вижу - в сессии 16 закрыли этап 10 целиком (reconnect edges
+через partial PATCH, EdgeDetailsPanel) + большой polish: lucide-
+иконки везде, code-split, springdoc fix (X-User-Id как header),
+Esc-очередь, контекстное меню "Добавить связанный X" по матрице
+ADR-010, smart positioning со spiral search, position backfill.
+18 коммитов, всё зелёное (166 IT, 114 unit, bundle initial
+248kB). По приоритету следующее: привязка источников и
+авторитетов через UI - бэк-API с этапа 5 готов, фронт пуст.
+Большая фича. Поехали или другое?"
 
 Жди подтверждение. После него - смело за работу.
 ```

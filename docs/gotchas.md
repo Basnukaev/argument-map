@@ -257,4 +257,77 @@ elevateEdgesOnSelect={false}
 
 ---
 
+## Stale closure в `useCallback` для handler'ов с динамическими данными
+**Симптом:** первый клик на пункт меню/кнопку работает корректно, но
+последующие клики используют устаревшие данные. Например: после клика
+"Добавить связанный узел" первый узел встаёт в свободное место, второй
+накладывается ровно туда же - findFreePosition не "видит" только что
+добавленный узел.
+
+**Причина:** useCallback закешил handler с deps `[setNodes, ...]`,
+не включая сам массив `nodes` в deps. Внутренний onClick читает `nodes`
+через closure - получает snapshot из render'а где callback был
+впервые создан. После refetch nodes обновился, но handler остался
+старым - читает прежний (stale) snapshot.
+
+Если включить `nodes` в deps - useCallback пересоздаётся каждый
+drag/resize узла, что плохо для perf. eslint-disable + явное чтение
+из ref - чище.
+
+**Решение:** хранить актуальный snapshot в `useRef`, обновлять через
+`useEffect`, читать `.current` внутри onClick:
+
+```ts
+const lastNodesRef = useRef<NodeCardNode[]>([]);
+useEffect(() => { lastNodesRef.current = nodes; }, [nodes]);
+
+const handleContextMenu = useCallback(/* deps без nodes */ ..., [setNodes]);
+//   onClick: () => {
+//     const currentNodes = lastNodesRef.current;  // всегда свежий
+//     ...
+//   }
+```
+
+Это правило для любых RF callbacks которые работают с динамическими
+коллекциями (nodes/edges) и не должны пересоздаваться часто.
+
+См. `TopicGraphPage.tsx:handleNodeContextMenu` + `lastNodesRef`.
+
+---
+
+## `layoutGraph` mixed-режим перебрасывает fresh узлы при появлении одного saved
+**Симптом:** на свежей теме (узлы без `posX/posY` на бэке, dagre
+расставил их на фронте) добавление нового узла через "Добавить
+связанный X" (новый получает координаты через PATCH) приводит к тому,
+что старые узлы перепрыгивают - все становятся в столбец справа от
+нового.
+
+**Причина:** `layoutGraph` имеет три режима:
+1. `allSaved` - все узлы с posX/posY → as-is
+2. `noneSaved` - все без → dagre
+3. `mixed` - часть saved, часть нет → saved as-is, fresh **столбцом
+   справа** от saved-кластера
+
+Когда новый узел становится первым saved (через PATCH из
+findFreePosition), все остальные узлы попадают в "столбец справа" -
+теряют свои dagre-позиции с предыдущего render'а.
+
+**Решение:** два слоя защиты:
+
+1. **Backfill posX/posY на первой загрузке** - в Graph component
+   useEffect: для каждого узла без posX/posY на бэке шлём PATCH с
+   позицией которую только что вычислил dagre на фронте. Через ~1-2
+   сек граф становится `allSaved=true`, дальше mixed не возникает.
+
+2. **`previousNodes` hint в layoutGraph** - принимает прежний массив
+   узлов (через `lastNodesRef.current` из RF state). В mixed-режиме
+   для fresh узла, который УЖЕ был на канвасе - возвращаем его
+   прежнюю позицию (а не "столбец справа"). Только совершенно новые
+   узлы которых не было в previous идут в "столбец".
+
+См. `graphLayout.ts:layoutGraph` + `TopicGraphPage.tsx:lastNodesRef`
+useEffect для backfill.
+
+---
+
 <!-- Добавлять новые ловушки сюда по мере их обнаружения -->
