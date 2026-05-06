@@ -152,10 +152,28 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
     window.localStorage.setItem(SHOW_LABELS_LS_KEY, String(showEdgeLabels));
   }, [showEdgeLabels]);
 
-  const initial = useMemo(() => buildFlow(graph, showEdgeLabels), [graph, showEdgeLabels]);
+  // ref на последний RF-state, чтобы при rebuild графа (новый refetch)
+  // переиспользовать уже размещённые позиции узлов. Без этого fresh-узлы
+  // (без posX/posY на бэке) при каждом mixed-layout переезжают в столбец
+  // справа - даже если они уже стоят на читаемых dagre-местах
+  const lastNodesRef = useRef<NodeCardNode[]>([]);
+
+  // Чтение ref'а в useMemo - сознательно: нам нужен последний snapshot
+  // позиций для passive layout-hint, не для реактивности. Если бы мы
+  // делали useState - перерасчёт buildFlow срабатывал бы на каждый
+  // node-drag, что дороже
+  const initial = useMemo(
+    // eslint-disable-next-line react-hooks/refs
+    () => buildFlow(graph, showEdgeLabels, lastNodesRef.current),
+    [graph, showEdgeLabels],
+  );
 
   const [nodes, setNodes, onNodesChange] = useNodesState<NodeCardNode>(initial.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<CustomEdgeEdge>(initial.edges);
+
+  useEffect(() => {
+    lastNodesRef.current = nodes;
+  }, [nodes]);
 
   // Узлы из бэка без posX/posY - dagre проставляет им позиции на фронте,
   // но эти позиции живут только в RF-state. При следующем refetch и
@@ -899,9 +917,10 @@ function sameIds(a: string[], b: string[]): boolean {
 }
 
 // размеры под NodeCard (w-72 = 288px, высота переменная). 120 - типичная
-// высота с заголовком + 2 строками текста; 160 - запас + воздух между узлами
+// высота с заголовком + 2 строками текста; 40 - воздух между узлами
 const NODE_W = 288;
 const NODE_H = 120;
+const PLACE_GAP_X = 60;
 const PLACE_GAP_Y = 40;
 
 interface XY {
@@ -911,48 +930,65 @@ interface XY {
 
 /**
  * Подбирает позицию для нового узла рядом с anchor так чтобы не
- * накладываться на существующие. Direction='incoming' - слева от anchor,
- * 'outgoing' - справа. Перебирает candidates в порядке "ближе к anchor →
- * сильнее по вертикали → диагональ", возвращает первую свободную.
- * Если все заняты - даёт базовую позицию (узлы наложатся, юзер dragнет)
+ * накладываться на существующие. Сначала пробует базовую точку (на
+ * правильной стороне от anchor), потом расходится по спирали по Y и X
+ * пока не найдёт свободное место. Если всё пространство занято в
+ * пределах разумного - возвращает базовую позицию (узлы наложатся,
+ * юзер dragнет).
+ *
+ * direction='incoming' - новый узел слева от anchor (он source ребра);
+ * 'outgoing' - справа (он target). Это совпадает с естественной
+ * лево-вправо ориентацией dagre LR
  */
 function findFreePosition(
   anchor: XY,
   direction: 'incoming' | 'outgoing',
   existing: ReadonlyArray<{ position: XY }>,
 ): XY {
-  const baseDx = direction === 'incoming' ? -(NODE_W + 60) : NODE_W + 60;
+  const baseDx = direction === 'incoming' ? -(NODE_W + PLACE_GAP_X) : NODE_W + PLACE_GAP_X;
   const stepY = NODE_H + PLACE_GAP_Y;
-  // пары [dx-смещение, dy-смещение от anchor.y]. Перебираются в этом порядке
-  const candidates: Array<[number, number]> = [
-    [baseDx, 0],
-    [baseDx, stepY],
-    [baseDx, -stepY],
-    [baseDx, 2 * stepY],
-    [baseDx, -2 * stepY],
-    [baseDx + (direction === 'incoming' ? -NODE_W : NODE_W) / 2, stepY],
-    [baseDx + (direction === 'incoming' ? -NODE_W : NODE_W) / 2, -stepY],
-    [baseDx, 3 * stepY],
-    [baseDx, -3 * stepY],
-  ];
+  const stepX = NODE_W + PLACE_GAP_X;
 
-  for (const [dx, dy] of candidates) {
-    const x = anchor.x + dx;
-    const y = anchor.y + dy;
-    const overlaps = existing.some((n) => {
-      const ex = n.position.x;
-      const ey = n.position.y;
-      // bounding-box overlap test с небольшим зазором
-      return Math.abs(ex - x) < NODE_W && Math.abs(ey - y) < NODE_H;
+  function overlaps(x: number, y: number): boolean {
+    return existing.some((n) => {
+      // bbox-overlap: считаем что ВСЕ узлы NODE_W × NODE_H. Реальные размеры
+      // могут немного отличаться, но для размещения - достаточно
+      return Math.abs(n.position.x - x) < NODE_W && Math.abs(n.position.y - y) < NODE_H;
     });
-    if (!overlaps) return { x, y };
   }
+
+  // спиральный обход вокруг базовой точки: сначала по вертикали с малым
+  // шагом, потом расходимся горизонтально (всё на той же стороне от anchor)
+  // shells - количество "колец" вокруг anchor; каждое кольцо добавляет
+  // больше вариантов. Ограничиваем 6 чтобы не уйти в бесконечность
+  const SHELLS = 6;
+  for (let shell = 0; shell <= SHELLS; shell++) {
+    // в shell=0 пробуем только базовую точку. Дальше - расширяем
+    const yOffsets = shell === 0 ? [0] : [shell, -shell];
+    const xMultipliers = shell <= 2 ? [0] : [0, 0.5, -0.5];
+
+    for (const xMul of xMultipliers) {
+      for (const yMul of yOffsets) {
+        // dx: на правильной стороне от anchor + опциональный перенос
+        // вглубь (xMul × stepX). Знак xMul по направлению (incoming←,
+        // outgoing→), чтобы спираль расходилась "от anchor"
+        const dirSign = direction === 'incoming' ? -1 : 1;
+        const dx = baseDx + xMul * stepX * dirSign;
+        const dy = yMul * stepY;
+        const x = anchor.x + dx;
+        const y = anchor.y + dy;
+        if (!overlaps(x, y)) return { x, y };
+      }
+    }
+  }
+  // всё занято - даём базовую позицию
   return { x: anchor.x + baseDx, y: anchor.y };
 }
 
 function buildFlow(
   graph: GraphResponse,
   showEdgeLabels: boolean,
+  previousNodes: ReadonlyArray<NodeCardNode> = [],
 ): { nodes: NodeCardNode[]; edges: CustomEdgeEdge[] } {
   const rawNodes: NodeCardNode[] = (graph.nodes ?? [])
     .filter((n): n is NodeDto & { id: string } => Boolean(n.id))
@@ -1004,7 +1040,7 @@ function buildFlow(
       };
     });
 
-  return { nodes: layoutGraph(rawNodes, rawEdges), edges: rawEdges };
+  return { nodes: layoutGraph(rawNodes, rawEdges, 'LR', previousNodes), edges: rawEdges };
 }
 
 export default TopicGraphPage;

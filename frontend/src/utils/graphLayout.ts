@@ -11,14 +11,15 @@ const FRESH_GAP_Y = 80;
  * Считает позиции узлов с учётом сохранённых на беке `posX`/`posY`:
  *
  * - Все узлы имеют `posX`/`posY` → используем их as-is. Это типичный
- *   случай при перезагрузке графа после ручных drag'ов
+ *   случай при перезагрузке графа после ручных drag'ов или backfill
  * - Ни у одного нет → dagre считает все позиции с нуля. Свежий граф
  *   до первого drag'а
  * - Смешанно (часть имеет, часть нет) → сохранённые узлы стоят на
- *   своих координатах, новые расставляются столбцом справа от
- *   существующего layout. Не красиво, но не теряет ручные позиции.
- *   Пользователь после создания нового узла сразу drag'ет его в
- *   нужное место и фиксирует все
+ *   своих координатах, для остальных:
+ *   1. если узел уже был в `previousNodes` (с предыдущего рендера) -
+ *      берём ту позицию, чтобы при refetch узел не прыгнул;
+ *   2. иначе кладём в столбец справа от saved-кластера. Это запасной
+ *      путь - в норме backfill уже проставил все posX/posY на бэке
  *
  * Direction `LR` (корень слева, цепочки вправо) применяется только
  * в режиме "ни у одного нет".
@@ -27,6 +28,7 @@ export function layoutGraph(
   nodes: NodeCardNode[],
   edges: CustomEdgeEdge[],
   direction: 'LR' | 'TB' = 'LR',
+  previousNodes: ReadonlyArray<NodeCardNode> = [],
 ): NodeCardNode[] {
   if (nodes.length === 0) return [];
 
@@ -47,12 +49,22 @@ export function layoutGraph(
     return dagreLayout(nodes, edges, direction);
   }
 
-  // смешанный: сохранённые as-is + столбец справа для новых
+  // смешанный: сохранённые as-is, fresh узлы - на их предыдущих позициях
+  // если они там были (refetch-сценарий), либо столбцом справа
+  const previousPos = new Map<string, { x: number; y: number }>();
+  for (const p of previousNodes) {
+    previousPos.set(p.id, { x: p.position.x, y: p.position.y });
+  }
+
   const savedNodes = nodes.filter(hasSaved);
-  const maxX = Math.max(...savedNodes.map((n) => n.data.posX as number));
-  const minY = Math.min(...savedNodes.map((n) => n.data.posY as number));
-  const freshIds = nodes
-    .filter((n) => !hasSaved(n))
+  const maxX = savedNodes.length > 0
+    ? Math.max(...savedNodes.map((n) => n.data.posX as number))
+    : 0;
+  const minY = savedNodes.length > 0
+    ? Math.min(...savedNodes.map((n) => n.data.posY as number))
+    : 0;
+  const freshUnknownIds = nodes
+    .filter((n) => !hasSaved(n) && !previousPos.has(n.id))
     .map((n) => n.id);
 
   return nodes.map((node) => {
@@ -62,7 +74,15 @@ export function layoutGraph(
         position: { x: node.data.posX as number, y: node.data.posY as number },
       };
     }
-    const idx = freshIds.indexOf(node.id);
+    const prev = previousPos.get(node.id);
+    if (prev) {
+      // узел уже был на канвасе - сохраняем его позицию между refetch'ами
+      return { ...node, position: prev };
+    }
+    // совершенно новый узел без сохранённых координат и без previous-position -
+    // ставим в столбец справа. На практике этот путь почти не используется
+    // благодаря backfill posX/posY на TopicGraphPage
+    const idx = freshUnknownIds.indexOf(node.id);
     return {
       ...node,
       position: {
