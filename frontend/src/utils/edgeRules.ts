@@ -121,6 +121,53 @@ export const NODE_TYPE_META: Record<NodeType, { label: string; hint: string; Ico
 };
 
 /**
+ * Опция "Добавить связанный узел" в контекстном меню. Описывает что именно
+ * создать вокруг текущего узла. direction='incoming' значит новый узел
+ * становится from в новом ребре (anchor=to), 'outgoing' - наоборот
+ */
+export interface RelatedNodeOption {
+  newNodeType: NodeType;
+  edgeType: EdgeType;
+  direction: 'incoming' | 'outgoing';
+  label: string;
+}
+
+/**
+ * Контекстные пункты "Добавить ..." для правого клика по узлу. Возвращает
+ * самые осмысленные варианты с учётом матрицы ADR-010 - не полный
+ * декартов произведение, а ручной curated список под обычные паттерны
+ * аргументации (за/против, мета, уточнение)
+ */
+export function getRelatedNodeOptions(anchorType: NodeType): readonly RelatedNodeOption[] {
+  switch (anchorType) {
+    case 'CLAIM':
+      return [
+        { newNodeType: 'ARGUMENT', edgeType: 'SUPPORTS', direction: 'incoming', label: 'Подтверждающий довод' },
+        { newNodeType: 'ARGUMENT', edgeType: 'REFUTES', direction: 'incoming', label: 'Опровергающий довод' },
+        { newNodeType: 'EVIDENCE', edgeType: 'SUPPORTS', direction: 'incoming', label: 'Подтверждающее свидетельство' },
+        { newNodeType: 'EVIDENCE', edgeType: 'REFUTES', direction: 'incoming', label: 'Опровергающее свидетельство' },
+        { newNodeType: 'QUESTION', edgeType: 'QUALIFIES', direction: 'incoming', label: 'Уточняющий вопрос' },
+      ];
+    case 'ARGUMENT':
+      return [
+        { newNodeType: 'ARGUMENT', edgeType: 'INVALIDATES', direction: 'incoming', label: 'Аннулирующий довод' },
+        { newNodeType: 'EVIDENCE', edgeType: 'INVALIDATES', direction: 'incoming', label: 'Аннулирующее свидетельство' },
+      ];
+    case 'EVIDENCE':
+      // К свидетельству ничего не подключается напрямую (по ADR-010 EVIDENCE -
+      // только источник, не target). Меню остаётся базовым: edit/delete
+      return [];
+    case 'QUESTION':
+      return [
+        { newNodeType: 'CLAIM', edgeType: 'RESPONDS_TO', direction: 'incoming', label: 'Тезис-ответ' },
+        { newNodeType: 'QUESTION', edgeType: 'QUALIFIES', direction: 'incoming', label: 'Уточняющий вопрос' },
+      ];
+    default:
+      return [];
+  }
+}
+
+/**
  * Метаданные типа ребра для UI: lucide-иконка + tailwind-цвет совпадают с
  * CustomEdge (стрелки на графе). Используется в AddEdgeModal radio-list и
  * EdgeDetailsPanel header / edit-режим

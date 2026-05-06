@@ -9,7 +9,9 @@ export interface ContextMenuItem {
   /** для деструктивных пунктов (удаление) - красная подпись */
   danger?: boolean;
   disabled?: boolean;
-  onClick: () => void;
+  /** если true - рендерит горизонтальную линию-разделитель вместо пункта */
+  separator?: boolean;
+  onClick?: () => void;
 }
 
 interface Props {
@@ -60,6 +62,9 @@ function ContextMenu({ x, y, items, onClose, header }: Props) {
         </div>
       )}
       {items.map((item) => {
+        if (item.separator) {
+          return <hr key={item.id} className="my-1 border-t border-gray-100" />;
+        }
         const Icon = item.icon;
         const colorClass = item.danger
           ? 'text-red-700 hover:bg-red-50'
@@ -71,7 +76,7 @@ function ContextMenu({ x, y, items, onClose, header }: Props) {
             role="menuitem"
             disabled={item.disabled}
             onClick={() => {
-              item.onClick();
+              item.onClick?.();
               onClose();
             }}
             className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${colorClass}`}

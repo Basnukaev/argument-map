@@ -3,10 +3,22 @@ import type { FormEvent } from 'react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import { apiPost, apiPatchRaw, ApiError } from '@/api/client';
-import { NODE_TYPE_META, type NodeType } from '@/utils/edgeRules';
+import { toast } from '@/stores/toastStore';
+import { NODE_TYPE_META, type EdgeType, type NodeType } from '@/utils/edgeRules';
 import type { components } from '@/api/types';
 
 type NodeResponse = components['schemas']['NodeResponse'];
+
+/**
+ * Параметры авто-связки. Если передано - после успешного POST /nodes
+ * сразу делаем POST /edges. direction='incoming' значит новый узел
+ * становится from в новом ребре (anchor=to), 'outgoing' - наоборот
+ */
+export interface AutoEdgeSpec {
+  anchorNodeId: string;
+  edgeType: EdgeType;
+  direction: 'incoming' | 'outgoing';
+}
 
 interface Props {
   open: boolean;
@@ -19,18 +31,34 @@ interface Props {
    * при создании через "Создать узел здесь" из контекстного меню pane */
   initialPosX?: number;
   initialPosY?: number;
+  /** предустановленный тип узла - блокирует выбор типа в форме. Используется
+   * при "Добавить связанный X" из контекстного меню узла */
+  initialNodeType?: NodeType;
+  /** автоматически создать ребро после создания узла. Тип ребра валидирован
+   * через ADR-010 на стороне вызывающего (контекстное меню) */
+  autoEdge?: AutoEdgeSpec;
 }
 
 const TYPE_ORDER: readonly NodeType[] = ['QUESTION', 'CLAIM', 'ARGUMENT', 'EVIDENCE'];
 
-function AddNodeModal({ open, topicId, onClose, onCreated, initialPosX, initialPosY }: Props) {
-  const [nodeType, setNodeType] = useState<NodeType>('CLAIM');
+function AddNodeModal({
+  open,
+  topicId,
+  onClose,
+  onCreated,
+  initialPosX,
+  initialPosY,
+  initialNodeType,
+  autoEdge,
+}: Props) {
+  const [nodeType, setNodeType] = useState<NodeType>(initialNodeType ?? 'CLAIM');
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const lockNodeType = initialNodeType !== undefined;
 
   function reset() {
-    setNodeType('CLAIM');
+    setNodeType(initialNodeType ?? 'CLAIM');
     setContent('');
     setError(null);
     setSubmitting(false);
@@ -52,6 +80,22 @@ function AddNodeModal({ open, topicId, onClose, onCreated, initialPosX, initialP
         nodeType,
         content: content.trim(),
       }) as NodeResponse;
+
+      // если задан autoEdge - создаём ребро. Не блокирующая ошибка:
+      // узел уже есть, юзер при необходимости свяжет вручную
+      if (autoEdge && created.id) {
+        const fromId = autoEdge.direction === 'incoming' ? created.id : autoEdge.anchorNodeId;
+        const toId = autoEdge.direction === 'incoming' ? autoEdge.anchorNodeId : created.id;
+        try {
+          await apiPost('/api/v1/edges', {
+            fromNodeId: fromId,
+            toNodeId: toId,
+            edgeType: autoEdge.edgeType,
+          });
+        } catch {
+          toast.warning('Узел создан, но связь не удалось добавить - привяжи вручную');
+        }
+      }
 
       // если переданы координаты - сразу PATCH'им (POST не принимает
       // posX/posY чтобы не делать full-stack изменения для одной фичи).
@@ -87,13 +131,16 @@ function AddNodeModal({ open, topicId, onClose, onCreated, initialPosX, initialP
   return (
     <Modal open={open} onClose={handleClose} title="Новый узел">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <fieldset disabled={submitting} className="space-y-2">
-          <legend className="text-sm font-medium text-gray-700">Тип</legend>
+        <fieldset disabled={submitting || lockNodeType} className="space-y-2">
+          <legend className="text-sm font-medium text-gray-700">
+            Тип{lockNodeType ? ' (зафиксирован)' : ''}
+          </legend>
           <div className="grid grid-cols-2 gap-2">
             {TYPE_ORDER.map((value) => {
               const meta = NODE_TYPE_META[value];
               const { Icon } = meta;
               const selected = nodeType === value;
+              if (lockNodeType && !selected) return null;
               return (
                 <label
                   key={value}

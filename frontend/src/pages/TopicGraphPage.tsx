@@ -26,9 +26,16 @@ import AddNodeModal from '@/components/graph/AddNodeModal';
 import AddEdgeModal from '@/components/graph/AddEdgeModal';
 import NodeDetailsPanel from '@/components/graph/NodeDetailsPanel';
 import EdgeDetailsPanel from '@/components/graph/EdgeDetailsPanel';
+import GraphMiniMapNode from '@/components/graph/GraphMiniMapNode';
 import { layoutGraph } from '@/utils/graphLayout';
 import { apiDeleteRaw, apiGetRaw, apiPatchRaw, ApiError } from '@/api/client';
-import { getAllowedEdgeTypes, isEdgeAllowed, NODE_TYPE_LABEL } from '@/utils/edgeRules';
+import {
+  getAllowedEdgeTypes,
+  getRelatedNodeOptions,
+  isEdgeAllowed,
+  NODE_TYPE_LABEL,
+} from '@/utils/edgeRules';
+import type { AutoEdgeSpec } from '@/components/graph/AddNodeModal';
 import { toast } from '@/stores/toastStore';
 import type { components } from '@/api/types';
 
@@ -163,9 +170,15 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<CustomEdgeEdge>(initial.edges);
   const [addNodeOpen, setAddNodeOpen] = useState(false);
   const [addEdgeOpen, setAddEdgeOpen] = useState(false);
-  // опциональные координаты для нового узла из "Создать здесь" в
-  // контекстном меню pane. Передаются в AddNodeModal через initialPosX/Y
-  const [nodeDraft, setNodeDraft] = useState<{ posX: number; posY: number } | null>(null);
+  // черновик для AddNodeModal: координаты "Создать здесь" из меню pane
+  // и/или предустановленный тип + autoEdge для "Добавить связанный X"
+  // из меню узла. Поля опциональные, можно использовать в любых сочетаниях
+  const [nodeDraft, setNodeDraft] = useState<{
+    posX?: number;
+    posY?: number;
+    nodeType?: NodeCardNode['data']['nodeType'];
+    autoEdge?: AutoEdgeSpec;
+  } | null>(null);
   // RF instance нужен для screenToFlowPosition (конверсия viewport-координат
   // курсора в координаты канваса с учётом zoom/pan)
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance<NodeCardNode, CustomEdgeEdge> | null>(null);
@@ -436,49 +449,84 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
     [],
   );
 
-  // правый клик на узле - "Редактировать", "Удалить"
+  // правый клик на узле - "Добавить связанный X" по матрице ADR-010 +
+  // "Редактировать", z-order, "Удалить"
   const handleNodeContextMenu = useCallback(
     (event: React.MouseEvent, node: Node) => {
       event.preventDefault();
+      const data = node.data as NodeCardData | undefined;
+      const anchorType = data?.nodeType;
+      const relatedOptions = anchorType ? getRelatedNodeOptions(anchorType) : [];
+
+      const relatedItems: ContextMenuItem[] = [...relatedOptions].map((opt) => ({
+        id: `add-${opt.newNodeType}-${opt.edgeType}-${opt.direction}`,
+        label: opt.label,
+        icon: Plus,
+        onClick: () => {
+          // позиция нового узла - смещение от anchor'а в направлении handle
+          // (примерно). Для incoming (новый = source) ставим слева; для
+          // outgoing - справа. Точно посчитать сложно без размеров, дадим
+          // RF/dagre рассчитать через layoutGraph если posX/posY null
+          const offsetX = opt.direction === 'incoming' ? -340 : 340;
+          setNodeDraft({
+            posX: node.position.x + offsetX,
+            posY: node.position.y,
+            nodeType: opt.newNodeType,
+            autoEdge: {
+              anchorNodeId: node.id,
+              edgeType: opt.edgeType,
+              direction: opt.direction,
+            },
+          });
+          setAddNodeOpen(true);
+        },
+      }));
+
+      const items: ContextMenuItem[] = [...relatedItems];
+      if (relatedItems.length > 0) {
+        items.push({ id: 'sep-related', label: '', separator: true });
+      }
+      items.push(
+        {
+          id: 'edit-node',
+          label: 'Редактировать',
+          icon: Pencil,
+          onClick: () => {
+            // открываем панель и переходим сразу в edit-режим через
+            // editTargetNodeId. detailEdgeId сбрасываем чтобы не было
+            // двух одновременных panels
+            setDetailNodeId(node.id);
+            setDetailEdgeId(null);
+            setEditTargetNodeId(node.id);
+            setEditTargetEdgeId(null);
+          },
+        },
+        {
+          id: 'bring-front',
+          label: 'На передний план',
+          icon: ArrowUp,
+          onClick: () => bringNodeToFront(node.id),
+        },
+        {
+          id: 'send-back',
+          label: 'На задний план',
+          icon: ArrowDown,
+          onClick: () => sendNodeToBack(node.id),
+        },
+        {
+          id: 'delete-node',
+          label: 'Удалить',
+          icon: Trash2,
+          danger: true,
+          onClick: () => void deleteOneNode(node.id),
+        },
+      );
+
       setContextMenu({
         x: event.clientX,
         y: event.clientY,
         header: 'Узел',
-        items: [
-          {
-            id: 'edit-node',
-            label: 'Редактировать',
-            icon: Pencil,
-            onClick: () => {
-              // открываем панель и переходим сразу в edit-режим через
-              // editTargetNodeId. detailEdgeId сбрасываем чтобы не было
-              // двух одновременных panels
-              setDetailNodeId(node.id);
-              setDetailEdgeId(null);
-              setEditTargetNodeId(node.id);
-              setEditTargetEdgeId(null);
-            },
-          },
-          {
-            id: 'bring-front',
-            label: 'На передний план',
-            icon: ArrowUp,
-            onClick: () => bringNodeToFront(node.id),
-          },
-          {
-            id: 'send-back',
-            label: 'На задний план',
-            icon: ArrowDown,
-            onClick: () => sendNodeToBack(node.id),
-          },
-          {
-            id: 'delete-node',
-            label: 'Удалить',
-            icon: Trash2,
-            danger: true,
-            onClick: () => void deleteOneNode(node.id),
-          },
-        ],
+        items,
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -725,16 +773,22 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
             pannable
             zoomable
             position="top-right"
-            className="!bg-white !border !border-gray-300"
+            className="!bg-white !border !border-gray-300 !rounded-md !shadow-sm"
+            style={{ width: 280, height: 200 }}
+            nodeComponent={GraphMiniMapNode}
+            // nodeColor оставлен fallback - MiniMap всё равно требует цвет
+            // даже когда nodeComponent рендерит свой контент через foreignObject
             nodeColor={(node: Node) => {
               const data = node.data as NodeCardData | undefined;
               const nodeType = data?.nodeType ?? 'CLAIM';
               return STATUS_MINIMAP_COLOR[nodeType];
             }}
             nodeStrokeColor="#1f2937"
-            nodeStrokeWidth={3}
+            nodeStrokeWidth={2}
             nodeBorderRadius={4}
-            maskColor="rgba(0,0,0,0.08)"
+            maskColor="rgba(15,23,42,0.08)"
+            maskStrokeColor="#3b82f6"
+            maskStrokeWidth={2}
           />
           <Panel position="top-left" className="!m-3 flex gap-2">
             <Button onClick={() => setAddNodeOpen(true)} className="!px-3 !py-1.5 text-sm">
@@ -773,13 +827,15 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
       )}
 
       <AddNodeModal
-        // key включает nodeDraft чтобы при создании через "+" из toolbar
-        // и через "Создать здесь" получались чистые initial values
-        key={`addNode-${nodeDraft?.posX ?? ''}-${nodeDraft?.posY ?? ''}`}
+        // key включает все поля nodeDraft чтобы каждое открытие давало
+        // чистый initial state. autoEdge кодируем в key через anchorNodeId+edgeType
+        key={`addNode-${nodeDraft?.posX ?? ''}-${nodeDraft?.posY ?? ''}-${nodeDraft?.nodeType ?? ''}-${nodeDraft?.autoEdge?.anchorNodeId ?? ''}-${nodeDraft?.autoEdge?.edgeType ?? ''}`}
         open={addNodeOpen}
         topicId={topicId}
         initialPosX={nodeDraft?.posX}
         initialPosY={nodeDraft?.posY}
+        initialNodeType={nodeDraft?.nodeType}
+        autoEdge={nodeDraft?.autoEdge}
         onClose={closeAddNode}
         onCreated={onRefetch}
       />
