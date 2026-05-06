@@ -496,11 +496,13 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
         label: opt.label,
         icon: Plus,
         onClick: () => {
-          // ищем свободную позицию рядом с anchor, не накладываясь на
-          // существующие узлы. Для incoming (новый = source) ставим слева;
-          // для outgoing - справа. Если базовое место занято - сдвигаемся
-          // по Y или диагонали по списку candidates
-          const pos = findFreePosition(node.position, opt.direction, nodes);
+          // ищем свободную позицию рядом с anchor. Используем lastNodesRef
+          // (а не nodes из closure) - useCallback не пересоздавался после
+          // предыдущего create, и nodes из closure был бы устаревшим
+          // snapshot'ом без только что добавленных узлов
+          const currentNodes = lastNodesRef.current;
+          const anchor = currentNodes.find((n) => n.id === node.id) ?? node;
+          const pos = findFreePosition(anchor.position, opt.direction, currentNodes);
           setNodeDraft({
             posX: pos.x,
             posY: pos.y,
