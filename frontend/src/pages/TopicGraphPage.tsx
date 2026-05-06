@@ -4,7 +4,6 @@ import {
   ReactFlow,
   Background,
   Controls,
-  MiniMap,
   Panel,
   MarkerType,
   ConnectionMode,
@@ -26,7 +25,7 @@ import AddNodeModal from '@/components/graph/AddNodeModal';
 import AddEdgeModal from '@/components/graph/AddEdgeModal';
 import NodeDetailsPanel from '@/components/graph/NodeDetailsPanel';
 import EdgeDetailsPanel from '@/components/graph/EdgeDetailsPanel';
-import GraphMiniMapNode from '@/components/graph/GraphMiniMapNode';
+import CompactMiniMap from '@/components/graph/CompactMiniMap';
 import { layoutGraph } from '@/utils/graphLayout';
 import { apiDeleteRaw, apiGetRaw, apiPatchRaw, ApiError } from '@/api/client';
 import {
@@ -121,17 +120,6 @@ function TopicGraphPage() {
     </div>
   );
 }
-
-// Цвета MiniMap nodes по типу - дают разнообразие даже когда все узлы
-// UNVERIFIED. При появлении STANDING/DISPUTED/REFUTED статус показывается
-// через тёмную обводку (nodeStrokeColor). Hex'ы дублируют GraphMiniMap.TYPE_FILL,
-// здесь приходится литералом - RF MiniMap не понимает Tailwind-классы
-const STATUS_MINIMAP_COLOR: Record<NonNullable<NodeCardData['nodeType']>, string> = {
-  QUESTION: '#a78bfa',
-  CLAIM: '#3b82f6',
-  ARGUMENT: '#f59e0b',
-  EVIDENCE: '#10b981',
-};
 
 // Цвета маркеров-стрелок на конце ребра. Совпадают со stroke в CustomEdge,
 // чтобы стрелка была того же цвета что и линия
@@ -463,14 +451,14 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
         label: opt.label,
         icon: Plus,
         onClick: () => {
-          // позиция нового узла - смещение от anchor'а в направлении handle
-          // (примерно). Для incoming (новый = source) ставим слева; для
-          // outgoing - справа. Точно посчитать сложно без размеров, дадим
-          // RF/dagre рассчитать через layoutGraph если posX/posY null
-          const offsetX = opt.direction === 'incoming' ? -340 : 340;
+          // ищем свободную позицию рядом с anchor, не накладываясь на
+          // существующие узлы. Для incoming (новый = source) ставим слева;
+          // для outgoing - справа. Если базовое место занято - сдвигаемся
+          // по Y или диагонали по списку candidates
+          const pos = findFreePosition(node.position, opt.direction, nodes);
           setNodeDraft({
-            posX: node.position.x + offsetX,
-            posY: node.position.y,
+            posX: pos.x,
+            posY: pos.y,
             nodeType: opt.newNodeType,
             autoEdge: {
               anchorNodeId: node.id,
@@ -769,27 +757,7 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
         >
           <Background gap={24} size={1} />
           <Controls position="bottom-right" showInteractive={false} />
-          <MiniMap
-            pannable
-            zoomable
-            position="top-right"
-            className="!bg-white !border !border-gray-300 !rounded-md !shadow-sm"
-            style={{ width: 280, height: 200 }}
-            nodeComponent={GraphMiniMapNode}
-            // nodeColor оставлен fallback - MiniMap всё равно требует цвет
-            // даже когда nodeComponent рендерит свой контент через foreignObject
-            nodeColor={(node: Node) => {
-              const data = node.data as NodeCardData | undefined;
-              const nodeType = data?.nodeType ?? 'CLAIM';
-              return STATUS_MINIMAP_COLOR[nodeType];
-            }}
-            nodeStrokeColor="#1f2937"
-            nodeStrokeWidth={2}
-            nodeBorderRadius={4}
-            maskColor="rgba(15,23,42,0.08)"
-            maskStrokeColor="#3b82f6"
-            maskStrokeWidth={2}
-          />
+          <CompactMiniMap />
           <Panel position="top-left" className="!m-3 flex gap-2">
             <Button onClick={() => setAddNodeOpen(true)} className="!px-3 !py-1.5 text-sm">
               <Plus size={16} className="mr-1" /> Узел
@@ -901,6 +869,58 @@ function sameIds(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
   return true;
+}
+
+// размеры под NodeCard (w-72 = 288px, высота переменная). 120 - типичная
+// высота с заголовком + 2 строками текста; 160 - запас + воздух между узлами
+const NODE_W = 288;
+const NODE_H = 120;
+const PLACE_GAP_Y = 40;
+
+interface XY {
+  x: number;
+  y: number;
+}
+
+/**
+ * Подбирает позицию для нового узла рядом с anchor так чтобы не
+ * накладываться на существующие. Direction='incoming' - слева от anchor,
+ * 'outgoing' - справа. Перебирает candidates в порядке "ближе к anchor →
+ * сильнее по вертикали → диагональ", возвращает первую свободную.
+ * Если все заняты - даёт базовую позицию (узлы наложатся, юзер dragнет)
+ */
+function findFreePosition(
+  anchor: XY,
+  direction: 'incoming' | 'outgoing',
+  existing: ReadonlyArray<{ position: XY }>,
+): XY {
+  const baseDx = direction === 'incoming' ? -(NODE_W + 60) : NODE_W + 60;
+  const stepY = NODE_H + PLACE_GAP_Y;
+  // пары [dx-смещение, dy-смещение от anchor.y]. Перебираются в этом порядке
+  const candidates: Array<[number, number]> = [
+    [baseDx, 0],
+    [baseDx, stepY],
+    [baseDx, -stepY],
+    [baseDx, 2 * stepY],
+    [baseDx, -2 * stepY],
+    [baseDx + (direction === 'incoming' ? -NODE_W : NODE_W) / 2, stepY],
+    [baseDx + (direction === 'incoming' ? -NODE_W : NODE_W) / 2, -stepY],
+    [baseDx, 3 * stepY],
+    [baseDx, -3 * stepY],
+  ];
+
+  for (const [dx, dy] of candidates) {
+    const x = anchor.x + dx;
+    const y = anchor.y + dy;
+    const overlaps = existing.some((n) => {
+      const ex = n.position.x;
+      const ey = n.position.y;
+      // bounding-box overlap test с небольшим зазором
+      return Math.abs(ex - x) < NODE_W && Math.abs(ey - y) < NODE_H;
+    });
+    if (!overlaps) return { x, y };
+  }
+  return { x: anchor.x + baseDx, y: anchor.y };
 }
 
 function buildFlow(
