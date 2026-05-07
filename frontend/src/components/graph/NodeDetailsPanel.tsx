@@ -11,6 +11,7 @@ import {
   Quote,
   Users,
   Trash2,
+  Plus,
   Link as LinkIcon,
   type LucideIcon,
 } from 'lucide-react';
@@ -21,6 +22,13 @@ import { apiGetRaw, apiPatchRaw, apiDeleteRaw, ApiError } from '@/api/client';
 import { toast } from '@/stores/toastStore';
 import type { components } from '@/api/types';
 import { NODE_TYPE_TOKENS, type NodeType, type NodeStatus } from '@/utils/designTokens';
+import {
+  SOURCE_TYPE_LABEL,
+  STANCE_LABEL,
+  STANCE_BADGE_STYLES,
+  type Stance,
+} from '@/utils/attachmentTokens';
+import AddSourceModal from './AddSourceModal';
 
 type NodeDto = components['schemas']['NodeResponse'];
 type RevisionDto = components['schemas']['RevisionResponse'];
@@ -28,29 +36,6 @@ type SourceDto = components['schemas']['SourceResponse'];
 type AuthorityDto = components['schemas']['AuthorityResponse'];
 type NodeSourceDto = components['schemas']['NodeSourceResponse'];
 type NodeAuthorityDto = components['schemas']['NodeAuthorityResponse'];
-
-type SourceType = NonNullable<SourceDto['sourceType']>;
-type Stance = NonNullable<NodeAuthorityDto['stance']>;
-
-const SOURCE_TYPE_LABEL: Record<SourceType, string> = {
-  QURAN: 'аят',
-  HADITH: 'хадис',
-  BOOK: 'книга',
-  ARTICLE: 'статья',
-  URL: 'ссылка',
-};
-
-const STANCE_LABEL: Record<Stance, { label: string; tone: 'emerald' | 'red' | 'slate' }> = {
-  HOLDS: { label: 'Поддерживает', tone: 'emerald' },
-  OPPOSES: { label: 'Возражает', tone: 'red' },
-  NEUTRAL: { label: 'Нейтрально', tone: 'slate' },
-};
-
-const STANCE_BADGE_STYLES: Record<Stance, string> = {
-  HOLDS: 'bg-emerald-100 text-emerald-800',
-  OPPOSES: 'bg-red-100 text-red-800',
-  NEUTRAL: 'bg-slate-100 text-slate-700',
-};
 
 interface AttachmentsState<L, R> {
   links: L[];
@@ -194,6 +179,8 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
   const [authoritiesState, setAuthoritiesState] = useState<AuthoritiesState>({
     kind: 'not-loaded',
   });
+
+  const [addSourceOpen, setAddSourceOpen] = useState(false);
 
   async function loadSources() {
     if (!node.id) return;
@@ -464,6 +451,17 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
           onFirstOpen={loadSources}
         >
           <SourcesContent state={sourcesState} onDetach={detachSource} />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            icon={Plus}
+            onClick={() => setAddSourceOpen(true)}
+            disabled={!node.id}
+            className="mt-2 w-full justify-center"
+          >
+            Привязать источник
+          </Button>
         </PanelSection>
 
         <PanelSection
@@ -550,6 +548,14 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
           )}
         </section>
       </div>
+
+      {addSourceOpen && node.id && (
+        <AddSourceModal
+          nodeId={node.id}
+          onClose={() => setAddSourceOpen(false)}
+          onAttached={loadSources}
+        />
+      )}
     </aside>
   );
 }
@@ -648,7 +654,7 @@ function AuthoritiesContent({ state, onDetach }: AuthoritiesContentProps) {
       {links.map((link) => {
         const authority = link.authorityId ? lookup.get(link.authorityId) : undefined;
         const stance: Stance = link.stance ?? 'NEUTRAL';
-        const stanceMeta = STANCE_LABEL[stance];
+        const stanceLabel = STANCE_LABEL[stance];
         const stanceClass = STANCE_BADGE_STYLES[stance];
         const name = authority?.name ?? '(удалён из справочника)';
         const era = authority?.era;
@@ -673,9 +679,9 @@ function AuthoritiesContent({ state, onDetach }: AuthoritiesContentProps) {
             </div>
             <span
               className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${stanceClass}`}
-              title={`Позиция: ${stanceMeta.label}`}
+              title={`Позиция: ${stanceLabel}`}
             >
-              {stanceMeta.label}
+              {stanceLabel}
             </span>
             <button
               type="button"
