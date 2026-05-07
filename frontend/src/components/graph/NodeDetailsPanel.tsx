@@ -29,6 +29,7 @@ import {
   type Stance,
 } from '@/utils/attachmentTokens';
 import AddSourceModal from './AddSourceModal';
+import AddAuthorityModal from './AddAuthorityModal';
 
 type NodeDto = components['schemas']['NodeResponse'];
 type RevisionDto = components['schemas']['RevisionResponse'];
@@ -181,6 +182,7 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
   });
 
   const [addSourceOpen, setAddSourceOpen] = useState(false);
+  const [addAuthorityOpen, setAddAuthorityOpen] = useState(false);
 
   async function loadSources() {
     if (!node.id) return;
@@ -474,6 +476,17 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
           onFirstOpen={loadAuthorities}
         >
           <AuthoritiesContent state={authoritiesState} onDetach={detachAuthority} />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            icon={Plus}
+            onClick={() => setAddAuthorityOpen(true)}
+            disabled={!node.id}
+            className="mt-2 w-full justify-center"
+          >
+            Привязать авторитета
+          </Button>
         </PanelSection>
 
         <section className="border-t border-slate-200">
@@ -554,6 +567,14 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
           nodeId={node.id}
           onClose={() => setAddSourceOpen(false)}
           onAttached={loadSources}
+        />
+      )}
+
+      {addAuthorityOpen && node.id && (
+        <AddAuthorityModal
+          nodeId={node.id}
+          onClose={() => setAddAuthorityOpen(false)}
+          onAttached={loadAuthorities}
         />
       )}
     </aside>
