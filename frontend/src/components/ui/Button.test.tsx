@@ -21,7 +21,20 @@ describe('Button', () => {
 
   it('применяет классы варианта secondary', () => {
     render(<Button variant="secondary">Отмена</Button>);
-    expect(screen.getByRole('button')).toHaveClass('bg-gray-200');
+    expect(screen.getByRole('button')).toHaveClass('bg-white');
+  });
+
+  it('primary использует indigo brand-цвет', () => {
+    render(<Button>Создать</Button>);
+    expect(screen.getByRole('button')).toHaveClass('bg-indigo-600');
+  });
+
+  it('рендерит icon prop как иконку слева', () => {
+    function FakeIcon(props: { size?: number; 'aria-hidden'?: boolean }) {
+      return <svg data-testid="fake-icon" width={props.size} aria-hidden={props['aria-hidden']} />;
+    }
+    render(<Button icon={FakeIcon as never}>Создать</Button>);
+    expect(screen.getByTestId('fake-icon')).toBeInTheDocument();
   });
 
   it('disabled блокирует клик', async () => {
