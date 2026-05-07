@@ -330,6 +330,38 @@ useEffect для backfill.
 
 ---
 
+## Tailwind v4 preflight ломает центрирование нативного `<dialog>` (top-layer)
+**Симптом:** модалки на `<dialog>` с `showModal()` открываются прижатыми
+к левому верхнему углу viewport, а не центрированно. Каждая модалка в
+проекте (`AddNodeModal`, `AddEdgeModal`, `AddSourceModal`,
+`AddAuthorityModal`) ведёт себя одинаково - заголовок касается top-bar
+страницы
+
+**Причина:** UA-stylesheet браузера для `<dialog>` устанавливает
+`margin: auto; inset: 0` для центрирования через flexbox на top-layer.
+Tailwind v4 preflight применяет `* { margin: 0 }` на широкий список
+селекторов и затирает UA-margin на dialog. В результате `inset: 0`
+расширяет dialog на весь viewport (через width:100% от родителя), но
+margin: 0 фиксирует элемент в top-left угла без центрирования
+
+**Решение:** добавить `m-auto` в className `<dialog>`. Это восстанавливает
+поведение UA-stylesheet и работает для top-layer:
+```tsx
+<dialog
+  className={`m-auto w-full ${maxWidth} rounded-lg ...`}
+/>
+```
+
+Фикс делается один раз в общем компоненте `Modal` - все модалки проекта
+наследуют. Альтернатива - явное центрирование через `fixed inset-0 flex
+items-center justify-center` на wrapper - даёт больше контроля, но overkill
+для нативного dialog где UA уже всё умеет
+
+См. `frontend/src/components/ui/Modal.tsx`. Зафиксировано в сессии 18
+после жалобы пользователя что модалки в углу
+
+---
+
 ## `react-hooks/set-state-in-effect` блокирует useEffect-сброс state модалки
 **Симптом:** ESLint ругается `Avoid calling setState() directly within an
 effect` (правило `react-hooks/set-state-in-effect`) на типичный паттерн

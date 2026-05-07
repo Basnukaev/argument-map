@@ -42,7 +42,7 @@ function Modal({ open, onClose, title, subtitle, children, maxWidth = 'max-w-lg'
       ref={ref}
       onClose={onClose}
       onClick={handleBackdropClick}
-      className={`w-full ${maxWidth} rounded-lg border border-slate-200 bg-white p-0 shadow-2xl backdrop:bg-slate-900/40 backdrop:backdrop-blur-sm`}
+      className={`m-auto w-full ${maxWidth} rounded-lg border border-slate-200 bg-white p-0 shadow-2xl backdrop:bg-slate-900/40 backdrop:backdrop-blur-sm`}
     >
       <header className="flex items-start justify-between gap-3 border-b border-slate-200 px-6 py-4">
         <div className="min-w-0">
