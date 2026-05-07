@@ -153,7 +153,7 @@ function CompactMiniMap() {
 
   return (
     <div
-      className="absolute right-3 top-3 z-10 overflow-hidden rounded-md border border-gray-300 bg-white shadow-md"
+      className="absolute right-3 bottom-3 z-10 overflow-hidden rounded-md border border-slate-200 bg-white shadow-md"
       style={{ width: W }}
     >
       <button

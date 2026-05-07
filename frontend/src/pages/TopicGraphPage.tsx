@@ -3,7 +3,6 @@ import { Link, useParams } from 'react-router';
 import {
   ReactFlow,
   Background,
-  Controls,
   Panel,
   MarkerType,
   ConnectionMode,
@@ -16,9 +15,28 @@ import {
   type Connection,
   type ReactFlowInstance,
 } from '@xyflow/react';
-import { Plus, Trash2, Eye, EyeOff, Pencil, ArrowUp, ArrowDown } from 'lucide-react';
+import {
+  Plus,
+  Trash2,
+  Eye,
+  EyeOff,
+  Pencil,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  Link2,
+  ZoomIn,
+  ZoomOut,
+  Maximize,
+  AlertCircle,
+  Loader2,
+} from 'lucide-react';
 import Button from '@/components/ui/Button';
+import IconButton from '@/components/ui/IconButton';
+import Kbd from '@/components/ui/Kbd';
+import Card from '@/components/ui/Card';
 import ContextMenu, { type ContextMenuItem } from '@/components/ui/ContextMenu';
+import { STATUS_TOKENS } from '@/utils/designTokens';
 import NodeCard, { type NodeCardNode, type NodeCardData } from '@/components/graph/NodeCard';
 import CustomEdge, { type CustomEdgeEdge } from '@/components/graph/CustomEdge';
 import AddNodeModal from '@/components/graph/AddNodeModal';
@@ -82,35 +100,54 @@ function TopicGraphPage() {
     return () => controller.abort();
   }, [topicId, refreshKey]);
 
+  const topicTitle =
+    state.kind === 'success' ? (state.graph.topic?.title ?? 'Граф темы') : 'Граф темы';
+  const topicDescription =
+    state.kind === 'success' ? state.graph.topic?.description : undefined;
+
   return (
-    <div className="flex h-screen flex-col bg-gray-50">
-      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">
-            {state.kind === 'success' ? state.graph.topic?.title ?? 'Граф темы' : 'Граф темы'}
-          </h1>
-          {state.kind === 'success' && state.graph.topic?.description && (
-            <p className="text-sm text-gray-500">{state.graph.topic.description}</p>
-          )}
-        </div>
-        <Link to="/topics">
-          <Button variant="secondary">К списку</Button>
+    <div className="flex h-screen flex-col bg-slate-50/60">
+      <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2">
+        <Link
+          to="/topics"
+          aria-label="К списку"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
+        >
+          <ArrowLeft size={14} aria-hidden="true" />К списку
         </Link>
+        <span className="text-slate-300">/</span>
+        <h1
+          className="truncate text-[14px] font-semibold text-slate-900"
+          title={topicDescription || topicTitle}
+        >
+          {topicTitle}
+        </h1>
+        {topicDescription && (
+          <p className="hidden truncate text-[12px] text-slate-500 md:block">
+            {topicDescription}
+          </p>
+        )}
       </header>
 
       <main className="relative flex-1 overflow-hidden">
         {state.kind === 'loading' && (
-          <div className="absolute inset-0 flex items-center justify-center text-gray-500">
+          <div className="absolute inset-0 flex items-center justify-center gap-2 text-[13px] text-slate-500">
+            <Loader2 size={16} className="animate-spin" aria-hidden="true" />
             Загрузка графа
           </div>
         )}
 
         {state.kind === 'error' && (
           <div className="absolute inset-0 flex items-center justify-center p-8">
-            <div className="max-w-lg rounded-md border border-red-300 bg-red-50 p-4 text-red-800">
-              <p className="font-medium">Ошибка</p>
-              <p className="mt-1 text-sm">{state.message}</p>
-            </div>
+            <Card className="max-w-lg border-red-200 bg-red-50 p-5">
+              <div className="flex items-start gap-3">
+                <AlertCircle size={20} className="mt-0.5 shrink-0 text-red-600" aria-hidden="true" />
+                <div>
+                  <p className="font-semibold text-red-900">Ошибка</p>
+                  <p className="mt-1 text-[13px] text-red-800">{state.message}</p>
+                </div>
+              </div>
+            </Card>
           </div>
         )}
 
@@ -804,41 +841,116 @@ function Graph({ graph, topicId, onRefetch }: GraphProps) {
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={24} size={1} />
-          <Controls position="bottom-right" showInteractive={false} />
           <CompactMiniMap />
-          <Panel position="top-left" className="!m-3 flex gap-2">
-            <Button onClick={() => setAddNodeOpen(true)} className="!px-3 !py-1.5 text-sm">
-              <Plus size={16} className="mr-1" /> Узел
-            </Button>
-            <Button
-              onClick={openAddEdge}
+
+          {/* Левая вертикальная колонка инструментов - через RF Panel
+              абсолютным позиционированием поверх canvas. Вынесена сюда (а не в
+              page-уровень) чтобы иметь доступ к state Graph (selectedCount,
+              showEdgeLabels) без прокидывания callback-ов наверх */}
+          <Panel
+            position="top-left"
+            className="!m-3 flex w-12 flex-col items-center gap-1 rounded-md border border-slate-200 bg-white/95 py-2 shadow-md backdrop-blur"
+          >
+            <IconButton
+              icon={Plus}
+              label="Добавить узел"
+              size="md"
+              onClick={() => setAddNodeOpen(true)}
+            />
+            <IconButton
+              icon={Link2}
+              label={canAddEdge ? 'Создать связь' : 'Нужно минимум 2 узла'}
+              size="md"
               disabled={!canAddEdge}
-              variant="secondary"
-              className="!px-3 !py-1.5 text-sm"
-              title={canAddEdge ? undefined : 'Нужно минимум 2 узла'}
-            >
-              <Plus size={16} className="mr-1" /> Связь
-            </Button>
-            <Button
-              onClick={handleDelete}
-              disabled={selectedCount === 0 || deleting}
-              variant="danger"
-              className="!px-3 !py-1.5 text-sm"
-            >
-              <Trash2 size={16} className="mr-1" />
-              {deleting ? 'Удаляем' : `Удалить${selectedCount > 0 ? ` (${selectedCount})` : ''}`}
-            </Button>
-            <Button
+              onClick={openAddEdge}
+            />
+            <div className="my-1 h-px w-7 bg-slate-200" />
+            <IconButton
+              icon={showEdgeLabels ? Eye : EyeOff}
+              label={showEdgeLabels ? 'Скрыть подписи рёбер' : 'Показать подписи рёбер'}
+              size="md"
+              active={showEdgeLabels}
               onClick={() => setShowEdgeLabels((v) => !v)}
-              variant="secondary"
-              className="!px-3 !py-1.5 text-sm"
-              title={showEdgeLabels ? 'Скрыть подписи рёбер' : 'Показать подписи рёбер'}
-              aria-label={showEdgeLabels ? 'Скрыть подписи' : 'Показать подписи'}
-              aria-pressed={showEdgeLabels}
-            >
-              {showEdgeLabels ? <Eye size={16} /> : <EyeOff size={16} />}
-            </Button>
+            />
+            <div className="my-1 h-px w-7 bg-slate-200" />
+            <IconButton
+              icon={Trash2}
+              label={
+                selectedCount === 0
+                  ? 'Удалить (выберите узлы или связи)'
+                  : `Удалить (${selectedCount})`
+              }
+              size="md"
+              disabled={selectedCount === 0 || deleting}
+              onClick={handleDelete}
+              className={selectedCount > 0 && !deleting ? '!text-red-600 hover:!bg-red-50' : ''}
+            />
           </Panel>
+
+          {/* Hotkeys hint (top-right) */}
+          <Panel
+            position="top-right"
+            className="!m-3 flex items-center gap-3 rounded-md border border-slate-200 bg-white/95 px-3 py-2 text-[11px] text-slate-600 shadow-sm backdrop-blur"
+          >
+            <span className="inline-flex items-center gap-1">
+              <Kbd>2клик</Kbd> детали
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Kbd>Del</Kbd> удалить
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Kbd>ПКМ</Kbd> меню
+            </span>
+          </Panel>
+
+          {/* Легенда статусов (bottom-left) */}
+          <Panel
+            position="bottom-left"
+            className="!m-3 max-w-[280px] rounded-md border border-slate-200 bg-white/95 p-3 shadow-md backdrop-blur"
+          >
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Статусы
+            </div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+              {(Object.keys(STATUS_TOKENS) as Array<keyof typeof STATUS_TOKENS>).map((key) => {
+                const token = STATUS_TOKENS[key];
+                return (
+                  <div key={key} className="flex items-center gap-1.5 text-[11px] text-slate-700">
+                    <span className={`h-2.5 w-3 rounded-sm ${token.bar}`} aria-hidden="true" />
+                    {token.label}
+                  </div>
+                );
+              })}
+            </div>
+          </Panel>
+
+          {/* Zoom controls (bottom-center) - через rfInstance */}
+          {rfInstance && (
+            <Panel
+              position="bottom-center"
+              className="!m-3 flex items-center gap-0.5 rounded-md border border-slate-200 bg-white/95 p-1 shadow-md backdrop-blur"
+            >
+              <IconButton
+                icon={ZoomOut}
+                label="Уменьшить"
+                size="sm"
+                onClick={() => rfInstance.zoomOut()}
+              />
+              <IconButton
+                icon={ZoomIn}
+                label="Увеличить"
+                size="sm"
+                onClick={() => rfInstance.zoomIn()}
+              />
+              <div className="mx-1 h-5 w-px bg-slate-200" />
+              <IconButton
+                icon={Maximize}
+                label="По размеру"
+                size="sm"
+                onClick={() => rfInstance.fitView({ padding: 0.2 })}
+              />
+            </Panel>
+          )}
         </ReactFlow>
       )}
 
