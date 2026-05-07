@@ -36,6 +36,7 @@ import {
 } from '@/utils/edgeRules';
 import type { AutoEdgeSpec } from '@/components/graph/AddNodeModal';
 import { toast } from '@/stores/toastStore';
+import { EDGE_TYPE_TOKENS } from '@/utils/designTokens';
 import type { components } from '@/api/types';
 
 type GraphResponse = components['schemas']['GraphResponse'];
@@ -121,14 +122,14 @@ function TopicGraphPage() {
   );
 }
 
-// Цвета маркеров-стрелок на конце ребра. Совпадают со stroke в CustomEdge,
-// чтобы стрелка была того же цвета что и линия
+// Цвета маркеров-стрелок на конце ребра. Берём из EDGE_TYPE_TOKENS чтобы
+// стрелка была того же цвета что и линия в CustomEdge - один источник
 const EDGE_ARROW_COLOR: Record<NonNullable<EdgeDto['edgeType']>, string> = {
-  SUPPORTS: '#22c55e',
-  REFUTES: '#ef4444',
-  INVALIDATES: '#b91c1c',
-  QUALIFIES: '#3b82f6',
-  RESPONDS_TO: '#9ca3af',
+  SUPPORTS: EDGE_TYPE_TOKENS.SUPPORTS.stroke,
+  REFUTES: EDGE_TYPE_TOKENS.REFUTES.stroke,
+  INVALIDATES: EDGE_TYPE_TOKENS.INVALIDATES.stroke,
+  QUALIFIES: EDGE_TYPE_TOKENS.QUALIFIES.stroke,
+  RESPONDS_TO: EDGE_TYPE_TOKENS.RESPONDS_TO.stroke,
 };
 
 interface GraphProps {
