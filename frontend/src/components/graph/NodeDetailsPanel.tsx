@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Pencil,
@@ -8,17 +8,73 @@ import {
   MessageSquareQuote,
   Info,
   History,
+  Quote,
+  Users,
+  Trash2,
+  Link as LinkIcon,
   type LucideIcon,
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import IconButton from '@/components/ui/IconButton';
 import StatusBadge from '@/components/ui/StatusBadge';
-import { apiGetRaw, apiPatchRaw, ApiError } from '@/api/client';
+import { apiGetRaw, apiPatchRaw, apiDeleteRaw, ApiError } from '@/api/client';
+import { toast } from '@/stores/toastStore';
 import type { components } from '@/api/types';
 import { NODE_TYPE_TOKENS, type NodeType, type NodeStatus } from '@/utils/designTokens';
 
 type NodeDto = components['schemas']['NodeResponse'];
 type RevisionDto = components['schemas']['RevisionResponse'];
+type SourceDto = components['schemas']['SourceResponse'];
+type AuthorityDto = components['schemas']['AuthorityResponse'];
+type NodeSourceDto = components['schemas']['NodeSourceResponse'];
+type NodeAuthorityDto = components['schemas']['NodeAuthorityResponse'];
+
+type SourceType = NonNullable<SourceDto['sourceType']>;
+type Stance = NonNullable<NodeAuthorityDto['stance']>;
+
+const SOURCE_TYPE_LABEL: Record<SourceType, string> = {
+  QURAN: 'аят',
+  HADITH: 'хадис',
+  BOOK: 'книга',
+  ARTICLE: 'статья',
+  URL: 'ссылка',
+};
+
+const STANCE_LABEL: Record<Stance, { label: string; tone: 'emerald' | 'red' | 'slate' }> = {
+  HOLDS: { label: 'Поддерживает', tone: 'emerald' },
+  OPPOSES: { label: 'Возражает', tone: 'red' },
+  NEUTRAL: { label: 'Нейтрально', tone: 'slate' },
+};
+
+const STANCE_BADGE_STYLES: Record<Stance, string> = {
+  HOLDS: 'bg-emerald-100 text-emerald-800',
+  OPPOSES: 'bg-red-100 text-red-800',
+  NEUTRAL: 'bg-slate-100 text-slate-700',
+};
+
+interface AttachmentsState<L, R> {
+  links: L[];
+  /** карта id → entry из справочника (имя/тип источника) */
+  lookup: Map<string, R>;
+}
+
+type SourcesState =
+  | { kind: 'not-loaded' }
+  | { kind: 'loading' }
+  | { kind: 'loaded'; data: AttachmentsState<NodeSourceDto, SourceDto> }
+  | { kind: 'error'; message: string };
+
+type AuthoritiesState =
+  | { kind: 'not-loaded' }
+  | { kind: 'loading' }
+  | { kind: 'loaded'; data: AttachmentsState<NodeAuthorityDto, AuthorityDto> }
+  | { kind: 'error'; message: string };
+
+function avatarInitials(name?: string): string {
+  if (!name) return '·';
+  const parts = name.trim().split(/\s+/).slice(0, 2);
+  return parts.map((p) => p.charAt(0).toUpperCase()).join('') || '·';
+}
 
 type RevisionsState =
   | { kind: 'not-loaded' }
@@ -55,11 +111,21 @@ function shortId(id?: string): string {
   return id.slice(0, 8);
 }
 
+function errorMessage(e: unknown, fallback: string): string {
+  if (e instanceof ApiError) {
+    return e.problem.detail || e.problem.title || fallback;
+  }
+  if (e instanceof Error) return e.message;
+  return fallback;
+}
+
 interface SectionProps {
   icon: LucideIcon;
   title: string;
   count?: number | string;
   defaultOpen?: boolean;
+  /** вызывается при первом раскрытии секции - удобно для lazy-load */
+  onFirstOpen?: () => void;
   children: ReactNode;
 }
 
@@ -68,9 +134,19 @@ function PanelSection({
   title,
   count,
   defaultOpen = true,
+  onFirstOpen,
   children,
 }: SectionProps) {
   const [open, setOpen] = useState(defaultOpen);
+  const firedRef = useRef(false);
+
+  useEffect(() => {
+    if (open && !firedRef.current) {
+      firedRef.current = true;
+      onFirstOpen?.();
+    }
+  }, [open, onFirstOpen]);
+
   return (
     <section className="border-t border-slate-200">
       <button
@@ -113,6 +189,90 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [revisionsState, setRevisionsState] = useState<RevisionsState>({ kind: 'not-loaded' });
+
+  const [sourcesState, setSourcesState] = useState<SourcesState>({ kind: 'not-loaded' });
+  const [authoritiesState, setAuthoritiesState] = useState<AuthoritiesState>({
+    kind: 'not-loaded',
+  });
+
+  async function loadSources() {
+    if (!node.id) return;
+    setSourcesState({ kind: 'loading' });
+    try {
+      const [links, dictionary] = await Promise.all([
+        apiGetRaw<NodeSourceDto[]>(`/api/v1/nodes/${node.id}/sources`),
+        apiGetRaw<SourceDto[]>(`/api/v1/sources`),
+      ]);
+      const lookup = new Map<string, SourceDto>();
+      for (const src of dictionary) {
+        if (src.id) lookup.set(src.id, src);
+      }
+      setSourcesState({ kind: 'loaded', data: { links, lookup } });
+    } catch (e: unknown) {
+      setSourcesState({ kind: 'error', message: errorMessage(e, 'Не удалось загрузить источники') });
+    }
+  }
+
+  async function loadAuthorities() {
+    if (!node.id) return;
+    setAuthoritiesState({ kind: 'loading' });
+    try {
+      const [links, dictionary] = await Promise.all([
+        apiGetRaw<NodeAuthorityDto[]>(`/api/v1/nodes/${node.id}/authorities`),
+        apiGetRaw<AuthorityDto[]>(`/api/v1/authorities`),
+      ]);
+      const lookup = new Map<string, AuthorityDto>();
+      for (const a of dictionary) {
+        if (a.id) lookup.set(a.id, a);
+      }
+      setAuthoritiesState({ kind: 'loaded', data: { links, lookup } });
+    } catch (e: unknown) {
+      setAuthoritiesState({
+        kind: 'error',
+        message: errorMessage(e, 'Не удалось загрузить авторитетов'),
+      });
+    }
+  }
+
+  async function detachSource(sourceId: string) {
+    if (!node.id) return;
+    if (sourcesState.kind !== 'loaded') return;
+    const previous = sourcesState.data.links;
+    const next = previous.filter((l) => l.sourceId !== sourceId);
+    setSourcesState({
+      kind: 'loaded',
+      data: { ...sourcesState.data, links: next },
+    });
+    try {
+      await apiDeleteRaw(`/api/v1/nodes/${node.id}/sources/${sourceId}`);
+    } catch (e: unknown) {
+      toast.error(errorMessage(e, 'Не удалось отвязать источник'));
+      setSourcesState({
+        kind: 'loaded',
+        data: { ...sourcesState.data, links: previous },
+      });
+    }
+  }
+
+  async function detachAuthority(authorityId: string) {
+    if (!node.id) return;
+    if (authoritiesState.kind !== 'loaded') return;
+    const previous = authoritiesState.data.links;
+    const next = previous.filter((l) => l.authorityId !== authorityId);
+    setAuthoritiesState({
+      kind: 'loaded',
+      data: { ...authoritiesState.data, links: next },
+    });
+    try {
+      await apiDeleteRaw(`/api/v1/nodes/${node.id}/authorities/${authorityId}`);
+    } catch (e: unknown) {
+      toast.error(errorMessage(e, 'Не удалось отвязать авторитет'));
+      setAuthoritiesState({
+        kind: 'loaded',
+        data: { ...authoritiesState.data, links: previous },
+      });
+    }
+  }
 
   function toggleHistory() {
     if (historyOpen) {
@@ -296,6 +456,28 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
           </dl>
         </PanelSection>
 
+        <PanelSection
+          icon={Quote}
+          title="Источники"
+          count={sourcesState.kind === 'loaded' ? sourcesState.data.links.length : undefined}
+          defaultOpen={false}
+          onFirstOpen={loadSources}
+        >
+          <SourcesContent state={sourcesState} onDetach={detachSource} />
+        </PanelSection>
+
+        <PanelSection
+          icon={Users}
+          title="Авторитеты"
+          count={
+            authoritiesState.kind === 'loaded' ? authoritiesState.data.links.length : undefined
+          }
+          defaultOpen={false}
+          onFirstOpen={loadAuthorities}
+        >
+          <AuthoritiesContent state={authoritiesState} onDetach={detachAuthority} />
+        </PanelSection>
+
         <section className="border-t border-slate-200">
           <button
             type="button"
@@ -369,6 +551,144 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
         </section>
       </div>
     </aside>
+  );
+}
+
+interface SourcesContentProps {
+  state: SourcesState;
+  onDetach: (sourceId: string) => void;
+}
+
+function SourcesContent({ state, onDetach }: SourcesContentProps) {
+  if (state.kind === 'not-loaded' || state.kind === 'loading') {
+    return <p className="text-[12px] text-slate-500">Загрузка</p>;
+  }
+  if (state.kind === 'error') {
+    return <p className="text-[12px] text-red-700">Ошибка: {state.message}</p>;
+  }
+  const { links, lookup } = state.data;
+  if (links.length === 0) {
+    return (
+      <p className="text-[12px] italic text-slate-500">
+        К узлу не привязано ни одного источника
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {links.map((link) => {
+        const source = link.sourceId ? lookup.get(link.sourceId) : undefined;
+        const sourceType = source?.sourceType;
+        const kindLabel = sourceType ? SOURCE_TYPE_LABEL[sourceType] : 'источник';
+        const title = source?.title ?? '(удалён из справочника)';
+        const citation = source?.citation;
+        const quote = link.quote;
+        return (
+          <article
+            key={link.sourceId}
+            className="group rounded-md border border-slate-200 bg-slate-50/60 p-3"
+          >
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="font-mono text-[11px] font-semibold uppercase text-slate-500">
+                {kindLabel}
+              </span>
+              <div className="flex items-center gap-1">
+                <LinkIcon size={12} className="text-slate-400" aria-hidden="true" />
+                <button
+                  type="button"
+                  aria-label="Отвязать источник"
+                  onClick={() => link.sourceId && onDetach(link.sourceId)}
+                  className="rounded p-1 text-slate-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
+                >
+                  <Trash2 size={12} aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+            <div className="text-[12px] font-semibold text-slate-800">{title}</div>
+            {citation && (
+              <div className="mt-0.5 font-mono text-[11px] text-slate-500">{citation}</div>
+            )}
+            {quote && (
+              <div className="mt-1 border-l-2 border-slate-300 pl-2 text-[12px] italic leading-relaxed text-slate-600">
+                «{quote}»
+              </div>
+            )}
+            {link.context && (
+              <div className="mt-1 text-[11px] text-slate-500">{link.context}</div>
+            )}
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+interface AuthoritiesContentProps {
+  state: AuthoritiesState;
+  onDetach: (authorityId: string) => void;
+}
+
+function AuthoritiesContent({ state, onDetach }: AuthoritiesContentProps) {
+  if (state.kind === 'not-loaded' || state.kind === 'loading') {
+    return <p className="text-[12px] text-slate-500">Загрузка</p>;
+  }
+  if (state.kind === 'error') {
+    return <p className="text-[12px] text-red-700">Ошибка: {state.message}</p>;
+  }
+  const { links, lookup } = state.data;
+  if (links.length === 0) {
+    return (
+      <p className="text-[12px] italic text-slate-500">
+        К узлу не привязано ни одного авторитета
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-1.5">
+      {links.map((link) => {
+        const authority = link.authorityId ? lookup.get(link.authorityId) : undefined;
+        const stance: Stance = link.stance ?? 'NEUTRAL';
+        const stanceMeta = STANCE_LABEL[stance];
+        const stanceClass = STANCE_BADGE_STYLES[stance];
+        const name = authority?.name ?? '(удалён из справочника)';
+        const era = authority?.era;
+        const madhab = authority?.madhab;
+        const meta = [era, madhab].filter(Boolean).join(' · ');
+        return (
+          <div
+            key={link.authorityId}
+            className="group flex items-center gap-2 rounded-md py-1.5 transition-colors hover:bg-slate-50"
+          >
+            <span
+              className="grid h-7 w-7 place-items-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-700"
+              aria-hidden="true"
+            >
+              {avatarInitials(authority?.name)}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[12px] font-medium text-slate-800">{name}</div>
+              {meta && (
+                <div className="truncate font-mono text-[11px] text-slate-500">{meta}</div>
+              )}
+            </div>
+            <span
+              className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${stanceClass}`}
+              title={`Позиция: ${stanceMeta.label}`}
+            >
+              {stanceMeta.label}
+            </span>
+            <button
+              type="button"
+              aria-label="Отвязать авторитет"
+              onClick={() => link.authorityId && onDetach(link.authorityId)}
+              className="rounded p-1 text-slate-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
+            >
+              <Trash2 size={12} aria-hidden="true" />
+            </button>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

@@ -172,6 +172,18 @@ export async function apiPatchRaw<T>(
   return request<T>(path, { method: 'PATCH', body, signal: options?.signal });
 }
 
+/**
+ * Сырой POST для динамических путей (`/api/v1/nodes/${id}/sources` и т.п.).
+ * Тип ответа подставляется руками: `apiPostRaw<NodeSourceResponse>(...)`.
+ */
+export async function apiPostRaw<T>(
+  path: string,
+  body: unknown,
+  options?: { signal?: AbortSignal },
+): Promise<T> {
+  return request<T>(path, { method: 'POST', body, signal: options?.signal });
+}
+
 // === Helper-типы для извлечения тела запроса/ответа из openapi-typescript ===
 //
 // Springdoc выводит контент-типы как "*/*" (не "application/json"), пока бэк
