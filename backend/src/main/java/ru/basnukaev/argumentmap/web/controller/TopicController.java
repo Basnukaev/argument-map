@@ -42,18 +42,22 @@ public class TopicController {
                 request.title(), request.description(),
                 request.rootQuestion(), userId
         );
-        TopicResponse body = DtoMappers.toResponse(created);
+        // Дополнительный SQL за актуальными nodeCount/edgeCount после create -
+        // ответ должен честно отражать состояние темы (rootQuestion = 1 узел)
+        TopicResponse body = DtoMappers.toResponse(topicService.getTopicWithCounts(created.id()));
         return ResponseEntity.created(URI.create("/api/v1/topics/" + created.id())).body(body);
     }
 
     @GetMapping
     public List<TopicResponse> list() {
-        return topicService.listTopics().stream().map(DtoMappers::toResponse).toList();
+        // listTopicsWithCounts: один SQL с агрегатами nodes/edges. На карточках
+        // тем во фронте показываются счётчики - см. ADR-016
+        return topicService.listTopicsWithCounts().stream().map(DtoMappers::toResponse).toList();
     }
 
     @GetMapping("/{topicId}")
     public TopicResponse getOne(@PathVariable UUID topicId) {
-        return DtoMappers.toResponse(topicService.getTopic(topicId));
+        return DtoMappers.toResponse(topicService.getTopicWithCounts(topicId));
     }
 
     @DeleteMapping("/{topicId}")

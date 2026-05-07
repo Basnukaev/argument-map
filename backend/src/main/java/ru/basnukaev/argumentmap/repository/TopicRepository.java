@@ -27,6 +27,35 @@ public class TopicRepository {
             instant(rs, "created_at")
     );
 
+    /**
+     * Один SQL для темы + двух агрегатов через LEFT JOIN-подзапросы. Альтернатива -
+     * 2 subquery в SELECT-листе (читается проще, но N+1 при многих темах).
+     * COALESCE возвращает 0 если нет nodes/edges (новая пустая тема). Edges
+     * аггрегируются через JOIN с nodes чтобы знать topic_id ребра (edges не
+     * хранят его напрямую - см. ADR-003 о двух таблицах nodes+edges)
+     */
+    private static final String COUNTS_SQL_BASE = """
+            SELECT t.id, t.title, t.description, t.root_node_id, t.created_by, t.created_at,
+                   COALESCE(nc.cnt, 0) AS node_count,
+                   COALESCE(ec.cnt, 0) AS edge_count
+            FROM topics t
+            LEFT JOIN (
+                SELECT topic_id, COUNT(*) AS cnt FROM nodes GROUP BY topic_id
+            ) nc ON nc.topic_id = t.id
+            LEFT JOIN (
+                SELECT n.topic_id, COUNT(*) AS cnt
+                FROM edges e
+                JOIN nodes n ON n.id = e.from_node_id
+                GROUP BY n.topic_id
+            ) ec ON ec.topic_id = t.id
+            """;
+
+    private static final RowMapper<TopicWithCounts> WITH_COUNTS_MAPPER = (rs, rn) -> new TopicWithCounts(
+            ROW_MAPPER.mapRow(rs, rn),
+            rs.getInt("node_count"),
+            rs.getInt("edge_count")
+    );
+
     private final JdbcTemplate jdbcTemplate;
 
     public TopicRepository(JdbcTemplate jdbcTemplate) {
@@ -56,6 +85,21 @@ public class TopicRepository {
 
     public List<Topic> findAll() {
         return jdbcTemplate.query("SELECT " + COLUMNS + " FROM topics ORDER BY created_at", ROW_MAPPER);
+    }
+
+    public List<TopicWithCounts> findAllWithCounts() {
+        return jdbcTemplate.query(
+                COUNTS_SQL_BASE + " ORDER BY t.created_at",
+                WITH_COUNTS_MAPPER
+        );
+    }
+
+    public Optional<TopicWithCounts> findByIdWithCounts(UUID id) {
+        return jdbcTemplate.query(
+                COUNTS_SQL_BASE + " WHERE t.id = ?",
+                WITH_COUNTS_MAPPER,
+                id
+        ).stream().findFirst();
     }
 
     public void updateRootNodeId(UUID topicId, UUID rootNodeId) {

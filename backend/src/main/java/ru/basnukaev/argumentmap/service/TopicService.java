@@ -14,6 +14,7 @@ import ru.basnukaev.argumentmap.domain.Topic;
 import ru.basnukaev.argumentmap.exception.TopicNotFoundException;
 import ru.basnukaev.argumentmap.repository.NodeRepository;
 import ru.basnukaev.argumentmap.repository.TopicRepository;
+import ru.basnukaev.argumentmap.repository.TopicWithCounts;
 
 @Service
 public class TopicService {
@@ -65,6 +66,17 @@ public class TopicService {
     @Transactional(readOnly = true)
     public List<Topic> listTopics() {
         return topicRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public List<TopicWithCounts> listTopicsWithCounts() {
+        return topicRepository.findAllWithCounts();
+    }
+
+    @Transactional(readOnly = true)
+    public TopicWithCounts getTopicWithCounts(UUID topicId) {
+        return topicRepository.findByIdWithCounts(topicId)
+                .orElseThrow(() -> new TopicNotFoundException(topicId));
     }
 
     @Transactional

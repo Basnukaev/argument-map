@@ -9,6 +9,10 @@ public record TopicResponse(
         String description,
         UUID rootNodeId,
         UUID createdBy,
-        Instant createdAt
+        Instant createdAt,
+        // агрегаты графа темы. На list-эндпоинте всегда заполнены, на остальных
+        // могут быть нулём (метод toResponse(Topic) без счётчиков). См. ADR-016
+        int nodeCount,
+        int edgeCount
 ) {
 }

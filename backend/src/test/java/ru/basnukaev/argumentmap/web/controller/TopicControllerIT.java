@@ -141,6 +141,27 @@ class TopicControllerIT {
     }
 
     @Test
+    void listTopics_includesNodeCountAndEdgeCount() throws Exception {
+        createTopicViaApi();
+
+        mockMvc.perform(get("/api/v1/topics"))
+                .andExpect(status().isOk())
+                // только что созданная тема имеет 1 узел (корневой вопрос) и 0 рёбер
+                .andExpect(jsonPath("$[0].nodeCount").value(1))
+                .andExpect(jsonPath("$[0].edgeCount").value(0));
+    }
+
+    @Test
+    void getOne_includesNodeCountAndEdgeCount() throws Exception {
+        UUID topicId = createTopicViaApi();
+
+        mockMvc.perform(get("/api/v1/topics/{id}", topicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nodeCount").value(1))
+                .andExpect(jsonPath("$.edgeCount").value(0));
+    }
+
+    @Test
     void deleteTopic_existing_returns204() throws Exception {
         UUID topicId = createTopicViaApi();
 

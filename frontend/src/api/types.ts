@@ -280,6 +280,10 @@ export interface components {
             createdBy?: string;
             /** Format: date-time */
             createdAt?: string;
+            /** Format: int32 */
+            nodeCount?: number;
+            /** Format: int32 */
+            edgeCount?: number;
         };
         CreateSourceRequest: {
             /** @enum {string} */

@@ -14,6 +14,7 @@ import ru.basnukaev.argumentmap.domain.NodeSource;
 import ru.basnukaev.argumentmap.domain.Revision;
 import ru.basnukaev.argumentmap.domain.Source;
 import ru.basnukaev.argumentmap.domain.Topic;
+import ru.basnukaev.argumentmap.repository.TopicWithCounts;
 import ru.basnukaev.argumentmap.service.GraphView;
 import ru.basnukaev.argumentmap.web.dto.AuthorityResponse;
 import ru.basnukaev.argumentmap.web.dto.EdgeResponse;
@@ -38,10 +39,19 @@ public final class DtoMappers {
     }
 
     public static TopicResponse toResponse(Topic topic) {
+        return toResponse(topic, 0, 0);
+    }
+
+    public static TopicResponse toResponse(Topic topic, int nodeCount, int edgeCount) {
         return new TopicResponse(
                 topic.id(), topic.title(), topic.description(),
-                topic.rootNodeId(), topic.createdBy(), topic.createdAt()
+                topic.rootNodeId(), topic.createdBy(), topic.createdAt(),
+                nodeCount, edgeCount
         );
+    }
+
+    public static TopicResponse toResponse(TopicWithCounts twc) {
+        return toResponse(twc.topic(), twc.nodeCount(), twc.edgeCount());
     }
 
     public static NodeResponse toResponse(Node node) {

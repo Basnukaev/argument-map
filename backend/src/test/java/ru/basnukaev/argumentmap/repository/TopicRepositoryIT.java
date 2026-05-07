@@ -17,6 +17,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
+import ru.basnukaev.argumentmap.domain.EdgeType;
 import ru.basnukaev.argumentmap.domain.NodeStatus;
 import ru.basnukaev.argumentmap.domain.NodeType;
 import ru.basnukaev.argumentmap.domain.Topic;
@@ -118,6 +119,70 @@ class TopicRepositoryIT {
         assertThat(topicRepository.deleteById(UUID.randomUUID())).isFalse();
     }
 
+    @Test
+    void findAllWithCounts_returnsTopicsWithNodeAndEdgeAggregates() {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        Topic topicA = new Topic(UUID.randomUUID(), "A", null, null, userId, now.minusSeconds(60));
+        Topic topicB = new Topic(UUID.randomUUID(), "B", null, null, userId, now);
+        topicRepository.save(topicA);
+        topicRepository.save(topicB);
+
+        // тема A: 3 узла, 2 ребра
+        UUID a1 = insertNode(topicA.id());
+        UUID a2 = insertNode(topicA.id());
+        UUID a3 = insertNode(topicA.id());
+        insertEdge(a1, a2);
+        insertEdge(a2, a3);
+
+        // тема B: 1 узел, 0 рёбер
+        insertNode(topicB.id());
+
+        List<TopicWithCounts> result = topicRepository.findAllWithCounts();
+
+        assertThat(result).hasSize(2);
+        assertThat(result).extracting(twc -> twc.topic().id()).containsExactly(topicA.id(), topicB.id());
+        assertThat(result.get(0).nodeCount()).isEqualTo(3);
+        assertThat(result.get(0).edgeCount()).isEqualTo(2);
+        assertThat(result.get(1).nodeCount()).isEqualTo(1);
+        assertThat(result.get(1).edgeCount()).isZero();
+    }
+
+    @Test
+    void findAllWithCounts_topicWithoutNodesReturnsZeroCounts() {
+        Topic empty = new Topic(UUID.randomUUID(), "Пустая", null, null, userId, Instant.now());
+        topicRepository.save(empty);
+
+        List<TopicWithCounts> result = topicRepository.findAllWithCounts();
+
+        TopicWithCounts found = result.stream()
+                .filter(twc -> twc.topic().id().equals(empty.id()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(found.nodeCount()).isZero();
+        assertThat(found.edgeCount()).isZero();
+    }
+
+    @Test
+    void findByIdWithCounts_returnsAggregatesForOneTopic() {
+        Topic topic = new Topic(UUID.randomUUID(), "T", null, null, userId, Instant.now());
+        topicRepository.save(topic);
+        UUID n1 = insertNode(topic.id());
+        UUID n2 = insertNode(topic.id());
+        insertEdge(n1, n2);
+
+        Optional<TopicWithCounts> result = topicRepository.findByIdWithCounts(topic.id());
+
+        assertThat(result).isPresent();
+        assertThat(result.get().topic().id()).isEqualTo(topic.id());
+        assertThat(result.get().nodeCount()).isEqualTo(2);
+        assertThat(result.get().edgeCount()).isEqualTo(1);
+    }
+
+    @Test
+    void findByIdWithCounts_whenNotExists_returnsEmpty() {
+        assertThat(topicRepository.findByIdWithCounts(UUID.randomUUID())).isEmpty();
+    }
+
     private UUID insertNode(UUID topicId) {
         UUID id = UUID.randomUUID();
         Instant now = Instant.now();
@@ -125,6 +190,17 @@ class TopicRepositoryIT {
                 "INSERT INTO nodes (id, topic_id, node_type, content, status, "
                         + "created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 id, topicId, NodeType.QUESTION.name(), "?", NodeStatus.UNVERIFIED.name(), userId, odt(now), odt(now)
+        );
+        return id;
+    }
+
+    private UUID insertEdge(UUID fromNodeId, UUID toNodeId) {
+        UUID id = UUID.randomUUID();
+        Instant now = Instant.now();
+        jdbcTemplate.update(
+                "INSERT INTO edges (id, from_node_id, to_node_id, edge_type, "
+                        + "created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                id, fromNodeId, toNodeId, EdgeType.SUPPORTS.name(), userId, odt(now)
         );
         return id;
     }

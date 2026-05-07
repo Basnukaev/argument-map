@@ -463,9 +463,22 @@ targetHandle (выставить null) - null трактуется как "не 
   "description": "string|null",
   "rootNodeId": "uuid|null",
   "createdBy": "uuid",
-  "createdAt": "iso8601"
+  "createdAt": "iso8601",
+  "nodeCount": 12,
+  "edgeCount": 18
 }
 ```
+
+`nodeCount` / `edgeCount` (int) - агрегаты числа узлов и рёбер темы.
+Заполняются на всех эндпоинтах возвращающих TopicResponse:
+- `GET /api/v1/topics` (list) - один SQL с агрегатными
+  LEFT JOIN-подзапросами для всех тем сразу
+- `GET /api/v1/topics/{id}` (one) - тот же SQL с фильтром по id
+- `POST /api/v1/topics` (create) - дополнительный запрос после
+  транзакции создания, чтобы вернуть честные значения
+  (1 узел = корневой вопрос, 0 рёбер). Через TopicService.getTopicWithCounts
+
+См. ADR-016. Для отображения карточки темы с мини-графом во фронте.
 
 ### NodeResponse
 ```json
@@ -614,6 +627,7 @@ targetHandle (выставить null) - null трактуется как "не 
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-07 | v1 | `TopicResponse` получил `nodeCount` и `edgeCount` (int). На POST/GET-list/GET-one заполняются актуальными значениями через TopicRepository.findAllWithCounts/findByIdWithCounts (один SQL с агрегатными LEFT JOIN-подзапросами) | ADR-016: фронт показывает счётчики на карточках тем без N+1 запросов |
 | 2026-05-05 | v1 | Добавлен `PATCH /api/v1/edges/{id}` с `UpdateEdgeRequest` (все поля opt). Финальное состояние валидируется целиком (selfloop / topic boundary / ADR-010), ребро меняется атомарно или 422 | ADR-014: reconnect edges - перетаскивание конца ребра на другой handle. Универсальный partial PATCH вместо sub-resource `/reconnect`, чтобы не плодить API surface |
 | 2026-05-05 | v1 | `EdgeResponse` получил `sourceHandle`/`targetHandle` (String, nullable). `CreateEdgeRequest` принимает opt одноимённые поля | этап 9 / F.b: drag-create в RF выбирает конкретные стороны handles, после refetch уважается исходный выбор пользователя |
 | 2026-05-05 | v1 | `NodeResponse` получил `posX`/`posY` (Double, nullable). `UpdateNodeRequest` принимает opt `posX`+`posY` без revision | этап 9 Miro UX: drag-and-drop позиции узлов сохраняются на беке |

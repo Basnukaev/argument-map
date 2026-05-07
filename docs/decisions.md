@@ -782,3 +782,88 @@ border/ring для других сигналов (selected/hover);
   и в hover-состояниях радио-кнопок в модалках. Не
   удаляем
 
+
+---
+
+## ADR-016: `nodeCount`/`edgeCount` в `TopicResponse` через агрегатный SQL
+
+**Дата:** 2026-05-07
+**Статус:** принято
+**Контекст:** Фронт после визуальной полировки (Этап 11) показывает
+карточки тем с мини-графом и бейджем "N узлов · M связей". Бэк
+до этого возвращал в `TopicResponse` только базовые поля
+(id/title/description/rootNodeId/createdBy/createdAt) - счётчиков
+не было. Если фронт получает их сам через запрос `/topics/{id}/graph`
+для каждой темы - это N+1 (на странице со списком 6+ тем -
+6+ дополнительных запросов с полным графом каждой).
+
+**Решение:** расширить `TopicResponse` полями `nodeCount: int` и
+`edgeCount: int`. Заполнять через новые методы:
+- `TopicRepository.findAllWithCounts()` - один SQL с агрегатными
+  LEFT JOIN-подзапросами: nodes по topic_id, edges через JOIN
+  с nodes (edges не хранят topic_id напрямую - см. ADR-003).
+- `TopicRepository.findByIdWithCounts(id)` - тот же SQL с
+  WHERE по topic_id.
+- Новый record `TopicWithCounts(Topic, int nodeCount, int edgeCount)`
+  для возврата из репозитория.
+
+`TopicService` получил методы `listTopicsWithCounts()` и
+`getTopicWithCounts(id)`. Старые `listTopics()`/`getTopic(id)`
+сохранены - используются в createTopic для возврата самой темы
+без необходимости считать агрегаты.
+
+`DtoMappers` получил перегрузки `toResponse(Topic)` (counts=0,
+для legacy-вызовов из createTopic), `toResponse(Topic, int, int)`
+и `toResponse(TopicWithCounts)`.
+
+`TopicController`:
+- `POST` - после транзакции createTopic делает второй SQL через
+  `getTopicWithCounts(id)` и возвращает с counts (1 узел = root,
+  0 рёбер). Семантически честно
+- `GET /topics` - использует listTopicsWithCounts (один SQL для
+  всех тем)
+- `GET /topics/{id}` - findByIdWithCounts
+
+**Альтернативы:**
+1. **Считать на фронте через `/graph` per topic** - N+1 запросов,
+   плюс на /topics-странице тяжёлый payload (полный граф ради
+   двух чисел)
+2. **Отдельный эндпоинт `/topics/{id}/counts`** - дополнительный
+   round-trip + ещё один путь в API. Пользу не оправдывает
+3. **Денормализация - хранить counts в таблице topics** -
+   пришлось бы триггерить обновление на каждом insert/delete
+   nodes/edges. Дорого по сложности (триггеры или application-level
+   bookkeeping), profit маленький
+4. **Включить counts в TopicResponse через агрегатный SQL**
+   (выбрано) - один SQL для list, второй для one, третий для
+   POST-create (вызывается после транзакции). Honest semantics,
+   нет N+1, нет денормализации
+
+**Причины:**
+- Фронт получает всё что нужно для карточки темы одним
+  запросом - простой UX
+- Не вводим денормализацию (риск рассогласования счётчиков
+  с реальностью)
+- Один SQL для list - выполняется один раз для любого
+  количества тем
+- TopicWithCounts как промежуточный record позволяет ясно
+  разделить "просто Topic" (для создания/обновления) и
+  "Topic с агрегатами для UI" - SRP
+
+**Последствия:**
+- (+) Фронт-код для TopicListPage упрощается - данные
+  пришли вместе с темой
+- (+) Один SQL для list масштабируется лучше чем N+1
+- (+) Семантически честные значения на всех endpoint-ах
+  (включая POST)
+- (−) `TopicResponse` стал шире (на 2 int поля - cheap)
+- (−) POST `/topics` делает дополнительный SELECT после
+  транзакции (один лишний round-trip к БД, но не запрос
+  к графу - дёшево)
+- (−) Открытый вопрос: `statusCounts: Map<NodeStatus, int>`
+  для раскраски мини-графа на карточке темы. Сейчас
+  не добавляется - мини-граф во фронте делается
+  декоративным (без зависимости от status-распределения).
+  Если пользователь захочет акцент по статусам тем - добавим
+  отдельным агрегатом и расширим DTO. Откладывается до
+  явного запроса
