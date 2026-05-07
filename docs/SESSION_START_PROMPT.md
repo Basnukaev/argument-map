@@ -23,6 +23,8 @@
   существует, иначе пересоздать через `scripts/seed-mawlid.sh`
 - Список последних `git log --oneline -10` - чтобы новая сессия
   понимала свежий контекст коммитов
+- Bundle size - после крупных рефакторингов или новых тяжёлых
+  зависимостей сверить с реальностью (`npm run build`)
 
 ---
 
@@ -40,12 +42,21 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 ══════════════════════════════════════════════
 1. Прочитай ПОЛНОСТЬЮ:
    - docs/progress.md (последние 3 записи + раздел "Следующий шаг")
-   - docs/roadmap.md (текущий этап, открытые пункты)
-   - docs/decisions.md (все ADR, особенно последние 3-5)
+   - docs/roadmap.md (текущий этап, открытые пункты, бэклог
+     "Будущие фичи (исламский контекст)" - 18+ записей из
+     дизайн-референса)
+   - docs/decisions.md (все ADR, особенно последние 3-5: ADR-014
+     reconnect, ADR-015 status-bar слева, ADR-016 nodeCount/
+     edgeCount в TopicResponse)
    - docs/gotchas.md (все ловушки, чтобы не наступить)
    - docs/api-contract.md (бегло, источник истины контракта)
    - frontend/CLAUDE.md и backend/CLAUDE.md (правила работы и
      чек-лист документации после коммита)
+   - frontend/docs/ui-guidelines.md (после Этапа 11 -
+     обновлённая палитра, status-bar слева, токены в designTokens.ts)
+   - frontend/design-reference/README.md (handoff-бандл с
+     дизайном; jsx файлы - визуальная спецификация для будущих
+     фич, не код для копирования)
 2. Проверь актуальное состояние:
    - git log --oneline -15 (свежие коммиты)
    - docker ps | grep argumentmap-postgres (контейнер БД healthy)
@@ -63,16 +74,19 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
    - layoutGraph mixed-режим может перебросить fresh узлы. Решено
      через backfill posX/posY на load + previousNodes hint
      (см. gotchas.md)
+   - Sources & Arabic direction: shamela-парсинг будущее,
+     арабский как first-class (RTL + naskh) - в дизайн-референсе
+     отдельные секции, в roadmap бэклог "Будущие фичи"
 4. Скажи Абдуле: "вижу - последний раз X. Следующее по приоритету -
    Y. Продолжаем с этого или хочешь другое?"
 5. ЖДИ ПОДТВЕРЖДЕНИЕ. Не начинай работу без него.
 
 ══════════════════════════════════════════════
-ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-06 после сессии 16)
+ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-07 после сессии 17)
 ══════════════════════════════════════════════
 
 ЗАКРЫТО:
-- Бэк: этапы 0-5 целиком, 166 IT тестов
+- Бэк: этапы 0-5 целиком, 172 теста (111 unit + 61 IT)
 - Фронт MVP (этап 7): TopicListPage, CreateTopicPage, TopicGraphPage
   с полным CRUD + side-panel деталей узла + редактирование + ревизии
 - Этап 8: семантика связей (ADR-010 матрица, бэк-валидация, фронт
@@ -82,39 +96,54 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
   узлов (full-stack миграция БД pos_x/pos_y, ADR-012)
 - Этап 10 целиком (сессия 16): reconnect edges (ADR-014, partial
   PATCH /api/v1/edges/{id}, optimistic update без flicker),
-  EdgeDetailsPanel (аналог NodeDetailsPanel для рёбер с edit-режимом)
+  EdgeDetailsPanel
+- **Этап 11 целиком (сессия 17): визуальная полировка по
+  дизайн-референсу** - 8 подэтапов, 9 коммитов:
+  1. документация и токены (ADR-015 status-bar, ui-guidelines
+     обновлён, glossary с исламскими терминами, бэклог из дизайна)
+  2. UI-примитивы (Button расширен 6×4, Badge, StatusBadge,
+     TypeChip, Kbd, IconButton, Card, designTokens.ts)
+  3. NodeCard - status-bar 5px слева вместо border-2, TypeChip+
+     StatusBadge в header, line-clamp-2 body
+  4. CustomEdge - переключён на EDGE_TYPE_TOKENS, badge с soft shadow
+  5. AddNodeModal/AddEdgeModal - тип в grid карточек с превью
+  6. NodeDetailsPanel/EdgeDetailsPanel - градиент header, collapse
+     секции, diff-блоки в истории (red-50/40 / emerald-50/40)
+  7a. Бэк (ADR-016): nodeCount/edgeCount в TopicResponse через
+      агрегатный SQL (один LEFT JOIN-запрос для всех тем).
+      TopicWithCounts record + TopicRepository.findAll/ByIdWithCounts
+  7b. TopicListPage - сетка карточек с мини-графом SVG, бейдж count,
+      topbar с навигацией (Авторитеты/Источники placeholder)
+  8. GraphScreen layout - левый вертикальный toolbar (IconButton),
+     floating легенда (bottom-left) / zoom controls (bottom-center
+     через rfInstance) / hotkeys hint (top-right). CompactMiniMap
+     перенесён top-right → bottom-right
 - Cross-cutting: Toast, ContextMenu (с separator items), Modal,
   NodeSelect (custom dropdown с lucide-иконками), CompactMiniMap
-  (кастомный с edges + viewport rect + click-to-navigate + expand toggle)
-- ADR-011-014 (weight removal, node positions, handle persistence,
-  reconnect edges)
-- Polish (сессия 16): lucide-иконки везде где была эмодзи;
-  NODE_TYPE_META + EDGE_TYPE_META в edgeRules.ts; code-split
-  TopicGraphPage (initial 248kB / gzip 79kB, graph chunk 328kB);
-  springdoc OpenApiCustomizer экспонирует X-User-Id как header
-  (бэк-долг с этапа 4 закрыт); Esc-очередь (фокус→sidebar→selection);
-  details panel на double-click вместо single (drag не открывает
-  панель); контекстное меню "Добавить связанный X" по матрице
-  ADR-010 с auto-edge; smart positioning с spiral search для
-  нового узла; backfill posX/posY на первой загрузке +
-  previousNodes hint в layoutGraph (узлы не прыгают между refetch'ами)
+- ADR-011-016 все приняты
 
 ОТКРЫТО (по приоритету): <!-- AUTOFILL -->
 1. **Привязка источников и авторитетов через UI** - бэк-API готов
    с этапа 5 (`POST /api/v1/nodes/{id}/sources|authorities`,
-   `GET /sources?q=`), на фронте ничего нет. В NodeDetailsPanel
-   секция "Источники"/"Авторитеты" с поиском + привязкой. Большая
-   фича ~3+ часов. Закрывает центральную domain-логику проекта
-   (граф аргументов с источниками)
-2. **Экспорт графа в PNG/SVG** через `html-to-image` или
-   `dom-to-image`. Кнопка в toolbar. Полезно для шаринга карт
-3. **Smart edge routing** через elkjs - если на плотных графах
+   `GET /sources?q=`), на фронте секции в NodeDetailsPanel сейчас
+   placeholder (в дизайне детально - "Источники"/"Авторитеты"
+   карточки внутри панели, AddSourceContextMenu). Большая фича
+   ~3+ часов. Закрывает центральную domain-логику проекта
+2. **Бэклог "Будущие фичи (исламский контекст)" в roadmap.md** -
+   18+ записей из дизайн-референса: source picker (Quran/Hadith/
+   Books), sanad explorer, multi-grading, bilingual cards, RTL,
+   settings, onboarding, multi-select, cross-references, print
+   preview. Каждая - отдельный этап в будущем. По очереди после
+   привязки источников
+3. **Экспорт графа в PNG/SVG** через `html-to-image` или
+   `dom-to-image`. Кнопка в toolbar. Полезно для шаринга
+4. **Smart edge routing** через elkjs - если на плотных графах
    bezier пересечения мешают. Опционально
-4. **Тёмная тема** - Tailwind dark variant + toggle. Средняя
-5. **Z-index full-stack persistence** для узлов и рёбер - сейчас
+5. **Тёмная тема** - Tailwind dark variant + toggle. Средняя
+6. **Z-index full-stack persistence** для узлов и рёбер - сейчас
    только локально пока граф открыт. При refetch сбрасывается
-6. **Полнотекстовый поиск** - blocked на бэк (Этап 6)
-7. **Аутентификация** - blocked на бэк (Этап 6)
+7. **Полнотекстовый поиск** - blocked на бэк (Этап 6)
+8. **Аутентификация** - blocked на бэк (Этап 6)
 
 ИНФРАСТРУКТУРА:
 - Postgres контейнер: argumentmap-postgres на :5432 (docker ps)
@@ -127,26 +156,58 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 - Тестовая тема "Дозволенность Мавлида ан-Наби":
   640a7ac7-2827-4b80-9893-dc7142f100e4
   Скрипт пересоздания: scripts/seed-mawlid.sh
+- Bundle (после Этапа 11): initial 256kB / gzip 82kB,
+  TopicGraphPage chunk 344kB / gzip 110kB
+- Если регенерируешь типы (`npm run generate-api`) - сначала
+  убедись что слушает СВЕЖИЙ бэкенд с твоими изменениями. Проверь
+  через curl http://localhost:9090/v3/api-docs что новые поля есть
+  (gotcha из сессии 17: старая инстанция на 9090 даст устаревшую
+  схему)
 
 КЛЮЧЕВЫЕ ФАЙЛЫ:
+- frontend/src/utils/designTokens.ts — STATUS_TOKENS / NODE_TYPE_TOKENS
+  / EDGE_TYPE_TOKENS, источник истины для палитр. Все компоненты
+  импортируют отсюда (status bar, badge, type chip и т.д.)
+- frontend/src/components/ui/ — после Этапа 11: Button (6×4 + icon),
+  Badge, StatusBadge (data-testid сохранён для совместимости
+  тестов), TypeChip, Kbd, IconButton, Card, Modal, Toaster,
+  ContextMenu (с separator support)
 - frontend/src/pages/TopicGraphPage.tsx — hub-страница графа,
   собирает все компоненты (RF, NodeCard, CustomEdge, AddNodeModal,
   AddEdgeModal, NodeDetailsPanel, EdgeDetailsPanel, ContextMenu,
   CompactMiniMap). lastNodesRef + backfill posX/posY useEffect.
-  findFreePosition spiral search. Esc-очередь
-- frontend/src/components/graph/ — NodeCard, CustomEdge,
-  AddNodeModal (с autoEdge), AddEdgeModal, NodeDetailsPanel,
-  EdgeDetailsPanel, NodeSelect (custom dropdown), CompactMiniMap
-- frontend/src/components/ui/ — Modal, Button, Toaster,
-  ContextMenu (с separator support)
+  findFreePosition spiral search. Esc-очередь. Левый toolbar +
+  floating legend/zoom/hotkeys через RF Panel
+- frontend/src/pages/TopicListPage.tsx — сетка карточек тем с
+  TopicMiniGraph SVG (декоративный, точки по nodeCount), topbar
+  с навигацией, локальный поиск
+- frontend/src/components/graph/ — NodeCard (status-bar слева,
+  TypeChip+StatusBadge), CustomEdge (use EDGE_TYPE_TOKENS),
+  AddNodeModal (autoEdge + grid карточек типа), AddEdgeModal,
+  NodeDetailsPanel/EdgeDetailsPanel (градиент header + collapse
+  секции, diff-блоки в истории), NodeSelect (custom dropdown),
+  CompactMiniMap (bottom-right)
 - frontend/src/utils/edgeRules.ts — матрица ADR-010,
-  NODE_TYPE_META, EDGE_TYPE_META, getRelatedNodeOptions
+  NODE_TYPE_META, EDGE_TYPE_META, getRelatedNodeOptions.
+  ВНИМАНИЕ: частично пересекается с designTokens.ts - в будущей
+  итерации стоит консолидировать в один источник
 - frontend/src/utils/graphLayout.ts — layout с allSaved/noneSaved/
   mixed режимами + previousNodes hint
 - frontend/src/stores/toastStore.ts — Zustand toast-store
 - frontend/src/api/client.ts — apiGetRaw/apiPostRaw/apiPatchRaw/
   apiDeleteRaw + ApiError
+- frontend/src/api/types.ts — генерируется из OpenAPI бэка.
+  TopicResponse теперь с nodeCount + edgeCount (ADR-016)
 - frontend/src/App.tsx — React.lazy для TopicGraphPage
+- frontend/design-reference/ — handoff-бандл от Claude Design.
+  Это **визуальная спецификация будущих фич**, не код для копирования.
+  primitives.jsx/nodes.jsx/screens.jsx - что реализовано в Этапе 11.
+  islamic.jsx/extras.jsx - бэклог (sanad, multi-grading, RTL,
+  settings, onboarding и т.д.)
+- backend service/ TopicService.java — listTopicsWithCounts /
+  getTopicWithCounts (ADR-016)
+- backend repository/ TopicWithCounts.java — record + Repository
+  методы findAllWithCounts / findByIdWithCounts
 - backend service/ EdgeService.java — createEdge + updateEdge
   partial с финальной валидацией
 - backend service/ EdgeSemantics.java — матрица ADR-010 на беке
@@ -172,6 +233,7 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 - Миграция БД / новая колонка → ADR + architecture.md
 - Новый REST endpoint / поле DTO → api-contract.md
 - Поймал баг который может повториться → gotcha
+- Новое доменное понятие → glossary.md
 - ADR/gotcha/api-contract пишутся СРАЗУ, не в конце сессии
 
 ПЕРЕД КАЖДЫМ КОММИТОМ:
@@ -182,6 +244,7 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 КОММИТЫ:
 - Conventional Commits с обязательным scope: feat(frontend),
   fix(backend), chore, docs, refactor, test, style, perf, build, ci
+- Чисто визуальные правки без изменения поведения - style(frontend):
 - Не коммитить .claude/settings.local.json, img*.png/gif/jpg
 - Не амендить опубликованные коммиты, не push без явной просьбы
 
@@ -196,6 +259,18 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 - Создал/изменил эндпоинт - curl с реальным X-User-Id
 - Создал валидацию - оба пути: разрешённый и запрещённый
 - "Тесты прошли" ≠ "фича работает"
+
+ВИЗУАЛЬНЫЕ ПРАВКИ (после Этапа 11):
+- Все цвета и токены - через `frontend/src/utils/designTokens.ts`
+  (STATUS_TOKENS / NODE_TYPE_TOKENS / EDGE_TYPE_TOKENS). Не
+  хардкодить цвета прямо в компонентах
+- Brand-цвет: indigo (не blue). focus-ring → indigo-500
+- Скругления карточек - rounded-xl, кнопок/инпутов - rounded-md
+- Статус узла - bar 5px слева (НЕ border-2 вокруг). См. ADR-015
+- Тип узла - капсула TypeChip (chipBg/chipText), не просто иконка
+- Тесты на конкретные tailwind-классы (например `toHaveClass(
+  'bg-amber-100')` в StatusBadge) обновлять при смене токенов,
+  поведенческие тесты не трогать
 
 КОГДА ОСТАНАВЛИВАТЬСЯ И HANDOFF:
 Признаки:
@@ -236,15 +311,19 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 После прочтения 5+ файлов из START-OF-SESSION PROTOCOL начни ответ
 с короткого summary последнего состояния и предложения. Например:
 
-"вижу - в сессии 16 закрыли этап 10 целиком (reconnect edges
-через partial PATCH, EdgeDetailsPanel) + большой polish: lucide-
-иконки везде, code-split, springdoc fix (X-User-Id как header),
-Esc-очередь, контекстное меню "Добавить связанный X" по матрице
-ADR-010, smart positioning со spiral search, position backfill.
-18 коммитов, всё зелёное (166 IT, 114 unit, bundle initial
-248kB). По приоритету следующее: привязка источников и
-авторитетов через UI - бэк-API с этапа 5 готов, фронт пуст.
-Большая фича. Поехали или другое?"
+"вижу - в сессии 17 закрыли Этап 11 (визуальная полировка по
+дизайн-референсу): 8 подэтапов, 9 коммитов. Главное -
+status-bar 5px слева вместо border-2 (ADR-015), TypeChip+
+StatusBadge в header NodeCard, designTokens.ts как источник
+палитр, обновлённые модалки и панели деталей с градиентом
+header и collapse-секциями, новый TopicListPage с мини-графом
+SVG, левый toolbar в GraphScreen с floating элементами. Бэк
+получил nodeCount/edgeCount в TopicResponse через агрегатный
+SQL (ADR-016). Всё зелёное (172 backend tests, 116 frontend),
+дизайн-референс в репе с подробным бэклогом будущих фич.
+По приоритету следующее: привязка источников и авторитетов
+через UI - бэк-API с этапа 5 готов, фронт пуст, в дизайне
+расписано детально. Большая фича. Поехали или другое?"
 
 Жди подтверждение. После него - смело за работу.
 ```
