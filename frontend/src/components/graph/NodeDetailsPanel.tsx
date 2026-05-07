@@ -1,13 +1,25 @@
 import { useState } from 'react';
-import { X, Pencil, ChevronDown, ChevronRight } from 'lucide-react';
+import type { ReactNode } from 'react';
+import {
+  Pencil,
+  ChevronDown,
+  ChevronRight,
+  X,
+  MessageSquareQuote,
+  Info,
+  History,
+  type LucideIcon,
+} from 'lucide-react';
 import Button from '@/components/ui/Button';
+import IconButton from '@/components/ui/IconButton';
+import StatusBadge from '@/components/ui/StatusBadge';
 import { apiGetRaw, apiPatchRaw, ApiError } from '@/api/client';
 import type { components } from '@/api/types';
-import { NODE_TYPE_META, type NodeType } from '@/utils/edgeRules';
+import { NODE_TYPE_TOKENS, type NodeType, type NodeStatus } from '@/utils/designTokens';
 
 type NodeDto = components['schemas']['NodeResponse'];
 type RevisionDto = components['schemas']['RevisionResponse'];
-type NodeStatus = NonNullable<NodeDto['status']>;
+
 type RevisionsState =
   | { kind: 'not-loaded' }
   | { kind: 'loading' }
@@ -19,24 +31,9 @@ interface Props {
   onClose: () => void;
   /** вызывается после успешного PATCH - чтобы родитель refetch'нул граф */
   onUpdated: () => void;
-  /** если true - панель сразу открывается в режиме редактирования контента
-   * (используется когда пользователь нажал "Редактировать" в контекстном меню) */
+  /** если true - панель сразу открывается в режиме редактирования контента */
   initialEditing?: boolean;
 }
-
-const STATUS_LABEL: Record<NodeStatus, string> = {
-  STANDING: 'Устоявшийся',
-  DISPUTED: 'Спорный',
-  REFUTED: 'Опровергнут',
-  UNVERIFIED: 'Не оценён',
-};
-
-const STATUS_BADGE: Record<NodeStatus, string> = {
-  STANDING: 'bg-green-100 text-green-900 border-green-500',
-  DISPUTED: 'bg-amber-100 text-amber-900 border-amber-500',
-  REFUTED: 'bg-red-100 text-red-900 border-red-500',
-  UNVERIFIED: 'bg-gray-100 text-gray-700 border-gray-400',
-};
 
 const DATE_FORMAT = new Intl.DateTimeFormat('ru-RU', {
   day: 'numeric',
@@ -58,10 +55,52 @@ function shortId(id?: string): string {
   return id.slice(0, 8);
 }
 
+interface SectionProps {
+  icon: LucideIcon;
+  title: string;
+  count?: number | string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}
+
+function PanelSection({
+  icon: Icon,
+  title,
+  count,
+  defaultOpen = true,
+  children,
+}: SectionProps) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className="border-t border-slate-200">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-5 py-3 text-left transition-colors hover:bg-slate-50"
+      >
+        <Icon size={14} className="text-slate-500" aria-hidden="true" />
+        <span className="text-[12px] font-semibold uppercase tracking-wider text-slate-700">
+          {title}
+        </span>
+        {count !== undefined && (
+          <span className="text-[11px] font-mono text-slate-400">{count}</span>
+        )}
+        <ChevronDown
+          size={14}
+          className={`ml-auto text-slate-400 transition-transform ${open ? '' : '-rotate-90'}`}
+          aria-hidden="true"
+        />
+      </button>
+      {open && <div className="px-5 pb-4">{children}</div>}
+    </section>
+  );
+}
+
 function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: Props) {
   const nodeType: NodeType = node.nodeType ?? 'CLAIM';
-  const typeMeta = NODE_TYPE_META[nodeType];
-  const TypeIcon = typeMeta.Icon;
+  const typeToken = NODE_TYPE_TOKENS[nodeType];
+  const TypeIcon = typeToken.Icon;
   const status: NodeStatus = node.status ?? 'UNVERIFIED';
   const content = node.content ?? '';
   const wasUpdated =
@@ -74,10 +113,6 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [revisionsState, setRevisionsState] = useState<RevisionsState>({ kind: 'not-loaded' });
-
-  // Состояние истории намеренно не сбрасывается на изменение node.updatedAt -
-  // вместо этого в TopicGraphPage компонент перерендеривается через key,
-  // что даёт чистое монтирование без каскадных setState в effect.
 
   function toggleHistory() {
     if (historyOpen) {
@@ -150,50 +185,55 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
     <aside
       role="complementary"
       aria-label="Детали узла"
-      className="absolute right-0 top-0 bottom-0 z-10 flex w-96 flex-col border-l-2 border-gray-200 bg-white shadow-xl"
+      className="absolute right-0 top-0 bottom-0 z-10 flex w-[400px] flex-col border-l border-slate-200 bg-white shadow-xl"
     >
-      <header className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <TypeIcon size={20} strokeWidth={2} className="shrink-0 text-gray-700" aria-hidden="true" />
-          <h2 className="text-base font-semibold text-gray-900 truncate">
-            {typeMeta.label}
-          </h2>
-          <span
-            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[status]}`}
-            data-testid="status-badge"
-          >
-            {STATUS_LABEL[status]}
-          </span>
+      <header
+        className={`relative border-b border-slate-200 bg-gradient-to-b ${typeToken.headerGradient} p-5`}
+      >
+        <div className="absolute right-3 top-3">
+          <IconButton icon={X} label="Закрыть панель" size="sm" onClick={onClose} />
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Закрыть панель"
-          className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-        >
-          <X size={18} />
-        </button>
+        <div className="flex items-center gap-2">
+          <span
+            className={`grid h-8 w-8 place-items-center rounded-md ${typeToken.iconBg} ${typeToken.iconText}`}
+          >
+            <TypeIcon size={16} aria-hidden="true" />
+          </span>
+          <div className="flex flex-col">
+            <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              {typeToken.key} · {typeToken.label}
+            </h2>
+            <span className="font-mono text-[12px] text-slate-400">{shortId(node.id)}</span>
+          </div>
+        </div>
+        <div className="mt-3 flex items-center gap-2">
+          <StatusBadge status={status} size="lg" />
+        </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-5">
-        <section>
-          <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Содержание
-            </h3>
-            {!editing && (
-              <button
+      <div className="flex-1 overflow-y-auto">
+        <PanelSection icon={MessageSquareQuote} title="Содержание" defaultOpen>
+          {!editing ? (
+            <div>
+              {content ? (
+                <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed text-slate-800 text-pretty">
+                  {content}
+                </p>
+              ) : (
+                <p className="text-[14px] italic text-slate-400">(пусто)</p>
+              )}
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
+                icon={Pencil}
                 onClick={startEdit}
-                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                className="-ml-2 mt-3"
               >
-                <Pencil size={12} />
                 Редактировать
-              </button>
-            )}
-          </div>
-
-          {editing ? (
+              </Button>
+            </div>
+          ) : (
             <div className="space-y-2">
               <textarea
                 value={draft}
@@ -202,88 +242,93 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
                 maxLength={10000}
                 disabled={saving}
                 aria-label="Содержание узла"
-                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
               />
               {saveError && (
-                <div className="rounded-md border border-red-300 bg-red-50 p-2 text-xs text-red-800">
+                <div className="rounded-md border border-red-300 bg-red-50 p-2 text-[12px] text-red-800">
                   {saveError}
                 </div>
               )}
               <div className="flex justify-end gap-2">
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="ghost"
+                  size="sm"
                   onClick={cancelEdit}
                   disabled={saving}
-                  className="!px-3 !py-1.5 text-sm"
                 >
                   Отмена
                 </Button>
                 <Button
                   type="button"
+                  size="sm"
                   onClick={save}
                   disabled={saving || !draft.trim()}
-                  className="!px-3 !py-1.5 text-sm"
                 >
                   {saving ? 'Сохраняем' : 'Сохранить'}
                 </Button>
               </div>
             </div>
-          ) : content ? (
-            <p className="whitespace-pre-wrap break-words text-sm text-gray-900">{content}</p>
-          ) : (
-            <p className="text-sm italic text-gray-500">(пусто)</p>
           )}
-        </section>
+        </PanelSection>
 
-        <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Метаданные
-          </h3>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm">
-            <dt className="text-gray-500">Создан</dt>
-            <dd className="text-gray-900">{formatDate(node.createdAt)}</dd>
+        <PanelSection icon={Info} title="Метаданные" defaultOpen>
+          <dl className="grid grid-cols-[100px_1fr] gap-x-3 gap-y-2 text-[12px]">
+            <dt className="text-slate-500">Создан</dt>
+            <dd className="text-slate-700">{formatDate(node.createdAt)}</dd>
 
             {wasUpdated && (
               <>
-                <dt className="text-gray-500">Обновлён</dt>
-                <dd className="text-gray-900">{formatDate(node.updatedAt)}</dd>
+                <dt className="text-slate-500">Обновлён</dt>
+                <dd className="text-slate-700">{formatDate(node.updatedAt)}</dd>
               </>
             )}
 
-            <dt className="text-gray-500">Автор</dt>
-            <dd className="font-mono text-xs text-gray-700" title={node.createdBy}>
+            <dt className="text-slate-500">Автор</dt>
+            <dd className="font-mono text-slate-700" title={node.createdBy}>
               {shortId(node.createdBy)}
             </dd>
 
-            <dt className="text-gray-500">ID</dt>
-            <dd className="font-mono text-xs text-gray-700" title={node.id}>
+            <dt className="text-slate-500">ID</dt>
+            <dd className="font-mono text-slate-700" title={node.id}>
               {shortId(node.id)}
             </dd>
           </dl>
-        </section>
+        </PanelSection>
 
-        <section>
+        <section className="border-t border-slate-200">
           <button
             type="button"
             onClick={toggleHistory}
             aria-expanded={historyOpen}
-            className="flex w-full items-center gap-1 text-xs font-semibold uppercase tracking-wide text-gray-500 hover:text-gray-700"
+            className="flex w-full items-center gap-2 px-5 py-3 text-left transition-colors hover:bg-slate-50"
           >
-            {historyOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            История изменений
+            <History size={14} className="text-slate-500" aria-hidden="true" />
+            <span className="text-[12px] font-semibold uppercase tracking-wider text-slate-700">
+              История изменений
+            </span>
+            {revisionsState.kind === 'loaded' && (
+              <span className="text-[11px] font-mono text-slate-400">
+                {revisionsState.revisions.length}
+              </span>
+            )}
+            {historyOpen ? (
+              <ChevronDown size={14} className="ml-auto text-slate-400" aria-hidden="true" />
+            ) : (
+              <ChevronRight size={14} className="ml-auto text-slate-400" aria-hidden="true" />
+            )}
           </button>
 
           {historyOpen && (
-            <div className="mt-2 space-y-2 text-sm">
+            <div className="px-5 pb-4 space-y-2">
               {revisionsState.kind === 'loading' && (
-                <p className="text-gray-500">Загрузка</p>
+                <p className="text-[12px] text-slate-500">Загрузка</p>
               )}
               {revisionsState.kind === 'error' && (
-                <p className="text-red-700">Ошибка: {revisionsState.message}</p>
+                <p className="text-[12px] text-red-700">Ошибка: {revisionsState.message}</p>
               )}
               {revisionsState.kind === 'loaded' && revisionsState.revisions.length === 0 && (
-                <p className="italic text-gray-500">Изменений ещё не было</p>
+                <p className="text-[12px] italic text-slate-500">Изменений ещё не было</p>
               )}
               {revisionsState.kind === 'loaded' &&
                 revisionsState.revisions.length > 0 &&
@@ -292,22 +337,31 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
                   .map((r) => (
                     <article
                       key={r.id}
-                      className="rounded-md border border-gray-200 bg-gray-50 p-2 text-xs"
+                      className="overflow-hidden rounded-md border border-slate-200 bg-white"
                     >
-                      <header className="mb-1 flex items-center justify-between text-gray-500">
-                        <time dateTime={r.changedAt}>{formatDate(r.changedAt)}</time>
-                        <span className="font-mono" title={r.changedBy}>
-                          {shortId(r.changedBy)}
+                      <header className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px]">
+                        <span className="font-mono text-slate-500">ревизия</span>
+                        <span className="text-slate-500">
+                          {formatDate(r.changedAt)} ·{' '}
+                          <span className="font-mono" title={r.changedBy}>
+                            {shortId(r.changedBy)}
+                          </span>
                         </span>
                       </header>
-                      {r.contentBefore && (
-                        <p className="rounded bg-red-100 px-2 py-1 text-red-900 line-through whitespace-pre-wrap break-words">
-                          {r.contentBefore}
-                        </p>
-                      )}
-                      <p className="mt-1 rounded bg-green-100 px-2 py-1 text-green-900 whitespace-pre-wrap break-words">
-                        {r.contentAfter ?? ''}
-                      </p>
+                      <div className="divide-y divide-slate-100 text-[12px] font-mono">
+                        {r.contentBefore && (
+                          <div className="bg-red-50/40 px-3 py-1.5 text-red-800 whitespace-pre-wrap break-words">
+                            <span className="select-none text-red-500">- </span>
+                            {r.contentBefore}
+                          </div>
+                        )}
+                        {r.contentAfter && (
+                          <div className="bg-emerald-50/40 px-3 py-1.5 text-emerald-800 whitespace-pre-wrap break-words">
+                            <span className="select-none text-emerald-600">+ </span>
+                            {r.contentAfter}
+                          </div>
+                        )}
+                      </div>
                     </article>
                   ))}
             </div>
