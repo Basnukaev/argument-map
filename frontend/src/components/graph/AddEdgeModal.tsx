@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { Link as LinkIcon, AlertCircle } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
+import Kbd from '@/components/ui/Kbd';
 import NodeSelect from '@/components/graph/NodeSelect';
 import { apiPost, ApiError } from '@/api/client';
 import type { components } from '@/api/types';
@@ -11,21 +13,28 @@ import {
   type EdgeType,
   type NodeType,
 } from '@/utils/edgeRules';
+import { EDGE_TYPE_TOKENS } from '@/utils/designTokens';
 
 type NodeDto = components['schemas']['NodeResponse'];
 
 interface Props {
   open: boolean;
   nodes: NodeDto[];
-  /** предзаполнение для drag-create через handles */
   initialFromId?: string;
   initialToId?: string;
-  /** id точек подключения (top/right/bottom/left) - только для drag-create */
   initialSourceHandle?: string;
   initialTargetHandle?: string;
   onClose: () => void;
   onCreated: () => void;
 }
+
+const ALL_EDGE_TYPES: readonly EdgeType[] = [
+  'SUPPORTS',
+  'REFUTES',
+  'INVALIDATES',
+  'QUALIFIES',
+  'RESPONDS_TO',
+];
 
 function AddEdgeModal({
   open,
@@ -56,7 +65,9 @@ function AddEdgeModal({
   // если выбранный пользователем тип не подходит под текущую пару -
   // подставляем первый разрешённый. Это derived state без useEffect/setState.
   const effectiveEdgeType: EdgeType = pairAllowed
-    ? (allowedTypes.includes(edgeType) ? edgeType : allowedTypes[0]!)
+    ? allowedTypes.includes(edgeType)
+      ? edgeType
+      : allowedTypes[0]!
     : edgeType;
 
   function reset() {
@@ -118,15 +129,15 @@ function AddEdgeModal({
     }
   }
 
-  const inputClass =
-    'block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200';
-
   return (
     <Modal open={open} onClose={handleClose} title="Новая связь" maxWidth="max-w-xl">
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <fieldset disabled={submitting} className="space-y-3">
           <div>
-            <label htmlFor="edge-from" className="mb-1 block text-sm font-medium text-gray-700">
+            <label
+              htmlFor="edge-from"
+              className="mb-1.5 block text-[12px] font-medium text-slate-700"
+            >
               Откуда
             </label>
             <NodeSelect
@@ -139,7 +150,10 @@ function AddEdgeModal({
           </div>
 
           <div>
-            <label htmlFor="edge-to" className="mb-1 block text-sm font-medium text-gray-700">
+            <label
+              htmlFor="edge-to"
+              className="mb-1.5 block text-[12px] font-medium text-slate-700"
+            >
               Куда
             </label>
             <NodeSelect
@@ -154,12 +168,12 @@ function AddEdgeModal({
         </fieldset>
 
         <fieldset disabled={submitting} className="space-y-2">
-          <legend className="text-sm font-medium text-gray-700">Тип связи</legend>
+          <legend className="text-[12px] font-medium text-slate-700">Тип связи</legend>
           {!pairSelected && (
-            <p className="text-xs text-gray-500">Сначала выбери оба узла</p>
+            <p className="text-[11px] text-slate-500">Сначала выбери оба узла</p>
           )}
           {pairSelected && !pairAllowed && (
-            <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+            <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-[12px] text-amber-900">
               Эту пару узлов нельзя соединить
               {fromNode?.nodeType && toNode?.nodeType
                 ? ` (${fromNode.nodeType} → ${toNode.nodeType})`
@@ -168,38 +182,55 @@ function AddEdgeModal({
             </p>
           )}
           {pairAllowed && (
-            <div className="space-y-1.5">
-              {allowedTypes.map((value) => {
+            <div
+              className="grid gap-2"
+              style={{ gridTemplateColumns: `repeat(${allowedTypes.length}, minmax(0, 1fr))` }}
+            >
+              {ALL_EDGE_TYPES.filter((t) => allowedTypes.includes(t)).map((value) => {
                 const meta = EDGE_TYPE_META[value];
-                const { Icon } = meta;
+                const token = EDGE_TYPE_TOKENS[value];
+                const Icon = meta.Icon;
                 const selected = effectiveEdgeType === value;
                 return (
                   <label
                     key={value}
-                    className={`flex cursor-pointer items-start gap-2 rounded-md border p-2 transition-colors ${
+                    className={`flex cursor-pointer flex-col gap-1.5 rounded-md border p-2 transition-colors ${
                       selected
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-400'
+                        ? 'border-indigo-500 bg-indigo-50/60 ring-1 ring-indigo-400'
+                        : 'border-slate-300 hover:bg-slate-50'
                     }`}
                   >
-                    <input
-                      type="radio"
-                      name="edgeType"
-                      value={value}
-                      checked={selected}
-                      onChange={() => setEdgeType(value)}
-                      className="sr-only"
-                    />
-                    <Icon
-                      size={20}
-                      strokeWidth={2.5}
-                      className={`mt-0.5 shrink-0 ${meta.colorClass}`}
-                      aria-hidden="true"
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900">{meta.label}</div>
-                      <div className="text-xs text-gray-500">{meta.hint}</div>
+                    <div className="flex items-center justify-between">
+                      <Icon
+                        size={14}
+                        strokeWidth={2.5}
+                        style={{ color: token.stroke }}
+                        aria-hidden="true"
+                      />
+                      <input
+                        type="radio"
+                        name="edgeType"
+                        value={value}
+                        checked={selected}
+                        onChange={() => setEdgeType(value)}
+                        className="accent-indigo-600"
+                      />
                     </div>
+                    <span className="text-[11px] font-semibold leading-tight text-slate-900">
+                      {meta.label}
+                    </span>
+                    <svg width="100%" height="8" aria-hidden="true">
+                      <line
+                        x1="2"
+                        y1="4"
+                        x2="100%"
+                        y2="4"
+                        stroke={token.stroke}
+                        strokeWidth={token.strokeWidth}
+                        strokeDasharray={token.strokeDasharray}
+                        strokeOpacity={token.opacity ?? 1}
+                      />
+                    </svg>
                   </label>
                 );
               })}
@@ -208,34 +239,56 @@ function AddEdgeModal({
         </fieldset>
 
         <div>
-          <label htmlFor="edge-rationale" className="mb-1 block text-sm font-medium text-gray-700">
+          <label
+            htmlFor="edge-rationale"
+            className="mb-1.5 block text-[12px] font-medium text-slate-700"
+          >
             Обоснование (необязательно)
           </label>
           <textarea
             id="edge-rationale"
             value={rationale}
             onChange={(e) => setRationale(e.target.value)}
-            rows={2}
+            rows={3}
             maxLength={2000}
             disabled={submitting}
-            className={inputClass}
-            placeholder="Почему эта связь?"
+            className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+            placeholder="Зачем эта связь нужна — поможет другим читателям"
           />
         </div>
 
         {error && (
-          <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+          <div className="rounded-md border border-red-300 bg-red-50 p-3 text-[12px] text-red-800">
             {error}
           </div>
         )}
 
-        <div className="flex justify-end gap-2 border-t border-gray-200 pt-3">
-          <Button type="button" variant="secondary" onClick={handleClose} disabled={submitting}>
-            Отмена
-          </Button>
-          <Button type="submit" disabled={submitting || !pairAllowed}>
-            {submitting ? 'Создаём' : 'Создать'}
-          </Button>
+        <div className="flex items-center justify-between border-t border-slate-200 pt-3">
+          <span className="hidden items-center gap-1 text-[11px] text-slate-500 sm:inline-flex">
+            {pairSelected && !pairAllowed ? (
+              <span className="inline-flex items-center gap-1 text-red-600">
+                <AlertCircle size={12} aria-hidden="true" /> запрещённая пара
+              </span>
+            ) : (
+              <>
+                <Kbd>⌘</Kbd>
+                <Kbd>↵</Kbd> создать
+              </>
+            )}
+          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleClose}
+              disabled={submitting}
+            >
+              Отмена
+            </Button>
+            <Button type="submit" icon={LinkIcon} disabled={submitting || !pairAllowed}>
+              {submitting ? 'Создаём' : 'Создать'}
+            </Button>
+          </div>
         </div>
       </form>
     </Modal>

@@ -20,9 +20,9 @@ interface Props {
 
 // Точка показывается только для оценённых узлов. UNVERIFIED намеренно
 // без точки - иначе на свежем графе все узлы получают визуально одинаковую
-// серую точку, бесполезный шум
+// серую точку, бесполезный шум. Цвета совпадают с STATUS_TOKENS.bar
 const STATUS_DOT: Record<NodeStatus, string | null> = {
-  STANDING: 'bg-green-500',
+  STANDING: 'bg-emerald-500',
   DISPUTED: 'bg-amber-500',
   REFUTED: 'bg-red-500',
   UNVERIFIED: null,
@@ -96,10 +96,10 @@ function NodeSelect({ value, onChange, options, excludeId, placeholder, disabled
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className={`flex w-full items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left text-sm transition-colors ${
+        className={`flex w-full items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm transition-colors ${
           disabled
             ? 'cursor-not-allowed opacity-60'
-            : 'hover:border-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200'
+            : 'hover:border-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20'
         }`}
       >
         {selected ? (
@@ -133,7 +133,7 @@ function NodeSelect({ value, onChange, options, excludeId, placeholder, disabled
                     aria-selected={isSelected}
                     onClick={() => pick(n.id)}
                     className={`flex w-full items-start gap-2 px-3 py-2 text-left text-sm transition-colors ${
-                      isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'
+                      isSelected ? 'bg-indigo-50' : 'hover:bg-slate-50'
                     }`}
                   >
                     <NodeOptionInline node={n} compact={false} />
