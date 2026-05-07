@@ -296,14 +296,54 @@ Claude Design - HTML/jsx прототип с проработанным визу
 - [x] **Подэтап 8: GraphScreen layout** - левый вертикальный toolbar,
       floating легенда/zoom/hotkeys, breadcrumb в topbar
 
+## Этап 12. Привязка источников и авторитетов к узлам через UI
+
+Зачем: бэк-API готов с Этапа 5 (`POST /nodes/{id}/sources`, `/authorities`),
+но в `NodeDetailsPanel` секции "Источники"/"Авторитеты" были placeholder.
+Это центральная domain-фича проекта - исламская аргументация без шариатских
+источников и мнений учёных бессмысленна.
+
+- [x] **Подэтап 12.a: реальные секции "Источники"/"Авторитеты" в
+      `NodeDetailsPanel`** - lazy-загрузка через `GET /nodes/{id}/sources`
+      + параллельный `GET /sources` (справочник для матчинга), карточки
+      источников (kind/title/citation/quote/context), строки авторитетов
+      с avatar+stance бейджем, удаление через `DELETE` с optimistic-update.
+      `PanelSection` расширен опциональным `onFirstOpen` callback
+- [x] **Подэтап 12.b: `AddSourceModal` с поиском** - кнопка "Привязать
+      источник" → модалка. Локальная фильтрация справочника (q-параметр
+      бэка не используется на MVP-объёме). Опциональные поля `quote`/
+      `context` при привязке. Conditional render модалки `{open &&
+      <Modal/>}` - state свежий каждое открытие, без useEffect-сброса
+- [x] **Подэтап 12.c: inline-создание нового Source** - кнопка "Создать
+      новый источник" в той же модалке переключает в create-mode. Форма
+      sourceType (5 вариантов в grid) + title + citation + reliability
+      (показ только для `HADITH`). Submit делает 2 запроса последовательно:
+      `POST /sources` → `POST /nodes/{id}/sources`. Фронт-валидация
+      строже бэка - требует reliability для HADITH (бэк допускает null
+      для legacy-импорта)
+- [x] **Подэтап 12.d: `AddAuthorityModal` с stance + create** - симметрично
+      sources, но stance (`HOLDS`/`OPPOSES`/`NEUTRAL`) обязателен при
+      привязке. StancePicker - 3 кнопки с цветовым кодированием
+      (emerald/red/slate). Create-form: name + era + madhab + bio
+- [x] **Подэтап 12.e: документация** - этот раздел roadmap, обновление
+      ui-guidelines (секции реализованы, новые компоненты), gotcha
+      про `react-hooks/set-state-in-effect` + conditional render как
+      идиома для модалок, запись в progress
+
+Cross-cutting добавление: `frontend/src/utils/attachmentTokens.ts` -
+источник истины для `SOURCE_TYPE_LABEL`/`ICON`/`HINT`/`ORDER`,
+`STANCE_LABEL`/`BADGE_STYLES`/`RADIO_STYLES`/`ORDER`. Используется
+панелью и обеими модалками. По аналогии с `designTokens.ts` для
+node/edge.
+
 ## Бэклог
 
 Идеи и задачи без привязки к этапу. Когда задача созревает - переходит
 в активный этап или становится новым этапом.
 
 ### Фронт
-- [ ] Привязка источников/авторитетов к узлам через UI
-      (`POST /api/v1/nodes/{id}/sources`, `/authorities`)
+- [x] **Привязка источников/авторитетов к узлам через UI** -
+      реализовано в Этапе 12 (4 коммита feat + docs)
 - [ ] Полнотекстовый поиск (когда появится на беке, Этап 6)
 - [ ] Экспорт графа в PNG / SVG
 - [ ] Тёмная тема

@@ -159,8 +159,17 @@ Collapse-секции с одинаковым header:
 Доступные секции:
 - **Содержание** - сам текст узла + кнопка "Редактировать"
 - **Метаданные** - `dl` грид: ID / Создан / Обновлён / Автор / Версия
-- **Источники** - placeholder сейчас, будет в этапе привязки источников
-- **Авторитеты** - placeholder сейчас
+- **Источники** - lazy-load через `GET /nodes/{id}/sources` + параллельный
+  `GET /sources` (для матчинга id → название). Карточка источника:
+  kind моно-uppercase (хадис/аят/книга/статья/ссылка), title жирным,
+  citation моноширинно, опциональный `quote` курсивом с `border-l-2`,
+  опциональный `context` светло-серым. Кнопка отвязки появляется на
+  group-hover. Кнопка `Plus` "Привязать источник" внизу секции открывает
+  `AddSourceModal`
+- **Авторитеты** - lazy-load через `GET /nodes/{id}/authorities` +
+  `GET /authorities`. Строка с avatar (инициалы), name + era · madhab,
+  бэйдж stance (`HOLDS`/`OPPOSES`/`NEUTRAL`) с цветным кодированием.
+  Кнопка `Plus` "Привязать авторитета" открывает `AddAuthorityModal`
 - **История изменений** - lazy-load, diff-блоки v.X→v.Y
   с red/green подсветкой строк
 
@@ -304,6 +313,15 @@ Layout:
 - `NodeSelect` - кастомный select для выбора узла из списка
   (с цветным dot статуса и иконкой типа)
 - `AddNodeModal` / `AddEdgeModal` - модалки создания
+- `AddSourceModal` - модалка привязки источника к узлу. Два режима:
+  search (фильтрация по title/citation в локальной памяти) и
+  create (inline-форма с типом источника, title, citation,
+  conditional reliability для HADITH). После create делает
+  POST /sources → POST /nodes/{id}/sources одной операцией для
+  пользователя
+- `AddAuthorityModal` - то же для авторитетов. Stance picker
+  (HOLDS/OPPOSES/NEUTRAL) - обязательный элемент при привязке.
+  Create-form: name (required), era, madhab, bio
 - `NodeDetailsPanel` / `EdgeDetailsPanel` - боковые панели
 - `CompactMiniMap` - мини-карта в правом нижнем углу
 

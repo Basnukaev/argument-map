@@ -330,4 +330,66 @@ useEffect для backfill.
 
 ---
 
+## `react-hooks/set-state-in-effect` блокирует useEffect-сброс state модалки
+**Симптом:** ESLint ругается `Avoid calling setState() directly within an
+effect` (правило `react-hooks/set-state-in-effect`) на типичный паттерн
+"если модалка закрыта - очистить поля":
+
+```ts
+useEffect(() => {
+  if (!open) {
+    setQuery('');
+    setSelectedId(null);
+    // ... очистка остального state
+  }
+}, [open]);
+```
+
+**Причина:** правило справедливо: setState в useEffect-е каскадирует
+re-render'ы и затрудняет отладку. Альтернативные стандартные паттерны:
+1. `key`-trick на родителе - `<Modal key={String(open)} ... />`. Сложно
+   объяснимое решение, выглядит как побочный эффект. Используется в
+   проекте (см. memory `feedback_react_key_remount.md`)
+2. Сбрасывать state в event handler'ах (handleClose, handleSubmit
+   success-branch). Работает, но размазывает reset по нескольким
+   местам. Легко забыть один путь
+3. **Conditional render родителя** - `{open && <Modal/>}`. Модалка
+   монтируется при открытии, размонтируется при закрытии. State
+   всегда свежий - `useState` инициализируется при mount
+
+**Решение для одноразовых модалок (`AddSourceModal`, `AddAuthorityModal`,
+обычно любые модалки c POST/PATCH):** выбрать вариант 3.
+
+```tsx
+// Родитель:
+{addSourceOpen && node.id && (
+  <AddSourceModal
+    nodeId={node.id}
+    onClose={() => setAddSourceOpen(false)}
+    onAttached={loadSources}
+  />
+)}
+
+// Сам компонент: убрать prop `open`, useEffect для load
+// без зависимости от open. Внутри Modal всегда `open` prop.
+function AddSourceModal({ nodeId, onClose, onAttached }) {
+  const [state, setState] = useState({ kind: 'loading' });
+  useEffect(() => {
+    apiGetRaw(...).then(...).catch(...);
+  }, []);
+
+  return <Modal open onClose={...}>...</Modal>;
+}
+```
+
+**Когда conditional render не подходит:** если модалка имеет открытие/
+закрытие анимацию (slide-in/slide-out) - unmount во время closing
+animation её обрезает. Тогда варианты 1 или 2. У нас Modal на нативном
+`<dialog>` без animation - conditional render идиоматично.
+
+См. `AddSourceModal.tsx`, `AddAuthorityModal.tsx`, `NodeDetailsPanel.tsx`
+(conditional render внутри `<aside>`).
+
+---
+
 <!-- Добавлять новые ловушки сюда по мере их обнаружения -->

@@ -13,6 +13,195 @@
 
 ---
 
+## 2026-05-08 — Сессия 18 (frontend) — Этап 12: привязка источников и авторитетов к узлам через UI
+
+Бэк-API готов с Этапа 5 (`POST /nodes/{id}/sources`, `/authorities`, GET
+для списков и справочников, DELETE для отвязки), но во фронте секции
+"Источники"/"Авторитеты" в `NodeDetailsPanel` были placeholder. Это
+центральная domain-фича проекта - исламская аргументация без шариатских
+источников и мнений учёных бессмысленна. 5 подэтапов, 5 коммитов.
+
+### Сделано
+
+5 коммитов:
+
+1. `9e6dac0 feat(frontend): источники и авторитеты в NodeDetailsPanel - lazy-загрузка и удаление`
+2. `a65d292 feat(frontend): AddSourceModal - привязка источника из справочника к узлу`
+3. `3b94838 feat(frontend): inline-создание Source в AddSourceModal с reliability-валидацией`
+4. `32a9bc9 feat(frontend): AddAuthorityModal - привязка авторитета со stance + inline-создание`
+5. `(текущий) docs: запись сессии 18, gotcha про conditional render модалок, roadmap Этап 12`
+
+#### Подэтап 12.a (`9e6dac0`): реальные секции в NodeDetailsPanel
+
+- `PanelSection` расширен опциональным `onFirstOpen?` callback - срабатывает
+  один раз при первом раскрытии секции, через `useRef`-флаг. Совместимо
+  с `defaultOpen=true`
+- Секция "Источники": lazy-load двух запросов параллельно через
+  `Promise.all([apiGetRaw('/nodes/{id}/sources'), apiGetRaw('/sources')])`.
+  Локальный `Map<id, SourceDto>` для матчинга nodeSourceLink → название
+  источника. Один запрос на справочник вместо N+1
+- Карточка источника: kind моно-uppercase (хадис/аят/книга/статья/ссылка),
+  title жирным, citation моноширинно, опциональный `quote` italic с
+  `border-l-2`, опциональный `context` светло-серым. Кнопка `Trash2`
+  отвязки появляется на group-hover
+- Секция "Авторитеты": симметрично, строка с avatar (инициалы), name,
+  era · madhab, бэйдж stance (`HOLDS`=emerald/`OPPOSES`=red/`NEUTRAL`=slate)
+- Удаление через `apiDeleteRaw` с optimistic-update + rollback при ошибке.
+  toast.error при сетевой ошибке
+- `apiPostRaw` добавлен в `client.ts` симметрично `apiPatchRaw`/`apiDeleteRaw`
+- 6 новых тестов в `NodeDetailsPanel.test.tsx` (lazy GET, рендер карточек,
+  плейсхолдер пустого списка, отвязка для sources/authorities)
+
+#### Подэтап 12.b (`a65d292`): AddSourceModal с поиском
+
+- Кнопка `Plus` "Привязать источник" в секции открывает модалку
+- Загрузка справочника при mount через `useEffect` без зависимостей.
+  Локальная фильтрация по title/citation - на MVP-объёме справочника
+  q-параметр бэка не нужен, instant feedback без сетевого latency
+- Card в списке: иконка по типу (`BookOpen`/`ScrollText`/`Library`/
+  `FileText`/`ExternalLink`), kind label, reliability бэйдж для HADITH,
+  title + citation
+- `AttachFields` подкомпонент - quote (textarea, 2 rows) + context (input).
+  Опциональны при привязке. Соответствуют полям `AttachSourceRequest`.
+  Пустые строки конвертируются в undefined (не отправляются в body)
+- **Conditional render родителя** `{addSourceOpen && node.id && <Modal/>}`
+  вместо useEffect-сброса state - идиома, обходит правило линтера
+  `react-hooks/set-state-in-effect`. State всегда свежий каждое открытие
+- Извлечены общие токены в `frontend/src/utils/attachmentTokens.ts`:
+  `SOURCE_TYPE_LABEL`/`ICON`/`HINT`/`ORDER`, `STANCE_LABEL`/`BADGE_STYLES`/
+  `RADIO_STYLES`/`ORDER`. Используется панелью и обеими модалками
+- 8 тестов в `AddSourceModal.test.tsx`
+
+#### Подэтап 12.c (`3b94838`): inline-создание Source
+
+- Кнопка "Создать новый источник" внизу списка переключает в create-mode
+  (через state `mode: 'search' | 'create'`)
+- Форма: sourceType radio в grid 5×1 с lucide-иконками; title (required,
+  max 500); citation (опционально, для подписи на узле); reliability -
+  показывается ТОЛЬКО для sourceType=HADITH, 3 варианта (SAHIH/HASAN/DAIF)
+  в grid. При смене типа с HADITH - reliability обнуляется автоматически
+- Submit делает POST /sources → POST /nodes/{id}/sources с возвращенным id
+- Кнопка `ArrowLeft` "К поиску в справочнике" возвращает в search-mode
+- Quote/context (`AttachFields`) общий блок - сохраняется при переключении
+  mode. Пользователь может перейти в create, передумать, вернуться -
+  текст сохранён
+- Curl-проверка обнаружила: бэк допускает `HADITH` БЕЗ `reliability` (201)
+  но запрещает `reliability` на не-`HADITH` (`invalid-source` 422). Фронт
+  **строже бэка** - требует reliability для HADITH через `canCreate`.
+  Сознательный UX: хадис без grade семантически странный
+- 5 новых тестов в describe('create-mode')
+
+#### Подэтап 12.d (`32a9bc9`): AddAuthorityModal со stance
+
+- Симметрично AddSourceModal по структуре, но stance обязателен (в отличие
+  от опциональных quote/context у sources). Дефолт `HOLDS` - наиболее
+  частый сценарий привязки
+- `StancePicker` подкомпонент - 3 кнопки в grid с цветовым кодированием
+  через `STANCE_RADIO_STYLES`. Цветной dot + label
+- Карточка в списке: avatar с инициалами (Ибн Хаджар → "ИХ"), имя жирным,
+  era · madhab моноширинно
+- Create-form: name (required), era, madhab (двухколоночный grid), bio
+  (textarea, опционально). Без условной валидации - все поля Authority
+  кроме name опциональны на бэке
+- 8 тестов в `AddAuthorityModal.test.tsx`
+
+#### Подэтап 12.e (текущий коммит): документация
+
+- Этот раздел `progress.md`
+- `roadmap.md` - добавлен Этап 12 с подэтапами, пункт бэклога переведён
+  в `[x]` со ссылкой на этап
+- `frontend/docs/ui-guidelines.md` - секции "Источники"/"Авторитеты"
+  обновлены с placeholder на актуальное описание (lazy-load, карточки,
+  кнопка добавления). В разделе "Графовые компоненты" добавлены
+  `AddSourceModal`/`AddAuthorityModal`
+- `gotchas.md` - новая запись "react-hooks/set-state-in-effect блокирует
+  useEffect-сброс state модалки" с разбором 3 альтернатив (key-trick,
+  reset в handlers, conditional render). Зафиксирован выбор conditional
+  render как идиома проекта для одноразовых модалок без анимации
+  закрытия
+
+### Решения
+
+- **Не делал ADR** в этой сессии. Бэк-API спроектирован в Этапе 5,
+  фронт-работа - UI поверх готового контракта без дилемм между
+  альтернативами. Добавление полей `nodeCount`/`edgeCount` в Этапе 11
+  было ADR-достойным потому что включало изменение DTO и агрегатный
+  SQL. Здесь - только UI, без architecture-impact
+- **Локальная фильтрация vs `?q=` бэка**: на MVP-объёме справочника
+  (десятки записей) instant local filter лучше - без сетевого latency,
+  простой код. При росте справочника до тысяч переключусь на
+  серверный поиск с пагинацией. Сейчас бэк q игнорируется фронтом
+- **Lookup-карта для матчинга id → справочник**: один `GET /sources`
+  при загрузке секции вместо N+1 за каждым sourceId. Долгосрочно
+  правильнее расширить бэк - чтобы `GET /nodes/{id}/sources`
+  возвращал расширенный объект с title/sourceType. Это отложено -
+  не критично, ADR не пишу. Если справочник вырастет до сотен -
+  перепланируется
+- **Извлечение `attachmentTokens.ts`**: оправдано тремя точками
+  использования (NodeDetailsPanel, AddSourceModal, AddAuthorityModal)
+  + `STANCE_RADIO_STYLES` нужны только в AddAuthorityModal но
+  `STANCE_LABEL` - всем. KISS на extract порог = 2 точки + асимметрия
+  в типах
+- **Фронт-валидация строже бэка для HADITH reliability**: сознательный
+  UX-выбор. Бэк допускает legacy-данные (impotr старых сборников
+  без grade), но форма заставляет пользователя выбрать. Не ADR,
+  просто правило формы
+
+### Проблемы
+
+- **`react-hooks/set-state-in-effect`** на типичном паттерне
+  useEffect-сброса state. Решено conditional render. Теперь это
+  gotcha в `gotchas.md` для будущих модалок
+- **jsdom не поддерживает `<dialog>` showModal**: тесты модалок
+  требуют beforeAll-мок `HTMLDialogElement.prototype.showModal/close`.
+  Скопировал из `AddNodeModal.test.tsx`. Можно вынести в общий
+  `src/test/setup.ts` - но это refactor, не приоритет, сделается
+  отдельной задачей при появлении ещё одной модалки
+- **Bundle-рост**: TopicGraphPage chunk +29kB кумулятивно за 12.a-d.
+  Сейчас 373kB / gzip 116kB (было 344/110 после Этапа 11). В пределах
+  нормы для большой фичи. Если будет проблемой - можно вынести
+  модалки в отдельный lazy-chunk
+
+### Следующий шаг
+
+**Открытые большие пункты по приоритету:**
+
+1. **Бэклог "Будущие фичи (исламский контекст)" в roadmap** - 18+
+   спецификаций из дизайн-референса. Самый ценный ближайший пункт -
+   **Source picker для Корана** (`SourcePickerQuran` в дизайне).
+   Требует датасета: либо локальный mushaf JSON, либо интеграция
+   с quran.com API. Большая работа - выделить в отдельный этап
+   с backend-интеграцией
+2. **Аналог для хадисов** - `SourcePickerHadith` с табами 9
+   сборников + grade-фильтр + sanad. Зависит от sunnah.com или
+   локального датасета. Очень большая работа
+3. **Sanad explorer** - доменное расширение модели (`Rawi`,
+   `Sanad`, `SanadLink` сущности на беке + новый граф-визуализатор
+   на фронте). Самая глубокая фича в бэклоге
+4. **Bilingual карточки + RTL** - арабский как first-class.
+   Требует i18n-инфраструктуры, naskh-шрифт, RTL-layout.
+   Большая работа
+5. **Z-index full-stack persistence** - для узлов и рёбер.
+   Сейчас локально, при refetch теряется. Делать только если
+   станет критично - пока z-order между сессиями редко важен
+6. **Экспорт графа в PNG/SVG** через `html-to-image` или
+   `dom-to-image`. Кнопка в toolbar. Полезно для шаринга. Малая
+   фича
+7. **Тёмная тема** - Tailwind dark variant + toggle. Средняя
+
+**Что я бы взял следующим**: `Source picker для Корана` или
+`Экспорт графа в PNG/SVG` в зависимости от настроения. Источники
+Корана - центральная domain-фича для исламского контекста, её
+рано-поздно делать. Экспорт - быстрая полезная утилита, не
+требует доменной экспертизы.
+
+После любой из них имеет смысл вернуться к **Аутентификации
+и авторизации** (Этап 6 на беке) - сейчас весь продукт под
+одним dev-user-id, для реальной работы нужен Spring Security
++ JWT.
+
+---
+
 ## 2026-05-07 — Сессия 17 (full-stack) — Этап 11: визуальная полировка по дизайн-референсу
 
 Под пользовательскую задачу "привести существующие компоненты к

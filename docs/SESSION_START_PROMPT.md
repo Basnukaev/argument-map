@@ -45,9 +45,10 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
    - docs/roadmap.md (текущий этап, открытые пункты, бэклог
      "Будущие фичи (исламский контекст)" - 18+ записей из
      дизайн-референса)
-   - docs/decisions.md (все ADR, особенно последние 3-5: ADR-014
+   - docs/decisions.md (все ADR, особенно последние 3: ADR-014
      reconnect, ADR-015 status-bar слева, ADR-016 nodeCount/
-     edgeCount в TopicResponse)
+     edgeCount в TopicResponse). В Этапе 12 ADR не было - чисто
+     UI поверх готового бэк-контракта
    - docs/gotchas.md (все ловушки, чтобы не наступить)
    - docs/api-contract.md (бегло, источник истины контракта)
    - frontend/CLAUDE.md и backend/CLAUDE.md (правила работы и
@@ -77,12 +78,17 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
    - Sources & Arabic direction: shamela-парсинг будущее,
      арабский как first-class (RTL + naskh) - в дизайн-референсе
      отдельные секции, в roadmap бэклог "Будущие фичи"
+   - Conditional render для одноразовых модалок ({open && <Modal/>})
+     вместо useEffect-сброса state - идиома проекта, обходит
+     react-hooks/set-state-in-effect (см. gotchas.md). Внутри
+     Modal всегда `open` prop. Применено в AddSourceModal,
+     AddAuthorityModal
 4. Скажи Абдуле: "вижу - последний раз X. Следующее по приоритету -
    Y. Продолжаем с этого или хочешь другое?"
 5. ЖДИ ПОДТВЕРЖДЕНИЕ. Не начинай работу без него.
 
 ══════════════════════════════════════════════
-ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-07 после сессии 17)
+ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-08 после сессии 18)
 ══════════════════════════════════════════════
 
 ЗАКРЫТО:
@@ -118,32 +124,57 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
      floating легенда (bottom-left) / zoom controls (bottom-center
      через rfInstance) / hotkeys hint (top-right). CompactMiniMap
      перенесён top-right → bottom-right
+- **Этап 12 целиком (сессия 18): привязка источников и авторитетов
+  через UI** - 5 коммитов:
+  12.a. NodeDetailsPanel секции "Источники"/"Авторитеты" - lazy-load
+       через GET /nodes/{id}/sources + параллельный GET /sources для
+       матчинга id→название. Карточки источников (kind/title/citation/
+       quote/context), строки авторитетов с avatar+stance бейджем.
+       Удаление через DELETE optimistic. PanelSection расширен
+       onFirstOpen callback. `apiPostRaw` добавлен в client.ts
+  12.b. AddSourceModal с поиском - локальная фильтрация справочника
+       по title/citation, опциональные quote/context при привязке.
+       Conditional render родителя (`{open && <Modal/>}`) обходит
+       react-hooks/set-state-in-effect
+  12.c. Inline-создание Source - mode='create' в той же модалке.
+       Форма sourceType/title/citation/reliability (показ только
+       для HADITH, фронт строже бэка). Submit делает POST /sources
+       → POST /nodes/{id}/sources. Извлечён attachmentTokens.ts
+  12.d. AddAuthorityModal со stance + create - симметрично, но
+       stance обязателен. StancePicker с цветовым кодированием
+       (HOLDS=emerald/OPPOSES=red/NEUTRAL=slate). Create-form:
+       name (required), era, madhab, bio
+  12.e. Документация (этот раздел + roadmap Этап 12 + ui-guidelines
+       + новый gotcha про conditional render модалок)
 - Cross-cutting: Toast, ContextMenu (с separator items), Modal,
   NodeSelect (custom dropdown с lucide-иконками), CompactMiniMap
-- ADR-011-016 все приняты
+- ADR-011-016 все приняты. В Этапе 12 ADR не делал - чистый UI
+  поверх готового бэк-контракта
 
 ОТКРЫТО (по приоритету): <!-- AUTOFILL -->
-1. **Привязка источников и авторитетов через UI** - бэк-API готов
-   с этапа 5 (`POST /api/v1/nodes/{id}/sources|authorities`,
-   `GET /sources?q=`), на фронте секции в NodeDetailsPanel сейчас
-   placeholder (в дизайне детально - "Источники"/"Авторитеты"
-   карточки внутри панели, AddSourceContextMenu). Большая фича
-   ~3+ часов. Закрывает центральную domain-логику проекта
-2. **Бэклог "Будущие фичи (исламский контекст)" в roadmap.md** -
-   18+ записей из дизайн-референса: source picker (Quran/Hadith/
-   Books), sanad explorer, multi-grading, bilingual cards, RTL,
-   settings, onboarding, multi-select, cross-references, print
-   preview. Каждая - отдельный этап в будущем. По очереди после
-   привязки источников
-3. **Экспорт графа в PNG/SVG** через `html-to-image` или
-   `dom-to-image`. Кнопка в toolbar. Полезно для шаринга
-4. **Smart edge routing** через elkjs - если на плотных графах
-   bezier пересечения мешают. Опционально
-5. **Тёмная тема** - Tailwind dark variant + toggle. Средняя
-6. **Z-index full-stack persistence** для узлов и рёбер - сейчас
-   только локально пока граф открыт. При refetch сбрасывается
-7. **Полнотекстовый поиск** - blocked на бэк (Этап 6)
-8. **Аутентификация** - blocked на бэк (Этап 6)
+1. **Source picker для Корана** (`SourcePickerQuran` в дизайне) -
+   таб "Коран" с навигацией по сурам, выбор аята. Требует датасет:
+   локальный mushaf JSON или интеграция с quran.com API. Большая
+   работа, отдельный этап с backend-инфраструктурой. **Самый
+   ценный ближайший пункт** для исламского контекста
+2. **Source picker для хадисов** - 9 сборников + grade-фильтр +
+   sanad. Зависит от sunnah.com или локального датасета. Очень
+   большая работа
+3. **Sanad explorer** - доменное расширение модели (Rawi/Sanad/
+   SanadLink сущности на беке) + новый граф-визуализатор.
+   Самая глубокая фича в бэклоге
+4. **Bilingual карточки + RTL** - арабский как first-class.
+   Требует i18n + naskh-шрифт + RTL-layout. Большая работа
+5. **Экспорт графа в PNG/SVG** через `html-to-image`. Кнопка
+   в toolbar. Малая полезная утилита, не требует доменной
+   экспертизы. Хороший warm-up между крупными фичами
+6. **Z-index full-stack persistence** для узлов и рёбер. Сейчас
+   локально, при refetch теряется
+7. **Smart edge routing** через elkjs - опционально на плотных
+   графах
+8. **Тёмная тема** - Tailwind dark variant + toggle
+9. **Полнотекстовый поиск** - blocked на бэк (Этап 6)
+10. **Аутентификация** - blocked на бэк (Этап 6)
 
 ИНФРАСТРУКТУРА:
 - Postgres контейнер: argumentmap-postgres на :5432 (docker ps)
@@ -156,8 +187,9 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 - Тестовая тема "Дозволенность Мавлида ан-Наби":
   640a7ac7-2827-4b80-9893-dc7142f100e4
   Скрипт пересоздания: scripts/seed-mawlid.sh
-- Bundle (после Этапа 11): initial 256kB / gzip 82kB,
-  TopicGraphPage chunk 344kB / gzip 110kB
+- Bundle (после Этапа 12): initial 256kB / gzip 82kB,
+  TopicGraphPage chunk 373kB / gzip 116kB. +29kB к Этапу 11 за
+  AddSourceModal+AddAuthorityModal+секции в NodeDetailsPanel
 - Если регенерируешь типы (`npm run generate-api`) - сначала
   убедись что слушает СВЕЖИЙ бэкенд с твоими изменениями. Проверь
   через curl http://localhost:9090/v3/api-docs что новые поля есть
@@ -185,8 +217,15 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
   TypeChip+StatusBadge), CustomEdge (use EDGE_TYPE_TOKENS),
   AddNodeModal (autoEdge + grid карточек типа), AddEdgeModal,
   NodeDetailsPanel/EdgeDetailsPanel (градиент header + collapse
-  секции, diff-блоки в истории), NodeSelect (custom dropdown),
-  CompactMiniMap (bottom-right)
+  секции, diff-блоки в истории, после Этапа 12 секции "Источники"/
+  "Авторитеты" работают полноценно с lazy-load), NodeSelect
+  (custom dropdown), CompactMiniMap (bottom-right), AddSourceModal
+  (search + create mode), AddAuthorityModal (search + create со
+  stance picker)
+- frontend/src/utils/attachmentTokens.ts — после Этапа 12:
+  SOURCE_TYPE_LABEL/ICON/HINT/ORDER, STANCE_LABEL/BADGE_STYLES/
+  RADIO_STYLES/ORDER. Источник истины для отображения source/
+  authority типов и stance. По аналогии с designTokens.ts
 - frontend/src/utils/edgeRules.ts — матрица ADR-010,
   NODE_TYPE_META, EDGE_TYPE_META, getRelatedNodeOptions.
   ВНИМАНИЕ: частично пересекается с designTokens.ts - в будущей
@@ -311,19 +350,23 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 После прочтения 5+ файлов из START-OF-SESSION PROTOCOL начни ответ
 с короткого summary последнего состояния и предложения. Например:
 
-"вижу - в сессии 17 закрыли Этап 11 (визуальная полировка по
-дизайн-референсу): 8 подэтапов, 9 коммитов. Главное -
-status-bar 5px слева вместо border-2 (ADR-015), TypeChip+
-StatusBadge в header NodeCard, designTokens.ts как источник
-палитр, обновлённые модалки и панели деталей с градиентом
-header и collapse-секциями, новый TopicListPage с мини-графом
-SVG, левый toolbar в GraphScreen с floating элементами. Бэк
-получил nodeCount/edgeCount в TopicResponse через агрегатный
-SQL (ADR-016). Всё зелёное (172 backend tests, 116 frontend),
-дизайн-референс в репе с подробным бэклогом будущих фич.
-По приоритету следующее: привязка источников и авторитетов
-через UI - бэк-API с этапа 5 готов, фронт пуст, в дизайне
-расписано детально. Большая фича. Поехали или другое?"
+"вижу - в сессии 18 закрыли Этап 12 (привязка источников и
+авторитетов к узлам через UI): 5 подэтапов, 5 коммитов. Главное -
+секции "Источники"/"Авторитеты" в NodeDetailsPanel перешли с
+placeholder на реальные lazy-loaded списки с возможностью
+привязки/отвязки. Две модалки AddSourceModal и AddAuthorityModal
+с двумя режимами каждая (search в локальном справочнике + inline-
+create). Conditional render `{open && <Modal/>}` как идиома против
+react-hooks/set-state-in-effect (новая gotcha). Извлечён
+attachmentTokens.ts - источник истины для SOURCE_TYPE/STANCE
+токенов. ADR не делал - чистый UI поверх готового бэк-контракта
+из Этапа 5. 143 фронт-теста (+27 новых) зелёные. Bundle
+TopicGraphPage chunk 373kB / gzip 116kB.
+По приоритету следующее: Source picker для Корана - таб с
+навигацией по сурам, выбор аята. Требует датасет (mushaf JSON
+или quran.com API), большая фича с backend-инфраструктурой.
+Альтернативно - экспорт графа в PNG/SVG через html-to-image,
+малая утилита. Поехали или другое?"
 
 Жди подтверждение. После него - смело за работу.
 ```
