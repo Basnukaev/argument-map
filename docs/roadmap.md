@@ -274,26 +274,26 @@ Claude Design - HTML/jsx прототип с проработанным визу
 градиентные header панелей, мини-граф в TopicCard и т.д.).
 Стилизация без изменения функциональности или API.
 
-- [ ] **Подэтап 1: документация и токены** - ui-guidelines.md,
+- [x] **Подэтап 1: документация и токены** - ui-guidelines.md,
       glossary.md, decisions.md (ADR-015 status-bar), roadmap.md
-- [ ] **Подэтап 2: UI-примитивы** - Button (расширить), Badge,
+- [x] **Подэтап 2: UI-примитивы** - Button (расширить), Badge,
       StatusBadge (с data-testid), TypeChip, Kbd, IconButton, Card,
       `src/utils/designTokens.ts`
-- [ ] **Подэтап 3: NodeCard** - status-bar слева, TypeChip+StatusBadge
+- [x] **Подэтап 3: NodeCard** - status-bar слева, TypeChip+StatusBadge
       в header, line-clamp-2, hover/selected по тени, 4 handles
       сохранить
-- [ ] **Подэтап 4: CustomEdge** - выровнять цвета и стили под
+- [x] **Подэтап 4: CustomEdge** - выровнять цвета и стили под
       EDGE_TYPE_TOKENS из дизайна
-- [ ] **Подэтап 5: AddNodeModal + AddEdgeModal** - тип в grid-карточках,
+- [x] **Подэтап 5: AddNodeModal + AddEdgeModal** - тип в grid-карточках,
       NodePicker для from/to, Kbd в footer
-- [ ] **Подэтап 6: NodeDetailsPanel + EdgeDetailsPanel** - градиент
+- [x] **Подэтап 6: NodeDetailsPanel + EdgeDetailsPanel** - градиент
       header, collapse-секции, diff-блоки в истории
-- [ ] **Подэтап 7а: бэк - nodeCount/edgeCount** - расширение
+- [x] **Подэтап 7а: бэк - nodeCount/edgeCount** - расширение
       TopicResponse, новый агрегатный SQL в TopicRepository,
       api-contract.md, ADR на расширение
-- [ ] **Подэтап 7b: TopicListPage** - topbar+нав, сетка карточек
+- [x] **Подэтап 7b: TopicListPage** - topbar+нав, сетка карточек
       с мини-графом SVG, авторская аватарка, бейдж count, поиск
-- [ ] **Подэтап 8: GraphScreen layout** - левый вертикальный toolbar,
+- [x] **Подэтап 8: GraphScreen layout** - левый вертикальный toolbar,
       floating легенда/zoom/hotkeys, breadcrumb в topbar
 
 ## Бэклог

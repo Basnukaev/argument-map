@@ -13,6 +13,149 @@
 
 ---
 
+## 2026-05-07 — Сессия 17 (full-stack) — Этап 11: визуальная полировка по дизайн-референсу
+
+Под пользовательскую задачу "привести существующие компоненты к
+визуалу дизайн-референса (`frontend/design-reference/`)". Дизайн -
+HTML/jsx showcase из Claude Design (26 секций, из них ~12 -
+существующая функциональность, остальные - спецификация на
+будущее: sanad, multi-grading, source library, RTL, settings и
+т.д.). Текущая итерация - стилизация СУЩЕСТВУЮЩИХ компонентов
+без новых фич. Вся работа разбита на 8 подэтапов с отдельными
+коммитами.
+
+### Сделано
+
+9 коммитов:
+
+**Подэтап 1 - документация и токены (`6a91b2e`)**
+- `frontend/design-reference/`: добавлен handoff-бандл от
+  Claude Design (HTML+jsx с показательным визуалом)
+- `frontend/docs/ui-guidelines.md`: расширенная палитра статусов
+  (bar/bg/text/badgeBg/badgeText/ring), brand=indigo, status-bar
+  5px слева вместо border-2 вокруг карточки
+- ADR-015: статус-бар слева вместо border вокруг
+- `docs/glossary.md`: термины из дизайна для будущих этапов
+  (sanad, isnad, rawi, hadith grades, tashkeel, harakat,
+  mushaf, riwayah, madhab, kunya)
+- `docs/roadmap.md`: новый Этап 11 + расширенный бэклог из
+  дизайна (source pickers, sanad explorer, multi-grading,
+  bilingual, RTL, settings, onboarding, multi-select, print)
+
+**Подэтап 2 - UI-примитивы (`50eb221`)**
+- `src/utils/designTokens.ts`: STATUS_TOKENS / NODE_TYPE_TOKENS /
+  EDGE_TYPE_TOKENS - источник истины для палитр
+- Расширен `Button` (6 вариантов indigo-primary, secondary, ghost,
+  danger, danger-ghost, link; 4 размера xs/sm/md/lg; icon/iconRight)
+- Новые: `Badge`, `StatusBadge` (data-testid сохранён),
+  `TypeChip`, `Kbd`, `IconButton`, `Card`
+
+**Подэтап 3 - NodeCard (`4f8432d`)**
+- Status-bar 5px слева вместо border-2 цветного вокруг карточки
+- TypeChip + StatusBadge в header
+- Body: первая строка = title font-semibold, остальное = body
+  с line-clamp-2
+- Hover: shadow-md, Selected: indigo ring + glow
+- 4 handles сохранены (border-indigo-500)
+
+**Подэтап 4 - CustomEdge (`17fe20e`)**
+- Удалён локальный TYPE_STYLES, использует EDGE_TYPE_TOKENS
+- Бейдж: rounded-md, white bg, soft shadow
+- TopicGraphPage.EDGE_ARROW_COLOR тоже из токенов
+
+**Подэтап 5 - модалки (`425f57f`)**
+- AddNodeModal: тип в grid-cols-4 карточек с chipBg иконкой,
+  hint, indigo selected. Footer с Kbd
+- AddEdgeModal: тип в grid-карточках с SVG-превью линии
+  (правильный dasharray/opacity). Динамическая колонка по
+  количеству разрешённых типов
+- Modal: shadow-2xl, IconButton для крестика, opt subtitle
+- NodeSelect: blue→indigo, slate-цвета
+
+**Подэтап 6 - детали панели (`8c4a084`)**
+- NodeDetailsPanel: header с градиентом по типу, square 32×32
+  иконка типа, h2 с UPPERCASE меткой, StatusBadge size=lg.
+  Helper PanelSection (collapse). История изменений с diff-
+  блоками red-50/40 / emerald-50/40
+- EdgeDetailsPanel: аналогичный header, NodeMini с status-bar
+  3px слева для from/to превью, ArrowRight между ними. Edit
+  через radio-list карточек с SVG-превью линии
+
+**Подэтап 7а - бэк nodeCount/edgeCount (`7d355bd`)** [feat:]
+- TopicResponse + nodeCount, edgeCount (int)
+- TopicWithCounts record, TopicRepository.findAllWithCounts /
+  findByIdWithCounts (один SQL с агрегатными LEFT JOIN-подзапросами,
+  edges через JOIN с nodes из-за ADR-003)
+- TopicService.listTopicsWithCounts / getTopicWithCounts
+- DtoMappers перегрузки toResponse(Topic)/(Topic,int,int)/
+  (TopicWithCounts)
+- TopicController: GET-list/one/POST используют withCounts
+- ADR-016 + api-contract.md обновлён + история изменений
+- 6 новых тестов (4 IT Repository + 2 IT Controller).
+  Всего 172 backend tests. Frontend regen-api с новыми типами
+
+**Подэтап 7b - TopicListPage (`95760f8`)**
+- Topbar h-12 с навигацией (Темы / Авторитеты / Источники)
+- Сетка карточек 1/2/3 col по ширине
+- TopicCard: preview area 110px с TopicMiniGraph SVG (1-8 точек
+  по nodeCount), бейдж "N · M", title line-clamp-2 group-hover
+  indigo, description line-clamp-2, footer с shortId + дата
+- Loading/Error/Empty состояния с Card и иконками. Локальный
+  поиск по title/description
+
+**Подэтап 8 - GraphScreen layout (`df5e3fe`)**
+- Header: компактный (h-12 px-4) breadcrumb [< К списку] / Title /
+  опц description
+- Левая вертикальная колонка инструментов через RF Panel
+  position="top-left" - IconButton-ы Plus/Link2/Eye/Trash2
+  с разделителями
+- Hotkeys hint (Panel top-right): Kbd "2клик/Del/ПКМ"
+- Легенда статусов (Panel bottom-left): grid 2x2 цветных bar-ов
+- Zoom controls (Panel bottom-center): IconButton-ы используют
+  rfInstance.zoomIn/zoomOut/fitView - заменили дефолтные RF Controls
+- CompactMiniMap: top-right → bottom-right (под дизайн)
+
+### Решения
+
+- **ADR-015** (status-bar слева vs border вокруг): описание
+  принципа разделения сигналов (статус → bar, тип → chip,
+  selected → border+ring)
+- **ADR-016** (nodeCount/edgeCount в TopicResponse): один SQL с
+  агрегатными LEFT JOIN. Альтернативы (N+1 на фронте /
+  денормализация в таблице / отдельный endpoint) рассмотрены.
+  Открытый вопрос: statusCounts отложен до явного запроса
+- Тесты которые проверяли конкретные tailwind-классы (Button,
+  NodeDetailsPanel) обновлены под новые токены, поведенческие
+  тесты не трогались
+- Левый toolbar реализован через RF Panel position="top-left"
+  (а не выносить state-up в page-уровень) - проще, имеет доступ
+  к state Graph (selectedCount, showEdgeLabels) без callback-
+  прокидывания
+
+### Проблемы
+
+- Первый запуск backend в фоне (mvnw spring-boot:run) попал
+  на занятый port 9090 (уже была старая инстанция). Это привело
+  к тому что openapi-generated types сначала пришли без новых
+  полей. Заметил по grep отсутствия nodeCount, перезапустил
+  свежий бэк - ОК. На будущее: всегда проверять свежесть
+  schema после regen-api
+- pkill по shell-имени не убивал maven-spawned java-процесс -
+  нашёл PID через ss -tlnp по порту, kill сработал. Записать
+  в gotchas если повторится
+
+### Следующий шаг
+
+Дизайн-референс есть в репе с подробным бэклогом - следующий
+очевидный пункт **привязка источников к узлам через UI** (первая
+запись в новой "Будущие фичи (исламский контекст)" секции
+бэклога). Бэк уже умеет (POST /api/v1/nodes/{id}/sources),
+нужна UI-часть: модалка/picker выбора из справочника + привязка
+к узлу. Это минимум для MVP исламской работы и фронт-фичу
+которая разблокирует бэлог по source library
+
+---
+
 ## 2026-05-05 — 2026-05-06 — Сессия 16 (full-stack) — Этап 10 (reconnect + edge edit), большой polish + контекстные "Добавить связанный" + custom minimap
 
 Самая большая сессия. Целиком закрыт новый Этап 10 (редактирование
