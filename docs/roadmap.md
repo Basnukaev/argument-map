@@ -266,6 +266,36 @@ git log; средняя фича (3+ коммитов или новый файл
       header, danger-пунктов, иконок lucide. Введён в **этапе 9**
       для меню pane/node/edge
 
+## Этап 11. Визуальная полировка по дизайн-референсу
+
+Зачем: в `frontend/design-reference/` лежит handoff-бандл от
+Claude Design - HTML/jsx прототип с проработанным визуалом всех
+существующих компонентов (status-bar слева, TypeChip, StatusBadge,
+градиентные header панелей, мини-граф в TopicCard и т.д.).
+Стилизация без изменения функциональности или API.
+
+- [ ] **Подэтап 1: документация и токены** - ui-guidelines.md,
+      glossary.md, decisions.md (ADR-015 status-bar), roadmap.md
+- [ ] **Подэтап 2: UI-примитивы** - Button (расширить), Badge,
+      StatusBadge (с data-testid), TypeChip, Kbd, IconButton, Card,
+      `src/utils/designTokens.ts`
+- [ ] **Подэтап 3: NodeCard** - status-bar слева, TypeChip+StatusBadge
+      в header, line-clamp-2, hover/selected по тени, 4 handles
+      сохранить
+- [ ] **Подэтап 4: CustomEdge** - выровнять цвета и стили под
+      EDGE_TYPE_TOKENS из дизайна
+- [ ] **Подэтап 5: AddNodeModal + AddEdgeModal** - тип в grid-карточках,
+      NodePicker для from/to, Kbd в footer
+- [ ] **Подэтап 6: NodeDetailsPanel + EdgeDetailsPanel** - градиент
+      header, collapse-секции, diff-блоки в истории
+- [ ] **Подэтап 7а: бэк - nodeCount/edgeCount** - расширение
+      TopicResponse, новый агрегатный SQL в TopicRepository,
+      api-contract.md, ADR на расширение
+- [ ] **Подэтап 7b: TopicListPage** - topbar+нав, сетка карточек
+      с мини-графом SVG, авторская аватарка, бейдж count, поиск
+- [ ] **Подэтап 8: GraphScreen layout** - левый вертикальный toolbar,
+      floating легенда/zoom/hotkeys, breadcrumb в topbar
+
 ## Бэклог
 
 Идеи и задачи без привязки к этапу. Когда задача созревает - переходит
@@ -315,6 +345,95 @@ git log; средняя фича (3+ коммитов или новый файл
       / gzip 79kB (-2.3×). Граф (RF, dagre, графовые компоненты) -
       отдельный chunk 319kB / gzip 104kB, подгружается при переходе
       на `/topics/{id}`. Suspense fallback показывает "Загрузка графа"
+
+### Будущие фичи (исламский контекст и расширения из дизайн-референса)
+
+В `frontend/design-reference/project/islamic.jsx` и `extras.jsx`
+дизайн показывает большое количество секций про работу с исламскими
+текстами, sanad-цепочками, multi-grading и пр. Текущая итерация
+визуальной полировки (Этап 11) их **не включает** - это спецификация
+будущих этапов. Каждая секция здесь - заготовка под будущий ADR
+и подэтап.
+
+- [ ] **Привязка источников к узлам через UI** - модалка/picker
+      выбора из справочника + привязка к узлу. Базовая
+      инфраструктура есть (бэк: `POST /api/v1/nodes/{id}/sources`),
+      нужна UI-часть. Минимум для MVP исламской работы
+      _(из дизайн-референса: AddSourceContextMenu в `islamic.jsx`)_
+- [ ] **Привязка авторитетов к узлам** - аналогично источникам.
+      Будет показывать stance (HOLDS/OPPOSES/NEUTRAL) учёного на
+      узел _(из дизайн-референса: AuthoritiesSection,
+      AuthorityCard)_
+- [ ] **Source picker для Корана** - таб "Коран" с навигацией по
+      сурам, выбор аята, inline-вставка с цитатой и переводом.
+      Бэк не готов: нужна интеграция с источниками типа
+      quran.com или локальный mushaf-датасет _(SourcePickerQuran)_
+- [ ] **Source picker для хадисов** - таб "Хадисы" с 9 сборниками
+      (Бухари, Муслим, Тирмизи и т.д.), фильтр по grade
+      (sahih/hasan/daif), показ иснада. Потенциальная интеграция
+      с sunnah.com _(SourcePickerHadith)_
+- [ ] **Source picker для книг** - таб "Книги" с навигацией том/
+      страница, интеграция с shamela.ws. Самая большая работа
+      из source pickers _(SourcePickerBooks)_
+- [ ] **Source detail panel** - параллельная боковая панель
+      (800px) с полным содержанием цитируемого источника,
+      контекстом и метаданными _(SourceDetailPanel)_
+- [ ] **Library overview** - страница `/library` с обзором
+      источников темы _(LibraryOverview)_
+- [ ] **Inline citations** - формат `[1]` в тексте с popover,
+      привязанные к node-source records _(InlineCitations)_
+- [ ] **Sanad explorer** - визуализация цепочки передатчиков
+      хадиса (8-звенная от Пророка ﷺ до составителя). Каждое
+      звено - карточка передатчика (имя/поколение/tier). Связи
+      типизированы (`sama'`/`'an'ana`/`haddathana`/`мункати'`).
+      Альтернативные пути. Серьёзная доменная фича - потребует
+      расширения доменной модели (новые сущности `Rawi`, `Sanad`,
+      `SanadLink`) _(SanadExplorer, SANAD demo data)_
+- [ ] **Multi-grading хадисов** - один хадис может быть оценён
+      несколькими учёными по-разному (Бухари: sahih, Тирмизи:
+      hasan). Сейчас `Reliability` - single-value. Расширение
+      на M:N таблицу `hadith_grades` (rawi/scholar/grade/source)
+      _(MultiGradingSection, SCHOLAR_GRADES demo)_
+- [ ] **Bilingual карточки** - двуязычный режим узла
+      (EVIDENCE/ARGUMENT с арабским оригиналом + русским
+      переводом). Toggle режима оригинал/перевод/оба. Требует
+      RTL-поддержки и naskh-шрифтов _(BilingualNodeCard)_
+- [ ] **Translator attribution** - при показе перевода аята/
+      хадиса - указание переводчика (Кулиев, Sahih International,
+      Османов и т.д.). Dropdown переключения переводов
+      _(TranslatorSection)_
+- [ ] **Tashkeel toggle** - на canvas карточки можно отключить
+      огласовки (`harakat`) для краткости. Side-by-side
+      сравнение с/без _(TashkeelSection)_
+- [ ] **RTL-режим** - для арабского UI: зеркальный layout
+      графа, RTL-toolbar, naskh-/kufi-шрифты. Большая работа,
+      выделить в отдельный этап _(RTLGraphScreen, RTLSection)_
+- [ ] **Language switcher (RU/EN/AR)** - в header или settings.
+      Идёт в комплекте с i18n и RTL _(LanguageSwitcher)_
+- [ ] **Settings screen** - язык, выбор арабского шрифта,
+      размер текста, тогглы tashkeel/транслит, drag-приоритет
+      источников _(SettingsScreen)_
+- [ ] **Onboarding** - 4-шаговый чеклист для новой темы
+      ("создай корневой вопрос", "добавь тезис-ответ" и т.д.) +
+      hint-указатели на canvas _(OnboardingChecklist,
+      OnboardingHint)_
+- [ ] **Topic settings drawer** - 480px drawer над затемнённым
+      canvas: title/desc, корневой вопрос (lock), радио
+      Private/Shared/Public, метаданные, danger zone
+      _(TopicSettingsDrawer)_. Требует расширения Topic на
+      бэке полем `visibility` (после auth)
+- [ ] **Multi-select с floating action bar** - лассо или
+      Shift+click несколько узлов, всплывающая action-bar для
+      массовых операций (изменить статус, переместить,
+      удалить, экспорт) _(MultiSelectScreen)_
+- [ ] **Cross-references drawer** - 600px drawer "узел
+      использован в N темах": группировка по темам, прыжок в
+      граф. Cross-topic graph-навигация. Требует backend
+      аггрегата по cross-topic ссылкам _(CrossRefDrawer)_
+- [ ] **Print preview** - A4-toolbar с тогглами (включить узлы,
+      источники, иснады) + полноценная печатная страница темы.
+      Граф как SVG, источники в академическом формате
+      _(PrintPreviewSection)_
 
 ### Бэк
 - [ ] Пагинация для GET-list эндпоинтов (`/sources`, `/authorities`) -

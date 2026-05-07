@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1280" />
+<title>Argument Map — Design Showcase</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Amiri:ital,wght@0,400;0,700;1,400&family=Scheherazade+New:wght@400;700&family=Noto+Naskh+Arabic:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&family=Reem+Kufi:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        },
+      },
+    },
+  };
+</script>
+<style>
+  :root { color-scheme: light; }
+  html, body {
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    background: #f8fafc;
+    color: #0f172a;
+    font-feature-settings: "ss01", "cv11", "tnum", "kern";
+  }
+
+  /* === Arabic typography === */
+  .font-amiri { font-family: 'Amiri', 'Noto Naskh Arabic', serif; }
+  .font-scheherazade { font-family: 'Scheherazade New', 'Amiri', serif; }
+  .font-naskh { font-family: 'Noto Naskh Arabic', 'Amiri', serif; }
+  .font-arabic-sans { font-family: 'Noto Sans Arabic', 'Inter', sans-serif; }
+  .font-kufi { font-family: 'Reem Kufi', 'Noto Sans Arabic', sans-serif; }
+  .arabic-text { line-height: 1.9; }
+  .tabular { font-variant-numeric: tabular-nums; }
+
+  /* === Canvas dot-grid === */
+  .dot-grid {
+    background-image: radial-gradient(rgba(15, 23, 42, 0.10) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+  .dot-grid-light {
+    background-image: radial-gradient(rgba(15, 23, 42, 0.07) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+
+  /* === Misc === */
+  .scroll-shadow {
+    background:
+      linear-gradient(white 30%, rgba(255,255,255,0)),
+      linear-gradient(rgba(255,255,255,0), white 70%) 0 100%,
+      radial-gradient(50% 0, farthest-side, rgba(15, 23, 42, 0.10), transparent),
+      radial-gradient(50% 100%, farthest-side, rgba(15, 23, 42, 0.10), transparent) 0 100%;
+    background-repeat: no-repeat;
+    background-size: 100% 24px, 100% 24px, 100% 8px, 100% 8px;
+    background-attachment: local, local, scroll, scroll;
+  }
+  .checkerboard {
+    background-image:
+      linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
+      linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
+      linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  }
+
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track { background: #f1f5f9; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border: 3px solid #f1f5f9; border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+  .ring-focus { box-shadow: 0 0 0 2px white, 0 0 0 4px #4f46e5; }
+  .text-balance { text-wrap: balance; }
+  .text-pretty  { text-wrap: pretty; }
+  .node-shadow  { filter: drop-shadow(0 1px 2px rgba(15,23,42,0.06)) drop-shadow(0 4px 8px rgba(15,23,42,0.05)); }
+
+  details > summary { list-style: none; cursor: pointer; }
+  details > summary::-webkit-details-marker { display: none; }
+</style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900">
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" data-presets="react" src="icons.jsx"></script>
+  <script type="text/babel" data-presets="react" src="primitives.jsx"></script>
+  <script type="text/babel" data-presets="react" src="nodes.jsx"></script>
+  <script type="text/babel" data-presets="react" src="graph.jsx"></script>
+  <script type="text/babel" data-presets="react" src="screens.jsx"></script>
+  <script type="text/babel" data-presets="react" src="islamic.jsx"></script>
+  <script type="text/babel" data-presets="react" src="extras.jsx"></script>
+  <script type="text/babel" data-presets="react" src="app.jsx"></script>
+</body>
+</html>
