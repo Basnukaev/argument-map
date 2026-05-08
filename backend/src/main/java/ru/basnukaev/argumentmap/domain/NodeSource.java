@@ -8,6 +8,7 @@ public record NodeSource(
         UUID sourceId,
         String quote,
         String context,
+        String location,
         Instant createdAt
 ) {
 }

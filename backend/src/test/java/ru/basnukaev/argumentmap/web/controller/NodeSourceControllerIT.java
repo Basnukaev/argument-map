@@ -68,7 +68,7 @@ class NodeSourceControllerIT {
 
     @Test
     void attachSource_returns201_andLinkPersisted() throws Exception {
-        var req = new AttachSourceRequest(sourceId, "точная цитата", "контекст");
+        var req = new AttachSourceRequest(sourceId, "точная цитата", "контекст", "стр. 42");
 
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/sources", nodeId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -76,12 +76,13 @@ class NodeSourceControllerIT {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.nodeId").value(nodeId.toString()))
                 .andExpect(jsonPath("$.sourceId").value(sourceId.toString()))
-                .andExpect(jsonPath("$.quote").value("точная цитата"));
+                .andExpect(jsonPath("$.quote").value("точная цитата"))
+                .andExpect(jsonPath("$.location").value("стр. 42"));
     }
 
     @Test
     void attachSource_whenNodeMissing_returns404() throws Exception {
-        var req = new AttachSourceRequest(sourceId, null, null);
+        var req = new AttachSourceRequest(sourceId, null, null, null);
 
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/sources", UUID.randomUUID())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -92,7 +93,7 @@ class NodeSourceControllerIT {
 
     @Test
     void attachSource_whenSourceMissing_returns404() throws Exception {
-        var req = new AttachSourceRequest(UUID.randomUUID(), null, null);
+        var req = new AttachSourceRequest(UUID.randomUUID(), null, null, null);
 
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/sources", nodeId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -137,7 +138,7 @@ class NodeSourceControllerIT {
     }
 
     private void attach(UUID source, String quote, String context) throws Exception {
-        var req = new AttachSourceRequest(source, quote, context);
+        var req = new AttachSourceRequest(source, quote, context, null);
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/sources", nodeId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))

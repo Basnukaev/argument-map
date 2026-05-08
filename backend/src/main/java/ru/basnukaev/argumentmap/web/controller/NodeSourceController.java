@@ -34,7 +34,7 @@ public class NodeSourceController {
     public ResponseEntity<NodeSourceResponse> attach(@PathVariable UUID nodeId,
                                                      @Valid @RequestBody AttachSourceRequest request) {
         NodeSource link = nodeSourceService.attachSource(
-                nodeId, request.sourceId(), request.quote(), request.context()
+                nodeId, request.sourceId(), request.quote(), request.context(), request.location()
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(DtoMappers.toResponse(link));
     }

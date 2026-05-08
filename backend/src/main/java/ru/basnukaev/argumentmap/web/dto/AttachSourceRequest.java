@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Size;
 public record AttachSourceRequest(
         @NotNull UUID sourceId,
         @Size(max = 10000) String quote,
-        @Size(max = 2000) String context
+        @Size(max = 2000) String context,
+        @Size(max = 200) String location
 ) {
 }

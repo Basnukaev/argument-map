@@ -43,7 +43,7 @@ class SourceControllerIT {
         var metadata = objectMapper.readTree("{\"collection\":\"bukhari\",\"book\":1,\"hadith\":4}");
         var req = new CreateSourceRequest(
                 SourceType.HADITH, "Сахих аль-Бухари", "том 1, хадис 4",
-                Reliability.SAHIH, metadata
+                Reliability.SAHIH, null, metadata
         );
 
         mockMvc.perform(post("/api/v1/sources")
@@ -60,7 +60,7 @@ class SourceControllerIT {
 
     @Test
     void createSource_bookWithoutReliability_returns201() throws Exception {
-        var req = new CreateSourceRequest(SourceType.BOOK, "Ихьйа улюм ад-дин", null, null, null);
+        var req = new CreateSourceRequest(SourceType.BOOK, "Ихьйа улюм ад-дин", null, null, null, null);
 
         mockMvc.perform(post("/api/v1/sources")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -72,7 +72,7 @@ class SourceControllerIT {
 
     @Test
     void createSource_reliabilityForNonHadith_returns422() throws Exception {
-        var req = new CreateSourceRequest(SourceType.BOOK, "title", null, Reliability.SAHIH, null);
+        var req = new CreateSourceRequest(SourceType.BOOK, "title", null, Reliability.SAHIH, null, null);
 
         mockMvc.perform(post("/api/v1/sources")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -84,7 +84,7 @@ class SourceControllerIT {
 
     @Test
     void createSource_blankTitle_returns400() throws Exception {
-        var req = new CreateSourceRequest(SourceType.URL, "  ", null, null, null);
+        var req = new CreateSourceRequest(SourceType.URL, "  ", null, null, null, null);
 
         mockMvc.perform(post("/api/v1/sources")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -149,7 +149,7 @@ class SourceControllerIT {
     }
 
     private UUID createSource(String title) throws Exception {
-        var req = new CreateSourceRequest(SourceType.BOOK, title, null, null, null);
+        var req = new CreateSourceRequest(SourceType.BOOK, title, null, null, null, null);
         String json = mockMvc.perform(post("/api/v1/sources")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))

@@ -9,7 +9,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import ru.basnukaev.argumentmap.domain.Authority;
 import ru.basnukaev.argumentmap.domain.Edge;
 import ru.basnukaev.argumentmap.domain.Node;
-import ru.basnukaev.argumentmap.domain.NodeAuthority;
 import ru.basnukaev.argumentmap.domain.NodeSource;
 import ru.basnukaev.argumentmap.domain.Revision;
 import ru.basnukaev.argumentmap.domain.Source;
@@ -19,7 +18,6 @@ import ru.basnukaev.argumentmap.service.GraphView;
 import ru.basnukaev.argumentmap.web.dto.AuthorityResponse;
 import ru.basnukaev.argumentmap.web.dto.EdgeResponse;
 import ru.basnukaev.argumentmap.web.dto.GraphResponse;
-import ru.basnukaev.argumentmap.web.dto.NodeAuthorityResponse;
 import ru.basnukaev.argumentmap.web.dto.NodeResponse;
 import ru.basnukaev.argumentmap.web.dto.NodeSourceResponse;
 import ru.basnukaev.argumentmap.web.dto.RevisionResponse;
@@ -91,6 +89,7 @@ public final class DtoMappers {
         return new SourceResponse(
                 source.id(), source.sourceType(), source.title(),
                 source.citation(), source.reliability(),
+                source.authorityId(),
                 jsonFromString(source.metadata()),
                 source.createdAt()
         );
@@ -108,13 +107,8 @@ public final class DtoMappers {
     public static NodeSourceResponse toResponse(NodeSource link) {
         return new NodeSourceResponse(
                 link.nodeId(), link.sourceId(),
-                link.quote(), link.context(), link.createdAt()
-        );
-    }
-
-    public static NodeAuthorityResponse toResponse(NodeAuthority link) {
-        return new NodeAuthorityResponse(
-                link.nodeId(), link.authorityId(), link.stance(), link.createdAt()
+                link.quote(), link.context(), link.location(),
+                link.createdAt()
         );
     }
 

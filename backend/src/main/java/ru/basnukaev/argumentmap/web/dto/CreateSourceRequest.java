@@ -1,5 +1,7 @@
 package ru.basnukaev.argumentmap.web.dto;
 
+import java.util.UUID;
+
 import com.fasterxml.jackson.databind.JsonNode;
 
 import jakarta.validation.constraints.NotBlank;
@@ -13,6 +15,7 @@ public record CreateSourceRequest(
         @NotBlank @Size(max = 500) String title,
         @Size(max = 2000) String citation,
         Reliability reliability,
+        UUID authorityId,
         JsonNode metadata
 ) {
 }

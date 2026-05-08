@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260508-15-merge-authority-into-source" author="Abdula Basnukaev">
+        <comment>
+            Реализация ADR-017: единая точка привязки цитаты к узлу.
+
+            Изменения схемы:
+            (1) sources.authority_id - опциональный FK на authorities.id.
+                ON DELETE SET NULL: удаление учёного из справочника не
+                каскадно сносит его книги, а превращает их в "анонимные"
+                (что лучше потери данных). Индекс для обратной выборки
+                "все труды учёного X".
+
+            (2) node_sources.location - опциональное поле "точное место в
+                источнике" (страница, том+страница, номер хадиса,
+                сура:аят). Заменяет/дополняет свободный context.
+
+            (3) DROP TABLE node_authorities. Привязка авторитета к узлу
+                теперь идёт через Source.authority_id. Существующие
+                записи теряются: нет однозначного правила слияния
+                (node, authority, stance=HOLDS) с (node, source) - это
+                принято в ADR-017 как осознанная цена. На MVP объёме
+                данных приемлемо.
+
+            Stance enum в Java и CHECK constraint на stance в этой
+            таблице тоже уходят (вместе с самой таблицей).
+        </comment>
+        <sql>
+            ALTER TABLE sources
+                ADD COLUMN authority_id UUID REFERENCES authorities(id) ON DELETE SET NULL;
+            CREATE INDEX idx_sources_authority_id ON sources(authority_id);
+
+            ALTER TABLE node_sources
+                ADD COLUMN location TEXT;
+
+            DROP TABLE node_authorities;
+        </sql>
+        <rollback>
+            <sql>
+                CREATE TABLE node_authorities (
+                    node_id         UUID NOT NULL REFERENCES nodes(id)       ON DELETE CASCADE,
+                    authority_id    UUID NOT NULL REFERENCES authorities(id) ON DELETE CASCADE,
+                    stance          TEXT NOT NULL
+                                    CHECK (stance IN ('HOLDS','OPPOSES','NEUTRAL')),
+                    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    PRIMARY KEY (node_id, authority_id)
+                );
+                CREATE INDEX idx_node_authorities_authority_id ON node_authorities(authority_id);
+
+                ALTER TABLE node_sources DROP COLUMN location;
+
+                DROP INDEX IF EXISTS idx_sources_authority_id;
+                ALTER TABLE sources DROP COLUMN authority_id;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

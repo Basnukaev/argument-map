@@ -16,13 +16,14 @@ import ru.basnukaev.argumentmap.domain.NodeSource;
 @Repository
 public class NodeSourceRepository {
 
-    private static final String COLUMNS = "node_id, source_id, quote, context, created_at";
+    private static final String COLUMNS = "node_id, source_id, quote, context, location, created_at";
 
     private static final RowMapper<NodeSource> ROW_MAPPER = (rs, rn) -> new NodeSource(
             rs.getObject("node_id", UUID.class),
             rs.getObject("source_id", UUID.class),
             rs.getString("quote"),
             rs.getString("context"),
+            rs.getString("location"),
             instant(rs, "created_at")
     );
 
@@ -34,11 +35,12 @@ public class NodeSourceRepository {
 
     public NodeSource save(NodeSource link) {
         jdbcTemplate.update(
-                "INSERT INTO node_sources (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO node_sources (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?)",
                 link.nodeId(),
                 link.sourceId(),
                 link.quote(),
                 link.context(),
+                link.location(),
                 odt(link.createdAt())
         );
         return link;

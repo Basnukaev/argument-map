@@ -14,6 +14,7 @@ public record SourceResponse(
         String title,
         String citation,
         Reliability reliability,
+        UUID authorityId,
         JsonNode metadata,
         Instant createdAt
 ) {

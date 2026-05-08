@@ -48,7 +48,8 @@ class NodeSourceRepositoryIT {
     @Test
     void save_insertsLink_andFindByIdsReturnsIt() {
         NodeSource link = new NodeSource(
-                nodeId, sourceId, "точная цитата", "контекст использования", Instant.now()
+                nodeId, sourceId, "точная цитата", "контекст использования",
+                "стр. 42", Instant.now()
         );
 
         nodeSourceRepository.save(link);
@@ -57,13 +58,24 @@ class NodeSourceRepositoryIT {
         assertThat(found).isPresent();
         assertThat(found.get().quote()).isEqualTo("точная цитата");
         assertThat(found.get().context()).isEqualTo("контекст использования");
+        assertThat(found.get().location()).isEqualTo("стр. 42");
+    }
+
+    @Test
+    void save_withNullLocation_persists() {
+        NodeSource link = new NodeSource(nodeId, sourceId, "q", "c", null, Instant.now());
+
+        nodeSourceRepository.save(link);
+
+        var reloaded = nodeSourceRepository.findByIds(nodeId, sourceId).orElseThrow();
+        assertThat(reloaded.location()).isNull();
     }
 
     @Test
     void findByNodeId_returnsAllLinksForNode() {
         UUID source2 = insertSource();
-        nodeSourceRepository.save(new NodeSource(nodeId, sourceId, "a", null, Instant.now()));
-        nodeSourceRepository.save(new NodeSource(nodeId, source2, "b", null, Instant.now()));
+        nodeSourceRepository.save(new NodeSource(nodeId, sourceId, "a", null, null, Instant.now()));
+        nodeSourceRepository.save(new NodeSource(nodeId, source2, "b", null, null, Instant.now()));
 
         List<NodeSource> links = nodeSourceRepository.findByNodeId(nodeId);
 
@@ -73,8 +85,8 @@ class NodeSourceRepositoryIT {
     @Test
     void findBySourceId_returnsAllNodesUsingSource() {
         UUID node2 = insertNode(topicId, userId);
-        nodeSourceRepository.save(new NodeSource(nodeId, sourceId, "a", null, Instant.now()));
-        nodeSourceRepository.save(new NodeSource(node2, sourceId, "b", null, Instant.now()));
+        nodeSourceRepository.save(new NodeSource(nodeId, sourceId, "a", null, null, Instant.now()));
+        nodeSourceRepository.save(new NodeSource(node2, sourceId, "b", null, null, Instant.now()));
 
         List<NodeSource> links = nodeSourceRepository.findBySourceId(sourceId);
 
@@ -84,7 +96,7 @@ class NodeSourceRepositoryIT {
 
     @Test
     void delete_removesLink() {
-        nodeSourceRepository.save(new NodeSource(nodeId, sourceId, null, null, Instant.now()));
+        nodeSourceRepository.save(new NodeSource(nodeId, sourceId, null, null, null, Instant.now()));
 
         boolean deleted = nodeSourceRepository.delete(nodeId, sourceId);
 
@@ -94,7 +106,7 @@ class NodeSourceRepositoryIT {
 
     @Test
     void nodeDeletion_cascadesLinks() {
-        nodeSourceRepository.save(new NodeSource(nodeId, sourceId, null, null, Instant.now()));
+        nodeSourceRepository.save(new NodeSource(nodeId, sourceId, null, null, null, Instant.now()));
 
         jdbcTemplate.update("DELETE FROM nodes WHERE id = ?", nodeId);
 
@@ -103,7 +115,7 @@ class NodeSourceRepositoryIT {
 
     @Test
     void sourceDeletion_cascadesLinks() {
-        nodeSourceRepository.save(new NodeSource(nodeId, sourceId, null, null, Instant.now()));
+        nodeSourceRepository.save(new NodeSource(nodeId, sourceId, null, null, null, Instant.now()));
 
         jdbcTemplate.update("DELETE FROM sources WHERE id = ?", sourceId);
 

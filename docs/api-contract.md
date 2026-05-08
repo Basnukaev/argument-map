@@ -308,6 +308,7 @@ targetHandle (выставить null) - null трактуется как "не 
   "title": "Сахих аль-Бухари",
   "citation": "том 1, хадис 4",
   "reliability": "SAHIH|HASAN|DAIF",
+  "authorityId": "uuid|null",
   "metadata": { "collection": "bukhari", "book": 1, "hadith": 4 }
 }
 ```
@@ -315,6 +316,9 @@ targetHandle (выставить null) - null трактуется как "не 
 - `citation`: до 2000 символов, опционально
 - `reliability`: только для `sourceType=HADITH`. Для других типов
   обязан быть `null` - иначе 422 (`invalid-source`)
+- `authorityId`: UUID учёного-автора труда, опционально. Должен ссылаться
+  на существующего `Authority` - иначе 404 (`authority-not-found`).
+  Для `QURAN` и анонимных текстов остаётся `null`
 - `metadata`: произвольный JSON-объект, опционально
 
 **Ответ (201 Created):**
@@ -323,6 +327,7 @@ targetHandle (выставить null) - null трактуется как "не 
 
 **Ошибки:**
 - `400` - невалидные поля
+- `404` - указан `authorityId` несуществующего учёного
 - `422` - `reliability` указан для не-`HADITH`
 
 #### GET /api/v1/sources
@@ -401,11 +406,15 @@ targetHandle (выставить null) - null трактуется как "не 
 {
   "sourceId": "uuid",
   "quote": "точная цитата",
-  "context": "комментарий по использованию"
+  "context": "комментарий по использованию",
+  "location": "стр. 42 / т.3 с.137 / Бухари 2010 / 7:54"
 }
 ```
-- `quote`: до 10000 символов, опционально
-- `context`: до 2000 символов, опционально
+- `quote`: до 10000 символов, опционально - точная цитата (на арабском
+  для нассов, RTL рендерится на фронте)
+- `context`: до 2000 символов, опционально - как цитата подкрепляет узел
+- `location`: до 200 символов, опционально - точное место в источнике
+  (страница, том+страница, номер хадиса, сура:аят)
 
 **Ответ (201 Created):** `NodeSourceResponse`.
 
@@ -425,33 +434,18 @@ targetHandle (выставить null) - null трактуется как "не 
 
 **Ответ:** `204 No Content`. `404` - привязка не найдена.
 
-### Привязка авторитетов к узлам
+### Привязка авторитетов к узлам — удалено в ADR-017
 
-#### POST /api/v1/nodes/{nodeId}/authorities
+Эндпоинты `POST/GET/DELETE /api/v1/nodes/{nodeId}/authorities` удалены.
+Авторитет теперь приходит к узлу транзитивно через `Source.authorityId`
+(см. ADR-017). Чтобы выразить «учёный X стоит за тезисом Y» - создаётся
+`Source` с `authorityId = X.id` и привязывается к узлу `Y` через
+`POST /api/v1/nodes/{Y}/sources`. Для отрицательной позиции учёного -
+`REFUTES`-ребро на узел.
 
-Привязать авторитет к узлу с указанием позиции.
-
-**Запрос:**
-```json
-{
-  "authorityId": "uuid",
-  "stance": "HOLDS|OPPOSES|NEUTRAL"
-}
-```
-
-**Ответ (201 Created):** `NodeAuthorityResponse`.
-
-**Ошибки:**
-- `400` - невалидные поля
-- `404` - узел или авторитет не найден
-
-#### GET /api/v1/nodes/{nodeId}/authorities
-
-Список авторитетов узла со `stance`. `404` если узел не найден.
-
-#### DELETE /api/v1/nodes/{nodeId}/authorities/{authorityId}
-
-Отвязать авторитет. `204` или `404`.
+`POST/GET/DELETE /api/v1/authorities` (master data CRUD) сохраняется -
+используется для поиска и inline-создания авторитета при создании
+`Source`.
 
 ## Общие типы ответов
 
@@ -536,6 +530,7 @@ targetHandle (выставить null) - null трактуется как "не 
   "title": "string",
   "citation": "string|null",
   "reliability": "SAHIH|HASAN|DAIF|null",
+  "authorityId": "uuid|null",
   "metadata": { ... } | null,
   "createdAt": "iso8601"
 }
@@ -561,19 +556,12 @@ targetHandle (выставить null) - null трактуется как "не 
   "sourceId": "uuid",
   "quote": "string|null",
   "context": "string|null",
+  "location": "string|null",
   "createdAt": "iso8601"
 }
 ```
 
-### NodeAuthorityResponse
-```json
-{
-  "nodeId": "uuid",
-  "authorityId": "uuid",
-  "stance": "HOLDS|OPPOSES|NEUTRAL",
-  "createdAt": "iso8601"
-}
-```
+`NodeAuthorityResponse` удалён (ADR-017).
 
 ### GraphResponse
 ```json
@@ -627,6 +615,7 @@ targetHandle (выставить null) - null трактуется как "не 
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-08 | v1 | `Source` получил поле `authorityId` (UUID, nullable, FK на `Authority`). `NodeSource`/`AttachSourceRequest`/`NodeSourceResponse` получили поле `location` (string, nullable, до 200 символов). Удалены эндпоинты `POST/GET/DELETE /api/v1/nodes/{id}/authorities`. Удалены DTO `NodeAuthorityResponse` и `AttachAuthorityRequest`, enum `Stance` | ADR-017: единая точка привязки цитаты к узлу. `Authority` теперь приходит к узлу транзитивно через `Source.authorityId` |
 | 2026-05-07 | v1 | `TopicResponse` получил `nodeCount` и `edgeCount` (int). На POST/GET-list/GET-one заполняются актуальными значениями через TopicRepository.findAllWithCounts/findByIdWithCounts (один SQL с агрегатными LEFT JOIN-подзапросами) | ADR-016: фронт показывает счётчики на карточках тем без N+1 запросов |
 | 2026-05-05 | v1 | Добавлен `PATCH /api/v1/edges/{id}` с `UpdateEdgeRequest` (все поля opt). Финальное состояние валидируется целиком (selfloop / topic boundary / ADR-010), ребро меняется атомарно или 422 | ADR-014: reconnect edges - перетаскивание конца ребра на другой handle. Универсальный partial PATCH вместо sub-resource `/reconnect`, чтобы не плодить API surface |
 | 2026-05-05 | v1 | `EdgeResponse` получил `sourceHandle`/`targetHandle` (String, nullable). `CreateEdgeRequest` принимает opt одноимённые поля | этап 9 / F.b: drag-create в RF выбирает конкретные стороны handles, после refetch уважается исходный выбор пользователя |

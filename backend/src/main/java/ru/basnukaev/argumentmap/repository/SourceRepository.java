@@ -19,7 +19,7 @@ import ru.basnukaev.argumentmap.domain.SourceType;
 public class SourceRepository {
 
     private static final String COLUMNS =
-            "id, source_type, title, citation, reliability, metadata, created_at";
+            "id, source_type, title, citation, reliability, authority_id, metadata, created_at";
 
     private static final RowMapper<Source> ROW_MAPPER = (rs, rn) -> {
         String reliability = rs.getString("reliability");
@@ -29,6 +29,7 @@ public class SourceRepository {
                 rs.getString("title"),
                 rs.getString("citation"),
                 reliability == null ? null : Reliability.valueOf(reliability),
+                rs.getObject("authority_id", UUID.class),
                 rs.getString("metadata"),
                 instant(rs, "created_at")
         );
@@ -42,12 +43,13 @@ public class SourceRepository {
 
     public Source save(Source source) {
         jdbcTemplate.update(
-                "INSERT INTO sources (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?::jsonb, ?)",
+                "INSERT INTO sources (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?)",
                 source.id(),
                 source.sourceType().name(),
                 source.title(),
                 source.citation(),
                 source.reliability() == null ? null : source.reliability().name(),
+                source.authorityId(),
                 source.metadata(),
                 odt(source.createdAt())
         );

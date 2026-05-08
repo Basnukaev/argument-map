@@ -30,14 +30,15 @@ public class NodeSourceService {
     }
 
     @Transactional
-    public NodeSource attachSource(UUID nodeId, UUID sourceId, String quote, String context) {
+    public NodeSource attachSource(UUID nodeId, UUID sourceId,
+                                   String quote, String context, String location) {
         if (nodeRepository.findById(nodeId).isEmpty()) {
             throw new NodeNotFoundException(nodeId);
         }
         if (sourceRepository.findById(sourceId).isEmpty()) {
             throw new SourceNotFoundException(sourceId);
         }
-        NodeSource link = new NodeSource(nodeId, sourceId, quote, context, Instant.now());
+        NodeSource link = new NodeSource(nodeId, sourceId, quote, context, location, Instant.now());
         nodeSourceRepository.save(link);
         return link;
     }
