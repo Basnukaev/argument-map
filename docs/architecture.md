@@ -240,6 +240,37 @@ POST   /api/v1/nodes/{id}/sources           — привязать источн�
 POST   /api/v1/authorities                  — добавить учёного
 GET    /api/v1/authorities?q=...            — поиск
 POST   /api/v1/nodes/{id}/authorities       — привязать учёного к узлу
+
+POST   /api/v1/library/books                — создать книгу
+GET    /api/v1/library/books?q=&type=       — список книг с фильтрами
+GET    /api/v1/library/books/{id}           — книга с деревом chapters
+GET    /api/v1/library/books/{id}/pages     — постраничный список
+GET    /api/v1/library/pages/{id}           — страница со всеми регионами
+DELETE /api/v1/library/books/{id}           — удалить книгу (каскад)
 ```
 
 Детальный OpenAPI-контракт — следующий шаг после Liquibase-миграции.
+
+## Library - доменный пакет (Этап 14, ADR-019)
+
+С Этапа 14 в проекте появился доменный пакет `library` - фундамент
+платформы (см. `vision.md`). Кодовая структура:
+`ru.basnukaev.argumentmap.library.{domain,repository,service,web}` -
+изолирован от существующего argument-map кода.
+
+Таблицы (миграция 16):
+- `lib_books` - книги/труды/тексты с `book_type` discriminator
+  (`QURAN`/`HADITH_COLLECTION`/`BOOK`/`ARTICLE`/`MANUSCRIPT`),
+  опциональным `authority_id`, jsonb `metadata` с GIN-индексом
+- `lib_chapters` - иерархия глав через self-FK `parent_chapter_id`
+- `lib_pages` - страницы с `text_content` и/или `image_url`,
+  UNIQUE(`book_id`, `page_number`), CHECK `lib_pages_content_present`
+- `lib_image_regions` - регионы на скане с нормализованными
+  координатами (0..1), CHECK `lib_image_regions_bounds`
+
+REST под `/api/v1/library/*`. Cross-domain зависимости только через
+service-фасад (например `BookService` валидирует `authority_id`
+через существующий `AuthorityRepository` из argument-map-домена).
+
+Архитектурные детали и обоснование решений - в
+`architecture-platform.md`. Решение оформлено как ADR-019.

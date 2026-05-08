@@ -589,8 +589,11 @@ targetHandle (выставить null) - null трактуется как "не 
 - `edge-not-found` (404)
 - `source-not-found` (404)
 - `authority-not-found` (404)
+- `book-not-found` (404)
+- `page-not-found` (404)
 - `invalid-edge` (422)
 - `invalid-source` (422)
+- `invalid-book` (422)
 - `missing-user-header` (400)
 - `data-integrity-violation` (422)
 - `validation` (400) - дополнительно поле `errors`
@@ -611,10 +614,189 @@ targetHandle (выставить null) - null трактуется как "не 
 }
 ```
 
+## Library - книги и цитирование (ADR-019, Этап 14)
+
+Префикс - `/api/v1/library`.
+
+### POST /api/v1/library/books - создать книгу
+
+Заголовки: `X-User-Id` (required, UUID).
+
+Request body:
+```json
+{
+  "bookType": "BOOK",
+  "title": "Маджму' аль-Фатава",
+  "authorityId": "uuid-of-ibn-taymiyya-or-null",
+  "language": "ar",
+  "description": "37-томный сборник",
+  "metadata": { "shamela_id": 12345, "volumes": 37 }
+}
+```
+Поля:
+- `bookType` (required): `QURAN` / `HADITH_COLLECTION` / `BOOK` /
+  `ARTICLE` / `MANUSCRIPT`
+- `title` (required, non-blank, ≤500): заголовок труда
+- `authorityId` (optional): автор/составитель из справочника
+  `authorities`. NULL для Корана. 404 `authority-not-found` если
+  передали несуществующий
+- `language` (required, non-blank, ≤32): свободная строка (`ar`,
+  `ru`, `ar+ru`, BCP-47)
+- `description` (optional, ≤5000): короткое описание
+- `metadata` (optional): произвольный JSON для тип-специфики
+
+Response 201, body - полный `BookResponse`:
+```json
+{
+  "id": "...",
+  "bookType": "BOOK",
+  "title": "...",
+  "authorityId": "...",
+  "language": "ar",
+  "description": "...",
+  "metadata": { ... },
+  "createdBy": "uuid-of-user",
+  "createdAt": "ISO-8601",
+  "updatedAt": "ISO-8601"
+}
+```
+Header `Location: /api/v1/library/books/{id}`.
+
+Ошибки:
+- 400 `validation` - blank title, missing bookType, bad metadata JSON
+- 400 `missing-user-header` - нет `X-User-Id`
+- 404 `authority-not-found` - `authorityId` указан, но запись отсутствует
+
+### GET /api/v1/library/books?q={search}&type={bookType} - список
+
+Query: `q` (optional, ILIKE по title), `type` (optional, фильтр по
+`bookType`). Сортировка по `createdAt`.
+
+Response 200 - массив `BookSummary` (без description, metadata,
+createdBy, updatedAt - они в детальном GET):
+```json
+[
+  {
+    "id": "...",
+    "bookType": "QURAN",
+    "title": "Священный Коран",
+    "authorityId": null,
+    "language": "ar",
+    "createdAt": "..."
+  }
+]
+```
+Pagination не делаем на MVP.
+
+### GET /api/v1/library/books/{id} - книга с деревом chapters
+
+Response 200 - `BookDetailResponse` (поля как в `BookResponse` +
+поле `chapters`, рекурсивное дерево):
+```json
+{
+  "id": "...",
+  "bookType": "BOOK",
+  "title": "Книга",
+  "authorityId": null,
+  "language": "ar",
+  "description": null,
+  "metadata": null,
+  "createdBy": "...",
+  "createdAt": "...",
+  "updatedAt": "...",
+  "chapters": [
+    {
+      "id": "...",
+      "title": "Том 1",
+      "orderIndex": 0,
+      "parentChapterId": null,
+      "children": [
+        {
+          "id": "...",
+          "title": "Глава 1.1",
+          "orderIndex": 0,
+          "parentChapterId": "...",
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+Ошибки: 404 `book-not-found`.
+
+### DELETE /api/v1/library/books/{id} - удалить книгу
+
+Каскад через FK на `lib_chapters`/`lib_pages`/`lib_image_regions`.
+
+Response 204 (success), 404 `book-not-found`.
+
+### GET /api/v1/library/books/{bookId}/pages?from={N}&to={M} - страницы
+
+Query: `from` (optional, default 1), `to` (optional, default
+`from + 49`). Сортировка по `pageNumber`.
+
+Response 200 - массив `PageSummary` (без `textContent` и `imageUrl`,
+они тяжёлые - запрашиваются по одной странице через `GET /pages/{id}`):
+```json
+[
+  {
+    "id": "...",
+    "pageNumber": 1,
+    "chapterId": "...",
+    "hasText": true,
+    "hasImage": false
+  }
+]
+```
+
+Ошибки: 404 `book-not-found`.
+
+### GET /api/v1/library/pages/{id} - конкретная страница
+
+Не вложенный путь, потому что page id уникален в системе
+(симметрично `/api/v1/nodes/{id}` без topic в пути).
+
+Response 200 - `PageResponse`:
+```json
+{
+  "id": "...",
+  "bookId": "...",
+  "chapterId": "...",
+  "pageNumber": 12,
+  "textContent": "...",
+  "imageUrl": "https://...",
+  "imageRegions": [
+    {
+      "id": "...",
+      "x": 0.1,
+      "y": 0.1,
+      "width": 0.5,
+      "height": 0.5,
+      "extractedText": "..."
+    }
+  ],
+  "createdAt": "...",
+  "updatedAt": "..."
+}
+```
+Координаты `imageRegions` нормализованы (0..1), не пиксельные.
+
+Ошибки: 404 `page-not-found`.
+
+### Что **не** реализовано в Этапе 14
+
+- POST для chapters/pages/imageRegions - страницы и главы создаются
+  только в составе книги через будущие import endpoints (Этапы 15-17)
+- PATCH/PUT для books/chapters/pages - вернёмся когда понадобится
+- multipart upload для image-сканов - Этап 17
+
 ## История изменений контракта
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-08 | v1 | Добавлены 6 эндпоинтов под `/api/v1/library/*` (POST/GET/DELETE books, GET pages range, GET page detail). DTO: `CreateBookRequest`/`BookResponse`/`BookSummary`/`BookDetailResponse`/`ChapterResponse` (recursive)/`PageSummary`/`PageResponse`/`ImageRegionResponse`. Новые ошибки: 404 `book-not-found`, 404 `page-not-found`, 422 `invalid-book` (зарезервирован). `BookType` enum (`QURAN`/`HADITH_COLLECTION`/`BOOK`/`ARTICLE`/`MANUSCRIPT`) | ADR-019: фундамент платформенной library, Этап 14 |
 | 2026-05-08 | v1 | `Source` получил поле `authorityId` (UUID, nullable, FK на `Authority`). `NodeSource`/`AttachSourceRequest`/`NodeSourceResponse` получили поле `location` (string, nullable, до 200 символов). Удалены эндпоинты `POST/GET/DELETE /api/v1/nodes/{id}/authorities`. Удалены DTO `NodeAuthorityResponse` и `AttachAuthorityRequest`, enum `Stance` | ADR-017: единая точка привязки цитаты к узлу. `Authority` теперь приходит к узлу транзитивно через `Source.authorityId` |
 | 2026-05-07 | v1 | `TopicResponse` получил `nodeCount` и `edgeCount` (int). На POST/GET-list/GET-one заполняются актуальными значениями через TopicRepository.findAllWithCounts/findByIdWithCounts (один SQL с агрегатными LEFT JOIN-подзапросами) | ADR-016: фронт показывает счётчики на карточках тем без N+1 запросов |
 | 2026-05-05 | v1 | Добавлен `PATCH /api/v1/edges/{id}` с `UpdateEdgeRequest` (все поля opt). Финальное состояние валидируется целиком (selfloop / topic boundary / ADR-010), ребро меняется атомарно или 422 | ADR-014: reconnect edges - перетаскивание конца ребра на другой handle. Универсальный partial PATCH вместо sub-resource `/reconnect`, чтобы не плодить API surface |
