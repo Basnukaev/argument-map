@@ -27,7 +27,21 @@
       "Bash(./mvnw -Dtest=StatusCalculationServiceTest test)",
       "Bash(./mvnw -Dtest='StatusCalculationServiceTest#claimSupportedByStanding_becomesStanding' test)",
       "Bash(./mvnw dependency:resolve -q)",
-      "Bash(./mvnw -Dit.test=TopicControllerIT -DfailIfNoTests=false verify)"
+      "Bash(./mvnw -Dit.test=TopicControllerIT -DfailIfNoTests=false verify)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/actuator/health)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/api/maps)",
+      "Bash(curl -s http://localhost:9090/v3/api-docs)",
+      "Bash(curl -s http://localhost:9090/api/v1/topics)",
+      "Bash(curl -s http://localhost:9090/api/v1/sources)",
+      "Bash(jq --version)",
+      "Bash(bash *)",
+      "Bash(curl -s \"http://localhost:9090/api/v1/topics/3883d534-6d59-454f-95e2-41cb877532af/graph\")",
+      "Bash(curl -s http://localhost:9090/api/v1/nodes/2b75e346-5c3f-4f1c-b4c2-8abc5e14ad8b/sources)",
+      "Bash(curl -s http://localhost:9090/api/v1/nodes/__TRACKED_VAR__/authorities)",
+      "Bash(./mvnw -q -DskipTests compile)",
+      "Bash(./mvnw -DskipTests compile)",
+      "Bash(./mvnw -q -DskipTests test-compile)",
+      "Bash(./mvnw -DskipTests test-compile)"
     ]
   },
   "outputStyle": "Explanatory"

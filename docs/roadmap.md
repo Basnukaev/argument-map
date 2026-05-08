@@ -364,21 +364,151 @@ NodeSource`). Бэк перестроен в Сессии 19 (backend) с миг
 - [x] **13.c.1: поле location в AttachFields** - опциональное «Место
       в источнике» (до 200 символов) в обоих режимах модалки. Пустая
       строка конвертируется в undefined
-- [ ] **13.c.2: author-picker в AddSourceModal create-mode** - выбор
-      существующего `Authority` или inline-create нового с полями
-      name/era/madhab/bio. `authorityId` передаётся в POST /sources.
-      В минимальном виде: radio «Без автора / Из справочника /
-      Создать нового» + dropdown в режиме «Из справочника» + мини-
-      форма в режиме «Создать нового»
-- [ ] **13.d: пересоздать seed-мавлид под новую модель** - в
-      `scripts/seed-mawlid.sh` создавать `Authority`-сущности
-      сначала (Ибн Хаджар, ас-Суюти, Ибн Таймия, Имам Малик и т.д.),
-      затем `Source` с `authorityId`, привязки с `location`. Старая
-      seed-логика (через node_authorities) удалена миграцией 15
-- [ ] **13.e.2: финальная документация** - после 13.c.2 и 13.d
-      обновить ui-guidelines под new card layout «Цитаты», запись в
-      progress.md «Сессия 20 (frontend)» о завершении Этапа 13,
-      сверка api-contract про location
+- [~] **13.c.2: author-picker в AddSourceModal create-mode** -
+      **wontfix ADR-018**: устаревает с library, авторы будут
+      резолвиться через `Book.authority` + общий CitationPicker,
+      не ручной ввод
+- [~] **13.d: пересоздать seed-мавлид под новую модель** -
+      **wontfix ADR-018**: устаревает, при появлении library
+      демо-данные пересоздадутся через library import
+      (shamela parser) или ручной upload PDF
+- [~] **13.e.2: финальная документация** - **wontfix ADR-018**:
+      финальное обновление ui-guidelines под текущую форму «Цитаты»
+      не нужно, потому что library pivot переориентирует UI вокруг
+      book-citation. ui-guidelines обновится на Этапе 18 при
+      переписывании argument-map citation-flow на CitationPicker
+
+**Этап 13 закрыт частично-достаточно** (13.0/13.a/13.b/13.c.1).
+Оставшиеся подэтапы устаревают с приходом library, см. ADR-018.
+
+## Этап 14. Library MVP - доменная модель и базовые эндпоинты
+
+**Зачем:** заложить фундамент платформы. См. `vision.md` и
+`architecture-platform.md` (раздел Library).
+
+- [ ] **14.a: liquibase миграция 16** - добавить таблицы
+      `lib_books`, `lib_chapters`, `lib_pages`, `lib_image_regions`
+      с FK + индексами на (book_id, page_number)
+- [ ] **14.b: доменные records + JDBC repositories** - `Book`,
+      `Chapter`, `Page`, `ImageRegion` с RowMapper'ами, IT через
+      Testcontainers
+- [ ] **14.c: BookService + REST**:
+  - `POST /api/v1/library/books` - создать пустую книгу с metadata
+  - `GET /api/v1/library/books?q=` - список/поиск
+  - `GET /api/v1/library/books/{id}` - книга со списком chapters
+  - `GET /api/v1/library/books/{id}/pages` - постраничный пагинатор
+  - `GET /api/v1/library/pages/{id}` - конкретная страница
+  - `DELETE /api/v1/library/books/{id}` - удалить книгу (каскадно)
+- [ ] **14.d: ADR-019 на доменный пакет library** - формализовать
+      решение в decisions.md
+
+## Этап 15. Library - shamela parser
+
+**Зачем:** автоматический импорт классических трудов. Главный путь
+расширения библиотеки.
+
+- [ ] **15.a: ShamelaImportService** - jsoup-парсер
+      shamela.ws-страницы книги. Извлекает структуру (главы, страницы),
+      нормализует в Book + Chapter + Page
+- [ ] **15.b: REST endpoint** `POST /api/v1/library/imports/shamela`
+      с body `{ bookUrl }`. Sync с timeout 60с в MVP
+- [ ] **15.c: Authority-резолвинг** - извлечение автора shamela-книги
+      → matching против существующих `Authority` или предложение
+      создать новый
+- [ ] **15.d: тесты** - IT с зафиксированной HTML-страницей (golden
+      file), не настоящие HTTP-запросы к shamela
+- [ ] **15.e: ADR на парсер** + раздел в `architecture-platform.md`
+      про specifics shamela-формата
+
+## Этап 16. Library - PDF/EPUB upload
+
+**Зачем:** второй способ добавления книг. Покрывает случаи когда
+shamela не имеет нужной книги.
+
+- [ ] **16.a: Apache Tika dependency** + `FileImportService` -
+      извлечение текста и metadata из PDF/EPUB. Tika автодетектит
+      формат
+- [ ] **16.b: REST endpoint** `POST /api/v1/library/imports/file`
+      multipart/form-data с PDF/EPUB файлом. Размер до 50MB
+- [ ] **16.c: MinIO для хранения исходных файлов** - в
+      docker-compose добавить MinIO. Загруженные PDF хранятся как
+      attachment к Book для возможности re-extract или скачивания
+- [ ] **16.d: PDF page-by-page extraction** - текст постранично,
+      `Page.page_number` соответствует физической странице PDF
+- [ ] **16.e: тесты** - IT с зафиксированными PDF/EPUB-фикстурами
+
+## Этап 17. Library - image-сканы + OCR
+
+**Зачем:** третий и самый сложный способ добавления книг. Для
+сканов рукописей или редких книг где текст недоступен.
+
+- [ ] **17.a: PageImageService** - upload изображений-страниц через
+      `POST /api/v1/library/books/{id}/pages` (multipart, по одной
+      странице за раз)
+- [ ] **17.b: Tess4j integration** - OCR арабского через `ara`
+      training data. `OcrService` извлекает текст из image, обновляет
+      `Page.text_content`. Async через `@Async` + фоновый таск-runner
+- [ ] **17.c: ImageRegion API** - `POST /api/v1/library/pages/{id}/regions`
+      для создания выделенного региона (x/y/w/h + extracted_text).
+      Фронт рисует прямоугольник, бэк сохраняет
+- [ ] **17.d: re-OCR endpoint** - возможность перезапустить OCR
+      для страницы (когда модель Tesseract обновится или нужен
+      manual fix)
+- [ ] **17.e: ADR на OCR pipeline** - выбор Tesseract, fallback на
+      ручной ввод, точки расширения (Google Vision как option в
+      будущем)
+
+## Этап 18. Library frontend - читалка с цитированием + интеграция с argument-map
+
+**Зачем:** пользовательский интерфейс библиотеки. Без этого все
+backend-этапы не имеют смысла. Параллельно переключаем
+argument-map на library citation вместо ручной формы.
+
+- [ ] **18.a: monorepo реструктуризация** - корневой `package.json`
+      с pnpm workspaces. `frontend/` физически переезжает в
+      `apps/argument-map/` через `git mv`. Создаются `apps/library/`,
+      `packages/shared-ui/`, `packages/shared-api/`,
+      `packages/shared-citation/`
+- [ ] **18.b: BookListPage** - страница `/books` со списком всех
+      книг библиотеки, фильтры по типу/автору, поиск
+- [ ] **18.c: BookReader** - страница `/books/{id}`:
+  - Боковая панель chapters
+  - Основная область - текст страницы (правильный RTL для
+    арабского, naskh-шрифт)
+  - Pagination между страницами
+- [ ] **18.d: ImagePageRenderer** - отдельный mode для image-сканов:
+      картинка + overlay для OCR-текста + рисование regions через
+      react-image-crop
+- [ ] **18.e: CitationPicker** в `packages/shared-citation`:
+      выделил фрагмент в reader → opens picker → выбор приложения
+      (argument-map / Q&A) и контекста (какой узел / ответ)
+- [ ] **18.f: Argument-map переключение на CitationPicker** -
+      кнопка «Привязать цитату» в NodeDetailsPanel открывает
+      CitationPicker. Старый AddSourceModal с ручной формой
+      удаляется или становится fallback для свободных цитат
+
+## Этап 19. Q&A - первое полностью новое приложение
+
+**Зачем:** проверить платформенность фундамента. Если library
+позволяет легко собрать новое приложение - архитектура работает.
+
+- [ ] **19.a: бэкенд Q&A модуль** - `Question`, `Answer`,
+      `AnswerCitation` сущности. Базовый CRUD
+- [ ] **19.b: `apps/qa/` фронт** - страницы `/qa` (список вопросов),
+      `/qa/{id}` (вопрос + ответы со ссылками)
+- [ ] **19.c: интеграция с library через CitationPicker** - тот же
+      компонент что в argument-map. Если работает - это валидация
+      что фундамент правильный
+
+## Этап 20+. Аутентификация и далее
+
+После library + 2 приложения встаёт вопрос пользователей.
+
+- [ ] **20: Spring Security + JWT** - реальная аутентификация
+- [ ] **21: Многопользовательский режим** - private/shared/public
+      visibility для тем, books, ответов
+- [ ] **22+: Open list** - sanad explorer, multi-grading, RTL UI,
+      экспорт PDF/SVG, mobile, advanced search
 
 ## Бэклог
 

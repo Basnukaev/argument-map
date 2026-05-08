@@ -88,8 +88,20 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 5. ЖДИ ПОДТВЕРЖДЕНИЕ. Не начинай работу без него.
 
 ══════════════════════════════════════════════
-ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-08 после Сессии 19 frontend, частичный Этап 13)
+ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-08 после Сессии 19 - платформенный pivot ADR-018)
 ══════════════════════════════════════════════
+
+⚠️ **ВАЖНО**: проект пережил стратегический pivot - см. ADR-018 в
+`docs/decisions.md`. Argument-map больше не центральный продукт,
+теперь это платформа цифровых инструментов для исламских учёных и
+студентов. Library (книги + цитирование) - фундамент. Прочитай:
+- `docs/vision.md` - что и зачем строим
+- `docs/architecture-platform.md` - как технически устроено целевое
+- `docs/decisions.md` ADR-018 - формальная запись pivot
+- `docs/roadmap.md` - закрыт Этап 13, добавлены Этапы 14-22
+  (library, Q&A, auth, прочее)
+
+
 
 ЗАКРЫТО:
 - Бэк: этапы 0-5 целиком, 172 теста (111 unit + 61 IT)
@@ -168,39 +180,39 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 - ADR-011-016 все приняты. В Этапе 12 ADR не делал - чистый UI
   поверх готового бэк-контракта
 
-ОТКРЫТО (по приоритету): <!-- AUTOFILL -->
-0. **Завершить Этап 13** (срочно, Абдула в работе):
-   - 13.c.2: author-picker в AddSourceModal create-mode (radio
-     «Без автора / Из справочника / Создать нового», dropdown +
-     inline-форма Authority). После него POST /sources получает
-     authorityId и трёхуровневая модель полностью замыкается на UX
-   - 13.d: пересоздать `scripts/seed-mawlid.sh` под трёхуровневую
-     модель (Authority → Source с authorityId → NodeSource с location)
-   - 13.e.2: ui-guidelines.md обновить под секцию «Цитаты», запись
-     progress «Сессия 20 (frontend)»
-1. **Source picker для Корана** (`SourcePickerQuran` в дизайне) -
-   таб "Коран" с навигацией по сурам, выбор аята. Требует датасет:
-   локальный mushaf JSON или интеграция с quran.com API. Большая
-   работа, отдельный этап с backend-инфраструктурой. **Самый
-   ценный ближайший пункт** для исламского контекста
-2. **Source picker для хадисов** - 9 сборников + grade-фильтр +
-   sanad. Зависит от sunnah.com или локального датасета. Очень
-   большая работа
-3. **Sanad explorer** - доменное расширение модели (Rawi/Sanad/
-   SanadLink сущности на беке) + новый граф-визуализатор.
-   Самая глубокая фича в бэклоге
-4. **Bilingual карточки + RTL** - арабский как first-class.
-   Требует i18n + naskh-шрифт + RTL-layout. Большая работа
-5. **Экспорт графа в PNG/SVG** через `html-to-image`. Кнопка
-   в toolbar. Малая полезная утилита, не требует доменной
-   экспертизы. Хороший warm-up между крупными фичами
-6. **Z-index full-stack persistence** для узлов и рёбер. Сейчас
-   локально, при refetch теряется
-7. **Smart edge routing** через elkjs - опционально на плотных
-   графах
-8. **Тёмная тема** - Tailwind dark variant + toggle
-9. **Полнотекстовый поиск** - blocked на бэк (Этап 6)
-10. **Аутентификация** - blocked на бэк (Этап 6)
+ОТКРЫТО (по приоритету) - после ADR-018 платформенный pivot:
+0. **Этап 13 ЗАКРЫТ** (13.0/13.a/13.b/13.c.1 сделано, 13.c.2/13.d/
+   13.e.2 wontfix - устаревают с library, см. ADR-018)
+0.5. **Backend ADR-017 - закоммитить** (если ещё нет): миграция 15
+     + Source.authorityId + NodeSource.location + удаление
+     NodeAuthority/Stance + DTO/тестов. Один большой `refactor(backend)`
+     или серия по слоям - выбор Абдулы. См. git status backend/
+1. **Этап 14: Library MVP** - доменная модель (Book/Chapter/Page/
+   ImageRegion), миграция 16, JDBC repo, CRUD service+REST,
+   ADR-019 на доменный пакет library. Самый важный фундаментальный
+   этап
+2. **Этап 15: shamela parser** - jsoup-парсер shamela.ws,
+   ImportService, REST endpoint `POST /api/v1/library/imports/shamela`,
+   Authority-резолвинг. Главный путь автоматического импорта книг
+3. **Этап 16: PDF/EPUB upload** - Apache Tika, MinIO для хранения
+   исходников, page-by-page extraction
+4. **Этап 17: image-сканы + OCR** - Tess4j для арабского, ImageRegion
+   API, async OCR pipeline
+5. **Этап 18: Library frontend + интеграция с argument-map** -
+   monorepo реструктуризация (apps/argument-map, apps/library,
+   packages/shared-*), BookListPage, BookReader, CitationPicker,
+   переключение argument-map citation на CitationPicker
+6. **Этап 19: Q&A приложение** - первое полностью новое поверх
+   library. Валидация платформенности
+7. **Этап 20+: Auth, multi-tenancy, прочее**
+
+См. `docs/roadmap.md` для деталей всех этапов
+
+**Бэклог argument-map** (старые позиции из до-pivot, теперь
+второстепенные):
+- Smart edge routing, тёмная тема, экспорт PNG/SVG, Z-index
+  persistence - всё это «когда захотим вернуться к argument-map
+  улучшениям» после library/Q&A
 
 ИНФРАСТРУКТУРА:
 - Postgres контейнер: argumentmap-postgres на :5432 (docker ps)
@@ -376,23 +388,27 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 После прочтения 5+ файлов из START-OF-SESSION PROTOCOL начни ответ
 с короткого summary последнего состояния и предложения. Например:
 
-"вижу - в сессии 18 закрыли Этап 12 (привязка источников и
-авторитетов к узлам через UI): 5 подэтапов, 5 коммитов. Главное -
-секции "Источники"/"Авторитеты" в NodeDetailsPanel перешли с
-placeholder на реальные lazy-loaded списки с возможностью
-привязки/отвязки. Две модалки AddSourceModal и AddAuthorityModal
-с двумя режимами каждая (search в локальном справочнике + inline-
-create). Conditional render `{open && <Modal/>}` как идиома против
-react-hooks/set-state-in-effect (новая gotcha). Извлечён
-attachmentTokens.ts - источник истины для SOURCE_TYPE/STANCE
-токенов. ADR не делал - чистый UI поверх готового бэк-контракта
-из Этапа 5. 143 фронт-теста (+27 новых) зелёные. Bundle
-TopicGraphPage chunk 373kB / gzip 116kB.
-По приоритету следующее: Source picker для Корана - таб с
-навигацией по сурам, выбор аята. Требует датасет (mushaf JSON
-или quran.com API), большая фича с backend-инфраструктурой.
-Альтернативно - экспорт графа в PNG/SVG через html-to-image,
-малая утилита. Поехали или другое?"
+"вижу - проект пережил pivot (ADR-018 май 2026): больше не
+single-app argument-map, а **платформа** для исламских учёных
+и студентов. Library (книги + цитирование) - фундамент,
+argument-map становится одним из приложений. Q&A - следующее.
+В Сессии 19 сделано: backend ADR-017 (миграция 15, объединение
+Source+Authority под одной точкой привязки), фронт 13.0/13.a/13.b/
+13.c.1 (секция Цитаты с трёхуровневой иерархией, RTL для
+арабского, поле location), фикс центрирования модалок (Tailwind
+v4 vs UA dialog margin). Этап 13 закрыт частично-достаточно;
+13.c.2/13.d/13.e.2 wontfix.
+
+Документация платформы зафиксирована: vision.md, architecture-
+platform.md, ADR-018, реорганизованный roadmap (Этапы 14-22),
+обновлённый README. Стэк целевой: pnpm workspaces, доменные
+бэк-пакеты, MinIO, Apache Tika, Tess4j, react-pdf,
+react-image-crop.
+
+По приоритету следующее: Этап 14 Library MVP - доменная модель
+(Book/Chapter/Page/ImageRegion), миграция 16, JDBC repo,
+BookService + REST. Это фундаментальный этап - всё остальное
+зависит от него. Поехали?"
 
 Жди подтверждение. После него - смело за работу.
 ```

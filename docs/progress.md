@@ -13,6 +13,152 @@
 
 ---
 
+## 2026-05-08 — Сессия 19 (pivot) — ADR-018: переориентация в платформу
+
+После того как фронт-сторона ADR-017 была частично адаптирована
+(13.0/13.a/13.b/13.c.1), всплыл фундаментальный gap: ручной ввод
+`quote` в форме привязки. Пользователь должен переписывать из
+книги/PDF в текстовое поле - это противоречит цели проекта (точная
+атрибуция) и гарантированно вводит ошибки. Дискуссия привела к
+большему видению: проект перестаёт быть single-purpose argument-map
+MVP и становится **платформой цифровых инструментов для исламских
+учёных и студентов** с library как фундаментом.
+
+### Сделано
+
+3 коммита (после 5 коммитов фронт-13.x в этой же сессии):
+
+1. `(commit)` `refactor(backend): ADR-017 объединение Source+Authority под одной точкой привязки`
+2. `(commit)` `docs: ADR-018 + vision + architecture-platform + README + roadmap reorganized`
+3. `(commit)` `docs: Сессия 19 (pivot) запись в progress`
+
+#### Решение ADR-018
+
+Зафиксировано в `docs/decisions.md`:
+- Проект - **платформа**, не single-app. Argument-map - одно из
+  приложений
+- Library (книги + цитирование) - фундамент платформы
+- Q&A - следующее приложение, валидация платформенности фундамента
+- Архитектура: monorepo с pnpm workspaces (`apps/*` + `packages/*`),
+  один Spring Boot с доменными пакетами (`argumentmap`, `library`,
+  `citation`, `qa`, `shared`)
+- Текущая репа остаётся - rebrand с переименованием возможен позже,
+  имя `argument-map` - technical id
+
+#### Документация - зафиксирована
+
+- `docs/vision.md` (новый) - целевое видение платформы:
+  кому полезно, главный принцип точной атрибуции, состав
+  библиотеки, способы добавления контента, цитирование как
+  центральный workflow, принципы UX, что не в scope, открытые
+  вопросы
+- `docs/architecture-platform.md` (новый) - технический design:
+  monorepo структура, доменные backend-пакеты, frontend
+  workspaces, library как центральный домен, универсальная
+  Citation модель, стэк (Apache Tika, Tess4j, MinIO, react-pdf),
+  альтернативы рассмотрены и отклонены (npm/yarn vs pnpm,
+  микросервисы, локальная FS vs S3, OCR engines, структура
+  Корана)
+- `docs/decisions.md` ADR-018 - формальная запись pivot со
+  всеми альтернативами и причинами
+- `README.md` корневой - переписан под платформу с ссылками на
+  vision/architecture
+- `docs/roadmap.md` - закрыт Этап 13 (13.c.2/13.d/13.e.2 wontfix
+  с обоснованием), добавлены Этапы 14-22:
+  - 14: Library MVP (доменная модель + REST)
+  - 15: shamela parser
+  - 16: PDF/EPUB upload + Apache Tika + MinIO
+  - 17: image-сканы + OCR через Tess4j
+  - 18: Library frontend + интеграция с argument-map (monorepo
+    реструктуризация, BookReader, CitationPicker)
+  - 19: Q&A приложение
+  - 20+: auth, multi-tenancy, прочее
+- `docs/SESSION_START_PROMPT.md` - актуализирован с упоминанием
+  pivot, новых документов, новой приоритетности этапов
+
+#### Backend ADR-017 закоммичен
+
+Изменения, лежавшие в working tree после Сессии 19 backend:
+- Liquibase миграция `20260508-15-merge-authority-into-source.xml`
+- `Source.authorityId`, `NodeSource.location`
+- `SourceService.createSource` валидация Authority-existence
+- `NodeSourceService.attachSource` пробрасывает `location`
+- Удалены: `Stance` enum, `NodeAuthority`/Repo/Service/Controller,
+  AttachAuthorityRequest/NodeAuthorityResponse, 2 IT-теста
+- `architecture.md` обновлён под трёхуровневую модель цитирования
+- `api-contract.md` обновлён под новые поля
+
+Закоммичено как один большой `refactor(backend): ADR-017
+объединение Source+Authority`.
+
+### Решения
+
+- **Сохранить в текущей репе vs новая репа** - выбрано остаться
+  в текущей. Continuity ADR-001..018 (18 архитектурных решений)
+  оправдывает не разделять историю. Имя репозитория - technical
+  id, платформа называется в README. Альтернатива (новая репа +
+  архив текущей) рассмотрена, отклонена. См. ADR-018
+- **Modular monolith вместо микросервисов** - один Spring Boot,
+  доменные пакеты внутри. Микросервисы overkill до того как у нас
+  есть пользователи. Эволюционирует в микросервисы при
+  необходимости
+- **pnpm workspaces вместо npm/yarn/Turborepo** - быстрее install,
+  hard-link disk-efficiency, отличная workspace-поддержка через
+  `workspace:*` protocol. Стандарт у Vue/Vite/Astro. Turborepo
+  можно добавить поверх позже без миграции
+- **Argument-map не доделываем** - 13.c.2 (author-picker) и 13.d
+  (seed) wontfix. Эти задачи устаревают: после library авторы
+  будут резолвиться через Book.authority, цитаты выбираться через
+  CitationPicker. Делать их = впустую тратить время
+- **Backend-коммит одним большим refactor**, а не разбивать на
+  миграцию/домен/тесты/доки. Все изменения связаны одним ADR-017,
+  читается как единое атомарное решение. Альтернатива (4-5 мелких
+  коммитов) - больше работы, history менее ясная
+- **Физическая реструктуризация (apps/* + packages/*)** -
+  откладывается на Этап 18. В этой сессии только документационный
+  фундамент. Реструктуризация это серьёзный `git mv` с переписыванием
+  путей импортов, требует фокуса отдельной сессии
+
+### Проблемы
+
+- **Memory Claude Code** - сейчас привязана к
+  `/mnt/c/my_folders/projects/argument-map/`. При возможном будущем
+  переименовании репы (rebrand) memory-каталог нужно будет
+  перенести/переписать
+- **Связность frontend ↔ backend** - frontend-коммиты Сессии 19
+  опирались на uncommitted backend (через runtime-схему БД и
+  OpenAPI). Это валидно для git, но если бы кто-то откатил
+  backend - frontend не работал бы. Сейчас оба закоммичены
+- **Стэк сильно расширяется** для library: Apache Tika, Tess4j,
+  MinIO, jsoup, react-pdf, react-image-crop, fabric.js. Каждая -
+  отдельная точка отказа. Принимаем как цена платформенности
+
+### Следующий шаг
+
+**Сессия 20 - Этап 14 Library MVP**:
+
+1. **14.a: миграция 16** - `lib_books`, `lib_chapters`, `lib_pages`,
+   `lib_image_regions` с FK + индексами. Liquibase changeset
+2. **14.b: доменные records** - Book, Chapter, Page, ImageRegion
+   + JDBC repositories с RowMapper'ами + IT через Testcontainers
+3. **14.c: BookService + REST**:
+   - POST /api/v1/library/books, GET (list/search), GET (one),
+     GET pages, GET page, DELETE
+4. **14.d: ADR-019** на доменный пакет library (формализовать
+   `argumentmap/library/citation/qa/shared` структуру)
+
+После Этапа 14 - Этап 15 (shamela parser) или Этап 18 frontend
+библиотеки (зависит от приоритета "хочу видеть UI" vs "хочу
+автоматический импорт").
+
+**Open question** для проектирования Этапа 14: точная схема
+Корана - хранится как обычный Book или специальный тип с
+дополнительной таблицей `quran_metadata`? См.
+`architecture-platform.md` раздел Альтернативы → Структура данных
+Корана. Решим в ADR при кодировании 14.
+
+---
+
 ## 2026-05-08 — Сессия 19 (frontend) — Этап 13: адаптация фронта под ADR-017 (частично)
 
 После того как Сессия 19 backend перестроила доменную модель (ADR-017,
