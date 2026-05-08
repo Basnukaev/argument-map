@@ -386,9 +386,10 @@ NodeSource`). Бэк перестроен в Сессии 19 (backend) с миг
 **Зачем:** заложить фундамент платформы. См. `vision.md` и
 `architecture-platform.md` (раздел Library).
 
-- [ ] **14.a: liquibase миграция 16** - добавить таблицы
+- [x] **14.a: liquibase миграция 16** - добавить таблицы
       `lib_books`, `lib_chapters`, `lib_pages`, `lib_image_regions`
-      с FK + индексами на (book_id, page_number)
+      с FK + индексами + CHECK constraints. ADR-019 формализован.
+      163 IT зелёных через `./mvnw verify`
 - [ ] **14.b: доменные records + JDBC repositories** - `Book`,
       `Chapter`, `Page`, `ImageRegion` с RowMapper'ами, IT через
       Testcontainers

@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260508-16-create-library-tables" author="Abdula Basnukaev">
+        <comment>
+            Реализация Этапа 14 (ADR-018, ADR-019): доменная модель библиотеки.
+
+            Четыре таблицы создаются в одной миграции, потому что они логически
+            связаны через FK и не имеют смысла по отдельности (как revisions
+            в миграции 11):
+              lib_books          - книги/труды/тексты
+              lib_chapters       - иерархия глав (self-FK)
+              lib_pages          - страницы с текстом и/или сканом
+              lib_image_regions  - выделенные регионы на скане
+
+            Решения:
+              (1) Универсальный Book с book_type-дискриминатором + jsonb
+                  metadata вместо специальных таблиц для Корана/хадисов.
+                  Симметрично существующему sources.source_type (ADR-002).
+                  Разделение на отдельные таблицы откладывается до выявления
+                  паттерна доступа который трудно/неэффективно выразить
+                  через jsonb (ADR-019).
+
+              (2) authority_id в lib_books опционален. Для Корана автор
+                  отсутствует. ON DELETE SET NULL - удаление учёного
+                  превращает труд в анонимный (как в ADR-017 для Source).
+
+              (3) Иерархия глав через self-FK parent_chapter_id. Дерево
+                  собирается на сервисе из плоского findByBookId
+                  + группировки по parentChapterId.
+
+              (4) Page.chapter_id опционален - страницы вне глав возможны
+                  (preface, индекс). ON DELETE SET NULL - удаление главы
+                  не сносит её страницы каскадно, превращает их в orphan
+                  (что лучше потери данных).
+
+              (5) CHECK lib_pages_content_present - страница не может быть
+                  пустой: либо есть text_content, либо image_url, либо оба.
+
+              (6) ImageRegion координаты нормализованные (0..1), не
+                  пиксельные. Это убирает зависимость от image_dpi и
+                  позволяет рендерить регион на любом разрешении.
+                  CHECK lib_image_regions_bounds гарантирует что
+                  прямоугольник полностью внутри страницы.
+
+              (7) Префикс lib_ для всех таблиц домена согласно
+                  architecture-platform.md. Существующие topics/nodes/edges
+                  переименуются в arg_* отдельной миграцией позже.
+        </comment>
+        <sql>
+            CREATE TABLE lib_books (
+                id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                book_type     TEXT NOT NULL
+                              CHECK (book_type IN ('QURAN','HADITH_COLLECTION','BOOK','ARTICLE','MANUSCRIPT')),
+                title         TEXT NOT NULL,
+                authority_id  UUID REFERENCES authorities(id) ON DELETE SET NULL,
+                language      TEXT NOT NULL,
+                description   TEXT,
+                metadata      JSONB,
+                created_by    UUID NOT NULL REFERENCES users(id),
+                created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_lib_books_book_type     ON lib_books(book_type);
+            CREATE INDEX idx_lib_books_authority_id  ON lib_books(authority_id);
+            CREATE INDEX idx_lib_books_metadata_gin  ON lib_books USING GIN (metadata);
+
+            CREATE TABLE lib_chapters (
+                id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                book_id             UUID NOT NULL REFERENCES lib_books(id) ON DELETE CASCADE,
+                parent_chapter_id   UUID REFERENCES lib_chapters(id) ON DELETE CASCADE,
+                title               TEXT NOT NULL,
+                order_index         INTEGER NOT NULL,
+                created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_lib_chapters_book_id  ON lib_chapters(book_id);
+            CREATE INDEX idx_lib_chapters_parent   ON lib_chapters(parent_chapter_id);
+
+            CREATE TABLE lib_pages (
+                id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                book_id       UUID NOT NULL REFERENCES lib_books(id) ON DELETE CASCADE,
+                chapter_id    UUID REFERENCES lib_chapters(id) ON DELETE SET NULL,
+                page_number   INTEGER NOT NULL CHECK (page_number > 0),
+                text_content  TEXT,
+                image_url     TEXT,
+                created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+                CONSTRAINT lib_pages_content_present CHECK (text_content IS NOT NULL OR image_url IS NOT NULL)
+            );
+            CREATE UNIQUE INDEX idx_lib_pages_book_page  ON lib_pages(book_id, page_number);
+            CREATE INDEX        idx_lib_pages_chapter    ON lib_pages(chapter_id);
+
+            CREATE TABLE lib_image_regions (
+                id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                page_id         UUID NOT NULL REFERENCES lib_pages(id) ON DELETE CASCADE,
+                x               DOUBLE PRECISION NOT NULL,
+                y               DOUBLE PRECISION NOT NULL,
+                width           DOUBLE PRECISION NOT NULL,
+                height          DOUBLE PRECISION NOT NULL,
+                extracted_text  TEXT,
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                CONSTRAINT lib_image_regions_bounds CHECK (
+                    width &gt; 0 AND height &gt; 0
+                    AND x &gt;= 0 AND y &gt;= 0
+                    AND x + width &lt;= 1 AND y + height &lt;= 1
+                )
+            );
+            CREATE INDEX idx_lib_image_regions_page_id  ON lib_image_regions(page_id);
+        </sql>
+        <rollback>
+            <sql>
+                DROP TABLE lib_image_regions;
+                DROP TABLE lib_pages;
+                DROP TABLE lib_chapters;
+                DROP TABLE lib_books;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
