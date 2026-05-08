@@ -13,7 +13,273 @@
 
 ---
 
-## 2026-05-08 — Сессия 18 (frontend) — Этап 12: привязка источников и авторитетов к узлам через UI
+## 2026-05-08 — Сессия 19 (frontend) — Этап 13: адаптация фронта под ADR-017 (частично)
+
+После того как Сессия 19 backend перестроила доменную модель (ADR-017,
+объединение Source + Authority под одной точкой привязки к узлу), фронт
+должен был быть адаптирован: удалить authority-секцию, переименовать
+«Источники» в «Цитаты», скрыть для QUESTION, обогатить карточку
+трёхуровневой иерархией, расширить AddSourceModal под `location` и
+выбор автора. За одну сессию выполнены 13.0, 13.a, 13.b, 13.c.1.
+13.c.2 (author-picker) и 13.d (seed) откладываются на следующую сессию -
+оставшегося контекста уже не хватает на полноценную реализацию + тесты.
+
+### Сделано
+
+5 коммитов в этой сессии (+ один баг-фикс модалок до начала Этапа 13):
+
+1. `711d9d7 fix(frontend): центрирование модалок - Tailwind v4 preflight затирал UA margin: auto` - **до** Этапа 13. Решает баг про модалки в углу
+2. `cb813da refactor(frontend): удалить authority-секцию NodeDetailsPanel и AddAuthorityModal (13.a)` - минус 1031 строка
+3. `61dae69 feat(frontend): секция Цитаты с трёхуровневой иерархией + скрытие для QUESTION (13.b)` - +184 строки кода
+4. `08505d4 feat(frontend): поле location в AttachFields AddSourceModal (13.c.1)` - +24 строки
+5. `(текущий) docs: запись сессии 19 (frontend), Этап 13 в roadmap, handoff`
+
+#### Подэтап 13.0: инфраструктура
+
+- Старый бэк (PID 43993 на :9090) убит
+- Новый бэк запущен из uncommitted working tree (Абдула не закоммитил
+  бэк-сторону ADR-017, оставил пользователю выбор как разбивать)
+- Liquibase прокатил миграцию `20260508-15-merge-authority-into-source.xml`
+  (Run: 1, Total: 15) - таблица `node_authorities` дропнута, схема
+  `node_sources.location` + `sources.authority_id` появились
+- `./mvnw verify` прошёл с exit 0 - все backend IT (репозиторные и
+  контроллерные) зелёные с новой схемой
+- `npm run generate-api` регенерировал `frontend/src/api/types.ts`:
+  - `CreateSourceRequest`/`SourceResponse` получили `authorityId?: string`
+  - `AttachSourceRequest`/`NodeSourceResponse` получили `location?: string`
+  - `AttachAuthorityRequest`, `NodeAuthorityResponse`, enum `Stance` -
+    исчезли
+- Curl-проверка `/v3/api-docs` подтвердила: `/api/v1/nodes/{id}/authorities`
+  больше нет, `/api/v1/authorities` master data остался для inline-create
+
+#### Подэтап 13.a: чистка от authority-секции
+
+Удалено:
+- `frontend/src/components/graph/AddAuthorityModal.tsx` + `.test.tsx`
+- В `NodeDetailsPanel.tsx`: импорт `AddAuthorityModal`, тип `NodeAuthorityDto`,
+  `AuthoritiesState`, `authoritiesState`/`setAuthoritiesState`,
+  `addAuthorityOpen`, `loadAuthorities`, `detachAuthority`, PanelSection
+  «Авторитеты» с кнопкой «Привязать авторитета», conditional render
+  `AddAuthorityModal`, компонент `AuthoritiesContent`, helper
+  `avatarInitials`, иконка `Users` из импорта lucide-react
+- В `NodeDetailsPanel.test.tsx`: `describe('секция Авторитеты')` с 2
+  тестами
+- В `attachmentTokens.ts`: тип `Stance`, `STANCE_LABEL`/
+  `STANCE_BADGE_STYLES`/`STANCE_RADIO_STYLES`/`STANCE_ORDER`
+
+После 13.a TS+lint+тесты чистые, 35 тестов в 2 файлах прошли.
+
+#### Подэтап 13.b: секция Цитаты с трёхуровневой иерархией + скрытие для QUESTION
+
+`NodeDetailsPanel.tsx`:
+- Conditional `{nodeType !== 'QUESTION' && <PanelSection .../>}` - семантика
+  «вопросы не имеют обоснования» из ADR-017. Бэк остаётся либеральным,
+  ограничение только в UI (как принято в ADR-017)
+- Заголовок «Источники» переименован в «Цитаты» везде, кнопка
+  «Привязать источник» → «Привязать цитату», тосты обновлены под новое
+  название
+- `loadSources` теперь делает 3 параллельных запроса: `/nodes/{id}/sources`,
+  `/sources`, `/authorities`. Lookup-карты `sourceLookup` и
+  `authorityLookup` в state. На MVP-объёме справочников - один запрос
+  на справочник, без N+1
+- Карточка цитаты обогащена: header автора (UserIcon + name + era · madhab) -
+  только если `Source.authorityId` резолвится в lookup. Для Корана и
+  анонимных текстов блок не рендерится. Title + location в моноширинной
+  meta-строке. Quote получает `dir="rtl"` при наличии арабских символов
+  (Unicode блоки Arabic + Supplement + Extended-A + Presentation Forms-A/B).
+  Naskh-стилизация через `font-serif text-[13px] not-italic leading-loose` -
+  системный serif в большинстве OS даёт читаемый naskh-glyph
+- Helper `hasArabicScript(text)` через regex с диапазонами Unicode.
+  ESLint-disable для `no-irregular-whitespace` потому что U+FEFF -
+  легитимная часть Arabic Presentation Forms-B
+
+7 новых тестов: closed by default, 3 паралл.запроса с автором, цитата
+без autherityId (Коран), arabic dir=rtl, плейсхолдер пустой, отвязка,
+QUESTION-скрытие.
+
+#### Подэтап 13.c.1: поле location в AttachFields
+
+`AddSourceModal.tsx`:
+- Опциональное поле `location` (до 200 символов) в `AttachFields`,
+  работает в обоих режимах (search + create)
+- Placeholder подсказывает форматы: «т.13 с.137, №1162, 2:256» -
+  том/страница, номер хадиса, сура:аят
+- Передаётся в body `POST /api/v1/nodes/{id}/sources` через `attachExisting`
+
+13 тестов AddSourceModal продолжают проходить (смена интерфейса
+`AttachFieldsProps` совместима с прежними кейсами).
+
+#### Curl-seed для UI-проверки
+
+Создал на CLAIM-узле b5cd59d5... (Мавлид является дозволенной практикой):
+- Цитата 1: «Сахих Муслим, №1162», автор Имам Муслим (III в.х.,
+  муджтахид), location «китаб ас-сыйям, №1162», quote «إنما الأعمال
+  بالنيات» с RTL
+- Цитата 2: «Сура аль-Бакара, аят 256» БЕЗ автора (Коран), location
+  «2:256», quote «لا إكراه في الدين» с RTL
+
+QUESTION-узел e97f0fc6... демонстрирует скрытие секции - двойной
+клик показывает только Содержание + Метаданные + История.
+
+### Решения
+
+- **Не коммитил backend-сторону ADR-017** - Абдула передал handoff
+  «бэк готов в working tree, пользователь сам решит как разбить».
+  Уважаю это - frontend-коммиты опираются на uncommitted backend
+  файлы (это OK для git, фронт-коммиты не «знают» о бэк-коммитах
+  напрямую). Абдула закоммитит backend отдельно когда захочет
+- **Минимальный 13.c (только location)** - полноценный author-picker
+  в create-mode большая работа (radio-mode + dropdown + мини-форма
+  Authority). Контекст близок к лимиту, риск что не доведу до коммита.
+  Откладываю на 13.c.2 в следующей сессии. Сейчас author передать
+  через POST /sources прямо нельзя в форме - но через curl можно
+  создать Source с authorityId, и тогда оно отобразится в секции
+  «Цитаты» через lookup. UI-flow создания связки автор+труд+место за
+  один шаг откладывается
+- **eslint-disable no-irregular-whitespace для Arabic regex** - U+FEFF
+  входит в диапазон Arabic Presentation Forms-B. Альтернатива - писать
+  `\u`-escapes в regex - технически чище, но требует Bash-замены
+  через python (Edit-tool не позволяет легко вставить escape-форму
+  без литеральных Unicode символов). Disable comment - локальный
+  и понятный с обоснованием
+- **Для QUESTION ничего не нашёл что показать вместо «Цитат»** - просто
+  скрытие секции. Можно было бы показать заглушку «Вопросы не имеют
+  обоснования», но это шум на 99% случаев когда пользователь и так
+  знает что вопрос - это вопрос. Молчаливое скрытие чище
+
+### Проблемы
+
+- **Backend в working tree не закоммичен** - после рестарта Postgres
+  схема обновилась, но если кто-то откатит uncommitted изменения -
+  backend не соберётся (потому что новые поля в DTO нужны).
+  Frontend-коммиты при этом останутся, но не будут работать
+- **Маленькая RTL-typography problem**: блок цитаты сейчас имеет
+  `border-l-2 border-slate-300` с `pl-2`. В RTL-режиме граница
+  визуально становится правой - но визуально работает (читается
+  как «вертикальный акцент сбоку», не как «начало»). Не блокер,
+  можно потом перейти на `border-s-2` (logical property). Не делаю
+  сейчас - проверю как Абдула отреагирует на текущий вид
+
+### Следующий шаг
+
+**Сессия 20 (frontend) - завершение Этапа 13:**
+
+1. **13.c.2: author-picker в AddSourceModal** - в create-mode добавить
+   радио-блок «Без автора / Из справочника / Создать нового». В режиме
+   «Из справочника» - dropdown со списком `/authorities`. В режиме
+   «Создать нового» - inline-форма с полями name (required), era,
+   madhab, bio. Submit делает POST /authorities → POST /sources с
+   `authorityId` → POST /nodes/{id}/sources. Цепочка из 3 запросов
+2. **13.d: пересоздать seed мавлид** - `scripts/seed-mawlid.sh` обновить:
+   создавать Authority-сущности (Ибн Хаджар, ас-Суюти, Ибн Таймия, Имам
+   Малик), затем Source с authorityId указывающим на учёного, привязка
+   к узлам с location. Старая seed-логика (через node_authorities)
+   удалена миграцией 15
+3. **13.e.2: финальная документация** - после 13.c.2 и 13.d:
+   - Обновить `frontend/docs/ui-guidelines.md` под секцию «Цитаты» с
+     трёхуровневой иерархией и RTL-quote
+   - Запись «Сессия 20 (frontend)» в progress.md о завершении Этапа 13
+4. **Бэкенд закоммитить** - Абдула решит формат: один большой
+   `refactor(backend): ADR-017 объединение Source+Authority` или
+   разбить на миграцию + домен + DTO + тесты. Это его выбор
+
+После закрытия Этапа 13 возвращаемся к бэклогу:
+- Source picker для Корана (mushaf JSON или quran.com API)
+- Source picker для хадисов (sunnah.com или локальный датасет)
+- Sanad explorer (домен-расширение)
+- Bilingual карточки + RTL
+- Экспорт PNG/SVG
+
+---
+
+## 2026-05-08 — Сессия 19 (backend) — ADR-017: объединение Source+Authority под одной точкой привязки
+
+После Этапа 12 (frontend-привязка источников/авторитетов) встал domain-вопрос: что показывать на узлах разного типа. Сначала родилось решение «убрать секции у QUESTION» (вариант B), потом - радикальнее: вообще объединить Source и Authority под одной концепцией «цитата». Промоделировали на классическом примере мавлида: учёный + его труд + точное место + цитата = один акт цитирования, а не два отдельных attachment-а. ADR-017 фиксирует решение, миграция 15 реализует, бэк перестроен.
+
+### Сделано
+
+#### ADR-017 (`docs/decisions.md`)
+
+- Заменяет ADR-002 в части привязки `Authority` к узлу (сама сущность `Authority` как master data сохраняется)
+- Решение: `Authority` остаётся справочником, но **не привязывается к узлу напрямую** - `Source` приобретает опциональный `authority_id` (FK), узел привязывается только к `Source`. `NodeSource` расширяется полем `location` (страница / номер хадиса / сура:аят)
+- Удалены: таблица `node_authorities`, enum `Stance`, эндпоинт `POST/GET/DELETE /api/v1/nodes/{id}/authorities`. `Stance OPPOSES` теперь выражается `REFUTES`-ребром на узел (совместимо с ADR-010)
+- Альтернативы рассмотрены: оставить как есть, удалить `Authority` совсем, удалить только `Stance`. Выбрана трёхуровневая модель `Authority → Source → NodeSource` - сохраняет нормализацию + UX единой цитаты
+- Семантическое обоснование: классический формат `العزو` (аль-ʿазв = атрибуция) в `أصول الفقه`, тройка «кто/где/что» = `حجية النقل` (худжия ан-накль)
+
+#### Миграция 15 (`20260508-15-merge-authority-into-source.xml`)
+
+- `ALTER TABLE sources ADD COLUMN authority_id UUID REFERENCES authorities(id) ON DELETE SET NULL` + индекс `idx_sources_authority_id`. `ON DELETE SET NULL` чтобы удаление учёного не каскадно сносило книги
+- `ALTER TABLE node_sources ADD COLUMN location TEXT`
+- `DROP TABLE node_authorities` - данные старых демо-графов (включая мавлид с прошлой сессии) теряются. Принято в ADR-017 как осознанная цена: однозначного правила слияния `(node, authority, stance=HOLDS)` ↔ `(node, source)` нет
+- Rollback восстанавливает таблицу + дропает добавленные колонки
+
+#### Бэкенд
+
+Изменения в стороне Source:
+- `Source` record получил поле `UUID authorityId` между `reliability` и `metadata`
+- `SourceRepository` обновлён: `COLUMNS` включает `authority_id`, INSERT принимает 8 параметров, `RowMapper` читает `getObject("authority_id", UUID.class)`
+- `SourceService.createSource` принимает `UUID authorityId` параметр. Если не-null - проверяется существование `Authority` через `AuthorityRepository.findById` (иначе `AuthorityNotFoundException`, 404). Сервис теперь зависит от `AuthorityRepository`
+- `CreateSourceRequest` и `SourceResponse` получили поле `authorityId`
+- `DtoMappers.toResponse(Source)` пробрасывает `authorityId`
+
+Изменения в стороне NodeSource:
+- `NodeSource` record получил поле `String location` между `context` и `createdAt`
+- `NodeSourceRepository` обновлён: `COLUMNS` включает `location`, INSERT 6 параметров
+- `NodeSourceService.attachSource` принимает `String location`
+- `AttachSourceRequest` получил поле `location` (`@Size(max = 200)`)
+- `NodeSourceResponse` получил поле `location`
+- `DtoMappers.toResponse(NodeSource)` пробрасывает `location`
+
+Удалены файлы:
+- `domain/Stance.java`, `domain/NodeAuthority.java`
+- `repository/NodeAuthorityRepository.java`
+- `service/NodeAuthorityService.java`
+- `web/controller/NodeAuthorityController.java`
+- `web/dto/AttachAuthorityRequest.java`, `web/dto/NodeAuthorityResponse.java`
+- `test/repository/NodeAuthorityRepositoryIT.java`
+- `test/web/controller/NodeAuthorityControllerIT.java`
+
+`DtoMappers` очищен от ссылок на `NodeAuthority`/`NodeAuthorityResponse`. `AuthorityRepository` и `AuthorityService` сохранены - master data CRUD продолжает работать (нужен для inline-создания авторитета при создании Source).
+
+#### Тесты обновлены под новые сигнатуры
+
+- `SourceRepositoryIT`: все `new Source(...)` получили `null` для `authorityId`. Добавлены 2 новых теста: `save_withAuthorityId_persistsLink` и `deleteAuthority_setsSourceAuthorityIdToNull` (проверка ON DELETE SET NULL)
+- `NodeSourceRepositoryIT`: все `new NodeSource(...)` получили `null` для `location`. Добавлен тест `save_withNullLocation_persists`. Главный тест `save_insertsLink_andFindByIdsReturnsIt` проверяет персистентность location
+- `SourceControllerIT`: все `new CreateSourceRequest(...)` получили `null` для `authorityId`
+- `NodeSourceControllerIT`: все `new AttachSourceRequest(...)` получили `null` для `location`. Главный smoke-тест проверяет что `location` приходит обратно в response
+
+#### Документация
+
+- `docs/architecture.md`: переписан раздел «Source и Authority - справочники» в «Трёхуровневая модель цитирования (ADR-002 + ADR-017)». Описана иерархия `Authority → Source → NodeSource`, упомянуто что QUESTION-узлы по семантике без источников/авторитетов (фронт-логика)
+- `docs/api-contract.md`:
+  - В `POST /sources` добавлено поле `authorityId` с описанием валидации (404 если не существует)
+  - В `POST /nodes/{id}/sources` добавлено поле `location` (до 200 символов)
+  - Раздел «Привязка авторитетов к узлам» помечен как удалён в ADR-017 с инструкцией миграции (выразить позицию через `Source.authorityId` + ребро)
+  - `SourceResponse` и `NodeSourceResponse` получили `authorityId`/`location`. `NodeAuthorityResponse` помечен как удалённый
+  - Запись в «Историю изменений контракта» с пояснением
+
+### Решения
+
+- **Bаck-валидация на тип узла не вводится** - не отклонять `POST /nodes/{QUESTION-id}/sources`. Бэк остаётся либеральным к атомарным операциям, ограничение по семантике типа узла - на фронте через сокрытие секции (вариант B из обсуждения). Обоснование: проще менять политику без миграций; если появится «продвинутый» консьюмер API, он сможет привязать источник к QUESTION для своих кейсов (например, исторический контекст вопроса). Ограничение через UI достаточно для основного UX
+- **`ON DELETE SET NULL` вместо CASCADE на `sources.authority_id`** - удаление учёного не сносит его книги (которые могут быть процитированы в десятках узлов), а превращает их в «анонимные». Лучше потенциальной потери данных
+- **Существующие демо-графы (включая мавлид) пересоздаются** через seed-скрипт. Не пытаемся data-migrate `(node, authority, stance=HOLDS)` → `(node, source)` потому что нет однозначного source-кандидата (учёный мог быть привязан без указания конкретной книги)
+
+### Проблемы
+
+- Прежняя seed-сессия (мавлид) полагалась на наличие `node_authorities` - после миграции 15 эти данные исчезли. Не блокер: фронт ещё не адаптирован, поэтому такого юзера на этих данных всё равно не будет. После фронт-обновления нужно пересоздать seed-скрипт под новую модель (`Source.authorityId` вместо `NodeAuthority`)
+- Открыто: фронт пока не знает про новую модель. `NodeDetailsPanel`, `AddSourceModal`, `AddAuthorityModal`, типы из `openapi-typescript` - всё это требует обновления (следующий шаг)
+
+### Следующий шаг
+
+1. Поднять бэк (`./mvnw spring-boot:run`) - убедиться что миграция 15 применилась (или применить вручную через liquibase update). Прогнать `./mvnw verify` - ожидаемо все IT pass
+2. Перейти на фронт:
+   - Регенерировать типы: `npm run gen:api` (или эквивалент `openapi-typescript`)
+   - Удалить `AddAuthorityModal.tsx` и его тесты
+   - В `NodeDetailsPanel.tsx`: убрать секцию «Авторитеты» совсем. Переделать секцию «Источники» в «Цитаты» - обогащённая карточка с `Authority` (имя, эра, мазхаб) сверху, `Source.title` + `NodeSource.location` ниже, `quote` (RTL для арабского) и `context` снизу. Резолвить authority через дополнительный запрос к `/authorities` (или joined-fetch когда появится `GET /sources?expand=authority`)
+   - В `AddSourceModal.tsx`: добавить шаг выбора/inline-создания `Authority` - аналогично текущему inline-Source-flow
+   - Обновить тесты `NodeDetailsPanel.test.tsx` - убрать assertions про `Авторитеты`-секцию
+3. Пересоздать мавлид-демо-граф через bash-скрипт под новую модель: `Source.authorityId` указывает на учёного, цитата с `location` (Бухари 2010, Муслим 1162 и т.д.)
+4. Опционально (отдельный коммит): обогащённый `SourceResponse` с `expand=authority` параметром - чтобы избежать N+1 на фронте при отображении карточки. Откладываем до явной нужды
 
 Бэк-API готов с Этапа 5 (`POST /nodes/{id}/sources`, `/authorities`, GET
 для списков и справочников, DELETE для отвязки), но во фронте секции

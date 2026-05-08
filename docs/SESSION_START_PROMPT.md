@@ -88,7 +88,7 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 5. ЖДИ ПОДТВЕРЖДЕНИЕ. Не начинай работу без него.
 
 ══════════════════════════════════════════════
-ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-08 после сессии 18)
+ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-08 после Сессии 19 frontend, частичный Этап 13)
 ══════════════════════════════════════════════
 
 ЗАКРЫТО:
@@ -124,7 +124,24 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
      floating легенда (bottom-left) / zoom controls (bottom-center
      через rfInstance) / hotkeys hint (top-right). CompactMiniMap
      перенесён top-right → bottom-right
-- **Этап 12 целиком (сессия 18): привязка источников и авторитетов
+- **Сессия 19 backend + Сессия 19 frontend (частично): ADR-017
+  трёхуровневая модель цитирования** -
+  - Бэк (Сессия 19, в working tree, **не закоммичен** - Абдула
+    решит как разбить): миграция 15 дропает `node_authorities`,
+    добавляет `sources.authority_id` + `node_sources.location`.
+    Удалены `Stance` enum, NodeAuthority/Repo/Service/Controller/DTO,
+    эндпоинты `/nodes/{id}/authorities`. ADR-017 принят
+  - Фронт (Сессия 19, 4 коммита):
+    - `cb813da` - 13.a удаление AddAuthorityModal + secции «Авторитеты»,
+      минус 1031 строка
+    - `61dae69` - 13.b секция «Цитаты» с трёхуровневой иерархией +
+      скрытие для QUESTION + RTL для арабских цитат
+    - `08505d4` - 13.c.1 поле location в AttachFields
+    - docs - запись progress + Этап 13 в roadmap
+  - **Открыто на Сессию 20**: 13.c.2 author-picker в create-mode
+    AddSourceModal, 13.d пересоздать seed-мавлид под новую модель,
+    13.e.2 финальная документация. Бэк коммит делает Абдула
+- **Сессия 18 (Этап 12 целиком): привязка источников и авторитетов
   через UI** - 5 коммитов:
   12.a. NodeDetailsPanel секции "Источники"/"Авторитеты" - lazy-load
        через GET /nodes/{id}/sources + параллельный GET /sources для
@@ -152,6 +169,15 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
   поверх готового бэк-контракта
 
 ОТКРЫТО (по приоритету): <!-- AUTOFILL -->
+0. **Завершить Этап 13** (срочно, Абдула в работе):
+   - 13.c.2: author-picker в AddSourceModal create-mode (radio
+     «Без автора / Из справочника / Создать нового», dropdown +
+     inline-форма Authority). После него POST /sources получает
+     authorityId и трёхуровневая модель полностью замыкается на UX
+   - 13.d: пересоздать `scripts/seed-mawlid.sh` под трёхуровневую
+     модель (Authority → Source с authorityId → NodeSource с location)
+   - 13.e.2: ui-guidelines.md обновить под секцию «Цитаты», запись
+     progress «Сессия 20 (frontend)»
 1. **Source picker для Корана** (`SourcePickerQuran` в дизайне) -
    таб "Коран" с навигацией по сурам, выбор аята. Требует датасет:
    локальный mushaf JSON или интеграция с quran.com API. Большая

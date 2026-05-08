@@ -336,6 +336,50 @@ Cross-cutting добавление: `frontend/src/utils/attachmentTokens.ts` -
 панелью и обеими модалками. По аналогии с `designTokens.ts` для
 node/edge.
 
+## Этап 13. Адаптация фронта под трёхуровневую модель цитирования (ADR-017)
+
+После Этапа 12 встал domain-вопрос «что показывать у разных типов
+узлов». Эволюционировал в радикальное решение - объединить Source и
+Authority под одной концепцией «цитата» (`Authority → Source →
+NodeSource`). Бэк перестроен в Сессии 19 (backend) с миграцией 15
+и удалением `node_authorities` / `Stance` / эндпоинтов
+`/nodes/{id}/authorities`. Этот этап - адаптация фронта.
+
+- [x] **13.0: инфраструктура** - рестарт бэка с миграцией 15, `./mvnw
+      verify` (все IT pass), `npm run generate-api` регенерировал
+      `types.ts` под новую схему. `Source.authorityId`,
+      `NodeSource.location` пришли. `NodeAuthorityResponse`,
+      `AttachAuthorityRequest`, enum `Stance` исчезли
+- [x] **13.a: удаление AddAuthorityModal + чистка ссылок** - удалены
+      `AddAuthorityModal.tsx`/`.test.tsx`, секция «Авторитеты» в
+      `NodeDetailsPanel`, `STANCE_*` токены в `attachmentTokens.ts`,
+      использования `NodeAuthorityDto`. -1031 строка
+- [x] **13.b: секция Цитаты с трёхуровневой иерархией + скрытие для
+      QUESTION** - переименование «Источники» → «Цитаты», условный
+      рендер `{nodeType !== 'QUESTION' && ...}`, обогащённая карточка
+      (автор через `Source.authorityId` + lookup в /authorities + чип
+      эра/мазхаб; title + location в meta-строке; quote с
+      RTL-detection через Unicode-диапазоны Arabic; context). 7 новых
+      тестов
+- [x] **13.c.1: поле location в AttachFields** - опциональное «Место
+      в источнике» (до 200 символов) в обоих режимах модалки. Пустая
+      строка конвертируется в undefined
+- [ ] **13.c.2: author-picker в AddSourceModal create-mode** - выбор
+      существующего `Authority` или inline-create нового с полями
+      name/era/madhab/bio. `authorityId` передаётся в POST /sources.
+      В минимальном виде: radio «Без автора / Из справочника /
+      Создать нового» + dropdown в режиме «Из справочника» + мини-
+      форма в режиме «Создать нового»
+- [ ] **13.d: пересоздать seed-мавлид под новую модель** - в
+      `scripts/seed-mawlid.sh` создавать `Authority`-сущности
+      сначала (Ибн Хаджар, ас-Суюти, Ибн Таймия, Имам Малик и т.д.),
+      затем `Source` с `authorityId`, привязки с `location`. Старая
+      seed-логика (через node_authorities) удалена миграцией 15
+- [ ] **13.e.2: финальная документация** - после 13.c.2 и 13.d
+      обновить ui-guidelines под new card layout «Цитаты», запись в
+      progress.md «Сессия 20 (frontend)» о завершении Этапа 13,
+      сверка api-contract про location
+
 ## Бэклог
 
 Идеи и задачи без привязки к этапу. Когда задача созревает - переходит
