@@ -16,6 +16,25 @@ app:
     # (никакие cross-origin запросы не разрешены). Переопределяется по профилям.
     allowed-origins: ""
 
+# Конфиг интеграции с shamela.ws через её desktop-API (ADR-020).
+# Реверс-инжиниринг выполнен в параллельной сессии через mitmproxy на
+# официальном desktop-клиенте shamela 4. Endpoints статические,
+# api_key публичный (виден в любом дампе любого пользователя клиента) -
+# но env-substitution оставлено для гибкости при необходимости смены.
+shamela:
+  api-key: ${SHAMELA_API_KEY:7b9524-8fc30c-e6241o-a0167e-a6d013}
+  metadata-host: dev.shamela.ws
+  files-host: ready.shamela.ws
+  # Каталог для временных zip + распакованных SQLite. После ETL
+  # содержимое удаляется (опционально кешируется на диск для отладки).
+  download-dir: ${java.io.tmpdir}/shamela
+  # Таймаут запроса к API. Master-snapshot ~5MB качается за ~2с.
+  # Отдельная книга ~100KB - <1с. Запас на медленный канал.
+  request-timeout-seconds: 60
+  # Таймаут установки соединения. Меньше request-timeout (быстро отказ
+  # если сеть недоступна вообще, а не висим на полминуты).
+  connect-timeout-seconds: 10
+
 ---
 spring:
   config:
