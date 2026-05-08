@@ -393,15 +393,20 @@ NodeSource`). Бэк перестроен в Сессии 19 (backend) с миг
 - [x] **14.b: доменные records + JDBC repositories** - `Book`,
       `Chapter`, `Page`, `ImageRegion` с RowMapper'ами, IT через
       Testcontainers (30 новых IT, всего 193 зелёных)
-- [ ] **14.c: BookService + REST**:
-  - `POST /api/v1/library/books` - создать пустую книгу с metadata
-  - `GET /api/v1/library/books?q=` - список/поиск
-  - `GET /api/v1/library/books/{id}` - книга со списком chapters
-  - `GET /api/v1/library/books/{id}/pages` - постраничный пагинатор
-  - `GET /api/v1/library/pages/{id}` - конкретная страница
+- [x] **14.c: BookService + REST**:
+  - `POST /api/v1/library/books` - создать книгу с metadata
+  - `GET /api/v1/library/books?q=&type=` - список/поиск/фильтр
+  - `GET /api/v1/library/books/{id}` - книга с деревом chapters
+  - `GET /api/v1/library/books/{id}/pages?from=&to=` - постраничный
+    список (summary без content)
+  - `GET /api/v1/library/pages/{id}` - конкретная страница с regions
   - `DELETE /api/v1/library/books/{id}` - удалить книгу (каскадно)
-- [ ] **14.d: ADR-019 на доменный пакет library** - формализовать
-      решение в decisions.md
+  - 14 ServiceIT + 17 ControllerIT, всего 225 IT в проекте.
+    Curl smoke: POST/GET/DELETE/фильтры/404/OpenAPI работают
+- [x] **14.d: ADR-019 на доменный пакет library** - принят в 14.a
+      коммите вместе с миграцией. Полная формализация
+      (architecture.md / api-contract.md / glossary.md) - в 14.d
+      коммите следом
 
 ## Этап 15. Library - shamela parser
 

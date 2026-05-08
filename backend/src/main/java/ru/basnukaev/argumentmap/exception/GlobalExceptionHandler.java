@@ -61,6 +61,24 @@ public class GlobalExceptionHandler {
                 "Невалидный источник", "invalid-source", ex.getMessage());
     }
 
+    @ExceptionHandler(BookNotFoundException.class)
+    public ProblemDetail handleBookNotFound(BookNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "Книга не найдена",
+                "book-not-found", ex.getMessage());
+    }
+
+    @ExceptionHandler(PageNotFoundException.class)
+    public ProblemDetail handlePageNotFound(PageNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "Страница не найдена",
+                "page-not-found", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidBookException.class)
+    public ProblemDetail handleInvalidBook(InvalidBookException ex) {
+        return problem(HttpStatus.UNPROCESSABLE_ENTITY,
+                "Невалидная книга", "invalid-book", ex.getMessage());
+    }
+
     @ExceptionHandler(MissingUserHeaderException.class)
     public ProblemDetail handleMissingUser(MissingUserHeaderException ex) {
         return problem(HttpStatus.BAD_REQUEST,
