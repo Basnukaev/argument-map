@@ -259,20 +259,25 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 
 ОТКРЫТО (по приоритету) - после Этапа 14 Library MVP:
 
-0. **OPEN QUESTION для Абдулы (приоритет 1, требует решения)**:
-   что делать первым - Этап 15 shamela parser или Этап 18 frontend
-   library? Оба валидны:
-   - **Этап 15** даёт реальный контент (парсер shamela), но без
-     UI (curl/OpenAPI), узнаваем риски парсера до больших инвестиций
-   - **Этап 18** даёт визуальное свидетельство что library работает,
-     но 18.a (monorepo restructure) большая работа без реального
-     контента
-   - Моя рекомендация - **Этап 15 первым** (увидеть риски парсера
-     раньше; Этап 18 будет интереснее когда есть реальная книга
-     в БД). См. progress.md Сессия 20 → Следующий шаг → Open question
-1. **Этап 15: shamela parser** - jsoup-парсер shamela.ws,
-   ImportService, REST endpoint `POST /api/v1/library/imports/shamela`,
-   Authority-резолвинг. Главный путь автоматического импорта книг
+1. **Этап 15: shamela parser** ← **выбран Абдулой в конце Сессии 20**.
+   jsoup-парсер shamela.ws, ImportService, REST endpoint
+   `POST /api/v1/library/imports/shamela`, Authority-резолвинг,
+   IT с зафиксированной HTML-фикстурой (golden file, не реальный HTTP),
+   ADR на парсер + раздел в `architecture-platform.md`. Главный путь
+   автоматического импорта книг.
+
+   Подэтапы (см. roadmap.md Этап 15):
+   - 15.a: ShamelaImportService - jsoup-парсер
+   - 15.b: REST endpoint POST /api/v1/library/imports/shamela
+   - 15.c: Authority-резолвинг (matching/создание)
+   - 15.d: IT с golden HTML
+   - 15.e: ADR на парсер + раздел architecture-platform
+
+   На старте сессии новой Claude: после прочтения `SESSION_START_PROMPT`
+   и стартового protocol - сразу начинай с 15.a в режиме автономии.
+   Open design-вопросы (например, как искать book-page-URLs внутри
+   shamela-страницы) решай по ходу через ADR.
+
 2. **Этап 18: Library frontend + интеграция с argument-map** -
    monorepo реструктуризация (apps/argument-map, apps/library,
    packages/shared-*), BookListPage, BookReader, CitationPicker,
@@ -485,15 +490,15 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 "вижу - последний раз Сессия 20 закрыла Этап 14 Library MVP
 целиком (14.a миграция 16 + 14.b records/repositories + 14.c
 service+REST + 14.d документация). 6 коммитов backend, 225 IT
-зелёных, ADR-019 принят.
+зелёных, ADR-019 принят. Абдула выбрал следующим Этап 15
+(shamela parser).
 
-Открыто: выбор приоритета между Этапом 15 shamela parser и
-Этапом 18 frontend library + интеграция (см. ОТКРЫТО → Open
-question). Моя рекомендация - Этап 15 первым (увидеть риски
-парсера раньше). Что выбираешь, или начинаю с 15?"
+В режиме автономии начинаю с 15.a - ShamelaImportService на jsoup.
+Сначала исследую структуру shamela-страницы (любая случайная книга
+с shamela.ws), потом проектирую парсер. ADR на формат входа -
+зафиксирую в начале при кодировании."
 
-Жди ответа Абдулы на open question (это уровень его выбора,
-не тактическое решение). После выбора - смело за работу.
+Жди подтверждение. После него - смело за работу.
 ```
 
 ---
