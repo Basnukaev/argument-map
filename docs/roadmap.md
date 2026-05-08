@@ -408,23 +408,55 @@ NodeSource`). Бэк перестроен в Сессии 19 (backend) с миг
       (architecture.md / api-contract.md / glossary.md) - в 14.d
       коммите следом
 
-## Этап 15. Library - shamela parser
+## Этап 15. Library - shamela импорт через desktop-API
 
 **Зачем:** автоматический импорт классических трудов. Главный путь
 расширения библиотеки.
 
-- [ ] **15.a: ShamelaImportService** - jsoup-парсер
-      shamela.ws-страницы книги. Извлекает структуру (главы, страницы),
-      нормализует в Book + Chapter + Page
-- [ ] **15.b: REST endpoint** `POST /api/v1/library/imports/shamela`
-      с body `{ bookUrl }`. Sync с timeout 60с в MVP
-- [ ] **15.c: Authority-резолвинг** - извлечение автора shamela-книги
-      → matching против существующих `Authority` или предложение
-      создать новый
-- [ ] **15.d: тесты** - IT с зафиксированной HTML-страницей (golden
-      file), не настоящие HTTP-запросы к shamela
-- [ ] **15.e: ADR на парсер** + раздел в `architecture-platform.md`
-      про specifics shamela-формата
+**История пересмотра** (Сессия 21): первоначальный план был
+HTML-парсинг shamela.ws через jsoup. Шесть попыток (curl, WebFetch,
+flaresolverr v3.3.21/v3.4.6 с прокси и без, session-mode, прогрев)
+показали что `shamela.ws/book/X` под агрессивным Cloudflare managed
+challenge неразрешимым в текущей конфигурации. Параллельная сессия
+выполнила mitmproxy-реверс desktop-клиента shamela 4 - получили
+официальное API (6 endpoints, статический api_key). План
+переписан на ETL через это API: см. ADR-020.
+
+- [x] **15.1: миграция 17 + ADR-020 + architecture-platform.md** -
+      `lib_shamela_category/author/book/page/title/sync_state`
+      staging-таблицы. Двухслойная схема: staging (зеркало
+      shamela API) + целевая модель `lib_books`/`Authority`
+      (заполняется маппером)
+- [ ] **15.2: ShamelaApiClient + ShamelaArchiveExtractor** -
+      `java.net.http.HttpClient` (4 метода: fetchMasterMetadata,
+      fetchBookMetadata, downloadArchive, downloadPdf), распаковка
+      через `java.util.zip.ZipInputStream`. Конфиг в
+      `application.yml`: `shamela.api-key`, `shamela.metadata-host`,
+      `shamela.files-host`, `shamela.download-dir`. Зависимость
+      `sqlite-jdbc 3.45.3.0`
+- [ ] **15.3: SQLite readers + DAO** - `ShamelaMasterReader`
+      потоково читает category/author/book.sqlite, `ShamelaBookReader`
+      открывает `{bookId}.sqlite` (page+title). `SqliteValueParser`
+      утилита (null-safe TEXT→Long/Integer/Boolean). Bulk upsert через
+      `ON CONFLICT(id) DO UPDATE` с батчами 1000 строк
+- [ ] **15.4: ShamelaImportService.syncMaster + importBook** -
+      `syncMaster()` читает `sync_state.master_version`, дёргает API,
+      разворачивает в shamela_*. `importBook(id)` идёт по
+      детерминированному URL `ready.shamela.ws/books-store/{id}-{major}.zip`,
+      загружает page+title в `lib_shamela_*`. Tombstones обрабатываем
+      через `deleted_at TIMESTAMPTZ`. IT с golden zip в test/resources
+- [ ] **15.5: ShamelaToLibraryMapper** - `shamela_book` →
+      `lib_books` + `Authority` (резолвинг по name с нормализацией).
+      `shamela_title` (parent_id tree) → `lib_chapters`.
+      `shamela_page.content` (raw HTML) → `lib_pages.text_content`.
+      `lib_books.metadata` jsonb получает `{shamela_book_id,
+      shamela_major_release, pdf_links}`. IT на полный импорт
+- [ ] **15.6: REST endpoints + финальная документация** -
+      `POST /admin/shamela/sync-master`,
+      `POST /admin/shamela/import-book/{id}`,
+      `GET /admin/shamela/book/{id}/pdf/{fileIndex}` (lazy).
+      ControllerIT через MockMvc. api-contract.md + glossary.md
+      дополнить
 
 ## Этап 16. Library - PDF/EPUB upload
 

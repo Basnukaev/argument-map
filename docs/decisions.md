@@ -1236,3 +1236,155 @@ overkill для типичной книги в десятки-сотни гла�
 - **ADR-018** (платформенный pivot) - этот ADR реализует один из
   пунктов решения о доменной структуризации
 
+---
+
+## ADR-020: Импорт shamela через её desktop-API + двухслойная staging-схема
+**Дата:** 2026-05-09
+**Статус:** принято
+**Контекст:** Этап 15 - наполнение библиотеки классическими исламскими
+трудами с shamela.ws. Изначальный план (Этап 15 в roadmap до пересмотра) -
+HTML-парсинг через `jsoup`. На старте сессии 21 выяснилось что
+shamela.ws под агрессивным Cloudflare managed challenge:
+- прямой `curl`/`WebFetch` → 403 на любом User-Agent
+- `flaresolverr v3.3.21` пробивает главную страницу через прокси, но
+  страницы книг (`/book/X`) задают challenge которого Chromium-120 не
+  решает за 280с
+- `flaresolverr v3.4.6` (Chromium 142) имеет регрессию: возвращает
+  пустой HTML body на любые URL в WSL2-окружении
+
+В параллельной сессии mitmproxy на desktop-клиенте shamela 4 был
+выполнен полный реверс-инжиниринг внутреннего API. Получены 6 рабочих
+endpoints, статический api_key, структура zip-архивов и SQLite-схемы
+master-каталога и контента книг. Cloudflare на этих хостах прозрачен -
+desktop-клиент дёргает как обычный HTTP, без challenge.
+
+**Решение:**
+
+(1) **Импорт через официальное desktop-API**, а не через HTML-парсинг
+сайта `shamela.ws`. Endpoints:
+  - `GET dev.shamela.ws/api/v1/patches/master?version=N&api_key=...` -
+    мета каталога (URL дельты-zip)
+  - `GET dev.shamela.ws/api/v1/patches/master-download/master-{from}-{to}.zip`
+    - zip с тремя SQLite (`category`, `author`, `book`)
+  - `GET dev.shamela.ws/api/v1/patches/book-updates/{id}?major_release=X&minor_release=Y`
+    - URL snapshot книги
+  - `GET ready.shamela.ws/books-store/{id}-{major}.zip` - полный
+    snapshot книги (один SQLite с content+titles)
+  - `GET ready.shamela.ws/pdf{relativePath}` - lazy PDF (по
+    запросу, путь из `book.pdf_links.files[N]`)
+
+api_key статический (`7b9524-8fc30c-e6241o-a0167e-a6d013`),
+без подписи, без сессии. Бинарные endpoints на `ready.shamela.ws`
+вообще не требуют ключа (раздаются как публичная статика).
+
+(2) **Двухслойная схема в Postgres:**
+
+  - **Слой 1 - staging:** `lib_shamela_*` таблицы (миграция 17)
+    зеркалят transport-формат shamela (`category`, `author`, `book`,
+    `page`, `title`, `sync_state`). Импорт SQLite → INSERT в эти
+    таблицы происходит as-is, с минимальной трансформацией (TEXT→
+    Long/Integer/Boolean через `SqliteValueParser`)
+  - **Слой 2 - целевая модель:** `ShamelaToLibraryMapper` отдельным
+    шагом проецирует `lib_shamela_book/page/title/author` в наши
+    `lib_books`/`authorities`/`lib_chapters`/`lib_pages` (созданные
+    миграциями 16/8). Здесь живёт логика «одна shamela-категория →
+    несколько Authority с резолвом по имени», «shamela page-id-int
+    → lib_pages.id-uuid», «shamela title-tree → lib_chapters»
+
+(3) **Только полные snapshot книг** (`books-store/{id}-{major}.zip`).
+Patch-формат (`ready/{id}-{major}-{minor}.zip` с LZMA+Lucene 9.5)
+**отвергнут на MVP** - требует `commons-compress` и `lucene-core`,
+content сидит в Lucene-индексах а не SQLite. Major-release зашит в
+URL детерминированно: достаточно `lib_shamela_book.major_release`
+из master, ходить за `book-updates` не нужно
+
+(4) **Стэк:** `java.net.http.HttpClient` (Java 21 встроенный) +
+`sqlite-jdbc 3.45.3.0` (новая зависимость, единственная). Никаких
+WebClient, RestTemplate, OkHttp, jsoup, flaresolverr. Для HTTP
+четырёх endpoints стандартный клиент Java 21 достаточен
+
+(5) **PDF lazy**, не batch-импорт. 8500 книг × ~5MB = 40+ GB - явно
+не для MVP. `fetchPdf(bookId, fileIndex)` - отдельный admin-endpoint,
+парсит `pdf_links` из соответствующего `lib_shamela_book.pdf_links`,
+качает на запрос, опционально кеширует на диск/MinIO
+
+(6) **SQLite-чтение изолировано от основного `DataSource`.** Для
+shamela-архивов открываем временный `DriverManager.getConnection
+("jdbc:sqlite:...")`. После ETL в Postgres - закрываем connection
+и удаляем zip+sqlite файлы. Нет смешения с `JdbcTemplate` основной БД
+
+**Альтернативы рассмотрены:**
+
+A) **HTML-парсинг через jsoup напрямую** - отвергнуто.
+   `shamela.ws/book/X` под CF managed challenge, не пробивается ни
+   curl, ни WebFetch
+B) **HTML-парсинг через flaresolverr** - отвергнуто. Главную shamela
+   проходит, страницы книг - timeout 280с. См. progress.md Сессия 21
+   попытки 1-7
+C) **ZenRows/ScrapingBee/Bright Data API** - платно ($50+/мес),
+   внешняя зависимость, нужен api-key. Overkill для MVP когда есть
+   рабочее официальное API
+D) **Один слой - shamela-данные сразу в `lib_books`/`authorities`** -
+   отвергнуто. Теряется possibility incremental sync (нужен
+   `master_version`), теряется tombstone-семантика (`deleted_at`),
+   нет audit trail откуда импортировано
+E) **Patch-формат `ready/{id}-{major}-{minor}.zip`** с LZMA + Lucene 9.5
+   - отвергнуто на MVP. Дополнительные зависимости (`commons-compress`,
+   `lucene-core`) ради инкрементальных обновлений тогда когда мы
+   ещё не закрыли первый импорт. Полные snapshot стоят дешевле и
+   достаточны для bootstrap
+F) **shamela offline `.bok` формат** - отвергнуто. Пришлось бы
+   реверсить closed binary формат. Текущее API работает out-of-the-box
+
+**Причины:**
+
+- **API стабильнее HTML.** desktop-клиент shamela 4 имеет тысячи
+  установок, контракт API стабилен по необходимости совместимости.
+  HTML-страницы могут меняться при любом редизайне сайта
+- **CF прозрачен на этих хостах** - shamela не блокирует свой
+  desktop-канал, иначе все клиенты сразу сломаются
+- **Структурированные данные.** SQLite даёт типизированные таблицы
+  с `category`/`author`/`book`/`page`/`title` сразу. Не нужно
+  парсить CSS-селекторами и угадывать какие div'ы стабильны
+- **Двухслойная схема будущепроофна.** Когда придёт время
+  incremental sync (Этап 15.x), `master_version` и `deleted_at`
+  уже на месте. ETL-логика в `ShamelaToLibraryMapper` локализована
+- **Минимум зависимостей.** java.net.http + sqlite-jdbc. Альтернативы
+  тянут lucene-core, commons-compress, headless Chromium-images
+
+**Последствия:**
+
+- (+) Нет HTML-парсинга, нет CF challenge, нет headless browser
+- (+) Реверс-инжинированный API даёт 8589 книг каталога + on-demand
+  PDF из ~всего корпуса
+- (+) Incremental sync architecture (`master_version` + `deleted_at`)
+  готова с первого дня - инкрементальные обновления добавляются
+  без миграции схемы
+- (+) lazy PDF не нагружает диск 40GB+ при первой настройке
+- (+) Изоляция staging-слоя от целевой доменной модели - можно
+  переподнять mapping при изменении правил, не перекачивая данные
+  с shamela
+- (−) **API key статический и публичный** (виден в любом mitmproxy
+  дампе любого пользователя). shamela может его инвалидировать в
+  любой момент и поломать наш ETL. Принимаем как риск - конкурентов
+  тоже сломает
+- (−) **shamela контролирует доступность API.** Если они закроют
+  desktop-канал, наш импорт перестаёт работать. Фолбэк - PDF upload
+  (Этап 16) или image upload (Этап 17), независимые источники
+- (−) **HTML-разметка `page.content` хранится as-is.** Это
+  shamela-специфичная inline-разметка. Парсинг (extraction
+  смыслового текста, сноски, аяты) - отдельный этап. На MVP в
+  `lib_pages.text_content` после маппинга сохраняем raw HTML,
+  читалка может рендерить или показывать `<pre>`
+- (−) **Двухслойность стоит +2 таблицы** (`lib_shamela_book`,
+  `lib_shamela_page` - 8500 строк × средне ~200 страниц = 1.7M
+  строк в page-таблице). Disk-overhead ~1-2GB после полного импорта.
+  Принимаем как стоимость аудита и incremental sync
+
+**Связь с другими ADR:**
+- **ADR-018** (платформенный pivot) - этот ADR реализует «парсинг
+  внешних источников» (раздел A в `vision.md`)
+- **ADR-019** (доменный пакет library) - `lib_shamela_*` таблицы это
+  часть library-домена, java-пакет `library.shamela.{api,etl,
+  mapping,web}`
+

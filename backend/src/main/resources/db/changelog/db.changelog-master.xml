@@ -21,5 +21,6 @@
     <include file="db/changelog/changes/20260505-14-add-handle-ids-to-edges.xml"/>
     <include file="db/changelog/changes/20260508-15-merge-authority-into-source.xml"/>
     <include file="db/changelog/changes/20260508-16-create-library-tables.xml"/>
+    <include file="db/changelog/changes/20260509-17-create-shamela-staging-tables.xml"/>
 
 </databaseChangeLog>

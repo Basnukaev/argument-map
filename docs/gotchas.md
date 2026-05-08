@@ -424,4 +424,38 @@ animation её обрезает. Тогда варианты 1 или 2. У на
 
 ---
 
+## OpenApiIT.readOnlyEndpoint_doesNotGetUserIdHeader флакает в общем прогоне
+
+**Симптом:** при `./mvnw verify` иногда падает один тест
+`OpenApiIT.readOnlyEndpoint_doesNotGetUserIdHeader` с
+`PathNotFoundException: Missing property in path
+$['paths']['/api/v1/topics']['get']['parameters']`. При запуске
+этого же теста в одиночку (`./mvnw failsafe:integration-test
+-Dit.test=OpenApiIT`) - все 5 тестов проходят.
+
+**Причина:** `springdoc-openapi 2.8.0` инициализирует
+schema лениво и зависит от порядка регистрации
+`HandlerMethodArgumentResolver`'ов. Когда `OpenApiIT` идёт
+после других IT, кеш context'а может быть переиспользован в
+состоянии где `@CurrentUser`-customizer (`OpenApiConfig`) уже
+применён и удалил `parameters` массив у read-only эндпоинта
+(там нет ни одного `@CurrentUser`-параметра, в результате
+оригинального `userId` query нет, и springdoc просто опускает
+ключ `parameters` целиком вместо пустого массива). JsonPath с
+filter не отличает "нет ключа" от "ключ есть, элементов нет".
+
+**Решение:** на MVP - принимаем как известный flake, не
+рефакторим. При повторе - перезапустить только этот тест в
+одиночку (он стабильно зелёный без cache poisoning).
+
+Если станет ежепрогонным:
+- либо изменить ассерт на `jsonPath("$.paths./api/v1/topics.get.parameters").doesNotExist()`
+  (терпимый к отсутствию ключа)
+- либо `@DirtiesContext` на `OpenApiIT` чтобы поднять свежий
+  context (дороже по времени)
+
+Зафиксировано в Сессии 21 при прогоне после миграции 17.
+
+---
+
 <!-- Добавлять новые ловушки сюда по мере их обнаружения -->

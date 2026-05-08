@@ -244,19 +244,68 @@ ImageRegion (выделенная область на image-странице)
 
 #### A. Парсинг внешнего источника (shamela)
 
+Реализуется через **официальное desktop-API** shamela
+(`dev.shamela.ws` для метаданных + `ready.shamela.ws` для
+бинарников), а **не** через HTML-скрапинг shamela.ws. Причина -
+shamela.ws под Cloudflare managed challenge (см. ADR-020), а
+desktop-канал прозрачен и стабилен.
+
 ```
-[пользователь] → POST /api/v1/library/imports/shamela
-                 body: { bookUrl: "https://shamela.ws/book/12345" }
-                       │
-[бэк] ImportService → парсит HTML страниц, извлекает structure
-                    → создаёт Book + Chapter[] + Page[]
-                    → сохраняет в БД
-                    → возвращает bookId
+[admin] POST /admin/shamela/sync-master
+                 │
+[бэк] ShamelaApiClient.fetchMasterMetadata(currentVersion)
+        ── GET dev.shamela.ws/api/v1/patches/master?version=N
+        → JSON { patch_url, version }
+                 │
+        ShamelaApiClient.downloadArchive(patch_url)
+        → master-{from}-{to}.zip (deflate, ~5MB)
+                 │
+[бэк] ShamelaArchiveExtractor → category.sqlite + author.sqlite
+                                + book.sqlite
+                 │
+[бэк] ShamelaMasterReader (sqlite-jdbc) → Stream<DTO>
+                                                │
+[бэк] ShamelaCategory/Author/BookDao
+        bulk upsert → lib_shamela_category/author/book
+                                                │
+        обновляет lib_shamela_sync_state.master_version
+
+[admin] POST /admin/shamela/import-book/{id}
+                 │
+[бэк] ShamelaApiClient.downloadArchive(
+        ready.shamela.ws/books-store/{id}-{major}.zip)
+        → {bookId}.zip (deflate, ~100KB)
+                 │
+[бэк] ShamelaBookReader → Stream<PageDTO>, Stream<TitleDTO>
+                                                │
+[бэк] ShamelaPage/TitleDao bulk upsert
+        → lib_shamela_page + lib_shamela_title
+                                                │
+[бэк] ShamelaToLibraryMapper.materialize(bookId)
+        → создаёт/обновляет:
+            - Authority через резолв по shamela_author.name
+            - lib_books (book_type=BOOK, metadata={shamela_book_id,
+              shamela_major_release, pdf_links})
+            - lib_chapters из shamela_title (parent-tree)
+            - lib_pages с text_content = shamela_page.content (raw HTML)
 ```
 
-Парсер - отдельный сервис (`ShamelaImportService`), который умеет
-конкретный сайт. Расширяемо: `QuranComImportService`,
-`SunnahComImportService` etc.
+Двухслойная архитектура (staging + target) в ADR-020:
+- `lib_shamela_*` таблицы - exact mirror транспортного формата
+  shamela. Здесь живёт `master_version`, tombstones (`deleted_at`),
+  audit-trail
+- `lib_books`/`authorities`/`lib_chapters`/`lib_pages` - целевая
+  доменная модель. Заполняется маппером. Здесь нет упоминания
+  shamela кроме как в `lib_books.metadata` jsonb
+
+PDF lazy через `GET /admin/shamela/book/{id}/pdf/{fileIndex}` -
+парсит `pdf_links.files[N]` из `lib_shamela_book`, качает
+`ready.shamela.ws/pdf{path}`. Не batch'им - 8500 книг ×
+~5MB = 40+GB не оправданы для MVP.
+
+Расширение в будущем: `QuranComImportService`,
+`SunnahComImportService` - тот же двухслойный паттерн (свои
+staging-таблицы + общий маппер в `lib_books/Authority`).
 
 #### B. Загрузка PDF/EPUB
 

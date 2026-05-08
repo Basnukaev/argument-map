@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260509-17-create-shamela-staging-tables" author="Abdula Basnukaev">
+        <comment>
+            Реализация Этапа 15.1 (ADR-020): staging-таблицы для интеграции с
+            shamela.ws через её desktop-API.
+
+            Архитектура двухслойная (см. ADR-020):
+              слой 1 - lib_shamela_* зеркалит транспортный формат shamela
+                       (категория, автор, книга, страница, заголовок главы,
+                       состояние синхронизации). Здесь живут данные ровно
+                       в той форме как пришли из API
+              слой 2 - lib_books / authorities (существуют с миграции 16 + 8)
+                       заполняются ShamelaToLibraryMapper'ом из shamela_*.
+                       Это наша целевая доменная модель
+
+            Решения для staging-схемы:
+              (1) PRIMARY KEY = id из shamela (BIGINT). Это позволяет
+                  использовать ON CONFLICT(id) DO UPDATE для bulk upsert
+                  при incremental sync без вторичного ключа
+
+              (2) deleted_at TIMESTAMPTZ вместо shamela-родного is_deleted
+                  TEXT '1'/'0'. Tombstone-семантика та же, но даёт точку
+                  во времени когда запись пришла как удалённая. На
+                  первоначальном bootstrap (master_version=0) deleted_at
+                  всегда NULL, заполняется при incremental sync
+
+              (3) shamela хранит много колонок как TEXT (category_id,
+                  author_id, type, date, printed, major/minor_release).
+                  Мы парсим их при ETL в типизированные колонки
+                  через SqliteValueParser. Так избегаем '99999' как
+                  "неизвестный год" и пустых строк в BIGINT-колонках
+
+              (4) pdf_links и extra_metadata - jsonb. shamela передаёт
+                  их как JSON-строки, у нас полноценный jsonb с
+                  GIN-индексом для возможных запросов в будущем
+
+              (5) lib_shamela_page и lib_shamela_title имеют составной
+                  PK (book_id, id). id уникален только в пределах
+                  конкретной книги (это shamela-soглашение). FK на
+                  lib_shamela_book с CASCADE - удаление книги уносит
+                  её содержимое
+
+              (6) lib_shamela_sync_state - singleton (PRIMARY KEY = 1
+                  с CHECK constraint). Хранит master_version для
+                  incremental sync. Стартовое значение 0 = "ничего
+                  не синхронизировано", первый sync пойдёт за полным
+                  snapshot. Insert в той же миграции
+
+              (7) Имена таблиц с префиксом lib_shamela_* потому что это
+                  staging внутри домена library. Симметрично lib_books и
+                  будущим lib_pdf_*, lib_quran_* источникам
+        </comment>
+        <sql>
+            CREATE TABLE lib_shamela_category (
+                id            BIGINT PRIMARY KEY,
+                name          TEXT NOT NULL,
+                display_order INTEGER,
+                deleted_at    TIMESTAMPTZ
+            );
+
+            CREATE TABLE lib_shamela_author (
+                id          BIGINT PRIMARY KEY,
+                name        TEXT NOT NULL,
+                biography   TEXT,
+                death_year  INTEGER,
+                deleted_at  TIMESTAMPTZ
+            );
+
+            CREATE TABLE lib_shamela_book (
+                id                BIGINT PRIMARY KEY,
+                name              TEXT NOT NULL,
+                category_id       BIGINT REFERENCES lib_shamela_category(id) ON DELETE SET NULL,
+                author_id         BIGINT REFERENCES lib_shamela_author(id) ON DELETE SET NULL,
+                type              SMALLINT,
+                publication_year  INTEGER,
+                is_printed        BOOLEAN,
+                major_release     INTEGER NOT NULL,
+                minor_release     INTEGER NOT NULL,
+                bibliography      TEXT,
+                hint              TEXT,
+                pdf_links         JSONB,
+                extra_metadata    JSONB,
+                imported_at       TIMESTAMPTZ,
+                deleted_at        TIMESTAMPTZ
+            );
+            CREATE INDEX idx_lib_shamela_book_category    ON lib_shamela_book(category_id);
+            CREATE INDEX idx_lib_shamela_book_author      ON lib_shamela_book(author_id);
+            CREATE INDEX idx_lib_shamela_book_pdf_gin     ON lib_shamela_book USING GIN (pdf_links);
+            CREATE INDEX idx_lib_shamela_book_imported_at ON lib_shamela_book(imported_at);
+
+            CREATE TABLE lib_shamela_page (
+                book_id       BIGINT NOT NULL REFERENCES lib_shamela_book(id) ON DELETE CASCADE,
+                id            INTEGER NOT NULL,
+                content       TEXT NOT NULL,
+                part          TEXT,
+                printed_page  TEXT,
+                number        TEXT,
+                services      TEXT,
+                PRIMARY KEY (book_id, id)
+            );
+
+            CREATE TABLE lib_shamela_title (
+                book_id    BIGINT NOT NULL REFERENCES lib_shamela_book(id) ON DELETE CASCADE,
+                id         INTEGER NOT NULL,
+                content    TEXT NOT NULL,
+                page_ref   TEXT,
+                parent_id  INTEGER,
+                PRIMARY KEY (book_id, id)
+            );
+            CREATE INDEX idx_lib_shamela_title_parent ON lib_shamela_title(book_id, parent_id);
+
+            CREATE TABLE lib_shamela_sync_state (
+                id              SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+                master_version  INTEGER NOT NULL DEFAULT 0,
+                last_synced_at  TIMESTAMPTZ
+            );
+            INSERT INTO lib_shamela_sync_state (id) VALUES (1);
+        </sql>
+        <rollback>
+            <sql>
+                DROP TABLE lib_shamela_sync_state;
+                DROP TABLE lib_shamela_title;
+                DROP TABLE lib_shamela_page;
+                DROP TABLE lib_shamela_book;
+                DROP TABLE lib_shamela_author;
+                DROP TABLE lib_shamela_category;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
