@@ -13,6 +13,231 @@
 
 ---
 
+## 2026-05-08 — Сессия 20 (backend) — Этап 14 Library MVP
+
+После платформенного pivot ADR-018 заложен фундамент - доменная
+модель библиотеки и базовые REST-эндпоинты. После этой сессии в
+системе можно создавать книги с метаданными, читать постранично,
+удалять каскадно. Это не читалка - frontend появится на Этапе 18.
+
+### Сделано
+
+5 коммитов (плюс 1 docs про темп сборок):
+
+1. `506f144` `docs: design spec для Этапа 14 Library MVP` -
+   полный design-doc в `docs/superpowers/specs/2026-05-08-library-mvp-design.md`
+   с доменной моделью, схемой миграции, REST-эндпоинтами, тестовой
+   стратегией и разбивкой на 4 подэтапа
+2. `6489b0e` `feat(backend): library liquibase migration 16` -
+   подэтап 14.a: миграция 16 с 4 таблицами `lib_books`/`lib_chapters`/
+   `lib_pages`/`lib_image_regions` + индексы + CHECK constraints +
+   ADR-019 формализован
+3. `f22e9c7` `feat(backend): library domain records and jdbc repositories` -
+   подэтап 14.b: 5 records (Book + BookType enum + Chapter + Page +
+   ImageRegion) + 4 JDBC repositories по паттерну SourceRepository +
+   30 IT-тестов через Testcontainers
+4. `0a3cf14` `docs: правило о темпе сборок и тестов` - feedback
+   зафиксирован в 4 местах документации (SESSION_START_PROMPT,
+   session-workflow, backend/CLAUDE.md, frontend/CLAUDE.md) -
+   не запускать verify/build после каждого мелкого изменения, только
+   по факту в конце фазы. Обновлено и в auto memory
+5. `3db5247` `feat(backend): library REST api - books and pages CRUD` -
+   подэтап 14.c: BookService + 3 composition records (BookDetail/
+   ChapterNode/PageDetail) + 3 exception классов + 8 web-DTO +
+   LibraryDtoMappers + BookController с 6 эндпоинтами + 32 IT
+   (15 service + 17 controller). Curl smoke на runtime :9090
+   подтверждает работу всех endpoint'ов
+6. `19e9017` `docs: ADR-019 формализация` - подэтап 14.d:
+   architecture.md дополнена разделом «Library», api-contract.md
+   получил полный раздел про library endpoints и новые error-коды,
+   glossary.md - термины Book/Chapter/Page/ImageRegion/BookType
+
+#### Подэтап 14.a: миграция 16
+
+Файл `20260508-16-create-library-tables.xml`. Один changeset
+создаёт все 4 таблицы (логически связанные, как revisions в
+миграции 11). Ключевые решения зафиксированы в ADR-019:
+- универсальный `Book` с `book_type` discriminator
+  (`QURAN`/`HADITH_COLLECTION`/`BOOK`/`ARTICLE`/`MANUSCRIPT`)
+  вместо отдельных таблиц для каждого типа. Симметрично
+  существующему `Source.source_type` (ADR-002)
+- jsonb metadata + GIN для тип-специфичных полей
+- `authority_id` опционален (Коран без автора), ON DELETE SET
+  NULL как в ADR-017 для Source
+- иерархия глав через self-FK `parent_chapter_id`
+- `Page.chapter_id` опционален (preface, индекс), SET NULL при
+  удалении главы
+- CHECK `lib_pages_content_present` гарантирует что страница
+  имеет хотя бы text_content или image_url
+- координаты `ImageRegion` нормализованные (0..1), CHECK bounds
+  `width > 0 AND ... AND x + width <= 1` гарантирует прямоугольник
+  внутри страницы
+
+`./mvnw verify` зелёный, миграция применилась без конфликтов
+с существующей схемой (163 IT прошли).
+
+#### Подэтап 14.b: domain + repositories + IT
+
+5 records в `library/domain/`, 4 repositories в `library/
+repository/` по паттерну `SourceRepository` (COLUMNS константа,
+ROW_MAPPER lambda, save/findById/findAll/deleteById). `BookRepository.
+findAll(query, type)` собирает SQL динамически с двумя опциональными
+фильтрами через `String.join`.
+
+4 IT-теста (30 кейсов): cascade-delete (book → chapters/pages/
+regions), SET NULL (authority delete, chapter delete), UNIQUE-violation
+на `(book_id, page_number)`, CHECK violations (empty page, page_number
+0, oversize region, negative coordinates), GIN-jsonb запросы.
+
+193 IT total после 14.b.
+
+#### Подэтап 14.c: service + REST
+
+`BookService` с 6 методами (createBook с валидацией authorityId
+через AuthorityRepository - cross-domain через service-фасад,
+listBooks с филь­трами, getBookWithChapters с построением дерева,
+deleteBook, listPages с default range 50, getPage с lazy regions).
+
+3 exception классов (BookNotFoundException → 404, PageNotFoundException
+→ 404, InvalidBookException → 422 зарезервирован) + patch
+GlobalExceptionHandler. 8 DTO в `library/web/dto/`. LibraryDtoMappers
+- локальный маппер с `jsonToString`/`jsonFromString` (изоляция
+домена, не лезу в общий DtoMappers).
+
+BookController с 6 эндпоинтами под `/api/v1/library/*`:
+- POST /books, GET /books?q=&type=, GET /books/{id}, DELETE /books/{id}
+- GET /books/{bookId}/pages?from=&to=, GET /pages/{id}
+
+15 ServiceIT + 17 ControllerIT. Curl-smoke с runtime на :9090
+проверил весь happy-path + 404 + фильтры + OpenAPI содержит все
+4 path. Bundle size бэка не меняется.
+
+225 IT total после 14.c.
+
+#### Подэтап 14.d: формализация документации
+
+architecture.md - раздел «Library» с описанием 4 таблиц и пакетной
+структуры. api-contract.md - полный раздел Library со всеми
+endpoints + новые error-коды. glossary.md - 5 новых терминов.
+
+ADR-019 принят в 14.a-коммите (`decisions.md`) - этот подэтап
+завершает формализацию.
+
+### Решения
+
+- **Сразу новая структура пакетов library/{domain,repository,
+  service,web}** для нового кода. Существующий argument-map код
+  плоско в корне - мигрируется по необходимости (strangler).
+  Зафиксировано в ADR-019
+- **Универсальный Book с discriminator + jsonb metadata** вместо
+  специальных таблиц для Корана/хадис-сборников. Если найдётся
+  паттерн доступа который трудно выразить через jsonb (например,
+  частый поиск аят по сура+аят с производительностью >GIN-индекс)
+  - выделим в отдельной миграции. На MVP - YAGNI
+- **`book_type` discriminator с пятью значениями сразу**
+  (QURAN/HADITH_COLLECTION/BOOK/ARTICLE/MANUSCRIPT) - покрывает
+  весь roadmap (Этапы 15-17). Расширение - просто добавить значение
+  в CHECK constraint
+- **Координаты ImageRegion нормализованные (0..1) а не пиксельные** -
+  убирает зависимость от dpi скана, регион можно рендерить на
+  любом разрешении
+- **CHECK lib_pages_content_present** - не разрешаем «пустую»
+  страницу. Это явно невалидно (что мы вообще храним?), лучше
+  упасть на INSERT чем потом обрабатывать NULL в обоих полях
+- **Декомпозиция 14.c на под-подэтапы** в working-memory (14.c.1
+  service, 14.c.2 web) - но финально один коммит, потому что
+  фронт-граница не нужна для отдельных atomic-подключений.
+  Альтернатива (два коммита) - больше работы handoff для
+  второстепенной выгоды
+- **AuthorityNotFoundException → 404** при невалидном authorityId
+  в createBook, не 422 invalid-book как в первоначальном spec.
+  Симметрично существующему - SourceService поступает так же.
+  Семантически чище: «авторитета с этим id не существует» = 404
+  на authority, а не «invalid book»
+- **Один ServiceIT и один ControllerIT для всех 6 endpoints**
+  вместо отдельных файлов на каждый endpoint - читаемость лучше,
+  setUp общий, тесты компактнее
+- **LibraryDtoMappers локальный**, не модифицирую общий DtoMappers -
+  сохраняет изоляцию домена. 5 строк дублирования (jsonFromString)
+  - приемлемая цена
+
+### Проблемы
+
+- **Memory правило про темп сборок** существовало в auto memory,
+  но не в проектной документации - sub-agents и future-claude
+  его не видят. По запросу пользователя зафиксировано в 4 местах
+  документации (SESSION_START_PROMPT, session-workflow, обоих
+  CLAUDE.md). Memory обновлена с пометкой что правило теперь и в
+  репе. Минус: дублирование одной идеи в 4 местах. Принимаем
+  потому что разные файлы читают разные тулы и сценарии
+- **Контекст подходит к лимиту** - сессия делает 5 backend-коммитов,
+  средний spec, ADR-019, 30+ IT. Закрываю на чистой границе:
+  весь Этап 14 закоммичен с зелёными тестами, документация
+  актуальна, следующий приоритет ясен (но содержит open question)
+- **Не обновлял `er-diagram.md`** - его не трогал в сессии,
+  потому что он касается argument-map graph-схемы. Library в
+  отдельной диаграмме потребует отдельной работы. Опционально
+  для следующей сессии
+
+### Следующий шаг
+
+**Сессия 21 - Этап 15 ИЛИ Этап 18** (есть open question, см. ниже).
+
+#### Open question (требует выбора Абдулы)
+
+Этап 14 закрывает фундамент бэкенда library. Дальше два пути с
+разной стратегией:
+
+**Вариант A - Этап 15 shamela parser**
+- Зачем: автоматический импорт классических трудов с shamela.ws
+  это главный долгосрочный путь наполнения библиотеки. Если он
+  работает - можно быстро (через парсер, а не руками) насытить
+  систему сотнями книг
+- Что делается: jsoup-парсер, ImportService, REST endpoint
+  `POST /api/v1/library/imports/shamela`, Authority-резолвинг,
+  IT с зафиксированной HTML-фикстурой
+- Преимущество: реальный контент в системе после Этапа 15
+- Недостаток: пользователь по-прежнему не видит UI - библиотеку
+  можно посмотреть только через curl/OpenAPI
+
+**Вариант B - Этап 18 frontend library + интеграция**
+- Зачем: без UI пользователь не чувствует что library работает.
+  Этот этап даёт визуальную проверку
+- Что делается: monorepo реструктуризация (apps/* + packages/*),
+  BookListPage, BookReader, CitationPicker, переключение
+  argument-map citation на CitationPicker
+- Преимущество: видимое свидетельство что library живёт
+- Недостаток: 18.a (monorepo restructure) большая работа,
+  сидеть в reorg перед заполнением контентом - skeptical
+
+**Моя рекомендация**: Этап 15 (shamela parser) первым. Аргументация:
+1. Если парсер не получится (shamela ToS, формат непредсказуемый,
+   качество данных) - **лучше узнать это сейчас**, до больших
+   инвестиций в frontend. Парсер может потребовать фундаментального
+   изменения схемы (например, отдельная таблица `shamela_pages` для
+   raw HTML)
+2. Парсер можно протестировать через curl - не требует frontend
+3. После Этапа 15 у нас будет реальная книга в БД, и Этап 18
+   будет визуально полезен сразу с первого pageView
+
+Альтернатива - параллельно Этап 18 запустить subagent. Для этого
+нужны два разработчика (или Абдула делает фронт пока Claude делает
+парсер). На MVP это overkill.
+
+**Жду решения Абдулы** в начале новой сессии перед стартом
+работы. Оба варианта валидны, ему виднее с UX-перспективы.
+
+#### Инфраструктура к Сессии 21
+
+- Postgres контейнер `argumentmap-postgres` healthy на :5432
+- Миграции 1-16 применены (16 после старта app или ./mvnw verify)
+- Backend завершён, dev user UUID `14561248-0bfd-4a62-8395-d40a6972182a`
+- Тестовая тема Мавлида ан-Наби `640a7ac7-2827-4b80-9893-dc7142f100e4`
+  (если ещё существует - проверить через GET /topics/{id})
+- 225 IT в проекте
+
+---
+
 ## 2026-05-08 — Сессия 19 (pivot) — ADR-018: переориентация в платформу
 
 После того как фронт-сторона ADR-017 была частично адаптирована

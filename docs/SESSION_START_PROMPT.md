@@ -136,7 +136,7 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
    которое требует обсуждения - тогда спрашиваешь точечно
 
 ══════════════════════════════════════════════
-ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-08 после Сессии 19 - платформенный pivot ADR-018)
+ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-08 после Сессии 20 - Этап 14 Library MVP закрыт)
 ══════════════════════════════════════════════
 
 ⚠️ **ВАЖНО**: проект пережил стратегический pivot - см. ADR-018 в
@@ -145,9 +145,11 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 студентов. Library (книги + цитирование) - фундамент. Прочитай:
 - `docs/vision.md` - что и зачем строим
 - `docs/architecture-platform.md` - как технически устроено целевое
-- `docs/decisions.md` ADR-018 - формальная запись pivot
-- `docs/roadmap.md` - закрыт Этап 13, добавлены Этапы 14-22
-  (library, Q&A, auth, прочее)
+- `docs/decisions.md` ADR-018 (pivot) и ADR-019 (доменный пакет library)
+- `docs/roadmap.md` - закрыты Этапы 13-14, активны 15-22
+  (shamela parser, PDF, OCR, frontend library, Q&A, auth)
+- `docs/superpowers/specs/2026-05-08-library-mvp-design.md` - design
+  spec под Этап 14, поможет понять как устроена library
 
 
 
@@ -186,21 +188,48 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
      перенесён top-right → bottom-right
 - **Сессия 19 backend + Сессия 19 frontend (частично): ADR-017
   трёхуровневая модель цитирования** -
-  - Бэк (Сессия 19, в working tree, **не закоммичен** - Абдула
-    решит как разбить): миграция 15 дропает `node_authorities`,
-    добавляет `sources.authority_id` + `node_sources.location`.
-    Удалены `Stance` enum, NodeAuthority/Repo/Service/Controller/DTO,
-    эндпоинты `/nodes/{id}/authorities`. ADR-017 принят
+  - Бэк закоммичен в `302f2be` `refactor(backend): ADR-017
+    объединение Source+Authority` (одним большим refactor): миграция
+    15 дропает `node_authorities`, добавляет `sources.authority_id`
+    + `node_sources.location`. Удалены `Stance` enum, NodeAuthority/
+    Repo/Service/Controller/DTO, эндпоинты `/nodes/{id}/authorities`
   - Фронт (Сессия 19, 4 коммита):
-    - `cb813da` - 13.a удаление AddAuthorityModal + secции «Авторитеты»,
+    - `cb813da` - 13.a удаление AddAuthorityModal + секции «Авторитеты»,
       минус 1031 строка
     - `61dae69` - 13.b секция «Цитаты» с трёхуровневой иерархией +
       скрытие для QUESTION + RTL для арабских цитат
     - `08505d4` - 13.c.1 поле location в AttachFields
     - docs - запись progress + Этап 13 в roadmap
-  - **Открыто на Сессию 20**: 13.c.2 author-picker в create-mode
-    AddSourceModal, 13.d пересоздать seed-мавлид под новую модель,
-    13.e.2 финальная документация. Бэк коммит делает Абдула
+  - **Этап 13 закрыт частично-достаточно**: 13.c.2 (author-picker)
+    и 13.d (seed-мавлид) wontfix - устаревают с library, см. ADR-018
+- **Сессия 19 (pivot): ADR-018 платформенный pivot** - 3 коммита:
+  - `0326eb0` `docs: ADR-018 + vision + architecture-platform +
+    README + roadmap reorganized` - новые `docs/vision.md` и
+    `docs/architecture-platform.md`, переписан корневой README,
+    roadmap получил Этапы 14-22
+  - `2b8d058` `docs: автономный режим работы Claude Code как
+    заместителя` - режим автономии в проекте, red lines, формат
+    эскалации
+- **Сессия 20 (бэк): Этап 14 Library MVP** - 5 коммитов + 1 docs:
+  - `506f144` `docs: design spec для Этапа 14 Library MVP` -
+    полный design-doc в `docs/superpowers/specs/`
+  - `6489b0e` `feat(backend): library liquibase migration 16` - 14.a
+    миграция 16 (lib_books/chapters/pages/image_regions с FK +
+    индексами + CHECK constraints) + ADR-019 принят
+  - `f22e9c7` `feat(backend): library domain records and jdbc
+    repositories` - 14.b: 5 records + 4 JDBC repositories по паттерну
+    SourceRepository + 30 IT через Testcontainers
+  - `0a3cf14` `docs: правило о темпе сборок и тестов` - feedback
+    зафиксирован в 4 местах документации (не запускать verify/
+    build после каждого мелкого изменения - только по факту в
+    конце фазы)
+  - `3db5247` `feat(backend): library REST api - books and pages
+    CRUD` - 14.c: BookService + 6 эндпоинтов + 8 DTO + LibraryDtoMappers
+    + BookController + 32 IT (15 service + 17 controller). Curl-smoke
+    подтверждает работу на runtime :9090
+  - `19e9017` `docs: ADR-019 формализация` - 14.d: architecture.md
+    + api-contract.md + glossary.md дополнены под library
+  - **Этап 14 закрыт целиком**, 225 IT в проекте
 - **Сессия 18 (Этап 12 целиком): привязка источников и авторитетов
   через UI** - 5 коммитов:
   12.a. NodeDetailsPanel секции "Источники"/"Авторитеты" - lazy-load
@@ -228,31 +257,33 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 - ADR-011-016 все приняты. В Этапе 12 ADR не делал - чистый UI
   поверх готового бэк-контракта
 
-ОТКРЫТО (по приоритету) - после ADR-018 платформенный pivot:
-0. **Этап 13 ЗАКРЫТ** (13.0/13.a/13.b/13.c.1 сделано, 13.c.2/13.d/
-   13.e.2 wontfix - устаревают с library, см. ADR-018)
-0.5. **Backend ADR-017 - закоммитить** (если ещё нет): миграция 15
-     + Source.authorityId + NodeSource.location + удаление
-     NodeAuthority/Stance + DTO/тестов. Один большой `refactor(backend)`
-     или серия по слоям - выбор Абдулы. См. git status backend/
-1. **Этап 14: Library MVP** - доменная модель (Book/Chapter/Page/
-   ImageRegion), миграция 16, JDBC repo, CRUD service+REST,
-   ADR-019 на доменный пакет library. Самый важный фундаментальный
-   этап
-2. **Этап 15: shamela parser** - jsoup-парсер shamela.ws,
+ОТКРЫТО (по приоритету) - после Этапа 14 Library MVP:
+
+0. **OPEN QUESTION для Абдулы (приоритет 1, требует решения)**:
+   что делать первым - Этап 15 shamela parser или Этап 18 frontend
+   library? Оба валидны:
+   - **Этап 15** даёт реальный контент (парсер shamela), но без
+     UI (curl/OpenAPI), узнаваем риски парсера до больших инвестиций
+   - **Этап 18** даёт визуальное свидетельство что library работает,
+     но 18.a (monorepo restructure) большая работа без реального
+     контента
+   - Моя рекомендация - **Этап 15 первым** (увидеть риски парсера
+     раньше; Этап 18 будет интереснее когда есть реальная книга
+     в БД). См. progress.md Сессия 20 → Следующий шаг → Open question
+1. **Этап 15: shamela parser** - jsoup-парсер shamela.ws,
    ImportService, REST endpoint `POST /api/v1/library/imports/shamela`,
    Authority-резолвинг. Главный путь автоматического импорта книг
+2. **Этап 18: Library frontend + интеграция с argument-map** -
+   monorepo реструктуризация (apps/argument-map, apps/library,
+   packages/shared-*), BookListPage, BookReader, CitationPicker,
+   переключение argument-map citation на CitationPicker
 3. **Этап 16: PDF/EPUB upload** - Apache Tika, MinIO для хранения
    исходников, page-by-page extraction
 4. **Этап 17: image-сканы + OCR** - Tess4j для арабского, ImageRegion
    API, async OCR pipeline
-5. **Этап 18: Library frontend + интеграция с argument-map** -
-   monorepo реструктуризация (apps/argument-map, apps/library,
-   packages/shared-*), BookListPage, BookReader, CitationPicker,
-   переключение argument-map citation на CitationPicker
-6. **Этап 19: Q&A приложение** - первое полностью новое поверх
+5. **Этап 19: Q&A приложение** - первое полностью новое поверх
    library. Валидация платформенности
-7. **Этап 20+: Auth, multi-tenancy, прочее**
+6. **Этап 20+: Auth, multi-tenancy, прочее**
 
 См. `docs/roadmap.md` для деталей всех этапов
 
@@ -451,18 +482,18 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 После прочтения 5+ файлов из START-OF-SESSION PROTOCOL начни ответ
 с короткого summary последнего состояния и предложения. Например:
 
-"вижу - последний раз Сессия 19 закрыла фронт-Этап 13 частично
-(13.0/13.a/13.b/13.c.1) + ADR-017 backend закоммичен + ADR-018
-платформенный pivot принят с зафиксированной документацией
-(vision/architecture-platform/обновлённые roadmap+README).
+"вижу - последний раз Сессия 20 закрыла Этап 14 Library MVP
+целиком (14.a миграция 16 + 14.b records/repositories + 14.c
+service+REST + 14.d документация). 6 коммитов backend, 225 IT
+зелёных, ADR-019 принят.
 
-В режиме автономии продолжаю с Этап 14 Library MVP - бэкенд
-доменная модель библиотеки. Начинаю с 14.a миграция 16
-(lib_books / lib_chapters / lib_pages / lib_image_regions).
-Открытый design-вопрос - схема Корана (universal Book vs
-специальный тип) - решу через ADR в момент кодирования."
+Открыто: выбор приоритета между Этапом 15 shamela parser и
+Этапом 18 frontend library + интеграция (см. ОТКРЫТО → Open
+question). Моя рекомендация - Этап 15 первым (увидеть риски
+парсера раньше). Что выбираешь, или начинаю с 15?"
 
-Жди подтверждение. После него - смело за работу.
+Жди ответа Абдулы на open question (это уровень его выбора,
+не тактическое решение). После выбора - смело за работу.
 ```
 
 ---
