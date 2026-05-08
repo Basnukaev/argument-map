@@ -9,7 +9,6 @@ import {
   Info,
   History,
   Quote,
-  Users,
   Trash2,
   Plus,
   Link as LinkIcon,
@@ -22,21 +21,13 @@ import { apiGetRaw, apiPatchRaw, apiDeleteRaw, ApiError } from '@/api/client';
 import { toast } from '@/stores/toastStore';
 import type { components } from '@/api/types';
 import { NODE_TYPE_TOKENS, type NodeType, type NodeStatus } from '@/utils/designTokens';
-import {
-  SOURCE_TYPE_LABEL,
-  STANCE_LABEL,
-  STANCE_BADGE_STYLES,
-  type Stance,
-} from '@/utils/attachmentTokens';
+import { SOURCE_TYPE_LABEL } from '@/utils/attachmentTokens';
 import AddSourceModal from './AddSourceModal';
-import AddAuthorityModal from './AddAuthorityModal';
 
 type NodeDto = components['schemas']['NodeResponse'];
 type RevisionDto = components['schemas']['RevisionResponse'];
 type SourceDto = components['schemas']['SourceResponse'];
-type AuthorityDto = components['schemas']['AuthorityResponse'];
 type NodeSourceDto = components['schemas']['NodeSourceResponse'];
-type NodeAuthorityDto = components['schemas']['NodeAuthorityResponse'];
 
 interface AttachmentsState<L, R> {
   links: L[];
@@ -49,18 +40,6 @@ type SourcesState =
   | { kind: 'loading' }
   | { kind: 'loaded'; data: AttachmentsState<NodeSourceDto, SourceDto> }
   | { kind: 'error'; message: string };
-
-type AuthoritiesState =
-  | { kind: 'not-loaded' }
-  | { kind: 'loading' }
-  | { kind: 'loaded'; data: AttachmentsState<NodeAuthorityDto, AuthorityDto> }
-  | { kind: 'error'; message: string };
-
-function avatarInitials(name?: string): string {
-  if (!name) return '·';
-  const parts = name.trim().split(/\s+/).slice(0, 2);
-  return parts.map((p) => p.charAt(0).toUpperCase()).join('') || '·';
-}
 
 type RevisionsState =
   | { kind: 'not-loaded' }
@@ -177,12 +156,7 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
   const [revisionsState, setRevisionsState] = useState<RevisionsState>({ kind: 'not-loaded' });
 
   const [sourcesState, setSourcesState] = useState<SourcesState>({ kind: 'not-loaded' });
-  const [authoritiesState, setAuthoritiesState] = useState<AuthoritiesState>({
-    kind: 'not-loaded',
-  });
-
   const [addSourceOpen, setAddSourceOpen] = useState(false);
-  const [addAuthorityOpen, setAddAuthorityOpen] = useState(false);
 
   async function loadSources() {
     if (!node.id) return;
@@ -202,27 +176,6 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
     }
   }
 
-  async function loadAuthorities() {
-    if (!node.id) return;
-    setAuthoritiesState({ kind: 'loading' });
-    try {
-      const [links, dictionary] = await Promise.all([
-        apiGetRaw<NodeAuthorityDto[]>(`/api/v1/nodes/${node.id}/authorities`),
-        apiGetRaw<AuthorityDto[]>(`/api/v1/authorities`),
-      ]);
-      const lookup = new Map<string, AuthorityDto>();
-      for (const a of dictionary) {
-        if (a.id) lookup.set(a.id, a);
-      }
-      setAuthoritiesState({ kind: 'loaded', data: { links, lookup } });
-    } catch (e: unknown) {
-      setAuthoritiesState({
-        kind: 'error',
-        message: errorMessage(e, 'Не удалось загрузить авторитетов'),
-      });
-    }
-  }
-
   async function detachSource(sourceId: string) {
     if (!node.id) return;
     if (sourcesState.kind !== 'loaded') return;
@@ -239,26 +192,6 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
       setSourcesState({
         kind: 'loaded',
         data: { ...sourcesState.data, links: previous },
-      });
-    }
-  }
-
-  async function detachAuthority(authorityId: string) {
-    if (!node.id) return;
-    if (authoritiesState.kind !== 'loaded') return;
-    const previous = authoritiesState.data.links;
-    const next = previous.filter((l) => l.authorityId !== authorityId);
-    setAuthoritiesState({
-      kind: 'loaded',
-      data: { ...authoritiesState.data, links: next },
-    });
-    try {
-      await apiDeleteRaw(`/api/v1/nodes/${node.id}/authorities/${authorityId}`);
-    } catch (e: unknown) {
-      toast.error(errorMessage(e, 'Не удалось отвязать авторитет'));
-      setAuthoritiesState({
-        kind: 'loaded',
-        data: { ...authoritiesState.data, links: previous },
       });
     }
   }
@@ -466,29 +399,6 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
           </Button>
         </PanelSection>
 
-        <PanelSection
-          icon={Users}
-          title="Авторитеты"
-          count={
-            authoritiesState.kind === 'loaded' ? authoritiesState.data.links.length : undefined
-          }
-          defaultOpen={false}
-          onFirstOpen={loadAuthorities}
-        >
-          <AuthoritiesContent state={authoritiesState} onDetach={detachAuthority} />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            icon={Plus}
-            onClick={() => setAddAuthorityOpen(true)}
-            disabled={!node.id}
-            className="mt-2 w-full justify-center"
-          >
-            Привязать авторитета
-          </Button>
-        </PanelSection>
-
         <section className="border-t border-slate-200">
           <button
             type="button"
@@ -569,14 +479,6 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
           onAttached={loadSources}
         />
       )}
-
-      {addAuthorityOpen && node.id && (
-        <AddAuthorityModal
-          nodeId={node.id}
-          onClose={() => setAddAuthorityOpen(false)}
-          onAttached={loadAuthorities}
-        />
-      )}
     </aside>
   );
 }
@@ -644,75 +546,6 @@ function SourcesContent({ state, onDetach }: SourcesContentProps) {
               <div className="mt-1 text-[11px] text-slate-500">{link.context}</div>
             )}
           </article>
-        );
-      })}
-    </div>
-  );
-}
-
-interface AuthoritiesContentProps {
-  state: AuthoritiesState;
-  onDetach: (authorityId: string) => void;
-}
-
-function AuthoritiesContent({ state, onDetach }: AuthoritiesContentProps) {
-  if (state.kind === 'not-loaded' || state.kind === 'loading') {
-    return <p className="text-[12px] text-slate-500">Загрузка</p>;
-  }
-  if (state.kind === 'error') {
-    return <p className="text-[12px] text-red-700">Ошибка: {state.message}</p>;
-  }
-  const { links, lookup } = state.data;
-  if (links.length === 0) {
-    return (
-      <p className="text-[12px] italic text-slate-500">
-        К узлу не привязано ни одного авторитета
-      </p>
-    );
-  }
-  return (
-    <div className="space-y-1.5">
-      {links.map((link) => {
-        const authority = link.authorityId ? lookup.get(link.authorityId) : undefined;
-        const stance: Stance = link.stance ?? 'NEUTRAL';
-        const stanceLabel = STANCE_LABEL[stance];
-        const stanceClass = STANCE_BADGE_STYLES[stance];
-        const name = authority?.name ?? '(удалён из справочника)';
-        const era = authority?.era;
-        const madhab = authority?.madhab;
-        const meta = [era, madhab].filter(Boolean).join(' · ');
-        return (
-          <div
-            key={link.authorityId}
-            className="group flex items-center gap-2 rounded-md py-1.5 transition-colors hover:bg-slate-50"
-          >
-            <span
-              className="grid h-7 w-7 place-items-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-700"
-              aria-hidden="true"
-            >
-              {avatarInitials(authority?.name)}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[12px] font-medium text-slate-800">{name}</div>
-              {meta && (
-                <div className="truncate font-mono text-[11px] text-slate-500">{meta}</div>
-              )}
-            </div>
-            <span
-              className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${stanceClass}`}
-              title={`Позиция: ${stanceLabel}`}
-            >
-              {stanceLabel}
-            </span>
-            <button
-              type="button"
-              aria-label="Отвязать авторитет"
-              onClick={() => link.authorityId && onDetach(link.authorityId)}
-              className="rounded p-1 text-slate-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
-            >
-              <Trash2 size={12} aria-hidden="true" />
-            </button>
-          </div>
         );
       })}
     </div>

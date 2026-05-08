@@ -68,22 +68,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/nodes/{nodeId}/authorities": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["list_3"];
-        put?: never;
-        post: operations["attach_1"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/edges": {
         parameters: {
             query?: never;
@@ -107,7 +91,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_4"];
+        get: operations["list_3"];
         put?: never;
         post: operations["create_4"];
         delete?: never;
@@ -244,22 +228,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/nodes/{nodeId}/authorities/{authorityId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["detach_1"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -292,6 +260,8 @@ export interface components {
             citation?: string;
             /** @enum {string} */
             reliability?: "SAHIH" | "HASAN" | "DAIF";
+            /** Format: uuid */
+            authorityId?: string;
             metadata?: components["schemas"]["JsonNode"];
         };
         JsonNode: Record<string, never>;
@@ -304,6 +274,8 @@ export interface components {
             citation?: string;
             /** @enum {string} */
             reliability?: "SAHIH" | "HASAN" | "DAIF";
+            /** Format: uuid */
+            authorityId?: string;
             metadata?: components["schemas"]["JsonNode"];
             /** Format: date-time */
             createdAt?: string;
@@ -341,6 +313,7 @@ export interface components {
             sourceId: string;
             quote?: string;
             context?: string;
+            location?: string;
         };
         NodeSourceResponse: {
             /** Format: uuid */
@@ -349,22 +322,7 @@ export interface components {
             sourceId?: string;
             quote?: string;
             context?: string;
-            /** Format: date-time */
-            createdAt?: string;
-        };
-        AttachAuthorityRequest: {
-            /** Format: uuid */
-            authorityId: string;
-            /** @enum {string} */
-            stance: "HOLDS" | "OPPOSES" | "NEUTRAL";
-        };
-        NodeAuthorityResponse: {
-            /** Format: uuid */
-            nodeId?: string;
-            /** Format: uuid */
-            authorityId?: string;
-            /** @enum {string} */
-            stance?: "HOLDS" | "OPPOSES" | "NEUTRAL";
+            location?: string;
             /** Format: date-time */
             createdAt?: string;
         };
@@ -626,54 +584,6 @@ export interface operations {
             };
         };
     };
-    list_3: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                nodeId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["NodeAuthorityResponse"][];
-                };
-            };
-        };
-    };
-    attach_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                nodeId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AttachAuthorityRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["NodeAuthorityResponse"];
-                };
-            };
-        };
-    };
     create_3: {
         parameters: {
             query?: never;
@@ -701,7 +611,7 @@ export interface operations {
             };
         };
     };
-    list_4: {
+    list_3: {
         parameters: {
             query?: {
                 q?: string;
@@ -1019,27 +929,6 @@ export interface operations {
             path: {
                 nodeId: string;
                 sourceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    detach_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                nodeId: string;
-                authorityId: string;
             };
             cookie?: never;
         };
