@@ -13,7 +13,7 @@
 
 ---
 
-## 2026-05-09 — Сессия 21 (backend) — Этап 15.1 Library shamela staging-схема + полный pivot плана импорта
+## 2026-05-09 — Сессия 21 (backend) — Этапы 15.1 + 15.2 Library shamela staging-схема + ApiClient + Extractor + полный pivot плана импорта
 
 Самая длинная экспедиция в неизвестность за всю историю проекта.
 Начали с jsoup-парсера shamela.ws по плану из Сессии 20, упёрлись в
@@ -28,9 +28,12 @@ staging-схема + ADR + актуализация документации.
 
 ### Сделано
 
-1 коммит:
+4 коммита:
 
 `507e0ba` `feat(backend): этап 15.1 - shamela staging-схема + ADR-020`
+`9d6c63d` `docs: handoff Сессии 21 - этап 15.1 закрыт, продолжение в 15.2`
+`f511b6a` `feat(backend): этап 15.2 - shamela api client + archive extractor`
+`520cbf5` `fix(backend): разрешить Basic auth для HTTPS-туннеля прокси`
 
 - **Миграция 17** `20260509-17-create-shamela-staging-tables.xml` -
   6 таблиц `lib_shamela_*`: category/author/book/page/title/sync_state.
@@ -138,61 +141,152 @@ flaresolverr с Chromium 120 не пробивает. v3.4.6 имеет регр
   Закрываю сессию на чистой границе - 15.1 закоммичен. 15.2-15.6
   в следующих сессиях
 
+#### Этап 15.2 (ApiClient + Extractor) - закрыт после handoff'a
+
+После 15.1 продолжил в той же сессии (юзер дал указание - контекст
+позволяет). Подэтап 15.2 закрыт в 2 коммита:
+
+`f511b6a` `feat(backend): этап 15.2 - shamela api client + archive extractor`
+
+Создано 12 файлов (688 строк):
+- **pom.xml** + `org.xerial:sqlite-jdbc:3.45.3.0` + `<excludedGroups>live</excludedGroups>`
+  в maven-failsafe-plugin для исключения @Tag("live") тестов из
+  обычного verify
+- **application.yml**: блок `shamela:` с api-key (env-substitution
+  через SHAMELA_API_KEY с публичным дефолтом), metadata-host,
+  files-host, download-dir, request-timeout-seconds, connect-timeout-seconds
+- **library/shamela/api/**:
+  - `ShamelaApiProperties` - @ConfigurationProperties("shamela") record
+  - `ShamelaHttpClientConfig` - @Configuration с HttpClient-bean'ом
+    который автоматически подхватывает HTTPS_PROXY/SHAMELA_PROXY
+    env-vars (Java HttpClient.newHttpClient() сам читает только
+    -Dhttps.proxyHost JVM-property, env игнорирует). Поддерживается
+    user:pass@host:port - Authenticator вместо Chromium-style URL
+    (Java URL такие не принимает)
+  - `ShamelaApiClient` - 4 метода через java.net.http.HttpClient:
+    `fetchMasterMetadata`, `fetchBookMetadata`, `downloadArchive`,
+    `downloadPdf`. api_key маскируется в логах URI (api_key=***)
+  - `ShamelaApiException` - runtime-exception для ошибок API
+  - `dto/MasterMetadata`, `BookMetadata` - records с
+    @JsonIgnoreProperties для forward-compat
+- **library/shamela/etl/**:
+  - `ShamelaArchiveExtractor` - распаковщик zip с защитой от
+    Zip Slip path-traversal
+  - `ShamelaArchiveException`
+- **Тесты**:
+  - `ShamelaArchiveExtractorTest` - 6 unit-тестов (master-like zip,
+    book-like single sqlite, missing dest, override existing, zip slip
+    защита, missing zip). Все проходят за 0.195с
+  - `ShamelaApiClientLiveIT` - @Tag("live"), требует реальный
+    интернет до dev.shamela.ws. Исключён из обычного verify через
+    excludedGroups в pom
+
+`520cbf5` `fix(backend): разрешить Basic auth для HTTPS-туннеля прокси`
+
+При первом прогоне ShamelaApiClientLiveIT через corporate-прокси
+proxys.io получили `HTTP 407 Proxy Authentication Required` несмотря
+на правильный Authenticator. Причина: Java HttpClient с 8u11+
+блокирует Basic auth через CONNECT-метод по умолчанию через
+системное свойство `jdk.http.auth.tunneling.disabledSchemes=Basic`.
+Без снятия этого блока Authenticator не вызывается на 407 challenge.
+
+Fix: `System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "")`
+в `ShamelaHttpClientConfig.applyProxy()` перед созданием HttpClient.
+Глобально на JVM, но безопасно (Basic через CONNECT защищён TLS).
+
+После fix'а live-тест прошёл оба сценария:
+- ✓ fetchMasterMetadata: реальный JSON от dev.shamela.ws за 2.4с,
+  получен `master-0-1261.zip` URL (master version=1261 как в
+  reverse-engineering записях)
+- ✓ downloadArchive: реальный zip 5MB+ скачан с CDN за 5.8с, проверена
+  zip-сигнатура PK\003\004
+
+**Это первое end-to-end подтверждение что shamela API доступна и
+работает через нашу инфраструктуру.** В следующих подэтапах
+(15.3 SQLite readers + 15.4 import service) будем парсить и
+разворачивать содержимое в lib_shamela_*.
+
+Зафиксирована новая gotcha `Java HttpClient блокирует Basic auth для
+HTTPS-прокси по умолчанию` - редкая Java-ловушка которую полезно знать
+будущим сессиям при добавлении любого HTTP-клиента работающего через
+corporate-прокси.
+
 ### Следующий шаг
 
-**Сессия 22 - подэтап 15.2: ShamelaApiClient + ShamelaArchiveExtractor.**
+**Сессия 22 - подэтап 15.3: SQLite readers + DAO.**
+
+Все архитектурные решения уже зафиксированы в ADR-020 и подтверждены
+прогоном live-IT в Сессии 21 (см. выше). Контракт API доступен,
+остаётся развернуть содержимое SQLite в наши postgres-таблицы.
 
 Конкретные файлы для создания:
-- `backend/pom.xml` - добавить `<dependency>org.xerial:sqlite-jdbc:3.45.3.0</dependency>`
-- `backend/src/main/resources/application.yml` - блок `shamela:`
-  ```yaml
-  shamela:
-    api-key: ${SHAMELA_API_KEY:7b9524-8fc30c-e6241o-a0167e-a6d013}
-    metadata-host: dev.shamela.ws
-    files-host: ready.shamela.ws
-    download-dir: /tmp/shamela
-    request-timeout-seconds: 60
-  ```
-- `library/shamela/api/ShamelaApiClient.java` - 4 метода:
-  - `MasterMetadata fetchMasterMetadata(int currentVersion)` - GET
-    `dev.shamela.ws/api/v1/patches/master?api_key=...&version=N`,
-    возвращает `{ patchUrl, version }`
-  - `BookMetadata fetchBookMetadata(long bookId, int majorRelease, int minorRelease)`
-    - GET `dev.shamela.ws/api/v1/patches/book-updates/{id}?api_key=...&major_release=X&minor_release=Y`,
-    возвращает `{ majorReleaseUrl, majorRelease, minorRelease }`
-  - `Path downloadArchive(URI url, Path targetDir)` - скачивает zip
-    стримом в файл, возвращает path. URL приходит уже с api_key
-    либо без него (ready.shamela.ws не требует)
-  - `Path downloadPdf(String relativePath, Path targetDir)` - GET
-    `ready.shamela.ws/pdf{path}`, без api_key
-  - HTTP через `java.net.http.HttpClient.newBuilder().connectTimeout(...).build()`
-  - JSON через Jackson (есть в Spring Boot)
-- `library/shamela/api/ShamelaApiProperties.java` - `@ConfigurationProperties("shamela")`
-- `library/shamela/etl/ShamelaArchiveExtractor.java` - метод
-  `Path extract(Path zipFile, Path destDir)` через `java.util.zip.ZipInputStream`
-- `library/shamela/api/dto/MasterMetadata.java`, `BookMetadata.java`
-  - records под JSON-ответы
-- Юнит-тесты:
-  - `ShamelaArchiveExtractorTest` - golden zip в `src/test/resources/library/shamela/`,
-    проверка извлечения трёх SQLite (`category.sqlite`, `author.sqlite`,
-    `book.sqlite`) и одного `{id}.sqlite` для книги
-- IT с тегом `@Tag("live")` (не запускается в обычном `verify`):
-  - `ShamelaApiClientLiveIT` - `fetchMasterMetadata(0)` возвращает
-    `version > 0` и непустой `patchUrl`
-- Документация: api-contract.md пока не трогаем (admin endpoints
-  идут в 15.6)
 
-**Не делать в 15.2:**
-- DAO и SQLite readers (это 15.3)
-- Сервисы оркестрации (15.4)
-- Mapper в lib_books (15.5)
-- REST endpoints (15.6)
+- `library/shamela/etl/SqliteValueParser.java` - утилита для null-safe
+  TEXT→Long/Integer/Boolean. shamela хранит все колонки кроме `id`
+  как TEXT, при парсинге надо обрабатывать:
+  - пустую строку `""` → null
+  - `"99999"` (магическое значение shamela "год неизвестен") → null
+    в `publication_year`
+  - `"0"`/`"1"` → false/true для `is_printed`
+  - валидные числа → Long/Integer
+  Юнит-тесты на edge cases с AssertJ
 
-**Контрольная проверка после 15.2:**
-- `./mvnw verify` зелёный (все 225+ IT)
-- Юнит-тест extractor проходит на golden zip
-- Live-тест отдельно (`-Dgroups=live`) проходит против реальной shamela
-  (требует интернет)
+- `library/shamela/etl/ShamelaMasterReader.java` - открывает три
+  SQLite файла из распакованного master-архива
+  (`category.sqlite`, `author.sqlite`, `book.sqlite`) и возвращает
+  потоки DTO. Использует try-with-resources на Connection через
+  `DriverManager.getConnection("jdbc:sqlite:" + path)`. Закрывает
+  ресурсы после полного чтения. DTO внутренние records:
+  `ShamelaCategoryRow`, `ShamelaAuthorRow`, `ShamelaBookRow`.
+  pdf_links и metadata - JsonNode (через Jackson)
+
+- `library/shamela/etl/ShamelaBookReader.java` - открывает
+  `{bookId}.sqlite`, возвращает Stream<PageRow> и Stream<TitleRow>.
+  Тоже через DriverManager. Записи имеют составной ключ
+  `(book_id, id)` после маппинга
+
+- `library/shamela/repository/`:
+  - `ShamelaCategoryDao` - bulk upsert через
+    `INSERT INTO lib_shamela_category (id, name, display_order, deleted_at)
+     VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET ...`
+    с батчами 1000 строк через `JdbcTemplate.batchUpdate`
+  - `ShamelaAuthorDao` - аналогично
+  - `ShamelaBookDao` - аналогично + JSONB-параметры (pdf_links,
+    extra_metadata) через `PGobject`
+  - `ShamelaPageDao` - bulk upsert (составной PK)
+  - `ShamelaTitleDao` - bulk upsert (составной PK)
+  - `ShamelaSyncStateDao` - getMasterVersion()/updateMasterVersion(int).
+    Singleton pattern: всегда одна строка с id=1
+
+Тесты:
+- `SqliteValueParserTest` - юнит, edge cases (null, "", "0", "1",
+  "99999", invalid number), без Spring
+- `ShamelaMasterReaderTest` - юнит на временный SQLite-файл
+  (создаётся через DriverManager в @TempDir, заполняется парой
+  строк, читается). Проверка stream возвращает корректные DTO
+- `Shamela{Category,Author,Book,Page,Title,SyncState}DaoIT` -
+  Testcontainers postgres (как BookRepositoryIT в library):
+  bulk upsert работает, ON CONFLICT обновляет, deleted_at
+  устанавливается, JSONB парсится корректно
+
+**Не делать в 15.3:**
+- ShamelaImportService (это 15.4 - оркестрация шагов:
+  fetchMaster → downloadArchive → extract → readMaster → DAO upsert)
+- ShamelaToLibraryMapper (это 15.5)
+- REST endpoints (это 15.6)
+
+**Контрольная проверка после 15.3:**
+- `./mvnw verify` зелёный (225+ IT, плюс новые DAO IT)
+- SqliteValueParser unit-тесты зелёные
+- Опционально: `mvn failsafe:integration-test -Dtest=ShamelaApiClientLiveIT
+  -DexcludedGroups= -Dgroups=live` всё ещё проходит (sanity-check
+  что HTTP-уровень не сломан)
+
+**Зависимости которые уже есть** (благодаря 15.2):
+- `org.xerial:sqlite-jdbc:3.45.3.0` в pom
+- `ShamelaArchiveExtractor` готов
+- `ShamelaApiClient.downloadArchive(URI, Path)` готов
+- `ShamelaApiProperties.downloadDir()` для target-каталога ETL
 
 ---
 

@@ -427,13 +427,15 @@ challenge неразрешимым в текущей конфигурации. �
       staging-таблицы. Двухслойная схема: staging (зеркало
       shamela API) + целевая модель `lib_books`/`Authority`
       (заполняется маппером)
-- [ ] **15.2: ShamelaApiClient + ShamelaArchiveExtractor** -
-      `java.net.http.HttpClient` (4 метода: fetchMasterMetadata,
-      fetchBookMetadata, downloadArchive, downloadPdf), распаковка
-      через `java.util.zip.ZipInputStream`. Конфиг в
-      `application.yml`: `shamela.api-key`, `shamela.metadata-host`,
-      `shamela.files-host`, `shamela.download-dir`. Зависимость
-      `sqlite-jdbc 3.45.3.0`
+- [x] **15.2: ShamelaApiClient + ShamelaArchiveExtractor** -
+      `java.net.http.HttpClient` (4 метода), распаковка через
+      `java.util.zip.ZipInputStream` с защитой от Zip Slip.
+      Конфиг в `application.yml`: блок `shamela:`. `sqlite-jdbc 3.45.3.0`
+      добавлен. `ShamelaHttpClientConfig` подхватывает HTTPS_PROXY
+      из env с fix `jdk.http.auth.tunneling.disabledSchemes` для
+      Basic-auth через CONNECT. Live-IT @Tag("live") (исключён из
+      обычного verify) подтверждает работающий end-to-end pipeline
+      через corporate-прокси: master-0-1261.zip скачан с PK-сигнатурой
 - [ ] **15.3: SQLite readers + DAO** - `ShamelaMasterReader`
       потоково читает category/author/book.sqlite, `ShamelaBookReader`
       открывает `{bookId}.sqlite` (page+title). `SqliteValueParser`
