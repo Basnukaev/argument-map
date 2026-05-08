@@ -73,6 +73,12 @@ public class ShamelaHttpClientConfig {
         if (userInfo == null || !userInfo.contains(":")) {
             return;
         }
+        // Java HttpClient с 8u11+ блокирует Basic auth для HTTPS-туннеля
+        // (CONNECT method) по умолчанию через jdk.http.auth.tunneling.disabledSchemes=Basic.
+        // Без этого Authenticator не вызывается на 407 challenge и запрос фейлится.
+        // Снимаем блок именно для tunneling - это глобально на JVM, но безопасно
+        // (Basic через TLS защищён шифрованием канала).
+        System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "");
         String[] parts = userInfo.split(":", 2);
         String user = URLDecoder.decode(parts[0], StandardCharsets.UTF_8);
         char[] pass = URLDecoder.decode(parts[1], StandardCharsets.UTF_8).toCharArray();

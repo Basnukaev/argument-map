@@ -424,6 +424,43 @@ animation её обрезает. Тогда варианты 1 или 2. У на
 
 ---
 
+## Java HttpClient блокирует Basic auth для HTTPS-прокси по умолчанию
+
+**Симптом:** запрос через `java.net.http.HttpClient` к HTTPS-сайту
+через прокси с авторизацией возвращает `HTTP 407 Proxy Authentication
+Required` несмотря на правильно установленный
+{@link java.net.Authenticator}. Authenticator не вызывается при 407
+challenge. Тот же прокси с теми же кредами успешно работает через
+curl/python.
+
+**Причина:** с Java 8u11+ существует
+`jdk.http.auth.tunneling.disabledSchemes=Basic` (системное свойство).
+Это блокирует Basic-auth для HTTPS-туннеля (метод CONNECT) -
+исторически из соображений безопасности (без TLS до прокси креды
+видны как plaintext в первой фазе CONNECT). Но во многих корпоративных
+environments прокси требует именно Basic auth.
+
+**Решение:** перед созданием `HttpClient` снять блок:
+
+```java
+System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "");
+```
+
+После этого Authenticator будет вызываться на 407 challenge.
+Альтернатива - передать через JVM args `-Djdk.http.auth.tunneling.disabledSchemes=`.
+
+**Безопасность:** Basic через CONNECT-туннель защищён шифрованием
+TLS-канала, так что в корпоративных env допустимо. В open-internet
+сценариях лучше использовать прокси с digest или другим методом
+auth.
+
+В проекте: `library.shamela.api.ShamelaHttpClientConfig.applyProxy()`
+вызывает `setProperty` если в `HTTPS_PROXY`/`SHAMELA_PROXY` есть
+`user:pass@`. Зафиксировано в Сессии 21 при прогоне `ShamelaApiClientLiveIT`
+через corporate-прокси `proxys.io`.
+
+---
+
 ## OpenApiIT.readOnlyEndpoint_doesNotGetUserIdHeader флакает в общем прогоне
 
 **Симптом:** при `./mvnw verify` иногда падает один тест
