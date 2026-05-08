@@ -11,6 +11,7 @@ import {
   Quote,
   Trash2,
   Plus,
+  User as UserIcon,
   Link as LinkIcon,
   type LucideIcon,
 } from 'lucide-react';
@@ -27,19 +28,34 @@ import AddSourceModal from './AddSourceModal';
 type NodeDto = components['schemas']['NodeResponse'];
 type RevisionDto = components['schemas']['RevisionResponse'];
 type SourceDto = components['schemas']['SourceResponse'];
+type AuthorityDto = components['schemas']['AuthorityResponse'];
 type NodeSourceDto = components['schemas']['NodeSourceResponse'];
 
-interface AttachmentsState<L, R> {
-  links: L[];
-  /** карта id → entry из справочника (имя/тип источника) */
-  lookup: Map<string, R>;
+interface CitationsData {
+  links: NodeSourceDto[];
+  /** sourceId → SourceDto - название/тип/citation/authorityId */
+  sourceLookup: Map<string, SourceDto>;
+  /** authorityId → AuthorityDto - имя/эра/мазхаб (нужно для трёхуровневой
+   * модели ADR-017: Source.authorityId → Authority) */
+  authorityLookup: Map<string, AuthorityDto>;
 }
 
 type SourcesState =
   | { kind: 'not-loaded' }
   | { kind: 'loading' }
-  | { kind: 'loaded'; data: AttachmentsState<NodeSourceDto, SourceDto> }
+  | { kind: 'loaded'; data: CitationsData }
   | { kind: 'error'; message: string };
+
+/** Содержит ли строка арабские символы - триггер для RTL/naskh-рендера.
+ * Покрывает блоки Unicode: Arabic, Arabic Supplement, Arabic Extended-A,
+ * Arabic Presentation Forms-A/B (huruf, harakat, formed/joined glyphs). */
+// eslint-disable-next-line no-irregular-whitespace -- U+FEFF в Arabic Presentation Forms-B
+const ARABIC_SCRIPT = /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/;
+
+function hasArabicScript(text?: string): boolean {
+  if (!text) return false;
+  return ARABIC_SCRIPT.test(text);
+}
 
 type RevisionsState =
   | { kind: 'not-loaded' }
@@ -162,17 +178,25 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
     if (!node.id) return;
     setSourcesState({ kind: 'loading' });
     try {
-      const [links, dictionary] = await Promise.all([
+      const [links, sources, authorities] = await Promise.all([
         apiGetRaw<NodeSourceDto[]>(`/api/v1/nodes/${node.id}/sources`),
         apiGetRaw<SourceDto[]>(`/api/v1/sources`),
+        apiGetRaw<AuthorityDto[]>(`/api/v1/authorities`),
       ]);
-      const lookup = new Map<string, SourceDto>();
-      for (const src of dictionary) {
-        if (src.id) lookup.set(src.id, src);
+      const sourceLookup = new Map<string, SourceDto>();
+      for (const src of sources) {
+        if (src.id) sourceLookup.set(src.id, src);
       }
-      setSourcesState({ kind: 'loaded', data: { links, lookup } });
+      const authorityLookup = new Map<string, AuthorityDto>();
+      for (const a of authorities) {
+        if (a.id) authorityLookup.set(a.id, a);
+      }
+      setSourcesState({
+        kind: 'loaded',
+        data: { links, sourceLookup, authorityLookup },
+      });
     } catch (e: unknown) {
-      setSourcesState({ kind: 'error', message: errorMessage(e, 'Не удалось загрузить источники') });
+      setSourcesState({ kind: 'error', message: errorMessage(e, 'Не удалось загрузить цитаты') });
     }
   }
 
@@ -188,7 +212,7 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
     try {
       await apiDeleteRaw(`/api/v1/nodes/${node.id}/sources/${sourceId}`);
     } catch (e: unknown) {
-      toast.error(errorMessage(e, 'Не удалось отвязать источник'));
+      toast.error(errorMessage(e, 'Не удалось отвязать цитату'));
       setSourcesState({
         kind: 'loaded',
         data: { ...sourcesState.data, links: previous },
@@ -378,26 +402,28 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
           </dl>
         </PanelSection>
 
-        <PanelSection
-          icon={Quote}
-          title="Источники"
-          count={sourcesState.kind === 'loaded' ? sourcesState.data.links.length : undefined}
-          defaultOpen={false}
-          onFirstOpen={loadSources}
-        >
-          <SourcesContent state={sourcesState} onDetach={detachSource} />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            icon={Plus}
-            onClick={() => setAddSourceOpen(true)}
-            disabled={!node.id}
-            className="mt-2 w-full justify-center"
+        {nodeType !== 'QUESTION' && (
+          <PanelSection
+            icon={Quote}
+            title="Цитаты"
+            count={sourcesState.kind === 'loaded' ? sourcesState.data.links.length : undefined}
+            defaultOpen={false}
+            onFirstOpen={loadSources}
           >
-            Привязать источник
-          </Button>
-        </PanelSection>
+            <CitationsContent state={sourcesState} onDetach={detachSource} />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              icon={Plus}
+              onClick={() => setAddSourceOpen(true)}
+              disabled={!node.id}
+              className="mt-2 w-full justify-center"
+            >
+              Привязать цитату
+            </Button>
+          </PanelSection>
+        )}
 
         <section className="border-t border-slate-200">
           <button
@@ -483,35 +509,44 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
   );
 }
 
-interface SourcesContentProps {
+interface CitationsContentProps {
   state: SourcesState;
   onDetach: (sourceId: string) => void;
 }
 
-function SourcesContent({ state, onDetach }: SourcesContentProps) {
+function CitationsContent({ state, onDetach }: CitationsContentProps) {
   if (state.kind === 'not-loaded' || state.kind === 'loading') {
     return <p className="text-[12px] text-slate-500">Загрузка</p>;
   }
   if (state.kind === 'error') {
     return <p className="text-[12px] text-red-700">Ошибка: {state.message}</p>;
   }
-  const { links, lookup } = state.data;
+  const { links, sourceLookup, authorityLookup } = state.data;
   if (links.length === 0) {
     return (
       <p className="text-[12px] italic text-slate-500">
-        К узлу не привязано ни одного источника
+        К узлу не привязано ни одной цитаты
       </p>
     );
   }
   return (
     <div className="space-y-2">
       {links.map((link) => {
-        const source = link.sourceId ? lookup.get(link.sourceId) : undefined;
+        const source = link.sourceId ? sourceLookup.get(link.sourceId) : undefined;
         const sourceType = source?.sourceType;
         const kindLabel = sourceType ? SOURCE_TYPE_LABEL[sourceType] : 'источник';
         const title = source?.title ?? '(удалён из справочника)';
         const citation = source?.citation;
         const quote = link.quote;
+        const location = link.location;
+        const context = link.context;
+        const authority = source?.authorityId
+          ? authorityLookup.get(source.authorityId)
+          : undefined;
+        const authorMeta = authority
+          ? [authority.era, authority.madhab].filter(Boolean).join(' · ')
+          : undefined;
+        const isRtl = hasArabicScript(quote);
         return (
           <article
             key={link.sourceId}
@@ -525,7 +560,7 @@ function SourcesContent({ state, onDetach }: SourcesContentProps) {
                 <LinkIcon size={12} className="text-slate-400" aria-hidden="true" />
                 <button
                   type="button"
-                  aria-label="Отвязать источник"
+                  aria-label="Отвязать цитату"
                   onClick={() => link.sourceId && onDetach(link.sourceId)}
                   className="rounded p-1 text-slate-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
                 >
@@ -533,17 +568,40 @@ function SourcesContent({ state, onDetach }: SourcesContentProps) {
                 </button>
               </div>
             </div>
-            <div className="text-[12px] font-semibold text-slate-800">{title}</div>
-            {citation && (
-              <div className="mt-0.5 font-mono text-[11px] text-slate-500">{citation}</div>
+
+            {authority && (
+              <div className="mb-1.5 flex items-center gap-1.5 text-[11px]">
+                <UserIcon size={11} className="text-slate-400" aria-hidden="true" />
+                <span className="font-medium text-slate-700">{authority.name}</span>
+                {authorMeta && (
+                  <span className="font-mono text-[10px] text-slate-500">· {authorMeta}</span>
+                )}
+              </div>
             )}
+
+            <div className="text-[12px] font-semibold text-slate-800">{title}</div>
+
+            {(citation || location) && (
+              <div className="mt-0.5 font-mono text-[11px] text-slate-500">
+                {citation}
+                {citation && location && ' · '}
+                {location && <span title="место в источнике">{location}</span>}
+              </div>
+            )}
+
             {quote && (
-              <div className="mt-1 border-l-2 border-slate-300 pl-2 text-[12px] italic leading-relaxed text-slate-600">
+              <div
+                dir={isRtl ? 'rtl' : 'ltr'}
+                className={`mt-1 border-l-2 border-slate-300 pl-2 text-[12px] italic leading-relaxed text-slate-600 ${
+                  isRtl ? 'font-serif text-[13px] not-italic leading-loose' : ''
+                }`}
+              >
                 «{quote}»
               </div>
             )}
-            {link.context && (
-              <div className="mt-1 text-[11px] text-slate-500">{link.context}</div>
+
+            {context && (
+              <div className="mt-1 text-[11px] text-slate-500">{context}</div>
             )}
           </article>
         );

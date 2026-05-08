@@ -246,8 +246,9 @@ describe('NodeDetailsPanel', () => {
     expect(await screen.findByText(/Нет такого узла/)).toBeInTheDocument();
   });
 
-  describe('секция Источники', () => {
+  describe('секция Цитаты', () => {
     const SOURCE_ID = '22222222-2222-2222-2222-222222222222';
+    const AUTHORITY_ID = '33333333-3333-3333-3333-333333333333';
 
     it('закрыта по умолчанию, GET не вызывается', () => {
       let called = false;
@@ -260,18 +261,27 @@ describe('NodeDetailsPanel', () => {
           called = true;
           return HttpResponse.json([]);
         }),
+        http.get(`${BASE}/api/v1/authorities`, () => {
+          called = true;
+          return HttpResponse.json([]);
+        }),
       );
       renderPanel();
-      const toggle = screen.getByRole('button', { name: /Источники/ });
+      const toggle = screen.getByRole('button', { name: /Цитаты/ });
       expect(toggle).toHaveAttribute('aria-expanded', 'false');
       expect(called).toBe(false);
     });
 
-    it('первое открытие загружает список и рендерит карточки', async () => {
+    it('первое открытие загружает 3 запроса и рендерит карточку с автором', async () => {
       server.use(
         http.get(`${BASE}/api/v1/nodes/${NODE_ID}/sources`, () =>
           HttpResponse.json([
-            { nodeId: NODE_ID, sourceId: SOURCE_ID, quote: 'В этот день я был рождён' },
+            {
+              nodeId: NODE_ID,
+              sourceId: SOURCE_ID,
+              quote: 'В этот день я был рождён',
+              location: 'стр. 12, изд. Дар аль-кутуб',
+            },
           ]),
         ),
         http.get(`${BASE}/api/v1/sources`, () =>
@@ -281,30 +291,88 @@ describe('NodeDetailsPanel', () => {
               sourceType: 'HADITH',
               title: 'Сахих Муслим, №1162',
               citation: 'Муслим 1162',
+              authorityId: AUTHORITY_ID,
+            },
+          ]),
+        ),
+        http.get(`${BASE}/api/v1/authorities`, () =>
+          HttpResponse.json([
+            {
+              id: AUTHORITY_ID,
+              name: 'Имам Муслим',
+              era: 'III в.х.',
+              madhab: 'муджтахид',
             },
           ]),
         ),
       );
       renderPanel();
-      await userEvent.click(screen.getByRole('button', { name: /Источники/ }));
+      await userEvent.click(screen.getByRole('button', { name: /Цитаты/ }));
       expect(await screen.findByText('Сахих Муслим, №1162')).toBeInTheDocument();
       expect(screen.getByText('хадис')).toBeInTheDocument();
       expect(screen.getByText(/В этот день я был рождён/)).toBeInTheDocument();
+      // автор резолвится через Source.authorityId → Authority.name
+      expect(screen.getByText('Имам Муслим')).toBeInTheDocument();
+      expect(screen.getByText(/III в\.х\./)).toBeInTheDocument();
+      // location в подписи
+      expect(screen.getByText(/стр\. 12, изд\. Дар аль-кутуб/)).toBeInTheDocument();
+    });
+
+    it('цитата без authorityId не показывает блок автора', async () => {
+      server.use(
+        http.get(`${BASE}/api/v1/nodes/${NODE_ID}/sources`, () =>
+          HttpResponse.json([{ nodeId: NODE_ID, sourceId: SOURCE_ID }]),
+        ),
+        http.get(`${BASE}/api/v1/sources`, () =>
+          HttpResponse.json([
+            { id: SOURCE_ID, sourceType: 'QURAN', title: 'Коран 2:255' },
+          ]),
+        ),
+        http.get(`${BASE}/api/v1/authorities`, () => HttpResponse.json([])),
+      );
+      renderPanel();
+      await userEvent.click(screen.getByRole('button', { name: /Цитаты/ }));
+      await screen.findByText('Коран 2:255');
+      // нет автора - анонимный текст (Коран)
+      expect(screen.queryByText(/Имам Муслим/)).not.toBeInTheDocument();
+    });
+
+    it('арабская цитата получает dir=rtl', async () => {
+      server.use(
+        http.get(`${BASE}/api/v1/nodes/${NODE_ID}/sources`, () =>
+          HttpResponse.json([
+            {
+              nodeId: NODE_ID,
+              sourceId: SOURCE_ID,
+              quote: 'إنما الأعمال بالنيات',
+            },
+          ]),
+        ),
+        http.get(`${BASE}/api/v1/sources`, () =>
+          HttpResponse.json([{ id: SOURCE_ID, sourceType: 'HADITH', title: 'Бухари 1' }]),
+        ),
+        http.get(`${BASE}/api/v1/authorities`, () => HttpResponse.json([])),
+      );
+      renderPanel();
+      await userEvent.click(screen.getByRole('button', { name: /Цитаты/ }));
+      const quoteEl = await screen.findByText(/إنما الأعمال بالنيات/);
+      expect(quoteEl).toHaveAttribute('dir', 'rtl');
     });
 
     it('пустой список показывает плейсхолдер', async () => {
       server.use(
         http.get(`${BASE}/api/v1/nodes/${NODE_ID}/sources`, () => HttpResponse.json([])),
         http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json([])),
+        http.get(`${BASE}/api/v1/authorities`, () => HttpResponse.json([])),
       );
       renderPanel();
-      await userEvent.click(screen.getByRole('button', { name: /Источники/ }));
+      await userEvent.click(screen.getByRole('button', { name: /Цитаты/ }));
       expect(
-        await screen.findByText(/не привязано ни одного источника/),
+        await screen.findByText(/не привязано ни одной цитаты/),
       ).toBeInTheDocument();
     });
 
-    it('отвязка источника вызывает DELETE и убирает запись', async () => {
+    it('отвязка цитаты вызывает DELETE и убирает запись', async () => {
       let deleteCalledFor: string | null = null;
       server.use(
         http.get(`${BASE}/api/v1/nodes/${NODE_ID}/sources`, () =>
@@ -313,18 +381,23 @@ describe('NodeDetailsPanel', () => {
         http.get(`${BASE}/api/v1/sources`, () =>
           HttpResponse.json([{ id: SOURCE_ID, sourceType: 'BOOK', title: 'Какая-то книга' }]),
         ),
+        http.get(`${BASE}/api/v1/authorities`, () => HttpResponse.json([])),
         http.delete(`${BASE}/api/v1/nodes/${NODE_ID}/sources/${SOURCE_ID}`, () => {
           deleteCalledFor = SOURCE_ID;
           return new HttpResponse(null, { status: 204 });
         }),
       );
       renderPanel();
-      await userEvent.click(screen.getByRole('button', { name: /Источники/ }));
+      await userEvent.click(screen.getByRole('button', { name: /Цитаты/ }));
       await screen.findByText('Какая-то книга');
-      await userEvent.click(screen.getByRole('button', { name: 'Отвязать источник' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Отвязать цитату' }));
       await waitFor(() => expect(deleteCalledFor).toBe(SOURCE_ID));
       expect(screen.queryByText('Какая-то книга')).not.toBeInTheDocument();
     });
-  });
 
+    it('для QUESTION-узла секция Цитаты НЕ рендерится', () => {
+      renderPanel({ node: makeNode({ nodeType: 'QUESTION', content: 'Вопрос?' }) });
+      expect(screen.queryByRole('button', { name: /Цитаты/ })).not.toBeInTheDocument();
+    });
+  });
 });
