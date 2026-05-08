@@ -13,7 +13,7 @@
 
 ---
 
-## 2026-05-09 — Сессия 21 (backend) — Этапы 15.1 + 15.2 Library shamela staging-схема + ApiClient + Extractor + полный pivot плана импорта
+## 2026-05-09 — Сессия 21 (backend) — Этапы 15.1 + 15.2 + 15.3 Library shamela: staging-схема + ApiClient + Extractor + Readers + 6 DAO + полный pivot плана импорта + первый опыт параллельных subagent'ов
 
 Самая длинная экспедиция в неизвестность за всю историю проекта.
 Начали с jsoup-парсера shamela.ws по плану из Сессии 20, упёрлись в
@@ -28,12 +28,13 @@ staging-схема + ADR + актуализация документации.
 
 ### Сделано
 
-4 коммита:
+5 коммитов:
 
 `507e0ba` `feat(backend): этап 15.1 - shamela staging-схема + ADR-020`
 `9d6c63d` `docs: handoff Сессии 21 - этап 15.1 закрыт, продолжение в 15.2`
 `f511b6a` `feat(backend): этап 15.2 - shamela api client + archive extractor`
 `520cbf5` `fix(backend): разрешить Basic auth для HTTPS-туннеля прокси`
+`a98c3ea` `feat(backend): этап 15.3 - shamela SQLite readers + 6 staging DAO` (через 3 параллельных subagent'а)
 
 - **Миграция 17** `20260509-17-create-shamela-staging-tables.xml` -
   6 таблиц `lib_shamela_*`: category/author/book/page/title/sync_state.
@@ -211,76 +212,204 @@ HTTPS-прокси по умолчанию` - редкая Java-ловушка �
 будущим сессиям при добавлении любого HTTP-клиента работающего через
 corporate-прокси.
 
+#### Этап 15.3 (Readers + 6 DAO) - первый опыт параллельных subagent'ов
+
+`a98c3ea` `feat(backend): этап 15.3 - shamela SQLite readers + 6 staging DAO`
+
+Юзер спросил «можем ли ускорить флоу через параллельных агентов
+не теряя качество». Я предложил разбить 15.3 на 3 субагента с
+непересекающимися файлами + единым source of truth (records +
+SqliteValueParser я подготовил сам перед запуском). План был принят,
+выполнен в одном Agent-tool блоке.
+
+**Подготовка контракта (сам, перед агентами):**
+- 5 records в `etl/dto/`: `ShamelaCategoryRow`, `AuthorRow`, `BookRow`,
+  `PageRow`, `TitleRow`
+- `SqliteValueParser` - null-safe TEXT→Long/Integer/Boolean (магическое
+  shamela `"99999"` для года → null)
+- 19 unit-тестов на parser
+
+**Параллельный запуск (3 subagent'а general-purpose в одном tool-use):**
+
+Агент A: `ShamelaMasterReader` + 13 unit-тестов + `ShamelaReaderException`
+- Читает category/author/book.sqlite через `DriverManager(jdbc:sqlite:)`
+- try-with-resources на Connection+Statement+ResultSet
+- Reserved-word `order` в SQL обёрнут в кавычки
+- Вернул List (eager) - SQLite до 12MB ~1-2MB JVM, OK
+
+Агент B: `ShamelaBookReader` + 9 unit-тестов + `ShamelaBookContent`
+- Читает {bookId}.sqlite (page+title), bookId передаётся параметром
+  и проставляется в Row (в SQLite-файле его нет)
+- Тесты: arabic content roundtrip, parent-tree (`'0'`/`'5'`/`''`),
+  empty book, missing file
+- Корректно проверил наличие `ShamelaReaderException` от агента A
+  и переиспользовал
+
+Агент C: 6 DAO + 6 IT через Testcontainers (43 теста total)
+- Bulk upsert через `ON CONFLICT(id) DO UPDATE` батчами 1000
+- BookDao: JSONB через `?::jsonb` cast в SQL (postgresql:runtime-scope
+  не даёт PGobject в compile - такой же приём в существующих
+  BookRepository/SourceRepository). Агент **самостоятельно нашёл
+  альтернативу и применил**
+- PageDao/TitleDao: composite PK (book_id, id)
+- SyncStateDao: singleton, переиспользует `JdbcTimes.odt()` из
+  существующего `repository/` пакета (gotcha PG JDBC + Instant) -
+  **агент сам нашёл и применил утилиту**
+
+**Координация:** все три агента видели единый `backend/CLAUDE.md`,
+конкретные эталонные файлы (`BookRepository.java`,
+`ShamelaArchiveExtractor.java`, `ShamelaApiClient.java`) для стиля
+кода и комментариев. Контракт через records + parser зафиксированный
+коммитом до их запуска - они не могли разойтись в семантике DTO.
+
+**Результат:**
+- 25 файлов, 2505 insertions
+- 65 новых тестов (19 + 13 + 9 + 43 = 84... минус 19 которые я сам сделал = 65 от агентов)
+- Verify: 268 IT зелёных (+43 от DAO IT над прошлыми 225). Surefire
+  с известным OpenApiIT flake (1 failure из 218 unit-тестов)
+- Wall time от старта tool-use до окончания всех 3-х агентов:
+  ~6.5 минут (агент C самый медленный из-за TestContainers, 379s).
+  Sequential было бы оценочно ~15-20 минут
+
+**Качество кода агентов:**
+- Все следовали правилам CLAUDE.md (конструктор-injection,
+  русские комментарии, JavaDoc только для нетривиального,
+  try-with-resources)
+- Минор: агент C использовал FQN `java.sql.PreparedStatement` в
+  private helpers - не блокер, локально и не критично
+- Агенты сами решали architectural micro-issues (PGobject →
+  ?::jsonb cast, Instant → JdbcTimes.odt) и применяли решения
+  совпадающие с проектным стилем
+- Все три отчитались чётко о решениях и что не делали намеренно
+
+**Вывод про параллельных агентов:**
+- Работает когда есть подготовленный контракт (records + утилиты
+  до запуска)
+- Главный риск (двойное создание `ShamelaReaderException`)
+  обрабатывается в prompt'е "проверь существует ли"
+- Агенты могут переоткрывать найденные в кодбазе утилиты - это
+  плюс, не минус (показывает реальное чтение проекта, не
+  поверхностное)
+- Time saving ~50% при 3-х параллельных независимых задачах
+
 ### Следующий шаг
 
-**Сессия 22 - подэтап 15.3: SQLite readers + DAO.**
+**Сессия 22 - подэтап 15.4: ShamelaImportService (syncMaster + importBook).**
 
-Все архитектурные решения уже зафиксированы в ADR-020 и подтверждены
-прогоном live-IT в Сессии 21 (см. выше). Контракт API доступен,
-остаётся развернуть содержимое SQLite в наши postgres-таблицы.
+После 15.3 в проекте есть полный ETL-стэк до уровня DAO: ApiClient
+качает архивы, Extractor распаковывает, Reader читает SQLite,
+DAO bulk-upsert в lib_shamela_*. Не хватает оркестрации - сервис
+который соединяет всё в один pipeline.
 
 Конкретные файлы для создания:
 
-- `library/shamela/etl/SqliteValueParser.java` - утилита для null-safe
-  TEXT→Long/Integer/Boolean. shamela хранит все колонки кроме `id`
-  как TEXT, при парсинге надо обрабатывать:
-  - пустую строку `""` → null
-  - `"99999"` (магическое значение shamela "год неизвестен") → null
-    в `publication_year`
-  - `"0"`/`"1"` → false/true для `is_printed`
-  - валидные числа → Long/Integer
-  Юнит-тесты на edge cases с AssertJ
+- `library/shamela/service/ShamelaImportService.java` - центральный
+  сервис оркестрации, `@Service`. Конструктор-injection:
+  `ShamelaApiClient`, `ShamelaArchiveExtractor`, `ShamelaMasterReader`,
+  `ShamelaBookReader`, 6 DAO (Category/Author/Book/Page/Title/SyncState),
+  `ShamelaApiProperties`. Методы:
 
-- `library/shamela/etl/ShamelaMasterReader.java` - открывает три
-  SQLite файла из распакованного master-архива
-  (`category.sqlite`, `author.sqlite`, `book.sqlite`) и возвращает
-  потоки DTO. Использует try-with-resources на Connection через
-  `DriverManager.getConnection("jdbc:sqlite:" + path)`. Закрывает
-  ресурсы после полного чтения. DTO внутренние records:
-  `ShamelaCategoryRow`, `ShamelaAuthorRow`, `ShamelaBookRow`.
-  pdf_links и metadata - JsonNode (через Jackson)
+  ```java
+  MasterSyncResult syncMaster();
+  BookImportResult importBook(long bookId);
+  ```
 
-- `library/shamela/etl/ShamelaBookReader.java` - открывает
-  `{bookId}.sqlite`, возвращает Stream<PageRow> и Stream<TitleRow>.
-  Тоже через DriverManager. Записи имеют составной ключ
-  `(book_id, id)` после маппинга
+  ### syncMaster()
+  
+  1. `currentVersion = syncStateDao.getMasterVersion()` (на bootstrap = 0)
+  2. `meta = apiClient.fetchMasterMetadata(currentVersion)`
+  3. Если `meta.version() == currentVersion` - nothing to do, возврат
+     `MasterSyncResult.unchanged(currentVersion)`
+  4. `archive = apiClient.downloadArchive(URI.create(meta.patchUrl()),
+     props.downloadDir())` - временный zip
+  5. `unpackedDir = extractor.extract(archive, tempDirForUnpack)`
+  6. `categories = masterReader.readCategories(unpackedDir.resolve("category.sqlite"))`
+     - аналогично authors, books
+  7. `categoryDao.upsertAll(categories)` - bulk upsert
+     - аналогично author, book
+  8. `syncStateDao.updateMasterVersion(meta.version())`
+  9. Cleanup: удалить zip и unpacked-каталог (либо логически
+     оставить под config-flag для отладки)
+  10. Возврат `MasterSyncResult.synced(prev=currentVersion,
+      now=meta.version(), categoriesCount=..., authorsCount=...,
+      booksCount=...)`
 
-- `library/shamela/repository/`:
-  - `ShamelaCategoryDao` - bulk upsert через
-    `INSERT INTO lib_shamela_category (id, name, display_order, deleted_at)
-     VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET ...`
-    с батчами 1000 строк через `JdbcTemplate.batchUpdate`
-  - `ShamelaAuthorDao` - аналогично
-  - `ShamelaBookDao` - аналогично + JSONB-параметры (pdf_links,
-    extra_metadata) через `PGobject`
-  - `ShamelaPageDao` - bulk upsert (составной PK)
-  - `ShamelaTitleDao` - bulk upsert (составной PK)
-  - `ShamelaSyncStateDao` - getMasterVersion()/updateMasterVersion(int).
-    Singleton pattern: всегда одна строка с id=1
+  ### importBook(long bookId)
 
-Тесты:
-- `SqliteValueParserTest` - юнит, edge cases (null, "", "0", "1",
-  "99999", invalid number), без Spring
-- `ShamelaMasterReaderTest` - юнит на временный SQLite-файл
-  (создаётся через DriverManager в @TempDir, заполняется парой
-  строк, читается). Проверка stream возвращает корректные DTO
-- `Shamela{Category,Author,Book,Page,Title,SyncState}DaoIT` -
-  Testcontainers postgres (как BookRepositoryIT в library):
-  bulk upsert работает, ON CONFLICT обновляет, deleted_at
-  устанавливается, JSONB парсится корректно
+  1. Проверка что bookId есть в shamela_book (иначе
+     `BookNotInShamelaException` или 404). Альтернатива - всё равно
+     попробовать скачать и handle 404 от shamela. Решить по ходу
+  2. `book = bookDao.findById(bookId)` для получения `major_release`
+  3. URL детерминированный:
+     `URI.create("https://" + props.filesHost() +
+                  "/books-store/" + bookId + "-" + book.majorRelease() + ".zip")`
+  4. `archive = apiClient.downloadArchive(url, downloadDir)`
+  5. `unpackedDir = extractor.extract(archive, tempBookDir)`
+  6. `bookSqlite = unpackedDir.resolve(bookId + ".sqlite")`
+  7. `content = bookReader.read(bookSqlite, bookId)` - возвращает
+     ShamelaBookContent с pages+titles
+  8. `pageDao.upsertAll(content.pages())`
+  9. `titleDao.upsertAll(content.titles())`
+  10. Cleanup
+  11. Возврат `BookImportResult(bookId, pagesCount, titlesCount)`
 
-**Не делать в 15.3:**
-- ShamelaImportService (это 15.4 - оркестрация шагов:
-  fetchMaster → downloadArchive → extract → readMaster → DAO upsert)
-- ShamelaToLibraryMapper (это 15.5)
+  ### Records-результатов в `service/dto/` или прямо рядом с сервисом:
+  ```java
+  record MasterSyncResult(boolean changed, int previousVersion,
+                          int currentVersion, int categoriesCount,
+                          int authorsCount, int booksCount) {
+      static MasterSyncResult unchanged(int v) { ... }
+      static MasterSyncResult synced(...) { ... }
+  }
+  
+  record BookImportResult(long bookId, int pagesCount, int titlesCount) {}
+  ```
+
+- `library/shamela/service/ShamelaImportException.java` - оборачивает
+  ApiException/ArchiveException/ReaderException в одно понятие для
+  REST-слоя. Тогда controller (15.6) маппит её в Problem Details
+
+- IT через Testcontainers + WireMock (или MockWebServer) для
+  shamela API. Стиль для копирования: `BookControllerIT.java`. Нужно
+  замокать HTTP-уровень (не делать реальные запросы к shamela в
+  обычном verify), либо использовать `@Tag("live")` для
+  end-to-end-проверок:
+  
+  - `ShamelaImportServiceIT` - моки на ApiClient, проверка что
+    оркестрация правильная: `syncMaster()` пропускает если version
+    не изменилась, `syncMaster()` выполняет полный цикл если
+    изменилась, `importBook()` валидирует book существование,
+    cleanup временных файлов работает
+  
+  - `ShamelaImportServiceLiveIT` - `@Tag("live")`, end-to-end:
+    реальный fetch shamela master + реальный import одной книги
+    (выбрать маленькую с известным id). Проверяется что после
+    полного pipeline в lib_shamela_book есть >0 строк, в lib_shamela_page
+    есть >0 строк для этой книги
+
+- Опционально: маленький design-документ `docs/superpowers/specs/2026-05-09-shamela-import-pipeline.md`
+  с диаграммой потоков syncMaster + importBook (если по ходу
+  возникнут вопросы по error-handling или transactions)
+**Не делать в 15.4:**
+- `ShamelaToLibraryMapper` (это 15.5) - mapping shamela_* в наш
+  доменный lib_books/Authority. В 15.4 фокус только на наполнении
+  staging-таблиц
 - REST endpoints (это 15.6)
 
-**Контрольная проверка после 15.3:**
-- `./mvnw verify` зелёный (225+ IT, плюс новые DAO IT)
-- SqliteValueParser unit-тесты зелёные
-- Опционально: `mvn failsafe:integration-test -Dtest=ShamelaApiClientLiveIT
-  -DexcludedGroups= -Dgroups=live` всё ещё проходит (sanity-check
-  что HTTP-уровень не сломан)
+**Контрольная проверка после 15.4:**
+- `./mvnw verify` зелёный (268+ IT, плюс новые ServiceIT)
+- ShamelaImportServiceIT с моками HTTP проходит за <30с
+- Опционально (без флага автоматически не запускается):
+  `./mvnw failsafe:integration-test -Dtest=ShamelaImportServiceLiveIT
+  -DexcludedGroups= -Dgroups=live` - реальный end-to-end через
+  shamela. Если запустить - после прогона в lib_shamela_book должны
+  быть тысячи строк, можно сделать smoke через psql:
+  `SELECT count(*) FROM lib_shamela_book;` вернёт ~8589
+- Подумать про параллельность: можно ли применить subagent-подход
+  снова? В 15.4 sequential pipeline, параллелить нечего внутри
+  syncMaster/importBook. Но IT можно делать в параллели с production
+  (один агент пишет ImportService + service-IT, другой пишет
+  service-LiveIT)
 
 **Зависимости которые уже есть** (благодаря 15.2):
 - `org.xerial:sqlite-jdbc:3.45.3.0` в pom

@@ -136,7 +136,7 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
    которое требует обсуждения - тогда спрашиваешь точечно
 
 ══════════════════════════════════════════════
-ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-09 после Сессии 21 - Этапы 15.1+15.2 закрыты, shamela API подтверждена живым тестом)
+ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-09 после Сессии 21 - Этапы 15.1+15.2+15.3 закрыты, ETL-стэк до уровня DAO готов, очередь ShamelaImportService)
 ══════════════════════════════════════════════
 
 ⚠️ **ВАЖНО**: проект пережил стратегический pivot - см. ADR-018 в
@@ -244,7 +244,17 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
     скачал 5MB+ zip с правильной PK-сигнатурой через corporate-прокси
     proxys.io за 8.2с суммарно. shamela API работает end-to-end.
     Зафиксирована gotcha
-  - **Этапы 15.1 и 15.2 закрыты**, остаётся 15.3-15.6
+  - `a98c3ea` `feat(backend): этап 15.3 - shamela SQLite readers + 6 staging DAO` -
+    реализовано через **3 параллельных subagent'а** в одном Agent-tool
+    блоке после моей подготовки контракта (5 records + SqliteValueParser
+    + 19 unit). Агент A: ShamelaMasterReader + 13 unit + ShamelaReaderException.
+    Агент B: ShamelaBookReader + 9 unit + ShamelaBookContent.
+    Агент C: 6 DAO + 6 IT (43 теста). 25 файлов, 2505 insertions.
+    Wall time ~6.5 мин (sequential было бы ~15-20 мин). Все агенты
+    следовали backend/CLAUDE.md, переоткрыли проектные утилиты
+    (`JdbcTimes.odt`, `?::jsonb` cast pattern из BookRepository).
+    268 IT зелёных (+43 от DAO IT)
+  - **Этапы 15.1, 15.2, 15.3 закрыты**, остаётся 15.4-15.6
 - **Сессия 20 (бэк): Этап 14 Library MVP** - 5 коммитов + 1 docs:
   - `506f144` `docs: design spec для Этапа 14 Library MVP` -
     полный design-doc в `docs/superpowers/specs/`
@@ -292,63 +302,70 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 - ADR-011-016 все приняты. В Этапе 12 ADR не делал - чистый UI
   поверх готового бэк-контракта
 
-ОТКРЫТО (по приоритету) - после Этапа 15.2:
+ОТКРЫТО (по приоритету) - после Этапа 15.3:
 
-1. **Этап 15.3: SQLite readers + DAO** ← **продолжение после 15.2**.
-   shamela API подтверждена живым прогоном в Сессии 21 (master-0-1261.zip
-   реально скачан через прокси). Теперь надо разворачивать SQLite в
-   наши таблицы.
+1. **Этап 15.4: ShamelaImportService (syncMaster + importBook)** ←
+   **продолжение после 15.3**. ETL-стэк до уровня DAO полностью готов,
+   нужна оркестрация в один pipeline.
 
    Конкретные файлы (полностью расписано в progress.md Сессия 21
    "Следующий шаг"):
-   - `library/shamela/etl/SqliteValueParser.java` - утилита для
-     null-safe TEXT→Long/Integer/Boolean. shamela хранит большинство
-     колонок как TEXT, нужно обрабатывать пустые строки, "99999"
-     (магическое "год неизвестен"), "0"/"1", валидные числа
-   - `library/shamela/etl/ShamelaMasterReader.java` - открывает
-     category/author/book.sqlite, возвращает Stream<DTO>. Через
-     `DriverManager.getConnection("jdbc:sqlite:" + path)` с
-     try-with-resources
-   - `library/shamela/etl/ShamelaBookReader.java` - открывает
-     `{bookId}.sqlite`, Stream<PageRow>+Stream<TitleRow>
-   - `library/shamela/repository/ShamelaCategoryDao.java`,
-     `ShamelaAuthorDao.java`, `ShamelaBookDao.java`,
-     `ShamelaPageDao.java`, `ShamelaTitleDao.java`,
-     `ShamelaSyncStateDao.java` - bulk upsert через
-     `INSERT ... ON CONFLICT(id) DO UPDATE` с батчами 1000 строк
-     через `JdbcTemplate.batchUpdate`. JSONB-параметры (pdf_links,
-     extra_metadata) через `PGobject`
+
+   - `library/shamela/service/ShamelaImportService.java` - `@Service`,
+     инжектит ApiClient + Extractor + 2 Reader'а + 6 DAO + Properties.
+     2 публичных метода:
+     - `MasterSyncResult syncMaster()` - читает `sync_state.master_version`,
+       вызывает `fetchMasterMetadata`, если version изменилась -
+       качает архив, извлекает 3 SQLite, читает в DTO, bulk upsert в
+       Category/Author/Book DAO, обновляет sync_state. Cleanup
+       временных файлов
+     - `BookImportResult importBook(long bookId)` - находит book в
+       lib_shamela_book для major_release, идёт по детерминированному
+       URL `books-store/{id}-{major}.zip`, качает, извлекает
+       {bookId}.sqlite, читает page+title, bulk upsert в Page/Title DAO
+   - `library/shamela/service/MasterSyncResult.java` - record с
+     состоянием результата (changed, previousVersion, currentVersion,
+     counts по таблицам). Static factory `unchanged(v)` / `synced(...)`
+   - `library/shamela/service/BookImportResult.java` - record с bookId,
+     pagesCount, titlesCount
+   - `library/shamela/service/ShamelaImportException.java` - оборачивает
+     ApiException/ArchiveException/ReaderException для REST-слоя
    - Тесты:
-     - `SqliteValueParserTest` - юнит, edge cases без Spring
-     - `ShamelaMasterReaderTest` - юнит на временный SQLite-файл
-     - `Shamela{Category,Author,Book,Page,Title,SyncState}DaoIT` -
-       Testcontainers postgres (как BookRepositoryIT) - bulk upsert,
-       ON CONFLICT, deleted_at, JSONB
+     - `ShamelaImportServiceIT` - моки на `ShamelaApiClient` (через
+       Mockito или WireMock + http-stubbing), Testcontainers postgres.
+       Сценарии: syncMaster пропускает unchanged version, syncMaster
+       выполняет полный цикл, importBook валидирует существование
+       book, cleanup работает
+     - `ShamelaImportServiceLiveIT` - `@Tag("live")`, реальный
+       end-to-end: syncMaster() против реальной shamela API,
+       проверка что в lib_shamela_book после прогона есть thousands
+       строк. Запускается отдельно через `-Dgroups=live`
 
-   На старте Сессии 22: ADR-020 уже фиксирует архитектуру. После
-   стандартного протокола - **прямо к 15.3 в режиме автономии**.
-   sqlite-jdbc уже в pom (благодаря 15.2), `ShamelaArchiveExtractor`
-   уже готов для распаковки. Реализуй reader+DAO+тесты, прогон verify.
+   **Возможность параллелизации в 15.4**: sequential pipeline внутри
+   методов нельзя параллелить, но **можно делегировать subagent'у**
+   написание ImportService + ServiceIT, пока я работаю над design
+   живых тестов или 15.5 mapper plan через Plan-agent. Решать в
+   начале сессии 22.
 
-2. **Этап 15.4: ShamelaImportService** - `syncMaster()` оркестрирует
-   `fetchMaster → downloadArchive → extract → readMaster → DAO upsert
-   → updateSyncState`. `importBook(id)` идёт по
-   `ready.shamela.ws/books-store/{id}-{major}.zip` напрямую (URL
-   детерминированный, экономим вызов book-updates). Tombstones через
-   `deleted_at`. IT с golden zip-фикстурами
+   На старте Сессии 22: после стандартного протокола **прямо к 15.4
+   в режиме автономии**. ADR-020 фиксирует архитектуру, ImportService
+   - оркестрационный layer без новых архитектурных решений.
 
-3. **Этап 15.5: ShamelaToLibraryMapper** - `shamela_book` →
+2. **Этап 15.5: ShamelaToLibraryMapper** - `shamela_book` →
    `lib_books` + `Authority`. `shamela_title` (parent_id tree) →
    `lib_chapters`. `shamela_page.content` (raw HTML) →
-   `lib_pages.text_content`
+   `lib_pages.text_content`. **Может быть полезен Plan-agent**
+   заранее для проработки правил mapping (резолвинг authority по
+   нормализованному имени, обработка дубликатов, fallback на
+   anonymous Authority)
 
-4. **Этап 15.6: REST endpoints** -
+3. **Этап 15.6: REST endpoints** -
    `POST /admin/shamela/sync-master`,
    `POST /admin/shamela/import-book/{id}`,
    `GET /admin/shamela/book/{id}/pdf/{fileIndex}` (lazy).
    ControllerIT через MockMvc + api-contract.md + glossary.md
 
-5. **Этап 18: Library frontend + интеграция с argument-map** -
+4. **Этап 18: Library frontend + интеграция с argument-map** -
    monorepo реструктуризация (apps/argument-map, apps/library,
    packages/shared-*), BookListPage, BookReader, CitationPicker,
    переключение argument-map citation на CitationPicker
@@ -557,22 +574,20 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 После прочтения 5+ файлов из START-OF-SESSION PROTOCOL начни ответ
 с короткого summary последнего состояния и предложения. Например:
 
-"вижу - Сессия 21 закрыла два подэтапа Library shamela: 15.1
-(staging-схема + ADR-020) и 15.2 (ApiClient + Extractor). 4 коммита,
-миграция 17 (lib_shamela_* 6 таблиц), 12 новых Java-файлов,
-sqlite-jdbc 3.45.3.0 в pom. Главное: live-IT прошёл - shamela API
-реально доступна через corporate-прокси (master-0-1261.zip
-скачан с корректной zip-сигнатурой). Известный fix
-jdk.http.auth.tunneling.disabledSchemes для Basic auth через
-HTTPS-туннель применён, gotcha записана.
+"вижу - Сессия 21 закрыла три подэтапа Library shamela: 15.1
+(staging-схема + ADR-020), 15.2 (ApiClient + Extractor), 15.3
+(SQLite readers + 6 DAO через 3 параллельных subagent'а). 5
+коммитов, ~3200 insertions, 268 IT зелёных. Live-IT подтверждает
+работу shamela API end-to-end через corporate-прокси. ETL-стэк
+до уровня DAO полностью готов: ApiClient качает архивы, Extractor
+распаковывает, Reader читает SQLite, DAO bulk-upsert в lib_shamela_*.
 
-В режиме автономии продолжаю с 15.3 - SQLite readers + DAO. Уже
-готовы зависимости (sqlite-jdbc) и инфраструктура
-(ShamelaArchiveExtractor умеет распаковать zip). Создаю
-SqliteValueParser для null-safe TEXT→Long/Integer/Boolean,
-ShamelaMasterReader/BookReader на DriverManager(jdbc:sqlite:),
-6 DAO с bulk upsert через ON CONFLICT(id) DO UPDATE,
-+ юнит-тест + 6 IT через Testcontainers."
+В режиме автономии продолжаю с 15.4 - ShamelaImportService
+(syncMaster + importBook). Это оркестрация всех слоёв в один
+pipeline + ServiceIT с моками HTTP. Без новых архитектурных
+решений (ADR-020 уже фиксирует pipeline). Возможно делегирую
+subagent'у написание Service+IT пока сам начну plan для 15.5
+mapping. Решу по контексту."
 
 Жди подтверждение. После него - смело за работу.
 ```

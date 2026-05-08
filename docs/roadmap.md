@@ -436,11 +436,15 @@ challenge неразрешимым в текущей конфигурации. �
       Basic-auth через CONNECT. Live-IT @Tag("live") (исключён из
       обычного verify) подтверждает работающий end-to-end pipeline
       через corporate-прокси: master-0-1261.zip скачан с PK-сигнатурой
-- [ ] **15.3: SQLite readers + DAO** - `ShamelaMasterReader`
-      потоково читает category/author/book.sqlite, `ShamelaBookReader`
-      открывает `{bookId}.sqlite` (page+title). `SqliteValueParser`
-      утилита (null-safe TEXT→Long/Integer/Boolean). Bulk upsert через
-      `ON CONFLICT(id) DO UPDATE` с батчами 1000 строк
+- [x] **15.3: SQLite readers + DAO** - `ShamelaMasterReader` читает
+      category/author/book.sqlite, `ShamelaBookReader` - {bookId}.sqlite
+      (page+title). `SqliteValueParser` (null-safe TEXT→Long/Integer/
+      Boolean, "99999"→null для года). 6 DAO с `ON CONFLICT(id)
+      DO UPDATE` батчами 1000, JSONB через `?::jsonb` cast в SQL,
+      composite PK для page/title. 84 теста (19 parser + 13 master
+      reader + 9 book reader + 43 DAO IT). Реализовано через
+      3 параллельных subagent'а после моей подготовки контракта
+      (records + parser)
 - [ ] **15.4: ShamelaImportService.syncMaster + importBook** -
       `syncMaster()` читает `sync_state.master_version`, дёргает API,
       разворачивает в shamela_*. `importBook(id)` идёт по
