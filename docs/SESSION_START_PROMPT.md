@@ -136,7 +136,7 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
    которое требует обсуждения - тогда спрашиваешь точечно
 
 ══════════════════════════════════════════════
-ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-08 после Сессии 20 - Этап 14 Library MVP закрыт)
+ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-09 после Сессии 21 - Этап 15.1 закрыт, shamela импорт переписан под desktop-API)
 ══════════════════════════════════════════════
 
 ⚠️ **ВАЖНО**: проект пережил стратегический pivot - см. ADR-018 в
@@ -210,6 +210,22 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
   - `2b8d058` `docs: автономный режим работы Claude Code как
     заместителя` - режим автономии в проекте, red lines, формат
     эскалации
+- **Сессия 21 (бэк): Этап 15.1 - shamela staging-схема + ADR-020 (1 коммит)** -
+  пилот-сессия с большой диагностической экспедицией. Изначальный план
+  Этапа 15 был jsoup-парсер shamela.ws. 6 попыток обойти Cloudflare
+  managed challenge (curl/WebFetch/flaresolverr v3.3.21/v3.4.6 с прокси
+  и без, session-mode) - все провалились. shamela.ws/book/X имеет
+  агрессивный CF challenge которого Chromium-120 в flaresolverr не
+  пробивает за 280с. Параллельная сессия выполнила mitmproxy-реверс
+  desktop-API shamela 4 → получили 6 endpoints чистого канала без CF.
+  План переписан полностью:
+  - `507e0ba` `feat(backend): этап 15.1 - shamela staging-схема + ADR-020` -
+    миграция 17 (`lib_shamela_category/author/book/page/title/sync_state`)
+    + ADR-020 (двухслойная архитектура: staging + ShamelaToLibraryMapper)
+    + architecture-platform.md workflow A полностью переписан под API
+    + roadmap.md Этап 15 переразбит на 15.1-15.6 + gotcha OpenApiIT flake
+    + .gitignore /node_modules/ для vite cache leftover
+  - **Этап 15.1 закрыт**, остаётся 15.2-15.6
 - **Сессия 20 (бэк): Этап 14 Library MVP** - 5 коммитов + 1 docs:
   - `506f144` `docs: design spec для Этапа 14 Library MVP` -
     полный design-doc в `docs/superpowers/specs/`
@@ -257,38 +273,63 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 - ADR-011-016 все приняты. В Этапе 12 ADR не делал - чистый UI
   поверх готового бэк-контракта
 
-ОТКРЫТО (по приоритету) - после Этапа 14 Library MVP:
+ОТКРЫТО (по приоритету) - после Этапа 15.1:
 
-1. **Этап 15: shamela parser** ← **выбран Абдулой в конце Сессии 20**.
-   jsoup-парсер shamela.ws, ImportService, REST endpoint
-   `POST /api/v1/library/imports/shamela`, Authority-резолвинг,
-   IT с зафиксированной HTML-фикстурой (golden file, не реальный HTTP),
-   ADR на парсер + раздел в `architecture-platform.md`. Главный путь
-   автоматического импорта книг.
+1. **Этап 15.2: ShamelaApiClient + ShamelaArchiveExtractor** ←
+   **продолжение после 15.1 в Сессии 21**. План Этапа 15 пересмотрен
+   полностью под desktop-API shamela (см. ADR-020 в decisions.md):
 
-   Подэтапы (см. roadmap.md Этап 15):
-   - 15.a: ShamelaImportService - jsoup-парсер
-   - 15.b: REST endpoint POST /api/v1/library/imports/shamela
-   - 15.c: Authority-резолвинг (matching/создание)
-   - 15.d: IT с golden HTML
-   - 15.e: ADR на парсер + раздел architecture-platform
+   Конкретные файлы для создания (расписано в progress.md Сессия 21
+   "Следующий шаг"):
+   - `backend/pom.xml` - `<dependency>org.xerial:sqlite-jdbc:3.45.3.0</dependency>`
+   - `backend/src/main/resources/application.yml` - блок `shamela:` с
+     `api-key`/`metadata-host`/`files-host`/`download-dir`/`request-timeout-seconds`
+   - `library/shamela/api/ShamelaApiClient.java` - 4 метода через
+     `java.net.http.HttpClient`:
+     - `fetchMasterMetadata(currentVersion)` →
+       `GET dev.shamela.ws/api/v1/patches/master?api_key=...&version=N`
+     - `fetchBookMetadata(bookId, majorRelease, minorRelease)` →
+       `GET dev.shamela.ws/api/v1/patches/book-updates/{id}?api_key=...&...`
+     - `downloadArchive(url, targetDir)` - стрим zip в файл
+     - `downloadPdf(relativePath, targetDir)` - GET `ready.shamela.ws/pdf{path}`
+   - `library/shamela/api/ShamelaApiProperties.java` -
+     `@ConfigurationProperties("shamela")`
+   - `library/shamela/etl/ShamelaArchiveExtractor.java` -
+     `extract(zipFile, destDir)` через `java.util.zip.ZipInputStream`
+   - `library/shamela/api/dto/MasterMetadata.java`, `BookMetadata.java` records
+   - Юнит-тест `ShamelaArchiveExtractorTest` с golden zip
+   - Live-тест `ShamelaApiClientLiveIT` с `@Tag("live")` (исключается из
+     обычного `verify`)
 
-   На старте сессии новой Claude: после прочтения `SESSION_START_PROMPT`
-   и стартового protocol - сразу начинай с 15.a в режиме автономии.
-   Open design-вопросы (например, как искать book-page-URLs внутри
-   shamela-страницы) решай по ходу через ADR.
+   На старте Сессии 22: после стандартного протокола - **прямо
+   к 15.2 в режиме автономии**. ADR-020 уже фиксирует все
+   архитектурные решения, дизайн-вопросов нет. Контракт API
+   полностью описан в ADR-020 (6 endpoints). Если упрёшься в
+   проблему - эскалируй через AskUserQuestion как в Сессии 21,
+   но скорее всего не понадобится: API стабилен (curl-проверки в
+   Сессии 21 показали что endpoints доступны без CF).
 
-2. **Этап 18: Library frontend + интеграция с argument-map** -
+2. **Этап 15.3: SQLite readers + DAO** - `ShamelaMasterReader`
+   потоково читает category/author/book.sqlite, `ShamelaBookReader`
+   открывает `{bookId}.sqlite`. `SqliteValueParser` (null-safe
+   TEXT→Long/Integer/Boolean). DAO с `ON CONFLICT(id) DO UPDATE`.
+   Реализация после 15.2
+
+3. **Этап 15.4-15.6** - сервис импорта (`ShamelaImportService`),
+   `ShamelaToLibraryMapper` в lib_books/Authority, REST endpoints
+   `/admin/shamela/*`. См. roadmap.md Этап 15 полный список
+
+4. **Этап 18: Library frontend + интеграция с argument-map** -
    monorepo реструктуризация (apps/argument-map, apps/library,
    packages/shared-*), BookListPage, BookReader, CitationPicker,
    переключение argument-map citation на CitationPicker
-3. **Этап 16: PDF/EPUB upload** - Apache Tika, MinIO для хранения
+5. **Этап 16: PDF/EPUB upload** - Apache Tika, MinIO для хранения
    исходников, page-by-page extraction
-4. **Этап 17: image-сканы + OCR** - Tess4j для арабского, ImageRegion
+6. **Этап 17: image-сканы + OCR** - Tess4j для арабского, ImageRegion
    API, async OCR pipeline
-5. **Этап 19: Q&A приложение** - первое полностью новое поверх
+7. **Этап 19: Q&A приложение** - первое полностью новое поверх
    library. Валидация платформенности
-6. **Этап 20+: Auth, multi-tenancy, прочее**
+8. **Этап 20+: Auth, multi-tenancy, прочее**
 
 См. `docs/roadmap.md` для деталей всех этапов
 
@@ -487,16 +528,21 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 После прочтения 5+ файлов из START-OF-SESSION PROTOCOL начни ответ
 с короткого summary последнего состояния и предложения. Например:
 
-"вижу - последний раз Сессия 20 закрыла Этап 14 Library MVP
-целиком (14.a миграция 16 + 14.b records/repositories + 14.c
-service+REST + 14.d документация). 6 коммитов backend, 225 IT
-зелёных, ADR-019 принят. Абдула выбрал следующим Этап 15
-(shamela parser).
+"вижу - последний раз Сессия 21 закрыла подэтап 15.1 Library
+shamela staging-схема + ADR-020. Был большой pivot планa Этапа 15:
+изначально jsoup-парсер shamela.ws, но после 6 провальных попыток
+обойти Cloudflare на book/X страницах переключились на официальное
+desktop-API shamela 4 (mitmproxy-реверс в параллельной сессии).
+1 коммит, миграция 17 (lib_shamela_* 6 таблиц), ADR-020 фиксирует
+двухслойную архитектуру (staging + ShamelaToLibraryMapper).
 
-В режиме автономии начинаю с 15.a - ShamelaImportService на jsoup.
-Сначала исследую структуру shamela-страницы (любая случайная книга
-с shamela.ws), потом проектирую парсер. ADR на формат входа -
-зафиксирую в начале при кодировании."
+В режиме автономии продолжаю с 15.2 - ShamelaApiClient + Extractor.
+Все архитектурные решения уже в ADR-020, контракт API полностью
+описан, дизайн-вопросов не вижу. Добавлю sqlite-jdbc 3.45.3.0,
+напишу 4 метода на java.net.http, создам ShamelaArchiveExtractor
+через java.util.zip, и live-тест с @Tag('live') который
+проверит fetchMasterMetadata(0) против реальной shamela API.
+Если упрусь во что-то - эскалирую как в Сессии 21."
 
 Жди подтверждение. После него - смело за работу.
 ```
