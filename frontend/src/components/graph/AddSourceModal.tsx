@@ -55,6 +55,7 @@ function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [quote, setQuote] = useState('');
   const [context, setContext] = useState('');
+  const [location, setLocation] = useState('');
   const [createForm, setCreateForm] = useState<CreateForm>(INITIAL_CREATE_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -115,6 +116,7 @@ function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
       sourceId,
       quote: quote.trim() ? quote.trim() : undefined,
       context: context.trim() ? context.trim() : undefined,
+      location: location.trim() ? location.trim() : undefined,
     });
   }
 
@@ -282,8 +284,10 @@ function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
               <AttachFields
                 quote={quote}
                 context={context}
+                location={location}
                 onQuoteChange={setQuote}
                 onContextChange={setContext}
+                onLocationChange={setLocation}
                 disabled={submitting}
               />
             )}
@@ -428,8 +432,10 @@ function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
             <AttachFields
               quote={quote}
               context={context}
+              location={location}
               onQuoteChange={setQuote}
               onContextChange={setContext}
+              onLocationChange={setLocation}
               disabled={submitting}
             />
           </>
@@ -473,16 +479,20 @@ function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
 interface AttachFieldsProps {
   quote: string;
   context: string;
+  location: string;
   onQuoteChange: (v: string) => void;
   onContextChange: (v: string) => void;
+  onLocationChange: (v: string) => void;
   disabled?: boolean;
 }
 
 function AttachFields({
   quote,
   context,
+  location,
   onQuoteChange,
   onContextChange,
+  onLocationChange,
   disabled,
 }: AttachFieldsProps) {
   return (
@@ -503,6 +513,20 @@ function AttachFields({
           onChange={(e) => onQuoteChange(e.target.value)}
           rows={2}
           placeholder="Конкретный фрагмент источника, который относится к этому узлу"
+          className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+        />
+      </div>
+      <div>
+        <label htmlFor="attach-location" className="mb-1 block text-[11px] text-slate-600">
+          Место в источнике
+        </label>
+        <input
+          id="attach-location"
+          type="text"
+          value={location}
+          onChange={(e) => onLocationChange(e.target.value)}
+          maxLength={200}
+          placeholder="Например: т.13 с.137, №1162, 2:256"
           className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
         />
       </div>
