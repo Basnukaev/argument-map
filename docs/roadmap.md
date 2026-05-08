@@ -390,9 +390,9 @@ NodeSource`). Бэк перестроен в Сессии 19 (backend) с миг
       `lib_books`, `lib_chapters`, `lib_pages`, `lib_image_regions`
       с FK + индексами + CHECK constraints. ADR-019 формализован.
       163 IT зелёных через `./mvnw verify`
-- [ ] **14.b: доменные records + JDBC repositories** - `Book`,
+- [x] **14.b: доменные records + JDBC repositories** - `Book`,
       `Chapter`, `Page`, `ImageRegion` с RowMapper'ами, IT через
-      Testcontainers
+      Testcontainers (30 новых IT, всего 193 зелёных)
 - [ ] **14.c: BookService + REST**:
   - `POST /api/v1/library/books` - создать пустую книгу с metadata
   - `GET /api/v1/library/books?q=` - список/поиск
