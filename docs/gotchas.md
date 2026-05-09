@@ -529,4 +529,42 @@ rename операциях затрагивающих несколько файл
 
 ---
 
+## Shamela book-archive содержит `{bookId}-{major}.sqlite`, не `{bookId}.sqlite`
+
+**Симптом:** `ShamelaImportService.importBook(1681)` падает с
+`ShamelaImportException: ожидаемый SQLite-файл отсутствует в архиве:
+1681.sqlite`. Архив `1681-6.zip` скачан и распакован, но внутри -
+файл `1681-6.sqlite`, а не `1681.sqlite`.
+
+**Причина:** реальный naming convention shamela:
+- `{bookId}-{majorRelease}.sqlite` - наблюдалось для major_release=6+
+  (книга 1681 Сахих аль-Бухари с major_release=6)
+- `{bookId}.sqlite` - предполагалось ранее на основе общей логики
+  `{bookId}-{major}.zip` → `{bookId}.sqlite`. Возможно встречается в
+  старых major versions, но live-проверкой не подтверждено
+
+Изначальный код жёстко требовал `{bookId}.sqlite` (литералом
+`bookId + ".sqlite"`), что разваливается на real-data.
+
+**Решение:** `ShamelaImportService.findBookSqlite(extractedDir, bookId, majorRelease)`
+с tolerant lookup в порядке:
+1. `{bookId}-{major}.sqlite` (актуальный формат)
+2. `{bookId}.sqlite` (legacy fallback)
+3. `Files.walk` по `extractedDir` - если найден ровно один `.sqlite`
+   файл, берём его (защита на случай если shamela изменит формат
+   снова)
+
+Если ни один не найден или найдено несколько `.sqlite` файлов на
+fallback-walk - бросаем `ShamelaImportException` с диагностикой
+(сколько найдено + что искали).
+
+**Live-проверка:** book 1681 (Сахих аль-Бухари, major_release=6)
+импортируется успешно после фикса. Тестовые fixture в
+`ShamelaImportServiceIT` обновлены на правильный naming
+`{bookId}-{major}.sqlite`.
+
+Зафиксировано в Сессии 23 при первом импорте через AdminShamelaPage UI.
+
+---
+
 <!-- Добавлять новые ловушки сюда по мере их обнаружения -->

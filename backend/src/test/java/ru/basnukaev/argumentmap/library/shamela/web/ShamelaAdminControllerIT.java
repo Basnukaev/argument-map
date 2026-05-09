@@ -333,6 +333,23 @@ class ShamelaAdminControllerIT {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void searchBooks_finds_by_exact_id() throws Exception {
+        bookDao.upsertAll(java.util.List.of(
+                new ShamelaBookRow(1681L, "صحيح البخاري - ط السلطانية", null, null, null, null, null,
+                        6, 0, null, null, null, null, false),
+                new ShamelaBookRow(2L, "случайная книга", null, null, null, null, null,
+                        1, 0, null, null, null, null, false)
+        ));
+
+        // поиск по числу-id находит точное совпадение и кладёт первым
+        mockMvc.perform(get("/api/v1/admin/shamela/search").param("q", "1681"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].bookId").value(1681))
+                .andExpect(jsonPath("$[0].majorRelease").value(6));
+    }
+
     // ---------------- sync-status ----------------
 
     @Test

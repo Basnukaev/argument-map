@@ -275,7 +275,7 @@ function AdminShamelaPage() {
               type="search"
               value={query}
               onChange={(e) => onQueryChange(e.target.value)}
-              placeholder="Поиск по названию (ar/ru/en) · до 50 результатов"
+              placeholder="Поиск по названию или id · до 50 результатов"
               className="flex-1 bg-transparent px-3 text-[13px] text-slate-900 outline-none placeholder:text-slate-400"
               aria-label="Поиск книг shamela"
             />

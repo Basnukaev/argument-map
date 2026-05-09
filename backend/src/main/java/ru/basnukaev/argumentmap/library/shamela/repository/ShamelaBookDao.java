@@ -158,21 +158,25 @@ public class ShamelaBookDao {
     }
 
     /**
-     * Поиск по name через ILIKE с обогащением: подтягивает имя автора
-     * через LEFT JOIN на {@code lib_shamela_author} и проверяет уже ли
-     * книга замаплена в {@code lib_books} через EXISTS subquery
-     * (использует GIN-индекс на {@code lib_books.metadata} из
-     * миграции 16).
+     * Поиск книг в staging-каталоге shamela. Один SQL с обогащением:
+     * <ul>
+     *   <li>LEFT JOIN на {@code lib_shamela_author} для имени автора</li>
+     *   <li>EXISTS subquery в {@code lib_books} через GIN-индекс на
+     *       {@code metadata->>'shamela_book_id'}</li>
+     * </ul>
      *
-     * <p>Один SQL вместо N+1 на фронте: JOIN дешевле чем 20+ запросов
-     * к {@code findById} на каждый search-результат для подгрузки
-     * authors. Search возвращает не более {@code limit} строк
-     * упорядоченных по релевантности (точные совпадения сначала, потом
-     * substring).
+     * <p>Поддерживает три режима матчинга в одном WHERE:
+     * <ol>
+     *   <li>Точное совпадение по {@code id::text} - если query это число
+     *       вроде "1681"</li>
+     *   <li>ILIKE substring по name (без преобразований case)</li>
+     *   <li>Точное совпадение по name (приоритет в ORDER BY)</li>
+     * </ol>
      *
-     * <p>Tombstoned записи ({@code deleted_at IS NOT NULL}) исключаются
-     * из результатов - админ не должен импортировать удалённые в
-     * shamela книги.
+     * <p>Сортировка: точное id-совпадение → точное name-совпадение →
+     * ILIKE substring → по {@code LENGTH(name)} → по id.
+     *
+     * <p>Tombstoned записи ({@code deleted_at IS NOT NULL}) исключаются.
      *
      * @return ShamelaStagingBookView - read-only view для UI поиска
      */
@@ -180,7 +184,8 @@ public class ShamelaBookDao {
         if (query == null || query.isBlank()) {
             return List.of();
         }
-        String like = "%" + query.trim() + "%";
+        String trimmed = query.trim();
+        String like = "%" + trimmed + "%";
         String sql = """
                 SELECT b.id, b.name, b.major_release, b.deleted_at,
                        a.name AS author_name,
@@ -190,9 +195,13 @@ public class ShamelaBookDao {
                        ) AS is_mapped
                 FROM lib_shamela_book b
                 LEFT JOIN lib_shamela_author a ON a.id = b.author_id AND a.deleted_at IS NULL
-                WHERE b.name ILIKE ? AND b.deleted_at IS NULL
+                WHERE (b.name ILIKE ? OR b.id::text = ?) AND b.deleted_at IS NULL
                 ORDER BY
-                    CASE WHEN b.name ILIKE ? THEN 0 ELSE 1 END,
+                    CASE
+                        WHEN b.id::text = ? THEN 0
+                        WHEN b.name ILIKE ? THEN 1
+                        ELSE 2
+                    END,
                     LENGTH(b.name),
                     b.id
                 LIMIT ?
@@ -206,8 +215,10 @@ public class ShamelaBookDao {
                         rs.getInt("major_release"),
                         rs.getBoolean("is_mapped")
                 ),
-                like,
-                query.trim(),    // exact-match получает приоритет в ORDER BY
+                like,        // WHERE name ILIKE
+                trimmed,     // WHERE id::text =
+                trimmed,     // ORDER BY id::text =
+                trimmed,     // ORDER BY name ILIKE (exact match)
                 limit
         );
     }

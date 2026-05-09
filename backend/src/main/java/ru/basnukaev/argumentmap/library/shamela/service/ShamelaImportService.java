@@ -5,6 +5,7 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.List;
 import java.util.stream.Stream;
 
 import org.slf4j.Logger;
@@ -149,7 +150,7 @@ public class ShamelaImportService {
         try {
             Path archive = apiClient.downloadArchive(url, workDir);
             Path extracted = extractor.extract(archive, workDir.resolve("extracted"));
-            Path bookSqlite = requireSqlite(extracted, bookId + ".sqlite");
+            Path bookSqlite = findBookSqlite(extracted, bookId, majorRelease);
 
             ShamelaBookContent content = bookReader.read(bookSqlite, bookId);
             int pages = pageDao.upsertAll(content.pages());
@@ -182,6 +183,54 @@ public class ShamelaImportService {
                             + " (распакован в " + extractedDir + ")");
         }
         return file;
+    }
+
+    /**
+     * Tolerant поиск sqlite-файла книги в распакованном каталоге.
+     * Реальный naming convention shamela:
+     * <ul>
+     *   <li>{@code {bookId}-{majorRelease}.sqlite} - наблюдалось для
+     *       major_release=6+ (например {@code 1681-6.sqlite})</li>
+     *   <li>{@code {bookId}.sqlite} - старый формат (наблюдалось в
+     *       мокированных тестовых архивах, возможно встречается в
+     *       live-данных для старых версий)</li>
+     * </ul>
+     *
+     * <p>Стратегия: пробуем оба известных имени по порядку, если ни один
+     * не нашёлся - ищем любой {@code .sqlite} файл рекурсивно через
+     * {@code Files.walk}. Если найден ровно один - возвращаем его. Если
+     * ноль или больше одного - бросаем {@link ShamelaImportException}
+     * с диагностикой.
+     */
+    private static Path findBookSqlite(Path extractedDir, long bookId, int majorRelease) {
+        Path withMajor = extractedDir.resolve(bookId + "-" + majorRelease + ".sqlite");
+        if (Files.isRegularFile(withMajor)) {
+            return withMajor;
+        }
+        Path bareId = extractedDir.resolve(bookId + ".sqlite");
+        if (Files.isRegularFile(bareId)) {
+            return bareId;
+        }
+        try (Stream<Path> walk = Files.walk(extractedDir)) {
+            List<Path> sqliteFiles = walk
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().toLowerCase().endsWith(".sqlite"))
+                    .toList();
+            if (sqliteFiles.size() == 1) {
+                log.warn("shamela book {} sqlite найден через fallback walk: {}",
+                        bookId, sqliteFiles.get(0).getFileName());
+                return sqliteFiles.get(0);
+            }
+            throw new ShamelaImportException(
+                    "не удалось найти sqlite-файл книги " + bookId
+                            + " в распакованном архиве (распакован в " + extractedDir
+                            + ", найдено .sqlite файлов: " + sqliteFiles.size()
+                            + ", искали " + bookId + "-" + majorRelease + ".sqlite и "
+                            + bookId + ".sqlite)");
+        } catch (IOException e) {
+            throw new ShamelaImportException(
+                    "ошибка обхода " + extractedDir + " для поиска sqlite", e);
+        }
     }
 
     private static void cleanupWorkDir(Path dir) {

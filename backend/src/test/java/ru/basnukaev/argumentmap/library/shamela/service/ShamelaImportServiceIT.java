@@ -308,10 +308,14 @@ class ShamelaImportServiceIT {
                 ps.setInt(1, 2); ps.setString(2, "Глава первая"); ps.setString(3, "2"); ps.setString(4, "1"); ps.executeUpdate();
             }
         }
+        // shamela кладёт sqlite внутрь book-zip с именем {bookId}-{major}.sqlite
+        // (наблюдалось на live: 1681-6.zip содержит 1681-6.sqlite). Старый
+        // формат {bookId}.sqlite поддерживается через fallback в
+        // ShamelaImportService.findBookSqlite, см. gotchas
         Path zip = dir.resolve(bookId + "-4.zip");
         try (OutputStream fos = Files.newOutputStream(zip);
              ZipOutputStream zos = new ZipOutputStream(fos)) {
-            putBinaryEntry(zos, bookId + ".sqlite", Files.readAllBytes(sqlite));
+            putBinaryEntry(zos, bookId + "-4.sqlite", Files.readAllBytes(sqlite));
         }
         return zip;
     }
