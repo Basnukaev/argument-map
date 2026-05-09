@@ -62,16 +62,29 @@ argument-map/
 │       │                    library/, citation/, qa/, shared/)
 │       └── ...
 │
-├── frontend/                сейчас один React-app argument-map.
-│                            В целевой архитектуре переедет в
-│                            apps/argument-map/, появятся
-│                            apps/library/, packages/shared-*/
+├── frontend/                один React SPA для всех приложений
+│   ├── src/pages/           разделы как разные pages:
+│   │                        TopicListPage, TopicGraphPage,
+│   │                        BookListPage, BookReaderPage,
+│   │                        (потом) QaListPage
+│   ├── src/components/      ui/ + graph/ + layout/ - общие
+│   │                        (Header с навигацией между разделами,
+│   │                        Button/Modal/Card как ui-примитивы)
+│   └── src/api/             общий fetch-клиент + автогенерируемые
+│                            OpenAPI типы
 │
 ├── scripts/                 утилиты (seed-скрипты для тестовых
 │                            данных)
 └── docker-compose.yml       Postgres (+ будущее: MinIO для image
                              store)
 ```
+
+Архитектурно решение **Сессии 23**: один SPA в `frontend/` вместо
+monorepo с `apps/*` + `packages/*`. Один разработчик, один стек,
+один домен с навигацией - не нужны отдельные Vite-серверы и
+сложности workspaces hoisting. Когда возникнет конкретная необходимость
+в разделении (другая команда / разные домены / огромный бандл) -
+вернёмся к monorepo. Подробности в `docs/progress.md` Сессия 23.
 
 ## Технологии
 
@@ -83,7 +96,7 @@ argument-map/
   на фронте
 - **Расширения для library** (планируются): Apache Tika для PDF,
   Tess4j для OCR, MinIO для object store, react-pdf и
-  react-image-crop на фронте, pnpm workspaces для monorepo
+  react-image-crop на фронте
 
 См. [`docs/architecture-platform.md`](docs/architecture-platform.md)
 для детального описания стэка и обоснований.
