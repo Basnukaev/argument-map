@@ -458,12 +458,22 @@ challenge неразрешимым в текущей конфигурации. �
       postgres + fixture-zip собираются программно через
       `DriverManager(jdbc:sqlite:)`. `ShamelaImportServiceLiveIT`
       `@Tag("live")` для реальной shamela API. 274 IT зелёных
-- [ ] **15.5: ShamelaToLibraryMapper** - `shamela_book` →
-      `lib_books` + `Authority` (резолвинг по name с нормализацией).
-      `shamela_title` (parent_id tree) → `lib_chapters`.
-      `shamela_page.content` (raw HTML) → `lib_pages.text_content`.
-      `lib_books.metadata` jsonb получает `{shamela_book_id,
-      shamela_major_release, pdf_links}`. IT на полный импорт
+- [x] **15.5: ShamelaToLibraryMapper** - `shamela_book` → `lib_books`
+      + `Authority` (резолвинг по нормализованному name с trim+collapse,
+      fallback на anonymous Authority `shamela:anonymous` с
+      if-not-exists). `shamela_title` (parent_id tree) → `lib_chapters`
+      топологически через BFS, защита от orphan parent_id.
+      `shamela_page.content` (raw HTML) → `lib_pages.text_content`,
+      page_number = shamela_page.id, chapter_id = NULL на MVP, skip
+      blank/whitespace. `lib_books.metadata` jsonb получает
+      `{shamela_book_id, shamela_major_release, pdf_links}`,
+      re-import detection через GIN-индекс на metadata. @Transactional
+      на mapBook. Idempotent skip при re-import (защищает FK от
+      node_sources). 10 IT через @SpringBootTest + Testcontainers
+      без моков. Расширения existing repos: AuthorityRepository.findByName
+      (exact match), BookRepository.findByShamelaBookId,
+      ShamelaTitleDao.findAllByBookId, ShamelaPageDao.findAllByBookId.
+      284 IT зелёных
 - [ ] **15.6: REST endpoints + финальная документация** -
       `POST /admin/shamela/sync-master`,
       `POST /admin/shamela/import-book/{id}`,

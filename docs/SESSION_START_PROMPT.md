@@ -139,7 +139,7 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
    которое требует обсуждения - тогда спрашиваешь точечно
 
 ══════════════════════════════════════════════
-ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-09 после Сессии 22 - Этап 15.4 закрыт, ShamelaImportService готов, очередь ShamelaToLibraryMapper)
+ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-09 после Сессии 22 - Этапы 15.4 + 15.5 закрыты, оба слоя ETL готовы, очередь ShamelaAdminController + REST документация)
 ══════════════════════════════════════════════
 
 ⚠️ **ВАЖНО**: проект пережил стратегический pivot - см. ADR-018 в
@@ -213,7 +213,7 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
   - `2b8d058` `docs: автономный режим работы Claude Code как
     заместителя` - режим автономии в проекте, red lines, формат
     эскалации
-- **Сессия 22 (бэк): Этап 15.4 ShamelaImportService** - 1 коммит:
+- **Сессия 22 (бэк): Этапы 15.4 + 15.5 (3 коммита)** -
   - `34311fe` `feat(backend): этап 15.4 - ShamelaImportService syncMaster + importBook` -
     оркестрационный `@Service` со связкой ApiClient+Extractor+Reader+DAO
     в один pipeline. Идемпотентность через `ON CONFLICT DO UPDATE` в
@@ -223,10 +223,24 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
     2 test-файла (ShamelaImportServiceIT с 6 IT через @MockitoBean
     ApiClient + Testcontainers postgres + fixture-zip собираются
     программно через DriverManager(jdbc:sqlite:); ShamelaImportServiceLiveIT
-    @Tag("live") для реальной shamela API). 696 insertions. **274 IT
-    зелёных** (+6 от ImportServiceIT). OpenApiIT-flake из gotchas.md
-    в этот прогон не воспроизвёлся
-  - **Этап 15.4 закрыт**, остаётся 15.5 (Mapper) + 15.6 (REST)
+    @Tag("live") для реальной shamela API). 696 insertions
+  - `7155f7e` `docs: handoff Сессии 22 - этап 15.4 ShamelaImportService закрыт`
+  - `0c11740` `feat(backend): этап 15.5 - ShamelaToLibraryMapper из staging в lib_books` -
+    второй слой ETL (доменное мапирование). `mapBook(long, UUID)`:
+    резолв Authority по нормализованному name (trim+collapse+exact),
+    fallback "shamela:anonymous" Authority с if-not-exists. Re-import
+    detection через `BookRepository.findByShamelaBookId` (jsonb GIN).
+    Chapters topologically через BFS, защита от orphan parent_id.
+    Pages с page_number=shamela_page.id, chapter_id=NULL на MVP, skip
+    blank/whitespace. `@Transactional` на mapBook. Расширения existing
+    repos: `findByName(exact)`, `findByShamelaBookId`, `findAllByBookId`
+    в Title/Page DAO. 7 файлов / 795 insertions. 10 IT через
+    @SpringBootTest без моков. Защитная ветка для dangling FK
+    оставлена в коде, тестом не воспроизводится (FK на DB-уровне
+    гарантирует невозможность через DAO insert)
+  - **Этапы 15.4 + 15.5 закрыты**. ETL-стэк полностью готов до уровня
+    сервисов. Остаётся **15.6 (REST)**. **284 IT зелёных** (+16 от
+    Сессии 21). OpenApiIT-flake не воспроизвёлся ни разу в Сессии 22
 - **Сессия 21 (бэк): Этапы 15.1 + 15.2 + 15.3 (5 коммитов)** -
   пилот-сессия с большой диагностической экспедицией. Изначальный план
   Этапа 15 был jsoup-парсер shamela.ws. 6 попыток обойти Cloudflare
@@ -319,92 +333,82 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 - ADR-011-016 все приняты. В Этапе 12 ADR не делал - чистый UI
   поверх готового бэк-контракта
 
-ОТКРЫТО (по приоритету) - после Этапа 15.4:
+ОТКРЫТО (по приоритету) - после Этапов 15.4 + 15.5:
 
-1. **Этап 15.5: ShamelaToLibraryMapper** ← **продолжение после 15.4**.
-   ETL-стэк до уровня orchestration полностью готов (ApiClient +
-   Extractor + Reader + DAO + ImportService). Сейчас данные едут в
-   staging `lib_shamela_*`. Нужно мапирование в целевую модель
-   `lib_books`/`Authority`/`lib_chapters`/`lib_pages` (это то ради
-   чего вся затея - argument-map пользователи увидят книги в
-   доменной модели, не shamela-таблицах).
+⚠️ **АРХИТЕКТУРНЫЙ ВОПРОС - решается через UX-проверку фронта**:
+Абдула попросил **не запускать массовый парсинг 270k книг shamela** до
+тех пор, пока не визуализируем 1-2 книги на фронте и не определимся:
+**bulk-bootstrap всего каталога** vs **lazy-import on user request**
+(importBook+mapBook дёргаются когда пользователь открывает книгу в
+reader, а не заранее). См. `memory/feedback_no_bulk_shamela_parse.md`.
 
-   Конкретный план файлов (полностью расписано в progress.md Сессия 22
-   "Следующий шаг"):
+Это влияет на:
+- роль `syncMaster()` - может остаться как полная синхронизация
+  staging-метаданных (книги/авторы есть в `lib_shamela_book`, но не
+  в `lib_books`), bulk mapping откладывается
+- роль `mapBook(id)` - вызывается lazy при первом просмотре конкретной
+  книги, не batch'ом
+- размер БД - не 5GB сразу, а растёт по мере использования
+- 15.6 admin REST endpoints - 4 точечных вызова достаточны для UX-проверки
 
-   - `library/shamela/service/ShamelaToLibraryMapper.java` - `@Service`,
-     инжектит `ShamelaBookDao` + `ShamelaAuthorDao` + `ShamelaTitleDao` +
-     `ShamelaPageDao` + `BookRepository` + `AuthorityRepository` +
-     `ChapterRepository` + `PageRepository`. Публичный метод
-     `MappedBookResult mapBook(long shamelaBookId)`:
-     - **Резолв Authority** по `shamela_book.author_id` →
-       `shamela_author.name`. Нормализация (trim + collapse whitespace,
-       возможно lower-case для матчинга через индекс). Lookup в
-       `Authority` по нормализованному name - переиспользуем если есть,
-       создаём если нет. Fallback: `author_id IS NULL` → единый
-       «anonymous» Authority (создаётся if-not-exists)
-     - **Создание Book**: `name` из shamela, `bookType` (mapping из
-       `shamela_book.type` в enum BookType - надо посмотреть semantics
-       по реальным данным после live-syncMaster), `bibliography`,
-       `metadata` jsonb с `{shamela_book_id, shamela_major_release,
-       pdf_links}`, `authority_id`. Re-import detect через `metadata->>'shamela_book_id'`
-       (lib_books использует UUID PK, не bigint - прямой ON CONFLICT
-       не работает)
-     - **Маппинг title-tree** (`shamela_title.parent_id` tree) →
-       `lib_chapters` с `parent_chapter_id`. Depth-first traversal,
-       sort_order по sequence. Связь page → chapter через
-       `shamela_title.page` поле (TEXT, на MVP берём только start
-       если range)
-     - **Маппинг pages**: `shamela_page.content` (raw HTML с tashkeel)
-       → `lib_pages.text_content`. На MVP сохраняем HTML as-is,
-       sanitize в reader 18.x. `lib_pages.chapter_id` через
-       привязку к ближайшему предыдущему title по page-номеру
-   - `MappedBookResult` record - содержит `Book.id`, флаг
-     created/updated, counts по chapter/page
-   - `ShamelaToLibraryMapperIT` - Testcontainers postgres,
-     предзаполнение `lib_shamela_*` через DAO, прогон mapper'а,
-     ассерты на состояние `lib_books`/`Authority`/`lib_chapters`/
-     `lib_pages`. Сценарии: новая книга (создаётся), повторный
-     import (обновляет без создания дубликата Authority), missing
-     author (anonymous Authority), title-tree без parent_id (плоский),
-     nested titles (parent → child связь)
+**Live-IT запускать только smoke-точечно** (один-два прогона), не
+bootstrap БД. Реальный сценарий «загрузить 3-5 книг для UX-проверки»
+- через 15.6 admin endpoints curl'ом, не batch-скриптом.
 
-   **Открытые вопросы для решения по ходу 15.5** - не блокеры,
-   а тактические:
-   - Authority match - normalization алгоритм (стандартная trim/
-     lowercase/collapse) или exact match? Решить по факту: если
-     данные shamela достаточно чистые - exact, иначе lower(name)
-     через индекс
-   - Book.bookType - `shamela_book.type` integer 1-3 (semantics?
-     посмотреть после live-syncMaster). Возможно нужен новый enum
-     или все мапятся в один
-   - Chapter ↔ Page связь через `title.page` поле - может быть
-     "1" или "1-3" range. На MVP берём start
+1. **Этап 15.6: REST endpoints + финальная документация** ←
+   **продолжение после 15.5**. Финальная фаза Library shamela MVP
+   на бэкенде. Точечные admin endpoints для:
+   - `POST /api/v1/admin/shamela/sync-master` → `syncMaster()`
+     (синхронный, может занять до минуты)
+   - `POST /api/v1/admin/shamela/import-book/{id}` → `importBook(long)`
+   - `POST /api/v1/admin/shamela/map-book/{id}` → `mapBook(long, UUID)`
+     где `UUID` берётся из `@CurrentUser` (X-User-Id, ADR-006)
+   - `GET /api/v1/admin/shamela/book/{id}/pdf/{fileIndex}` → lazy
+     download через `ShamelaApiClient.downloadPdf` + streaming response
 
-   На старте Сессии 23: после стандартного протокола **прямо к 15.5
-   в режиме автономии**. ADR-020 фиксирует двухслойную архитектуру,
-   Mapper - реализация второго слоя. Если по ходу всплывёт вопрос
-   нормализации authority name (нужен ли индекс) - можно сделать ADR.
+   Конкретные файлы:
+   - `library/shamela/web/controller/ShamelaAdminController.java`
+   - `library/shamela/web/dto/` (MasterSyncResponse, BookImportResponse,
+     MappedBookResponse - ре-shape service-records)
+   - `library/shamela/web/exception/` - `@ControllerAdvice` маппит
+     ApiException→502, ArchiveException/ReaderException→500,
+     ImportException→404 для not-found / 500 для остального.
+     Возможно ввести `ShamelaNotFoundException extends
+     ShamelaImportException` для чистого matching
+   - `ShamelaAdminControllerIT` через MockMvc + Testcontainers с
+     `@MockitoBean` на `ShamelaImportService`/`ShamelaToLibraryMapper`.
+     Сценарии: success-pathways на все 4 endpoints, validation
+     (book id < 0, etc), exception mapping
+   - `api-contract.md` - секция `## Shamela Admin API` (4 endpoints,
+     request/response примеры, error codes)
+   - `glossary.md` - термины: «staging таблица», «shamela major_release»,
+     «idempotent skip», «lazy import» (если решим в эту сторону)
 
-2. **Этап 15.6: REST endpoints** -
-   `POST /admin/shamela/sync-master`,
-   `POST /admin/shamela/import-book/{id}`,
-   `POST /admin/shamela/map-book/{id}` (вызов 15.5 mapper),
-   `GET /admin/shamela/book/{id}/pdf/{fileIndex}` (lazy).
-   ControllerIT через MockMvc + api-contract.md + glossary.md.
-   Финальная фаза Library shamela MVP
+   На старте Сессии 23: после стандартного протокола **прямо к 15.6
+   в режиме автономии**. Архитектурных решений нет - оба service-слоя
+   уже фиксированы (15.4+15.5). Если по ходу реализации станет ясно
+   что-то про bulk vs lazy - обсудить точечно с Абдулой.
 
-3. **Этап 18: Library frontend + интеграция с argument-map** -
-   monorepo реструктуризация (apps/argument-map, apps/library,
-   packages/shared-*), BookListPage, BookReader, CitationPicker,
-   переключение argument-map citation на CitationPicker
-4. **Этап 16: PDF/EPUB upload** - Apache Tika, MinIO для хранения
+   После 15.6 - **переход к Этапу 18 (Library frontend)** для
+   UX-валидации на 3-5 руками-импортированных книг. Тогда определяется
+   финальная архитектура импорта (bulk vs lazy) и можно осознанно
+   bootstrap'ить весь каталог либо оставить lazy.
+
+2. **Этап 18: Library frontend** ← **критический шаг для решения
+   bulk-vs-lazy**. После того как 3-5 книг импортированы через
+   15.6 admin endpoints curl'ом, фронт визуализирует их и определяет
+   как пользователь их использует. Конкретный план в roadmap.md
+   (BookListPage, BookReader, CitationPicker, monorepo
+   реструктуризация). Если решим lazy - admin endpoints останутся
+   только для bootstrap метаданных каталога без mapBook
+
+3. **Этап 16: PDF/EPUB upload** - Apache Tika, MinIO для хранения
    исходников, page-by-page extraction
-5. **Этап 17: image-сканы + OCR** - Tess4j для арабского, ImageRegion
+4. **Этап 17: image-сканы + OCR** - Tess4j для арабского, ImageRegion
    API, async OCR pipeline
-6. **Этап 19: Q&A приложение** - первое полностью новое поверх
+5. **Этап 19: Q&A приложение** - первое полностью новое поверх
    library. Валидация платформенности
-7. **Этап 20+: Auth, multi-tenancy, прочее**
+6. **Этап 20+: Auth, multi-tenancy, прочее**
 
 См. `docs/roadmap.md` для деталей всех этапов
 
@@ -603,21 +607,25 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 После прочтения 5+ файлов из START-OF-SESSION PROTOCOL начни ответ
 с короткого summary последнего состояния и предложения. Например:
 
-"вижу - Сессия 22 закрыла Этап 15.4: ShamelaImportService с
-syncMaster() + importBook(). 1 коммит, 696 insertions. 274 IT зелёных
-(+6 от ImportServiceIT через @MockitoBean ApiClient + Testcontainers
-postgres + fixture-zip собираются программно через
-DriverManager(jdbc:sqlite:)). Pipeline идемпотентен через
-ON CONFLICT DO UPDATE в DAO без транзакции на pipeline (ADR-020).
-Cleanup workdir в finally. ETL-стэк после 15.4 готов до уровня
-оркестрации - ApiClient + Extractor + Reader + DAO + ImportService.
+"вижу - Сессия 22 закрыла оба слоя ETL под shamela: 15.4
+(ShamelaImportService syncMaster + importBook) и 15.5
+(ShamelaToLibraryMapper). 3 коммита, ~1500 insertions. 284 IT зелёных
+(+10 от MapperIT, +6 от ImportServiceIT). Pipeline идемпотентен,
+re-import skip защищает FK. ETL-стэк до уровня сервисов полностью
+готов - ApiClient + Extractor + Reader + DAO + ImportService +
+ToLibraryMapper.
 
-В режиме автономии продолжаю с 15.5 - ShamelaToLibraryMapper.
-Это переход staging lib_shamela_* → целевая модель lib_books/
-Authority/lib_chapters/lib_pages. Уже доменное мапирование, не
-транспортный слой. Открытые тактические вопросы (нормализация
-authority name, bookType mapping, page-chapter связь) решаются
-по ходу - ADR только если всплывёт что-то существенное."
+⚠️ ВАЖНО: Абдула попросил НЕ запускать массовый парсинг 270k книг
+shamela до фронт-проверки на 1-2 книгах. Архитектурный вопрос
+'bulk-bootstrap vs lazy-import on user request' открыт, решается
+после Этапа 18 frontend visualization. Live-IT использовать только
+точечно для smoke. См. memory/feedback_no_bulk_shamela_parse.md.
+
+В режиме автономии продолжаю с 15.6 - ShamelaAdminController +
+api-contract + glossary. Финальная фаза Library shamela MVP на
+бэкенде. 4 точечных admin endpoints (sync-master / import-book /
+map-book / pdf-download). После 15.6 - переход на Этап 18 (Library
+frontend) для UX-валидации, и тогда осознанно решаем bulk vs lazy."
 
 Жди подтверждение. После него - смело за работу.
 ```
