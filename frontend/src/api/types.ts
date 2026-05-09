@@ -68,6 +68,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/library/books": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_3"];
+        put?: never;
+        post: operations["create_3"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/edges": {
         parameters: {
             query?: never;
@@ -77,7 +93,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["create_3"];
+        post: operations["create_4"];
         delete?: never;
         options?: never;
         head?: never;
@@ -91,9 +107,57 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_3"];
+        get: operations["list_4"];
         put?: never;
-        post: operations["create_4"];
+        post: operations["create_5"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/shamela/sync-master": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["syncMaster"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/shamela/map-book/{bookId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["mapBook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/shamela/import-book/{bookId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importBook"];
         delete?: never;
         options?: never;
         head?: never;
@@ -196,7 +260,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/authorities/{authorityId}": {
+    "/api/v1/library/pages/{pageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/books/{bookId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -207,6 +287,38 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["delete_4"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/books/{bookId}/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/authorities/{authorityId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getOne_3"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_5"];
         options?: never;
         head?: never;
         patch?: never;
@@ -326,6 +438,34 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
         };
+        CreateBookRequest: {
+            /** @enum {string} */
+            bookType: "QURAN" | "HADITH_COLLECTION" | "BOOK" | "ARTICLE" | "MANUSCRIPT";
+            title: string;
+            /** Format: uuid */
+            authorityId?: string;
+            language: string;
+            description?: string;
+            metadata?: components["schemas"]["JsonNode"];
+        };
+        BookResponse: {
+            /** Format: uuid */
+            id?: string;
+            /** @enum {string} */
+            bookType?: "QURAN" | "HADITH_COLLECTION" | "BOOK" | "ARTICLE" | "MANUSCRIPT";
+            title?: string;
+            /** Format: uuid */
+            authorityId?: string;
+            language?: string;
+            description?: string;
+            metadata?: components["schemas"]["JsonNode"];
+            /** Format: uuid */
+            createdBy?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
         CreateEdgeRequest: {
             /** Format: uuid */
             fromNodeId: string;
@@ -372,6 +512,42 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
         };
+        SyncMasterResponse: {
+            changed?: boolean;
+            /** Format: int32 */
+            previousVersion?: number;
+            /** Format: int32 */
+            currentVersion?: number;
+            /** Format: int32 */
+            categoriesCount?: number;
+            /** Format: int32 */
+            authorsCount?: number;
+            /** Format: int32 */
+            booksCount?: number;
+        };
+        MapBookResponse: {
+            /** Format: uuid */
+            bookId?: string;
+            /** Format: int64 */
+            shamelaBookId?: number;
+            created?: boolean;
+            /** Format: uuid */
+            authorityId?: string;
+            /** Format: int32 */
+            chaptersCount?: number;
+            /** Format: int32 */
+            pagesCount?: number;
+        };
+        ImportBookResponse: {
+            /** Format: int64 */
+            bookId?: number;
+            /** Format: int32 */
+            majorRelease?: number;
+            /** Format: int32 */
+            pagesCount?: number;
+            /** Format: int32 */
+            titlesCount?: number;
+        };
         UpdateNodeRequest: {
             content?: string;
             /** Format: double */
@@ -406,6 +582,86 @@ export interface components {
             changedBy?: string;
             /** Format: date-time */
             changedAt?: string;
+        };
+        ImageRegionResponse: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: double */
+            x?: number;
+            /** Format: double */
+            y?: number;
+            /** Format: double */
+            width?: number;
+            /** Format: double */
+            height?: number;
+            extractedText?: string;
+        };
+        PageResponse: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            bookId?: string;
+            /** Format: uuid */
+            chapterId?: string;
+            /** Format: int32 */
+            pageNumber?: number;
+            textContent?: string;
+            imageUrl?: string;
+            imageRegions?: components["schemas"]["ImageRegionResponse"][];
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        BookSummary: {
+            /** Format: uuid */
+            id?: string;
+            /** @enum {string} */
+            bookType?: "QURAN" | "HADITH_COLLECTION" | "BOOK" | "ARTICLE" | "MANUSCRIPT";
+            title?: string;
+            /** Format: uuid */
+            authorityId?: string;
+            language?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        BookDetailResponse: {
+            /** Format: uuid */
+            id?: string;
+            /** @enum {string} */
+            bookType?: "QURAN" | "HADITH_COLLECTION" | "BOOK" | "ARTICLE" | "MANUSCRIPT";
+            title?: string;
+            /** Format: uuid */
+            authorityId?: string;
+            language?: string;
+            description?: string;
+            metadata?: components["schemas"]["JsonNode"];
+            /** Format: uuid */
+            createdBy?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+            chapters?: components["schemas"]["ChapterResponse"][];
+        };
+        ChapterResponse: {
+            /** Format: uuid */
+            id?: string;
+            title?: string;
+            /** Format: int32 */
+            orderIndex?: number;
+            /** Format: uuid */
+            parentChapterId?: string;
+        };
+        PageSummary: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: int32 */
+            pageNumber?: number;
+            /** Format: uuid */
+            chapterId?: string;
+            hasText?: boolean;
+            hasImage?: boolean;
         };
     };
     responses: never;
@@ -584,7 +840,59 @@ export interface operations {
             };
         };
     };
+    list_3: {
+        parameters: {
+            query?: {
+                q?: string;
+                type?: "QURAN" | "HADITH_COLLECTION" | "BOOK" | "ARTICLE" | "MANUSCRIPT";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BookSummary"][];
+                };
+            };
+        };
+    };
     create_3: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header: {
+                /** @description UUID текущего пользователя (ADR-006, временно до Spring Security в Этапе 6) */
+                "X-User-Id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBookRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BookResponse"];
+                };
+            };
+        };
+    };
+    create_4: {
         parameters: {
             query?: never;
             header: {
@@ -611,7 +919,7 @@ export interface operations {
             };
         };
     };
-    list_3: {
+    list_4: {
         parameters: {
             query?: {
                 q?: string;
@@ -633,7 +941,7 @@ export interface operations {
             };
         };
     };
-    create_4: {
+    create_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -653,6 +961,75 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["AuthorityResponse"];
+                };
+            };
+        };
+    };
+    syncMaster: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SyncMasterResponse"];
+                };
+            };
+        };
+    };
+    mapBook: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header: {
+                /** @description UUID текущего пользователя (ADR-006, временно до Spring Security в Этапе 6) */
+                "X-User-Id": string;
+            };
+            path: {
+                bookId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["MapBookResponse"];
+                };
+            };
+        };
+    };
+    importBook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ImportBookResponse"];
                 };
             };
         };
@@ -880,7 +1257,96 @@ export interface operations {
             };
         };
     };
+    getPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageResponse"];
+                };
+            };
+        };
+    };
     getOne_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BookDetailResponse"];
+                };
+            };
+        };
+    };
+    delete_4: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listPages: {
+        parameters: {
+            query?: {
+                from?: number;
+                to?: number;
+            };
+            header?: never;
+            path: {
+                bookId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageSummary"][];
+                };
+            };
+        };
+    };
+    getOne_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -902,7 +1368,7 @@ export interface operations {
             };
         };
     };
-    delete_4: {
+    delete_5: {
         parameters: {
             query?: never;
             header?: never;

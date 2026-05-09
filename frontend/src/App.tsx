@@ -2,6 +2,8 @@ import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router';
 import TopicListPage from '@/pages/TopicListPage';
 import CreateTopicPage from '@/pages/CreateTopicPage';
+import BookListPage from '@/pages/BookListPage';
+import BookReaderPage from '@/pages/BookReaderPage';
 import Toaster from '@/components/ui/Toaster';
 
 // TopicGraphPage тянет тяжёлые зависимости (React Flow, dagre, lucide-icons,
@@ -33,6 +35,8 @@ function App() {
             </Suspense>
           }
         />
+        <Route path="/books" element={<BookListPage />} />
+        <Route path="/books/:bookId" element={<BookReaderPage />} />
       </Routes>
       <Toaster />
     </>

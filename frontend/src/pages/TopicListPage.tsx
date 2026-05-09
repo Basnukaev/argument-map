@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
+import Header from '@/components/layout/Header';
 import { apiGet, ApiError } from '@/api/client';
 import type { components } from '@/api/types';
 
@@ -67,34 +68,7 @@ function TopicListPage() {
 
   return (
     <main className="min-h-screen bg-slate-50/60">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex h-12 max-w-[1380px] items-center gap-3 px-6">
-          <span className="grid h-7 w-7 place-items-center rounded-md bg-indigo-600 text-white">
-            <Network size={16} aria-hidden="true" />
-          </span>
-          <span className="text-[14px] font-bold tracking-tight text-slate-900">
-            Argument Map
-          </span>
-          <div className="h-5 w-px bg-slate-200" />
-          <nav className="flex items-center gap-1 text-[12px]">
-            <span className="inline-flex h-7 items-center rounded-md bg-slate-100 px-2.5 font-medium text-slate-900">
-              Темы
-            </span>
-            <span
-              className="inline-flex h-7 cursor-not-allowed items-center rounded-md px-2.5 text-slate-400"
-              title="Будет в одном из следующих этапов"
-            >
-              Авторитеты
-            </span>
-            <span
-              className="inline-flex h-7 cursor-not-allowed items-center rounded-md px-2.5 text-slate-400"
-              title="Будет в одном из следующих этапов"
-            >
-              Источники
-            </span>
-          </nav>
-        </div>
-      </header>
+      <Header />
 
       <div className="mx-auto max-w-[1380px] px-6 py-8">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
