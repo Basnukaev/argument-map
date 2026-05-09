@@ -139,7 +139,7 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
    которое требует обсуждения - тогда спрашиваешь точечно
 
 ══════════════════════════════════════════════
-ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-09 после Сессии 22 - Этапы 15.4 + 15.5 закрыты, оба слоя ETL готовы, очередь ShamelaAdminController + REST документация)
+ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-09 после Сессии 22 - Library shamela MVP закрыт целиком на бэке, очередь Этап 18 frontend для UX-валидации перед решением bulk vs lazy)
 ══════════════════════════════════════════════
 
 ⚠️ **ВАЖНО**: проект пережил стратегический pivot - см. ADR-018 в
@@ -213,7 +213,29 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
   - `2b8d058` `docs: автономный режим работы Claude Code как
     заместителя` - режим автономии в проекте, red lines, формат
     эскалации
-- **Сессия 22 (бэк): Этапы 15.4 + 15.5 (3 коммита)** -
+- **Сессия 22 (бэк): Этапы 15.4 + 15.5 + 15.6 (5 feat + handoff коммитов)** -
+  Library shamela MVP закрыт целиком на бэкенде. Сверх первоначальных
+  планов закрыли все 3 оставшихся подэтапа в одной сессии:
+  - `1ce9fad` `feat(backend): этап 15.6 - shamela admin REST endpoints + exception mapping` -
+    `ShamelaAdminController` с 3 endpoints под `/api/v1/admin/shamela/*`
+    (sync-master, import-book/{id}, map-book/{id}). 3 response-DTO +
+    mapper. Расширен `GlobalExceptionHandler`: ApiException→502,
+    Archive/Reader→500, ImportException→500, NotFound→404. Введён
+    `ShamelaNotFoundException extends ShamelaImportException` для
+    cleanup-маппинга без substring matching. 12 IT через MockMvc +
+    `@MockitoBean`. api-contract.md секция «Shamela Admin API» +
+    glossary.md секция «Shamela ETL» (5 терминов). 10 файлов /
+    491 insertion. **PDF download / async / bulk endpoints отложены**
+    (см. «Что не реализовано» в api-contract.md). **296 IT зелёных**
+    (+12 от ControllerIT)
+  - 15.4: `34311fe` ShamelaImportService syncMaster + importBook
+    (детали ниже)
+  - 15.5: `0c11740` ShamelaToLibraryMapper из staging в lib_books
+    (детали ниже)
+  - `dc50271` исправление выдуманной цифры 270k → ~8500 книг
+    (реальная по mitmproxy-реверсу из Сессии 21). Понижен ассерт в
+    LiveIT с `>10_000` до `>5_000`
+- **Сессия 22 (бэк): подробности этапов 15.4 + 15.5** -
   - `34311fe` `feat(backend): этап 15.4 - ShamelaImportService syncMaster + importBook` -
     оркестрационный `@Service` со связкой ApiClient+Extractor+Reader+DAO
     в один pipeline. Идемпотентность через `ON CONFLICT DO UPDATE` в
@@ -333,7 +355,7 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 - ADR-011-016 все приняты. В Этапе 12 ADR не делал - чистый UI
   поверх готового бэк-контракта
 
-ОТКРЫТО (по приоритету) - после Этапов 15.4 + 15.5:
+ОТКРЫТО (по приоритету) - после Этапов 15.4 + 15.5 + 15.6 (Library shamela MVP закрыт целиком на бэкенде):
 
 ⚠️ **АРХИТЕКТУРНЫЙ ВОПРОС - решается через UX-проверку фронта**:
 Абдула попросил **не запускать массовый парсинг ~8500 книг shamela** до
@@ -342,65 +364,54 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 (importBook+mapBook дёргаются когда пользователь открывает книгу в
 reader, а не заранее). См. `memory/feedback_no_bulk_shamela_parse.md`.
 
-Это влияет на:
-- роль `syncMaster()` - может остаться как полная синхронизация
-  staging-метаданных (книги/авторы есть в `lib_shamela_book`, но не
-  в `lib_books`), bulk mapping откладывается
-- роль `mapBook(id)` - вызывается lazy при первом просмотре конкретной
-  книги, не batch'ом
-- размер БД - не 5GB сразу, а растёт по мере использования
-- 15.6 admin REST endpoints - 4 точечных вызова достаточны для UX-проверки
+**Перед началом Этапа 18 - руками импортировать 3-5 книг через
+admin endpoints curl'ом.** Подробный скрипт в progress.md, секция
+«Перед 18 - руками импортировать...». Отбор книг - на усмотрение
+Абдулы (нужны репрезентативные: одна крупная, одна с глубокой
+иерархией глав, одна короткая). После UX-проверки на этих 3-5 книгах
+принимается решение про bulk vs lazy.
 
-**Live-IT запускать только smoke-точечно** (один-два прогона), не
-bootstrap БД. Реальный сценарий «загрузить 3-5 книг для UX-проверки»
-- через 15.6 admin endpoints curl'ом, не batch-скриптом.
+1. **Этап 18: Library frontend** ← **главный приоритет** для
+   UX-валидации shamela импорта. Состоит из 6 подэтапов
+   (см. roadmap.md):
 
-1. **Этап 15.6: REST endpoints + финальная документация** ←
-   **продолжение после 15.5**. Финальная фаза Library shamela MVP
-   на бэкенде. Точечные admin endpoints для:
-   - `POST /api/v1/admin/shamela/sync-master` → `syncMaster()`
-     (синхронный, может занять до минуты)
-   - `POST /api/v1/admin/shamela/import-book/{id}` → `importBook(long)`
-   - `POST /api/v1/admin/shamela/map-book/{id}` → `mapBook(long, UUID)`
-     где `UUID` берётся из `@CurrentUser` (X-User-Id, ADR-006)
-   - `GET /api/v1/admin/shamela/book/{id}/pdf/{fileIndex}` → lazy
-     download через `ShamelaApiClient.downloadPdf` + streaming response
+   - **18.a: monorepo реструктуризация** (структурный рефакторинг)
+   - **18.b: BookListPage** - страница `/books` со списком книг
+   - **18.c: BookReader** - страница `/books/{id}` с side-panel
+     chapters + основная область с RTL/naskh шрифт для арабского
+   - **18.d: ImagePageRenderer** (далеко в будущем после Этапа 17)
+   - **18.e: CitationPicker** в `packages/shared-citation` -
+     центральный компонент платформенного pivot'а ADR-018
+   - **18.f: Argument-map переключение на CitationPicker** -
+     заменяет существующий AddSourceModal со свободной формой
 
-   Конкретные файлы:
-   - `library/shamela/web/controller/ShamelaAdminController.java`
-   - `library/shamela/web/dto/` (MasterSyncResponse, BookImportResponse,
-     MappedBookResponse - ре-shape service-records)
-   - `library/shamela/web/exception/` - `@ControllerAdvice` маппит
-     ApiException→502, ArchiveException/ReaderException→500,
-     ImportException→404 для not-found / 500 для остального.
-     Возможно ввести `ShamelaNotFoundException extends
-     ShamelaImportException` для чистого matching
-   - `ShamelaAdminControllerIT` через MockMvc + Testcontainers с
-     `@MockitoBean` на `ShamelaImportService`/`ShamelaToLibraryMapper`.
-     Сценарии: success-pathways на все 4 endpoints, validation
-     (book id < 0, etc), exception mapping
-   - `api-contract.md` - секция `## Shamela Admin API` (4 endpoints,
-     request/response примеры, error codes)
-   - `glossary.md` - термины: «staging таблица», «shamela major_release»,
-     «idempotent skip», «lazy import» (если решим в эту сторону)
+   На старте Сессии 23: после стандартного протокола **обсудить с
+   Абдулой**:
+   - 18.a (monorepo) делать сейчас или отложить (это структурный
+     рефакторинг затрагивающий весь репозиторий, отдельный handoff)
+   - Какие 3-5 книг выбрать для UX-проверки. Возможно курировать
+     список из shamela-каталога (Сахих аль-Бухари 41557, например)
+   - Минимальный фронт-MVP: BookListPage + BookReader без RTL/арабского
+     шрифта или сразу с ними (последнее = больше работы, но более
+     релевантный UX)
 
-   На старте Сессии 23: после стандартного протокола **прямо к 15.6
-   в режиме автономии**. Архитектурных решений нет - оба service-слоя
-   уже фиксированы (15.4+15.5). Если по ходу реализации станет ясно
-   что-то про bulk vs lazy - обсудить точечно с Абдулой.
+   18.a-c (List/Reader без полировки и без monorepo) реалистично
+   уместить в одну сессию. CitationPicker (18.e) и интеграция с
+   argument-map (18.f) - отдельная сессия из-за размера.
 
-   После 15.6 - **переход к Этапу 18 (Library frontend)** для
-   UX-валидации на 3-5 руками-импортированных книг. Тогда определяется
-   финальная архитектура импорта (bulk vs lazy) и можно осознанно
-   bootstrap'ить весь каталог либо оставить lazy.
+2. **Архитектурное решение «bulk vs lazy import» после Этапа 18.b-c** -
+   когда станет видно как пользователь использует library:
+   - **bulk** - все 8500 книг через `syncMaster + bulk mapBook` за
+     один прогон, БД ~1-1.5GB, search/list мгновенный
+   - **lazy** - `syncMaster` только для метаданных в staging, `mapBook`
+     дёргается при первом просмотре конкретной книги (5-15с
+     spinner для пользователя при первом раз). БД растёт по мере
+     использования
+   - **гибрид** - метаданные `lib_books` сразу для всех (~30MB),
+     content (`lib_pages`) lazy. Best UX/storage trade-off
 
-2. **Этап 18: Library frontend** ← **критический шаг для решения
-   bulk-vs-lazy**. После того как 3-5 книг импортированы через
-   15.6 admin endpoints curl'ом, фронт визуализирует их и определяет
-   как пользователь их использует. Конкретный план в roadmap.md
-   (BookListPage, BookReader, CitationPicker, monorepo
-   реструктуризация). Если решим lazy - admin endpoints останутся
-   только для bootstrap метаданных каталога без mapBook
+   Решение требует ADR-021 если выберем не bulk (default подход
+   из ADR-020). Делать после фактической UX-проверки
 
 3. **Этап 16: PDF/EPUB upload** - Apache Tika, MinIO для хранения
    исходников, page-by-page extraction
@@ -409,6 +420,15 @@ bootstrap БД. Реальный сценарий «загрузить 3-5 кн�
 5. **Этап 19: Q&A приложение** - первое полностью новое поверх
    library. Валидация платформенности
 6. **Этап 20+: Auth, multi-tenancy, прочее**
+
+7. **Доделки 15.6 (отложены сознательно)** - можно вернуться когда
+   понадобится:
+   - `GET /api/v1/admin/shamela/book/{id}/pdf/{fileIndex}` - lazy PDF
+     download через `StreamingResponseBody`
+   - Async-варианты POST endpoints (через `@Async` или message queue)
+     для долгих операций
+   - Bulk endpoints (`POST /map-books?ids=...`) - после решения про
+     bulk-bootstrap
 
 См. `docs/roadmap.md` для деталей всех этапов
 
@@ -607,25 +627,32 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 После прочтения 5+ файлов из START-OF-SESSION PROTOCOL начни ответ
 с короткого summary последнего состояния и предложения. Например:
 
-"вижу - Сессия 22 закрыла оба слоя ETL под shamela: 15.4
-(ShamelaImportService syncMaster + importBook) и 15.5
-(ShamelaToLibraryMapper). 3 коммита, ~1500 insertions. 284 IT зелёных
-(+10 от MapperIT, +6 от ImportServiceIT). Pipeline идемпотентен,
-re-import skip защищает FK. ETL-стэк до уровня сервисов полностью
-готов - ApiClient + Extractor + Reader + DAO + ImportService +
-ToLibraryMapper.
+"вижу - Сессия 22 закрыла Library shamela MVP целиком на бэкенде:
+15.4 ImportService + 15.5 ToLibraryMapper + 15.6 AdminController.
+5 feat-коммитов, ~1900 insertions. 296 IT зелёных (+12 от
+ControllerIT, +10 от MapperIT, +6 от ImportServiceIT). ETL-стэк
+готов end-to-end: ApiClient + Extractor + Reader + DAO +
+ImportService + Mapper + 3 admin REST endpoints под
+/api/v1/admin/shamela/*. PDF download / async / bulk endpoints
+отложены - не критичны для MVP.
 
-⚠️ ВАЖНО: Абдула попросил НЕ запускать массовый парсинг ~8500 книг
-shamela до фронт-проверки на 1-2 книгах. Архитектурный вопрос
-'bulk-bootstrap vs lazy-import on user request' открыт, решается
-после Этапа 18 frontend visualization. Live-IT использовать только
-точечно для smoke. См. memory/feedback_no_bulk_shamela_parse.md.
+⚠️ ВАЖНО: Абдула попросил НЕ запускать массовый парсинг ~8500
+книг shamela до фронт-проверки на 1-2 книгах. Архитектурный вопрос
+'bulk vs lazy' открыт, решается после Этапа 18.b-c frontend
+visualization (см. memory/feedback_no_bulk_shamela_parse.md).
 
-В режиме автономии продолжаю с 15.6 - ShamelaAdminController +
-api-contract + glossary. Финальная фаза Library shamela MVP на
-бэкенде. 4 точечных admin endpoints (sync-master / import-book /
-map-book / pdf-download). После 15.6 - переход на Этап 18 (Library
-frontend) для UX-валидации, и тогда осознанно решаем bulk vs lazy."
+Следующий приоритет - Этап 18 Library frontend. Перед стартом
+надо:
+1) выбрать 3-5 репрезентативных shamela-книг для UX-валидации,
+2) импортировать их через admin endpoints curl'ом (скрипт в
+   progress.md секция «Перед 18 - руками импортировать»),
+3) обсудить scope первой сессии Этапа 18 - 18.a monorepo
+   реструктуризация делать сейчас или отложить, минимальный фронт
+   с RTL/naskh-шрифтом или сначала просто текст.
+
+Это первая сессия не в режиме чистой автономии - нужен апрув
+Абдулы по выбору книг и scope 18. После апрува сессия идёт в
+автономии."
 
 Жди подтверждение. После него - смело за работу.
 ```

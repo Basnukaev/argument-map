@@ -474,12 +474,21 @@ challenge неразрешимым в текущей конфигурации. �
       (exact match), BookRepository.findByShamelaBookId,
       ShamelaTitleDao.findAllByBookId, ShamelaPageDao.findAllByBookId.
       284 IT зелёных
-- [ ] **15.6: REST endpoints + финальная документация** -
-      `POST /admin/shamela/sync-master`,
-      `POST /admin/shamela/import-book/{id}`,
-      `GET /admin/shamela/book/{id}/pdf/{fileIndex}` (lazy).
-      ControllerIT через MockMvc. api-contract.md + glossary.md
-      дополнить
+- [x] **15.6: REST endpoints + финальная документация** - 3 admin
+      endpoints под `/api/v1/admin/shamela/*`:
+      `POST /sync-master` (вызов syncMaster),
+      `POST /import-book/{id}` (вызов importBook),
+      `POST /map-book/{id}` (вызов mapBook с @CurrentUser).
+      `ShamelaAdminController` + 3 response-DTO + `ShamelaAdminMappers`.
+      Расширен `GlobalExceptionHandler`: ApiException→502,
+      Archive/Reader→500, ImportException→500, NotFound→404 (для
+      cleanup-маппинга введён `ShamelaNotFoundException extends
+      ShamelaImportException`). 12 IT через MockMvc + @MockitoBean.
+      api-contract.md секция «Shamela Admin API» + 4 новых термина в
+      glossary.md (staging, master-version, major/minor release,
+      idempotent skip, anonymous Authority). PDF download endpoint
+      и bulk endpoints отложены - см. «Что не реализовано» в
+      api-contract.md. **296 IT зелёных**
 
 ## Этап 16. Library - PDF/EPUB upload
 
