@@ -139,7 +139,7 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
    которое требует обсуждения - тогда спрашиваешь точечно
 
 ══════════════════════════════════════════════
-ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-09 после Сессии 22 - Library shamela MVP закрыт целиком на бэке, очередь Этап 18 frontend для UX-валидации перед решением bulk vs lazy)
+ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-09 после Сессии 23 - Этап 18.b-d Library frontend MVP с RTL/naskh закрыт. Перед 18.f Абдула должен импортировать 3-5 книг руками + UX-проверка)
 ══════════════════════════════════════════════
 
 ⚠️ **ВАЖНО**: проект пережил стратегический pivot - см. ADR-018 в
@@ -213,6 +213,25 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
   - `2b8d058` `docs: автономный режим работы Claude Code как
     заместителя` - режим автономии в проекте, red lines, формат
     эскалации
+- **Сессия 23 (фронт): Этап 18.b-d Library frontend MVP** - 2 коммита:
+  - `e6898f0` `feat(frontend): этап 18 - library frontend MVP с RTL/naskh для арабского` -
+    Single-page подход вместо monorepo apps/* (первая попытка
+    реструктуризации откачена - WSL2/NTFS git mv глюк, см. gotchas.md).
+    `components/layout/Header.tsx` извлечён общий top-bar из TopicListPage
+    с NavLink на /topics, /books, /qa (placeholder). `pages/BookListPage.tsx`
+    /books - сетка карточек книг через GET /api/v1/library/books, локальный
+    поиск по title + фильтр bookType (5 типов). `pages/BookReaderPage.tsx`
+    /books/:bookId - двухколонная: side-panel chapters tree (рекурсивный
+    из flat ChapterResponse через buildChapterTree group-by-parent + topo
+    sort, защита от orphan parent_id), main с pagination + PageView через
+    dangerouslySetInnerHTML (shamela HTML, sanitize TODO). Эвристика
+    арабского текста через Unicode 0x0600-0x06FF + RTL+naskh. Google Fonts
+    Noto Naskh Arabic подключён через index.html preconnect, Tailwind v4
+    @theme --font-naskh. types.ts регенерирован с свежего бэка. 8 файлов /
+    1222 insertions. Bundle initial 271kB / gzip 84kB (+15kB к pre-Этапу-18).
+    Lint clean, **136 frontend tests passing**, build success
+  - **Этап 18.b/c/d закрыт**, остаётся 18.f (CitationPicker) + 18.g
+    (argument-map переключение на CitationPicker)
 - **Сессия 22 (бэк): Этапы 15.4 + 15.5 + 15.6 (5 feat + handoff коммитов)** -
   Library shamela MVP закрыт целиком на бэкенде. Сверх первоначальных
   планов закрыли все 3 оставшихся подэтапа в одной сессии:
@@ -371,57 +390,70 @@ admin endpoints curl'ом.** Подробный скрипт в progress.md, с�
 иерархией глав, одна короткая). После UX-проверки на этих 3-5 книгах
 принимается решение про bulk vs lazy.
 
-1. **Этап 18: Library frontend** ← **главный приоритет** для
-   UX-валидации shamela импорта. Состоит из 6 подэтапов
-   (см. roadmap.md):
+1. **Импорт 3-5 книг + UX-проверка** ← **обязательный шаг ПЕРЕД 18.f**.
+   Бэкенд готов, фронт `/books` готов, но БД пуста. Запустить вручную:
 
-   - **18.a: monorepo реструктуризация** (структурный рефакторинг)
-   - **18.b: BookListPage** - страница `/books` со списком книг
-   - **18.c: BookReader** - страница `/books/{id}` с side-panel
-     chapters + основная область с RTL/naskh шрифт для арабского
-   - **18.d: ImagePageRenderer** (далеко в будущем после Этапа 17)
-   - **18.e: CitationPicker** в `packages/shared-citation` -
-     центральный компонент платформенного pivot'а ADR-018
-   - **18.f: Argument-map переключение на CitationPicker** -
-     заменяет существующий AddSourceModal со свободной формой
+   ```bash
+   # 1. синхронизация каталога shamela (~30-60с, ~5MB архив)
+   curl -X POST http://localhost:9090/api/v1/admin/shamela/sync-master
 
-   На старте Сессии 23: после стандартного протокола **обсудить с
-   Абдулой**:
-   - 18.a (monorepo) делать сейчас или отложить (это структурный
-     рефакторинг затрагивающий весь репозиторий, отдельный handoff)
-   - Какие 3-5 книг выбрать для UX-проверки. Возможно курировать
-     список из shamela-каталога (Сахих аль-Бухари 41557, например)
-   - Минимальный фронт-MVP: BookListPage + BookReader без RTL/арабского
-     шрифта или сразу с ними (последнее = больше работы, но более
-     релевантный UX)
+   # 2. для каждой выбранной книги (id выбирается через psql или
+   # SELECT id, name FROM lib_shamela_book WHERE name ILIKE '%...%' LIMIT 5):
+   USER_ID=14561248-0bfd-4a62-8395-d40a6972182a
+   BOOK_ID=<id-из-shamela>
+   curl -X POST http://localhost:9090/api/v1/admin/shamela/import-book/$BOOK_ID
+   curl -X POST http://localhost:9090/api/v1/admin/shamela/map-book/$BOOK_ID \
+     -H "X-User-Id: $USER_ID"
 
-   18.a-c (List/Reader без полировки и без monorepo) реалистично
-   уместить в одну сессию. CitationPicker (18.e) и интеграция с
-   argument-map (18.f) - отдельная сессия из-за размера.
+   # 3. открыть http://localhost:5173/books
+   ```
 
-2. **Архитектурное решение «bulk vs lazy import» после Этапа 18.b-c** -
+   Кандидаты:
+   - **Сахих аль-Бухари** - крупная книга с многоуровневой иерархией
+     (`name ILIKE '%البخاري%'`)
+   - **Тафсир Ибн Касира** - глубокая иерархия (тома → суры → аяты)
+   - **Хусн аль-максыд** ас-Суюти - короткий трактат
+   - Опционально: **Маджму' аль-Фатава** Ибн Таймии - стресс-тест
+     на размер
+
+   На фронте проверить: BookCard рендерится корректно (badge,
+   RTL+naskh для арабского), BookReader открывается, side-panel
+   chapters tree показывает иерархию правильно, pagination работает,
+   текст страницы в RTL+naskh для арабского
+
+2. **Архитектурное решение «bulk vs lazy import» после UX-проверки** -
    когда станет видно как пользователь использует library:
-   - **bulk** - все 8500 книг через `syncMaster + bulk mapBook` за
-     один прогон, БД ~1-1.5GB, search/list мгновенный
-   - **lazy** - `syncMaster` только для метаданных в staging, `mapBook`
-     дёргается при первом просмотре конкретной книги (5-15с
-     spinner для пользователя при первом раз). БД растёт по мере
-     использования
+   - **bulk** - все ~8500 книг через `mapBook` за один прогон, БД
+     ~1-1.5GB, search/list мгновенный
+   - **lazy** - `mapBook` дёргается при первом просмотре конкретной
+     книги (5-15с spinner). БД растёт по мере использования
    - **гибрид** - метаданные `lib_books` сразу для всех (~30MB),
      content (`lib_pages`) lazy. Best UX/storage trade-off
 
-   Решение требует ADR-021 если выберем не bulk (default подход
-   из ADR-020). Делать после фактической UX-проверки
+   Решение требует ADR-021 если выберем не bulk
 
-3. **Этап 16: PDF/EPUB upload** - Apache Tika, MinIO для хранения
+3. **Этап 18.f: CitationPicker** - переиспользуемый компонент в
+   `frontend/src/components/citation/CitationPicker.tsx`. Выделение
+   фрагмента текста в BookReader (через `window.getSelection()`) →
+   modal с выбором приложения (argument-map / Q&A) и контекста (какой
+   узел / ответ). Это центральный элемент платформенного pivot'а
+   ADR-018
+
+4. **Этап 18.g: Argument-map переключение на CitationPicker** -
+   кнопка «Привязать цитату» в `NodeDetailsPanel` открывает
+   CitationPicker вместо текущей `AddSourceModal` со свободной формой.
+   AddSourceModal либо удаляется, либо становится fallback для
+   свободных цитат (URL без book context)
+
+5. **Этап 16: PDF/EPUB upload** - Apache Tika, MinIO для хранения
    исходников, page-by-page extraction
-4. **Этап 17: image-сканы + OCR** - Tess4j для арабского, ImageRegion
+6. **Этап 17: image-сканы + OCR** - Tess4j для арабского, ImageRegion
    API, async OCR pipeline
-5. **Этап 19: Q&A приложение** - первое полностью новое поверх
+7. **Этап 19: Q&A приложение** - первое полностью новое поверх
    library. Валидация платформенности
-6. **Этап 20+: Auth, multi-tenancy, прочее**
+8. **Этап 20+: Auth, multi-tenancy, прочее**
 
-7. **Доделки 15.6 (отложены сознательно)** - можно вернуться когда
+9. **Доделки 15.6 (отложены сознательно)** - можно вернуться когда
    понадобится:
    - `GET /api/v1/admin/shamela/book/{id}/pdf/{fileIndex}` - lazy PDF
      download через `StreamingResponseBody`
@@ -627,32 +659,31 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 После прочтения 5+ файлов из START-OF-SESSION PROTOCOL начни ответ
 с короткого summary последнего состояния и предложения. Например:
 
-"вижу - Сессия 22 закрыла Library shamela MVP целиком на бэкенде:
-15.4 ImportService + 15.5 ToLibraryMapper + 15.6 AdminController.
-5 feat-коммитов, ~1900 insertions. 296 IT зелёных (+12 от
-ControllerIT, +10 от MapperIT, +6 от ImportServiceIT). ETL-стэк
-готов end-to-end: ApiClient + Extractor + Reader + DAO +
-ImportService + Mapper + 3 admin REST endpoints под
-/api/v1/admin/shamela/*. PDF download / async / bulk endpoints
-отложены - не критичны для MVP.
+"вижу - Сессия 23 закрыла Этап 18.b-d Library frontend MVP с
+RTL+naskh для арабского. 1 feat-коммит, 8 файлов, 1222 insertions.
+Bundle initial 271kB / gzip 84kB (+15kB к pre-Этапу-18). Lint clean,
+136 frontend tests passing.
 
-⚠️ ВАЖНО: Абдула попросил НЕ запускать массовый парсинг ~8500
-книг shamela до фронт-проверки на 1-2 книгах. Архитектурный вопрос
-'bulk vs lazy' открыт, решается после Этапа 18.b-c frontend
-visualization (см. memory/feedback_no_bulk_shamela_parse.md).
+Структура: Header компонент с навигацией Темы/Библиотека/Q&A
+(placeholder), BookListPage с поиском+фильтром bookType,
+BookReaderPage с side-panel chapters tree + main pagination +
+PageView. Эвристика арабского текста через Unicode 0x0600-0x06FF +
+Google Fonts Noto Naskh Arabic.
 
-Следующий приоритет - Этап 18 Library frontend. Перед стартом
-надо:
-1) выбрать 3-5 репрезентативных shamela-книг для UX-валидации,
-2) импортировать их через admin endpoints curl'ом (скрипт в
-   progress.md секция «Перед 18 - руками импортировать»),
-3) обсудить scope первой сессии Этапа 18 - 18.a monorepo
-   реструктуризация делать сейчас или отложить, минимальный фронт
-   с RTL/naskh-шрифтом или сначала просто текст.
+Архитектурное решение: single-page application вместо monorepo
+apps/* (первая попытка реструктуризации откачена - WSL2/NTFS git mv
+глюк зафиксирован в gotchas.md).
 
-Это первая сессия не в режиме чистой автономии - нужен апрув
-Абдулы по выбору книг и scope 18. После апрува сессия идёт в
-автономии."
+⚠️ ВАЖНО: фронт `/books` сейчас покажет пустой state - БД пока
+пуста. Перед 18.f (CitationPicker) Абдула должен импортировать 3-5
+книг руками через admin endpoints (точный скрипт в SESSION_START_PROMPT
+ОТКРЫТО раздел 1). Кандидаты: Сахих аль-Бухари, Тафсир Ибн Касира,
+Хусн аль-максыд ас-Суюти. После импорта - UX-проверка на фронте,
+потом решение bulk vs lazy и переход к 18.f.
+
+Следующий приоритет - Этап 18.f CitationPicker и 18.g переключение
+argument-map на CitationPicker. Это центральный компонент платформенного
+pivot'а ADR-018."
 
 Жди подтверждение. После него - смело за работу.
 ```

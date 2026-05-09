@@ -534,25 +534,45 @@ shamela не имеет нужной книги.
 backend-этапы не имеют смысла. Параллельно переключаем
 argument-map на library citation вместо ручной формы.
 
-- [ ] **18.a: monorepo реструктуризация** - корневой `package.json`
-      с pnpm workspaces. `frontend/` физически переезжает в
-      `apps/argument-map/` через `git mv`. Создаются `apps/library/`,
-      `packages/shared-ui/`, `packages/shared-api/`,
-      `packages/shared-citation/`
-- [ ] **18.b: BookListPage** - страница `/books` со списком всех
-      книг библиотеки, фильтры по типу/автору, поиск
-- [ ] **18.c: BookReader** - страница `/books/{id}`:
-  - Боковая панель chapters
-  - Основная область - текст страницы (правильный RTL для
-    арабского, naskh-шрифт)
-  - Pagination между страницами
-- [ ] **18.d: ImagePageRenderer** - отдельный mode для image-сканов:
+**Архитектура - один SPA, не monorepo с apps/\*** (пересмотрено в
+Сессии 23 после первой попытки реструктуризации). ADR-018 определяет
+платформенный pivot как продуктовое видение, не как обязательную
+физическую раскладку кода. Один `frontend/` с React Router, разные
+разделы как разные `pages/`, общая навигация в header. Monorepo с
+apps/* добавляется только когда возникнет конкретная потребность
+(другая команда / разные домены / разный стек / огромный бандл).
+См. Сессия 23 в progress.md для контекста решения.
+
+- [~] **18.a: monorepo реструктуризация** - **wontfix**, отменено в
+      Сессии 23. Single-page подход в `frontend/` достаточен и проще
+      для текущих масштабов
+- [x] **18.b: общий header с навигацией** - `components/layout/Header.tsx`
+      извлечён из `TopicListPage`. NavLink на Темы / Библиотека / Q&A
+      (placeholder). Реюзается во всех full-page разделах
+- [x] **18.c: BookListPage** - `/books` страница. `BookSummary[]` через
+      `GET /api/v1/library/books`, сетка карточек с title (RTL+naskh
+      если `language="ar"`), badge bookType + языковой код, локальный
+      поиск по title + фильтр bookType (5 типов + "все"). Empty state
+      с инструкцией про admin endpoint
+- [x] **18.d: BookReader** - `/books/{id}` страница. Two-column layout:
+      left side-panel (sticky 280px) с chapters tree (рекурсивный из
+      flat ChapterResponse через `buildChapterTree` group-by-parent
+      + topological sort, защита от orphan parent_id). Main area с
+      book header (title naskh для арабского), pagination toolbar
+      (prev / page X of Y / next), PageView через
+      `dangerouslySetInnerHTML` (shamela HTML, sanitize TODO для
+      Этапа 16). Loading state в event handlers (react-hooks/
+      set-state-in-effect rule). Эвристика арабского текста через
+      Unicode 0x0600-0x06FF
+- [ ] **18.e: ImagePageRenderer** - отдельный mode для image-сканов:
       картинка + overlay для OCR-текста + рисование regions через
-      react-image-crop
-- [ ] **18.e: CitationPicker** в `packages/shared-citation`:
-      выделил фрагмент в reader → opens picker → выбор приложения
-      (argument-map / Q&A) и контекста (какой узел / ответ)
-- [ ] **18.f: Argument-map переключение на CitationPicker** -
+      react-image-crop. Релевантно после Этапа 17 OCR
+- [ ] **18.f: CitationPicker** - переиспользуемый компонент
+      (просто в `frontend/src/components/citation/CitationPicker.tsx`,
+      без отдельного package). Выделил фрагмент в reader → opens
+      picker → выбор приложения (argument-map / Q&A) и контекста
+      (какой узел / ответ)
+- [ ] **18.g: Argument-map переключение на CitationPicker** -
       кнопка «Привязать цитату» в NodeDetailsPanel открывает
       CitationPicker. Старый AddSourceModal с ручной формой
       удаляется или становится fallback для свободных цитат

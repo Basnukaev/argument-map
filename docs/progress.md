@@ -13,6 +13,212 @@
 
 ---
 
+## 2026-05-09 — Сессия 23 (frontend) — Этап 18.b-d Library frontend MVP с RTL/naskh для арабского
+
+После закрытия всего бэкенда Library shamela в Сессии 22 - первая
+фронт-сессия под библиотеку. Закрыто 18.b (header) + 18.c (BookList) +
+18.d (BookReader). Архитектурное решение: **single-page application
+вместо monorepo apps/\***.
+
+### Сделано
+
+2 коммита:
+
+`e6898f0` `feat(frontend): этап 18 - library frontend MVP с RTL/naskh для арабского`
+`<docs>` `docs: handoff Сессии 23 - этап 18.b-d закрыт, продолжение в 18.f CitationPicker`
+
+8 файлов / 1222 insertions:
+
+- **`components/layout/Header.tsx`** (новый) - извлечён общий top-bar
+  из `TopicListPage`. Брендинг (Network лого + Argument Map title) +
+  navigation NavLink: `/topics` (Темы), `/books` (Библиотека), `/qa`
+  (Q&A placeholder, disabled). NavLink с `end={item.to === '/topics'}`
+  чтобы `/topics` подсвечивался только на root, не на `/topics/:id`
+- **`pages/BookListPage.tsx`** (новый) - `/books`. Сетка карточек книг
+  через `GET /api/v1/library/books`. Локальный поиск по title +
+  фильтр bookType (5 кнопок: Книги/Хадисы/Коран/Статьи/Рукописи + "Все
+  типы"). BookCard:
+  - градиентная "обложка" с BookOpen иконкой
+  - badge bookType (5 цветовых схем) + monospace badge с language code
+  - title с RTL+naskh если `language="ar"`, иначе обычный
+  - hover-эффект через shadow + translate-y
+  - empty state с подсказкой про
+    `POST /api/v1/admin/shamela/map-book/{id}`
+- **`pages/BookReaderPage.tsx`** (новый) - `/books/:bookId`.
+  Двухколонная раскладка `flex gap-6`:
+  - **Side-panel слева (280px sticky)**: «← К библиотеке» link →
+    `chapters tree`. `ChapterResponse` приходит плоским массивом, на
+    фронте строится дерево через `buildChapterTree(chapters)`:
+    group by `parentChapterId`, рекурсивная сборка children, sort по
+    `orderIndex` на каждом уровне. Защита от orphan
+    `parent_chapter_id` (становится root, не теряется).
+    `ChapterList` рекурсивный с `depth` для отступов и
+    `isArabicText` эвристикой для RTL/naskh per-chapter
+  - **Main area**: BookHeader (bookType + страниц, title), pagination
+    toolbar (prev / "Страница X / Y" / next), PageView
+  - **PageView**: `Loader2` spinner / error Card / `<article>` с
+    `textContent` через `dangerouslySetInnerHTML` (shamela HTML с
+    тэгами как-есть на MVP). Опционально `imageUrl` как `<img>` для
+    image-сканов (Этап 17 OCR далеко). RTL/naskh выбирается по
+    `book.language === 'ar'` ИЛИ по эвристике
+    `/[؀-ۿ]/.test(text)` (Unicode 0x0600-0x06FF)
+  - **Pagination flow**: `state.pages` (`PageSummary[]`) загружается
+    один раз при монтировании, current page по `pageNumber` (1-based).
+    `goPrev/goNext` event handlers переключают `pageNumber` + сразу
+    выставляют `setPageContent({kind: 'loading'})` (этого нельзя в
+    effect - правило `react-hooks/set-state-in-effect`). useEffect
+    реагирует на смену `pageNumber`, делает GET
+    `/api/v1/library/pages/{id}` для конкретной страницы
+- **`index.html`** - подключение Noto Naskh Arabic через Google Fonts
+  link с preconnect+display=swap (weights 400-700)
+- **`index.css`** - Tailwind v4 `@theme { --font-naskh: ... }`
+  превращается в utility class `font-naskh` с fallback на
+  Amiri/Scheherazade/system serif
+- **`App.tsx`** - 2 новых route: `/books` и `/books/:bookId`. Без
+  `React.lazy` (страницы лёгкие, не тянут RF/dagre)
+- **`pages/TopicListPage.tsx`** - удалён inline-header, заменён на
+  `<Header />`. Удалена инлайновая навигация Авторитеты/Источники
+  (была placeholder, теперь Q&A через Header)
+- **`api/types.ts`** - регенерирован `npm run generate-api` с свежего
+  бэка (содержит library schemas: BookResponse, BookSummary,
+  BookDetailResponse, ChapterResponse, PageResponse, PageSummary,
+  ImageRegionResponse, и admin shamela schemas из 15.6:
+  SyncMasterResponse, ImportBookResponse, MapBookResponse)
+
+### Решения
+
+- **Single-page подход вместо monorepo с apps/\*** - первая попытка
+  реструктуризации в `apps/argument-map/` через `git mv` была
+  откачена. Причины:
+  - Один разработчик, один стек (React+Vite+Tailwind)
+  - Один домен с навигацией между разделами
+  - Желание единого header / sidebar / top-nav
+  - YAGNI: monorepo с apps/* добавляется только когда возникнет
+    конкретная потребность (другая команда / разные домены / разный
+    стек / огромный бандл)
+
+  Что делаем вместо: один `frontend/` с React Router, разные разделы
+  как разные `pages/`, общий Header, общие компоненты в
+  `components/ui/` без всяких packages. Когда вырастет - вернёмся
+
+- **WSL2/NTFS глюк при `git mv frontend apps/argument-map`** - после
+  команды git показывал rename в индексе, но физически целевой каталог
+  имел битый inode (показывался с `d?????`). `git reset --hard HEAD`
+  частично восстановил. Дальнейшие действия Абдула предложил делать
+  через файл-менеджер Windows (Total Commander), но мы решили
+  отменить реструктуризацию целиком. Зафиксировано как gotcha:
+  избегать `git mv` директорий через WSL2 на DrvFs/NTFS - использовать
+  Total Commander Move + `git add -A`
+
+- **Эвристика арабского текста** через `/[؀-ۿ]/.test(text)` -
+  Unicode-диапазон арабских символов 0x0600-0x06FF. Эвристика нужна
+  потому что:
+  - book.language может быть не выставлен или быть mixed (русский
+    title для арабской книги)
+  - chapter.title не имеет своего language поля - наследует от книги
+    или определяется per-row
+  - На уровне страницы content может быть mixed (комментарии на одном
+    языке, цитата на другом)
+
+  Дешёвая regex-проверка достаточна для MVP. Для multi-language
+  layout (когда понадобится показывать переведённое+оригинал
+  side-by-side) - вернёмся к более точному определению
+
+- **`dangerouslySetInnerHTML` без sanitize** на shamela contents -
+  shamela как доверенный источник через mitmproxy-реверс (один
+  ETL-канал контролируется бэком). Для пользовательских upload PDF/
+  EPUB (Этап 16) нужен DOMPurify. Записал TODO в коде
+
+- **Side-panel chapters только информативный** на MVP - связь
+  `page → chapter` (`lib_pages.chapter_id`) не заполняется маппером
+  (см. progress.md Сессия 22 Этап 15.5). Side-panel показывает
+  структуру книги, клик на главу не делает navigation. Вернёмся
+  когда будет смысл связывать (после фронт-проверки на 3-5 книгах
+  и решения bulk vs lazy)
+
+- **`setPageContent({kind: 'loading'})` в event handlers, не в
+  effect** - правило `react-hooks/set-state-in-effect` (gotcha).
+  При монтировании компонента loading state приходит из initial
+  `useState({kind: 'loading'})`, при переключении страниц через
+  goPrev/goNext - выставляется явно перед `setPageNumber`. Effect
+  реагирует на изменение pageNumber и делает fetch без вызова setState
+  до получения ответа
+
+- **No React.lazy для library pages** - в отличие от TopicGraphPage
+  с тяжёлыми RF/dagre/lucide зависимостями, BookList и BookReader
+  лёгкие (~15kB к initial bundle суммарно). Подгружать lazy нет
+  смысла. Если bundle вырастет (например, добавится rich text
+  editor для редактирования контента) - вернёмся
+
+### Проблемы
+
+- **WSL2/NTFS git mv глюк** - см. «Решения». Откатили реструктуризацию
+- **types.ts dropped after `git reset --hard HEAD`** - regenerated-api
+  делалось поверх HEAD, при reset это изменение откатилось. Пришлось
+  регенерировать ещё раз. На будущее: после regenerate типов сразу
+  включать в следующий коммит (не оставлять uncommitted)
+- **2 lint ошибки** на первом прогоне:
+  - `react-hooks/set-state-in-effect` на `setPageContent('loading')`
+    в effect → перенёс в event handlers
+  - `react/no-danger` правило не существует в нашем eslint-config →
+    убрал disable-комментарий, оставил TODO в обычном комментарии
+
+### Следующий шаг
+
+**Этап 18.f-g: CitationPicker + интеграция с argument-map**.
+
+Перед началом - **Абдула должен вручную импортировать 3-5 книг** через
+admin endpoints (бэк жив, фронт `/books` сейчас покажет пустой state):
+
+```bash
+# 1. синхронизация каталога shamela (один раз, ~30-60с, ~5MB архив)
+curl -X POST http://localhost:9090/api/v1/admin/shamela/sync-master
+
+# 2. для каждой книги (id выбирается через psql или /v3/api-docs):
+USER_ID=14561248-0bfd-4a62-8395-d40a6972182a   # dev-user UUID
+
+# например, Сахих аль-Бухари (точный shamela id выбрать через
+# SELECT id, name FROM lib_shamela_book WHERE name ILIKE '%البخاري%' LIMIT 5)
+BOOK_ID=<id-из-shamela>
+curl -X POST http://localhost:9090/api/v1/admin/shamela/import-book/$BOOK_ID
+curl -X POST http://localhost:9090/api/v1/admin/shamela/map-book/$BOOK_ID \
+  -H "X-User-Id: $USER_ID"
+
+# 3. проверить через фронт http://localhost:5173/books
+```
+
+После 3-5 книг в БД - открыть `/books` в браузере, проверить:
+- BookCard рендерится: badge типа, RTL+naskh для арабского title,
+  клик ведёт на `/books/{id}`
+- BookReader показывает: side-panel chapters tree, pagination toolbar,
+  page content в RTL+naskh для арабского
+- pagination prev/next работают, content обновляется
+- chapters tree корректно показывает иерархию (для книг с nested
+  глав - см. Тафсир Ибн Касира как кандидат)
+
+После UX-проверки - **архитектурное решение bulk vs lazy import**.
+Возможные варианты:
+- bulk: всё ~8500 книг через `mapBook` за один прогон, БД ~1-1.5GB,
+  search/list мгновенный
+- lazy: `mapBook` дёргается при первом открытии конкретной книги
+  (5-15с spinner). БД растёт по мере использования
+- гибрид: метаданные `lib_books` сразу для всех (~30MB), content
+  `lib_pages` lazy. Best UX/storage trade-off
+
+**Этап 18.f: CitationPicker** - переиспользуемый компонент в
+`frontend/src/components/citation/CitationPicker.tsx`. Выделение
+фрагмента текста в BookReader → modal с выбором приложения
+(argument-map / Q&A) и контекста (какой узел / ответ). Это
+центральный элемент платформенного pivot'а ADR-018
+
+**Этап 18.g: Argument-map переключение на CitationPicker** - кнопка
+«Привязать цитату» в `NodeDetailsPanel` открывает CitationPicker
+вместо текущей `AddSourceModal` со свободной формой.
+`AddSourceModal` либо удаляется, либо становится fallback для
+свободных цитат (например URL без book context)
+
+---
+
 ## 2026-05-09 — Сессия 22 (backend) — Этапы 15.4 + 15.5 + 15.6 Library shamela MVP закрыт целиком на бэке
 
 Сверх изначальных планов закрыли все три оставшихся подэтапа в одной
