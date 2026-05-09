@@ -672,6 +672,16 @@ const SECTIONS = [
   { id: "tashkeel",    label: "Tashkeel" },
   { id: "crossref",    label: "Cross-refs" },
   { id: "print",       label: "Print" },
+  { id: "platform-pivot", label: "★ Platform" },
+  { id: "platform-shell", label: "Shell" },
+  { id: "books",       label: "Books" },
+  { id: "reader",      label: "Reader" },
+  { id: "citation-picker", label: "Cite" },
+  { id: "add-book",    label: "Add book" },
+  { id: "image-regions", label: "Regions" },
+  { id: "admin-shamela", label: "Admin" },
+  { id: "qa",          label: "Q&A" },
+  { id: "platform-home", label: "Home" },
 ];
 
 const TopNav = () => (
@@ -742,6 +752,18 @@ const App = () => (
     {window.CrossRefSection && <window.CrossRefSection />}
     {window.ExtraStatesSection && <div className="bg-white border-y border-slate-200"><window.ExtraStatesSection /></div>}
     {window.PrintPreviewSection && <window.PrintPreviewSection />}
+
+    {/* ============ PLATFORM PIVOT (sections 27+) ============ */}
+    {window.PlatformPivotIntro && <div id="platform-pivot" className="bg-white border-y border-slate-200"><window.PlatformPivotIntro /></div>}
+    {window.PlatformShellSection && <window.PlatformShellSection />}
+    {window.BookListPageSection && <div className="bg-white border-y border-slate-200"><window.BookListPageSection /></div>}
+    {window.BookReaderSection && <window.BookReaderSection />}
+    {window.CitationPickerSection && <div className="bg-white border-y border-slate-200"><window.CitationPickerSection /></div>}
+    {window.AddBookSection && <window.AddBookSection />}
+    {window.ImageRegionsSection && <div className="bg-white border-y border-slate-200"><window.ImageRegionsSection /></div>}
+    {window.ShamelaAdminSection && <window.ShamelaAdminSection />}
+    {window.QASection && <div className="bg-white border-y border-slate-200"><window.QASection /></div>}
+    {window.PlatformHomeSection && <window.PlatformHomeSection />}
 
     <footer className="py-12 px-10 border-t border-slate-200 bg-white">
       <div className="max-w-[1380px] mx-auto flex items-center justify-between">
