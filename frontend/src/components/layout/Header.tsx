@@ -12,6 +12,7 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { to: '/topics', label: 'Темы' },
   { to: '/books', label: 'Библиотека' },
   { to: '/qa', label: 'Q&A', disabled: true },
+  { to: '/admin/shamela', label: 'Админ' },
 ];
 
 /**

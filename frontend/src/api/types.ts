@@ -324,6 +324,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/shamela/sync-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["syncStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/shamela/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["searchBooks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/nodes/{nodeId}/sources/{sourceId}": {
         parameters: {
             query?: never;
@@ -662,6 +694,29 @@ export interface components {
             chapterId?: string;
             hasText?: boolean;
             hasImage?: boolean;
+        };
+        SyncStatusResponse: {
+            /** Format: int32 */
+            masterVersion?: number;
+            /** Format: date-time */
+            lastSyncedAt?: string;
+            /** Format: int32 */
+            categoriesCount?: number;
+            /** Format: int32 */
+            authorsCount?: number;
+            /** Format: int32 */
+            booksCount?: number;
+            /** Format: int32 */
+            mappedBooksCount?: number;
+        };
+        StagingBookSearchResult: {
+            /** Format: int64 */
+            bookId?: number;
+            name?: string;
+            authorName?: string;
+            /** Format: int32 */
+            majorRelease?: number;
+            isMapped?: boolean;
         };
     };
     responses: never;
@@ -1385,6 +1440,49 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    syncStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SyncStatusResponse"];
+                };
+            };
+        };
+    };
+    searchBooks: {
+        parameters: {
+            query: {
+                q: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["StagingBookSearchResult"][];
+                };
             };
         };
     };

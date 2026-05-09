@@ -4,6 +4,7 @@ import TopicListPage from '@/pages/TopicListPage';
 import CreateTopicPage from '@/pages/CreateTopicPage';
 import BookListPage from '@/pages/BookListPage';
 import BookReaderPage from '@/pages/BookReaderPage';
+import AdminShamelaPage from '@/pages/AdminShamelaPage';
 import Toaster from '@/components/ui/Toaster';
 
 // TopicGraphPage тянет тяжёлые зависимости (React Flow, dagre, lucide-icons,
@@ -37,6 +38,7 @@ function App() {
         />
         <Route path="/books" element={<BookListPage />} />
         <Route path="/books/:bookId" element={<BookReaderPage />} />
+        <Route path="/admin/shamela" element={<AdminShamelaPage />} />
       </Routes>
       <Toaster />
     </>
