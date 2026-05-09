@@ -555,9 +555,17 @@ apps/* добавляется только когда возникнет кон�
 (другая команда / разные домены / разный стек / огромный бандл).
 См. Сессия 23 в progress.md для контекста решения.
 
-- [~] **18.a: monorepo реструктуризация** - **wontfix**, отменено в
-      Сессии 23. Single-page подход в `frontend/` достаточен и проще
-      для текущих масштабов
+- [~] **18.a (старое): monorepo реструктуризация** - **wontfix**,
+      отменено в Сессии 23. Single-page подход в `frontend/` достаточен
+- [x] **18.a (новое): AdminShamelaPage для импорта книг через UI**
+      (Сессия 23 после фидбека "почему нет UI для импорта") -
+      `/admin/shamela` со sync-status dashboard, live-search через
+      `GET /admin/shamela/search` (debounce 300ms), карточками
+      результатов с кнопкой Импортировать (последовательно
+      `POST import-book` + `POST map-book` с toast feedback).
+      RTL+naskh для арабских названий. Header расширен NavLink
+      "Админ". setState через Promise tails, derived state для
+      empty-query reset (правило react-hooks/set-state-in-effect)
 - [x] **18.b: общий header с навигацией** - `components/layout/Header.tsx`
       извлечён из `TopicListPage`. NavLink на Темы / Библиотека / Q&A
       (placeholder). Реюзается во всех full-page разделах

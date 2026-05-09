@@ -13,7 +13,173 @@
 
 ---
 
-## 2026-05-09 — Сессия 23 (frontend) — Этап 18.b-d Library frontend MVP с RTL/naskh для арабского
+## 2026-05-09 — Сессия 23 (full-stack) — Этапы 18.b-d Library frontend MVP + 15.7 admin search/sync-status + 18.a AdminShamelaPage
+
+Самая длинная сессия в истории проекта. Изначально планировался только
+фронт (18.b-d), но в процессе добавились 15.7 (backend admin search/
+sync-status) + 18.a (AdminShamelaPage) после фидбека Абдулы про
+неудобство curl-only flow. Также откачена попытка реструктуризации
+monorepo и закрыта проблема с цифрой 270k книг → 8500.
+
+### Сделано (продолжение - 15.7 + 18.a admin)
+
+После закрытия 18.b-d и handoff'а 980ef4d Абдула спросил «почему для
+этого у нас нет отдельной части на фронте чтоб можно было удобно искать
+и импортить». Признался что упустил admin UI - сразу начал доделку.
+
+3 коммита:
+
+`22a69fe` `feat(backend): этап 15.7 - admin search + sync-status endpoints для library frontend`
+`c6fef33` `feat(frontend): этап 18.a - AdminShamelaPage для импорта книг через UI`
+`<docs>` `docs: handoff Сессии 23 финал`
+
+#### 15.7 backend - search + sync-status (10 файлов / 568 insertions)
+
+- **`ShamelaBookDao.searchByName(query, limit)`** - один SQL с
+  обогащением:
+  - LEFT JOIN на `lib_shamela_author` для `authorName` (без N+1
+    запросов)
+  - EXISTS subquery в `lib_books` через
+    `metadata->>'shamela_book_id'` (использует GIN-индекс из
+    миграции 16) - флаг `isMapped`
+  - Tombstoned (deleted_at IS NOT NULL) исключаются
+  - Сортировка: точные substring сначала через
+    `CASE WHEN b.name ILIKE ? THEN 0 ELSE 1 END`, потом по
+    `LENGTH(name)`, потом по `id`
+- **`ShamelaStagingBookView`** record (внутри DAO как nested) - view
+  для search results, не структура staging-таблицы
+- **Counts**: `ShamelaCategoryDao.countAll()`,
+  `ShamelaAuthorDao.countAll()`, `ShamelaBookDao.countAll()` (все с
+  `WHERE deleted_at IS NULL`), `BookRepository.countMappedFromShamela()`
+  через `metadata->>'shamela_book_id' IS NOT NULL`
+- **`StagingBookSearchResult` DTO** (web-слой) и
+  **`SyncStatusResponse` DTO** (web-слой)
+- **`ShamelaAdminController`** расширен 2 GET endpoints:
+  - `GET /search?q=&limit=` с валидацией q (NotBlank → 400) и
+    clamp limit в [1, 100], default 20
+  - `GET /sync-status` без параметров - агрегирует counts +
+    sync_state в один response
+- **`ShamelaAdminControllerIT`** расширен на 6 IT (через @BeforeEach
+  cleanup всех lib_* + reset sync_state + seed test user). Сценарии:
+  search (results with author/mapped flag, tombstone exclusion,
+  limit, blank q → 400), sync-status (initial state for empty DB,
+  reflects staging+mapped counts с lastSyncedAt)
+- **api-contract.md** дополнен секцией «Shamela Admin API
+  (ADR-020, Этапы 15.6 + 15.7)» - все 5 endpoints с request/response
+  примерами + error codes. Эта секция была пропущена в коммите
+  1ce9fad (правка только в чате потерялась после reset --hard)
+
+302 IT зелёных (+6 от admin search/sync-status).
+
+#### 18.a frontend - AdminShamelaPage (4 файла / 504 insertions)
+
+- **`pages/AdminShamelaPage.tsx`** /admin/shamela:
+  - **Sync-status dashboard** через GET /admin/shamela/sync-status:
+    Stat-блоки (master version + lastSyncedAt, categoriesCount,
+    authorsCount, booksCount + mappedBooksCount). Кнопка
+    «Синхронизировать каталог» → POST /sync-master с toast feedback
+    (`success` если changed, `info` если уже актуален, `error`)
+  - **Live search** через GET /search?q=&limit=50 с debounce 300ms
+    через `window.setTimeout` + AbortController в cleanup. Empty
+    query - results не показываются (derived state через
+    `query.trim().length > 0` в JSX, не setState reset)
+  - **SearchResultRow** карточка: title с RTL+naskh для арабского
+    (эвристика 0x0600-0x06FF), authorName/bookId/majorRelease в
+    meta-строке. Если `isMapped=true` - emerald badge "Импортирована"
+    + Link "В библиотеке". Иначе кнопка "Импортировать"
+  - **Import flow**: последовательно POST /import-book/{id} →
+    POST /map-book/{id} с `X-User-Id` через `apiPostRaw` (которая
+    добавляет header автоматически из VITE_DEV_USER_ID). Toast с
+    pagesCount/titlesCount + ссылкой на /books/{shortId}
+  - **`reloadStatusToken`** state увеличивается после
+    sync-master/import чтобы перезагрузить sync-status. Через
+    incremented number в deps useEffect, не через `loadStatus()`
+    функцию (lint считает её call как potential cascading setState
+    в effect)
+- **`Header.tsx`** добавлен NavLink "/admin/shamela" → "Админ"
+- **`App.tsx`** route /admin/shamela
+- **`api/types.ts`** регенерирован (новые SyncStatusResponse,
+  StagingBookSearchResult)
+
+Bundle: 282kB / gzip 87kB (+11kB к 18.b-d). Lint clean, 136 tests
+passing.
+
+### Решения (продолжение)
+
+- **AdminShamelaPage сразу включена в Сессию 23**, а не отложена в
+  следующую - блокирует UX-проверку (curl impractical). Контекст
+  сессии позволил сделать оба слоя (бэк + фронт) в одной
+- **Search ordering through SQL CASE** вместо двух запросов
+  (точное совпадение + ILIKE-substring отдельно) - один SQL
+  идиоматично и эффективно. PostgreSQL обрабатывает CASE как
+  expression в ORDER BY, не teh-trick
+- **EXISTS subquery vs LEFT JOIN на lib_books** для `isMapped`
+  флага - EXISTS быстрее когда нужен только boolean (postgres
+  short-circuit'ит при нахождении первой строки). LEFT JOIN
+  потянул бы все matching rows ради одного check
+- **`reloadStatusToken` инкремент vs callable refetch function** -
+  ESLint react-hooks/set-state-in-effect ругается на любой call
+  функции которая внутри делает setState (даже если через async
+  await). Через `setReloadStatusToken((n) => n + 1)` - это event
+  handler context, чисто. Effect реагирует на смену токена и
+  делает inline fetch с setState в Promise tail - lint OK
+- **Import делает 2 последовательных POST на фронте** (import-book
+  + map-book) вместо combined backend endpoint. На MVP - адекватно
+  (две операции по 1-3с, один toast в конце). Combined endpoint
+  можно сделать в 15.8 если станет узким местом
+
+### Проблемы (продолжение)
+
+- **api-contract.md секция Shamela Admin API была пропущена в 1ce9fad**
+  - я обновил файл в чате при работе над 15.6, но не добавил его в
+  staging перед `git commit`. После reset --hard правка потерялась.
+  Восстановил с расширением для 15.7 в этой сессии. На будущее:
+  всегда `git status` перед коммитом, проверять что docs включены
+- **WSL2/NTFS git mv** - см. описание выше в секции Сессия 23 18.b-d
+- **Зомби-bash 71857 держит deleted apps/argument-map inode** -
+  блокирует vite запуск через ENOENT lstat. Найден через
+  `lsof | grep apps/argument-map`. Абдула должен закрыть тот
+  терминал через UI (не red-line делать kill bash сессии
+  пользователя)
+
+### Следующий шаг
+
+**Импорт 3-5 книг через AdminShamelaPage UI** + UX-проверка фронта
++ архитектурное решение bulk vs lazy.
+
+Конкретно:
+1. Открыть `/admin/shamela` в браузере
+2. Кликнуть «Синхронизировать каталог» - дождаться toast (~30-60с,
+   первый раз ~5MB архив)
+3. Поиск кандидатов в search-боксе:
+   - **Сахир аль-Бухари** - подставлять `البخاري` или `Бухари`
+   - **Тафсир Ибн Касира** - `ابن كثير` или `كثير`
+   - **Хусн аль-максыд** - `حسن المقصد`
+4. Кликать «Импортировать» рядом с книгой - дождаться toast
+   (~5-15с на книгу: download + extract + parse + bulk-upsert
+   staging + mapBook)
+5. Открыть `/books` - посмотреть карточки в библиотеке
+6. Открыть отдельную книгу - проверить chapters tree, pagination,
+   RTL+naskh
+
+После UX-проверки на 3-5 книгах - решение про **bulk vs lazy import**
+для всех ~8500 книг. Возможные исходы:
+- Если UX отличный и БД ~1-1.5GB при bulk - идём в bulk через
+  скрипт-batch (можно сделать Python/Bash который импортирует
+  все ID последовательно), либо bulk endpoint в 15.8
+- Если UX-вопросы (chapters навигация, search в полном каталоге,
+  переключение между книгами) - lazy-on-demand через AdminShamelaPage:
+  пользователь сам ищет нужную книгу и импортит. Уже работает
+- Гибрид: метаданные `lib_books` сразу для всех (~30MB) через
+  bulk-meta-only endpoint (15.8?), content (`lib_pages`) lazy при
+  открытии конкретной книги
+
+После решения bulk vs lazy - **Этап 18.f CitationPicker** + **18.g**
+переключение argument-map на CitationPicker (ADR-018 пивот)
+
+---
+
+
 
 После закрытия всего бэкенда Library shamela в Сессии 22 - первая
 фронт-сессия под библиотеку. Закрыто 18.b (header) + 18.c (BookList) +
