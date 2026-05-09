@@ -80,6 +80,18 @@ public class ShamelaPageDao {
         return count == null ? 0 : count;
     }
 
+    /**
+     * Все страницы книги в порядке возрастания id. {@code id} в shamela -
+     * целочисленный page_number (1-based), монотонно растущий.
+     */
+    public List<ShamelaPageRow> findAllByBookId(long bookId) {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM lib_shamela_page WHERE book_id = ? ORDER BY id",
+                ROW_MAPPER,
+                bookId
+        );
+    }
+
     public Optional<ShamelaPageRow> findByBookIdAndId(long bookId, int id) {
         return jdbcTemplate.query(
                 "SELECT " + COLUMNS + " FROM lib_shamela_page WHERE book_id = ? AND id = ?",

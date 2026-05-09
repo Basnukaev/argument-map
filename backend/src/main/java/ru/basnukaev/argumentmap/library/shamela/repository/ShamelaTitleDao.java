@@ -86,6 +86,19 @@ public class ShamelaTitleDao {
         return count == null ? 0 : count;
     }
 
+    /**
+     * Все заголовки книги в порядке возрастания id (shamela вставляет
+     * id монотонно в порядке появления заголовка в книге - даёт
+     * естественный sort_order для маппера).
+     */
+    public List<ShamelaTitleRow> findAllByBookId(long bookId) {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM lib_shamela_title WHERE book_id = ? ORDER BY id",
+                ROW_MAPPER,
+                bookId
+        );
+    }
+
     public Optional<ShamelaTitleRow> findByBookIdAndId(long bookId, int id) {
         return jdbcTemplate.query(
                 "SELECT " + COLUMNS + " FROM lib_shamela_title WHERE book_id = ? AND id = ?",

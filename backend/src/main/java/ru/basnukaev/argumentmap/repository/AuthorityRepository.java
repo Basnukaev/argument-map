@@ -72,6 +72,21 @@ public class AuthorityRepository {
         );
     }
 
+    /**
+     * Точное совпадение по имени (без LIKE-маски). Используется ETL-импортом
+     * shamela ({@code ShamelaToLibraryMapper}) для дедупликации авторов:
+     * имя нормализуется (trim + collapse whitespace) на стороне маппера,
+     * затем ищется один-в-один. Возвращает первого найденного - в схеме
+     * нет UNIQUE на name, при коллизии берём самого старого.
+     */
+    public Optional<Authority> findByName(String name) {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM authorities WHERE name = ? ORDER BY created_at LIMIT 1",
+                ROW_MAPPER,
+                name
+        ).stream().findFirst();
+    }
+
     public boolean deleteById(UUID id) {
         return jdbcTemplate.update("DELETE FROM authorities WHERE id = ?", id) > 0;
     }

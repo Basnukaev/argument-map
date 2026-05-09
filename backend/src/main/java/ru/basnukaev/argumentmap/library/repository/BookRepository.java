@@ -89,4 +89,20 @@ public class BookRepository {
     public boolean deleteById(UUID id) {
         return jdbcTemplate.update("DELETE FROM lib_books WHERE id = ?", id) > 0;
     }
+
+    /**
+     * Поиск книги по {@code metadata->>'shamela_book_id'} - используется
+     * shamela-импортом для re-import detection (если книга уже была
+     * замаплена из staging - возвращаем существующую вместо создания
+     * дубликата). GIN-индекс на {@code metadata} уже есть из миграции 16,
+     * запрос идёт по jsonb-операторам без full-scan.
+     */
+    public Optional<Book> findByShamelaBookId(long shamelaBookId) {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM lib_books "
+                        + "WHERE metadata->>'shamela_book_id' = ?",
+                ROW_MAPPER,
+                String.valueOf(shamelaBookId)
+        ).stream().findFirst();
+    }
 }
