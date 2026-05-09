@@ -792,10 +792,161 @@ Response 200 - `PageResponse`:
 - PATCH/PUT для books/chapters/pages - вернёмся когда понадобится
 - multipart upload для image-сканов - Этап 17
 
+## Shamela Admin API (ADR-020, Этапы 15.6 + 15.7)
+
+ETL-импорт каталога shamela.ws через desktop-API. Двухслойная схема
+(см. ADR-020): сырые данные едут в `lib_shamela_*` (staging), потом
+маппятся в доменную `lib_books`/`Authority`/`lib_chapters`/`lib_pages`.
+
+⚠️ MVP - без role-check авторизации. `X-User-Id` берётся в `map-book`
+для `created_by`, но admin-роли не проверяются. Spring Security в
+Этапе 20.
+
+### POST /api/v1/admin/shamela/sync-master
+
+Синхронизация каталога: master-zip с 3 SQLite (category/author/book) →
+bulk-upsert в `lib_shamela_*`. Идемпотентен через master_version.
+
+Тело: пустое.
+
+`200 OK`:
+```json
+{
+  "changed": true,
+  "previousVersion": 0,
+  "currentVersion": 1261,
+  "categoriesCount": 50,
+  "authorsCount": 25000,
+  "booksCount": 8500
+}
+```
+
+При `changed=false` все counts равны 0.
+
+Ошибки:
+- `502 shamela-api-error` - shamela API недоступна
+- `500 shamela-archive-error` - битый zip / Zip Slip
+- `500 shamela-reader-error` - битый SQLite
+- `500 shamela-import-error` - прочие
+
+### POST /api/v1/admin/shamela/import-book/{bookId}
+
+Загрузка контента конкретной книги (page+title) в staging.
+`{bookId}` - integer id из shamela. Книга должна существовать в
+`lib_shamela_book` (нужен предварительный sync-master).
+
+Тело: пустое.
+
+`200 OK`:
+```json
+{
+  "bookId": 41557,
+  "majorRelease": 4,
+  "pagesCount": 320,
+  "titlesCount": 18
+}
+```
+
+Ошибки:
+- `400 illegal-argument` - bookId < 1
+- `404 shamela-not-found` - книга не в `lib_shamela_book`
+- `502 shamela-api-error` / `500 shamela-archive-error`/`shamela-reader-error`
+
+### POST /api/v1/admin/shamela/map-book/{bookId}
+
+Маппинг книги из staging в доменную модель. После успеха книга
+появляется в `GET /api/v1/library/books/{uuid}`.
+
+Заголовки: `X-User-Id: <uuid>` (обязательный, для created_by).
+
+Тело: пустое.
+
+`200 OK` (новая книга):
+```json
+{
+  "bookId": "550e8400-e29b-41d4-a716-446655440000",
+  "shamelaBookId": 41557,
+  "created": true,
+  "authorityId": "660e8400-...",
+  "chaptersCount": 18,
+  "pagesCount": 320
+}
+```
+
+`200 OK` (re-import idempotent skip): то же, но `created=false` и
+counts=0.
+
+Ошибки:
+- `400 illegal-argument` - bookId < 1
+- `400 missing-user-header` - нет/невалидный X-User-Id
+- `404 shamela-not-found` - книга не в `lib_shamela_book`
+- `500 shamela-import-error`
+
+### GET /api/v1/admin/shamela/search?q={query}&limit={n}
+
+Поиск книг в `lib_shamela_book` для admin-страницы фронта. Substring
+match на `name` через ILIKE с обогащением: имя автора через JOIN на
+`lib_shamela_author` + флаг `isMapped` через EXISTS-проверку в
+`lib_books` (через GIN-индекс на `metadata`).
+
+Параметры:
+- `q` (обязательный) - substring для поиска
+- `limit` (опциональный, default 20, max 100)
+
+`200 OK`:
+```json
+[
+  {
+    "bookId": 41557,
+    "name": "صحيح البخاري",
+    "authorName": "Аль-Бухари",
+    "majorRelease": 4,
+    "isMapped": true
+  }
+]
+```
+
+Сортировка: точные substring-совпадения сначала (через ILIKE на
+исходный q), потом по `LENGTH(name)`, потом по id. Tombstoned записи
+(`deleted_at IS NOT NULL`) исключаются.
+
+Ошибки:
+- `400 illegal-argument` - q пустой/отсутствует
+
+### GET /api/v1/admin/shamela/sync-status
+
+Состояние ETL для admin dashboard. Без параметров.
+
+`200 OK`:
+```json
+{
+  "masterVersion": 1261,
+  "lastSyncedAt": "2026-05-09T14:43:00+00:00",
+  "categoriesCount": 50,
+  "authorsCount": 25000,
+  "booksCount": 8500,
+  "mappedBooksCount": 3
+}
+```
+
+`lastSyncedAt = null` для свежей БД. `booksCount` - всего книг в
+staging (доступно для импорта), `mappedBooksCount` - сколько уже в
+`lib_books` (доступно в `/books`).
+
+### Что **не** реализовано в shamela admin
+
+- `GET /admin/shamela/book/{id}/pdf/{fileIndex}` - lazy PDF download
+  через `StreamingResponseBody` + tempfile cleanup. Согласовано с
+  ADR-020 «PDF lazy»
+- Async POST endpoints через `@Async`/queue - на MVP синхронные
+- Bulk endpoints (`POST /map-books?ids=...`) - до решения bulk vs
+  lazy после фронт-валидации
+
 ## История изменений контракта
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-09 | v1 | Добавлены 5 admin endpoints под `/api/v1/admin/shamela/*`: `POST /sync-master` (15.6), `POST /import-book/{id}` (15.6), `POST /map-book/{id}` (15.6), `GET /search?q=&limit=` (15.7), `GET /sync-status` (15.7). DTO: `SyncMasterResponse`, `ImportBookResponse`, `MapBookResponse`, `StagingBookSearchResult`, `SyncStatusResponse`. Новые ошибки: 404 `shamela-not-found`, 502 `shamela-api-error`, 500 `shamela-archive-error`/`shamela-reader-error`/`shamela-import-error`. PDF download / async / bulk endpoints отложены | ADR-020: ETL-импорт shamela, Этапы 15.6 (3 базовых endpoint для mutating операций) + 15.7 (search/status для admin UI) |
 | 2026-05-08 | v1 | Добавлены 6 эндпоинтов под `/api/v1/library/*` (POST/GET/DELETE books, GET pages range, GET page detail). DTO: `CreateBookRequest`/`BookResponse`/`BookSummary`/`BookDetailResponse`/`ChapterResponse` (recursive)/`PageSummary`/`PageResponse`/`ImageRegionResponse`. Новые ошибки: 404 `book-not-found`, 404 `page-not-found`, 422 `invalid-book` (зарезервирован). `BookType` enum (`QURAN`/`HADITH_COLLECTION`/`BOOK`/`ARTICLE`/`MANUSCRIPT`) | ADR-019: фундамент платформенной library, Этап 14 |
 | 2026-05-08 | v1 | `Source` получил поле `authorityId` (UUID, nullable, FK на `Authority`). `NodeSource`/`AttachSourceRequest`/`NodeSourceResponse` получили поле `location` (string, nullable, до 200 символов). Удалены эндпоинты `POST/GET/DELETE /api/v1/nodes/{id}/authorities`. Удалены DTO `NodeAuthorityResponse` и `AttachAuthorityRequest`, enum `Stance` | ADR-017: единая точка привязки цитаты к узлу. `Authority` теперь приходит к узлу транзитивно через `Source.authorityId` |
 | 2026-05-07 | v1 | `TopicResponse` получил `nodeCount` и `edgeCount` (int). На POST/GET-list/GET-one заполняются актуальными значениями через TopicRepository.findAllWithCounts/findByIdWithCounts (один SQL с агрегатными LEFT JOIN-подзапросами) | ADR-016: фронт показывает счётчики на карточках тем без N+1 запросов |

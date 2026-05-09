@@ -94,6 +94,14 @@ public class ShamelaCategoryDao {
         ).stream().findFirst();
     }
 
+    public int countAll() {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM lib_shamela_category WHERE deleted_at IS NULL",
+                Integer.class
+        );
+        return count == null ? 0 : count;
+    }
+
     private static int sumAffected(int[][] batches) {
         int total = 0;
         for (int[] batch : batches) {

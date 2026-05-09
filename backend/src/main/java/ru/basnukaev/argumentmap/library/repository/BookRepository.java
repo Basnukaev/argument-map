@@ -91,6 +91,19 @@ public class BookRepository {
     }
 
     /**
+     * Количество книг замапленных из shamela. Используется в admin
+     * sync-status endpoint для отображения "сколько книг доступно
+     * для чтения в /books". Использует GIN-индекс на metadata.
+     */
+    public int countMappedFromShamela() {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM lib_books WHERE metadata->>'shamela_book_id' IS NOT NULL",
+                Integer.class
+        );
+        return count == null ? 0 : count;
+    }
+
+    /**
      * Поиск книги по {@code metadata->>'shamela_book_id'} - используется
      * shamela-импортом для re-import detection (если книга уже была
      * замаплена из staging - возвращаем существующую вместо создания

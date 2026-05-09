@@ -144,6 +144,89 @@ public class ShamelaBookDao {
         ).stream().findFirst();
     }
 
+    /**
+     * Количество строк в staging-таблице. Используется в admin
+     * sync-status endpoint для отображения "сколько книг доступно
+     * для импорта".
+     */
+    public int countAll() {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM lib_shamela_book WHERE deleted_at IS NULL",
+                Integer.class
+        );
+        return count == null ? 0 : count;
+    }
+
+    /**
+     * Поиск по name через ILIKE с обогащением: подтягивает имя автора
+     * через LEFT JOIN на {@code lib_shamela_author} и проверяет уже ли
+     * книга замаплена в {@code lib_books} через EXISTS subquery
+     * (использует GIN-индекс на {@code lib_books.metadata} из
+     * миграции 16).
+     *
+     * <p>Один SQL вместо N+1 на фронте: JOIN дешевле чем 20+ запросов
+     * к {@code findById} на каждый search-результат для подгрузки
+     * authors. Search возвращает не более {@code limit} строк
+     * упорядоченных по релевантности (точные совпадения сначала, потом
+     * substring).
+     *
+     * <p>Tombstoned записи ({@code deleted_at IS NOT NULL}) исключаются
+     * из результатов - админ не должен импортировать удалённые в
+     * shamela книги.
+     *
+     * @return ShamelaStagingBookView - read-only view для UI поиска
+     */
+    public List<ShamelaStagingBookView> searchByName(String query, int limit) {
+        if (query == null || query.isBlank()) {
+            return List.of();
+        }
+        String like = "%" + query.trim() + "%";
+        String sql = """
+                SELECT b.id, b.name, b.major_release, b.deleted_at,
+                       a.name AS author_name,
+                       EXISTS(
+                           SELECT 1 FROM lib_books lb
+                           WHERE lb.metadata->>'shamela_book_id' = b.id::text
+                       ) AS is_mapped
+                FROM lib_shamela_book b
+                LEFT JOIN lib_shamela_author a ON a.id = b.author_id AND a.deleted_at IS NULL
+                WHERE b.name ILIKE ? AND b.deleted_at IS NULL
+                ORDER BY
+                    CASE WHEN b.name ILIKE ? THEN 0 ELSE 1 END,
+                    LENGTH(b.name),
+                    b.id
+                LIMIT ?
+                """;
+        return jdbcTemplate.query(
+                sql,
+                (rs, rn) -> new ShamelaStagingBookView(
+                        rs.getLong("id"),
+                        rs.getString("name"),
+                        rs.getString("author_name"),
+                        rs.getInt("major_release"),
+                        rs.getBoolean("is_mapped")
+                ),
+                like,
+                query.trim(),    // exact-match получает приоритет в ORDER BY
+                limit
+        );
+    }
+
+    /**
+     * View-record для поисковых результатов админ-страницы. Не
+     * соответствует физической структуре staging-таблицы (это JOIN
+     * staging book + author + EXISTS на lib_books), поэтому не
+     * лежит в etl/dto/.
+     */
+    public record ShamelaStagingBookView(
+            long id,
+            String name,
+            String authorName,
+            int majorRelease,
+            boolean isMapped
+    ) {
+    }
+
     private static void setNullableJsonString(java.sql.PreparedStatement ps, int idx, String json) throws SQLException {
         if (json == null) {
             ps.setNull(idx, Types.VARCHAR);

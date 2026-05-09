@@ -6,22 +6,35 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
+import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookType;
+import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.shamela.api.ShamelaApiException;
+import ru.basnukaev.argumentmap.library.shamela.etl.dto.ShamelaAuthorRow;
+import ru.basnukaev.argumentmap.library.shamela.etl.dto.ShamelaBookRow;
+import ru.basnukaev.argumentmap.library.shamela.etl.dto.ShamelaCategoryRow;
+import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaAuthorDao;
+import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaBookDao;
+import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaCategoryDao;
 import ru.basnukaev.argumentmap.library.shamela.service.BookImportResult;
 import ru.basnukaev.argumentmap.library.shamela.service.MappedBookResult;
 import ru.basnukaev.argumentmap.library.shamela.service.MasterSyncResult;
@@ -45,11 +58,48 @@ class ShamelaAdminControllerIT {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private ShamelaCategoryDao categoryDao;
+
+    @Autowired
+    private ShamelaAuthorDao authorDao;
+
+    @Autowired
+    private ShamelaBookDao bookDao;
+
+    @Autowired
+    private BookRepository bookRepository;
+
     @MockitoBean
     private ShamelaImportService importService;
 
     @MockitoBean
     private ShamelaToLibraryMapper mapper;
+
+    private UUID testUserId;
+
+    @BeforeEach
+    void cleanup() {
+        jdbcTemplate.update("DELETE FROM lib_image_regions");
+        jdbcTemplate.update("DELETE FROM lib_pages");
+        jdbcTemplate.update("DELETE FROM lib_chapters");
+        jdbcTemplate.update("DELETE FROM lib_books");
+        jdbcTemplate.update("DELETE FROM lib_shamela_page");
+        jdbcTemplate.update("DELETE FROM lib_shamela_title");
+        jdbcTemplate.update("DELETE FROM lib_shamela_book");
+        jdbcTemplate.update("DELETE FROM lib_shamela_author");
+        jdbcTemplate.update("DELETE FROM lib_shamela_category");
+        jdbcTemplate.update(
+                "UPDATE lib_shamela_sync_state SET master_version = 0, last_synced_at = NULL WHERE id = 1");
+        testUserId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email) VALUES (?, ?, ?) ON CONFLICT (id) DO NOTHING",
+                testUserId, "admin-it-" + testUserId, testUserId + "@test.local"
+        );
+    }
 
     // ---------------- sync-master ----------------
 
@@ -205,5 +255,130 @@ class ShamelaAdminControllerIT {
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(mapper);
+    }
+
+    // ---------------- search ----------------
+
+    @Test
+    void searchBooks_returns_results_with_author_and_mapped_flag() throws Exception {
+        // seed: автор "Аль-Бухари", две книги "صحيح البخاري" и "البخاري الصغير",
+        // первая уже замаплена в lib_books
+        authorDao.upsertAll(java.util.List.of(
+                new ShamelaAuthorRow(100L, "Аль-Бухари", "имам", 256, false),
+                new ShamelaAuthorRow(101L, "Муслим", null, 261, false)
+        ));
+        bookDao.upsertAll(java.util.List.of(
+                new ShamelaBookRow(41557L, "صحيح البخاري", null, 100L, null, null, null,
+                        4, 0, null, null, null, null, false),
+                new ShamelaBookRow(41558L, "البخاري الصغير", null, 100L, null, null, null,
+                        2, 0, null, null, null, null, false),
+                new ShamelaBookRow(41559L, "صحيح مسلم", null, 101L, null, null, null,
+                        3, 0, null, null, null, null, false)
+        ));
+        // 41557 уже замаплена в lib_books
+        bookRepository.save(new Book(
+                UUID.randomUUID(), BookType.BOOK, "صحيح البخاري", null, "ar",
+                null, "{\"shamela_book_id\":41557}", testUserId,
+                Instant.now(), Instant.now()
+        ));
+
+        mockMvc.perform(get("/api/v1/admin/shamela/search").param("q", "البخاري"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                // первый результат - 41557 (точное совпадение по подстроке + замаплен)
+                .andExpect(jsonPath("$[0].bookId").value(41557))
+                .andExpect(jsonPath("$[0].authorName").value("Аль-Бухари"))
+                .andExpect(jsonPath("$[0].majorRelease").value(4))
+                .andExpect(jsonPath("$[0].isMapped").value(true))
+                // второй - 41558
+                .andExpect(jsonPath("$[1].bookId").value(41558))
+                .andExpect(jsonPath("$[1].isMapped").value(false));
+    }
+
+    @Test
+    void searchBooks_excludes_tombstoned_records() throws Exception {
+        bookDao.upsertAll(java.util.List.of(
+                new ShamelaBookRow(1L, "живая книга", null, null, null, null, null,
+                        1, 0, null, null, null, null, false),
+                new ShamelaBookRow(2L, "удалённая книга", null, null, null, null, null,
+                        1, 0, null, null, null, null, true)
+        ));
+
+        mockMvc.perform(get("/api/v1/admin/shamela/search").param("q", "книга"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].bookId").value(1));
+    }
+
+    @Test
+    void searchBooks_respects_limit_param() throws Exception {
+        for (int i = 1; i <= 30; i++) {
+            bookDao.upsertAll(java.util.List.of(new ShamelaBookRow(
+                    (long) i, "test книга " + i, null, null, null, null, null,
+                    1, 0, null, null, null, null, false
+            )));
+        }
+
+        mockMvc.perform(get("/api/v1/admin/shamela/search").param("q", "test").param("limit", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(5));
+    }
+
+    @Test
+    void searchBooks_returns_400_when_q_blank() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/shamela/search").param("q", ""))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(get("/api/v1/admin/shamela/search").param("q", "   "))
+                .andExpect(status().isBadRequest());
+    }
+
+    // ---------------- sync-status ----------------
+
+    @Test
+    void syncStatus_returns_initial_state_for_empty_db() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/shamela/sync-status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.masterVersion").value(0))
+                .andExpect(jsonPath("$.lastSyncedAt").doesNotExist())
+                .andExpect(jsonPath("$.categoriesCount").value(0))
+                .andExpect(jsonPath("$.authorsCount").value(0))
+                .andExpect(jsonPath("$.booksCount").value(0))
+                .andExpect(jsonPath("$.mappedBooksCount").value(0));
+    }
+
+    @Test
+    void syncStatus_reflects_staging_and_mapped_counts() throws Exception {
+        categoryDao.upsertAll(java.util.List.of(
+                new ShamelaCategoryRow(1L, "Хадис", 1, false),
+                new ShamelaCategoryRow(2L, "Фикх", 2, false)
+        ));
+        authorDao.upsertAll(java.util.List.of(
+                new ShamelaAuthorRow(100L, "А", null, null, false),
+                new ShamelaAuthorRow(101L, "Б", null, null, false),
+                new ShamelaAuthorRow(102L, "В", null, null, false)
+        ));
+        bookDao.upsertAll(java.util.List.of(
+                new ShamelaBookRow(1L, "к1", null, 100L, null, null, null,
+                        1, 0, null, null, null, null, false),
+                new ShamelaBookRow(2L, "к2", null, 101L, null, null, null,
+                        1, 0, null, null, null, null, false)
+        ));
+        bookRepository.save(new Book(
+                UUID.randomUUID(), BookType.BOOK, "замапленная", null, "ar",
+                null, "{\"shamela_book_id\":1}", testUserId,
+                Instant.now(), Instant.now()
+        ));
+        jdbcTemplate.update(
+                "UPDATE lib_shamela_sync_state SET master_version = 1261, last_synced_at = now() WHERE id = 1");
+
+        mockMvc.perform(get("/api/v1/admin/shamela/sync-status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.masterVersion").value(1261))
+                .andExpect(jsonPath("$.lastSyncedAt").exists())
+                .andExpect(jsonPath("$.categoriesCount").value(2))
+                .andExpect(jsonPath("$.authorsCount").value(3))
+                .andExpect(jsonPath("$.booksCount").value(2))
+                .andExpect(jsonPath("$.mappedBooksCount").value(1));
     }
 }

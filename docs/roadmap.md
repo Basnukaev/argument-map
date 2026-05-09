@@ -474,6 +474,18 @@ challenge неразрешимым в текущей конфигурации. �
       (exact match), BookRepository.findByShamelaBookId,
       ShamelaTitleDao.findAllByBookId, ShamelaPageDao.findAllByBookId.
       284 IT зелёных
+- [x] **15.7: search + sync-status admin endpoints** - доделка 15.6
+      под admin UI на фронте. `GET /api/v1/admin/shamela/search?q=&limit=`
+      ищет в `lib_shamela_book` через ILIKE с обогащением (JOIN на
+      author + EXISTS для isMapped через GIN-индекс на metadata).
+      `GET /api/v1/admin/shamela/sync-status` отдаёт masterVersion,
+      lastSyncedAt, counts для всех staging-таблиц + mappedBooksCount.
+      Расширения repos: `ShamelaBookDao.searchByName(q, limit)` +
+      `countAll()`, `ShamelaCategoryDao.countAll()`,
+      `ShamelaAuthorDao.countAll()`, `BookRepository.countMappedFromShamela()`.
+      6 новых IT через MockMvc + Testcontainers (search с реальной БД,
+      sync-status, validation, tombstone exclusion, limit). 302 IT
+      зелёных
 - [x] **15.6: REST endpoints + финальная документация** - 3 admin
       endpoints под `/api/v1/admin/shamela/*`:
       `POST /sync-master` (вызов syncMaster),

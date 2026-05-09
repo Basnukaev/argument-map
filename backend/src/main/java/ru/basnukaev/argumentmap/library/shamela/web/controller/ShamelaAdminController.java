@@ -1,12 +1,20 @@
 package ru.basnukaev.argumentmap.library.shamela.web.controller;
 
+import java.util.List;
 import java.util.UUID;
 
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import ru.basnukaev.argumentmap.library.repository.BookRepository;
+import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaAuthorDao;
+import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaBookDao;
+import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaCategoryDao;
+import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaSyncStateDao;
 import ru.basnukaev.argumentmap.library.shamela.service.BookImportResult;
 import ru.basnukaev.argumentmap.library.shamela.service.MappedBookResult;
 import ru.basnukaev.argumentmap.library.shamela.service.MasterSyncResult;
@@ -14,7 +22,9 @@ import ru.basnukaev.argumentmap.library.shamela.service.ShamelaImportService;
 import ru.basnukaev.argumentmap.library.shamela.service.ShamelaToLibraryMapper;
 import ru.basnukaev.argumentmap.library.shamela.web.dto.ImportBookResponse;
 import ru.basnukaev.argumentmap.library.shamela.web.dto.MapBookResponse;
+import ru.basnukaev.argumentmap.library.shamela.web.dto.StagingBookSearchResult;
 import ru.basnukaev.argumentmap.library.shamela.web.dto.SyncMasterResponse;
+import ru.basnukaev.argumentmap.library.shamela.web.dto.SyncStatusResponse;
 import ru.basnukaev.argumentmap.library.shamela.web.mapper.ShamelaAdminMappers;
 import ru.basnukaev.argumentmap.web.CurrentUser;
 
@@ -39,13 +49,31 @@ import ru.basnukaev.argumentmap.web.CurrentUser;
 @RequestMapping("/api/v1/admin/shamela")
 public class ShamelaAdminController {
 
+    private static final int DEFAULT_SEARCH_LIMIT = 20;
+    private static final int MAX_SEARCH_LIMIT = 100;
+
     private final ShamelaImportService importService;
     private final ShamelaToLibraryMapper mapper;
+    private final ShamelaBookDao shamelaBookDao;
+    private final ShamelaAuthorDao shamelaAuthorDao;
+    private final ShamelaCategoryDao shamelaCategoryDao;
+    private final ShamelaSyncStateDao syncStateDao;
+    private final BookRepository bookRepository;
 
     public ShamelaAdminController(ShamelaImportService importService,
-                                  ShamelaToLibraryMapper mapper) {
+                                  ShamelaToLibraryMapper mapper,
+                                  ShamelaBookDao shamelaBookDao,
+                                  ShamelaAuthorDao shamelaAuthorDao,
+                                  ShamelaCategoryDao shamelaCategoryDao,
+                                  ShamelaSyncStateDao syncStateDao,
+                                  BookRepository bookRepository) {
         this.importService = importService;
         this.mapper = mapper;
+        this.shamelaBookDao = shamelaBookDao;
+        this.shamelaAuthorDao = shamelaAuthorDao;
+        this.shamelaCategoryDao = shamelaCategoryDao;
+        this.syncStateDao = syncStateDao;
+        this.bookRepository = bookRepository;
     }
 
     /**
@@ -86,6 +114,57 @@ public class ShamelaAdminController {
         requirePositiveBookId(bookId);
         MappedBookResult result = mapper.mapBook(bookId, currentUserId);
         return ShamelaAdminMappers.toResponse(result);
+    }
+
+    /**
+     * Поиск книг в staging-каталоге shamela. Используется admin-страницей
+     * фронта для удобного выбора книги для импорта вместо ручного
+     * SQL-копания. Возвращает не более {@code limit} записей с обогащением:
+     * имя автора через JOIN + флаг {@code isMapped} (уже ли книга
+     * замаплена в {@code lib_books}). По релевантности: точные совпадения
+     * сначала, потом substring.
+     *
+     * <p>Tombstoned записи (deleted_at IS NOT NULL) исключаются.
+     *
+     * @param query  - подстрока для поиска по name (обязательный, NotBlank)
+     * @param limit  - макс. количество результатов (default 20, max 100)
+     */
+    @GetMapping("/search")
+    public List<StagingBookSearchResult> searchBooks(
+            @RequestParam("q") String query,
+            @RequestParam(value = "limit", required = false) Integer limit) {
+        if (query == null || query.isBlank()) {
+            throw new IllegalArgumentException(
+                    "параметр q обязателен и не должен быть пустым");
+        }
+        int effective = limit == null ? DEFAULT_SEARCH_LIMIT
+                : Math.min(MAX_SEARCH_LIMIT, Math.max(1, limit));
+        return shamelaBookDao.searchByName(query, effective).stream()
+                .map(view -> new StagingBookSearchResult(
+                        view.id(),
+                        view.name(),
+                        view.authorName(),
+                        view.majorRelease(),
+                        view.isMapped()
+                ))
+                .toList();
+    }
+
+    /**
+     * Состояние shamela ETL: версия master-каталога, время последнего
+     * sync, размеры staging-таблиц + сколько книг уже замаплены в
+     * lib_books. Для admin dashboard на фронте.
+     */
+    @GetMapping("/sync-status")
+    public SyncStatusResponse syncStatus() {
+        return new SyncStatusResponse(
+                syncStateDao.getMasterVersion(),
+                syncStateDao.getLastSyncedAt().orElse(null),
+                shamelaCategoryDao.countAll(),
+                shamelaAuthorDao.countAll(),
+                shamelaBookDao.countAll(),
+                bookRepository.countMappedFromShamela()
+        );
     }
 
     private static void requirePositiveBookId(long bookId) {
