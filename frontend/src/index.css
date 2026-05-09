@@ -13,19 +13,31 @@
 
 /*
  * book-content - класс для article'а в BookReaderPage где рендерится
- * shamela HTML через dangerouslySetInnerHTML. Tailwind preflight
- * сбрасывает margin/padding у всех элементов глобально, поэтому
- * <p> и <blockquote> внутри HTML контента склеиваются вплотную без
- * отступов. Восстанавливаем typography-spacing явно для read-only
- * контента
+ * shamela HTML через dangerouslySetInnerHTML.
+ *
+ * shamela-формат page.content (наблюдаемая структура):
+ *   '舄<span data-type="title">(заголовок) </span>\rосновной текст...'
+ * - Нет <p> тегов вообще, разметка через <span data-type="...">
+ * - Перенос строки через \r (carriage return) - HTML по умолчанию
+ *   игнорирует, поэтому white-space: pre-line обязателен
+ * - PUA-символы и shamela-internal маркеры (`舄` = U+820C) - имитация
+ *   иконок через фирменный шрифт MUSHAF, у нас Noto Naskh их не
+ *   рендерит, чистим в JS перед DOM-injection
+ *
+ * data-type значения наблюдаемые: "title". Возможно shamela использует
+ * другие (hadeeth, quran, commentary) - стилизация добавится по мере
+ * обнаружения через UX-проверку
  */
 @layer components {
-  .book-content p {
-    margin-block-end: 1em;
-    line-height: 1.9;
+  .book-content {
+    white-space: pre-line;
   }
-  .book-content p:last-child {
-    margin-block-end: 0;
+  .book-content [data-type="title"] {
+    display: block;
+    font-weight: 700;
+    font-size: 1.15em;
+    margin-block-end: 0.5em;
+    color: rgb(15 23 42); /* slate-900 */
   }
   .book-content blockquote {
     margin-block: 1em;
@@ -44,23 +56,17 @@
   .book-content h1 { font-size: 1.5em; }
   .book-content h2 { font-size: 1.3em; }
   .book-content h3 { font-size: 1.15em; }
-  .book-content br + br {
-    /* двойной <br> в shamela - имитация параграфа, превращаем в spacing */
-    display: block;
-    content: '';
-    margin-block: 0.5em;
-  }
-  .book-content ul,
-  .book-content ol {
-    margin-block: 1em;
-    padding-inline-start: 1.5em;
-    list-style: revert;
-  }
-  .book-content li {
-    margin-block: 0.3em;
-  }
-  /* центрирование bismillah которая часто идёт первой строкой */
-  .book-content > p:first-child:has(> *) {
-    text-align: center;
+}
+
+/*
+ * book-bibliography - блок-метаданные книги в BookHeader (поле
+ * book.description). shamela кладёт это как одну плоскую строку с
+ * ключами الكتاب:/المؤلف:/تحقيق:/الطبعة:/etc через пробел. JS-парсер
+ * вставляет \n перед каждым ключом, white-space: pre-line делает их
+ * визуально по строкам
+ */
+@layer components {
+  .book-bibliography {
+    white-space: pre-line;
   }
 }

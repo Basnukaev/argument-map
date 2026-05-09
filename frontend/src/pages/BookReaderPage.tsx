@@ -76,6 +76,61 @@ function isArabicText(text: string | undefined): boolean {
   return /[؀-ۿ]/.test(text);
 }
 
+/**
+ * Чистит shamela-specific артефакты в HTML-контенте перед
+ * dangerouslySetInnerHTML. Shamela использует фирменный шрифт MUSHAF
+ * который имеет глифы для специальных Unicode-символов (U+820C `舄`,
+ * U+FDFA `ﷺ` lig, U+FDFD bismillah lig, etc) - их фронт-страница
+ * shamela.ws рендерит как иконки. У нас Noto Naskh Arabic их не
+ * стилизует или вообще не имеет глифов → отображается мусор.
+ *
+ * На MVP - удаляем известные маркеры. ﷺ и bismillah-лигатура
+ * оставляем, они есть в Noto Naskh.
+ */
+function sanitizeShamelaContent(html: string): string {
+  return html
+    .replace(/舄/g, '')           // U+820C - shamela title marker
+    .replace(/[-]/g, ''); // Private Use Area - шрифт-specific glyphs
+}
+
+/**
+ * shamela-bibliography приходит одной плоской строкой с ключами через
+ * пробел: "الكتاب: ... المؤلف: ... تحقيق: ... الطبعة: ...". JS-парсер
+ * вставляет \n перед каждым ключом (кроме первого) - вместе с
+ * white-space: pre-line в CSS это даёт многострочное отображение.
+ *
+ * Список ключей расширяется по мере обнаружения новых форматов в
+ * других книгах shamela.
+ */
+const SHAMELA_BIBLIOGRAPHY_KEYS = [
+  'الكتاب',
+  'المؤلف',
+  'المحقق',
+  'تحقيق',
+  'الناشر',
+  'الطبعة',
+  'سنة النشر',
+  'تاريخ النشر',
+  'عدد الأجزاء',
+  'الجزء',
+  'الصفحة',
+  'عدد الصفحات',
+  'حجم الكتاب',
+  'مصدر الكتاب',
+];
+
+function formatShamelaBibliography(raw: string | undefined): string {
+  if (!raw) return '';
+  let result = raw.trim();
+  for (const key of SHAMELA_BIBLIOGRAPHY_KEYS) {
+    // ищем " <key>:" (пробел перед ключом, чтобы не сломать ключ в начале строки),
+    // ставим перед ним перенос
+    const re = new RegExp(`\\s+(${key}\\s*:)`, 'g');
+    result = result.replace(re, '\n$1');
+  }
+  return result;
+}
+
 function BookReaderPage() {
   const { bookId } = useParams<{ bookId: string }>();
   const navigate = useNavigate();
@@ -304,12 +359,12 @@ function BookHeader({ book, pagesCount }: BookHeaderProps) {
         <p
           className={
             isArabic
-              ? 'mt-2 font-naskh text-[14px] leading-relaxed text-slate-600'
-              : 'mt-2 text-[13px] leading-relaxed text-slate-600'
+              ? 'book-bibliography mt-2 font-naskh text-[14px] leading-relaxed text-slate-600'
+              : 'book-bibliography mt-2 text-[13px] leading-relaxed text-slate-600'
           }
           dir={isArabic ? 'rtl' : 'ltr'}
         >
-          {book.description}
+          {isArabic ? formatShamelaBibliography(book.description) : book.description}
         </p>
       )}
     </div>
@@ -399,12 +454,13 @@ function PageView({ state, bookLanguage }: PageViewProps) {
               : 'book-content text-[15px] leading-relaxed text-slate-900'
           }
           dir={isArabic ? 'rtl' : 'ltr'}
-          // shamela page.content - HTML с тэгами (<p>, <br>, и т.п.).
-          // На MVP рендерим как-есть. TODO: подключить DOMPurify когда
-          // выйдем за рамки доверенного источника shamela (см. gotchas).
-          // .book-content класс из index.css восстанавливает margin'ы
-          // у <p>/<blockquote>/<br> которые сбрасывает Tailwind preflight
-          dangerouslySetInnerHTML={{ __html: text }}
+          // shamela page.content - HTML со span[data-type="title"] и
+          // \r как разделитель строк. Sanitize убирает PUA-маркеры
+          // от фирменного шрифта MUSHAF; .book-content в index.css
+          // даёт white-space: pre-line чтобы \r/\n работали как
+          // линбрейки + стилизует [data-type="title"] как заголовок.
+          // TODO: DOMPurify для не-shamela источников (см. gotchas)
+          dangerouslySetInnerHTML={{ __html: sanitizeShamelaContent(text) }}
         />
       )}
     </Card>
