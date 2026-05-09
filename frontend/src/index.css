@@ -39,16 +39,10 @@
     margin-block-end: 0.5em;
     color: rgb(15 23 42); /* slate-900 */
   }
-  /* Декоративный маркер вместо удалённого '舄' (shamela MUSHAF-font
-     иконка). Используем универсальный Unicode-символ который есть в
-     любом шрифте, цвет indigo для акцента */
-  .book-content [data-type="title"]::before {
-    content: '❖ ';
-    color: rgb(99 102 241); /* indigo-500 */
-    font-size: 0.85em;
-    font-weight: 400;
-    margin-inline-end: 0.3em;
-  }
+  /* Заголовок без визуального маркера: shamela тоже не показывает
+     служебный символ '舄' (он используется только для JS-индексации
+     заголовков на shamela.ws). Bold + slate-900 + блок достаточно
+     для визуального выделения title */
   .book-content blockquote {
     margin-block: 1em;
     padding-inline-start: 1em;
