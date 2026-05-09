@@ -15,7 +15,12 @@ import { apiGetRaw, ApiError } from '@/api/client';
 import type { components } from '@/api/types';
 
 type BookDetail = components['schemas']['BookDetailResponse'];
-type Chapter = components['schemas']['ChapterResponse'];
+// Дополняем ChapterResponse полем startPageNumber - оно есть на бэке
+// (миграция 18) но types.ts не регенерирован пока не перезапущен бэк.
+// После регенерации intersection схлопнется и комментарий можно убрать
+type Chapter = components['schemas']['ChapterResponse'] & {
+  startPageNumber?: number | null;
+};
 type PageDetail = components['schemas']['PageResponse'];
 type PageSummary = components['schemas']['PageSummary'];
 
@@ -231,6 +236,30 @@ function BookReaderPage() {
     }
   };
 
+  /**
+   * Goto: переход на конкретный pageNumber. Используется page-jump
+   * input'ом и кликом по chapter в side-panel. Если запрошенный
+   * pageNumber не существует в state.pages - clamp к ближайшему
+   * (первой/последней). Это безопаснее чем error для пользователя -
+   * shamela page numbering может иметь gaps
+   */
+  const gotoPage = (target: number) => {
+    if (state.kind !== 'success' || state.pages.length === 0) return;
+    const numbers = state.pages.map((p) => p.pageNumber ?? 0);
+    const minN = numbers[0] ?? 1;
+    const maxN = numbers[numbers.length - 1] ?? 1;
+    let clamped = Math.max(minN, Math.min(maxN, target));
+    // ищем ближайший существующий pageNumber (gaps tolerable)
+    if (!numbers.includes(clamped)) {
+      const sorted = [...numbers].sort((a, b) => Math.abs(a - target) - Math.abs(b - target));
+      clamped = sorted[0] ?? clamped;
+    }
+    if (clamped !== pageNumber) {
+      setPageContent({ kind: 'loading' });
+      setPageNumber(clamped);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-slate-50/60">
       <Header />
@@ -257,7 +286,7 @@ function BookReaderPage() {
               <p className="text-[12px] text-slate-400">Главы не указаны</p>
             )}
             {state.kind === 'success' && chapterTree.length > 0 && (
-              <ChapterList nodes={chapterTree} depth={0} />
+              <ChapterList nodes={chapterTree} depth={0} onSelect={gotoPage} currentPage={pageNumber} />
             )}
           </Card>
         </aside>
@@ -290,7 +319,7 @@ function BookReaderPage() {
           {state.kind === 'success' && (
             <>
               <BookHeader book={state.book} pagesCount={totalPages} />
-              <div className="mb-4 flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-2.5">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -300,13 +329,12 @@ function BookReaderPage() {
                 >
                   Предыдущая
                 </Button>
-                <span className="text-[13px] font-mono text-slate-700">
-                  Страница{' '}
-                  <span className="font-semibold text-slate-900">{pageNumber}</span>
-                  {totalPages > 0 && (
-                    <span className="text-slate-400"> / {totalPages}</span>
-                  )}
-                </span>
+                <PageJump
+                  key={pageNumber}
+                  currentPage={pageNumber}
+                  totalPages={totalPages}
+                  onJump={gotoPage}
+                />
                 <Button
                   variant="ghost"
                   size="sm"
@@ -374,35 +402,110 @@ function BookHeader({ book, pagesCount }: BookHeaderProps) {
 interface ChapterListProps {
   nodes: ReadonlyArray<ChapterTreeNode>;
   depth: number;
+  onSelect: (pageNumber: number) => void;
+  currentPage: number;
 }
 
-function ChapterList({ nodes, depth }: ChapterListProps) {
+function ChapterList({ nodes, depth, onSelect, currentPage }: ChapterListProps) {
   return (
     <ul className={depth === 0 ? 'space-y-0.5' : 'mt-0.5 space-y-0.5'}>
       {nodes.map((n) => {
         const isArabic = isArabicText(n.title);
         const indent = depth * 12;
+        const target = n.startPageNumber ?? null;
+        const clickable = target != null && target > 0;
+        const isCurrent = clickable && target === currentPage;
+        const baseFont = isArabic
+          ? 'font-naskh text-[13px]'
+          : 'text-[12px]';
+        const stateClass = !clickable
+          ? 'cursor-not-allowed text-slate-400'
+          : isCurrent
+            ? 'bg-indigo-50 text-indigo-700 font-medium'
+            : 'text-slate-700 hover:bg-slate-50 hover:text-indigo-700 cursor-pointer';
         return (
           <li key={n.id}>
-            <div
-              className={
-                isArabic
-                  ? 'rounded px-2 py-1 font-naskh text-[13px] leading-snug text-slate-700 hover:bg-slate-50'
-                  : 'rounded px-2 py-1 text-[12px] leading-snug text-slate-700 hover:bg-slate-50'
-              }
-              style={{ paddingLeft: `${indent + 8}px` }}
+            <button
+              type="button"
+              onClick={clickable ? () => onSelect(target) : undefined}
+              disabled={!clickable}
+              className={`block w-full rounded px-2 py-1 text-start leading-snug transition-colors ${baseFont} ${stateClass}`}
+              style={{ paddingInlineStart: `${indent + 8}px` }}
               dir={isArabic ? 'rtl' : 'ltr'}
-              title={n.title ?? ''}
+              title={
+                clickable
+                  ? `${n.title ?? ''} (стр. ${target})`
+                  : `${n.title ?? ''} (страница не указана)`
+              }
             >
               {n.title ?? '(без названия)'}
-            </div>
+            </button>
             {n.children.length > 0 && (
-              <ChapterList nodes={n.children} depth={depth + 1} />
+              <ChapterList
+                nodes={n.children}
+                depth={depth + 1}
+                onSelect={onSelect}
+                currentPage={currentPage}
+              />
             )}
           </li>
         );
       })}
     </ul>
+  );
+}
+
+interface PageJumpProps {
+  currentPage: number;
+  totalPages: number;
+  onJump: (page: number) => void;
+}
+
+/**
+ * Input + go-button для прямого перехода к pageNumber. Submit либо
+ * по Enter в input, либо по клику на кнопку. Игнорирует невалидный
+ * input (NaN, < 1) - просто не делает jump.
+ */
+function PageJump({ currentPage, totalPages, onJump }: PageJumpProps) {
+  // Локальный draft для контролируемого input. Синхронизация с
+  // внешним currentPage (после prev/next/chapter-click) идёт через
+  // key-prop в родителе - PageJump remount'ится с новым initial
+  // state. Идиома проекта (см. memory feedback_react_key_remount)
+  // вместо useEffect-сброса который ловит правило set-state-in-effect
+  const [draft, setDraft] = useState<string>(String(currentPage));
+
+  const submit = () => {
+    const parsed = parseInt(draft, 10);
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      setDraft(String(currentPage));
+      return;
+    }
+    onJump(parsed);
+  };
+
+  return (
+    <div className="flex items-center gap-2 text-[13px] text-slate-700">
+      <span className="text-slate-500">Страница</span>
+      <input
+        type="number"
+        min={1}
+        max={totalPages > 0 ? totalPages : undefined}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            submit();
+          }
+        }}
+        onBlur={submit}
+        className="h-7 w-20 rounded border border-slate-300 px-2 text-center font-mono text-[13px] outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+        aria-label="Номер страницы"
+      />
+      {totalPages > 0 && (
+        <span className="font-mono text-slate-400">/ {totalPages}</span>
+      )}
+    </div>
   );
 }
 
