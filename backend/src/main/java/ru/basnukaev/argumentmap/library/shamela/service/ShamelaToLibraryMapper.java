@@ -130,7 +130,7 @@ public class ShamelaToLibraryMapper {
     @Transactional
     public MappedBookResult mapBook(long shamelaBookId, UUID createdBy) {
         ShamelaBookRow shamelaBook = shamelaBookDao.findById(shamelaBookId).orElseThrow(() ->
-                new ShamelaImportException(
+                new ShamelaNotFoundException(
                         "shamela book id=" + shamelaBookId + " не найдена в lib_shamela_book - "
                                 + "сначала выполни syncMaster() или importBook()"));
 

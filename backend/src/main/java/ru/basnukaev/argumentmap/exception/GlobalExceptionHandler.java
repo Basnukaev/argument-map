@@ -12,6 +12,12 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import ru.basnukaev.argumentmap.library.shamela.api.ShamelaApiException;
+import ru.basnukaev.argumentmap.library.shamela.etl.ShamelaArchiveException;
+import ru.basnukaev.argumentmap.library.shamela.etl.ShamelaReaderException;
+import ru.basnukaev.argumentmap.library.shamela.service.ShamelaImportException;
+import ru.basnukaev.argumentmap.library.shamela.service.ShamelaNotFoundException;
+
 /**
  * Глобальный обработчик исключений → Problem Details (RFC 7807).
  * Spring сам выставит Content-Type: application/problem+json.
@@ -112,6 +118,48 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleIllegalArgument(IllegalArgumentException ex) {
         return problem(HttpStatus.BAD_REQUEST,
                 "Некорректный аргумент", "illegal-argument", ex.getMessage());
+    }
+
+    // ---- shamela ETL ----
+    // Порядок важен: ShamelaNotFoundException ловится первым через
+    // более конкретный handler (404), общий ShamelaImportException -
+    // фолбэк для остальных ошибок уровня сервиса (500). Spring выбирает
+    // самый специфичный handler по иерархии типов
+
+    @ExceptionHandler(ShamelaNotFoundException.class)
+    public ProblemDetail handleShamelaNotFound(ShamelaNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND,
+                "Запись shamela не найдена", "shamela-not-found", ex.getMessage());
+    }
+
+    @ExceptionHandler(ShamelaImportException.class)
+    public ProblemDetail handleShamelaImport(ShamelaImportException ex) {
+        log.warn("shamela import error: {}", ex.getMessage());
+        return problem(HttpStatus.INTERNAL_SERVER_ERROR,
+                "Ошибка импорта shamela", "shamela-import-error", ex.getMessage());
+    }
+
+    @ExceptionHandler(ShamelaApiException.class)
+    public ProblemDetail handleShamelaApi(ShamelaApiException ex) {
+        log.warn("shamela API error: {}", ex.getMessage());
+        return problem(HttpStatus.BAD_GATEWAY,
+                "shamela API недоступна", "shamela-api-error", ex.getMessage());
+    }
+
+    @ExceptionHandler(ShamelaArchiveException.class)
+    public ProblemDetail handleShamelaArchive(ShamelaArchiveException ex) {
+        log.warn("shamela archive error: {}", ex.getMessage());
+        return problem(HttpStatus.INTERNAL_SERVER_ERROR,
+                "Ошибка распаковки архива shamela", "shamela-archive-error",
+                ex.getMessage());
+    }
+
+    @ExceptionHandler(ShamelaReaderException.class)
+    public ProblemDetail handleShamelaReader(ShamelaReaderException ex) {
+        log.warn("shamela reader error: {}", ex.getMessage());
+        return problem(HttpStatus.INTERNAL_SERVER_ERROR,
+                "Ошибка чтения SQLite shamela", "shamela-reader-error",
+                ex.getMessage());
     }
 
     private ProblemDetail problem(HttpStatus status, String title, String typeSlug, String detail) {

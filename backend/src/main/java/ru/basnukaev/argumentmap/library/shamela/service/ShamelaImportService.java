@@ -139,7 +139,7 @@ public class ShamelaImportService {
 
     public BookImportResult importBook(long bookId) {
         ShamelaBookRow book = bookDao.findById(bookId).orElseThrow(() ->
-                new ShamelaImportException(
+                new ShamelaNotFoundException(
                         "книга id=" + bookId + " не найдена в lib_shamela_book - "
                                 + "сначала вызови syncMaster()"));
         int majorRelease = book.majorRelease();
