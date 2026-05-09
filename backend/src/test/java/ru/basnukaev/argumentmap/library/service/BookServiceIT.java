@@ -196,7 +196,10 @@ class BookServiceIT {
     }
 
     @Test
-    void listPages_defaultRange_isFromOneTo50() {
+    void listPages_returnsAllPages_whenRangeNotProvided() {
+        // Раньше был default 1..50 - но это обрезало большие книги
+        // (Сахих аль-Бухари 11208 стр) до первой "пачки". Теперь без
+        // явного range возвращаем все страницы книги
         Book book = bookService.createBook(BookType.BOOK, "T", null, "ar", null, null, userId);
         for (int i = 1; i <= 60; i++) {
             pageRepository.save(new Page(
@@ -205,11 +208,11 @@ class BookServiceIT {
             ));
         }
 
-        List<Page> defaultRange = bookService.listPages(book.id(), null, null);
+        List<Page> all = bookService.listPages(book.id(), null, null);
 
-        assertThat(defaultRange).hasSize(50);
-        assertThat(defaultRange.get(0).pageNumber()).isOne();
-        assertThat(defaultRange.get(49).pageNumber()).isEqualTo(50);
+        assertThat(all).hasSize(60);
+        assertThat(all.get(0).pageNumber()).isOne();
+        assertThat(all.get(59).pageNumber()).isEqualTo(60);
     }
 
     @Test

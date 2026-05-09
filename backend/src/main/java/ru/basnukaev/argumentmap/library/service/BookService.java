@@ -85,13 +85,25 @@ public class BookService {
         }
     }
 
+    /**
+     * Список страниц книги. Если {@code fromPage}/{@code toPage} не
+     * указаны - возвращает все страницы книги (без ограничений).
+     * Для больших книг (Сахих аль-Бухари ~11208 страниц) это
+     * {@code PageSummary[]} ~900KB JSON - терпимо для одного запроса
+     * на init reader'а.
+     *
+     * <p>Если из практики окажется что initial-load слишком медленный
+     * на больших книгах - оптимизировать через lazy paging window
+     * (фронт грузит summary только в окне ±N страниц от текущей).
+     * На MVP - все за один раз для простоты.
+     */
     @Transactional(readOnly = true)
     public List<Page> listPages(UUID bookId, Integer fromPage, Integer toPage) {
         if (bookRepository.findById(bookId).isEmpty()) {
             throw new BookNotFoundException(bookId);
         }
         int from = fromPage == null ? 1 : fromPage;
-        int to = toPage == null ? from + DEFAULT_PAGE_RANGE - 1 : toPage;
+        int to = toPage == null ? Integer.MAX_VALUE : toPage;
         return pageRepository.findByBookIdRange(bookId, from, to);
     }
 

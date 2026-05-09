@@ -395,13 +395,15 @@ function PageView({ state, bookLanguage }: PageViewProps) {
         <article
           className={
             isArabic
-              ? 'font-naskh text-[19px] leading-[2] text-slate-900'
-              : 'text-[15px] leading-relaxed text-slate-900'
+              ? 'book-content font-naskh text-[19px] leading-[2] text-slate-900'
+              : 'book-content text-[15px] leading-relaxed text-slate-900'
           }
           dir={isArabic ? 'rtl' : 'ltr'}
           // shamela page.content - HTML с тэгами (<p>, <br>, и т.п.).
           // На MVP рендерим как-есть. TODO: подключить DOMPurify когда
-          // выйдем за рамки доверенного источника shamela (см. gotchas)
+          // выйдем за рамки доверенного источника shamela (см. gotchas).
+          // .book-content класс из index.css восстанавливает margin'ы
+          // у <p>/<blockquote>/<br> которые сбрасывает Tailwind preflight
           dangerouslySetInnerHTML={{ __html: text }}
         />
       )}
