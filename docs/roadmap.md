@@ -442,9 +442,7 @@ challenge неразрешимым в текущей конфигурации. �
       Boolean, "99999"→null для года). 6 DAO с `ON CONFLICT(id)
       DO UPDATE` батчами 1000, JSONB через `?::jsonb` cast в SQL,
       composite PK для page/title. 84 теста (19 parser + 13 master
-      reader + 9 book reader + 43 DAO IT). Реализовано через
-      3 параллельных subagent'а после моей подготовки контракта
-      (records + parser)
+      reader + 9 book reader + 43 DAO IT)
 - [ ] **15.4: ShamelaImportService.syncMaster + importBook** -
       `syncMaster()` читает `sync_state.master_version`, дёргает API,
       разворачивает в shamela_*. `importBook(id)` идёт по

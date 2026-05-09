@@ -46,9 +46,11 @@
 - **Все тактические решения** (архитектура, декомпозиция, выбор
   библиотек в рамках уже зафиксированного стэка, порядок этапов,
   разделение коммитов) - принимаешь сам, без подтверждения
-- **Под-сессии (subagents) через `Agent` tool** запускаешь
-  свободно для исследования, параллельной работы, code review.
-  Аппрувишь/денаешь результаты как middle-manager
+- **Под-сессии (subagents) через `Agent` tool** - использовать
+  ограниченно. Для исследования (Explore) и code review - норм.
+  Параллельный запуск нескольких агентов на implementation-задачи
+  не оправдан в этом проекте (был эксперимент в Сессии 21 на 15.3 -
+  выигрыша не дал). Делаешь сам последовательно
 - **Закрытие сессии** записью в `SESSION_START_PROMPT.md` для
   следующей сессии - сам решаешь когда. Новая сессия читает и
   продолжает без ожидания апрува
@@ -245,15 +247,15 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
     proxys.io за 8.2с суммарно. shamela API работает end-to-end.
     Зафиксирована gotcha
   - `a98c3ea` `feat(backend): этап 15.3 - shamela SQLite readers + 6 staging DAO` -
-    реализовано через **3 параллельных subagent'а** в одном Agent-tool
-    блоке после моей подготовки контракта (5 records + SqliteValueParser
-    + 19 unit). Агент A: ShamelaMasterReader + 13 unit + ShamelaReaderException.
-    Агент B: ShamelaBookReader + 9 unit + ShamelaBookContent.
-    Агент C: 6 DAO + 6 IT (43 теста). 25 файлов, 2505 insertions.
-    Wall time ~6.5 мин (sequential было бы ~15-20 мин). Все агенты
-    следовали backend/CLAUDE.md, переоткрыли проектные утилиты
-    (`JdbcTimes.odt`, `?::jsonb` cast pattern из BookRepository).
-    268 IT зелёных (+43 от DAO IT)
+    5 records в etl/dto/, SqliteValueParser (null-safe
+    TEXT→Long/Integer/Boolean, "99999"→null для года, 19 unit-тестов),
+    ShamelaMasterReader + 13 unit (через `DriverManager(jdbc:sqlite:)`,
+    eager List, reserved-word `order` в кавычках), ShamelaBookReader +
+    9 unit (включая arabic content roundtrip), 6 DAO с bulk upsert
+    `ON CONFLICT(id) DO UPDATE` батчами 1000, JSONB через `?::jsonb`
+    cast в SQL, composite PK для page/title, SyncStateDao singleton
+    через `JdbcTimes.odt()`. 43 IT через Testcontainers. 25 файлов,
+    2505 insertions. 268 IT зелёных (+43 от DAO IT)
   - **Этапы 15.1, 15.2, 15.3 закрыты**, остаётся 15.4-15.6
 - **Сессия 20 (бэк): Этап 14 Library MVP** - 5 коммитов + 1 docs:
   - `506f144` `docs: design spec для Этапа 14 Library MVP` -
@@ -341,23 +343,15 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
        проверка что в lib_shamela_book после прогона есть thousands
        строк. Запускается отдельно через `-Dgroups=live`
 
-   **Возможность параллелизации в 15.4**: sequential pipeline внутри
-   методов нельзя параллелить, но **можно делегировать subagent'у**
-   написание ImportService + ServiceIT, пока я работаю над design
-   живых тестов или 15.5 mapper plan через Plan-agent. Решать в
-   начале сессии 22.
-
    На старте Сессии 22: после стандартного протокола **прямо к 15.4
    в режиме автономии**. ADR-020 фиксирует архитектуру, ImportService
    - оркестрационный layer без новых архитектурных решений.
 
 2. **Этап 15.5: ShamelaToLibraryMapper** - `shamela_book` →
-   `lib_books` + `Authority`. `shamela_title` (parent_id tree) →
-   `lib_chapters`. `shamela_page.content` (raw HTML) →
-   `lib_pages.text_content`. **Может быть полезен Plan-agent**
-   заранее для проработки правил mapping (резолвинг authority по
-   нормализованному имени, обработка дубликатов, fallback на
-   anonymous Authority)
+   `lib_books` + `Authority` (резолвинг по нормализованному имени,
+   обработка дубликатов, fallback на anonymous Authority).
+   `shamela_title` (parent_id tree) → `lib_chapters`.
+   `shamela_page.content` (raw HTML) → `lib_pages.text_content`
 
 3. **Этап 15.6: REST endpoints** -
    `POST /admin/shamela/sync-master`,
@@ -576,18 +570,16 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 
 "вижу - Сессия 21 закрыла три подэтапа Library shamela: 15.1
 (staging-схема + ADR-020), 15.2 (ApiClient + Extractor), 15.3
-(SQLite readers + 6 DAO через 3 параллельных subagent'а). 5
-коммитов, ~3200 insertions, 268 IT зелёных. Live-IT подтверждает
-работу shamela API end-to-end через corporate-прокси. ETL-стэк
-до уровня DAO полностью готов: ApiClient качает архивы, Extractor
-распаковывает, Reader читает SQLite, DAO bulk-upsert в lib_shamela_*.
+(SQLite readers + 6 DAO). 5 коммитов, ~3200 insertions, 268 IT
+зелёных. Live-IT подтверждает работу shamela API end-to-end через
+corporate-прокси. ETL-стэк до уровня DAO полностью готов: ApiClient
+качает архивы, Extractor распаковывает, Reader читает SQLite, DAO
+bulk-upsert в lib_shamela_*.
 
 В режиме автономии продолжаю с 15.4 - ShamelaImportService
 (syncMaster + importBook). Это оркестрация всех слоёв в один
 pipeline + ServiceIT с моками HTTP. Без новых архитектурных
-решений (ADR-020 уже фиксирует pipeline). Возможно делегирую
-subagent'у написание Service+IT пока сам начну plan для 15.5
-mapping. Решу по контексту."
+решений (ADR-020 уже фиксирует pipeline)."
 
 Жди подтверждение. После него - смело за работу.
 ```

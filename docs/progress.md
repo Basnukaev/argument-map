@@ -13,7 +13,7 @@
 
 ---
 
-## 2026-05-09 — Сессия 21 (backend) — Этапы 15.1 + 15.2 + 15.3 Library shamela: staging-схема + ApiClient + Extractor + Readers + 6 DAO + полный pivot плана импорта + первый опыт параллельных subagent'ов
+## 2026-05-09 — Сессия 21 (backend) — Этапы 15.1 + 15.2 + 15.3 Library shamela: staging-схема + ApiClient + Extractor + Readers + 6 DAO + полный pivot плана импорта
 
 Самая длинная экспедиция в неизвестность за всю историю проекта.
 Начали с jsoup-парсера shamela.ws по плану из Сессии 20, упёрлись в
@@ -34,7 +34,7 @@ staging-схема + ADR + актуализация документации.
 `9d6c63d` `docs: handoff Сессии 21 - этап 15.1 закрыт, продолжение в 15.2`
 `f511b6a` `feat(backend): этап 15.2 - shamela api client + archive extractor`
 `520cbf5` `fix(backend): разрешить Basic auth для HTTPS-туннеля прокси`
-`a98c3ea` `feat(backend): этап 15.3 - shamela SQLite readers + 6 staging DAO` (через 3 параллельных subagent'а)
+`a98c3ea` `feat(backend): этап 15.3 - shamela SQLite readers + 6 staging DAO`
 
 - **Миграция 17** `20260509-17-create-shamela-staging-tables.xml` -
   6 таблиц `lib_shamela_*`: category/author/book/page/title/sync_state.
@@ -212,85 +212,40 @@ HTTPS-прокси по умолчанию` - редкая Java-ловушка �
 будущим сессиям при добавлении любого HTTP-клиента работающего через
 corporate-прокси.
 
-#### Этап 15.3 (Readers + 6 DAO) - первый опыт параллельных subagent'ов
+#### Этап 15.3 (Readers + 6 DAO) - закрыт
 
 `a98c3ea` `feat(backend): этап 15.3 - shamela SQLite readers + 6 staging DAO`
 
-Юзер спросил «можем ли ускорить флоу через параллельных агентов
-не теряя качество». Я предложил разбить 15.3 на 3 субагента с
-непересекающимися файлами + единым source of truth (records +
-SqliteValueParser я подготовил сам перед запуском). План был принят,
-выполнен в одном Agent-tool блоке.
-
-**Подготовка контракта (сам, перед агентами):**
+Создано:
 - 5 records в `etl/dto/`: `ShamelaCategoryRow`, `AuthorRow`, `BookRow`,
-  `PageRow`, `TitleRow`
+  `PageRow`, `TitleRow` + `ShamelaBookContent` (композиция pages+titles)
 - `SqliteValueParser` - null-safe TEXT→Long/Integer/Boolean (магическое
-  shamela `"99999"` для года → null)
-- 19 unit-тестов на parser
-
-**Параллельный запуск (3 subagent'а general-purpose в одном tool-use):**
-
-Агент A: `ShamelaMasterReader` + 13 unit-тестов + `ShamelaReaderException`
-- Читает category/author/book.sqlite через `DriverManager(jdbc:sqlite:)`
-- try-with-resources на Connection+Statement+ResultSet
-- Reserved-word `order` в SQL обёрнут в кавычки
-- Вернул List (eager) - SQLite до 12MB ~1-2MB JVM, OK
-
-Агент B: `ShamelaBookReader` + 9 unit-тестов + `ShamelaBookContent`
-- Читает {bookId}.sqlite (page+title), bookId передаётся параметром
-  и проставляется в Row (в SQLite-файле его нет)
-- Тесты: arabic content roundtrip, parent-tree (`'0'`/`'5'`/`''`),
-  empty book, missing file
-- Корректно проверил наличие `ShamelaReaderException` от агента A
-  и переиспользовал
-
-Агент C: 6 DAO + 6 IT через Testcontainers (43 теста total)
-- Bulk upsert через `ON CONFLICT(id) DO UPDATE` батчами 1000
+  shamela `"99999"` для года → null, пустые строки → null, "0"/"1" →
+  Boolean). 19 unit-тестов
+- `ShamelaMasterReader` - читает category/author/book.sqlite через
+  `DriverManager(jdbc:sqlite:)`, eager `List<...Row>`. Reserved-word
+  `order` в SQL обёрнут в кавычки. 13 unit-тестов через `@TempDir`
+- `ShamelaBookReader` - читает {bookId}.sqlite (page+title), bookId
+  параметром (в SQLite-файле его нет), проставляется в Row.
+  9 unit-тестов (включая arabic content roundtrip, parent-tree)
+- `ShamelaReaderException` - симметрично `ShamelaArchiveException`
+- 6 DAO с bulk upsert через `ON CONFLICT(id) DO UPDATE` батчами 1000:
+  Category / Author / Book / Page / Title / SyncState
 - BookDao: JSONB через `?::jsonb` cast в SQL (postgresql:runtime-scope
-  не даёт PGobject в compile - такой же приём в существующих
-  BookRepository/SourceRepository). Агент **самостоятельно нашёл
-  альтернативу и применил**
-- PageDao/TitleDao: composite PK (book_id, id)
-- SyncStateDao: singleton, переиспользует `JdbcTimes.odt()` из
-  существующего `repository/` пакета (gotcha PG JDBC + Instant) -
-  **агент сам нашёл и применил утилиту**
+  не даёт PGobject в compile - тот же приём в существующих
+  BookRepository/SourceRepository)
+- PageDao/TitleDao: composite PK (book_id, id) - shamela id уникален
+  только в пределах книги
+- SyncStateDao: singleton (id=1), переиспользует `JdbcTimes.odt()`
+  из существующего `repository/` пакета (gotcha PG JDBC + Instant).
+  IllegalStateException если ряд исчез
+- 43 IT через Testcontainers (Category 6, Author 8, Book 10, Page 7,
+  Title 7, SyncState 5) - JSONB-roundtrip, cascade-delete,
+  FK-violation, deleted_at семантика, singleton
 
-**Координация:** все три агента видели единый `backend/CLAUDE.md`,
-конкретные эталонные файлы (`BookRepository.java`,
-`ShamelaArchiveExtractor.java`, `ShamelaApiClient.java`) для стиля
-кода и комментариев. Контракт через records + parser зафиксированный
-коммитом до их запуска - они не могли разойтись в семантике DTO.
-
-**Результат:**
-- 25 файлов, 2505 insertions
-- 65 новых тестов (19 + 13 + 9 + 43 = 84... минус 19 которые я сам сделал = 65 от агентов)
-- Verify: 268 IT зелёных (+43 от DAO IT над прошлыми 225). Surefire
-  с известным OpenApiIT flake (1 failure из 218 unit-тестов)
-- Wall time от старта tool-use до окончания всех 3-х агентов:
-  ~6.5 минут (агент C самый медленный из-за TestContainers, 379s).
-  Sequential было бы оценочно ~15-20 минут
-
-**Качество кода агентов:**
-- Все следовали правилам CLAUDE.md (конструктор-injection,
-  русские комментарии, JavaDoc только для нетривиального,
-  try-with-resources)
-- Минор: агент C использовал FQN `java.sql.PreparedStatement` в
-  private helpers - не блокер, локально и не критично
-- Агенты сами решали architectural micro-issues (PGobject →
-  ?::jsonb cast, Instant → JdbcTimes.odt) и применяли решения
-  совпадающие с проектным стилем
-- Все три отчитались чётко о решениях и что не делали намеренно
-
-**Вывод про параллельных агентов:**
-- Работает когда есть подготовленный контракт (records + утилиты
-  до запуска)
-- Главный риск (двойное создание `ShamelaReaderException`)
-  обрабатывается в prompt'е "проверь существует ли"
-- Агенты могут переоткрывать найденные в кодбазе утилиты - это
-  плюс, не минус (показывает реальное чтение проекта, не
-  поверхностное)
-- Time saving ~50% при 3-х параллельных независимых задачах
+Verify: 268 IT зелёных (+43 от DAO IT над прошлыми 225). Surefire
+с известным OpenApiIT flake (1 failure из 218 unit-тестов, в gotchas).
+Всего по этапу 15.3: 25 файлов, 2505 insertions, 84 теста.
 
 ### Следующий шаг
 
@@ -405,11 +360,6 @@ DAO bulk-upsert в lib_shamela_*. Не хватает оркестрации - �
   shamela. Если запустить - после прогона в lib_shamela_book должны
   быть тысячи строк, можно сделать smoke через psql:
   `SELECT count(*) FROM lib_shamela_book;` вернёт ~8589
-- Подумать про параллельность: можно ли применить subagent-подход
-  снова? В 15.4 sequential pipeline, параллелить нечего внутри
-  syncMaster/importBook. Но IT можно делать в параллели с production
-  (один агент пишет ImportService + service-IT, другой пишет
-  service-LiveIT)
 
 **Зависимости которые уже есть** (благодаря 15.2):
 - `org.xerial:sqlite-jdbc:3.45.3.0` в pom
