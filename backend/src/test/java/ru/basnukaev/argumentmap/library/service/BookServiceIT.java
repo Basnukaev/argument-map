@@ -123,16 +123,16 @@ class BookServiceIT {
     void getBookWithChapters_buildsTwoLevelTree() {
         Book book = bookService.createBook(BookType.BOOK, "T", null, "ar", null, null, userId);
         Chapter root1 = chapterRepository.save(new Chapter(
-                UUID.randomUUID(), book.id(), null, "Том 1", 0, Instant.now()
+                UUID.randomUUID(), book.id(), null, "Том 1", 0, null, Instant.now()
         ));
         Chapter root2 = chapterRepository.save(new Chapter(
-                UUID.randomUUID(), book.id(), null, "Том 2", 1, Instant.now()
+                UUID.randomUUID(), book.id(), null, "Том 2", 1, null, Instant.now()
         ));
         chapterRepository.save(new Chapter(
-                UUID.randomUUID(), book.id(), root1.id(), "Глава 1.1", 0, Instant.now()
+                UUID.randomUUID(), book.id(), root1.id(), "Глава 1.1", 0, null, Instant.now()
         ));
         chapterRepository.save(new Chapter(
-                UUID.randomUUID(), book.id(), root1.id(), "Глава 1.2", 1, Instant.now()
+                UUID.randomUUID(), book.id(), root1.id(), "Глава 1.2", 1, null, Instant.now()
         ));
 
         BookDetail detail = bookService.getBookWithChapters(book.id());
@@ -164,7 +164,7 @@ class BookServiceIT {
     void deleteBook_happyPath_removesBookAndCascades() {
         Book book = bookService.createBook(BookType.BOOK, "T", null, "ar", null, null, userId);
         Chapter chapter = chapterRepository.save(new Chapter(
-                UUID.randomUUID(), book.id(), null, "Глава", 0, Instant.now()
+                UUID.randomUUID(), book.id(), null, "Глава", 0, null, Instant.now()
         ));
 
         bookService.deleteBook(book.id());

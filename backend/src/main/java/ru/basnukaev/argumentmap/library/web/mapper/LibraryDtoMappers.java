@@ -64,6 +64,7 @@ public final class LibraryDtoMappers {
         return new ChapterResponse(
                 node.chapter().id(), node.chapter().title(),
                 node.chapter().orderIndex(), node.chapter().parentChapterId(),
+                node.chapter().startPageNumber(),
                 children
         );
     }

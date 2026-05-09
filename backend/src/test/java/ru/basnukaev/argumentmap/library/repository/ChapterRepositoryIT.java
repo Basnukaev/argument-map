@@ -54,7 +54,7 @@ class ChapterRepositoryIT {
     void save_insertsChapter_findByIdReturnsSame() {
         Chapter chapter = new Chapter(
                 UUID.randomUUID(), book.id(), null,
-                "Том 1", 0, Instant.now()
+                "Том 1", 0, null, Instant.now()
         );
 
         chapterRepository.save(chapter);
@@ -68,10 +68,10 @@ class ChapterRepositoryIT {
     @Test
     void save_chapterWithParent_persistsHierarchy() {
         Chapter root = chapterRepository.save(new Chapter(
-                UUID.randomUUID(), book.id(), null, "Том 1", 0, Instant.now()
+                UUID.randomUUID(), book.id(), null, "Том 1", 0, null, Instant.now()
         ));
         Chapter child = chapterRepository.save(new Chapter(
-                UUID.randomUUID(), book.id(), root.id(), "Книга об омовении", 0, Instant.now()
+                UUID.randomUUID(), book.id(), root.id(), "Книга об омовении", 0, null, Instant.now()
         ));
 
         Chapter reloaded = chapterRepository.findById(child.id()).orElseThrow();
@@ -81,14 +81,14 @@ class ChapterRepositoryIT {
 
     @Test
     void findByBookId_returnsAllChaptersOfBook() {
-        chapterRepository.save(new Chapter(UUID.randomUUID(), book.id(), null, "A", 0, Instant.now()));
-        chapterRepository.save(new Chapter(UUID.randomUUID(), book.id(), null, "B", 1, Instant.now()));
+        chapterRepository.save(new Chapter(UUID.randomUUID(), book.id(), null, "A", 0, null, Instant.now()));
+        chapterRepository.save(new Chapter(UUID.randomUUID(), book.id(), null, "B", 1, null, Instant.now()));
 
         Book otherBook = bookRepository.save(new Book(
                 UUID.randomUUID(), BookType.BOOK, "Other", null, "ar",
                 null, null, userId, Instant.now(), Instant.now()
         ));
-        chapterRepository.save(new Chapter(UUID.randomUUID(), otherBook.id(), null, "X", 0, Instant.now()));
+        chapterRepository.save(new Chapter(UUID.randomUUID(), otherBook.id(), null, "X", 0, null, Instant.now()));
 
         List<Chapter> result = chapterRepository.findByBookId(book.id());
 
@@ -98,7 +98,7 @@ class ChapterRepositoryIT {
     @Test
     void deleteBook_cascadesChapters() {
         Chapter chapter = chapterRepository.save(new Chapter(
-                UUID.randomUUID(), book.id(), null, "T", 0, Instant.now()
+                UUID.randomUUID(), book.id(), null, "T", 0, null, Instant.now()
         ));
 
         bookRepository.deleteById(book.id());
@@ -109,10 +109,10 @@ class ChapterRepositoryIT {
     @Test
     void deleteParentChapter_cascadesChildren() {
         Chapter root = chapterRepository.save(new Chapter(
-                UUID.randomUUID(), book.id(), null, "Root", 0, Instant.now()
+                UUID.randomUUID(), book.id(), null, "Root", 0, null, Instant.now()
         ));
         Chapter child = chapterRepository.save(new Chapter(
-                UUID.randomUUID(), book.id(), root.id(), "Child", 0, Instant.now()
+                UUID.randomUUID(), book.id(), root.id(), "Child", 0, null, Instant.now()
         ));
 
         chapterRepository.deleteById(root.id());
@@ -123,7 +123,7 @@ class ChapterRepositoryIT {
     @Test
     void deleteById_returnsTrue_whenExists() {
         Chapter chapter = chapterRepository.save(new Chapter(
-                UUID.randomUUID(), book.id(), null, "T", 0, Instant.now()
+                UUID.randomUUID(), book.id(), null, "T", 0, null, Instant.now()
         ));
 
         assertThat(chapterRepository.deleteById(chapter.id())).isTrue();

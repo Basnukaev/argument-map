@@ -198,10 +198,10 @@ class BookControllerIT {
     void getBook_existing_returns200_withChaptersTree() throws Exception {
         Book book = saveBook("Книга", BookType.BOOK);
         Chapter root = chapterRepository.save(new Chapter(
-                UUID.randomUUID(), book.id(), null, "Том 1", 0, Instant.now()
+                UUID.randomUUID(), book.id(), null, "Том 1", 0, null, Instant.now()
         ));
         chapterRepository.save(new Chapter(
-                UUID.randomUUID(), book.id(), root.id(), "Глава 1.1", 0, Instant.now()
+                UUID.randomUUID(), book.id(), root.id(), "Глава 1.1", 0, null, Instant.now()
         ));
 
         mockMvc.perform(get("/api/v1/library/books/{id}", book.id()))

@@ -8,6 +8,7 @@ public record ChapterResponse(
         String title,
         int orderIndex,
         UUID parentChapterId,
+        Integer startPageNumber,
         List<ChapterResponse> children
 ) {
 }

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260509-18-add-start-page-to-chapters" author="Abdula Basnukaev">
+        <comment>
+            Этап 18.h: добавить lib_chapters.start_page_number для
+            кликабельной навигации chapters → pages в reader-фронте.
+
+            Источник значения - shamela_title.page_ref (TEXT, может
+            быть "1" или "1-3" range; mapper берёт start через
+            Integer.parseInt с fallback на null если не парсится).
+
+            Колонка nullable - не все chapters имеют начальную страницу
+            (например, в книгах без page-аноляции).
+        </comment>
+        <sql>
+            ALTER TABLE lib_chapters ADD COLUMN start_page_number INTEGER NULL;
+            CREATE INDEX idx_lib_chapters_start_page ON lib_chapters(book_id, start_page_number);
+        </sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_lib_chapters_start_page;
+                ALTER TABLE lib_chapters DROP COLUMN start_page_number;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

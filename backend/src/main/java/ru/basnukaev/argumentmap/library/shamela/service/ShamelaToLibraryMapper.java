@@ -294,6 +294,7 @@ public class ShamelaToLibraryMapper {
                     parentUuid,
                     sanitizeTitle(t.content()),
                     orderById.get(t.id()),
+                    parseStartPage(t.pageRef()),
                     now
             );
             chapterRepository.save(chapter);
@@ -348,6 +349,32 @@ public class ShamelaToLibraryMapper {
             created++;
         }
         return created;
+    }
+
+    /**
+     * Парсит {@code shamela_title.page_ref} в номер начальной страницы
+     * главы. Может быть {@code "1"}, {@code "1-3"} (range), пустым или
+     * содержать арабские цифры. Берём первое целое число которое
+     * попадается. При неудаче парсинга - null (chapter без привязки
+     * к стартовой странице).
+     */
+    private static Integer parseStartPage(String pageRef) {
+        if (pageRef == null || pageRef.isBlank()) {
+            return null;
+        }
+        // ищем первую последовательность ASCII цифр (shamela page_ref
+        // в latin-цифрах, не в арабских восточных)
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\d+")
+                .matcher(pageRef);
+        if (m.find()) {
+            try {
+                int value = Integer.parseInt(m.group());
+                return value > 0 ? value : null;
+            } catch (NumberFormatException ignored) {
+                // unreachable - regex matcher гарантирует что group это \d+
+            }
+        }
+        return null;
     }
 
     private static String normalizeName(String raw) {

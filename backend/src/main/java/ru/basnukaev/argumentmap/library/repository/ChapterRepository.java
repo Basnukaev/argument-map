@@ -17,16 +17,21 @@ import ru.basnukaev.argumentmap.library.domain.Chapter;
 public class ChapterRepository {
 
     private static final String COLUMNS =
-            "id, book_id, parent_chapter_id, title, order_index, created_at";
+            "id, book_id, parent_chapter_id, title, order_index, start_page_number, created_at";
 
-    private static final RowMapper<Chapter> ROW_MAPPER = (rs, rn) -> new Chapter(
-            rs.getObject("id", UUID.class),
-            rs.getObject("book_id", UUID.class),
-            rs.getObject("parent_chapter_id", UUID.class),
-            rs.getString("title"),
-            rs.getInt("order_index"),
-            instant(rs, "created_at")
-    );
+    private static final RowMapper<Chapter> ROW_MAPPER = (rs, rn) -> {
+        int startPage = rs.getInt("start_page_number");
+        Integer startPageOrNull = rs.wasNull() ? null : startPage;
+        return new Chapter(
+                rs.getObject("id", UUID.class),
+                rs.getObject("book_id", UUID.class),
+                rs.getObject("parent_chapter_id", UUID.class),
+                rs.getString("title"),
+                rs.getInt("order_index"),
+                startPageOrNull,
+                instant(rs, "created_at")
+        );
+    };
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -36,12 +41,13 @@ public class ChapterRepository {
 
     public Chapter save(Chapter chapter) {
         jdbcTemplate.update(
-                "INSERT INTO lib_chapters (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO lib_chapters (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?)",
                 chapter.id(),
                 chapter.bookId(),
                 chapter.parentChapterId(),
                 chapter.title(),
                 chapter.orderIndex(),
+                chapter.startPageNumber(),
                 odt(chapter.createdAt())
         );
         return chapter;

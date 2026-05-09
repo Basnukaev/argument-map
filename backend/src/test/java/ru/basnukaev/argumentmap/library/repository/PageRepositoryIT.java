@@ -142,7 +142,7 @@ class PageRepositoryIT {
     @Test
     void deleteChapter_setsPageChapterIdToNull() {
         Chapter chapter = chapterRepository.save(new Chapter(
-                UUID.randomUUID(), book.id(), null, "Глава", 0, Instant.now()
+                UUID.randomUUID(), book.id(), null, "Глава", 0, null, Instant.now()
         ));
         Page page = pageRepository.save(new Page(
                 UUID.randomUUID(), book.id(), chapter.id(), 1,

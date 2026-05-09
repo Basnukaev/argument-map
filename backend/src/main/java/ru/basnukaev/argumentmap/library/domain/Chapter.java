@@ -9,6 +9,7 @@ public record Chapter(
         UUID parentChapterId,
         String title,
         int orderIndex,
+        Integer startPageNumber,
         Instant createdAt
 ) {
 }
