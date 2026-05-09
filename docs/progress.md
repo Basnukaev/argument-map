@@ -13,6 +13,179 @@
 
 ---
 
+## 2026-05-09 — Сессия 22 (backend) — Этап 15.4 Library shamela: ShamelaImportService syncMaster + importBook
+
+Короткая фокусная сессия после большой экспедиции 21. ETL-стэк до уровня
+DAO был готов, оставалось связать ApiClient + Extractor + Reader + DAO в
+один pipeline. Без новых архитектурных решений - ADR-020 уже фиксирует
+двухслойную архитектуру и поток.
+
+### Сделано
+
+1 коммит:
+
+`34311fe` `feat(backend): этап 15.4 - ShamelaImportService syncMaster + importBook`
+
+6 файлов / 696 insertions:
+
+- **`library/shamela/service/ShamelaImportService`** - оркестрационный
+  `@Service` (~180 строк). Два публичных метода:
+  - `MasterSyncResult syncMaster()` - читает
+    `sync_state.master_version`, вызывает `fetchMasterMetadata`. Если
+    version не изменилась - возвращает `unchanged(version)` без
+    download'а. Иначе скачивает master-zip в `Files.createTempDirectory`
+    под `shamela.download-dir`, распаковывает, проверяет наличие
+    `category.sqlite`/`author.sqlite`/`book.sqlite`, читает
+    `MasterReader`, bulk-upsert в Category/Author/Book DAO,
+    обновляет `sync_state` в самом конце (последовательность
+    важна для retry-семантики). Cleanup workdir рекурсивно
+    в `finally` через `Files.walk + reverseOrder + deleteIfExists`
+  - `BookImportResult importBook(long bookId)` - находит book в
+    `lib_shamela_book` (если нет → `ShamelaImportException` с
+    подсказкой про `syncMaster()`), строит детерминированный URL
+    `https://{filesHost}/books-store/{id}-{major}.zip` (без api_key
+    для ready-host, см. ADR-020), скачивает, распаковывает, проверяет
+    наличие `{bookId}.sqlite`, читает `BookReader`, bulk-upsert в
+    Page/Title DAO. Cleanup workdir в `finally`
+- **`MasterSyncResult` / `BookImportResult`** - records с
+  named-factory (`unchanged(v)` / `synced(...)`) для читаемых
+  call-site без boolean-первого-параметра
+- **`ShamelaImportException`** - для ошибок уровня сервиса (нет book
+  в staging, сбой создания workdir, отсутствие SQLite после
+  распаковки). `ApiException`/`ArchiveException`/`ReaderException`
+  из downstream НЕ оборачиваем - все они `RuntimeException`, REST-слой
+  15.6 единым `@ControllerAdvice` замапит каждый тип в свой HTTP-код
+- **`ShamelaImportServiceIT`** - 6 IT через `@SpringBootTest +
+  TestcontainersConfiguration + @MockitoBean ShamelaApiClient`.
+  Сценарии: skip unchanged (verify never on downloadArchive),
+  full master pipeline (assert строки в DAO + sync_state version),
+  blank patch_url throws (без download'а), cleanup при extraction
+  failure (corrupt zip → ArchiveException → finally удаляет workdir +
+  version не обновился), missing book throws, full book pipeline
+  (assert pages+titles + детерминированный URL через `verify(eq(...))`).
+  Fixture-zip собираются программно: SQLite через
+  `DriverManager(jdbc:sqlite:tmp/x.sqlite)` + `Statement.execute("CREATE
+  TABLE ...")` + `INSERT`, потом упаковка в `ZipOutputStream`. Никаких
+  binary-фикстур в `test/resources/`. `@DynamicPropertySource`
+  override `shamela.download-dir` в изолированный `Files.createTempDirectory`
+  для класса - так разные тесты не реагируют на cleanup-ассерты
+  друг друга
+- **`ShamelaImportServiceLiveIT`** - 1 тест `@Tag("live")` против
+  реальной `dev.shamela.ws` API + Testcontainers postgres.
+  Sanity-check: `syncMaster()` от version=0 должен вернуть
+  changed=true, version>1000, books>10000, authors>1000,
+  categories>10. Исключён из обычного verify через
+  `<excludedGroups>live</excludedGroups>` в failsafe-plugin.
+  Запуск точечный: `./mvnw failsafe:integration-test -Dgroups=live
+  -Dit.test=ShamelaImportServiceLiveIT`
+
+### Решения
+
+- **Идемпотентность через `ON CONFLICT DO UPDATE` вместо транзакции**
+  на pipeline. Bulk upsert ~270k книг в одной транзакции долго держит
+  лок и съедает WAL. ADR-020 закрепил эту схему: прерванный sync
+  (network error в середине) безопасно повторяется - повторный
+  master-snapshot затирает все строки и обновляет
+  `sync_state.master_version` в самом конце. Транзакция только в
+  пределах одного DAO upsert (где `JdbcTemplate.batchUpdate` сам
+  даёт connection-уровень)
+- **Cleanup в `finally`, не в `try`-конце**. Финал даже при exception
+  гарантирует удаление workdir. Ошибки cleanup'а (например busy
+  file lock на Windows) логируются `WARN`, но не маскируют исходный
+  exception - `Files.deleteIfExists` каждой entry в отдельном try
+- **Не оборачиваем downstream RuntimeException**. Изначальный план
+  говорил «`ShamelaImportException` оборачивает all downstream».
+  По факту - ApiException/ArchiveException/ReaderException и так
+  все `RuntimeException`, единый `@ControllerAdvice` обработает
+  каждый по типу. Оборачивание добавило бы лишний слой без выгоды
+  (теряется тип, тесты сложнее: assertion на cause вместо прямого
+  типа). `ShamelaImportException` - только для собственных ошибок
+  ImportService
+- **`@DynamicPropertySource` против `@TestConfiguration` с переопределённым
+  `ShamelaApiProperties` bean'ом** - первый чище, потому что
+  `@ConfigurationProperties`-биндинг происходит до того как
+  Spring может перебить мой bean (порядок инициализации). DynamicPropertyRegistry
+  влезает в фазу resolve property values, ещё до создания самого record'а
+
+### Проблемы
+
+- Никаких блокеров. Pipeline собрался последовательно, тесты прошли
+  с первого `./mvnw verify` (compilation + 274 IT)
+- `OpenApiIT.readOnlyEndpoint_doesNotGetUserIdHeader` flake (gotcha
+  из Сессии 21) **не воспроизвёлся** в этот прогон - все 5 OpenApiIT
+  зелёные. Не блокер для 15.4
+
+### Следующий шаг
+
+**Этап 15.5: ShamelaToLibraryMapper** - переход из staging
+`lib_shamela_*` в целевую модель `lib_books`/`Authority`/`lib_chapters`/
+`lib_pages`. Это уже доменное мапирование, не транспортный слой.
+
+Конкретный план файлов:
+
+- `library/shamela/service/ShamelaToLibraryMapper.java` - `@Service`,
+  инжектит `ShamelaBookDao` + `ShamelaAuthorDao` + `ShamelaTitleDao` +
+  `ShamelaPageDao` + `BookRepository` + `AuthorityRepository` +
+  `ChapterRepository` + `PageRepository`. Публичный метод
+  `MappedBookResult mapBook(long shamelaBookId)`:
+  - Резолв Authority по `shamela_book.author_id` → `shamela_author.name`.
+    Нормализация имени (trim + collapse whitespace) + поиск в
+    `Authority` по name (с case-insensitive matching). Если нашёл -
+    переиспользуем. Если не нашёл - создаём новую Authority с
+    `name`/`bio` из shamela. Fallback: если `author_id IS NULL` -
+    единый «anonymous» Authority (создаётся if-not-exists)
+  - Создание `Book`: `name` из shamela, `bookType` (из `type` 1-3 ->
+    SCHOLARLY/REFERENCE/MISC enum?), `bibliography`, `metadata` jsonb
+    с `{shamela_book_id, shamela_major_release, pdf_links}`,
+    `authority_id` из резолва. `INSERT ON CONFLICT (uuid)` неприменим
+    т.к. lib_books использует UUID PK - надо проверять по
+    `metadata->>'shamela_book_id'` для re-import detect
+  - Маппинг `shamela_title` (parent_id tree) → `lib_chapters` (depth-first
+    traversal со ссылками на parent_chapter_id, sort_order по
+    sequence)
+  - Маппинг `shamela_page.content` (raw HTML с tashkeel) →
+    `lib_pages.text_content`. На MVP - сохраняем HTML as-is
+    (santize в reader 18.x). `lib_pages.chapter_id` через
+    `title.page` поле (привязка page к ближайшему предыдущему
+    title)
+- `MappedBookResult` record - `Book` (created/updated), counts по
+  chapter/page
+- `ShamelaToLibraryMapperIT` - Testcontainers postgres,
+  предзаполнение `lib_shamela_*` через DAO, прогон mapper'а,
+  ассерты на состояние `lib_books`/`Authority`/`lib_chapters`/`lib_pages`.
+  Сценарии: новая книга (создаётся), повторный import (обновляет
+  без создания дубликата Authority), missing author (anonymous
+  Authority), title-tree без parent_id (плоский), nested titles
+  (parent → child связь)
+
+Открытые проектные вопросы для 15.5:
+- Match Authority по name - нужна ли normalization алгоритмически
+  (стандартная trim/lowercase/collapse whitespace) или достаточно
+  exact match? Решить по факту - если данные shamela достаточно
+  чистые (один и тот же автор всегда в одном написании) - exact.
+  Иначе нужно lower(name) для матчинга через дополнительный индекс
+- Book.bookType маппинг - `shamela_book.type` (integer 1-3?) надо
+  посмотреть semantics. Возможно нужен новый enum или все мапятся
+  в один тип. Проверить по реальным данным после live-syncMaster
+- Chapter ↔ Page связь через `title.page` поле (TEXT, может быть
+  "1" или "1-3" range). Решить как парсить - на MVP берём только
+  start
+
+После 15.5 - **Этап 15.6: REST endpoints** через MockMvc
+ControllerIT + api-contract.md + glossary.md. Финальная фаза Library
+shamela MVP.
+
+ETL-стэк после 15.4:
+- API: ShamelaApiClient (4 method) + ShamelaApiProperties + ShamelaHttpClientConfig
+- Extract: ShamelaArchiveExtractor + ShamelaArchiveException
+- Read: SqliteValueParser + ShamelaMasterReader + ShamelaBookReader + 5 DTO records
+- Persist: 6 DAO с bulk upsert
+- Orchestrate: **ShamelaImportService.syncMaster + importBook** (этот этап)
+- Map (next): ShamelaToLibraryMapper (15.5)
+- REST (next): ShamelaAdminController (15.6)
+
+---
+
 ## 2026-05-09 — Сессия 21 (backend) — Этапы 15.1 + 15.2 + 15.3 Library shamela: staging-схема + ApiClient + Extractor + Readers + 6 DAO + полный pivot плана импорта
 
 Самая длинная экспедиция в неизвестность за всю историю проекта.

@@ -443,12 +443,21 @@ challenge неразрешимым в текущей конфигурации. �
       DO UPDATE` батчами 1000, JSONB через `?::jsonb` cast в SQL,
       composite PK для page/title. 84 теста (19 parser + 13 master
       reader + 9 book reader + 43 DAO IT)
-- [ ] **15.4: ShamelaImportService.syncMaster + importBook** -
-      `syncMaster()` читает `sync_state.master_version`, дёргает API,
-      разворачивает в shamela_*. `importBook(id)` идёт по
-      детерминированному URL `ready.shamela.ws/books-store/{id}-{major}.zip`,
-      загружает page+title в `lib_shamela_*`. Tombstones обрабатываем
-      через `deleted_at TIMESTAMPTZ`. IT с golden zip в test/resources
+- [x] **15.4: ShamelaImportService.syncMaster + importBook** -
+      оркестрация ETL pipeline. `syncMaster()` читает
+      `sync_state.master_version`, дёргает `fetchMasterMetadata`,
+      пропускает download если version не изменилась, иначе скачивает
+      master-zip (3 SQLite), распаковывает, читает, bulk-upsert в
+      Category/Author/Book DAO, обновляет sync_state. Cleanup workdir
+      в `finally`. `importBook(long)` находит book в `lib_shamela_book`,
+      строит детерминированный URL `https://ready.shamela.ws/books-store/{id}-{major}.zip`,
+      скачивает, читает page+title, bulk-upsert. Идемпотентность через
+      `ON CONFLICT DO UPDATE` в DAO. `MasterSyncResult`/`BookImportResult`
+      records, `ShamelaImportException` для ошибок уровня сервиса.
+      Тесты: 6 IT с `@MockitoBean ShamelaApiClient` + Testcontainers
+      postgres + fixture-zip собираются программно через
+      `DriverManager(jdbc:sqlite:)`. `ShamelaImportServiceLiveIT`
+      `@Tag("live")` для реальной shamela API. 274 IT зелёных
 - [ ] **15.5: ShamelaToLibraryMapper** - `shamela_book` →
       `lib_books` + `Authority` (резолвинг по name с нормализацией).
       `shamela_title` (parent_id tree) → `lib_chapters`.
