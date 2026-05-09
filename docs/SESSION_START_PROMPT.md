@@ -217,8 +217,8 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
   - `34311fe` `feat(backend): этап 15.4 - ShamelaImportService syncMaster + importBook` -
     оркестрационный `@Service` со связкой ApiClient+Extractor+Reader+DAO
     в один pipeline. Идемпотентность через `ON CONFLICT DO UPDATE` в
-    DAO (без транзакции на pipeline - bulk upsert ~270k книг иначе
-    держит лок). Cleanup workdir в finally рекурсивно. 4 prod-файла
+    DAO (без транзакции на pipeline - bulk upsert ~8500 книг + ~25k
+    авторов иначе держит лок). Cleanup workdir в finally рекурсивно. 4 prod-файла
     (ShamelaImportService + 2 result-records + ShamelaImportException),
     2 test-файла (ShamelaImportServiceIT с 6 IT через @MockitoBean
     ApiClient + Testcontainers postgres + fixture-zip собираются
@@ -336,7 +336,7 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 ОТКРЫТО (по приоритету) - после Этапов 15.4 + 15.5:
 
 ⚠️ **АРХИТЕКТУРНЫЙ ВОПРОС - решается через UX-проверку фронта**:
-Абдула попросил **не запускать массовый парсинг 270k книг shamela** до
+Абдула попросил **не запускать массовый парсинг ~8500 книг shamela** до
 тех пор, пока не визуализируем 1-2 книги на фронте и не определимся:
 **bulk-bootstrap всего каталога** vs **lazy-import on user request**
 (importBook+mapBook дёргаются когда пользователь открывает книгу в
@@ -615,7 +615,7 @@ re-import skip защищает FK. ETL-стэк до уровня сервис�
 готов - ApiClient + Extractor + Reader + DAO + ImportService +
 ToLibraryMapper.
 
-⚠️ ВАЖНО: Абдула попросил НЕ запускать массовый парсинг 270k книг
+⚠️ ВАЖНО: Абдула попросил НЕ запускать массовый парсинг ~8500 книг
 shamela до фронт-проверки на 1-2 книгах. Архитектурный вопрос
 'bulk-bootstrap vs lazy-import on user request' открыт, решается
 после Этапа 18 frontend visualization. Live-IT использовать только

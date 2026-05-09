@@ -48,9 +48,9 @@ import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaTitleDao;
  * upsert переписывает все строки.
  *
  * <p>Транзакция на pipeline сознательно не оборачивается: bulk upsert
- * 270k books в одной транзакции долго держит лок и съедает WAL. ADR-020
- * закрепляет идемпотентность как механизм консистентности вместо
- * атомарности.
+ * ~8500 books + ~25k авторов в одной транзакции долго держит лок и
+ * съедает WAL. ADR-020 закрепляет идемпотентность как механизм
+ * консистентности вместо атомарности.
  *
  * <p>Cleanup: каждый вызов создаёт изолированный workdir через
  * {@code Files.createTempDirectory} в {@code shamela.download-dir}.

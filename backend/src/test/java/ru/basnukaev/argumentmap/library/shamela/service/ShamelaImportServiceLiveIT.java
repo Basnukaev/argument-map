@@ -14,7 +14,7 @@ import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaBookDao;
 /**
  * Реальный end-to-end {@link ShamelaImportService#syncMaster()} против
  * боевого shamela API. Скачивает master-snapshot ~5MB, разбирает три
- * SQLite, выгружает {@code ~270000} книг в Postgres-Testcontainer.
+ * SQLite, выгружает {@code ~8500} книг в Postgres-Testcontainer.
  *
  * <p>Исключён из обычного {@code ./mvnw verify} через
  * {@code <excludedGroups>live</excludedGroups>} в failsafe-plugin.
@@ -22,8 +22,8 @@ import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaBookDao;
  *
  * <pre>./mvnw failsafe:integration-test -Dgroups=live -Dit.test=ShamelaImportServiceLiveIT</pre>
  *
- * <p>Время прогона: ~30-60с (2с на metadata + 3-8с на download + ~20с
- * на парсинг и upsert ~270k books). Если корпоративный прокси -
+ * <p>Время прогона: ~10-20с (2с на metadata + 3-8с на download + ~5с
+ * на парсинг и upsert ~8500 books). Если корпоративный прокси -
  * подхватывается через {@code HTTPS_PROXY} автоматически.
  */
 @Tag("live")
@@ -46,9 +46,10 @@ class ShamelaImportServiceLiveIT {
         assertThat(result.changed()).isTrue();
         assertThat(result.previousVersion()).isZero();
         assertThat(result.currentVersion()).isGreaterThan(1000);
-        // master-snapshot на момент исследования - около 270k книг,
-        // лимит снизу с большим запасом
-        assertThat(result.booksCount()).isGreaterThan(10_000);
+        // master-snapshot на момент исследования - около 8500 книг,
+        // лимит снизу с большим запасом (если каталог сильно вырастет
+        // или урежется - тест переписать)
+        assertThat(result.booksCount()).isGreaterThan(5_000);
         assertThat(result.authorsCount()).isGreaterThan(1_000);
         assertThat(result.categoriesCount()).isGreaterThan(10);
 

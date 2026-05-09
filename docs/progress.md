@@ -151,8 +151,8 @@ ImportService).
 ### Решения
 
 - **Идемпотентность через `ON CONFLICT DO UPDATE` вместо транзакции**
-  на pipeline syncMaster (Этап 15.4). Bulk upsert ~270k книг в одной транзакции долго держит
-  лок и съедает WAL. ADR-020 закрепил эту схему: прерванный sync
+  на pipeline syncMaster (Этап 15.4). Bulk upsert ~8500 книг
+  плюс ~25k авторов в одной транзакции долго держит лок и съедает WAL. ADR-020 закрепил эту схему: прерванный sync
   (network error в середине) безопасно повторяется - повторный
   master-snapshot затирает все строки и обновляет
   `sync_state.master_version` в самом конце. Транзакция только в
@@ -218,7 +218,7 @@ ImportService).
 фаза Library shamela MVP.
 
 ⚠️ **Архитектурный вопрос про массовый парсинг отложен** - Абдула
-попросил не запускать full-bootstrap 270k книг до фронт-проверки
+попросил не запускать full-bootstrap ~8500 книг до фронт-проверки
 на 1-2 книгах. Открытое решение: **bulk vs lazy-on-demand**. См.
 `memory/feedback_no_bulk_shamela_parse.md`. Это влияет на:
 - `syncMaster` сценарий вызова - может остаться только sync staging
@@ -279,8 +279,9 @@ ImportService).
   major_release», «idempotent skip»
 
 После 15.6 - Library shamela MVP закрыт целиком. Можно дёрнуть
-admin endpoints curl'ом и заполнить БД ~270k книг для дальнейшей
-фронт-разработки в Этапе 18.
+admin endpoints curl'ом и заполнить БД 3-5 книг для UX-проверки
+на фронте (массовый bootstrap всех ~8500 книг отложен до решения
+bulk vs lazy).
 
 ETL-стэк после 15.5 (полностью готов до уровня сервисов):
 - API: `ShamelaApiClient` + `ShamelaApiProperties` + `ShamelaHttpClientConfig`
