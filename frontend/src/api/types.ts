@@ -684,6 +684,8 @@ export interface components {
             orderIndex?: number;
             /** Format: uuid */
             parentChapterId?: string;
+            /** Format: int32 */
+            startPageNumber?: number;
         };
         PageSummary: {
             /** Format: uuid */

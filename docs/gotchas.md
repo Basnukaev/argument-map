@@ -567,4 +567,74 @@ fallback-walk - бросаем `ShamelaImportException` с диагностик�
 
 ---
 
+## Springdoc-openapi 2.x теряет self-referential property в schema
+
+**Симптом:** `ChapterResponse` имеет поле `List<ChapterResponse> children`
+для nested tree. На бэке JSON ответа в `GET /api/v1/library/books/{id}`
+действительно содержит `children: [{...nested}]`. Но в
+`/v3/api-docs` schema выглядит так:
+
+```json
+{
+  "ChapterResponse": {
+    "type": "object",
+    "properties": {
+      "id": {...},
+      "title": {...},
+      "orderIndex": {...},
+      "parentChapterId": {...},
+      "startPageNumber": {...}
+    }
+  }
+}
+```
+
+Поля `children` нет вообще. После `npm run generate-api` фронт
+получает тип без `children` и теряет типизированный доступ к
+рекурсивной структуре.
+
+**Причина:** springdoc-openapi 2.x определяет рекурсивные типы как
+циклическую ссылку и **выкидывает** self-referential property целиком
+из schema чтобы не зациклиться. Использует обнаружение через
+`io.swagger.v3.core.util.ModelResolver` которое не различает
+self-reference (`List<Self>`) от настоящего цикла без терминатора.
+Это known limitation, обсуждается в issues, без официального fix
+на 2.8.0.
+
+Возможные решения на стороне бэка:
+1. `@Schema(implementation = ChapterResponse.class)` на поле -
+   не работает, springdoc всё равно проверяет цикл
+2. Кастомный `ModelConverter` - тяжёлая инфраструктура для одного
+   поля
+3. Раздельный DTO `ChapterTreeNode` (тот же набор полей + children)
+   и `ChapterResponse` (без children) - дублирование, но springdoc
+   их разведёт
+
+**Решение (на MVP):** на фронте self-referential intersection:
+
+```ts
+// types.ts (auto-gen) не имеет children для ChapterResponse, расширяем
+type Chapter = components['schemas']['ChapterResponse'] & {
+  children?: Chapter[];
+};
+```
+
+В runtime поле приходит, типизация добавлена руками. После каждой
+regen-api intersection остаётся (не схлопывается, потому что бэк
+не отдаёт children в schema).
+
+**Альтернатива при следующем витке library-фичей** - DTO-split на
+бэке. Когда добавим `imageRegion` или похожее nested - перейти
+сразу на 3й вариант.
+
+Зафиксировано в Сессии 24 при fix sub-chapters рендера. Bug проявился
+после того как мы сначала имели **двойную сборку tree** (бэк + фронт)
+и фронт делал sortRecursive на пустых children. Когда убрали
+front-side build - проявилось что types.ts вообще не знал про
+children. Косвенно это связано с другим известным springdoc-gotcha
+про `@CurrentUser` (см. выше) - в обоих случаях springdoc не понимает
+кастомные расширения и нужны обходы.
+
+---
+
 <!-- Добавлять новые ловушки сюда по мере их обнаружения -->

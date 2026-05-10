@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import {
   AlertCircle,
@@ -15,11 +15,13 @@ import { apiGetRaw, ApiError } from '@/api/client';
 import type { components } from '@/api/types';
 
 type BookDetail = components['schemas']['BookDetailResponse'];
-// Дополняем ChapterResponse полем startPageNumber - оно есть на бэке
-// (миграция 18) но types.ts не регенерирован пока не перезапущен бэк.
-// После регенерации intersection схлопнется и комментарий можно убрать
+// Дополняем ChapterResponse полем children - springdoc-openapi 2.x не
+// выводит self-referential properties в /v3/api-docs (известная gotcha,
+// см. gotchas.md). В runtime JSON children приходит (LibraryDtoMappers
+// строит nested tree), но в types.ts его нет. Self-referential
+// intersection даёт type-safe доступ к рекурсивной структуре
 type Chapter = components['schemas']['ChapterResponse'] & {
-  startPageNumber?: number | null;
+  children?: Chapter[];
 };
 type PageDetail = components['schemas']['PageResponse'];
 type PageSummary = components['schemas']['PageSummary'];
@@ -33,43 +35,6 @@ type PageContentState =
   | { kind: 'loading' }
   | { kind: 'success'; page: PageDetail }
   | { kind: 'error'; message: string };
-
-interface ChapterTreeNode extends Chapter {
-  children: ChapterTreeNode[];
-}
-
-/**
- * Строит дерево из плоского массива {@link ChapterResponse}: бэк
- * возвращает все главы книги одним списком, иерархия выражена через
- * {@code parentChapterId}. Группируем по parent, рекурсивно собираем
- * children. Если parentChapterId указывает на несуществующую главу
- * (orphan), такая глава попадает в roots - не теряется.
- */
-function buildChapterTree(chapters: ReadonlyArray<Chapter>): ChapterTreeNode[] {
-  const byId = new Map<string, ChapterTreeNode>();
-  for (const c of chapters) {
-    if (!c.id) continue;
-    byId.set(c.id, { ...c, children: [] });
-  }
-  const roots: ChapterTreeNode[] = [];
-  for (const c of chapters) {
-    if (!c.id) continue;
-    const node = byId.get(c.id)!;
-    const parent = c.parentChapterId ? byId.get(c.parentChapterId) : undefined;
-    if (parent) {
-      parent.children.push(node);
-    } else {
-      roots.push(node);
-    }
-  }
-  // сортируем по orderIndex на каждом уровне
-  const sortRecursive = (nodes: ChapterTreeNode[]) => {
-    nodes.sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
-    for (const n of nodes) sortRecursive(n.children);
-  };
-  sortRecursive(roots);
-  return roots;
-}
 
 /**
  * Эвристика: если language === 'ar' или контент содержит арабские
@@ -205,11 +170,7 @@ function BookReaderPage() {
     return () => controller.abort();
   }, [state, pageNumber]);
 
-  const chapterTree = useMemo(() => {
-    if (state.kind !== 'success') return [];
-    return buildChapterTree(state.book.chapters ?? []);
-  }, [state]);
-
+  const chapterTree = state.kind === 'success' ? (state.book.chapters ?? []) : [];
   const totalPages = state.kind === 'success' ? state.pages.length : 0;
   const currentIndex =
     state.kind === 'success'
@@ -400,7 +361,7 @@ function BookHeader({ book, pagesCount }: BookHeaderProps) {
 }
 
 interface ChapterListProps {
-  nodes: ReadonlyArray<ChapterTreeNode>;
+  nodes: ReadonlyArray<Chapter>;
   depth: number;
   onSelect: (pageNumber: number) => void;
   currentPage: number;
@@ -423,6 +384,7 @@ function ChapterList({ nodes, depth, onSelect, currentPage }: ChapterListProps) 
           : isCurrent
             ? 'bg-indigo-50 text-indigo-700 font-medium'
             : 'text-slate-700 hover:bg-slate-50 hover:text-indigo-700 cursor-pointer';
+        const children = n.children ?? [];
         return (
           <li key={n.id}>
             <button
@@ -440,9 +402,9 @@ function ChapterList({ nodes, depth, onSelect, currentPage }: ChapterListProps) 
             >
               {n.title ?? '(без названия)'}
             </button>
-            {n.children.length > 0 && (
+            {children.length > 0 && (
               <ChapterList
-                nodes={n.children}
+                nodes={children}
                 depth={depth + 1}
                 onSelect={onSelect}
                 currentPage={currentPage}
