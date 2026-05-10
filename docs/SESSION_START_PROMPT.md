@@ -455,21 +455,41 @@ PDF должен быть **source-agnostic** (не привязан к shamela)
 Подробный spec: `docs/superpowers/specs/2026-05-11-pdf-viewer-source-agnostic.md` -
 **прочитай его first thing в Сессии 25**.
 
-1. **Этап 25.a-25.d: PDF Viewer source-agnostic** - главный
-   приоритет. Минимальная цель Сессии 25 - PDF Viewer работает на
-   shamela-книге (toggle 📃/📕, prev/next, страница 47 видна).
-   Подэтапы:
-   - **25.a** backend skeleton: `PdfSourceProvider` interface,
-     `ShamelaPdfSourceProvider` (использует существующий
-     `ShamelaApiClient.downloadPdf`), `PdfService` роутер,
-     `GET /api/v1/library/books/{id}/pdf` с Range header через
-     `ResourceRegion`
+1. **Этап 25.b-25.d: PDF Viewer (продолжение)** - 25.a закрыт в
+   Сессии 24, остаётся:
+   - ✅ **25.a** (закрыт коммитом 20ce418) - `PdfSourceProvider`
+     interface + `PdfLinksSourceProvider` (универсальный для shamela
+     через archive.org CDN и future archive.org-direct) + `PdfService`
+     роутер + 2 REST endpoints (`/info`, streaming с Range).
+     7 IT зелёных. Locally-cached в tempDir (после restart теряется)
    - **25.b** MinIO infrastructure - docker-compose сервис +
-     `MinioCacheService` для кеша download'ов из shamela
-   - **25.c** react-pdf install + базовый viewer + toggle 📃/📕
-     (стиль toggle - по `platform_reader.jsx::PageToolbar`)
+     `MinioCacheService` для кеша download'ов с TTL 30 дней.
+     Заменяет in-process tempDir cache
+   - **25.c** frontend react-pdf install + базовый viewer + toggle
+     📃/📕 в reader. `npm install react-pdf`, worker setup в
+     vite.config.ts. Стиль toggle по `platform_reader.jsx::PageToolbar`.
+     Использует `GET /api/v1/library/books/{id}/pdf/info` для
+     метаданных + `GET /pdf?fileIndex=0` для streaming
    - **25.d** page sync (internal pageNumber → pdfPageNumber с
      fallback на physical=internal если pdfPageNumber=NULL)
+
+   Откуда стартовать в Сессии 25:
+   - **prefer 25.c (frontend viewer)**: Сессия может сразу делать UI
+     и проверять на реальной книге (1503 Тафсир имеет
+     pdf_links.root=archive.org). 25.b добавится потом для prod-кеша
+   - alternative 25.b first: чище архитектурно, но без UI не видно
+     результата
+
+   Live-проверка backend 25.a (когда Pre-flight выполнен):
+   ```bash
+   curl http://localhost:9090/api/v1/library/books/bd61050f-c6e9-4481-ad13-19f0db01952e/pdf/info
+   # ожидаем JSON с files (Тафсир Ибн Касира has 9 файлов из shamela)
+
+   curl -o /tmp/page.pdf -H "Range: bytes=0-100000" \
+     "http://localhost:9090/api/v1/library/books/bd61050f-c6e9-4481-ad13-19f0db01952e/pdf?fileIndex=0"
+   # первый запрос - download 50MB из archive.org через нас (медленно),
+   # последующие - быстро из tempDir кеша
+   ```
 
 2. **Этап 18.f: CitationPicker** - **после 25.a-25.d**. Создаёт
    `frontend/src/components/citation/CitationPicker.tsx`.

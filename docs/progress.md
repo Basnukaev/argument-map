@@ -98,6 +98,26 @@ parent_chapter_id работала, frontend сбрасывал children из AP
   - 3 Tier стратегии заполнения pdfPageNumber (manual, text-layer, OCR)
   - выбор стэка: react-pdf + MinIO + Range header
 
+- `a74838a` `docs: SESSION_START_PROMPT под «PDF first»`
+- `86c4d86` `docs: подтверждение выборов стэка react-pdf + MinIO`
+
+- `20ce418` `feat(backend): этап 25.a - PDF Viewer source-agnostic backend skeleton`
+  - Огромный инсайт: shamela использует **archive.org как CDN**
+    (Тафсир Ибн Касира root="https://archive.org/download/ibnkatheer_jawzee/").
+    Source-agnostic архитектура реализуется с первого provider'а -
+    `PdfLinksSourceProvider` универсальный для shamela И прямых
+    archive.org-источников. Не «когда-то потом», а сейчас
+  - Domain: `PdfMetadata` + `PdfFileInfo` records
+  - Service: `PdfSourceProvider` interface + `PdfLinksSourceProvider`
+    impl + `PdfService` роутер
+  - Парсер shamela-формата files: `"filename|label"` через pipe
+  - Web: `PdfController` с 2 endpoints (`/info`, streaming с Range)
+  - `ResourceRegion` для Range header support, chunk 1MB
+  - `filename` НЕ возвращается клиенту (защита от обхода endpoint)
+  - `PdfNotAvailableException` → 404 pdf-not-available
+  - 7 IT через @MockitoBean PdfService
+  - api-contract.md секция «PDF Viewer API», roadmap Этап 25
+
 ### Решения
 
 - **Один backend-коммит на всю миграцию 19 цепочку** - record +
