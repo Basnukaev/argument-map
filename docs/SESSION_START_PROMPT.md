@@ -443,36 +443,35 @@ npm run dev
 # - При prev/next плашка обновляется на свой part/printedPage
 ```
 
-⚠️ **РЕШЕНИЕ ПО ПОРЯДКУ (Сессия 24 финал)**: Абдула выбрал
-**сначала PDF Viewer (Этап 25), потом CitationPicker (18.f)**. PDF
-должен быть **source-agnostic** (не привязан к shamela) - архитектура
-через `PdfSourceProvider` interface, реализации: ShamelaProvider
-сейчас, ArchiveOrg/user-upload в будущем. Подробный spec:
-`docs/superpowers/specs/2026-05-11-pdf-viewer-source-agnostic.md` -
+⚠️ **РЕШЕНИЕ ПО ПОРЯДКУ (Сессия 24 финал, подтверждено Абдулой)**:
+- **сначала PDF Viewer (Этап 25.a-25.d), потом CitationPicker (18.f),
+  region selection (25.f) - в самом конце**
+- стэк: **react-pdf** (обёртка над PDF.js) для frontend
+- **MinIO** в docker-compose как кеш для PDF download'ов
+- source-agnostic архитектура через `PdfSourceProvider` interface
+
+PDF должен быть **source-agnostic** (не привязан к shamela) -
+реализации: ShamelaProvider сейчас, ArchiveOrg/user-upload в будущем.
+Подробный spec: `docs/superpowers/specs/2026-05-11-pdf-viewer-source-agnostic.md` -
 **прочитай его first thing в Сессии 25**.
 
-1. **Этап 25: PDF Viewer source-agnostic** - **новый главный
-   приоритет**. Декомпозиция в spec'е (25.a-25.f). Минимальная цель
-   Сессии 25 - PDF Viewer работает на shamela-книге (toggle 📃/📕,
-   prev/next, страница 47 видна). Подэтапы:
-   - 25.a backend skeleton: `PdfSourceProvider` interface,
+1. **Этап 25.a-25.d: PDF Viewer source-agnostic** - главный
+   приоритет. Минимальная цель Сессии 25 - PDF Viewer работает на
+   shamela-книге (toggle 📃/📕, prev/next, страница 47 видна).
+   Подэтапы:
+   - **25.a** backend skeleton: `PdfSourceProvider` interface,
      `ShamelaPdfSourceProvider` (использует существующий
      `ShamelaApiClient.downloadPdf`), `PdfService` роутер,
      `GET /api/v1/library/books/{id}/pdf` с Range header через
      `ResourceRegion`
-   - 25.b MinIO infrastructure - docker-compose + MinioCacheService
-     для кеша download'ов
-   - 25.c react-pdf install + базовый viewer + toggle 📃/📕
-   - 25.d page sync (internal pageNumber → pdfPageNumber с fallback)
-   - 25.e admin manual page-mapping (опционально, Сессия 26)
-   - 25.f region selection (Сессия 26+, integration с CitationPicker)
+   - **25.b** MinIO infrastructure - docker-compose сервис +
+     `MinioCacheService` для кеша download'ов из shamela
+   - **25.c** react-pdf install + базовый viewer + toggle 📃/📕
+     (стиль toggle - по `platform_reader.jsx::PageToolbar`)
+   - **25.d** page sync (internal pageNumber → pdfPageNumber с
+     fallback на physical=internal если pdfPageNumber=NULL)
 
-   Перед стартом Сессии 25 - выбор:
-   - react-pdf vs custom pdfjs-dist (рекомендация: react-pdf)
-   - MinIO в docker-compose (новая зависимость инфраструктуры)
-   - порядок 25.f vs 18.f - region первым или CitationPicker первым
-
-2. **Этап 18.f: CitationPicker** - **после Этапа 25**. Создаёт
+2. **Этап 18.f: CitationPicker** - **после 25.a-25.d**. Создаёт
    `frontend/src/components/citation/CitationPicker.tsx`.
    Выделение фрагмента текста в BookReader (через
    `window.getSelection()`) → modal с выбором приложения (argument-map
@@ -487,6 +486,14 @@ npm run dev
    CitationPicker вместо текущей `AddSourceModal` со свободной формой.
    AddSourceModal либо удаляется, либо становится fallback для
    свободных цитат (URL без book context)
+
+4. **Этап 25.e + 25.f: admin page-mapping + region selection** -
+   после CitationPicker. Region selection даёт CitationPicker
+   возможность сослаться не только на текстовое выделение, но и на
+   прямоугольник на PDF-скане (для manuscripts и нечитаемого OCR).
+   `react-image-crop` overlay поверх `<Page>` PDF.js, POST
+   `/api/v1/library/pages/{pageId}/regions` создаёт
+   `lib_image_regions` запись (таблица уже есть из миграции 16)
 
 **Альтернативный путь**: archive.org как источник PDF (Абдула
 упомянул `https://archive.org/details/fmhji/fmhji1/page/70/mode/2up`).
@@ -749,13 +756,14 @@ DELETE + re-import обеих книг 1681+1503 + regen types.ts + hard
 reload). После этого реально увидишь source-first label на обеих
 книгах.
 
-Главный приоритет - **Этап 25 PDF Viewer source-agnostic**. Абдула
-выбрал PDF до CitationPicker. Архитектурный spec
+Главный приоритет - **Этап 25.a-25.d PDF Viewer source-agnostic**.
+Абдула подтвердил все выборы стэка в Сессии 24: **react-pdf** +
+**MinIO** в docker-compose + порядок «25.a-d → 18.f → 25.f». Можно
+сразу начинать с 25.a backend skeleton (`PdfSourceProvider`
+interface + `ShamelaPdfSourceProvider` + `PdfService` роутер + REST
+endpoint с Range header). Архитектурный spec
 `docs/superpowers/specs/2026-05-11-pdf-viewer-source-agnostic.md`
-содержит декомпозицию 25.a-25.f, выбор стэка (react-pdf + MinIO),
-3 Tier стратегии заполнения pdfPageNumber, alternatives. Перед
-стартом подтвердить: react-pdf vs custom pdfjs-dist, MinIO в
-docker-compose, порядок 25.f (Region) vs 18.f (CitationPicker)."
+prosaчитай first thing - там детали по каждому подэтапу."
 
 Жди подтверждение. После него - смело за работу.
 ```
