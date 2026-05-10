@@ -139,7 +139,7 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
    которое требует обсуждения - тогда спрашиваешь точечно
 
 ══════════════════════════════════════════════
-ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-11 после большой Сессии 23 - Library shamela MVP полностью готов end-to-end через UI: backend ETL + admin search/import + frontend reader с RTL/naskh + page jump + clickable chapters + migration 18 start_page_number)
+ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-11 после Сессии 24 - source-first нумерация страниц (миграция 19, ADR-021) + sub-chapters fix + frontend display printedPage/part. Backend код готов, production-БД пока на миграции 18 - требуется restart перед стартом Сессии 25)
 ══════════════════════════════════════════════
 
 ⚠️ **ВАЖНО**: проект пережил стратегический pivot - см. ADR-018 в
@@ -394,155 +394,120 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 - ADR-011-016 все приняты. В Этапе 12 ADR не делал - чистый UI
   поверх готового бэк-контракта
 
-ОТКРЫТО (по приоритету) - после Этапов 15.4 + 15.5 + 15.6 (Library shamela MVP закрыт целиком на бэкенде):
+ОТКРЫТО (по приоритету) - после Сессии 24 (source-first нумерация
+закрыта на backend + frontend display, требуется только Абдулин
+pre-flight для применения миграции 19):
 
-⚠️ **АРХИТЕКТУРНЫЙ ВОПРОС - решается через UX-проверку фронта**:
-Абдула попросил **не запускать массовый парсинг ~8500 книг shamela** до
-тех пор, пока не визуализируем 1-2 книги на фронте и не определимся:
-**bulk-bootstrap всего каталога** vs **lazy-import on user request**
-(importBook+mapBook дёргаются когда пользователь открывает книгу в
-reader, а не заранее). См. `memory/feedback_no_bulk_shamela_parse.md`.
+⚠️ **АРХИТЕКТУРНЫЙ ВОПРОС из Сессии 23**: bulk-bootstrap всех 8500
+shamela книг vs lazy-import on user request - **отложено до PDF
+integration** (см. ниже Этап 25-новый). Сейчас в БД 2 книги (Сахих
+аль-Бухари 1681 + Тафсир Ибн Касира 1503) - этого достаточно для
+UX-проверки source-first.
 
-**Перед началом Этапа 18 - руками импортировать 3-5 книг через
-admin endpoints curl'ом.** Подробный скрипт в progress.md, секция
-«Перед 18 - руками импортировать...». Отбор книг - на усмотрение
-Абдулы (нужны репрезентативные: одна крупная, одна с глубокой
-иерархией глав, одна короткая). После UX-проверки на этих 3-5 книгах
-принимается решение про bulk vs lazy.
+⚠️ **ПЕРВЫМ ДЕЛОМ для Сессии 25** - выполнить Pre-flight чтобы
+применить миграцию 19 к production-БД и re-import книг с новыми
+полями printedPage/part.
 
-⚠️ **ПЕРВЫМ ДЕЛОМ для Сессии 24**: прочитай design-spec
-`docs/superpowers/specs/2026-05-11-source-first-and-pdf.md` -
-после UX-проверки Сессии 23 Абдула выявил три взаимосвязанные
-проблемы которые требуют архитектурного решения **до** CitationPicker
-или импорта новых книг:
-
-1. **Page numbering** не соответствует оригиналу книги (у нас "1"
-   плоский счётчик, у shamela `ج: المقدمة, ص: 3` + ссылка на PDF
-   страницу с реальным маркером "أ"). Нужна миграция 19 с колонками
-   `printed_page`/`part`/`pdf_page_number` в `lib_pages`
-2. **Sub-chapters потеряны** - shamela имеет multi-level tree
-   глав, у нас только flat первый уровень. Требует SQL-диагностики
-   `lib_shamela_title.parent_id` и fix BFS в Mapper'е
-3. **PDF integration** - новое архитектурное требование source-first:
-   электронная версия должна ссылаться на оригинал (PDF/scan).
-   Сценарий: пользователь видит "Том 1, стр 47" в reader → находит
-   ту же страницу в своей бумажной копии. Может потребовать
-   переоценить приоритет Этапов 16-17 и сдвинуть PDF Viewer перед
-   18.f CitationPicker
-
-⚠️ **Не делать в Сессии 24**:
-- CitationPicker (18.f) - до закрытия page numbering, иначе цитаты
-  будут ссылаться на неверные маркеры и придётся переписывать БД
-- Импортировать ещё книги (Тафсир, Хусн аль-максыд) - они получат
-  старую нумерацию и потребуют re-import после миграции 19
-- Bulk vs lazy решение - откладывается до PDF integration
-
-⚠️ **Pre-flight** (Абдула должен сделать перед стартом
-любых задач):
+⚠️ **Pre-flight** (Абдула должен сделать перед стартом Сессии 25):
 
 ```bash
 # 1. Запустить Postgres если упал
 cd /mnt/c/my_folders/projects/argument-map
 docker compose up -d
 
-# 2. Запустить backend в отдельном терминале
+# 2. Перезапустить backend - Liquibase применит миграцию 19
 cd backend
 ./mvnw spring-boot:run
 # дождаться "Started ArgumentMapApplication"
-# Liquibase применит миграцию 18 если БД ещё на 17
 
-# 3. Удалить и переимпортировать книгу 1681 (Сахих аль-Бухари) -
-# чтобы chapters получили startPageNumber из миграции 18 (mapBook
-# idempotent skip не обновит existing)
+# 3. Удалить и переимпортировать обе уже-импортированные книги -
+# Mapper idempotent skip не обновит existing records, нужен DELETE
 docker exec argumentmap-postgres psql -U argmap -d argumentmap \
-  -c "DELETE FROM lib_books WHERE metadata->>'shamela_book_id' = '1681';"
-# потом через /admin/shamela → search "1681" → "Импортировать"
+  -c "DELETE FROM lib_books WHERE metadata->>'shamela_book_id' IN ('1681', '1503');"
+# потом через /admin/shamela: search "1681" → "Импортировать",
+# search "1503" → "Импортировать"
 
-# 4. Регенерировать types.ts (startPageNumber поле в ChapterResponse)
-cd frontend
+# 4. Регенерировать types.ts (intersection в BookReaderPage схлопнется
+# в нативные printedPage/part/pdfPageNumber)
+cd ../frontend
 npm run generate-api
 
 # 5. Запустить vite если упал
 npm run dev
 
-# 6. Hard reload /books/{bookUuid} - проверить:
-# - PageJump input в pagination toolbar работает
-# - Главы в side-panel кликабельны → переход на startPage
-# - Активная глава подсвечена indigo
-# - RTL+naskh + параграф-spacing
+# 6. Hard reload http://localhost:5173/books/{bookUuid} - проверить:
+# - Sub-chapters раскрываются (Тафсир: «مقدمة المحقق → أسباب تحقيق
+#   الكتاب, الفصل الأول, الفصل الثاني → المبحث الأول...»)
+# - PageJump показывает плашку «Том X · Стр Y» (для шамелы - «ج: 1 ·
+#   ص: 47» в RTL+naskh)
+# - При prev/next плашка обновляется на свой part/printedPage
 ```
 
-1. **Импорт 3-5 книг + UX-проверка** ← **обязательный шаг ПЕРЕД 18.f**.
-   Кроме уже импортированной 1681 (Сахих аль-Бухари):
+1. **Этап 18.f: CitationPicker** - после Pre-flight это центральная
+   фича. Создаёт `frontend/src/components/citation/CitationPicker.tsx`.
+   Выделение фрагмента текста в BookReader (через
+   `window.getSelection()`) → modal с выбором приложения (argument-map
+   / Q&A) и контекста (какой узел / ответ). **Важно для source-first**:
+   при привязке цитата должна сохранять snapshot полей
+   `printed_page`+`part` в `node_sources.location` (например
+   `"Том 1, стр 47"`), плюс UUID `pageId` для точного reference.
+   Это центральный элемент платформенного pivot'а ADR-018
 
-   ```bash
-   # 1. синхронизация каталога shamela (~30-60с, ~5MB архив)
-   curl -X POST http://localhost:9090/api/v1/admin/shamela/sync-master
-
-   # 2. для каждой выбранной книги (id выбирается через psql или
-   # SELECT id, name FROM lib_shamela_book WHERE name ILIKE '%...%' LIMIT 5):
-   USER_ID=14561248-0bfd-4a62-8395-d40a6972182a
-   BOOK_ID=<id-из-shamela>
-   curl -X POST http://localhost:9090/api/v1/admin/shamela/import-book/$BOOK_ID
-   curl -X POST http://localhost:9090/api/v1/admin/shamela/map-book/$BOOK_ID \
-     -H "X-User-Id: $USER_ID"
-
-   # 3. открыть http://localhost:5173/books
-   ```
-
-   Кандидаты:
-   - **Сахих аль-Бухари** - крупная книга с многоуровневой иерархией
-     (`name ILIKE '%البخاري%'`)
-   - **Тафсир Ибн Касира** - глубокая иерархия (тома → суры → аяты)
-   - **Хусн аль-максыд** ас-Суюти - короткий трактат
-   - Опционально: **Маджму' аль-Фатава** Ибн Таймии - стресс-тест
-     на размер
-
-   На фронте проверить: BookCard рендерится корректно (badge,
-   RTL+naskh для арабского), BookReader открывается, side-panel
-   chapters tree показывает иерархию правильно, pagination работает,
-   текст страницы в RTL+naskh для арабского
-
-2. **Архитектурное решение «bulk vs lazy import» после UX-проверки** -
-   когда станет видно как пользователь использует library:
-   - **bulk** - все ~8500 книг через `mapBook` за один прогон, БД
-     ~1-1.5GB, search/list мгновенный
-   - **lazy** - `mapBook` дёргается при первом просмотре конкретной
-     книги (5-15с spinner). БД растёт по мере использования
-   - **гибрид** - метаданные `lib_books` сразу для всех (~30MB),
-     content (`lib_pages`) lazy. Best UX/storage trade-off
-
-   Решение требует ADR-021 если выберем не bulk
-
-3. **Этап 18.f: CitationPicker** - переиспользуемый компонент в
-   `frontend/src/components/citation/CitationPicker.tsx`. Выделение
-   фрагмента текста в BookReader (через `window.getSelection()`) →
-   modal с выбором приложения (argument-map / Q&A) и контекста (какой
-   узел / ответ). Это центральный элемент платформенного pivot'а
-   ADR-018
-
-4. **Этап 18.g: Argument-map переключение на CitationPicker** -
+2. **Этап 18.g: Argument-map переключение на CitationPicker** -
    кнопка «Привязать цитату» в `NodeDetailsPanel` открывает
    CitationPicker вместо текущей `AddSourceModal` со свободной формой.
    AddSourceModal либо удаляется, либо становится fallback для
    свободных цитат (URL без book context)
 
-5. **Этап 16: PDF/EPUB upload** - Apache Tika, MinIO для хранения
-   исходников, page-by-page extraction
-6. **Этап 17: image-сканы + OCR** - Tess4j для арабского, ImageRegion
-   API, async OCR pipeline
-7. **Этап 19: Q&A приложение** - первое полностью новое поверх
-   library. Валидация платформенности
-8. **Этап 20+: Auth, multi-tenancy, прочее**
+3. **Этап 25 (новый): PDF Viewer + Region Selection** - новый этап
+   реализующий source-first до конца. Из ADR-021:
+   - Backend: lazy PDF download через `StreamingResponseBody` +
+     tempfile cleanup (был в backlog 15.6, теперь становится частью
+     этапа). MinIO storage для кеша PDF
+   - Backend: `POST /api/v1/library/pages/{id}/regions` (создание
+     `lib_image_regions` - таблица уже есть из миграции 16)
+   - Frontend: toggle «📕 PDF» в reader - открывает `react-pdf`
+     viewer на нужной странице. `react-image-crop` overlay для
+     выделения регионов. При выделении - modal CitationPicker с
+     region координатами + pageId
+   - Заполняет `pdf_page_number` для existing pages когда PDF
+     подключён
 
-9. **Доделки 15.6 (отложены сознательно)** - можно вернуться когда
-   понадобится:
-   - `GET /api/v1/admin/shamela/book/{id}/pdf/{fileIndex}` - lazy PDF
-     download через `StreamingResponseBody`
-   - Async-варианты POST endpoints (через `@Async` или message queue)
-     для долгих операций
-   - Bulk endpoints (`POST /map-books?ids=...`) - после решения про
-     bulk-bootstrap
+   Этот этап **больше Этапа 16-17** по сложности (storage + viewer +
+   region API). Может быть разбит на 25.a/25.b/25.c. Решить до
+   старта Сессии 25 - стоит ли вставить ПЕРЕД 18.f CitationPicker
+   (тогда CitationPicker сразу с region-режимом) или ПОСЛЕ (тогда
+   CitationPicker сначала только текстовый, region добавится в 25)
+
+4. **Импорт ещё 1-2 книг для разнообразия** - может быть Хусн
+   аль-максыд ас-Суюти (короткий трактат, тематически близок
+   argument-map) или Маджму' аль-Фатава Ибн Таймии (стресс-тест на
+   размер). После 4-5 книг - bulk vs lazy решение становится
+   более определённым
+
+5. **Архитектурное решение «bulk vs lazy import»** - откладывалось
+   до PDF integration. Теперь после Этапа 25 будет видно: если PDF
+   download lazy, то и mapBook тоже логично lazy. Если PDF
+   pre-fetch'ить - bulk тоже разумен. ADR-022 если выберем не bulk
+
+6. **Этап 16: PDF/EPUB upload** (после Этапа 25) - Apache Tika для
+   non-shamela PDF (загрузка пользователем). MinIO storage уже
+   будет готов из 25
+7. **Этап 17: image-сканы + OCR** - Tess4j для арабского,
+   ImageRegion API уже будет готов из 25 (только OCR pipeline
+   добавляется)
+8. **Этап 19: Q&A приложение** - первое полностью новое поверх
+   library. Валидация платформенности
+9. **Этап 20+: Auth, multi-tenancy, прочее**
+
+10. **Доделки 15.6 (отложены сознательно)** - частично закроются
+    Этапом 25:
+    - `GET /api/v1/admin/shamela/book/{id}/pdf/{fileIndex}` - lazy
+      PDF download (войдёт в Этап 25 как часть PDF storage)
+    - Async-варианты POST endpoints (через `@Async` или queue) -
+      пока не нужно
+    - Bulk endpoints (`POST /map-books?ids=...`) - после bulk vs
+      lazy решения
 
 См. `docs/roadmap.md` для деталей всех этапов
 
@@ -741,31 +706,36 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 После прочтения 5+ файлов из START-OF-SESSION PROTOCOL начни ответ
 с короткого summary последнего состояния и предложения. Например:
 
-"вижу - большая Сессия 23 закрыла Library shamela MVP end-to-end
-через UI. ~13 коммитов: backend (15.6+15.7 admin endpoints,
-миграция 18 start_page_number), frontend (18.b-d reader, 18.a
-AdminShamelaPage), много fix'ов рендера (shamela `\r` linebreaks,
-`舄` PUA sanitize, bibliography parser, page-jump input, кликабельные
-chapters). Также откатили попытку monorepo apps/* (single-SPA в
-frontend/), исправили выдуманную цифру 270k→8500 книг, починили
-sqlite naming `{id}-{major}.sqlite`, default-page-range 50 убран.
+"вижу - Сессия 24 закрыла source-first нумерацию (ADR-021,
+миграция 19) + sub-chapters fix + frontend display. 4 коммита:
 
-303 backend IT + 136 frontend tests зелёные, lint clean. Bundle
-284kB / gzip 88kB.
+- fix(frontend) 63e27e1 - sub-chapters tree напрямую из API
+  без двойной сборки (frontend `buildChapterTree` сбрасывал nested
+  children из бэка). Новая gotcha про springdoc-openapi теряющий
+  self-referential property
+- feat(backend) 7ae5662 - миграция 19 + Page record + Mapper +
+  PageRepository + PageSummary/Response. printed_page TEXT, part
+  TEXT, pdf_page_number INTEGER (nullable, last NULL до Этапа 25)
+- docs 8e9b472 - ADR-021 + 4 термина в glossary + roadmap 18.h
+- feat(frontend) fc1c0fb - PageJump показывает «Том X · Стр Y»
+  плашкой (RTL+naskh для арабских маркеров) + intersection-types
 
-⚠️ ВАЖНО: перед началом работы выполни Pre-flight из SESSION_START_PROMPT
-ОТКРЫТО раздела (Postgres + backend + delete-reimport книги 1681 +
-regen types.ts + hard reload). Это применит миграцию 18 к book 1681
-которая была импортирована до миграции - chapters получат
-startPageNumber.
+306 backend IT (+3 новых) + 136 frontend tests зелёные. Bundle
+285kB / gzip 88kB (+1kB).
 
-Следующий приоритет - проверить новый UX (page jump + clickable
-chapters), импортировать ещё 2-4 книги для разнообразия, потом
-решить bulk vs lazy import. После этого 18.f CitationPicker (выделение
-фрагмента в reader через window.getSelection → modal с выбором
-приложения и контекста) и 18.g переключение argument-map на
-CitationPicker - центральный компонент платформенного pivot'а
-ADR-018."
+⚠️ ВАЖНО: production-БД пока на миграции 18. Выполни Pre-flight из
+SESSION_START_PROMPT ОТКРЫТО раздела (restart backend применит 19 +
+DELETE + re-import обеих книг 1681+1503 + regen types.ts + hard
+reload). После этого реально увидишь source-first label на обеих
+книгах.
+
+Следующий приоритет - решить порядок Этапа 25 (PDF Viewer + Region
+Selection) и 18.f (CitationPicker): сначала PDF чтобы CitationPicker
+сразу с region-режимом, или сначала CitationPicker только текстовый,
+region добавится в 25. Это архитектурное решение - стоит обсудить
+до старта. Альтернативно - импортировать ещё 1-2 книги (Хусн
+аль-максыд / Маджму' аль-Фатава) для разнообразия и решить bulk vs
+lazy после Этапа 25."
 
 Жди подтверждение. После него - смело за работу.
 ```

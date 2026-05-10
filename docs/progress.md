@@ -13,6 +13,181 @@
 
 ---
 
+## 2026-05-11 — Сессия 24 (full-stack) — source-first нумерация + sub-chapters fix + ADR-021
+
+Сфокусированная сессия по 3 проблемам из design-spec
+`2026-05-11-source-first-and-pdf.md`:
+1. page numbering не соответствует оригиналу
+2. sub-chapters теряются при импорте
+3. PDF integration (отложено на отдельную сессию)
+
+В ходе диагностики проблема 2 переклассифицирована из "Mapper bug" в
+"frontend double-tree-build bug" - backend hierarchy через
+parent_chapter_id работала, frontend сбрасывал children из API.
+
+### Сделано
+
+4 коммита:
+
+- `63e27e1` `fix(frontend): sub-chapters tree из API напрямую без двойной сборки`
+  - удалён front-side `buildChapterTree`, рендерим nested tree из
+    `state.book.chapters` напрямую
+  - self-referential intersection `Chapter & { children?: Chapter[] }`
+    даёт type-safe доступ
+  - 1 новая gotcha: springdoc-openapi 2.x теряет self-referential
+    property `children` в schema. Регенерация types.ts его не вернёт -
+    intersection остаётся
+  - types.ts регенерирован (миграция 18 startPageNumber подхватилось)
+
+- `7ae5662` `feat(backend): миграция 19 - source-first нумерация страниц lib_pages`
+  - миграция 19 добавляет в `lib_pages`:
+    * `printed_page TEXT` - маркер реального издания ("47", "أ")
+    * `part TEXT` - том/juz' ("1", "المقدمة")
+    * `pdf_page_number INTEGER` - физ. стр PDF (NULL до Этапа PDF)
+  - index (book_id, part) для dropdown селектора томов
+  - Page record + PageRepository.ROW_MAPPER расширены
+  - PageRepository.findDistinctPartsByBookId для будущего dropdown
+  - ShamelaToLibraryMapper.mapPages заполняет printedPage+part из
+    shamela_page.printedPage/part (раньше игнорировал!)
+  - PageSummary + PageResponse + LibraryDtoMappers расширены
+  - 15+ caller'ов new Page(...) в тестах обновлены явно без
+    convenience constructor (чтобы intent виден в каждом тесте)
+  - 3 новых IT: save_withPrintedPageAndPart_persistsSourceFirstFields,
+    findDistinctPartsByBookId_returnsUniqueOrderedParts,
+    mapBook_persistsPrintedPageAndPartFromShamela
+  - 306 IT зелёных (+3 от 303), api-contract.md/architecture.md
+    обновлены
+
+- `8e9b472` `docs: ADR-021 source-first архитектура + glossary + roadmap`
+  - ADR-021: «электронная версия как production оригинала»
+  - 5 рассмотренных альтернатив с обоснованием отказа (composite
+    label, jsonb, INT для printed_page, hard PDF requirement, no
+    migration)
+  - связь с ADR-018/019/020
+  - 4 новых термина в glossary: Printed page, Part, PDF page number,
+    Source-first
+  - roadmap 18.h помечен закрытым
+
+- `fc1c0fb` `feat(frontend): source-first label в reader (printedPage + part)`
+  - PageJump показывает рядом с input indigo-плашку «Том X · Стр Y»
+    (или `ج: X · ص: Y` в RTL+naskh для арабских)
+  - internal pageNumber оставлен для navigation (URL-state, prev/next),
+    меняем только display
+  - intersection PageDetail/PageSummary с printedPage/part/pdfPageNumber -
+    работает в runtime после backend restart с миграцией 19
+  - bundle 285kB / gzip 88kB (+1kB)
+
+### Решения
+
+- **Один backend-коммит на всю миграцию 19 цепочку** - record +
+  repository + mapper + DTO + mappers + tests + docs в одном
+  feat-коммите. Атомарность важна: ни одна часть не имеет смысла без
+  остальных. Если бы делал атомарными подкоммитами - 5+ коммитов с
+  failed-tests между ними
+- **Sub-chapters fix отделить от source-first** - чтобы Sub-chapters
+  можно было увидеть на текущем backend без перезапуска. Это полезный
+  side-effect: Абдула может проверить fix через hard-reload сразу
+  после Сессии 24, не дожидаясь миграции 19
+- **Не делать dropdown селектор part'ов на MVP** - сначала пусть
+  пользователь увидит метку «Том X · Стр Y», потом решим нужен ли
+  switch между томами или достаточно chapter navigation
+- **Intersection-types как идиома эволюции** - оправдалось дважды в
+  сессии (children и printedPage/part). Зафиксирована в комментариях
+  кода с указанием на gotchas.md и ADR-021
+- **Idempotent skip Mapper'а оставлен как было** - требует ручного
+  DELETE + re-import для применения миграции к existing books. На MVP
+  это OK (2 книги в БД), при росте можно сделать smart-merge
+
+### Проблемы
+
+- **PDF integration как отдельная сессия** - сложность viewer +
+  storage + region-API не укладывается в одну сессию с миграцией 19.
+  Schema под PDF готова (pdf_page_number, lib_image_regions из
+  миграции 16), сам viewer/upload - следующий этап
+- **Springdoc-openapi 2.x не выводит self-referential property в
+  schema** - проблема не нашего кода, известный limitation
+  библиотеки. Workaround через intersection достаточен, при следующей
+  волне nested-DTOs стоит подумать о DTO-split на бэке
+- **Backend production-БД ещё на миграции 18** - я не запускаю
+  backend (правило feedback_user_runs_backend.md), Абдула должен
+  перезапустить и применить миграцию 19. До рестарта frontend
+  source-first label просто не рендерится (intersection-undefined)
+
+### Следующий шаг (Сессия 25)
+
+⚠️ **Pre-flight для Сессии 25** - Абдула должен сделать перед стартом:
+
+1. Перезапустить backend - применит миграцию 19:
+   ```bash
+   cd /mnt/c/my_folders/projects/argument-map
+   docker compose up -d  # если postgres упал
+   cd backend
+   ./mvnw spring-boot:run
+   # дождаться "Started ArgumentMapApplication"
+   # Liquibase применит миграцию 19 автоматически
+   ```
+
+2. Удалить и переимпортировать обе уже-импортированные книги (1681
+   Сахих аль-Бухари + 1503 Тафсир Ибн Касира) чтобы они получили
+   printedPage+part через обновлённый Mapper:
+   ```bash
+   docker exec argumentmap-postgres psql -U argmap -d argumentmap \
+     -c "DELETE FROM lib_books WHERE metadata->>'shamela_book_id' IN ('1681', '1503');"
+   ```
+   Потом через `/admin/shamela` найти "1681" и "1503", нажать
+   "Импортировать" на каждой
+
+3. Регенерировать types.ts (intersection схлопнется в нативные
+   printedPage/part/pdfPageNumber):
+   ```bash
+   cd frontend
+   npm run generate-api
+   ```
+
+4. Hard reload `/books/{bookUuid}` - проверить:
+   - Sub-chapters tree теперь раскрывается с под-главами (Тафсир
+     Ибн Касира должен показать «مقدمة المحقق → أسباب تحقيق الكتاب,
+     الفصل الأول, الفصل الثاني → المبحث الأول, المبحث الثاني» и т.д.)
+   - PageJump показывает плашку «Том X · Стр Y» (для шамеля -
+     «ج: 1 · ص: 47» в RTL+naskh)
+   - При навигации prev/next плашка обновляется на свой part/
+     printedPage
+
+### Приоритеты Сессии 25
+
+После того как Абдула проверит источник-первую нумерацию на 2
+импортированных книгах, можно решать:
+
+1. **Этап CitationPicker (18.f + 18.g)** - центральный компонент
+   платформенного pivot'а ADR-018. Выделение фрагмента текста в
+   reader через `window.getSelection()` → modal с выбором приложения
+   (argument-map/Q&A) и контекста (какой узел/ответ). Цитата
+   сохраняет snapshot `printed_page`+`part` в `node_sources.location`
+   - чтобы при просмотре в argument-map видеть «Тафсир Ибн Касира,
+   Том 1 стр 47». Привязки через `pageId`
+
+2. **Импорт ещё 1-2 книг** для проверки разнообразия (Хусн
+   аль-максыд ас-Суюти - короткий трактат, Маджму' аль-Фатава -
+   стресс-тест). После - решать bulk vs lazy
+
+3. **PDF integration (новый этап)** - может быть Этап 19 или вставка
+   ПЕРЕД 16-17. Backend: pdf-download endpoint (lazy через
+   StreamingResponseBody), MinIO storage, frontend: react-pdf viewer
+   + react-image-crop для region-selection. Заполняет
+   `pdf_page_number` для existing book и создаёт `lib_image_regions`
+   из выделений пользователя
+
+### Состояние БД на момент handoff'а
+
+- Постгрес на миграции **18** (production-БД, backend не перезапущен)
+- В Testcontainers миграция 19 применяется автоматически и тесты
+  306 IT зелёных
+- 3 книги в БД: Священный Коран (тест-данные), Сахих аль-Бухари
+  (shamela 1681), Тафсир Ибн Касира (shamela 1503) - все без
+  printedPage/part пока
+
+---
+
 ## 2026-05-09 — Сессия 23 (full-stack) — финальный апдейт после UX-проверки
 
 После handoff'а 55d41f7 продолжили в той же сессии под UX-фидбек:
