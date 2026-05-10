@@ -23,8 +23,18 @@ type BookDetail = components['schemas']['BookDetailResponse'];
 type Chapter = components['schemas']['ChapterResponse'] & {
   children?: Chapter[];
 };
-type PageDetail = components['schemas']['PageResponse'];
-type PageSummary = components['schemas']['PageSummary'];
+// Source-first поля (миграция 19, ADR-021) - в runtime есть после
+// рестарта бэка с миграцией 19, но types.ts регенерируется отдельно.
+// Intersection даёт безопасный доступ; после regen-api схлопнется.
+type PageDetail = components['schemas']['PageResponse'] & {
+  printedPage?: string | null;
+  part?: string | null;
+  pdfPageNumber?: number | null;
+};
+type PageSummary = components['schemas']['PageSummary'] & {
+  printedPage?: string | null;
+  part?: string | null;
+};
 
 type BookState =
   | { kind: 'loading' }
@@ -294,6 +304,12 @@ function BookReaderPage() {
                   key={pageNumber}
                   currentPage={pageNumber}
                   totalPages={totalPages}
+                  currentPrintedPage={
+                    state.pages.find((p) => p.pageNumber === pageNumber)?.printedPage ?? null
+                  }
+                  currentPart={
+                    state.pages.find((p) => p.pageNumber === pageNumber)?.part ?? null
+                  }
                   onJump={gotoPage}
                 />
                 <Button
@@ -420,15 +436,32 @@ function ChapterList({ nodes, depth, onSelect, currentPage }: ChapterListProps) 
 interface PageJumpProps {
   currentPage: number;
   totalPages: number;
+  currentPrintedPage: string | null;
+  currentPart: string | null;
   onJump: (page: number) => void;
 }
 
 /**
- * Input + go-button для прямого перехода к pageNumber. Submit либо
- * по Enter в input, либо по клику на кнопку. Игнорирует невалидный
+ * Input + go-button для прямого перехода к internal pageNumber. Submit
+ * либо по Enter в input, либо по клику на кнопку. Игнорирует невалидный
  * input (NaN, < 1) - просто не делает jump.
+ *
+ * Source-first label (ADR-021): рядом с input показывается оригинальный
+ * маркер «стр {printedPage} том {part}» если оба заполнены. Internal
+ * pageNumber оставлен для navigation (URL-state, prev/next) - меняем
+ * только display.
+ *
+ * Эвристика на dir: если part содержит арабские символы (предисловие
+ * "المقدمة"), рендерим label в RTL чтобы знаки препинания и порядок
+ * слов сохранялись.
  */
-function PageJump({ currentPage, totalPages, onJump }: PageJumpProps) {
+function PageJump({
+  currentPage,
+  totalPages,
+  currentPrintedPage,
+  currentPart,
+  onJump,
+}: PageJumpProps) {
   // Локальный draft для контролируемого input. Синхронизация с
   // внешним currentPage (после prev/next/chapter-click) идёт через
   // key-prop в родителе - PageJump remount'ится с новым initial
@@ -445,27 +478,59 @@ function PageJump({ currentPage, totalPages, onJump }: PageJumpProps) {
     onJump(parsed);
   };
 
+  const partIsArabic = currentPart != null && isArabicText(currentPart);
+  const printedIsArabic = currentPrintedPage != null && isArabicText(currentPrintedPage);
+  const hasSourceMarker = currentPrintedPage != null || currentPart != null;
+
   return (
-    <div className="flex items-center gap-2 text-[13px] text-slate-700">
-      <span className="text-slate-500">Страница</span>
-      <input
-        type="number"
-        min={1}
-        max={totalPages > 0 ? totalPages : undefined}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            submit();
-          }
-        }}
-        onBlur={submit}
-        className="h-7 w-20 rounded border border-slate-300 px-2 text-center font-mono text-[13px] outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-        aria-label="Номер страницы"
-      />
-      {totalPages > 0 && (
-        <span className="font-mono text-slate-400">/ {totalPages}</span>
+    <div className="flex items-center gap-3 text-[13px] text-slate-700">
+      <div className="flex items-center gap-2">
+        <span className="text-slate-500">Страница</span>
+        <input
+          type="number"
+          min={1}
+          max={totalPages > 0 ? totalPages : undefined}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              submit();
+            }
+          }}
+          onBlur={submit}
+          className="h-7 w-20 rounded border border-slate-300 px-2 text-center font-mono text-[13px] outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+          aria-label="Номер страницы (internal)"
+        />
+        {totalPages > 0 && (
+          <span className="font-mono text-slate-400">/ {totalPages}</span>
+        )}
+      </div>
+      {hasSourceMarker && (
+        <div
+          className="flex items-center gap-1.5 rounded-md border border-indigo-100 bg-indigo-50/60 px-2 py-1 text-[12px] text-indigo-800"
+          title="Маркер страницы в оригинальном издании"
+        >
+          {currentPart != null && (
+            <span
+              className={partIsArabic ? 'font-naskh' : 'font-mono'}
+              dir={partIsArabic ? 'rtl' : 'ltr'}
+            >
+              {partIsArabic ? `ج: ${currentPart}` : `Том ${currentPart}`}
+            </span>
+          )}
+          {currentPart != null && currentPrintedPage != null && (
+            <span className="text-indigo-300">·</span>
+          )}
+          {currentPrintedPage != null && (
+            <span
+              className={printedIsArabic ? 'font-naskh' : 'font-mono'}
+              dir={printedIsArabic ? 'rtl' : 'ltr'}
+            >
+              {printedIsArabic ? `ص: ${currentPrintedPage}` : `Стр ${currentPrintedPage}`}
+            </span>
+          )}
+        </div>
       )}
     </div>
   );
