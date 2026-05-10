@@ -1,18 +1,28 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  FileText,
   Loader2,
   ArrowLeft,
   BookOpen,
+  Image as ImageIcon,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Header from '@/components/layout/Header';
 import { apiGetRaw, ApiError } from '@/api/client';
 import type { components } from '@/api/types';
+
+// Lazy-load PdfViewer - тяжёлая зависимость (react-pdf + pdfjs-dist
+// весит ~600KB gzipped). Подгружается только если пользователь
+// переключается на PDF mode. Если он остаётся в тексте - bundle
+// не вырастает
+const PdfViewer = lazy(() => import('@/components/library/PdfViewer'));
+
+type ReaderMode = 'text' | 'pdf';
 
 type BookDetail = components['schemas']['BookDetailResponse'];
 // Дополняем ChapterResponse полем children - springdoc-openapi 2.x не
@@ -117,6 +127,7 @@ function BookReaderPage() {
   const [state, setState] = useState<BookState>({ kind: 'loading' });
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [pageContent, setPageContent] = useState<PageContentState>({ kind: 'loading' });
+  const [readerMode, setReaderMode] = useState<ReaderMode>('text');
 
   // загрузка book detail + список pages
   useEffect(() => {
@@ -287,46 +298,60 @@ function BookReaderPage() {
             </Card>
           )}
 
-          {state.kind === 'success' && (
+          {state.kind === 'success' && bookId && (
             <>
-              <BookHeader book={state.book} pagesCount={totalPages} />
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon={ChevronLeft}
-                  onClick={goPrev}
-                  disabled={!hasPrev}
-                >
-                  Предыдущая
-                </Button>
-                <PageJump
-                  key={pageNumber}
-                  currentPage={pageNumber}
-                  totalPages={totalPages}
-                  currentPrintedPage={
-                    state.pages.find((p) => p.pageNumber === pageNumber)?.printedPage ?? null
+              <BookHeader book={state.book} pagesCount={totalPages}>
+                <ReaderModeSwitch mode={readerMode} onChange={setReaderMode} />
+              </BookHeader>
+              {readerMode === 'text' && (
+                <>
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={ChevronLeft}
+                      onClick={goPrev}
+                      disabled={!hasPrev}
+                    >
+                      Предыдущая
+                    </Button>
+                    <PageJump
+                      key={pageNumber}
+                      currentPage={pageNumber}
+                      totalPages={totalPages}
+                      currentPrintedPage={
+                        state.pages.find((p) => p.pageNumber === pageNumber)?.printedPage ?? null
+                      }
+                      currentPart={
+                        state.pages.find((p) => p.pageNumber === pageNumber)?.part ?? null
+                      }
+                      onJump={gotoPage}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      iconRight={ChevronRight}
+                      onClick={goNext}
+                      disabled={!hasNext}
+                    >
+                      Следующая
+                    </Button>
+                  </div>
+                  <PageView state={pageContent} bookLanguage={state.book.language} />
+                </>
+              )}
+              {readerMode === 'pdf' && (
+                <Suspense
+                  fallback={
+                    <Card className="p-12 text-center">
+                      <Loader2 size={20} className="mx-auto animate-spin text-slate-400" />
+                      <p className="mt-2 text-[12px] text-slate-500">Загрузка PDF viewer'а</p>
+                    </Card>
                   }
-                  currentPart={
-                    state.pages.find((p) => p.pageNumber === pageNumber)?.part ?? null
-                  }
-                  onJump={gotoPage}
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  iconRight={ChevronRight}
-                  onClick={goNext}
-                  disabled={!hasNext}
                 >
-                  Следующая
-                </Button>
-              </div>
-
-              <PageView
-                state={pageContent}
-                bookLanguage={state.book.language}
-              />
+                  <PdfViewer bookId={bookId} isArabic={state.book.language === 'ar'} />
+                </Suspense>
+              )}
             </>
           )}
         </div>
@@ -338,40 +363,84 @@ function BookReaderPage() {
 interface BookHeaderProps {
   book: BookDetail;
   pagesCount: number;
+  children?: React.ReactNode;
 }
 
-function BookHeader({ book, pagesCount }: BookHeaderProps) {
+function BookHeader({ book, pagesCount, children }: BookHeaderProps) {
   const isArabic = book.language === 'ar';
   return (
-    <div className="mb-4">
-      <div className="mb-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500">
-        <BookOpen size={12} aria-hidden="true" />
-        {book.bookType ?? 'BOOK'}
-        <span className="text-slate-300">·</span>
-        <span className="font-mono">{pagesCount} стр.</span>
-      </div>
-      <h1
-        className={
-          isArabic
-            ? 'font-naskh text-[26px] font-bold leading-tight text-slate-900'
-            : 'text-[22px] font-bold leading-tight text-slate-900'
-        }
-        dir={isArabic ? 'rtl' : 'ltr'}
-      >
-        {book.title ?? '(без названия)'}
-      </h1>
-      {book.description && (
-        <p
+    <div className="mb-4 flex items-start justify-between gap-4">
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500">
+          <BookOpen size={12} aria-hidden="true" />
+          {book.bookType ?? 'BOOK'}
+          <span className="text-slate-300">·</span>
+          <span className="font-mono">{pagesCount} стр.</span>
+        </div>
+        <h1
           className={
             isArabic
-              ? 'book-bibliography mt-2 font-naskh text-[14px] leading-relaxed text-slate-600'
-              : 'book-bibliography mt-2 text-[13px] leading-relaxed text-slate-600'
+              ? 'font-naskh text-[26px] font-bold leading-tight text-slate-900'
+              : 'text-[22px] font-bold leading-tight text-slate-900'
           }
           dir={isArabic ? 'rtl' : 'ltr'}
         >
-          {isArabic ? formatShamelaBibliography(book.description) : book.description}
-        </p>
-      )}
+          {book.title ?? '(без названия)'}
+        </h1>
+        {book.description && (
+          <p
+            className={
+              isArabic
+                ? 'book-bibliography mt-2 font-naskh text-[14px] leading-relaxed text-slate-600'
+                : 'book-bibliography mt-2 text-[13px] leading-relaxed text-slate-600'
+            }
+            dir={isArabic ? 'rtl' : 'ltr'}
+          >
+            {isArabic ? formatShamelaBibliography(book.description) : book.description}
+          </p>
+        )}
+      </div>
+      {children && <div className="shrink-0">{children}</div>}
+    </div>
+  );
+}
+
+interface ReaderModeSwitchProps {
+  mode: ReaderMode;
+  onChange: (mode: ReaderMode) => void;
+}
+
+/**
+ * Toggle между Text / PDF режимами reader'а. По дизайн-референсу
+ * platform_reader.jsx::PageToolbar - сегментированный switcher
+ * сnapшотом активного состояния через bg-white + shadow.
+ */
+function ReaderModeSwitch({ mode, onChange }: ReaderModeSwitchProps) {
+  const options: { k: ReaderMode; l: string; icon: typeof FileText }[] = [
+    { k: 'text', l: 'Текст', icon: FileText },
+    { k: 'pdf', l: 'PDF', icon: ImageIcon },
+  ];
+  return (
+    <div className="inline-flex items-center gap-0.5 rounded-md bg-slate-100 p-0.5">
+      {options.map((o) => {
+        const Icon = o.icon;
+        const active = mode === o.k;
+        return (
+          <button
+            key={o.k}
+            type="button"
+            onClick={() => onChange(o.k)}
+            className={`inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-[12px] font-medium transition-colors ${
+              active
+                ? 'bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.06)]'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Icon size={13} aria-hidden="true" />
+            {o.l}
+          </button>
+        );
+      })}
     </div>
   );
 }
