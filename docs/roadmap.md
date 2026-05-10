@@ -574,6 +574,23 @@ apps/* добавляется только когда возникнет кон�
       если `language="ar"`), badge bookType + языковой код, локальный
       поиск по title + фильтр bookType (5 типов + "все"). Empty state
       с инструкцией про admin endpoint
+- [x] **18.h: миграция 19 + source-first нумерация страниц** -
+      ADR-021. После UX-проверки Тафсира Ибн Касира выявлено что
+      lib_pages.page_number = shamela_page.id (internal counter)
+      не соответствует оригинальному изданию. Миграция 19 добавляет
+      `printed_page TEXT` (маркер реальной книги "47"/"أ"),
+      `part TEXT` (том/juz' "1"/"المقدمة"), `pdf_page_number INTEGER`
+      (физ. страница PDF, NULL до этапа PDF integration). Index
+      (book_id, part) для dropdown селектора томов. Mapper заполняет
+      printed_page+part из shamela_page. PageRepository
+      findDistinctPartsByBookId. PageSummary/PageResponse расширены.
+      306 IT (+3 новых: save_withPrintedPageAndPart,
+      findDistinctPartsByBookId, mapBook_persistsPrintedPageAndPart).
+      Sub-chapters также починены - чисто frontend bug с
+      double-tree-build (backend hierarchy через parent_chapter_id
+      работала, фронт сбрасывал children из API). Springdoc-openapi
+      теряет self-referential properties в schema - зафиксировано
+      gotcha
 - [x] **18.d: BookReader** - `/books/{id}` страница. Two-column layout:
       left side-panel (sticky 280px) с chapters tree (рекурсивный из
       flat ChapterResponse через `buildChapterTree` group-by-parent

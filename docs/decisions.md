@@ -1388,3 +1388,179 @@ F) **shamela offline `.bok` формат** - отвергнуто. Пришло�
   часть library-домена, java-пакет `library.shamela.{api,etl,
   mapping,web}`
 
+---
+
+## ADR-021: Source-first архитектура library - электронная версия как production оригинала
+**Дата:** 2026-05-11
+**Статус:** принято
+**Контекст:** UX-проверка импортированной книги «Тафсир Ибн Касира»
+(shamela id=14216) после закрытия Library shamela MVP (Сессия 23)
+выявила фундаментальное расхождение между нашей моделью и моделью
+оригинального источника.
+
+На скриншоте shamela.ws показывается paginator вида `ج: المقدمة, ص: 3`
+(том: المقدمة, страница: 3) и при клике на иконку PDF открывается
+оригинальная отсканированная страница с реальным маркером "أ" (буква в
+арабском abjad, обозначающая первую страницу предисловия). У нас на
+фронте показывалось «Страница 1 / 4710» - просто плоский счётчик от 1
+до количества записей в `lib_shamela_page`.
+
+Корень проблемы: `ShamelaToLibraryMapper.mapPages` взял
+`shamela_page.id` (internal counter shamela) как
+`lib_pages.page_number`, **полностью проигнорировав** поля
+`shamela_page.printed_page` (TEXT-маркер реального издания) и
+`shamela_page.part` (TEXT том/juz'). Это значит ссылка вида «см. стр 47
+тома 1 в Тафсире Ибн Касира» из argument-map узла не могла бы быть
+проверена пользователем в его бумажной копии того же издания
+«дар Ибн аль-Джаузи».
+
+В этом же UX-обзоре всплыло требование которое не было сформулировано
+явно при дизайне Library MVP: **электронная книга должна
+*ссылаться на оригинал***. Не подменять оригинал, а указывать на
+него - чтобы пользователь мог пройти по ссылке в бумажную/PDF копию и
+найти ту же страницу того же издания. У shamela это сделано через
+двойной paginator + кнопка «PDF» которая открывает scan конкретной
+страницы.
+
+**Решение:** принять архитектурный принцип **«electronic version is
+a derivative of source, not a replacement»**:
+
+(1) **Page-marker source-first.** Колонка `lib_pages.page_number`
+оставлена как internal counter (для URL-state, navigation order,
+prev/next). Добавлены три новых nullable-колонки в `lib_pages`
+(миграция 19):
+- `printed_page TEXT` - маркер страницы в реальном издании. TEXT
+  потому что shamela хранит как TEXT и значения могут быть «1», «أ»
+  (арабская буква предисловия), римские цифры. **Это то что
+  показывается пользователю** в reader UI
+- `part TEXT` - том/juz' для multi-volume изданий. Может быть цифрой
+  ("1") или арабским словом ("المقدمة"). Nullable для однотомных
+- `pdf_page_number INTEGER` - физическая страница в PDF-скане
+  оригинального издания. На MVP всегда NULL (Mapper не скачивает PDF).
+  Заполняется в будущем этапе PDF integration
+
+(2) **Привязка к PDF/scan оригинала через будущий этап.** При импорте
+из shamela сохраняется `pdf_links` в `lib_books.metadata` (raw shamela
+json). Будущий этап (см. roadmap «Этап PDF integration», название
+финализируется) реализует:
+- Скачивание PDF из shamela на фронт-запрос или в bulk
+- MinIO/локальная nginx-статика для хранения
+- Frontend PDF viewer (react-pdf) - toggle «📕 PDF» в reader
+- Region selection через `react-image-crop` поверх PDF - выделение
+  координат на скане для cross-link с электронным текстом
+- `lib_image_regions` (уже создан в миграции 16) - таблица под region
+  координаты + extractedText, готова к использованию
+
+(3) **Region-based citation для будущего CitationPicker.** При
+выделении пользователем фрагмента текста (или региона на PDF-скане) -
+CitationPicker сохраняет не только plain-text цитату, но и:
+- `page_id` (наша `lib_pages.id`)
+- `printed_page` snapshot («стр 47 тома 1») для отображения
+- Координаты региона (если выделение на скане) -
+  `lib_image_regions` запись
+
+Это позволяет пользователю при чтении узла argument-map увидеть «стр
+47 тома 1 в Тафсире Ибн Касира» и при клике перейти на оригинальный
+PDF-скан той же страницы.
+
+(4) **Sub-chapters сохранены через FK self-reference.** Параллельная
+проблема из той же UX-проверки (Сессия 24) - чисто frontend bug
+с double-tree-build, не архитектурная (backend hierarchy через
+`lib_chapters.parent_chapter_id` работала корректно, фронт пере-
+сбрасывал children из API). Зафиксировано в gotchas.md под
+«Springdoc-openapi 2.x теряет self-referential property в schema».
+
+**Альтернативы рассмотрены:**
+
+A) **Хранить composite display-метку** `display_page_label TEXT`
+   (например «ج 1, ص 5»). Mapper собирает один раз, frontend просто
+   рендерит. **Отвергнуто:** теряется query-ability по part (нужен
+   будет SELECT DISTINCT part для dropdown селектора томов), также
+   разные локали потребуют разного формата метки. Хранение отдельных
+   полей даёт гибкость
+
+B) **Хранить compound в `lib_pages.metadata` jsonb** (gибкость,
+   избегаем миграции схемы). **Отвергнуто:** для часто-выбираемых
+   полей структурированные колонки эффективнее. SELECT printed_page
+   через jsonb_path требует GIN индекс + сложнее SQL. Простые TEXT
+   колонки с btree-индексом проще
+
+C) **Конвертировать `printed_page` в INTEGER** (просто номер).
+   **Отвергнуто:** shamela хранит как TEXT именно потому что значения
+   могут быть нецелочисленными (арабские буквы предисловия, римские
+   цифры в академических изданиях, многосоставные ссылки вида «1-3»).
+   Жёсткое приведение к INT теряет данные
+
+D) **Жёсткое требование PDF на импорт** - не импортировать книгу без
+   PDF. **Отвергнуто:** shamela имеет много book-only записей без
+   pdf_links (legacy данные, manuscripts без scan'ов). Lenient
+   подход - импортируем всё, при наличии PDF связываем через
+   pdf_page_number
+
+E) **Skip миграции и сделать всё через jsonb** - не требует ALTER
+   TABLE. **Отвергнуто:** колонки даёт type-safety, индексы быстрее,
+   и Mapper-логика проще (просто `page.printedPage()`)
+
+**Причины:**
+
+- **Verifiability** - центральный принцип академической работы с
+  текстами. Ссылка которая нельзя проверить в оригинале -
+  бесполезна для серьёзной аргументации
+- **shamela это уже source-first** - они показывают printed_page и
+  имеют ссылку на PDF. Мы строим клон/расширение, должны следовать
+  этому принципу или потеряем доверие пользователей
+- **TEXT для printed_page** - shamela сам так хранит, type-coercion
+  потерял бы данные. У нас рендеринг ТЕКСТ-маркера в RTL+naskh для
+  арабских символов работает one-shot
+- **Index (book_id, part)** для dropdown селектора томов - частый
+  query, оптимизируется одним индексом. Index (book_id, printed_page)
+  не нужен на MVP (поиск «найди стр X» делается по `page_number`
+  через clamp с fallback на ближайшую)
+- **pdf_page_number INTEGER nullable сейчас** - schema migration
+  одна, чтобы при добавлении PDF integration в будущем не делать
+  миграцию 20. Это явный YAGNI-противовес: добавляем колонку сейчас
+  потому что точно знаем что она понадобится, и schema-add cheap
+- **lib_image_regions уже на месте** - повезло, миграция 16 создала
+  таблицу под scan-регионы под другим аргументом (для image-сканов
+  рукописей). Сейчас используем её для PDF-региона тоже
+
+**Последствия:**
+
+- (+) **Page-display** правильный с первой UX-проверки после re-import
+  книги: пользователь видит «أ المقدمة» как shamela, не «1»
+- (+) **Schema под PDF готова** - pdf_page_number и pdf_links в
+  metadata. Будущий этап Add PDF Viewer не требует миграции 20
+- (+) **Type-safe доступ** на frontend через regenerated types.ts
+  (printedPage, part). По дереву от backend Page record к frontend
+  PageResponse без manual coercion
+- (+) **Index на part** делает dropdown селектор томов O(unique-parts)
+  query, не table-scan
+- (+) **Region API frontend-ready** - lib_image_regions таблица есть,
+  REST POST endpoint только нужно реализовать когда дойдём до PDF
+- (−) **Legacy книги получают NULL для всех 3 полей.** Это OK,
+  frontend fallback на pageNumber если printedPage отсутствует.
+  Тестовая книга «Священный Коран» в БД имеет NULL после миграции 19
+- (−) **Re-import 1681 (Сахих аль-Бухари) и 14216 (Тафсир Ибн Касира)**
+  обязательны - они импортированы до миграции 19, в lib_pages
+  printedPage/part NULL. Idempotent skip Mapper'а не обновит existing
+  records, нужен DELETE + повторный POST /map-book. См. progress.md
+- (−) **Существует semantic mismatch** между source-first семантикой
+  и URL-state. URL `/books/{uuid}?page=1` сейчас означает internal
+  pageNumber=1. Возможно в будущем стоит сменить URL на
+  `?part=1&page=47` для bookmarkability «стр 47 том 1». На MVP -
+  оставляем internal pageNumber для URL потому что unique и stable
+- (−) **CitationPicker (Этап 18.f) откладывается до закрытия этого
+  ADR**. Цитаты должны ссылаться на правильный page-marker - до
+  миграции 19 пришлось бы переписывать БД при появлении этого ADR
+
+**Связь с другими ADR:**
+- **ADR-018** (платформенный pivot) - source-first это конкретизация
+  «инструменты для исламской науки»: ссылки в науке должны быть
+  верифицируемы
+- **ADR-019** (доменный пакет library) - источник модели Page,
+  расширяется без выхода за пределы пакета
+- **ADR-020** (shamela ETL) - source-first данные приходят из
+  shamela_page.printed_page и shamela_page.part которые уже были в
+  staging-схеме, изначальный Mapper их игнорировал. Этот ADR -
+  исправление того pre-выпуска
+
