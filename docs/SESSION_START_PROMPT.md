@@ -455,41 +455,33 @@ PDF должен быть **source-agnostic** (не привязан к shamela)
 Подробный spec: `docs/superpowers/specs/2026-05-11-pdf-viewer-source-agnostic.md` -
 **прочитай его first thing в Сессии 25**.
 
-1. **Этап 25.b-25.d: PDF Viewer (продолжение)** - 25.a закрыт в
-   Сессии 24, остаётся:
-   - ✅ **25.a** (закрыт коммитом 20ce418) - `PdfSourceProvider`
-     interface + `PdfLinksSourceProvider` (универсальный для shamela
-     через archive.org CDN и future archive.org-direct) + `PdfService`
-     роутер + 2 REST endpoints (`/info`, streaming с Range).
-     7 IT зелёных. Locally-cached в tempDir (после restart теряется)
+1. **Этап 25.d/25.b: PDF Viewer (продолжение)** - 25.a + 25.c
+   закрыты в Сессии 24, остаётся:
+   - ✅ **25.a** (20ce418) - backend skeleton: PdfSourceProvider +
+     PdfLinksSourceProvider + PdfService + 2 endpoints. 7 IT
+   - ✅ **25.c** (d052382) - frontend PDF Viewer с lazy-chunk
+     467kB через React.lazy + toggle 📃/📕 + zoom + prev/next.
+     RTL поддержка. Multi-volume на MVP только fileIndex=0
+   - **25.d** page sync - internal pageNumber → pdfPageNumber
+     mapping. При смене страницы в text-mode переключение на PDF
+     должно открывать ту же физ. страницу. Fallback на
+     physical=internal если pdfPageNumber=NULL. Также multi-volume
+     dropdown селектор по `PdfInfoResponse.files[].label`
    - **25.b** MinIO infrastructure - docker-compose сервис +
      `MinioCacheService` для кеша download'ов с TTL 30 дней.
-     Заменяет in-process tempDir cache
-   - **25.c** frontend react-pdf install + базовый viewer + toggle
-     📃/📕 в reader. `npm install react-pdf`, worker setup в
-     vite.config.ts. Стиль toggle по `platform_reader.jsx::PageToolbar`.
-     Использует `GET /api/v1/library/books/{id}/pdf/info` для
-     метаданных + `GET /pdf?fileIndex=0` для streaming
-   - **25.d** page sync (internal pageNumber → pdfPageNumber с
-     fallback на physical=internal если pdfPageNumber=NULL)
+     Заменяет in-process tempDir cache. **Критично для prod** -
+     текущий кеш теряется при restart, и каждый restart качает
+     50MB+ для первой страницы каждой книги. Сейчас работает но
+     UX медленный
 
-   Откуда стартовать в Сессии 25:
-   - **prefer 25.c (frontend viewer)**: Сессия может сразу делать UI
-     и проверять на реальной книге (1503 Тафсир имеет
-     pdf_links.root=archive.org). 25.b добавится потом для prod-кеша
-   - alternative 25.b first: чище архитектурно, но без UI не видно
-     результата
-
-   Live-проверка backend 25.a (когда Pre-flight выполнен):
-   ```bash
-   curl http://localhost:9090/api/v1/library/books/bd61050f-c6e9-4481-ad13-19f0db01952e/pdf/info
-   # ожидаем JSON с files (Тафсир Ибн Касира has 9 файлов из shamela)
-
-   curl -o /tmp/page.pdf -H "Range: bytes=0-100000" \
-     "http://localhost:9090/api/v1/library/books/bd61050f-c6e9-4481-ad13-19f0db01952e/pdf?fileIndex=0"
-   # первый запрос - download 50MB из archive.org через нас (медленно),
-   # последующие - быстро из tempDir кеша
-   ```
+   Live-проверка end-to-end PDF Viewer (после Pre-flight Сессии 25):
+   - открыть `/books/bd61050f-...` (Тафсир Ибн Касира)
+   - кликнуть toggle «📕 PDF» в header reader'а
+   - подождать первую загрузку (~50MB качается через нас из archive.org,
+     может быть 30-60с на медленном WSL proxy)
+   - PDF должен открыться на странице 1, prev/next работает, zoom тоже
+   - **первая загрузка медленная** - это известный issue, MinIO в 25.b
+     решит: повторные посещения этой книги из кеша мгновенно
 
 2. **Этап 18.f: CitationPicker** - **после 25.a-25.d**. Создаёт
    `frontend/src/components/citation/CitationPicker.tsx`.

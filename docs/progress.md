@@ -101,6 +101,23 @@ parent_chapter_id работала, frontend сбрасывал children из AP
 - `a74838a` `docs: SESSION_START_PROMPT под «PDF first»`
 - `86c4d86` `docs: подтверждение выборов стэка react-pdf + MinIO`
 
+- `9dd6883` `docs: handoff Сессии 24 финал - 25.a backend skeleton закрыт`
+- `d052382` `feat(frontend): этап 25.c - PDF Viewer + toggle 📃/📕 в reader`
+  - react-pdf 10.4.1 + PDF.js worker setup через
+    `new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url)`
+  - `PdfViewer.tsx` lazy-loaded компонент: Document/Page,
+    pagination toolbar (prev/next, zoom 50-300%), 4 состояния
+    (loading-info, ready, unavailable, error)
+  - `ReaderModeSwitch` (📃/📕) по стилю platform_reader.jsx
+    PageToolbar segmented switcher
+  - BookReaderPage: conditional render PageView | PdfViewer через
+    Suspense fallback
+  - Bundle impact (lazy): main 285→288kB (+3kB), PdfViewer chunk
+    467kB / gzip 138kB on-demand, pdf.worker 1MB uncompressed
+  - Multi-volume на MVP fileIndex=0 (dropdown в 25.d)
+  - Локальный тип PdfInfo до regen-api
+  - 136 frontend tests зелёные
+
 - `20ce418` `feat(backend): этап 25.a - PDF Viewer source-agnostic backend skeleton`
   - Огромный инсайт: shamela использует **archive.org как CDN**
     (Тафсир Ибн Касира root="https://archive.org/download/ibnkatheer_jawzee/").
