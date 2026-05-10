@@ -27,7 +27,7 @@ parent_chapter_id работала, frontend сбрасывал children из AP
 
 ### Сделано
 
-4 коммита:
+7 коммитов:
 
 - `63e27e1` `fix(frontend): sub-chapters tree из API напрямую без двойной сборки`
   - удалён front-side `buildChapterTree`, рендерим nested tree из
@@ -76,6 +76,27 @@ parent_chapter_id работала, frontend сбрасывал children из AP
   - intersection PageDetail/PageSummary с printedPage/part/pdfPageNumber -
     работает в runtime после backend restart с миграцией 19
   - bundle 285kB / gzip 88kB (+1kB)
+
+- `45c300c` `docs: handoff Сессии 24 - source-first + sub-chapters + ADR-021 закрыты`
+  - first handoff batch (progress.md + SESSION_START_PROMPT)
+
+- `8dc7e42` `style(frontend): визуальная иерархия уровней глав в chapters tree`
+  - после Абдулиного фидбека по скриншоту our_chapters_bad_leveling.png
+  - depth=0: 14-16px font-semibold slate-900 (root)
+  - depth=1: 13-14.5px font-medium slate-700
+  - depth=2: 12-13.5px slate-600
+  - depth>=3: 11.5-12.5px slate-500
+  - arabic ramp на +1-2px (naskh визуально мельче)
+  - connector-rail через border-inline-start для under-root уровней
+  - по design-reference platform_reader.jsx ChapterTreeRow
+
+- `4ef0dfb` `docs: design-spec PDF Viewer source-agnostic архитектура`
+  - после Абдулиного решения «сначала PDF, потом CitationPicker»
+  - универсальный PdfSourceProvider interface на backend
+  - ShamelaProvider сейчас, ArchiveOrg/user-upload в будущем
+  - 25.a-25.f декомпозиция этапа
+  - 3 Tier стратегии заполнения pdfPageNumber (manual, text-layer, OCR)
+  - выбор стэка: react-pdf + MinIO + Range header
 
 ### Решения
 

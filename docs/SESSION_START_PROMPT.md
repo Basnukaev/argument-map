@@ -443,8 +443,37 @@ npm run dev
 # - При prev/next плашка обновляется на свой part/printedPage
 ```
 
-1. **Этап 18.f: CitationPicker** - после Pre-flight это центральная
-   фича. Создаёт `frontend/src/components/citation/CitationPicker.tsx`.
+⚠️ **РЕШЕНИЕ ПО ПОРЯДКУ (Сессия 24 финал)**: Абдула выбрал
+**сначала PDF Viewer (Этап 25), потом CitationPicker (18.f)**. PDF
+должен быть **source-agnostic** (не привязан к shamela) - архитектура
+через `PdfSourceProvider` interface, реализации: ShamelaProvider
+сейчас, ArchiveOrg/user-upload в будущем. Подробный spec:
+`docs/superpowers/specs/2026-05-11-pdf-viewer-source-agnostic.md` -
+**прочитай его first thing в Сессии 25**.
+
+1. **Этап 25: PDF Viewer source-agnostic** - **новый главный
+   приоритет**. Декомпозиция в spec'е (25.a-25.f). Минимальная цель
+   Сессии 25 - PDF Viewer работает на shamela-книге (toggle 📃/📕,
+   prev/next, страница 47 видна). Подэтапы:
+   - 25.a backend skeleton: `PdfSourceProvider` interface,
+     `ShamelaPdfSourceProvider` (использует существующий
+     `ShamelaApiClient.downloadPdf`), `PdfService` роутер,
+     `GET /api/v1/library/books/{id}/pdf` с Range header через
+     `ResourceRegion`
+   - 25.b MinIO infrastructure - docker-compose + MinioCacheService
+     для кеша download'ов
+   - 25.c react-pdf install + базовый viewer + toggle 📃/📕
+   - 25.d page sync (internal pageNumber → pdfPageNumber с fallback)
+   - 25.e admin manual page-mapping (опционально, Сессия 26)
+   - 25.f region selection (Сессия 26+, integration с CitationPicker)
+
+   Перед стартом Сессии 25 - выбор:
+   - react-pdf vs custom pdfjs-dist (рекомендация: react-pdf)
+   - MinIO в docker-compose (новая зависимость инфраструктуры)
+   - порядок 25.f vs 18.f - region первым или CitationPicker первым
+
+2. **Этап 18.f: CitationPicker** - **после Этапа 25**. Создаёт
+   `frontend/src/components/citation/CitationPicker.tsx`.
    Выделение фрагмента текста в BookReader (через
    `window.getSelection()`) → modal с выбором приложения (argument-map
    / Q&A) и контекста (какой узел / ответ). **Важно для source-first**:
@@ -453,31 +482,17 @@ npm run dev
    `"Том 1, стр 47"`), плюс UUID `pageId` для точного reference.
    Это центральный элемент платформенного pivot'а ADR-018
 
-2. **Этап 18.g: Argument-map переключение на CitationPicker** -
+3. **Этап 18.g: Argument-map переключение на CitationPicker** -
    кнопка «Привязать цитату» в `NodeDetailsPanel` открывает
    CitationPicker вместо текущей `AddSourceModal` со свободной формой.
    AddSourceModal либо удаляется, либо становится fallback для
    свободных цитат (URL без book context)
 
-3. **Этап 25 (новый): PDF Viewer + Region Selection** - новый этап
-   реализующий source-first до конца. Из ADR-021:
-   - Backend: lazy PDF download через `StreamingResponseBody` +
-     tempfile cleanup (был в backlog 15.6, теперь становится частью
-     этапа). MinIO storage для кеша PDF
-   - Backend: `POST /api/v1/library/pages/{id}/regions` (создание
-     `lib_image_regions` - таблица уже есть из миграции 16)
-   - Frontend: toggle «📕 PDF» в reader - открывает `react-pdf`
-     viewer на нужной странице. `react-image-crop` overlay для
-     выделения регионов. При выделении - modal CitationPicker с
-     region координатами + pageId
-   - Заполняет `pdf_page_number` для existing pages когда PDF
-     подключён
-
-   Этот этап **больше Этапа 16-17** по сложности (storage + viewer +
-   region API). Может быть разбит на 25.a/25.b/25.c. Решить до
-   старта Сессии 25 - стоит ли вставить ПЕРЕД 18.f CitationPicker
-   (тогда CitationPicker сразу с region-режимом) или ПОСЛЕ (тогда
-   CitationPicker сначала только текстовый, region добавится в 25)
+**Альтернативный путь**: archive.org как источник PDF (Абдула
+упомянул `https://archive.org/details/fmhji/fmhji1/page/70/mode/2up`).
+Не делаем сейчас, но `ArchiveOrgPdfSourceProvider` уже описан в
+spec'е - реализуется когда захотим добавить books из archive.org.
+Просто новая реализация interface'а, остальное не меняется.
 
 4. **Импорт ещё 1-2 книг для разнообразия** - может быть Хусн
    аль-максыд ас-Суюти (короткий трактат, тематически близок
@@ -707,7 +722,8 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 с короткого summary последнего состояния и предложения. Например:
 
 "вижу - Сессия 24 закрыла source-first нумерацию (ADR-021,
-миграция 19) + sub-chapters fix + frontend display. 4 коммита:
+миграция 19) + sub-chapters fix + frontend display + chapters
+levels стилизация + spec PDF Viewer. 7 коммитов:
 
 - fix(frontend) 63e27e1 - sub-chapters tree напрямую из API
   без двойной сборки (frontend `buildChapterTree` сбрасывал nested
@@ -719,9 +735,13 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 - docs 8e9b472 - ADR-021 + 4 термина в glossary + roadmap 18.h
 - feat(frontend) fc1c0fb - PageJump показывает «Том X · Стр Y»
   плашкой (RTL+naskh для арабских маркеров) + intersection-types
+- docs 45c300c - handoff Сессии 24 first batch
+- style(frontend) 8dc7e42 - chapters tree visual hierarchy (size
+  + weight + color по depth + connector rail) по design-reference
+- docs 4ef0dfb - design-spec PDF Viewer source-agnostic архитектура
 
 306 backend IT (+3 новых) + 136 frontend tests зелёные. Bundle
-285kB / gzip 88kB (+1kB).
+285kB / gzip 88kB.
 
 ⚠️ ВАЖНО: production-БД пока на миграции 18. Выполни Pre-flight из
 SESSION_START_PROMPT ОТКРЫТО раздела (restart backend применит 19 +
@@ -729,13 +749,13 @@ DELETE + re-import обеих книг 1681+1503 + regen types.ts + hard
 reload). После этого реально увидишь source-first label на обеих
 книгах.
 
-Следующий приоритет - решить порядок Этапа 25 (PDF Viewer + Region
-Selection) и 18.f (CitationPicker): сначала PDF чтобы CitationPicker
-сразу с region-режимом, или сначала CitationPicker только текстовый,
-region добавится в 25. Это архитектурное решение - стоит обсудить
-до старта. Альтернативно - импортировать ещё 1-2 книги (Хусн
-аль-максыд / Маджму' аль-Фатава) для разнообразия и решить bulk vs
-lazy после Этапа 25."
+Главный приоритет - **Этап 25 PDF Viewer source-agnostic**. Абдула
+выбрал PDF до CitationPicker. Архитектурный spec
+`docs/superpowers/specs/2026-05-11-pdf-viewer-source-agnostic.md`
+содержит декомпозицию 25.a-25.f, выбор стэка (react-pdf + MinIO),
+3 Tier стратегии заполнения pdfPageNumber, alternatives. Перед
+стартом подтвердить: react-pdf vs custom pdfjs-dist, MinIO в
+docker-compose, порядок 25.f (Region) vs 18.f (CitationPicker)."
 
 Жди подтверждение. После него - смело за работу.
 ```
