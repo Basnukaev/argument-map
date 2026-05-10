@@ -139,7 +139,7 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
    которое требует обсуждения - тогда спрашиваешь точечно
 
 ══════════════════════════════════════════════
-ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-09 после Сессии 23 - Этап 18.b-d Library frontend MVP с RTL/naskh закрыт. Перед 18.f Абдула должен импортировать 3-5 книг руками + UX-проверка)
+ТЕКУЩЕЕ СОСТОЯНИЕ (зафиксировано на 2026-05-11 после большой Сессии 23 - Library shamela MVP полностью готов end-to-end через UI: backend ETL + admin search/import + frontend reader с RTL/naskh + page jump + clickable chapters + migration 18 start_page_number)
 ══════════════════════════════════════════════
 
 ⚠️ **ВАЖНО**: проект пережил стратегический pivot - см. ADR-018 в
@@ -213,7 +213,27 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
   - `2b8d058` `docs: автономный режим работы Claude Code как
     заместителя` - режим автономии в проекте, red lines, формат
     эскалации
-- **Сессия 23 (фронт): Этап 18.b-d Library frontend MVP** - 2 коммита:
+- **Сессия 23 (full-stack, длительная): 18.b-d + 15.7 + 18.a + миграция 18 + UX-фиксы** -
+  ~13 коммитов. Закрыто полностью:
+  - 18.b/c/d - Header, BookListPage, BookReaderPage с RTL/naskh
+  - 15.7 - admin search (JOIN+EXISTS) + sync-status endpoints
+  - 18.a - AdminShamelaPage с live-search, импортом, status-dashboard
+  - Откачена попытка monorepo apps/* (WSL2 git mv глюк, gotchas.md)
+  - Fixed: 270k→8500 цифра, shamela book sqlite `{id}-{major}.sqlite`
+    naming (`findBookSqlite` tolerant lookup), search-by-id в admin,
+    .env.local guide, default-page-range 50 убран, shamela page-content
+    rendering (`\r` linebreak, `舄` PUA sanitize, bibliography
+    `الكتاب:`/`المؤلف:` parser), `<p>` margin fix через @layer
+    components, маркер ❖ добавлен потом убран (shamela тоже не
+    показывает)
+  - Миграция 18: `lib_chapters.start_page_number` + Chapter record +
+    Mapper.parseStartPage (regex `\d+` из shamela page_ref) +
+    ChapterResponse DTO
+  - PageJump компонент (input для прямого ввода pageNumber, key-trick
+    для sync), кликабельные главы (button + indigo highlight на
+    активной), gotoPage с clamp + nearest-distance fallback
+  - **303 IT зелёных** + 136 frontend tests + lint clean
+- **Сессия 23 (фронт): Этап 18.b-d Library frontend MVP (старая запись начала сессии)** - 2 коммита:
   - `e6898f0` `feat(frontend): этап 18 - library frontend MVP с RTL/naskh для арабского` -
     Single-page подход вместо monorepo apps/* (первая попытка
     реструктуризации откачена - WSL2/NTFS git mv глюк, см. gotchas.md).
@@ -390,8 +410,43 @@ admin endpoints curl'ом.** Подробный скрипт в progress.md, с�
 иерархией глав, одна короткая). После UX-проверки на этих 3-5 книгах
 принимается решение про bulk vs lazy.
 
+⚠️ **Pre-flight для Сессии 24** (Абдула должен сделать перед стартом
+любых задач):
+
+```bash
+# 1. Запустить Postgres если упал
+cd /mnt/c/my_folders/projects/argument-map
+docker compose up -d
+
+# 2. Запустить backend в отдельном терминале
+cd backend
+./mvnw spring-boot:run
+# дождаться "Started ArgumentMapApplication"
+# Liquibase применит миграцию 18 если БД ещё на 17
+
+# 3. Удалить и переимпортировать книгу 1681 (Сахих аль-Бухари) -
+# чтобы chapters получили startPageNumber из миграции 18 (mapBook
+# idempotent skip не обновит existing)
+docker exec argumentmap-postgres psql -U argmap -d argumentmap \
+  -c "DELETE FROM lib_books WHERE metadata->>'shamela_book_id' = '1681';"
+# потом через /admin/shamela → search "1681" → "Импортировать"
+
+# 4. Регенерировать types.ts (startPageNumber поле в ChapterResponse)
+cd frontend
+npm run generate-api
+
+# 5. Запустить vite если упал
+npm run dev
+
+# 6. Hard reload /books/{bookUuid} - проверить:
+# - PageJump input в pagination toolbar работает
+# - Главы в side-panel кликабельны → переход на startPage
+# - Активная глава подсвечена indigo
+# - RTL+naskh + параграф-spacing
+```
+
 1. **Импорт 3-5 книг + UX-проверка** ← **обязательный шаг ПЕРЕД 18.f**.
-   Бэкенд готов, фронт `/books` готов, но БД пуста. Запустить вручную:
+   Кроме уже импортированной 1681 (Сахих аль-Бухари):
 
    ```bash
    # 1. синхронизация каталога shamela (~30-60с, ~5MB архив)
@@ -659,31 +714,31 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 После прочтения 5+ файлов из START-OF-SESSION PROTOCOL начни ответ
 с короткого summary последнего состояния и предложения. Например:
 
-"вижу - Сессия 23 закрыла Этап 18.b-d Library frontend MVP с
-RTL+naskh для арабского. 1 feat-коммит, 8 файлов, 1222 insertions.
-Bundle initial 271kB / gzip 84kB (+15kB к pre-Этапу-18). Lint clean,
-136 frontend tests passing.
+"вижу - большая Сессия 23 закрыла Library shamela MVP end-to-end
+через UI. ~13 коммитов: backend (15.6+15.7 admin endpoints,
+миграция 18 start_page_number), frontend (18.b-d reader, 18.a
+AdminShamelaPage), много fix'ов рендера (shamela `\r` linebreaks,
+`舄` PUA sanitize, bibliography parser, page-jump input, кликабельные
+chapters). Также откатили попытку monorepo apps/* (single-SPA в
+frontend/), исправили выдуманную цифру 270k→8500 книг, починили
+sqlite naming `{id}-{major}.sqlite`, default-page-range 50 убран.
 
-Структура: Header компонент с навигацией Темы/Библиотека/Q&A
-(placeholder), BookListPage с поиском+фильтром bookType,
-BookReaderPage с side-panel chapters tree + main pagination +
-PageView. Эвристика арабского текста через Unicode 0x0600-0x06FF +
-Google Fonts Noto Naskh Arabic.
+303 backend IT + 136 frontend tests зелёные, lint clean. Bundle
+284kB / gzip 88kB.
 
-Архитектурное решение: single-page application вместо monorepo
-apps/* (первая попытка реструктуризации откачена - WSL2/NTFS git mv
-глюк зафиксирован в gotchas.md).
+⚠️ ВАЖНО: перед началом работы выполни Pre-flight из SESSION_START_PROMPT
+ОТКРЫТО раздела (Postgres + backend + delete-reimport книги 1681 +
+regen types.ts + hard reload). Это применит миграцию 18 к book 1681
+которая была импортирована до миграции - chapters получат
+startPageNumber.
 
-⚠️ ВАЖНО: фронт `/books` сейчас покажет пустой state - БД пока
-пуста. Перед 18.f (CitationPicker) Абдула должен импортировать 3-5
-книг руками через admin endpoints (точный скрипт в SESSION_START_PROMPT
-ОТКРЫТО раздел 1). Кандидаты: Сахих аль-Бухари, Тафсир Ибн Касира,
-Хусн аль-максыд ас-Суюти. После импорта - UX-проверка на фронте,
-потом решение bulk vs lazy и переход к 18.f.
-
-Следующий приоритет - Этап 18.f CitationPicker и 18.g переключение
-argument-map на CitationPicker. Это центральный компонент платформенного
-pivot'а ADR-018."
+Следующий приоритет - проверить новый UX (page jump + clickable
+chapters), импортировать ещё 2-4 книги для разнообразия, потом
+решить bulk vs lazy import. После этого 18.f CitationPicker (выделение
+фрагмента в reader через window.getSelection → modal с выбором
+приложения и контекста) и 18.g переключение argument-map на
+CitationPicker - центральный компонент платформенного pivot'а
+ADR-018."
 
 Жди подтверждение. После него - смело за работу.
 ```

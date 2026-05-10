@@ -13,6 +13,188 @@
 
 ---
 
+## 2026-05-09 — Сессия 23 (full-stack) — финальный апдейт после UX-проверки
+
+После handoff'а 55d41f7 продолжили в той же сессии под UX-фидбек:
+открытие книги 1681 (Сахих аль-Бухари) показало несколько проблем
+которые исправили циклом fix→reload→скриншот.
+
+### Сделано (вторая половина Сессии 23)
+
+7 коммитов:
+
+`ff063a8` `fix(backend): tolerant поиск sqlite-файла + search-by-id в admin`
+- Book 1681 архив содержит `1681-6.sqlite`, не `1681.sqlite`. Mapper
+  падал. Введён tolerant lookup в `ShamelaImportService.findBookSqlite`:
+  `{id}-{major}.sqlite` → `{id}.sqlite` → `Files.walk` поиск любого
+  `.sqlite`. Gotcha записан
+- AdminSearch: добавлен поиск по id через `OR id::text = ?` в SQL.
+  Введи "1681" в поиск - точное совпадение первым
+
+`970bdbb` `fix(library): убрать default range 50 + восстановить параграф-spacing`
+- `BookService.listPages` без from/to возвращал только 50 страниц.
+  Frontend показывал "Страница 1/50" вместо 1/11208. Убран
+  default range, возвращаем все pages
+- Tailwind v4 preflight сбрасывает margin у `<p>` - параграфы
+  склеивались. Добавлен `@layer components .book-content` CSS
+- Тест BookServiceIT обновлён под новое поведение
+
+`4d0d4ae` `fix(frontend): рендер shamela page-content (\r linebreak, sanitize PUA, parse bibliography)`
+- Curl-диагностика показала формат:
+  `'舄<span data-type="title">(title)</span>\rtext'`
+- Нет `<p>` тегов, разметка через `<span data-type="title">`,
+  переносы через `\r`. CSS `white-space: pre-line` + стилизация
+  `[data-type="title"]` + sanitize удаляет `舄` (U+820C shamela
+  title-marker для MUSHAF font) и PUA символы
+- `formatShamelaBibliography` парсит bibliography (одна плоская
+  строка) по ключам `الكتاب:`/`المؤلف:`/`تحقيق:`/`الطبعة:` →
+  вставляет `\n` перед каждым → `white-space: pre-line` выводит
+  построчно
+
+`99877ef` + `3562784` `fix: декоративный маркер ❖ перед title (потом убрали)`
+- Добавил CSS `::before { content: '❖' }` чтобы заменить
+  удалённый shamela маркер. Проверка shamela.ws показала что
+  они тоже не показывают маркер визуально - убрал
+
+`7e7a01b` `feat(backend): миграция 18 - start_page_number в lib_chapters`
+- Цель: кликабельные главы. Раньше chapter_id у pages = NULL,
+  shamela_title.page_ref терялся
+- Migration 18 + Chapter record + ChapterRepository + ChapterResponse
+  + LibraryDtoMappers получили `startPageNumber Integer`
+- `ShamelaToLibraryMapper.parseStartPage(pageRef)` regex `\d+`
+  берёт первое число (toleratно к "1-3" range)
+- 7 тестов обновлены под новый Chapter constructor
+
+`ef5560b` `feat(frontend): page jump input + кликабельные главы в reader`
+- `PageJump` компонент в pagination toolbar: input для прямого
+  ввода pageNumber, submit по Enter/blur, sync с currentPage
+  через `key`-prop remount (правило set-state-in-effect)
+- `ChapterList` элементы теперь `<button>` кликабельные. Клик →
+  `gotoPage(startPageNumber)`. Главы без start_page disabled с
+  tooltip. Активная глава подсвечена indigo
+- `gotoPage` helper с clamp к [min, max] + fallback на ближайший
+  pageNumber через distance-сортировку (защита от gaps в shamela
+  page numbering)
+- Type `Chapter` расширен intersection с `{startPageNumber?: number}`
+  без regen types.ts (intersection схлопнется при regen)
+
+### Решения (вторая половина)
+
+- **Tolerant SQLite lookup в 3 стратегии** - не делать строгое
+  ожидание naming convention shamela, потому что они уже
+  отклонились от ожиданий (1681-6.sqlite vs 1681.sqlite).
+  3 fallback'а дёшево по runtime и спасают от повторного debugging
+  при следующем сюрпризе формата
+- **Search-by-id через `OR id::text = ?`** - один SQL вместо
+  отдельного endpoint'а. Не-числовые q просто not-match идентификатор
+- **`key`-trick для PageJump sync** - идиома проекта из memory
+  `feedback_react_key_remount`. ESLint правило react-hooks/
+  set-state-in-effect блокирует useEffect-сброс, key-prop
+  remount решает чисто
+- **Idempotent skip mapBook требует ручного delete для re-import** -
+  если книга уже замаплена (например 1681 с старой mapping'ом до
+  миграции 18), mapBook вернёт alreadyMapped без update'а
+  startPageNumber. Для применения миграции к существующей книге -
+  ручной DELETE FROM lib_books WHERE metadata->>'shamela_book_id'
+  = '...' + повторный импорт. Записано в Next Step
+
+### Проблемы (вторая половина)
+
+- **Сначала надо было выяснить реальный shamela формат**, потом
+  писать код. Я предполагал что `text_content` это HTML с `<p>`
+  тегами и `{bookId}.sqlite` это имя файла - оба предположения
+  оказались неверны. Лучше всегда curl-diagnostic первой
+  страницы перед написанием UX-кода
+- **WSL/NTFS issue с зомби-bash (PID 71857)** - см. секцию ниже
+  про откат monorepo. Также Postgres контейнер периодически
+  останавливается между сессиями (надо `docker compose up -d`
+  заново)
+- **Combined endpoint для import+map в backlog** - сейчас под
+  одной кнопкой "Импортировать" 2 sequential POST. Если первый
+  OK, второй падает - пользователь не понимает state книги.
+  Будет 15.8 если станет важно
+
+### Следующий шаг (Сессия 24)
+
+⚠️ **Перед началом работы Абдула должен:**
+
+1. Запустить Postgres если упал:
+   ```bash
+   cd /mnt/c/my_folders/projects/argument-map
+   docker compose up -d
+   ```
+
+2. Запустить backend в своём терминале:
+   ```bash
+   cd backend
+   ./mvnw spring-boot:run
+   ```
+   Liquibase применит миграцию 18 (start_page_number)
+
+3. **Удалить и переимпортировать книгу 1681** чтобы startPageNumber
+   заполнился через mapper:
+   ```bash
+   docker exec argumentmap-postgres psql -U argmap -d argumentmap \
+     -c "DELETE FROM lib_books WHERE metadata->>'shamela_book_id' = '1681';"
+   ```
+   Потом через `/admin/shamela` снова "Импортировать" книгу 1681
+
+4. Регенерировать types.ts на фронте (`startPageNumber` поле):
+   ```bash
+   cd frontend
+   npm run generate-api
+   ```
+
+5. Hard reload `/books/{bookUuid}` - проверить:
+   - PageJump input работает (введи 500, Enter → переход на стр.500)
+   - Главы в side-panel **кликабельны**, переводят на свою
+     первую страницу
+   - Активная глава подсвечена indigo
+   - RTL+naskh для арабских названий + параграф-spacing
+
+**Этап 18.f: CitationPicker** - после UX-проверки. Реализуется в
+`frontend/src/components/citation/CitationPicker.tsx`:
+- Выделение фрагмента в BookReader через `window.getSelection()`
+- Modal с выбором приложения (argument-map / Q&A) и контекста
+  (какой узел / ответ argument-map)
+- Центральный компонент платформенного pivot'а ADR-018
+
+**Этап 18.g: argument-map переключение на CitationPicker** -
+кнопка "Привязать цитату" в NodeDetailsPanel открывает
+CitationPicker вместо текущей AddSourceModal со свободной формой
+
+**Архитектурное решение bulk vs lazy import** - после UX-проверки
+на 3-5 книгах. Сейчас в БД одна книга (1681), нужно ещё 2-4
+импортировать через `/admin/shamela`. Кандидаты:
+- Тафсир Ибн Касира (глубокая иерархия)
+- Хусн аль-максыд ас-Суюти (короткая, тематически близкая
+  argument-map)
+- Маджму' аль-Фатава Ибн Таймии (стресс-тест размера)
+
+После 3-5 импортированных - решить bulk-bootstrap всех 8500 vs
+lazy-on-demand при просмотре vs гибрид (metadata bulk + content
+lazy). ADR-021 если выберем не bulk.
+
+**Backlog**:
+- Combined endpoint `POST /admin/shamela/import-and-map/{id}` -
+  один запрос вместо двух sequential (15.8 если станет важно)
+- DOMPurify для page content sanitize - когда выйдем за пределы
+  доверенного shamela на PDF/EPUB upload (Этап 16)
+- ﷺ и ﷽ лигатуры - проверить рендер на стр.2 после re-import,
+  Noto Naskh должен их поддерживать
+- В коде - убрать intersection-cast `Chapter & { startPageNumber }`
+  после regen types.ts. Сейчас работает, но при regen
+  можно почистить
+
+ETL Library shamela после Сессии 23 готов end-to-end через UI:
+- Bootstrap: `/admin/shamela` → "Sync Catalog" (~30-60с)
+- Поиск+импорт: search bar → "Импортировать" на карточке
+- Reader: `/books` → выбор книги → reader с RTL/naskh, chapters
+  navigation, page jump
+- UX-валидация: можно на любых книгах вживую
+
+---
+
 ## 2026-05-09 — Сессия 23 (full-stack) — Этапы 18.b-d Library frontend MVP + 15.7 admin search/sync-status + 18.a AdminShamelaPage
 
 Самая длинная сессия в истории проекта. Изначально планировался только
