@@ -61,6 +61,7 @@ class PageRepositoryIT {
     void save_textOnlyPage_persistsCorrectly() {
         Page page = new Page(
                 UUID.randomUUID(), book.id(), null, 1,
+                null, null, null,
                 "بسم الله", null, Instant.now(), Instant.now()
         );
 
@@ -75,6 +76,7 @@ class PageRepositoryIT {
     void save_imageOnlyPage_persistsCorrectly() {
         Page page = new Page(
                 UUID.randomUUID(), book.id(), null, 1,
+                null, null, null,
                 null, "https://example.com/scan-1.jpg", Instant.now(), Instant.now()
         );
 
@@ -89,6 +91,7 @@ class PageRepositoryIT {
     void save_emptyPage_violatesContentPresentCheck() {
         Page page = new Page(
                 UUID.randomUUID(), book.id(), null, 1,
+                null, null, null,
                 null, null, Instant.now(), Instant.now()
         );
 
@@ -101,11 +104,13 @@ class PageRepositoryIT {
     void save_duplicatePageNumberInBook_violatesUniqueConstraint() {
         pageRepository.save(new Page(
                 UUID.randomUUID(), book.id(), null, 5,
+                null, null, null,
                 "first", null, Instant.now(), Instant.now()
         ));
 
         Page duplicate = new Page(
                 UUID.randomUUID(), book.id(), null, 5,
+                null, null, null,
                 "second", null, Instant.now(), Instant.now()
         );
 
@@ -118,6 +123,7 @@ class PageRepositoryIT {
         for (int i = 1; i <= 10; i++) {
             pageRepository.save(new Page(
                     UUID.randomUUID(), book.id(), null, i,
+                    null, null, null,
                     "page " + i, null, Instant.now(), Instant.now()
             ));
         }
@@ -131,6 +137,7 @@ class PageRepositoryIT {
     void deleteBook_cascadesPages() {
         Page page = pageRepository.save(new Page(
                 UUID.randomUUID(), book.id(), null, 1,
+                null, null, null,
                 "x", null, Instant.now(), Instant.now()
         ));
 
@@ -146,6 +153,7 @@ class PageRepositoryIT {
         ));
         Page page = pageRepository.save(new Page(
                 UUID.randomUUID(), book.id(), chapter.id(), 1,
+                null, null, null,
                 "x", null, Instant.now(), Instant.now()
         ));
 
@@ -158,10 +166,53 @@ class PageRepositoryIT {
     void save_pageNumberZero_violatesCheck() {
         Page page = new Page(
                 UUID.randomUUID(), book.id(), null, 0,
+                null, null, null,
                 "x", null, Instant.now(), Instant.now()
         );
 
         assertThatThrownBy(() -> pageRepository.save(page))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void save_withPrintedPageAndPart_persistsSourceFirstFields() {
+        Page page = pageRepository.save(new Page(
+                UUID.randomUUID(), book.id(), null, 5,
+                "47", "المقدمة", 720,
+                "x", null, Instant.now(), Instant.now()
+        ));
+
+        Page reloaded = pageRepository.findById(page.id()).orElseThrow();
+        assertThat(reloaded.printedPage()).isEqualTo("47");
+        assertThat(reloaded.part()).isEqualTo("المقدمة");
+        assertThat(reloaded.pdfPageNumber()).isEqualTo(720);
+    }
+
+    @Test
+    void findDistinctPartsByBookId_returnsUniqueOrderedParts() {
+        pageRepository.save(new Page(
+                UUID.randomUUID(), book.id(), null, 1,
+                "1", "المقدمة", null, "p1", null, Instant.now(), Instant.now()
+        ));
+        pageRepository.save(new Page(
+                UUID.randomUUID(), book.id(), null, 2,
+                "2", "المقدمة", null, "p2", null, Instant.now(), Instant.now()
+        ));
+        pageRepository.save(new Page(
+                UUID.randomUUID(), book.id(), null, 3,
+                "1", "1", null, "p3", null, Instant.now(), Instant.now()
+        ));
+        pageRepository.save(new Page(
+                UUID.randomUUID(), book.id(), null, 4,
+                "2", "2", null, "p4", null, Instant.now(), Instant.now()
+        ));
+        pageRepository.save(new Page(
+                UUID.randomUUID(), book.id(), null, 5,
+                null, null, null, "p5", null, Instant.now(), Instant.now()
+        ));
+
+        List<String> parts = pageRepository.findDistinctPartsByBookId(book.id());
+
+        assertThat(parts).containsExactly("المقدمة", "1", "2");
     }
 }

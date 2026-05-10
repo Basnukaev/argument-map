@@ -243,8 +243,9 @@ class BookControllerIT {
         Book book = saveBook("x", BookType.BOOK);
         for (int i = 1; i <= 5; i++) {
             pageRepository.save(new Page(
-                    UUID.randomUUID(), book.id(), null, i, "p" + i, null,
-                    Instant.now(), Instant.now()
+                    UUID.randomUUID(), book.id(), null, i,
+                    null, null, null,
+                    "p" + i, null, Instant.now(), Instant.now()
             ));
         }
 
@@ -269,8 +270,9 @@ class BookControllerIT {
     void getPage_existing_returns200_withRegions() throws Exception {
         Book book = saveBook("x", BookType.MANUSCRIPT);
         Page page = pageRepository.save(new Page(
-                UUID.randomUUID(), book.id(), null, 1, null, "https://x/scan.jpg",
-                Instant.now(), Instant.now()
+                UUID.randomUUID(), book.id(), null, 1,
+                null, null, null,
+                null, "https://x/scan.jpg", Instant.now(), Instant.now()
         ));
         imageRegionRepository.save(new ImageRegion(
                 UUID.randomUUID(), page.id(), 0.1, 0.1, 0.5, 0.5, "بسم الله", Instant.now()

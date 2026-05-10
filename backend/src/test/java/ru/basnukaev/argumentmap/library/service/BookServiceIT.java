@@ -185,8 +185,9 @@ class BookServiceIT {
         Book book = bookService.createBook(BookType.BOOK, "T", null, "ar", null, null, userId);
         for (int i = 1; i <= 10; i++) {
             pageRepository.save(new Page(
-                    UUID.randomUUID(), book.id(), null, i, "p" + i, null,
-                    Instant.now(), Instant.now()
+                    UUID.randomUUID(), book.id(), null, i,
+                    null, null, null,
+                    "p" + i, null, Instant.now(), Instant.now()
             ));
         }
 
@@ -203,8 +204,9 @@ class BookServiceIT {
         Book book = bookService.createBook(BookType.BOOK, "T", null, "ar", null, null, userId);
         for (int i = 1; i <= 60; i++) {
             pageRepository.save(new Page(
-                    UUID.randomUUID(), book.id(), null, i, "p", null,
-                    Instant.now(), Instant.now()
+                    UUID.randomUUID(), book.id(), null, i,
+                    null, null, null,
+                    "p", null, Instant.now(), Instant.now()
             ));
         }
 
@@ -225,8 +227,9 @@ class BookServiceIT {
     void getPage_returnsPageWithRegions() {
         Book book = bookService.createBook(BookType.MANUSCRIPT, "T", null, "ar", null, null, userId);
         Page page = pageRepository.save(new Page(
-                UUID.randomUUID(), book.id(), null, 1, null, "https://x/scan.jpg",
-                Instant.now(), Instant.now()
+                UUID.randomUUID(), book.id(), null, 1,
+                null, null, null,
+                null, "https://x/scan.jpg", Instant.now(), Instant.now()
         ));
         imageRegionRepository.save(new ImageRegion(
                 UUID.randomUUID(), page.id(), 0.1, 0.1, 0.5, 0.5, "بسم الله", Instant.now()

@@ -744,12 +744,22 @@ Response 200 - массив `PageSummary` (без `textContent` и `imageUrl`,
   {
     "id": "...",
     "pageNumber": 1,
+    "printedPage": "47",
+    "part": "1",
     "chapterId": "...",
     "hasText": true,
     "hasImage": false
   }
 ]
 ```
+
+`pageNumber` - internal navigation counter (1..N), используется для
+URL-state и навигации prev/next. `printedPage` (nullable TEXT) - маркер
+страницы в оригинальном бумажном издании (может быть число, арабская
+буква, римское число) - **что показываем пользователю**. `part`
+(nullable TEXT) - том/juz' для многотомных книг (`"1"`, `"المقدمة"`).
+Оба поля добавлены в миграции 19 для source-first нумерации
+(ADR-021); legacy-страницы до миграции имеют NULL.
 
 Ошибки: 404 `book-not-found`.
 
@@ -765,6 +775,9 @@ Response 200 - `PageResponse`:
   "bookId": "...",
   "chapterId": "...",
   "pageNumber": 12,
+  "printedPage": "47",
+  "part": "1",
+  "pdfPageNumber": null,
   "textContent": "...",
   "imageUrl": "https://...",
   "imageRegions": [
@@ -781,6 +794,12 @@ Response 200 - `PageResponse`:
   "updatedAt": "..."
 }
 ```
+
+`pdfPageNumber` (nullable INTEGER) - физическая страница в PDF
+оригинале (для cross-referencing когда подключим PDF integration).
+Сейчас всегда `null` - ETL pipeline не скачивает PDF на MVP.
+Заполняется в будущем (Этап PDF integration).
+
 Координаты `imageRegions` нормализованы (0..1), не пиксельные.
 
 Ошибки: 404 `page-not-found`.
@@ -946,6 +965,7 @@ staging (доступно для импорта), `mappedBooksCount` - скол�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-11 | v1 | `PageSummary` расширен `printedPage` и `part` (nullable TEXT). `PageResponse` расширен теми же полями плюс `pdfPageNumber` (nullable INTEGER). `ChapterResponse` получил `startPageNumber` (миграция 18). Source-first нумерация - electronic версия должна ссылаться на оригинальное издание | ADR-021: source-first архитектура. Миграция 19 (lib_pages новые колонки). Mapper заполняет printedPage/part из shamela_page; pdfPageNumber=NULL до Этапа PDF integration |
 | 2026-05-09 | v1 | Добавлены 5 admin endpoints под `/api/v1/admin/shamela/*`: `POST /sync-master` (15.6), `POST /import-book/{id}` (15.6), `POST /map-book/{id}` (15.6), `GET /search?q=&limit=` (15.7), `GET /sync-status` (15.7). DTO: `SyncMasterResponse`, `ImportBookResponse`, `MapBookResponse`, `StagingBookSearchResult`, `SyncStatusResponse`. Новые ошибки: 404 `shamela-not-found`, 502 `shamela-api-error`, 500 `shamela-archive-error`/`shamela-reader-error`/`shamela-import-error`. PDF download / async / bulk endpoints отложены | ADR-020: ETL-импорт shamela, Этапы 15.6 (3 базовых endpoint для mutating операций) + 15.7 (search/status для admin UI) |
 | 2026-05-08 | v1 | Добавлены 6 эндпоинтов под `/api/v1/library/*` (POST/GET/DELETE books, GET pages range, GET page detail). DTO: `CreateBookRequest`/`BookResponse`/`BookSummary`/`BookDetailResponse`/`ChapterResponse` (recursive)/`PageSummary`/`PageResponse`/`ImageRegionResponse`. Новые ошибки: 404 `book-not-found`, 404 `page-not-found`, 422 `invalid-book` (зарезервирован). `BookType` enum (`QURAN`/`HADITH_COLLECTION`/`BOOK`/`ARTICLE`/`MANUSCRIPT`) | ADR-019: фундамент платформенной library, Этап 14 |
 | 2026-05-08 | v1 | `Source` получил поле `authorityId` (UUID, nullable, FK на `Authority`). `NodeSource`/`AttachSourceRequest`/`NodeSourceResponse` получили поле `location` (string, nullable, до 200 символов). Удалены эндпоинты `POST/GET/DELETE /api/v1/nodes/{id}/authorities`. Удалены DTO `NodeAuthorityResponse` и `AttachAuthorityRequest`, enum `Stance` | ADR-017: единая точка привязки цитаты к узлу. `Authority` теперь приходит к узлу транзитивно через `Source.authorityId` |

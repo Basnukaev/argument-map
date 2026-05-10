@@ -71,7 +71,9 @@ public final class LibraryDtoMappers {
 
     public static PageSummary toSummary(Page page) {
         return new PageSummary(
-                page.id(), page.pageNumber(), page.chapterId(),
+                page.id(), page.pageNumber(),
+                page.printedPage(), page.part(),
+                page.chapterId(),
                 page.textContent() != null,
                 page.imageUrl() != null
         );
@@ -84,7 +86,9 @@ public final class LibraryDtoMappers {
                 .toList();
         return new PageResponse(
                 page.id(), page.bookId(), page.chapterId(),
-                page.pageNumber(), page.textContent(), page.imageUrl(),
+                page.pageNumber(),
+                page.printedPage(), page.part(), page.pdfPageNumber(),
+                page.textContent(), page.imageUrl(),
                 regions, page.createdAt(), page.updatedAt()
         );
     }

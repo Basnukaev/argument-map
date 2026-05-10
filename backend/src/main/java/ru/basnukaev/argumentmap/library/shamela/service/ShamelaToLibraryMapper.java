@@ -309,11 +309,23 @@ public class ShamelaToLibraryMapper {
     }
 
     /**
-     * Маппинг {@code lib_shamela_page} → {@code lib_pages}. {@code page_number}
-     * = {@code shamela_page.id} (shamela 1-based monotonic). {@code chapter_id}
-     * = NULL на MVP - связь откладывается. Пустые страницы (NULL/blank
-     * content) пропускаются - {@code lib_pages_content_present} CHECK
-     * требует наличия text_content или image_url.
+     * Маппинг {@code lib_shamela_page} → {@code lib_pages}. Поля:
+     * <ul>
+     *   <li>{@code page_number} = {@code shamela_page.id} (shamela 1-based
+     *       monotonic, internal counter) - используется для URL-state и
+     *       navigation order в reader</li>
+     *   <li>{@code printed_page} = {@code shamela_page.printedPage} (TEXT
+     *       маркер реального издания, может быть "1", арабская буква,
+     *       цифра) - source-first отображение (ADR-021)</li>
+     *   <li>{@code part} = {@code shamela_page.part} (TEXT том/juz' для
+     *       multi-volume; nullable для однотомных)</li>
+     *   <li>{@code pdf_page_number} = NULL пока, заполнится когда
+     *       подключим PDF integration</li>
+     *   <li>{@code chapter_id} = NULL на MVP - связь откладывается</li>
+     * </ul>
+     * Пустые страницы (NULL/blank content) пропускаются -
+     * {@code lib_pages_content_present} CHECK требует наличия
+     * text_content или image_url.
      *
      * @return сколько page-записей создано
      */
@@ -340,6 +352,9 @@ public class ShamelaToLibraryMapper {
                     bookUuid,
                     null,
                     p.id(),
+                    blankToNull(p.printedPage()),
+                    blankToNull(p.part()),
+                    null,
                     p.content(),
                     null,
                     now,

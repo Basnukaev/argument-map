@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260511-19-add-printed-page-and-part-to-lib-pages" author="Abdula Basnukaev">
+        <comment>
+            Source-first нумерация страниц (ADR-021): электронная книга
+            должна соответствовать оригинальному бумажному изданию.
+            Раньше lib_pages.page_number был internal counter
+            (shamela_page.id) - 1..N последовательный, не имеющий смысла
+            для пользователя ищущего конкретную страницу в реальной
+            книге.
+
+            Добавляем три nullable-поля:
+
+            - printed_page TEXT - маркер страницы в реальном издании.
+              TEXT а не INTEGER потому что shamela хранит как TEXT и
+              значения могут быть "1", "أ" (арабская буква предисловия),
+              римские цифры. Не уникален в пределах книги (повторяется
+              между томами + на стыке секций предисловия).
+
+            - part TEXT - том/juz' для multi-volume книг. Может быть
+              цифрой ("1", "2") или арабским словом ("المقدمة"). Nullable
+              для однотомных книг. Индекс (book_id, part) для быстрого
+              SELECT DISTINCT part при построении dropdown селектора
+              томов в reader-фронте.
+
+            - pdf_page_number INTEGER - физическая страница в PDF
+              оригинала (когда подключим PDF integration в Этапе PDF).
+              Сейчас всегда NULL - ETL pipeline пока не скачивает PDF и
+              не делает text↔PDF match. Колонка добавлена сейчас чтобы
+              schema migration была одна, а не разбита между сессиями.
+
+            Колонки nullable - старые книги (Священный Коран,
+            импортирован руками без shamela mapper) получают NULL.
+            page_number оставляем как был - используется для navigation
+            order и URL-state в reader, source-first нумерация - только
+            для отображения пользователю.
+        </comment>
+        <sql>
+            ALTER TABLE lib_pages ADD COLUMN printed_page TEXT NULL;
+            ALTER TABLE lib_pages ADD COLUMN part TEXT NULL;
+            ALTER TABLE lib_pages ADD COLUMN pdf_page_number INTEGER NULL;
+            CREATE INDEX idx_lib_pages_part ON lib_pages(book_id, part);
+        </sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_lib_pages_part;
+                ALTER TABLE lib_pages DROP COLUMN pdf_page_number;
+                ALTER TABLE lib_pages DROP COLUMN part;
+                ALTER TABLE lib_pages DROP COLUMN printed_page;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

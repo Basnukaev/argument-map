@@ -262,9 +262,17 @@ DELETE /api/v1/library/books/{id}           — удалить книгу (ка�
 - `lib_books` - книги/труды/тексты с `book_type` discriminator
   (`QURAN`/`HADITH_COLLECTION`/`BOOK`/`ARTICLE`/`MANUSCRIPT`),
   опциональным `authority_id`, jsonb `metadata` с GIN-индексом
-- `lib_chapters` - иерархия глав через self-FK `parent_chapter_id`
+- `lib_chapters` - иерархия глав через self-FK `parent_chapter_id`,
+  `start_page_number` (миграция 18) для кликабельной навигации
+  chapter → page
 - `lib_pages` - страницы с `text_content` и/или `image_url`,
-  UNIQUE(`book_id`, `page_number`), CHECK `lib_pages_content_present`
+  UNIQUE(`book_id`, `page_number`), CHECK `lib_pages_content_present`.
+  Source-first нумерация (миграция 19, ADR-021): `printed_page TEXT`
+  и `part TEXT` (маркер реального издания + том/juz' для multi-volume,
+  что показывается пользователю), `pdf_page_number INTEGER` (физическая
+  страница PDF оригинала, заполняется будущим этапом PDF integration).
+  `page_number` остаётся internal counter для URL-state и navigation
+  order
 - `lib_image_regions` - регионы на скане с нормализованными
   координатами (0..1), CHECK `lib_image_regions_bounds`
 

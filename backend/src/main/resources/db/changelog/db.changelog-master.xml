@@ -23,5 +23,6 @@
     <include file="db/changelog/changes/20260508-16-create-library-tables.xml"/>
     <include file="db/changelog/changes/20260509-17-create-shamela-staging-tables.xml"/>
     <include file="db/changelog/changes/20260509-18-add-start-page-to-chapters.xml"/>
+    <include file="db/changelog/changes/20260511-19-add-printed-page-and-part-to-lib-pages.xml"/>
 
 </databaseChangeLog>

@@ -56,6 +56,7 @@ class ImageRegionRepositoryIT {
         ));
         page = pageRepository.save(new Page(
                 UUID.randomUUID(), book.id(), null, 1,
+                null, null, null,
                 null, "https://example.com/scan.jpg", now, now
         ));
     }

@@ -17,19 +17,26 @@ import ru.basnukaev.argumentmap.library.domain.Page;
 public class PageRepository {
 
     private static final String COLUMNS =
-            "id, book_id, chapter_id, page_number, text_content, image_url, "
-            + "created_at, updated_at";
+            "id, book_id, chapter_id, page_number, printed_page, part, pdf_page_number, "
+            + "text_content, image_url, created_at, updated_at";
 
-    private static final RowMapper<Page> ROW_MAPPER = (rs, rn) -> new Page(
-            rs.getObject("id", UUID.class),
-            rs.getObject("book_id", UUID.class),
-            rs.getObject("chapter_id", UUID.class),
-            rs.getInt("page_number"),
-            rs.getString("text_content"),
-            rs.getString("image_url"),
-            instant(rs, "created_at"),
-            instant(rs, "updated_at")
-    );
+    private static final RowMapper<Page> ROW_MAPPER = (rs, rn) -> {
+        int pdfPage = rs.getInt("pdf_page_number");
+        Integer pdfPageOrNull = rs.wasNull() ? null : pdfPage;
+        return new Page(
+                rs.getObject("id", UUID.class),
+                rs.getObject("book_id", UUID.class),
+                rs.getObject("chapter_id", UUID.class),
+                rs.getInt("page_number"),
+                rs.getString("printed_page"),
+                rs.getString("part"),
+                pdfPageOrNull,
+                rs.getString("text_content"),
+                rs.getString("image_url"),
+                instant(rs, "created_at"),
+                instant(rs, "updated_at")
+        );
+    };
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -39,11 +46,14 @@ public class PageRepository {
 
     public Page save(Page page) {
         jdbcTemplate.update(
-                "INSERT INTO lib_pages (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO lib_pages (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 page.id(),
                 page.bookId(),
                 page.chapterId(),
                 page.pageNumber(),
+                page.printedPage(),
+                page.part(),
+                page.pdfPageNumber(),
                 page.textContent(),
                 page.imageUrl(),
                 odt(page.createdAt()),
@@ -69,6 +79,22 @@ public class PageRepository {
                 bookId,
                 fromPage,
                 toPage
+        );
+    }
+
+    /**
+     * Уникальные значения {@code part} (томов/juz') в книге в порядке
+     * первого появления. Используется для построения dropdown селектора
+     * томов в reader-фронте: если у книги > 1 part, фронт показывает
+     * dropdown, иначе скрывает.
+     */
+    public List<String> findDistinctPartsByBookId(UUID bookId) {
+        return jdbcTemplate.queryForList(
+                "SELECT part FROM lib_pages "
+                        + "WHERE book_id = ? AND part IS NOT NULL "
+                        + "GROUP BY part ORDER BY MIN(page_number)",
+                String.class,
+                bookId
         );
     }
 

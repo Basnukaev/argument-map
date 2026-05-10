@@ -78,6 +78,33 @@ class ShamelaToLibraryMapperIT {
     // ---------------- happy path ----------------
 
     @Test
+    void mapBook_persistsPrintedPageAndPartFromShamela() {
+        // регрессия: source-first нумерация (ADR-021, миграция 19).
+        // Раньше Mapper брал только id страницы из shamela, теряя
+        // printed_page (маркер оригинального издания) и part (том/juz').
+        // После миграции 19 эти поля сохраняются в lib_pages
+        seedAuthor(100L, "ابن كثير", null);
+        seedBookWithPdfLinks(7000L, "تفسير ابن كثير", 100L, 1, null);
+        seedPageWithMarkers(7000L, 1, "introduction-content", "المقدمة", "أ");
+        seedPageWithMarkers(7000L, 2, "first-chapter-content", "1", "47");
+        seedPage(7000L, 3, "page-without-markers");
+
+        MappedBookResult result = mapper.mapBook(7000L, testUserId);
+        List<Page> pages = pageRepository.findByBookIdRange(result.bookId(), 1, Integer.MAX_VALUE);
+
+        assertThat(pages).hasSize(3);
+        assertThat(pages.get(0).printedPage()).isEqualTo("أ");
+        assertThat(pages.get(0).part()).isEqualTo("المقدمة");
+        assertThat(pages.get(0).pdfPageNumber()).isNull();
+        assertThat(pages.get(1).printedPage()).isEqualTo("47");
+        assertThat(pages.get(1).part()).isEqualTo("1");
+        // страница без markers - все поля null (blankToNull обрабатывает
+        // и null, и пустую строку одинаково)
+        assertThat(pages.get(2).printedPage()).isNull();
+        assertThat(pages.get(2).part()).isNull();
+    }
+
+    @Test
     void mapBook_creates_book_chapters_pages_and_resolves_authority() {
         long shamelaBookId = 41557L;
         long shamelaAuthorId = 100L;
@@ -321,6 +348,12 @@ class ShamelaToLibraryMapperIT {
     private void seedPage(long bookId, int pageId, String content) {
         shamelaPageDao.upsertAll(List.of(new ShamelaPageRow(bookId, pageId, content,
                 null, null, null, null)));
+    }
+
+    private void seedPageWithMarkers(long bookId, int pageId, String content,
+                                     String part, String printedPage) {
+        shamelaPageDao.upsertAll(List.of(new ShamelaPageRow(bookId, pageId, content,
+                part, printedPage, null, null)));
     }
 
     /**
