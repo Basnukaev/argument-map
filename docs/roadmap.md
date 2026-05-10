@@ -601,6 +601,35 @@ apps/* добавляется только когда возникнет кон�
       Этапа 16). Loading state в event handlers (react-hooks/
       set-state-in-effect rule). Эвристика арабского текста через
       Unicode 0x0600-0x06FF
+## Этап 25. PDF Viewer source-agnostic
+
+**Зачем:** ADR-021 source-first - электронная версия должна
+ссылаться на оригинал. Реализуется поэтапно (см. spec
+`docs/superpowers/specs/2026-05-11-pdf-viewer-source-agnostic.md`):
+
+- [x] **25.a: backend skeleton** - `PdfSourceProvider` interface +
+      `PdfLinksSourceProvider` (читает metadata.pdf_links, покрывает
+      shamela через archive.org CDN и future archive.org-direct) +
+      `PdfService` роутер + 2 REST endpoints (`/info`, streaming с
+      Range header). 7 IT через MockMvc + @MockitoBean.
+      `PdfNotAvailableException` → 404 `pdf-not-available`.
+      `filename` не возвращается клиенту (защита от обхода endpoint).
+      Default chunk 1MB
+- [ ] **25.b: MinIO cache** - docker-compose MinIO + MinioCacheService.
+      Сейчас PDF кешируется в локальный tempDir (после рестарта
+      теряется). MinIO с TTL 30 дней
+- [ ] **25.c: react-pdf install + viewer** - npm install,
+      worker setup в vite.config.ts, PdfViewer.tsx компонент,
+      toggle 📃/📕 в reader (стиль по platform_reader.jsx PageToolbar)
+- [ ] **25.d: page sync** - internal pageNumber → pdfPageNumber
+      mapping с fallback на physical=internal если null
+- [ ] **25.e: admin manual page-mapping** (Tier 1, опционально)
+- [ ] **25.f: region selection** через react-image-crop +
+      `POST /api/v1/library/pages/{id}/regions` (после CitationPicker
+      18.f)
+
+## Этап 18 (продолжение)
+
 - [ ] **18.e: ImagePageRenderer** - отдельный mode для image-сканов:
       картинка + overlay для OCR-текста + рисование regions через
       react-image-crop. Релевантно после Этапа 17 OCR

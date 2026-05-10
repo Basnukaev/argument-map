@@ -12,6 +12,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import ru.basnukaev.argumentmap.library.pdf.service.PdfNotAvailableException;
 import ru.basnukaev.argumentmap.library.shamela.api.ShamelaApiException;
 import ru.basnukaev.argumentmap.library.shamela.etl.ShamelaArchiveException;
 import ru.basnukaev.argumentmap.library.shamela.etl.ShamelaReaderException;
@@ -83,6 +84,12 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleInvalidBook(InvalidBookException ex) {
         return problem(HttpStatus.UNPROCESSABLE_ENTITY,
                 "Невалидная книга", "invalid-book", ex.getMessage());
+    }
+
+    @ExceptionHandler(PdfNotAvailableException.class)
+    public ProblemDetail handlePdfNotAvailable(PdfNotAvailableException ex) {
+        return problem(HttpStatus.NOT_FOUND,
+                "PDF недоступен", "pdf-not-available", ex.getMessage());
     }
 
     @ExceptionHandler(MissingUserHeaderException.class)

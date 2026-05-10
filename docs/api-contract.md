@@ -952,6 +952,75 @@ match на `name` через ILIKE с обогащением: имя автор�
 staging (доступно для импорта), `mappedBooksCount` - сколько уже в
 `lib_books` (доступно в `/books`).
 
+## PDF Viewer API (ADR-021, Этап 25.a)
+
+Source-agnostic streaming PDF для книг с привязанным источником.
+На MVP поддерживается один `PdfSourceProvider` - `PdfLinksSourceProvider`,
+который читает `metadata.pdf_links` (формат shamela через archive.org
+CDN: `{root, files: ["filename"], cover, size}`). Будущие провайдеры
+(MinIO upload, прямой archive.org, IIIF) подключаются через тот же
+interface без изменения API.
+
+### GET /api/v1/library/books/{bookId}/pdf/info
+
+Метаданные PDF: список файлов (multi-volume), label каждого тома,
+размер. Не качает PDF.
+
+Response 200 - `PdfInfoResponse`:
+```json
+{
+  "hasCover": true,
+  "totalSizeBytes": 135102734,
+  "files": [
+    {"index": 0, "label": "01_113015", "sizeBytes": null, "pageCount": null},
+    {"index": 1, "label": "المقدمة", "sizeBytes": null, "pageCount": null}
+  ]
+}
+```
+
+`filename` НЕ возвращается клиенту - чтобы фронт не мог собрать
+прямую ссылку на CDN в обход бэка. Это даст возможность будущему
+audit/rate-limit/кешу работать с reality того что все запросы идут
+через нас.
+
+Ошибки: 404 `book-not-found`, 404 `pdf-not-available` (книга без
+PDF-источника).
+
+### GET /api/v1/library/books/{bookId}/pdf?fileIndex={N}
+
+Streaming PDF с поддержкой Range header (RFC 7233). PDF.js на фронте
+запрашивает chunks по 64KB-1MB, не качает весь файл сразу (~50MB
+типичный shamela).
+
+Query: `fileIndex` (optional, default 0) - индекс файла из info.files.
+
+Headers:
+- `Range: bytes=START-END` (optional) - частичная загрузка
+
+Response 200 (full) или 206 Partial Content (range):
+- `Accept-Ranges: bytes`
+- `Content-Type: application/pdf`
+- `Content-Length` - размер выдаваемого chunk'а
+
+Сервер ограничивает chunk до 1MB (`DEFAULT_CHUNK_SIZE`). Если клиент
+запросит `bytes=0-10000000` (10MB) - вернёт 1MB и `Content-Range`
+покажет реально отданный диапазон. PDF.js делает следующий запрос на
+оставшееся.
+
+Ошибки: 404 `book-not-found`, 404 `pdf-not-available` (книга без
+PDF-источника или fileIndex out of range).
+
+### Что **не** реализовано в PDF Viewer (Этап 25.a)
+
+- **MinIO cache** (25.b) - сейчас PDF качается в локальный
+  `${library.pdf.temp-dir}` каталог и остаётся (in-process cache).
+  При рестарте контейнера - кеш теряется. MinIO с TTL добавим
+  следующим коммитом
+- **PDF page count** - sizeBytes и pageCount в info.files всегда
+  null. Заполнятся когда добавим HEAD-prefetch или PDF.js page count
+- **Region selection** (25.f) - выделение прямоугольников на скане
+  для region-based citation. После CitationPicker
+
 ### Что **не** реализовано в shamela admin
 
 - `GET /admin/shamela/book/{id}/pdf/{fileIndex}` - lazy PDF download
@@ -965,6 +1034,7 @@ staging (доступно для импорта), `mappedBooksCount` - скол�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-11 | v1 | Добавлены 2 endpoint под `/api/v1/library/books/{id}/pdf/*`: `GET /info` (метаданные PDF файлов книги) и `GET ?fileIndex=N` (streaming PDF с Range header support через `ResourceRegion`). Source-agnostic архитектура - `PdfSourceProvider` interface, реализация `PdfLinksSourceProvider` для shamela (archive.org CDN) + будущие MinIO/IIIF. Новая ошибка: 404 `pdf-not-available`. DTO: `PdfInfoResponse`, `PdfFileInfoResponse` (без filename - защита от обхода нашего endpoint) | ADR-021 source-first, Этап 25.a |
 | 2026-05-11 | v1 | `PageSummary` расширен `printedPage` и `part` (nullable TEXT). `PageResponse` расширен теми же полями плюс `pdfPageNumber` (nullable INTEGER). `ChapterResponse` получил `startPageNumber` (миграция 18). Source-first нумерация - electronic версия должна ссылаться на оригинальное издание | ADR-021: source-first архитектура. Миграция 19 (lib_pages новые колонки). Mapper заполняет printedPage/part из shamela_page; pdfPageNumber=NULL до Этапа PDF integration |
 | 2026-05-09 | v1 | Добавлены 5 admin endpoints под `/api/v1/admin/shamela/*`: `POST /sync-master` (15.6), `POST /import-book/{id}` (15.6), `POST /map-book/{id}` (15.6), `GET /search?q=&limit=` (15.7), `GET /sync-status` (15.7). DTO: `SyncMasterResponse`, `ImportBookResponse`, `MapBookResponse`, `StagingBookSearchResult`, `SyncStatusResponse`. Новые ошибки: 404 `shamela-not-found`, 502 `shamela-api-error`, 500 `shamela-archive-error`/`shamela-reader-error`/`shamela-import-error`. PDF download / async / bulk endpoints отложены | ADR-020: ETL-импорт shamela, Этапы 15.6 (3 базовых endpoint для mutating операций) + 15.7 (search/status для admin UI) |
 | 2026-05-08 | v1 | Добавлены 6 эндпоинтов под `/api/v1/library/*` (POST/GET/DELETE books, GET pages range, GET page detail). DTO: `CreateBookRequest`/`BookResponse`/`BookSummary`/`BookDetailResponse`/`ChapterResponse` (recursive)/`PageSummary`/`PageResponse`/`ImageRegionResponse`. Новые ошибки: 404 `book-not-found`, 404 `page-not-found`, 422 `invalid-book` (зарезервирован). `BookType` enum (`QURAN`/`HADITH_COLLECTION`/`BOOK`/`ARTICLE`/`MANUSCRIPT`) | ADR-019: фундамент платформенной library, Этап 14 |
