@@ -1569,3 +1569,75 @@ E) **Skip миграции и сделать всё через jsonb** - не т
   staging-схеме, изначальный Mapper их игнорировал. Этот ADR -
   исправление того pre-выпуска
 
+
+
+---
+
+## ADR-022: Cleanup marathon - conventions из refactoring'а Сессии 25
+**Дата:** 2026-05-11
+**Статус:** принято
+**Реализовано:** Сессия 25 (cleanup marathon, 15 коммитов от a3f3a20 до 899690f)
+**Контекст:** после 24 сессий накопился техдолг. Audit (46 findings,
+`docs/superpowers/audits/2026-05-11-codebase-audit.md`) выявил
+структурные паттерны которые надо зафиксировать как convention -
+иначе следующие этапы (Q&A 19, CitationPicker 18.f) будут наступать
+на те же проблемы.
+
+**Решение:** 4 conventions зафиксированы для всего проекта впредь:
+
+1. **Frontend apps/ структура** (формализация ADR-018).
+   `src/apps/{argument-map,library,admin}/` + `src/shared/`. Cross-app
+   зависимости только через `shared/`. Новые apps (qa) встают рядом
+   без рефакторинга существующих
+
+2. **DTO suffix convention** на backend Java.
+   `*Request` / `*Response` / `*Command` для REST DTO.
+   `*Row` для staging-уровня (ETL).
+   НЕ использовать `*Summary`, `*Result`, `*Dto` - они size'дюзят intent
+
+3. **Async state pattern** на frontend TS.
+   Для простого fetch-state (loading/success/error без extra полей в
+   success) - использовать `shared/types/async.ts AsyncState<T, E>`
+   с discriminator `kind`. Для complex success-state (e.g. с lookup
+   maps) - свой union
+
+4. **Single Responsibility в backend services**.
+   Service с >7 dependencies - повод разнести по responsibility
+   (e.g. ShamelaImportService 11 dep → ShamelaMasterSyncService +
+   ShamelaBookImportService). Mapper >300 LOC - разнести по domain
+   (e.g. ShamelaToLibraryMapper → BookMapper/ChapterMapper/PageMapper)
+
+**Альтернативы (rejected):**
+- Оставить как есть - audit показал реальный pain при изменениях
+- Apps/ через micro-frontends (separate npm packages) - overengineering
+  на MVP, monorepo apps/ достаточно
+- DI через @Configuration вместо разделения services - не решает SRP
+
+**Последствия:**
+- (+) Q&A app (Этап 19) встанет в `src/apps/qa/` без перетряхивания
+- (+) Будущие fetch-компоненты не нужно изобретать `LoadState`/`ViewState`
+  типы - generic `AsyncState<T>` уже есть
+- (+) BookSummary/PageSummary/StagingBookSearchResult переименованы
+  в `*Response` (breaking change для frontend - mitigated через
+  одновременный update types.ts + 3 pages)
+- (+) Audit-документ источник истины для future cleanup ('source of
+  proven complaints')
+- (−) Migrations типов API контракта (B-04) - breaking, требуют
+  координации backend + frontend в одном PR
+- (−) Не все компоненты с complex state мигрированы на AsyncState
+  (TopicGraphPage, BookReaderPage, etc) - живут со своими unions
+
+**Связь с другими ADR:**
+- ADR-018 (платформенный pivot) - apps/ структура его конкретизация
+- ADR-017 (Source/Authority unified) - аналогичный кейс naming
+  conventions, тогда это резолвилось через one-off change
+- Phase backlog в audit - живой документ для будущих cleanup сессий
+
+**Не входит в этот ADR (отложено):**
+- T-08 Clock injection (требует Clock в services)
+- T-01/T-06 backend test split + mock reduction
+- F-11/F-12 inline styles / useApiQuery
+- D-04 progress vs roadmap format align
+Эти findings - real но low ROI для текущего размера codebase, ждут
+естественного триггера (т.е. когда станет реальной болью).
+

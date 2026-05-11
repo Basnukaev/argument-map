@@ -16,6 +16,15 @@
 git log; средняя фича (3+ коммитов или новый файл/модуль) попадает
 в roadmap (текущий этап, Cross-cutting или Бэклог по смыслу).
 
+> **Структурные изменения (Сессия 25):** после cleanup marathon
+> frontend перенесён в `src/apps/{argument-map,library,admin}/` +
+> `src/shared/` структуру (ADR-022). Backend разделён по
+> responsibility: ShamelaImportService удалён, разнесён на
+> MasterSyncService + BookImportService + WorkDirManager. DTO
+> переименованы под `*Response` convention (B-04). Старые пути в
+> закрытых этапах ниже могут ссылаться на pre-marathon структуру -
+> это история, не актуально для текущих изменений.
+
 ## Этап 0. Инициализация проекта
 
 - [x] Сгенерировать Spring Boot проект (Spring Initializr): Java 21,
@@ -330,8 +339,9 @@ Claude Design - HTML/jsx прототип с проработанным визу
       про `react-hooks/set-state-in-effect` + conditional render как
       идиома для модалок, запись в progress
 
-Cross-cutting добавление: `frontend/src/utils/attachmentTokens.ts` -
-источник истины для `SOURCE_TYPE_LABEL`/`ICON`/`HINT`/`ORDER`,
+Cross-cutting добавление: `frontend/src/apps/argument-map/utils/attachmentTokens.ts`
+(после Сессии 25 apps/ reorg) - источник истины для
+`SOURCE_TYPE_LABEL`/`ICON`/`HINT`/`ORDER`,
 `STANCE_LABEL`/`BADGE_STYLES`/`RADIO_STYLES`/`ORDER`. Используется
 панелью и обеими модалками. По аналогии с `designTokens.ts` для
 node/edge.
@@ -633,10 +643,11 @@ apps/* добавляется только когда возникнет кон�
 - [ ] **18.e: ImagePageRenderer** - отдельный mode для image-сканов:
       картинка + overlay для OCR-текста + рисование regions через
       react-image-crop. Релевантно после Этапа 17 OCR
-- [ ] **18.f: CitationPicker** - переиспользуемый компонент
-      (просто в `frontend/src/components/citation/CitationPicker.tsx`,
-      без отдельного package). Выделил фрагмент в reader → opens
-      picker → выбор приложения (argument-map / Q&A) и контекста
+- [ ] **18.f: CitationPicker** - переиспользуемый компонент.
+      После Сессии 25 apps/ reorg - живёт в
+      `frontend/src/shared/components/citation/CitationPicker.tsx`
+      (shared между argument-map и Q&A apps). Выделил фрагмент в
+      reader → opens picker → выбор приложения и контекста
       (какой узел / ответ)
 - [ ] **18.g: Argument-map переключение на CitationPicker** -
       кнопка «Привязать цитату» в NodeDetailsPanel открывает
