@@ -13,14 +13,16 @@
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json,md}\"",
-    "generate-api": "openapi-typescript http://localhost:9090/v3/api-docs -o src/api/types.ts"
+    "generate-api": "openapi-typescript http://localhost:9090/v3/api-docs -o src/shared/api/types.ts"
   },
   "author": "Abdula Basnukaev",
   "license": "UNLICENSED",
   "dependencies": {
     "@types/dagre": "^0.7.54",
+    "@types/dompurify": "^3.0.5",
     "@xyflow/react": "^12.10.2",
     "dagre": "^0.8.5",
+    "dompurify": "^3.4.2",
     "lucide-react": "^1.14.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
