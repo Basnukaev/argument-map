@@ -644,6 +644,44 @@ apps/* добавляется только когда возникнет кон�
       pdfPageNumber mapping с fallback на physical=internal если null.
       Требует Tier 1 admin page-mapping flow для заполнения
       `pdf_page_number` в `lib_pages`
+- [ ] **25.d.3: PDF UX полировка** (после Сессии 26 фидбека Абдулы):
+  - [x] **25.d.3.1: PDF download кнопка** - возможность скачать
+        текущий PDF файл целиком (всегда мог через бэк, нужна
+        UI-кнопка с `download` attribute)
+  - [x] **25.d.3.2: page jump в PDF mode** - re-use `PageJump`
+        компонент чтобы юзер мог сразу прыгнуть на pdf-страницу N,
+        как в обычной читалке
+  - [x] **25.d.3.3: loading flicker fix** - при prev/next в PDF
+        не показывать «… Loading …» при каждом переходе (бросается
+        в глаза). Сохранять предыдущую страницу пока новая грузится
+        (PDF.js placeholder strategy)
+  - [x] **25.d.3.4: chapters tree linies на правую сторону для RTL** -
+        сейчас vertical depth rail слева, в RTL контексте логически
+        неправильно (отступ должен начинаться справа от текста).
+        Использовать `border-inline-start` (RTL-aware logical
+        property) либо вообще убрать линии по примеру shamela
+  - [x] **25.d.3.5: dropdown стиль из design-reference** - сейчас
+        дефолтный `<select>`, не вписывается. Проверить как dropdown'ы
+        выглядят в `design-reference/project/`, привести в соответствие
+- [ ] **25.d.4: Inline PDF preview redesign (по shamela паттерну)** -
+      кардинальное переустройство reader'а. Вместо tab toggle
+      Text/PDF - кнопка PDF на каждой странице text mode, при клике
+      открывается **inline preview** PDF этой страницы внизу (snapshot,
+      не full reader). В preview - кнопка «развернуть на весь экран»
+      → full PDF reader (как сейчас) с кнопкой «Назад к тексту» для
+      возврата на ту же текстовую страницу. См. `shamela_page_view.png`
+      + `after_click_on_pdf_icon_shamela.png` для UX-референса.
+      Требует `pdfPageNumber` mapping (25.d.2 / 25.e) чтобы кнопка
+      «📕 PDF» на каждой text-page знала какую PDF-страницу открыть
+- [ ] **25.d.5: Lazy streaming через backend** - сейчас
+      `PdfLinksSourceProvider.downloadFile` качает **весь PDF**
+      (10-100MB) на наш бэк целиком при первом запросе. Потом отдаёт
+      chunks с Range. Это значит первый PDF-клик ждёт 30-60 сек
+      пока бэк скачает с archive.org. Lazy streaming: бэк форвардит
+      Range-request frontend → archive.org, отдаёт chunks по мере
+      получения. Trade-off: больше latency на каждый chunk, но
+      первая страница за 1-2 сек. Заменяет временный in-process
+      cache. Связано с ADR-023 (long-process миграция)
 - [ ] **25.e: admin manual page-mapping** (Tier 1, опционально)
 - [ ] **25.f: region selection** через react-image-crop +
       `POST /api/v1/library/pages/{id}/regions` (после CitationPicker

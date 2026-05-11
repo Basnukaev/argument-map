@@ -1641,3 +1641,126 @@ E) **Skip миграции и сделать всё через jsonb** - не т
 Эти findings - real но low ROI для текущего размера codebase, ждут
 естественного триггера (т.е. когда станет реальной болью).
 
+---
+
+## ADR-023: Будущая микросервисная миграция длинных процессов
+
+**Дата:** 2026-05-11
+**Статус:** принято как направление, реализация отложена до завершения
+платформенного MVP
+
+**Контекст:**
+В монолитном backend сейчас есть несколько процессов которые работают
+как "1 большой шаг" внутри одного Spring Boot инстанса:
+- **Shamela ETL** (`ShamelaMasterSyncService.syncMaster` + bulk-upsert
+  ~8500 книг, `ShamelaBookImportService.importBook` + download zip +
+  SQLite extraction + bulk-upsert ~5000 страниц)
+- **ShamelaToLibraryMapper.mapBook** (transactional доменное
+  мапирование staging → lib_books, может занять минуты на крупной
+  книге)
+- **PDF download/cache** (`PdfLinksSourceProvider.downloadFile` качает
+  50-150MB архивов с archive.org через corporate proxy)
+- **Future** - OCR на image-сканах (Tess4j minutes на страницу),
+  user-upload book processing (Apache Tika + extract pages),
+  PDF page-mapping (Tier 2-3 fuzzy match + OCR)
+
+Все они страдают от одной фундаментальной проблемы: **если в середине
+процесса упадёт сеть/БД/электричество/JVM crashes - частичный результат
+теряется**. Юзер начинает заново. Для admin-flow одного человека на MVP
+это терпимо, для будущего multi-user продакшна с экстенсивными
+процессами (user-upload PDF, OCR пайплайн на манускриптах) -
+неприемлемо.
+
+**Решение:**
+Заложить **направление миграции** на event-driven архитектуру с
+изолированными worker'ами / микросервисами для long-running процессов.
+Концептуально (без жёсткого выбора стека):
+
+1. **Persisted task queue** (Postgres-backed либо external broker
+   RabbitMQ/Redis Streams) - каждый long-running процесс становится
+   персистентным task'ом с состоянием (PENDING/RUNNING/COMPLETED/
+   FAILED) и checkpoint'ами
+
+2. **Idempotent workers** - выделенные сервисы которые читают task'и
+   из очереди, выполняют, могут пере-запускаться без потерь. Каждый
+   worker - отдельный deployable. Падение worker'а = task возвращается
+   в очередь и подхватывается другим инстансом
+
+3. **Granular checkpointing** - вместо "shamela mapBook за один
+   `@Transactional`" - разбить на `mapAuthority` → `mapBookHeader` →
+   `mapChapters` → `mapPages` чанками. Каждый чанк commit'ится
+   отдельно, восстановление с последнего checkpoint при retry
+
+4. **Process tracking UI** - admin видит running tasks, прогресс,
+   failures с возможностью retry или manual fix
+
+**Список процессов под миграцию (приоритет от высокого к низкому):**
+- PDF download (user-impact: ждёт первый PDF клик ~30-60 сек на
+  WSL proxy, нужен MinIO cache + worker)
+- shamela map-book (admin-impact: блокирует UI на минуты)
+- shamela sync-master (запускается редко, может потерпеть до миграции)
+- OCR pipeline (когда появится Этап 17)
+- user-upload book processing (когда появится Этап 16)
+
+**Альтернативы (rejected или отложены):**
+- Оставить монолит + `@Async` для long tasks - наивный async не
+  даёт persistence + retry, при крэше JVM tasks теряются всё равно
+- Сразу пилить микросервисы под MVP - overengineering, добавляет
+  cognitive overhead (deployment, network calls, eventual consistency)
+  когда нет ещё стабильного MVP. Лучше построить с прицелом и
+  мигрировать когда возникнет реальная боль
+- Cloud-native serverless (AWS Lambda/GCP Functions для тяжёлых
+  процессов) - привязывает к вендору, MVP должен быть deployable
+  on-prem для исламских организаций которые не доверяют cloud'у
+
+**Причины:**
+- Платформа для научного труда. Потеря работы юзера (импорт книги
+  его коллекции, ручная аннотация цитат) - это **потеря доверия**.
+  Архитектура должна быть отказоустойчивой по дизайну, не bolt-on
+  retry на критичных моментах
+- Микросервисы дают независимое масштабирование (PDF download worker
+  может быть на жирной CPU instance, regular API - тонкий)
+- Изоляция blast radius: краш OCR worker'а не валит весь app
+- Open-source self-hostable - таргет аудитория. Архитектура должна
+  быть **simple to deploy** даже когда микросервисная
+
+**Последствия:**
+- (+) MVP-фокус не нарушается - сейчас работаем над функционалом,
+  миграция на event-driven позже
+- (+) При проектировании новых long-process features (OCR, user
+  upload) - **сразу** делать с persistent state и checkpoint'ами,
+  не как монолитный transaction. Это снижает cost будущей миграции
+- (+) admin process tracking UI как первый шаг - viewability
+  готовит почву для worker model
+- (−) Текущие `@Transactional` mapBook и подобные нужно будет
+  переписывать. Это known debt. Не fix'им сейчас потому что
+  работает и пишется fewer LOC
+- (−) Любой "1 большой шаг" процесс который добавляем сейчас -
+  потенциальная боль миграции. Минимизировать новые такие
+  процессы. **Если есть выбор** - сразу разбивать на чанки с
+  intermediate persistence
+
+**Триггеры начала миграции:**
+- (a) Первый production user-upload PDF process в Этапе 16 -
+  процесс длиннее минуты, потеря неприемлема
+- (b) Multi-user beta - когда не один Абдула, а 5+ человек
+  одновременно
+- (c) Аналогичный pain в каком-то конкретном процессе (например
+  shamela mapping упал на крупной книге и пришлось дропать +
+  переимпортировать)
+
+**Связь с другими ADR:**
+- ADR-018 платформенный pivot - этот ADR делает направление
+  явным
+- ADR-020 shamela ETL - текущая реализация подлежит миграции в
+  первую очередь
+
+**Не входит в этот ADR (что не решается сейчас):**
+- Конкретный broker (Postgres queue / RabbitMQ / Redis Streams / Kafka)
+- Deployment topology (Docker Compose / Kubernetes / VM)
+- Worker framework (custom Spring Boot apps / Quartz / Temporal /
+  Camunda / специализированные tools для long-running workflows)
+
+Эти вопросы решатся когда дойдём до фактической миграции, на основе
+актуальных требований.
+
