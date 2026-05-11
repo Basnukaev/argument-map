@@ -4,14 +4,10 @@ import { ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import GraphCanvas from '@/apps/argument-map/components/graph/GraphCanvas';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
+import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
 
 type GraphResponse = components['schemas']['GraphResponse'];
-
-type ViewState =
-  | { kind: 'loading' }
-  | { kind: 'success'; graph: GraphResponse }
-  | { kind: 'error'; message: string };
 
 /**
  * Страница графа аргументации. Тонкий orchestrator: грузит граф темы,
@@ -24,7 +20,7 @@ type ViewState =
  */
 function TopicGraphPage() {
   const { topicId } = useParams<{ topicId: string }>();
-  const [state, setState] = useState<ViewState>({ kind: 'loading' });
+  const [state, setState] = useState<AsyncState<GraphResponse>>({ kind: 'loading' });
   const [refreshKey, setRefreshKey] = useState(0);
 
   const refetch = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -36,7 +32,7 @@ function TopicGraphPage() {
       signal: controller.signal,
     })
       .then((graph) => {
-        setState({ kind: 'success', graph });
+        setState({ kind: 'success', data: graph });
       })
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;
@@ -52,9 +48,9 @@ function TopicGraphPage() {
   }, [topicId, refreshKey]);
 
   const topicTitle =
-    state.kind === 'success' ? (state.graph.topic?.title ?? 'Граф темы') : 'Граф темы';
+    state.kind === 'success' ? (state.data.topic?.title ?? 'Граф темы') : 'Граф темы';
   const topicDescription =
-    state.kind === 'success' ? state.graph.topic?.description : undefined;
+    state.kind === 'success' ? state.data.topic?.description : undefined;
 
   return (
     <div className="flex h-screen flex-col bg-slate-50/60">
@@ -103,7 +99,7 @@ function TopicGraphPage() {
         )}
 
         {state.kind === 'success' && topicId && (
-          <GraphCanvas graph={state.graph} topicId={topicId} onRefetch={refetch} />
+          <GraphCanvas graph={state.data} topicId={topicId} onRefetch={refetch} />
         )}
       </main>
     </div>

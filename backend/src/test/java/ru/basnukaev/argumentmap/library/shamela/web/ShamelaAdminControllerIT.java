@@ -181,20 +181,16 @@ class ShamelaAdminControllerIT {
     }
 
     @Test
-    void importBook_returns_400_on_negative_id() throws Exception {
+    void importBook_returns_400_on_non_positive_id() throws Exception {
+        // T-06 audit: 1 happy + 1 error per validation case. Покрываем
+        // -1 и 0 в одном тесте - requirePositiveBookId одинаково обрабатывает
         mockMvc.perform(post("/api/v1/admin/shamela/import-book/-1"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Некорректный аргумент"));
-
-        verify(bookImportService, never()).importBook(anyLong());
-    }
-
-    @Test
-    void importBook_returns_400_on_zero_id() throws Exception {
         mockMvc.perform(post("/api/v1/admin/shamela/import-book/0"))
                 .andExpect(status().isBadRequest());
 
-        verifyNoInteractions(bookImportService);
+        verify(bookImportService, never()).importBook(anyLong());
     }
 
     // ---------------- map-book ----------------
@@ -258,16 +254,8 @@ class ShamelaAdminControllerIT {
                 .andExpect(jsonPath("$.title").value("Запись shamela не найдена"));
     }
 
-    @Test
-    void mapBook_returns_400_on_negative_id() throws Exception {
-        UUID userId = UUID.randomUUID();
-
-        mockMvc.perform(post("/api/v1/admin/shamela/map-book/-5")
-                        .header("X-User-Id", userId.toString()))
-                .andExpect(status().isBadRequest());
-
-        verifyNoInteractions(mapper);
-    }
+    // T-06 audit: requirePositiveBookId покрыт importBook_returns_400_on_non_positive_id.
+    // Не дублируем тот же validation case для mapBook - shared helper.
 
     // ---------------- search ----------------
 

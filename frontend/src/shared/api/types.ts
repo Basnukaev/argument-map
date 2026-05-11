@@ -292,6 +292,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/library/books/{bookId}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["streamPdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/books/{bookId}/pdf/info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPdfInfo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/library/books/{bookId}/pages": {
         parameters: {
             query?: never;
@@ -690,6 +722,29 @@ export interface components {
             parentChapterId?: string;
             /** Format: int32 */
             startPageNumber?: number;
+        };
+        ResourceRegion: {
+            /** Format: binary */
+            resource?: string;
+            /** Format: int64 */
+            position?: number;
+            /** Format: int64 */
+            count?: number;
+        };
+        PdfFileInfoResponse: {
+            /** Format: int32 */
+            index?: number;
+            label?: string;
+            /** Format: int64 */
+            sizeBytes?: number;
+            /** Format: int32 */
+            pageCount?: number;
+        };
+        PdfInfoResponse: {
+            hasCover?: boolean;
+            /** Format: int64 */
+            totalSizeBytes?: number;
+            files?: components["schemas"]["PdfFileInfoResponse"][];
         };
         PageSummaryResponse: {
             /** Format: uuid */
@@ -1381,6 +1436,54 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    streamPdf: {
+        parameters: {
+            query?: {
+                fileIndex?: number;
+            };
+            header?: {
+                Range?: string;
+            };
+            path: {
+                bookId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ResourceRegion"];
+                };
+            };
+        };
+    };
+    getPdfInfo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PdfInfoResponse"];
+                };
             };
         };
     };

@@ -43,29 +43,7 @@ const COMPACT_H = 170;
 const EXPANDED_W = 480;
 const EXPANDED_H = 340;
 
-interface BBox {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-}
-
-function getBoundingBox(nodes: Node[]): BBox | null {
-  if (nodes.length === 0) return null;
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const n of nodes) {
-    const w = n.measured?.width ?? n.width ?? 288;
-    const h = n.measured?.height ?? n.height ?? 120;
-    if (n.position.x < minX) minX = n.position.x;
-    if (n.position.y < minY) minY = n.position.y;
-    if (n.position.x + w > maxX) maxX = n.position.x + w;
-    if (n.position.y + h > maxY) maxY = n.position.y + h;
-  }
-  return { minX, minY, maxX, maxY };
-}
+import { getBoundingBox, expandBounds, type BBox } from '@/apps/argument-map/utils/graphBounds';
 
 /**
  * Кастомная мини-карта: показывает узлы (как уменьшенные NodeCard через
@@ -102,17 +80,15 @@ function CompactMiniMap() {
 
   // итоговый viewBox - объединение bbox узлов и текущего viewport,
   // чтобы оба влезли с отступом
-  let view: BBox;
-  if (bbox) {
-    view = {
-      minX: Math.min(bbox.minX, viewport.x) - PAD,
-      minY: Math.min(bbox.minY, viewport.y) - PAD,
-      maxX: Math.max(bbox.maxX, viewport.x + viewport.w) + PAD,
-      maxY: Math.max(bbox.maxY, viewport.y + viewport.h) + PAD,
-    };
-  } else {
-    view = { minX: 0, minY: 0, maxX: canvasW, maxY: canvasH };
-  }
+  const viewportBox: BBox = {
+    minX: viewport.x,
+    minY: viewport.y,
+    maxX: viewport.x + viewport.w,
+    maxY: viewport.y + viewport.h,
+  };
+  const view: BBox = bbox
+    ? expandBounds(bbox, viewportBox, PAD)
+    : { minX: 0, minY: 0, maxX: canvasW, maxY: canvasH };
   const viewW = view.maxX - view.minX;
   const viewH = view.maxY - view.minY;
 
