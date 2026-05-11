@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2, ZoomIn, ZoomOut } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
@@ -8,18 +8,20 @@ import { API_BASE_URL, apiGetRaw, ApiError } from '@/shared/api/client';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-// Локальный тип до regen-api (Pre-flight Сессии 25 - перезапуск
-// бэка → npm run generate-api). После regen заменим на
-// components['schemas']['PdfInfoResponse']
+// Локальный тип. isCover пришёл в backend response, types.ts регенерируется
+// при следующем `npm run generate-api` после рестарта бэка. До регенерации
+// поле читается через optional.
+type PdfFileInfoEntry = {
+  index?: number;
+  label?: string;
+  isCover?: boolean;
+  sizeBytes?: number | null;
+  pageCount?: number | null;
+};
 type PdfInfo = {
   hasCover?: boolean;
   totalSizeBytes?: number | null;
-  files?: Array<{
-    index?: number;
-    label?: string;
-    sizeBytes?: number | null;
-    pageCount?: number | null;
-  }>;
+  files?: PdfFileInfoEntry[];
 };
 
 // PDF.js worker - vite-aware URL. Import.meta.url разрешается в
@@ -63,6 +65,7 @@ type LoadState =
  */
 function PdfViewer({ bookId, isArabic }: PdfViewerProps) {
   const [state, setState] = useState<LoadState>({ kind: 'loading-info' });
+  const [fileIndex, setFileIndex] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [scale, setScale] = useState(1.2);
@@ -72,7 +75,15 @@ function PdfViewer({ bookId, isArabic }: PdfViewerProps) {
     apiGetRaw<PdfInfo>(`/api/v1/library/books/${bookId}/pdf/info`, {
       signal: controller.signal,
     })
-      .then((info) => setState({ kind: 'ready', info }))
+      .then((info) => {
+        setState({ kind: 'ready', info });
+        // Cover - всегда обложка по convention shamela/archive.org.
+        // По умолчанию открываем первый не-cover файл (юзер хочет
+        // читать книгу, а не любоваться обложкой)
+        const firstContentFile = (info.files ?? []).find((f) => f.isCover === false);
+        const fallback = info.files?.[0];
+        setFileIndex(firstContentFile?.index ?? fallback?.index ?? 0);
+      })
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;
         if (e instanceof ApiError && e.problem.type?.includes('pdf-not-available')) {
@@ -89,6 +100,30 @@ function PdfViewer({ bookId, isArabic }: PdfViewerProps) {
       });
     return () => controller.abort();
   }, [bookId]);
+
+  // Multi-volume - dropdown показываем когда есть >1 не-cover файла.
+  // Labels: арабские шамеловские (المقدمة) показываем как есть, а
+  // безсмысленные filename-like (01_113015) переименовываем в "Том N"
+  // по порядковому номеру (исключая cover). Cover скрываем из dropdown.
+  //
+  // Hooks обязаны быть до early returns - правило react-hooks/rules-of-hooks.
+  // Поэтому useMemo живут здесь, а не после ready-check
+  const contentFiles = useMemo(
+    () => (state.kind === 'ready' ? (state.info.files ?? []).filter((f) => !f.isCover) : []),
+    [state],
+  );
+  const fileLabels = useMemo(
+    () =>
+      contentFiles.map((f, i) => {
+        const raw = f.label ?? '';
+        const hasArabic = /[؀-ۿ]/.test(raw);
+        const looksLikeFilename = /^\d{2}_\d+/.test(raw);
+        const display = hasArabic ? raw : looksLikeFilename ? `Том ${i + 1}` : raw;
+        return { index: f.index ?? 0, display };
+      }),
+    [contentFiles],
+  );
+  const showVolumeSelector = fileLabels.length > 1;
 
   if (state.kind === 'loading-info') {
     return (
@@ -130,14 +165,47 @@ function PdfViewer({ bookId, isArabic }: PdfViewerProps) {
   // бы HTML и упал с InvalidPDFException. Production-сборка идёт через
   // тот же origin, API_BASE_URL может быть пустым - тогда работает
   // как относительный
-  const fileUrl = `${API_BASE_URL}/api/v1/library/books/${bookId}/pdf?fileIndex=0`;
+  const activeFileIndex = fileIndex ?? 0;
+  const fileUrl = `${API_BASE_URL}/api/v1/library/books/${bookId}/pdf?fileIndex=${activeFileIndex}`;
   const goPrev = () => pageNumber > 1 && setPageNumber(pageNumber - 1);
   const goNext = () => numPages && pageNumber < numPages && setPageNumber(pageNumber + 1);
   const zoomIn = () => setScale((s) => Math.min(s + 0.2, 3));
   const zoomOut = () => setScale((s) => Math.max(s - 0.2, 0.5));
 
+  const handleVolumeChange = (newIndex: number) => {
+    if (newIndex === activeFileIndex) return;
+    setFileIndex(newIndex);
+    setPageNumber(1);
+    setNumPages(null);
+  };
+
   return (
     <Card className="overflow-hidden">
+      {/* Volume selector - только для multi-volume книг */}
+      {showVolumeSelector && (
+        <div
+          className="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2"
+          dir={isArabic ? 'rtl' : 'ltr'}
+        >
+          <label className="text-[11px] uppercase tracking-wide text-slate-500" htmlFor="pdf-volume">
+            Том
+          </label>
+          <select
+            id="pdf-volume"
+            className="rounded border border-slate-300 bg-white px-2 py-1 text-[13px] text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            value={activeFileIndex}
+            onChange={(e) => handleVolumeChange(Number(e.target.value))}
+            dir={isArabic ? 'rtl' : 'ltr'}
+          >
+            {fileLabels.map((f) => (
+              <option key={f.index} value={f.index}>
+                {f.display}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Pagination toolbar */}
       <div
         className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2.5"

@@ -37,6 +37,11 @@ export function useApiQuery<T>(path: string | null, options: Options = {}): Asyn
 
   useEffect(() => {
     if (!enabled || path == null) {
+      // Reset на 'idle' при transition enabled→false / path→null:
+      // нельзя выразить derived state без потери семантики (если был
+      // success, после disable hook должен вернуть idle, не закешированный
+      // success). Explicit trade-off за ясность.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setState({ kind: 'idle' });
       return;
     }
