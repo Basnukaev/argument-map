@@ -78,7 +78,18 @@ git mv + sed-rename импортов, 1 коммит:
   от XSS при добавлении не-shamela HTML источников
 - 136 тестов passed, build зелёный, bundle +10 KB gzip (DOMPurify)
 
-Всего за сессию: **9 коммитов** в master, **150+ файлов изменено**:
+**Доп. polishing pass (после первого финала):**
+- GraphCanvas split: 768 → 713 LOC, extracted GraphPanels (151 LOC)
+  + useGraphEscape hook (59 LOC)
+- T-04 explicit timeouts: 28 waitFor() → waitForApi(200ms) helper в
+  test/asyncHelpers.ts. Sed-миграция всех тестов
+- F-10 AsyncState demo: TopicListPage мигрирован на generic
+  AsyncState<T>. Discriminator переименован status→kind под convention.
+  Остальные 7 компонентов с уникальными success-полями оставлены
+- D-05 + D-07 docs: vision.md timeline disclaimer + api-contract.md
+  springdoc gap notice
+
+Всего за сессию: **11 коммитов** в master, **170+ файлов изменено**:
 - a3f3a20 chore: pre-flight (types.ts regen + npm permission)
 - 2ab4098 docs(spec): cleanup marathon design
 - 58c8938 docs(plan): implementation plan
@@ -89,6 +100,8 @@ git mv + sed-rename импортов, 1 коммит:
 - e261027 docs: Phase 5 - архивация progress + CLAUDE.md
 - 69bdc66 chore: marathon финализация - SESSION_START + progress итог
 - a64d147 refactor(frontend): Phase 2.b/c/F-03 split монстров + F-14 DOMPurify
+- 187cc64 docs: cleanup marathon финал - обновить progress Сессии 25
+- 0ac038a refactor: marathon финал-2 - GraphCanvas split + T-04 + F-10 + docs polish
 
 ### Решения
 
@@ -147,31 +160,32 @@ polish-задачи:
    `ViewState`/`LoadState`/`SourcesState`/`RevisionsState` → единый
    `AsyncState<T>`. Эффект - минус -50 LOC дубль-типов
 
-4. **GraphCanvas (768 LOC) дальнейший split** - всё ещё outside 250
-   LOC порога. Можно extract'нуть:
-   - `GraphPanels.tsx` - 4 RF Panel в bottom-/top-corners (статика)
+4. **GraphCanvas (713 LOC) - дополнительный split** (отложено - prop-drill
+   nightmare без значительного gain'а):
    - `useGraphContextMenu.ts` hook - context menu state + handlers
-     (pane/node/edge)
-   - `useGraphHotkeys.ts` hook - Escape effect
-   После - GraphCanvas ~400 LOC
+   - `useGraphCrud.ts` hook - delete handlers + node-drag PATCH
+   Сделать только если возникает реальный pain. На текущий момент
+   GraphCanvas читаем и понятен
 
-5. **T-01/T-04/T-05/T-06/T-07** - tests smells:
-   - T-04 explicit timeouts в `waitFor()` (30+ мест)
-   - T-05 заменить Tailwind class assertions на семантические
-   - T-06 уменьшить scope ShamelaAdminControllerIT
+5. **T-01/T-05/T-06/T-07** - оставшиеся tests smells:
+   - T-05 заменить Tailwind class assertions на семантические (toHaveClass)
+   - T-06 уменьшить scope ShamelaAdminControllerIT (over-mocking)
    - T-07 magic UUIDs → named constants
    - T-01 split NodeDetailsPanel.test.tsx по логическим suite'ам
-     (теперь когда сам компонент split, тесты тоже можно)
+     (теперь когда сам компонент split на 4 sections, тесты тоже можно
+     разнести на 4 файла)
 
-6. **Phase 5 polishing** D-01/D-02/D-04/D-05/D-06/D-07 - мелочи в
-   docs/ (filler задачи, audit описывает каждую):
+6. **Phase 5 polishing** D-01/D-02/D-04/D-06 - оставшиеся docs мелочи:
    - D-01 ADR template "Implemented in:" поле
    - D-02 устранить дублирование Library в architecture.md vs
      architecture-platform.md
    - D-04 align progress.md vs roadmap.md формат
-   - D-05 api-contract.md springdoc-openapi gap notice
    - D-06 gotchas.md "Решённые ловушки (архив)" reorg
-   - D-07 vision.md timeline disclaimer
+
+7. **F-10 миграция остальных 7 компонентов** на AsyncState (low priority):
+   TopicGraphPage, BookListPage, CreateTopicPage, BookReaderPage,
+   PageView, AddSourceModal/SourceSearchForm, PdfViewer. Каждый -
+   simple rename `state.X` → `state.data` если success-поле одно
 
 Полный список с file:line - в
 `docs/superpowers/audits/2026-05-11-codebase-audit.md` секция
