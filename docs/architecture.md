@@ -282,3 +282,58 @@ service-фасад (например `BookService` валидирует `authori
 
 Архитектурные детали и обоснование решений - в
 `architecture-platform.md`. Решение оформлено как ADR-019.
+
+## Frontend (apps/ + shared/)
+
+С Phase 2 cleanup marathon (Сессия 25, 2026-05-11) фронт перешёл на
+структуру `apps/{argument-map,library,admin}/` + `shared/` под
+ADR-018 platform pivot. Каждое app - self-contained: pages,
+components, utils, hooks - не пересекаются между apps. Cross-app
+зависимости только через `shared/`.
+
+```
+frontend/src/
+  apps/
+    argument-map/   - граф аргументации
+      pages/        TopicListPage, TopicGraphPage, CreateTopicPage
+      components/   graph/* (NodeCard, CustomEdge, NodeDetailsPanel,
+                    Add*Modal, CompactMiniMap, NodeSelect)
+      utils/        edgeRules, graphLayout, attachmentTokens
+    library/        - библиотека книг shamela + PDF
+      pages/        BookListPage, BookReaderPage
+      components/   PdfViewer
+    admin/          - админ-tooling
+      pages/        AdminShamelaPage
+  shared/
+    api/            client.ts (apiGet/Post/Patch/Delete/Raw,
+                    ApiError, formatApiError), types.ts (autogen)
+    components/
+      layout/       Header
+      ui/           Button, Card, Modal, ContextMenu, Toaster,
+                    StatusBadge, TypeChip, Badge, IconButton, Kbd
+    stores/         toastStore
+    utils/          designTokens
+    types/          async.ts (AsyncState<T,E>)
+  App.tsx, main.tsx, index.css, test-setup.ts
+```
+
+Когда придёт `apps/qa/` (Этап 19), он встанет естественно рядом с
+существующими тремя - shared/ уже содержит всё необходимое для нового
+app.
+
+### Backend boundaries (после Phase 1 cleanup marathon)
+
+Shamela ETL разнесён на specific responsibilities:
+
+- `library/shamela/service/`
+  - `ShamelaMasterSyncService` - syncMaster (каталог)
+  - `ShamelaBookImportService` - importBook (страницы + заголовки)
+  - `ShamelaWorkDirManager` - workdir lifecycle + sqlite lookup
+  - `ShamelaToLibraryMapper` - orchestrator маппинга staging→domain
+- `library/shamela/service/mapper/`
+  - `ShamelaAuthorityResolver`, `ShamelaBookMetadataBuilder`,
+    `ShamelaChapterMapper`, `ShamelaPageMapper`, `ShamelaMapperUtils`
+- `library/shamela/repository/`
+  - `ShamelaDaoSupport` - утилиты для 5 DAO (nullable setters/getters,
+    BATCH_SIZE, sumAffected)
+  - DAOs (Author, Book, Category, Page, Title, SyncState)
