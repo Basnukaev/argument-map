@@ -89,7 +89,17 @@ git mv + sed-rename импортов, 1 коммит:
 - D-05 + D-07 docs: vision.md timeline disclaimer + api-contract.md
   springdoc gap notice
 
-Всего за сессию: **11 коммитов** в master, **170+ файлов изменено**:
+**Доп. polishing pass-2 (финал-3):**
+- T-07: extracted BOOK_ID_SAHIH_AL_BUKHARI/BOOK_ID_NOT_FOUND/etc named
+  constants в ShamelaAdminControllerIT (9 magic 41557L заменены)
+- D-01: добавлено `Реализовано: Сессия N` optional поле в ADR template
+- D-02: architecture.md library раздел указывает на architecture-platform.md
+  как source of truth (избегать дублирования при обновлениях)
+- D-06: gotchas.md header объясняет статус Update-записи как resolved.
+  Решённые не удаляются (retrospective). Архивный файл - при 3+ resolved
+- `./mvnw verify` зелёный
+
+Всего за сессию: **13 коммитов** в master, **175+ файлов изменено**:
 - a3f3a20 chore: pre-flight (types.ts regen + npm permission)
 - 2ab4098 docs(spec): cleanup marathon design
 - 58c8938 docs(plan): implementation plan
@@ -102,6 +112,8 @@ git mv + sed-rename импортов, 1 коммит:
 - a64d147 refactor(frontend): Phase 2.b/c/F-03 split монстров + F-14 DOMPurify
 - 187cc64 docs: cleanup marathon финал - обновить progress Сессии 25
 - 0ac038a refactor: marathon финал-2 - GraphCanvas split + T-04 + F-10 + docs polish
+- eaa277a docs: финальный update progress Сессии 25 - финал-2
+- 651fd53 refactor: marathon финал-3 - T-07 magic UUIDs + D-01/D-02/D-06 docs
 
 ### Решения
 
