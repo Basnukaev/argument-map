@@ -111,7 +111,24 @@ git mv + sed-rename импортов, 1 коммит:
 - T-11: frontend test naming convention документирован в CLAUDE.md
 - 136 frontend тестов passed, `./mvnw verify` зелёный
 
-Всего за сессию: **15 коммитов** в master, **180+ файлов изменено**:
+**Доп. polishing pass-4 (финал-5/6, после backend rerun + ADR fix):**
+- ADR-022 написан - cleanup marathon conventions (apps/, DTO suffix,
+  AsyncState, SRP в services) формализованы
+- api-contract.md "История изменений" обновлена под B-04 breaking rename
+- roadmap.md notice про cleanup marathon + path updates
+- B-04 verify: npm run generate-api на live backend - types.ts
+  идемпотентен (имена правильные)
+- F-06 useGraphBounds extract: bbox utility в graphBounds.ts.
+  CompactMiniMap 244 → 210 LOC
+- F-10 rest: TopicGraphPage migrated на AsyncState<GraphResponse>
+  (3-й demo)
+- F-12 useApiQuery hook создан в shared/hooks/. Generic fetch с
+  AsyncState + AbortController, доступен для future fetch-only
+  компонентов
+- T-06 reduce IT scope: 2 duplicate validation тестов удалены/
+  объединены. ./mvnw verify зелёный
+
+Всего за сессию: **18 коммитов** в master, **190+ файлов изменено**:
 - a3f3a20 chore: pre-flight (types.ts regen + npm permission)
 - 2ab4098 docs(spec): cleanup marathon design
 - 58c8938 docs(plan): implementation plan
@@ -214,18 +231,24 @@ polish-задачи:
    simple rename `state.X` → `state.data` если success-поле одно.
    TopicListPage + BookListPage уже мигрированы как demo
 
-8. **T-06 reduce ShamelaAdminControllerIT mocking** + **T-01 split**:
-   уменьшить тестов через 1 happy + 1 error на endpoint, либо
-   реорганизовать в @Nested classes по endpoint'у
+8. **T-08 Clock injection** в backend для time-dependent тестов
+   (требует services refactor inject Clock параметра, L effort)
 
-9. **T-08 Clock injection** в backend для time-dependent тестов
-   (требует services refactor inject Clock параметр)
+9. **T-01 split ShamelaAdminControllerIT** на @Nested classes - low
+   ROI (file 406 LOC OK после T-06 reduce)
 
-10. **F-11 inline styles → CSS variables** для SVG stroke и
-    динамических классов
+10. **F-11 inline styles → CSS variables** - после анализа inline
+    styles **необходимы** для dynamic values (SVG stroke runtime
+    tokens, gridTemplateColumns от count, paddingInlineStart от depth).
+    Audit finding оказался false positive
 
-11. **F-12 useApiQuery hook** - если паттерн загрузки начнёт
-    разрастаться. Сейчас formatApiError + AsyncState достаточны
+11. **D-04 progress vs roadmap format align** - архивная история
+    (Сессии 1-21), low value to edit archive
+
+Реально нерешённых импактных findings: **0**. Остальные либо out-of-scope
+(T-09/T-10 feature work), либо false positives (F-11, B-05/B-06/F-08),
+либо real defers с обоснованием (T-08 high effort, T-01 low ROI,
+D-04 archive).
 
 Полный список с file:line - в
 `docs/superpowers/audits/2026-05-11-codebase-audit.md` секция
