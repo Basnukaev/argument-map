@@ -637,6 +637,10 @@ export interface components {
             chapterId?: string;
             /** Format: int32 */
             pageNumber?: number;
+            printedPage?: string;
+            part?: string;
+            /** Format: int32 */
+            pdfPageNumber?: number;
             textContent?: string;
             imageUrl?: string;
             imageRegions?: components["schemas"]["ImageRegionResponse"][];
@@ -692,6 +696,8 @@ export interface components {
             id?: string;
             /** Format: int32 */
             pageNumber?: number;
+            printedPage?: string;
+            part?: string;
             /** Format: uuid */
             chapterId?: string;
             hasText?: boolean;

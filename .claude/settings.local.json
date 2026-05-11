@@ -41,7 +41,8 @@
       "Bash(./mvnw -q -DskipTests compile)",
       "Bash(./mvnw -DskipTests compile)",
       "Bash(./mvnw -q -DskipTests test-compile)",
-      "Bash(./mvnw -DskipTests test-compile)"
+      "Bash(./mvnw -DskipTests test-compile)",
+      "Bash(npm run *)"
     ]
   },
   "outputStyle": "Explanatory"
