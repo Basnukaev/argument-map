@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import { waitForApi } from '@/test/asyncHelpers';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
@@ -134,7 +135,7 @@ describe('NodeDetailsPanel', () => {
     await userEvent.type(textarea, 'Новый текст');
     await userEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
 
-    await waitFor(() => expect(onUpdated).toHaveBeenCalledTimes(1));
+    await waitForApi(() => expect(onUpdated).toHaveBeenCalledTimes(1));
     expect(receivedBody).toEqual({ content: 'Новый текст' });
   });
 
@@ -161,7 +162,7 @@ describe('NodeDetailsPanel', () => {
     await userEvent.type(textarea, 'Что-то');
     await userEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
 
-    await waitFor(() => expect(screen.getByText(/не должно быть пустым/)).toBeInTheDocument());
+    await waitForApi(() => expect(screen.getByText(/не должно быть пустым/)).toBeInTheDocument());
     expect(onUpdated).not.toHaveBeenCalled();
   });
 
@@ -391,7 +392,7 @@ describe('NodeDetailsPanel', () => {
       await userEvent.click(screen.getByRole('button', { name: /Цитаты/ }));
       await screen.findByText('Какая-то книга');
       await userEvent.click(screen.getByRole('button', { name: 'Отвязать цитату' }));
-      await waitFor(() => expect(deleteCalledFor).toBe(SOURCE_ID));
+      await waitForApi(() => expect(deleteCalledFor).toBe(SOURCE_ID));
       expect(screen.queryByText('Какая-то книга')).not.toBeInTheDocument();
     });
 

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import { waitForApi } from '@/test/asyncHelpers';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
@@ -41,7 +42,7 @@ describe('TopicGraphPage', () => {
       ),
     );
     renderPage();
-    await waitFor(() => {
+    await waitForApi(() => {
       expect(screen.getByText('Дозволенность мавлида')).toBeInTheDocument();
     });
     expect(screen.getByText('Разбор позиций')).toBeInTheDocument();
@@ -54,7 +55,7 @@ describe('TopicGraphPage', () => {
       ),
     );
     renderPage();
-    await waitFor(() => {
+    await waitForApi(() => {
       expect(screen.getByText(/В этом графе пока нет узлов/i)).toBeInTheDocument();
     });
   });
@@ -74,7 +75,7 @@ describe('TopicGraphPage', () => {
       ),
     );
     renderPage();
-    await waitFor(() => {
+    await waitForApi(() => {
       expect(screen.getByText('Ошибка')).toBeInTheDocument();
     });
     expect(screen.getByText(/не найдена/i)).toBeInTheDocument();
@@ -87,7 +88,7 @@ describe('TopicGraphPage', () => {
       ),
     );
     renderPage();
-    await waitFor(() => {
+    await waitForApi(() => {
       expect(screen.getByText('T')).toBeInTheDocument();
     });
     expect(screen.getByRole('link', { name: 'К списку' })).toHaveAttribute('href', '/topics');

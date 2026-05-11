@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import { waitForApi } from '@/test/asyncHelpers';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
@@ -62,7 +63,7 @@ describe('AddNodeModal', () => {
 
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
-    await waitFor(() => {
+    await waitForApi(() => {
       expect(onCreated).toHaveBeenCalledOnce();
     });
     expect(onClose).toHaveBeenCalledOnce();
@@ -94,7 +95,7 @@ describe('AddNodeModal', () => {
     await user.type(screen.getByLabelText(/Содержание/i), 'X');
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
-    await waitFor(() => {
+    await waitForApi(() => {
       expect(screen.getByText(/слишком короткое/i)).toBeInTheDocument();
     });
     expect(onCreated).not.toHaveBeenCalled();
@@ -126,7 +127,7 @@ describe('AddNodeModal', () => {
     await user.type(screen.getByLabelText(/Содержание/i), 'X');
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
-    await waitFor(() => {
+    await waitForApi(() => {
       expect(received).toMatchObject({ nodeType: 'CLAIM' });
     });
   });

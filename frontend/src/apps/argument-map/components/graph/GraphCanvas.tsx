@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
-  Panel,
   ConnectionMode,
   useNodesState,
   useEdgesState,
@@ -13,24 +12,9 @@ import {
   type Connection,
   type ReactFlowInstance,
 } from '@xyflow/react';
-import {
-  Plus,
-  Trash2,
-  Eye,
-  EyeOff,
-  Pencil,
-  ArrowUp,
-  ArrowDown,
-  Link2,
-  ZoomIn,
-  ZoomOut,
-  Maximize,
-} from 'lucide-react';
+import { Plus, Trash2, Pencil, ArrowUp, ArrowDown } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
-import IconButton from '@/shared/components/ui/IconButton';
-import Kbd from '@/shared/components/ui/Kbd';
 import ContextMenu, { type ContextMenuItem } from '@/shared/components/ui/ContextMenu';
-import { STATUS_TOKENS } from '@/shared/utils/designTokens';
 import NodeCard, { type NodeCardNode, type NodeCardData } from '@/apps/argument-map/components/graph/NodeCard';
 import CustomEdge, { type CustomEdgeEdge } from '@/apps/argument-map/components/graph/CustomEdge';
 import AddNodeModal, { type AutoEdgeSpec } from '@/apps/argument-map/components/graph/AddNodeModal';
@@ -38,6 +22,8 @@ import AddEdgeModal from '@/apps/argument-map/components/graph/AddEdgeModal';
 import NodeDetailsPanel from '@/apps/argument-map/components/graph/NodeDetailsPanel';
 import EdgeDetailsPanel from '@/apps/argument-map/components/graph/EdgeDetailsPanel';
 import CompactMiniMap from '@/apps/argument-map/components/graph/CompactMiniMap';
+import GraphPanels from '@/apps/argument-map/components/graph/GraphPanels';
+import { useGraphEscape } from '@/apps/argument-map/hooks/useGraphEscape';
 import {
   getAllowedEdgeTypes,
   getRelatedNodeOptions,
@@ -547,51 +533,20 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
     setEditTargetEdgeId(null);
   }, []);
 
-  // Escape с очередью: фокус в sidebar -> закрыть; иначе selection -> снять;
-  // иначе панель -> закрыть. Modal/ContextMenu закроются сами
-  useEffect(() => {
-    function onEsc(e: KeyboardEvent) {
-      if (e.key !== 'Escape') return;
+  const clearSelection = useCallback(() => {
+    setSelectedNodeIds([]);
+    setSelectedEdgeIds([]);
+    setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
+    setEdges((eds) => eds.map((edge) => ({ ...edge, selected: false })));
+  }, [setNodes, setEdges]);
 
-      if (document.querySelector('dialog[open]')) return;
-      if (contextMenu) return;
-
-      const active = document.activeElement;
-      const inSidebar =
-        active instanceof HTMLElement && active.closest('aside[role="complementary"]');
-      const hasSelection = selectedNodeIds.length > 0 || selectedEdgeIds.length > 0;
-      const hasDetail = detailNodeId !== null || detailEdgeId !== null;
-
-      if (inSidebar && hasDetail) {
-        closeDetail();
-        e.preventDefault();
-        return;
-      }
-      if (hasSelection) {
-        setSelectedNodeIds([]);
-        setSelectedEdgeIds([]);
-        setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
-        setEdges((eds) => eds.map((edge) => ({ ...edge, selected: false })));
-        e.preventDefault();
-        return;
-      }
-      if (hasDetail) {
-        closeDetail();
-        e.preventDefault();
-      }
-    }
-    document.addEventListener('keydown', onEsc);
-    return () => document.removeEventListener('keydown', onEsc);
-  }, [
-    selectedNodeIds.length,
-    selectedEdgeIds.length,
-    detailNodeId,
-    detailEdgeId,
-    contextMenu,
-    closeDetail,
-    setNodes,
-    setEdges,
-  ]);
+  useGraphEscape({
+    hasSelection: selectedNodeIds.length > 0 || selectedEdgeIds.length > 0,
+    hasDetail: detailNodeId !== null || detailEdgeId !== null,
+    hasContextMenu: contextMenu !== null,
+    onClearSelection: clearSelection,
+    onCloseDetail: closeDetail,
+  });
 
   async function handleDelete() {
     if (selectedCount === 0) return;
@@ -682,109 +637,17 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
         >
           <Background gap={24} size={1} />
           <CompactMiniMap />
-
-          {/* Левая вертикальная toolbar */}
-          <Panel
-            position="top-left"
-            className="!m-3 flex w-12 flex-col items-center gap-1 rounded-md border border-slate-200 bg-white/95 py-2 shadow-md backdrop-blur"
-          >
-            <IconButton
-              icon={Plus}
-              label="Добавить узел"
-              size="md"
-              onClick={() => setAddNodeOpen(true)}
-            />
-            <IconButton
-              icon={Link2}
-              label={canAddEdge ? 'Создать связь' : 'Нужно минимум 2 узла'}
-              size="md"
-              disabled={!canAddEdge}
-              onClick={openAddEdge}
-            />
-            <div className="my-1 h-px w-7 bg-slate-200" />
-            <IconButton
-              icon={showEdgeLabels ? Eye : EyeOff}
-              label={showEdgeLabels ? 'Скрыть подписи рёбер' : 'Показать подписи рёбер'}
-              size="md"
-              active={showEdgeLabels}
-              onClick={() => setShowEdgeLabels((v) => !v)}
-            />
-            <div className="my-1 h-px w-7 bg-slate-200" />
-            <IconButton
-              icon={Trash2}
-              label={
-                selectedCount === 0
-                  ? 'Удалить (выберите узлы или связи)'
-                  : `Удалить (${selectedCount})`
-              }
-              size="md"
-              disabled={selectedCount === 0 || deleting}
-              onClick={handleDelete}
-              className={selectedCount > 0 && !deleting ? '!text-red-600 hover:!bg-red-50' : ''}
-            />
-          </Panel>
-
-          <Panel
-            position="top-right"
-            className="!m-3 flex items-center gap-3 rounded-md border border-slate-200 bg-white/95 px-3 py-2 text-[11px] text-slate-600 shadow-sm backdrop-blur"
-          >
-            <span className="inline-flex items-center gap-1">
-              <Kbd>2клик</Kbd> детали
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <Kbd>Del</Kbd> удалить
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <Kbd>ПКМ</Kbd> меню
-            </span>
-          </Panel>
-
-          <Panel
-            position="bottom-left"
-            className="!m-3 max-w-[280px] rounded-md border border-slate-200 bg-white/95 p-3 shadow-md backdrop-blur"
-          >
-            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-              Статусы
-            </div>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-              {(Object.keys(STATUS_TOKENS) as Array<keyof typeof STATUS_TOKENS>).map((key) => {
-                const token = STATUS_TOKENS[key];
-                return (
-                  <div key={key} className="flex items-center gap-1.5 text-[11px] text-slate-700">
-                    <span className={`h-2.5 w-3 rounded-sm ${token.bar}`} aria-hidden="true" />
-                    {token.label}
-                  </div>
-                );
-              })}
-            </div>
-          </Panel>
-
-          {rfInstance && (
-            <Panel
-              position="bottom-center"
-              className="!m-3 flex items-center gap-0.5 rounded-md border border-slate-200 bg-white/95 p-1 shadow-md backdrop-blur"
-            >
-              <IconButton
-                icon={ZoomOut}
-                label="Уменьшить"
-                size="sm"
-                onClick={() => rfInstance.zoomOut()}
-              />
-              <IconButton
-                icon={ZoomIn}
-                label="Увеличить"
-                size="sm"
-                onClick={() => rfInstance.zoomIn()}
-              />
-              <div className="mx-1 h-5 w-px bg-slate-200" />
-              <IconButton
-                icon={Maximize}
-                label="По размеру"
-                size="sm"
-                onClick={() => rfInstance.fitView({ padding: 0.2 })}
-              />
-            </Panel>
-          )}
+          <GraphPanels
+            showEdgeLabels={showEdgeLabels}
+            onToggleLabels={() => setShowEdgeLabels((v) => !v)}
+            canAddEdge={canAddEdge}
+            onAddNode={() => setAddNodeOpen(true)}
+            onAddEdge={openAddEdge}
+            selectedCount={selectedCount}
+            deleting={deleting}
+            onDelete={handleDelete}
+            rfInstance={rfInstance as ReactFlowInstance<never, never> | null}
+          />
         </ReactFlow>
       )}
 

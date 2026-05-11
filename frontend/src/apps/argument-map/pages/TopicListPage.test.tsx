@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import { waitForApi } from '@/test/asyncHelpers';
 import { MemoryRouter } from 'react-router';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
@@ -30,7 +31,7 @@ describe('TopicListPage', () => {
   it('показывает empty-state на пустом списке', async () => {
     server.use(http.get(`${BASE}/api/v1/topics`, () => HttpResponse.json([])));
     renderPage();
-    await waitFor(() => {
+    await waitForApi(() => {
       expect(screen.getByText(/Пока нет тем/i)).toBeInTheDocument();
     });
   });
@@ -54,7 +55,7 @@ describe('TopicListPage', () => {
       ),
     );
     renderPage();
-    await waitFor(() => {
+    await waitForApi(() => {
       expect(screen.getByText('Дозволенность мавлида')).toBeInTheDocument();
     });
     expect(screen.getByText('Виды бид')).toBeInTheDocument();
@@ -74,7 +75,7 @@ describe('TopicListPage', () => {
       ),
     );
     renderPage();
-    await waitFor(() => {
+    await waitForApi(() => {
       expect(screen.getByText('Ошибка')).toBeInTheDocument();
     });
     expect(screen.getByText(/БД недоступна/)).toBeInTheDocument();

@@ -724,6 +724,15 @@ Response 200 - `BookDetailResponse` (поля как в `BookResponse` +
 }
 ```
 
+> **Примечание (springdoc-openapi gap):** поле `children` в `ChapterResponse`
+> приходит в runtime JSON (LibraryDtoMappers строит nested tree), но
+> отсутствует в `/v3/api-docs` schema из-за известного ограничения
+> springdoc-openapi 2.x на self-referential properties. Frontend
+> восстанавливает type через intersection:
+> `type Chapter = components['schemas']['ChapterResponse'] & { children?: Chapter[] }`
+> (см. `gotchas.md`). Тип Chapter определён в
+> `frontend/src/apps/library/components/ChapterList.tsx`.
+
 Ошибки: 404 `book-not-found`.
 
 ### DELETE /api/v1/library/books/{id} - удалить книгу

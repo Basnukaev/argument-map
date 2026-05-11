@@ -12,14 +12,10 @@ import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import { apiGet, ApiError } from '@/shared/api/client';
+import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
 
 type Topic = components['schemas']['TopicResponse'];
-
-type ViewState =
-  | { kind: 'loading' }
-  | { kind: 'success'; topics: Topic[] }
-  | { kind: 'error'; message: string };
 
 const DATE_FORMAT = new Intl.DateTimeFormat('ru-RU', {
   day: 'numeric',
@@ -34,14 +30,14 @@ function formatShortDate(iso?: string): string {
 }
 
 function TopicListPage() {
-  const [state, setState] = useState<ViewState>({ kind: 'loading' });
+  const [state, setState] = useState<AsyncState<Topic[]>>({ kind: 'loading' });
   const [search, setSearch] = useState('');
 
   useEffect(() => {
     const controller = new AbortController();
     apiGet('/api/v1/topics', { signal: controller.signal })
       .then((topics) => {
-        setState({ kind: 'success', topics: (topics ?? []) as Topic[] });
+        setState({ kind: 'success', data: (topics ?? []) as Topic[] });
       })
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;
@@ -58,11 +54,12 @@ function TopicListPage() {
 
   const filteredTopics = useMemo(() => {
     if (state.kind !== 'success') return [];
-    if (!search.trim()) return state.topics;
+    if (!search.trim()) return state.data;
     const q = search.trim().toLowerCase();
-    return state.topics.filter((t) =>
-      (t.title ?? '').toLowerCase().includes(q) ||
-      (t.description ?? '').toLowerCase().includes(q),
+    return state.data.filter(
+      (t) =>
+        (t.title ?? '').toLowerCase().includes(q) ||
+        (t.description ?? '').toLowerCase().includes(q),
     );
   }, [state, search]);
 
@@ -80,7 +77,7 @@ function TopicListPage() {
               <p className="mt-1 text-[13px] text-slate-500">
                 Структурированные дискуссии в виде графа ·{' '}
                 <span className="font-mono font-semibold text-slate-700">
-                  {state.topics.length} актив{state.topics.length === 1 ? 'ная' : 'ных'}
+                  {state.data.length} актив{state.data.length === 1 ? 'ная' : 'ных'}
                 </span>
               </p>
             )}
@@ -123,7 +120,7 @@ function TopicListPage() {
           </Card>
         )}
 
-        {state.kind === 'success' && state.topics.length === 0 && (
+        {state.kind === 'success' && state.data.length === 0 && (
           <Card className="mx-auto max-w-2xl p-12 text-center">
             <p className="text-[15px] text-slate-700">Пока нет тем. Создай первую</p>
             <Link to="/topics/new" className="mt-4 inline-block">
@@ -132,7 +129,7 @@ function TopicListPage() {
           </Card>
         )}
 
-        {state.kind === 'success' && state.topics.length > 0 && filteredTopics.length === 0 && (
+        {state.kind === 'success' && state.data.length > 0 && filteredTopics.length === 0 && (
           <p className="text-center text-[13px] text-slate-500">
             Ничего не найдено по запросу "{search}"
           </p>

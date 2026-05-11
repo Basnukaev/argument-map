@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import { waitForApi } from '@/test/asyncHelpers';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { http, HttpResponse } from 'msw';
@@ -49,7 +50,7 @@ describe('CreateTopicPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
-    await waitFor(() => {
+    await waitForApi(() => {
       expect(screen.getByTestId('graph-page')).toBeInTheDocument();
     });
 
@@ -82,7 +83,7 @@ describe('CreateTopicPage', () => {
     await user.type(screen.getByLabelText('Корневой вопрос'), 'Q');
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
-    await waitFor(() => {
+    await waitForApi(() => {
       expect(screen.getByText('не должно быть пустым')).toBeInTheDocument();
     });
   });
@@ -109,7 +110,7 @@ describe('CreateTopicPage', () => {
     await user.type(screen.getByLabelText('Корневой вопрос'), 'Q');
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
-    await waitFor(() => {
+    await waitForApi(() => {
       expect(screen.getByText('Что-то пошло не так')).toBeInTheDocument();
     });
   });

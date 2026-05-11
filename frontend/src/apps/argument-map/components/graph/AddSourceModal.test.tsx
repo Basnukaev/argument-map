@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import { waitForApi } from '@/test/asyncHelpers';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
@@ -71,7 +72,7 @@ describe('AddSourceModal', () => {
     await screen.findByText('Сахих Муслим, №1162');
     const search = screen.getByLabelText('Поиск источника');
     await userEvent.type(search, 'Бидая');
-    await waitFor(() =>
+    await waitForApi(() =>
       expect(screen.queryByText('Сахих Муслим, №1162')).not.toBeInTheDocument(),
     );
     expect(screen.getByText('Аль-Бидая ва-н-нихая')).toBeInTheDocument();
@@ -119,7 +120,7 @@ describe('AddSourceModal', () => {
     await userEvent.type(screen.getByLabelText('Цитата'), 'Цитата');
     await userEvent.type(screen.getByLabelText('Контекст'), 'контекст');
     await userEvent.click(screen.getByRole('button', { name: /Привязать/ }));
-    await waitFor(() => expect(onAttached).toHaveBeenCalledTimes(1));
+    await waitForApi(() => expect(onAttached).toHaveBeenCalledTimes(1));
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(receivedBody).toEqual({
       sourceId: SRC1,
@@ -140,7 +141,7 @@ describe('AddSourceModal', () => {
     renderModal();
     await userEvent.click(await screen.findByRole('option', { name: /Бидая/ }));
     await userEvent.click(screen.getByRole('button', { name: /Привязать/ }));
-    await waitFor(() => expect(receivedBody).not.toBeNull());
+    await waitForApi(() => expect(receivedBody).not.toBeNull());
     expect(receivedBody).toEqual({ sourceId: SRC2 });
   });
 
@@ -215,7 +216,7 @@ describe('AddSourceModal', () => {
       );
       await userEvent.type(screen.getByLabelText(/Цитата для подписи/), '§4.2');
       await userEvent.click(screen.getByRole('button', { name: /Создать и привязать/ }));
-      await waitFor(() => expect(onAttached).toHaveBeenCalledTimes(1));
+      await waitForApi(() => expect(onAttached).toHaveBeenCalledTimes(1));
       expect(onClose).toHaveBeenCalledTimes(1);
       expect(createBody).toEqual({
         sourceType: 'BOOK',

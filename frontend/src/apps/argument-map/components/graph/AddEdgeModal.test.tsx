@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import { waitForApi } from '@/test/asyncHelpers';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
@@ -85,7 +86,7 @@ describe('AddEdgeModal', () => {
 
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
-    await waitFor(() => {
+    await waitForApi(() => {
       expect(onCreated).toHaveBeenCalledOnce();
     });
     expect(onClose).toHaveBeenCalledOnce();
@@ -113,7 +114,7 @@ describe('AddEdgeModal', () => {
     await user.click(screen.getByLabelText(/Аннулирует/i));
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
-    await waitFor(() => {
+    await waitForApi(() => {
       expect(received).toMatchObject({ edgeType: 'INVALIDATES' });
     });
   });
@@ -152,7 +153,7 @@ describe('AddEdgeModal', () => {
     await pickNode(user, 'Куда', 'Тезис А'); // n2
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
-    await waitFor(() => {
+    await waitForApi(() => {
       expect(screen.getByText('Узлы из разных тем')).toBeInTheDocument();
     });
     expect(onCreated).not.toHaveBeenCalled();
@@ -203,12 +204,12 @@ describe('AddEdgeModal', () => {
     // меняем from на QUESTION: QUESTION → CLAIM запрещает SUPPORTS, остаётся QUALIFIES
     await pickNode(user, 'Откуда', 'Корневой вопрос'); // n1
 
-    await waitFor(() => {
+    await waitForApi(() => {
       expect((screen.getByLabelText(/Уточняет/i) as HTMLInputElement).checked).toBe(true);
     });
 
     await user.click(screen.getByRole('button', { name: 'Создать' }));
-    await waitFor(() => {
+    await waitForApi(() => {
       expect(received).toMatchObject({ edgeType: 'QUALIFIES' });
     });
   });
@@ -248,7 +249,7 @@ describe('AddEdgeModal', () => {
     });
 
     await user.click(screen.getByRole('button', { name: 'Создать' }));
-    await waitFor(() => {
+    await waitForApi(() => {
       expect(received).toMatchObject({
         fromNodeId: 'n3',
         toNodeId: 'n2',

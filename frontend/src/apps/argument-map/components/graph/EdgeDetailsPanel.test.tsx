@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import { waitForApi } from '@/test/asyncHelpers';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
@@ -130,7 +131,7 @@ describe('EdgeDetailsPanel', () => {
     await userEvent.click(screen.getByLabelText(/Опровергает/));
     await userEvent.click(screen.getByRole('button', { name: /Сохранить/ }));
 
-    await waitFor(() => expect(onUpdated).toHaveBeenCalledTimes(1));
+    await waitForApi(() => expect(onUpdated).toHaveBeenCalledTimes(1));
     expect(capturedBody).toEqual({ edgeType: 'REFUTES' });
   });
 
@@ -153,7 +154,7 @@ describe('EdgeDetailsPanel', () => {
     await userEvent.click(screen.getByLabelText(/Опровергает/));
     await userEvent.click(screen.getByRole('button', { name: /Сохранить/ }));
 
-    await waitFor(() =>
+    await waitForApi(() =>
       expect(screen.getByText(/Тип SUPPORTS недопустим/)).toBeInTheDocument(),
     );
     // всё ещё edit-mode
