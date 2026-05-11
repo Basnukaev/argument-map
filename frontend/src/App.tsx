@@ -1,17 +1,17 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router';
-import TopicListPage from '@/pages/TopicListPage';
-import CreateTopicPage from '@/pages/CreateTopicPage';
-import BookListPage from '@/pages/BookListPage';
-import BookReaderPage from '@/pages/BookReaderPage';
-import AdminShamelaPage from '@/pages/AdminShamelaPage';
-import Toaster from '@/components/ui/Toaster';
+import TopicListPage from '@/apps/argument-map/pages/TopicListPage';
+import CreateTopicPage from '@/apps/argument-map/pages/CreateTopicPage';
+import BookListPage from '@/apps/library/pages/BookListPage';
+import BookReaderPage from '@/apps/library/pages/BookReaderPage';
+import AdminShamelaPage from '@/apps/admin/pages/AdminShamelaPage';
+import Toaster from '@/shared/components/ui/Toaster';
 
 // TopicGraphPage тянет тяжёлые зависимости (React Flow, dagre, lucide-icons,
 // все компоненты графа). Loading через React.lazy выкидывает их из initial
 // bundle - страницы списка/создания темы загружаются быстрее, граф
 // подгружается только при переходе на /topics/{id}
-const TopicGraphPage = lazy(() => import('@/pages/TopicGraphPage'));
+const TopicGraphPage = lazy(() => import('@/apps/argument-map/pages/TopicGraphPage'));
 
 function GraphFallback() {
   return (
