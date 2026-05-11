@@ -23,7 +23,7 @@ import ru.basnukaev.argumentmap.library.shamela.service.ShamelaMasterSyncService
 import ru.basnukaev.argumentmap.library.shamela.service.ShamelaToLibraryMapper;
 import ru.basnukaev.argumentmap.library.shamela.web.dto.ImportBookResponse;
 import ru.basnukaev.argumentmap.library.shamela.web.dto.MapBookResponse;
-import ru.basnukaev.argumentmap.library.shamela.web.dto.StagingBookSearchResult;
+import ru.basnukaev.argumentmap.library.shamela.web.dto.StagingBookSearchResponse;
 import ru.basnukaev.argumentmap.library.shamela.web.dto.SyncMasterResponse;
 import ru.basnukaev.argumentmap.library.shamela.web.dto.SyncStatusResponse;
 import ru.basnukaev.argumentmap.library.shamela.web.mapper.ShamelaAdminMappers;
@@ -134,7 +134,7 @@ public class ShamelaAdminController {
      * @param limit  - макс. количество результатов (default 20, max 100)
      */
     @GetMapping("/search")
-    public List<StagingBookSearchResult> searchBooks(
+    public List<StagingBookSearchResponse> searchBooks(
             @RequestParam("q") String query,
             @RequestParam(value = "limit", required = false) Integer limit) {
         if (query == null || query.isBlank()) {
@@ -144,7 +144,7 @@ public class ShamelaAdminController {
         int effective = limit == null ? DEFAULT_SEARCH_LIMIT
                 : Math.min(MAX_SEARCH_LIMIT, Math.max(1, limit));
         return shamelaBookDao.searchByName(query, effective).stream()
-                .map(view -> new StagingBookSearchResult(
+                .map(view -> new StagingBookSearchResponse(
                         view.id(),
                         view.name(),
                         view.authorName(),

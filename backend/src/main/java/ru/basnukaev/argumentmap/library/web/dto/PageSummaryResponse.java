@@ -9,7 +9,7 @@ import java.util.UUID;
  * Оба nullable для книг до миграции 19 или с неструктурированным
  * источником.
  */
-public record PageSummary(
+public record PageSummaryResponse(
         UUID id,
         int pageNumber,
         String printedPage,

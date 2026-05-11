@@ -649,7 +649,7 @@ export interface components {
             /** Format: date-time */
             updatedAt?: string;
         };
-        BookSummary: {
+        BookSummaryResponse: {
             /** Format: uuid */
             id?: string;
             /** @enum {string} */
@@ -691,7 +691,7 @@ export interface components {
             /** Format: int32 */
             startPageNumber?: number;
         };
-        PageSummary: {
+        PageSummaryResponse: {
             /** Format: uuid */
             id?: string;
             /** Format: int32 */
@@ -717,7 +717,7 @@ export interface components {
             /** Format: int32 */
             mappedBooksCount?: number;
         };
-        StagingBookSearchResult: {
+        StagingBookSearchResponse: {
             /** Format: int64 */
             bookId?: number;
             name?: string;
@@ -921,7 +921,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["BookSummary"][];
+                    "*/*": components["schemas"]["BookSummaryResponse"][];
                 };
             };
         };
@@ -1404,7 +1404,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["PageSummary"][];
+                    "*/*": components["schemas"]["PageSummaryResponse"][];
                 };
             };
         };
@@ -1489,7 +1489,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["StagingBookSearchResult"][];
+                    "*/*": components["schemas"]["StagingBookSearchResponse"][];
                 };
             };
         };

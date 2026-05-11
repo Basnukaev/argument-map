@@ -62,11 +62,14 @@ describe('NodeDetailsPanel', () => {
     expect(screen.getByRole('complementary', { name: 'Детали узла' })).toBeInTheDocument();
   });
 
-  it('бейдж статуса показывает русскую метку и цвет', () => {
+  it('бейдж статуса показывает русскую метку', () => {
     renderPanel({ node: makeNode({ status: 'DISPUTED' }) });
     const badge = screen.getByTestId('status-badge');
     expect(badge).toHaveTextContent('Спорный');
-    expect(badge.className).toContain('bg-amber-100');
+    // T-05: не тестируем конкретный Tailwind класс (bg-amber-100) -
+    // хрупко к версиям/палитре. Текст 'Спорный' + правильный data-status
+    // достаточно
+    expect(badge).toHaveAttribute('data-status', 'DISPUTED');
   });
 
   it('метаданные содержат дату создания и id автора', () => {

@@ -7,7 +7,7 @@ package ru.basnukaev.argumentmap.library.shamela.web.dto;
  * через EXISTS-проверку. Используется фронтом admin-страницы для
  * отрисовки карточки результата с кнопкой "Импортировать"/"Открыть".
  */
-public record StagingBookSearchResult(
+public record StagingBookSearchResponse(
         long bookId,
         String name,
         String authorName,

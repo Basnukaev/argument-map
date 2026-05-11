@@ -22,10 +22,10 @@ import ru.basnukaev.argumentmap.library.service.BookService;
 import ru.basnukaev.argumentmap.library.service.PageDetail;
 import ru.basnukaev.argumentmap.library.web.dto.BookDetailResponse;
 import ru.basnukaev.argumentmap.library.web.dto.BookResponse;
-import ru.basnukaev.argumentmap.library.web.dto.BookSummary;
+import ru.basnukaev.argumentmap.library.web.dto.BookSummaryResponse;
 import ru.basnukaev.argumentmap.library.web.dto.CreateBookRequest;
 import ru.basnukaev.argumentmap.library.web.dto.PageResponse;
-import ru.basnukaev.argumentmap.library.web.dto.PageSummary;
+import ru.basnukaev.argumentmap.library.web.dto.PageSummaryResponse;
 import ru.basnukaev.argumentmap.library.web.mapper.LibraryDtoMappers;
 import ru.basnukaev.argumentmap.web.CurrentUser;
 
@@ -54,7 +54,7 @@ public class BookController {
     }
 
     @GetMapping("/books")
-    public List<BookSummary> list(
+    public List<BookSummaryResponse> list(
             @RequestParam(name = "q", required = false) String query,
             @RequestParam(name = "type", required = false) BookType type) {
         return bookService.listBooks(query, type).stream()
@@ -75,7 +75,7 @@ public class BookController {
     }
 
     @GetMapping("/books/{bookId}/pages")
-    public List<PageSummary> listPages(
+    public List<PageSummaryResponse> listPages(
             @PathVariable UUID bookId,
             @RequestParam(name = "from", required = false) Integer fromPage,
             @RequestParam(name = "to", required = false) Integer toPage) {

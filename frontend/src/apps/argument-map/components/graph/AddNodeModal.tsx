@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Plus } from 'lucide-react';
-import Modal from '@/shared/components/ui/Modal';
-import Button from '@/shared/components/ui/Button';
+import FormModal from '@/shared/components/ui/FormModal';
 import Kbd from '@/shared/components/ui/Kbd';
 import { apiPost, apiPatchRaw, formatApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
@@ -117,9 +116,25 @@ function AddNodeModal({
   }
 
   return (
-    <Modal open={open} onClose={handleClose} title="Новый узел">
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <fieldset disabled={submitting || lockNodeType} className="space-y-2">
+    <FormModal
+      open={open}
+      onClose={handleClose}
+      title="Новый узел"
+      onSubmit={handleSubmit}
+      submitting={submitting}
+      submitDisabled={!content.trim()}
+      submitLabel="Создать"
+      submittingLabel="Создаём"
+      submitIcon={Plus}
+      error={error}
+      hotkeyHint={
+        <>
+          <Kbd>⌘</Kbd>
+          <Kbd>↵</Kbd> создать
+        </>
+      }
+    >
+      <fieldset disabled={submitting || lockNodeType} className="space-y-2">
           <legend className="text-[12px] font-medium text-slate-700">
             Тип{lockNodeType ? ' (зафиксирован)' : ''}
           </legend>
@@ -183,38 +198,7 @@ function AddNodeModal({
             2-4 предложения. Можно отредактировать позже.
           </span>
         </div>
-
-        {error && (
-          <div className="rounded-md border border-red-300 bg-red-50 p-3 text-[12px] text-red-800">
-            {error}
-          </div>
-        )}
-
-        <div className="flex items-center justify-between border-t border-slate-200 pt-3">
-          <span className="hidden items-center gap-1 text-[11px] text-slate-500 sm:inline-flex">
-            <Kbd>⌘</Kbd>
-            <Kbd>↵</Kbd> создать
-          </span>
-          <div className="ml-auto flex items-center gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleClose}
-              disabled={submitting}
-            >
-              Отмена
-            </Button>
-            <Button
-              type="submit"
-              icon={Plus}
-              disabled={submitting || !content.trim()}
-            >
-              {submitting ? 'Создаём' : 'Создать'}
-            </Button>
-          </div>
-        </div>
-      </form>
-    </Modal>
+    </FormModal>
   );
 }
 

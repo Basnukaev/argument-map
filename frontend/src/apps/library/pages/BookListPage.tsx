@@ -10,15 +10,11 @@ import {
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
+import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
 
-type Book = components['schemas']['BookSummary'];
+type Book = components['schemas']['BookSummaryResponse'];
 type BookType = NonNullable<Book['bookType']>;
-
-type ViewState =
-  | { kind: 'loading' }
-  | { kind: 'success'; books: Book[] }
-  | { kind: 'error'; message: string };
 
 const BOOK_TYPE_LABEL: Record<BookType, string> = {
   QURAN: 'Коран',
@@ -46,7 +42,7 @@ const BOOK_TYPE_FILTER: ReadonlyArray<{ value: BookType | 'ALL'; label: string }
 ];
 
 function BookListPage() {
-  const [state, setState] = useState<ViewState>({ kind: 'loading' });
+  const [state, setState] = useState<AsyncState<Book[]>>({ kind: 'loading' });
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<BookType | 'ALL'>('ALL');
 
@@ -54,7 +50,7 @@ function BookListPage() {
     const controller = new AbortController();
     apiGetRaw<Book[]>('/api/v1/library/books', { signal: controller.signal })
       .then((books) => {
-        setState({ kind: 'success', books: books ?? [] });
+        setState({ kind: 'success', data: books ?? [] });
       })
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;
@@ -72,7 +68,7 @@ function BookListPage() {
   const filteredBooks = useMemo(() => {
     if (state.kind !== 'success') return [];
     const q = search.trim().toLowerCase();
-    return state.books.filter((b) => {
+    return state.data.filter((b) => {
       if (typeFilter !== 'ALL' && b.bookType !== typeFilter) return false;
       if (!q) return true;
       return (b.title ?? '').toLowerCase().includes(q);
@@ -93,7 +89,7 @@ function BookListPage() {
             <p className="mt-1 text-[13px] text-slate-500">
               Импортированные классические труды и источники ·{' '}
               <span className="font-mono font-semibold text-slate-700">
-                {state.books.length} книг{state.books.length === 1 ? 'а' : ''}
+                {state.data.length} книг{state.data.length === 1 ? 'а' : ''}
               </span>
             </p>
           )}
@@ -148,7 +144,7 @@ function BookListPage() {
           </Card>
         )}
 
-        {state.kind === 'success' && state.books.length === 0 && (
+        {state.kind === 'success' && state.data.length === 0 && (
           <Card className="mx-auto max-w-2xl p-12 text-center">
             <BookOpen size={32} className="mx-auto mb-3 text-slate-400" aria-hidden="true" />
             <p className="text-[15px] text-slate-700">Библиотека пуста</p>
@@ -161,7 +157,7 @@ function BookListPage() {
           </Card>
         )}
 
-        {state.kind === 'success' && state.books.length > 0 && filteredBooks.length === 0 && (
+        {state.kind === 'success' && state.data.length > 0 && filteredBooks.length === 0 && (
           <p className="text-center text-[13px] text-slate-500">
             Ничего не найдено{search && ` по запросу "${search}"`}
             {typeFilter !== 'ALL' && ` среди ${BOOK_TYPE_LABEL[typeFilter].toLowerCase()}`}

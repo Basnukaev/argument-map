@@ -20,7 +20,7 @@ const PdfViewer = lazy(() => import('@/apps/library/components/PdfViewer'));
 type BookDetail = components['schemas']['BookDetailResponse'] & {
   chapters?: Chapter[];
 };
-type PageSummary = components['schemas']['PageSummary'] & {
+type PageSummary = components['schemas']['PageSummaryResponse'] & {
   printedPage?: string | null;
   part?: string | null;
 };

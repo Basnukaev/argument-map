@@ -251,6 +251,15 @@ src/
 - Не тестировать стили / layout / pixel positions.
 - Тесты компонентов в `*.test.tsx` рядом с компонентом.
 - Утилиты — `*.test.ts` рядом.
+- **Naming convention:** frontend-тесты используют **русские описания**
+  (`'кнопка "Создать" disabled пока content пустой'`) - это осознанный
+  выбор для читаемости в UI-контексте. Backend-тесты используют
+  английский `method_behavior_outcome` (см. `backend/docs/coding-standards.md`).
+  Не унифицировать (T-11 audit: разные конвенции уместны разным
+  контекстам)
+- **Async helpers:** для async-операций использовать `waitForApi(...)`
+  (200ms timeout) из `@/test/asyncHelpers` - explicit signal "сколько
+  максимум ждать", быстрее при флэйке (T-04 audit)
 
 ## Локальная разработка
 

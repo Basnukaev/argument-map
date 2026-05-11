@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link as LinkIcon, AlertCircle } from 'lucide-react';
-import Modal from '@/shared/components/ui/Modal';
-import Button from '@/shared/components/ui/Button';
+import FormModal from '@/shared/components/ui/FormModal';
 import Kbd from '@/shared/components/ui/Kbd';
 import NodeSelect from '@/apps/argument-map/components/graph/NodeSelect';
 import { apiPost, formatApiError } from '@/shared/api/client';
@@ -123,9 +122,32 @@ function AddEdgeModal({
   }
 
   return (
-    <Modal open={open} onClose={handleClose} title="Новая связь" maxWidth="max-w-xl">
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <fieldset disabled={submitting} className="space-y-3">
+    <FormModal
+      open={open}
+      onClose={handleClose}
+      title="Новая связь"
+      maxWidth="max-w-xl"
+      onSubmit={handleSubmit}
+      submitting={submitting}
+      submitDisabled={!pairAllowed}
+      submitLabel="Создать"
+      submittingLabel="Создаём"
+      submitIcon={LinkIcon}
+      error={error}
+      hotkeyHint={
+        pairSelected && !pairAllowed ? (
+          <span className="inline-flex items-center gap-1 text-red-600">
+            <AlertCircle size={12} aria-hidden="true" /> запрещённая пара
+          </span>
+        ) : (
+          <>
+            <Kbd>⌘</Kbd>
+            <Kbd>↵</Kbd> создать
+          </>
+        )
+      }
+    >
+      <fieldset disabled={submitting} className="space-y-3">
           <div>
             <label
               htmlFor="edge-from"
@@ -250,41 +272,7 @@ function AddEdgeModal({
           />
         </div>
 
-        {error && (
-          <div className="rounded-md border border-red-300 bg-red-50 p-3 text-[12px] text-red-800">
-            {error}
-          </div>
-        )}
-
-        <div className="flex items-center justify-between border-t border-slate-200 pt-3">
-          <span className="hidden items-center gap-1 text-[11px] text-slate-500 sm:inline-flex">
-            {pairSelected && !pairAllowed ? (
-              <span className="inline-flex items-center gap-1 text-red-600">
-                <AlertCircle size={12} aria-hidden="true" /> запрещённая пара
-              </span>
-            ) : (
-              <>
-                <Kbd>⌘</Kbd>
-                <Kbd>↵</Kbd> создать
-              </>
-            )}
-          </span>
-          <div className="ml-auto flex items-center gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleClose}
-              disabled={submitting}
-            >
-              Отмена
-            </Button>
-            <Button type="submit" icon={LinkIcon} disabled={submitting || !pairAllowed}>
-              {submitting ? 'Создаём' : 'Создать'}
-            </Button>
-          </div>
-        </div>
-      </form>
-    </Modal>
+    </FormModal>
   );
 }
 

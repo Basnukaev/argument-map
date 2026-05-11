@@ -24,9 +24,11 @@ describe('Button', () => {
     expect(screen.getByRole('button')).toHaveClass('bg-white');
   });
 
-  it('primary использует indigo brand-цвет', () => {
+  it('primary - default variant', () => {
     render(<Button>Создать</Button>);
-    expect(screen.getByRole('button')).toHaveClass('bg-indigo-600');
+    // T-05: семантический check через data-variant вместо хрупкого
+    // toHaveClass('bg-indigo-600') (палитра может меняться)
+    expect(screen.getByRole('button')).toHaveAttribute('data-variant', 'primary');
   });
 
   it('рендерит icon prop как иконку слева', () => {

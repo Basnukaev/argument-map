@@ -5,7 +5,7 @@ import java.util.UUID;
 
 import ru.basnukaev.argumentmap.library.domain.BookType;
 
-public record BookSummary(
+public record BookSummaryResponse(
         UUID id,
         BookType bookType,
         String title,

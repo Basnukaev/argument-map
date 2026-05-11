@@ -54,6 +54,7 @@ function Button({
   const iconPx = ICON_SIZE[size];
   return (
     <button
+      data-variant={variant}
       className={`inline-flex items-center justify-center font-medium select-none transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 ${SIZE_CLASSES[size]} ${VARIANT_CLASSES[variant]} ${full ? 'w-full' : ''} ${disabled ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''} ${className}`}
       disabled={disabled}
       {...rest}

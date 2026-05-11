@@ -19,7 +19,7 @@ import type { components } from '@/shared/api/types';
 import { toast } from '@/shared/stores/toastStore';
 
 type SyncStatus = components['schemas']['SyncStatusResponse'];
-type SearchResult = components['schemas']['StagingBookSearchResult'];
+type SearchResult = components['schemas']['StagingBookSearchResponse'];
 type ImportBookResponse = components['schemas']['ImportBookResponse'];
 type MapBookResponse = components['schemas']['MapBookResponse'];
 type SyncMasterResponse = components['schemas']['SyncMasterResponse'];

@@ -14,11 +14,11 @@ import ru.basnukaev.argumentmap.library.service.ChapterNode;
 import ru.basnukaev.argumentmap.library.service.PageDetail;
 import ru.basnukaev.argumentmap.library.web.dto.BookDetailResponse;
 import ru.basnukaev.argumentmap.library.web.dto.BookResponse;
-import ru.basnukaev.argumentmap.library.web.dto.BookSummary;
+import ru.basnukaev.argumentmap.library.web.dto.BookSummaryResponse;
 import ru.basnukaev.argumentmap.library.web.dto.ChapterResponse;
 import ru.basnukaev.argumentmap.library.web.dto.ImageRegionResponse;
 import ru.basnukaev.argumentmap.library.web.dto.PageResponse;
-import ru.basnukaev.argumentmap.library.web.dto.PageSummary;
+import ru.basnukaev.argumentmap.library.web.dto.PageSummaryResponse;
 
 public final class LibraryDtoMappers {
 
@@ -36,8 +36,8 @@ public final class LibraryDtoMappers {
         );
     }
 
-    public static BookSummary toSummary(Book book) {
-        return new BookSummary(
+    public static BookSummaryResponse toSummary(Book book) {
+        return new BookSummaryResponse(
                 book.id(), book.bookType(), book.title(),
                 book.authorityId(), book.language(), book.createdAt()
         );
@@ -69,8 +69,8 @@ public final class LibraryDtoMappers {
         );
     }
 
-    public static PageSummary toSummary(Page page) {
-        return new PageSummary(
+    public static PageSummaryResponse toSummary(Page page) {
+        return new PageSummaryResponse(
                 page.id(), page.pageNumber(),
                 page.printedPage(), page.part(),
                 page.chapterId(),
