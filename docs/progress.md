@@ -99,7 +99,19 @@ git mv + sed-rename импортов, 1 коммит:
   Решённые не удаляются (retrospective). Архивный файл - при 3+ resolved
 - `./mvnw verify` зелёный
 
-Всего за сессию: **13 коммитов** в master, **175+ файлов изменено**:
+**Доп. polishing pass-3 (финал-4, после backend rerun):**
+- B-04: DTO suffix унификация (BookSummary → BookSummaryResponse и т.д.) -
+  3 java records renamed, types.ts + 3 frontend pages обновлены.
+  Backend verify зелёный
+- F-05: shared FormModal extract - AddNodeModal + AddEdgeModal
+  используют общий wrapper (Modal + form + error + footer)
+- F-10 rest: BookListPage мигрирован на AsyncState<Book[]> (2-й demo)
+- T-05: 2 хрупких Tailwind class assertions заменены на semantic
+  (data-status в StatusBadge, data-variant добавлен в Button)
+- T-11: frontend test naming convention документирован в CLAUDE.md
+- 136 frontend тестов passed, `./mvnw verify` зелёный
+
+Всего за сессию: **15 коммитов** в master, **180+ файлов изменено**:
 - a3f3a20 chore: pre-flight (types.ts regen + npm permission)
 - 2ab4098 docs(spec): cleanup marathon design
 - 58c8938 docs(plan): implementation plan
@@ -114,6 +126,8 @@ git mv + sed-rename импортов, 1 коммит:
 - 0ac038a refactor: marathon финал-2 - GraphCanvas split + T-04 + F-10 + docs polish
 - eaa277a docs: финальный update progress Сессии 25 - финал-2
 - 651fd53 refactor: marathon финал-3 - T-07 magic UUIDs + D-01/D-02/D-06 docs
+- 656aded docs: progress Сессии 25 финал-3
+- 3ed44b2 refactor: marathon финал-4 - B-04 + F-05 + F-10/T-05/T-11
 
 ### Решения
 
@@ -194,10 +208,24 @@ polish-задачи:
    - D-04 align progress.md vs roadmap.md формат
    - D-06 gotchas.md "Решённые ловушки (архив)" reorg
 
-7. **F-10 миграция остальных 7 компонентов** на AsyncState (low priority):
-   TopicGraphPage, BookListPage, CreateTopicPage, BookReaderPage,
+7. **F-10 миграция остальных 5 компонентов** на AsyncState (low priority):
+   TopicGraphPage (state.graph), CreateTopicPage, BookReaderPage,
    PageView, AddSourceModal/SourceSearchForm, PdfViewer. Каждый -
-   simple rename `state.X` → `state.data` если success-поле одно
+   simple rename `state.X` → `state.data` если success-поле одно.
+   TopicListPage + BookListPage уже мигрированы как demo
+
+8. **T-06 reduce ShamelaAdminControllerIT mocking** + **T-01 split**:
+   уменьшить тестов через 1 happy + 1 error на endpoint, либо
+   реорганизовать в @Nested classes по endpoint'у
+
+9. **T-08 Clock injection** в backend для time-dependent тестов
+   (требует services refactor inject Clock параметр)
+
+10. **F-11 inline styles → CSS variables** для SVG stroke и
+    динамических классов
+
+11. **F-12 useApiQuery hook** - если паттерн загрузки начнёт
+    разрастаться. Сейчас formatApiError + AsyncState достаточны
 
 Полный список с file:line - в
 `docs/superpowers/audits/2026-05-11-codebase-audit.md` секция
