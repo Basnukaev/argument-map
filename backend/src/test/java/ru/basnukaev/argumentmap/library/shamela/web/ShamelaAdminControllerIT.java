@@ -84,6 +84,13 @@ class ShamelaAdminControllerIT {
     @MockitoBean
     private ShamelaToLibraryMapper mapper;
 
+    // Named test data constants (T-07 audit). Магические значения превращены
+    // в semantic-имена - читателю сразу ясно интент тестового сценария.
+    private static final long BOOK_ID_SAHIH_AL_BUKHARI = 41557L;
+    private static final long BOOK_ID_NOT_FOUND = 99999L;
+    private static final long BOOK_ID_AL_BUKHARI_AL_SAGHIR = 41558L;
+    private static final String SEARCH_QUERY_BUKHARI = "1681";
+
     private UUID testUserId;
 
     @BeforeEach
@@ -149,8 +156,8 @@ class ShamelaAdminControllerIT {
 
     @Test
     void importBook_returns_200_with_body_on_success() throws Exception {
-        when(bookImportService.importBook(41557L))
-                .thenReturn(new BookImportResult(41557L, 4, 320, 18));
+        when(bookImportService.importBook(BOOK_ID_SAHIH_AL_BUKHARI))
+                .thenReturn(new BookImportResult(BOOK_ID_SAHIH_AL_BUKHARI, 4, 320, 18));
 
         mockMvc.perform(post("/api/v1/admin/shamela/import-book/41557"))
                 .andExpect(status().isOk())
@@ -159,12 +166,12 @@ class ShamelaAdminControllerIT {
                 .andExpect(jsonPath("$.pagesCount").value(320))
                 .andExpect(jsonPath("$.titlesCount").value(18));
 
-        verify(bookImportService).importBook(41557L);
+        verify(bookImportService).importBook(BOOK_ID_SAHIH_AL_BUKHARI);
     }
 
     @Test
     void importBook_returns_404_when_book_missing_in_staging() throws Exception {
-        when(bookImportService.importBook(99999L)).thenThrow(
+        when(bookImportService.importBook(BOOK_ID_NOT_FOUND)).thenThrow(
                 new ShamelaNotFoundException("книга id=99999 не найдена"));
 
         mockMvc.perform(post("/api/v1/admin/shamela/import-book/99999"))
@@ -197,9 +204,9 @@ class ShamelaAdminControllerIT {
         UUID userId = UUID.randomUUID();
         UUID bookUuid = UUID.randomUUID();
         UUID authorityUuid = UUID.randomUUID();
-        when(mapper.mapBook(eq(41557L), eq(userId)))
+        when(mapper.mapBook(eq(BOOK_ID_SAHIH_AL_BUKHARI), eq(userId)))
                 .thenReturn(MappedBookResult.freshlyCreated(
-                        bookUuid, 41557L, authorityUuid, 18, 320));
+                        bookUuid, BOOK_ID_SAHIH_AL_BUKHARI, authorityUuid, 18, 320));
 
         mockMvc.perform(post("/api/v1/admin/shamela/map-book/41557")
                         .header("X-User-Id", userId.toString()))
@@ -217,8 +224,8 @@ class ShamelaAdminControllerIT {
         UUID userId = UUID.randomUUID();
         UUID bookUuid = UUID.randomUUID();
         UUID authorityUuid = UUID.randomUUID();
-        when(mapper.mapBook(eq(41557L), eq(userId)))
-                .thenReturn(MappedBookResult.alreadyMapped(bookUuid, 41557L, authorityUuid));
+        when(mapper.mapBook(eq(BOOK_ID_SAHIH_AL_BUKHARI), eq(userId)))
+                .thenReturn(MappedBookResult.alreadyMapped(bookUuid, BOOK_ID_SAHIH_AL_BUKHARI, authorityUuid));
 
         mockMvc.perform(post("/api/v1/admin/shamela/map-book/41557")
                         .header("X-User-Id", userId.toString()))
@@ -241,7 +248,7 @@ class ShamelaAdminControllerIT {
     @Test
     void mapBook_returns_404_when_book_missing() throws Exception {
         UUID userId = UUID.randomUUID();
-        when(mapper.mapBook(eq(99999L), eq(userId)))
+        when(mapper.mapBook(eq(BOOK_ID_NOT_FOUND), eq(userId)))
                 .thenThrow(new ShamelaNotFoundException(
                         "shamela book id=99999 не найдена в lib_shamela_book"));
 
@@ -273,9 +280,9 @@ class ShamelaAdminControllerIT {
                 new ShamelaAuthorRow(101L, "Муслим", null, 261, false)
         ));
         bookDao.upsertAll(java.util.List.of(
-                new ShamelaBookRow(41557L, "صحيح البخاري", null, 100L, null, null, null,
+                new ShamelaBookRow(BOOK_ID_SAHIH_AL_BUKHARI, "صحيح البخاري", null, 100L, null, null, null,
                         4, 0, null, null, null, null, false),
-                new ShamelaBookRow(41558L, "البخاري الصغير", null, 100L, null, null, null,
+                new ShamelaBookRow(BOOK_ID_AL_BUKHARI_AL_SAGHIR, "البخاري الصغير", null, 100L, null, null, null,
                         2, 0, null, null, null, null, false),
                 new ShamelaBookRow(41559L, "صحيح مسلم", null, 101L, null, null, null,
                         3, 0, null, null, null, null, false)
