@@ -5,6 +5,11 @@ package ru.basnukaev.argumentmap.library.web.dto;
  * метка ("المقدمة" или "Том 1") из shamela-формата
  * {@code "filename|label"}.
  *
+ * <p>{@code isCover} - true для обложки книги (по convention лежит в
+ * {@code files[0]} когда metadata содержит {@code "cover": 1}). Frontend
+ * пропускает cover из основного potoka чтения или показывает её
+ * отдельным пунктом dropdown селектора томов.
+ *
  * <p>{@code sizeBytes} и {@code pageCount} - nullable, будут заполняться
  * когда добавим metadata-prefetch.
  *
@@ -16,6 +21,7 @@ package ru.basnukaev.argumentmap.library.web.dto;
 public record PdfFileInfoResponse(
         int index,
         String label,
+        boolean isCover,
         Long sizeBytes,
         Integer pageCount
 ) {

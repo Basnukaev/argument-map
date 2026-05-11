@@ -981,11 +981,17 @@ Response 200 - `PdfInfoResponse`:
   "hasCover": true,
   "totalSizeBytes": 135102734,
   "files": [
-    {"index": 0, "label": "01_113015", "sizeBytes": null, "pageCount": null},
-    {"index": 1, "label": "المقدمة", "sizeBytes": null, "pageCount": null}
+    {"index": 0, "label": "00_113015", "isCover": true, "sizeBytes": null, "pageCount": null},
+    {"index": 1, "label": "المقدمة", "isCover": false, "sizeBytes": null, "pageCount": null},
+    {"index": 2, "label": "01_113015", "isCover": false, "sizeBytes": null, "pageCount": null}
   ]
 }
 ```
+
+`isCover` помечает обложку - по convention shamela/archive.org она
+лежит в `files[0]` когда metadata содержит `"cover": 1`. Фронт по
+умолчанию выбирает первый файл с `isCover=false` чтобы юзер не видел
+3-страничную обложку вместо тысячи страниц контента.
 
 `filename` НЕ возвращается клиенту - чтобы фронт не мог собрать
 прямую ссылку на CDN в обход бэка. Это даст возможность будущему
@@ -1043,6 +1049,7 @@ PDF-источника или fileIndex out of range).
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-11 | v1 | `PdfFileInfoResponse` расширен полем `isCover` (boolean). Помечает обложку книги - по convention shamela/archive.org обложка лежит в `files[0]` когда metadata содержит `"cover": 1`. Фронт пропускает cover из основного potoka чтения - до фикса всегда грузил `fileIndex=0` (cover, 3 страницы) вместо реального контента | Bug fix: пользователь видел 3 страницы PDF вместо тысяч (cover файл попадал в reader как main content) |
 | 2026-05-11 | v1 | **Breaking rename** DTO: `BookSummary` → `BookSummaryResponse`, `PageSummary` → `PageSummaryResponse`, `StagingBookSearchResult` → `StagingBookSearchResponse`. Эндпоинты не меняются. Поля внутри records не меняются. Имена в OpenAPI schema (`components/schemas/*`) обновляются с следующим `npm run generate-api` | ADR-022: DTO suffix convention (`*Response` для всех REST DTO, `*Row` для staging). B-04 audit finding |
 | 2026-05-11 | v1 | Добавлены 2 endpoint под `/api/v1/library/books/{id}/pdf/*`: `GET /info` (метаданные PDF файлов книги) и `GET ?fileIndex=N` (streaming PDF с Range header support через `ResourceRegion`). Source-agnostic архитектура - `PdfSourceProvider` interface, реализация `PdfLinksSourceProvider` для shamela (archive.org CDN) + будущие MinIO/IIIF. Новая ошибка: 404 `pdf-not-available`. DTO: `PdfInfoResponse`, `PdfFileInfoResponse` (без filename - защита от обхода нашего endpoint) | ADR-021 source-first, Этап 25.a |
 | 2026-05-11 | v1 | `PageSummary` расширен `printedPage` и `part` (nullable TEXT). `PageResponse` расширен теми же полями плюс `pdfPageNumber` (nullable INTEGER). `ChapterResponse` получил `startPageNumber` (миграция 18). Source-first нумерация - electronic версия должна ссылаться на оригинальное издание | ADR-021: source-first архитектура. Миграция 19 (lib_pages новые колонки). Mapper заполняет printedPage/part из shamela_page; pdfPageNumber=NULL до Этапа PDF integration |

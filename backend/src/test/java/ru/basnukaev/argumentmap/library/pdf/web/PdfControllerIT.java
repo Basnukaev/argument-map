@@ -74,8 +74,9 @@ class PdfControllerIT {
                 true,
                 135_000_000L,
                 List.of(
-                        new PdfFileInfo(0, "01.pdf", "Том 1", null, null),
-                        new PdfFileInfo(1, "02p.pdf", "المقدمة", null, null)
+                        new PdfFileInfo(0, "00.pdf", "Обложка", true, null, null),
+                        new PdfFileInfo(1, "01.pdf", "Том 1", false, null, null),
+                        new PdfFileInfo(2, "02p.pdf", "المقدمة", false, null, null)
                 )
         ));
 
@@ -83,10 +84,14 @@ class PdfControllerIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hasCover").value(true))
                 .andExpect(jsonPath("$.totalSizeBytes").value(135_000_000L))
-                .andExpect(jsonPath("$.files.length()").value(2))
+                .andExpect(jsonPath("$.files.length()").value(3))
                 .andExpect(jsonPath("$.files[0].index").value(0))
-                .andExpect(jsonPath("$.files[0].label").value("Том 1"))
-                .andExpect(jsonPath("$.files[1].label").value("المقدمة"))
+                .andExpect(jsonPath("$.files[0].label").value("Обложка"))
+                .andExpect(jsonPath("$.files[0].isCover").value(true))
+                .andExpect(jsonPath("$.files[1].label").value("Том 1"))
+                .andExpect(jsonPath("$.files[1].isCover").value(false))
+                .andExpect(jsonPath("$.files[2].label").value("المقدمة"))
+                .andExpect(jsonPath("$.files[2].isCover").value(false))
                 // filename НЕ возвращается клиенту (защита от обхода нашего endpoint)
                 .andExpect(jsonPath("$.files[0].filename").doesNotExist());
     }

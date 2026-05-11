@@ -104,7 +104,11 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
             if (raw == null) {
                 continue;
             }
-            files.add(parseFileEntry(i, raw));
+            // По convention shamela/archive.org: если hasCover - первый
+            // файл это обложка. Маркируем чтобы frontend пропускал её
+            // из основного potoka чтения
+            boolean cover = hasCover && i == 0;
+            files.add(parseFileEntry(i, raw, cover));
         }
         return new PdfMetadata(root, hasCover, totalSize, Collections.unmodifiableList(files));
     }
@@ -157,7 +161,7 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
      * filename с label через pipe-separator. Label по умолчанию -
      * filename без расширения.
      */
-    private static PdfFileInfo parseFileEntry(int index, String raw) {
+    private static PdfFileInfo parseFileEntry(int index, String raw, boolean isCover) {
         String filename;
         String label;
         int pipe = raw.indexOf('|');
@@ -168,7 +172,7 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
             filename = raw.trim();
             label = stripExtension(filename);
         }
-        return new PdfFileInfo(index, filename, label, null, null);
+        return new PdfFileInfo(index, filename, label, isCover, null, null);
     }
 
     private static String stripExtension(String filename) {

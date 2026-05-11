@@ -61,7 +61,7 @@ public class PdfController {
     public PdfInfoResponse getPdfInfo(@PathVariable UUID bookId) {
         PdfMetadata meta = pdfService.getMetadata(bookId);
         List<PdfFileInfoResponse> files = meta.files().stream()
-                .map(f -> new PdfFileInfoResponse(f.index(), f.label(),
+                .map(f -> new PdfFileInfoResponse(f.index(), f.label(), f.isCover(),
                         f.sizeBytes(), f.pageCount()))
                 .toList();
         return new PdfInfoResponse(meta.hasCover(), meta.totalSizeBytes(), files);
