@@ -12,9 +12,9 @@ import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaBookDao;
 
 /**
- * Реальный end-to-end {@link ShamelaImportService#syncMaster()} против
- * боевого shamela API. Скачивает master-snapshot ~5MB, разбирает три
- * SQLite, выгружает {@code ~8500} книг в Postgres-Testcontainer.
+ * Реальный end-to-end {@link ShamelaMasterSyncService#syncMaster()}
+ * против боевого shamela API. Скачивает master-snapshot ~5MB, разбирает
+ * три SQLite, выгружает {@code ~8500} книг в Postgres-Testcontainer.
  *
  * <p>Исключён из обычного {@code ./mvnw verify} через
  * {@code <excludedGroups>live</excludedGroups>} в failsafe-plugin.
@@ -32,14 +32,14 @@ import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaBookDao;
 class ShamelaImportServiceLiveIT {
 
     @Autowired
-    private ShamelaImportService service;
+    private ShamelaMasterSyncService masterSyncService;
 
     @Autowired
     private ShamelaBookDao bookDao;
 
     @Test
     void syncMaster_imports_real_master_snapshot() {
-        MasterSyncResult result = service.syncMaster();
+        MasterSyncResult result = masterSyncService.syncMaster();
 
         // bootstrap: master_version в свежей БД = 0, после sync должна
         // обновиться до текущей версии shamela (1000+)

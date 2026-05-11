@@ -1,5 +1,10 @@
 package ru.basnukaev.argumentmap.library.shamela.repository;
 
+import static ru.basnukaev.argumentmap.library.shamela.repository.ShamelaDaoSupport.BATCH_SIZE;
+import static ru.basnukaev.argumentmap.library.shamela.repository.ShamelaDaoSupport.setNullableInt;
+import static ru.basnukaev.argumentmap.library.shamela.repository.ShamelaDaoSupport.setNullableString;
+import static ru.basnukaev.argumentmap.library.shamela.repository.ShamelaDaoSupport.sumAffected;
+
 import java.sql.Types;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -15,14 +20,12 @@ import org.springframework.stereotype.Repository;
 import ru.basnukaev.argumentmap.library.shamela.etl.dto.ShamelaAuthorRow;
 
 /**
- * DAO для staging-таблицы {@code lib_shamela_author}. Bulk upsert батчами
- * {@link #BATCH_SIZE}, tombstone-семантика через {@code deleted_at} как
- * в {@link ShamelaCategoryDao}.
+ * DAO для staging-таблицы {@code lib_shamela_author}. Bulk upsert
+ * батчами {@link ShamelaDaoSupport#BATCH_SIZE}, tombstone через
+ * {@code deleted_at} как в {@link ShamelaCategoryDao}.
  */
 @Repository
 public class ShamelaAuthorDao {
-
-    public static final int BATCH_SIZE = 1000;
 
     private static final Logger log = LoggerFactory.getLogger(ShamelaAuthorDao.class);
 
@@ -62,16 +65,8 @@ public class ShamelaAuthorDao {
         int[][] result = jdbcTemplate.batchUpdate(sql, rows, BATCH_SIZE, (ps, row) -> {
             ps.setLong(1, row.id());
             ps.setString(2, row.name());
-            if (row.biography() == null) {
-                ps.setNull(3, Types.VARCHAR);
-            } else {
-                ps.setString(3, row.biography());
-            }
-            if (row.deathYear() == null) {
-                ps.setNull(4, Types.INTEGER);
-            } else {
-                ps.setInt(4, row.deathYear());
-            }
+            setNullableString(ps, 3, row.biography());
+            setNullableInt(ps, 4, row.deathYear());
             if (row.deleted()) {
                 ps.setObject(5, OffsetDateTime.now(ZoneOffset.UTC));
             } else {
@@ -104,15 +99,5 @@ public class ShamelaAuthorDao {
                 Integer.class
         );
         return count == null ? 0 : count;
-    }
-
-    private static int sumAffected(int[][] batches) {
-        int total = 0;
-        for (int[] batch : batches) {
-            for (int n : batch) {
-                total += (n >= 0) ? n : 1;
-            }
-        }
-        return total;
     }
 }

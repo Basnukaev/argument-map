@@ -1,5 +1,9 @@
 package ru.basnukaev.argumentmap.library.shamela.repository;
 
+import static ru.basnukaev.argumentmap.library.shamela.repository.ShamelaDaoSupport.BATCH_SIZE;
+import static ru.basnukaev.argumentmap.library.shamela.repository.ShamelaDaoSupport.setNullableInt;
+import static ru.basnukaev.argumentmap.library.shamela.repository.ShamelaDaoSupport.sumAffected;
+
 import java.sql.Types;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -15,8 +19,9 @@ import org.springframework.stereotype.Repository;
 import ru.basnukaev.argumentmap.library.shamela.etl.dto.ShamelaCategoryRow;
 
 /**
- * DAO для staging-таблицы {@code lib_shamela_category}. Bulk upsert батчами
- * по {@link #BATCH_SIZE} строк через {@code ON CONFLICT (id) DO UPDATE}.
+ * DAO для staging-таблицы {@code lib_shamela_category}. Bulk upsert
+ * батчами {@link ShamelaDaoSupport#BATCH_SIZE} через
+ * {@code ON CONFLICT (id) DO UPDATE}.
  *
  * <p>Поле {@code deleted} из shamela транслируется в {@code deleted_at}:
  * {@code true} -&gt; текущий UTC-момент, {@code false} -&gt; {@code NULL}
@@ -24,8 +29,6 @@ import ru.basnukaev.argumentmap.library.shamela.etl.dto.ShamelaCategoryRow;
  */
 @Repository
 public class ShamelaCategoryDao {
-
-    public static final int BATCH_SIZE = 1000;
 
     private static final Logger log = LoggerFactory.getLogger(ShamelaCategoryDao.class);
 
@@ -63,11 +66,7 @@ public class ShamelaCategoryDao {
         int[][] result = jdbcTemplate.batchUpdate(sql, rows, BATCH_SIZE, (ps, row) -> {
             ps.setLong(1, row.id());
             ps.setString(2, row.name());
-            if (row.displayOrder() == null) {
-                ps.setNull(3, Types.INTEGER);
-            } else {
-                ps.setInt(3, row.displayOrder());
-            }
+            setNullableInt(ps, 3, row.displayOrder());
             if (row.deleted()) {
                 ps.setObject(4, OffsetDateTime.now(ZoneOffset.UTC));
             } else {
@@ -100,17 +99,5 @@ public class ShamelaCategoryDao {
                 Integer.class
         );
         return count == null ? 0 : count;
-    }
-
-    private static int sumAffected(int[][] batches) {
-        int total = 0;
-        for (int[] batch : batches) {
-            for (int n : batch) {
-                // postgres возвращает -2 (Statement.SUCCESS_NO_INFO) при batch upsert
-                // через драйвер, поэтому считаем такие как 1 успешную операцию
-                total += (n >= 0) ? n : 1;
-            }
-        }
-        return total;
     }
 }

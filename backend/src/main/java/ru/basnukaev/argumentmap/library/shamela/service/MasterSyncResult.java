@@ -1,7 +1,7 @@
 package ru.basnukaev.argumentmap.library.shamela.service;
 
 /**
- * Результат {@code ShamelaImportService.syncMaster()}: показывает
+ * Результат {@link ShamelaMasterSyncService#syncMaster()}: показывает
  * изменилась ли версия каталога shamela и сколько строк попало в
  * staging при upsert.
  *

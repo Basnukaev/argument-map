@@ -46,7 +46,8 @@ import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaSyncStateDao;
 import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaTitleDao;
 
 /**
- * Интеграционный тест {@link ShamelaImportService}: моки только на
+ * Интеграционный тест {@link ShamelaMasterSyncService} и
+ * {@link ShamelaBookImportService}: моки только на
  * {@link ShamelaApiClient} (изолируем от сети), всё остальное реальное -
  * Extractor, Reader, DAO, Postgres через Testcontainers. Pipeline
  * прокатывается на zip-архивах с настоящими SQLite-файлами, собираемыми
@@ -69,7 +70,10 @@ class ShamelaImportServiceIT {
     }
 
     @Autowired
-    private ShamelaImportService service;
+    private ShamelaMasterSyncService masterSyncService;
+
+    @Autowired
+    private ShamelaBookImportService bookImportService;
 
     @Autowired
     private ShamelaCategoryDao categoryDao;
@@ -129,7 +133,7 @@ class ShamelaImportServiceIT {
     void syncMaster_skips_download_when_version_unchanged() {
         when(apiClient.fetchMasterMetadata(0)).thenReturn(new MasterMetadata(null, 0));
 
-        MasterSyncResult result = service.syncMaster();
+        MasterSyncResult result = masterSyncService.syncMaster();
 
         assertThat(result.changed()).isFalse();
         assertThat(result.previousVersion()).isZero();
@@ -149,7 +153,7 @@ class ShamelaImportServiceIT {
         when(apiClient.downloadArchive(any(), any()))
                 .thenAnswer(inv -> Files.copy(masterZip, ((Path) inv.getArgument(1)).resolve("master.zip")));
 
-        MasterSyncResult result = service.syncMaster();
+        MasterSyncResult result = masterSyncService.syncMaster();
 
         assertThat(result.changed()).isTrue();
         assertThat(result.previousVersion()).isZero();
@@ -170,7 +174,7 @@ class ShamelaImportServiceIT {
     void syncMaster_throws_when_patch_url_is_blank() {
         when(apiClient.fetchMasterMetadata(0)).thenReturn(new MasterMetadata("", 1261));
 
-        assertThatThrownBy(() -> service.syncMaster())
+        assertThatThrownBy(() -> masterSyncService.syncMaster())
                 .isInstanceOf(ShamelaImportException.class)
                 .hasMessageContaining("patch_url пустой");
         verify(apiClient, never()).downloadArchive(any(), any());
@@ -186,7 +190,7 @@ class ShamelaImportServiceIT {
         when(apiClient.downloadArchive(any(), any()))
                 .thenAnswer(inv -> Files.copy(corrupt, ((Path) inv.getArgument(1)).resolve("master.zip")));
 
-        assertThatThrownBy(() -> service.syncMaster())
+        assertThatThrownBy(() -> masterSyncService.syncMaster())
                 .isInstanceOf(RuntimeException.class);
 
         // версия не обновилась - finally сработал до updateMasterVersion,
@@ -199,7 +203,7 @@ class ShamelaImportServiceIT {
 
     @Test
     void importBook_throws_when_book_missing_in_staging() {
-        assertThatThrownBy(() -> service.importBook(99999L))
+        assertThatThrownBy(() -> bookImportService.importBook(99999L))
                 .isInstanceOf(ShamelaImportException.class)
                 .hasMessageContaining("99999")
                 .hasMessageContaining("syncMaster");
@@ -215,7 +219,7 @@ class ShamelaImportServiceIT {
         when(apiClient.downloadArchive(any(), any()))
                 .thenAnswer(inv -> Files.copy(bookZip, ((Path) inv.getArgument(1)).resolve("book.zip")));
 
-        BookImportResult result = service.importBook(bookId);
+        BookImportResult result = bookImportService.importBook(bookId);
 
         assertThat(result.bookId()).isEqualTo(bookId);
         assertThat(result.majorRelease()).isEqualTo(majorRelease);
@@ -311,7 +315,7 @@ class ShamelaImportServiceIT {
         // shamela кладёт sqlite внутрь book-zip с именем {bookId}-{major}.sqlite
         // (наблюдалось на live: 1681-6.zip содержит 1681-6.sqlite). Старый
         // формат {bookId}.sqlite поддерживается через fallback в
-        // ShamelaImportService.findBookSqlite, см. gotchas
+        // ShamelaWorkDirManager.findBookSqlite, см. gotchas
         Path zip = dir.resolve(bookId + "-4.zip");
         try (OutputStream fos = Files.newOutputStream(zip);
              ZipOutputStream zos = new ZipOutputStream(fos)) {

@@ -1,7 +1,7 @@
 package ru.basnukaev.argumentmap.library.shamela.service;
 
 /**
- * Ошибка уровня {@code ShamelaImportService}: невалидное состояние
+ * Ошибка уровня shamela-импорта: невалидное состояние
  * staging (книга, которой нет в {@code lib_shamela_book}), сбой создания
  * рабочего каталога, нарушение инварианта pipeline (отсутствие
  * ожидаемого SQLite-файла после распаковки).

@@ -1,6 +1,9 @@
 package ru.basnukaev.argumentmap.library.shamela.repository;
 
-import java.sql.Types;
+import static ru.basnukaev.argumentmap.library.shamela.repository.ShamelaDaoSupport.BATCH_SIZE;
+import static ru.basnukaev.argumentmap.library.shamela.repository.ShamelaDaoSupport.setNullableString;
+import static ru.basnukaev.argumentmap.library.shamela.repository.ShamelaDaoSupport.sumAffected;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -20,8 +23,6 @@ import ru.basnukaev.argumentmap.library.shamela.etl.dto.ShamelaPageRow;
  */
 @Repository
 public class ShamelaPageDao {
-
-    public static final int BATCH_SIZE = 1000;
 
     private static final Logger log = LoggerFactory.getLogger(ShamelaPageDao.class);
 
@@ -98,23 +99,5 @@ public class ShamelaPageDao {
                 ROW_MAPPER,
                 bookId, id
         ).stream().findFirst();
-    }
-
-    private static void setNullableString(java.sql.PreparedStatement ps, int idx, String value) throws java.sql.SQLException {
-        if (value == null) {
-            ps.setNull(idx, Types.VARCHAR);
-        } else {
-            ps.setString(idx, value);
-        }
-    }
-
-    private static int sumAffected(int[][] batches) {
-        int total = 0;
-        for (int[] batch : batches) {
-            for (int n : batch) {
-                total += (n >= 0) ? n : 1;
-            }
-        }
-        return total;
     }
 }

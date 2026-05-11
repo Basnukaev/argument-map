@@ -38,7 +38,8 @@ import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaCategoryDao;
 import ru.basnukaev.argumentmap.library.shamela.service.BookImportResult;
 import ru.basnukaev.argumentmap.library.shamela.service.MappedBookResult;
 import ru.basnukaev.argumentmap.library.shamela.service.MasterSyncResult;
-import ru.basnukaev.argumentmap.library.shamela.service.ShamelaImportService;
+import ru.basnukaev.argumentmap.library.shamela.service.ShamelaBookImportService;
+import ru.basnukaev.argumentmap.library.shamela.service.ShamelaMasterSyncService;
 import ru.basnukaev.argumentmap.library.shamela.service.ShamelaNotFoundException;
 import ru.basnukaev.argumentmap.library.shamela.service.ShamelaToLibraryMapper;
 
@@ -47,8 +48,9 @@ import ru.basnukaev.argumentmap.library.shamela.service.ShamelaToLibraryMapper;
  * через {@code @MockitoBean} - этот тест проверяет только тонкий
  * controller-слой: HTTP-маппинг, validation, exception → ProblemDetail.
  *
- * <p>Полный pipeline-тест с реальным postgres - в {@code ShamelaImportServiceIT}
- * и {@code ShamelaToLibraryMapperIT}, дублировать тут смысла нет.
+ * <p>Полный pipeline-тест с реальным postgres - в
+ * {@code ShamelaImportServiceIT} (master sync + book import) и
+ * {@code ShamelaToLibraryMapperIT}, дублировать тут смысла нет.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -74,7 +76,10 @@ class ShamelaAdminControllerIT {
     private BookRepository bookRepository;
 
     @MockitoBean
-    private ShamelaImportService importService;
+    private ShamelaMasterSyncService masterSyncService;
+
+    @MockitoBean
+    private ShamelaBookImportService bookImportService;
 
     @MockitoBean
     private ShamelaToLibraryMapper mapper;
@@ -105,7 +110,7 @@ class ShamelaAdminControllerIT {
 
     @Test
     void syncMaster_returns_200_with_body_on_success() throws Exception {
-        when(importService.syncMaster()).thenReturn(
+        when(masterSyncService.syncMaster()).thenReturn(
                 MasterSyncResult.synced(0, 1261, 50, 25_000, 8500));
 
         mockMvc.perform(post("/api/v1/admin/shamela/sync-master"))
@@ -120,7 +125,7 @@ class ShamelaAdminControllerIT {
 
     @Test
     void syncMaster_returns_200_with_unchanged_when_version_same() throws Exception {
-        when(importService.syncMaster()).thenReturn(MasterSyncResult.unchanged(1261));
+        when(masterSyncService.syncMaster()).thenReturn(MasterSyncResult.unchanged(1261));
 
         mockMvc.perform(post("/api/v1/admin/shamela/sync-master"))
                 .andExpect(status().isOk())
@@ -131,7 +136,7 @@ class ShamelaAdminControllerIT {
 
     @Test
     void syncMaster_returns_502_on_shamela_api_error() throws Exception {
-        when(importService.syncMaster()).thenThrow(
+        when(masterSyncService.syncMaster()).thenThrow(
                 new ShamelaApiException("HTTP 503 от dev.shamela.ws"));
 
         mockMvc.perform(post("/api/v1/admin/shamela/sync-master"))
@@ -144,7 +149,7 @@ class ShamelaAdminControllerIT {
 
     @Test
     void importBook_returns_200_with_body_on_success() throws Exception {
-        when(importService.importBook(41557L))
+        when(bookImportService.importBook(41557L))
                 .thenReturn(new BookImportResult(41557L, 4, 320, 18));
 
         mockMvc.perform(post("/api/v1/admin/shamela/import-book/41557"))
@@ -154,12 +159,12 @@ class ShamelaAdminControllerIT {
                 .andExpect(jsonPath("$.pagesCount").value(320))
                 .andExpect(jsonPath("$.titlesCount").value(18));
 
-        verify(importService).importBook(41557L);
+        verify(bookImportService).importBook(41557L);
     }
 
     @Test
     void importBook_returns_404_when_book_missing_in_staging() throws Exception {
-        when(importService.importBook(99999L)).thenThrow(
+        when(bookImportService.importBook(99999L)).thenThrow(
                 new ShamelaNotFoundException("книга id=99999 не найдена"));
 
         mockMvc.perform(post("/api/v1/admin/shamela/import-book/99999"))
@@ -174,7 +179,7 @@ class ShamelaAdminControllerIT {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Некорректный аргумент"));
 
-        verify(importService, never()).importBook(anyLong());
+        verify(bookImportService, never()).importBook(anyLong());
     }
 
     @Test
@@ -182,7 +187,7 @@ class ShamelaAdminControllerIT {
         mockMvc.perform(post("/api/v1/admin/shamela/import-book/0"))
                 .andExpect(status().isBadRequest());
 
-        verifyNoInteractions(importService);
+        verifyNoInteractions(bookImportService);
     }
 
     // ---------------- map-book ----------------

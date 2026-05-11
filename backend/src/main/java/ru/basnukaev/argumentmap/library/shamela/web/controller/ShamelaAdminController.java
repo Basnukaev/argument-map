@@ -18,7 +18,8 @@ import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaSyncStateDao;
 import ru.basnukaev.argumentmap.library.shamela.service.BookImportResult;
 import ru.basnukaev.argumentmap.library.shamela.service.MappedBookResult;
 import ru.basnukaev.argumentmap.library.shamela.service.MasterSyncResult;
-import ru.basnukaev.argumentmap.library.shamela.service.ShamelaImportService;
+import ru.basnukaev.argumentmap.library.shamela.service.ShamelaBookImportService;
+import ru.basnukaev.argumentmap.library.shamela.service.ShamelaMasterSyncService;
 import ru.basnukaev.argumentmap.library.shamela.service.ShamelaToLibraryMapper;
 import ru.basnukaev.argumentmap.library.shamela.web.dto.ImportBookResponse;
 import ru.basnukaev.argumentmap.library.shamela.web.dto.MapBookResponse;
@@ -52,7 +53,8 @@ public class ShamelaAdminController {
     private static final int DEFAULT_SEARCH_LIMIT = 20;
     private static final int MAX_SEARCH_LIMIT = 100;
 
-    private final ShamelaImportService importService;
+    private final ShamelaMasterSyncService masterSyncService;
+    private final ShamelaBookImportService bookImportService;
     private final ShamelaToLibraryMapper mapper;
     private final ShamelaBookDao shamelaBookDao;
     private final ShamelaAuthorDao shamelaAuthorDao;
@@ -60,14 +62,16 @@ public class ShamelaAdminController {
     private final ShamelaSyncStateDao syncStateDao;
     private final BookRepository bookRepository;
 
-    public ShamelaAdminController(ShamelaImportService importService,
+    public ShamelaAdminController(ShamelaMasterSyncService masterSyncService,
+                                  ShamelaBookImportService bookImportService,
                                   ShamelaToLibraryMapper mapper,
                                   ShamelaBookDao shamelaBookDao,
                                   ShamelaAuthorDao shamelaAuthorDao,
                                   ShamelaCategoryDao shamelaCategoryDao,
                                   ShamelaSyncStateDao syncStateDao,
                                   BookRepository bookRepository) {
-        this.importService = importService;
+        this.masterSyncService = masterSyncService;
+        this.bookImportService = bookImportService;
         this.mapper = mapper;
         this.shamelaBookDao = shamelaBookDao;
         this.shamelaAuthorDao = shamelaAuthorDao;
@@ -84,7 +88,7 @@ public class ShamelaAdminController {
      */
     @PostMapping("/sync-master")
     public SyncMasterResponse syncMaster() {
-        MasterSyncResult result = importService.syncMaster();
+        MasterSyncResult result = masterSyncService.syncMaster();
         return ShamelaAdminMappers.toResponse(result);
     }
 
@@ -96,7 +100,7 @@ public class ShamelaAdminController {
     @PostMapping("/import-book/{bookId}")
     public ImportBookResponse importBook(@PathVariable long bookId) {
         requirePositiveBookId(bookId);
-        BookImportResult result = importService.importBook(bookId);
+        BookImportResult result = bookImportService.importBook(bookId);
         return ShamelaAdminMappers.toResponse(result);
     }
 

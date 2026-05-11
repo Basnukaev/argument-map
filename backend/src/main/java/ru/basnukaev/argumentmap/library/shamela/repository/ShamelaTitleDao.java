@@ -1,6 +1,10 @@
 package ru.basnukaev.argumentmap.library.shamela.repository;
 
-import java.sql.Types;
+import static ru.basnukaev.argumentmap.library.shamela.repository.ShamelaDaoSupport.BATCH_SIZE;
+import static ru.basnukaev.argumentmap.library.shamela.repository.ShamelaDaoSupport.setNullableInt;
+import static ru.basnukaev.argumentmap.library.shamela.repository.ShamelaDaoSupport.setNullableString;
+import static ru.basnukaev.argumentmap.library.shamela.repository.ShamelaDaoSupport.sumAffected;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -20,8 +24,6 @@ import ru.basnukaev.argumentmap.library.shamela.etl.dto.ShamelaTitleRow;
  */
 @Repository
 public class ShamelaTitleDao {
-
-    public static final int BATCH_SIZE = 1000;
 
     private static final Logger log = LoggerFactory.getLogger(ShamelaTitleDao.class);
 
@@ -61,16 +63,8 @@ public class ShamelaTitleDao {
             ps.setLong(1, row.bookId());
             ps.setInt(2, row.id());
             ps.setString(3, row.content());
-            if (row.pageRef() == null) {
-                ps.setNull(4, Types.VARCHAR);
-            } else {
-                ps.setString(4, row.pageRef());
-            }
-            if (row.parentId() == null) {
-                ps.setNull(5, Types.INTEGER);
-            } else {
-                ps.setInt(5, row.parentId());
-            }
+            setNullableString(ps, 4, row.pageRef());
+            setNullableInt(ps, 5, row.parentId());
         });
         int total = sumAffected(result);
         log.info("shamela {} upsert: rows={}", "title", total);
@@ -105,15 +99,5 @@ public class ShamelaTitleDao {
                 ROW_MAPPER,
                 bookId, id
         ).stream().findFirst();
-    }
-
-    private static int sumAffected(int[][] batches) {
-        int total = 0;
-        for (int[] batch : batches) {
-            for (int n : batch) {
-                total += (n >= 0) ? n : 1;
-            }
-        }
-        return total;
     }
 }
