@@ -17,6 +17,130 @@ Claude Code не тратят токены на исторический кон�
 
 ---
 
+## 2026-05-11 — Сессия 25 (full-stack) — Cleanup Marathon
+
+Большая сессия cleanup'а после 24 сессий накопления техдолга. Пользователь
+запустил `/superpowers:brainstorming` без темы, потом конкретизировал:
+"тотальная чистка/улучшение кодовой базы по всем фронтам". Согласились
+на декомпозицию в 6 фаз с full autonomy mode.
+
+### Сделано
+
+**Phase 0 (Audit):** 4 параллельных Explore-агента (backend, frontend,
+tests, docs), 46 findings собраны в
+`docs/superpowers/audits/2026-05-11-codebase-audit.md`. 10 high,
+18 medium, 18 low/info.
+
+**Phase 1 (Backend boundaries):** 23 файла, +954/-781 LOC, 1 коммит:
+- B-01: ShamelaToLibraryMapper (413 LOC, 9 dep) разнесён на 5 классов
+  в `service/mapper/` + orchestrator с 6 dep
+- B-02: ShamelaImportService (252 LOC, 11 dep) удалён, заменён на
+  ShamelaMasterSyncService + ShamelaBookImportService +
+  ShamelaWorkDirManager (по 8 dep)
+- B-03: 5 Shamela DAOs - extract helpers в ShamelaDaoSupport
+  (BATCH_SIZE, sumAffected, nullable setters/getters)
+- `./mvnw verify` зелёный
+
+**Phase 2.a (Frontend apps/ reorganization):** 51 файл, чистый
+git mv + sed-rename импортов, 1 коммит:
+- `src/apps/{argument-map,library,admin}/` + `src/shared/` структура
+  под ADR-018 platform pivot
+- 36+ файлов перенесены с сохранением git-истории
+- vite alias `@: src` уже покрывает `@/apps/...` и `@/shared/...`
+- 136 тестов проходят, build зелёный, bundle size без изменений
+
+**Phase 3 (dedup):** 7 файлов, -21 LOC, 1 коммит:
+- F-09: formatApiError() в shared/api/client.ts + миграция 5
+  компонентов (формула из 5-10 строк → 1 строка каждый)
+- F-10: shared/types/async.ts с generic `AsyncState<T, E>` создан;
+  миграция 8 компонентов отложена в Phase 2.b/c
+
+**Phase 5 (Docs):** 5 файлов, 1 коммит:
+- Архивация progress.md: было 4835 LOC, стало 1226 LOC; архив 3613
+  LOC в `docs/archive/`
+- Создан корневой `CLAUDE.md` - быстрый старт для новых сессий
+- `architecture.md` обновлён под Frontend apps/ + Backend boundaries
+- `glossary.md`: добавлены NodeAuthority/Stance в "Удалённые понятия",
+  убраны 2 stale Stance entries
+
+Всего за сессию: **7 коммитов** в master, **108+ файлов изменено**:
+- a3f3a20 chore: pre-flight (types.ts regen + npm permission)
+- 2ab4098 docs(spec): cleanup marathon design
+- 58c8938 docs(plan): implementation plan
+- d84186d docs(audit): полный codebase audit
+- 69646c3 refactor(backend): Phase 1 - boundaries cleanup
+- 82b961a refactor(frontend): Phase 2.a - apps/ reorganization
+- 0b5c54e refactor(frontend): Phase 3 - формат ошибок API + AsyncState
+- e261027 docs: Phase 5 - архивация progress + CLAUDE.md
+
+### Решения
+
+- Декомпозиция scope в 6 фаз с audit-first подходом - чтобы дальнейшие
+  фазы шли по фиксированному списку findings, не по ощущениям
+- Параллельные Explore-агенты для audit'а (research, не implementation -
+  соответствует feedback_full_autonomy_mode)
+- TopicGraphPage (1161 LOC) и BookReaderPage (714 LOC) split отложен в
+  Phase 2.b/c (новые сессии) - L-effort работы, не помещается в одну
+  context window вместе с предыдущими фазами
+- backend rename DTO (B-04) отложен - требует регенерации
+  frontend/src/shared/api/types.ts через running backend
+- BookController.getOne (B-05) НЕ переименован - это проектная
+  convention во всех 4 controllers (Book/Authority/Source/Topic),
+  finding оказался false positive
+- Russian comments в production коде (B-06) - **разрешены** (project
+  ведётся на русском, не code smell)
+- Архивация progress.md cut на Сессии 21 - дала -74% LOC в файле
+  который читает каждая новая сессия
+
+### Проблемы
+
+- Phase 2.a sed-rename импортов прошёл чисто, но был risk если бы кто-то
+  использовал не-aliased relative imports. Спасло то что весь codebase
+  использовал `@/` префикс
+- Audit-агенты иногда возвращали low-severity findings без чёткого
+  "Почему важно" - пришлось переклассифицировать при сведении
+  (например F-08 Page naming уже соблюдается, понижен в info-only)
+
+### Следующий шаг (Сессия 26)
+
+⚠️ **Не нужно делать pre-flight** - все changes уже закоммичены.
+Backend перезапускать не требуется (миграции не добавлены).
+
+**Приоритеты Сессии 26:**
+
+1. **Phase 2.b: split TopicGraphPage (F-01, L effort)** - разнести 1161 LOC
+   на:
+   - `apps/argument-map/pages/TopicGraphPage.tsx` (orchestrator < 200 LOC)
+   - `apps/argument-map/components/topic-graph/GraphCanvas.tsx`
+   - `apps/argument-map/components/topic-graph/GraphToolbar.tsx`
+   - `apps/argument-map/components/topic-graph/GraphContextMenu.tsx`
+   - `apps/argument-map/hooks/useGraphModals.ts`
+   - `apps/argument-map/hooks/useGraphRefresh.ts`
+   - Резолвит также F-13 (5 eslint-disable exhaustive-deps)
+
+2. **Phase 2.c: split BookReaderPage (F-02, M effort)** - 714 LOC →
+   BookReaderPage + BookChapterTree + BookPageRenderer + TextPageViewer
+
+3. **F-03, F-04, F-05** - после split монстров (Phase 3 cleanup
+   продолжение)
+
+4. **F-14 DOMPurify** - security fix для non-shamela HTML
+
+5. **B-04 backend DTO rename** - подтверждение что Абдула запустит
+   backend для regenerate types.ts перед
+
+6. **T-01/T-04/T-05/T-06/T-07** - tests smells (после Phase 2.b/c
+   split, т.к. некоторые тесты затрагивают эти же файлы)
+
+7. **Phase 5 polishing** D-01/D-02/D-04/D-05/D-06/D-07 - мелочи в
+   docs/, можно сделать filler-задачами
+
+Полный список с file:line - в
+`docs/superpowers/audits/2026-05-11-codebase-audit.md` секция
+"Phase backlog".
+
+---
+
 ## 2026-05-11 — Сессия 24 (full-stack) — source-first нумерация + sub-chapters fix + ADR-021
 
 Сфокусированная сессия по 3 проблемам из design-spec

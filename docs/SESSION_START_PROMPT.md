@@ -5,6 +5,63 @@
 начало новой сессии - Claude получит полный контекст без ручного
 объяснения.
 
+## КРИТИЧНО для Сессии 26+ (после Cleanup Marathon)
+
+После Сессии 25 (2026-05-11) структура frontend **изменилась**:
+
+- Старые пути `frontend/src/components/graph/X` → `frontend/src/apps/argument-map/components/graph/X`
+- Старые пути `frontend/src/pages/TopicGraphPage` → `frontend/src/apps/argument-map/pages/TopicGraphPage`
+- Старые пути `frontend/src/pages/BookListPage`/`BookReaderPage` → `frontend/src/apps/library/pages/`
+- Старые пути `frontend/src/pages/AdminShamelaPage` → `frontend/src/apps/admin/pages/`
+- Старые пути `frontend/src/components/ui/`, `layout/` → `frontend/src/shared/components/{ui,layout}/`
+- Старые пути `frontend/src/api/`, `stores/`, `utils/designTokens` → `frontend/src/shared/{api,stores,utils}/`
+- Старые пути `frontend/src/utils/{edgeRules,graphLayout,attachmentTokens}` → `frontend/src/apps/argument-map/utils/`
+
+**Backend** разнесён по responsibilities (см. `docs/architecture.md`):
+`ShamelaImportService` удалён → `ShamelaMasterSyncService` +
+`ShamelaBookImportService` + `ShamelaWorkDirManager`.
+`ShamelaToLibraryMapper` стал orchestrator над 5 классами в
+`library/shamela/service/mapper/`. 5 DAOs используют `ShamelaDaoSupport`.
+
+**Документация:**
+- **Перед началом** прочитать `CLAUDE.md` в корне проекта - быстрый
+  обзор стэка/структуры/команд/конвенций
+- `docs/progress.md` теперь содержит только Сессии 22+; архив Сессий
+  0-21 в `docs/archive/progress-sessions-1-21.md` (читать только при
+  поиске исторического контекста)
+- Cleanup marathon spec/plan/audit:
+  - `docs/superpowers/specs/2026-05-11-codebase-cleanup-marathon-design.md`
+  - `docs/superpowers/plans/2026-05-11-codebase-cleanup-marathon.md`
+  - `docs/superpowers/audits/2026-05-11-codebase-audit.md` (46 findings)
+
+**Незакрытые findings из audit (Phase 2.b/c + Phase 3 polishing):**
+- F-01 разнести `apps/argument-map/pages/TopicGraphPage.tsx` (1161 LOC)
+  на TopicGraphPage + GraphCanvas + GraphToolbar + GraphContextMenu +
+  useGraphModals/useGraphRefresh hooks. Резолвит также F-13 (5
+  eslint-disable exhaustive-deps)
+- F-02 разнести `apps/library/pages/BookReaderPage.tsx` (714 LOC) на
+  BookReaderPage + BookChapterTree + BookPageRenderer + TextPageViewer
+- F-03 разнести NodeDetailsPanel (613 LOC) на section-components
+  (после F-01)
+- F-04 разнести AddSourceModal (550 LOC) на SourceSearchForm +
+  SourceCreateForm
+- F-05 extract shared FormModal из AddNodeModal/AddEdgeModal
+- F-10 миграция 8 компонентов на `shared/types/async.ts AsyncState<T>`
+  (тип уже создан, миграция отложена до split монстров)
+- F-14 установить DOMPurify + sanitize non-shamela HTML в BookReaderPage
+- T-01 frontend: разнести `NodeDetailsPanel.test.tsx` (403 LOC) на
+  логические suites
+- T-04 explicit timeouts в 30+ `waitFor()` вызовах
+- T-05 заменить Tailwind class assertions на семантические
+- T-06 уменьшить scope ShamelaAdminControllerIT (over-mocking)
+- T-07 magic UUIDs → named constants
+- B-04 backend DTO rename (BookSummary → BookSummaryResponse и т.д.)
+  - требует запущенного backend для regenerate types.ts
+- Phase 5 polishing: D-01, D-02, D-04, D-05, D-06, D-07 (см. audit)
+
+Эти TODO детально расписаны в audit-документе с file:line и
+proposed actions.
+
 Раздел "Что обновить перед каждым handoff'ом" описывает что нужно
 проверить в этом файле перед тем как использовать его в новой
 сессии (актуальные TODO, изменения инфраструктуры, новые ADR и т.п.).
