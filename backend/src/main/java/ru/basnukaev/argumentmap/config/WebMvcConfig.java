@@ -41,8 +41,17 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addMapping("/api/**")
                 .allowedOrigins(allowedOrigins)
                 .allowedMethods("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS")
-                .allowedHeaders("Content-Type", "Authorization", "Idempotency-Key", "X-User-Id")
-                .exposedHeaders("Location")
+                // Range нужен для PDF Viewer (react-pdf делает range
+                // requests через PDF.js). Без него preflight отклоняет
+                // запрос или браузер блокирует Range, PDF.js не получит
+                // partial content и упадёт с InvalidPDFException
+                .allowedHeaders("Content-Type", "Authorization", "Idempotency-Key",
+                        "X-User-Id", "Range")
+                // Content-Range/Accept-Ranges/Content-Length нужны
+                // PDF.js чтобы понять размер файла и прогресс. Без
+                // expose - JS получает headers как `undefined`
+                .exposedHeaders("Location", "Content-Range", "Accept-Ranges",
+                        "Content-Length")
                 .allowCredentials(false)
                 .maxAge(3600);
     }

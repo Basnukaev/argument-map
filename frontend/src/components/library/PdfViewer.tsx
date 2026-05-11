@@ -3,7 +3,7 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2, ZoomIn, ZoomOut } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import { apiGetRaw, ApiError } from '@/api/client';
+import { API_BASE_URL, apiGetRaw, ApiError } from '@/api/client';
 
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -125,7 +125,12 @@ function PdfViewer({ bookId, isArabic }: PdfViewerProps) {
     );
   }
 
-  const fileUrl = `/api/v1/library/books/${bookId}/pdf?fileIndex=0`;
+  // Absolute URL обязателен - vite dev-server не проксирует /api/* и
+  // вернул бы SPA index.html на относительный путь, PDF.js получил
+  // бы HTML и упал с InvalidPDFException. Production-сборка идёт через
+  // тот же origin, API_BASE_URL может быть пустым - тогда работает
+  // как относительный
+  const fileUrl = `${API_BASE_URL}/api/v1/library/books/${bookId}/pdf?fileIndex=0`;
   const goPrev = () => pageNumber > 1 && setPageNumber(pageNumber - 1);
   const goNext = () => numPages && pageNumber < numPages && setPageNumber(pageNumber + 1);
   const zoomIn = () => setScale((s) => Math.min(s + 0.2, 3));

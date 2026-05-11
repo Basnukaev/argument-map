@@ -2,8 +2,12 @@ import type { paths } from '@/api/types';
 
 /**
  * Базовый URL бэка. Берётся из VITE_API_URL, по умолчанию localhost:9090.
+ * Экспортируется чтобы прямые fetch-запросы (например react-pdf
+ * Document file=...) могли строить absolute URLs - vite dev-server
+ * не проксирует /api/* по умолчанию, относительные URLs вернули
+ * бы SPA index.html fallback.
  */
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:9090';
+export const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:9090';
 
 /**
  * UUID текущего пользователя для заголовка X-User-Id (ADR-006).
