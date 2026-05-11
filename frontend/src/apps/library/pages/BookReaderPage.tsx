@@ -182,6 +182,7 @@ function BookReaderPage() {
                 depth={0}
                 onSelect={gotoPage}
                 currentPage={pageNumber}
+                bookLanguage={state.book.language}
               />
             )}
           </Card>

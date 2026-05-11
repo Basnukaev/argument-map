@@ -735,6 +735,7 @@ export interface components {
             /** Format: int32 */
             index?: number;
             label?: string;
+            isCover?: boolean;
             /** Format: int64 */
             sizeBytes?: number;
             /** Format: int32 */

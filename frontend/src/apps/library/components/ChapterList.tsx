@@ -14,6 +14,14 @@ interface Props {
   depth: number;
   onSelect: (pageNumber: number) => void;
   currentPage: number;
+  /**
+   * Язык книги. Когда `ar` - корневой `<ul>` получает `dir="rtl"`, тогда
+   * RTL-aware logical properties (`border-s`, `paddingInlineStart`)
+   * автоматически рисуют connector rail и отступ **справа** от текста.
+   * Это правильное направление для RTL: отступы должны начинаться у
+   * "начала чтения", которое для арабского - правая граница.
+   */
+  bookLanguage?: string;
 }
 
 /**
@@ -56,11 +64,18 @@ function getChapterLevelStyles(
  * Connector-rail (border-inline-start) - тонкая вертикальная линия для
  * визуальной связи parent → child. Для depth=0 не рисуется (root уровень).
  */
-function ChapterList({ nodes, depth, onSelect, currentPage }: Props) {
+function ChapterList({ nodes, depth, onSelect, currentPage, bookLanguage }: Props) {
   const railClass = depth > 0 ? 'border-s border-slate-200/70 ms-[10px] ps-[6px]' : '';
+  const isBookArabic = bookLanguage === 'ar';
+  // dir на корневом ul задаёт направление для всех вложенных ul через
+  // inherit. Для арабской книги - rtl, тогда border-s рисуется справа
+  const rootDir = depth === 0 ? (isBookArabic ? 'rtl' : 'ltr') : undefined;
 
   return (
-    <ul className={`${depth === 0 ? 'space-y-0.5' : 'mt-0.5 space-y-0.5'} ${railClass}`}>
+    <ul
+      className={`${depth === 0 ? 'space-y-0.5' : 'mt-0.5 space-y-0.5'} ${railClass}`}
+      dir={rootDir}
+    >
       {nodes.map((n) => {
         const isArabic = isArabicText(n.title);
         const styles = getChapterLevelStyles(depth, isArabic);
@@ -97,6 +112,7 @@ function ChapterList({ nodes, depth, onSelect, currentPage }: Props) {
                 depth={depth + 1}
                 onSelect={onSelect}
                 currentPage={currentPage}
+                bookLanguage={bookLanguage}
               />
             )}
           </li>

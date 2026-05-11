@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { AlertCircle, ChevronLeft, ChevronRight, Loader2, ZoomIn, ZoomOut } from 'lucide-react';
+import {
+  AlertCircle,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Loader2,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
 import { API_BASE_URL, apiGetRaw, ApiError } from '@/shared/api/client';
@@ -55,20 +64,32 @@ type LoadState =
  * запросы через PDF.js worker - backend chunk'ит до 1MB
  * (DEFAULT_CHUNK_SIZE в PdfController).
  *
- * <p>Multi-file books (multi-volume) - на MVP показываем только
- * первый file (fileIndex=0). Dropdown селектор томов добавится
- * в 25.d вместе с page sync.
+ * <p>Multi-volume через dropdown селектор. Cover (isCover=true)
+ * автоматически пропускается - default fileIndex = первый не-cover
+ * файл из info.files.
  *
  * <p>RTL для арабских книг - PDF.js рендерит контент как есть (он
  * embedded в PDF), но controls (prev/next) меняем направление
  * через CSS dir.
+ *
+ * <p>Loading flicker mitigation - вместо setNumPages(null) при page
+ * change используем placeholder `loading={null}` на Page, и держим
+ * previousPageRef для отображения старой страницы пока новая грузится.
  */
 function PdfViewer({ bookId, isArabic }: PdfViewerProps) {
   const [state, setState] = useState<LoadState>({ kind: 'loading-info' });
   const [fileIndex, setFileIndex] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
+  const [pageInput, setPageInput] = useState<string>('1');
   const [numPages, setNumPages] = useState<number | null>(null);
   const [scale, setScale] = useState(1.2);
+
+  /** Меняем pageNumber + sync input одной парой. Используется во всех
+   * местах где меняется страница не через input (prev/next/volume/submit) */
+  const changePage = (next: number) => {
+    setPageNumber(next);
+    setPageInput(String(next));
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -107,7 +128,6 @@ function PdfViewer({ bookId, isArabic }: PdfViewerProps) {
   // по порядковому номеру (исключая cover). Cover скрываем из dropdown.
   //
   // Hooks обязаны быть до early returns - правило react-hooks/rules-of-hooks.
-  // Поэтому useMemo живут здесь, а не после ready-check
   const contentFiles = useMemo(
     () => (state.kind === 'ready' ? (state.info.files ?? []).filter((f) => !f.isCover) : []),
     [state],
@@ -167,42 +187,80 @@ function PdfViewer({ bookId, isArabic }: PdfViewerProps) {
   // как относительный
   const activeFileIndex = fileIndex ?? 0;
   const fileUrl = `${API_BASE_URL}/api/v1/library/books/${bookId}/pdf?fileIndex=${activeFileIndex}`;
-  const goPrev = () => pageNumber > 1 && setPageNumber(pageNumber - 1);
-  const goNext = () => numPages && pageNumber < numPages && setPageNumber(pageNumber + 1);
+  const currentLabel = fileLabels.find((f) => f.index === activeFileIndex)?.display;
+  // sanitize label для download filename: пропускаем латиницу, кириллицу,
+  // арабский (U+0600-U+06FF), цифры. Всё остальное (точки, пробелы, пунктуация) → _
+  const sanitizedLabel = currentLabel?.replace(/[^A-Za-zА-Яа-яёЁ0-9؀-ۿ]+/g, '_').replace(/^_+|_+$/g, '');
+  const downloadFilename = `${bookId}-${activeFileIndex}${sanitizedLabel ? `-${sanitizedLabel}` : ''}.pdf`;
+
+  const goPrev = () => {
+    if (pageNumber > 1) changePage(pageNumber - 1);
+  };
+  const goNext = () => {
+    if (numPages && pageNumber < numPages) changePage(pageNumber + 1);
+  };
   const zoomIn = () => setScale((s) => Math.min(s + 0.2, 3));
   const zoomOut = () => setScale((s) => Math.max(s - 0.2, 0.5));
+
+  const submitPageJump = () => {
+    const parsed = parseInt(pageInput, 10);
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      setPageInput(String(pageNumber));
+      return;
+    }
+    const clamped = numPages ? Math.min(parsed, numPages) : parsed;
+    if (clamped !== pageNumber) changePage(clamped);
+    else setPageInput(String(pageNumber));
+  };
 
   const handleVolumeChange = (newIndex: number) => {
     if (newIndex === activeFileIndex) return;
     setFileIndex(newIndex);
-    setPageNumber(1);
-    setNumPages(null);
+    changePage(1);
+    // numPages намеренно НЕ сбрасываем - чтобы counter `X / Y` не показывал
+    // "1 / …" пока новый PDF грузится. Старое numPages корректно обновится
+    // в onLoadSuccess через ~1-2 сек, а до того юзер видит привычное
+    // значение - меньше визуального шума
   };
 
   return (
     <Card className="overflow-hidden">
-      {/* Volume selector - только для multi-volume книг */}
+      {/* Volume selector - только для multi-volume книг. Stylish native select:
+          design-reference не покрывает <select> элемент, делаем минимальный
+          стиль в духе Button outline + Card patterns (rounded-md, slate-200,
+          indigo focus, ChevronDown indicator справа). Custom dropdown с
+          listbox - отдельный refactor если ROI оправдает */}
       {showVolumeSelector && (
         <div
-          className="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2"
+          className="flex items-center gap-2 border-b border-slate-200 bg-slate-50/60 px-4 py-2"
           dir={isArabic ? 'rtl' : 'ltr'}
         >
-          <label className="text-[11px] uppercase tracking-wide text-slate-500" htmlFor="pdf-volume">
+          <label
+            className="text-[11px] uppercase tracking-wide text-slate-500"
+            htmlFor="pdf-volume"
+          >
             Том
           </label>
-          <select
-            id="pdf-volume"
-            className="rounded border border-slate-300 bg-white px-2 py-1 text-[13px] text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            value={activeFileIndex}
-            onChange={(e) => handleVolumeChange(Number(e.target.value))}
-            dir={isArabic ? 'rtl' : 'ltr'}
-          >
-            {fileLabels.map((f) => (
-              <option key={f.index} value={f.index}>
-                {f.display}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              id="pdf-volume"
+              className="h-7 appearance-none rounded-md border border-slate-300 bg-white pe-7 ps-3 text-[13px] font-medium text-slate-700 outline-none transition-colors hover:border-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              value={activeFileIndex}
+              onChange={(e) => handleVolumeChange(Number(e.target.value))}
+              dir={isArabic ? 'rtl' : 'ltr'}
+            >
+              {fileLabels.map((f) => (
+                <option key={f.index} value={f.index}>
+                  {f.display}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={14}
+              className="pointer-events-none absolute end-2 top-1/2 -translate-y-1/2 text-slate-400"
+              aria-hidden="true"
+            />
+          </div>
         </div>
       )}
 
@@ -220,32 +278,66 @@ function PdfViewer({ bookId, isArabic }: PdfViewerProps) {
         >
           Предыдущая
         </Button>
-        <span className="font-mono text-[13px] text-slate-700">
-          {pageNumber} / {numPages ?? '…'}
-        </span>
+
+        {/* Page jump input - как в text mode PageJump, но без source-first markers
+            (в PDF одна страница = одно полотно, нет printedPage/part) */}
+        <div className="flex items-center gap-2 text-[13px] text-slate-700">
+          <span className="text-slate-500">Стр</span>
+          <input
+            type="number"
+            min={1}
+            max={numPages ?? undefined}
+            value={pageInput}
+            onChange={(e) => setPageInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                submitPageJump();
+              }
+            }}
+            onBlur={submitPageJump}
+            className="h-7 w-16 rounded border border-slate-300 px-2 text-center font-mono text-[13px] outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+            aria-label="Номер PDF страницы"
+          />
+          <span className="font-mono text-slate-400">/ {numPages ?? '…'}</span>
+        </div>
+
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={zoomOut}
             disabled={scale <= 0.5}
-            className="h-7 w-7 grid place-items-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
+            className="grid h-7 w-7 place-items-center rounded text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
             aria-label="Уменьшить"
           >
             <ZoomOut size={14} />
           </button>
-          <span className="font-mono text-[11px] text-slate-500 tabular-nums w-12 text-center">
+          <span className="w-12 text-center font-mono text-[11px] text-slate-500 tabular-nums">
             {Math.round(scale * 100)}%
           </span>
           <button
             type="button"
             onClick={zoomIn}
             disabled={scale >= 3}
-            className="h-7 w-7 grid place-items-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
+            className="grid h-7 w-7 place-items-center rounded text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
             aria-label="Увеличить"
           >
             <ZoomIn size={14} />
           </button>
+
+          {/* Download кнопка - прямая ссылка на streaming endpoint, browser
+              сохранит как файл благодаря attribute `download` */}
+          <a
+            href={fileUrl}
+            download={downloadFilename}
+            className="ms-1 inline-flex h-7 items-center gap-1 rounded px-2 text-[12px] font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-indigo-700"
+            title="Скачать PDF целиком"
+          >
+            <Download size={14} aria-hidden="true" />
+            <span className="hidden sm:inline">PDF</span>
+          </a>
         </div>
+
         <Button
           variant="ghost"
           size="sm"
@@ -258,9 +350,10 @@ function PdfViewer({ bookId, isArabic }: PdfViewerProps) {
       </div>
 
       {/* PDF viewport */}
-      <div className="bg-slate-100 p-4 overflow-auto" style={{ minHeight: '600px' }}>
+      <div className="overflow-auto bg-slate-100 p-4" style={{ minHeight: '600px' }}>
         <div className="mx-auto flex justify-center">
           <Document
+            key={fileUrl}
             file={fileUrl}
             onLoadSuccess={({ numPages }) => setNumPages(numPages)}
             onLoadError={(err) => {
@@ -270,8 +363,7 @@ function PdfViewer({ bookId, isArabic }: PdfViewerProps) {
               <div className="py-20 text-center">
                 <Loader2 size={20} className="mx-auto animate-spin text-slate-400" />
                 <p className="mt-2 text-[12px] text-slate-500">
-                  Загрузка PDF... первая загрузка может занять время
-                  (~50MB качается через прокси на нашем сервере)
+                  Загрузка PDF... первая загрузка может занять время (~50MB качается через прокси на нашем сервере)
                 </p>
               </div>
             }
@@ -281,10 +373,14 @@ function PdfViewer({ bookId, isArabic }: PdfViewerProps) {
               </Card>
             }
           >
+            {/* loading={null} - не показываем спиннер на каждый prev/next,
+                react-pdf оставляет предыдущую страницу видимой пока новая
+                рендерится. Сильно убирает flicker на быстрых клик-паттернах */}
             <Page
               pageNumber={pageNumber}
               scale={scale}
               className="shadow-lg"
+              loading={null}
               renderTextLayer
               renderAnnotationLayer={false}
             />
