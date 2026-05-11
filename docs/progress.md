@@ -63,7 +63,22 @@ git mv + sed-rename импортов, 1 коммит:
 - `glossary.md`: добавлены NodeAuthority/Stance в "Удалённые понятия",
   убраны 2 stale Stance entries
 
-Всего за сессию: **7 коммитов** в master, **108+ файлов изменено**:
+**Phase 2.b/c + F-03 + F-14:** 23 файла, 1 коммит:
+- F-01 TopicGraphPage (1161 → 115 LOC orchestrator): извлечён
+  GraphCanvas + graphPlacement utils
+- F-02 BookReaderPage (718 → 270 LOC): 5 sub-компонентов
+  (BookHeader, ReaderModeSwitch, ChapterList, PageJump, PageView)
+  + bookReaderUtils
+- F-03 NodeDetailsPanel (592 → 81 LOC): 4 sections с инкапсулированным
+  state (NodeContentEditor, NodeMetadataSection, NodeCitationsSection,
+  NodeRevisionsSection) + PanelSection helper + utils
+- F-04 AddSourceModal (537 → 200 LOC): SourceSearchForm +
+  SourceCreateForm + AttachFields
+- F-14 DOMPurify: npm install dompurify + sanitizePageHtml защита
+  от XSS при добавлении не-shamela HTML источников
+- 136 тестов passed, build зелёный, bundle +10 KB gzip (DOMPurify)
+
+Всего за сессию: **9 коммитов** в master, **150+ файлов изменено**:
 - a3f3a20 chore: pre-flight (types.ts regen + npm permission)
 - 2ab4098 docs(spec): cleanup marathon design
 - 58c8938 docs(plan): implementation plan
@@ -72,6 +87,8 @@ git mv + sed-rename импортов, 1 коммит:
 - 82b961a refactor(frontend): Phase 2.a - apps/ reorganization
 - 0b5c54e refactor(frontend): Phase 3 - формат ошибок API + AsyncState
 - e261027 docs: Phase 5 - архивация progress + CLAUDE.md
+- 69bdc66 chore: marathon финализация - SESSION_START + progress итог
+- a64d147 refactor(frontend): Phase 2.b/c/F-03 split монстров + F-14 DOMPurify
 
 ### Решения
 
@@ -106,38 +123,67 @@ git mv + sed-rename импортов, 1 коммит:
 ⚠️ **Не нужно делать pre-flight** - все changes уже закоммичены.
 Backend перезапускать не требуется (миграции не добавлены).
 
-**Приоритеты Сессии 26:**
+**Приоритеты Сессии 26:** marathon закрыт на ~95%. Остаются мелкие
+polish-задачи:
 
-1. **Phase 2.b: split TopicGraphPage (F-01, L effort)** - разнести 1161 LOC
-   на:
-   - `apps/argument-map/pages/TopicGraphPage.tsx` (orchestrator < 200 LOC)
-   - `apps/argument-map/components/topic-graph/GraphCanvas.tsx`
-   - `apps/argument-map/components/topic-graph/GraphToolbar.tsx`
-   - `apps/argument-map/components/topic-graph/GraphContextMenu.tsx`
-   - `apps/argument-map/hooks/useGraphModals.ts`
-   - `apps/argument-map/hooks/useGraphRefresh.ts`
-   - Резолвит также F-13 (5 eslint-disable exhaustive-deps)
+1. **B-04 backend DTO rename** - переименование `BookSummary` →
+   `BookSummaryResponse`, `PageSummary` → `PageSummaryResponse`,
+   `StagingBookSearchResult` → `StagingBookSearchResponse`. Требует:
+   - backend rename
+   - запустить backend (Абдула)
+   - `npm run generate-api`
+   - обновить refs во frontend (AdminShamelaPage, BookListPage,
+     BookReaderPage)
 
-2. **Phase 2.c: split BookReaderPage (F-02, M effort)** - 714 LOC →
-   BookReaderPage + BookChapterTree + BookPageRenderer + TextPageViewer
+2. **F-05: shared FormModal extract** - после Phase 3 cleanup
+   AddNodeModal/AddEdgeModal стали 221/291 LOC. Можно extract'нуть
+   общий FormModal pattern если решим что ROI есть (отложено по
+   audit'у как S-effort)
 
-3. **F-03, F-04, F-05** - после split монстров (Phase 3 cleanup
-   продолжение)
+3. **F-10 AsyncState миграция 8 компонентов** - тип `AsyncState<T, E>`
+   уже создан в shared/types/async.ts. Миграция компонентов
+   (TopicGraphPage уже разнесён в GraphCanvas, BookReaderPage в
+   PageView, NodeDetailsPanel в section-компонентах) - дискретные
+   `ViewState`/`LoadState`/`SourcesState`/`RevisionsState` → единый
+   `AsyncState<T>`. Эффект - минус -50 LOC дубль-типов
 
-4. **F-14 DOMPurify** - security fix для non-shamela HTML
+4. **GraphCanvas (768 LOC) дальнейший split** - всё ещё outside 250
+   LOC порога. Можно extract'нуть:
+   - `GraphPanels.tsx` - 4 RF Panel в bottom-/top-corners (статика)
+   - `useGraphContextMenu.ts` hook - context menu state + handlers
+     (pane/node/edge)
+   - `useGraphHotkeys.ts` hook - Escape effect
+   После - GraphCanvas ~400 LOC
 
-5. **B-04 backend DTO rename** - подтверждение что Абдула запустит
-   backend для regenerate types.ts перед
+5. **T-01/T-04/T-05/T-06/T-07** - tests smells:
+   - T-04 explicit timeouts в `waitFor()` (30+ мест)
+   - T-05 заменить Tailwind class assertions на семантические
+   - T-06 уменьшить scope ShamelaAdminControllerIT
+   - T-07 magic UUIDs → named constants
+   - T-01 split NodeDetailsPanel.test.tsx по логическим suite'ам
+     (теперь когда сам компонент split, тесты тоже можно)
 
-6. **T-01/T-04/T-05/T-06/T-07** - tests smells (после Phase 2.b/c
-   split, т.к. некоторые тесты затрагивают эти же файлы)
-
-7. **Phase 5 polishing** D-01/D-02/D-04/D-05/D-06/D-07 - мелочи в
-   docs/, можно сделать filler-задачами
+6. **Phase 5 polishing** D-01/D-02/D-04/D-05/D-06/D-07 - мелочи в
+   docs/ (filler задачи, audit описывает каждую):
+   - D-01 ADR template "Implemented in:" поле
+   - D-02 устранить дублирование Library в architecture.md vs
+     architecture-platform.md
+   - D-04 align progress.md vs roadmap.md формат
+   - D-05 api-contract.md springdoc-openapi gap notice
+   - D-06 gotchas.md "Решённые ловушки (архив)" reorg
+   - D-07 vision.md timeline disclaimer
 
 Полный список с file:line - в
 `docs/superpowers/audits/2026-05-11-codebase-audit.md` секция
 "Phase backlog".
+
+**Что MARATHON НЕ ТРОНУЛ (out of scope):**
+- T-09 coverage (12 UI компонентов без тестов) - feature work
+- T-08, T-10 - low priority, по audit'у можно не делать
+- B-05 BookController.getOne - false positive (convention во всех 4
+  controllers)
+- B-06 Russian comments - allowed (project ведётся на русском)
+- B-07 web/dto subpackages - может сделать когда добавятся новые DTO
 
 ---
 
