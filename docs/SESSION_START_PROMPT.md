@@ -5,6 +5,22 @@
 начало новой сессии - Claude получит полный контекст без ручного
 объяснения.
 
+## КРИТИЧНО для Сессии 27+ (после Сессии 26 - PDF cover bug fix + UX polish)
+
+После Сессии 26 (2026-05-11):
+- PDF cover bug закрыт (`isCover` поле в `PdfFileInfo`, frontend
+  пропускает обложку по дефолту, multi-volume dropdown работает)
+- PDF UX polish: chapters tree RTL rail, dropdown style, page jump
+  в PDF, download кнопка, loading flicker fix
+- ADR-023 принят как направление: миграция long-running backend
+  процессов на event-driven (worker'ы + persisted queue + checkpointing)
+  когда дойдём до Этап 16 user-upload или multi-user beta
+- Memory entries добавлены: playwright skill для UI verification,
+  design-reference checks перед UI changes
+
+**Главный приоритет Сессии 27 - 25.b MinIO cache** (см.
+`docs/progress.md` Сессия 26 "Следующий шаг" - там детальный план).
+
 ## КРИТИЧНО для Сессии 26+ (после Cleanup Marathon)
 
 После Сессии 25 (2026-05-11) структура frontend **изменилась**:

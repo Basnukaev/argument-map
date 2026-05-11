@@ -17,15 +17,17 @@ Claude Code не тратят токены на исторический кон�
 
 ---
 
-## 2026-05-11 — Сессия 26 (full-stack) — PDF cover bug fix + multi-volume dropdown
+## 2026-05-11 — Сессия 26 (full-stack) — PDF cover bug fix + multi-volume + UX polish + ADR-023
 
-Сфокусированная сессия по bug report'у Абдулы: при клике 📕 PDF в
-reader'е Тафсира Ибн Касира показывалось `2 / 3` страницы вместо
-тысяч. Скриншот `pdf_wrong_amount_pages.png`.
+Сессия двухфазная:
+1. **Phase 1** - bug report (cover показывался вместо контента) +
+   multi-volume dropdown
+2. **Phase 2** - UX polish (5 fixes) + architectural ADR-023 на
+   микросервисы + 2 memory entries для будущих сессий
 
 ### Сделано
 
-3 коммита (1 backend + 1 frontend + 1 docs):
+**Phase 1** - 3 коммита (1 backend + 1 frontend + 1 docs):
 
 - `ee7650f` `fix(backend): помечать обложку PDF флагом isCover в PdfFileInfo` -
   диагностика через `docker exec psql` на `lib_books.metadata.pdf_links`
@@ -46,7 +48,60 @@ reader'е Тафсира Ибн Касира показывалось `2 / 3` с
   early returns (правило react-hooks/rules-of-hooks). Drive-by
   ESLint disable на useApiQuery line 40 (pre-existing). 136 frontend
   tests passed, build зелёный, lint 0 errors
-- (predстоящий) docs - этот файл + roadmap + gotcha
+- `c13b3cb` docs - progress + roadmap (25.d split) + gotcha про
+  shamela `cover: 1` convention
+
+End-to-end verification through playwright headless: подтверждено
+dropdown 8 опций без cover, default = المقدمة, смена тома → реальная
+загрузка нового PDF с backend (cache hit/miss в логах).
+
+**Phase 2** - после фидбека Абдулы (дропдовн не в стиле + 5 UX
+улучшений + микросервисы как future direction). 2 коммита + 2
+memory entries:
+
+- `f7c396e` `feat(frontend): PDF UX polish + ChapterList RTL rail` -
+  5 фиксов одним коммитом:
+  - **Chapters tree RTL** - `ChapterList` принимает `bookLanguage`
+    prop, выставляет `dir="rtl"` на корневом `<ul>` для арабских
+    книг. Logical properties (`border-s`, `ms-*`, `ps-*`) теперь
+    рисуют connector rails справа (для RTL это сторона "начала
+    чтения"). Все nested `<ul>` наследуют dir
+  - **Dropdown style** - native `<select>` стилизован под Button
+    outline variant (rounded-md, slate-300, indigo focus, h-7, +
+    ChevronDown indicator справа). design-reference не имеет
+    `<select>` элемента, явно сказали user'у. Custom listbox -
+    отдельный refactor если ROI оправдает
+  - **Page jump в PDF mode** - number-input в pagination toolbar
+    для прямого перехода на pdf-страницу N (как обычная читалка).
+    Sync `pageNumber ↔ pageInput` через `changePage()` helper
+    (вызывается из prev/next/volume/submit handlers) - обходит
+    react-hooks/refs (ref mutation in render запрещено в React 19)
+  - **PDF download кнопка** - `<a download>` с absolute fileUrl +
+    sanitized filename `{bookId}-{fileIndex}-{label}.pdf` (regex
+    пропускает латиницу/кириллицу/арабский U+0600-U+06FF/цифры)
+  - **Loading flicker fix** - `<Page loading={null}>` оставляет
+    предыдущую страницу видимой пока новая рендерится. Volume
+    change не сбрасывает `numPages` чтобы counter `X / Y` не
+    показывал `1 / …` пока новый PDF подгружается
+- `a57c032` `docs: ADR-023 микросервисы + 25.d.3 PDF UX polish` -
+  ADR-023 (принят как направление, реализация отложена): миграция
+  long-running backend процессов на event-driven с persisted task
+  queue + idempotent workers + granular checkpointing. Триггеры:
+  Этап 16 user-upload PDF, multi-user beta, конкретный pain.
+  Roadmap: 25.d.3 [x] (5 sub-items), 25.d.4/5 backlog (inline
+  preview redesign + lazy streaming)
+
+End-to-end verification через playwright headless: chapters RTL
+dir, dropdown class, page input sync, download href + filename,
+3 prev/next без visible Loading placeholder - всё подтверждено.
+
+Memory entries (хранятся вне git в `~/.claude/projects/.../memory/`):
+- `feedback_playwright_for_ui.md` - использовать playwright skill
+  для self-verification UI fix'ов, после 2+ fails звать user'а,
+  всегда напомнить о вторичной ручной проверке
+- `feedback_design_reference_check.md` - перед добавлением UI
+  элемента проверять `frontend/design-reference/project/`, если
+  стиля нет - явно сказать user'у
 
 ### Решения
 
@@ -69,34 +124,70 @@ reader'е Тафсира Ибн Касира показывалось `2 / 3` с
 
 ### Следующий шаг (Сессия 27)
 
-⚠️ **Pre-flight для Сессии 27**: Абдула должен перезапустить backend
-(Liquibase migrations без изменений, только Java code). После рестарта:
+**Pre-flight**: ничего критичного. Backend в Сессии 26 был
+перезапущен мной (Phase 1 - в background, я kill'нул user'ин и
+поднял свой со свежим isCover-кодом). Сейчас оба бэкенда: либо
+user перезапустил свой, либо мой ещё крутится в фоне (/tmp/backend.log).
 
+Если новая сессия начинается с чистого терминала:
 ```bash
-cd backend && ./mvnw spring-boot:run
-# дождаться "Started ArgumentMapApplication"
-
-cd ../frontend && npm run generate-api
-# types.ts получит isCover в PdfFileInfoResponse
-# PdfViewer можно опционально мигрировать с локального PdfFileInfoEntry
-# на components['schemas']['PdfFileInfoResponse']
-
-# Hard reload http://localhost:5173/books/02bcfa43-d269-4545-8e8b-965ed56dfc93
-# - кликнуть 📕 PDF
-# - убедиться что cover пропущена (default = المقدمة или Том 1)
-# - dropdown "Том" с 8 опциями (без cover)
-# - prev/next в томе работает, numPages соответствует реальному тому
-# - смена тома → reset на page 1
+docker compose up -d
+cd backend && ./mvnw spring-boot:run  # Абдула - в его терминале
+cd frontend && npm run dev            # обычно держит запущенным
 ```
 
-**Если live-проверка зелёная** - можно продолжить Этап 25.b (MinIO
-cache) или 25.d.2 (page sync + Tier 1 admin mapping). Spec
-`docs/superpowers/specs/2026-05-11-pdf-viewer-source-agnostic.md`
-purchase для деталей.
+**Главный приоритет Сессии 27 - Этап 25.b (MinIO cache)**.
+Сейчас `PdfLinksSourceProvider.downloadFile` качает PDF в локальный
+tempDir (`/tmp/argmap-pdf/{bookId}/{filename}.pdf`) и оставляет
+там (in-process cache до рестарта). После рестарта - всё качается
+заново. Для production unacceptable: PDF Тафсира 50MB качается
+через corporate proxy ~30-60 сек, юзер ждёт каждый раз.
 
-**Альтернатива** - закрыть оставшиеся marathon TODO (F-10 миграция 5
-компонентов, T-01 NodeDetailsPanel.test.tsx split). См. Сессия 25
-"Следующий шаг".
+**План 25.b** (~1.5-2 часа):
+1. **docker-compose.yml**: добавить `minio` сервис + healthcheck.
+   Init bucket `argument-map-pdf-cache` через minio CLI `mc` (sidecar
+   container) или Java application init
+2. **pom.xml**: добавить `software.amazon.awssdk:s3` (MinIO
+   S3-совместимое API)
+3. **application.yml**: блок `library.pdf.cache.minio: { endpoint:,
+   bucket:, access-key:, secret-key: }`. Defaults для local dev,
+   override через env vars
+4. **MinioCacheService**: put/get/exists через S3 SDK. Object key
+   = `{bookId}/{filename}.pdf`. Stream input direkt в MinIO (не
+   buffer всё в память для 50MB)
+5. **PdfLinksSourceProvider rework**: при `downloadFile` сначала
+   проверить MinIO (head request), если есть - return InputStream из
+   MinIO; если нет - скачать с archive.org + одновременно загрузить
+   в MinIO + вернуть локальный path (или сразу stream)
+6. **PdfService**: возможно нужно сменить return-type с `Path` на
+   `Resource` или `InputStream`. PdfController надо адаптировать
+7. **IT через testcontainers-minio**: 3-4 IT (put → get success;
+   miss → download fallback; multiple concurrent requests)
+8. **Eviction job**: `@Scheduled` cron 1/day, удаляет объекты с
+   `lastAccessed` старше 30 дней. Через S3 ListObjectsV2 + filter
+   по `LastModified`. Или объект-метаданными timestamp последнего
+   access (PUT каждый access - дорого, лучше LastModified)
+
+**Спецификация**: `docs/superpowers/specs/2026-05-11-pdf-viewer-source-agnostic.md`
+раздел "25.b - MinIO infrastructure".
+
+**Альтернативные приоритеты для Сессии 27**:
+- **25.d.4 inline PDF preview** по shamela паттерну - переустройство
+  read-flow (кнопка PDF на каждой text-page → inline preview snapshot
+  → fullscreen → return). Требует `pdfPageNumber` mapping (25.d.2)
+  или fallback на physical=internal
+- **25.d.5 lazy streaming** - бэк форвардит Range frontend → archive.org
+  без full download. Trade-off latency vs first-byte time. Связано
+  с ADR-023 (этот процесс надо мигрировать на event-driven по факту)
+- **Закрыть marathon TODO** (F-10 5 компонентов, T-01 split,
+  D-04 progress align) - low priority, можно делать interleaved
+
+**Что точно НЕ делать в Сессии 27**:
+- Не трогать архитектуру цитирования (CitationPicker - после PDF
+  стабилен)
+- Не делать polish chapters tree сверх Сессии 26 fix'а - shamela-style
+  без линий не лучше нашего варианта с rails
+- Не лезть в design-reference (статический)
 
 ---
 
