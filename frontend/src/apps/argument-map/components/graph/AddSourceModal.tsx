@@ -3,7 +3,7 @@ import { Search, Link as LinkIcon, Plus, ArrowLeft } from 'lucide-react';
 import Modal from '@/shared/components/ui/Modal';
 import Button from '@/shared/components/ui/Button';
 import Kbd from '@/shared/components/ui/Kbd';
-import { apiGetRaw, apiPost, apiPostRaw, ApiError } from '@/shared/api/client';
+import { apiGetRaw, apiPost, apiPostRaw, formatApiError } from '@/shared/api/client';
 import type { components } from '@/shared/api/types';
 import {
   SOURCE_TYPE_LABEL,
@@ -68,13 +68,7 @@ function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
       })
       .catch((e: unknown) => {
         if (cancelled) return;
-        const msg =
-          e instanceof ApiError
-            ? e.problem.detail || e.problem.title
-            : e instanceof Error
-              ? e.message
-              : 'Не удалось загрузить справочник';
-        setState({ kind: 'error', message: msg });
+        setState({ kind: 'error', message: formatApiError(e, 'Не удалось загрузить справочник') });
       });
     return () => {
       cancelled = true;
@@ -149,15 +143,7 @@ function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
       onAttached();
       onClose();
     } catch (e: unknown) {
-      const msg =
-        e instanceof ApiError
-          ? (e.problem.errors?.map((er) => `${er.field}: ${er.message}`).join('; ') ||
-            e.problem.detail ||
-            e.problem.title)
-          : e instanceof Error
-            ? e.message
-            : 'Не удалось привязать источник';
-      setSubmitError(msg);
+      setSubmitError(formatApiError(e, 'Не удалось привязать источник'));
       setSubmitting(false);
     }
   }

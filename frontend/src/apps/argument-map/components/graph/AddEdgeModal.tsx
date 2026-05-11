@@ -5,7 +5,7 @@ import Modal from '@/shared/components/ui/Modal';
 import Button from '@/shared/components/ui/Button';
 import Kbd from '@/shared/components/ui/Kbd';
 import NodeSelect from '@/apps/argument-map/components/graph/NodeSelect';
-import { apiPost, ApiError } from '@/shared/api/client';
+import { apiPost, formatApiError } from '@/shared/api/client';
 import type { components } from '@/shared/api/types';
 import {
   EDGE_TYPE_META,
@@ -117,14 +117,7 @@ function AddEdgeModal({
       onCreated();
       onClose();
     } catch (e: unknown) {
-      if (e instanceof ApiError) {
-        const fieldErrors = e.problem.errors?.map((er) => `${er.field}: ${er.message}`).join('; ');
-        setError(fieldErrors || e.problem.detail || e.problem.title);
-      } else if (e instanceof Error) {
-        setError(e.message);
-      } else {
-        setError('Не удалось создать связь');
-      }
+      setError(formatApiError(e, 'Не удалось создать связь'));
       setSubmitting(false);
     }
   }

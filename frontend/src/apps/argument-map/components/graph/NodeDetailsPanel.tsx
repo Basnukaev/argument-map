@@ -18,7 +18,7 @@ import {
 import Button from '@/shared/components/ui/Button';
 import IconButton from '@/shared/components/ui/IconButton';
 import StatusBadge from '@/shared/components/ui/StatusBadge';
-import { apiGetRaw, apiPatchRaw, apiDeleteRaw, ApiError } from '@/shared/api/client';
+import { apiGetRaw, apiPatchRaw, apiDeleteRaw, formatApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import type { components } from '@/shared/api/types';
 import { NODE_TYPE_TOKENS, type NodeType, type NodeStatus } from '@/shared/utils/designTokens';
@@ -90,14 +90,6 @@ function formatDate(iso?: string): string {
 function shortId(id?: string): string {
   if (!id) return '—';
   return id.slice(0, 8);
-}
-
-function errorMessage(e: unknown, fallback: string): string {
-  if (e instanceof ApiError) {
-    return e.problem.detail || e.problem.title || fallback;
-  }
-  if (e instanceof Error) return e.message;
-  return fallback;
 }
 
 interface SectionProps {
@@ -196,7 +188,7 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
         data: { links, sourceLookup, authorityLookup },
       });
     } catch (e: unknown) {
-      setSourcesState({ kind: 'error', message: errorMessage(e, 'Не удалось загрузить цитаты') });
+      setSourcesState({ kind: 'error', message: formatApiError(e, 'Не удалось загрузить цитаты') });
     }
   }
 
@@ -212,7 +204,7 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
     try {
       await apiDeleteRaw(`/api/v1/nodes/${node.id}/sources/${sourceId}`);
     } catch (e: unknown) {
-      toast.error(errorMessage(e, 'Не удалось отвязать цитату'));
+      toast.error(formatApiError(e, 'Не удалось отвязать цитату'));
       setSourcesState({
         kind: 'loaded',
         data: { ...sourcesState.data, links: previous },
@@ -238,13 +230,7 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
       const list = await apiGetRaw<RevisionDto[]>(`/api/v1/nodes/${node.id}/revisions`);
       setRevisionsState({ kind: 'loaded', revisions: list });
     } catch (e: unknown) {
-      const message =
-        e instanceof ApiError
-          ? e.problem.detail || e.problem.title
-          : e instanceof Error
-            ? e.message
-            : 'Не удалось загрузить историю';
-      setRevisionsState({ kind: 'error', message });
+      setRevisionsState({ kind: 'error', message: formatApiError(e, 'Не удалось загрузить историю') });
     }
   }
 
@@ -274,14 +260,7 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
       setEditing(false);
       onUpdated();
     } catch (e: unknown) {
-      if (e instanceof ApiError) {
-        const fieldErrors = e.problem.errors?.map((er) => `${er.field}: ${er.message}`).join('; ');
-        setSaveError(fieldErrors || e.problem.detail || e.problem.title);
-      } else if (e instanceof Error) {
-        setSaveError(e.message);
-      } else {
-        setSaveError('Не удалось сохранить');
-      }
+      setSaveError(formatApiError(e, 'Не удалось сохранить'));
     } finally {
       setSaving(false);
     }

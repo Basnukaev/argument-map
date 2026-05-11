@@ -49,6 +49,25 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Форматирует ошибку в человекочитаемую строку для UI. Приоритет:
+ * field-validation ошибки → problem.detail → problem.title → fallback.
+ * Для не-ApiError возвращает error.message либо fallback.
+ *
+ * Используется в onCatch блоках чтобы избежать дублирования формулы
+ * в 5+ компонентах (F-09 audit).
+ */
+export function formatApiError(error: unknown, fallback = 'Неизвестная ошибка'): string {
+  if (error instanceof ApiError) {
+    const fieldErrors = error.problem.errors
+      ?.map((er) => `${er.field}: ${er.message}`)
+      .join('; ');
+    return fieldErrors || error.problem.detail || error.problem.title || fallback;
+  }
+  if (error instanceof Error) return error.message;
+  return fallback;
+}
+
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
 const MUTATING_METHODS: ReadonlySet<Method> = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);

@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import IconButton from '@/shared/components/ui/IconButton';
-import { apiPatchRaw, ApiError } from '@/shared/api/client';
+import { apiPatchRaw, formatApiError } from '@/shared/api/client';
 import type { components } from '@/shared/api/types';
 import {
   EDGE_TYPE_META,
@@ -216,14 +216,7 @@ function EdgeDetailsPanel({
       setEditing(false);
       onUpdated();
     } catch (e: unknown) {
-      if (e instanceof ApiError) {
-        const fieldErrors = e.problem.errors?.map((er) => `${er.field}: ${er.message}`).join('; ');
-        setSaveError(fieldErrors || e.problem.detail || e.problem.title);
-      } else if (e instanceof Error) {
-        setSaveError(e.message);
-      } else {
-        setSaveError('Не удалось сохранить');
-      }
+      setSaveError(formatApiError(e, 'Не удалось сохранить'));
     } finally {
       setSaving(false);
     }

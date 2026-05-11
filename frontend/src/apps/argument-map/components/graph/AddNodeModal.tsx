@@ -4,7 +4,7 @@ import { Plus } from 'lucide-react';
 import Modal from '@/shared/components/ui/Modal';
 import Button from '@/shared/components/ui/Button';
 import Kbd from '@/shared/components/ui/Kbd';
-import { apiPost, apiPatchRaw, ApiError } from '@/shared/api/client';
+import { apiPost, apiPatchRaw, formatApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { NODE_TYPE_TOKENS, type NodeType } from '@/shared/utils/designTokens';
 import type { EdgeType } from '@/apps/argument-map/utils/edgeRules';
@@ -111,14 +111,7 @@ function AddNodeModal({
       onCreated();
       onClose();
     } catch (e: unknown) {
-      if (e instanceof ApiError) {
-        const fieldErrors = e.problem.errors?.map((er) => `${er.field}: ${er.message}`).join('; ');
-        setError(fieldErrors || e.problem.detail || e.problem.title);
-      } else if (e instanceof Error) {
-        setError(e.message);
-      } else {
-        setError('Не удалось создать узел');
-      }
+      setError(formatApiError(e, 'Не удалось создать узел'));
       setSubmitting(false);
     }
   }
