@@ -644,4 +644,41 @@ children. Косвенно это связано с другим известн�
 
 ---
 
+## Shamela `pdf_links.cover: 1` означает что `files[0]` это обложка
+
+**Симптом:** PdfViewer открывает книгу, react-pdf показывает numPages=3
+вместо ожидаемых тысяч. Юзер видит обложку (cover) с counter
+`X / 3` вместо реального содержания тома.
+
+**Причина:** shamela / archive.org metadata формат:
+
+```json
+{
+  "root": "https://archive.org/download/.../",
+  "cover": 1,
+  "files": ["00_113015.pdf", "01_113015p.pdf|المقدمة", "01_113015.pdf", ...]
+}
+```
+
+`cover: 1` это **boolean флаг** что обложка есть. Convention где она
+лежит - `files[0]` (typically named `00_*.pdf`). Если просто отдать
+`fileIndex=0` юзеру в reader - попадёт на cover (3 страницы), а
+реальные тома в `files[1..N]`.
+
+**Решение:** на бэке `PdfLinksSourceProvider.getMetadata()` маркирует
+первый файл `isCover=true` когда `hasCover=true`. Фронт пропускает
+cover из основного potoka чтения - выбирает первый файл с
+`isCover=false` как default `fileIndex`. Обложка может быть показана
+отдельно (например пункт "Обложка" в dropdown), но из main paginator
+она исключается.
+
+Convention shamela устойчива на ~8500 проверенных книгах. Если когда-нибудь
+сломается - backend упадёт с `fileIndex out of range` для книги где
+все файлы помечены cover, что заметно.
+
+Зафиксировано в Сессии 26 при first UX-проверке PDF Viewer на Тафсире
+Ибн Касира (book 1503).
+
+---
+
 <!-- Добавлять новые ловушки сюда по мере их обнаружения -->

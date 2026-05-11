@@ -17,6 +17,89 @@ Claude Code не тратят токены на исторический кон�
 
 ---
 
+## 2026-05-11 — Сессия 26 (full-stack) — PDF cover bug fix + multi-volume dropdown
+
+Сфокусированная сессия по bug report'у Абдулы: при клике 📕 PDF в
+reader'е Тафсира Ибн Касира показывалось `2 / 3` страницы вместо
+тысяч. Скриншот `pdf_wrong_amount_pages.png`.
+
+### Сделано
+
+3 коммита (1 backend + 1 frontend + 1 docs):
+
+- `ee7650f` `fix(backend): помечать обложку PDF флагом isCover в PdfFileInfo` -
+  диагностика через `docker exec psql` на `lib_books.metadata.pdf_links`
+  показала формат shamela: `cover: 1` + `files: ["00_*.pdf", "01_*p.pdf|المقدمة",
+  "01_*.pdf", "02_*.pdf", ...]`. Cover convention - `files[0]` это
+  обложка, реальный контент в `files[1..N]`. `PdfFileInfo` получил
+  `boolean isCover`, `PdfLinksSourceProvider.getMetadata` маркирует
+  первый файл cover'ом при `hasCover=true`. `PdfFileInfoResponse`
+  расширен. `PdfControllerIT` обновлён на 3-file fixture с
+  cover/main/المقدمة. 311 IT зелёных
+- `4964631` `fix(frontend): пропускать обложку PDF + multi-volume dropdown
+  в PdfViewer` - default `fileIndex` = первый не-cover файл (через
+  `files.find(f => !f.isCover)`). Добавлен dropdown селектор томов
+  в header viewer'а - показывается когда у книги >1 не-cover файла.
+  Labels: арабские шамеловские (المقدمة) как есть; filename-like
+  (`01_113015`) → "Том N" по порядковому номеру. При смене тома -
+  reset `pageNumber=1, numPages=null`. `useMemo` перенесены выше
+  early returns (правило react-hooks/rules-of-hooks). Drive-by
+  ESLint disable на useApiQuery line 40 (pre-existing). 136 frontend
+  tests passed, build зелёный, lint 0 errors
+- (predстоящий) docs - этот файл + roadmap + gotcha
+
+### Решения
+
+- Convention-based детекция cover (`hasCover && index == 0`) против
+  явного `isCover` поля - выбран explicit. Если archive.org изменит
+  порядок files в одной книге, явный isCover не сломается; convention-
+  fix на фронте сломался бы при upstream-changes
+- Multi-volume dropdown - закрыли часть 25.d.1, а page sync (25.d.2)
+  отложен. Page sync требует заполненного `lib_pages.pdf_page_number`
+  (NULL сейчас), это часть Tier 1 admin mapping flow (25.e). Зависимость
+  есть, нет смысла делать page sync раньше source мapping'а
+- Drive-by fix useApiQuery - сделал чтобы lint был зелёным для коммита.
+  Альтернатива - оставить pre-existing warning как было, но это рушит
+  правило "коммит должен быть с чистым lint"
+
+### Проблемы
+
+- Без - bug был узким и локализованным, root cause найден за один
+  read цикл (БД metadata + view PdfViewer)
+
+### Следующий шаг (Сессия 27)
+
+⚠️ **Pre-flight для Сессии 27**: Абдула должен перезапустить backend
+(Liquibase migrations без изменений, только Java code). После рестарта:
+
+```bash
+cd backend && ./mvnw spring-boot:run
+# дождаться "Started ArgumentMapApplication"
+
+cd ../frontend && npm run generate-api
+# types.ts получит isCover в PdfFileInfoResponse
+# PdfViewer можно опционально мигрировать с локального PdfFileInfoEntry
+# на components['schemas']['PdfFileInfoResponse']
+
+# Hard reload http://localhost:5173/books/02bcfa43-d269-4545-8e8b-965ed56dfc93
+# - кликнуть 📕 PDF
+# - убедиться что cover пропущена (default = المقدمة или Том 1)
+# - dropdown "Том" с 8 опциями (без cover)
+# - prev/next в томе работает, numPages соответствует реальному тому
+# - смена тома → reset на page 1
+```
+
+**Если live-проверка зелёная** - можно продолжить Этап 25.b (MinIO
+cache) или 25.d.2 (page sync + Tier 1 admin mapping). Spec
+`docs/superpowers/specs/2026-05-11-pdf-viewer-source-agnostic.md`
+purchase для деталей.
+
+**Альтернатива** - закрыть оставшиеся marathon TODO (F-10 миграция 5
+компонентов, T-01 NodeDetailsPanel.test.tsx split). См. Сессия 25
+"Следующий шаг".
+
+---
+
 ## 2026-05-11 — Сессия 25 (full-stack) — Cleanup Marathon
 
 Большая сессия cleanup'а после 24 сессий накопления техдолга. Пользователь

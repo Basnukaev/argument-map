@@ -628,11 +628,22 @@ apps/* добавляется только когда возникнет кон�
 - [ ] **25.b: MinIO cache** - docker-compose MinIO + MinioCacheService.
       Сейчас PDF кешируется в локальный tempDir (после рестарта
       теряется). MinIO с TTL 30 дней
-- [ ] **25.c: react-pdf install + viewer** - npm install,
+- [x] **25.c: react-pdf install + viewer** - npm install,
       worker setup в vite.config.ts, PdfViewer.tsx компонент,
-      toggle 📃/📕 в reader (стиль по platform_reader.jsx PageToolbar)
-- [ ] **25.d: page sync** - internal pageNumber → pdfPageNumber
-      mapping с fallback на physical=internal если null
+      toggle 📃/📕 в reader (стиль по platform_reader.jsx PageToolbar).
+      Реализовано в Сессии 24
+- [x] **25.d.1: cover skip + multi-volume dropdown** (Сессия 26
+      bug fix). `PdfFileInfo.isCover` boolean маркирует обложку
+      (convention shamela/archive.org - first file при `cover: 1`).
+      Frontend PdfViewer пропускает cover по умолчанию (выбирает
+      первый не-cover файл), показывает dropdown селектор томов
+      для multi-volume книг. Labels: арабские шамеловские
+      (المقدمة) как есть; filename-like (`01_113015`) → "Том N".
+      Fix bug'а - юзер видел 3 страницы cover вместо тысяч контента
+- [ ] **25.d.2: text↔pdf page sync** - internal pageNumber →
+      pdfPageNumber mapping с fallback на physical=internal если null.
+      Требует Tier 1 admin page-mapping flow для заполнения
+      `pdf_page_number` в `lib_pages`
 - [ ] **25.e: admin manual page-mapping** (Tier 1, опционально)
 - [ ] **25.f: region selection** через react-image-crop +
       `POST /api/v1/library/pages/{id}/regions` (после CitationPicker
