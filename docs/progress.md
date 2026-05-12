@@ -17,13 +17,19 @@ Claude Code не тратят токены на исторический кон�
 
 ---
 
-## 2026-05-12 — Сессия 27 (full-stack) — CJK cleanup + chapters collapse + inline PDF preview
+## 2026-05-12 — Сессия 27 (full-stack) — CJK cleanup + chapters collapse + inline PDF preview + PDF mapping
+
+Двухфазная сессия:
+- **Phase 1**: 4 user feedback пункта (CJK cleanup, chapters collapse,
+  inline PDF preview, lazy loading отложен на 25.b)
+- **Phase 2**: ещё 8 пунктов после fresh testing - 6 закрыто, 2 (resize
+  bottom-sheet + editable blue block) отложены
 
 Сессия с 4 user-feedback пунктами после Сессии 26:
 
 ### Сделано
 
-2 коммита (1 backend + 1 frontend) + docs:
+**Phase 1** - 2 коммита (1 backend + 1 frontend) + docs:
 
 - `9b9eb5f` `fix(backend): cleanup CJK icon-font символов в shamela
   импорте` - bug report: символ 舄 (U+8204) на страницах арабского
@@ -80,7 +86,71 @@ Verified через playwright headless:
   fetch / WSL2 corporate proxy auto-detection. Не критично, но
   стоит исследовать когда настанет время
 
+**Phase 2** - 1 коммит после re-test пользователем (8 пунктов фидбека):
+
+- `edc7c8d` `fix(frontend): PDF mapping part/printedPage + sticky chapter
+  highlight + click parent expand` - 5 fixes:
+  - **PDF mapping (главный bug)**: на page 1245 (Том 3 Стр 39) PDF preview
+    открывал Том 4 с failed-load. Root cause: я передавал internal
+    pageNumber как fileIndex без mapping через shamela part/printedPage.
+    PdfViewer теперь принимает `initialPart` + `initialPrintedPage`.
+    `findFileIndexForPart` matching: arabic part (المقدمة) → exact label;
+    numeric part ("3") → matching через filename-like volume counter
+    (01_*.pdf=Том 1, 02_*.pdf=Том 2, etc.). `fileLabels` numbering
+    ребалансирована (раньше i+1 от позиции, теперь только filename-like
+    counter)
+  - **Sticky chapter highlight**: глава остаётся подсвеченной indigo для
+    всего диапазона страниц через `findCurrentChapter` (max startPage
+    ≤ currentPage). Auto-expand path через `findAncestorPath` до этой
+    главы. Раньше highlight терялся при prev/next пока не попадал на
+    точную startPageNumber
+  - **Click parent chapter = expand + navigate**: title-click теперь
+    делает оба действия. Раньше нужно было два клика (chevron + title)
+  - **Red PDF button styling**: rose-200/50/700 + FileImage icon
+  - **Padding от текста**: Card `pt-14` + button `end-4` чтобы кнопка
+    не налезала на arabic text. Bottom-sheet header показывает «стр. N
+    · том M» из shamela, не internal pageNumber
+
+Verified через playwright headless: PDF preview opens "Том 3" на page 39 ✓,
+blue block "Том 3·Стр 39" ✓, chapter highlight stable 1245→1246 ✓,
+click parent → +1 expanded ✓, PDF button rose styling ✓
+
+**Что отложено**:
+- **D. bottom-sheet resize** - drag handle на верхнем border bottom-sheet
+  для resize высоты. Не critical, текущая 65vh работоспособна
+- **G. editable blue block** (Том dropdown + printedPage input) - сейчас
+  blue block read-only label. User хочет navigation как в shamela:
+  смена Тома + ввод printedPage → переход на соответствующую internal
+  pageNumber. Logic: BookReaderPage computes `distinctParts` из
+  state.pages, PageJump получает dropdown + input. При submit -
+  find page where (part === selectedPart && printedPage === input) →
+  onJump(found.pageNumber)
+
+### Решения (Phase 2)
+
+- PDF mapping через shamela `part`/`printedPage` источник истины, не
+  internal pageNumber. Internal counter не имеет физического смысла,
+  shamela markers соответствуют реальной printed edition - именно к
+  ней user'у нужно ссылаться
+- Sticky highlight через max-startPageNumber-below-current. Альтернатива
+  (chapter с диапазоном `[startPage, nextStartPage)` через явный
+  endPage поле) - over-engineering, текущая структура без endPage и
+  это вычисляется естественно
+- `findFileIndexForPart` через filename prefix - shamela использует
+  consistent convention `{volume_number}_{book_id}.pdf` (01_113015,
+  02_113016...). Если когда-то нарушится - добавим fallback
+
 ### Следующий шаг (Сессия 28)
+
+**Приоритеты**:
+1. **G. Editable blue block** (Том dropdown + printedPage input) -
+   small UX fix, ~30 минут. PageJump получает 2 новых prop'а
+   (availableParts + onPartChange) + replace blue-label div на
+   dropdown+input. BookReaderPage computes distinctParts и onNav
+2. **D. Bottom-sheet resize** - drag handle ~1 час
+3. **25.b MinIO cache + lazy streaming** - архитектурный priorit,
+   решает «медленная первая загрузка PDF». Детальный план в Phase 1
+   Следующий шаг
 
 **Главный приоритет - 25.b MinIO cache + lazy streaming**:
 сейчас `PdfLinksSourceProvider.downloadFile` качает весь PDF (10-50MB)
