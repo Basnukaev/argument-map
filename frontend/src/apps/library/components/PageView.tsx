@@ -1,4 +1,4 @@
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, FileImage, Loader2 } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import type { components } from '@/shared/api/types';
 import { isArabicText, sanitizePageHtml } from '@/apps/library/utils/bookReaderUtils';
@@ -19,13 +19,19 @@ export type PageContentState =
 interface Props {
   state: PageContentState;
   bookLanguage: string | undefined;
+  /**
+   * Callback для открытия inline PDF preview этой страницы. Если undefined -
+   * кнопка не рендерится (книга без PDF source). Юзер увидит PDF в bottom
+   * sheet / модалке, не уходя со страницы text mode.
+   */
+  onOpenPdfPreview?: () => void;
 }
 
 /**
  * Рендеринг контента страницы: loading/error spinner или HTML контент
  * (через DOMPurify + PUA-strip) + опциональный imageUrl.
  */
-function PageView({ state, bookLanguage }: Props) {
+function PageView({ state, bookLanguage, onOpenPdfPreview }: Props) {
   if (state.kind === 'loading') {
     return (
       <Card className="p-12 text-center">
@@ -49,7 +55,21 @@ function PageView({ state, bookLanguage }: Props) {
   const isArabic = bookLanguage === 'ar' || isArabicText(text);
 
   return (
-    <Card className="p-8">
+    <Card className="relative p-8">
+      {/* Inline PDF preview trigger - shamela-like иконка для открытия
+          PDF этой страницы в bottom-sheet / modal. Только если книга
+          имеет PDF source (родитель пробрасывает onOpenPdfPreview) */}
+      {onOpenPdfPreview && (
+        <button
+          type="button"
+          onClick={onOpenPdfPreview}
+          className="absolute end-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 shadow-sm transition-colors hover:border-indigo-300 hover:text-indigo-700"
+          title="Открыть PDF оригинала на этой странице"
+        >
+          <FileImage size={13} aria-hidden="true" />
+          <span>PDF</span>
+        </button>
+      )}
       {!text && !page.imageUrl && (
         <p className="text-center text-[13px] text-slate-400">Страница пустая</p>
       )}

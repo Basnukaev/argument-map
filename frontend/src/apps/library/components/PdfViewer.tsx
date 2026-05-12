@@ -45,6 +45,15 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 interface PdfViewerProps {
   bookId: string;
   isArabic: boolean;
+  /**
+   * Стартовая PDF-страница для open. Используется когда reader открывает
+   * PDF preview/fullscreen с текущей text-страницы - чтобы юзер не оказался
+   * на page 1 PDF когда читал text-page 50. На MVP fallback: physical PDF
+   * page = internal text pageNumber (потому что pdf_page_number=NULL у
+   * всех lib_pages). После 25.d.2 + 25.e Tier 1 mapping flow - вместо
+   * fallback передавать настоящий pdfPageNumber из state.pages[currentIndex].
+   */
+  initialPdfPage?: number;
 }
 
 type LoadState =
@@ -76,11 +85,12 @@ type LoadState =
  * change используем placeholder `loading={null}` на Page, и держим
  * previousPageRef для отображения старой страницы пока новая грузится.
  */
-function PdfViewer({ bookId, isArabic }: PdfViewerProps) {
+function PdfViewer({ bookId, isArabic, initialPdfPage }: PdfViewerProps) {
   const [state, setState] = useState<LoadState>({ kind: 'loading-info' });
   const [fileIndex, setFileIndex] = useState<number | null>(null);
-  const [pageNumber, setPageNumber] = useState(1);
-  const [pageInput, setPageInput] = useState<string>('1');
+  const startPage = initialPdfPage && initialPdfPage > 0 ? initialPdfPage : 1;
+  const [pageNumber, setPageNumber] = useState(startPage);
+  const [pageInput, setPageInput] = useState<string>(String(startPage));
   const [numPages, setNumPages] = useState<number | null>(null);
   const [scale, setScale] = useState(1.2);
 

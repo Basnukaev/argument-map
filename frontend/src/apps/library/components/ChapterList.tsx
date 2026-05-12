@@ -1,3 +1,5 @@
+import { useMemo, useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { components } from '@/shared/api/types';
 import { isArabicText } from '@/apps/library/utils/bookReaderUtils';
 
@@ -18,10 +20,19 @@ interface Props {
    * Язык книги. Когда `ar` - корневой `<ul>` получает `dir="rtl"`, тогда
    * RTL-aware logical properties (`border-s`, `paddingInlineStart`)
    * автоматически рисуют connector rail и отступ **справа** от текста.
-   * Это правильное направление для RTL: отступы должны начинаться у
-   * "начала чтения", которое для арабского - правая граница.
    */
   bookLanguage?: string;
+  /**
+   * Манaul-expanded set (для рекурсивного проброса). Хранится в state
+   * корневого ChapterList (depth=0), дочерние получают тот же объект.
+   */
+  expandedIds?: Set<string>;
+  onToggle?: (chapterId: string) => void;
+  /**
+   * Set предков текущей страницы - auto-expand чтобы active chapter
+   * был виден без юзер-клика. Тоже sharing между recursive levels.
+   */
+  autoExpandedIds?: Set<string>;
 }
 
 /**
@@ -31,9 +42,6 @@ interface Props {
  * - depth=1: 14px, font-medium, slate-700 - sub-разделы
  * - depth=2: 13px, regular, slate-600 - главы
  * - depth>=3: 12px, regular, slate-500 - под-главы
- *
- * Для арабского ramp размеров чуть больше (на 1-2px) - арабские буквы
- * визуально мельче latin при том же font-size.
  */
 function getChapterLevelStyles(
   depth: number,
@@ -57,18 +65,76 @@ function getChapterLevelStyles(
 }
 
 /**
- * Рекурсивное дерево глав в боковой панели reader'а. Кликабельность
- * зависит от startPageNumber - главы без начальной страницы (например
- * декоративные разделители shamela) показываются disabled.
- *
- * Connector-rail (border-inline-start) - тонкая вертикальная линия для
- * визуальной связи parent → child. Для depth=0 не рисуется (root уровень).
+ * Ищет цепочку предков главы с `startPageNumber === currentPage`. Возвращает
+ * массив их id (чтобы auto-expand). null если current page не привязан
+ * напрямую к главе.
  */
-function ChapterList({ nodes, depth, onSelect, currentPage, bookLanguage }: Props) {
+function findAncestorIds(
+  nodes: ReadonlyArray<Chapter>,
+  currentPage: number,
+  parents: string[] = [],
+): string[] | null {
+  for (const n of nodes) {
+    if (n.startPageNumber === currentPage && n.id) {
+      return parents;
+    }
+    const children = n.children ?? [];
+    if (n.id && children.length > 0) {
+      const found = findAncestorIds(children, currentPage, [...parents, n.id]);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/**
+ * Рекурсивное сворачиваемое дерево глав. По умолчанию все главы свёрнуты -
+ * shamela-паттерн (длинные книги в 200+ глав, full-expanded непригляден).
+ * Юзер кликает на ChevronRight чтобы развернуть, ChevronDown чтобы свернуть.
+ *
+ * <p>Авто-разворот пути до текущей страницы: при `currentPage` change
+ * вычисляем все ancestor-id и считаем их раскрытыми независимо от manual
+ * state. Когда юзер уходит со страницы - manual state preserved (его
+ * собственные expand'ы), auto уходит вместе с currentPage.
+ *
+ * <p>Click на title всё ещё навигирует на startPageNumber (если есть);
+ * click на ChevronRight/Down toggles collapse - они разнесены.
+ */
+function ChapterList(props: Props) {
+  const {
+    nodes,
+    depth,
+    onSelect,
+    currentPage,
+    bookLanguage,
+    expandedIds: parentExpanded,
+    onToggle: parentToggle,
+    autoExpandedIds: parentAutoExpanded,
+  } = props;
+
+  // State живёт только в корневом ChapterList (depth=0), все nested
+  // получают через props - чтобы expand-состояние шарилось
+  const [rootManualExpanded, setRootManualExpanded] = useState<Set<string>>(new Set());
+  const rootAutoExpanded = useMemo(
+    () => new Set(findAncestorIds(nodes, currentPage) ?? []),
+    [nodes, currentPage],
+  );
+
+  const expandedIds = parentExpanded ?? rootManualExpanded;
+  const autoExpandedIds = parentAutoExpanded ?? rootAutoExpanded;
+  const handleToggle =
+    parentToggle ??
+    ((chapterId: string) => {
+      setRootManualExpanded((prev) => {
+        const next = new Set(prev);
+        if (next.has(chapterId)) next.delete(chapterId);
+        else next.add(chapterId);
+        return next;
+      });
+    });
+
   const railClass = depth > 0 ? 'border-s border-slate-200/70 ms-[10px] ps-[6px]' : '';
   const isBookArabic = bookLanguage === 'ar';
-  // dir на корневом ul задаёт направление для всех вложенных ul через
-  // inherit. Для арабской книги - rtl, тогда border-s рисуется справа
   const rootDir = depth === 0 ? (isBookArabic ? 'rtl' : 'ltr') : undefined;
 
   return (
@@ -89,30 +155,53 @@ function ChapterList({ nodes, depth, onSelect, currentPage, bookLanguage }: Prop
             ? 'bg-indigo-50 text-indigo-700 font-semibold'
             : `${styles.color} hover:bg-slate-100/70 hover:text-indigo-700 cursor-pointer`;
         const children = n.children ?? [];
+        const hasChildren = children.length > 0;
+        const chapterId = n.id ?? '';
+        const isExpanded = hasChildren && (expandedIds.has(chapterId) || autoExpandedIds.has(chapterId));
+        const ChevronIcon = isExpanded ? ChevronDown : ChevronRight;
+
         return (
           <li key={n.id}>
-            <button
-              type="button"
-              onClick={clickable ? () => onSelect(target) : undefined}
-              disabled={!clickable}
-              className={`block w-full rounded-md px-2 py-1 text-start leading-snug transition-colors ${styles.font} ${styles.weight} ${stateClass}`}
-              style={{ paddingInlineStart: `${indent + 8}px` }}
-              dir={isArabic ? 'rtl' : 'ltr'}
-              title={
-                clickable
-                  ? `${n.title ?? ''} (стр. ${target})`
-                  : `${n.title ?? ''} (страница не указана)`
-              }
-            >
-              {n.title ?? '(без названия)'}
-            </button>
-            {children.length > 0 && (
+            <div className="flex items-center" style={{ paddingInlineStart: `${indent}px` }}>
+              {hasChildren ? (
+                <button
+                  type="button"
+                  onClick={() => handleToggle(chapterId)}
+                  className="grid h-5 w-5 shrink-0 place-items-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                  aria-label={isExpanded ? 'Свернуть' : 'Развернуть'}
+                  aria-expanded={isExpanded}
+                >
+                  <ChevronIcon size={12} />
+                </button>
+              ) : (
+                // spacer чтобы text был выровнен с теми что имеют chevron
+                <span className="h-5 w-5 shrink-0" aria-hidden="true" />
+              )}
+              <button
+                type="button"
+                onClick={clickable ? () => onSelect(target) : undefined}
+                disabled={!clickable}
+                className={`flex-1 rounded-md px-2 py-1 text-start leading-snug transition-colors ${styles.font} ${styles.weight} ${stateClass}`}
+                dir={isArabic ? 'rtl' : 'ltr'}
+                title={
+                  clickable
+                    ? `${n.title ?? ''} (стр. ${target})`
+                    : `${n.title ?? ''} (страница не указана)`
+                }
+              >
+                {n.title ?? '(без названия)'}
+              </button>
+            </div>
+            {hasChildren && isExpanded && (
               <ChapterList
                 nodes={children}
                 depth={depth + 1}
                 onSelect={onSelect}
                 currentPage={currentPage}
                 bookLanguage={bookLanguage}
+                expandedIds={expandedIds}
+                onToggle={handleToggle}
+                autoExpandedIds={autoExpandedIds}
               />
             )}
           </li>

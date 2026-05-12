@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { AlertCircle, ChevronLeft, ChevronRight, Loader2, ArrowLeft } from 'lucide-react';
+import { AlertCircle, ChevronLeft, ChevronRight, Loader2, ArrowLeft, Maximize2, X } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import Button from '@/shared/components/ui/Button';
 import Header from '@/shared/components/layout/Header';
@@ -43,6 +43,10 @@ function BookReaderPage() {
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [pageContent, setPageContent] = useState<PageContentState>({ kind: 'loading' });
   const [readerMode, setReaderMode] = useState<ReaderMode>('text');
+  // Inline PDF preview - shamela-like UX: кнопка 📕 на странице text mode
+  // открывает PDF в overlay внизу экрана. Из preview можно "развернуть на
+  // весь экран" → readerMode=pdf + закрытие overlay
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
 
   useEffect(() => {
     if (!bookId) return;
@@ -247,25 +251,97 @@ function BookReaderPage() {
                       Следующая
                     </Button>
                   </div>
-                  <PageView state={pageContent} bookLanguage={state.book.language} />
+                  <PageView
+                    state={pageContent}
+                    bookLanguage={state.book.language}
+                    onOpenPdfPreview={() => setPdfPreviewOpen(true)}
+                  />
                 </>
               )}
               {readerMode === 'pdf' && (
-                <Suspense
-                  fallback={
-                    <Card className="p-12 text-center">
-                      <Loader2 size={20} className="mx-auto animate-spin text-slate-400" />
-                      <p className="mt-2 text-[12px] text-slate-500">Загрузка PDF viewer'а</p>
-                    </Card>
-                  }
-                >
-                  <PdfViewer bookId={bookId} isArabic={state.book.language === 'ar'} />
-                </Suspense>
+                <>
+                  {/* В fullscreen PDF mode - кнопка "Назад к тексту" чтобы юзер
+                      мог вернуться к чтению с того места где был */}
+                  <div className="mb-3 flex justify-end">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={ArrowLeft}
+                      onClick={() => setReaderMode('text')}
+                    >
+                      Назад к тексту
+                    </Button>
+                  </div>
+                  <Suspense
+                    fallback={
+                      <Card className="p-12 text-center">
+                        <Loader2 size={20} className="mx-auto animate-spin text-slate-400" />
+                        <p className="mt-2 text-[12px] text-slate-500">Загрузка PDF viewer'а</p>
+                      </Card>
+                    }
+                  >
+                    <PdfViewer
+                bookId={bookId}
+                isArabic={state.book.language === 'ar'}
+                initialPdfPage={pageNumber}
+              />
+                  </Suspense>
+                </>
               )}
             </>
           )}
         </div>
       </div>
+
+      {/* Inline PDF preview overlay - shamela-like bottom sheet с PdfViewer.
+          Не модалка а fixed bottom-positioned panel чтобы text сверху
+          оставался видимым (юзер сравнивает text транскрипцию с PDF
+          оригиналом). Кнопка Maximize2 = развернуть в fullscreen mode */}
+      {pdfPreviewOpen && state.kind === 'success' && bookId && (
+        <aside className="fixed inset-x-0 bottom-0 z-40 flex h-[65vh] flex-col border-t border-slate-300 bg-white shadow-2xl">
+          <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2">
+            <h3 className="text-[13px] font-semibold text-slate-700">
+              PDF оригинал · стр. {pageNumber}
+            </h3>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={Maximize2}
+                onClick={() => {
+                  setReaderMode('pdf');
+                  setPdfPreviewOpen(false);
+                }}
+              >
+                На весь экран
+              </Button>
+              <button
+                type="button"
+                onClick={() => setPdfPreviewOpen(false)}
+                className="grid h-7 w-7 place-items-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Закрыть PDF preview"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-auto bg-slate-100">
+            <Suspense
+              fallback={
+                <div className="grid h-full place-items-center text-[12px] text-slate-500">
+                  <Loader2 size={20} className="animate-spin" />
+                </div>
+              }
+            >
+              <PdfViewer
+                bookId={bookId}
+                isArabic={state.book.language === 'ar'}
+                initialPdfPage={pageNumber}
+              />
+            </Suspense>
+          </div>
+        </aside>
+      )}
     </main>
   );
 }
