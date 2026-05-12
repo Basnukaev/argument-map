@@ -23,16 +23,22 @@ interface Props {
    */
   bookLanguage?: string;
   /**
-   * Манaul-expanded set (для рекурсивного проброса). Хранится в state
+   * Manual-expanded set (для рекурсивного проброса). Хранится в state
    * корневого ChapterList (depth=0), дочерние получают тот же объект.
    */
   expandedIds?: Set<string>;
   onToggle?: (chapterId: string) => void;
   /**
-   * Set предков текущей страницы - auto-expand чтобы active chapter
-   * был виден без юзер-клика. Тоже sharing между recursive levels.
+   * Set предков текущей главы - auto-expand чтобы active chapter был
+   * виден без юзер-клика. Тоже sharing между recursive levels.
    */
   autoExpandedIds?: Set<string>;
+  /**
+   * Id «текущей» главы (chapter с наибольшим startPageNumber ≤ currentPage).
+   * Передаётся для подсветки: глава остаётся highlighted для всего диапазона
+   * страниц до следующей главы, не только на её startPageNumber.
+   */
+  currentChapterId?: string | null;
 }
 
 /**
@@ -65,22 +71,46 @@ function getChapterLevelStyles(
 }
 
 /**
- * Ищет цепочку предков главы с `startPageNumber === currentPage`. Возвращает
- * массив их id (чтобы auto-expand). null если current page не привязан
- * напрямую к главе.
+ * Находит «текущую» главу - chapter с наибольшим `startPageNumber ≤ currentPage`.
+ * Это даёт sticky-highlight для всего диапазона страниц главы: если глава
+ * начинается с page 5 и следующая с page 13, главa подсвечена для pages 5-12.
+ *
+ * Traverse рекурсивно по всему дереву (включая subchapters) - subchapter
+ * считается более specific match чем родитель если у него startPageNumber
+ * ближе к currentPage.
  */
-function findAncestorIds(
+function findCurrentChapter(
   nodes: ReadonlyArray<Chapter>,
   currentPage: number,
+): Chapter | null {
+  let best: Chapter | null = null;
+  const traverse = (n: Chapter): void => {
+    if (n.startPageNumber != null && n.startPageNumber <= currentPage) {
+      if (!best || (n.startPageNumber ?? 0) > (best.startPageNumber ?? 0)) {
+        best = n;
+      }
+    }
+    for (const child of n.children ?? []) traverse(child);
+  };
+  for (const n of nodes) traverse(n);
+  return best;
+}
+
+/**
+ * Возвращает массив id предков главы с {@code id === targetId}. Используется
+ * для auto-expand: чтобы текущая глава была видима, все её предки должны
+ * быть раскрыты.
+ */
+function findAncestorPath(
+  nodes: ReadonlyArray<Chapter>,
+  targetId: string,
   parents: string[] = [],
 ): string[] | null {
   for (const n of nodes) {
-    if (n.startPageNumber === currentPage && n.id) {
-      return parents;
-    }
+    if (n.id === targetId) return parents;
     const children = n.children ?? [];
     if (n.id && children.length > 0) {
-      const found = findAncestorIds(children, currentPage, [...parents, n.id]);
+      const found = findAncestorPath(children, targetId, [...parents, n.id]);
       if (found) return found;
     }
   }
@@ -110,18 +140,28 @@ function ChapterList(props: Props) {
     expandedIds: parentExpanded,
     onToggle: parentToggle,
     autoExpandedIds: parentAutoExpanded,
+    currentChapterId: parentCurrentChapterId,
   } = props;
 
   // State живёт только в корневом ChapterList (depth=0), все nested
   // получают через props - чтобы expand-состояние шарилось
   const [rootManualExpanded, setRootManualExpanded] = useState<Set<string>>(new Set());
-  const rootAutoExpanded = useMemo(
-    () => new Set(findAncestorIds(nodes, currentPage) ?? []),
+
+  // Текущая глава = наибольший startPageNumber ≤ currentPage. Подсвечена
+  // на всё диапазон страниц этой главы (до следующей).
+  const rootCurrentChapter = useMemo(
+    () => findCurrentChapter(nodes, currentPage),
     [nodes, currentPage],
   );
+  const rootAutoExpanded = useMemo(() => {
+    const id = rootCurrentChapter?.id;
+    if (!id) return new Set<string>();
+    return new Set(findAncestorPath(nodes, id) ?? []);
+  }, [nodes, rootCurrentChapter]);
 
   const expandedIds = parentExpanded ?? rootManualExpanded;
   const autoExpandedIds = parentAutoExpanded ?? rootAutoExpanded;
+  const currentChapterId = parentCurrentChapterId ?? rootCurrentChapter?.id ?? null;
   const handleToggle =
     parentToggle ??
     ((chapterId: string) => {
@@ -147,18 +187,29 @@ function ChapterList(props: Props) {
         const styles = getChapterLevelStyles(depth, isArabic);
         const target = n.startPageNumber ?? null;
         const clickable = target != null && target > 0;
-        const isCurrent = clickable && target === currentPage;
+        const chapterId = n.id ?? '';
+        // sticky highlight для всего диапазона страниц главы (не только её
+        // startPageNumber). Глава "содержит" currentPage если её startPage
+        // ≤ currentPage и она ближайшая снизу - см. findCurrentChapter
+        const isCurrent = chapterId !== '' && chapterId === currentChapterId;
         const indent = depth * 6;
         const stateClass = !clickable
-          ? 'cursor-not-allowed opacity-50'
+          ? 'cursor-default text-slate-500'
           : isCurrent
-            ? 'bg-indigo-50 text-indigo-700 font-semibold'
+            ? 'bg-indigo-50 text-indigo-700 font-semibold cursor-pointer'
             : `${styles.color} hover:bg-slate-100/70 hover:text-indigo-700 cursor-pointer`;
         const children = n.children ?? [];
         const hasChildren = children.length > 0;
-        const chapterId = n.id ?? '';
         const isExpanded = hasChildren && (expandedIds.has(chapterId) || autoExpandedIds.has(chapterId));
         const ChevronIcon = isExpanded ? ChevronDown : ChevronRight;
+
+        // Click на title: navigate если есть target, и/или toggle expand
+        // если есть children. Юзер ожидает что клик на главу с подглавами
+        // одновременно открывает страницу И раскрывает дерево
+        const handleTitleClick = () => {
+          if (hasChildren) handleToggle(chapterId);
+          if (clickable && target != null) onSelect(target);
+        };
 
         return (
           <li key={n.id}>
@@ -179,8 +230,8 @@ function ChapterList(props: Props) {
               )}
               <button
                 type="button"
-                onClick={clickable ? () => onSelect(target) : undefined}
-                disabled={!clickable}
+                onClick={hasChildren || clickable ? handleTitleClick : undefined}
+                disabled={!hasChildren && !clickable}
                 className={`flex-1 rounded-md px-2 py-1 text-start leading-snug transition-colors ${styles.font} ${styles.weight} ${stateClass}`}
                 dir={isArabic ? 'rtl' : 'ltr'}
                 title={
@@ -202,6 +253,7 @@ function ChapterList(props: Props) {
                 expandedIds={expandedIds}
                 onToggle={handleToggle}
                 autoExpandedIds={autoExpandedIds}
+                currentChapterId={currentChapterId}
               />
             )}
           </li>

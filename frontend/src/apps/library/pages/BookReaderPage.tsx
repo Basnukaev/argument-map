@@ -157,6 +157,16 @@ function BookReaderPage() {
   const currentPageMeta =
     state.kind === 'success' ? state.pages.find((p) => p.pageNumber === pageNumber) : undefined;
 
+  // shamela mapping для PDF: `part` (том) → fileIndex, `printedPage` →
+  // pdfPage. printedPage TEXT в БД (может быть "39" или "أ"), parseInt
+  // отсеивает арабские буквы → null fallback на page 1
+  const currentPart = currentPageMeta?.part ?? null;
+  const parsedPrintedPage = currentPageMeta?.printedPage
+    ? parseInt(currentPageMeta.printedPage, 10)
+    : null;
+  const currentPrintedPage =
+    parsedPrintedPage != null && Number.isFinite(parsedPrintedPage) ? parsedPrintedPage : null;
+
   return (
     <main className="min-h-screen bg-slate-50/60">
       <Header />
@@ -281,9 +291,11 @@ function BookReaderPage() {
                     }
                   >
                     <PdfViewer
+                key={`${currentPart ?? ''}-${currentPrintedPage ?? ''}`}
                 bookId={bookId}
                 isArabic={state.book.language === 'ar'}
-                initialPdfPage={pageNumber}
+                initialPart={currentPart}
+                initialPrintedPage={currentPrintedPage}
               />
                   </Suspense>
                 </>
@@ -301,7 +313,13 @@ function BookReaderPage() {
         <aside className="fixed inset-x-0 bottom-0 z-40 flex h-[65vh] flex-col border-t border-slate-300 bg-white shadow-2xl">
           <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2">
             <h3 className="text-[13px] font-semibold text-slate-700">
-              PDF оригинал · стр. {pageNumber}
+              PDF оригинал
+              {currentPageMeta?.printedPage && (
+                <span className="ms-2 text-slate-500">
+                  · стр. {currentPageMeta.printedPage}
+                  {currentPart && ` · том ${currentPart}`}
+                </span>
+              )}
             </h3>
             <div className="flex items-center gap-1">
               <Button
@@ -334,9 +352,11 @@ function BookReaderPage() {
               }
             >
               <PdfViewer
+                key={`${currentPart ?? ''}-${currentPrintedPage ?? ''}`}
                 bookId={bookId}
                 isArabic={state.book.language === 'ar'}
-                initialPdfPage={pageNumber}
+                initialPart={currentPart}
+                initialPrintedPage={currentPrintedPage}
               />
             </Suspense>
           </div>

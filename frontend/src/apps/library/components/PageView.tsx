@@ -55,18 +55,20 @@ function PageView({ state, bookLanguage, onOpenPdfPreview }: Props) {
   const isArabic = bookLanguage === 'ar' || isArabicText(text);
 
   return (
-    <Card className="relative p-8">
+    <Card className="relative px-8 pb-8 pt-14">
       {/* Inline PDF preview trigger - shamela-like иконка для открытия
-          PDF этой страницы в bottom-sheet / modal. Только если книга
-          имеет PDF source (родитель пробрасывает onOpenPdfPreview) */}
+          PDF этой страницы в bottom-sheet. Только если книга имеет PDF
+          source (родитель пробрасывает onOpenPdfPreview). Rose accent -
+          стилизация под PDF (тёмно-красные icons в PDF reader'ах) +
+          визуальное выделение на фоне slate Card */}
       {onOpenPdfPreview && (
         <button
           type="button"
           onClick={onOpenPdfPreview}
-          className="absolute end-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 shadow-sm transition-colors hover:border-indigo-300 hover:text-indigo-700"
+          className="absolute end-4 top-3 inline-flex items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-[12px] font-semibold text-rose-700 shadow-sm transition-colors hover:border-rose-300 hover:bg-rose-100 hover:text-rose-800"
           title="Открыть PDF оригинала на этой странице"
         >
-          <FileImage size={13} aria-hidden="true" />
+          <FileImage size={14} aria-hidden="true" />
           <span>PDF</span>
         </button>
       )}

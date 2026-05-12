@@ -46,14 +46,21 @@ interface PdfViewerProps {
   bookId: string;
   isArabic: boolean;
   /**
-   * Стартовая PDF-страница для open. Используется когда reader открывает
-   * PDF preview/fullscreen с текущей text-страницы - чтобы юзер не оказался
-   * на page 1 PDF когда читал text-page 50. На MVP fallback: physical PDF
-   * page = internal text pageNumber (потому что pdf_page_number=NULL у
-   * всех lib_pages). После 25.d.2 + 25.e Tier 1 mapping flow - вместо
-   * fallback передавать настоящий pdfPageNumber из state.pages[currentIndex].
+   * Том/часть из shamela mapping (`lib_pages.part`). Используется для
+   * выбора правильного fileIndex - "Том 3" в shamela соответствует
+   * PDF-файлу 03_*.pdf. Numeric → matching через `Том N` label;
+   * arabic (المقدمة) → exact match arabic label.
+   *
+   * <p>Если null или не находится - fallback на первый не-cover файл.
    */
-  initialPdfPage?: number;
+  initialPart?: string | null;
+  /**
+   * Печатная страница из shamela mapping (`lib_pages.printed_page`).
+   * Используется как pageNumber внутри выбранного PDF-файла. TEXT поле
+   * в БД (может быть "39", "أ", roman) - принимаем number здесь (parsed
+   * родителем). Null → page 1.
+   */
+  initialPrintedPage?: number | null;
 }
 
 type LoadState =
@@ -85,10 +92,54 @@ type LoadState =
  * change используем placeholder `loading={null}` на Page, и держим
  * previousPageRef для отображения старой страницы пока новая грузится.
  */
-function PdfViewer({ bookId, isArabic, initialPdfPage }: PdfViewerProps) {
+/**
+ * Ищет fileIndex соответствующий shamela `part`. Logic:
+ * - arabic part (المقدمة) - exact match label
+ * - numeric part ("3") - match "Том 3" в derived labels (после исключения
+ *   cover, по порядку non-arabic-label файлов начиная с index 1)
+ *
+ * Returns null если part не передан или не нашлось match.
+ */
+function findFileIndexForPart(
+  part: string | null | undefined,
+  files: PdfFileInfoEntry[],
+): number | null {
+  if (!part) return null;
+  const trimmed = part.trim();
+  if (!trimmed) return null;
+
+  const contentFiles = files.filter((f) => !f.isCover);
+
+  // Arabic part - exact label match
+  const arabicRe = /[؀-ۿ]/;
+  if (arabicRe.test(trimmed)) {
+    const match = contentFiles.find((f) => (f.label ?? '').trim() === trimmed);
+    return match?.index ?? null;
+  }
+
+  // Numeric part - matching по позиции среди filename-like томов
+  const numericPart = parseInt(trimmed, 10);
+  if (!Number.isFinite(numericPart)) return null;
+
+  // contentFiles = [المقدمة, 01_..., 02_..., ...]. Numeric тома идут после
+  // arabic-label предисловий. "Том 1" = первый filename-like = contentFiles[1]
+  // (index 0 в shamela structure = المقдмة, index 1 = том 1)
+  let volumeCounter = 0;
+  for (const f of contentFiles) {
+    const raw = (f.label ?? '').trim();
+    const isFilenameLike = /^\d{2}_\d+/.test(raw);
+    if (isFilenameLike) {
+      volumeCounter += 1;
+      if (volumeCounter === numericPart) return f.index ?? null;
+    }
+  }
+  return null;
+}
+
+function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfViewerProps) {
   const [state, setState] = useState<LoadState>({ kind: 'loading-info' });
   const [fileIndex, setFileIndex] = useState<number | null>(null);
-  const startPage = initialPdfPage && initialPdfPage > 0 ? initialPdfPage : 1;
+  const startPage = initialPrintedPage && initialPrintedPage > 0 ? initialPrintedPage : 1;
   const [pageNumber, setPageNumber] = useState(startPage);
   const [pageInput, setPageInput] = useState<string>(String(startPage));
   const [numPages, setNumPages] = useState<number | null>(null);
@@ -108,11 +159,16 @@ function PdfViewer({ bookId, isArabic, initialPdfPage }: PdfViewerProps) {
     })
       .then((info) => {
         setState({ kind: 'ready', info });
-        // Cover - всегда обложка по convention shamela/archive.org.
-        // По умолчанию открываем первый не-cover файл (юзер хочет
-        // читать книгу, а не любоваться обложкой)
-        const firstContentFile = (info.files ?? []).find((f) => f.isCover === false);
-        const fallback = info.files?.[0];
+        const files = info.files ?? [];
+        // 1. Если родитель передал shamela part - matching на правильный том
+        const partMatch = findFileIndexForPart(initialPart, files);
+        if (partMatch != null) {
+          setFileIndex(partMatch);
+          return;
+        }
+        // 2. Иначе - первый не-cover файл по дефолту
+        const firstContentFile = files.find((f) => f.isCover === false);
+        const fallback = files[0];
         setFileIndex(firstContentFile?.index ?? fallback?.index ?? 0);
       })
       .catch((e: unknown) => {
@@ -130,7 +186,7 @@ function PdfViewer({ bookId, isArabic, initialPdfPage }: PdfViewerProps) {
         setState({ kind: 'error', message });
       });
     return () => controller.abort();
-  }, [bookId]);
+  }, [bookId, initialPart]);
 
   // Multi-volume - dropdown показываем когда есть >1 не-cover файла.
   // Labels: арабские шамеловские (المقدمة) показываем как есть, а
@@ -142,17 +198,27 @@ function PdfViewer({ bookId, isArabic, initialPdfPage }: PdfViewerProps) {
     () => (state.kind === 'ready' ? (state.info.files ?? []).filter((f) => !f.isCover) : []),
     [state],
   );
-  const fileLabels = useMemo(
-    () =>
-      contentFiles.map((f, i) => {
-        const raw = f.label ?? '';
-        const hasArabic = /[؀-ۿ]/.test(raw);
-        const looksLikeFilename = /^\d{2}_\d+/.test(raw);
-        const display = hasArabic ? raw : looksLikeFilename ? `Том ${i + 1}` : raw;
-        return { index: f.index ?? 0, display };
-      }),
-    [contentFiles],
-  );
+  const fileLabels = useMemo(() => {
+    // Counter считает только filename-like тома (исключая المقدمة и пр.
+    // arabic labels). "Том 1" = первый файл с filename вроде 01_*.pdf,
+    // "Том 2" = второй и т.д. - это соответствует shamela `part` numbering
+    // и согласуется с findFileIndexForPart. Раньше использовал `i+1` -
+    // это давало смещение когда впереди было предисловие المقدمة
+    let volumeCounter = 0;
+    return contentFiles.map((f) => {
+      const raw = f.label ?? '';
+      const hasArabic = /[؀-ۿ]/.test(raw);
+      const looksLikeFilename = /^\d{2}_\d+/.test(raw);
+      if (hasArabic) {
+        return { index: f.index ?? 0, display: raw };
+      }
+      if (looksLikeFilename) {
+        volumeCounter += 1;
+        return { index: f.index ?? 0, display: `Том ${volumeCounter}` };
+      }
+      return { index: f.index ?? 0, display: raw };
+    });
+  }, [contentFiles]);
   const showVolumeSelector = fileLabels.length > 1;
 
   if (state.kind === 'loading-info') {
