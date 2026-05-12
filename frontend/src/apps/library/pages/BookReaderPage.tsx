@@ -293,7 +293,12 @@ function BookReaderPage() {
               </BookHeader>
               {readerMode === 'text' && (
                 <>
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5">
+                  {/* Sticky top - prev/next кнопки всегда accessible над
+                      bottom-sheet PDF overlay (если он открыт, занимает 65vh
+                      снизу и может перекрыть toolbar пушенный вниз большим
+                      BookHeader). z-30 < aside z-40 но они на разных y, не
+                      перекрываются. -mt чтобы прижать вплотную к Header */}
+                  <div className="sticky top-2 z-30 mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5 shadow-sm">
                     <Button
                       variant="ghost"
                       size="sm"

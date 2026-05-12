@@ -24,6 +24,10 @@ interface Props {
   dir?: 'rtl' | 'ltr';
   /** Минимальная ширина menu в px (по умолчанию = trigger width) */
   menuMinWidth?: number;
+  /** Сколько опций показывать без scrollbar. >: dropdown получает max-h
+   * + overflow-y-auto. ≤: без max-h, без scrollbar (опции уместаются).
+   * По умолчанию 12 - для большинства dropdown'ов (тома, фильтры) хватает */
+  maxVisibleItems?: number;
 }
 
 /**
@@ -50,6 +54,7 @@ function Select({
   ariaLabel,
   dir,
   menuMinWidth,
+  maxVisibleItems = 12,
 }: Props) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -117,7 +122,7 @@ function Select({
         <ul
           ref={menuRef}
           role="listbox"
-          className="absolute left-0 right-0 z-40 mt-1.5 max-h-64 overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-black/[0.04]"
+          className={`absolute left-0 right-0 z-40 mt-1.5 rounded-md border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-black/[0.04] ${options.length > maxVisibleItems ? 'max-h-64 overflow-y-auto' : ''}`}
           style={{ minWidth: menuMinWidth ?? undefined }}
         >
           {options.map((o) => {
