@@ -23,8 +23,9 @@
 3. [Frontend - monorepo с workspaces](#frontend)
 4. [Library - центральный домен](#library)
 5. [Цитирование - связь приложений с library](#цитирование)
-6. [Стэк - текущий и расширения](#стэк)
-7. [Альтернативы рассмотрены и отклонены](#альтернативы)
+6. [Object storage - бинарные файлы и catalog](#object-storage)
+7. [Стэк - текущий и расширения](#стэк)
+8. [Альтернативы рассмотрены и отклонены](#альтернативы)
 
 ---
 
@@ -448,6 +449,77 @@ AnswerCitation (когда появится Q&A)
 Конкретный план миграции прорабатывается перед Этапом 17 (когда
 argument-map переключается на library citation).
 
+## Object storage
+
+Полный контекст и обоснование - **ADR-024** в `decisions.md`. Здесь
+краткая ссылочная структура.
+
+### Зачем
+
+Бинарные файлы (PDF книг, EPUB, image-сканы страниц, derived
+артефакты типа thumbnails / AI-summary blobs / graph exports) не
+живут в Postgres - там только structured data. Для blobs нужен
+отдельный слой - **S3-compatible object storage**.
+
+### Принципы (зафиксированы в ADR-024)
+
+1. **S3-compatible API через AWS SDK v2** - vendor-agnostic.
+   Работает с MinIO (self-hosted), AWS S3, Cloudflare R2, Backblaze
+   B2, Yandex Object Storage, Hetzner. Миграция между провайдерами =
+   смена endpoint + credentials в config
+2. **Permanent storage, не cache** - retention forever по умолчанию.
+   Никаких TTL для critical bucket'ов
+3. **Bucket versioning ON** - перезапись создаёт новую версию, старая
+   остаётся. Defence в depth против accidental overwrite и data loss
+4. **Postgres `library_files` catalog** как source of truth - реестр
+   всех файлов с SHA-256 hash, source URL, bucket, key, метаданными
+5. **SHA-256 integrity verification** на каждый put/get
+6. **GDPR-like deletion** - soft-delete по умолчанию (`deleted_at`),
+   hard-delete через two-phase admin approval
+
+### Four-bucket split (по операционной семантике)
+
+| bucket | содержимое | criticality | backup |
+|---|---|---|---|
+| `library-imported-books` | shamela / archive.org PDF, EPUB из external sources | re-derivable | optional |
+| `library-user-uploads` | user-uploaded PDF/EPUB (Этап 16), Q&A attachments (Этап 19) | **critical** | mandatory |
+| `library-page-images` | image-сканы страниц (Этап 17), рукописи | **critical** | mandatory |
+| `derived-artifacts` | PDF previews/thumbnails, AI summaries, graph exports | re-derivable | none |
+
+Bucket выбирается по **backup priority + retention policy**, не по
+content type. Shamela PDF и user-uploaded PDF - оба PDF, но разная
+criticality → разные buckets.
+
+### Workflow чтения файла
+
+```
+[frontend] GET /api/v1/library/books/{id}/pdf/{fileIndex}
+                          │
+[бэк] PdfService → ищет library_files запись (bookId, fileIndex)
+                          │
+            ┌─────────────┴─────────────┐
+            │ есть в catalog            │ нет в catalog
+            ▼                           ▼
+[бэк] ObjectStorageService     [бэк] PdfSourceProvider.downloadFile()
+       .get(bucket, key)              скачивает из upstream (archive.org)
+            │                                │
+       SHA-256 verify                  ObjectStorageService.put(bucket, key)
+            │                                │
+       Range streaming                 hash + library_files insert
+       к frontend                            │
+                                       Range streaming к frontend
+```
+
+### Доступные потребители storage (по этапам)
+
+- **Этап 25.b** (текущий) - shamela PDF через `PdfLinksSourceProvider`
+  → `library-imported-books`
+- **Этап 16** - user-uploaded PDF/EPUB → `library-user-uploads`
+- **Этап 17** - image-сканы страниц → `library-page-images`
+- **Будущее** - AI artefacts, graph exports → `derived-artifacts`
+- **Будущее** - multimedia (Коран аудио, лекции) → новый bucket
+  `library-multimedia` если/когда возникнет потребность
+
 ## Стэк
 
 ### Текущий стэк (сохраняем)
@@ -473,10 +545,12 @@ argument-map переключается на library citation).
 - **Tess4j** - Java-обёртка вокруг Tesseract OCR. Поддерживает
   Arabic с тренированными моделями (`ara`)
 - **org.jsoup** - парсинг HTML для shamela-импорта
-- **MinIO Java SDK** или **AWS SDK для S3** - object store для
-  image-сканов и uploaded PDF. В docker-compose добавим minio как
-  локальный S3-compatible store. Можно начать с FS-based
-  storage и мигрировать позже
+- **AWS SDK for Java v2** (`software.amazon.awssdk:s3`) - S3-compatible
+  object storage. См. **ADR-024** для деталей: vendor-agnostic
+  абстракция (MinIO/R2/B2/Yandex), 4 bucket'а по criticality, Postgres
+  `library_files` catalog, SHA-256 integrity, permanent retention.
+  MinIO в `docker-compose.yml` как dev-backend. В проде - любой
+  S3-compatible сервис
 
 #### Frontend
 
@@ -548,9 +622,12 @@ argument-map переключается на library citation).
    сканы. Зависимость от стороннего сервиса, не control над
    доступностью
 
-**Выбрано: MinIO локально, S3-API совместимый**. Можно начать с
-FS на dev и переключить в проде - оба совместимы с одним
-интерфейсом
+**Выбрано: S3-compatible object storage с AWS SDK v2** (MinIO для
+dev, любой S3-сервис для prod - R2/B2/Yandex/AWS S3). Детальная
+проработка операционных аспектов (versioning, catalog, backup,
+migration procedure, GDPR deletion) - см. **ADR-024**. Также этот
+ADR закрывает вопросы для PDF/EPUB books (shamela imported + user
+uploaded), не только image-сканов
 
 ### OCR для арабского
 

@@ -223,6 +223,66 @@ image-странице. Координаты нормализованные `(x,
 Содержит `extracted_text` из OCR или ручного ввода. Используется
 для точного цитирования рукописей.
 
+## Object storage (бинарные файлы)
+
+Введено в ADR-024 (Этап 25.b). Слой хранения blobs - PDF/EPUB книг,
+image-сканов страниц, derived артефактов (thumbnails, AI summaries,
+exports).
+
+**S3-compatible storage** - формат API совместимый с AWS S3. На dev
+используется MinIO (self-hosted в `docker-compose.yml`), в проде
+любой S3-сервис (AWS S3, Cloudflare R2, Backblaze B2, Yandex Object
+Storage, Hetzner Object Storage). Доступ через `AWS SDK for Java v2`
+(`software.amazon.awssdk:s3`), миграция между провайдерами = смена
+endpoint+credentials в `application.yml`.
+
+**Bucket (бакет)** - именованный контейнер для объектов в object
+storage. В нашей платформе четыре bucket'а:
+- `library-imported-books` - PDF/EPUB из внешних источников
+  (shamela, archive.org). Re-derivable
+- `library-user-uploads` - book uploads от пользователей (Этап 16),
+  Q&A attachments (Этап 19). **Critical** - единственный источник
+- `library-page-images` - image-сканы страниц рукописей (Этап 17).
+  **Critical** для редких манускриптов
+- `derived-artifacts` - PDF previews, AI summaries (blob),
+  graph exports. Re-derivable, TTL допустим
+
+Bucket выбирается **по операционной семантике** (backup priority +
+retention), не по контент-типу. Shamela PDF и user-uploaded PDF -
+оба PDF, но разная criticality → разные bucket'ы.
+
+**Storage key** - идентификатор объекта внутри bucket'а. Convention
+проекта: `{book_id}/{file_index}.pdf` для books, `{page_id}/scan.jpg`
+для page-images. URL объекта: `s3://{bucket}/{storage_key}`.
+
+**Versioning (bucket versioning)** - режим bucket'а где `PUT` на
+существующий ключ создаёт **новую версию**, старая остаётся
+доступна по version-id. Защита от accidental overwrite и data loss.
+В нашей платформе включено по умолчанию для всех bucket'ов кроме
+`derived-artifacts`. Старые версии хранятся forever (lifecycle delete
+policy не настраиваем).
+
+**Catalog (library_files)** - таблица Postgres которая ведёт реестр
+всех файлов в storage. **Source of truth** для платформы: хранит
+SHA-256 hash, source URL, bucket, storage_key, метаданные.
+Позволяет детектировать orphans (ключ в bucket'е, в БД нет), missing
+(в БД есть, в bucket'е нет), integrity mismatch (hash в БД ≠ hash
+файла). Catalog имеет собственный backup через `pg_dump` - даже при
+полной потере bucket'а мы знаем что нужно перекачать.
+
+**Content hash** - SHA-256 байтов файла. Сохраняется в
+`library_files.content_hash`, проверяется на каждый `put` и
+опционально на `get`. Mismatch = data corruption alarm. Не путать с
+S3 ETag (это MD5 от upload, не для security).
+
+**Soft-delete / hard-delete** - двухфазное удаление. Default: запись
+помечается `library_files.deleted_at = NOW()`, объект в bucket'е
+остаётся (доступен для recovery в течение admin period). Hard-delete -
+отдельная admin action с двумя подтверждениями (юзерским и админским),
+физически удаляет все версии объекта в bucket'е и оставляет tombstone
+в `library_files`. Логика: для научной библиотеки accidental delete
+больше вреда чем slight delay; двухфазное защищает от ошибок.
+
 ## Удалённые понятия
 
 **Weight (вес)** — было поле `int 1-10`, "субъективная сила

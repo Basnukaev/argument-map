@@ -1764,3 +1764,381 @@ E) **Skip миграции и сделать всё через jsonb** - не т
 Эти вопросы решатся когда дойдём до фактической миграции, на основе
 актуальных требований.
 
+## ADR-024: Object storage strategy - permanent S3-compatible storage + Postgres catalog + four-bucket criticality split
+
+**Дата:** 2026-05-12
+**Статус:** принято
+**Реализуется:** Этап 25.b (Сессия 28+)
+
+**Контекст:**
+Платформе нужен слой хранения бинарных файлов. Сейчас (Сессия 27)
+единственный потребитель - `PdfLinksSourceProvider` который качает PDF
+(10-100MB) из archive.org через `https://archive.org/download/...` и
+хранит в локальном `tempDir` бэкенда. Проблемы:
+
+- **Cache теряется при restart** - каждый перезапуск backend качает
+  заново для первой страницы каждой книги (~30-60с через corporate
+  proxy на WSL2)
+- **Не масштабируется на multi-instance** - tempDir один на JVM
+- **Нет integrity verification** - если archive.org вернул битый файл,
+  мы это не узнаем
+- **Не выживает миграцию на другую машину** - tempDir локален
+
+Будущие потребители storage (из roadmap):
+- **Этап 16** - user-uploaded PDF/EPUB. Юзер загрузил книгу которой
+  нет в shamela - это **единственный источник истины**, потеря = data
+  loss
+- **Этап 17** - image-сканы страниц рукописей. Тоже **критичные**, для
+  редких манускриптов восстановление невозможно
+- **Этап 25.b** (текущий) - shamela PDF, retention forever
+- **Будущее** - AI-derived artifacts (embeddings blob, summaries
+  PDF), graph export'ы (SVG/PDF карт аргументов), Q&A attachments,
+  multimedia (аудио Корана, видео лекций)
+
+Текущая `architecture-platform.md` упоминает «MinIO локально, S3 в проде»
+как направление (раздел альтернатив), но без проработки операционных
+аспектов. Этот ADR конкретизирует.
+
+**Решение:**
+
+Принимается **семь решений** как единый пакет:
+
+### 1. Object storage backend - S3-compatible через AWS SDK v2
+
+Используется `software.amazon.awssdk:s3` (AWS SDK for Java v2, latest
+stable). Это даёт vendor-agnostic абстракцию: код работает идентично с
+
+- **MinIO** (self-hosted, dev и небольшой prod)
+- **AWS S3** (managed, premium prod)
+- **Cloudflare R2** (S3-API, zero egress fee)
+- **Backblaze B2** (S3-API, низкая цена storage)
+- **Yandex Object Storage** (S3-API, для российской аудитории)
+- **Hetzner Object Storage** (S3-API, EU)
+- **OpenStack Swift через S3-gateway** (для on-prem)
+
+Миграция между провайдерами = смена `endpoint` + `credentials` в
+`application.yml`, без изменения кода.
+
+Альтернатива MinIO Java SDK отклонена - привязывает к одному вендору.
+
+### 2. Permanent storage, не cache
+
+Файлы хранятся **бессрочно по умолчанию**. Никаких TTL и automated
+lifecycle delete policy:
+
+- классические книги (Сахих Бухари, Тафсир Ибн Касира) не меняются
+  десятилетиями
+- citation в argument-map ссылается на конкретный bytes-snapshot - если
+  upstream файл изменится или удалится, мы единственный источник истины
+  для воспроизводимости citation через 10 лет
+- shamela API не гарантирует stability URL - PDF может «уехать» в любой
+  момент, потеря для нашей библиотеки если бы кеш экспирился
+
+Исключение - bucket `derived-artifacts` (см. ниже) где TTL допустим.
+
+### 3. Bucket versioning ON, retention forever
+
+Каждый bucket создаётся с включённым versioning. Перезапись объекта
+(`PUT` на тот же ключ) создаёт **новую версию**, старая остаётся
+доступна по version-id. Это критично для:
+
+- audit-trail "что именно было в Тафсире когда юзер сослался"
+- защита от accidental overwrite (баг в коде / админская ошибка)
+- compliance "оригинал не должен исчезнуть" для исламской библиотеки
+
+**Lifecycle delete policy НЕ настраиваем**. Никаких "delete versions
+older than N days". Старые версии хранятся вечно по умолчанию.
+
+Ручная чистка через admin-tooling - только если storage cost станет
+реальной проблемой (>1TB и растёт), и только через отдельный ADR.
+
+### 4. Postgres catalog как source of truth
+
+Новая таблица `library_files` ведёт реестр всех файлов в storage:
+
+```sql
+CREATE TABLE library_files (
+  file_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  book_id UUID REFERENCES lib_books(id) ON DELETE CASCADE,
+  bucket TEXT NOT NULL,
+  storage_key TEXT NOT NULL,
+  source_url TEXT,
+  source_type TEXT NOT NULL,           -- SHAMELA / ARCHIVE_ORG / USER_UPLOAD / SCAN / DERIVED
+  content_hash TEXT NOT NULL,          -- SHA-256
+  size_bytes BIGINT NOT NULL,
+  etag TEXT,                           -- upstream HTTP ETag
+  downloaded_at TIMESTAMPTZ NOT NULL,
+  last_verified_at TIMESTAMPTZ,
+  shamela_major_release INTEGER,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  deleted_at TIMESTAMPTZ,              -- soft-delete для GDPR
+  UNIQUE (bucket, storage_key)
+);
+
+CREATE INDEX library_files_book_id_idx ON library_files (book_id);
+CREATE INDEX library_files_source_url_idx ON library_files (source_url)
+  WHERE source_url IS NOT NULL;
+CREATE INDEX library_files_active_idx ON library_files (bucket, storage_key)
+  WHERE deleted_at IS NULL;
+```
+
+Catalog даёт детектировать:
+- **orphans** - ключ есть в bucket'е, в БД нет (можно мониторить и
+  чистить)
+- **missing** - запись в БД есть, в bucket'е нет (data loss alarm)
+- **integrity mismatch** - hash в БД ≠ hash физического файла
+
+Catalog имеет собственный backup через `pg_dump` - даже при полной
+потере bucket'а мы знаем что нужно перекачать.
+
+### 5. Content hash через SHA-256
+
+Каждый файл при `put`-операции хэшится SHA-256. Hash сохраняется в
+`library_files.content_hash` и проверяется при `get`. Mismatch =
+data corruption alarm.
+
+Почему SHA-256:
+- стандарт, native поддержка в JDK без extra library
+- collision-resistant (MD5/SHA-1 не годятся для long-lived integrity)
+- AWS S3 native ETag = MD5 (не для security), не дублируем - наш hash
+  отдельно от ETag
+- BLAKE3 быстрее, но requires library, ROI не оправдан на наших
+  размерах (10-100MB файлы, хэшинг <1сек)
+
+### 6. Four-bucket split по операционной семантике
+
+Не "по типу файла", а по **backup priority + retention policy + access
+pattern**. На старте платформы - четыре bucket'а:
+
+| bucket | содержимое | criticality | retention | versioning | backup |
+|---|---|---|---|---|---|
+| `library-imported-books` | shamela / archive.org PDF, EPUB из external sources | re-derivable | forever | ON | опциональный |
+| `library-user-uploads` | user-uploaded PDF/EPUB (Этап 16), Q&A attachments (Этап 19) | **critical** | forever | ON | mandatory |
+| `library-page-images` | image-сканы страниц (Этап 17), рукописи | **critical** | forever | ON | mandatory |
+| `derived-artifacts` | PDF previews/thumbnails, AI summaries (если blob), graph exports | re-derivable | TTL допустим | OFF | none |
+
+Принцип: bucket выбирается **операционно**, не по контент-типу.
+Shamela PDF и user-uploaded PDF - оба PDF, но первый re-derivable
+(можно re-import), второй critical (потеря = data loss). Разные
+buckets = разная backup policy.
+
+Будущие buckets (по мере появления фич):
+- `library-multimedia` для аудио (лекции, Коран) и видео - когда
+  фича появится, добавляется bucket без переноса существующего
+- `library-citation-snapshots` для immutable bytes-snapshot цитат -
+  если выяснится что citation нужно "заморозить" под конкретной
+  версией PDF
+
+### 7. GDPR-like deletion - soft-delete по умолчанию
+
+При запросе юзера "удалить мой upload" (Этап 16+ когда появится auth):
+
+- **default**: `library_files.deleted_at = NOW()`. Объект в bucket'е
+  остаётся, в API недоступен (фильтр `WHERE deleted_at IS NULL`).
+  S3-level delete-marker НЕ создаётся
+- **hard-delete как separate admin action** - требует:
+  - юзерское подтверждение через UI ("удалить НАВСЕГДА")
+  - admin одобрение (вторая пара глаз)
+  - запись в audit-log `arg_audit_log` (отдельная фича)
+  - после двух подтверждений - физический `DELETE` всех версий
+    объекта в bucket'е + `library_files.deleted_at` запись на месте
+    как tombstone
+
+Логика: для научной библиотеки accidental delete - больше vred чем
+slight delay. Двухфазное удаление защищает от ошибок, при этом
+compliance с right-to-delete сохранён (если юзер настаивает - мы
+действительно удалим).
+
+**Альтернативы (rejected или deferred):**
+
+- **Локальная FS на бэке** (FileSystem) - не масштабируется на
+  multi-instance, не поддерживает versioning, нет integrity hash
+  бесплатно. Отклонено даже для MVP - object storage barrier of entry
+  низкий через MinIO
+
+- **Postgres BLOB / large object** - антипаттерн для blob'ов 10MB+.
+  Тяжёлые backup'ы, БД превращается в WORM-storage, медленная отдача
+  через JDBC. Отклонено
+
+- **Single bucket с prefix-разделением** (`s3://bucket/imported/...`,
+  `s3://bucket/uploads/...`) - проще на старте, но bucket-level policy
+  (versioning, lifecycle, backup, IAM) применяется одинаково ко всему.
+  Не подходит для разной backup criticality
+
+- **Direct upload S3 от frontend** через presigned URL (минуя бэк) -
+  оптимально для больших файлов (>100MB), снимает нагрузку с бэка.
+  **Deferred до Этапа 16** когда user upload реально появится. Сейчас
+  все uploads проходят через бэк, что норм для admin shamela-импорта
+
+- **CDN перед bucket'ом** (Cloudfront, Cloudflare) - оптимизация для
+  глобальной аудитории. Не нужно на MVP, доступно когда понадобится
+  через смену endpoint URL в config
+
+- **MinIO Java SDK** вместо AWS SDK v2 - привязывает к MinIO. Отклонено
+
+- **Apache Commons VFS** как общая абстракция - старый API, не
+  поддерживает modern S3 features (Range, multipart upload, versioning).
+  Отклонено
+
+- **Cloud-native object stores с proprietary API** (Google Cloud Storage
+  GCS native, Azure Blob native) - не S3-совместимы, vendor lock-in.
+  Отклонено. GCS и Azure имеют S3-compatibility shims - если решим
+  использовать, через них
+
+**Сетевая отказоустойчивость:**
+
+Конфиг S3 client в `application.yml` фиксирует:
+
+```yaml
+storage:
+  endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
+  region: ${STORAGE_REGION:us-east-1}
+  access-key: ${STORAGE_ACCESS_KEY}
+  secret-key: ${STORAGE_SECRET_KEY}
+  connect-timeout: 5s
+  read-timeout: 30s
+  max-retries: 3
+  buckets:
+    imported-books: ${STORAGE_BUCKET_IMPORTED:library-imported-books}
+    user-uploads: ${STORAGE_BUCKET_UPLOADS:library-user-uploads}
+    page-images: ${STORAGE_BUCKET_PAGES:library-page-images}
+    derived: ${STORAGE_BUCKET_DERIVED:derived-artifacts}
+```
+
+Retry policy:
+- AWS SDK v2 встроенный retry (exponential backoff) на transient errors
+  (5xx, throttling, connection reset)
+- max-retries=3 по умолчанию
+- circuit breaker на уровне `ObjectStorageService` если >50% errors за
+  60с - отдаём 503 frontend'у, не валим request-thread в timeout
+- health-check endpoint в `actuator/health` интегрирует MinIO/S3
+  ping через `headBucket`
+
+**Backup стратегия (operational, не code-level):**
+
+Зависит от bucket criticality:
+
+- `library-user-uploads`, `library-page-images` (critical):
+  - daily `mc mirror` (или `rclone sync`) на secondary bucket
+    (отдельный S3 endpoint или offline storage)
+  - weekly cold-storage snapshot (Backblaze B2 / Glacier / AWS S3
+    Glacier Deep Archive)
+  - retention backup: forever
+  - tested restore procedure (раз в квартал test-restore конкретного
+    bucket'а)
+
+- `library-imported-books` (re-derivable):
+  - опционально daily mirror для convenience (не data safety)
+  - в случае полной потери - re-import через shamela API +
+    `archive.org` (`PdfLinksSourceProvider` восстановит каждый файл по
+    `source_url` из catalog)
+
+- `derived-artifacts` (re-derivable, TTL допустим):
+  - **no backup** - регенерация on-demand при следующем чтении
+
+Backup procedures документируются отдельно в `docs/operations.md`
+(будет создан когда дойдём до prod deploy). Не code-level - это
+operational concern.
+
+**Migration procedure между провайдерами:**
+
+Универсальный плейбук переключения storage backend (например MinIO
+→ Cloudflare R2):
+
+1. Создать buckets на новом провайдере с теми же именами и
+   versioning ON
+2. `mc alias set old https://old.endpoint key secret` + аналогично new
+3. `mc mirror --watch old/library-imported-books new/library-imported-books`
+   (или `rclone sync` для не-MinIO провайдеров)
+4. После полной синхронизации - проверить counts/sizes (`mc du` или
+   через catalog `SELECT count(*), sum(size_bytes) FROM library_files
+   WHERE bucket = '...'`)
+5. Hot-swap в `application.yml`: меняем `endpoint` + `credentials`,
+   restart backend
+6. Smoke-test чтение random файла через `GET /api/v1/library/books/...`
+7. Старый провайдер держим read-only ещё 30 дней на случай rollback
+8. Удалить старый провайдер
+
+`library_files` catalog не меняется - storage_key и bucket остаются.
+Меняется только физическое местоположение байтов.
+
+**Причины:**
+
+- **Доменное требование "оригинал не исчезает"** - исламская научная
+  библиотека по природе append-only. Citation через 10 лет должен
+  читать тот же текст что 10 лет назад. Versioning + permanent retention
+  это direct support доменной модели, не infra-overhead
+- **Платформенный pivot (ADR-018)** - storage касается множества будущих
+  use-case (library, user uploads, OCR images, экспорты, multi-tenant
+  data). Заложить storage abstraction один раз - дёшево; переделывать
+  потом - дорого
+- **Vendor-agnostic портабельность** - проект может развернуться у
+  пользователей в любой юрисдикции (РФ через Yandex, ЕС через
+  Hetzner/R2, США через AWS, on-prem MinIO). Один codebase для всех
+- **Storage стоит дёшево в 2026** - 1TB Backblaze B2 ~$6/мес, 1TB
+  MinIO self-hosted на Hetzner volume ~$0.5/мес. Cost экономия от
+  TTL deletion vs cost восстановления невыгодна для нашего объёма
+
+**Последствия:**
+
+- (+) Платформа готова к user-uploaded книгам (Этап 16) без переделок
+- (+) Image-сканы Этапа 17 имеют готовый contract
+- (+) Citation snapshot если понадобится - вписывается в существующий
+  bucket layout (`library-imported-books` версионирование) или новый
+  bucket `library-citation-snapshots` с минимальными изменениями
+- (+) Миграция между cloud-провайдерами - operational, не code-level
+- (+) Catalog в Postgres даёт data-integrity guarantees вне зависимости
+  от storage backend health
+- (+) Versioning + delete-marker policy защищают от accidental data
+  loss
+- (−) Storage cost растёт линейно (no TTL для critical buckets).
+  Acceptable trade-off для домена
+- (−) Code complexity: новый Spring bean, новая таблица, новые миграции,
+  Testcontainers MinIO container для IT. На MVP - выраженный delivery
+  cost
+- (−) Backup procedures = operational responsibility (нужны cron job,
+  monitoring, restore tests). Не code, но обязательно для prod
+- (−) Текущий tempDir-based cache в `PdfLinksSourceProvider` будет
+  переписан, существующие downloaded PDF в tempDir теряются (re-download
+  с archive.org при первом обращении). Acceptable - dev environment
+
+**Триггеры пересмотра ADR-024:**
+
+- Storage cost превышает $50/мес для текущей нагрузки - пересмотреть
+  retention policy для `library-imported-books` (можно делать
+  lazy-eviction shamela PDF если cost станет проблемой)
+- Конкретный pain с одним из bucket'ов (например `library-page-images`
+  растёт быстрее ожидаемого) - выделить в отдельный bucket с другой
+  storage tier
+- Появление multi-tenancy (Этап 20+) - возможно понадобится bucket-
+  per-tenant или prefix-per-tenant в существующих
+- Если AWS SDK v2 устаревает или появится более удобный вариант
+  (например common-storage-api JEP в Java) - возможен switch
+
+**Связь с другими ADR:**
+
+- **ADR-018** (платформенный pivot) - storage слой делает платформу
+  возможной
+- **ADR-019** (Library как доменный пакет) - `library_files` живёт в
+  доменной таблице, naming consistent
+- **ADR-021** (Source-first нумерация) - citation на конкретную страницу
+  издания требует bytes-snapshot оригинала, который storage хранит
+- **ADR-023** (микросервисы long-process'ов) - lazy PDF download +
+  hash verification - кандидат на worker'а во второй волне миграции
+
+**Не входит в этот ADR (что не решается сейчас):**
+
+- Конкретный prod провайдер (выбор между MinIO self-hosted, R2, B2,
+  Yandex Object Storage) - решение перед prod deploy, основано на
+  expected traffic / geographic distribution / budget
+- Backup tooling выбор (`mc mirror` vs `rclone` vs `restic` vs cloud-
+  native snapshots) - operational, не архитектурное
+- Multi-region replication strategy - откладывается до multi-user beta
+- CDN перед bucket'ами - оптимизация после первого prod deploy
+- Direct upload presigned URL для frontend (минуя бэк) - откладывается
+  до Этапа 16 user uploads
+- Конкретная схема `audit_log` для hard-delete - отдельная фича когда
+  auth появится
+- Encryption-at-rest конфигурация bucket'ов - operational, через
+  bucket policy на стороне провайдера
+

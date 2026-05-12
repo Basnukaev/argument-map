@@ -625,9 +625,35 @@ apps/* добавляется только когда возникнет кон�
       `PdfNotAvailableException` → 404 `pdf-not-available`.
       `filename` не возвращается клиенту (защита от обхода endpoint).
       Default chunk 1MB
-- [ ] **25.b: MinIO cache** - docker-compose MinIO + MinioCacheService.
-      Сейчас PDF кешируется в локальный tempDir (после рестарта
-      теряется). MinIO с TTL 30 дней
+- [ ] **25.b: object storage foundation** (ADR-024) - заменяет
+      изначальный план "MinIO cache". Persistent S3-compatible storage
+      с Postgres catalog. Не cache, а permanent storage с versioning.
+      4 bucket'а по criticality: `library-imported-books`,
+      `library-user-uploads`, `library-page-images`, `derived-artifacts`
+  - [x] **25.b.1**: ADR-024 + architecture-platform.md секция
+        "Object storage" + roadmap split на под-этапы. Docs-only коммит
+  - [ ] **25.b.2**: Liquibase миграция 21 - таблица `library_files`
+        (file_id, book_id, bucket, storage_key, source_url, source_type,
+        content_hash SHA-256, size_bytes, etag, downloaded_at,
+        last_verified_at, shamela_major_release, metadata jsonb,
+        deleted_at). Repository + IT через Testcontainers
+  - [ ] **25.b.3**: docker-compose MinIO сервис на pin'нутой версии
+        `minio/minio:RELEASE.2025-07-23T15-54-02Z-cpuv1` + mc-init
+        контейнер создающий 4 bucket'а с versioning ON. `application.yml`
+        блок `storage:` + `ObjectStorageProperties`
+        @ConfigurationProperties + `S3Client` Spring bean из AWS SDK v2
+  - [ ] **25.b.4**: `ObjectStorageService` - API put/get/getRange/exists/
+        delete (soft, через library_files.deleted_at). SHA-256 hash
+        verification на каждый put и get. Unit-тесты на hash logic +
+        IT через Testcontainers MinIO container
+  - [ ] **25.b.5**: интеграция в `PdfLinksSourceProvider` - check
+        catalog → если в bucket'е, return MinIO stream. Если нет -
+        download upstream → put в `library-imported-books` + insert
+        library_files. Existing tempDir cache удаляется
+  - [ ] **25.b.6**: lazy Range streaming - chunks из MinIO напрямую
+        через `getRange(start, end)`. AWS SDK v2 поддерживает Range
+        на уровне `GetObjectRequest.range("bytes=...")`. Заменяет
+        текущий full-download-then-serve паттерн в Provider'е
 - [x] **25.c: react-pdf install + viewer** - npm install,
       worker setup в vite.config.ts, PdfViewer.tsx компонент,
       toggle 📃/📕 в reader (стиль по platform_reader.jsx PageToolbar).

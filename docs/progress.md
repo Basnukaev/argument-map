@@ -17,6 +17,100 @@ Claude Code не тратят токены на исторический кон�
 
 ---
 
+## 2026-05-12 — Сессия 28 Phase 1 (docs) — ADR-024 object storage foundation
+
+Сессия начата по приоритету Сессии 27 - этап 25.b "MinIO cache".
+После brainstorming с Абдулой план переработан: вместо cache с TTL -
+**permanent storage с change detection** + 4-bucket criticality split.
+Зафиксировано в ADR-024.
+
+### Сделано
+
+**25.b.1 (Phase 1)** - 1 коммит (docs-only):
+
+- ADR-024 "Object storage strategy" в `decisions.md` - 7 ключевых
+  решений: S3-compatible через AWS SDK v2, permanent storage, bucket
+  versioning ON, Postgres catalog `library_files`, SHA-256 integrity,
+  4-bucket split, soft-delete с two-phase hard-delete
+- `architecture-platform.md` - новый раздел "Object storage" с table
+  bucket'ов и workflow диаграммой чтения. Упоминания MinIO в стэке и
+  альтернативах обновлены ссылкой на ADR-024
+- `glossary.md` - новый раздел "Object storage" с 7 терминами
+  (S3-compatible, bucket, storage_key, versioning, catalog,
+  content_hash, soft/hard-delete)
+- `roadmap.md` - 25.b разбит на 25.b.1...25.b.6. Старая запись
+  "MinIO cache" заменена на "object storage foundation"
+- `SESSION_START_PROMPT.md` обновляется в конце сессии
+
+### Решения
+
+Главные архитектурные решения зафиксированы в ADR-024. Контекст
+обсуждения с Абдулой:
+
+- **cache vs storage**: первый план был MinIO как cache с TTL 30 дней.
+  Абдула указал что для PDF классических книг (Бухари, Тафсир Ибн
+  Касира) не нужно TTL - они не меняются. Принято решение: permanent
+  storage, retention forever, lifecycle delete-policy НЕ настраиваем.
+  Старые версии тоже forever (versioning ON, без cleanup). Только
+  ручная чистка в случае storage crisis
+- **prod провайдер unknown** → AWS SDK v2 как абстракция обязательна.
+  Code agnostic, миграция между MinIO/R2/B2/Yandex/AWS S3 = смена
+  endpoint+credentials в config
+- **4 bucket'а, не 1 или 3** - разделение по backup priority +
+  retention policy, не по content type. `library-imported-books`
+  (re-derivable) vs `library-user-uploads` (critical) - разная
+  backup policy на bucket level
+- **OCR text НЕ в storage** - structured, searchable через GIN-индексы
+  Postgres. В storage идут только blobs (PDF, images, derived blobs)
+- **AI artifacts**: embeddings в `pg_vector` (Postgres extension),
+  blob summaries / generated PDFs в `derived-artifacts` bucket
+- **GDPR right-to-delete**: soft-delete по умолчанию, hard-delete как
+  отдельная admin action с двумя подтверждениями
+
+### Проблемы
+
+- AWS SDK v2 latest stable version не удалось проверить через mvn
+  central API из WSL2 (proxy блокирует JSON-RPC к search.maven.org).
+  Зафиксируется при добавлении dependency в 25.b.3 - mvn сам подскажет
+  при resolution
+
+### Следующий шаг (Phase 2 - 25.b.2)
+
+Liquibase миграция 21: таблица `library_files`. Поля:
+- `file_id UUID PRIMARY KEY DEFAULT uuid_generate_v4()`
+- `book_id UUID REFERENCES lib_books(id) ON DELETE CASCADE`
+- `bucket TEXT NOT NULL`
+- `storage_key TEXT NOT NULL`
+- `source_url TEXT` (NULL для user uploads)
+- `source_type TEXT NOT NULL` (SHAMELA / ARCHIVE_ORG / USER_UPLOAD /
+  SCAN / DERIVED)
+- `content_hash TEXT NOT NULL` (SHA-256)
+- `size_bytes BIGINT NOT NULL`
+- `etag TEXT`
+- `downloaded_at TIMESTAMPTZ NOT NULL`
+- `last_verified_at TIMESTAMPTZ`
+- `shamela_major_release INTEGER`
+- `metadata JSONB NOT NULL DEFAULT '{}'`
+- `deleted_at TIMESTAMPTZ`
+- `UNIQUE (bucket, storage_key)`
+- index на `book_id`, partial index на `source_url WHERE NOT NULL`,
+  partial index на `(bucket, storage_key) WHERE deleted_at IS NULL`
+
+Плюс `LibraryFile` Java record + `LibraryFileRepository` JDBC + IT
+через Testcontainers (CRUD + UNIQUE constraint + soft-delete query).
+
+После 25.b.2 - **25.b.3** (docker-compose MinIO + Spring config +
+S3Client bean из AWS SDK v2). Это отдельный коммит/подэтап -
+docker-compose + application.yml + Properties + Spring bean без
+интеграции в существующий код. После этого - **25.b.4**
+(`ObjectStorageService` API + tests), **25.b.5** (интеграция в
+`PdfLinksSourceProvider`), **25.b.6** (Range streaming).
+
+Реалистично: 25.b.2 + 25.b.3 поместятся в текущей сессии. 25.b.4-6 -
+следующая сессия.
+
+---
+
 ## 2026-05-12 — Сессия 27 (full-stack) — CJK cleanup + chapters collapse + inline PDF preview + PDF mapping
 
 Двухфазная сессия:
