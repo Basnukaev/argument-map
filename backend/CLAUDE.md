@@ -333,7 +333,13 @@ Postgres будет доступен на `localhost:5432`, база `argumentma
 Из папки `backend/`:
 ```bash
 ./mvnw clean install
-./mvnw spring-boot:run
+
+# dev-сервер всегда с JDWP debug args - Абдула подключается IntelliJ
+# Remote JVM Debug к localhost:5005. Claude запускает в фоне через &
+./mvnw spring-boot:run \
+  -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005" \
+  > /tmp/backend.log 2>&1 &
+# готовность: until curl -sf http://localhost:9090/actuator/health; do sleep 2; done
 ```
 
 ### Тесты

@@ -264,8 +264,14 @@ src/
 ## Локальная разработка
 
 ### Запуск Postgres + бэкенд
-Postgres из корневого `docker-compose up`, бэкенд из `../backend/`
-(`./mvnw spring-boot:run`). Смотри `../README.md`.
+Postgres из корневого `docker-compose up`, бэкенд из `../backend/` -
+Claude запускает сам в фоне с JDWP debug args:
+```bash
+cd ../backend && ./mvnw spring-boot:run \
+  -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005" \
+  > /tmp/backend.log 2>&1 &
+```
+Абдула подключается IntelliJ Remote JVM Debug к `localhost:5005`. Подробности в `../CLAUDE.md`.
 
 ### Фронт
 ```bash

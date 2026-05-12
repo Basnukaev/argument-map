@@ -40,13 +40,20 @@ docker-compose.yml           - postgres (опционально minio)
 ./mvnw verify              # полный билд + тесты
 ./mvnw test                # только unit + IT через Testcontainers
 ./mvnw -DskipTests compile # быстрая компиляция
-# spring-boot:run запускает Абдула отдельно - не запускать самому
+
+# Backend dev-сервер (Claude запускает сам в фоне, с JDWP для дебага)
+# Абдула подключается IntelliJ Remote JVM Debug к localhost:5005
+./mvnw spring-boot:run \
+  -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005" \
+  > /tmp/backend.log 2>&1 &
+# готовность: until curl -sf http://localhost:9090/actuator/health; do sleep 2; done
 
 # Frontend (все из frontend/, всегда в WSL2)
 npm test -- --run          # все Vitest тесты
 npm run build              # production build
 npm run generate-api       # регенерация types.ts (требует backend running)
 npx tsc --noEmit -p tsconfig.app.json   # typecheck
+npm run dev > /tmp/frontend.log 2>&1 &  # dev на :5173 (Claude запускает сам)
 
 # Инфра
 docker compose up -d       # postgres
@@ -109,8 +116,12 @@ scripts/seed-mawlid.sh     # тестовая тема для argument-map
 - **Автономный режим:** тактические решения - сам без подтверждения
   (см. `docs/SESSION_START_PROMPT.md` "АВТОНОМНЫЙ ЗАМЕСТИТЕЛЬ")
 - **WSL2:** backend, frontend и тесты гонять в WSL2, не Windows-side
-- **Backend rerun:** не запускать `spring-boot:run` - просить Абдулу
-  (она держит backend в отдельном терминале)
+- **Backend / frontend rerun:** Claude сам запускает и перезапускает
+  оба dev-сервера по необходимости (миграция, regenerate-api, smoke-test).
+  Backend ВСЕГДА с JDWP debug args (Абдула подключается IntelliJ к
+  `:5005`) - команда в разделе «Команды» выше. Логи в `/tmp/backend.log`
+  и `/tmp/frontend.log`. При смене порта 9090 проверить занят ли -
+  если мой процесс, kill и перезапустить
 - **Build cadence:** `./mvnw verify` / `npm run build` - в конце фазы,
   не на каждый чих
 - **Документация по ходу:** ADR / gotcha / api-contract обновляются в

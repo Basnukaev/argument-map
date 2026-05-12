@@ -46,11 +46,13 @@ strategy** (ADR-024). 2 коммита:
 cd /mnt/c/my_folders/projects/argument-map
 docker compose up -d  # если упал
 
-# 2. Перезапустить backend - Liquibase применит миграцию 21
-# (Абдула делает в своём отдельном терминале)
-cd backend
-./mvnw spring-boot:run
-# дождаться "Started ArgumentMapApplication"
+# 2. Перезапустить backend - Liquibase применит миграцию 21 (Claude
+# делает сам с JDWP debug args, Абдула подключает IntelliJ к :5005)
+kill $(lsof -ti:9090) 2>/dev/null; sleep 2
+cd backend && ./mvnw spring-boot:run \
+  -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005" \
+  > /tmp/backend.log 2>&1 &
+until curl -sf http://localhost:9090/actuator/health > /dev/null; do sleep 2; done
 
 # 3. Проверить что library_files создалась
 docker exec argumentmap-postgres psql -U argmap -d argumentmap \
@@ -689,10 +691,18 @@ spec'е - реализуется когда захотим добавить book
 
 ИНФРАСТРУКТУРА:
 - Postgres контейнер: argumentmap-postgres на :5432 (docker ps)
-- Бэк: cd backend && ./mvnw spring-boot:run > /tmp/backend.log 2>&1 &
-  (порт 9090, ждать "Started ArgumentMapApplication")
-- Фронт: cd frontend && npm run dev (порт 5173, watch.usePolling=true
-  для WSL2)
+- Бэк (Claude запускает сам в фоне, ВСЕГДА с JDWP debug args для
+  IntelliJ Remote JVM Debug на :5005):
+  ```
+  cd backend && ./mvnw spring-boot:run \
+    -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005" \
+    > /tmp/backend.log 2>&1 &
+  ```
+  Порт 9090, готовность: `until curl -sf http://localhost:9090/actuator/health; do sleep 2; done`
+  Перезапуск после миграции: `kill $(lsof -ti:9090); sleep 2;` + та же команда
+- Фронт (Claude запускает сам в фоне):
+  `cd frontend && npm run dev > /tmp/frontend.log 2>&1 &`
+  Порт 5173, watch.usePolling=true для WSL2
 - Dev user UUID: 14561248-0bfd-4a62-8395-d40a6972182a
   (frontend/.env.local: VITE_DEV_USER_ID)
 - Тестовая тема "Дозволенность Мавлида ан-Наби":
