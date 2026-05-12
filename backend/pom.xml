@@ -15,7 +15,24 @@
 	<description>API-first argument mapping tool</description>
 	<properties>
 		<java.version>21</java.version>
+		<aws.sdk.version>2.44.4</aws.sdk.version>
 	</properties>
+	<dependencyManagement>
+		<dependencies>
+			<!--
+				AWS SDK for Java v2 bom-import (ADR-024). Object storage слой
+				через S3-compatible API - работает с MinIO/R2/B2/Yandex/AWS S3.
+				Bom фиксирует версии всех модулей AWS SDK консистентно.
+			-->
+			<dependency>
+				<groupId>software.amazon.awssdk</groupId>
+				<artifactId>bom</artifactId>
+				<version>${aws.sdk.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -58,6 +75,25 @@
 			<groupId>org.xerial</groupId>
 			<artifactId>sqlite-jdbc</artifactId>
 			<version>3.45.3.0</version>
+		</dependency>
+		<!--
+			AWS SDK v2 S3 client (ADR-024). Version managed by bom-import выше.
+			Используется в library.storage.S3ClientConfig для подключения к
+			MinIO (dev) / любому S3-compatible сервису (prod).
+		-->
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>s3</artifactId>
+		</dependency>
+		<!--
+			URL connection HTTP client - lightweight blocking реализация для
+			синхронного S3 client. AWS SDK v2 default - netty (async/reactive),
+			тяжелее. Для нашего use-case (synchronous put/get с Range) хватает
+			URL connection-client.
+		-->
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>url-connection-client</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

@@ -16,6 +16,37 @@ app:
     # (никакие cross-origin запросы не разрешены). Переопределяется по профилям.
     allowed-origins: ""
 
+# Object storage (ADR-024). S3-compatible blob storage для PDF/EPUB/scans/
+# derived. Поддерживает любой S3-сервис (MinIO/R2/B2/Yandex/AWS S3) -
+# дефолты под MinIO в docker-compose. В проде переопределяется через
+# environment variables: STORAGE_ENDPOINT/STORAGE_ACCESS_KEY/STORAGE_SECRET_KEY.
+storage:
+  endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
+  # Region обязателен для AWS SDK v2 даже для MinIO (валидируется при build).
+  # us-east-1 - стандартный default для S3-compatible.
+  region: ${STORAGE_REGION:us-east-1}
+  access-key: ${STORAGE_ACCESS_KEY:minioadmin}
+  secret-key: ${STORAGE_SECRET_KEY:minioadmin}
+  # forcePathStyle обязателен для MinIO (path-style url:
+  # http://host/bucket/key вместо virtual-hosted-style http://bucket.host/key).
+  # AWS S3 в проде поддерживает оба - этот флаг безопасен везде.
+  path-style-access: ${STORAGE_PATH_STYLE:true}
+  # Таймауты сетевых операций (Spring Boot Duration: "5s", "30s", "1m").
+  # Чтение крупных PDF (Range streaming) - отдельные запросы по chunk,
+  # каждый ~1MB - 30с с запасом.
+  connect-timeout: 5s
+  read-timeout: 30s
+  # Максимум retry на transient errors (5xx, throttling, connection reset).
+  # AWS SDK v2 встроенный exponential backoff.
+  max-retries: 3
+  # 4 bucket'а по criticality (ADR-024). Имена переопределяются через env -
+  # позволяет dev/staging/prod держать разные namespaces в одном S3 account.
+  buckets:
+    imported-books: ${STORAGE_BUCKET_IMPORTED:library-imported-books}
+    user-uploads: ${STORAGE_BUCKET_UPLOADS:library-user-uploads}
+    page-images: ${STORAGE_BUCKET_PAGES:library-page-images}
+    derived: ${STORAGE_BUCKET_DERIVED:derived-artifacts}
+
 # Конфиг интеграции с shamela.ws через её desktop-API (ADR-020).
 # Реверс-инжиниринг выполнен в параллельной сессии через mitmproxy на
 # официальном desktop-клиенте shamela 4. Endpoints статические,
