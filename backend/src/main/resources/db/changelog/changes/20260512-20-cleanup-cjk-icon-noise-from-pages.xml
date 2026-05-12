@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260512-20-cleanup-cjk-icon-noise-from-pages" author="Abdula Basnukaev">
+        <comment>
+            Backfill cleanup: удаляем CJK-символы из существующих
+            lib_pages.text_content. На сайте shamela.ws иконки рядом с
+            заголовками реализованы через icon-font: в HTML стоит
+            произвольный CJK-кодпоинт (наблюдается 舄 U+8204 - валидный
+            китайский иероглиф), который CSS подменяет глифом из шрифта
+            shamela-icons. При парсинге raw HTML без CSS - CJK-символы
+            вылезают наружу как мусор в арабском тексте.
+
+            Вырезаем все 5 CJK-блоков Unicode полностью (в арабской книге
+            эти диапазоны не могут встречаться легитимно):
+            - U+4E00-9FFF Han (CJK Unified Ideographs)
+            - U+3040-309F Hiragana
+            - U+30A0-30FF Katakana
+            - U+3100-312F Bopomofo
+            - U+AC00-D7AF Hangul
+
+            Арабские presentation forms (U+FB50-FDFF, U+FE70-FEFF) -
+            HAS легитимные сокращения (رحمه الله, ﷺ салават, رضي الله
+            عنه). Они в другом блоке Unicode, regex их не задевает.
+
+            После cleanup'а возможно появятся пустые строки text_content.
+            CHECK constraint lib_pages_content_present требует наличия
+            text_content ИЛИ image_url. Для пустых страниц - удаляем
+            (DELETE) - если в книге была страница с одним только
+            CJK-noise, это не реальный контент и её можно дропнуть.
+
+            Production safe: миграция идемпотентна (повторный прогон не
+            ломает уже почищенные данные). Rollback не предусмотрен -
+            CJK-данные были мусором, восстанавливать нечего; при
+            необходимости делается re-import через shamela admin.
+
+            См. ShamelaTextCleaner.java для same-cleanup в новых
+            импортах. После этой миграции existing pages чистые,
+            новые импорты не приносят CJK благодаря mapper'у.
+        </comment>
+        <sql>
+            UPDATE lib_pages
+            SET text_content = regexp_replace(
+                    text_content,
+                    '[一-鿿぀-ゟ゠-ヿ㄀-ㄯ가-힯]',
+                    '',
+                    'g'
+                ),
+                updated_at = now()
+            WHERE text_content ~ '[一-鿿぀-ゟ゠-ヿ㄀-ㄯ가-힯]';
+
+            DELETE FROM lib_pages
+            WHERE (text_content IS NULL OR text_content = '' OR length(trim(text_content)) = 0)
+              AND image_url IS NULL;
+        </sql>
+        <rollback>
+            <comment>
+                CJK-данные были мусором от icon-font shamela, нечего
+                восстанавливать. Если нужно вернуть - сделать re-import
+                книги через POST /api/v1/admin/shamela/map-book/{id}.
+            </comment>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

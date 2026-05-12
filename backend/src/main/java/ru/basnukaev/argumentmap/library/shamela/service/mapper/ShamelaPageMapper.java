@@ -64,6 +64,13 @@ public class ShamelaPageMapper {
                 continue;
             }
             UUID pageUuid = UUID.randomUUID();
+            String cleanedContent = ShamelaTextCleaner.clean(p.content());
+            // После cleanup может оказаться что страница содержит только
+            // CJK noise + whitespace - пропускаем чтобы не нарушить
+            // lib_pages_content_present CHECK constraint
+            if (cleanedContent == null || cleanedContent.isBlank()) {
+                continue;
+            }
             Page page = new Page(
                     pageUuid,
                     bookUuid,
@@ -72,7 +79,7 @@ public class ShamelaPageMapper {
                     blankToNull(p.printedPage()),
                     blankToNull(p.part()),
                     null,
-                    p.content(),
+                    cleanedContent,
                     null,
                     now,
                     now
