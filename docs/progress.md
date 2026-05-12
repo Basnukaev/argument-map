@@ -115,16 +115,34 @@ Verified через playwright headless: PDF preview opens "Том 3" на page 
 blue block "Том 3·Стр 39" ✓, chapter highlight stable 1245→1246 ✓,
 click parent → +1 expanded ✓, PDF button rose styling ✓
 
-**Что отложено**:
-- **D. bottom-sheet resize** - drag handle на верхнем border bottom-sheet
-  для resize высоты. Не critical, текущая 65vh работоспособна
-- **G. editable blue block** (Том dropdown + printedPage input) - сейчас
-  blue block read-only label. User хочет navigation как в shamela:
-  смена Тома + ввод printedPage → переход на соответствующую internal
-  pageNumber. Logic: BookReaderPage computes `distinctParts` из
-  state.pages, PageJump получает dropdown + input. При submit -
-  find page where (part === selectedPart && printedPage === input) →
-  onJump(found.pageNumber)
+**Что отложено**: всё закрыто в Phase 2 - см. ниже Phase 2 continuation.
+
+**Phase 2 continuation** - 1 коммит после approval:
+
+- `9425499` `feat(frontend): editable blue block (Том + Стр) + resize
+  bottom-sheet`:
+  - **G. Editable shamela block** - PageJump получил props
+    `availableParts` + `onPartChange` + `onPrintedPageJump`. Blue label
+    превратился в editable form: Том dropdown (8 опций для Тафсира:
+    المقدمة, Том 1...Том 7) + printedPage text input. BookReaderPage
+    computes distinctParts через Map preserving first-occurrence order.
+    handlePartChange навигирует на первую страницу выбранного тома;
+    handlePrintedPageJump - на страницу с (currentPart, printedPage)
+    или fallback по всей книге
+  - **D. Resize bottom-sheet** - drag handle (тонкая полоска с 3 точками)
+    на верхнем border overlay'я. PointerDown → tracking pointermove,
+    Delta Y → deltaVh, cap [25vh, 90vh]. body.style.cursor=ns-resize
+    + userSelect=none во время drag
+  - **Bonus fix**: mutable `let volumeCounter` в PdfViewer.fileLabels
+    нарушал React 19 react-hooks/immutability. Заменён на prefix slice +
+    filter. O(n²) но contentFiles ≤20 файлов - acceptable
+
+Verified через playwright headless:
+- Том dropdown 8 опций, auto-selected="3" на page 1245
+- printedPage input value="39" auto
+- Смена Тома 3→5: internal page 1245 → 2583
+- printedPage Enter "100" → internal 2678
+- Drag handle resize 585px → 735px (drag up 150px)
 
 ### Решения (Phase 2)
 
@@ -142,15 +160,7 @@ click parent → +1 expanded ✓, PDF button rose styling ✓
 
 ### Следующий шаг (Сессия 28)
 
-**Приоритеты**:
-1. **G. Editable blue block** (Том dropdown + printedPage input) -
-   small UX fix, ~30 минут. PageJump получает 2 новых prop'а
-   (availableParts + onPartChange) + replace blue-label div на
-   dropdown+input. BookReaderPage computes distinctParts и onNav
-2. **D. Bottom-sheet resize** - drag handle ~1 час
-3. **25.b MinIO cache + lazy streaming** - архитектурный priorit,
-   решает «медленная первая загрузка PDF». Детальный план в Phase 1
-   Следующий шаг
+Все user feedback пункты Сессии 27 закрыты. Главный следующий приоритет:
 
 **Главный приоритет - 25.b MinIO cache + lazy streaming**:
 сейчас `PdfLinksSourceProvider.downloadFile` качает весь PDF (10-50MB)
