@@ -199,13 +199,11 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
     [state],
   );
   const fileLabels = useMemo(() => {
-    // Counter считает только filename-like тома (исключая المقدمة и пр.
-    // arabic labels). "Том 1" = первый файл с filename вроде 01_*.pdf,
-    // "Том 2" = второй и т.д. - это соответствует shamela `part` numbering
-    // и согласуется с findFileIndexForPart. Раньше использовал `i+1` -
-    // это давало смещение когда впереди было предисловие المقدمة
-    let volumeCounter = 0;
-    return contentFiles.map((f) => {
+    // "Том N" - N-й filename-like файл (исключая المقدمة и прочие arabic
+    // labels). Соответствует shamela `part` numbering и согласуется с
+    // findFileIndexForPart. Counter вычисляется через prefix-slice вместо
+    // mutable let (правило react-hooks/immutability в React 19)
+    return contentFiles.map((f, i) => {
       const raw = f.label ?? '';
       const hasArabic = /[؀-ۿ]/.test(raw);
       const looksLikeFilename = /^\d{2}_\d+/.test(raw);
@@ -213,8 +211,11 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
         return { index: f.index ?? 0, display: raw };
       }
       if (looksLikeFilename) {
-        volumeCounter += 1;
-        return { index: f.index ?? 0, display: `Том ${volumeCounter}` };
+        const volumeNumber = contentFiles
+          .slice(0, i + 1)
+          .filter((prev) => /^\d{2}_\d+/.test((prev.label ?? '').trim()))
+          .length;
+        return { index: f.index ?? 0, display: `Том ${volumeNumber}` };
       }
       return { index: f.index ?? 0, display: raw };
     });

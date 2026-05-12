@@ -47,6 +47,32 @@ function BookReaderPage() {
   // открывает PDF в overlay внизу экрана. Из preview можно "развернуть на
   // весь экран" → readerMode=pdf + закрытие overlay
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  // Bottom-sheet height в vh (25..90). Resizable через drag handle на
+  // верхнем border. По умолчанию 65vh - комфортно видеть и text сверху
+  // и PDF снизу одновременно
+  const [sheetHeightVh, setSheetHeightVh] = useState(65);
+
+  const handleResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startHeight = sheetHeightVh;
+    const onMove = (ev: PointerEvent) => {
+      const delta = startY - ev.clientY;
+      const deltaVh = (delta / window.innerHeight) * 100;
+      const next = Math.max(25, Math.min(90, startHeight + deltaVh));
+      setSheetHeightVh(next);
+    };
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  };
 
   useEffect(() => {
     if (!bookId) return;
@@ -157,6 +183,40 @@ function BookReaderPage() {
   const currentPageMeta =
     state.kind === 'success' ? state.pages.find((p) => p.pageNumber === pageNumber) : undefined;
 
+  /**
+   * Уникальные `part` значения через всю книгу - для dropdown Тома.
+   * Sorted в порядке появления (первая встреча идёт первой) - shamela
+   * хранит pages в логическом order, distinct preserve этот же order
+   */
+  const distinctParts: string[] = state.kind === 'success'
+    ? Array.from(
+        state.pages.reduce<Map<string, true>>((acc, p) => {
+          const part = p.part;
+          if (part != null && part !== '' && !acc.has(part)) acc.set(part, true);
+          return acc;
+        }, new Map()).keys(),
+      )
+    : [];
+
+  /** Смена тома - переходим на первую страницу указанного part */
+  const handlePartChange = (newPart: string) => {
+    if (state.kind !== 'success') return;
+    const firstPage = state.pages.find((p) => p.part === newPart);
+    if (firstPage?.pageNumber) gotoPage(firstPage.pageNumber);
+  };
+
+  /** Jump к (currentPart, printedPage). Если page с такой комбинацией нет -
+   * пробуем по всей книге (если у юзера например указан printedPage без
+   * учёта тома). Если и тогда нет - silently ignore */
+  const handlePrintedPageJump = (printedPage: string) => {
+    if (state.kind !== 'success') return;
+    const target =
+      state.pages.find(
+        (p) => p.part === currentPageMeta?.part && p.printedPage === printedPage,
+      ) ?? state.pages.find((p) => p.printedPage === printedPage);
+    if (target?.pageNumber) gotoPage(target.pageNumber);
+  };
+
   // shamela mapping для PDF: `part` (том) → fileIndex, `printedPage` →
   // pdfPage. printedPage TEXT в БД (может быть "39" или "أ"), parseInt
   // отсеивает арабские буквы → null fallback на page 1
@@ -250,6 +310,9 @@ function BookReaderPage() {
                       currentPrintedPage={currentPageMeta?.printedPage ?? null}
                       currentPart={currentPageMeta?.part ?? null}
                       onJump={gotoPage}
+                      availableParts={distinctParts}
+                      onPartChange={handlePartChange}
+                      onPrintedPageJump={handlePrintedPageJump}
                     />
                     <Button
                       variant="ghost"
@@ -310,7 +373,21 @@ function BookReaderPage() {
           оставался видимым (юзер сравнивает text транскрипцию с PDF
           оригиналом). Кнопка Maximize2 = развернуть в fullscreen mode */}
       {pdfPreviewOpen && state.kind === 'success' && bookId && (
-        <aside className="fixed inset-x-0 bottom-0 z-40 flex h-[65vh] flex-col border-t border-slate-300 bg-white shadow-2xl">
+        <aside
+          className="fixed inset-x-0 bottom-0 z-40 flex flex-col border-t border-slate-300 bg-white shadow-2xl"
+          style={{ height: `${sheetHeightVh}vh` }}
+        >
+          {/* Drag handle - тонкая зона сверху для resize высоты. Визуально
+              «гриф» из 3 точек по центру, hover показывает усиление */}
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Изменить высоту PDF preview"
+            onPointerDown={handleResizeStart}
+            className="group flex h-3 cursor-ns-resize items-center justify-center border-b border-slate-200 bg-slate-50 transition-colors hover:bg-indigo-50"
+          >
+            <span className="h-0.5 w-10 rounded-full bg-slate-300 transition-colors group-hover:bg-indigo-400" />
+          </div>
           <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2">
             <h3 className="text-[13px] font-semibold text-slate-700">
               PDF оригинал
