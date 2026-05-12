@@ -74,40 +74,131 @@ Claude Code не тратят токены на исторический кон�
   Зафиксируется при добавлении dependency в 25.b.3 - mvn сам подскажет
   при resolution
 
-### Следующий шаг (Phase 2 - 25.b.2)
+### Сделано (Phase 2 - 25.b.2)
 
-Liquibase миграция 21: таблица `library_files`. Поля:
-- `file_id UUID PRIMARY KEY DEFAULT uuid_generate_v4()`
-- `book_id UUID REFERENCES lib_books(id) ON DELETE CASCADE`
-- `bucket TEXT NOT NULL`
-- `storage_key TEXT NOT NULL`
-- `source_url TEXT` (NULL для user uploads)
-- `source_type TEXT NOT NULL` (SHAMELA / ARCHIVE_ORG / USER_UPLOAD /
-  SCAN / DERIVED)
-- `content_hash TEXT NOT NULL` (SHA-256)
-- `size_bytes BIGINT NOT NULL`
-- `etag TEXT`
-- `downloaded_at TIMESTAMPTZ NOT NULL`
-- `last_verified_at TIMESTAMPTZ`
-- `shamela_major_release INTEGER`
-- `metadata JSONB NOT NULL DEFAULT '{}'`
-- `deleted_at TIMESTAMPTZ`
-- `UNIQUE (bucket, storage_key)`
-- index на `book_id`, partial index на `source_url WHERE NOT NULL`,
-  partial index на `(bucket, storage_key) WHERE deleted_at IS NULL`
+**25.b.2** - 1 коммит (миграция + repo + IT):
 
-Плюс `LibraryFile` Java record + `LibraryFileRepository` JDBC + IT
-через Testcontainers (CRUD + UNIQUE constraint + soft-delete query).
+- `6189ee6` `feat(backend): 25.b.2 - library_files catalog table +
+  repository + IT` - Liquibase миграция 21 + Java domain (record + enum)
+  + LibraryFileRepository + 19 IT
+- **Schema**: `library_files` со всеми полями из ADR-024 schema (см.
+  предыдущий handoff блок). 4 индекса: book_id partial, source_url
+  partial, hot-path active partial, source_type full. CHECK constraint
+  на source_type (5 enum значений) + size_bytes >= 0
+- **Java**: `LibraryFileSourceType` enum (SHAMELA/ARCHIVE_ORG/USER_UPLOAD/
+  SCAN/DERIVED) + `LibraryFile` record с 14 полями
+- **Repository**: save / update / findById / findActiveByBucketAndKey
+  (hot-path с partial index) / findActiveByBookId (multi-volume PDF
+  ordered by downloaded_at) / findActiveBySourceUrl (re-import detection)
+  / softDelete / hardDelete / markVerified
+- **IT** (19 тестов): CRUD + nullable book_id для derived-artifacts +
+  ON DELETE CASCADE проверка + UNIQUE constraint collision + CHECK
+  constraints на source_type и size_bytes + update non-existing → false
+  + findActive исключает soft-deleted + soft-delete idempotency +
+  markVerified updates timestamp + JSONB queryable через `@>` operator
 
-После 25.b.2 - **25.b.3** (docker-compose MinIO + Spring config +
-S3Client bean из AWS SDK v2). Это отдельный коммит/подэтап -
-docker-compose + application.yml + Properties + Spring bean без
-интеграции в существующий код. После этого - **25.b.4**
-(`ObjectStorageService` API + tests), **25.b.5** (интеграция в
-`PdfLinksSourceProvider`), **25.b.6** (Range streaming).
+**330 IT (+19 новых) + 164 unit зелёные**. Sebastian Liquibase
+"ran successfully in 7ms" при applying миграции 21 на fresh
+Testcontainers postgres.
 
-Реалистично: 25.b.2 + 25.b.3 поместятся в текущей сессии. 25.b.4-6 -
-следующая сессия.
+### Следующий шаг (Phase 3 - 25.b.3 в новой сессии)
+
+**25.b.3: docker-compose MinIO + Spring config + S3Client bean** - это
+"infra setup" подэтап. Изолированный кусок без интеграции в existing
+код, не зависит от уже сделанного кроме того что library_files таблица
+есть.
+
+Что делать:
+
+1. **docker-compose.yml**: добавить `minio` сервис на pin'нутой версии
+   `minio/minio:RELEASE.2025-07-23T15-54-02Z-cpuv1`. Volume для данных
+   `minio-data:/data`. Environment variables `MINIO_ROOT_USER` /
+   `MINIO_ROOT_PASSWORD`. Ports `9000:9000` (S3 API) + `9001:9001`
+   (web console). Healthcheck через `mc ready local`
+2. **mc-init сервис в docker-compose**: одноразовый контейнер `minio/mc`
+   что создаёт 4 bucket'а и включает versioning. Зависит от minio
+   через `depends_on.minio.condition: service_healthy`. Команда:
+   ```
+   mc alias set local http://minio:9000 minioadmin minioadmin
+   mc mb -p local/library-imported-books local/library-user-uploads \
+     local/library-page-images local/derived-artifacts
+   mc version enable local/library-imported-books local/library-user-uploads \
+     local/library-page-images
+   # derived-artifacts без versioning (re-derivable, не нужно)
+   ```
+3. **pom.xml**: добавить AWS SDK v2 dependencies. Bom-import паттерн:
+   ```xml
+   <dependencyManagement>
+     <dependencies>
+       <dependency>
+         <groupId>software.amazon.awssdk</groupId>
+         <artifactId>bom</artifactId>
+         <version>2.31.X</version>  <!-- latest stable, проверить через mvn -->
+         <type>pom</type>
+         <scope>import</scope>
+       </dependency>
+     </dependencies>
+   </dependencyManagement>
+   ```
+   потом просто `<dependency>` на `s3` artifactId без version.
+   `mvn dependency:tree` подскажет если конфликт с Spring Boot 3.5
+4. **application.yml** блок `storage:`:
+   ```yaml
+   storage:
+     endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
+     region: ${STORAGE_REGION:us-east-1}
+     access-key: ${STORAGE_ACCESS_KEY:minioadmin}
+     secret-key: ${STORAGE_SECRET_KEY:minioadmin}
+     connect-timeout: 5s
+     read-timeout: 30s
+     max-retries: 3
+     buckets:
+       imported-books: ${STORAGE_BUCKET_IMPORTED:library-imported-books}
+       user-uploads: ${STORAGE_BUCKET_UPLOADS:library-user-uploads}
+       page-images: ${STORAGE_BUCKET_PAGES:library-page-images}
+       derived: ${STORAGE_BUCKET_DERIVED:derived-artifacts}
+   ```
+5. **`ObjectStorageProperties`** @ConfigurationProperties record в
+   `library/storage/` пакете (новый sub-package). Структура соответствует
+   yml блоку. Annotation `@ConstructorBinding` для record-friendly DI
+6. **`S3ClientConfig`** @Configuration bean фабрика. `S3Client` bean
+   через `S3Client.builder().endpointOverride(URI).credentialsProvider(
+   StaticCredentialsProvider.create(...)).forcePathStyle(true) -
+   forcePathStyle для MinIO нужен иначе хочет virtual-hosted-style. Region
+   bessmysleсs для MinIO но AWS SDK требует. Apply timeouts из properties
+7. **Bean wiring smoke-test**: `@SpringBootTest` который проверяет что
+   `S3Client` поднимается без ошибок (без обращения к real MinIO)
+8. **Testcontainers**: добавить MinIO container в новый
+   `TestcontainersMinioConfiguration` (отдельный @TestConfiguration
+   класс). Использовать `org.testcontainers:minio` artifact (часть
+   Testcontainers core). Override endpoint в test-context через
+   `@DynamicPropertySource`
+
+Реалистично - 25.b.3 поместится в одну сессию (изолирован, не трогает
+прикладную логику). Возможно даже + 25.b.4 (`ObjectStorageService` API
+с put/get/getRange/exists/softDelete + IT через Testcontainers MinIO).
+
+После 25.b.3-4 - **25.b.5** интеграция в PdfLinksSourceProvider (check
+catalog → if exists, return MinIO; else download + put + insert
+library_files row). **25.b.6** - lazy Range streaming через
+`getRange(start, end)` для больших PDF, заменяет full-download паттерн.
+
+**ВАЖНО для новой сессии: pre-flight миграции 21**:
+
+Production-БД сейчас после миграции 20. После Сессии 28 (две Phase'ы -
+ADR + library_files migration) production не получит миграцию 21
+автоматически - Абдула делает restart backend сам:
+```bash
+cd /mnt/c/my_folders/projects/argument-map/backend
+./mvnw spring-boot:run
+# Liquibase применит миграцию 21 при startup
+# Проверка через docker exec:
+# docker exec argumentmap-postgres psql -U argmap -d argumentmap \
+#   -c "\d library_files"
+```
+
+При старте 25.b.3 в новой сессии напомнить Абдуле сделать restart
+если ещё не сделал - это нужно для смоук-теста S3Client bean.
 
 ---
 

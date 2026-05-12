@@ -5,7 +5,73 @@
 начало новой сессии - Claude получит полный контекст без ручного
 объяснения.
 
-## КРИТИЧНО для Сессии 28+ (после Сессии 27 - PDF UX completion)
+## КРИТИЧНО для Сессии 29+ (после Сессии 28 - ADR-024 + library_files catalog)
+
+Сессия 28 заложила **фундамент object storage слоя** через переработку
+изначального плана "MinIO cache" в полноценный **permanent storage
+strategy** (ADR-024). 2 коммита:
+
+1. **Phase 1 (25.b.1)** - `aafcfc0` docs only: ADR-024 фиксирует 7
+   решений как единый пакет:
+   - S3-compatible через AWS SDK v2 (vendor-agnostic)
+   - permanent storage, не cache (retention forever)
+   - bucket versioning ON, lifecycle delete-policy OFF (старые версии
+     forever)
+   - Postgres `library_files` catalog как source of truth
+   - SHA-256 content hash на каждый put/get
+   - 4-bucket criticality split (imported / user-uploads / page-images
+     / derived-artifacts)
+   - GDPR-like deletion: soft-delete по умолчанию, hard-delete через
+     two-phase admin approval
+   Также architecture-platform.md новый раздел "Object storage" с
+   workflow диаграммой, glossary 7 новых терминов, roadmap 25.b
+   разбит на 6 подэтапов
+2. **Phase 2 (25.b.2)** - `6189ee6` Liquibase миграция 21 +
+   `LibraryFileSourceType` enum + `LibraryFile` record +
+   `LibraryFileRepository` JDBC + 19 IT. 330 IT (+19 новых) + 164
+   unit зелёные
+
+**ПРОЕКТНЫЕ РЕШЕНИЯ (Сессия 28 brainstorm с Абдулой)**:
+- bucket names: `library-imported-books` / `library-user-uploads` /
+  `library-page-images` / `derived-artifacts`
+- MinIO version pin: `minio/minio:RELEASE.2025-07-23T15-54-02Z-cpuv1`
+- AWS SDK v2 latest stable (resolve через mvn при добавлении)
+- content hash SHA-256
+- soft-delete по умолчанию, hard-delete через two-phase
+
+⚠️ **ПЕРВЫМ ДЕЛОМ для Сессии 29 - Pre-flight для миграции 21**:
+
+```bash
+# 1. Postgres healthy
+cd /mnt/c/my_folders/projects/argument-map
+docker compose up -d  # если упал
+
+# 2. Перезапустить backend - Liquibase применит миграцию 21
+# (Абдула делает в своём отдельном терминале)
+cd backend
+./mvnw spring-boot:run
+# дождаться "Started ArgumentMapApplication"
+
+# 3. Проверить что library_files создалась
+docker exec argumentmap-postgres psql -U argmap -d argumentmap \
+  -c "\d library_files"
+# должна вывести таблицу с 14 колонками + 4 индексами
+```
+
+**Главный приоритет Сессии 29 - 25.b.3 docker-compose MinIO + Spring
+config + S3Client bean**. Детальный план (docker-compose сервис +
+mc-init + pom.xml AWS SDK v2 + application.yml блок storage +
+ObjectStorageProperties + S3ClientConfig) в `progress.md` Сессия 28
+Phase 2 "Следующий шаг". Реалистично уместится 25.b.3 +
+возможно 25.b.4 (`ObjectStorageService` API).
+
+**Памятка для будущих responsive/mobile сессий:**
+- `Select.maxVisibleItems` сейчас 12 (без scrollbar при ≤12 опций).
+  На mobile/tablet viewport zoom-in может ужать пространство - 12
+  опций не уместятся. При работе над адаптивным UI пересмотреть
+  значение или сделать adaptive (CSS `vh`-based вместо count-based)
+
+## КРИТИЧНО для Сессии 28 (после Сессии 27 - PDF UX completion)
 
 Сессия 27 закрыла **все** user feedback пункты из Сессий 25-27 через
 **12 коммитов**. Главный focus: PDF reading UX и source-first navigation.
@@ -26,18 +92,6 @@
    options, manual collapse override, scrollIntoView для active
    chapter, sticky text toolbar чтобы prev/next остались
    accessible при открытом bottom-sheet
-
-**Главный приоритет Сессии 28 - 25.b MinIO cache + lazy streaming**.
-Сейчас PDF (10-50MB) качается на бэк целиком при первом open - это
-причина "медленной первой загрузки" из user feedback. MinIO + Range
-forwarding = lazy partial fetch + persistent cache. Детальный план в
-`docs/progress.md` Сессия 26 "Следующий шаг".
-
-**Памятка для будущих responsive/mobile сессий:**
-- `Select.maxVisibleItems` сейчас 12 (без scrollbar при ≤12 опций).
-  На mobile/tablet viewport zoom-in может ужать пространство - 12
-  опций не уместятся. При работе над адаптивным UI пересмотреть
-  значение или сделать adaptive (CSS `vh`-based вместо count-based)
 
 ## КРИТИЧНО для Сессии 27+ (после Сессии 26 - PDF cover bug fix + UX polish)
 
@@ -501,85 +555,60 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 - ADR-011-016 все приняты. В Этапе 12 ADR не делал - чистый UI
   поверх готового бэк-контракта
 
-ОТКРЫТО (по приоритету) - после Сессии 24 (source-first нумерация
-закрыта на backend + frontend display, требуется только Абдулин
-pre-flight для применения миграции 19):
+ОТКРЫТО (по приоритету) - после Сессии 28 Phase 2 (25.b.1 ADR-024 +
+25.b.2 library_files миграция/repo/IT закрыты, требуется только
+Абдулин pre-flight restart backend для применения миграции 21):
 
-⚠️ **АРХИТЕКТУРНЫЙ ВОПРОС из Сессии 23**: bulk-bootstrap всех 8500
-shamela книг vs lazy-import on user request - **отложено до PDF
-integration** (см. ниже Этап 25-новый). Сейчас в БД 2 книги (Сахих
-аль-Бухари 1681 + Тафсир Ибн Касира 1503) - этого достаточно для
-UX-проверки source-first.
+⚠️ **ПЕРВЫМ ДЕЛОМ для Сессии 29** - Pre-flight миграции 21 (см. вверху
+КРИТИЧНО раздел). Restart backend + проверить `\d library_files` в psql
 
-⚠️ **ПЕРВЫМ ДЕЛОМ для Сессии 25** - выполнить Pre-flight чтобы
-применить миграцию 19 к production-БД и re-import книг с новыми
-полями printedPage/part.
+⚠️ **АРХИТЕКТУРНЫЙ ВОПРОС из Сессии 23** (open): bulk-bootstrap всех
+8500 shamela книг vs lazy-import on user request. Сейчас в БД 2
+книги (Сахих аль-Бухари 1681 + Тафсир Ибн Касира 1503). После 25.b
+полного завершения станет понятно: если PDF lazy download через
+catalog работает - bulk vs lazy решение очевидно (lazy). Возможен
+ADR-025
 
-⚠️ **Pre-flight** (Абдула должен сделать перед стартом Сессии 25):
+1. **Этап 25.b.3: docker-compose MinIO + Spring config + S3Client bean** -
+   приоритет 1 в Сессии 29. Изолированный "infra setup" подэтап,
+   реалистично уместится + возможно 25.b.4. Детальный план (8 шагов)
+   в `progress.md` Сессия 28 Phase 2 "Следующий шаг":
+   - docker-compose minio сервис на pin'нутой версии + mc-init для
+     bucket creation (4 bucket'а с versioning ON)
+   - pom.xml: AWS SDK v2 dependency (`software.amazon.awssdk:s3`)
+     через bom-import паттерн
+   - application.yml блок `storage:` с endpoint/credentials/timeouts/
+     bucket names
+   - `ObjectStorageProperties` @ConfigurationProperties record в
+     новом пакете `library/storage/`
+   - `S3ClientConfig` @Configuration bean фабрика с
+     `forcePathStyle(true)` для MinIO
+   - Testcontainers MinIO для будущих IT
+   - smoke-test что Spring context поднимается
 
-```bash
-# 1. Запустить Postgres если упал
-cd /mnt/c/my_folders/projects/argument-map
-docker compose up -d
+2. **Этап 25.b.4: `ObjectStorageService` API** - put/get/getRange/
+   exists/softDelete с SHA-256 hash verification на каждый put.
+   IT через Testcontainers MinIO container. Возможно вместе с 25.b.3
+   в одной сессии
 
-# 2. Перезапустить backend - Liquibase применит миграцию 19
-cd backend
-./mvnw spring-boot:run
-# дождаться "Started ArgumentMapApplication"
+3. **Этап 25.b.5: интеграция в `PdfLinksSourceProvider`** - check
+   `library_files` catalog → if active row exists, stream from
+   MinIO. Else: download upstream → put(library-imported-books,
+   key) → insert library_files row → stream. Удаляется текущий
+   tempDir-based cache
 
-# 3. Удалить и переимпортировать обе уже-импортированные книги -
-# Mapper idempotent skip не обновит existing records, нужен DELETE
-docker exec argumentmap-postgres psql -U argmap -d argumentmap \
-  -c "DELETE FROM lib_books WHERE metadata->>'shamela_book_id' IN ('1681', '1503');"
-# потом через /admin/shamela: search "1681" → "Импортировать",
-# search "1503" → "Импортировать"
+4. **Этап 25.b.6: lazy Range streaming** - chunks из MinIO через
+   `getRange(start, end)` (AWS SDK v2 `GetObjectRequest.range`).
+   Заменяет full-download-then-serve паттерн. Первая страница за
+   1-2 сек вместо 30-60
 
-# 4. Регенерировать types.ts (intersection в BookReaderPage схлопнется
-# в нативные printedPage/part/pdfPageNumber)
-cd ../frontend
-npm run generate-api
-
-# 5. Запустить vite если упал
-npm run dev
-
-# 6. Hard reload http://localhost:5173/books/{bookUuid} - проверить:
-# - Sub-chapters раскрываются (Тафсир: «مقدمة المحقق → أسباب تحقيق
-#   الكتاب, الفصل الأول, الفصل الثاني → المبحث الأول...»)
-# - PageJump показывает плашку «Том X · Стр Y» (для шамелы - «ج: 1 ·
-#   ص: 47» в RTL+naskh)
-# - При prev/next плашка обновляется на свой part/printedPage
-```
-
-⚠️ **РЕШЕНИЕ ПО ПОРЯДКУ (Сессия 24 финал, подтверждено Абдулой)**:
-- **сначала PDF Viewer (Этап 25.a-25.d), потом CitationPicker (18.f),
-  region selection (25.f) - в самом конце**
-- стэк: **react-pdf** (обёртка над PDF.js) для frontend
-- **MinIO** в docker-compose как кеш для PDF download'ов
-- source-agnostic архитектура через `PdfSourceProvider` interface
+5. **Этап 25.d.2: text↔pdf page sync** - internal pageNumber →
+   pdfPageNumber mapping. Требует Tier 1 admin mapping flow для
+   заполнения `pdf_page_number` в `lib_pages`
 
 PDF должен быть **source-agnostic** (не привязан к shamela) -
 реализации: ShamelaProvider сейчас, ArchiveOrg/user-upload в будущем.
-Подробный spec: `docs/superpowers/specs/2026-05-11-pdf-viewer-source-agnostic.md` -
-**прочитай его first thing в Сессии 25**.
-
-1. **Этап 25.d/25.b: PDF Viewer (продолжение)** - 25.a + 25.c
-   закрыты в Сессии 24, остаётся:
-   - ✅ **25.a** (20ce418) - backend skeleton: PdfSourceProvider +
-     PdfLinksSourceProvider + PdfService + 2 endpoints. 7 IT
-   - ✅ **25.c** (d052382) - frontend PDF Viewer с lazy-chunk
-     467kB через React.lazy + toggle 📃/📕 + zoom + prev/next.
-     RTL поддержка. Multi-volume на MVP только fileIndex=0
-   - **25.d** page sync - internal pageNumber → pdfPageNumber
-     mapping. При смене страницы в text-mode переключение на PDF
-     должно открывать ту же физ. страницу. Fallback на
-     physical=internal если pdfPageNumber=NULL. Также multi-volume
-     dropdown селектор по `PdfInfoResponse.files[].label`
-   - **25.b** MinIO infrastructure - docker-compose сервис +
-     `MinioCacheService` для кеша download'ов с TTL 30 дней.
-     Заменяет in-process tempDir cache. **Критично для prod** -
-     текущий кеш теряется при restart, и каждый restart качает
-     50MB+ для первой страницы каждой книги. Сейчас работает но
-     UX медленный
+Подробный spec: `docs/superpowers/specs/2026-05-11-pdf-viewer-source-agnostic.md`
 
    Live-проверка end-to-end PDF Viewer (после Pre-flight Сессии 25):
    - открыть `/books/bd61050f-...` (Тафсир Ибн Касира)
@@ -847,42 +876,34 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 После прочтения 5+ файлов из START-OF-SESSION PROTOCOL начни ответ
 с короткого summary последнего состояния и предложения. Например:
 
-"вижу - Сессия 24 закрыла source-first нумерацию (ADR-021,
-миграция 19) + sub-chapters fix + frontend display + chapters
-levels стилизация + spec PDF Viewer. 7 коммитов:
+"вижу - Сессия 28 заложила object storage foundation через ADR-024
+(brainstorm с Абдулой переработал план "MinIO cache" в полноценный
+permanent storage strategy). 2 коммита:
 
-- fix(frontend) 63e27e1 - sub-chapters tree напрямую из API
-  без двойной сборки (frontend `buildChapterTree` сбрасывал nested
-  children из бэка). Новая gotcha про springdoc-openapi теряющий
-  self-referential property
-- feat(backend) 7ae5662 - миграция 19 + Page record + Mapper +
-  PageRepository + PageSummary/Response. printed_page TEXT, part
-  TEXT, pdf_page_number INTEGER (nullable, last NULL до Этапа 25)
-- docs 8e9b472 - ADR-021 + 4 термина в glossary + roadmap 18.h
-- feat(frontend) fc1c0fb - PageJump показывает «Том X · Стр Y»
-  плашкой (RTL+naskh для арабских маркеров) + intersection-types
-- docs 45c300c - handoff Сессии 24 first batch
-- style(frontend) 8dc7e42 - chapters tree visual hierarchy (size
-  + weight + color по depth + connector rail) по design-reference
-- docs 4ef0dfb - design-spec PDF Viewer source-agnostic архитектура
+- docs aafcfc0 (25.b.1) - ADR-024 фиксирует 7 решений пакетом:
+  S3-compatible через AWS SDK v2, permanent storage не cache,
+  versioning forever, Postgres library_files catalog, SHA-256 hash,
+  4-bucket criticality split, soft-delete + two-phase hard-delete.
+  Плюс architecture-platform.md новый раздел Object storage, glossary
+  7 терминов, roadmap 25.b split на 6 подэтапов
+- feat(backend) 6189ee6 (25.b.2) - Liquibase миграция 21 +
+  LibraryFileSourceType enum + LibraryFile record +
+  LibraryFileRepository (save/update/findById/findActive*/softDelete/
+  hardDelete/markVerified) + 19 IT. 330 IT (+19 новых) + 164 unit
+  зелёные
 
-306 backend IT (+3 новых) + 136 frontend tests зелёные. Bundle
-285kB / gzip 88kB.
+⚠️ ВАЖНО: production-БД пока на миграции 20. Выполни Pre-flight из
+SESSION_START_PROMPT КРИТИЧНО раздела (restart backend применит 21,
+проверь `\d library_files` в psql).
 
-⚠️ ВАЖНО: production-БД пока на миграции 18. Выполни Pre-flight из
-SESSION_START_PROMPT ОТКРЫТО раздела (restart backend применит 19 +
-DELETE + re-import обеих книг 1681+1503 + regen types.ts + hard
-reload). После этого реально увидишь source-first label на обеих
-книгах.
-
-Главный приоритет - **Этап 25.a-25.d PDF Viewer source-agnostic**.
-Абдула подтвердил все выборы стэка в Сессии 24: **react-pdf** +
-**MinIO** в docker-compose + порядок «25.a-d → 18.f → 25.f». Можно
-сразу начинать с 25.a backend skeleton (`PdfSourceProvider`
-interface + `ShamelaPdfSourceProvider` + `PdfService` роутер + REST
-endpoint с Range header). Архитектурный spec
-`docs/superpowers/specs/2026-05-11-pdf-viewer-source-agnostic.md`
-prosaчитай first thing - там детали по каждому подэтапу."
+Главный приоритет - **Этап 25.b.3 docker-compose MinIO + Spring config
++ S3Client bean**. Изолированный infra setup подэтап, реалистично
+уместится + возможно 25.b.4 (ObjectStorageService API). Bucket names
+зафиксированы (library-imported-books / library-user-uploads /
+library-page-images / derived-artifacts), MinIO version pin'нут
+(`minio/minio:RELEASE.2025-07-23T15-54-02Z-cpuv1`), AWS SDK v2 latest
+stable через bom-import. Детальный 8-шаговый план в progress.md Сессия
+28 Phase 2 'Следующий шаг'. Можно сразу начинать."
 
 Жди подтверждение. После него - смело за работу.
 ```
