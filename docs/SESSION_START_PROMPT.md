@@ -5,6 +5,25 @@
 начало новой сессии - Claude получит полный контекст без ручного
 объяснения.
 
+## КРИТИЧНО для Сессии 28+ (после Сессии 27 - CJK cleanup + chapters collapse + PDF preview)
+
+После Сессии 27 (2026-05-12):
+- CJK icon-font noise (символ `舄` U+8204) очищен из existing pages
+  через миграцию 20 + `ShamelaTextCleaner` интегрирован в импортёр.
+  66 → 0 pages with CJK noise
+- Chapters tree collapsible (default свёрнуто) с auto-expand path
+  до active chapter
+- Inline PDF preview - кнопка «📕 PDF» на каждой text-странице
+  открывает bottom-sheet с PdfViewer на той же странице. "На весь
+  экран" → fullscreen mode. "Назад к тексту" → возврат
+- `PdfViewer.initialPdfPage` prop для open-on-current-page fallback
+
+**Главный приоритет Сессии 28 - 25.b MinIO cache + lazy streaming**.
+Сейчас PDF (10-50MB) качается на бэк целиком при первом open - это
+причина "медленной первой загрузки" из user feedback. MinIO + Range
+forwarding = lazy partial fetch + persistent cache. Детальный план в
+`docs/progress.md` Сессия 26 "Следующий шаг".
+
 ## КРИТИЧНО для Сессии 27+ (после Сессии 26 - PDF cover bug fix + UX polish)
 
 После Сессии 26 (2026-05-11):

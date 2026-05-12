@@ -17,7 +17,83 @@ Claude Code не тратят токены на исторический кон�
 
 ---
 
-## 2026-05-11 — Сессия 26 (full-stack) — PDF cover bug fix + multi-volume + UX polish + ADR-023
+## 2026-05-12 — Сессия 27 (full-stack) — CJK cleanup + chapters collapse + inline PDF preview
+
+Сессия с 4 user-feedback пунктами после Сессии 26:
+
+### Сделано
+
+2 коммита (1 backend + 1 frontend) + docs:
+
+- `9b9eb5f` `fix(backend): cleanup CJK icon-font символов в shamela
+  импорте` - bug report: символ 舄 (U+8204) на страницах арабского
+  текста. Root cause: shamela использует icon-font где CJK-кодпоинты
+  заменяются глифами через CSS. При парсинге raw HTML без CSS - CJK
+  вылезают как мусор. `ShamelaTextCleaner.clean()` с regex по 5
+  CJK-блокам Unicode (Han, Hiragana, Katakana, Bopomofo, Hangul).
+  Арабские presentation forms (`U+FB50-FDFF`) НЕ трогаются. Интеграция
+  в `ShamelaPageMapper`. Liquibase миграция 20 - backfill 66 existing
+  pages в БД, после migration 0 pages с CJK. 9 unit-тестов
+  + 311+ IT зелёных
+- `234c411` `feat(frontend): collapse chapters tree + inline PDF
+  preview overlay`:
+  - **Chapters collapse** - default свёрнуто. ChevronRight/Down icon
+    перед title (RTL-aware via logical properties). Auto-expand
+    path до active chapter через useMemo + findAncestorIds.
+    Manual+auto sets sharing между recursive ChapterList уровнями
+  - **PDF preview overlay** - shamela-like UX. Кнопка "📕 PDF" в
+    правом-верхнем углу PageView Card. Click → fixed bottom-aside
+    h-[65vh] с PdfViewer внутри (lazy Suspense). Сверху видна
+    text-страница для сравнения. Header overlay: "На весь экран" →
+    fullscreen PDF mode + "Назад к тексту" для возврата
+  - **PdfViewer.initialPdfPage prop** - открывается на text-странице
+    N как fallback (pdf_page_number=NULL пока 25.d.2 не реализован)
+
+Verified через playwright headless:
+- text content без 舄/Han символов после миграции 20
+- 17 collapsed chevrons by default, 0 expanded (page 1 - no
+  hierarchy parents to auto-expand)
+- click chevron → 1 expanded + дети появились (тоже collapsed)
+- "📕 PDF" button → bottom-sheet overlay → "На весь экран" →
+  fullscreen + "Назад к тексту"
+
+### Решения
+
+- CJK cleanup только для CJK-blocks, не "agressive whitelist на
+  Arabic+latin only". Arabic presentation forms должны остаться
+  легитимные (ﷺ, ﵀, ﵎...). Совет из веб-Claude про частотный
+  словарь по unicode-блокам - сейчас не делаю, можно добавить если
+  user'ы найдут другие icon-font коды
+- Collapse default state - все свёрнуто (shamela паттерн для 200+
+  глав). Auto-expand only path к active chapter (не parents of
+  parents recursively) - чтобы юзер не получал «всё развернуто» при
+  navigation в глубину
+- PDF preview - bottom sheet, не modal. Modal закрывает context
+  чтения text, нарушает workflow "сравниваю transcription с PDF".
+  Bottom sheet оставляет text сверху видимым
+
+### Проблемы
+
+- 407 Proxy Auth error продолжает периодически появляться в
+  browser console (наблюдается в Сессии 26+). Не блокирует
+  функциональность. Источник скорее всего vite полаемый external
+  fetch / WSL2 corporate proxy auto-detection. Не критично, но
+  стоит исследовать когда настанет время
+
+### Следующий шаг (Сессия 28)
+
+**Главный приоритет - 25.b MinIO cache + lazy streaming**:
+сейчас `PdfLinksSourceProvider.downloadFile` качает весь PDF (10-50MB)
+на бэк целиком при первом open. Это причина "не lazy" pdf-загрузки
+по фидбеку user'а. MinIO cache + Range-streaming через бэк =
+lazy partial fetch + persistent cache. Детальный план в Сессии 26
+"Следующий шаг".
+
+Альтернативы:
+- 25.d.2 page sync (требует Tier 1 admin mapping flow)
+- Частотный словарь по lib_pages.text_content - найти другие
+  icon-font коды у shamela (если есть). 5 минут SQL exploration
+- Marathon TODO (F-10, T-01, D-04)
 
 Сессия двухфазная:
 1. **Phase 1** - bug report (cover показывался вместо контента) +
