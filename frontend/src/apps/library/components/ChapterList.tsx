@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { components } from '@/shared/api/types';
 import { isArabicText } from '@/apps/library/utils/bookReaderUtils';
@@ -16,39 +17,14 @@ interface Props {
   depth: number;
   onSelect: (pageNumber: number) => void;
   currentPage: number;
-  /**
-   * Язык книги. Когда `ar` - корневой `<ul>` получает `dir="rtl"`, тогда
-   * RTL-aware logical properties (`border-s`, `paddingInlineStart`)
-   * автоматически рисуют connector rail и отступ **справа** от текста.
-   */
   bookLanguage?: string;
-  /**
-   * Manual-expanded set (для рекурсивного проброса). Хранится в state
-   * корневого ChapterList (depth=0), дочерние получают тот же объект.
-   */
   expandedIds?: Set<string>;
+  collapsedIds?: Set<string>;
   onToggle?: (chapterId: string) => void;
-  /**
-   * Set предков текущей главы - auto-expand чтобы active chapter был
-   * виден без юзер-клика. Тоже sharing между recursive levels.
-   */
   autoExpandedIds?: Set<string>;
-  /**
-   * Id «текущей» главы (chapter с наибольшим startPageNumber ≤ currentPage).
-   * Передаётся для подсветки: глава остаётся highlighted для всего диапазона
-   * страниц до следующей главы, не только на её startPageNumber.
-   */
   currentChapterId?: string | null;
 }
 
-/**
- * Визуальная иерархия уровней глав (по design-reference
- * platform_reader.jsx::ChapterTreeRow):
- * - depth=0: 15px, font-semibold, slate-900 - root (книги, тома)
- * - depth=1: 14px, font-medium, slate-700 - sub-разделы
- * - depth=2: 13px, regular, slate-600 - главы
- * - depth>=3: 12px, regular, slate-500 - под-главы
- */
 function getChapterLevelStyles(
   depth: number,
   isArabic: boolean,
@@ -71,13 +47,8 @@ function getChapterLevelStyles(
 }
 
 /**
- * Находит «текущую» главу - chapter с наибольшим `startPageNumber ≤ currentPage`.
- * Это даёт sticky-highlight для всего диапазона страниц главы: если глава
- * начинается с page 5 и следующая с page 13, главa подсвечена для pages 5-12.
- *
- * Traverse рекурсивно по всему дереву (включая subchapters) - subchapter
- * считается более specific match чем родитель если у него startPageNumber
- * ближе к currentPage.
+ * Текущая глава = chapter с наибольшим startPageNumber ≤ currentPage.
+ * Sticky highlight: глава остаётся подсвеченной для всего своего диапазона.
  */
 function findCurrentChapter(
   nodes: ReadonlyArray<Chapter>,
@@ -96,11 +67,6 @@ function findCurrentChapter(
   return best;
 }
 
-/**
- * Возвращает массив id предков главы с {@code id === targetId}. Используется
- * для auto-expand: чтобы текущая глава была видима, все её предки должны
- * быть раскрыты.
- */
 function findAncestorPath(
   nodes: ReadonlyArray<Chapter>,
   targetId: string,
@@ -117,18 +83,103 @@ function findAncestorPath(
   return null;
 }
 
+interface ItemProps {
+  isCurrent: boolean;
+  indent: number;
+  hasChildren: boolean;
+  isExpanded: boolean;
+  ChevronIcon: LucideIcon;
+  onToggleClick: () => void;
+  onTitleClick: () => void;
+  clickable: boolean;
+  stateClass: string;
+  styles: { font: string; color: string; weight: string };
+  isArabic: boolean;
+  title: string;
+  target: number | null;
+  /** Nested ChapterList для children этой главы (если expanded) */
+  nested?: React.ReactNode;
+}
+
 /**
- * Рекурсивное сворачиваемое дерево глав. По умолчанию все главы свёрнуты -
- * shamela-паттерн (длинные книги в 200+ глав, full-expanded непригляден).
- * Юзер кликает на ChevronRight чтобы развернуть, ChevronDown чтобы свернуть.
+ * Один пункт дерева. Выделен в отдельный компонент чтобы useEffect
+ * scrollIntoView работал per-item: когда главa становится current,
+ * scrollIntoView плавно прокручивает её в viewport (block: 'nearest' -
+ * не скроллит если уже видна).
+ */
+function ChapterItem({
+  isCurrent,
+  indent,
+  hasChildren,
+  isExpanded,
+  ChevronIcon,
+  onToggleClick,
+  onTitleClick,
+  clickable,
+  stateClass,
+  styles,
+  isArabic,
+  title,
+  target,
+  nested,
+}: ItemProps) {
+  const liRef = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (isCurrent && liRef.current) {
+      liRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [isCurrent]);
+
+  return (
+    <li ref={liRef}>
+      <div className="flex items-center" style={{ paddingInlineStart: `${indent}px` }}>
+        {hasChildren ? (
+          <button
+            type="button"
+            onClick={onToggleClick}
+            className="grid h-5 w-5 shrink-0 place-items-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            aria-label={isExpanded ? 'Свернуть' : 'Развернуть'}
+            aria-expanded={isExpanded}
+          >
+            <ChevronIcon size={12} />
+          </button>
+        ) : (
+          <span className="h-5 w-5 shrink-0" aria-hidden="true" />
+        )}
+        <button
+          type="button"
+          onClick={hasChildren || clickable ? onTitleClick : undefined}
+          disabled={!hasChildren && !clickable}
+          className={`flex-1 rounded-md px-2 py-1 text-start leading-snug transition-colors ${styles.font} ${styles.weight} ${stateClass}`}
+          dir={isArabic ? 'rtl' : 'ltr'}
+          title={
+            clickable
+              ? `${title} (стр. ${target})`
+              : `${title} (страница не указана)`
+          }
+        >
+          {title}
+        </button>
+      </div>
+      {nested}
+    </li>
+  );
+}
+
+/**
+ * Рекурсивное сворачиваемое дерево глав. По умолчанию все главы свёрнуты
+ * (shamela-pattern для длинных книг 200+ глав). Юзер кликает на title или
+ * chevron - разворачивает.
  *
- * <p>Авто-разворот пути до текущей страницы: при `currentPage` change
- * вычисляем все ancestor-id и считаем их раскрытыми независимо от manual
- * state. Когда юзер уходит со страницы - manual state preserved (его
- * собственные expand'ы), auto уходит вместе с currentPage.
+ * <p>Sticky highlight для всего range страниц через {@code findCurrentChapter}.
+ * Auto-expand path до active chapter через {@code findAncestorPath}. Manual
+ * collapse override - {@code collapsedIds} - юзер может явно свернуть
+ * auto-expanded главу (нужно отдельный set чтобы collapse мог отменить
+ * автоматический expand).
  *
- * <p>Click на title всё ещё навигирует на startPageNumber (если есть);
- * click на ChevronRight/Down toggles collapse - они разнесены.
+ * <p>Scroll-into-view: active chapter автоматически прокручивается в
+ * viewport при изменении - чтобы юзер не "терял" highlight при prev/next
+ * navigation когда список длинный.
  */
 function ChapterList(props: Props) {
   const {
@@ -138,17 +189,17 @@ function ChapterList(props: Props) {
     currentPage,
     bookLanguage,
     expandedIds: parentExpanded,
+    collapsedIds: parentCollapsed,
     onToggle: parentToggle,
     autoExpandedIds: parentAutoExpanded,
     currentChapterId: parentCurrentChapterId,
   } = props;
 
-  // State живёт только в корневом ChapterList (depth=0), все nested
-  // получают через props - чтобы expand-состояние шарилось
+  // State в корневом ChapterList (depth=0). Manual expand и collapse - два
+  // отдельных set'а: collapse может переопределить auto-expand
   const [rootManualExpanded, setRootManualExpanded] = useState<Set<string>>(new Set());
+  const [rootManualCollapsed, setRootManualCollapsed] = useState<Set<string>>(new Set());
 
-  // Текущая глава = наибольший startPageNumber ≤ currentPage. Подсвечена
-  // на всё диапазон страниц этой главы (до следующей).
   const rootCurrentChapter = useMemo(
     () => findCurrentChapter(nodes, currentPage),
     [nodes, currentPage],
@@ -160,17 +211,34 @@ function ChapterList(props: Props) {
   }, [nodes, rootCurrentChapter]);
 
   const expandedIds = parentExpanded ?? rootManualExpanded;
+  const collapsedIds = parentCollapsed ?? rootManualCollapsed;
   const autoExpandedIds = parentAutoExpanded ?? rootAutoExpanded;
   const currentChapterId = parentCurrentChapterId ?? rootCurrentChapter?.id ?? null;
+
+  // Toggle: если глава сейчас expanded (manual или auto) - collapse её
+  // (через collapsed set). Если collapsed - убрать из collapsed. Иначе
+  // добавить в manual expanded
   const handleToggle =
     parentToggle ??
     ((chapterId: string) => {
-      setRootManualExpanded((prev) => {
-        const next = new Set(prev);
-        if (next.has(chapterId)) next.delete(chapterId);
-        else next.add(chapterId);
-        return next;
-      });
+      const currentlyExpanded =
+        rootManualExpanded.has(chapterId) ||
+        (rootAutoExpanded.has(chapterId) && !rootManualCollapsed.has(chapterId));
+      if (currentlyExpanded) {
+        setRootManualCollapsed((prev) => new Set(prev).add(chapterId));
+        setRootManualExpanded((prev) => {
+          const next = new Set(prev);
+          next.delete(chapterId);
+          return next;
+        });
+      } else {
+        setRootManualCollapsed((prev) => {
+          const next = new Set(prev);
+          next.delete(chapterId);
+          return next;
+        });
+        setRootManualExpanded((prev) => new Set(prev).add(chapterId));
+      }
     });
 
   const railClass = depth > 0 ? 'border-s border-slate-200/70 ms-[10px] ps-[6px]' : '';
@@ -188,9 +256,6 @@ function ChapterList(props: Props) {
         const target = n.startPageNumber ?? null;
         const clickable = target != null && target > 0;
         const chapterId = n.id ?? '';
-        // sticky highlight для всего диапазона страниц главы (не только её
-        // startPageNumber). Глава "содержит" currentPage если её startPage
-        // ≤ currentPage и она ближайшая снизу - см. findCurrentChapter
         const isCurrent = chapterId !== '' && chapterId === currentChapterId;
         const indent = depth * 6;
         const stateClass = !clickable
@@ -200,63 +265,53 @@ function ChapterList(props: Props) {
             : `${styles.color} hover:bg-slate-100/70 hover:text-indigo-700 cursor-pointer`;
         const children = n.children ?? [];
         const hasChildren = children.length > 0;
-        const isExpanded = hasChildren && (expandedIds.has(chapterId) || autoExpandedIds.has(chapterId));
+        // Expand состояние: manual override побеждает auto. collapsed
+        // явно отключает (даже если auto хочет раскрыть). expanded
+        // включает (если не collapsed)
+        const isExpanded =
+          hasChildren &&
+          !collapsedIds.has(chapterId) &&
+          (expandedIds.has(chapterId) || autoExpandedIds.has(chapterId));
         const ChevronIcon = isExpanded ? ChevronDown : ChevronRight;
 
-        // Click на title: navigate если есть target, и/или toggle expand
-        // если есть children. Юзер ожидает что клик на главу с подглавами
-        // одновременно открывает страницу И раскрывает дерево
         const handleTitleClick = () => {
           if (hasChildren) handleToggle(chapterId);
           if (clickable && target != null) onSelect(target);
         };
 
+        const nested = hasChildren && isExpanded ? (
+          <ChapterList
+            nodes={children}
+            depth={depth + 1}
+            onSelect={onSelect}
+            currentPage={currentPage}
+            bookLanguage={bookLanguage}
+            expandedIds={expandedIds}
+            collapsedIds={collapsedIds}
+            onToggle={handleToggle}
+            autoExpandedIds={autoExpandedIds}
+            currentChapterId={currentChapterId}
+          />
+        ) : null;
+
         return (
-          <li key={n.id}>
-            <div className="flex items-center" style={{ paddingInlineStart: `${indent}px` }}>
-              {hasChildren ? (
-                <button
-                  type="button"
-                  onClick={() => handleToggle(chapterId)}
-                  className="grid h-5 w-5 shrink-0 place-items-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                  aria-label={isExpanded ? 'Свернуть' : 'Развернуть'}
-                  aria-expanded={isExpanded}
-                >
-                  <ChevronIcon size={12} />
-                </button>
-              ) : (
-                // spacer чтобы text был выровнен с теми что имеют chevron
-                <span className="h-5 w-5 shrink-0" aria-hidden="true" />
-              )}
-              <button
-                type="button"
-                onClick={hasChildren || clickable ? handleTitleClick : undefined}
-                disabled={!hasChildren && !clickable}
-                className={`flex-1 rounded-md px-2 py-1 text-start leading-snug transition-colors ${styles.font} ${styles.weight} ${stateClass}`}
-                dir={isArabic ? 'rtl' : 'ltr'}
-                title={
-                  clickable
-                    ? `${n.title ?? ''} (стр. ${target})`
-                    : `${n.title ?? ''} (страница не указана)`
-                }
-              >
-                {n.title ?? '(без названия)'}
-              </button>
-            </div>
-            {hasChildren && isExpanded && (
-              <ChapterList
-                nodes={children}
-                depth={depth + 1}
-                onSelect={onSelect}
-                currentPage={currentPage}
-                bookLanguage={bookLanguage}
-                expandedIds={expandedIds}
-                onToggle={handleToggle}
-                autoExpandedIds={autoExpandedIds}
-                currentChapterId={currentChapterId}
-              />
-            )}
-          </li>
+          <ChapterItem
+            key={n.id}
+            isCurrent={isCurrent}
+            indent={indent}
+            hasChildren={hasChildren}
+            isExpanded={isExpanded}
+            ChevronIcon={ChevronIcon}
+            onToggleClick={() => handleToggle(chapterId)}
+            onTitleClick={handleTitleClick}
+            clickable={clickable}
+            stateClass={stateClass}
+            styles={styles}
+            isArabic={isArabic}
+            title={n.title ?? '(без названия)'}
+            target={target}
+            nested={nested}
+          />
         );
       })}
     </ul>

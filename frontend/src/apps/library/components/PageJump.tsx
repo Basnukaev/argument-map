@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import Select, { type SelectOption } from '@/shared/components/ui/Select';
 import { isArabicText } from '@/apps/library/utils/bookReaderUtils';
 
 interface Props {
@@ -77,6 +77,17 @@ function PageJump({
   const showPrintedInput = onPrintedPageJump != null;
   const hasSourceMarker = currentPrintedPage != null || currentPart != null;
 
+  // Опции Тома: arabic part → render as-is с naskh, numeric → "Том N"
+  const partOptions: SelectOption[] = availableParts.map((p) => {
+    const arabic = isArabicText(p);
+    return {
+      value: p,
+      label: arabic ? p : `Том ${p}`,
+      labelClassName: arabic ? 'font-naskh' : '',
+      dir: arabic ? 'rtl' : 'ltr',
+    };
+  });
+
   return (
     <div className="flex flex-wrap items-center gap-3 text-[13px] text-slate-700">
       <div className="flex items-center gap-2">
@@ -106,26 +117,16 @@ function PageJump({
       {hasSourceMarker && (showPartSelector || showPrintedInput) && (
         <div className="flex items-center gap-1.5 rounded-md border border-indigo-100 bg-indigo-50/60 px-2 py-1 text-[12px] text-indigo-800">
           {showPartSelector ? (
-            <div className="relative">
-              <select
-                value={currentPart ?? ''}
-                onChange={(e) => onPartChange?.(e.target.value)}
-                className={`h-6 cursor-pointer appearance-none rounded border-0 bg-transparent pe-5 ps-1 text-[12px] font-medium text-indigo-800 outline-none focus:ring-1 focus:ring-indigo-400 ${partIsArabic ? 'font-naskh' : ''}`}
-                aria-label="Том"
-                dir={partIsArabic ? 'rtl' : 'ltr'}
-              >
-                {availableParts.map((p) => (
-                  <option key={p} value={p}>
-                    {isArabicText(p) ? p : `Том ${p}`}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={11}
-                className="pointer-events-none absolute end-0.5 top-1/2 -translate-y-1/2 text-indigo-400"
-                aria-hidden="true"
-              />
-            </div>
+            <Select
+              value={currentPart ?? ''}
+              onChange={(v) => onPartChange?.(v)}
+              options={partOptions}
+              size="sm"
+              ariaLabel="Том"
+              dir={partIsArabic ? 'rtl' : 'ltr'}
+              menuMinWidth={120}
+              className="w-[100px]"
+            />
           ) : currentPart != null ? (
             <span
               className={partIsArabic ? 'font-naskh' : 'font-mono'}

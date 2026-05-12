@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import {
   AlertCircle,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -12,6 +11,7 @@ import {
 } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
+import Select, { type SelectOption } from '@/shared/components/ui/Select';
 import { API_BASE_URL, apiGetRaw, ApiError } from '@/shared/api/client';
 
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -222,6 +222,17 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
   }, [contentFiles]);
   const showVolumeSelector = fileLabels.length > 1;
 
+  // Опции для кастомного Select: value=stringified fileIndex, label=display
+  const volumeOptions: SelectOption[] = fileLabels.map((f) => {
+    const arabic = /[؀-ۿ]/.test(f.display);
+    return {
+      value: String(f.index),
+      label: f.display,
+      labelClassName: arabic ? 'font-naskh' : '',
+      dir: arabic ? 'rtl' : 'ltr',
+    };
+  });
+
   if (state.kind === 'loading-info') {
     return (
       <Card className="p-12 text-center">
@@ -302,11 +313,10 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
 
   return (
     <Card className="overflow-hidden">
-      {/* Volume selector - только для multi-volume книг. Stylish native select:
-          design-reference не покрывает <select> элемент, делаем минимальный
-          стиль в духе Button outline + Card patterns (rounded-md, slate-200,
-          indigo focus, ChevronDown indicator справа). Custom dropdown с
-          listbox - отдельный refactor если ROI оправдает */}
+      {/* Volume selector - только для multi-volume книг. Используем кастомный
+          Select из shared (порт design-reference dropdown.jsx) - centered
+          options + indigo styling + Check icon на selected. Native <select>
+          option'ы не центрируются standard HTML */}
       {showVolumeSelector && (
         <div
           className="flex items-center gap-2 border-b border-slate-200 bg-slate-50/60 px-4 py-2"
@@ -318,26 +328,16 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
           >
             Том
           </label>
-          <div className="relative">
-            <select
-              id="pdf-volume"
-              className="h-7 appearance-none rounded-md border border-slate-300 bg-white pe-7 ps-3 text-[13px] font-medium text-slate-700 outline-none transition-colors hover:border-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-              value={activeFileIndex}
-              onChange={(e) => handleVolumeChange(Number(e.target.value))}
-              dir={isArabic ? 'rtl' : 'ltr'}
-            >
-              {fileLabels.map((f) => (
-                <option key={f.index} value={f.index}>
-                  {f.display}
-                </option>
-              ))}
-            </select>
-            <ChevronDown
-              size={14}
-              className="pointer-events-none absolute end-2 top-1/2 -translate-y-1/2 text-slate-400"
-              aria-hidden="true"
-            />
-          </div>
+          <Select
+            value={String(activeFileIndex)}
+            onChange={(v) => handleVolumeChange(Number(v))}
+            options={volumeOptions}
+            size="sm"
+            ariaLabel="Выбор тома"
+            dir={isArabic ? 'rtl' : 'ltr'}
+            menuMinWidth={140}
+            className="w-[140px]"
+          />
         </div>
       )}
 
