@@ -319,12 +319,12 @@ const Input = ({ icon, error, label, hint, suffix, className = "", ...rest }) =>
         "flex items-center h-9 rounded-md border bg-white transition-colors",
         error ? "border-red-400 ring-2 ring-red-100" : "border-slate-300 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20",
       )}>
-        {Icon && <Icon size={16} className="ml-3 text-slate-400" />}
+        {Icon && <Icon size={16} className="ml-3 shrink-0 text-slate-400" />}
         <input
-          className={cx("flex-1 px-3 bg-transparent text-[13px] text-slate-900 placeholder:text-slate-400 outline-none", Icon && "pl-2")}
+          className={cx("flex-1 min-w-0 px-3 bg-transparent text-[13px] text-slate-900 placeholder:text-slate-400 outline-none", Icon && "pl-2")}
           {...rest}
         />
-        {suffix && <div className="pr-3 text-[12px] text-slate-400">{suffix}</div>}
+        {suffix && <div className="pr-3 shrink-0 text-[12px] text-slate-400">{suffix}</div>}
       </div>
       {hint && !error && <span className="text-[11px] text-slate-500">{hint}</span>}
       {error && <span className="text-[11px] text-red-600 flex items-center gap-1"><I.AlertCircle size={12} />{error}</span>}

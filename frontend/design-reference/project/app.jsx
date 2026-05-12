@@ -648,23 +648,17 @@ const PanelsSection = () => (
 // === Top-of-page nav ===
 
 const SECTIONS = [
-  { id: "refresh-notes", label: "Refresh" },
   { id: "tokens",      label: "Tokens" },
   { id: "components",  label: "Components" },
   { id: "nodes",       label: "Nodes" },
-  { id: "bilingual-refresh", label: "Bilingual+" },
   { id: "edges",       label: "Edges" },
-  { id: "canvas-refresh", label: "Canvas" },
   { id: "topics",      label: "Topics" },
   { id: "graph",       label: "Graph" },
   { id: "panels",      label: "Panels" },
   { id: "modals",      label: "Modals" },
   { id: "sources",     label: "Sources" },
-  { id: "source-detail-refresh", label: "Source+" },
-  { id: "library-refresh", label: "Library+" },
   { id: "authorities", label: "Authorities" },
   { id: "rtl",         label: "RTL" },
-  { id: "settings-refresh", label: "Settings" },
   { id: "states",      label: "States" },
   { id: "onboarding",  label: "Onboarding" },
   { id: "sanad",       label: "Sanad" },
