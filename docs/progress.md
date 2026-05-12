@@ -158,9 +158,31 @@ Verified через playwright headless:
   consistent convention `{volume_number}_{book_id}.pdf` (01_113015,
   02_113016...). Если когда-то нарушится - добавим fallback
 
+**Phase 2 final** - 1 коммит после testing user'ом dropdown стиля + bug подсветки главы:
+
+- `236219d` `feat(frontend): custom Select из design-reference + scroll
+  active chapter`:
+  - **Том dropdown стилизация** (toma.png) - порт `<Select>` из
+    `design-reference/project/dropdown.jsx::Select` в
+    `shared/components/ui/Select.tsx`. Кастомный listbox с centered
+    options, indigo focus ring, slate-300 border, ChevronDown rotation,
+    Check icon на selected, auto-scroll selected в view. Применён в
+    PageJump (Том selector в синем блоке) и PdfViewer (volume toolbar).
+    RTL-aware через `dir` и `labelClassName` для арабских опций
+  - **Bug подсветки главы** - playwright показал что подсветка
+    стабильна, но active chapter скроллился за пределы viewport
+    (book 200+ глав). User видел не «потеря highlight» а «active
+    chapter ушёл из видимости». Fix: ChapterItem extracted в sub-
+    component с useRef + useEffect → scrollIntoView({block: 'nearest',
+    behavior: 'smooth'}) при isCurrent change
+  - **Bonus**: manual collapse override через `collapsedIds` set. Раньше
+    auto-expanded главу нельзя было свернуть кликом (OR логика делала
+    toggle no-op). Теперь collapsedIds явно отменяет auto-expand
+
 ### Следующий шаг (Сессия 28)
 
-Все user feedback пункты Сессии 27 закрыты. Главный следующий приоритет:
+Все 10 user feedback пунктов Сессии 27 закрыты (через 9 коммитов).
+Главный следующий приоритет:
 
 **Главный приоритет - 25.b MinIO cache + lazy streaming**:
 сейчас `PdfLinksSourceProvider.downloadFile` качает весь PDF (10-50MB)
