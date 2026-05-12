@@ -101,12 +101,85 @@ Claude Code не тратят токены на исторический кон�
 "ran successfully in 7ms" при applying миграции 21 на fresh
 Testcontainers postgres.
 
-### Следующий шаг (Phase 3 - 25.b.3 в новой сессии)
+### Сделано (Phase 3 - 25.b.3)
 
-**25.b.3: docker-compose MinIO + Spring config + S3Client bean** - это
-"infra setup" подэтап. Изолированный кусок без интеграции в existing
-код, не зависит от уже сделанного кроме того что library_files таблица
-есть.
+**25.b.3** - 1 коммит (docker-compose + AWS SDK + S3Client bean + smoke IT):
+
+- `c7afd88` `feat(backend): 25.b.3 - MinIO docker + AWS SDK v2 +
+  S3Client bean`
+- **docker-compose.yml**: minio сервис (pin
+  `RELEASE.2025-07-23T15-54-02Z-cpuv1`, cpuv1 для WSL2 без AVX2) +
+  minio-init mc container. 4 bucket'а с versioning ON на 3 critical,
+  derived-artifacts без versioning. mb idempotent через
+  `--ignore-existing`. Volume `minio-data` для persistence
+- **pom.xml**: AWS SDK v2 2.44.4 через bom-import. Dependencies `s3` +
+  `url-connection-client` (lightweight blocking HTTP)
+- **application.yml**: блок `storage:` с defaults под MinIO. Duration
+  parsing (`5s` / `30s`). Все настройки переопределяются env vars
+- **`ObjectStorageProperties`** record (`@ConfigurationProperties`) +
+  nested `Buckets` record для 4 bucket названий
+- **`S3ClientConfig`** @Configuration: StaticCredentialsProvider,
+  pathStyleAccess true (для MinIO), UrlConnectionHttpClient с
+  timeouts, RetryPolicy + endpointOverride
+- **`S3ClientConfigIT`** smoke-test (3 assertions): bean inject + всех
+  property defaults + 4 bucket names
+
+End-to-end проверка:
+- MinIO container UP, S3 API отвечает, `mc ls` показывает 4 bucket'а
+- versioning enabled на `library-imported-books`
+- Backend перезапущен с новыми beans, /actuator/health UP, JDWP :5005
+- Все 333 IT (+3 новых) + 164 unit зелёные
+
+### Следующий шаг (Phase 4 - 25.b.4 в новой сессии)
+
+**25.b.4: `ObjectStorageService` API + Testcontainers MinIO IT** -
+обёртка над `S3Client` с SHA-256 verification + интеграция с
+`LibraryFileRepository`.
+
+API:
+- `put(bucket, key, InputStream, sizeBytes, contentType) → PutResult{etag,
+  contentHash}` - SHA-256 от InputStream вычисляется при upload,
+  возвращается клиенту для записи в catalog
+- `putAndRegister(bucket, key, content, size, contentType, sourceUrl,
+  sourceType, bookId)` - high-level метод: put в S3 + insert в
+  `library_files`. Идемпотентность через UNIQUE (bucket, storage_key) -
+  если row уже есть, update вместо insert (re-upload scenarios)
+- `get(bucket, key) → ResponseInputStream<GetObjectResponse>` - full
+  file как stream
+- `getRange(bucket, key, start, end) → ResponseInputStream` - chunk
+  через `GetObjectRequest.range("bytes=N-M")` (для 25.b.6 lazy streaming)
+- `exists(bucket, key) → boolean` - HEAD запрос
+- `headObject(bucket, key) → ObjectMetadata` - size, etag, content-type
+- `delete(bucket, key) → boolean` - soft через
+  `library_files.softDelete()` + S3 createDeleteMarker (versioned).
+  Объект остаётся в version history
+- `hardDelete(bucket, key, versionId) → boolean` - физическое
+  удаление одной версии (admin two-phase action)
+
+Testcontainers MinIO:
+- `MinIOContainer` из `org.testcontainers:minio` (нужно добавить в
+  pom.xml `testRuntime` scope)
+- Расширить `TestcontainersConfiguration` или создать отдельный
+  `TestcontainersMinioConfiguration` с @DynamicPropertySource на
+  `storage.endpoint` / `storage.access-key` / `storage.secret-key`
+- Bucket creation через S3Client API в @BeforeAll (не mc command)
+
+IT покрытие (~12-15 тестов):
+- put + get round-trip с SHA-256 verification
+- put дважды (re-upload) - check versioning создал 2 версии в S3
+- getRange разные диапазоны (start, middle, end-1, beyond-eof)
+- exists для существующего и несуществующего
+- headObject возвращает корректные size/etag
+- putAndRegister inserts в catalog + put в bucket atomically
+- putAndRegister дважды - update existing row, не дубликат
+- delete creates delete-marker, get возвращает 404
+- exists после delete - false
+- hardDelete по versionId физически удаляет
+- IT для каждого из 4 bucket'ов чтобы убедиться что bucket-names
+  pluggable
+
+Дальше **25.b.5** (интеграция в `PdfLinksSourceProvider`) и **25.b.6**
+(lazy Range streaming) - уже не infra, прикладная логика.
 
 Что делать:
 

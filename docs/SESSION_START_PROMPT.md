@@ -5,67 +5,58 @@
 начало новой сессии - Claude получит полный контекст без ручного
 объяснения.
 
-## КРИТИЧНО для Сессии 29+ (после Сессии 28 - ADR-024 + library_files catalog)
+## КРИТИЧНО для Сессии 29+ (после Сессии 28 - object storage foundation 3 Phase)
 
-Сессия 28 заложила **фундамент object storage слоя** через переработку
-изначального плана "MinIO cache" в полноценный **permanent storage
-strategy** (ADR-024). 2 коммита:
+Сессия 28 заложила **полный фундамент object storage слоя** в 3 фазах
+(4 feat/docs коммита + 1 правило про backend rerun):
 
-1. **Phase 1 (25.b.1)** - `aafcfc0` docs only: ADR-024 фиксирует 7
-   решений как единый пакет:
-   - S3-compatible через AWS SDK v2 (vendor-agnostic)
-   - permanent storage, не cache (retention forever)
-   - bucket versioning ON, lifecycle delete-policy OFF (старые версии
-     forever)
-   - Postgres `library_files` catalog как source of truth
-   - SHA-256 content hash на каждый put/get
-   - 4-bucket criticality split (imported / user-uploads / page-images
-     / derived-artifacts)
-   - GDPR-like deletion: soft-delete по умолчанию, hard-delete через
-     two-phase admin approval
-   Также architecture-platform.md новый раздел "Object storage" с
-   workflow диаграммой, glossary 7 новых терминов, roadmap 25.b
-   разбит на 6 подэтапов
+1. **Phase 1 (25.b.1)** - `aafcfc0` docs: ADR-024 фиксирует 7 решений
+   пакетом (S3-compatible AWS SDK v2 / permanent storage / versioning
+   forever / library_files catalog / SHA-256 / 4-bucket criticality /
+   GDPR soft-delete two-phase). architecture-platform.md новый раздел,
+   glossary 7 терминов, roadmap split 25.b на 6 подэтапов
+
 2. **Phase 2 (25.b.2)** - `6189ee6` Liquibase миграция 21 +
    `LibraryFileSourceType` enum + `LibraryFile` record +
-   `LibraryFileRepository` JDBC + 19 IT. 330 IT (+19 новых) + 164
+   `LibraryFileRepository` JDBC + 19 IT
+
+3. **Phase 3 (25.b.3)** - `c7afd88` docker-compose minio + minio-init
+   (4 bucket'а, versioning ON на 3 critical) + AWS SDK v2 2.44.4 через
+   bom-import + s3 + url-connection-client + application.yml блок
+   storage + `ObjectStorageProperties` record +  `S3ClientConfig` bean +
+   `S3ClientConfigIT` smoke (3 теста). 333 IT (+22 за сессию) + 164
    unit зелёные
 
-**ПРОЕКТНЫЕ РЕШЕНИЯ (Сессия 28 brainstorm с Абдулой)**:
+Также `43aac93` - правило про backend/frontend rerun: Claude сам
+запускает оба dev-сервера (backend ВСЕГДА с JDWP `-agentlib:jdwp=...:5005`
+для IntelliJ Remote JVM Debug), не ждёт user'а. Старое правило про
+"backend запускает Абдула" удалено
+
+**ПРОЕКТНЫЕ РЕШЕНИЯ (зафиксированы в Сессии 28)**:
 - bucket names: `library-imported-books` / `library-user-uploads` /
   `library-page-images` / `derived-artifacts`
 - MinIO version pin: `minio/minio:RELEASE.2025-07-23T15-54-02Z-cpuv1`
-- AWS SDK v2 latest stable (resolve через mvn при добавлении)
+  (cpuv1 для WSL2 без AVX2)
+- AWS SDK v2 2.44.4 через bom-import
 - content hash SHA-256
 - soft-delete по умолчанию, hard-delete через two-phase
 
-⚠️ **ПЕРВЫМ ДЕЛОМ для Сессии 29 - Pre-flight для миграции 21**:
+**ИНФРАСТРУКТУРА сейчас (Сессия 29 entry)**:
+- Postgres :5432 (миграция 21 применена)
+- Backend :9090 + JDWP :5005 (S3Client bean wired)
+- Frontend :5173
+- MinIO :9000 (S3 API) + :9001 (web console, minioadmin/minioadmin) -
+  4 bucket'а готовы, versioning на 3 critical
 
-```bash
-# 1. Postgres healthy
-cd /mnt/c/my_folders/projects/argument-map
-docker compose up -d  # если упал
+**Главный приоритет Сессии 29 - 25.b.4 `ObjectStorageService` API +
+Testcontainers MinIO IT**. Детальный план API (put/get/getRange/
+exists/headObject/delete/hardDelete + putAndRegister high-level) + IT
+покрытие (12-15 тестов) в `progress.md` Сессия 28 Phase 3
+"Следующий шаг". Реалистично уместится.
 
-# 2. Перезапустить backend - Liquibase применит миграцию 21 (Claude
-# делает сам с JDWP debug args, Абдула подключает IntelliJ к :5005)
-kill $(lsof -ti:9090) 2>/dev/null; sleep 2
-cd backend && ./mvnw spring-boot:run \
-  -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005" \
-  > /tmp/backend.log 2>&1 &
-until curl -sf http://localhost:9090/actuator/health > /dev/null; do sleep 2; done
-
-# 3. Проверить что library_files создалась
-docker exec argumentmap-postgres psql -U argmap -d argumentmap \
-  -c "\d library_files"
-# должна вывести таблицу с 14 колонками + 4 индексами
-```
-
-**Главный приоритет Сессии 29 - 25.b.3 docker-compose MinIO + Spring
-config + S3Client bean**. Детальный план (docker-compose сервис +
-mc-init + pom.xml AWS SDK v2 + application.yml блок storage +
-ObjectStorageProperties + S3ClientConfig) в `progress.md` Сессия 28
-Phase 2 "Следующий шаг". Реалистично уместится 25.b.3 +
-возможно 25.b.4 (`ObjectStorageService` API).
+Дальше **25.b.5** (интеграция в `PdfLinksSourceProvider` - check
+catalog → if exists stream from MinIO, else download upstream + put
++ register) и **25.b.6** (lazy Range streaming через `getRange`).
 
 **Памятка для будущих responsive/mobile сессий:**
 - `Select.maxVisibleItems` сейчас 12 (без scrollbar при ≤12 опций).
@@ -557,12 +548,10 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 - ADR-011-016 все приняты. В Этапе 12 ADR не делал - чистый UI
   поверх готового бэк-контракта
 
-ОТКРЫТО (по приоритету) - после Сессии 28 Phase 2 (25.b.1 ADR-024 +
-25.b.2 library_files миграция/repo/IT закрыты, требуется только
-Абдулин pre-flight restart backend для применения миграции 21):
-
-⚠️ **ПЕРВЫМ ДЕЛОМ для Сессии 29** - Pre-flight миграции 21 (см. вверху
-КРИТИЧНО раздел). Restart backend + проверить `\d library_files` в psql
+ОТКРЫТО (по приоритету) - после Сессии 28 Phase 3 (25.b.1 ADR-024 +
+25.b.2 library_files catalog + 25.b.3 docker MinIO + S3Client bean
+закрыты, миграция 21 применена в production-БД, MinIO docker up
+с 4 bucket'ами):
 
 ⚠️ **АРХИТЕКТУРНЫЙ ВОПРОС из Сессии 23** (open): bulk-bootstrap всех
 8500 shamela книг vs lazy-import on user request. Сейчас в БД 2
@@ -571,40 +560,33 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 catalog работает - bulk vs lazy решение очевидно (lazy). Возможен
 ADR-025
 
-1. **Этап 25.b.3: docker-compose MinIO + Spring config + S3Client bean** -
-   приоритет 1 в Сессии 29. Изолированный "infra setup" подэтап,
-   реалистично уместится + возможно 25.b.4. Детальный план (8 шагов)
-   в `progress.md` Сессия 28 Phase 2 "Следующий шаг":
-   - docker-compose minio сервис на pin'нутой версии + mc-init для
-     bucket creation (4 bucket'а с versioning ON)
-   - pom.xml: AWS SDK v2 dependency (`software.amazon.awssdk:s3`)
-     через bom-import паттерн
-   - application.yml блок `storage:` с endpoint/credentials/timeouts/
-     bucket names
-   - `ObjectStorageProperties` @ConfigurationProperties record в
-     новом пакете `library/storage/`
-   - `S3ClientConfig` @Configuration bean фабрика с
-     `forcePathStyle(true)` для MinIO
-   - Testcontainers MinIO для будущих IT
-   - smoke-test что Spring context поднимается
+1. **Этап 25.b.4: `ObjectStorageService` API + Testcontainers MinIO IT** -
+   приоритет 1 в Сессии 29. Обёртка над `S3Client` с SHA-256 verification
+   + интеграция с `LibraryFileRepository`. Детальный план API + IT
+   покрытие в `progress.md` Сессия 28 Phase 3 "Следующий шаг":
+   - API: put + putAndRegister (high-level catalog+S3) + get + getRange
+     (для 25.b.6 streaming) + exists + headObject + delete (soft via
+     library_files + S3 delete-marker) + hardDelete (admin two-phase)
+   - SHA-256 hash computed at put-time, returned to caller, stored в
+     library_files.content_hash
+   - Testcontainers MinIO через `org.testcontainers:minio` artifact +
+     `@DynamicPropertySource` на storage.endpoint/credentials в
+     `TestcontainersMinioConfiguration`
+   - ~12-15 IT тестов: round-trip put/get + versioning двойного put +
+     getRange разные диапазоны + exists после delete + putAndRegister
+     idempotency + hardDelete по versionId
 
-2. **Этап 25.b.4: `ObjectStorageService` API** - put/get/getRange/
-   exists/softDelete с SHA-256 hash verification на каждый put.
-   IT через Testcontainers MinIO container. Возможно вместе с 25.b.3
-   в одной сессии
-
-3. **Этап 25.b.5: интеграция в `PdfLinksSourceProvider`** - check
+2. **Этап 25.b.5: интеграция в `PdfLinksSourceProvider`** - check
    `library_files` catalog → if active row exists, stream from
-   MinIO. Else: download upstream → put(library-imported-books,
-   key) → insert library_files row → stream. Удаляется текущий
+   MinIO. Else: download upstream → `putAndRegister(library-imported-books,
+   key, SHAMELA, source_url, book_id)` → stream. Удаляется текущий
    tempDir-based cache
 
-4. **Этап 25.b.6: lazy Range streaming** - chunks из MinIO через
-   `getRange(start, end)` (AWS SDK v2 `GetObjectRequest.range`).
-   Заменяет full-download-then-serve паттерн. Первая страница за
-   1-2 сек вместо 30-60
+3. **Этап 25.b.6: lazy Range streaming** - chunks из MinIO через
+   `getRange(start, end)`. Заменяет full-download-then-serve паттерн.
+   Первая страница за 1-2 сек вместо 30-60
 
-5. **Этап 25.d.2: text↔pdf page sync** - internal pageNumber →
+4. **Этап 25.d.2: text↔pdf page sync** - internal pageNumber →
    pdfPageNumber mapping. Требует Tier 1 admin mapping flow для
    заполнения `pdf_page_number` в `lib_pages`
 
@@ -886,34 +868,36 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 После прочтения 5+ файлов из START-OF-SESSION PROTOCOL начни ответ
 с короткого summary последнего состояния и предложения. Например:
 
-"вижу - Сессия 28 заложила object storage foundation через ADR-024
-(brainstorm с Абдулой переработал план "MinIO cache" в полноценный
-permanent storage strategy). 2 коммита:
+"вижу - Сессия 28 заложила полный object storage foundation в 3 фазах
++ правило про backend rerun. 5 коммитов:
 
 - docs aafcfc0 (25.b.1) - ADR-024 фиксирует 7 решений пакетом:
-  S3-compatible через AWS SDK v2, permanent storage не cache,
-  versioning forever, Postgres library_files catalog, SHA-256 hash,
-  4-bucket criticality split, soft-delete + two-phase hard-delete.
-  Плюс architecture-platform.md новый раздел Object storage, glossary
-  7 терминов, roadmap 25.b split на 6 подэтапов
+  S3-compatible AWS SDK v2, permanent storage не cache, versioning
+  forever, library_files catalog, SHA-256, 4-bucket criticality split,
+  GDPR soft-delete + two-phase hard-delete. architecture-platform.md +
+  glossary 7 терминов
 - feat(backend) 6189ee6 (25.b.2) - Liquibase миграция 21 +
   LibraryFileSourceType enum + LibraryFile record +
-  LibraryFileRepository (save/update/findById/findActive*/softDelete/
-  hardDelete/markVerified) + 19 IT. 330 IT (+19 новых) + 164 unit
-  зелёные
+  LibraryFileRepository + 19 IT
+- docs cefc151 - handoff Сессии 28 Phase 2
+- docs 43aac93 - правило про Claude-side backend/frontend rerun с JDWP
+  debug args (старое правило 'backend запускает Абдула' удалено)
+- feat(backend) c7afd88 (25.b.3) - docker-compose minio + minio-init
+  (4 bucket'а, versioning ON на 3 critical) + AWS SDK v2 2.44.4 через
+  bom-import + s3 + url-connection-client + application.yml storage
+  блок + ObjectStorageProperties + S3ClientConfig + S3ClientConfigIT
+  smoke (3 теста)
 
-⚠️ ВАЖНО: production-БД пока на миграции 20. Выполни Pre-flight из
-SESSION_START_PROMPT КРИТИЧНО раздела (restart backend применит 21,
-проверь `\d library_files` в psql).
+333 IT (+22 за сессию) + 164 unit зелёные. Backend поднят с S3Client
+bean wired + JDWP :5005 listening. MinIO docker UP, 4 bucket'а готовы.
 
-Главный приоритет - **Этап 25.b.3 docker-compose MinIO + Spring config
-+ S3Client bean**. Изолированный infra setup подэтап, реалистично
-уместится + возможно 25.b.4 (ObjectStorageService API). Bucket names
-зафиксированы (library-imported-books / library-user-uploads /
-library-page-images / derived-artifacts), MinIO version pin'нут
-(`minio/minio:RELEASE.2025-07-23T15-54-02Z-cpuv1`), AWS SDK v2 latest
-stable через bom-import. Детальный 8-шаговый план в progress.md Сессия
-28 Phase 2 'Следующий шаг'. Можно сразу начинать."
+Главный приоритет - **Этап 25.b.4 ObjectStorageService API +
+Testcontainers MinIO IT**. Обёртка над S3Client (put + putAndRegister
+high-level catalog+S3 + get + getRange + exists + headObject + delete
+soft + hardDelete admin two-phase) с SHA-256 verification. Testcontainers
+через org.testcontainers:minio + @DynamicPropertySource. ~12-15 IT
+тестов. Детальный план в progress.md Сессия 28 Phase 3 'Следующий
+шаг'. Можно сразу начинать."
 
 Жди подтверждение. После него - смело за работу.
 ```
