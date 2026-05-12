@@ -776,6 +776,30 @@ apps/* добавляется только когда возникнет кон�
       отдельный chunk 319kB / gzip 104kB, подгружается при переходе
       на `/topics/{id}`. Suspense fallback показывает "Загрузка графа"
 
+### Responsive / mobile-планшетная адаптация (будущая итерация)
+
+UI сейчас спроектирован под desktop (виewport 1280+). При работе над
+mobile/tablet нужно пересмотреть:
+
+- **Select.maxVisibleItems** в `shared/components/ui/Select.tsx` -
+  сейчас default 12 (без scrollbar при ≤12 опций). На мелком viewport
+  или с большим zoom 12 опций могут не уместиться вертикально - получим
+  overflow без scrollbar. Сделать adaptive: либо count меньше для
+  small screens (через breakpoint hook), либо CSS-based max-height
+  через `min(64rem, 50vh)` чтобы scrollbar appearance зависел от
+  реальной высоты viewport, не от count
+- **BookReaderPage layout** - двухколонник 280px sidebar + main
+  сейчас. На mobile нужно либо drawer/sheet для chapters tree, либо
+  bottom-tabs. PdfViewer внутри bottom-sheet (h-65vh) на mobile
+  занимает весь экран - нужна другая UX flow
+- **Sticky text toolbar** (Сессия 27) - sticky top-2 z-30 работает
+  на desktop. Mobile: нужно учесть browser bottom address-bar
+  collapsing, sticky может прыгать. Возможно `position: sticky`
+  заменить на `position: fixed top-0` с padding на main
+- **PdfViewer toolbar** - 6+ items в одну строку (prev/next + page
+  input + zoom + download + PDF tab). На mobile нужно либо вынести
+  в overflow menu, либо переключить на вертикальный stack
+
 ### Будущие фичи (исламский контекст и расширения из дизайн-референса)
 
 В `frontend/design-reference/project/islamic.jsx` и `extras.jsx`

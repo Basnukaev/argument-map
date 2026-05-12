@@ -5,24 +5,39 @@
 начало новой сессии - Claude получит полный контекст без ручного
 объяснения.
 
-## КРИТИЧНО для Сессии 28+ (после Сессии 27 - CJK cleanup + chapters collapse + PDF preview)
+## КРИТИЧНО для Сессии 28+ (после Сессии 27 - PDF UX completion)
 
-После Сессии 27 (2026-05-12):
-- CJK icon-font noise (символ `舄` U+8204) очищен из existing pages
-  через миграцию 20 + `ShamelaTextCleaner` интегрирован в импортёр.
-  66 → 0 pages with CJK noise
-- Chapters tree collapsible (default свёрнуто) с auto-expand path
-  до active chapter
-- Inline PDF preview - кнопка «📕 PDF» на каждой text-странице
-  открывает bottom-sheet с PdfViewer на той же странице. "На весь
-  экран" → fullscreen mode. "Назад к тексту" → возврат
-- `PdfViewer.initialPdfPage` prop для open-on-current-page fallback
+Сессия 27 закрыла **все** user feedback пункты из Сессий 25-27 через
+**12 коммитов**. Главный focus: PDF reading UX и source-first navigation.
+
+**Что закрыто в Сессии 27:**
+
+1. **Phase 1** - CJK cleanup (миграция 20 backfill 66 pages),
+   chapters tree collapsible, inline PDF preview bottom-sheet
+2. **Phase 2** - PDF mapping через shamela `part`/`printedPage` (фикс
+   bug'а где Том 3 Стр 39 открывал не тот PDF), sticky chapter
+   highlight для всего диапазона страниц, click parent navigates +
+   expands, red PDF button styling, padding fix
+3. **Phase 2 continuation** - editable blue block (Том dropdown +
+   printedPage input для navigation как в shamela), resize bottom-
+   sheet drag handle
+4. **Phase 2 final** - custom `<Select>` portирован из
+   design-reference (`shared/components/ui/Select.tsx`) с centered
+   options, manual collapse override, scrollIntoView для active
+   chapter, sticky text toolbar чтобы prev/next остались
+   accessible при открытом bottom-sheet
 
 **Главный приоритет Сессии 28 - 25.b MinIO cache + lazy streaming**.
 Сейчас PDF (10-50MB) качается на бэк целиком при первом open - это
 причина "медленной первой загрузки" из user feedback. MinIO + Range
 forwarding = lazy partial fetch + persistent cache. Детальный план в
 `docs/progress.md` Сессия 26 "Следующий шаг".
+
+**Памятка для будущих responsive/mobile сессий:**
+- `Select.maxVisibleItems` сейчас 12 (без scrollbar при ≤12 опций).
+  На mobile/tablet viewport zoom-in может ужать пространство - 12
+  опций не уместятся. При работе над адаптивным UI пересмотреть
+  значение или сделать adaptive (CSS `vh`-based вместо count-based)
 
 ## КРИТИЧНО для Сессии 27+ (после Сессии 26 - PDF cover bug fix + UX polish)
 
