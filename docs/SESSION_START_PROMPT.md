@@ -5,10 +5,10 @@
 начало новой сессии - Claude получит полный контекст без ручного
 объяснения.
 
-## КРИТИЧНО для Сессии 29+ (после Сессии 28 - object storage foundation 3 Phase)
+## КРИТИЧНО для Сессии 29+ (после Сессии 28 - object storage foundation 4 Phase)
 
-Сессия 28 заложила **полный фундамент object storage слоя** в 3 фазах
-(4 feat/docs коммита + 1 правило про backend rerun):
+Сессия 28 заложила **полный фундамент object storage слоя** в 4 фазах
+(5 feat/docs коммитов + 1 правило про backend rerun + 2 handoff):
 
 1. **Phase 1 (25.b.1)** - `aafcfc0` docs: ADR-024 фиксирует 7 решений
    пакетом (S3-compatible AWS SDK v2 / permanent storage / versioning
@@ -24,8 +24,17 @@
    (4 bucket'а, versioning ON на 3 critical) + AWS SDK v2 2.44.4 через
    bom-import + s3 + url-connection-client + application.yml блок
    storage + `ObjectStorageProperties` record +  `S3ClientConfig` bean +
-   `S3ClientConfigIT` smoke (3 теста). 333 IT (+22 за сессию) + 164
-   unit зелёные
+   `S3ClientConfigIT` smoke (3 теста)
+
+4. **Phase 4 (25.b.4)** - `14c82ef` `ObjectStorageService` API + 16 IT
+   через Testcontainers MinIO. Domain records `PutResult` + `StoredObject` +
+   `ObjectStorageException`. Service методы: put (temp file подход для
+   retry-safety + SHA-256 параллельно), putAndRegister (high-level +
+   catalog upsert), get / getRange (для streaming) / exists / headObject /
+   softDelete (catalog.deleted_at + S3 delete-marker, versions retained
+   для audit-trail) / hardDelete (admin two-phase, list+delete все
+   versions + DELETE catalog row). 349 IT (+38 за сессию) + 164 unit
+   зелёные
 
 Также `43aac93` - правило про backend/frontend rerun: Claude сам
 запускает оба dev-сервера (backend ВСЕГДА с JDWP `-agentlib:jdwp=...:5005`
@@ -42,21 +51,27 @@
 - soft-delete по умолчанию, hard-delete через two-phase
 
 **ИНФРАСТРУКТУРА сейчас (Сессия 29 entry)**:
-- Postgres :5432 (миграция 21 применена)
-- Backend :9090 + JDWP :5005 (S3Client bean wired)
+- Postgres :5432 (миграция 21 применена, library_files создана)
+- Backend :9090 + JDWP :5005 (ObjectStorageService bean wired,
+  S3Client wired, LibraryFileRepository wired)
 - Frontend :5173
 - MinIO :9000 (S3 API) + :9001 (web console, minioadmin/minioadmin) -
   4 bucket'а готовы, versioning на 3 critical
 
-**Главный приоритет Сессии 29 - 25.b.4 `ObjectStorageService` API +
-Testcontainers MinIO IT**. Детальный план API (put/get/getRange/
-exists/headObject/delete/hardDelete + putAndRegister high-level) + IT
-покрытие (12-15 тестов) в `progress.md` Сессия 28 Phase 3
-"Следующий шаг". Реалистично уместится.
+**Главный приоритет Сессии 29 - 25.b.5 интеграция
+`PdfLinksSourceProvider` через `ObjectStorageService`**. Существующий
+provider использует tempDir cache (теряется при restart, причина
+"медленной первой загрузки"). Заменить на flow:
+- check `library_files` catalog по storage_key
+- если есть active row → stream from MinIO
+- если нет → download upstream → `putAndRegister` → stream
 
-Дальше **25.b.5** (интеграция в `PdfLinksSourceProvider` - check
-catalog → if exists stream from MinIO, else download upstream + put
-+ register) и **25.b.6** (lazy Range streaming через `getRange`).
+Детальный план + что читать first thing в `progress.md` Сессия 28
+Phase 4 "Следующий шаг". Pre-requisites: чтение текущего
+`pdf/service/` + `pdf/web/` пакетов.
+
+Дальше **25.b.6** (lazy Range streaming через `getRange` вместо
+full-download).
 
 **Памятка для будущих responsive/mobile сессий:**
 - `Select.maxVisibleItems` сейчас 12 (без scrollbar при ≤12 опций).
@@ -548,45 +563,40 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 - ADR-011-016 все приняты. В Этапе 12 ADR не делал - чистый UI
   поверх готового бэк-контракта
 
-ОТКРЫТО (по приоритету) - после Сессии 28 Phase 3 (25.b.1 ADR-024 +
-25.b.2 library_files catalog + 25.b.3 docker MinIO + S3Client bean
-закрыты, миграция 21 применена в production-БД, MinIO docker up
-с 4 bucket'ами):
+ОТКРЫТО (по приоритету) - после Сессии 28 Phase 4 (25.b.1 ADR-024 +
+25.b.2 library_files + 25.b.3 docker MinIO + S3Client + 25.b.4
+ObjectStorageService API закрыты, миграция 21 применена, MinIO running
+с 4 bucket'ами, backend wired с storage layer):
 
 ⚠️ **АРХИТЕКТУРНЫЙ ВОПРОС из Сессии 23** (open): bulk-bootstrap всех
-8500 shamela книг vs lazy-import on user request. Сейчас в БД 2
-книги (Сахих аль-Бухари 1681 + Тафсир Ибн Касира 1503). После 25.b
-полного завершения станет понятно: если PDF lazy download через
-catalog работает - bulk vs lazy решение очевидно (lazy). Возможен
-ADR-025
+8500 shamela книг vs lazy-import on user request. После 25.b.5+6
+полного завершения станет понятно. Возможен ADR-025
 
-1. **Этап 25.b.4: `ObjectStorageService` API + Testcontainers MinIO IT** -
-   приоритет 1 в Сессии 29. Обёртка над `S3Client` с SHA-256 verification
-   + интеграция с `LibraryFileRepository`. Детальный план API + IT
-   покрытие в `progress.md` Сессия 28 Phase 3 "Следующий шаг":
-   - API: put + putAndRegister (high-level catalog+S3) + get + getRange
-     (для 25.b.6 streaming) + exists + headObject + delete (soft via
-     library_files + S3 delete-marker) + hardDelete (admin two-phase)
-   - SHA-256 hash computed at put-time, returned to caller, stored в
-     library_files.content_hash
-   - Testcontainers MinIO через `org.testcontainers:minio` artifact +
-     `@DynamicPropertySource` на storage.endpoint/credentials в
-     `TestcontainersMinioConfiguration`
-   - ~12-15 IT тестов: round-trip put/get + versioning двойного put +
-     getRange разные диапазоны + exists после delete + putAndRegister
-     idempotency + hardDelete по versionId
+1. **Этап 25.b.5: интеграция `PdfLinksSourceProvider` через
+   `ObjectStorageService`** - приоритет 1 в Сессии 29:
+   - check `library_files` catalog по storage_key (e.g. `{book_id}/{fileIndex}.pdf`)
+   - если есть active row → stream from MinIO через
+     `ObjectStorageService.get` или `getRange`
+   - если нет → download upstream → `putAndRegister(imported-books,
+     key, SHAMELA, source_url, book_id, major_release)` → stream
+   - Удаляется текущий tempDir-based cache (теряется при restart)
+   - PdfControllerIT тесты могут потребовать обновления (часть на
+     старый tempDir behavior, можно заменить на ObjectStorageService
+     mocked через Testcontainers MinIO)
 
-2. **Этап 25.b.5: интеграция в `PdfLinksSourceProvider`** - check
-   `library_files` catalog → if active row exists, stream from
-   MinIO. Else: download upstream → `putAndRegister(library-imported-books,
-   key, SHAMELA, source_url, book_id)` → stream. Удаляется текущий
-   tempDir-based cache
+   Pre-requisite чтение перед стартом:
+   - `backend/src/main/java/ru/basnukaev/argumentmap/library/pdf/service/`
+     (PdfService, PdfSourceProvider interface, PdfLinksSourceProvider)
+   - `backend/src/main/java/ru/basnukaev/argumentmap/library/pdf/web/`
+     (PdfController)
 
-3. **Этап 25.b.6: lazy Range streaming** - chunks из MinIO через
-   `getRange(start, end)`. Заменяет full-download-then-serve паттерн.
-   Первая страница за 1-2 сек вместо 30-60
+2. **Этап 25.b.6: lazy Range streaming** - заменяет current
+   full-download-then-serve. Chunks из MinIO через `getRange(start, end)`
+   (метод уже готов в `ObjectStorageService`). Browser HTTP Range
+   request → backend проксирует Range в S3 → ChunkedOutputStream
+   к клиенту. Первая страница за 1-2 сек вместо 30-60
 
-4. **Этап 25.d.2: text↔pdf page sync** - internal pageNumber →
+3. **Этап 25.d.2: text↔pdf page sync** - internal pageNumber →
    pdfPageNumber mapping. Требует Tier 1 admin mapping flow для
    заполнения `pdf_page_number` в `lib_pages`
 
@@ -868,36 +878,42 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 После прочтения 5+ файлов из START-OF-SESSION PROTOCOL начни ответ
 с короткого summary последнего состояния и предложения. Например:
 
-"вижу - Сессия 28 заложила полный object storage foundation в 3 фазах
-+ правило про backend rerun. 5 коммитов:
+"вижу - Сессия 28 закрыла полный object storage foundation в 4 фазах
++ правило про backend rerun. 7 коммитов:
 
-- docs aafcfc0 (25.b.1) - ADR-024 фиксирует 7 решений пакетом:
-  S3-compatible AWS SDK v2, permanent storage не cache, versioning
-  forever, library_files catalog, SHA-256, 4-bucket criticality split,
-  GDPR soft-delete + two-phase hard-delete. architecture-platform.md +
-  glossary 7 терминов
+- docs aafcfc0 (25.b.1) - ADR-024 (7 решений пакетом: S3-compatible
+  AWS SDK v2, permanent storage не cache, versioning forever,
+  library_files catalog, SHA-256, 4-bucket criticality, GDPR
+  soft+two-phase hard-delete) + architecture-platform.md + glossary
 - feat(backend) 6189ee6 (25.b.2) - Liquibase миграция 21 +
-  LibraryFileSourceType enum + LibraryFile record +
-  LibraryFileRepository + 19 IT
+  LibraryFileSourceType + LibraryFile record + LibraryFileRepository
+  (save/update/findActive*/softDelete/hardDelete/markVerified) + 19 IT
 - docs cefc151 - handoff Сессии 28 Phase 2
 - docs 43aac93 - правило про Claude-side backend/frontend rerun с JDWP
-  debug args (старое правило 'backend запускает Абдула' удалено)
+  debug args (старое 'backend запускает Абдула' удалено)
 - feat(backend) c7afd88 (25.b.3) - docker-compose minio + minio-init
-  (4 bucket'а, versioning ON на 3 critical) + AWS SDK v2 2.44.4 через
-  bom-import + s3 + url-connection-client + application.yml storage
-  блок + ObjectStorageProperties + S3ClientConfig + S3ClientConfigIT
-  smoke (3 теста)
+  (4 bucket'а с versioning ON на 3 critical) + AWS SDK v2 2.44.4 через
+  bom-import + S3ClientConfig bean + ObjectStorageProperties + smoke IT
+- docs ea443ac - handoff Phase 3
+- feat(backend) 14c82ef (25.b.4) - ObjectStorageService API + 16 IT
+  через Testcontainers MinIO. Domain: PutResult / StoredObject. Methods:
+  put (temp file подход для retry-safety + SHA-256 параллельно) /
+  putAndRegister (high-level catalog upsert) / get / getRange (для
+  25.b.6 streaming) / exists / headObject / softDelete (catalog +
+  delete-marker, versions retained) / hardDelete (admin two-phase,
+  list+delete все versions + DELETE catalog row)
 
-333 IT (+22 за сессию) + 164 unit зелёные. Backend поднят с S3Client
-bean wired + JDWP :5005 listening. MinIO docker UP, 4 bucket'а готовы.
+349 IT (+38 за сессию) + 164 unit зелёные. Backend поднят с
+ObjectStorageService + S3Client + LibraryFileRepository beans wired,
+JDWP :5005 listening. MinIO docker UP, 4 bucket'а доступны.
 
-Главный приоритет - **Этап 25.b.4 ObjectStorageService API +
-Testcontainers MinIO IT**. Обёртка над S3Client (put + putAndRegister
-high-level catalog+S3 + get + getRange + exists + headObject + delete
-soft + hardDelete admin two-phase) с SHA-256 verification. Testcontainers
-через org.testcontainers:minio + @DynamicPropertySource. ~12-15 IT
-тестов. Детальный план в progress.md Сессия 28 Phase 3 'Следующий
-шаг'. Можно сразу начинать."
+Главный приоритет - **Этап 25.b.5 интеграция PdfLinksSourceProvider
+через ObjectStorageService**. Существующий tempDir cache (теряется
+при restart, причина 'медленной первой загрузки' из user feedback)
+заменяется на library_files catalog + MinIO flow: check catalog →
+stream from MinIO или download upstream + putAndRegister + stream.
+Pre-requisite чтение: pdf/service/ + pdf/web/ пакеты. Детальный план
+в progress.md Сессия 28 Phase 4 'Следующий шаг'."
 
 Жди подтверждение. После него - смело за работу.
 ```

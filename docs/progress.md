@@ -130,11 +130,100 @@ End-to-end проверка:
 - Backend перезапущен с новыми beans, /actuator/health UP, JDWP :5005
 - Все 333 IT (+3 новых) + 164 unit зелёные
 
-### Следующий шаг (Phase 4 - 25.b.4 в новой сессии)
+### Сделано (Phase 4 - 25.b.4)
 
-**25.b.4: `ObjectStorageService` API + Testcontainers MinIO IT** -
-обёртка над `S3Client` с SHA-256 verification + интеграция с
-`LibraryFileRepository`.
+**25.b.4** - 1 коммит (Service + Testcontainers IT):
+
+- `14c82ef` `feat(backend): 25.b.4 - ObjectStorageService API +
+  Testcontainers MinIO IT`
+- **Domain records**: `PutResult` (contentHash SHA-256 hex / etag /
+  sizeBytes / versionId), `StoredObject` (size / contentType / etag /
+  versionId / lastModified), `ObjectStorageException`
+- **ObjectStorageService** (~250 LOC) - высокоуровневый API:
+  - `put` - temp file подход: stream → file параллельно computing
+    SHA-256, потом `RequestBody.fromFile()` для retry-safety
+  - `putAndRegister` (high-level) - put + insert/update catalog
+    idempotently (re-upload обновляет existing row, не создаёт дубль)
+  - `get` / `getRange` (для 25.b.6 streaming)
+  - `exists` / `headObject`
+  - `softDelete` (catalog.deleted_at + S3 createDeleteMarker)
+  - `hardDelete` (admin two-phase: listObjectVersions + delete all
+    versions + catalog DELETE)
+- **pom.xml**: добавлен `org.testcontainers:minio` test scope
+- **ObjectStorageServiceIT** (16 IT) через `@Testcontainers` + static
+  shared `MinIOContainer` + `@DynamicPropertySource` на `storage.*`
+  properties. Покрытие:
+  - SHA-256 hash dynamically computed via JCE (regression detection
+    через runtime calculation a не hardcoded literal)
+  - empty content edge case
+  - versioning - 2 версии после double put
+  - putAndRegister idempotency (re-upload → update existing)
+  - get round-trip с byte-equality
+  - getRange exact subset + end-beyond-file truncation
+  - exists true/false
+  - headObject metadata
+  - softDelete marks catalog + создаёт S3 delete-marker + versions
+    retained в bucket (audit trail)
+  - hardDelete removes all versions + delete-markers + catalog row
+  - derived bucket без versioning (versionId null или "null")
+- **@BeforeEach**: idempotent ensureBucket (HEAD-or-create) + versioning
+  ON на 3 critical + clearBucket для test isolation
+
+End-to-end проверка:
+- 349 IT (+16 новых) + 164 unit зелёные (~5min полный verify)
+- Backend перезапущен с ObjectStorageService bean wired, JDWP :5005
+- MinIO live, 4 bucket'а доступны через `mc ls local/`
+
+### Следующий шаг (Phase 5 - 25.b.5 в новой сессии)
+
+**25.b.5: интеграция в `PdfLinksSourceProvider`** - заменить
+текущий tempDir-based cache на ObjectStorageService с library_files
+catalog. Pre-requisite чтение:
+
+- `backend/src/main/java/ru/basnukaev/argumentmap/library/pdf/service/`
+  и `pdf/web/` - текущая структура PdfService + PdfSourceProvider
+  interface + PdfLinksSourceProvider implementation
+- Особенно `PdfLinksSourceProvider.downloadFile(...)` - что качает,
+  как кеширует. Сейчас (после Сессии 27): tempDir per-process,
+  теряется при restart
+
+Что меняется в `PdfLinksSourceProvider`:
+
+1. `downloadFile(book, fileIndex) → Path` метод теперь:
+   - Construct storage_key (например `{book_id}/{fileIndex}.pdf`)
+   - `libraryFileRepository.findActiveByBucketAndKey(imported-books, key)`:
+     - Если найдено → return `objectStorageService.get(...)` stream-as-path
+       (либо temp file из stream, либо переписать caller на InputStream)
+     - Если нет → download upstream через текущий HTTP client →
+       `objectStorageService.putAndRegister(...)` → return stream
+2. PdfService API может остаться prejudiced (отдаёт InputStream/Range),
+   но внутри будет ходить через ObjectStorageService
+3. tempDir cleanup можно удалить (catalog now persistent)
+
+Также нужно решить:
+- **PdfController endpoints**: stream через ObjectStorageService.getRange
+  с HTTP Range support (уже частично работает - сейчас бэк форвардит
+  Range parsed locally). Lazy через MinIO стрим - это уже 25.b.6
+- **ShamelaMajorRelease**: Provider должен передавать его в catalog
+  (для conditional re-fetch если major изменится)
+- **HEAD endpoints для file existence**: можно сделать в этом же
+  подэтапе или отдельно
+
+Реалистично - 25.b.5 один коммит ~150-200 LOC изменений в pdf пакете
++ обновление PdfControllerIT (часть тестов на временный кеш заменить
+на MinIO behavior через Testcontainers). После 25.b.5 - **25.b.6**
+lazy Range streaming через MinIO (chunk-by-chunk вместо
+full-download).
+
+**Альтернатива** (пока 25.b.5 не сделан) - можно живой smoke-test через
+curl:
+```bash
+# Шамеловский Тафсир (book 1503) с PDF
+curl -s 'http://localhost:9090/api/v1/library/books/...' | jq
+# Откроется через UI на :5173 - проверить что text mode работает,
+# PDF preview работает (cache from old tempDir пока не работает -
+# ожидает 25.b.5)
+```
 
 API:
 - `put(bucket, key, InputStream, sizeBytes, contentType) → PutResult{etag,
