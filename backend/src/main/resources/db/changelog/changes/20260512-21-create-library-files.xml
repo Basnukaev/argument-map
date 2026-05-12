@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260512-21-create-library-files" author="Abdula Basnukaev">
+        <comment>
+            Реализация ADR-024: Postgres catalog для объектов в S3-compatible
+            object storage. Хранит реестр всех бинарных файлов платформы
+            (PDF/EPUB книг, image-сканов страниц, derived blobs) с metadata
+            необходимыми для integrity verification, source-tracking,
+            soft-delete и operational queries.
+
+            Решения:
+
+              (1) bucket+storage_key уникальны (UNIQUE constraint). Один и
+                  тот же физический объект в storage = одна запись в catalog.
+                  Re-upload одного файла создаёт новую version в bucket
+                  (versioning ON) и UPDATE существующей записи catalog с
+                  новым content_hash.
+
+              (2) book_id - nullable FK. Большинство файлов привязаны к книге
+                  (PDF, scan), но derived-artifacts могут быть generated без
+                  явной связи (например graph exports argument-map'а - имеют
+                  свой entity). ON DELETE CASCADE - удаление book каскадно
+                  убирает library_files записи (object cleanup делается
+                  отдельным процессом, см. orphan detection).
+
+              (3) source_url - nullable. Для user-uploaded книг и
+                  derived-artifacts нет внешнего URL источника. Для
+                  shamela/archive.org imports - URL upstream PDF. Partial
+                  index только на не-NULL значения чтобы не разрастался.
+
+              (4) source_type - дискриминатор происхождения файла. CHECK
+                  constraint вместо enum-таблицы - набор значений стабильный
+                  (SHAMELA / ARCHIVE_ORG / USER_UPLOAD / SCAN / DERIVED),
+                  добавление новых редкое и через миграцию.
+
+              (5) content_hash TEXT (не BYTEA) - SHA-256 hex-string 64 chars.
+                  TEXT удобнее для query / debug / API responses, BYTEA даёт
+                  лишь экономию места которая на N~10k файлов не критична.
+
+              (6) etag - upstream HTTP ETag если provider его отдаёт
+                  (archive.org отдаёт). Используется для conditional re-fetch
+                  через HEAD - если etag не изменился, не качаем заново.
+
+              (7) shamela_major_release INTEGER - shamela-specific. Если
+                  major_release не изменился, PDF тот же (стабильный invariant
+                  shamela). NULL для не-shamela источников.
+
+              (8) deleted_at TIMESTAMPTZ - soft-delete. NULL = active. Hard-delete
+                  через separate admin action с two-phase approval - физически
+                  удаляет объект в storage и оставляет tombstone (запись
+                  остаётся для audit-trail).
+
+              (9) partial index на (bucket, storage_key) WHERE deleted_at IS NULL
+                  ускоряет hot-path lookup активных файлов. UNIQUE constraint
+                  применяется ко всем строкам (включая soft-deleted) чтобы
+                  re-upload после soft-delete был осознанным choice.
+
+              (10) metadata JSONB - extensibility для future fields (например
+                   page-range mapping для PDF, OCR confidence для scans, AI
+                   model для derived-artifacts).
+        </comment>
+        <sql>
+            CREATE TABLE library_files (
+                file_id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                book_id                UUID REFERENCES lib_books(id) ON DELETE CASCADE,
+                bucket                 TEXT NOT NULL,
+                storage_key            TEXT NOT NULL,
+                source_url             TEXT,
+                source_type            TEXT NOT NULL
+                                       CHECK (source_type IN ('SHAMELA','ARCHIVE_ORG','USER_UPLOAD','SCAN','DERIVED')),
+                content_hash           TEXT NOT NULL,
+                size_bytes             BIGINT NOT NULL CHECK (size_bytes >= 0),
+                etag                   TEXT,
+                downloaded_at          TIMESTAMPTZ NOT NULL,
+                last_verified_at       TIMESTAMPTZ,
+                shamela_major_release  INTEGER,
+                metadata               JSONB NOT NULL DEFAULT '{}'::jsonb,
+                deleted_at             TIMESTAMPTZ,
+                UNIQUE (bucket, storage_key)
+            );
+
+            CREATE INDEX idx_library_files_book_id
+                ON library_files(book_id)
+                WHERE book_id IS NOT NULL;
+
+            CREATE INDEX idx_library_files_source_url
+                ON library_files(source_url)
+                WHERE source_url IS NOT NULL;
+
+            CREATE INDEX idx_library_files_active
+                ON library_files(bucket, storage_key)
+                WHERE deleted_at IS NULL;
+
+            CREATE INDEX idx_library_files_source_type
+                ON library_files(source_type);
+        </sql>
+        <rollback>
+            <sql>
+                DROP TABLE library_files;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

@@ -25,5 +25,6 @@
     <include file="db/changelog/changes/20260509-18-add-start-page-to-chapters.xml"/>
     <include file="db/changelog/changes/20260511-19-add-printed-page-and-part-to-lib-pages.xml"/>
     <include file="db/changelog/changes/20260512-20-cleanup-cjk-icon-noise-from-pages.xml"/>
+    <include file="db/changelog/changes/20260512-21-create-library-files.xml"/>
 
 </databaseChangeLog>
