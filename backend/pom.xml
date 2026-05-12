@@ -115,6 +115,16 @@
 			<artifactId>postgresql</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<!--
+			Testcontainers MinIO module (ADR-024). Поднимает MinIO container в
+			IT для ObjectStorageService - изолированно от docker-compose MinIO
+			на :9000. Каждый IT-класс получает свежий container с empty bucket'ами.
+		-->
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>minio</artifactId>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
