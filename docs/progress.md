@@ -17,6 +17,96 @@ Claude Code не тратят токены на исторический кон�
 
 ---
 
+## 2026-05-13 — Сессия 29 (Task 3-4) — backend 18.f ПОЛНОСТЬЮ закрыт
+
+После Task 0-2 user сказал «го дальше» - продолжили Task 3 + 4 в той же
+сессии. Backend Этапа 18.f теперь production-ready.
+
+### Сделано (Task 3-4)
+
+- **Task 3** `0b86a0e` `feat(backend): 18.f.4 - NodeCitationService + Controller
+  + computed location` - implementing positional citation flow:
+  - `NodeCitationService.createCitation` с full validation pipeline:
+    проверка node/book exists, mode XOR check (ровно один из text/pdf/region),
+    page belongs to book, pdf не soft-deleted, ensure-or-create Source per
+    book через `upsertByBookId`, snapshot location при insert + computed
+    через JOIN при read
+  - `POST /api/v1/nodes/{nodeId}/citations` endpoint - new CitationRequest
+    DTO, returns расширенный NodeSourceResponse
+  - `GET /api/v1/nodes/{nodeId}/sources` обновлён - использует
+    findByNodeIdWithLocation для computed location через SQL JOIN
+  - 3 новых exceptions: InvalidCitationException, ImageRegionNotFoundException
+    (PdfNotAvailableException переиспользован из library.pdf.service)
+  - GlobalExceptionHandler: invalid-citation/400, image-region-not-found/404
+  - NodeSourceRepository.findByNodeIdWithLocation + findByPkWithLocation -
+    SQL JOIN с CASE для computed location, NodeSourceWithLocation record
+  - NodeSourceResponse расширен 9 полями (mode/positional/bookId)
+  - DtoMappers - canonical mapper `toResponse(NodeSourceWithLocation)`
+  - 15 service IT + 6 controller IT - все зелёные. Также проверены existing
+    NodeSourceControllerIT (7), SourceControllerIT (10), NodeSourceRepositoryIT
+    (7) - ни один не сломан расширениями
+  - api-contract.md: новый раздел Citation API + changelog entry
+
+- **Task 4** - backend smoke test через curl:
+  - Backend restart с JDWP, applied миграции 22+23 на production-БД
+  - POST citation на Тафсир Ибн Касира (book 02bcfa43..., page a50ceb1a...,
+    range 0-50, smoke text) → 201 с mode=TEXT, computed location
+    `"تفسير ابن كثير - ط ابن الجوزي, Т.المقدمة стр.3, строки 0-50"`
+  - GET endpoint возвращает то же с computed location через JOIN
+  - Ensure-or-create Source создал 1 row sources с book_id
+
+### Решения (Task 3-4)
+
+- **NodeSource.metadata = String (raw JSON)** consistent с existing pattern,
+  NOT Map<String,Object>. PdfBbox конвертируется через ObjectMapper в
+  NodeCitationService.pdfBboxToJson
+- **PdfBbox валидация в record constructor** - throws IllegalArgumentException
+  при невалидных координатах. GlobalExceptionHandler уже маппит IllegalArgumentException
+  → 400 (existing handler)
+- **lib_image_regions check через JdbcTemplate.queryForObject** - не создавал
+  отдельный repository для одной проверки, простой COUNT query
+- **bookId возвращается в NodeSourceResponse** - JOIN на sources.book_id даёт
+  frontend всё что нужно для построения deep link, без дополнительных запросов
+- **`SourceResponse.bookId` расширение не сломало existing tests** - Jackson
+  serializes nullable Java records корректно, JSON получает больше полей но
+  old clients их игнорируют (backward compatible)
+
+### Проблемы
+
+- Изначально `NodeCitationService.jdbcCount` использовал
+  `libraryFileRepository.getJdbcTemplate()` - этого метода нет. Fix: inject
+  JdbcTemplate напрямую как 7-й параметр конструктора
+
+### Следующий шаг
+
+**Сессия 30 начинает с Task 5** (frontend extract mini-reader). Backend
+полностью готов: migrations 22+23 в production-БД, NodeCitationService
+работает end-to-end, IT покрытие ~21 новых тестов + все existing зелёные.
+
+Краткая последовательность frontend:
+1. Task 5 (30 мин) - git mv mini-reader в shared/components/reader/, update
+   imports в BookReaderPage
+2. Task 6 (60 мин) - textRangeUtils (TreeWalker char offsets) + PageView
+   `selectable`/`highlightRange` props + PdfViewer bbox overlay
+3. Task 7 (90 мин) - CitationPicker компонент 3-column layout
+   (BookListSidebar + EmbeddedReader + SelectionPanel) + 3 MSW integration tests
+4. Task 8 (30 мин) - NodeCitationsSection две кнопки + click-to-navigate
+   с deep links + регенерация types.ts
+5. Task 9 (45 мин) - BookReaderPage query params parsing для deep links
+6. Task 10-12 - lint+build+tests verify, playwright smoke, handoff
+
+Plan: `docs/superpowers/plans/2026-05-13-citation-picker.md`.
+
+Smoke данные в production-БД:
+- 1 row sources с book_id (02bcfa43.../тафсир ибн касира) от ensure-or-create
+- 1 row node_sources с TEXT mode на странице a50ceb1a... range 0-50
+- node 4139cb32... используется как тестовый
+
+Frontend dev server :5173 - перезапустить с `npm run generate-api` в Task 8
+чтобы регенерировать types.ts с расширенным NodeSourceResponse.
+
+---
+
 ## 2026-05-13 — Сессия 29 (продолжение) — Task 0-2 backend foundation 18.f
 
 После handoff'а как design-only - user сказал «лец го», поехали execution

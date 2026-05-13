@@ -5,11 +5,26 @@
 начало новой сессии - Claude получит полный контекст без ручного
 объяснения.
 
-## КРИТИЧНО для Сессии 30+ (после Сессии 29 - foundation 18.f: Task 0-2 закрыты)
+## КРИТИЧНО для Сессии 30+ (после Сессии 29 - backend 18.f ПОЛНОСТЬЮ закрыт)
 
-Сессия 29 началась как design-only (brainstorming + spec + plan для 18.f),
-потом user сказал «лец го» и продолжили execution. Закрыты Task 0-2 (audit
-+ миграции 22+23 + domain + repos + 23 IT). Task 3+ в Сессии 30.
+Сессия 29 закрыла **весь backend** Этапа 18.f - design + spec + plan +
+implementation Task 0-4. Frontend (Task 5-12) в Сессии 30.
+
+**Backend ready в production-БД** - migrations 22+23 applied, NodeCitationService
+работает end-to-end (curl smoke прошёл с Cyrillic + Arabic location).
+
+**Done:**
+- `af2254d` spec + `361a8bc` plan (12 tasks)
+- `67b3594` Task 0 - gotcha lib_pages.id stability
+- `13823cd` Task 1 - миграция 22 Source.bookId FK + ADR-026 + 8 IT
+- `c1c1c9f` Task 2 - миграция 23 node_sources positional + ADR-027 + 8 IT
+- `0b86a0e` Task 3 - NodeCitationService + Controller + 21 IT + api-contract
+- Task 4 - curl smoke прошёл (POST + GET, computed location через JOIN)
+
+**~21 новых IT** все зелёные + все existing IT прошли (no breakages
+от расширений SourceResponse/NodeSourceResponse).
+
+**Pending Task 5-12** (frontend):
 
 **Done в Сессии 29:**
 - `af2254d` design spec + `361a8bc` implementation plan (12 tasks)
@@ -19,23 +34,26 @@
 - `c1c1c9f` Task 2 - миграция 23 (node_sources +7 positional колонок) +
   ADR-027 + 8 IT
 
-**Pending Task 3-12** - всё детально в plan'е. Краткое:
-- Task 3 (60-90 мин) NodeCitationService + Controller + ~23 IT
-- Task 4 (15 мин) backend smoke + restart с применением миграций на production
 - Task 5 (30 мин) extract mini-reader → shared/components/reader
 - Task 6 (60 мин) PageView/PdfViewer selection props + textRangeUtils
 - Task 7 (90 мин) CitationPicker компонент
-- Task 8 (30 мин) NodeCitationsSection две кнопки
+- Task 8 (30 мин) NodeCitationsSection две кнопки + click-to-navigate
 - Task 9 (45 мин) BookReaderPage deep links
 - Task 10 (15 мин) frontend verify
 - Task 11 (30 мин) playwright smoke
 - Task 12 (15 мин) handoff
 
-**Перед Task 3 - запустить `cd backend && ./mvnw verify`** чтобы убедиться
-что full IT suite зелёный. В Сессии 29 targeted IT прошли (23 новых), но
-full verify не запускался после Task 2 - возможны compile breakages в
-controller/web IT от расширения SourceResponse.bookId или NodeSource
-constructor signature.
+**Plan:** `docs/superpowers/plans/2026-05-13-citation-picker.md` - читать
+полный текст Task 5+ перед началом.
+
+**Production-БД smoke данные** для теста frontend (Task 8 click-to-navigate):
+- node 4139cb32-28ba-4d98-9954-225e8e3c863d имеет 1 citation
+- book 02bcfa43-d269-4545-8e8b-965ed56dfc93 (Тафсир Ибн Касира)
+- page a50ceb1a-b54a-4f79-97e8-d00d5b18598e (стр.3, том المقدمة)
+- range 0-50, mode TEXT
+
+**Перед Task 8 - запустить `npm run generate-api`** в frontend чтобы
+регенерировать types.ts с расширенным NodeSourceResponse (9 новых полей).
 
 **Ключевые артефакты (читать перед началом!):**
 1. `docs/superpowers/specs/2026-05-13-citation-picker-design.md` -
