@@ -21,6 +21,32 @@
 
 ---
 
+## lib_pages.id стабильность через mapper skip-if-existing
+**Симптом:** Можно ожидать что при re-import shamela master metadata
+`lib_pages` пересоздаются с новыми UUID, что сломает citation.page_id refs
+(FK ON DELETE RESTRICT блокирует delete существующих pages пока на них
+ссылается citation - выглядит как «не могу обновить книгу»).
+
+**Причина:** `ShamelaToLibraryMapper.mapBook` (строки 96-102) делает
+`findByShamelaBookId` check **до** перемаппинга и returns `alreadyMapped`
+если book уже импортирована. `lib_pages` **не** пересоздаются для
+existing books. `PageRepository.save` - чистый INSERT (без UPSERT), но
+он не вызывается для re-import scenarios потому что mapper выходит раньше.
+
+**Решение:** Этот invariant **полагается на skip-if-existing**. Текущее
+поведение удовлетворяет требование стабильности `page_id` для citation
+FK с `ON DELETE RESTRICT` (ADR-026, ADR-027). Если в будущем потребуется
+обновлять контент страниц при re-import (например после shamela major
+release update), нужно сменить mapper на UPSERT по композитному ключу
+`(book_id, page_number)` через `INSERT ... ON CONFLICT DO UPDATE
+RETURNING id` - чтобы UUID оставался стабильным. Сейчас этого не
+требуется (Этап 18.f citation), зафиксировано как design decision.
+
+**Связано с:** ADR-026, ADR-027 (citation stability requires stable
+page_id refs).
+
+---
+
 ## Циркулярный внешний ключ topics ↔ nodes
 **Симптом:** Liquibase падает при создании таблиц `topics` и `nodes` из-за
 взаимных FK (`topics.root_node_id → nodes.id`, `nodes.topic_id → topics.id`)
