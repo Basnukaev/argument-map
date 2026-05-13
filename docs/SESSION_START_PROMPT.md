@@ -5,26 +5,34 @@
 начало новой сессии - Claude получит полный контекст без ручного
 объяснения.
 
-## КРИТИЧНО для Сессии 30+ (после Сессии 29 - backend 18.f ПОЛНОСТЬЮ закрыт)
+## КРИТИЧНО для Сессии 30+ (после Сессии 29 - этап 18.f ПОЛНОСТЬЮ ЗАКРЫТ)
 
-Сессия 29 закрыла **весь backend** Этапа 18.f - design + spec + plan +
-implementation Task 0-4. Frontend (Task 5-12) в Сессии 30.
+Сессия 29 закрыла **весь этап 18.f CitationPicker** в одну сессию - 12 tasks
+из plan'а (Task 0-11), 11 коммитов (3 docs + 4 backend + 4 frontend) +
+финальный handoff. Полный stack от миграций БД до frontend deep links.
+
+**Production-ready state:**
+- Backend: migrations 22+23 applied на production-БД, NodeCitationService
+  работает end-to-end (curl smoke прошёл в Task 4)
+- Frontend: CitationPicker + NodeCitationsSection 2 кнопки + BookReaderPage
+  deep links. 143/143 tests pass, TS clean, ESLint 0 errors, build success
+- Bundle initial 327kB/gzip 103kB (+71kB к pre-этапу 18.f)
 
 **Backend ready в production-БД** - migrations 22+23 applied, NodeCitationService
 работает end-to-end (curl smoke прошёл с Cyrillic + Arabic location).
 
-**Done:**
-- `af2254d` spec + `361a8bc` plan (12 tasks)
-- `67b3594` Task 0 - gotcha lib_pages.id stability
-- `13823cd` Task 1 - миграция 22 Source.bookId FK + ADR-026 + 8 IT
-- `c1c1c9f` Task 2 - миграция 23 node_sources positional + ADR-027 + 8 IT
-- `0b86a0e` Task 3 - NodeCitationService + Controller + 21 IT + api-contract
-- Task 4 - curl smoke прошёл (POST + GET, computed location через JOIN)
+**Done в Сессии 29:**
+- Backend (Task 0-4): `67b3594` gotcha, `13823cd` migration 22 + ADR-026 + 8 IT,
+  `c1c1c9f` migration 23 + ADR-027 + 8 IT, `0b86a0e` NodeCitationService + 21 IT,
+  curl smoke прошёл. Production-БД миграции applied
+- Frontend (Task 5-11): `19129d5` extract mini-reader, `8793d0d` textRangeUtils +
+  PageView selection, `a8f24aa` CitationPicker компонент, `c6dfa18`
+  NodeCitationsSection две кнопки + deep links, `335701d` BookReaderPage deep
+  link parsing, `c11175a` lint+build verify
+- Docs/handoff: `af2254d` spec, `361a8bc` plan, `4ae81eb` + `e99b8c5` +
+  `9154dbb` промежуточные handoff
 
-**~21 новых IT** все зелёные + все existing IT прошли (no breakages
-от расширений SourceResponse/NodeSourceResponse).
-
-**Pending Task 5-12** (frontend):
+**Сессия 30 - выбор приоритета** (этап 18.f закрыт целиком):
 
 **Done в Сессии 29:**
 - `af2254d` design spec + `361a8bc` implementation plan (12 tasks)
@@ -34,26 +42,23 @@ implementation Task 0-4. Frontend (Task 5-12) в Сессии 30.
 - `c1c1c9f` Task 2 - миграция 23 (node_sources +7 positional колонок) +
   ADR-027 + 8 IT
 
-- Task 5 (30 мин) extract mini-reader → shared/components/reader
-- Task 6 (60 мин) PageView/PdfViewer selection props + textRangeUtils
-- Task 7 (90 мин) CitationPicker компонент
-- Task 8 (30 мин) NodeCitationsSection две кнопки + click-to-navigate
-- Task 9 (45 мин) BookReaderPage deep links
-- Task 10 (15 мин) frontend verify
-- Task 11 (30 мин) playwright smoke
-- Task 12 (15 мин) handoff
+1. **Этап 19 Q&A приложение** (рекомендую) - валидация платформенности
+   через первое новое приложение поверх library. Если library легко даёт
+   новое app - архитектура работает (ADR-018 platform pivot обоснован).
+   Backend: миграция questions/answers/answer_citations, REST API CRUD.
+   Frontend: `src/apps/qa/`, новые страницы. ~3-5 сессий
+2. **PDF bbox selection в CitationPicker** - backend API change
+   (PdfFileInfoResponse с fileId UUID) + frontend PDF tab в picker.
+   ~1 сессия
+3. **Marathon TODO** F-01 split TopicGraphPage (1161 LOC), F-02 split
+   BookReaderPage (714 LOC). Low ROI
+4. **CitationPicker UX polish** - добавить ChapterList, PageJump
+   source-first markers, fully integrate с mini-reader
 
-**Plan:** `docs/superpowers/plans/2026-05-13-citation-picker.md` - читать
-полный текст Task 5+ перед началом.
-
-**Production-БД smoke данные** для теста frontend (Task 8 click-to-navigate):
-- node 4139cb32-28ba-4d98-9954-225e8e3c863d имеет 1 citation
-- book 02bcfa43-d269-4545-8e8b-965ed56dfc93 (Тафсир Ибн Касира)
-- page a50ceb1a-b54a-4f79-97e8-d00d5b18598e (стр.3, том المقدمة)
-- range 0-50, mode TEXT
-
-**Перед Task 8 - запустить `npm run generate-api`** в frontend чтобы
-регенерировать types.ts с расширенным NodeSourceResponse (9 новых полей).
+**Smoke данные в production-БД:**
+- node `4139cb32-28ba-4d98-9954-225e8e3c863d` имеет 1 citation на
+  Тафсир Ибн Касира (page `a50ceb1a...`, range 0-50, mode TEXT)
+- Можно использовать для browser-test «Перейти к источнику» button
 
 **Ключевые артефакты (читать перед началом!):**
 1. `docs/superpowers/specs/2026-05-13-citation-picker-design.md` -

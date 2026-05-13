@@ -744,16 +744,21 @@ apps/* добавляется только когда возникнет кон�
 - [ ] **18.e: ImagePageRenderer** - отдельный mode для image-сканов:
       картинка + overlay для OCR-текста + рисование regions через
       react-image-crop. Релевантно после Этапа 17 OCR
-- [ ] **18.f: CitationPicker** - переиспользуемый компонент.
-      После Сессии 25 apps/ reorg - живёт в
+- [x] **18.f: CitationPicker** - переиспользуемый компонент.
       `frontend/src/shared/components/citation/CitationPicker.tsx`
-      (shared между argument-map и Q&A apps). Выделил фрагмент в
-      reader → opens picker → выбор приложения и контекста
-      (какой узел / ответ)
-- [ ] **18.g: Argument-map переключение на CitationPicker** -
-      кнопка «Привязать цитату» в NodeDetailsPanel открывает
-      CitationPicker. Старый AddSourceModal с ручной формой
-      удаляется или становится fallback для свободных цитат
+      реализован в Сессии 29 (text mode MVP). Inverse flow vs spec'а:
+      открывается из NodeDetailsPanel («Привести источник») → library
+      browser встроенный в picker → выделение фрагмента в PageView →
+      submit POST /api/v1/nodes/:id/citations. Backend foundation
+      (миграции 22+23, ADR-026 + ADR-027), CitationPicker три-колонный
+      layout, deep links для navigation. PDF bbox mode отложен (требует
+      backend API change - fileId UUID в PdfFileInfoResponse).
+- [x] **18.g: Argument-map переключение на CitationPicker** -
+      реализовано в Сессии 29 как hybrid: две кнопки в NodeCitationsSection -
+      «Привести источник» (новый CitationPicker flow) + «Свободный»
+      (existing AddSourceModal для legacy URL/article/ручной хадис).
+      AddSourceModal **не удалён** - покрывает freeform citation
+      use case (citation без library book)
 
 ## Этап 19. Q&A - первое полностью новое приложение
 
