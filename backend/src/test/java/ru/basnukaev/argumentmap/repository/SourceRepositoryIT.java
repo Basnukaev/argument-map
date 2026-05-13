@@ -45,6 +45,7 @@ class SourceRepositoryIT {
                 "том 1, хадис 4",
                 Reliability.SAHIH,
                 null,
+                null,
                 "{\"collection\":\"bukhari\",\"book\":1,\"hadith_number\":4}",
                 now
         );
@@ -64,7 +65,7 @@ class SourceRepositoryIT {
     void save_withNullReliabilityAndMetadata_worksFine() {
         Source source = new Source(
                 UUID.randomUUID(), SourceType.BOOK, "Муснад Ахмада",
-                null, null, null, null, Instant.now()
+                null, null, null, null, null, Instant.now()
         );
 
         sourceRepository.save(source);
@@ -84,7 +85,7 @@ class SourceRepositoryIT {
         ));
         Source source = new Source(
                 UUID.randomUUID(), SourceType.BOOK, "Иктида ас-сырат аль-мустакым",
-                null, null, author.id(), null, Instant.now()
+                null, null, author.id(), null, null, Instant.now()
         );
 
         sourceRepository.save(source);
@@ -100,7 +101,7 @@ class SourceRepositoryIT {
         ));
         Source source = sourceRepository.save(new Source(
                 UUID.randomUUID(), SourceType.BOOK, "Хусн аль-максыд",
-                null, null, author.id(), null, Instant.now()
+                null, null, author.id(), null, null, Instant.now()
         ));
 
         authorityRepository.deleteById(author.id());
@@ -113,11 +114,11 @@ class SourceRepositoryIT {
     void searchByTitle_findsCaseInsensitive() {
         sourceRepository.save(new Source(
                 UUID.randomUUID(), SourceType.BOOK, "Ихьйа улюм ад-дин",
-                null, null, null, null, Instant.now()
+                null, null, null, null, null, Instant.now()
         ));
         sourceRepository.save(new Source(
                 UUID.randomUUID(), SourceType.BOOK, "Фатх аль-Бари",
-                null, null, null, null, Instant.now()
+                null, null, null, null, null, Instant.now()
         ));
 
         List<Source> found = sourceRepository.searchByTitle("ИХЬЙА");
@@ -129,9 +130,9 @@ class SourceRepositoryIT {
     void findAll_returnsInCreatedAtOrder() {
         Instant base = Instant.now().truncatedTo(ChronoUnit.MICROS);
         Source older = new Source(UUID.randomUUID(), SourceType.URL, "older",
-                null, null, null, null, base.minusSeconds(60));
+                null, null, null, null, null, base.minusSeconds(60));
         Source newer = new Source(UUID.randomUUID(), SourceType.URL, "newer",
-                null, null, null, null, base);
+                null, null, null, null, null, base);
         sourceRepository.save(newer);
         sourceRepository.save(older);
 
@@ -142,7 +143,7 @@ class SourceRepositoryIT {
     @Test
     void deleteById_removesSource() {
         Source source = new Source(UUID.randomUUID(), SourceType.ARTICLE, "t",
-                null, null, null, null, Instant.now());
+                null, null, null, null, null, Instant.now());
         sourceRepository.save(source);
 
         boolean deleted = sourceRepository.deleteById(source.id());
@@ -157,6 +158,7 @@ class SourceRepositoryIT {
         sourceRepository.save(new Source(
                 id, SourceType.HADITH, "s",
                 null, Reliability.HASAN, null,
+                null,
                 "{\"book\":1,\"hadith_number\":42}",
                 Instant.now()
         ));

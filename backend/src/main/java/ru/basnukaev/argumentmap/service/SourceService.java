@@ -41,7 +41,7 @@ public class SourceService {
         }
         Source source = new Source(
                 UUID.randomUUID(), sourceType, title, citation,
-                reliability, authorityId, metadataJson, Instant.now()
+                reliability, authorityId, null, metadataJson, Instant.now()
         );
         sourceRepository.save(source);
         return source;

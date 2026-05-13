@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260513-22-add-book-id-to-sources" author="Abdula Basnukaev">
+        <comment>
+            Реализация ADR-026: связь Source -> lib_books через book_id FK.
+            Один Source per (source_type=BOOK, book_id) - идемпотентность
+            при citation flow. ON DELETE RESTRICT блокирует удаление книги
+            пока на неё ссылается citation - часть инварианта стабильности
+            для positional citations (ADR-027).
+
+            Решения:
+
+              (1) book_id UUID nullable FK lib_books(id) ON DELETE RESTRICT.
+                  Nullable потому что не все sources привязаны к library
+                  (URL, manual hadith, article - book_id NULL).
+
+              (2) UNIQUE INDEX (source_type, book_id) WHERE book_id IS NOT NULL.
+                  Гарантирует one-source-per-book при ensure-or-create
+                  через NodeCitationService.upsertByBookId.
+
+              (3) CHECK chk_sources_book_id_only_for_book_type:
+                  book_id допустим только при source_type='BOOK'. Защищает
+                  от семантических ошибок (URL не может иметь book_id).
+
+              (4) idx_sources_book_id partial - ускоряет lookup
+                  citation source by book для будущей аналитики
+                  "все цитаты на книгу X".
+        </comment>
+        <sql>
+            ALTER TABLE sources
+                ADD COLUMN book_id UUID REFERENCES lib_books(id) ON DELETE RESTRICT;
+
+            CREATE UNIQUE INDEX uq_sources_book_per_type
+                ON sources(source_type, book_id)
+                WHERE book_id IS NOT NULL;
+
+            ALTER TABLE sources
+                ADD CONSTRAINT chk_sources_book_id_only_for_book_type
+                CHECK (book_id IS NULL OR source_type = 'BOOK');
+
+            CREATE INDEX idx_sources_book_id ON sources(book_id)
+                WHERE book_id IS NOT NULL;
+        </sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_sources_book_id;
+                ALTER TABLE sources DROP CONSTRAINT IF EXISTS chk_sources_book_id_only_for_book_type;
+                DROP INDEX IF EXISTS uq_sources_book_per_type;
+                ALTER TABLE sources DROP COLUMN IF EXISTS book_id;
+            </sql>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

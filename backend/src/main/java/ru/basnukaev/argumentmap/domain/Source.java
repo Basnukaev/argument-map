@@ -10,6 +10,7 @@ public record Source(
         String citation,
         Reliability reliability,
         UUID authorityId,
+        UUID bookId,
         String metadata,
         Instant createdAt
 ) {

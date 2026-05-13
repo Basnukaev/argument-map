@@ -167,6 +167,10 @@ pos_y)`. Сейчас не нужно - проект на MVP-стадии бе�
 Поля:
 - `authorityId` (`NULLABLE`) — FK на `Authority` (автор труда). Пусто для
   `QURAN` и анонимных текстов
+- `bookId` (`NULLABLE`) — FK на `lib_books`. Заполнен только для
+  `sourceType=BOOK` (CHECK enforce'ит). Один Source per
+  `(sourceType, bookId)` через `UNIQUE INDEX uq_sources_book_per_type`
+  (one-source-per-book идемпотентность для citation flow). См. ADR-026
 - `metadata` (jsonb) — для тип-специфичных данных
 
 ### Authority

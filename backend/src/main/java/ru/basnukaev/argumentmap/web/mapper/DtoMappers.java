@@ -90,6 +90,7 @@ public final class DtoMappers {
                 source.id(), source.sourceType(), source.title(),
                 source.citation(), source.reliability(),
                 source.authorityId(),
+                source.bookId(),
                 jsonFromString(source.metadata()),
                 source.createdAt()
         );

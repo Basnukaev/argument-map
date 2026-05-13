@@ -19,7 +19,7 @@ import ru.basnukaev.argumentmap.domain.SourceType;
 public class SourceRepository {
 
     private static final String COLUMNS =
-            "id, source_type, title, citation, reliability, authority_id, metadata, created_at";
+            "id, source_type, title, citation, reliability, authority_id, book_id, metadata, created_at";
 
     private static final RowMapper<Source> ROW_MAPPER = (rs, rn) -> {
         String reliability = rs.getString("reliability");
@@ -30,6 +30,7 @@ public class SourceRepository {
                 rs.getString("citation"),
                 reliability == null ? null : Reliability.valueOf(reliability),
                 rs.getObject("authority_id", UUID.class),
+                rs.getObject("book_id", UUID.class),
                 rs.getString("metadata"),
                 instant(rs, "created_at")
         );
@@ -43,13 +44,14 @@ public class SourceRepository {
 
     public Source save(Source source) {
         jdbcTemplate.update(
-                "INSERT INTO sources (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?)",
+                "INSERT INTO sources (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?)",
                 source.id(),
                 source.sourceType().name(),
                 source.title(),
                 source.citation(),
                 source.reliability() == null ? null : source.reliability().name(),
                 source.authorityId(),
+                source.bookId(),
                 source.metadata(),
                 odt(source.createdAt())
         );
@@ -61,6 +63,14 @@ public class SourceRepository {
                 "SELECT " + COLUMNS + " FROM sources WHERE id = ?",
                 ROW_MAPPER,
                 id
+        ).stream().findFirst();
+    }
+
+    public Optional<Source> findByBookId(UUID bookId) {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM sources WHERE book_id = ?",
+                ROW_MAPPER,
+                bookId
         ).stream().findFirst();
     }
 
@@ -81,5 +91,40 @@ public class SourceRepository {
 
     public boolean deleteById(UUID id) {
         return jdbcTemplate.update("DELETE FROM sources WHERE id = ?", id) > 0;
+    }
+
+    /**
+     * Атомарный ensure-or-create по unique index (source_type, book_id).
+     * При race-condition двух concurrent INSERT'ов на одну книгу один
+     * выигрывает, второй получает existing row через DO NOTHING +
+     * findByBookId.
+     *
+     * <p>Требует {@code sourceType=BOOK} и не-null {@code bookId} -
+     * другие комбинации идут через обычный {@link #save(Source)}.
+     */
+    public Source upsertByBookId(Source source) {
+        if (source.bookId() == null || source.sourceType() != SourceType.BOOK) {
+            throw new IllegalArgumentException(
+                "upsertByBookId требует sourceType=BOOK и не-null bookId, получено: "
+                    + source.sourceType() + " / " + source.bookId());
+        }
+        Integer affected = jdbcTemplate.update(
+                "INSERT INTO sources (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?) "
+                        + "ON CONFLICT (source_type, book_id) WHERE book_id IS NOT NULL DO NOTHING",
+                source.id(),
+                source.sourceType().name(),
+                source.title(),
+                source.citation(),
+                source.reliability() == null ? null : source.reliability().name(),
+                source.authorityId(),
+                source.bookId(),
+                source.metadata(),
+                odt(source.createdAt())
+        );
+        if (affected != null && affected > 0) {
+            return source;
+        }
+        return findByBookId(source.bookId()).orElseThrow(() ->
+            new IllegalStateException("UPSERT conflict но findByBookId empty - inconsistent state"));
     }
 }

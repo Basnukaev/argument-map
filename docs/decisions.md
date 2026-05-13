@@ -2142,3 +2142,95 @@ operational concern.
 - Encryption-at-rest конфигурация bucket'ов - operational, через
   bucket policy на стороне провайдера
 
+## ADR-026: Source.bookId FK - one-source-per-book для citation flow
+
+**Дата:** 2026-05-13
+**Статус:** принят
+**Связь:** ADR-017 (Source+Authority unification), ADR-018 (platform pivot), ADR-027 (positional citation)
+
+### Контекст
+
+До этапа 18.f `Source` (master data: QURAN/HADITH/BOOK/ARTICLE/URL) и
+`lib_books` (импортированные книги из shamela) были **disconnected** -
+нет FK, нет связи в metadata. CitationPicker требует связи "цитата →
+книга" чтобы строить deep link, computed location и аналитику "все
+цитаты на книгу X".
+
+Без связи невозможно идемпотентно создавать `Source` per book при
+citation flow - либо приходилось бы создавать новый Source каждый раз
+(дубликаты, потеря "один источник = одна книга"), либо хранить
+libBookId в Source.metadata JSONB (slabые integrity, GIN-query
+вместо JOIN).
+
+### Решение
+
+Миграция 22 добавляет:
+- `sources.book_id UUID nullable FK lib_books(id) ON DELETE RESTRICT`
+- `UNIQUE INDEX uq_sources_book_per_type ON sources(source_type, book_id) WHERE book_id IS NOT NULL`
+- `CHECK chk_sources_book_id_only_for_book_type: book_id IS NULL OR source_type = 'BOOK'`
+- `INDEX idx_sources_book_id partial` для аналитики
+
+Идемпотентность: **один Source per (sourceType=BOOK, bookId)** -
+гарантируется unique index. Ensure-or-create при citation flow через
+`SourceRepository.upsertByBookId` (atomic `INSERT ON CONFLICT DO NOTHING`
++ retry `findByBookId` при коллизии).
+
+`ON DELETE RESTRICT` (не SET NULL) - намеренно жёсткий: книгу нельзя
+удалить пока на неё ссылается citation. Это часть инварианта
+стабильности для positional citations (ADR-027). `SET NULL` дал бы
+silent corruption - citations остались бы, но bookId стёрся → потеря
+ссылки на источник. `RESTRICT` даёт explicit failure - "книгу
+нельзя удалить пока есть citations".
+
+### Альтернативы (отвергнуты)
+
+- **Source.metadata JSONB `{libBookId}`** - dangling refs (нет FK
+  constraint), GIN-запрос вместо JOIN для "все цитаты книги X". Слабая
+  data integrity, сложнее future analytics.
+- **NodeSource.bookId напрямую без Source involvement** - ломает
+  ADR-017 abstraction ("Source как единая точка цитат к узлу"). Двойная
+  схема node_sources с XOR между source_id и book_id неоднородна -
+  один тип citation требует Source row, другой нет.
+- **ON DELETE SET NULL** - silent corruption при удалении книги.
+  Citation остаётся в node_sources, но bookId Source стёрся → невозможно
+  понять "куда" указывает citation. RESTRICT даёт explicit failure.
+- **Multiple Sources per book** (без unique index) - дубликаты при
+  re-citation. Для multi-edition books в будущем можно разрешить, но
+  тогда unique index расширяется до `(source_type, book_id, edition)`
+  или подобной композиции.
+
+### Последствия
+
+- (+) Чистая схема, FK constraint, простой JOIN для аналитики
+- (+) Идемпотентность через unique index - one-source-per-book
+- (+) Расширение естественное: book ⊂ source (BOOK с FK на library
+  специализирует master data)
+- (+) Backward compatible - все existing sources (book_id=NULL)
+  работают как прежде
+- (−) Миграция 22 + одна доп. колонка в sources table (минимально)
+- (−) Soft-delete на book потребует review логики ensure-or-create
+  (currently не нужно - lib_books не soft-deletable)
+- (−) При multi-edition books (Бухари в редакции Фуада Абду-ль-Баки
+  vs ат-Туркий и т.п.) понадобится либо разные `lib_books` rows, либо
+  расширение unique index. Сейчас assumption "одна книга = одна
+  редакция в library"
+
+### Триггеры пересмотра
+
+- Появление user-uploaded books где одна книга имеет несколько Source
+  (разные editions) - тогда unique index пересмотреть на
+  `(source_type, book_id, edition_id)` или подобную композицию
+- Multi-tenancy (Этап 20+) - sources становятся tenant-scoped, FK
+  расширяется
+- Если придётся разрешать удаление book'ов с активными citations -
+  пересмотреть RESTRICT vs CASCADE vs SET NULL trade-off
+
+### Связь с другими ADR
+
+- **ADR-017** (Source+Authority unification) - book_id это расширение
+  абстракции "Source как единая точка цитат к узлу"
+- **ADR-018** (платформенный pivot) - library integrates с argument-map
+  через эту связь
+- **ADR-027** (positional citation fields) - work совместно: Source
+  даёт связь с книгой, node_sources даёт позицию внутри книги
+
