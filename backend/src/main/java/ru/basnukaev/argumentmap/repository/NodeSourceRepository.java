@@ -123,9 +123,8 @@ public class NodeSourceRepository {
                 WHEN ns.page_id IS NOT NULL THEN
                   COALESCE(b.title, '?') || ', Т.' || COALESCE(p.part, '?')
                     || ' стр.' || COALESCE(p.printed_page, p.page_number::text)
-                    || ', строки ' || ns.range_start || '-' || ns.range_end
                 WHEN ns.pdf_file_id IS NOT NULL THEN
-                  COALESCE(b.title, '?') || ', PDF стр.' || ns.pdf_page_number || ', регион'
+                  COALESCE(b.title, '?') || ', PDF стр.' || ns.pdf_page_number
                 WHEN ns.image_region_id IS NOT NULL THEN
                   COALESCE(b.title, '?') || ', скан стр.' ||
                   COALESCE(p2.printed_page, p2.page_number::text)

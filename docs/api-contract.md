@@ -1108,7 +1108,7 @@ insert в node_sources с positional полями.
   "sourceId": "uuid",
   "quote": "string|null",
   "context": "string|null",
-  "location": "Тафсир Ибн Касира, Т.1 стр.47, строки 0-87",
+  "location": "Тафсир Ибн Касира, Т.1 стр.47",
   "mode": "TEXT|PDF|REGION|LEGACY",
   "pageId": "uuid|null",
   "rangeStart": "int|null",

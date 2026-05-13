@@ -32,6 +32,16 @@
 - Docs/handoff: `af2254d` spec, `361a8bc` plan, `4ae81eb` + `e99b8c5` +
   `9154dbb` промежуточные handoff
 
+**После Сессии 29 user-feedback fixes** (2 mini-коммита):
+- Секция «Цитаты» → **«Опора»** (مُسْتَنَدٌ/دَلِيلٌ) с иконкой `Anchor`.
+  Семантически богаче чем «Цитаты»/«Источники» для исламского контекста,
+  покрывает library + freeform. Рекомендация от Claude Design в
+  `frontend/design-reference/project/citations.jsx`
+- Backend computed location: убран `«строки X-Y»` (это были char offsets
+  plain text, не визуальные строки - технический highlight payload, не
+  academic citation). Display теперь только `Т.X стр.Y`, range используется
+  только для `?highlight=` deep link
+
 **Сессия 30 - выбор приоритета** (этап 18.f закрыт целиком):
 
 **Done в Сессии 29:**
@@ -42,18 +52,26 @@
 - `c1c1c9f` Task 2 - миграция 23 (node_sources +7 positional колонок) +
   ADR-027 + 8 IT
 
-1. **Этап 19 Q&A приложение** (рекомендую) - валидация платформенности
-   через первое новое приложение поверх library. Если library легко даёт
-   новое app - архитектура работает (ADR-018 platform pivot обоснован).
-   Backend: миграция questions/answers/answer_citations, REST API CRUD.
-   Frontend: `src/apps/qa/`, новые страницы. ~3-5 сессий
-2. **PDF bbox selection в CitationPicker** - backend API change
-   (PdfFileInfoResponse с fileId UUID) + frontend PDF tab в picker.
-   ~1 сессия
-3. **Marathon TODO** F-01 split TopicGraphPage (1161 LOC), F-02 split
+1. **Этап 18.h Design polish «Опора»** (~1-2 ч) - применить варианты
+   A1+B1+C1 из `frontend/design-reference/project/citations.jsx`:
+   footer chips на NodeCard (library count vs freeform count раздельно),
+   типизированные карточки в side-panel (LibraryCite indigo bar vs
+   FreeformCite slate background), inline meta-row в header. **Quick win**,
+   нет backend changes
+2. **Этап 20 Academic citation metadata** (~3-5 сессий) - **новый ADR-028**.
+   `lib_books` сейчас имеет minimum metadata, для proper academic citation
+   нужны: мухаккик (тахкик), издательство, место, edition, год хиджри+
+   григорианский, полное имя автора с куньей/насабом/нисбой. Без мухаккика
+   citation считается дефектной в исламском `бахс`. Подробности в roadmap
+   Этап 20.a-f
+3. **Этап 19 Q&A приложение** (~3-5 сессий) - валидация платформенности
+   через первое новое приложение поверх library. Backend: миграция
+   questions/answers/answer_citations, REST API CRUD. Frontend:
+   `src/apps/qa/`
+4. **PDF bbox selection в CitationPicker** (~1 сессия) - backend API
+   change (PdfFileInfoResponse с fileId UUID) + frontend PDF tab в picker
+5. **Marathon TODO** F-01 split TopicGraphPage (1161 LOC), F-02 split
    BookReaderPage (714 LOC). Low ROI
-4. **CitationPicker UX polish** - добавить ChapterList, PageJump
-   source-first markers, fully integrate с mini-reader
 
 **Smoke данные в production-БД:**
 - node `4139cb32-28ba-4d98-9954-225e8e3c863d` имеет 1 citation на

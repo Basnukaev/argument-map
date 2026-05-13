@@ -97,7 +97,9 @@ class NodeCitationServiceIT {
                 .contains("Тафсир Ибн Касира")
                 .contains("Т.1")
                 .contains("стр.47")
-                .contains("строки 0-87");
+                // range символов теперь не отражается в location -
+                // это технический deep link payload, не academic citation
+                .doesNotContain("строки");
 
         Optional<Source> src = sourceRepository.findByBookId(bookId);
         assertThat(src).isPresent();

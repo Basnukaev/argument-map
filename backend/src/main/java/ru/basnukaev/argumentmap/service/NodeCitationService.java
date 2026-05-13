@@ -172,21 +172,23 @@ public class NodeCitationService {
     }
 
     private String buildLocationSnapshot(Book book, Page page, LibraryFile pdfFile, CitationRequest req) {
+        // Display location: только book.title + Т.X стр.Y. Range (char offsets)
+        // используется только для технического highlight через query param и
+        // НЕ показывается в location string - не соответствует традиции
+        // исламской academic citation, где сноска = библиография без позиций
+        // символов (полная academic metadata в Этапе 20, ADR-028).
         String title = book.title() != null ? book.title() : "?";
         if (page != null) {
             String part = page.part() != null ? page.part() : "?";
             String printedOrInternal = page.printedPage() != null
                     ? page.printedPage()
                     : String.valueOf(page.pageNumber());
-            return title + ", Т." + part + " стр." + printedOrInternal
-                    + ", строки " + req.rangeStart() + "-" + req.rangeEnd();
+            return title + ", Т." + part + " стр." + printedOrInternal;
         }
         if (pdfFile != null) {
-            return title + ", PDF стр." + req.pdfPageNumber() + ", регион";
+            return title + ", PDF стр." + req.pdfPageNumber();
         }
-        // region mode - location выставится через computed JOIN при read,
-        // snapshot минимальный
-        return title + ", скан (регион)";
+        return title + ", скан";
     }
 
     private String pdfBboxToJson(PdfBbox bbox) {

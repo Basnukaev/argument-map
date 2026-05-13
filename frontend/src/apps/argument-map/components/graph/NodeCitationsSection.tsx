@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
-  Quote,
+  Anchor,
   Plus,
   Trash2,
   User as UserIcon,
@@ -96,8 +96,8 @@ function NodeCitationsSection({ nodeId, nodeContent }: Props) {
   return (
     <>
       <PanelSection
-        icon={Quote}
-        title="Цитаты"
+        icon={Anchor}
+        title="Опора"
         count={state.kind === 'loaded' ? state.data.links.length : undefined}
         defaultOpen={false}
         onFirstOpen={loadSources}

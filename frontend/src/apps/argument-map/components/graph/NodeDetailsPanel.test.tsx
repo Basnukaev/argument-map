@@ -253,7 +253,7 @@ describe('NodeDetailsPanel', () => {
     expect(await screen.findByText(/Нет такого узла/)).toBeInTheDocument();
   });
 
-  describe('секция Цитаты', () => {
+  describe('секция Опора', () => {
     const SOURCE_ID = '22222222-2222-2222-2222-222222222222';
     const AUTHORITY_ID = '33333333-3333-3333-3333-333333333333';
 
@@ -274,7 +274,7 @@ describe('NodeDetailsPanel', () => {
         }),
       );
       renderPanel();
-      const toggle = screen.getByRole('button', { name: /Цитаты/ });
+      const toggle = screen.getByRole('button', { name: /Опора/ });
       expect(toggle).toHaveAttribute('aria-expanded', 'false');
       expect(called).toBe(false);
     });
@@ -314,7 +314,7 @@ describe('NodeDetailsPanel', () => {
         ),
       );
       renderPanel();
-      await userEvent.click(screen.getByRole('button', { name: /Цитаты/ }));
+      await userEvent.click(screen.getByRole('button', { name: /Опора/ }));
       expect(await screen.findByText('Сахих Муслим, №1162')).toBeInTheDocument();
       expect(screen.getByText('хадис')).toBeInTheDocument();
       expect(screen.getByText(/В этот день я был рождён/)).toBeInTheDocument();
@@ -338,7 +338,7 @@ describe('NodeDetailsPanel', () => {
         http.get(`${BASE}/api/v1/authorities`, () => HttpResponse.json([])),
       );
       renderPanel();
-      await userEvent.click(screen.getByRole('button', { name: /Цитаты/ }));
+      await userEvent.click(screen.getByRole('button', { name: /Опора/ }));
       await screen.findByText('Коран 2:255');
       // нет автора - анонимный текст (Коран)
       expect(screen.queryByText(/Имам Муслим/)).not.toBeInTheDocument();
@@ -361,7 +361,7 @@ describe('NodeDetailsPanel', () => {
         http.get(`${BASE}/api/v1/authorities`, () => HttpResponse.json([])),
       );
       renderPanel();
-      await userEvent.click(screen.getByRole('button', { name: /Цитаты/ }));
+      await userEvent.click(screen.getByRole('button', { name: /Опора/ }));
       const quoteEl = await screen.findByText(/إنما الأعمال بالنيات/);
       expect(quoteEl).toHaveAttribute('dir', 'rtl');
     });
@@ -373,7 +373,7 @@ describe('NodeDetailsPanel', () => {
         http.get(`${BASE}/api/v1/authorities`, () => HttpResponse.json([])),
       );
       renderPanel();
-      await userEvent.click(screen.getByRole('button', { name: /Цитаты/ }));
+      await userEvent.click(screen.getByRole('button', { name: /Опора/ }));
       expect(
         await screen.findByText(/не привязано ни одной цитаты/),
       ).toBeInTheDocument();
@@ -395,7 +395,7 @@ describe('NodeDetailsPanel', () => {
         }),
       );
       renderPanel();
-      await userEvent.click(screen.getByRole('button', { name: /Цитаты/ }));
+      await userEvent.click(screen.getByRole('button', { name: /Опора/ }));
       await screen.findByText('Какая-то книга');
       await userEvent.click(screen.getByRole('button', { name: 'Отвязать цитату' }));
       await waitForApi(() => expect(deleteCalledFor).toBe(SOURCE_ID));
@@ -404,7 +404,7 @@ describe('NodeDetailsPanel', () => {
 
     it('для QUESTION-узла секция Цитаты НЕ рендерится', () => {
       renderPanel({ node: makeNode({ nodeType: 'QUESTION', content: 'Вопрос?' }) });
-      expect(screen.queryByRole('button', { name: /Цитаты/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Опора/ })).not.toBeInTheDocument();
     });
   });
 });

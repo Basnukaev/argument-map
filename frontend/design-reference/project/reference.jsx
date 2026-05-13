@@ -5,23 +5,154 @@ const { useState: useRefState } = React;
 
 // === Helpers ===============================================================
 
-const CodeBlock = ({ children }) => (
-  <pre className="bg-slate-900 text-slate-100 text-[12px] font-mono leading-relaxed rounded-md p-3 overflow-x-auto">
-    <code>{children}</code>
-  </pre>
-);
+// === Source-file map (component / section id → defining .jsx file) =========
+// Used for the "imported from" pill under each Block title.
+const REF_SOURCES = {
+  // foundation — design tokens live in primitives.jsx + Tailwind config
+  colors: "primitives.jsx",
+  typography: "Argument Map.html",
+  "radius-shadow": "Argument Map.html",
+  // actions
+  button: "primitives.jsx",
+  "icon-button": "primitives.jsx",
+  "split-button": "dropdown.jsx",
+  kbd: "primitives.jsx",
+  // forms
+  input: "primitives.jsx",
+  textarea: "primitives.jsx",
+  select: "dropdown.jsx",
+  combobox: "dropdown.jsx",
+  // display
+  badge: "primitives.jsx",
+  statusbadge: "primitives.jsx",
+  typechip: "primitives.jsx",
+  avatar: "primitives.jsx",
+  card: "primitives.jsx",
+  // overlays
+  dropdown: "dropdown.jsx",
+  menu: "dropdown.jsx",
+  tooltip: "primitives.jsx",
+  // domain tokens
+  status: "primitives.jsx",
+  "node-type": "primitives.jsx",
+  "edge-type": "primitives.jsx",
+  // assets
+  icons: "icons.jsx",
+  citations: "citations.jsx",
+};
+
+// === Clipboard helper ======================================================
+function useCopy() {
+  const [copied, setCopied] = React.useState(false);
+  const copy = React.useCallback(async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // fallback: legacy execCommand
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); } catch {}
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1400);
+  }, []);
+  return [copied, copy];
+}
+
+const CopyButton = ({ text, label = "Copy", className = "", tone = "dark" }) => {
+  const [copied, copy] = useCopy();
+  const isDark = tone === "dark";
+  return (
+    <button
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); copy(text); }}
+      className={cx(
+        "inline-flex items-center gap-1 px-1.5 h-6 rounded text-[10.5px] font-mono transition-colors",
+        isDark
+          ? "text-slate-300 hover:text-white hover:bg-white/10 border border-white/10"
+          : "text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 border border-slate-200",
+        copied && (isDark ? "!text-emerald-300 !border-emerald-400/40" : "!text-emerald-700 !border-emerald-300 !bg-emerald-50"),
+        className,
+      )}
+      title={copied ? "Скопировано" : label}
+    >
+      {copied
+        ? <><I.Check size={11} /> copied</>
+        : <><I.Copy size={11} /> {label}</>}
+    </button>
+  );
+};
+
+const CodeBlock = ({ children, lang = "jsx" }) => {
+  const text = typeof children === "string" ? children : String(children ?? "");
+  return (
+    <div className="relative group bg-slate-900 rounded-md">
+      <div className="flex items-center justify-between px-3 pt-2 pb-1">
+        <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500">{lang}</span>
+        <CopyButton text={text} label="copy" tone="dark" />
+      </div>
+      <pre className="text-slate-100 text-[12px] font-mono leading-relaxed px-3 pb-3 overflow-x-auto">
+        <code>{children}</code>
+      </pre>
+    </div>
+  );
+};
 
 const Row = ({ children, className = "" }) => (
   <div className={cx("flex flex-wrap items-center gap-3", className)}>{children}</div>
 );
 
-const Demo = ({ title, code, children, span = 1 }) => (
-  <div className={cx("rounded-lg border border-slate-200 bg-white", span === 2 && "col-span-2")}>
-    <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between rounded-t-lg">
-      <span className="text-[12px] font-semibold text-slate-700">{title}</span>
-      <span className="text-[10px] font-mono text-slate-400">demo</span>
+// === Reading progress bar (sticky, hairline) ===============================
+const ReadingProgress = () => {
+  const [p, setP] = React.useState(0);
+  React.useEffect(() => {
+    const onScroll = () => {
+      const h = document.documentElement;
+      const max = (h.scrollHeight - h.clientHeight) || 1;
+      setP(Math.min(100, Math.max(0, (h.scrollTop / max) * 100)));
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return (
+    <div className="fixed top-0 left-0 right-0 h-[2px] z-50 pointer-events-none">
+      <div className="h-full bg-indigo-600 transition-[width] duration-75" style={{ width: `${p}%` }} />
     </div>
-    <div className="p-5 bg-slate-50/40 min-h-[80px] flex flex-wrap items-start gap-3">
+  );
+};
+
+// === Group divider — visual rhythm between major clusters ==================
+const GroupDivider = ({ num, label, hint, icon }) => {
+  const Icon = icon ? I[icon] : null;
+  return (
+    <div className="mb-10 mt-4 first:mt-0">
+      <div className="flex items-center gap-4">
+        <div className="font-mono text-[64px] leading-none text-slate-200 select-none tracking-tight tabular-nums">{num}</div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            {Icon && <Icon size={14} className="text-indigo-600" />}
+            <h2 className="text-[20px] font-bold tracking-tight text-slate-900 uppercase">{label}</h2>
+          </div>
+          {hint && <p className="text-[13px] text-slate-500 max-w-xl leading-relaxed">{hint}</p>}
+        </div>
+        <div className="hidden md:block flex-1 h-px bg-gradient-to-r from-slate-300 to-transparent" />
+      </div>
+    </div>
+  );
+};
+
+const Demo = ({ title, code, children, span = 1 }) => (
+  <div className={cx("rounded-lg border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:shadow-[0_2px_8px_rgba(15,23,42,0.06)] transition-shadow", span === 2 && "col-span-2")}>
+    <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between rounded-t-lg">
+      <div className="flex items-center gap-2">
+        <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+        <span className="text-[12px] font-semibold text-slate-700">{title}</span>
+      </div>
+      <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-slate-400">demo</span>
+    </div>
+    <div className="p-5 bg-gradient-to-b from-slate-50/50 to-white min-h-[80px] flex flex-wrap items-start gap-3">
       {children}
     </div>
     {code && (
@@ -57,19 +188,40 @@ const PropTable = ({ rows }) => (
   </div>
 );
 
-const Block = ({ title, kicker, children, id }) => (
-  <section id={id} className="mb-16">
-    {kicker && <div className="text-[11px] font-mono font-semibold tracking-wider uppercase text-indigo-600 mb-1.5">{kicker}</div>}
-    <h2 className="text-[26px] font-bold tracking-tight text-slate-900 mb-1">{title}</h2>
-    <div className="h-px bg-slate-200 mb-7" />
-    {children}
-  </section>
-);
+const Block = ({ title, kicker, children, id }) => {
+  const src = id ? REF_SOURCES[id] : null;
+  const anchorUrl = id ? `Components Reference.html#${id}` : null;
+  return (
+    <section id={id} className="mb-20 scroll-mt-14 group/block relative">
+      {kicker && <div className="text-[10.5px] font-mono font-semibold tracking-[0.18em] uppercase text-indigo-600 mb-2">{kicker}</div>}
+      <div className="flex items-center gap-3 flex-wrap pl-4 border-l-2 border-indigo-600 py-1">
+        <h2 className="text-[28px] font-bold tracking-tight text-slate-900 leading-tight">
+          {id ? <a href={`#${id}`} className="hover:text-indigo-700">{title}</a> : title}
+        </h2>
+        {src && (
+          <span className="inline-flex items-center gap-1.5 px-2 h-6 rounded-md border border-slate-200 bg-slate-50 text-[11px] font-mono text-slate-600">
+            <I.FileText size={11} className="text-slate-400" />
+            {src}
+          </span>
+        )}
+        {anchorUrl && (
+          <span className="opacity-0 group-hover/block:opacity-100 transition-opacity">
+            <CopyButton text={anchorUrl} label="link" tone="light" />
+          </span>
+        )}
+      </div>
+      <div className="mt-6">{children}</div>
+    </section>
+  );
+};
 
 const SubBlock = ({ title, hint, children }) => (
   <div className="mb-9">
     <div className="flex items-baseline justify-between gap-6 mb-3">
-      <h3 className="text-[14px] font-semibold text-slate-900">{title}</h3>
+      <h3 className="text-[14px] font-semibold text-slate-900 inline-flex items-center gap-2">
+        <span className="h-[3px] w-3 rounded-full bg-indigo-500/70" />
+        {title}
+      </h3>
       {hint && <span className="text-[12px] text-slate-500">{hint}</span>}
     </div>
     {children}
@@ -78,29 +230,90 @@ const SubBlock = ({ title, hint, children }) => (
 
 // === HERO ==================================================================
 
+const HeroGraph = () => (
+  <svg viewBox="0 0 320 200" className="absolute right-0 top-0 h-full w-[40%] pointer-events-none opacity-[0.85]" aria-hidden>
+    <defs>
+      <radialGradient id="rg" cx="70%" cy="30%" r="70%">
+        <stop offset="0%" stopColor="#eef2ff" stopOpacity="1" />
+        <stop offset="100%" stopColor="#eef2ff" stopOpacity="0" />
+      </radialGradient>
+    </defs>
+    <rect width="320" height="200" fill="url(#rg)" />
+    {/* edges */}
+    <g stroke="#c7d2fe" strokeWidth="1.25" fill="none">
+      <path d="M70 60 L160 50" />
+      <path d="M70 60 L150 130" />
+      <path d="M160 50 L240 80" />
+      <path d="M160 50 L220 140" />
+      <path d="M150 130 L220 140" />
+      <path d="M240 80 L280 130" />
+      <path d="M220 140 L280 130" />
+    </g>
+    {/* nodes */}
+    {[
+      [70, 60, "#4f46e5"],
+      [160, 50, "#10b981"],
+      [240, 80, "#f59e0b"],
+      [150, 130, "#ef4444"],
+      [220, 140, "#10b981"],
+      [280, 130, "#4f46e5"],
+    ].map(([x, y, c], i) => (
+      <g key={i}>
+        <circle cx={x} cy={y} r="13" fill="white" stroke={c} strokeWidth="2" />
+        <circle cx={x} cy={y} r="4" fill={c} />
+      </g>
+    ))}
+  </svg>
+);
+
 const RefHero = () => (
-  <div className="bg-white border-b border-slate-200">
-    <div className="max-w-[1280px] mx-auto px-8 pt-12 pb-10">
-      <div className="flex items-center gap-3 mb-7">
-        <div className="h-8 w-8 rounded-md bg-indigo-600 grid place-items-center text-white"><I.Network size={16} /></div>
-        <span className="text-[14px] font-bold tracking-tight">Argument Map</span>
-        <span className="text-[11px] font-mono text-slate-500">/ Components Reference</span>
-        <span className="ml-auto text-[11px] font-mono text-slate-400 uppercase tracking-wider">for Claude Code · v 0.1</span>
+  <div className="relative bg-white border-b border-slate-200 overflow-hidden">
+    <HeroGraph />
+    <div className="absolute inset-0 pointer-events-none"
+      style={{
+        background: "radial-gradient(circle at 0% 0%, rgba(238,242,255,0.6), transparent 50%)",
+      }} />
+    <div className="relative max-w-[1280px] mx-auto px-8 pt-12 pb-12">
+      <div className="flex items-center gap-3 mb-8">
+        <div className="h-9 w-9 rounded-md bg-slate-900 grid place-items-center text-white shadow-sm"><I.Network size={17} /></div>
+        <div className="flex flex-col leading-none gap-1">
+          <span className="text-[14px] font-bold tracking-tight text-slate-900">Argument Map</span>
+          <span className="text-[10.5px] font-mono uppercase tracking-[0.12em] text-slate-500">Components Reference</span>
+        </div>
+        <span className="ml-auto inline-flex items-center gap-2 text-[10.5px] font-mono uppercase tracking-[0.12em] text-slate-400">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          v 0.1 · live
+        </span>
       </div>
-      <h1 className="text-[40px] font-bold leading-[1.1] tracking-tight text-slate-900 max-w-3xl">
-        Полный справочник UI-компонентов
+      <h1 className="text-[44px] font-bold leading-[1.05] tracking-tight text-slate-900 max-w-3xl text-balance">
+        Полный справочник<br />UI-компонентов
       </h1>
-      <p className="mt-3 text-[15px] text-slate-600 max-w-2xl leading-relaxed">
+      <p className="mt-4 text-[15px] text-slate-600 max-w-2xl leading-relaxed text-pretty">
         Атомарные primitives дизайн-системы Argument Map: кнопки, формы, селекты, бейджи, оверлеи. Каждый компонент с вариантами, состояниями и кодом-сниппетом, готовым к копированию.
       </p>
-      <div className="mt-7 flex flex-wrap gap-2 text-[11px] font-mono">
+      <div className="mt-7 grid grid-cols-3 max-w-2xl gap-px bg-slate-200 rounded-lg overflow-hidden border border-slate-200">
         {[
-          ["React 18", "bg-indigo-100 text-indigo-700"],
-          ["Tailwind 3", "bg-sky-100 text-sky-700"],
-          ["Inter", "bg-slate-100 text-slate-700"],
-          ["lucide-style SVG", "bg-slate-100 text-slate-700"],
-          ["Light theme", "bg-amber-100 text-amber-800"],
-        ].map(([t, c]) => <span key={t} className={cx("px-2 py-0.5 rounded", c)}>{t}</span>)}
+          [I.Copy, "copy", "на каждом сниппете"],
+          [I.Link, "link", "якорь раздела"],
+          [I.FileText, "source", "файл-источник"],
+        ].map(([Icon, k, v], i) => (
+          <div key={i} className="bg-white px-4 py-3 flex items-center gap-2.5">
+            <Icon size={14} className="text-indigo-600 shrink-0" />
+            <div className="leading-tight">
+              <div className="text-[12px] font-semibold text-slate-900">{k}</div>
+              <div className="text-[11px] text-slate-500">{v}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-7 flex flex-wrap gap-1.5 text-[10.5px] font-mono">
+        {[
+          ["React 18", "ring-indigo-200 text-indigo-700 bg-indigo-50"],
+          ["Tailwind 3", "ring-sky-200 text-sky-700 bg-sky-50"],
+          ["Inter / JetBrains Mono", "ring-slate-200 text-slate-700 bg-white"],
+          ["lucide-style SVG", "ring-slate-200 text-slate-700 bg-white"],
+          ["Light theme", "ring-amber-200 text-amber-800 bg-amber-50"],
+        ].map(([t, c]) => <span key={t} className={cx("px-2 py-0.5 rounded ring-1", c)}>{t}</span>)}
       </div>
     </div>
   </div>
@@ -116,16 +329,46 @@ const TOC = () => {
     ["display", "Дисплей", ["badge", "Badge"], ["statusbadge", "StatusBadge"], ["typechip", "TypeChip"], ["avatar", "Avatar"], ["card", "Card"]],
     ["overlay", "Оверлеи", ["dropdown", "Dropdown"], ["menu", "Menu"], ["tooltip", "Tooltip"]],
     ["domain", "Доменные", ["status", "STATUS tokens"], ["node-type", "NODE_TYPE tokens"], ["edge-type", "EDGE_TYPE tokens"]],
+    ["assets", "Иконки", ["icons", "Icons"]],
+    ["citations", "Опора", ["citations", "Citations"]],
   ];
+  const allIds = items.flatMap((g) => g.slice(2).map(([id]) => id));
+  const [active, setActive] = React.useState(allIds[0]);
+  React.useEffect(() => {
+    const sections = allIds.map((id) => document.getElementById(id)).filter(Boolean);
+    if (!sections.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const vis = entries.filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (vis) setActive(vis.target.id);
+      },
+      { rootMargin: "-15% 0px -70% 0px", threshold: 0 },
+    );
+    sections.forEach((s) => io.observe(s));
+    return () => io.disconnect();
+  }, []);
   return (
-    <nav className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-slate-200">
+    <nav className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200">
       <div className="max-w-[1280px] mx-auto px-8 h-11 flex items-center gap-5 overflow-x-auto">
         {items.map((group) => (
           <div key={group[0]} className="flex items-center gap-1.5 whitespace-nowrap">
             <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">{group[1]}</span>
-            {group.slice(2).map(([id, label]) => (
-              <a key={id} href={`#${id}`} className="text-[11.5px] text-slate-600 hover:text-indigo-700 px-1.5 py-1 rounded hover:bg-slate-100">{label}</a>
-            ))}
+            {group.slice(2).map(([id, label]) => {
+              const isActive = active === id;
+              return (
+                <a
+                  key={id}
+                  href={`#${id}`}
+                  className={cx(
+                    "text-[11.5px] px-1.5 py-1 rounded transition-colors",
+                    isActive
+                      ? "bg-indigo-600 text-white"
+                      : "text-slate-600 hover:text-indigo-700 hover:bg-slate-100",
+                  )}
+                >{label}</a>
+              );
+            })}
           </div>
         ))}
       </div>
@@ -1031,46 +1274,56 @@ const IconsSection = () => {
 // === APP ===================================================================
 
 const RefApp = () => (
-  <div className="min-h-screen bg-slate-50">
+  <div
+    className="min-h-screen bg-slate-50"
+    style={{
+      backgroundImage: "radial-gradient(circle, rgba(148,163,184,0.18) 1px, transparent 1px)",
+      backgroundSize: "22px 22px",
+    }}
+  >
+    <ReadingProgress />
     <RefHero />
     <TOC />
     <main className="max-w-[1280px] mx-auto px-8 py-12">
-      {/* Foundation */}
+      <GroupDivider num="I"   label="Foundation" icon="LayoutGrid" hint="Цветовая палитра, типографика, скругления и тени — атомарные токены, на которых стоят все компоненты." />
       <ColorsSection />
       <TypographySection />
       <RadiusShadowSection />
 
-      {/* Actions */}
+      <GroupDivider num="II"  label="Actions"    icon="MousePointer2" hint="Кнопки, иконочные кнопки, split-кнопки и сочетания клавиш — точки запуска любых действий пользователя." />
       <ButtonSection />
       <IconButtonSection />
       <SplitButtonSection />
       <KbdSection />
 
-      {/* Forms */}
+      <GroupDivider num="III" label="Forms"      icon="Edit"       hint="Формы ввода: текстовые поля, текстовые области, селекты и combobox — для всего, что просим ввести." />
       <InputSection />
       <TextareaSection />
       <SelectSection />
       <ComboBoxSection />
 
-      {/* Display */}
+      <GroupDivider num="IV"  label="Display"    icon="Eye"        hint="Бейджи, чипы, аватары, карточки — компактные единицы вывода информации." />
       <BadgeSection />
       <StatusBadgeSection />
       <TypeChipSection />
       <AvatarSection />
       <CardSection />
 
-      {/* Overlays */}
+      <GroupDivider num="V"   label="Overlays"   icon="Layers"     hint="Дропдауны, контекстные меню и тултипы — плавающий поверх контента слой." />
       <DropdownSection />
       <MenuSection />
       <TooltipSection />
 
-      {/* Domain */}
+      <GroupDivider num="VI"  label="Domain"     icon="Network"    hint="Доменные токены Argument Map: статусы аргументов, типы узлов и рёбер." />
       <StatusTokensSection />
       <NodeTypeTokensSection />
       <EdgeTypeTokensSection />
 
-      {/* Assets */}
+      <GroupDivider num="VII" label="Assets"     icon="Boxes"      hint="Иконография проекта — lucide-style stroke 1.75 px." />
       <IconsSection />
+
+      <GroupDivider num="VIII" label="Citations" icon="Anchor"     hint="ADR-026 + 027 — подкрепления узла: library-backed vs freeform. Варианты NodeCard, side-panel, header и обсуждение имени." />
+      {window.CitationsBlock && <window.CitationsBlock />}
     </main>
 
     <footer className="py-10 px-8 border-t border-slate-200 bg-white">
@@ -1080,7 +1333,7 @@ const RefApp = () => (
           <span className="text-[13px] font-bold text-slate-900">Argument Map · Components Reference</span>
         </div>
         <div className="text-[11px] font-mono text-slate-500">
-          <a href="Argument%20Map.html" className="hover:text-indigo-700">← вернуться к полному showcase</a>
+          <a href="Argument Map.html" className="hover:text-indigo-700">← вернуться к полному showcase</a>
         </div>
       </div>
     </footer>

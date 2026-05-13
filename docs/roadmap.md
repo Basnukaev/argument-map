@@ -759,6 +759,22 @@ apps/* добавляется только когда возникнет кон�
       (existing AddSourceModal для legacy URL/article/ручной хадис).
       AddSourceModal **не удалён** - покрывает freeform citation
       use case (citation без library book)
+- [ ] **18.h: Design polish секции «Опора»** - применить варианты
+      A1+B1+C1 из `frontend/design-reference/project/citations.jsx`
+      (накидано Claude Design 2026-05-13):
+        - A1: footer chips на NodeCard - раздельный count library
+          vs freeform (индиго BookOpen+N + slate Quote+N) + микрорядом
+          под content. 4 состояния: 0 / только-free / только-lib / mixed
+        - B1: side-panel секция - LibraryCite (3px indigo bar +
+          «Из библиотеки» badge + book title + Том/стр + Arabic quote +
+          RU translation + «Перейти в книгу» button) vs FreeformCite
+          (slate background + «Свободная» badge + url-or-AlertCircle
+          для no-URL + title + quote + note)
+        - C1: panel header inline meta-row - `🔗 N подкреплений (📖 X · ❝ Y)
+          · 🕐 M правок · 💬 K обсуждений` под h2 заголовка узла,
+          до раскрытия секций
+      Иконка секции: `Anchor` (вместо `Quote`), цвет `indigo-600`.
+      ~1-2 ч работы. Тривиально без рисков (только UI)
 
 ## Этап 19. Q&A - первое полностью новое приложение
 
@@ -773,14 +789,50 @@ apps/* добавляется только когда возникнет кон�
       компонент что в argument-map. Если работает - это валидация
       что фундамент правильный
 
-## Этап 20+. Аутентификация и далее
+## Этап 20. Полная академическая citation metadata (ADR-028)
+
+**Зачем:** для исламского `бахс` (бахс - научное исследование/разбор)
+сноска должна иметь полную библиографическую информацию: автор с
+куньей/насабом/нисбой + годы жизни, **мухаккик (تحقيق)** - редактор
+тахкика (КРИТИЧНО - разные тахкики = разные пагинации), издательство,
+место издания, номер издания, год хиджри+григорианский, том+страница.
+
+Сейчас в `lib_books`: только `title`, `authority_id` (basic name),
+`language`, `description`, `metadata` JSONB. Этого недостаточно для
+proper academic citation - сноска считается дефектной без указания
+мухаккика и года/издательства.
+
+- [ ] **20.a: ADR-028** - полная academic citation model. Альтернативы:
+      (а) расширить lib_books 7-9 nullable полями, (б) отдельная таблица
+      `lib_book_editions` (одна книга ↔ N изданий), (в) JSONB
+      `academic_metadata` в lib_books. Рекомендую (б) - 1:N для
+      multi-edition books в будущем
+- [ ] **20.b: Backend миграция + domain** - расширение схемы,
+      Book record получает поля или nested BookEdition record
+- [ ] **20.c: Shamela bibliography parser** - извлекать что есть
+      из raw `bibliography` text (часто содержит мухаккика и
+      издательство в неструктурированном виде - regex + LLM fallback?)
+- [ ] **20.d: Admin BookEditModal** - UI для ручного дозаполнения
+      metadata после импорта (когда parser не справился)
+- [ ] **20.e: AddSourceModal расширенная форма** - при manual entry
+      для sourceType=BOOK запросить полные поля (необязательны для URL/
+      ARTICLE freeform)
+- [ ] **20.f: Computed location update** - расширенный format:
+      `Ибн Касир (т.774 хиджры), Тафсир аль-Куран аль-Азым,
+      тахкик: Сами ибн Мухаммад ас-Салама, изд. Дар Тайба, Эр-Рияд,
+      2-е изд., 1420 хиджры / 1999 м., Т.1 стр.145`
+
+Объём: ~3-5 сессий. Не блокирует другие этапы - можно делать
+параллельно с этапом 19 Q&A.
+
+## Этап 21+. Аутентификация и далее
 
 После library + 2 приложения встаёт вопрос пользователей.
 
-- [ ] **20: Spring Security + JWT** - реальная аутентификация
-- [ ] **21: Многопользовательский режим** - private/shared/public
+- [ ] **21: Spring Security + JWT** - реальная аутентификация
+- [ ] **22: Многопользовательский режим** - private/shared/public
       visibility для тем, books, ответов
-- [ ] **22+: Open list** - sanad explorer, multi-grading, RTL UI,
+- [ ] **23+: Open list** - sanad explorer, multi-grading, RTL UI,
       экспорт PDF/SVG, mobile, advanced search
 
 ## Бэклог
