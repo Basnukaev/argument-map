@@ -106,19 +106,20 @@ function BookReaderPage() {
     return () => controller.abort();
   }, [bookId]);
 
-  // Deep link handling после загрузки pages - применяем query params:
-  // ?pageId=X - navigate на страницу X (fallback на 1 с toast если не найдена)
-  // ?highlight=start-end - параметр для PageView highlightRange prop (memo ниже)
-  // ?pdf=1 - переключить в PDF mode
-  // ?pdfPageNumber=N - initial page в PDF
+  // Deep link handling после загрузки pages - применяем query params один
+  // раз когда state становится success. Это инициализация под query, не
+  // sync state - eslint правило set-state-in-effect не покрывает initial
+  // deep link case, eslint-disable обоснован (one-shot on success).
   useEffect(() => {
     if (state.kind !== 'success' || state.pages.length === 0) return;
     const pdfFlag = searchParams.get('pdf') === '1';
     if (pdfFlag) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setReaderMode('pdf');
       const pdfPage = searchParams.get('pdfPageNumber');
       if (pdfPage) {
         const n = parseInt(pdfPage, 10);
+         
         if (Number.isFinite(n) && n >= 1) setPageNumber(n);
       }
       return;
@@ -127,9 +128,11 @@ function BookReaderPage() {
     if (pageIdParam) {
       const found = state.pages.find((p) => p.id === pageIdParam);
       if (found?.pageNumber) {
+         
         setPageNumber(found.pageNumber);
       } else {
         toast.warning('Страница не найдена, открыта первая');
+         
         setPageNumber(state.pages[0]?.pageNumber ?? 1);
       }
     }

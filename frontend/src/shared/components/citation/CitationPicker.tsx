@@ -73,14 +73,11 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
     return () => ctl.abort();
   }, []);
 
-  // Загрузка book detail + pages при выборе книги
+  // Загрузка book detail + pages при выборе книги. Loading state выставляется
+  // в handleSelectBook (event handler) не в effect - правило
+  // react-hooks/set-state-in-effect. Effect только async fetch + result.
   useEffect(() => {
-    if (!selectedBookId) {
-      setBookState({ kind: 'idle' });
-      return;
-    }
-    setBookState({ kind: 'loading' });
-    setSelection(null);
+    if (!selectedBookId) return;
     const ctl = new AbortController();
     Promise.all([
       apiGetRaw<BookDetailDto>(`/api/v1/library/books/${selectedBookId}`, { signal: ctl.signal }),
@@ -103,13 +100,12 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
     return () => ctl.abort();
   }, [selectedBookId]);
 
-  // Загрузка контента текущей страницы
+  // Загрузка контента текущей страницы. Loading state выставляется в gotoPage/
+  // goPrev/goNext (handlers) не в effect.
   useEffect(() => {
     if (bookState.kind !== 'success') return;
     const target = bookState.pages.find((p) => p.pageNumber === pageNumber);
     if (!target?.id) return;
-    setPageContent({ kind: 'loading' });
-    setSelection(null);
     const ctl = new AbortController();
     apiGetRaw<PageDetail>(`/api/v1/library/pages/${target.id}`, { signal: ctl.signal })
       .then((page) => setPageContent({ kind: 'success', page }))
@@ -145,15 +141,29 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
   const hasPrev = currentIndex > 0;
   const hasNext = bookState.kind === 'success' && currentIndex < bookState.pages.length - 1;
 
+  function handleSelectBook(bookId: string) {
+    setBookState({ kind: 'loading' });
+    setSelection(null);
+    setPageContent({ kind: 'loading' });
+    setSelectedBookId(bookId);
+  }
   function goPrev() {
     if (bookState.kind !== 'success' || !hasPrev) return;
     const prev = bookState.pages[currentIndex - 1]?.pageNumber;
-    if (prev) setPageNumber(prev);
+    if (prev) {
+      setPageContent({ kind: 'loading' });
+      setSelection(null);
+      setPageNumber(prev);
+    }
   }
   function goNext() {
     if (bookState.kind !== 'success' || !hasNext) return;
     const next = bookState.pages[currentIndex + 1]?.pageNumber;
-    if (next) setPageNumber(next);
+    if (next) {
+      setPageContent({ kind: 'loading' });
+      setSelection(null);
+      setPageNumber(next);
+    }
   }
   function gotoPage(target: number) {
     if (bookState.kind !== 'success' || bookState.pages.length === 0) return;
@@ -165,7 +175,11 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
       const sorted = [...numbers].sort((a, b) => Math.abs(a - target) - Math.abs(b - target));
       clamped = sorted[0] ?? clamped;
     }
-    if (clamped !== pageNumber) setPageNumber(clamped);
+    if (clamped !== pageNumber) {
+      setPageContent({ kind: 'loading' });
+      setSelection(null);
+      setPageNumber(clamped);
+    }
   }
 
   async function handleSubmit() {
@@ -261,7 +275,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
                   <button
                     key={b.id}
                     type="button"
-                    onClick={() => b.id && setSelectedBookId(b.id)}
+                    onClick={() => b.id && handleSelectBook(b.id)}
                     className={
                       selectedBookId === b.id
                         ? 'block w-full border-b border-slate-200 bg-indigo-50 px-3 py-2 text-left text-[12px] font-medium text-indigo-900'
