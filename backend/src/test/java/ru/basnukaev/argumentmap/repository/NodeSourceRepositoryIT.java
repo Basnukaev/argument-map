@@ -47,7 +47,7 @@ class NodeSourceRepositoryIT {
 
     @Test
     void save_insertsLink_andFindByIdsReturnsIt() {
-        NodeSource link = new NodeSource(
+        NodeSource link = NodeSource.legacyMode(
                 nodeId, sourceId, "точная цитата", "контекст использования",
                 "стр. 42", Instant.now()
         );
@@ -63,7 +63,7 @@ class NodeSourceRepositoryIT {
 
     @Test
     void save_withNullLocation_persists() {
-        NodeSource link = new NodeSource(nodeId, sourceId, "q", "c", null, Instant.now());
+        NodeSource link = NodeSource.legacyMode(nodeId, sourceId, "q", "c", null, Instant.now());
 
         nodeSourceRepository.save(link);
 
@@ -74,8 +74,8 @@ class NodeSourceRepositoryIT {
     @Test
     void findByNodeId_returnsAllLinksForNode() {
         UUID source2 = insertSource();
-        nodeSourceRepository.save(new NodeSource(nodeId, sourceId, "a", null, null, Instant.now()));
-        nodeSourceRepository.save(new NodeSource(nodeId, source2, "b", null, null, Instant.now()));
+        nodeSourceRepository.save(NodeSource.legacyMode(nodeId, sourceId, "a", null, null, Instant.now()));
+        nodeSourceRepository.save(NodeSource.legacyMode(nodeId, source2, "b", null, null, Instant.now()));
 
         List<NodeSource> links = nodeSourceRepository.findByNodeId(nodeId);
 
@@ -85,8 +85,8 @@ class NodeSourceRepositoryIT {
     @Test
     void findBySourceId_returnsAllNodesUsingSource() {
         UUID node2 = insertNode(topicId, userId);
-        nodeSourceRepository.save(new NodeSource(nodeId, sourceId, "a", null, null, Instant.now()));
-        nodeSourceRepository.save(new NodeSource(node2, sourceId, "b", null, null, Instant.now()));
+        nodeSourceRepository.save(NodeSource.legacyMode(nodeId, sourceId, "a", null, null, Instant.now()));
+        nodeSourceRepository.save(NodeSource.legacyMode(node2, sourceId, "b", null, null, Instant.now()));
 
         List<NodeSource> links = nodeSourceRepository.findBySourceId(sourceId);
 
@@ -96,7 +96,7 @@ class NodeSourceRepositoryIT {
 
     @Test
     void delete_removesLink() {
-        nodeSourceRepository.save(new NodeSource(nodeId, sourceId, null, null, null, Instant.now()));
+        nodeSourceRepository.save(NodeSource.legacyMode(nodeId, sourceId, null, null, null, Instant.now()));
 
         boolean deleted = nodeSourceRepository.delete(nodeId, sourceId);
 
@@ -106,7 +106,7 @@ class NodeSourceRepositoryIT {
 
     @Test
     void nodeDeletion_cascadesLinks() {
-        nodeSourceRepository.save(new NodeSource(nodeId, sourceId, null, null, null, Instant.now()));
+        nodeSourceRepository.save(NodeSource.legacyMode(nodeId, sourceId, null, null, null, Instant.now()));
 
         jdbcTemplate.update("DELETE FROM nodes WHERE id = ?", nodeId);
 
@@ -115,7 +115,7 @@ class NodeSourceRepositoryIT {
 
     @Test
     void sourceDeletion_cascadesLinks() {
-        nodeSourceRepository.save(new NodeSource(nodeId, sourceId, null, null, null, Instant.now()));
+        nodeSourceRepository.save(NodeSource.legacyMode(nodeId, sourceId, null, null, null, Instant.now()));
 
         jdbcTemplate.update("DELETE FROM sources WHERE id = ?", sourceId);
 

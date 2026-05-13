@@ -2234,3 +2234,89 @@ silent corruption - citations остались бы, но bookId стёрся �
 - **ADR-027** (positional citation fields) - work совместно: Source
   даёт связь с книгой, node_sources даёт позицию внутри книги
 
+## ADR-027: Positional citation fields в node_sources
+
+**Дата:** 2026-05-13
+**Статус:** принят
+**Связь:** ADR-017, ADR-018, ADR-021, ADR-026
+
+### Контекст
+
+Citation в исламской науке должна указывать на физическое место в книге
+(том, страница, строка) для воспроизводимости и проверки. Этап 18.f
+CitationPicker требует трёх уровней positional pointer:
+
+- TEXT - точка в HTML-рендере страницы (char range)
+- PDF - bbox на странице PDF файла
+- REGION - bbox на image scan (future, для рукописей и нечитаемого OCR)
+
+Параллельно нужен LEGACY mode - freeform citations (URL/article/manual
+hadith) без positional binding для существующих rows и AddSourceModal flow.
+
+### Решение
+
+Миграция 23 расширяет `node_sources` 7 nullable колонками:
+- `page_id` UUID FK lib_pages ON DELETE RESTRICT (TEXT mode)
+- `range_start INT`, `range_end INT` (char offsets по plain text)
+- `pdf_file_id` UUID FK library_files(file_id) ON DELETE RESTRICT (PDF mode)
+- `pdf_page_number INT` (1-based)
+- `pdf_bbox JSONB` ({x,y,width,height} нормализованный 0-1)
+- `image_region_id` UUID FK lib_image_regions ON DELETE RESTRICT (REGION mode)
+
+`CHECK chk_node_sources_one_mode` обеспечивает ровно один из 4 режимов
+заполнен. 4-я ветка (все NULL) поддерживает LEGACY.
+
+Java side: `CitationMode` enum (TEXT/PDF/REGION/LEGACY) + factory methods
+`NodeSource.textMode/pdfMode/regionMode/legacyMode`. `PdfBbox` record с
+runtime валидацией координат 0-1 и `x+w/y+h <= 1`. `pdfBbox` хранится
+как raw JSON String на domain layer (consistent c Source.metadata
+паттерном), конвертация в JsonNode на DTO layer.
+
+### Альтернативы (отвергнуты)
+
+- **Один JSONB column для positional info** - слабее integrity, нет
+  query-able индексов на FK refs, сложнее validation на БД-уровне
+- **Отдельная таблица node_source_positions** - over-engineering для
+  1:1 связи с node_sources, дополнительный JOIN при чтении
+- **Pixel coords для PDF bbox** - не zoom-invariant, breaks при resize/DPI
+- **Composite key (node_id, source_id, position_kind)** - усложняет JOIN'ы
+  и ON CONFLICT, не даёт преимуществ vs single row с XOR
+
+### Последствия
+
+- (+) Single-table design - один INSERT/SELECT покрывает все modes
+- (+) FK ON DELETE RESTRICT гарантирует data integrity - нельзя удалить
+  page/PDF/region пока на них ссылается citation
+- (+) Backward compatible - LEGACY mode для existing rows и
+  AddSourceModal flow без изменений
+- (+) Future-ready - REGION mode FK уже работает, UI Этап 17 image OCR
+  ничего не меняет в схеме
+- (-) Wide table (13 колонок в node_sources) - но все positional nullable,
+  не storage burden на legacy
+- (-) CHECK constraint complex (4 branches) - но clear при чтении SQL
+- (-) Mapper.skip-if-existing инвариант критически важен (см. gotchas.md) -
+  если когда-то перейдём на UPSERT mapper, page_id должен оставаться
+  стабильным
+
+### Триггеры пересмотра
+
+- Modes > 4 (например audio citation, video timestamps) - отдельная
+  таблица станет лучше
+- Hot path queries по positional fields - возможно partial indexes
+  недостаточно
+- Если LEGACY mode перестаёт использоваться (полная миграция AddSourceModal
+  на CitationPicker) - 4-я ветка CHECK может быть removed для tighter
+  invariant
+
+### Связь с другими ADR
+
+- **ADR-026** (Source.bookId) - работает совместно: Source даёт связь с
+  книгой через bookId, node_sources даёт позицию внутри книги
+- **ADR-021** (source-first numbering) - computed location string на
+  backend склеивает `book.title + part + printed_page + range/bbox` через
+  JOIN на lib_pages
+- **ADR-024** (object storage) - pdf_file_id FK на library_files
+  (positional citation в PDF на конкретный download'енный файл)
+- **gotchas.md "lib_pages.id стабильность"** - design decision что
+  page_id стабильный для citation FK работает благодаря mapper
+  skip-if-existing

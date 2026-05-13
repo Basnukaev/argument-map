@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260513-23-add-positional-fields-to-node-sources" author="Abdula Basnukaev">
+        <comment>
+            Реализация ADR-027: positional citation fields в node_sources.
+            Четыре mutually exclusive режима citation:
+              - TEXT (page_id + range_start + range_end)
+              - PDF (pdf_file_id + pdf_page_number + pdf_bbox)
+              - REGION (image_region_id) - future для image scans
+              - LEGACY (все positional NULL) - freeform для существующих
+                rows и AddSourceModal flow
+
+            CHECK constraint обеспечивает один-из-четырёх. FK
+            ON DELETE RESTRICT защищает data integrity - нельзя удалить
+            page/PDF/region пока на них ссылается citation.
+
+            Решения:
+
+              (1) page_id FK lib_pages ON DELETE RESTRICT.
+                  Стабильность page_id обеспечивается mapper skip-if-existing
+                  (см. gotchas.md).
+
+              (2) range_start, range_end INT - char offsets по plain text
+                  страницы (HTML теги не считаются, TreeWalker по text
+                  nodes). range_end > range_start.
+
+              (3) pdf_file_id FK library_files ON DELETE RESTRICT.
+
+              (4) pdf_page_number INT (1-based).
+
+              (5) pdf_bbox JSONB - {x, y, width, height} нормализованный
+                  в координатах 0-1 относительно page viewport.
+                  Zoom-invariant - работает при любом PDF.js scale.
+                  Валидация bounds на Java-стороне через PdfBbox record.
+
+              (6) image_region_id FK lib_image_regions ON DELETE RESTRICT.
+                  Таблица lib_image_regions уже создана в миграции 16,
+                  UI для region selection появится в Этапе 17 (image OCR).
+
+              (7) Partial индексы на каждый FK - WHERE column IS NOT NULL
+                  чтобы не разрастались за счёт LEGACY rows.
+        </comment>
+        <sql>
+            ALTER TABLE node_sources
+                ADD COLUMN page_id          UUID REFERENCES lib_pages(id)         ON DELETE RESTRICT,
+                ADD COLUMN range_start      INTEGER,
+                ADD COLUMN range_end        INTEGER,
+                ADD COLUMN pdf_file_id      UUID REFERENCES library_files(file_id) ON DELETE RESTRICT,
+                ADD COLUMN pdf_page_number  INTEGER,
+                ADD COLUMN pdf_bbox         JSONB,
+                ADD COLUMN image_region_id  UUID REFERENCES lib_image_regions(id) ON DELETE RESTRICT;
+
+            ALTER TABLE node_sources
+                ADD CONSTRAINT chk_node_sources_one_mode
+                CHECK (
+                  (page_id IS NOT NULL AND range_start IS NOT NULL AND range_end IS NOT NULL
+                   AND range_start &gt;= 0 AND range_end &gt; range_start
+                   AND pdf_file_id IS NULL AND image_region_id IS NULL)
+                  OR
+                  (pdf_file_id IS NOT NULL AND pdf_page_number IS NOT NULL AND pdf_bbox IS NOT NULL
+                   AND pdf_page_number &gt;= 1
+                   AND page_id IS NULL AND image_region_id IS NULL)
+                  OR
+                  (image_region_id IS NOT NULL AND page_id IS NULL AND pdf_file_id IS NULL)
+                  OR
+                  (page_id IS NULL AND pdf_file_id IS NULL AND image_region_id IS NULL)
+                );
+
+            CREATE INDEX idx_node_sources_page_id ON node_sources(page_id)
+                WHERE page_id IS NOT NULL;
+            CREATE INDEX idx_node_sources_pdf_file_id ON node_sources(pdf_file_id)
+                WHERE pdf_file_id IS NOT NULL;
+            CREATE INDEX idx_node_sources_image_region_id ON node_sources(image_region_id)
+                WHERE image_region_id IS NOT NULL;
+        </sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_node_sources_image_region_id;
+                DROP INDEX IF EXISTS idx_node_sources_pdf_file_id;
+                DROP INDEX IF EXISTS idx_node_sources_page_id;
+                ALTER TABLE node_sources DROP CONSTRAINT IF EXISTS chk_node_sources_one_mode;
+                ALTER TABLE node_sources
+                    DROP COLUMN IF EXISTS image_region_id,
+                    DROP COLUMN IF EXISTS pdf_bbox,
+                    DROP COLUMN IF EXISTS pdf_page_number,
+                    DROP COLUMN IF EXISTS pdf_file_id,
+                    DROP COLUMN IF EXISTS range_end,
+                    DROP COLUMN IF EXISTS range_start,
+                    DROP COLUMN IF EXISTS page_id;
+            </sql>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

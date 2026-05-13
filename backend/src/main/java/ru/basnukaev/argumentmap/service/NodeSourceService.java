@@ -38,7 +38,7 @@ public class NodeSourceService {
         if (sourceRepository.findById(sourceId).isEmpty()) {
             throw new SourceNotFoundException(sourceId);
         }
-        NodeSource link = new NodeSource(nodeId, sourceId, quote, context, location, Instant.now());
+        NodeSource link = NodeSource.legacyMode(nodeId, sourceId, quote, context, location, Instant.now());
         nodeSourceRepository.save(link);
         return link;
     }
