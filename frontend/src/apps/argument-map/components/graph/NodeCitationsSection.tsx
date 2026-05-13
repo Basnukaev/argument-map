@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Anchor,
-  Plus,
-  Trash2,
-  User as UserIcon,
-  Link as LinkIcon,
+  AlertCircle,
   BookOpen,
   ExternalLink,
+  Plus,
+  Quote,
+  Trash2,
+  User as UserIcon,
 } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import PanelSection from '@/apps/argument-map/components/graph/PanelSection';
@@ -38,46 +39,71 @@ type SourcesState =
 interface Props {
   nodeId: string | undefined;
   nodeContent: string;
+  /**
+   * Callback с агрегированными counts для inline meta-row в header
+   * родительской панели. lib = positional citations (TEXT/PDF/REGION),
+   * free = freeform (LEGACY). Вызывается после load и после detach.
+   */
+  onCountsChange?: (counts: { lib: number; free: number }) => void;
 }
 
 /**
- * Секция "Цитаты" - lazy-loaded список цитат (NodeSource), их источников
- * (Source) и авторитетов (Authority) с возможностью detach и привязать
- * новую цитату через {@link AddSourceModal}.
+ * Секция «Опора» (مُسْتَنَدٌ / دَلِيلٌ) - lazy-loaded список подкреплений
+ * (NodeSource), их источников (Source) и авторитетов (Authority) с
+ * возможностью detach. Две точки входа:
+ *
+ * - «Привести источник» (primary, BookOpen) → {@link CitationPicker} -
+ *   positional citation из импортированной library книги (TEXT/PDF/REGION mode)
+ * - «Свободный» (ghost, Plus) → {@link AddSourceModal} - freeform legacy
+ *   (URL, article, manual hadith) без library привязки (LEGACY mode)
+ *
+ * Список разделяет library-backed (indigo accent + Перейти к источнику)
+ * vs freeform (slate background). Дизайн см.
+ * `frontend/design-reference/project/citations.jsx` варианты B1.
  *
  * Lazy-load: данные грузятся только при первом раскрытии PanelSection
- * (onFirstOpen) - не блокируем рендер панели для узлов без цитат.
+ * (onFirstOpen) - не блокируем рендер панели для узлов без подкреплений.
  */
-function NodeCitationsSection({ nodeId, nodeContent }: Props) {
-  const [state, setState] = useState<SourcesState>({ kind: 'not-loaded' });
+function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
+  const [state, setState] = useState<SourcesState>({ kind: 'loading' });
   const [addSourceOpen, setAddSourceOpen] = useState(false);
   const [citationPickerOpen, setCitationPickerOpen] = useState(false);
 
-  async function loadSources() {
+  // Eager-load on mount (вместо onFirstOpen) - чтобы родитель мог
+  // показать counts в header inline meta-row до раскрытия секции.
+  // Trade-off: 3 GET запроса при открытии panel; oк - user action.
+  useEffect(() => {
     if (!nodeId) return;
-    setState({ kind: 'loading' });
-    try {
-      const [links, sources, authorities] = await Promise.all([
-        apiGetRaw<NodeSourceDto[]>(`/api/v1/nodes/${nodeId}/sources`),
-        apiGetRaw<SourceDto[]>(`/api/v1/sources`),
-        apiGetRaw<AuthorityDto[]>(`/api/v1/authorities`),
-      ]);
-      const sourceLookup = new Map<string, SourceDto>();
-      for (const src of sources) {
-        if (src.id) sourceLookup.set(src.id, src);
-      }
-      const authorityLookup = new Map<string, AuthorityDto>();
-      for (const a of authorities) {
-        if (a.id) authorityLookup.set(a.id, a);
-      }
-      setState({
-        kind: 'loaded',
-        data: { links, sourceLookup, authorityLookup },
+    let cancelled = false;
+    Promise.all([
+      apiGetRaw<NodeSourceDto[]>(`/api/v1/nodes/${nodeId}/sources`),
+      apiGetRaw<SourceDto[]>(`/api/v1/sources`),
+      apiGetRaw<AuthorityDto[]>(`/api/v1/authorities`),
+    ])
+      .then(([links, sources, authorities]) => {
+        if (cancelled) return;
+        const sourceLookup = new Map<string, SourceDto>();
+        for (const src of sources) {
+          if (src.id) sourceLookup.set(src.id, src);
+        }
+        const authorityLookup = new Map<string, AuthorityDto>();
+        for (const a of authorities) {
+          if (a.id) authorityLookup.set(a.id, a);
+        }
+        setState({
+          kind: 'loaded',
+          data: { links, sourceLookup, authorityLookup },
+        });
+        onCountsChange?.(computeCounts(links));
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        setState({ kind: 'error', message: formatApiError(e, 'Не удалось загрузить опору') });
       });
-    } catch (e: unknown) {
-      setState({ kind: 'error', message: formatApiError(e, 'Не удалось загрузить цитаты') });
-    }
-  }
+    return () => {
+      cancelled = true;
+    };
+  }, [nodeId, onCountsChange]);
 
   async function detachSource(sourceId: string) {
     if (!nodeId) return;
@@ -85,11 +111,27 @@ function NodeCitationsSection({ nodeId, nodeContent }: Props) {
     const previous = state.data.links;
     const next = previous.filter((l) => l.sourceId !== sourceId);
     setState({ kind: 'loaded', data: { ...state.data, links: next } });
+    onCountsChange?.(computeCounts(next));
     try {
       await apiDeleteRaw(`/api/v1/nodes/${nodeId}/sources/${sourceId}`);
     } catch (e: unknown) {
-      toast.error(formatApiError(e, 'Не удалось отвязать цитату'));
+      toast.error(formatApiError(e, 'Не удалось отвязать подкрепление'));
       setState({ kind: 'loaded', data: { ...state.data, links: previous } });
+      onCountsChange?.(computeCounts(previous));
+    }
+  }
+
+  async function reloadSources() {
+    if (!nodeId) return;
+    try {
+      const links = await apiGetRaw<NodeSourceDto[]>(`/api/v1/nodes/${nodeId}/sources`);
+      setState((prev) => {
+        if (prev.kind !== 'loaded') return prev;
+        return { kind: 'loaded', data: { ...prev.data, links } };
+      });
+      onCountsChange?.(computeCounts(links));
+    } catch (e: unknown) {
+      toast.error(formatApiError(e, 'Не удалось обновить опору'));
     }
   }
 
@@ -100,7 +142,6 @@ function NodeCitationsSection({ nodeId, nodeContent }: Props) {
         title="Опора"
         count={state.kind === 'loaded' ? state.data.links.length : undefined}
         defaultOpen={false}
-        onFirstOpen={loadSources}
       >
         <CitationsList state={state} onDetach={detachSource} />
         <div className="mt-2 flex gap-2">
@@ -132,7 +173,7 @@ function NodeCitationsSection({ nodeId, nodeContent }: Props) {
         <AddSourceModal
           nodeId={nodeId}
           onClose={() => setAddSourceOpen(false)}
-          onAttached={loadSources}
+          onAttached={reloadSources}
         />
       )}
 
@@ -141,7 +182,7 @@ function NodeCitationsSection({ nodeId, nodeContent }: Props) {
           nodeId={nodeId}
           nodeContent={nodeContent}
           onClose={() => setCitationPickerOpen(false)}
-          onCreated={loadSources}
+          onCreated={reloadSources}
         />
       )}
     </>
@@ -164,7 +205,9 @@ function buildDeepLink(link: NodeSourceDto): string | null {
     return `/books/${link.bookId}?pageId=${link.pageId}&highlight=${link.rangeStart}-${link.rangeEnd}`;
   }
   if (link.mode === 'PDF' && link.pdfFileId && link.pdfPageNumber != null) {
-    const bbox = link.pdfBbox as { x?: number; y?: number; width?: number; height?: number } | undefined;
+    const bbox = link.pdfBbox as
+      | { x?: number; y?: number; width?: number; height?: number }
+      | undefined;
     const bboxStr =
       bbox && bbox.x != null
         ? `&bbox=${bbox.x},${bbox.y},${bbox.width},${bbox.height}`
@@ -174,8 +217,24 @@ function buildDeepLink(link: NodeSourceDto): string | null {
   return null;
 }
 
+function isLibraryMode(mode: NodeSourceDto['mode']): boolean {
+  return mode === 'TEXT' || mode === 'PDF' || mode === 'REGION';
+}
+
+function computeCounts(links: NodeSourceDto[]): { lib: number; free: number } {
+  let lib = 0;
+  let free = 0;
+  for (const l of links) {
+    if (isLibraryMode(l.mode)) {
+      lib += 1;
+    } else {
+      free += 1;
+    }
+  }
+  return { lib, free };
+}
+
 function CitationsList({ state, onDetach }: CitationsListProps) {
-  const navigate = useNavigate();
   if (state.kind === 'not-loaded' || state.kind === 'loading') {
     return <p className="text-[12px] text-slate-500">Загрузка</p>;
   }
@@ -185,98 +244,218 @@ function CitationsList({ state, onDetach }: CitationsListProps) {
   const { links, sourceLookup, authorityLookup } = state.data;
   if (links.length === 0) {
     return (
-      <p className="text-[12px] italic text-slate-500">К узлу не привязано ни одной цитаты</p>
+      <p className="text-[12px] italic text-slate-500">К узлу не привязано ни одной опоры</p>
     );
   }
   return (
     <div className="space-y-2">
       {links.map((link) => {
         const source = link.sourceId ? sourceLookup.get(link.sourceId) : undefined;
-        const sourceType = source?.sourceType;
-        const kindLabel = sourceType ? SOURCE_TYPE_LABEL[sourceType] : 'источник';
-        const title = source?.title ?? '(удалён из справочника)';
-        const citation = source?.citation;
-        const quote = link.quote;
-        const location = link.location;
-        const context = link.context;
         const authority = source?.authorityId ? authorityLookup.get(source.authorityId) : undefined;
-        const authorMeta = authority
-          ? [authority.era, authority.madhab].filter(Boolean).join(' · ')
-          : undefined;
-        const isRtl = hasArabicScript(quote);
+        const key = link.sourceId ?? `${link.nodeId}-${Math.random()}`;
+        if (isLibraryMode(link.mode)) {
+          return (
+            <LibraryCite
+              key={key}
+              link={link}
+              source={source}
+              authority={authority}
+              onDetach={onDetach}
+            />
+          );
+        }
         return (
-          <article
-            key={link.sourceId}
-            className="group rounded-md border border-slate-200 bg-slate-50/60 p-3"
-          >
-            <div className="mb-1 flex items-center justify-between gap-2">
-              <span className="font-mono text-[11px] font-semibold uppercase text-slate-500">
-                {kindLabel}
-              </span>
-              <div className="flex items-center gap-1">
-                <LinkIcon size={12} className="text-slate-400" aria-hidden="true" />
-                <button
-                  type="button"
-                  aria-label="Отвязать цитату"
-                  onClick={() => link.sourceId && onDetach(link.sourceId)}
-                  className="rounded p-1 text-slate-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
-                >
-                  <Trash2 size={12} aria-hidden="true" />
-                </button>
-              </div>
-            </div>
-
-            {authority && (
-              <div className="mb-1.5 flex items-center gap-1.5 text-[11px]">
-                <UserIcon size={11} className="text-slate-400" aria-hidden="true" />
-                <span className="font-medium text-slate-700">{authority.name}</span>
-                {authorMeta && (
-                  <span className="font-mono text-[10px] text-slate-500">· {authorMeta}</span>
-                )}
-              </div>
-            )}
-
-            <div className="text-[12px] font-semibold text-slate-800">{title}</div>
-
-            {(citation || location) && (
-              <div className="mt-0.5 font-mono text-[11px] text-slate-500">
-                {citation}
-                {citation && location && ' · '}
-                {location && <span title="место в источнике">{location}</span>}
-              </div>
-            )}
-
-            {quote && (
-              <div
-                dir={isRtl ? 'rtl' : 'ltr'}
-                className={`mt-1 border-l-2 border-slate-300 pl-2 text-[12px] italic leading-relaxed text-slate-600 ${
-                  isRtl ? 'font-serif text-[13px] not-italic leading-loose' : ''
-                }`}
-              >
-                «{quote}»
-              </div>
-            )}
-
-            {context && <div className="mt-1 text-[11px] text-slate-500">{context}</div>}
-
-            {(() => {
-              const deepLink = buildDeepLink(link);
-              if (!deepLink) return null;
-              return (
-                <button
-                  type="button"
-                  onClick={() => navigate(deepLink)}
-                  className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-indigo-600 hover:text-indigo-800 hover:underline"
-                >
-                  <ExternalLink size={11} aria-hidden="true" />
-                  Перейти к источнику
-                </button>
-              );
-            })()}
-          </article>
+          <FreeformCite
+            key={key}
+            link={link}
+            source={source}
+            authority={authority}
+            onDetach={onDetach}
+          />
         );
       })}
     </div>
+  );
+}
+
+interface CiteProps {
+  link: NodeSourceDto;
+  source: SourceDto | undefined;
+  authority: AuthorityDto | undefined;
+  onDetach: (sourceId: string) => void;
+}
+
+/**
+ * Карточка library-backed подкрепления (mode TEXT/PDF/REGION). Indigo
+ * accent 3px слева, badge «Из библиотеки», title книги, location +
+ * quote + context + клик «Перейти к источнику» (deep link с подсветкой).
+ */
+function LibraryCite({ link, source, authority, onDetach }: CiteProps) {
+  const navigate = useNavigate();
+  const title = source?.title ?? '(книга недоступна)';
+  const location = link.location;
+  const quote = link.quote;
+  const isRtl = hasArabicScript(quote ?? title);
+  const deepLink = buildDeepLink(link);
+  const authorMeta = authority
+    ? [authority.era, authority.madhab].filter(Boolean).join(' · ')
+    : undefined;
+
+  return (
+    <article className="group relative overflow-hidden rounded-md border border-slate-200 bg-white transition-colors hover:border-indigo-300">
+      <div className="absolute bottom-0 left-0 top-0 w-[3px] bg-indigo-600" />
+      <div className="py-2.5 pl-3.5 pr-2.5">
+        <div className="mb-1.5 flex items-start gap-2">
+          <span className="inline-flex items-center gap-1 rounded border border-indigo-200 bg-indigo-50 px-1.5 py-px text-[10px] font-bold uppercase tracking-wider text-indigo-700">
+            <BookOpen size={10} aria-hidden="true" />
+            Из библиотеки
+          </span>
+          <span className="flex-1" />
+          <button
+            type="button"
+            aria-label="Отвязать опору"
+            onClick={() => link.sourceId && onDetach(link.sourceId)}
+            className="rounded p-1 text-slate-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
+          >
+            <Trash2 size={12} aria-hidden="true" />
+          </button>
+        </div>
+
+        {authority && (
+          <div className="mb-1.5 flex items-center gap-1.5 text-[11px]">
+            <UserIcon size={11} className="text-slate-400" aria-hidden="true" />
+            <span className="font-medium text-slate-700">{authority.name}</span>
+            {authorMeta && (
+              <span className="font-mono text-[10px] text-slate-500">· {authorMeta}</span>
+            )}
+          </div>
+        )}
+
+        <div
+          className={`text-[12.5px] font-semibold leading-snug text-slate-900 ${
+            isRtl && hasArabicScript(title) ? 'font-naskh text-[14px]' : ''
+          }`}
+          dir={isRtl && hasArabicScript(title) ? 'rtl' : 'ltr'}
+        >
+          {title}
+        </div>
+
+        {location && (
+          <div className="mt-0.5 font-mono text-[11px] text-slate-500">{location}</div>
+        )}
+
+        {quote && (
+          <div
+            dir={isRtl ? 'rtl' : 'ltr'}
+            className={`mt-1.5 border-l-2 border-indigo-200 pl-2 text-[12.5px] leading-relaxed text-slate-700 ${
+              isRtl ? 'font-naskh text-[14px] not-italic leading-loose' : 'italic'
+            }`}
+          >
+            «{quote}»
+          </div>
+        )}
+
+        {link.context && (
+          <div className="mt-1.5 text-[11px] text-slate-500">{link.context}</div>
+        )}
+
+        {deepLink && (
+          <button
+            type="button"
+            onClick={() => navigate(deepLink)}
+            className="mt-2 inline-flex items-center gap-1 rounded bg-indigo-600 px-2 py-1 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
+          >
+            <ExternalLink size={11} aria-hidden="true" />
+            Перейти к источнику
+          </button>
+        )}
+      </div>
+    </article>
+  );
+}
+
+/**
+ * Карточка freeform подкрепления (mode LEGACY) - привязка через
+ * существующий AddSourceModal. Slate background, badge «Свободная», без
+ * deep link (нет library binding).
+ */
+function FreeformCite({ link, source, authority, onDetach }: CiteProps) {
+  const sourceType = source?.sourceType;
+  const kindLabel = sourceType ? SOURCE_TYPE_LABEL[sourceType] : 'источник';
+  const title = source?.title ?? '(удалён из справочника)';
+  const citation = source?.citation;
+  const quote = link.quote;
+  const isRtl = hasArabicScript(quote);
+  const authorMeta = authority
+    ? [authority.era, authority.madhab].filter(Boolean).join(' · ')
+    : undefined;
+  const hasUrl = sourceType === 'URL' && Boolean(citation);
+
+  return (
+    <article className="group rounded-md border border-slate-200 bg-slate-50/60 px-2.5 py-2.5">
+      <div className="mb-1.5 flex items-start gap-2">
+        <span className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-100 px-1.5 py-px text-[10px] font-bold uppercase tracking-wider text-slate-700">
+          <Quote size={10} aria-hidden="true" />
+          Свободная
+        </span>
+        <span className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+          {kindLabel}
+        </span>
+        <span className="flex-1" />
+        {!hasUrl && sourceType === 'URL' && (
+          <span
+            className="inline-flex items-center gap-1 text-[10px] text-amber-700"
+            title="URL не указан"
+          >
+            <AlertCircle size={10} aria-hidden="true" />
+            без URL
+          </span>
+        )}
+        <button
+          type="button"
+          aria-label="Отвязать опору"
+          onClick={() => link.sourceId && onDetach(link.sourceId)}
+          className="rounded p-1 text-slate-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
+        >
+          <Trash2 size={12} aria-hidden="true" />
+        </button>
+      </div>
+
+      {authority && (
+        <div className="mb-1.5 flex items-center gap-1.5 text-[11px]">
+          <UserIcon size={11} className="text-slate-400" aria-hidden="true" />
+          <span className="font-medium text-slate-700">{authority.name}</span>
+          {authorMeta && (
+            <span className="font-mono text-[10px] text-slate-500">· {authorMeta}</span>
+          )}
+        </div>
+      )}
+
+      <div className="text-[12.5px] font-semibold leading-snug text-slate-900">{title}</div>
+
+      {(citation || link.location) && (
+        <div className="mt-0.5 font-mono text-[11px] text-slate-500">
+          {citation}
+          {citation && link.location && ' · '}
+          {link.location}
+        </div>
+      )}
+
+      {quote && (
+        <div
+          dir={isRtl ? 'rtl' : 'ltr'}
+          className={`mt-1.5 border-l-2 border-slate-300 pl-2 text-[12px] italic leading-relaxed text-slate-600 ${
+            isRtl ? 'font-naskh text-[13px] not-italic leading-loose' : ''
+          }`}
+        >
+          «{quote}»
+        </div>
+      )}
+
+      {link.context && (
+        <div className="mt-1.5 text-[11px] text-slate-500">{link.context}</div>
+      )}
+    </article>
   );
 }
 

@@ -375,7 +375,7 @@ describe('NodeDetailsPanel', () => {
       renderPanel();
       await userEvent.click(screen.getByRole('button', { name: /Опора/ }));
       expect(
-        await screen.findByText(/не привязано ни одной цитаты/),
+        await screen.findByText(/не привязано ни одной опоры/),
       ).toBeInTheDocument();
     });
 
@@ -397,7 +397,7 @@ describe('NodeDetailsPanel', () => {
       renderPanel();
       await userEvent.click(screen.getByRole('button', { name: /Опора/ }));
       await screen.findByText('Какая-то книга');
-      await userEvent.click(screen.getByRole('button', { name: 'Отвязать цитату' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Отвязать опору' }));
       await waitForApi(() => expect(deleteCalledFor).toBe(SOURCE_ID));
       expect(screen.queryByText('Какая-то книга')).not.toBeInTheDocument();
     });

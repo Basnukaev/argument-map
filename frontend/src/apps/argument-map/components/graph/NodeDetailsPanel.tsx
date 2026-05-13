@@ -1,4 +1,5 @@
-import { X } from 'lucide-react';
+import { useState } from 'react';
+import { Anchor, BookOpen, Quote, X } from 'lucide-react';
 import IconButton from '@/shared/components/ui/IconButton';
 import StatusBadge from '@/shared/components/ui/StatusBadge';
 import { NODE_TYPE_TOKENS, type NodeType, type NodeStatus } from '@/shared/utils/designTokens';
@@ -33,6 +34,8 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
   const TypeIcon = typeToken.Icon;
   const status: NodeStatus = node.status ?? 'UNVERIFIED';
   const content = node.content ?? '';
+  const [citationCounts, setCitationCounts] = useState<{ lib: number; free: number } | null>(null);
+  const totalCitations = citationCounts ? citationCounts.lib + citationCounts.free : null;
 
   return (
     <aside
@@ -62,6 +65,26 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
         <div className="mt-3 flex items-center gap-2">
           <StatusBadge status={status} size="lg" />
         </div>
+        {nodeType !== 'QUESTION' && totalCitations !== null && totalCitations > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-slate-600">
+            <span className="inline-flex items-center gap-1">
+              <Anchor size={11} className="text-indigo-600" aria-hidden="true" />
+              <span className="font-mono font-semibold text-slate-700">{totalCitations}</span>
+              <span>опора</span>
+            </span>
+            <span className="text-slate-300">(</span>
+            <span className="inline-flex items-center gap-1" title="из библиотеки">
+              <BookOpen size={10} className="text-indigo-600" aria-hidden="true" />
+              <span className="font-mono">{citationCounts!.lib}</span>
+            </span>
+            <span className="text-slate-300">·</span>
+            <span className="inline-flex items-center gap-1" title="свободные">
+              <Quote size={10} className="text-slate-500" aria-hidden="true" />
+              <span className="font-mono">{citationCounts!.free}</span>
+            </span>
+            <span className="text-slate-300">)</span>
+          </div>
+        )}
       </header>
 
       <div className="flex-1 overflow-y-auto">
@@ -73,7 +96,11 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
         />
         <NodeMetadataSection node={node} />
         {nodeType !== 'QUESTION' && (
-          <NodeCitationsSection nodeId={node.id} nodeContent={node.content ?? ''} />
+          <NodeCitationsSection
+            nodeId={node.id}
+            nodeContent={node.content ?? ''}
+            onCountsChange={setCitationCounts}
+          />
         )}
         <NodeRevisionsSection nodeId={node.id} />
       </div>
