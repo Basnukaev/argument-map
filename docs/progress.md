@@ -17,6 +17,119 @@ Claude Code не тратят токены на исторический кон�
 
 ---
 
+## 2026-05-13 — Сессия 29 — brainstorming + plan этапа 18.f CitationPicker
+
+Сессия открыта по приоритету Сессии 28 - выбор был между 18.f
+CitationPicker / 25.d.2 page sync / ADR-025 lazy import. User выбрал
+18.f (вариант 1 рекомендованный).
+
+Сессия посвящена brainstorming + design + planning - **код не пишется**,
+implementation в новой сессии по готовому plan'у. Это сознательный
+choice для качественного handoff'а с детальным дизайн-документом и
+bite-sized implementation plan'ом.
+
+### Сделано
+
+- **Brainstorming** через `superpowers:brainstorming` skill - 5-секционный
+  design dialogue с user'ом:
+  - Scope: MVP только argument-map (Q&A → Этап 19 отложен)
+  - Data model: гибрид Source.bookId FK (миграция 22) + node_sources
+    расширение 7 positional полей (миграция 23). 4 modes
+    (TEXT/PDF/REGION/LEGACY) через CHECK XOR constraint
+  - UX flow: CitationPicker открывается из NodeDetailsPanel («Привести
+    источник» / «Свободный источник» две кнопки), 3-колонная модалка
+    (BookListSidebar + EmbeddedReader + SelectionPanel)
+  - Backend computes location через SQL JOIN (book.title + part +
+    printedPage + range/bbox)
+  - Mapper UPSERT audit - текущее skip-if-existing поведение
+    ShamelaToLibraryMapper.mapBook удовлетворяет инвариант стабильности
+    page_id, UPSERT fix не требуется (только gotcha)
+
+- **Spec написан** `af2254d` - `docs/superpowers/specs/2026-05-13-citation-picker-design.md`
+  (726 строк). Self-review passed (placeholder/consistency/scope/ambiguity)
+
+- **Implementation plan написан** `361a8bc` -
+  `docs/superpowers/plans/2026-05-13-citation-picker.md` (2768 строк).
+  12 tasks с bite-sized TDD steps, complete code snippets, exact commit
+  messages, self-review passed. Task 0-12 ровно покрывают spec.
+
+- **Visual Companion experiment** - использовали для первых 2 экранов
+  brainstorming, user отказался («давай в чате»). Memory обновлена -
+  не предлагать VC в этом проекте по дефолту
+
+- **Memory обновлена** - `feedback_brainstorming_autonomy.md` фиксирует
+  что в режиме автономии design sections не дробятся на отдельные
+  approval gates
+
+### Решения
+
+- **ADR-026** (зафиксирован в spec, будет создан в Task 1):
+  Source.bookId FK lib_books через миграцию 22, unique index
+  (source_type, book_id) для one-source-per-book идемпотентности.
+  ON DELETE RESTRICT для stability invariant
+- **ADR-027** (зафиксирован в spec, будет создан в Task 2):
+  positional citation fields в node_sources, 4-mode XOR через CHECK,
+  PdfBbox normalized 0-1 для zoom-invariance, ON DELETE RESTRICT
+  на page_id/pdf_file_id/image_region_id
+- **page_id stability invariant** (gotcha will be added в Task 0):
+  ShamelaToLibraryMapper.mapBook делает skip-if-existing → existing
+  lib_pages не пересоздаются → UUID стабилен → FK работает.
+  Текущая реализация уже OK, UPSERT fix не нужен на этом этапе
+- **AddSourceModal сохраняется** для legacy freeform citations
+  (URL/article/manual hadith) - вторая кнопка «Свободный источник»
+- **Mini-reader extract**: `apps/library/components/{6 файлов}` →
+  `shared/components/reader/` для реюза в BookReaderPage + CitationPicker
+- **Deep links через query params**: text mode
+  `?pageId=X&highlight=start-end`, PDF mode
+  `?pdf=1&pdfPageNumber=N&bbox=x,y,w,h`. BookReaderPage парсит, рендерит
+  через PageView.highlightRange / PdfViewer.highlightBbox
+- **Reverse flow откладывается** - selection в BookReader → создать
+  узел argument-map - future enhancement
+
+### Проблемы
+
+- Изначально планировал scope C (Full с Q&A приложением) после первого
+  выбора user'а, но push back на violation YAGNI - реализация Q&A это
+  весь Этап 19 (4-6 сессий). User передумал на MVP сразу
+- Visual Companion поднимался на http://localhost:63029 - после второго
+  экрана user отказался. Сервер остановлен корректно
+- Backend running с предыдущей сессии (PID 11937) - PDF stack уже
+  включает MinIO streaming из 25.b. БД на миграции 21, миграции 22+23
+  будут применены в Task 1-2
+
+### Следующий шаг
+
+**Новая сессия (Сессия 30) начинает с Task 0 plan'а.**
+
+Plan: `docs/superpowers/plans/2026-05-13-citation-picker.md` - читать
+полностью. Spec: `docs/superpowers/specs/2026-05-13-citation-picker-design.md`
+- для контекста.
+
+Порядок:
+1. Task 0 (10 мин) - audit + gotcha (только проверка, без fix)
+2. Task 1 (60 мин) - миграция 22 + Source.bookId + ADR-026 + 5 IT
+3. Task 2 (60 мин) - миграция 23 + NodeSource positional + ADR-027 + 6 IT
+4. Task 3 (90-120 мин) - NodeCitationService + Controller + ~23 IT
+5. Task 4 (15 мин) - backend smoke через curl
+6. Task 5 (30 мин) - extract mini-reader в shared
+7. Task 6 (60 мин) - PageView/PdfViewer selection props + textRangeUtils
+8. Task 7 (90 мин) - CitationPicker компонент + 3 integration tests
+9. Task 8 (30 мин) - NodeCitationsSection две кнопки + click-to-navigate
+10. Task 9 (45 мин) - BookReaderPage deep link handling
+11. Task 10 (15 мин) - frontend lint+build+tests verify
+12. Task 11 (30 мин) - manual playwright smoke
+13. Task 12 (15 мин) - handoff (progress, roadmap, SESSION_START_PROMPT)
+
+Реалистично 1.5-2 сессии исполнения. Если контекст наполняется -
+handoff на логической границе (после Task 4 backend done или после
+Task 9 frontend feature complete). Использовать `superpowers:executing-plans`
+skill для bite-sized TDD execution.
+
+В сессии 29 нет ни одного feat/fix коммита - только docs (spec + plan +
+gotcha will be в Task 0). Это нормально для design-only сессии.
+
+---
+
 ## 2026-05-12 — Сессия 28 Phase 1 (docs) — ADR-024 object storage foundation
 
 Сессия начата по приоритету Сессии 27 - этап 25.b "MinIO cache".

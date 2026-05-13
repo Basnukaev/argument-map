@@ -5,6 +5,55 @@
 начало новой сессии - Claude получит полный контекст без ручного
 объяснения.
 
+## КРИТИЧНО для Сессии 30+ (после Сессии 29 - brainstorming + plan этапа 18.f готовы)
+
+Сессия 29 - **design-only сессия**. Brainstorming + spec + plan
+для этапа 18.f CitationPicker. Код не писался - implementation
+в Сессии 30 по готовому plan'у.
+
+**Ключевые артефакты (читать перед началом!):**
+1. `docs/superpowers/specs/2026-05-13-citation-picker-design.md` -
+   полный spec с архитектурой, data model, API, UX flow, error
+   handling, testing strategy
+2. `docs/superpowers/plans/2026-05-13-citation-picker.md` -
+   **12-task implementation plan** с bite-sized TDD steps,
+   complete code snippets, exact commit messages. **Начать с Task 0**
+
+Также см. `feedback_brainstorming_autonomy.md` в memory - не использовать
+Visual Companion в этом проекте, всё в чате через ASCII/text.
+
+**Scope зафиксирован:**
+- MVP только argument-map (Q&A → Этап 19 отложен)
+- Full positional citation модель (миграции 22+23, ADR-026+027)
+- 4 modes: TEXT (pageId+range), PDF (pdfFileId+pdfPageNumber+bbox),
+  REGION (image_region_id, для будущих сканов), LEGACY (freeform)
+- AddSourceModal **сохраняется** как «Свободный источник» (вторая
+  кнопка), CitationPicker - новый primary flow «Привести источник»
+- Mini-reader extract из apps/library/components в shared/components/reader
+- Deep links через query params для navigation на citation source с
+  подсветкой фрагмента
+
+**Объём этапа:** реалистично 1.5-2 сессии. Если context наполняется -
+handoff после Task 4 (backend done) или после Task 9 (frontend feature
+complete). См. progress.md Сессия 29 «Следующий шаг» для порядка
+tasks с estimates.
+
+**Команды для исполнения plan'а:**
+- `superpowers:executing-plans` skill для TDD execution с checkpoint'ами
+- ИЛИ `superpowers:subagent-driven-development` если хочется один subagent
+  per task (рекомендуется для длительных tasks 3, 7 где много кода)
+
+**page_id stability** уже выполнен через ShamelaToLibraryMapper.mapBook
+skip-if-existing - Task 0 в plan'е это только audit + добавление gotcha,
+fix не нужен.
+
+**Инфраструктура (Сессия 30 entry):**
+- Postgres :5432 healthy (миграция 21 применена, **22+23 будут применены
+  в Task 1-2**)
+- Backend :9090 + JDWP :5005 running с MinIO streaming PDF stack
+- Frontend :5173 running
+- MinIO :9000 healthy с 4 buckets + 1 PDF object из smoke 25.b
+
 ## КРИТИЧНО для Сессии 29+ (после Сессии 28 - этап 25.b ПОЛНОСТЬЮ закрыт)
 
 Сессия 28 **закрыла весь этап 25.b** (от ADR-024 до production-ready
@@ -81,10 +130,14 @@ End-to-end проверено playwright + restart cycle:
   готовы, versioning на 3 critical, 1 PDF object 1.5MiB в
   library-imported-books
 
-**Главный приоритет Сессии 29 - выбор из вариантов**:
+**Главный приоритет Сессии 30** - **исполнение plan'а 18.f** task-by-task.
+Сессия 29 выбрала вариант 1 (18.f CitationPicker) из вариантов ниже,
+сделала brainstorming+spec+plan. Сессия 30 начинает с Task 0.
 
-1. **Этап 18.f CitationPicker** (рекомендую) - центральный элемент
-   платформенного pivot'а ADR-018. PDF foundation готов - можно
+**Старые варианты (для контекста, 18.f уже в работе):**
+
+1. **Этап 18.f CitationPicker** (**в работе**, plan готов) - центральный
+   элемент платформенного pivot'а ADR-018. PDF foundation готов - можно
    строить cross-app citation flow. `shared/components/citation/` с
    window.getSelection() → modal → выбор приложения (argument-map /
    Q&A) + контекста. Source-first: snapshot `printed_page` + `part` в
