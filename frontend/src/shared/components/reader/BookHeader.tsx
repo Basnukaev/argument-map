@@ -1,6 +1,6 @@
 import { BookOpen } from 'lucide-react';
 import type { components } from '@/shared/api/types';
-import { formatShamelaBibliography } from '@/apps/library/utils/bookReaderUtils';
+import { formatShamelaBibliography } from '@/shared/components/reader/utils';
 
 type BookDetail = components['schemas']['BookDetailResponse'];
 

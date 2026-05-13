@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Select, { type SelectOption } from '@/shared/components/ui/Select';
-import { isArabicText } from '@/apps/library/utils/bookReaderUtils';
+import { isArabicText } from '@/shared/components/reader/utils';
 
 interface Props {
   currentPage: number;

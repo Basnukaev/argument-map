@@ -1,7 +1,7 @@
 import { AlertCircle, FileImage, Loader2 } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import type { components } from '@/shared/api/types';
-import { isArabicText, sanitizePageHtml } from '@/apps/library/utils/bookReaderUtils';
+import { isArabicText, sanitizePageHtml } from '@/shared/components/reader/utils';
 
 // Source-first поля (миграция 19, ADR-021) - в runtime есть, но types.ts
 // регенерируется отдельно. Intersection даёт безопасный доступ.

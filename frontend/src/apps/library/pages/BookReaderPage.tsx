@@ -4,18 +4,18 @@ import { AlertCircle, ChevronLeft, ChevronRight, Loader2, ArrowLeft, Maximize2, 
 import Card from '@/shared/components/ui/Card';
 import Button from '@/shared/components/ui/Button';
 import Header from '@/shared/components/layout/Header';
-import BookHeader from '@/apps/library/components/BookHeader';
-import ReaderModeSwitch from '@/apps/library/components/ReaderModeSwitch';
-import ChapterList, { type Chapter } from '@/apps/library/components/ChapterList';
-import PageJump from '@/apps/library/components/PageJump';
-import PageView, { type PageContentState, type PageDetail } from '@/apps/library/components/PageView';
-import { type ReaderMode } from '@/apps/library/utils/bookReaderUtils';
+import BookHeader from '@/shared/components/reader/BookHeader';
+import ReaderModeSwitch from '@/shared/components/reader/ReaderModeSwitch';
+import ChapterList, { type Chapter } from '@/shared/components/reader/ChapterList';
+import PageJump from '@/shared/components/reader/PageJump';
+import PageView, { type PageContentState, type PageDetail } from '@/shared/components/reader/PageView';
+import { type ReaderMode } from '@/shared/components/reader/utils';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
 import type { components } from '@/shared/api/types';
 
 // Lazy-load PdfViewer - тяжёлая зависимость (react-pdf + pdfjs-dist
 // весит ~600KB gzipped). Подгружается только при переключении в PDF mode
-const PdfViewer = lazy(() => import('@/apps/library/components/PdfViewer'));
+const PdfViewer = lazy(() => import('@/shared/components/reader/PdfViewer'));
 
 type BookDetail = components['schemas']['BookDetailResponse'] & {
   chapters?: Chapter[];
@@ -34,7 +34,7 @@ type BookState =
  * Reader страница для книг из библиотеки. Грузит book metadata +
  * страницы, управляет навигацией (prev/next/jump/chapter-click),
  * переключается между text и PDF режимами. Делегирует рендеринг
- * подкомпонентам в `apps/library/components/`.
+ * подкомпонентам в `shared/components/reader/`.
  */
 function BookReaderPage() {
   const { bookId } = useParams<{ bookId: string }>();

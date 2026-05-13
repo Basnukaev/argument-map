@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { components } from '@/shared/api/types';
-import { isArabicText } from '@/apps/library/utils/bookReaderUtils';
+import { isArabicText } from '@/shared/components/reader/utils';
 
 // Дополняем ChapterResponse полем children - springdoc-openapi 2.x не
 // выводит self-referential properties в /v3/api-docs (известная gotcha,

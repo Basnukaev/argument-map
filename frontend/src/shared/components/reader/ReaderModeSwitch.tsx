@@ -1,5 +1,5 @@
 import { FileText, Image as ImageIcon } from 'lucide-react';
-import type { ReaderMode } from '@/apps/library/utils/bookReaderUtils';
+import type { ReaderMode } from '@/shared/components/reader/utils';
 
 interface Props {
   mode: ReaderMode;
