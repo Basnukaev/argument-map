@@ -68,6 +68,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/nodes/{nodeId}/citations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["create_3"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/library/books": {
         parameters: {
             query?: never;
@@ -77,7 +93,7 @@ export interface paths {
         };
         get: operations["list_3"];
         put?: never;
-        post: operations["create_3"];
+        post: operations["create_4"];
         delete?: never;
         options?: never;
         head?: never;
@@ -93,7 +109,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["create_4"];
+        post: operations["create_5"];
         delete?: never;
         options?: never;
         head?: never;
@@ -109,7 +125,7 @@ export interface paths {
         };
         get: operations["list_4"];
         put?: never;
-        post: operations["create_5"];
+        post: operations["create_6"];
         delete?: never;
         options?: never;
         head?: never;
@@ -452,6 +468,8 @@ export interface components {
             reliability?: "SAHIH" | "HASAN" | "DAIF";
             /** Format: uuid */
             authorityId?: string;
+            /** Format: uuid */
+            bookId?: string;
             metadata?: components["schemas"]["JsonNode"];
             /** Format: date-time */
             createdAt?: string;
@@ -499,8 +517,54 @@ export interface components {
             quote?: string;
             context?: string;
             location?: string;
+            /** @enum {string} */
+            mode?: "TEXT" | "PDF" | "REGION" | "LEGACY";
+            /** Format: uuid */
+            pageId?: string;
+            /** Format: int32 */
+            rangeStart?: number;
+            /** Format: int32 */
+            rangeEnd?: number;
+            /** Format: uuid */
+            pdfFileId?: string;
+            /** Format: int32 */
+            pdfPageNumber?: number;
+            pdfBbox?: components["schemas"]["JsonNode"];
+            /** Format: uuid */
+            imageRegionId?: string;
+            /** Format: uuid */
+            bookId?: string;
             /** Format: date-time */
             createdAt?: string;
+        };
+        CitationRequest: {
+            /** Format: uuid */
+            bookId: string;
+            /** Format: uuid */
+            pageId?: string;
+            /** Format: int32 */
+            rangeStart?: number;
+            /** Format: int32 */
+            rangeEnd?: number;
+            /** Format: uuid */
+            pdfFileId?: string;
+            /** Format: int32 */
+            pdfPageNumber?: number;
+            pdfBbox?: components["schemas"]["PdfBbox"];
+            /** Format: uuid */
+            imageRegionId?: string;
+            quote?: string;
+            context?: string;
+        };
+        PdfBbox: {
+            /** Format: double */
+            x?: number;
+            /** Format: double */
+            y?: number;
+            /** Format: double */
+            width?: number;
+            /** Format: double */
+            height?: number;
         };
         CreateBookRequest: {
             /** @enum {string} */
@@ -723,14 +787,7 @@ export interface components {
             /** Format: int32 */
             startPageNumber?: number;
         };
-        ResourceRegion: {
-            /** Format: binary */
-            resource?: string;
-            /** Format: int64 */
-            position?: number;
-            /** Format: int64 */
-            count?: number;
-        };
+        StreamingResponseBody: Record<string, never>;
         PdfFileInfoResponse: {
             /** Format: int32 */
             index?: number;
@@ -959,6 +1016,32 @@ export interface operations {
             };
         };
     };
+    create_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nodeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CitationRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["NodeSourceResponse"];
+                };
+            };
+        };
+    };
     list_3: {
         parameters: {
             query?: {
@@ -982,7 +1065,7 @@ export interface operations {
             };
         };
     };
-    create_3: {
+    create_4: {
         parameters: {
             query: {
                 currentUserId: string;
@@ -1011,7 +1094,7 @@ export interface operations {
             };
         };
     };
-    create_4: {
+    create_5: {
         parameters: {
             query?: never;
             header: {
@@ -1060,7 +1143,7 @@ export interface operations {
             };
         };
     };
-    create_5: {
+    create_6: {
         parameters: {
             query?: never;
             header?: never;
@@ -1461,7 +1544,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ResourceRegion"];
+                    "*/*": components["schemas"]["StreamingResponseBody"];
                 };
             };
         };

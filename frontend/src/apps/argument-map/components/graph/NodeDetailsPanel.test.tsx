@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { waitForApi } from '@/test/asyncHelpers';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
@@ -34,7 +35,9 @@ function renderPanel(over: Partial<Parameters<typeof NodeDetailsPanel>[0]> = {})
   const onClose = vi.fn();
   const onUpdated = vi.fn();
   const result = render(
-    <NodeDetailsPanel node={makeNode()} onClose={onClose} onUpdated={onUpdated} {...over} />,
+    <MemoryRouter>
+      <NodeDetailsPanel node={makeNode()} onClose={onClose} onUpdated={onUpdated} {...over} />
+    </MemoryRouter>,
   );
   return { ...result, onClose, onUpdated };
 }

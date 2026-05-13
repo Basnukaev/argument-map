@@ -72,7 +72,9 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
           onSaved={onUpdated}
         />
         <NodeMetadataSection node={node} />
-        {nodeType !== 'QUESTION' && <NodeCitationsSection nodeId={node.id} />}
+        {nodeType !== 'QUESTION' && (
+          <NodeCitationsSection nodeId={node.id} nodeContent={node.content ?? ''} />
+        )}
         <NodeRevisionsSection nodeId={node.id} />
       </div>
     </aside>

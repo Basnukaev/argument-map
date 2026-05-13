@@ -1,8 +1,18 @@
 import { useState } from 'react';
-import { Quote, Plus, Trash2, User as UserIcon, Link as LinkIcon } from 'lucide-react';
+import { useNavigate } from 'react-router';
+import {
+  Quote,
+  Plus,
+  Trash2,
+  User as UserIcon,
+  Link as LinkIcon,
+  BookOpen,
+  ExternalLink,
+} from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import PanelSection from '@/apps/argument-map/components/graph/PanelSection';
 import AddSourceModal from '@/apps/argument-map/components/graph/AddSourceModal';
+import CitationPicker from '@/shared/components/citation/CitationPicker';
 import { apiGetRaw, apiDeleteRaw, formatApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { SOURCE_TYPE_LABEL } from '@/apps/argument-map/utils/attachmentTokens';
@@ -27,6 +37,7 @@ type SourcesState =
 
 interface Props {
   nodeId: string | undefined;
+  nodeContent: string;
 }
 
 /**
@@ -37,9 +48,10 @@ interface Props {
  * Lazy-load: данные грузятся только при первом раскрытии PanelSection
  * (onFirstOpen) - не блокируем рендер панели для узлов без цитат.
  */
-function NodeCitationsSection({ nodeId }: Props) {
+function NodeCitationsSection({ nodeId, nodeContent }: Props) {
   const [state, setState] = useState<SourcesState>({ kind: 'not-loaded' });
   const [addSourceOpen, setAddSourceOpen] = useState(false);
+  const [citationPickerOpen, setCitationPickerOpen] = useState(false);
 
   async function loadSources() {
     if (!nodeId) return;
@@ -91,17 +103,29 @@ function NodeCitationsSection({ nodeId }: Props) {
         onFirstOpen={loadSources}
       >
         <CitationsList state={state} onDetach={detachSource} />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          icon={Plus}
-          onClick={() => setAddSourceOpen(true)}
-          disabled={!nodeId}
-          className="mt-2 w-full justify-center"
-        >
-          Привязать цитату
-        </Button>
+        <div className="mt-2 flex gap-2">
+          <Button
+            type="button"
+            size="sm"
+            icon={BookOpen}
+            onClick={() => setCitationPickerOpen(true)}
+            disabled={!nodeId}
+            className="flex-1 justify-center"
+          >
+            Привести источник
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            icon={Plus}
+            onClick={() => setAddSourceOpen(true)}
+            disabled={!nodeId}
+            className="flex-1 justify-center"
+          >
+            Свободный
+          </Button>
+        </div>
       </PanelSection>
 
       {addSourceOpen && nodeId && (
@@ -109,6 +133,15 @@ function NodeCitationsSection({ nodeId }: Props) {
           nodeId={nodeId}
           onClose={() => setAddSourceOpen(false)}
           onAttached={loadSources}
+        />
+      )}
+
+      {citationPickerOpen && nodeId && (
+        <CitationPicker
+          nodeId={nodeId}
+          nodeContent={nodeContent}
+          onClose={() => setCitationPickerOpen(false)}
+          onCreated={loadSources}
         />
       )}
     </>
@@ -120,7 +153,29 @@ interface CitationsListProps {
   onDetach: (sourceId: string) => void;
 }
 
+function buildDeepLink(link: NodeSourceDto): string | null {
+  if (!link.bookId) return null;
+  if (
+    link.mode === 'TEXT' &&
+    link.pageId &&
+    link.rangeStart != null &&
+    link.rangeEnd != null
+  ) {
+    return `/books/${link.bookId}?pageId=${link.pageId}&highlight=${link.rangeStart}-${link.rangeEnd}`;
+  }
+  if (link.mode === 'PDF' && link.pdfFileId && link.pdfPageNumber != null) {
+    const bbox = link.pdfBbox as { x?: number; y?: number; width?: number; height?: number } | undefined;
+    const bboxStr =
+      bbox && bbox.x != null
+        ? `&bbox=${bbox.x},${bbox.y},${bbox.width},${bbox.height}`
+        : '';
+    return `/books/${link.bookId}?pdf=1&pdfPageNumber=${link.pdfPageNumber}${bboxStr}`;
+  }
+  return null;
+}
+
 function CitationsList({ state, onDetach }: CitationsListProps) {
+  const navigate = useNavigate();
   if (state.kind === 'not-loaded' || state.kind === 'loading') {
     return <p className="text-[12px] text-slate-500">Загрузка</p>;
   }
@@ -203,6 +258,21 @@ function CitationsList({ state, onDetach }: CitationsListProps) {
             )}
 
             {context && <div className="mt-1 text-[11px] text-slate-500">{context}</div>}
+
+            {(() => {
+              const deepLink = buildDeepLink(link);
+              if (!deepLink) return null;
+              return (
+                <button
+                  type="button"
+                  onClick={() => navigate(deepLink)}
+                  className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-indigo-600 hover:text-indigo-800 hover:underline"
+                >
+                  <ExternalLink size={11} aria-hidden="true" />
+                  Перейти к источнику
+                </button>
+              );
+            })()}
           </article>
         );
       })}
