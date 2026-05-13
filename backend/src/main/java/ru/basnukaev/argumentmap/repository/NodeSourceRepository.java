@@ -105,4 +105,72 @@ public class NodeSourceRepository {
                 nodeId, sourceId
         ) > 0;
     }
+
+    /**
+     * Прицепом к NodeSource - computed location string и bookId (из Source).
+     * Computed location склеивается на бэке через CASE: TEXT mode даёт
+     * book.title + part + printedPage + range, PDF mode - book.title + PDF
+     * стр N + регион, REGION mode - book.title + скан стр N, LEGACY -
+     * fallback на снепшот ns.location.
+     */
+    public record NodeSourceWithLocation(NodeSource ns, String computedLocation, UUID bookId) {
+    }
+
+    private static final String JOIN_LOCATION_SQL = """
+            SELECT %COLS%,
+              s.book_id AS src_book_id,
+              CASE
+                WHEN ns.page_id IS NOT NULL THEN
+                  COALESCE(b.title, '?') || ', Т.' || COALESCE(p.part, '?')
+                    || ' стр.' || COALESCE(p.printed_page, p.page_number::text)
+                    || ', строки ' || ns.range_start || '-' || ns.range_end
+                WHEN ns.pdf_file_id IS NOT NULL THEN
+                  COALESCE(b.title, '?') || ', PDF стр.' || ns.pdf_page_number || ', регион'
+                WHEN ns.image_region_id IS NOT NULL THEN
+                  COALESCE(b.title, '?') || ', скан стр.' ||
+                  COALESCE(p2.printed_page, p2.page_number::text)
+                ELSE ns.location
+              END AS computed_location
+            FROM node_sources ns
+            LEFT JOIN sources s ON s.id = ns.source_id
+            LEFT JOIN lib_books b ON b.id = s.book_id
+            LEFT JOIN lib_pages p ON p.id = ns.page_id
+            LEFT JOIN lib_image_regions ir ON ir.id = ns.image_region_id
+            LEFT JOIN lib_pages p2 ON p2.id = ir.page_id
+            """.replace("%COLS%", prefixedColumns());
+
+    private static String prefixedColumns() {
+        // ns.node_id, ns.source_id, ..., ns.created_at - явный префикс
+        // во избежание ambiguity с p.page_id и т.п.
+        StringBuilder sb = new StringBuilder();
+        for (String c : COLUMNS.split(", ")) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append("ns.").append(c);
+        }
+        return sb.toString();
+    }
+
+    public List<NodeSourceWithLocation> findByNodeIdWithLocation(UUID nodeId) {
+        return jdbcTemplate.query(
+                JOIN_LOCATION_SQL + " WHERE ns.node_id = ? ORDER BY ns.created_at",
+                (rs, rn) -> new NodeSourceWithLocation(
+                        ROW_MAPPER.mapRow(rs, rn),
+                        rs.getString("computed_location"),
+                        rs.getObject("src_book_id", UUID.class)
+                ),
+                nodeId
+        );
+    }
+
+    public Optional<NodeSourceWithLocation> findByPkWithLocation(UUID nodeId, UUID sourceId) {
+        return jdbcTemplate.query(
+                JOIN_LOCATION_SQL + " WHERE ns.node_id = ? AND ns.source_id = ?",
+                (rs, rn) -> new NodeSourceWithLocation(
+                        ROW_MAPPER.mapRow(rs, rn),
+                        rs.getString("computed_location"),
+                        rs.getObject("src_book_id", UUID.class)
+                ),
+                nodeId, sourceId
+        ).stream().findFirst();
+    }
 }

@@ -51,6 +51,20 @@ public class NodeSourceService {
         return nodeSourceRepository.findByNodeId(nodeId);
     }
 
+    /**
+     * Расширенная версия для GET endpoint - возвращает rows с computed
+     * location через SQL JOIN. Используется в новом NodeCitationController/
+     * NodeSourceController list.
+     */
+    @Transactional(readOnly = true)
+    public List<ru.basnukaev.argumentmap.repository.NodeSourceRepository.NodeSourceWithLocation>
+            getNodeSourcesWithLocation(UUID nodeId) {
+        if (nodeRepository.findById(nodeId).isEmpty()) {
+            throw new NodeNotFoundException(nodeId);
+        }
+        return nodeSourceRepository.findByNodeIdWithLocation(nodeId);
+    }
+
     @Transactional
     public void detachSource(UUID nodeId, UUID sourceId) {
         boolean removed = nodeSourceRepository.delete(nodeId, sourceId);

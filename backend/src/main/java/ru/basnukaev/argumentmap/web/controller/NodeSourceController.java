@@ -41,7 +41,7 @@ public class NodeSourceController {
 
     @GetMapping
     public List<NodeSourceResponse> list(@PathVariable UUID nodeId) {
-        return nodeSourceService.getNodeSources(nodeId).stream()
+        return nodeSourceService.getNodeSourcesWithLocation(nodeId).stream()
                 .map(DtoMappers::toResponse).toList();
     }
 

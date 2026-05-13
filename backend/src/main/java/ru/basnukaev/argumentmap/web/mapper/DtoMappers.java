@@ -13,6 +13,7 @@ import ru.basnukaev.argumentmap.domain.NodeSource;
 import ru.basnukaev.argumentmap.domain.Revision;
 import ru.basnukaev.argumentmap.domain.Source;
 import ru.basnukaev.argumentmap.domain.Topic;
+import ru.basnukaev.argumentmap.repository.NodeSourceRepository;
 import ru.basnukaev.argumentmap.repository.TopicWithCounts;
 import ru.basnukaev.argumentmap.service.GraphView;
 import ru.basnukaev.argumentmap.web.dto.AuthorityResponse;
@@ -109,6 +110,32 @@ public final class DtoMappers {
         return new NodeSourceResponse(
                 link.nodeId(), link.sourceId(),
                 link.quote(), link.context(), link.location(),
+                link.mode(),
+                link.pageId(), link.rangeStart(), link.rangeEnd(),
+                link.pdfFileId(), link.pdfPageNumber(),
+                jsonFromString(link.pdfBbox()),
+                link.imageRegionId(),
+                null,
+                link.createdAt()
+        );
+    }
+
+    /**
+     * Caнaонический mapper для GET endpoints - использует computed location
+     * из SQL JOIN и bookId из Source. Используется когда есть
+     * {@link NodeSourceRepository.NodeSourceWithLocation}.
+     */
+    public static NodeSourceResponse toResponse(NodeSourceRepository.NodeSourceWithLocation row) {
+        NodeSource link = row.ns();
+        return new NodeSourceResponse(
+                link.nodeId(), link.sourceId(),
+                link.quote(), link.context(), row.computedLocation(),
+                link.mode(),
+                link.pageId(), link.rangeStart(), link.rangeEnd(),
+                link.pdfFileId(), link.pdfPageNumber(),
+                jsonFromString(link.pdfBbox()),
+                link.imageRegionId(),
+                row.bookId(),
                 link.createdAt()
         );
     }

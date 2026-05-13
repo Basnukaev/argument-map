@@ -1045,10 +1045,107 @@ PDF-источника или fileIndex out of range).
 - Bulk endpoints (`POST /map-books?ids=...`) - до решения bulk vs
   lazy после фронт-валидации
 
+## Citation API (ADR-026 + ADR-027, Этап 18.f)
+
+Дополняет существующий `POST /api/v1/nodes/{nodeId}/sources` для positional
+citation flow с привязкой к book/page/PDF. Используется CitationPicker на
+фронте.
+
+### POST /api/v1/nodes/{nodeId}/citations
+
+Создаёт citation с positional pointer в одном из трёх режимов
+(TEXT/PDF/REGION). Ensure-or-create Source для (sourceType=BOOK, bookId),
+insert в node_sources с positional полями.
+
+**Request (TEXT mode):**
+```json
+{
+  "bookId": "uuid",
+  "pageId": "uuid",
+  "rangeStart": 0,
+  "rangeEnd": 87,
+  "quote": "وأرى أن لا تكون البدعة...",
+  "context": "Ибн Касир признаёт..."
+}
+```
+
+**Request (PDF mode):**
+```json
+{
+  "bookId": "uuid",
+  "pdfFileId": "uuid",
+  "pdfPageNumber": 47,
+  "pdfBbox": {"x": 0.12, "y": 0.23, "width": 0.65, "height": 0.05},
+  "quote": "...",
+  "context": "..."
+}
+```
+
+`pdfBbox` нормализован 0-1 относительно page viewport (zoom-invariant).
+
+**Request (REGION mode, future):**
+```json
+{
+  "bookId": "uuid",
+  "imageRegionId": "uuid",
+  "context": "..."
+}
+```
+
+**Ответ (201 Created):** расширенный `NodeSourceResponse` (см. ниже).
+
+**Ошибки:**
+- `400 invalid-citation` - не ровно один режим / range invalid / bbox invalid
+- `404 node-not-found` / `book-not-found` / `page-not-found`
+- `404 pdf-not-available` - PDF не существует или soft-deleted
+- `404 image-region-not-found`
+
+### NodeSourceResponse (расширен в Этапе 18.f)
+
+```json
+{
+  "nodeId": "uuid",
+  "sourceId": "uuid",
+  "quote": "string|null",
+  "context": "string|null",
+  "location": "Тафсир Ибн Касира, Т.1 стр.47, строки 0-87",
+  "mode": "TEXT|PDF|REGION|LEGACY",
+  "pageId": "uuid|null",
+  "rangeStart": "int|null",
+  "rangeEnd": "int|null",
+  "pdfFileId": "uuid|null",
+  "pdfPageNumber": "int|null",
+  "pdfBbox": {...} | null,
+  "imageRegionId": "uuid|null",
+  "bookId": "uuid|null",
+  "createdAt": "iso8601"
+}
+```
+
+`location` computed на бэке через SQL JOIN
+(`book.title + part + printedPage + range/bbox info`). Для LEGACY mode
+(citations через `AddSourceModal`) - fallback на snapshot в `node_sources.location`.
+
+`mode` derived из заполненности positional полей:
+- TEXT когда `pageId` set
+- PDF когда `pdfFileId` set
+- REGION когда `imageRegionId` set
+- LEGACY когда все positional NULL
+
+`bookId` берётся из `Source.book_id` через JOIN - frontend использует для
+построения deep link на источник citation.
+
+### GET /api/v1/nodes/{nodeId}/sources (обновлён)
+
+Возвращает массив **расширенного NodeSourceResponse** (с positional полями
+и computed location). Существующие clients игнорируют новые поля - backward
+compatible.
+
 ## История изменений контракта
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-13 | v1 | Новый endpoint `POST /api/v1/nodes/{nodeId}/citations` для positional citation (TEXT/PDF/REGION modes). `NodeSourceResponse` расширен 9 полями: `mode`, `pageId`, `rangeStart`, `rangeEnd`, `pdfFileId`, `pdfPageNumber`, `pdfBbox`, `imageRegionId`, `bookId`. `SourceResponse` расширен полем `bookId` (UUID nullable, FK на lib_books). Новые ошибки: `400 invalid-citation`, `404 book-not-found`/`page-not-found`/`pdf-not-available`/`image-region-not-found`. Существующий `POST /api/v1/nodes/{nodeId}/sources` (legacy freeform) сохраняется для AddSourceModal flow | ADR-026 (Source.bookId FK для one-source-per-book), ADR-027 (positional citation fields в node_sources). Этап 18.f CitationPicker |
 | 2026-05-11 | v1 | `PdfFileInfoResponse` расширен полем `isCover` (boolean). Помечает обложку книги - по convention shamela/archive.org обложка лежит в `files[0]` когда metadata содержит `"cover": 1`. Фронт пропускает cover из основного potoka чтения - до фикса всегда грузил `fileIndex=0` (cover, 3 страницы) вместо реального контента | Bug fix: пользователь видел 3 страницы PDF вместо тысяч (cover файл попадал в reader как main content) |
 | 2026-05-11 | v1 | **Breaking rename** DTO: `BookSummary` → `BookSummaryResponse`, `PageSummary` → `PageSummaryResponse`, `StagingBookSearchResult` → `StagingBookSearchResponse`. Эндпоинты не меняются. Поля внутри records не меняются. Имена в OpenAPI schema (`components/schemas/*`) обновляются с следующим `npm run generate-api` | ADR-022: DTO suffix convention (`*Response` для всех REST DTO, `*Row` для staging). B-04 audit finding |
 | 2026-05-11 | v1 | Добавлены 2 endpoint под `/api/v1/library/books/{id}/pdf/*`: `GET /info` (метаданные PDF файлов книги) и `GET ?fileIndex=N` (streaming PDF с Range header support через `ResourceRegion`). Source-agnostic архитектура - `PdfSourceProvider` interface, реализация `PdfLinksSourceProvider` для shamela (archive.org CDN) + будущие MinIO/IIIF. Новая ошибка: 404 `pdf-not-available`. DTO: `PdfInfoResponse`, `PdfFileInfoResponse` (без filename - защита от обхода нашего endpoint) | ADR-021 source-first, Этап 25.a |

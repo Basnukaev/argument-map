@@ -86,6 +86,18 @@ public class GlobalExceptionHandler {
                 "Невалидная книга", "invalid-book", ex.getMessage());
     }
 
+    @ExceptionHandler(InvalidCitationException.class)
+    public ProblemDetail handleInvalidCitation(InvalidCitationException ex) {
+        return problem(HttpStatus.BAD_REQUEST,
+                "Невалидная цитата", "invalid-citation", ex.getMessage());
+    }
+
+    @ExceptionHandler(ImageRegionNotFoundException.class)
+    public ProblemDetail handleImageRegionNotFound(ImageRegionNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND,
+                "Image region не найден", "image-region-not-found", ex.getMessage());
+    }
+
     @ExceptionHandler(PdfNotAvailableException.class)
     public ProblemDetail handlePdfNotAvailable(PdfNotAvailableException ex) {
         return problem(HttpStatus.NOT_FOUND,
