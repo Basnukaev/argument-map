@@ -17,6 +17,102 @@ Claude Code не тратят токены на исторический кон�
 
 ---
 
+## 2026-05-13 — Сессия 29 (продолжение) — Task 0-2 backend foundation 18.f
+
+После handoff'а как design-only - user сказал «лец го», поехали execution
+в той же сессии через `superpowers:executing-plans` skill.
+
+### Сделано
+
+- **Task 0** `67b3594` `docs: gotcha lib_pages.id stability через mapper
+  skip-if-existing` - audit подтвердил что current `ShamelaToLibraryMapper.mapBook`
+  skip-if-existing поведение удовлетворяет page_id stability invariant.
+  Gotcha добавлена в `docs/gotchas.md` для будущих сессий когда понадобится
+  re-import content updates
+
+- **Task 1** `13823cd` `feat(backend): 18.f.2 - Source.bookId FK + ADR-026` -
+  миграция 22 + 8 IT:
+  - `sources.book_id UUID FK lib_books(id) ON DELETE RESTRICT`
+  - UNIQUE INDEX `(source_type, book_id) WHERE book_id IS NOT NULL`
+  - CHECK `book_id IS NULL OR source_type = 'BOOK'`
+  - `Source` record расширен полем `bookId` (между authorityId и metadata)
+  - `SourceRepository.findByBookId` + `upsertByBookId` (atomic
+    `INSERT ON CONFLICT DO NOTHING RETURNING`)
+  - `SourceResponse` + `DtoMappers.toResponse(Source)` обновлены - bookId
+    в API response для frontend deep link
+  - SourceService.createSource обновлён под новую signature
+  - Обновлены 8 callsites Source constructor в SourceRepositoryIT
+  - ADR-026 + architecture.md записаны
+
+- **Task 2** `c1c1c9f` `feat(backend): 18.f.3 - positional citation fields
+  в node_sources + ADR-027` - миграция 23 + 8 IT:
+  - `node_sources` +7 nullable колонок: page_id, range_start, range_end,
+    pdf_file_id, pdf_page_number, pdf_bbox (JSONB), image_region_id
+  - CHECK `chk_node_sources_one_mode` обеспечивает один-из-четырёх (TEXT/
+    PDF/REGION/LEGACY)
+  - FK ON DELETE RESTRICT на page_id/pdf_file_id/image_region_id
+  - 3 partial индекса WHERE column IS NOT NULL
+  - `NodeSource` record расширен + 4 factory methods
+    (textMode/pdfMode/regionMode/legacyMode) + `mode()` helper
+  - `CitationMode` enum (TEXT/PDF/REGION/LEGACY)
+  - `PdfBbox` record с runtime validation 0-1
+  - `NodeSourceRepository` обновлён (?::jsonb cast для pdf_bbox)
+  - `NodeSourceService.attachSource` использует `NodeSource.legacyMode`
+  - Обновлены 7 callsites NodeSource constructor в NodeSourceRepositoryIT
+  - ADR-027 записан
+
+23 новых IT (8 BookId + 8 Positional + 7 existing NodeSource обновлены)
+все зелёные. Production-БД пока на миграции 21 - применятся при первом
+backend restart с новой codebase.
+
+### Решения
+
+- **Mapper UPSERT fix не требуется** - skip-if-existing уже даёт page_id
+  stability. Gotcha зафиксирована для future
+- **Source.metadata осталось String (raw JSON)**, а не Map<String,Object>
+  как было в plan - consistent с existing pattern проекта
+- **PdfBbox хранится как String** в domain layer (consistent с Source.metadata),
+  JsonNode конвертация на DTO layer (Task 3)
+- **Library_files PK = file_id (не id)** - обнаружено в FK ошибке при first
+  verify run. Migration 23 ссылается на `library_files(file_id)`
+
+### Проблемы
+
+- Изначальная миграция 23 ссылалась на `library_files(id)` который не существует -
+  PK назван `file_id`. Liquibase context load failed. Fix:
+  `library_files(file_id)`. Применился без проблем после fix
+- Full `./mvnw verify` не запущен в конце Task 2 - targeted verify прошёл
+  для 23 новых IT. Перед Task 3 новая сессия должна запустить full verify
+
+### Следующий шаг
+
+**Новая сессия начинает с Task 3 plan'а** (NodeCitationService + Controller
++ ~23 IT + computed location JOIN). Детально в `docs/superpowers/plans/2026-05-13-citation-picker.md`.
+
+Краткая последовательность что осталось:
+1. **Task 3** (60-90 мин) - NodeCitationService с ensure-or-create Source,
+   validation 4-mode XOR, computed location через SQL JOIN. NodeCitationController
+   POST `/api/v1/nodes/:id/citations`. 4 новых exceptions + GlobalExceptionHandler.
+   ~23 service+controller IT
+2. **Task 4** (15 мин) - backend smoke через curl - применить миграции 22+23
+   на production-БД, POST citation, GET с computed location
+3. **Task 5-9** - frontend extract mini-reader, selection props, CitationPicker,
+   NodeCitationsSection две кнопки, BookReaderPage deep links
+4. **Task 10-12** - frontend verify, playwright smoke, handoff
+
+Перед Task 3 - запустить `cd backend && ./mvnw verify` чтобы убедиться что
+текущее состояние полностью зелёное (включая web/controller IT которые могли
+получить compile breakages от расширений `SourceResponse.bookId` и `NodeSource`
+constructor signature).
+
+Если что-то ломается - первым делом проверить:
+- `DtoMappers.toResponse(NodeSource)` пока не использует новые поля - OK для
+  legacy, но в Task 3 этот метод заменится на `toResponseWithMode` через JOIN
+- Existing NodeSourceController GET endpoint не падает - продолжает
+  использовать старый mapper. В Task 3 переключается на новый
+
+---
+
 ## 2026-05-13 — Сессия 29 — brainstorming + plan этапа 18.f CitationPicker
 
 Сессия открыта по приоритету Сессии 28 - выбор был между 18.f

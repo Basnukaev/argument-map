@@ -5,11 +5,37 @@
 начало новой сессии - Claude получит полный контекст без ручного
 объяснения.
 
-## КРИТИЧНО для Сессии 30+ (после Сессии 29 - brainstorming + plan этапа 18.f готовы)
+## КРИТИЧНО для Сессии 30+ (после Сессии 29 - foundation 18.f: Task 0-2 закрыты)
 
-Сессия 29 - **design-only сессия**. Brainstorming + spec + plan
-для этапа 18.f CitationPicker. Код не писался - implementation
-в Сессии 30 по готовому plan'у.
+Сессия 29 началась как design-only (brainstorming + spec + plan для 18.f),
+потом user сказал «лец го» и продолжили execution. Закрыты Task 0-2 (audit
++ миграции 22+23 + domain + repos + 23 IT). Task 3+ в Сессии 30.
+
+**Done в Сессии 29:**
+- `af2254d` design spec + `361a8bc` implementation plan (12 tasks)
+- `67b3594` Task 0 - gotcha lib_pages.id stability (mapper skip-if-existing
+  даёт invariant без UPSERT fix)
+- `13823cd` Task 1 - миграция 22 (Source.bookId FK) + ADR-026 + 8 IT
+- `c1c1c9f` Task 2 - миграция 23 (node_sources +7 positional колонок) +
+  ADR-027 + 8 IT
+
+**Pending Task 3-12** - всё детально в plan'е. Краткое:
+- Task 3 (60-90 мин) NodeCitationService + Controller + ~23 IT
+- Task 4 (15 мин) backend smoke + restart с применением миграций на production
+- Task 5 (30 мин) extract mini-reader → shared/components/reader
+- Task 6 (60 мин) PageView/PdfViewer selection props + textRangeUtils
+- Task 7 (90 мин) CitationPicker компонент
+- Task 8 (30 мин) NodeCitationsSection две кнопки
+- Task 9 (45 мин) BookReaderPage deep links
+- Task 10 (15 мин) frontend verify
+- Task 11 (30 мин) playwright smoke
+- Task 12 (15 мин) handoff
+
+**Перед Task 3 - запустить `cd backend && ./mvnw verify`** чтобы убедиться
+что full IT suite зелёный. В Сессии 29 targeted IT прошли (23 новых), но
+full verify не запускался после Task 2 - возможны compile breakages в
+controller/web IT от расширения SourceResponse.bookId или NodeSource
+constructor signature.
 
 **Ключевые артефакты (читать перед началом!):**
 1. `docs/superpowers/specs/2026-05-13-citation-picker-design.md` -
