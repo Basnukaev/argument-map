@@ -5,7 +5,6 @@ import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -24,13 +23,12 @@ import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.LibraryFile;
 import ru.basnukaev.argumentmap.library.domain.LibraryFileSourceType;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfFileInfo;
+import ru.basnukaev.argumentmap.library.pdf.domain.PdfLocation;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfMetadata;
 import ru.basnukaev.argumentmap.library.repository.LibraryFileRepository;
 import ru.basnukaev.argumentmap.library.shamela.api.ShamelaApiException;
 import ru.basnukaev.argumentmap.library.storage.ObjectStorageProperties;
 import ru.basnukaev.argumentmap.library.storage.ObjectStorageService;
-import software.amazon.awssdk.core.ResponseInputStream;
-import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 /**
  * Универсальный PDF-провайдер для книг с {@code pdf_links} в
@@ -50,40 +48,36 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
  * }
  * }</pre>
  *
- * <p>Каждая запись {@code files[i]} - либо чистый filename, либо
- * {@code "filename|label"} (label - арабская/латинская строка
- * с описанием тома или раздела).
+ * <h2>Caching (25.b.6)</h2>
  *
- * <h2>Caching (25.b.5)</h2>
+ * <p>Единственный кеш - MinIO + {@code library_files} catalog (ADR-024).
+ * Local file cache отсутствует - PDF читается напрямую из object
+ * storage через {@code ObjectStorageService.getRange} в controller.
  *
- * <p>Двухуровневый кеш через {@link ObjectStorageService} +
- * {@link LibraryFileRepository} catalog (ADR-024):
+ * <p>Flow {@link #locateFile}:
+ * <ol>
+ *   <li>Resolve {@code (bucket, storageKey)} из book+fileIndex</li>
+ *   <li>Check {@code library_files.findActiveByBucketAndKey} →
+ *       если найдено, return PdfLocation (cache hit)</li>
+ *   <li>Cache miss: download upstream в temp file (буфер для hashing) →
+ *       {@code putAndRegister} в MinIO + insert catalog → return
+ *       PdfLocation</li>
+ * </ol>
  *
- * <ul>
- *   <li><b>MinIO (persistent)</b> - bucket
- *       {@code library-imported-books}, выживает restart backend и
- *       multi-instance deploys. Catalog row в {@code library_files}
- *       resolve'ит по {@code (bucket, storage_key)}</li>
- *   <li><b>local temp file (per-process speed)</b> - копия в
- *       {@code targetDir} для быстрой повторной отдачи через
- *       {@code FileSystemResource} с HTTP Range. Теряется при restart,
- *       восстанавливается из MinIO при первом обращении после restart'а
- *       (без upstream re-download)</li>
- * </ul>
- *
- * <p>На MVP пока сохраняется local file copy - для интеграции с
- * существующим {@link ru.basnukaev.argumentmap.library.pdf.web.PdfController}
- * который использует {@code FileSystemResource}. lazy streaming из
- * MinIO напрямую через Range - см. 25.b.6.
+ * <p>Temp file используется только как download buffer на стороне
+ * {@link ObjectStorageService} (для SHA-256 + retry-safety, см. ADR-024).
+ * Никакого долгоживущего local state.
  *
  * <p>{@link Order} = 100 - провайдер первого приоритета. Будущие
- * провайдеры (например ArchiveOrgDirect) встают рядом с разным order.
+ * провайдеры (например ArchiveOrgDirect, UserUploadProvider) встают
+ * рядом с разным order.
  */
 @Component
 @Order(100)
 public class PdfLinksSourceProvider implements PdfSourceProvider {
 
     private static final Logger log = LoggerFactory.getLogger(PdfLinksSourceProvider.class);
+    private static final String CONTENT_TYPE = "application/pdf";
 
     private final ObjectMapper objectMapper;
     private final PdfFetcher pdfFetcher;
@@ -133,9 +127,6 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
             if (raw == null) {
                 continue;
             }
-            // По convention shamela/archive.org: если hasCover - первый
-            // файл это обложка. Маркируем чтобы frontend пропускал её
-            // из основного potoka чтения
             boolean cover = hasCover && i == 0;
             files.add(parseFileEntry(i, raw, cover));
         }
@@ -143,7 +134,7 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
     }
 
     @Override
-    public Path downloadFile(Book book, int fileIndex, Path targetDir) {
+    public PdfLocation locateFile(Book book, int fileIndex) {
         PdfMetadata meta = getMetadata(book);
         if (fileIndex < 0 || fileIndex >= meta.files().size()) {
             throw new PdfNotAvailableException(book.id(), fileIndex, meta.files().size());
@@ -153,37 +144,25 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
                     "pdf_links.root отсутствует для книги " + book.id());
         }
         PdfFileInfo file = meta.files().get(fileIndex);
-        ensureDirectory(targetDir);
-        Path target = targetDir.resolve(file.filename());
-
-        // Уровень 1: local temp file - speed cache в пределах одной JVM
-        if (Files.exists(target)) {
-            log.info("pdf local cache hit: book={} file={} -> {}",
-                    book.id(), file.filename(), target);
-            return target;
-        }
-
         String bucket = storageProperties.buckets().importedBooks();
         String storageKey = storageKey(book, file);
 
-        // Уровень 2: MinIO catalog - persistent cache (выживает restart)
+        // Cache check - persistent через catalog + MinIO
         Optional<LibraryFile> cached = libraryFileRepository
                 .findActiveByBucketAndKey(bucket, storageKey);
         if (cached.isPresent()) {
-            log.info("pdf minio cache hit: book={} file={} catalog={}",
-                    book.id(), file.filename(), cached.get().fileId());
-            copyFromMinioToLocal(bucket, storageKey, target);
-            return target;
+            LibraryFile row = cached.get();
+            log.info("pdf cache hit: book={} file={} catalog={}",
+                    book.id(), file.filename(), row.fileId());
+            return new PdfLocation(bucket, storageKey, row.sizeBytes(), CONTENT_TYPE);
         }
 
-        // Cache miss - download upstream + register в catalog + сохранить локально
+        // Cache miss - download upstream + register в catalog/MinIO
         URI url = URI.create(meta.root() + file.filename());
         log.info("pdf download from upstream: book={} file={} from {}",
                 book.id(), file.filename(), url);
-        pdfFetcher.fetch(url, target);
-
-        registerInCatalog(book, target, bucket, storageKey, url);
-        return target;
+        LibraryFile registered = downloadAndRegister(book, url, bucket, storageKey);
+        return new PdfLocation(bucket, storageKey, registered.sizeBytes(), CONTENT_TYPE);
     }
 
     /**
@@ -195,37 +174,41 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
         return book.id() + "/" + file.filename();
     }
 
-    private void copyFromMinioToLocal(String bucket, String storageKey, Path target) {
-        try (ResponseInputStream<GetObjectResponse> stream =
-                     objectStorageService.get(bucket, storageKey)) {
-            Files.copy(stream, target, StandardCopyOption.REPLACE_EXISTING);
-        } catch (IOException e) {
-            // частично скопированный файл удаляем чтобы next request увидел miss
-            try {
-                Files.deleteIfExists(target);
-            } catch (IOException ignored) {
-                // best-effort
-            }
-            throw new ShamelaApiException(
-                    "ошибка копирования из MinIO в local: " + bucket + "/" + storageKey, e);
-        }
-    }
+    /**
+     * Скачивает PDF в temp file (для SHA-256 hashing + retry-safety
+     * в {@link ObjectStorageService}), upload'ит в MinIO + регистрирует
+     * в catalog. Temp file удаляется в finally.
+     */
+    private LibraryFile downloadAndRegister(Book book, URI url, String bucket, String storageKey) {
+        Path tempFile = null;
+        try {
+            tempFile = Files.createTempFile("pdf-fetch-", ".pdf");
+            pdfFetcher.fetch(url, tempFile);
+            long size = Files.size(tempFile);
 
-    private void registerInCatalog(Book book, Path localFile,
-                                    String bucket, String storageKey, URI sourceUrl) {
-        Integer shamelaMajor = readShamelaMajorRelease(book);
-        LibraryFileSourceType sourceType = shamelaMajor != null
-                ? LibraryFileSourceType.SHAMELA
-                : LibraryFileSourceType.ARCHIVE_ORG;
-        try (InputStream stream = Files.newInputStream(localFile)) {
-            objectStorageService.putAndRegister(
-                    bucket, storageKey, stream, Files.size(localFile),
-                    "application/pdf",
-                    book.id(), sourceUrl.toString(),
-                    sourceType, shamelaMajor, null);
+            Integer shamelaMajor = readShamelaMajorRelease(book);
+            LibraryFileSourceType sourceType = shamelaMajor != null
+                    ? LibraryFileSourceType.SHAMELA
+                    : LibraryFileSourceType.ARCHIVE_ORG;
+
+            try (InputStream stream = Files.newInputStream(tempFile)) {
+                return objectStorageService.putAndRegister(
+                        bucket, storageKey, stream, size,
+                        CONTENT_TYPE,
+                        book.id(), url.toString(),
+                        sourceType, shamelaMajor, null);
+            }
         } catch (IOException e) {
             throw new ShamelaApiException(
-                    "не удалось загрузить PDF в MinIO: " + bucket + "/" + storageKey, e);
+                    "не удалось зарегистрировать PDF в storage: " + bucket + "/" + storageKey, e);
+        } finally {
+            if (tempFile != null) {
+                try {
+                    Files.deleteIfExists(tempFile);
+                } catch (IOException ignored) {
+                    // best-effort cleanup
+                }
+            }
         }
     }
 
@@ -284,13 +267,5 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
 
     private static String textOrNull(JsonNode node) {
         return (node == null || node.isNull()) ? null : node.asText();
-    }
-
-    private static void ensureDirectory(Path dir) {
-        try {
-            Files.createDirectories(dir);
-        } catch (IOException e) {
-            throw new ShamelaApiException("не удалось создать каталог " + dir, e);
-        }
     }
 }

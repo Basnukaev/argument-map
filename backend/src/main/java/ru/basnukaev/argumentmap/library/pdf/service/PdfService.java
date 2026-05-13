@@ -1,21 +1,19 @@
 package ru.basnukaev.argumentmap.library.pdf.service;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import ru.basnukaev.argumentmap.exception.BookNotFoundException;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.pdf.domain.PdfLocation;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfMetadata;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
+import ru.basnukaev.argumentmap.library.storage.ObjectStorageService;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 /**
  * Роутер PDF-провайдеров. Опрашивает все
@@ -23,31 +21,28 @@ import ru.basnukaev.argumentmap.library.repository.BookRepository;
  * по {@code @Order}), выбирает первого подходящего для книги.
  *
  * <p>На MVP - один provider ({@link PdfLinksSourceProvider}).
- * Будущие: MinioCacheProvider (order=10) перехватывает cached
- * requests раньше всех, ArchiveOrgDirectProvider для книг с
- * прямым archive.org ID без shamela-импорта.
+ * Будущие: UserUploadProvider (order=50) для книг загруженных
+ * пользователем в {@code library-user-uploads}, ArchiveOrgDirect для
+ * книг с прямым archive.org ID без shamela-импорта.
  *
- * <p>{@code tempDir} - каталог для скачанных PDF на MVP без MinIO.
- * Будет заменён MinIO-кешом в 25.b.
+ * <p>После 25.b.6 - PDF идут напрямую через
+ * {@link ObjectStorageService}. Никакого локального файлового кеша:
+ * controller использует {@link #openRange} / {@link #openFull} для
+ * streaming bytes из MinIO в HTTP response.
  */
 @Service
 public class PdfService {
 
-    private static final Logger log = LoggerFactory.getLogger(PdfService.class);
-
     private final List<PdfSourceProvider> providers;
     private final BookRepository bookRepository;
-    private final Path tempDir;
+    private final ObjectStorageService objectStorageService;
 
     public PdfService(List<PdfSourceProvider> providers,
                       BookRepository bookRepository,
-                      @Value("${library.pdf.temp-dir:${java.io.tmpdir}/argmap-pdf}") String tempDirPath) {
+                      ObjectStorageService objectStorageService) {
         this.providers = providers;
         this.bookRepository = bookRepository;
-        this.tempDir = Path.of(tempDirPath);
-        ensureDir(this.tempDir);
-        log.info("PdfService init: tempDir={} providers={}", this.tempDir,
-                providers.stream().map(p -> p.getClass().getSimpleName()).toList());
+        this.objectStorageService = objectStorageService;
     }
 
     /**
@@ -65,16 +60,34 @@ public class PdfService {
     }
 
     /**
-     * Lazy download конкретного файла. Возвращает path к локально
-     * сохранённому PDF. После 25.b - path будет к MinIO-cached версии
-     * (download только при cache miss).
+     * Резолвит location PDF файла в object storage. Lazy: при cache
+     * miss provider скачает upstream + зарегистрирует в catalog/MinIO.
      */
-    public Path getOrDownload(UUID bookId, int fileIndex) {
+    public PdfLocation locate(UUID bookId, int fileIndex) {
         Book book = loadBook(bookId);
         PdfSourceProvider provider = findProvider(book)
                 .orElseThrow(() -> new PdfNotAvailableException(bookId));
-        Path bookDir = tempDir.resolve(bookId.toString());
-        return provider.downloadFile(book, fileIndex, bookDir);
+        return provider.locateFile(book, fileIndex);
+    }
+
+    /**
+     * Открывает full-file stream из object storage. Caller должен
+     * закрыть stream (обычно через try-with-resources в controller).
+     */
+    public ResponseInputStream<GetObjectResponse> openFull(PdfLocation loc) {
+        return objectStorageService.get(loc.bucket(), loc.storageKey());
+    }
+
+    /**
+     * Открывает byte-range stream из object storage. Параметры
+     * соответствуют HTTP Range header semantics: оба inclusive,
+     * {@code endInclusive} может превышать реальный размер - S3 вернёт
+     * {@code 206 Partial Content} с обрезанным диапазоном.
+     */
+    public ResponseInputStream<GetObjectResponse> openRange(
+            PdfLocation loc, long startInclusive, long endInclusive) {
+        return objectStorageService.getRange(
+                loc.bucket(), loc.storageKey(), startInclusive, endInclusive);
     }
 
     private Book loadBook(UUID bookId) {
@@ -86,13 +99,5 @@ public class PdfService {
         return providers.stream()
                 .filter(p -> p.supports(book))
                 .findFirst();
-    }
-
-    private static void ensureDir(Path dir) {
-        try {
-            Files.createDirectories(dir);
-        } catch (IOException e) {
-            throw new IllegalStateException("не удалось создать temp каталог для PDF: " + dir, e);
-        }
     }
 }

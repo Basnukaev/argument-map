@@ -15,7 +15,6 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -32,6 +31,7 @@ import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.LibraryFile;
 import ru.basnukaev.argumentmap.library.domain.LibraryFileSourceType;
+import ru.basnukaev.argumentmap.library.pdf.domain.PdfLocation;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.repository.LibraryFileRepository;
 import ru.basnukaev.argumentmap.library.storage.ObjectStorageProperties;
@@ -45,8 +45,8 @@ import software.amazon.awssdk.services.s3.model.PutBucketVersioningRequest;
 import software.amazon.awssdk.services.s3.model.VersioningConfiguration;
 
 /**
- * Integration test для {@link PdfLinksSourceProvider} с двухуровневым
- * кешем (local temp file + MinIO catalog, ADR-024 + 25.b.5).
+ * Integration test для {@link PdfLinksSourceProvider} с MinIO catalog
+ * cache (ADR-024, 25.b.6).
  *
  * <p>Mock'аем {@link PdfFetcher} - симулируем upstream download записью
  * фиксированного content в target file. Реальные HTTP не делаем.
@@ -94,9 +94,6 @@ class PdfLinksSourceProviderIT {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @TempDir
-    Path tempDir;
-
     private UUID userId;
     private String importedBucket;
     private byte[] upstreamPdfBytes;
@@ -111,14 +108,11 @@ class PdfLinksSourceProviderIT {
                 "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
                 userId, "user-" + userId, userId + "@example.com");
 
-        // Симулируем PDF content - 2KB фиксированных bytes
         upstreamPdfBytes = new byte[2_048];
         for (int i = 0; i < upstreamPdfBytes.length; i++) {
             upstreamPdfBytes[i] = (byte) (i % 251);
         }
 
-        // Mock'аем PdfFetcher.fetch так что он пишет известный content в
-        // указанный target Path - имитация successful HTTP download
         doAnswer(invocation -> {
             Path target = invocation.getArgument(1);
             Files.write(target, upstreamPdfBytes);
@@ -127,85 +121,71 @@ class PdfLinksSourceProviderIT {
     }
 
     @Test
-    void downloadFile_cacheMiss_downloadsUpstream_uploadsToMinio_registersCatalog() throws Exception {
+    void locateFile_cacheMiss_downloadsUpstream_registersCatalog_returnsLocation() {
         Book book = saveShamelaBook(6, "01_book.pdf");
-        Path bookDir = tempDir.resolve(book.id().toString());
 
-        Path result = provider.downloadFile(book, 0, bookDir);
+        PdfLocation loc = provider.locateFile(book, 0);
 
-        assertThat(result).isRegularFile();
-        assertThat(Files.readAllBytes(result)).hasSize(upstreamPdfBytes.length);
+        assertThat(loc.bucket()).isEqualTo(importedBucket);
+        assertThat(loc.storageKey()).isEqualTo(book.id() + "/01_book.pdf");
+        assertThat(loc.sizeBytes()).isEqualTo(upstreamPdfBytes.length);
+        assertThat(loc.contentType()).isEqualTo("application/pdf");
 
-        String storageKey = book.id() + "/01_book.pdf";
         LibraryFile registered = libraryFileRepository
-                .findActiveByBucketAndKey(importedBucket, storageKey).orElseThrow();
+                .findActiveByBucketAndKey(loc.bucket(), loc.storageKey()).orElseThrow();
         assertThat(registered.bookId()).isEqualTo(book.id());
         assertThat(registered.sourceType()).isEqualTo(LibraryFileSourceType.SHAMELA);
         assertThat(registered.shamelaMajorRelease()).isEqualTo(6);
-        assertThat(registered.sizeBytes()).isEqualTo(upstreamPdfBytes.length);
         assertThat(registered.contentHash()).hasSize(64);
 
-        assertThat(objectStorageService.exists(importedBucket, storageKey)).isTrue();
+        assertThat(objectStorageService.exists(loc.bucket(), loc.storageKey())).isTrue();
         verify(pdfFetcher, times(1)).fetch(any(URI.class), any(Path.class));
     }
 
     @Test
-    void downloadFile_localCacheHit_skipsUpstreamAndMinio() {
+    void locateFile_cacheHit_returnsExistingLocation_noUpstreamCall() {
         Book book = saveShamelaBook(6, "01_book.pdf");
-        Path bookDir = tempDir.resolve(book.id().toString());
 
-        provider.downloadFile(book, 0, bookDir);
+        PdfLocation first = provider.locateFile(book, 0);
         verify(pdfFetcher, times(1)).fetch(any(URI.class), any(Path.class));
 
-        Path second = provider.downloadFile(book, 0, bookDir);
+        PdfLocation second = provider.locateFile(book, 0);
 
-        assertThat(second).isRegularFile();
-        // Local file cache hit - не зовём upstream вторично
+        assertThat(second.storageKey()).isEqualTo(first.storageKey());
+        assertThat(second.sizeBytes()).isEqualTo(first.sizeBytes());
+        // Upstream НЕ вызывался повторно - чисто catalog hit
         verify(pdfFetcher, times(1)).fetch(any(URI.class), any(Path.class));
     }
 
     @Test
-    void downloadFile_minioCacheHit_skipsUpstream_pullsFromMinio() throws Exception {
+    void locateFile_returnedLocation_isReadableViaObjectStorageService() throws Exception {
         Book book = saveShamelaBook(6, "01_book.pdf");
-        Path bookDir = tempDir.resolve(book.id().toString());
 
-        provider.downloadFile(book, 0, bookDir);
-        verify(pdfFetcher, times(1)).fetch(any(URI.class), any(Path.class));
+        PdfLocation loc = provider.locateFile(book, 0);
 
-        // Имитируем restart backend - local file исчезает, MinIO+catalog
-        // остаются
-        Path localFile = bookDir.resolve("01_book.pdf");
-        Files.deleteIfExists(localFile);
-        assertThat(localFile).doesNotExist();
-
-        Path restored = provider.downloadFile(book, 0, bookDir);
-
-        assertThat(restored).isRegularFile();
-        assertThat(Files.size(restored)).isEqualTo(upstreamPdfBytes.length);
-        // Upstream НЕ дёргался повторно - содержимое из MinIO
-        verify(pdfFetcher, times(1)).fetch(any(URI.class), any(Path.class));
+        try (var stream = objectStorageService.get(loc.bucket(), loc.storageKey())) {
+            byte[] read = stream.readAllBytes();
+            assertThat(read).containsExactly(upstreamPdfBytes);
+        }
     }
 
     @Test
-    void downloadFile_archiveOrgBookWithoutShamelaMajor_registersAsArchiveOrgType() {
+    void locateFile_archiveOrgBookWithoutShamelaMajor_registersAsArchiveOrgType() {
         Book book = saveArchiveOrgBook("vol_1.pdf");
-        Path bookDir = tempDir.resolve(book.id().toString());
 
-        provider.downloadFile(book, 0, bookDir);
+        PdfLocation loc = provider.locateFile(book, 0);
 
-        String storageKey = book.id() + "/vol_1.pdf";
         LibraryFile registered = libraryFileRepository
-                .findActiveByBucketAndKey(importedBucket, storageKey).orElseThrow();
+                .findActiveByBucketAndKey(loc.bucket(), loc.storageKey()).orElseThrow();
         assertThat(registered.sourceType()).isEqualTo(LibraryFileSourceType.ARCHIVE_ORG);
         assertThat(registered.shamelaMajorRelease()).isNull();
     }
 
     @Test
-    void downloadFile_invalidFileIndex_throwsPdfNotAvailable() {
+    void locateFile_invalidFileIndex_throwsPdfNotAvailable() {
         Book book = saveShamelaBook(6, "01_book.pdf");
-        Path bookDir = tempDir.resolve(book.id().toString());
 
-        assertThatThrownBy(() -> provider.downloadFile(book, 99, bookDir))
+        assertThatThrownBy(() -> provider.locateFile(book, 99))
                 .isInstanceOf(PdfNotAvailableException.class);
     }
 
@@ -226,12 +206,11 @@ class PdfLinksSourceProviderIT {
     }
 
     @Test
-    void downloadFile_secondVolumeUsesSeparateStorageKey() throws Exception {
+    void locateFile_multiVolume_separateStorageKeys_separateCatalogRows() {
         Book book = saveShamelaBookMultiVolume(6, "01_book.pdf", "02_book.pdf");
-        Path bookDir = tempDir.resolve(book.id().toString());
 
-        provider.downloadFile(book, 0, bookDir);
-        provider.downloadFile(book, 1, bookDir);
+        provider.locateFile(book, 0);
+        provider.locateFile(book, 1);
 
         assertThat(libraryFileRepository.findActiveByBookId(book.id())).hasSize(2);
         assertThat(objectStorageService.exists(importedBucket, book.id() + "/01_book.pdf")).isTrue();
