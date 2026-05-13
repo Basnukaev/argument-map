@@ -759,22 +759,23 @@ apps/* добавляется только когда возникнет кон�
       (existing AddSourceModal для legacy URL/article/ручной хадис).
       AddSourceModal **не удалён** - покрывает freeform citation
       use case (citation без library book)
-- [ ] **18.h: Design polish секции «Опора»** - применить варианты
-      A1+B1+C1 из `frontend/design-reference/project/citations.jsx`
-      (накидано Claude Design 2026-05-13):
-        - A1: footer chips на NodeCard - раздельный count library
-          vs freeform (индиго BookOpen+N + slate Quote+N) + микрорядом
-          под content. 4 состояния: 0 / только-free / только-lib / mixed
-        - B1: side-panel секция - LibraryCite (3px indigo bar +
-          «Из библиотеки» badge + book title + Том/стр + Arabic quote +
-          RU translation + «Перейти в книгу» button) vs FreeformCite
-          (slate background + «Свободная» badge + url-or-AlertCircle
-          для no-URL + title + quote + note)
-        - C1: panel header inline meta-row - `🔗 N подкреплений (📖 X · ❝ Y)
-          · 🕐 M правок · 💬 K обсуждений` под h2 заголовка узла,
-          до раскрытия секций
-      Иконка секции: `Anchor` (вместо `Quote`), цвет `indigo-600`.
-      ~1-2 ч работы. Тривиально без рисков (только UI)
+- [x] **18.h.B1 + C1: Design polish секции «Опора»** - применены в
+      Сессии 30 (`ced7e79` + `6d9b6d8`) варианты из
+      `frontend/design-reference/project/citations.jsx`:
+        - **B1 done**: LibraryCite (3px indigo bar + «Из библиотеки»
+          badge + title + location + quote + «Перейти к источнику»)
+          vs FreeformCite (slate bg + «Свободная» badge +
+          AlertCircle для URL без citation)
+        - **C1 done**: panel header inline meta-row под StatusBadge -
+          `⚓ N опора (📖 lib · ❝ free)` с раздельными counts.
+          Eager-load в NodeCitationsSection + onCountsChange callback
+        - Иконка секции `Anchor` (Сессия 29 commit 5fc87d1)
+- [ ] **18.h.A1 (deferred)**: NodeCard footer chips в графе - раздельный
+      count library vs freeform на самой карточке узла. **Требует
+      backend NodeResponse расширение** (citationLibraryCount +
+      citationFreeformCount через aggregate JOIN в NodeRepository).
+      Откладывается - duplicate данные с header meta-row (C1 уже
+      покрывает inside panel)
 
 ## Этап 19. Q&A - первое полностью новое приложение
 

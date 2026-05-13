@@ -52,12 +52,10 @@
 - `c1c1c9f` Task 2 - миграция 23 (node_sources +7 positional колонок) +
   ADR-027 + 8 IT
 
-1. **Этап 18.h Design polish «Опора»** (~1-2 ч) - применить варианты
-   A1+B1+C1 из `frontend/design-reference/project/citations.jsx`:
-   footer chips на NodeCard (library count vs freeform count раздельно),
-   типизированные карточки в side-panel (LibraryCite indigo bar vs
-   FreeformCite slate background), inline meta-row в header. **Quick win**,
-   нет backend changes
+1. **Этап 18.h.B1+C1 ЗАКРЫТ** (Сессия 30, `ced7e79` + `6d9b6d8`) -
+   типизированные LibraryCite/FreeformCite карточки + header meta-row
+   `⚓ N опора (📖 lib · ❝ free)`. 18.h.A1 (NodeCard footer chips в
+   графе) откладывается - требует backend NodeResponse расширение
 2. **Этап 20 Academic citation metadata** (~3-5 сессий) - **новый ADR-028**.
    `lib_books` сейчас имеет minimum metadata, для proper academic citation
    нужны: мухаккик (тахкик), издательство, место, edition, год хиджри+
