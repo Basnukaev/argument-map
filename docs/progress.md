@@ -279,6 +279,57 @@ Recommendation: **18.f CitationPicker** - продвигает domain forward,
 unlock'ает 18.g и Этап 19 (Q&A app). Можно делать после краткого ADR-025
 если хочется зафиксировать lazy import direction
 
+### Сделано (Phase 7 - post-review fixes)
+
+После закрытия 25.b - user invoked `/superpowers:requesting-code-review`,
+subagent выдал review с 0 Critical / 6 Important / 7 Minor. User
+выбрал "фикс всего, принимаю рекомендации".
+
+**1 коммит `8eaa66b` `fix(backend): 25.b code review`:**
+
+- **`LibraryFileRepository.upsertByBucketAndKey`** - атомарный
+  INSERT ON CONFLICT DO UPDATE через RETURNING. Заменяет двухшаговый
+  find+save/update в `ObjectStorageService.putAndRegister`. Решает
+  Important #1 (orphan risk: S3 put OK, catalog write fail) + #2
+  (race condition: concurrent first-load = DuplicateKey на UNIQUE).
+  Bonus: resurrects soft-deleted row через EXCLUDED.deleted_at = NULL
+- **Buffer size 8KB → 64KB** в `ObjectStorageService.streamToFileAndHash`.
+  Решает Important #6 - на 50MB PDF iterations 6400 → 800
+- **Удалён unused `contentLength`** параметр из `put` и `putAndRegister`.
+  Решает Minor #1 - убирает misleading API surface. Updated call sites
+  в `PdfLinksSourceProvider` + 12 IT тестов
+- **Новый IT** `putAndRegister_resurrectsSoftDeletedRow_clearsDeletedAt`
+  фиксирует resurrect behavior
+
+**Документация:**
+- `gotchas.md` - 2 записи: AWS SDK v2 `RetryPolicy` legacy API,
+  `StreamingResponseBody` SimpleAsyncTaskExecutor default thread-per-request
+- `roadmap.md` - новый **Этап 25.c operational hardening** с 7 пунктами
+  (circuit breaker, health-check, orphan janitor, integrity cron,
+  RetryStrategy migration, ThreadPoolTaskExecutor, apiCallTimeout split)
+
+**Minor not fixed** (low-ROI, не в roadmap):
+- Enum valueOf на удалённом value (edge), getRange validation
+  (controller уже validates), S3ClientConfigIT yml-coupled (intentional
+  canary), softDelete atomicity (inconsistency не data loss), streamPdf
+  contentLength race (edge), cleanup silent (minor logging)
+
+358 IT (+1 new) + 164 unit зелёные. Backend перезапущен с upsert,
+health UP, JDWP :5005.
+
+### Решения (Phase 7)
+
+- **UPSERT через ON CONFLICT** вместо advisory locks - PostgreSQL
+  гарантирует atomicity, никакого external coordinator. Простейший
+  fix для race conditions
+- **Resurrect soft-deleted на re-upload** - правильно для accidental
+  delete + retry scenario. Hard-delete (физическое удаление) остаётся
+  irreversible
+- **Deferred operational hardening в 25.c** вместо implement сейчас -
+  circuit breaker / health-check / janitors не нужны для one-instance
+  dev. Перед prod-deploy 25.c обязателен. Зафиксированы в roadmap
+  чтобы не потерялись
+
 - `backend/src/main/java/ru/basnukaev/argumentmap/library/pdf/service/`
   и `pdf/web/` - текущая структура PdfService + PdfSourceProvider
   interface + PdfLinksSourceProvider implementation
