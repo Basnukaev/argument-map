@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2, ArrowLeft, Maximize2, X } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import Button from '@/shared/components/ui/Button';
@@ -11,6 +11,7 @@ import PageJump from '@/shared/components/reader/PageJump';
 import PageView, { type PageContentState, type PageDetail } from '@/shared/components/reader/PageView';
 import { type ReaderMode } from '@/shared/components/reader/utils';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
+import { toast } from '@/shared/stores/toastStore';
 import type { components } from '@/shared/api/types';
 
 // Lazy-load PdfViewer - тяжёлая зависимость (react-pdf + pdfjs-dist
@@ -39,6 +40,7 @@ type BookState =
 function BookReaderPage() {
   const { bookId } = useParams<{ bookId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [state, setState] = useState<BookState>({ kind: 'loading' });
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [pageContent, setPageContent] = useState<PageContentState>({ kind: 'loading' });
@@ -103,6 +105,51 @@ function BookReaderPage() {
       });
     return () => controller.abort();
   }, [bookId]);
+
+  // Deep link handling после загрузки pages - применяем query params:
+  // ?pageId=X - navigate на страницу X (fallback на 1 с toast если не найдена)
+  // ?highlight=start-end - параметр для PageView highlightRange prop (memo ниже)
+  // ?pdf=1 - переключить в PDF mode
+  // ?pdfPageNumber=N - initial page в PDF
+  useEffect(() => {
+    if (state.kind !== 'success' || state.pages.length === 0) return;
+    const pdfFlag = searchParams.get('pdf') === '1';
+    if (pdfFlag) {
+      setReaderMode('pdf');
+      const pdfPage = searchParams.get('pdfPageNumber');
+      if (pdfPage) {
+        const n = parseInt(pdfPage, 10);
+        if (Number.isFinite(n) && n >= 1) setPageNumber(n);
+      }
+      return;
+    }
+    const pageIdParam = searchParams.get('pageId');
+    if (pageIdParam) {
+      const found = state.pages.find((p) => p.id === pageIdParam);
+      if (found?.pageNumber) {
+        setPageNumber(found.pageNumber);
+      } else {
+        toast.warning('Страница не найдена, открыта первая');
+        setPageNumber(state.pages[0]?.pageNumber ?? 1);
+      }
+    }
+  }, [state, searchParams]);
+
+  // Highlight range из ?highlight=start-end - parsing для PageView prop.
+  // Silent fallback при corrupted значениях (NaN), не падаем.
+  const highlightRange = useMemo<[number, number] | null>(() => {
+    const param = searchParams.get('highlight');
+    if (!param) return null;
+    const parts = param.split('-');
+    if (parts.length !== 2) return null;
+    const startStr = parts[0];
+    const endStr = parts[1];
+    if (!startStr || !endStr) return null;
+    const s = parseInt(startStr, 10);
+    const e = parseInt(endStr, 10);
+    if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) return null;
+    return [s, e];
+  }, [searchParams]);
 
   // Загрузка контента текущей страницы. Loading state выставляется в
   // event handlers (goPrev/goNext) и initial useState, не в effect - это
@@ -333,6 +380,7 @@ function BookReaderPage() {
                     state={pageContent}
                     bookLanguage={state.book.language}
                     onOpenPdfPreview={() => setPdfPreviewOpen(true)}
+                    highlightRange={highlightRange}
                   />
                 </>
               )}
