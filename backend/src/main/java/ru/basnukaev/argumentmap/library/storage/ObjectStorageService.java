@@ -7,7 +7,6 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.HexFormat;
 
@@ -58,7 +57,12 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 public class ObjectStorageService {
 
     private static final HexFormat HEX = HexFormat.of();
-    private static final int BUFFER_SIZE = 8 * 1024;
+    /**
+     * 64KB - balance между memory footprint и syscall overhead на bulk IO.
+     * 8KB давал 6400 iterations на 50MB PDF; 64KB - 800. JDK {@code Files.copy}
+     * default - 16KB, но для blob > 10MB крупнее буфер выигрывает.
+     */
+    private static final int BUFFER_SIZE = 64 * 1024;
 
     private final S3Client s3Client;
     private final LibraryFileRepository libraryFileRepository;
@@ -74,15 +78,14 @@ public class ObjectStorageService {
      * {@code RequestBody.fromFile} - AWS SDK сам управляет retry,
      * содержимое перечитывается с диска.
      *
-     * @param contentLength передаём из catalog или из upstream
-     *                      Content-Length. Если неизвестен (chunked
-     *                      streaming) - {@code -1} (тогда SDK прочитает
-     *                      весь stream в memory; не рекомендуется для
-     *                      больших файлов)
+     * <p>Размер берётся из реального content (через {@code Files.size}
+     * после stream'а), не из аргумента - это убирает class ошибок где
+     * caller передал неверный hint. Если caller знает size заранее -
+     * может использовать его для self-validation после возврата
+     * {@link PutResult#sizeBytes()}.
      */
     public PutResult put(String bucket, String storageKey,
-                          InputStream content, long contentLength,
-                          String contentType) {
+                          InputStream content, String contentType) {
         Path tempFile = null;
         try {
             tempFile = Files.createTempFile("objstorage-", ".tmp");
@@ -114,10 +117,16 @@ public class ObjectStorageService {
     }
 
     /**
-     * High-level операция: {@link #put} в bucket + insert/update в
+     * High-level операция: {@link #put} в bucket + atomic upsert в
      * {@link LibraryFileRepository}. Идемпотентен - re-upload того же
      * {@code (bucket, storageKey)} обновляет существующую catalog row
      * вместо создания дубликата.
+     *
+     * <p>Через {@code upsertByBucketAndKey} (PostgreSQL {@code ON CONFLICT}) -
+     * убирает race condition при concurrent first-load. Две parallel сессии
+     * могут безопасно вызывать этот метод на один (bucket, key) - вторая
+     * перезапишет catalog row первой, в S3 создастся вторая version (versioning
+     * ON), читатели через {@code findActive*} видят consistent latest.
      *
      * <p>При re-upload объект в bucket'е получает новую версию (если
      * versioning ON), в catalog обновляется {@code content_hash},
@@ -125,35 +134,19 @@ public class ObjectStorageService {
      */
     public LibraryFile putAndRegister(
             String bucket, String storageKey,
-            InputStream content, long contentLength, String contentType,
+            InputStream content, String contentType,
             UUID bookId, String sourceUrl, LibraryFileSourceType sourceType,
             Integer shamelaMajorRelease, String metadataJson) {
 
-        PutResult result = put(bucket, storageKey, content, contentLength, contentType);
+        PutResult result = put(bucket, storageKey, content, contentType);
 
-        Instant now = Instant.now();
-        String metadata = metadataJson != null ? metadataJson : "{}";
-
-        Optional<LibraryFile> existing = libraryFileRepository
-                .findActiveByBucketAndKey(bucket, storageKey);
-
-        if (existing.isPresent()) {
-            LibraryFile updated = new LibraryFile(
-                    existing.get().fileId(), bookId, bucket, storageKey,
-                    sourceUrl, sourceType, result.contentHash(), result.sizeBytes(),
-                    result.etag(), now, null, shamelaMajorRelease, metadata, null
-            );
-            libraryFileRepository.update(updated);
-            return updated;
-        }
-
-        LibraryFile fresh = new LibraryFile(
+        LibraryFile candidate = new LibraryFile(
                 UUID.randomUUID(), bookId, bucket, storageKey,
                 sourceUrl, sourceType, result.contentHash(), result.sizeBytes(),
-                result.etag(), now, null, shamelaMajorRelease, metadata, null
+                result.etag(), Instant.now(), null, shamelaMajorRelease,
+                metadataJson != null ? metadataJson : "{}", null
         );
-        libraryFileRepository.save(fresh);
-        return fresh;
+        return libraryFileRepository.upsertByBucketAndKey(candidate);
     }
 
     /**

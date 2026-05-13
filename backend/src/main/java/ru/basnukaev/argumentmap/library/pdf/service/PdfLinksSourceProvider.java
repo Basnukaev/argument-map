@@ -184,7 +184,6 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
         try {
             tempFile = Files.createTempFile("pdf-fetch-", ".pdf");
             pdfFetcher.fetch(url, tempFile);
-            long size = Files.size(tempFile);
 
             Integer shamelaMajor = readShamelaMajorRelease(book);
             LibraryFileSourceType sourceType = shamelaMajor != null
@@ -193,7 +192,7 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
 
             try (InputStream stream = Files.newInputStream(tempFile)) {
                 return objectStorageService.putAndRegister(
-                        bucket, storageKey, stream, size,
+                        bucket, storageKey, stream,
                         CONTENT_TYPE,
                         book.id(), url.toString(),
                         sourceType, shamelaMajor, null);

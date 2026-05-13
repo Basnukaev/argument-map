@@ -681,4 +681,75 @@ Convention shamela устойчива на ~8500 проверенных книг
 
 ---
 
+## AWS SDK v2 `RetryPolicy.defaultRetryPolicy().toBuilder()` - legacy API
+
+**Симптом:** в `S3ClientConfig` retry-конфиг через
+`RetryPolicy.defaultRetryPolicy().toBuilder().numRetries(N).build()` -
+работает на AWS SDK 2.44.x, но в release notes 2.26+ помечен deprecated
+в пользу `RetryMode` / `RetryStrategy`. Compile-warning не выпадает,
+но при следующем major bump SDK поведение может измениться без
+notification.
+
+**Причина:** AWS SDK v2 в 2.26.x ввёл новую модель retry через
+`RetryStrategy` interface. Старый `RetryPolicy` всё ещё работает, но
+`toBuilder()` копирует default policy и переопределяет только
+`numRetries` - сохраняет дефолтный `RetryCondition`, `BackoffStrategy`
+и т.д. Внутренние изменения SDK могут изменить эти defaults.
+
+**Решение (текущее, для MVP):** Оставить как есть, smoke-test
+`S3ClientConfigIT` фиксирует что bean поднимается. Перед prod-deploy
+переписать на `RetryStrategy`:
+```java
+ClientOverrideConfiguration.builder()
+    .retryStrategy(AwsRetryStrategy.standardRetryStrategy()
+            .toBuilder()
+            .maxAttempts(maxRetries + 1)
+            .build())
+    .build();
+```
+
+Зафиксировано в Сессии 28 после code review этапа 25.b (ADR-024
+object storage). Перенесено в Этап 25.c operational hardening
+backlog в roadmap.
+
+---
+
+## `StreamingResponseBody` использует `SimpleAsyncTaskExecutor` по default
+
+**Симптом:** `PdfController.streamPdf` возвращает `StreamingResponseBody`,
+который Spring исполняет на отдельном thread (не на NIO). По дефолту
+Spring Boot использует `SimpleAsyncTaskExecutor` - **создаёт новый
+thread на каждый async request** без bounded pool. При N concurrent
+PDF reads = N threads + N MinIO connections, без upper limit -
+потенциальный thread exhaustion на нагрузке.
+
+**Причина:** `SimpleAsyncTaskExecutor` - convenience для dev, не для
+prod. Spring docs прямо говорят что для production нужен bounded
+pool через `TaskExecutor` bean override.
+
+**Решение (текущее, MVP):** живём с default - для one-instance dev
+с админом-singleton нагрузка smэnая.
+
+**Решение для prod:** добавить bean override:
+```java
+@Configuration
+public class WebAsyncConfig implements WebMvcConfigurer {
+    @Override
+    public void configureAsyncSupport(AsyncSupportConfigurer configurer) {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(10);
+        executor.setMaxPoolSize(50);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("mvc-async-");
+        executor.initialize();
+        configurer.setTaskExecutor(executor);
+    }
+}
+```
+
+Зафиксировано в Сессии 28 после code review этапа 25.b. Перенесено
+в Этап 25.c operational hardening backlog.
+
+---
+
 <!-- Добавлять новые ловушки сюда по мере их обнаружения -->

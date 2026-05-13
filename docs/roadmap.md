@@ -666,6 +666,32 @@ apps/* добавляется только когда возникнет кон�
       для multi-volume книг. Labels: арабские шамеловские
       (المقدمة) как есть; filename-like (`01_113015`) → "Том N".
       Fix bug'а - юзер видел 3 страницы cover вместо тысяч контента
+- [ ] **25.c: operational hardening** (после code review этапа 25.b).
+      Незакрытые пункты из ADR-024 + Important findings из review:
+  - [ ] Circuit breaker на уровне `ObjectStorageService` через
+        Resilience4j - если >50% errors за 60с MinIO unreachable,
+        отдаём 503 без задержки. Заявлено в ADR-024 секции
+        "Сетевая отказоустойчивость"
+  - [ ] Health-check indicator: интеграция `headBucket` ping в
+        `actuator/health` для каждого критичного bucket'а. Заявлено
+        в ADR-024
+  - [ ] Orphan-detection janitor: фоновый job сравнивает MinIO
+        listObjects vs `library_files` (через bucket+storage_key).
+        Orphans (есть в bucket, нет в catalog) - можно почистить.
+        Missing (есть в catalog, нет в bucket) - data loss alarm
+  - [ ] Integrity verification cron: периодически (раз в неделю)
+        сверяет `content_hash` с физическим хешем объекта в MinIO,
+        обновляет `last_verified_at`. Detect data corruption
+  - [ ] AWS SDK v2 retry: миграция с legacy `RetryPolicy` на
+        новый `RetryStrategy` API (см. gotcha)
+  - [ ] `StreamingResponseBody` thread pool: bounded `ThreadPoolTaskExecutor`
+        для async PDF streaming (см. gotcha). Защита от thread exhaustion
+        на нагрузке
+  - [ ] `apiCallTimeout` split: сейчас один 30с таймаут на API call
+        что включает streaming. Для крупных PDF (>100MB) на медленном
+        канале мало - нужно split connectTimeout (короткий) vs apiCallTimeout
+        (длинный для get/range) через per-request override
+
 - [ ] **25.d.2: text↔pdf page sync** - internal pageNumber →
       pdfPageNumber mapping с fallback на physical=internal если null.
       Требует Tier 1 admin page-mapping flow для заполнения

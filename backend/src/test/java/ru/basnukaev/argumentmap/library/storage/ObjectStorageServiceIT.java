@@ -116,7 +116,7 @@ class ObjectStorageServiceIT {
                 java.security.MessageDigest.getInstance("SHA-256").digest(content));
 
         PutResult result = service.put(importedBooksBucket, "greeting.txt",
-                new ByteArrayInputStream(content), content.length, "text/plain");
+                new ByteArrayInputStream(content), "text/plain");
 
         assertThat(result.contentHash()).hasSize(64).isEqualTo(expectedHash);
         assertThat(result.sizeBytes()).isEqualTo(content.length);
@@ -127,7 +127,7 @@ class ObjectStorageServiceIT {
     @Test
     void put_emptyContent_returnsZeroSizeAndKnownEmptyHash() {
         PutResult result = service.put(importedBooksBucket, "empty.bin",
-                new ByteArrayInputStream(new byte[0]), 0, "application/octet-stream");
+                new ByteArrayInputStream(new byte[0]), "application/octet-stream");
 
         assertThat(result.sizeBytes()).isZero();
         // SHA-256 of empty string
@@ -138,9 +138,9 @@ class ObjectStorageServiceIT {
     @Test
     void put_sameKey_creates2VersionsInVersionedBucket() {
         service.put(importedBooksBucket, "v.txt",
-                new ByteArrayInputStream("v1".getBytes()), 2, "text/plain");
+                new ByteArrayInputStream("v1".getBytes()), "text/plain");
         service.put(importedBooksBucket, "v.txt",
-                new ByteArrayInputStream("v2-updated".getBytes()), 10, "text/plain");
+                new ByteArrayInputStream("v2-updated".getBytes()), "text/plain");
 
         ListObjectVersionsResponse versions = s3Client.listObjectVersions(
                 r -> r.bucket(importedBooksBucket).prefix("v.txt"));
@@ -157,7 +157,7 @@ class ObjectStorageServiceIT {
 
         LibraryFile registered = service.putAndRegister(
                 importedBooksBucket, book.id() + "/01.pdf",
-                new ByteArrayInputStream(content), content.length, "application/pdf",
+                new ByteArrayInputStream(content), "application/pdf",
                 book.id(), "https://archive.org/x.pdf",
                 LibraryFileSourceType.SHAMELA, 6, "{\"vol\":1}");
 
@@ -180,10 +180,10 @@ class ObjectStorageServiceIT {
         String key = book.id() + "/01.pdf";
 
         LibraryFile first = service.putAndRegister(importedBooksBucket, key,
-                new ByteArrayInputStream("v1".getBytes()), 2, "application/pdf",
+                new ByteArrayInputStream("v1".getBytes()), "application/pdf",
                 book.id(), "https://x/v1", LibraryFileSourceType.SHAMELA, 6, null);
         LibraryFile second = service.putAndRegister(importedBooksBucket, key,
-                new ByteArrayInputStream("v2-longer".getBytes()), 9, "application/pdf",
+                new ByteArrayInputStream("v2-longer".getBytes()), "application/pdf",
                 book.id(), "https://x/v2", LibraryFileSourceType.SHAMELA, 7, null);
 
         assertThat(second.fileId()).isEqualTo(first.fileId());
@@ -198,8 +198,7 @@ class ObjectStorageServiceIT {
     void get_returnsContentMatchingPut() throws Exception {
         byte[] content = randomBytes(4096);
         service.put(importedBooksBucket, "blob.bin",
-                new ByteArrayInputStream(content), content.length,
-                "application/octet-stream");
+                new ByteArrayInputStream(content), "application/octet-stream");
 
         try (ResponseInputStream<GetObjectResponse> in = service.get(
                 importedBooksBucket, "blob.bin")) {
@@ -215,8 +214,7 @@ class ObjectStorageServiceIT {
                         (a, b) -> {})
                 .toByteArray();
         service.put(importedBooksBucket, "ranged.bin",
-                new ByteArrayInputStream(content), content.length,
-                "application/octet-stream");
+                new ByteArrayInputStream(content), "application/octet-stream");
 
         try (ResponseInputStream<GetObjectResponse> in = service.getRange(
                 importedBooksBucket, "ranged.bin", 10, 19)) {
@@ -232,8 +230,7 @@ class ObjectStorageServiceIT {
     void getRange_endBeyondFile_returnsTruncatedChunk() throws Exception {
         byte[] content = randomBytes(50);
         service.put(importedBooksBucket, "small.bin",
-                new ByteArrayInputStream(content), content.length,
-                "application/octet-stream");
+                new ByteArrayInputStream(content), "application/octet-stream");
 
         try (ResponseInputStream<GetObjectResponse> in = service.getRange(
                 importedBooksBucket, "small.bin", 40, 1000)) {
@@ -244,7 +241,7 @@ class ObjectStorageServiceIT {
     @Test
     void exists_returnsTrueForUploaded() {
         service.put(importedBooksBucket, "presence.txt",
-                new ByteArrayInputStream("p".getBytes()), 1, "text/plain");
+                new ByteArrayInputStream("p".getBytes()), "text/plain");
 
         assertThat(service.exists(importedBooksBucket, "presence.txt")).isTrue();
     }
@@ -258,7 +255,7 @@ class ObjectStorageServiceIT {
     void headObject_returnsCorrectMetadata() {
         byte[] content = "metadata-target".getBytes(StandardCharsets.UTF_8);
         service.put(importedBooksBucket, "meta.txt",
-                new ByteArrayInputStream(content), content.length, "text/plain");
+                new ByteArrayInputStream(content), "text/plain");
 
         StoredObject meta = service.headObject(importedBooksBucket, "meta.txt");
 
@@ -280,7 +277,7 @@ class ObjectStorageServiceIT {
         Book book = bookRepository.save(book("X"));
         LibraryFile file = service.putAndRegister(importedBooksBucket,
                 book.id() + "/01.pdf",
-                new ByteArrayInputStream("content".getBytes()), 7, "application/pdf",
+                new ByteArrayInputStream("content".getBytes()), "application/pdf",
                 book.id(), null, LibraryFileSourceType.SHAMELA, 6, null);
 
         boolean ok = service.softDelete(file);
@@ -299,7 +296,7 @@ class ObjectStorageServiceIT {
         Book book = bookRepository.save(book("X"));
         LibraryFile file = service.putAndRegister(importedBooksBucket,
                 book.id() + "/01.pdf",
-                new ByteArrayInputStream("original".getBytes()), 8, "application/pdf",
+                new ByteArrayInputStream("original".getBytes()), "application/pdf",
                 book.id(), null, LibraryFileSourceType.SHAMELA, 6, null);
 
         service.softDelete(file);
@@ -321,10 +318,10 @@ class ObjectStorageServiceIT {
         Book book = bookRepository.save(book("X"));
         LibraryFile file = service.putAndRegister(importedBooksBucket,
                 book.id() + "/01.pdf",
-                new ByteArrayInputStream("v1".getBytes()), 2, "application/pdf",
+                new ByteArrayInputStream("v1".getBytes()), "application/pdf",
                 book.id(), null, LibraryFileSourceType.SHAMELA, 6, null);
         service.putAndRegister(importedBooksBucket, file.storageKey(),
-                new ByteArrayInputStream("v2-newer".getBytes()), 8, "application/pdf",
+                new ByteArrayInputStream("v2-newer".getBytes()), "application/pdf",
                 book.id(), null, LibraryFileSourceType.SHAMELA, 6, null);
 
         boolean ok = service.hardDelete(file);
@@ -340,9 +337,33 @@ class ObjectStorageServiceIT {
     }
 
     @Test
+    void putAndRegister_resurrectsSoftDeletedRow_clearsDeletedAt() {
+        Book book = bookRepository.save(book("X"));
+        String key = book.id() + "/01.pdf";
+        LibraryFile original = service.putAndRegister(importedBooksBucket, key,
+                new ByteArrayInputStream("v1".getBytes()), "application/pdf",
+                book.id(), null, LibraryFileSourceType.SHAMELA, 6, null);
+        service.softDelete(original);
+        // confirm soft-deleted state
+        assertThat(libraryFileRepository.findById(original.fileId())
+                .orElseThrow().deletedAt()).isNotNull();
+
+        // re-upload с тем же ключом - upsert resurrects row через
+        // EXCLUDED.deleted_at = NULL
+        LibraryFile resurrected = service.putAndRegister(importedBooksBucket, key,
+                new ByteArrayInputStream("v2".getBytes()), "application/pdf",
+                book.id(), null, LibraryFileSourceType.SHAMELA, 6, null);
+
+        assertThat(resurrected.fileId()).isEqualTo(original.fileId());
+        assertThat(resurrected.deletedAt()).isNull();
+        assertThat(libraryFileRepository.findActiveByBucketAndKey(importedBooksBucket, key))
+                .isPresent();
+    }
+
+    @Test
     void put_inDerivedBucket_storesWithoutVersioning() {
         PutResult result = service.put(derivedBucket, "graph-export.svg",
-                new ByteArrayInputStream("<svg/>".getBytes()), 6, "image/svg+xml");
+                new ByteArrayInputStream("<svg/>".getBytes()), "image/svg+xml");
 
         // versioning не включён - versionId либо null либо "null" string
         assertThat(result.versionId()).satisfiesAnyOf(

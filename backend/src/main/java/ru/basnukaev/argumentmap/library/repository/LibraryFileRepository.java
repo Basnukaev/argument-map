@@ -108,6 +108,59 @@ public class LibraryFileRepository {
         return updated > 0;
     }
 
+    /**
+     * Атомарный upsert по уникальному ключу {@code (bucket, storage_key)}.
+     * Если row уже существует - все поля кроме {@code file_id} и
+     * {@code (bucket, storage_key)} обновляются, существующий {@code file_id}
+     * сохраняется. Если row нет - INSERT с {@code file_id} из аргумента.
+     *
+     * <p>Используется в {@code ObjectStorageService.putAndRegister} вместо
+     * двухшагового find + save/update - убирает race condition при
+     * concurrent first-load одного и того же объекта (две сессии могли
+     * параллельно download'ить + регистрировать, получая DuplicateKey
+     * на UNIQUE constraint).
+     *
+     * <p>Resurrects soft-deleted row: если row был помечен
+     * {@code deleted_at}, upsert установит {@code deleted_at = NULL}
+     * (через EXCLUDED). Это правильно для re-upload после accidental
+     * soft-delete. Hard-delete делает физический DELETE - там
+     * resurrection невозможен.
+     */
+    public LibraryFile upsertByBucketAndKey(LibraryFile file) {
+        return jdbcTemplate.queryForObject(
+                "INSERT INTO library_files (" + COLUMNS + ") "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?) "
+                        + "ON CONFLICT (bucket, storage_key) DO UPDATE SET "
+                        + "  book_id = EXCLUDED.book_id, "
+                        + "  source_url = EXCLUDED.source_url, "
+                        + "  source_type = EXCLUDED.source_type, "
+                        + "  content_hash = EXCLUDED.content_hash, "
+                        + "  size_bytes = EXCLUDED.size_bytes, "
+                        + "  etag = EXCLUDED.etag, "
+                        + "  downloaded_at = EXCLUDED.downloaded_at, "
+                        + "  last_verified_at = EXCLUDED.last_verified_at, "
+                        + "  shamela_major_release = EXCLUDED.shamela_major_release, "
+                        + "  metadata = EXCLUDED.metadata, "
+                        + "  deleted_at = EXCLUDED.deleted_at "
+                        + "RETURNING " + COLUMNS,
+                ROW_MAPPER,
+                file.fileId(),
+                file.bookId(),
+                file.bucket(),
+                file.storageKey(),
+                file.sourceUrl(),
+                file.sourceType().name(),
+                file.contentHash(),
+                file.sizeBytes(),
+                file.etag(),
+                odt(file.downloadedAt()),
+                odt(file.lastVerifiedAt()),
+                file.shamelaMajorRelease(),
+                file.metadata(),
+                odt(file.deletedAt())
+        );
+    }
+
     public Optional<LibraryFile> findById(UUID fileId) {
         return jdbcTemplate.query(
                 "SELECT " + COLUMNS + " FROM library_files WHERE file_id = ?",
