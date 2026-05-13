@@ -249,10 +249,10 @@ function CitationsList({ state, onDetach }: CitationsListProps) {
   }
   return (
     <div className="space-y-2">
-      {links.map((link) => {
+      {links.map((link, idx) => {
         const source = link.sourceId ? sourceLookup.get(link.sourceId) : undefined;
         const authority = source?.authorityId ? authorityLookup.get(source.authorityId) : undefined;
-        const key = link.sourceId ?? `${link.nodeId}-${Math.random()}`;
+        const key = link.sourceId ?? `${link.nodeId}-${idx}`;
         if (isLibraryMode(link.mode)) {
           return (
             <LibraryCite
