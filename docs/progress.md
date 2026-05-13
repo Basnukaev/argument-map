@@ -174,11 +174,110 @@ End-to-end проверка:
 - Backend перезапущен с ObjectStorageService bean wired, JDWP :5005
 - MinIO live, 4 bucket'а доступны через `mc ls local/`
 
-### Следующий шаг (Phase 5 - 25.b.5 в новой сессии)
+### Сделано (Phase 5 - 25.b.5)
 
-**25.b.5: интеграция в `PdfLinksSourceProvider`** - заменить
-текущий tempDir-based cache на ObjectStorageService с library_files
-catalog. Pre-requisite чтение:
+**25.b.5** - 1 коммит `79b4534` - интеграция через ObjectStorageService с
+двухуровневым кешем (local L1 + MinIO L2). Refactor PdfFetcher как
+testable interface (Java 21 strict modules не давали reflection на
+BodyHandler.ofFile). 8 IT через Testcontainers MinIO + @MockitoBean
+PdfFetcher.
+
+Промежуточный шаг - **flow работал но был flaw**: L1 hit на existing
+tempDir файлах из прошлых сессий обходил L2 catalog регистрацию.
+User указал "не храни мусор, не делай обратную совместимость" - снято
+требование L1 cache.
+
+### Сделано (Phase 6 - 25.b.6 final refactor)
+
+**25.b.6** - 1 коммит `9e58b2d` `refactor(backend): 25.b.6 - PDF streaming
+напрямую из MinIO, удалён local cache`. Полный рефактор PDF stack:
+
+API changes:
+- `PdfSourceProvider.downloadFile(book, fileIndex, targetDir) → Path`
+  заменён на `locateFile(book, fileIndex) → PdfLocation`
+- `PdfService.getOrDownload → Path` заменён на `locate → PdfLocation`
+  + новые `openFull(loc) → ResponseInputStream` / `openRange(loc, start, end)`
+- `PdfController` использует `StreamingResponseBody` вместо
+  `FileSystemResource` + `ResourceRegion`. Content-Range header для
+  206 partial content корректно set
+- Новый domain record `PdfLocation` (bucket / storageKey / sizeBytes /
+  contentType)
+
+Flow `PdfLinksSourceProvider.locateFile`:
+1. Check `library_files.findActiveByBucketAndKey` → return location при hit
+2. Cache miss: download upstream в temp file (short-lived buffer для
+   SHA-256) → `putAndRegister` в MinIO + insert catalog → return location
+
+Temp file удаляется в finally. PdfService не имеет tempDir поля - чисто
+роутер. Никакого долгоживущего local state.
+
+**End-to-end проверено через playwright + restart**:
+- Чистый старт: library_files = 0, MinIO empty, /tmp/argmap-pdf removed
+- Первый click: `pdf download from upstream` (7сек), catalog row +
+  MinIO 1.5MiB object созданы
+- Второй click: `pdf cache hit catalog=<uuid>`, read из MinIO без upstream
+- **Restart backend** → catalog + MinIO persist
+- После restart click: `pdf cache hit catalog=<uuid>` снова - кеш
+  пережил рестарт
+- PDF.js рендерится в 2 canvas, HTTP 200 + 206 Range, 0 console errors
+
+PdfControllerIT (7 IT) обновлён под новый API - mock'ает
+`PdfService.locate/openFull/openRange` с `ResponseInputStream` обёрткой.
+
+PdfLinksSourceProviderIT (8 IT) обновлён под `locateFile` без targetDir.
+
+357 IT + 164 unit зелёные.
+
+### Решения (Phase 6)
+
+- **No backwards compatibility** (user statement): "не храни мусор, не
+  храни обратную совместимость". Сняли L1 local cache, удалили
+  tempDir refs, удалили local file copy. Один источник истины - MinIO
+- **StreamingResponseBody vs ResourceRegion**: ResourceRegion работает
+  с `FileSystemResource` (читает из файла на диск), StreamingResponseBody
+  даёт прямой OutputStream callback - идеально для MinIO streaming
+  через `ResponseInputStream.transferTo(out)`. Lazy streaming bytes
+  идут MinIO → backend buffer → frontend через chunks Tomcat'а
+- **Content-Range header**: Явно выставляем для 206. ResourceRegion
+  делал это автоматически, StreamingResponseBody требует manual
+- **Temp file как download buffer**: SHA-256 нужен upfront для catalog
+  insert. ObjectStorageService.put использует temp file для retry-safety
+  AWS SDK. Это short-lived (удаляется после put), не "local cache" в
+  плохом смысле
+
+### Следующий шаг (Phase 7 - выбор для новой сессии)
+
+Этап 25.b **полностью закрыт**. Foundation готов: ADR-024 → migration →
+catalog → docker MinIO → S3Client → ObjectStorageService → Provider →
+Service → Controller. End-to-end protected by IT + playwright verified.
+
+Варианты приоритета для Сессии 29:
+
+1. **Этап 18.f CitationPicker** - центральный элемент платформенного
+   pivot'а ADR-018. После PDF foundation готов - можно строить
+   cross-app citation flow. Создаёт `shared/components/citation/`
+   с window.getSelection() → modal → выбор приложения (argument-map
+   / Q&A) + контекста. Связь с source-first: при привязке snapshot'ит
+   `printed_page` + `part` в `node_sources.location`
+
+2. **Этап 25.d.2 text↔pdf page sync** - internal pageNumber →
+   pdfPageNumber mapping. Требует Tier 1 admin mapping flow (UI для
+   ручного указания "стр 1 PDF = стр X текста"). После: при клике
+   PDF на text-странице N открывается соответствующая физ. страница
+
+3. **Этап 18.g** - argument-map переключение на CitationPicker
+   (после 18.f)
+
+4. **ADR-025 bulk vs lazy import**: после 25.b всё готово для решения
+   - PDF download lazy на demand, mapper тоже lazy кажется logical.
+   8500 книг не имеет смысла bootstrap'ить. ADR может зафиксировать
+   "lazy by default, manual bulk admin tool optional"
+
+5. **Marathon TODO** (F-01, F-02 split монстров, T-01, D-04) - low ROI
+
+Recommendation: **18.f CitationPicker** - продвигает domain forward,
+unlock'ает 18.g и Этап 19 (Q&A app). Можно делать после краткого ADR-025
+если хочется зафиксировать lazy import direction
 
 - `backend/src/main/java/ru/basnukaev/argumentmap/library/pdf/service/`
   и `pdf/web/` - текущая структура PdfService + PdfSourceProvider

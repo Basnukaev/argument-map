@@ -5,10 +5,10 @@
 начало новой сессии - Claude получит полный контекст без ручного
 объяснения.
 
-## КРИТИЧНО для Сессии 29+ (после Сессии 28 - object storage foundation 4 Phase)
+## КРИТИЧНО для Сессии 29+ (после Сессии 28 - этап 25.b ПОЛНОСТЬЮ закрыт)
 
-Сессия 28 заложила **полный фундамент object storage слоя** в 4 фазах
-(5 feat/docs коммитов + 1 правило про backend rerun + 2 handoff):
+Сессия 28 **закрыла весь этап 25.b** (от ADR-024 до production-ready
+MinIO streaming) в 6 фазах (9 feat/refactor/docs коммитов + 1 правило):
 
 1. **Phase 1 (25.b.1)** - `aafcfc0` docs: ADR-024 фиксирует 7 решений
    пакетом (S3-compatible AWS SDK v2 / permanent storage / versioning
@@ -28,13 +28,33 @@
 
 4. **Phase 4 (25.b.4)** - `14c82ef` `ObjectStorageService` API + 16 IT
    через Testcontainers MinIO. Domain records `PutResult` + `StoredObject` +
-   `ObjectStorageException`. Service методы: put (temp file подход для
-   retry-safety + SHA-256 параллельно), putAndRegister (high-level +
-   catalog upsert), get / getRange (для streaming) / exists / headObject /
-   softDelete (catalog.deleted_at + S3 delete-marker, versions retained
-   для audit-trail) / hardDelete (admin two-phase, list+delete все
-   versions + DELETE catalog row). 349 IT (+38 за сессию) + 164 unit
-   зелёные
+   `ObjectStorageException`. Service методы: put / putAndRegister / get /
+   getRange / exists / headObject / softDelete / hardDelete
+
+5. **Phase 5 (25.b.5)** - `79b4534` интеграция в PdfLinksSourceProvider
+   с двухуровневым cache (L1 local + L2 MinIO). 8 IT. Refactor PdfFetcher
+   как testable interface. **Промежуточный** - L1 cache hit обходил
+   catalog registration в случае tempDir leftover
+
+6. **Phase 6 (25.b.6 final)** - `9e58b2d` `refactor(backend)` полный
+   рефактор PDF stack: убран local cache, PDF streaming напрямую из
+   MinIO через `StreamingResponseBody`. User указал "не храни мусор, не
+   делай обратную совместимость". API changes:
+   - PdfSourceProvider: `downloadFile → Path` → `locateFile → PdfLocation`
+   - PdfService: `getOrDownload` → `locate` + `openFull/openRange`
+   - PdfController: `StreamingResponseBody` вместо `FileSystemResource`
+   - Новый domain record `PdfLocation` (bucket/storageKey/sizeBytes/contentType)
+   - Temp file только как short-lived buffer для SHA-256 (удаляется после put)
+
+End-to-end проверено playwright + restart cycle:
+- Чистый start: catalog 0, MinIO empty
+- Первый клик: `pdf download from upstream` (7сек 1.5MB), catalog +
+  MinIO populated
+- Второй клик: `pdf cache hit catalog=<uuid>`, no upstream
+- **Restart backend**: catalog + MinIO **survive**
+- После restart click: `pdf cache hit` снова - кеш persistent
+
+357 IT (+22 за сессию vs Сессии 27 base) + 164 unit зелёные.
 
 Также `43aac93` - правило про backend/frontend rerun: Claude сам
 запускает оба dev-сервера (backend ВСЕГДА с JDWP `-agentlib:jdwp=...:5005`
@@ -51,27 +71,36 @@
 - soft-delete по умолчанию, hard-delete через two-phase
 
 **ИНФРАСТРУКТУРА сейчас (Сессия 29 entry)**:
-- Postgres :5432 (миграция 21 применена, library_files создана)
-- Backend :9090 + JDWP :5005 (ObjectStorageService bean wired,
-  S3Client wired, LibraryFileRepository wired)
-- Frontend :5173
-- MinIO :9000 (S3 API) + :9001 (web console, minioadmin/minioadmin) -
-  4 bucket'а готовы, versioning на 3 critical
+- Postgres :5432 (миграция 21 применена, library_files в production-БД
+  с 1 row от smoke-теста PDF cache)
+- Backend :9090 + JDWP :5005 (весь PDF stack рефакторен под MinIO
+  streaming)
+- Frontend :5173 (PDF UX из Сессии 27 работает через новый backend
+  без изменений на фронте)
+- MinIO :9000 + console :9001 (minioadmin / minioadmin) - 4 bucket'а
+  готовы, versioning на 3 critical, 1 PDF object 1.5MiB в
+  library-imported-books
 
-**Главный приоритет Сессии 29 - 25.b.5 интеграция
-`PdfLinksSourceProvider` через `ObjectStorageService`**. Существующий
-provider использует tempDir cache (теряется при restart, причина
-"медленной первой загрузки"). Заменить на flow:
-- check `library_files` catalog по storage_key
-- если есть active row → stream from MinIO
-- если нет → download upstream → `putAndRegister` → stream
+**Главный приоритет Сессии 29 - выбор из вариантов**:
 
-Детальный план + что читать first thing в `progress.md` Сессия 28
-Phase 4 "Следующий шаг". Pre-requisites: чтение текущего
-`pdf/service/` + `pdf/web/` пакетов.
+1. **Этап 18.f CitationPicker** (рекомендую) - центральный элемент
+   платформенного pivot'а ADR-018. PDF foundation готов - можно
+   строить cross-app citation flow. `shared/components/citation/` с
+   window.getSelection() → modal → выбор приложения (argument-map /
+   Q&A) + контекста. Source-first: snapshot `printed_page` + `part` в
+   `node_sources.location`. Unlock'ает 18.g и Этап 19 (Q&A)
 
-Дальше **25.b.6** (lazy Range streaming через `getRange` вместо
-full-download).
+2. **Этап 25.d.2 text↔pdf page sync** - internal pageNumber →
+   pdfPageNumber mapping. Требует Tier 1 admin mapping UI
+
+3. **ADR-025 bulk vs lazy import direction** - короткий ADR (~30 мин)
+   зафиксировать "lazy by default" сейчас когда видно что lazy
+   PDF download работает. 8500 книг bootstrap'ить не нужно
+
+4. **Marathon TODO** (F-01/F-02 split TopicGraphPage/BookReaderPage) -
+   low ROI
+
+Детальный план в `progress.md` Сессия 28 Phase 6 "Следующий шаг".
 
 **Памятка для будущих responsive/mobile сессий:**
 - `Select.maxVisibleItems` сейчас 12 (без scrollbar при ≤12 опций).
@@ -563,42 +592,28 @@ START-OF-SESSION PROTOCOL (выполни ДО ответа)
 - ADR-011-016 все приняты. В Этапе 12 ADR не делал - чистый UI
   поверх готового бэк-контракта
 
-ОТКРЫТО (по приоритету) - после Сессии 28 Phase 4 (25.b.1 ADR-024 +
-25.b.2 library_files + 25.b.3 docker MinIO + S3Client + 25.b.4
-ObjectStorageService API закрыты, миграция 21 применена, MinIO running
-с 4 bucket'ами, backend wired с storage layer):
+ОТКРЫТО (по приоритету) - после Сессии 28 (этап 25.b ПОЛНОСТЬЮ
+закрыт от ADR-024 до production-ready MinIO streaming. PdfLinksSourceProvider
+интегрирован, PdfController стримит из MinIO, cache survives restart):
 
 ⚠️ **АРХИТЕКТУРНЫЙ ВОПРОС из Сессии 23** (open): bulk-bootstrap всех
 8500 shamela книг vs lazy-import on user request. После 25.b.5+6
 полного завершения станет понятно. Возможен ADR-025
 
-1. **Этап 25.b.5: интеграция `PdfLinksSourceProvider` через
-   `ObjectStorageService`** - приоритет 1 в Сессии 29:
-   - check `library_files` catalog по storage_key (e.g. `{book_id}/{fileIndex}.pdf`)
-   - если есть active row → stream from MinIO через
-     `ObjectStorageService.get` или `getRange`
-   - если нет → download upstream → `putAndRegister(imported-books,
-     key, SHAMELA, source_url, book_id, major_release)` → stream
-   - Удаляется текущий tempDir-based cache (теряется при restart)
-   - PdfControllerIT тесты могут потребовать обновления (часть на
-     старый tempDir behavior, можно заменить на ObjectStorageService
-     mocked через Testcontainers MinIO)
+1. **Этап 18.f CitationPicker** (recommendation) - центральный
+   элемент платформенного pivot'а ADR-018. PDF foundation готов -
+   можно строить cross-app citation flow. После этого 18.g (переключение
+   argument-map на CitationPicker) → 19 (Q&A app)
 
-   Pre-requisite чтение перед стартом:
-   - `backend/src/main/java/ru/basnukaev/argumentmap/library/pdf/service/`
-     (PdfService, PdfSourceProvider interface, PdfLinksSourceProvider)
-   - `backend/src/main/java/ru/basnukaev/argumentmap/library/pdf/web/`
-     (PdfController)
+2. **ADR-025 lazy import direction** - короткий ADR зафиксировать
+   что 8500 shamela книг bootstrap'ить не нужно, lazy on-demand через
+   PdfLinksSourceProvider (уже работает)
 
-2. **Этап 25.b.6: lazy Range streaming** - заменяет current
-   full-download-then-serve. Chunks из MinIO через `getRange(start, end)`
-   (метод уже готов в `ObjectStorageService`). Browser HTTP Range
-   request → backend проксирует Range в S3 → ChunkedOutputStream
-   к клиенту. Первая страница за 1-2 сек вместо 30-60
+3. **Этап 25.d.2 text↔pdf page sync** - internal pageNumber →
+   pdfPageNumber mapping. Требует Tier 1 admin mapping UI
 
-3. **Этап 25.d.2: text↔pdf page sync** - internal pageNumber →
-   pdfPageNumber mapping. Требует Tier 1 admin mapping flow для
-   заполнения `pdf_page_number` в `lib_pages`
+4. **Marathon TODO** - F-01 split TopicGraphPage (1161 LOC), F-02
+   split BookReaderPage (714 LOC), F-10 миграция на AsyncState<T>
 
 PDF должен быть **source-agnostic** (не привязан к shamela) -
 реализации: ShamelaProvider сейчас, ArchiveOrg/user-upload в будущем.
@@ -878,8 +893,9 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
 После прочтения 5+ файлов из START-OF-SESSION PROTOCOL начни ответ
 с короткого summary последнего состояния и предложения. Например:
 
-"вижу - Сессия 28 закрыла полный object storage foundation в 4 фазах
-+ правило про backend rerun. 7 коммитов:
+"вижу - Сессия 28 закрыла **весь этап 25.b** (object storage от
+ADR-024 до production MinIO streaming) в 6 фазах + правило про
+backend rerun. 9 коммитов:
 
 - docs aafcfc0 (25.b.1) - ADR-024 (7 решений пакетом: S3-compatible
   AWS SDK v2, permanent storage не cache, versioning forever,
@@ -895,25 +911,27 @@ frontend/CLAUDE.md и backend/CLAUDE.md:
   (4 bucket'а с versioning ON на 3 critical) + AWS SDK v2 2.44.4 через
   bom-import + S3ClientConfig bean + ObjectStorageProperties + smoke IT
 - docs ea443ac - handoff Phase 3
-- feat(backend) 14c82ef (25.b.4) - ObjectStorageService API + 16 IT
-  через Testcontainers MinIO. Domain: PutResult / StoredObject. Methods:
-  put (temp file подход для retry-safety + SHA-256 параллельно) /
-  putAndRegister (high-level catalog upsert) / get / getRange (для
-  25.b.6 streaming) / exists / headObject / softDelete (catalog +
-  delete-marker, versions retained) / hardDelete (admin two-phase,
-  list+delete все versions + DELETE catalog row)
+- feat(backend) 14c82ef (25.b.4) - ObjectStorageService API +
+  Testcontainers MinIO IT
+- feat(backend) 79b4534 (25.b.5) - интеграция в PdfLinksSourceProvider
+  с двухуровневым cache (промежуточный шаг, был flaw)
+- refactor(backend) 9e58b2d (25.b.6 final) - удалён local cache,
+  PDF streaming напрямую из MinIO через StreamingResponseBody.
+  PdfSourceProvider.locateFile → PdfLocation. PdfController использует
+  ObjectStorageService.getRange напрямую
 
-349 IT (+38 за сессию) + 164 unit зелёные. Backend поднят с
-ObjectStorageService + S3Client + LibraryFileRepository beans wired,
-JDWP :5005 listening. MinIO docker UP, 4 bucket'а доступны.
+357 IT + 164 unit зелёные. End-to-end проверено playwright + restart:
+PDF cache survives restart, второй click - mгновенный 'pdf cache hit
+catalog=<uuid>' без upstream call.
 
-Главный приоритет - **Этап 25.b.5 интеграция PdfLinksSourceProvider
-через ObjectStorageService**. Существующий tempDir cache (теряется
-при restart, причина 'медленной первой загрузки' из user feedback)
-заменяется на library_files catalog + MinIO flow: check catalog →
-stream from MinIO или download upstream + putAndRegister + stream.
-Pre-requisite чтение: pdf/service/ + pdf/web/ пакеты. Детальный план
-в progress.md Сессия 28 Phase 4 'Следующий шаг'."
+Backend running с PdfService/PdfLocation/StreamingResponseBody pipeline,
+JDWP :5005, MinIO UP с persistent 1.5MiB PDF object, production-БД
+library_files имеет 1 smoke row.
+
+Главный приоритет - выбор из вариантов: 18.f CitationPicker
+(recommendation, домен forward) / ADR-025 lazy import direction /
+25.d.2 page sync. Детально в progress.md Сессия 28 Phase 6
+'Следующий шаг'."
 
 Жди подтверждение. После него - смело за работу.
 ```
