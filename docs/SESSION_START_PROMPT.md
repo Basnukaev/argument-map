@@ -138,23 +138,20 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 - Между подэтапами - прогон проверок и коммит. Не один большой
 - Каждый подэтап имеет внятную границу
 
-### Когда запускать билды / тесты / playwright
+### Когда запускать билды/тесты
 
-Полные правила - в корневом `CLAUDE.md` раздел «Когда что запускать
-(cadence)». Кратко:
+**Не на каждом чихе**. Полный прогон делается **по факту**:
 
-- **Билды и тесты** (`./mvnw verify`, `npm run lint && build &&
-  test:run`) - **не на каждом чихе**, только в конце логической
-  фазы / перед коммитом крупного изменения / при сигнале о
-  возможной поломке
-- **Playwright** для UI - сам гоняй headless после frontend
-  изменений, не жди Абдулу. После 2+ fails - эскалация. Всегда
-  напомнить про вторичную проверку в браузере вручную
-- **Smoke через curl** с `X-User-Id` - после прохождения тестов
-  при изменении REST endpoint
+- В конце завершённой логической фазы
+- Перед коммитом если в фазе были средние/крупные изменения
+- Когда есть конкретный сигнал что что-то могло сломаться
 
-См. также memory: `feedback_no_frequent_builds.md`,
-`feedback_playwright_for_ui.md`
+Команды:
+- Фронт: `npm run lint && npm run build && npm run test:run`
+- Бэк: `./mvnw verify`
+- Smoke через curl с `X-User-Id` после прохождения тестов
+
+См. memory `feedback_no_frequent_builds.md`
 
 ---
 
@@ -188,41 +185,60 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 > **Этот раздел обновляется каждой сессией**. Всё выше - стабильное
 
-**Этап 20.f - frontend `<LibraryCite>` блочный рендер** (продолжение
-Сессии 31)
+**Этап 20.c shamela bibliography parser** (после Сессии 31 - 20.a/b/f закрыты)
 
-После Сессии 31 backend готов для structured academic citation:
-- 425/425 IT pass
-- миграция 24 (3 справочника + расширение Authority + Book)
-- `CitationDetail` + `CitationResponse` + 8 nested ref DTO
-- `NodeSourceRepository.findByNodeIdWithLocation` отдаёт structured
+Сессия 31 закрыла backend Этапа 20.a/b + frontend 20.f - structured
+academic citation работает end-to-end. Playwright smoke 15/15 проверок
+прошёл, все блоки LibraryCite видимы при pre-fill academic data.
 
-Что осталось:
+**Цель 20.c:** извлечь academic metadata из raw `lib_books.description`
+(там shamela хранит bibliography текст с мухаккиком, publisher и т.д.)
 
-1. `cd frontend && npm run generate-api` - регенерировать
-   `frontend/src/shared/api/types.ts`. Сломается компиляция в
-   `CitationsList.tsx` / `NodeCitationsSection.tsx` где обращаются к
-   `link.location` / `link.bookId`
-2. Переписать `apps/argument-map/components/graph/CitationsList.tsx` -
-   `LibraryCite` рендерит structured блоками:
-   - Author block (RTL/naskh): `{authorFullName} (т.{deathYearHijri} هـ)`
-   - Title block (RTL/naskh): `{bookTitle}`
-   - Muhaqqiq block: `тахкик: {muhaqqiqFullName ?? muhaqqiqName}`
-   - Publisher block: `изд. {publisherName} · {publicationPlaceName} · {editionNumber}-е изд.`
-   - Years block: `{publishedYearHijri} هـ / {publishedYearGregorian} м.`
-   - Location block (моноширинный): `Т.{part} · стр.{printedPage}`
-   - Каждый блок с правильным `dir` атрибутом и шрифтом
-   - Условный рендер: если nested ref = null, блок скрывается
-3. `NodeCitationsSection.tsx` - адаптировать типы, header counts
-   остаются
-4. Playwright smoke - открыть `/topics/{id}` с тестовой citation
-   (node `4139cb32-28ba-4d98-9954-225e8e3c863d` → Тафсир Ибн Касира),
-   убедиться в блочном рендере
-5. Опционально SQL insert для academic data smoke-citation (мухаккик,
-   издатель, edition) - чтобы увидеть полный блочный рендер
+**Стартовая последовательность Сессии 32:**
 
-Параллельно или вслед: подэтап **20.c shamela bibliography parser**
-(см. `roadmap.md`)
+1. **Узнать формат shamela bibliography** - в БД:
+   ```sql
+   SELECT id, title, description FROM lib_books
+   WHERE description IS NOT NULL LIMIT 5;
+   ```
+   Это покажет реальные префиксы (`المؤلف:`, `الكتاب:`, `تحقيق:`,
+   `الناشر:`, `الطبعة:`, `سنة النشر:` и т.п.)
+
+2. **Создать `ShamelaBibliographyParser`** в
+   `backend/src/main/java/ru/basnukaev/argumentmap/library/shamela/service/`:
+   - Regex-based extraction для каждого поля
+   - Fallback NULL если префикс не найден
+   - Return record `ParsedBibliography(muhaqqiq, publisher, place, edition, yearHijri, yearGregorian)`
+
+3. **Интегрировать в `ShamelaToLibraryMapper.mapBook`** - после resolving
+   authority вызвать `bibliographyParser.parse(bibliography)`, для каждого
+   non-null поля вызвать `*Repository.findOrCreate(name)` и заполнить FK
+   на новой Book
+
+4. **Unit-тесты** с фикстурами реальных shamela bibliography строк
+   (5-10 разных книг)
+
+5. **Опционально: bulk-backfill endpoint** в `ShamelaAdminController`:
+   `POST /api/v1/admin/shamela/backfill-academic-metadata` - пройтись
+   по всем замапленным книгам и обогатить пустые поля без re-import
+
+6. **Smoke**: re-map тестовой книги через `POST /api/v1/admin/shamela/map-book/{id}`,
+   curl `/api/v1/nodes/{id}/sources` - увидеть filled muhaqqiq/publisher
+
+### Что осталось из Этапа 20 после 20.c
+
+- **20.d Admin BookEditModal** (~1 сессия) - frontend UI для ручного
+  дозаполнения когда parser не справился. Search + autocomplete
+- **20.e AddSourceModal расширенная форма** (~0.5 сессии) - manual
+  entry sourceType=BOOK с полями
+
+### Известные мелочи (не блокеры)
+
+- **Visual polish bidi**: в LibraryCite Author block год `(т.774 هـ)`
+  иногда визуально слева от arabic имени (Unicode bidi внутри flex).
+  Low ROI, polish-pass в свободную сессию
+- **Backend running** - после изменений требует kill+restart
+  (`spring-boot:run` не подхватывает свежие classes автоматически)
 
 ### Инфра на момент Сессии 32 entry
 
@@ -230,6 +246,14 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 - MinIO :9000 healthy
 - Backend :9090 + JDWP :5005 running
 - Frontend :5173 running с HMR
-- Smoke citation в production-БД: `4139cb32...` → Тафсир Ибн Касира
+- Smoke citation в production-БД (node `4139cb32-...` topic
+  `a6617d11-...`): Тафсир Ибн Касира с **filled** academic data
+  (мухаккик السلامة, publisher Дар Тайба, place Эр-Рияд, edition 2,
+  годы 1420/1999, author fullName + death 774)
 
-Подробности backend изменений - в `progress.md` Сессия 31
+### Альтернативные приоритеты
+
+- 20.d Admin BookEditModal (если parser хватает на 70%+ books)
+- Этап 19 Q&A приложение (валидация платформы)
+
+**Memory:** [[feedback-no-prod-no-backward-compat]] активно
