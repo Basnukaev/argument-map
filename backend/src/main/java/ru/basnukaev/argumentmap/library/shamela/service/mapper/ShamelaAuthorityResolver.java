@@ -76,7 +76,8 @@ public class ShamelaAuthorityResolver {
                 null,
                 null,
                 null,
-                Instant.now()
+                Instant.now(),
+                null, null
         );
         authorityRepository.save(created);
         return created.id();
@@ -94,7 +95,8 @@ public class ShamelaAuthorityResolver {
                 null,
                 null,
                 null,
-                Instant.now()
+                Instant.now(),
+                null, null
         );
         authorityRepository.save(created);
         return created.id();

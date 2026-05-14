@@ -221,7 +221,7 @@ class ShamelaToLibraryMapperIT {
         // shamela импорт должен её переиспользовать
         UUID existingId = UUID.randomUUID();
         authorityRepository.save(new Authority(existingId, "Аль-Газали", "Уже был в БД",
-                null, null, null, java.time.Instant.now()));
+                null, null, null, java.time.Instant.now(), null, null));
         seedAuthor(50L, "Аль-Газали", "shamela bio");
         seedBook(shamelaBookId, "Ихья", 50L, 1, null, null);
 

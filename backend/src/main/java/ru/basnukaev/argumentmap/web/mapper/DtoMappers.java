@@ -102,7 +102,9 @@ public final class DtoMappers {
                 authority.id(), authority.name(), authority.bio(),
                 authority.era(), authority.madhab(),
                 jsonFromString(authority.metadata()),
-                authority.createdAt()
+                authority.createdAt(),
+                authority.fullName(),
+                authority.deathYearHijri()
         );
     }
 

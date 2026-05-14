@@ -1,6 +1,7 @@
 package ru.basnukaev.argumentmap.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
@@ -35,7 +37,8 @@ class AuthorityRepositoryIT {
                 "XIII-XIV век",
                 "ханбалитский",
                 "{\"birth_year\":1263}",
-                now
+                now,
+                null, null
         );
 
         authorityRepository.save(authority);
@@ -53,7 +56,9 @@ class AuthorityRepositoryIT {
     @Test
     void save_withNullableFields_worksFine() {
         Authority authority = new Authority(
-                UUID.randomUUID(), "Неизвестный", null, null, null, null, Instant.now()
+                UUID.randomUUID(), "Неизвестный",
+                null, null, null, null, Instant.now(),
+                null, null
         );
 
         authorityRepository.save(authority);
@@ -63,13 +68,15 @@ class AuthorityRepositoryIT {
         assertThat(reloaded.era()).isNull();
         assertThat(reloaded.madhab()).isNull();
         assertThat(reloaded.metadata()).isNull();
+        assertThat(reloaded.fullName()).isNull();
+        assertThat(reloaded.deathYearHijri()).isNull();
     }
 
     @Test
     void searchByName_caseInsensitive_partialMatch() {
-        authorityRepository.save(new Authority(UUID.randomUUID(), "Имам Малик", null, null, "маликитский", null, Instant.now()));
-        authorityRepository.save(new Authority(UUID.randomUUID(), "Имам Шафии", null, null, "шафиитский", null, Instant.now()));
-        authorityRepository.save(new Authority(UUID.randomUUID(), "Ибн Хазм", null, null, null, null, Instant.now()));
+        authorityRepository.save(new Authority(UUID.randomUUID(), "Имам Малик", null, null, "маликитский", null, Instant.now(), null, null));
+        authorityRepository.save(new Authority(UUID.randomUUID(), "Имам Шафии", null, null, "шафиитский", null, Instant.now(), null, null));
+        authorityRepository.save(new Authority(UUID.randomUUID(), "Ибн Хазм", null, null, null, null, Instant.now(), null, null));
 
         List<Authority> found = authorityRepository.searchByName("имам");
 
@@ -79,8 +86,8 @@ class AuthorityRepositoryIT {
 
     @Test
     void findAll_returnsAllOrderedByName() {
-        Authority a = new Authority(UUID.randomUUID(), "Zzz", null, null, null, null, Instant.now());
-        Authority b = new Authority(UUID.randomUUID(), "Aaa", null, null, null, null, Instant.now());
+        Authority a = new Authority(UUID.randomUUID(), "Zzz", null, null, null, null, Instant.now(), null, null);
+        Authority b = new Authority(UUID.randomUUID(), "Aaa", null, null, null, null, Instant.now(), null, null);
         authorityRepository.save(a);
         authorityRepository.save(b);
 
@@ -90,12 +97,55 @@ class AuthorityRepositoryIT {
 
     @Test
     void deleteById_removesAuthority() {
-        Authority a = new Authority(UUID.randomUUID(), "x", null, null, null, null, Instant.now());
+        Authority a = new Authority(UUID.randomUUID(), "x", null, null, null, null, Instant.now(), null, null);
         authorityRepository.save(a);
 
         boolean deleted = authorityRepository.deleteById(a.id());
 
         assertThat(deleted).isTrue();
         assertThat(authorityRepository.findById(a.id())).isEmpty();
+    }
+
+    // ADR-028: academic citation fields
+
+    @Test
+    void save_withFullNameAndDeathYear_roundTrip() {
+        Authority authority = new Authority(
+                UUID.randomUUID(),
+                "ابن كثير",
+                null, "VIII в.х.", "shafii", null, Instant.now(),
+                "إسماعيل بن عمر بن كثير الدمشقي",
+                774
+        );
+
+        authorityRepository.save(authority);
+
+        Authority reloaded = authorityRepository.findById(authority.id()).orElseThrow();
+        assertThat(reloaded.fullName()).isEqualTo("إسماعيل بن عمر بن كثير الدمشقي");
+        assertThat(reloaded.deathYearHijri()).isEqualTo(774);
+    }
+
+    @Test
+    void save_deathYearZero_violatesCheck() {
+        Authority bad = new Authority(
+                UUID.randomUUID(), "Bad death year",
+                null, null, null, null, Instant.now(),
+                null, 0
+        );
+
+        assertThatThrownBy(() -> authorityRepository.save(bad))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void save_deathYearTooLarge_violatesCheck() {
+        Authority bad = new Authority(
+                UUID.randomUUID(), "Future scholar",
+                null, null, null, null, Instant.now(),
+                null, 2500
+        );
+
+        assertThatThrownBy(() -> authorityRepository.save(bad))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 }

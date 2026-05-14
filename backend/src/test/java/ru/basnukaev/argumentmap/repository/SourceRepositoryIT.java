@@ -81,7 +81,8 @@ class SourceRepositoryIT {
     void save_withAuthorityId_persistsLink() {
         Authority author = authorityRepository.save(new Authority(
                 UUID.randomUUID(), "Ибн Таймийя",
-                null, "VIII в.х.", "hanbali", null, Instant.now()
+                null, "VIII в.х.", "hanbali", null, Instant.now(),
+                null, null
         ));
         Source source = new Source(
                 UUID.randomUUID(), SourceType.BOOK, "Иктида ас-сырат аль-мустакым",
@@ -97,7 +98,8 @@ class SourceRepositoryIT {
     @Test
     void deleteAuthority_setsSourceAuthorityIdToNull() {
         Authority author = authorityRepository.save(new Authority(
-                UUID.randomUUID(), "Ас-Суюти", null, null, null, null, Instant.now()
+                UUID.randomUUID(), "Ас-Суюти", null, null, null, null, Instant.now(),
+                null, null
         ));
         Source source = sourceRepository.save(new Source(
                 UUID.randomUUID(), SourceType.BOOK, "Хусн аль-максыд",

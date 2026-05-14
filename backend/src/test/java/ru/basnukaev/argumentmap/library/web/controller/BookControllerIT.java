@@ -303,7 +303,8 @@ class BookControllerIT {
 
     private Authority saveAuthor(String name) {
         return authorityRepository.save(new Authority(
-                UUID.randomUUID(), name, null, null, null, null, Instant.now()
+                UUID.randomUUID(), name, null, null, null, null, Instant.now(),
+                null, null
         ));
     }
 }

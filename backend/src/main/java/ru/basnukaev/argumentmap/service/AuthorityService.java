@@ -25,7 +25,8 @@ public class AuthorityService {
                                      String madhab, String metadataJson) {
         Authority authority = new Authority(
                 UUID.randomUUID(), name, bio, era, madhab,
-                metadataJson, Instant.now()
+                metadataJson, Instant.now(),
+                null, null
         );
         authorityRepository.save(authority);
         return authority;

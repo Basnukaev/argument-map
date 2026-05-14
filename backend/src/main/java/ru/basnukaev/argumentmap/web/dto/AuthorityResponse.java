@@ -12,6 +12,8 @@ public record AuthorityResponse(
         String era,
         String madhab,
         JsonNode metadata,
-        Instant createdAt
+        Instant createdAt,
+        String fullName,
+        Integer deathYearHijri
 ) {
 }

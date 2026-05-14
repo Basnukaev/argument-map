@@ -85,7 +85,8 @@ class BookRepositoryIT {
     void deleteAuthority_setsBookAuthorityIdToNull() {
         Authority author = authorityRepository.save(new Authority(
                 UUID.randomUUID(), "Ибн Таймийя",
-                null, "VIII в.х.", "hanbali", null, Instant.now()
+                null, "VIII в.х.", "hanbali", null, Instant.now(),
+                null, null
         ));
         Book book = bookRepository.save(new Book(
                 UUID.randomUUID(), BookType.BOOK,

@@ -10,6 +10,8 @@ public record Authority(
         String era,
         String madhab,
         String metadata,
-        Instant createdAt
+        Instant createdAt,
+        String fullName,
+        Integer deathYearHijri
 ) {
 }

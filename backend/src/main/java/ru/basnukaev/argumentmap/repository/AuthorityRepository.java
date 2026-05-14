@@ -17,17 +17,23 @@ import ru.basnukaev.argumentmap.domain.Authority;
 public class AuthorityRepository {
 
     private static final String COLUMNS =
-            "id, name, bio, era, madhab, metadata, created_at";
+            "id, name, bio, era, madhab, metadata, created_at, full_name, death_year_hijri";
 
-    private static final RowMapper<Authority> ROW_MAPPER = (rs, rn) -> new Authority(
-            rs.getObject("id", UUID.class),
-            rs.getString("name"),
-            rs.getString("bio"),
-            rs.getString("era"),
-            rs.getString("madhab"),
-            rs.getString("metadata"),
-            instant(rs, "created_at")
-    );
+    private static final RowMapper<Authority> ROW_MAPPER = (rs, rn) -> {
+        int deathYear = rs.getInt("death_year_hijri");
+        Integer deathYearOrNull = rs.wasNull() ? null : deathYear;
+        return new Authority(
+                rs.getObject("id", UUID.class),
+                rs.getString("name"),
+                rs.getString("bio"),
+                rs.getString("era"),
+                rs.getString("madhab"),
+                rs.getString("metadata"),
+                instant(rs, "created_at"),
+                rs.getString("full_name"),
+                deathYearOrNull
+        );
+    };
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -37,14 +43,17 @@ public class AuthorityRepository {
 
     public Authority save(Authority authority) {
         jdbcTemplate.update(
-                "INSERT INTO authorities (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?::jsonb, ?)",
+                "INSERT INTO authorities (" + COLUMNS + ") "
+                        + "VALUES (?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?)",
                 authority.id(),
                 authority.name(),
                 authority.bio(),
                 authority.era(),
                 authority.madhab(),
                 authority.metadata(),
-                odt(authority.createdAt())
+                odt(authority.createdAt()),
+                authority.fullName(),
+                authority.deathYearHijri()
         );
         return authority;
     }
