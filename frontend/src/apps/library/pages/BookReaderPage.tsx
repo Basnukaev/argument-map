@@ -338,16 +338,16 @@ function BookReaderPage() {
 
           {state.kind === 'success' && bookId && (
             <>
-              <BookHeader book={state.book} pagesCount={totalPages}>
-                <ReaderModeSwitch mode={readerMode} onChange={setReaderMode} />
-              </BookHeader>
+              {/* BookHeader в Card-wrapper для consistency с PageView ширины */}
+              <Card className="mb-4 p-5">
+                <BookHeader book={state.book} pagesCount={totalPages} />
+              </Card>
               {readerMode === 'text' && (
                 <>
-                  {/* Sticky top - prev/next кнопки всегда accessible над
-                      bottom-sheet PDF overlay (если он открыт, занимает 65vh
-                      снизу и может перекрыть toolbar пушенный вниз большим
-                      BookHeader). z-30 < aside z-40 но они на разных y, не
-                      перекрываются. -mt чтобы прижать вплотную к Header */}
+                  {/* Sticky toolbar: prev/next + page jump + reader mode switch.
+                      Mode switch перенесён сюда из BookHeader - ближе к content,
+                      consistent с overall reader controls
+                      z-30 < aside z-40, не перекрываются */}
                   <div className="sticky top-2 z-30 mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5 shadow-sm">
                     <Button
                       variant="ghost"
@@ -369,15 +369,18 @@ function BookReaderPage() {
                       onPartChange={handlePartChange}
                       onPrintedPageJump={handlePrintedPageJump}
                     />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      iconRight={ChevronRight}
-                      onClick={goNext}
-                      disabled={!hasNext}
-                    >
-                      Следующая
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <ReaderModeSwitch mode={readerMode} onChange={setReaderMode} />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        iconRight={ChevronRight}
+                        onClick={goNext}
+                        disabled={!hasNext}
+                      >
+                        Следующая
+                      </Button>
+                    </div>
                   </div>
                   <PageView
                     state={pageContent}

@@ -1,21 +1,32 @@
 import { create } from 'zustand';
 import type { Locale } from './dictionary';
 
+const STORAGE_KEY = 'app.locale';
+
+function readPersistedLocale(): Locale {
+  if (typeof window === 'undefined') return 'ru';
+  const raw = window.localStorage.getItem(STORAGE_KEY);
+  if (raw === 'ru' || raw === 'ar') return raw;
+  return 'ru';
+}
+
 interface LocaleState {
   locale: Locale;
   setLocale: (l: Locale) => void;
 }
 
 /**
- * Zustand store для текущей локали UI. Default `ru` - проект на русском
- * сейчас. Переключатель в UI добавится в будущем (Этап 21+ multi-user).
- *
- * Когда setLocale('ar') - вместе с переключением словаря нужно ставить
- * `<html dir="rtl">` на root (через `useEffect` в LocaleProvider или
- * вручную в Header). Logical Tailwind classes (ms-/me-/text-start) во
- * всех citation-related компонентах работают в обоих направлениях
+ * Zustand store для текущей локали UI. Persist в localStorage чтобы
+ * выбор сохранялся между сессиями. На mount при setLocale - LocaleEffect
+ * (см. LocaleEffect.tsx) применяет `<html lang dir>` для CSS direction
+ * inheritance во весь UI tree
  */
 export const useLocaleStore = create<LocaleState>((set) => ({
-  locale: 'ru',
-  setLocale: (l) => set({ locale: l }),
+  locale: readPersistedLocale(),
+  setLocale: (l) => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(STORAGE_KEY, l);
+    }
+    set({ locale: l });
+  },
 }));

@@ -1,5 +1,6 @@
 import { Link, NavLink } from 'react-router';
 import { Network } from 'lucide-react';
+import LocaleSwitch from '@/shared/components/layout/LocaleSwitch';
 
 interface NavItem {
   to: string;
@@ -71,6 +72,9 @@ function Header() {
             ),
           )}
         </nav>
+        <div className="ms-auto">
+          <LocaleSwitch />
+        </div>
       </div>
     </header>
   );
