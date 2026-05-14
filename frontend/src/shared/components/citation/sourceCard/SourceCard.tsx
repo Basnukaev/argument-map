@@ -1,4 +1,5 @@
 import type { components } from '@/shared/api/types';
+import { useT } from '@/shared/i18n';
 import { Bdi } from './Bdi';
 import { CARD_SHELL } from './cardShell';
 import { Collapsible } from './Collapsible';
@@ -42,8 +43,9 @@ export function SourceCard({
   titleLatin,
   onDelete,
   onPrimaryAction,
-  primaryActionLabel = 'Перейти к источнику',
+  primaryActionLabel,
 }: Props) {
+  const t = useT();
   const c = link.citation ?? {};
   const { authority, book, muhaqqiq, publisher, publicationPlace, location } = c;
 
@@ -62,47 +64,53 @@ export function SourceCard({
         context={link.context ?? null}
       />
 
-      <Collapsible title="Метаданные">
+      <Collapsible title={t('cite.label.metadata')}>
         {authority && (
-          <RtlRow label="Автор">
+          <RtlRow label={t('cite.label.author')}>
             <FlexValue text={authority.fullName ?? authority.name} size={15} weight={600} />
           </RtlRow>
         )}
 
         {authority?.deathYearHijri != null && (
-          <RtlRow label="Год смерти">
+          <RtlRow label={t('cite.label.death_year')}>
             <HijriYear hijri={authority.deathYearHijri} />
           </RtlRow>
         )}
 
         {book && (
-          <RtlRow label="Название">
+          <RtlRow label={t('cite.label.title')}>
             <FlexValue text={book.title} size={16} weight={700} />
           </RtlRow>
         )}
 
         {muhaqqiq && (
-          <RtlRow label="Тахкик">
+          <RtlRow label={t('cite.label.muhaqqiq')}>
             <FlexValue text={muhaqqiq.fullName ?? muhaqqiq.name} size={14} />
           </RtlRow>
         )}
 
         {(publisher || publicationPlace) && (
-          <RtlRow label="Издатель">
-            <FlexValue text={publisher?.name} />
-            {publisher && publicationPlace && SEP}
-            <FlexValue text={publicationPlace?.name} />
+          <RtlRow label={t('cite.label.publisher')}>
+            {/* LTR wrapper - pair publisher · place в логическом порядке внутри RTL row */}
+            <span dir="ltr" className="inline-flex items-baseline gap-1">
+              <FlexValue text={publisher?.name} />
+              {publisher && publicationPlace && SEP}
+              <FlexValue text={publicationPlace?.name} />
+            </span>
           </RtlRow>
         )}
 
         {book?.editionNumber != null && (
-          <RtlRow label="Издание">
-            <Bdi>{book.editionNumber}-е изд.</Bdi>
+          <RtlRow label={t('cite.label.edition')}>
+            <Bdi>
+              {book.editionNumber}
+              {t('cite.edition.suffix')}
+            </Bdi>
           </RtlRow>
         )}
 
         {(book?.publishedYearHijri != null || book?.publishedYearGregorian != null) && (
-          <RtlRow label="Год" last>
+          <RtlRow label={t('cite.label.year')} last>
             <HijriYear
               hijri={book?.publishedYearHijri}
               gregorian={book?.publishedYearGregorian}
@@ -114,7 +122,7 @@ export function SourceCard({
       {onPrimaryAction && (
         <div className="mt-3" dir="ltr">
           <PrimaryButton full onClick={onPrimaryAction}>
-            {primaryActionLabel}
+            {primaryActionLabel ?? t('cite.action.gotoSource')}
           </PrimaryButton>
         </div>
       )}

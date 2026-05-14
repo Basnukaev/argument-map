@@ -7,6 +7,10 @@ import java.util.UUID;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import ru.basnukaev.argumentmap.library.domain.BookType;
+import ru.basnukaev.argumentmap.web.dto.AuthorityCitationRef;
+import ru.basnukaev.argumentmap.web.dto.MuhaqqiqRef;
+import ru.basnukaev.argumentmap.web.dto.PublicationPlaceRef;
+import ru.basnukaev.argumentmap.web.dto.PublisherRef;
 
 public record BookDetailResponse(
         UUID id,
@@ -25,6 +29,10 @@ public record BookDetailResponse(
         UUID publicationPlaceId,
         Integer editionNumber,
         Integer publishedYearHijri,
-        Integer publishedYearGregorian
+        Integer publishedYearGregorian,
+        AuthorityCitationRef authority,
+        MuhaqqiqRef muhaqqiq,
+        PublisherRef publisher,
+        PublicationPlaceRef publicationPlace
 ) {
 }

@@ -1,4 +1,5 @@
 import { hasArabicScript } from '@/apps/argument-map/components/graph/nodeDetailsUtils';
+import { useT } from '@/shared/i18n';
 
 type Props = {
   part: string | null;
@@ -20,13 +21,14 @@ type Props = {
  * независимо от direction карточки
  */
 export function QuoteBlock({ part, page, quote, context }: Props) {
+  const t = useT();
   const quoteIsAr = quote ? hasArabicScript(quote) : false;
   const partIsAr = part ? hasArabicScript(part) : false;
   return (
     <div className="mt-1.5 rounded-xl border-s-[3px] border-indigo-500 bg-indigo-50/40 px-3.5 py-3">
       <div className="mb-2 flex items-baseline justify-between gap-2 text-[11px] text-slate-400">
         <span dir="ltr">
-          стр.{' '}
+          {t('cite.page.short')}{' '}
           <span className="font-semibold text-slate-700">{page ?? '—'}</span>
         </span>
         {part && (

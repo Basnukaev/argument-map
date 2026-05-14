@@ -6,9 +6,13 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import ru.basnukaev.argumentmap.domain.Authority;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.ImageRegion;
+import ru.basnukaev.argumentmap.library.domain.Muhaqqiq;
 import ru.basnukaev.argumentmap.library.domain.Page;
+import ru.basnukaev.argumentmap.library.domain.PublicationPlace;
+import ru.basnukaev.argumentmap.library.domain.Publisher;
 import ru.basnukaev.argumentmap.library.service.BookDetail;
 import ru.basnukaev.argumentmap.library.service.ChapterNode;
 import ru.basnukaev.argumentmap.library.service.PageDetail;
@@ -19,6 +23,10 @@ import ru.basnukaev.argumentmap.library.web.dto.ChapterResponse;
 import ru.basnukaev.argumentmap.library.web.dto.ImageRegionResponse;
 import ru.basnukaev.argumentmap.library.web.dto.PageResponse;
 import ru.basnukaev.argumentmap.library.web.dto.PageSummaryResponse;
+import ru.basnukaev.argumentmap.web.dto.AuthorityCitationRef;
+import ru.basnukaev.argumentmap.web.dto.MuhaqqiqRef;
+import ru.basnukaev.argumentmap.web.dto.PublicationPlaceRef;
+import ru.basnukaev.argumentmap.web.dto.PublisherRef;
 
 public final class LibraryDtoMappers {
 
@@ -59,8 +67,32 @@ public final class LibraryDtoMappers {
                 book.publicationPlaceId(),
                 book.editionNumber(),
                 book.publishedYearHijri(),
-                book.publishedYearGregorian()
+                book.publishedYearGregorian(),
+                toAuthorityRef(detail.authority()),
+                toMuhaqqiqRef(detail.muhaqqiq()),
+                toPublisherRef(detail.publisher()),
+                toPublicationPlaceRef(detail.publicationPlace())
         );
+    }
+
+    private static AuthorityCitationRef toAuthorityRef(Authority a) {
+        if (a == null) return null;
+        return new AuthorityCitationRef(a.id(), a.name(), a.fullName(), a.deathYearHijri());
+    }
+
+    private static MuhaqqiqRef toMuhaqqiqRef(Muhaqqiq m) {
+        if (m == null) return null;
+        return new MuhaqqiqRef(m.id(), m.name(), m.fullName());
+    }
+
+    private static PublisherRef toPublisherRef(Publisher p) {
+        if (p == null) return null;
+        return new PublisherRef(p.id(), p.name());
+    }
+
+    private static PublicationPlaceRef toPublicationPlaceRef(PublicationPlace p) {
+        if (p == null) return null;
+        return new PublicationPlaceRef(p.id(), p.name());
     }
 
     public static ChapterResponse toResponse(ChapterNode node) {

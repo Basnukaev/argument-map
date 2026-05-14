@@ -13,14 +13,21 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.basnukaev.argumentmap.exception.AuthorityNotFoundException;
 import ru.basnukaev.argumentmap.exception.BookNotFoundException;
 import ru.basnukaev.argumentmap.exception.PageNotFoundException;
+import ru.basnukaev.argumentmap.domain.Authority;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.Chapter;
+import ru.basnukaev.argumentmap.library.domain.Muhaqqiq;
 import ru.basnukaev.argumentmap.library.domain.Page;
+import ru.basnukaev.argumentmap.library.domain.PublicationPlace;
+import ru.basnukaev.argumentmap.library.domain.Publisher;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.repository.ChapterRepository;
 import ru.basnukaev.argumentmap.library.repository.ImageRegionRepository;
+import ru.basnukaev.argumentmap.library.repository.MuhaqqiqRepository;
 import ru.basnukaev.argumentmap.library.repository.PageRepository;
+import ru.basnukaev.argumentmap.library.repository.PublicationPlaceRepository;
+import ru.basnukaev.argumentmap.library.repository.PublisherRepository;
 import ru.basnukaev.argumentmap.repository.AuthorityRepository;
 
 @Service
@@ -33,17 +40,26 @@ public class BookService {
     private final PageRepository pageRepository;
     private final ImageRegionRepository imageRegionRepository;
     private final AuthorityRepository authorityRepository;
+    private final MuhaqqiqRepository muhaqqiqRepository;
+    private final PublisherRepository publisherRepository;
+    private final PublicationPlaceRepository publicationPlaceRepository;
 
     public BookService(BookRepository bookRepository,
                        ChapterRepository chapterRepository,
                        PageRepository pageRepository,
                        ImageRegionRepository imageRegionRepository,
-                       AuthorityRepository authorityRepository) {
+                       AuthorityRepository authorityRepository,
+                       MuhaqqiqRepository muhaqqiqRepository,
+                       PublisherRepository publisherRepository,
+                       PublicationPlaceRepository publicationPlaceRepository) {
         this.bookRepository = bookRepository;
         this.chapterRepository = chapterRepository;
         this.pageRepository = pageRepository;
         this.imageRegionRepository = imageRegionRepository;
         this.authorityRepository = authorityRepository;
+        this.muhaqqiqRepository = muhaqqiqRepository;
+        this.publisherRepository = publisherRepository;
+        this.publicationPlaceRepository = publicationPlaceRepository;
     }
 
     @Transactional
@@ -75,7 +91,19 @@ public class BookService {
                 .orElseThrow(() -> new BookNotFoundException(bookId));
         List<Chapter> flat = chapterRepository.findByBookId(bookId);
         List<ChapterNode> tree = buildChapterTree(flat);
-        return new BookDetail(book, tree);
+        Authority authority = book.authorityId() != null
+                ? authorityRepository.findById(book.authorityId()).orElse(null)
+                : null;
+        Muhaqqiq muhaqqiq = book.muhaqqiqId() != null
+                ? muhaqqiqRepository.findById(book.muhaqqiqId()).orElse(null)
+                : null;
+        Publisher publisher = book.publisherId() != null
+                ? publisherRepository.findById(book.publisherId()).orElse(null)
+                : null;
+        PublicationPlace place = book.publicationPlaceId() != null
+                ? publicationPlaceRepository.findById(book.publicationPlaceId()).orElse(null)
+                : null;
+        return new BookDetail(book, tree, authority, muhaqqiq, publisher, place);
     }
 
     @Transactional

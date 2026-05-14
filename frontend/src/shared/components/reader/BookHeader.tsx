@@ -1,6 +1,8 @@
 import { BookOpen } from 'lucide-react';
 import type { components } from '@/shared/api/types';
-import { formatShamelaBibliography } from '@/shared/components/reader/utils';
+import { hasArabicScript } from '@/apps/argument-map/components/graph/nodeDetailsUtils';
+import { useT, useLocaleStore } from '@/shared/i18n';
+import { Bdi, FlexValue, HijriYear, RtlRow } from '@/shared/components/citation/sourceCard';
 
 type BookDetail = components['schemas']['BookDetailResponse'];
 
@@ -10,28 +12,120 @@ interface Props {
   children?: React.ReactNode;
 }
 
+/**
+ * Header страницы чтения книги.
+ *
+ * Структура (по аналогии с SourceCard variant D - всё к правому борту):
+ * - Topline: book type chip + pages count (LTR, переключается на RTL для ar-локали)
+ * - Title - arabic в font-naskh RTL, latin в LTR
+ * - Metadata box: Автор / Год смерти / Тахкик / Издатель · Место / Издание / Год
+ *   через RtlRow внутри RTL контейнера - labels к левому борту, values к правому
+ *
+ * Labels переводятся через useT(). На ar-локали будут «المؤلف / التحقيق /
+ * الناشر / الطبعة / السنة» вместо ru аналогов
+ */
 function BookHeader({ book, pagesCount, children }: Props) {
+  const t = useT();
+  const locale = useLocaleStore((s) => s.locale);
   const isArabic = book.language === 'ar';
+  const title = book.title ?? '(без названия)';
+  const titleIsArabic = hasArabicScript(title);
+
+  // Book-type label translatable: «Книга» / «كتاب» / etc
+  const bookType = book.bookType ?? 'BOOK';
+  const typeKey = `book.type.${bookType}` as const;
+  const typeLabel = t(typeKey);
+
+  // Structured metadata если хоть одно поле есть. Иначе fallback на
+  // raw `description` (shamela bibliography text)
+  const hasStructuredMetadata = Boolean(
+    book.authority ?? book.muhaqqiq ?? book.publisher ?? book.publicationPlace ??
+    book.editionNumber ?? book.publishedYearHijri ?? book.publishedYearGregorian
+  );
+
   return (
     <div className="mb-4 flex items-start justify-between gap-4">
       <div className="min-w-0 flex-1">
-        <div className="mb-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500">
+        <div
+          className="mb-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500"
+          dir={locale === 'ar' ? 'rtl' : 'ltr'}
+        >
           <BookOpen size={12} aria-hidden="true" />
-          {book.bookType ?? 'BOOK'}
+          <span>{typeLabel}</span>
           <span className="text-slate-300">·</span>
-          <span className="font-mono">{pagesCount} стр.</span>
+          <span className="font-mono">
+            {pagesCount} {t('book.pages_count_suffix')}
+          </span>
         </div>
+
         <h1
           className={
-            isArabic
+            titleIsArabic
               ? 'font-naskh text-[26px] font-bold leading-tight text-slate-900'
               : 'text-[22px] font-bold leading-tight text-slate-900'
           }
-          dir={isArabic ? 'rtl' : 'ltr'}
+          dir={titleIsArabic ? 'rtl' : 'ltr'}
         >
-          {book.title ?? '(без названия)'}
+          {title}
         </h1>
-        {book.description && (
+
+        {hasStructuredMetadata && (
+          <div
+            className="mt-3 rounded-lg border border-slate-200 bg-slate-50/40 px-3.5 py-1.5"
+            dir="rtl"
+          >
+            {book.authority && (
+              <RtlRow label={t('cite.label.author')}>
+                <FlexValue
+                  text={book.authority.fullName ?? book.authority.name}
+                  size={14}
+                  weight={600}
+                />
+              </RtlRow>
+            )}
+            {book.authority?.deathYearHijri != null && (
+              <RtlRow label={t('cite.label.death_year')}>
+                <HijriYear hijri={book.authority.deathYearHijri} />
+              </RtlRow>
+            )}
+            {book.muhaqqiq && (
+              <RtlRow label={t('cite.label.muhaqqiq')}>
+                <FlexValue text={book.muhaqqiq.fullName ?? book.muhaqqiq.name} size={13} />
+              </RtlRow>
+            )}
+            {(book.publisher || book.publicationPlace) && (
+              <RtlRow label={t('cite.label.publisher')}>
+                {/* LTR wrapper - чтобы pair publisher · place читалась в логическом порядке
+                    (publisher слева, place справа) внутри RTL контейнера */}
+                <span dir="ltr" className="inline-flex items-baseline gap-1">
+                  <FlexValue text={book.publisher?.name} />
+                  {book.publisher && book.publicationPlace && (
+                    <span aria-hidden className="text-xs text-slate-400">·</span>
+                  )}
+                  <FlexValue text={book.publicationPlace?.name} />
+                </span>
+              </RtlRow>
+            )}
+            {book.editionNumber != null && (
+              <RtlRow label={t('cite.label.edition')}>
+                <Bdi>
+                  {book.editionNumber}
+                  {t('cite.edition.suffix')}
+                </Bdi>
+              </RtlRow>
+            )}
+            {(book.publishedYearHijri != null || book.publishedYearGregorian != null) && (
+              <RtlRow label={t('cite.label.year')} last>
+                <HijriYear
+                  hijri={book.publishedYearHijri}
+                  gregorian={book.publishedYearGregorian}
+                />
+              </RtlRow>
+            )}
+          </div>
+        )}
+
+        {!hasStructuredMetadata && book.description && (
           <p
             className={
               isArabic
@@ -40,7 +134,7 @@ function BookHeader({ book, pagesCount, children }: Props) {
             }
             dir={isArabic ? 'rtl' : 'ltr'}
           >
-            {isArabic ? formatShamelaBibliography(book.description) : book.description}
+            {book.description}
           </p>
         )}
       </div>

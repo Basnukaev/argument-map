@@ -848,6 +848,10 @@ export interface components {
             publishedYearHijri?: number;
             /** Format: int32 */
             publishedYearGregorian?: number;
+            authority?: components["schemas"]["AuthorityCitationRef"];
+            muhaqqiq?: components["schemas"]["MuhaqqiqRef"];
+            publisher?: components["schemas"]["PublisherRef"];
+            publicationPlace?: components["schemas"]["PublicationPlaceRef"];
         };
         ChapterResponse: {
             /** Format: uuid */
