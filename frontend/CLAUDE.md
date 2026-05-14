@@ -193,3 +193,28 @@ openapi, изменена архитектура роутинга, рефакт�
 - если используешь deep link `?highlight=...` для citation flow -
   ждать `waitForLoadState('networkidle')` перед screenshot, дать
   фронту время отрендерить highlight ranges
+
+## Handoff: что смотреть после UI changes
+
+**Всегда** после frontend feat/fix/refactor коммита финальное
+сообщение содержит секцию «Что посмотреть» - explicit чек-лист
+для user'а, не размытое «проверь UI». Формат:
+
+```
+## Что посмотреть руками
+
+1. Открой `/path/to/page`
+2. Действие (double-click на X / hover на Y / type в поле Z)
+3. Должен увидеть W
+4. Обрати внимание:
+   - А должно работать теперь (раньше было сломано)
+   - В остаётся прежним
+   - С - hover/animation/edge case
+```
+
+Playwright smoke ловит DOM-level issues (есть ли элемент, click
+работает), но **визуальное качество** (alignment, spacing, читаемость
+шрифтов, RTL-mixing) - это manual check user'ом. Playwright -
+первый layer, user - второй
+
+Полные правила - в memory `feedback_handoff_ui_checks.md`
