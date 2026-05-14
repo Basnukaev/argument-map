@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260514-24-add-academic-citation-metadata" author="Abdula Basnukaev">
+        <comment>
+            Реализация Этапа 20.a (ADR-028): полная academic citation metadata.
+
+            Нормализованный middle path для бахс-grade citation:
+              (1) Справочники lib_publishers / lib_publication_places /
+                  lib_muhaqqiqs - высокий reuse (одно издательство = десятки
+                  книг). UNIQUE на name + ETL findOrCreate по нормализованному
+                  имени даёт data quality (нет typo-дублей "Дар Тайба" vs
+                  "Дар-Тайба").
+
+              (2) Расширение authorities полями full_name + death_year_hijri.
+                  authorities уже cross-book entity (один автор пишет N книг),
+                  естественное место для академического имени. name остаётся
+                  для short display, full_name - для academic citation.
+
+              (3) Per-book scalars в lib_books: edition_number /
+                  published_year_hijri / published_year_gregorian. Не reusable
+                  (каждая книга имеет свои годы), нет смысла в справочнике.
+
+              (4) FK с ON DELETE SET NULL по аналогии с ADR-017 (удаление
+                  справочника не сносит книги каскадно, делает поле NULL).
+
+              (5) CHECK constraints для sanity: положительные годы по хиджре
+                  до 2000, по григорианскому до 2200, положительный
+                  edition_number.
+
+              (6) No backward compat - проект пока без production'а,
+                  существующие dev-rows получают NULL в новых FK
+                  (см. memory feedback_no_prod_no_backward_compat).
+        </comment>
+        <sql>
+            ALTER TABLE authorities
+              ADD COLUMN full_name              TEXT,
+              ADD COLUMN death_year_hijri       INTEGER;
+            ALTER TABLE authorities
+              ADD CONSTRAINT authorities_death_year_sane
+                CHECK (death_year_hijri IS NULL
+                       OR (death_year_hijri &gt; 0 AND death_year_hijri &lt; 2000));
+
+            CREATE TABLE lib_publishers (
+                id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                name        TEXT NOT NULL UNIQUE,
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_lib_publishers_name ON lib_publishers(name);
+
+            CREATE TABLE lib_publication_places (
+                id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                name        TEXT NOT NULL UNIQUE,
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_lib_publication_places_name ON lib_publication_places(name);
+
+            CREATE TABLE lib_muhaqqiqs (
+                id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                name        TEXT NOT NULL UNIQUE,
+                full_name   TEXT,
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_lib_muhaqqiqs_name ON lib_muhaqqiqs(name);
+
+            ALTER TABLE lib_books
+              ADD COLUMN muhaqqiq_id              UUID REFERENCES lib_muhaqqiqs(id) ON DELETE SET NULL,
+              ADD COLUMN publisher_id             UUID REFERENCES lib_publishers(id) ON DELETE SET NULL,
+              ADD COLUMN publication_place_id     UUID REFERENCES lib_publication_places(id) ON DELETE SET NULL,
+              ADD COLUMN edition_number           INTEGER,
+              ADD COLUMN published_year_hijri     INTEGER,
+              ADD COLUMN published_year_gregorian INTEGER;
+
+            ALTER TABLE lib_books
+              ADD CONSTRAINT lib_books_edition_positive
+                CHECK (edition_number IS NULL OR edition_number &gt; 0),
+              ADD CONSTRAINT lib_books_hijri_sane
+                CHECK (published_year_hijri IS NULL
+                       OR (published_year_hijri &gt; 0 AND published_year_hijri &lt; 2000)),
+              ADD CONSTRAINT lib_books_gregorian_sane
+                CHECK (published_year_gregorian IS NULL
+                       OR (published_year_gregorian &gt; 0 AND published_year_gregorian &lt; 2200));
+
+            CREATE INDEX idx_lib_books_muhaqqiq_id          ON lib_books(muhaqqiq_id);
+            CREATE INDEX idx_lib_books_publisher_id         ON lib_books(publisher_id);
+            CREATE INDEX idx_lib_books_publication_place_id ON lib_books(publication_place_id);
+        </sql>
+        <rollback>
+            <sql>
+                ALTER TABLE lib_books DROP CONSTRAINT lib_books_gregorian_sane;
+                ALTER TABLE lib_books DROP CONSTRAINT lib_books_hijri_sane;
+                ALTER TABLE lib_books DROP CONSTRAINT lib_books_edition_positive;
+                ALTER TABLE lib_books DROP COLUMN published_year_gregorian;
+                ALTER TABLE lib_books DROP COLUMN published_year_hijri;
+                ALTER TABLE lib_books DROP COLUMN edition_number;
+                ALTER TABLE lib_books DROP COLUMN publication_place_id;
+                ALTER TABLE lib_books DROP COLUMN publisher_id;
+                ALTER TABLE lib_books DROP COLUMN muhaqqiq_id;
+                DROP TABLE lib_muhaqqiqs;
+                DROP TABLE lib_publication_places;
+                DROP TABLE lib_publishers;
+                ALTER TABLE authorities DROP CONSTRAINT authorities_death_year_sane;
+                ALTER TABLE authorities DROP COLUMN death_year_hijri;
+                ALTER TABLE authorities DROP COLUMN full_name;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
