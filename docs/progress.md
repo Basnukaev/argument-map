@@ -63,12 +63,54 @@
   римскими цифрами / арабскими буквами). `CitationDetail.regionPrintedPage`
   изначально planned Integer → поправлен на String
 
-### Следующий шаг
+### Сделано (продолжение - 20.f frontend)
 
-Подэтап **20.f frontend** - regenerate-api → переписать
-`apps/argument-map/components/graph/CitationsList.tsx` на structured
-citation с блочным рендером (Author / Title / Muhaqqiq / Publisher /
-Years / Location), каждый блок со своим `dir` и шрифтом
+Сессия расширена, 20.f закрыт в той же сессии:
+
+- `23d738d` `feat(frontend): этап 20.f - LibraryCite блочный рендер`
+  - `npm run generate-api` обновил types.ts с nested `citation`
+  - Backend: добавлено опциональное поле `legacySnapshot` в
+    `NodeSourceResponse` (восстановление legacy snapshot для LEGACY
+    mode без отката всего рефактора)
+  - `NodeCitationsSection.tsx` `LibraryCite` полностью переписан:
+    Author / Book title / Muhaqqiq / Publisher · Place · Edition /
+    Years / Location / Quote / Deep link - каждый conditional блок
+    со своим dir / font / стилем
+  - `buildDeepLink` на nested `citation.book.id` / `location.pageId`
+    / `pdf.fileId` вместо плоских полей
+  - FreeformCite использует `link.legacySnapshot` вместо удалённого
+    `link.location`
+  - 143/143 frontend tests pass, 40/40 backend controller IT pass,
+    bundle 327kB / gzip 103kB (без изменения)
+- `bcfc18f` `fix(frontend): 20.f - bidi RTL/LTR для кириллических labels`
+  - После playwright smoke увидели bidi-quirk: кириллические labels
+    («тахкик:», «(т.774») flip'ались поверх arabic spans
+  - Wrap strategy: container divs в `dir="ltr"`, arabic spans inline
+    в `dir="rtl"` с unicode-bidi: isolate для location parts
+
+**Playwright smoke** на `/topics/a6617d11.../`, node «Сахаба и саляф не
+праздновали Мавлид» с pre-fill через SQL UPDATE (мухаккик السلامة,
+publisher Дар Тайба, place Эр-Рияд, edition 2, годы 1420/1999, author
+fullName + death_year_hijri 774). Все 15 блоков визуально присутствуют
+и читабельны. Screenshot в `/tmp/librarycite-3-card.png`
+
+### Следующий шаг (для Сессии 32)
+
+Оставшиеся подэтапы Этапа 20:
+
+- **20.c** Shamela bibliography parser - regex extraction мухаккика /
+  publisher / edition / year из raw `lib_books.description` (там
+  лежит bibliography из shamela). Использует `*Repository.findOrCreate(name)`
+  для upsert справочников. ~0.5 сессии
+- **20.d** Admin BookEditModal - frontend UI для ручного дозаполнения
+  academic fields после импорта (когда parser не справился). Search +
+  autocomplete по существующим публишерам/местам. ~1 сессия
+- **20.e** AddSourceModal расширенная форма - при manual entry для
+  sourceType=BOOK запросить полные поля. ~0.5 сессии
+
+**Minor visual polish** для будущего: bidi ordering author name + year
+в Author block ещё не идеален (год слева от имени). Low ROI - функционально
+работает, читается, оставляю на следующий polish-pass
 
 ---
 
