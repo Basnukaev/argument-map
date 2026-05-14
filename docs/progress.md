@@ -10,6 +10,126 @@
 
 ---
 
+## 2026-05-14 - Сессия 32 (full-stack) - 20.f LibraryCite redesign + i18n + FK variant A
+
+После Сессии 31 (бэк 20.a-b + frontend 20.f первая итерация) пользователь
+дал три feedback'а: карточка citation выглядит «двух-колоночной» (mixed
+RTL/LTR), не получается создать вторую citation на ту же книгу
+(`fk_error`), нужны переводимые labels с переключателем локали + ширина
+header книги выровнена
+
+### Сделано (4 функциональных коммита)
+
+- **`72ddd0b`** `feat(frontend): SourceCard «всё к правому борту»` -
+  применён дизайн D из handoff bundle Claude Design (claude.ai/design).
+  12 атомов в `shared/components/citation/sourceCard/`:
+  Bdi / Chip / Collapsible / FlexValue / HijriYear / Label / PrimaryButton /
+  QuoteBlock / RtlRow / SourceCard / SourceCardHeader / cardShell.
+  Концепция variant D: вся карточка `dir="rtl"`, всё к правому борту,
+  `<bdi dir="ltr">` для cyrillic, quote `dir="auto"` (UA bidi resolve)
+- **`c1a6ff1`** `feat: i18n minimal + structured BookHeader` -
+  shared/i18n/ (dictionary ru/ar 22 keys, useLocaleStore zustand,
+  useT hook). Backend BookDetailResponse extended с nested
+  Authority/Muhaqqiq/Publisher/PublicationPlace refs (BookService
+  резолвит FK). BookHeader переписан structured с RtlRow + переводимые
+  labels (Автор/Тахкик/Издатель/Издание/Год)
+- **`d86e010`** `feat(frontend): RU/AR locale toggle + layout fix` -
+  LocaleSwitch chip в Header, localStorage persist, LocaleEffect
+  синхронизирует `<html lang dir>`. Tailwind logical classes
+  (ms-/me-/ps-/pe-/border-s-/text-start) автоматически mirror'ятся.
+  BookHeader wrapped в Card для consistency width с PageView,
+  ReaderModeSwitch (Текст/PDF) перенесён в sticky toolbar
+- **`8f3b2c9`** `feat: FK variant A` - миграция 25 заменяет
+  `node_sources_pkey (node_id, source_id)` на surrogate `id UUID PK`.
+  Backward-compat aliases `findByIds/delete` в repository для legacy
+  flow. Now user может прицепить N разных фрагментов одной книги к
+  одному узлу - то что нужно для бахс анализа. DELETE endpoint
+  изменился на `/sources/{nodeSourceId}` (breaking change path param)
+
+Bidi quirks fix'ы (`3588d62`, `bcfc18f`) - ушли в pre-redesign, потом
+полностью заменены SourceCard handoff'ом
+
+### Решения
+
+- **Variant D «всё к правому борту»** rejected my previous подход с
+  один-direction-на-строку. Все рядки в RTL контейнере, latin/cyrillic
+  через `<bdi dir="ltr">` сидят справа но читаются LTR. Чище structure,
+  работает в обе локали без переделок
+- **Ручной i18n dictionary** (без i18next/react-intl) - 22 keys, ручной
+  type-safe через DictKey union. Простой zustand store + LocaleEffect.
+  Когда словарь вырастет за 200+ keys - можно migrate на i18next без
+  изменения вызывающего кода (useT hook сохраняется)
+- **FK variant A vs B vs C** - выбран A (surrogate id PK). B (composite
+  с positional fields) overkill для текущей user feedback. C (frontend
+  replace dialog) теряет данные. A даёт реальный multi-citation use case
+- **LTR wrapper для publisher · place pair** - в RTL row flex reverses
+  order. Wrap pair в `dir="ltr"` chip-span сохраняет visual «Дар Тайба ·
+  Эр-Рияд» вместо реверсного «Эр-Рияд · Дар Тайба»
+- **Shamela parser НЕ извлекает academic fields** - проверено: mapper
+  сохраняет raw `bibliography` text в `description`, regex / parser
+  нужно создать (Этап 20.c)
+
+### Проблемы
+
+- **Duplicate API requests** в dev - React StrictMode двойной mount.
+  Tried: AbortController + onCountsChange via useRef + ref guard.
+  Ref guard сломал re-mount (state lost). Откат к AbortController +
+  принятие 2 request в dev tab (production = 1 request, by-design React)
+- 27 call sites `new Book(...)` + new Authority(...) - rewrite в 18+8
+  файлах. Возможно future refactor на builder pattern
+- DELETE path break: `/sources/{sourceId}` → `/sources/{nodeSourceId}`.
+  Обновлены NodeDetailsPanel.test.tsx + NodeSourceControllerIT.
+  api-contract.md не обновлён - **TODO для следующей сессии**
+
+### Следующий шаг
+
+**Сессия 33 - этап 20.c Shamela bibliography parser**
+
+В БД (по результатам `SELECT description FROM lib_books WHERE
+description IS NOT NULL LIMIT 5`) можно увидеть форматы. Plan:
+
+1. Создать `ShamelaBibliographyParser` в
+   `backend/src/main/java/ru/basnukaev/argumentmap/library/shamela/service/`
+   - regex для каждого поля (мухаккик `تحقيق:`, publisher `الناشر:` /
+     `دار`, place, edition `الطبعة:`, year hijri `هـ` / gregorian `م`)
+   - Return record `ParsedBibliography(muhaqqiqName, publisherName,
+     placeName, editionNumber, yearHijri, yearGregorian)` - все nullable
+2. Интегрировать в `ShamelaToLibraryMapper.mapBook` - после resolving
+   authority вызвать parser, для каждого non-null field вызвать
+   `*Repository.findOrCreate(name)` и заполнить FK на book
+3. Unit-тесты на ~10 реальных bibliography строк (extract from
+   production-БД через `psql`)
+4. Endpoint backfill в `ShamelaAdminController`:
+   `POST /api/v1/admin/shamela/backfill-academic-metadata` - перебор
+   всех замапленных книг, parser + UPDATE academic fields
+5. После backfill - smoke на `/books/{id}` любой shamela-imported книги:
+   BookHeader должен показать structured metadata
+
+**Доделки следующей сессии (низкоприоритетные):**
+
+- `api-contract.md` update: NodeSourceResponse получил `id`, DELETE
+  path меняется на `/sources/{nodeSourceId}`, BookDetailResponse +
+  nested refs. Добавить historic line про migration 25 FK variant A
+- ADR-029 для FK variant A (decisional - surrogate vs composite PK)
+- ADR-030 для i18n архитектуры (минимальный manual dictionary vs
+  i18next - обоснование выбора)
+- gotcha: «React StrictMode duplicate requests in dev» - by-design,
+  AbortController не fix'ит (request уже на network к моменту cleanup)
+- `roadmap.md` обновить - проставить `[x]` на 20.f + FK fix добавить
+  как Этап 23 (или подэтап существующего)
+
+### Инфраструктура (Сессия 33 entry)
+
+- Postgres :5432, миграции до 25 включительно applied
+- Backend :9090 + JDWP :5005 running
+- Frontend :5173 running с HMR + i18n locale persist в localStorage
+- Smoke: book `02bcfa43-...` имеет filled academic data
+  (мухаккик/publisher/place/edition/years), `/books/{id}` показывает
+  structured BookHeader, `/topics/a6617d11-...` citation card работает
+- 425/425 backend IT, 143/143 frontend tests pass
+
+---
+
 ## 2026-05-14 - Сессия 31 (backend) - Этап 20.a-b academic citation metadata ЗАКРЫТ
 
 Реализован ADR-028 - расширение схемы для бахс-grade academic citation.

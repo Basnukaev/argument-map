@@ -225,6 +225,23 @@ academic citation работает end-to-end. Playwright smoke 15/15 прове
 6. **Smoke**: re-map тестовой книги через `POST /api/v1/admin/shamela/map-book/{id}`,
    curl `/api/v1/nodes/{id}/sources` - увидеть filled muhaqqiq/publisher
 
+### Doc-долги после Сессии 32 (важно сделать в Сессии 33)
+
+- **`api-contract.md`** обновить:
+  - `NodeSourceResponse` получил поле `id` (UUID)
+  - `DELETE /api/v1/nodes/{nodeId}/sources/{nodeSourceId}` - **breaking
+    change** path param (раньше был `{sourceId}`)
+  - `BookDetailResponse` обогащён nested refs (authority/muhaqqiq/
+    publisher/publicationPlace)
+  - Строка в "Историю изменений"
+- **ADR-029** для FK variant A (decisional - surrogate id PK vs
+  composite PK с positional fields). Rejected alternatives
+- **ADR-030** для i18n архитектуры (manual dictionary vs i18next -
+  обоснование выбора)
+- **gotcha** `gotchas.md`: React StrictMode duplicate API requests в
+  dev. AbortController не fix'ит (request уже отправлен к moment
+  cleanup). By-design React 19, в production не воспроизводится
+
 ### Что осталось из Этапа 20 после 20.c
 
 - **20.d Admin BookEditModal** (~1 сессия) - frontend UI для ручного
@@ -234,26 +251,33 @@ academic citation работает end-to-end. Playwright smoke 15/15 прове
 
 ### Известные мелочи (не блокеры)
 
-- **Visual polish bidi**: в LibraryCite Author block год `(т.774 هـ)`
-  иногда визуально слева от arabic имени (Unicode bidi внутри flex).
-  Low ROI, polish-pass в свободную сессию
 - **Backend running** - после изменений требует kill+restart
   (`spring-boot:run` не подхватывает свежие classes автоматически)
+- **27 call sites `new Book(...)`** и **17 `new Authority(...)`** -
+  возможно future refactor на builder pattern
 
-### Инфра на момент Сессии 32 entry
+### Инфра на момент Сессии 33 entry
 
-- Postgres :5432, миграции до 24 включительно applied
+- Postgres :5432, миграции до 25 включительно applied
 - MinIO :9000 healthy
 - Backend :9090 + JDWP :5005 running
-- Frontend :5173 running с HMR
+- Frontend :5173 running с HMR + localStorage `app.locale` для persist
 - Smoke citation в production-БД (node `4139cb32-...` topic
   `a6617d11-...`): Тафсир Ибн Касира с **filled** academic data
   (мухаккик السلامة, publisher Дар Тайба, place Эр-Рияд, edition 2,
   годы 1420/1999, author fullName + death 774)
+- Тестовая Source `132d75cc-...` имеет title `Тафсир Ибн Касира` -
+  ru transliteration (выставлено вручную в Сессии 31). Для других
+  shamela-imported books source.title пока arabic
 
 ### Альтернативные приоритеты
 
 - 20.d Admin BookEditModal (если parser хватает на 70%+ books)
 - Этап 19 Q&A приложение (валидация платформы)
 
-**Memory:** [[feedback-no-prod-no-backward-compat]] активно
+**Memory:**
+- [[feedback-no-prod-no-backward-compat]] активно
+- [[feedback-handoff-ui-checks]] - после frontend изменений давать
+  чек-лист «что посмотреть» (URL/actions/expected)
+- [[feedback-responsive-ui-future]] - новый код держит в уме
+  mobile/tablet через Tailwind responsive utilities + logical classes

@@ -77,10 +77,21 @@
 - **Этап 25.b. Object storage MinIO** (закрыт Сессия 28, ADR-024) -
   миграция 21 library_files, S3-compatible AWS SDK v2, ObjectStorageService
   + 4 bucket'а, streaming напрямую из MinIO. 357 IT
-- **Этап 20.a/b. Academic citation metadata** (закрыт частично,
-  Сессия 31, ADR-028) - миграция 24, 3 справочника
+- **Этап 20.a/b/f. Academic citation metadata + frontend SourceCard**
+  (закрыт частично, Сессии 31-32, ADR-028) - миграция 24, 3 справочника
   (Publisher/PublicationPlace/Muhaqqiq), расширение Authority + Book,
-  CitationDetail + 9 LEFT JOIN, structured CitationResponse
+  CitationDetail + 9 LEFT JOIN, structured CitationResponse. Frontend
+  SourceCard variant D «всё к правому борту» (Claude Design handoff) -
+  12 атомов, RTL/LTR mix через `<bdi>`, quote `dir="auto"`.
+  BookDetailResponse extended + BookHeader structured RtlRow
+- **i18n minimal** (Сессия 32) - ручной dictionary ru/ar 22 keys,
+  zustand store + localStorage persist + LocaleEffect синхронизирует
+  `<html lang dir>`. RU/AR toggle в Header. Tailwind logical classes
+  автоматически mirror'ятся
+- **FK variant A для node_sources** (Сессия 32, миграция 25) -
+  surrogate `id UUID` PK заменил `(node_id, source_id)`. User может
+  прицепить N разных фрагментов одной книги к одному узлу. DELETE
+  endpoint path меняется на `/sources/{nodeSourceId}`
 
 ---
 
@@ -151,21 +162,21 @@ shamela не имеет нужной книги. MinIO storage готов из 2
 
 ### Этап 20. Полная академическая citation metadata - продолжение
 
-20.a + 20.b закрыты (см. выше). Остаётся:
+20.a/b/f закрыты (см. выше). Остаётся:
 
 - [ ] **20.c:** Shamela bibliography parser - извлекать что есть из
       raw `bibliography` text (часто содержит мухаккика и
-      издательство в неструктурированном виде - regex + LLM fallback?)
+      издательство в неструктурированном виде - regex + LLM fallback?).
+      Backfill endpoint в ShamelaAdminController для перезаполнения
+      existing books
 - [ ] **20.d:** Admin BookEditModal - UI для ручного дозаполнения
-      metadata после импорта (когда parser не справился)
+      metadata после импорта (когда parser не справился). Search +
+      autocomplete по существующим справочникам
 - [ ] **20.e:** AddSourceModal расширенная форма - при manual entry
       для sourceType=BOOK запросить полные поля (необязательны для
       URL/ARTICLE freeform)
-- [ ] **20.f:** Frontend `<LibraryCite>` блочный рендер -
-      regenerate-api, переписать CitationsList.tsx /
-      NodeCitationsSection.tsx на structured citation
 
-Объём 20.c-f: ~2-3 сессии. Не блокирует Этап 19 Q&A
+Объём 20.c-e: ~2 сессии. Не блокирует Этап 19 Q&A
 
 ### Этап 25. PDF Viewer - operational hardening + полировка
 
