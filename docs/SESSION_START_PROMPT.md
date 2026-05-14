@@ -5,6 +5,54 @@
 начало новой сессии - Claude получит полный контекст без ручного
 объяснения.
 
+## КРИТИЧНО для Сессии 32+ (после Сессии 31 - этап 20.a-b ЗАКРЫТ)
+
+Сессия 31 закрыла backend часть Этапа 20 (ADR-028 academic citation
+metadata). Расширена schema, добавлены 3 справочника, structured
+citation response готов на backend.
+
+**Production-ready state (backend):**
+- Postgres: миграция 24 applied (lib_publishers / lib_publication_places /
+  lib_muhaqqiqs + расширения authorities + lib_books)
+- Backend: NodeSourceRepository возвращает structured CitationDetail
+  через 9 LEFT JOIN, DTO CitationResponse + 8 nested refs
+- 425/425 IT pass (~56 новых через Testcontainers)
+
+**Frontend сломан** при regenerate-api - поле `location` исчезло из
+`NodeSourceResponse`, заменено на nested `citation: CitationResponse`.
+Чинится в подэтапе 20.f - первая задача Сессии 32.
+
+## ВЫБРАН ПРИОРИТЕТ Сессии 32: подэтап 20.f frontend `<LibraryCite>` блочный рендер
+
+Запустить `npm run generate-api`, переписать `CitationsList.tsx` /
+`NodeCitationsSection.tsx` на structured citation с блочным рендером
+(Author / Title / Muhaqqiq / Publisher · Place · Edition / Years /
+Location - каждое поле в своём `<div>` с правильным dir/font/стилем).
+
+**Стартовая последовательность:**
+
+1. `cd frontend && npm run generate-api` - regenerate types.ts (требует
+   backend running на :9090)
+2. Открыть `frontend/src/apps/argument-map/components/graph/CitationsList.tsx`
+   и `frontend/src/apps/argument-map/components/graph/NodeCitationsSection.tsx` -
+   фиксить TypeScript errors на `link.location` / `link.bookId` / etc
+3. Реализовать `<LibraryCite>` с 6 conditional блоков (см. progress.md
+   Сессия 31 «Следующий шаг»)
+4. Playwright smoke на `/topics/{topicId}` с тестовой citation
+5. (Optional) SQL update тестовой book/authority с academic data для
+   full block render demo (см. progress.md)
+
+**Альтернативные приоритеты** (для будущих сессий, не для 32):
+- 20.c shamela bibliography parser - regex extraction мухаккика/publisher
+  из bibliography text
+- 20.d Admin BookEditModal - frontend UI для ручного дозаполнения
+- 20.e AddSourceModal расширенная форма
+- Этап 19 Q&A приложение
+
+**Memory новый:** [[feedback-no-prod-no-backward-compat]] - нет prod,
+миграции могут DROP/TRUNCATE, не закладывать NULL-fallback'и для
+существующих dev-rows.
+
 ## КРИТИЧНО для Сессии 31+ (после Сессии 30 - этап 18.f + 18.h ЗАКРЫТЫ)
 
 Сессия 29 закрыла **весь этап 18.f CitationPicker** (12-task plan, full

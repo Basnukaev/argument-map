@@ -17,6 +17,119 @@ Claude Code не тратят токены на исторический кон�
 
 ---
 
+## 2026-05-14 — Сессия 31 (backend) — Этап 20.a-b academic citation metadata ЗАКРЫТ
+
+Реализован ADR-028 - расширение схемы для бахс-grade academic citation.
+Нормализованный middle path: справочники для high-reuse полей +
+расширение `authorities` для академического имени автора + per-book
+скаляры.
+
+### Сделано (9 коммитов, 10 tasks плана)
+
+- **`f3338b3`** `docs: design spec ADR-028 academic citation metadata`
+- **`e6450ae`** `docs: implementation plan ADR-028` - 2877 строк, 10 tasks
+- **`8033fcb`** **Task 1** миграция 24: ALTER authorities + full_name +
+  death_year_hijri, CREATE lib_publishers / lib_publication_places /
+  lib_muhaqqiqs (с UNIQUE name), ALTER lib_books + 3 FK + 3 scalars,
+  3 CHECK + 4 BTREE индекса
+- **`48959a5`** **Tasks 2/3/4** 3 справочника Publisher / PublicationPlace /
+  Muhaqqiq: 3 record + 3 JDBC repository с findOrCreate. 18 IT
+- **`01b7a13`** **Task 5** Authority + fullName / deathYearHijri. Поправлены
+  call sites `new Authority(...)` в 8 файлах. 3 новых IT (round-trip +
+  2x CHECK violation)
+- **`42bbad1`** **Task 6** Book + 6 полей (muhaqqiqId, publisherId,
+  publicationPlaceId, editionNumber, publishedYearHijri, publishedYearGregorian).
+  Поправлены call sites `new Book(...)` в 18 файлах (BookService,
+  ShamelaToLibraryMapper, 16 IT). 4 новых IT
+- **`808be8e`** **Task 7** CitationDetail record (27 полей) + 9 LEFT JOIN
+  в `NodeSourceRepository.findByNodeIdWithLocation`. 5 новых IT
+- **`7cdfc78`** **Task 8** CitationResponse + 8 nested ref DTO. NodeSourceResponse
+  рефакторен (плоские поля → nested citation). DtoMappers.toCitationResponse
+  + 8 helpers. Адаптация NodeCitationServiceIT / NodeSourceControllerIT /
+  NodeCitationControllerIT. 28 controller+service IT
+- **`14a5c12`** **Task 9** ADR-028 + 4 doc updates (architecture / api-contract
+  / glossary / roadmap)
+
+**Полный verify**: 425/425 IT pass (~56 новых vs 369 в Сессии 30),
+BUILD SUCCESS за ~2 минуты.
+
+### Решения
+
+- **Option A (расширить lib_books плоско)** rejected: typo-дубли при импорте
+  + поиск по publisher/city невозможен
+- **Option B (lib_book_editions 1:N)** rejected: каскад изменений массивный,
+  MVP overkill для shamela one-edition-per-book. Future migration path
+  сохранён через rename + parent table если придёт реальный multi-edition
+- **Option C (JSONB academic_metadata)** rejected: нет query-able индексов,
+  type unsafe в Java
+- **Authority extension** вместо нового `lib_authors` - cross-book entity,
+  естественное место для академического имени
+- **Structured CitationDetail** вместо string concat - решает проблему
+  слипания арабского с латинскими / кириллическими частями. Frontend
+  рендерит каждое поле блоком
+- **No backward compat** - новый memory entry зафиксирован
+  ([[feedback-no-prod-no-backward-compat]] в auto memory)
+
+### Проблемы
+
+- 27 call sites `new Book(...)` и 17 `new Authority(...)` - rewrite в 8+18
+  файлах. Возможно будущий рефактор на builder pattern (не блокирующий)
+- 3 IT failures во время Task 7 - библейская схема `library_files` (file_id,
+  не id; нет content_subtype), CHECK `chk_node_sources_one_mode` требовал
+  pdf_bbox non-null для PDF mode. Fixed inline
+- `printed_page` / `part` в `lib_pages` - **TEXT**, не INTEGER (миграция 19
+  - могут быть римскими цифрами или арабскими буквами). `CitationDetail.regionPrintedPage`
+  изначально планировался Integer - skip, поправлен на String
+
+### Следующий шаг
+
+**Сессия 32** - **подэтап 20.f**: frontend `<LibraryCite>` блочный рендер.
+
+1. **Запустить frontend regenerate-api**:
+   ```bash
+   cd frontend && npm run generate-api
+   ```
+   Это обновит `frontend/src/shared/api/types.ts` с новой shape
+   `NodeSourceResponse.citation`. **Сломается компиляция** TypeScript в
+   `CitationsList.tsx` / `NodeCitationsSection.tsx` где обращаются к
+   `link.location` / `link.bookId` etc.
+
+2. **Переписать `frontend/src/apps/argument-map/components/graph/CitationsList.tsx`**:
+   - `LibraryCite` компонент рендерит structured citation блоками:
+     - Author block (RTL/наskh): `{authorFullName} (т.{deathYearHijri} هـ)`
+     - Title block (RTL/наskh): `{bookTitle}`
+     - Muhaqqiq block: `тахкик: {muhaqqiqFullName ?? muhaqqiqName}`
+     - Publisher block: `изд. {publisherName} · {publicationPlaceName} · {editionNumber}-е изд.`
+     - Years block: `{publishedYearHijri} هـ / {publishedYearGregorian} м.`
+     - Location block (моноширинный): `Т.{part} · стр.{printedPage}`
+   - Каждый блок с правильным `dir` атрибутом и шрифтом
+   - Условный рендер каждого блока: если nested ref = null, блок скрывается
+
+3. **`NodeCitationsSection.tsx`** - адаптировать typings, header counts остаются
+
+4. **Playwright smoke** - открыть `/topics/{id}` страницу с тестовой citation
+   на Тафсир Ибн Касира (node `4139cb32-28ba-4d98-9954-225e8e3c863d`),
+   убедиться что citation рендерится блочно
+
+5. **(Опционально)** ручной курсор-add academic data для smoke citation:
+   ```sql
+   INSERT INTO lib_muhaqqiqs (id, name, full_name) VALUES (uuid_generate_v4(), 'السلامة', 'سامي بن محمد السلامة');
+   INSERT INTO lib_publishers (id, name) VALUES (uuid_generate_v4(), 'Дар Тайба');
+   INSERT INTO lib_publication_places (id, name) VALUES (uuid_generate_v4(), 'Эр-Рияд');
+   UPDATE lib_books SET muhaqqiq_id = (SELECT id FROM lib_muhaqqiqs LIMIT 1),
+                         publisher_id = (SELECT id FROM lib_publishers LIMIT 1),
+                         publication_place_id = (SELECT id FROM lib_publication_places LIMIT 1),
+                         edition_number = 2, published_year_hijri = 1420, published_year_gregorian = 1999
+   WHERE id = '02bcfa43-d269-4545-8e8b-965ed56dfc93';
+   UPDATE authorities SET full_name = 'إسماعيل بن عمر بن كثير الدمشقي', death_year_hijri = 774
+   WHERE id = (SELECT authority_id FROM lib_books WHERE id = '02bcfa43-d269-4545-8e8b-965ed56dfc93');
+   ```
+   Чтобы посмотреть полный блочный рендер на реальной citation.
+
+6. **Подэтап 20.c shamela bibliography parser** - параллельно или вслед за 20.f.
+
+---
+
 ## 2026-05-14 — Сессия 30 (frontend) — user-feedback fixes + 18.h.B1+C1 design polish
 
 Сессия открыта по результатам ручного browser-теста после Сессии 29.
