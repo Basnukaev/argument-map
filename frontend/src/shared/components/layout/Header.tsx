@@ -33,8 +33,11 @@ function Header() {
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex h-12 max-w-[1380px] items-center gap-3 px-6">
+        {/* Бренд не зеркалится - логотип всегда «иконка слева + текст справа»
+            независимо от локали. dir="ltr" блокирует bidi-flip от родителя */}
         <Link
           to="/topics"
+          dir="ltr"
           className="flex items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 rounded-md"
           aria-label="На главную"
         >
