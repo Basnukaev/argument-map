@@ -1,4 +1,4 @@
-import { hasArabicScript } from '@/apps/argument-map/components/graph/nodeDetailsUtils';
+import { hasArabicScript } from '@/shared/i18n';
 import { Bdi } from './Bdi';
 
 type Props = {

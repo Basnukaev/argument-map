@@ -1,15 +1,14 @@
 import DOMPurify from 'dompurify';
+import { hasArabicScript } from '@/shared/i18n';
 
 export type ReaderMode = 'text' | 'pdf';
 
 /**
- * Эвристика: если контент содержит арабские символы (Unicode-блок
- * 0x0600-0x06FF), это арабский текст - рендерим RTL + naskh-шрифт.
+ * Алиас на единый детектор арабского скрипта (см. `@/shared/i18n/script`).
+ * Сохраняем имя ради читаемости вызовов в reader-коде, где «is arabic text»
+ * нагляднее чем «has arabic script».
  */
-export function isArabicText(text: string | undefined): boolean {
-  if (!text) return false;
-  return /[؀-ۿ]/.test(text);
-}
+export const isArabicText = hasArabicScript;
 
 /**
  * Двухступенчатая санитизация HTML контента страницы:

@@ -1,7 +1,6 @@
 import { BookOpen } from 'lucide-react';
 import type { components } from '@/shared/api/types';
-import { hasArabicScript } from '@/apps/argument-map/components/graph/nodeDetailsUtils';
-import { useT, useLocaleStore } from '@/shared/i18n';
+import { hasArabicScript, useT, useLocaleStore } from '@/shared/i18n';
 import { Bdi, FlexValue, HijriYear, RtlRow } from '@/shared/components/citation/sourceCard';
 
 type BookDetail = components['schemas']['BookDetailResponse'];

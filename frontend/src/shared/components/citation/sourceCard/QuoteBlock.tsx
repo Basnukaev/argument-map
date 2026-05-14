@@ -1,5 +1,4 @@
-import { hasArabicScript } from '@/apps/argument-map/components/graph/nodeDetailsUtils';
-import { useT } from '@/shared/i18n';
+import { hasArabicScript, useT } from '@/shared/i18n';
 
 type Props = {
   part: string | null;
