@@ -279,7 +279,8 @@ class ShamelaAdminControllerIT {
         bookRepository.save(new Book(
                 UUID.randomUUID(), BookType.BOOK, "صحيح البخاري", null, "ar",
                 null, "{\"shamela_book_id\":41557}", testUserId,
-                Instant.now(), Instant.now()
+                Instant.now(), Instant.now(),
+                null, null, null, null, null, null
         ));
 
         mockMvc.perform(get("/api/v1/admin/shamela/search").param("q", "البخاري"))
@@ -384,7 +385,8 @@ class ShamelaAdminControllerIT {
         bookRepository.save(new Book(
                 UUID.randomUUID(), BookType.BOOK, "замапленная", null, "ar",
                 null, "{\"shamela_book_id\":1}", testUserId,
-                Instant.now(), Instant.now()
+                Instant.now(), Instant.now(),
+                null, null, null, null, null, null
         ));
         jdbcTemplate.update(
                 "UPDATE lib_shamela_sync_state SET master_version = 1261, last_synced_at = now() WHERE id = 1");

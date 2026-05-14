@@ -53,7 +53,8 @@ class PageRepositoryIT {
         Instant now = Instant.now();
         book = bookRepository.save(new Book(
                 UUID.randomUUID(), BookType.BOOK, "T", null, "ar",
-                null, null, userId, now, now
+                null, null, userId, now, now,
+                null, null, null, null, null, null
         ));
     }
 

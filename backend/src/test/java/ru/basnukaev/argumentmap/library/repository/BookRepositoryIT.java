@@ -1,6 +1,7 @@
 package ru.basnukaev.argumentmap.library.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -53,7 +54,8 @@ class BookRepositoryIT {
                 UUID.randomUUID(), BookType.BOOK,
                 "Маджму' аль-Фатава", null, "ar",
                 "37-томный сборник",
-                "{\"volumes\":37}", userId, now, now
+                "{\"volumes\":37}", userId, now, now,
+                null, null, null, null, null, null
         );
 
         bookRepository.save(book);
@@ -73,7 +75,8 @@ class BookRepositoryIT {
                 UUID.randomUUID(), BookType.QURAN,
                 "Коран", null, "ar",
                 null, null, userId,
-                Instant.now(), Instant.now()
+                Instant.now(), Instant.now(),
+                null, null, null, null, null, null
         );
 
         bookRepository.save(quran);
@@ -92,7 +95,8 @@ class BookRepositoryIT {
                 UUID.randomUUID(), BookType.BOOK,
                 "Иктида ас-сырат аль-мустакым",
                 author.id(), "ar", null, null, userId,
-                Instant.now(), Instant.now()
+                Instant.now(), Instant.now(),
+                null, null, null, null, null, null
         ));
 
         authorityRepository.deleteById(author.id());
@@ -139,9 +143,11 @@ class BookRepositoryIT {
     void findAll_orderByCreatedAt() {
         Instant base = Instant.now().truncatedTo(ChronoUnit.MICROS);
         Book older = new Book(UUID.randomUUID(), BookType.BOOK, "older",
-                null, "ar", null, null, userId, base.minusSeconds(60), base.minusSeconds(60));
+                null, "ar", null, null, userId, base.minusSeconds(60), base.minusSeconds(60),
+                null, null, null, null, null, null);
         Book newer = new Book(UUID.randomUUID(), BookType.BOOK, "newer",
-                null, "ar", null, null, userId, base, base);
+                null, "ar", null, null, userId, base, base,
+                null, null, null, null, null, null);
         bookRepository.save(newer);
         bookRepository.save(older);
 
@@ -170,7 +176,8 @@ class BookRepositoryIT {
         bookRepository.save(new Book(
                 UUID.randomUUID(), BookType.BOOK, "T", null, "ar", null,
                 "{\"shamela_id\":12345}", userId,
-                Instant.now(), Instant.now()
+                Instant.now(), Instant.now(),
+                null, null, null, null, null, null
         ));
 
         Integer count = jdbcTemplate.queryForObject(
@@ -188,6 +195,96 @@ class BookRepositoryIT {
     private Book book(String title, BookType type) {
         Instant now = Instant.now();
         return new Book(UUID.randomUUID(), type, title, null, "ar",
-                null, null, userId, now, now);
+                null, null, userId, now, now,
+                null, null, null, null, null, null);
+    }
+
+    // ADR-028 academic citation metadata
+
+    @Test
+    void save_withFullAcademicData_roundTrip() {
+        UUID muhaqqiqId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO lib_muhaqqiqs (id, name) VALUES (?, ?)",
+                muhaqqiqId, "السلامة"
+        );
+        UUID publisherId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO lib_publishers (id, name) VALUES (?, ?)",
+                publisherId, "Дар Тайба"
+        );
+        UUID placeId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO lib_publication_places (id, name) VALUES (?, ?)",
+                placeId, "Эр-Рияд"
+        );
+
+        Book book = new Book(
+                UUID.randomUUID(), BookType.BOOK,
+                "تفسير القرآن العظيم", null, "ar",
+                null, null, userId, Instant.now(), Instant.now(),
+                muhaqqiqId, publisherId, placeId,
+                2, 1420, 1999
+        );
+
+        bookRepository.save(book);
+
+        Book reloaded = bookRepository.findById(book.id()).orElseThrow();
+        assertThat(reloaded.muhaqqiqId()).isEqualTo(muhaqqiqId);
+        assertThat(reloaded.publisherId()).isEqualTo(publisherId);
+        assertThat(reloaded.publicationPlaceId()).isEqualTo(placeId);
+        assertThat(reloaded.editionNumber()).isEqualTo(2);
+        assertThat(reloaded.publishedYearHijri()).isEqualTo(1420);
+        assertThat(reloaded.publishedYearGregorian()).isEqualTo(1999);
+    }
+
+    @Test
+    void save_withPartialAcademicData_persistsNullsForMissing() {
+        UUID publisherId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO lib_publishers (id, name) VALUES (?, ?)",
+                publisherId, "Дар аль-Фикр"
+        );
+
+        Book book = new Book(
+                UUID.randomUUID(), BookType.BOOK,
+                "Книга с partial data", null, "ar",
+                null, null, userId, Instant.now(), Instant.now(),
+                null, publisherId, null,
+                null, 1430, null
+        );
+
+        bookRepository.save(book);
+
+        Book reloaded = bookRepository.findById(book.id()).orElseThrow();
+        assertThat(reloaded.muhaqqiqId()).isNull();
+        assertThat(reloaded.publisherId()).isEqualTo(publisherId);
+        assertThat(reloaded.editionNumber()).isNull();
+        assertThat(reloaded.publishedYearHijri()).isEqualTo(1430);
+        assertThat(reloaded.publishedYearGregorian()).isNull();
+    }
+
+    @Test
+    void save_editionNumberZero_violatesCheck() {
+        Book bad = new Book(
+                UUID.randomUUID(), BookType.BOOK, "bad edition",
+                null, "ar", null, null, userId, Instant.now(), Instant.now(),
+                null, null, null, 0, null, null
+        );
+
+        assertThatThrownBy(() -> bookRepository.save(bad))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void save_publishedYearGregorianTooLarge_violatesCheck() {
+        Book bad = new Book(
+                UUID.randomUUID(), BookType.BOOK, "future book",
+                null, "ar", null, null, userId, Instant.now(), Instant.now(),
+                null, null, null, null, null, 2500
+        );
+
+        assertThatThrownBy(() -> bookRepository.save(bad))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
     }
 }

@@ -19,6 +19,12 @@ public record BookDetailResponse(
         UUID createdBy,
         Instant createdAt,
         Instant updatedAt,
-        List<ChapterResponse> chapters
+        List<ChapterResponse> chapters,
+        UUID muhaqqiqId,
+        UUID publisherId,
+        UUID publicationPlaceId,
+        Integer editionNumber,
+        Integer publishedYearHijri,
+        Integer publishedYearGregorian
 ) {
 }

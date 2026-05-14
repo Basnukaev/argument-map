@@ -46,7 +46,8 @@ class ChapterRepositoryIT {
         Instant now = Instant.now();
         book = bookRepository.save(new Book(
                 UUID.randomUUID(), BookType.BOOK, "T", null, "ar",
-                null, null, userId, now, now
+                null, null, userId, now, now,
+                null, null, null, null, null, null
         ));
     }
 
@@ -86,7 +87,8 @@ class ChapterRepositoryIT {
 
         Book otherBook = bookRepository.save(new Book(
                 UUID.randomUUID(), BookType.BOOK, "Other", null, "ar",
-                null, null, userId, Instant.now(), Instant.now()
+                null, null, userId, Instant.now(), Instant.now(),
+                null, null, null, null, null, null
         ));
         chapterRepository.save(new Chapter(UUID.randomUUID(), otherBook.id(), null, "X", 0, null, Instant.now()));
 

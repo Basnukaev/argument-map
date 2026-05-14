@@ -57,7 +57,8 @@ public class BookService {
         Book book = new Book(
                 UUID.randomUUID(), bookType, title, authorityId,
                 language, description, metadataJson, currentUserId,
-                now, now
+                now, now,
+                null, null, null, null, null, null
         );
         bookRepository.save(book);
         return book;

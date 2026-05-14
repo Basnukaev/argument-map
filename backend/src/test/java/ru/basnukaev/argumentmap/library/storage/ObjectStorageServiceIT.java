@@ -399,7 +399,8 @@ class ObjectStorageServiceIT {
     private Book book(String title) {
         Instant now = Instant.now();
         return new Book(UUID.randomUUID(), BookType.BOOK, title, null, "ar",
-                null, null, userId, now, now);
+                null, null, userId, now, now,
+                null, null, null, null, null, null);
     }
 
     private byte[] randomBytes(int size) {

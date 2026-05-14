@@ -146,7 +146,8 @@ class SourceRepositoryBookIdIT {
     private UUID createBook(String title) {
         UUID id = UUID.randomUUID();
         Book b = new Book(id, BookType.BOOK, title, null, "ar", null,
-                null, userId, Instant.now(), Instant.now());
+                null, userId, Instant.now(), Instant.now(),
+                null, null, null, null, null, null);
         bookRepository.save(b);
         return id;
     }

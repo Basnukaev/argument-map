@@ -52,7 +52,8 @@ class ImageRegionRepositoryIT {
         Instant now = Instant.now();
         Book book = bookRepository.save(new Book(
                 UUID.randomUUID(), BookType.MANUSCRIPT, "T", null, "ar",
-                null, null, userId, now, now
+                null, null, userId, now, now,
+                null, null, null, null, null, null
         ));
         page = pageRepository.save(new Page(
                 UUID.randomUUID(), book.id(), null, 1,

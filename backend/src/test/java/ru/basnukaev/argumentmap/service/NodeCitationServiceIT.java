@@ -71,7 +71,8 @@ class NodeCitationServiceIT {
 
         bookId = UUID.randomUUID();
         bookRepository.save(new Book(bookId, BookType.BOOK, "Тафсир Ибн Касира", null, "ar",
-                null, null, userId, Instant.now(), Instant.now()));
+                null, null, userId, Instant.now(), Instant.now(),
+                null, null, null, null, null, null));
 
         pageId = UUID.randomUUID();
         pageRepository.save(new Page(pageId, bookId, null, 1, "47", "1", null,
@@ -195,7 +196,8 @@ class NodeCitationServiceIT {
     void createCitation_pageWrongBook_throws400() {
         UUID otherBookId = UUID.randomUUID();
         bookRepository.save(new Book(otherBookId, BookType.BOOK, "other", null, "ar",
-                null, null, userId, Instant.now(), Instant.now()));
+                null, null, userId, Instant.now(), Instant.now(),
+                null, null, null, null, null, null));
 
         CitationRequest req = new CitationRequest(otherBookId,
                 pageId, 0, 10, null, null, null, null, null, null);

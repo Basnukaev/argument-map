@@ -193,7 +193,8 @@ class PdfLinksSourceProviderIT {
     void supports_returnsFalseForBookWithoutPdfLinks() {
         Book book = bookRepository.save(new Book(
                 UUID.randomUUID(), BookType.BOOK, "No PDF book",
-                null, "ar", null, "{}", userId, Instant.now(), Instant.now()));
+                null, "ar", null, "{}", userId, Instant.now(), Instant.now(),
+                null, null, null, null, null, null));
 
         assertThat(provider.supports(book)).isFalse();
     }
@@ -229,7 +230,8 @@ class PdfLinksSourceProviderIT {
         return bookRepository.save(new Book(
                 UUID.randomUUID(), BookType.BOOK, "Shamela book",
                 null, "ar", null, metadataJson, userId,
-                Instant.now(), Instant.now()));
+                Instant.now(), Instant.now(),
+                null, null, null, null, null, null));
     }
 
     private Book saveShamelaBookMultiVolume(int majorRelease, String... pdfFilenames) {
@@ -248,7 +250,8 @@ class PdfLinksSourceProviderIT {
         return bookRepository.save(new Book(
                 UUID.randomUUID(), BookType.BOOK, "Multi-volume book",
                 null, "ar", null, metadataJson, userId,
-                Instant.now(), Instant.now()));
+                Instant.now(), Instant.now(),
+                null, null, null, null, null, null));
     }
 
     private Book saveArchiveOrgBook(String pdfFilename) {
@@ -261,7 +264,8 @@ class PdfLinksSourceProviderIT {
         return bookRepository.save(new Book(
                 UUID.randomUUID(), BookType.BOOK, "ArchiveOrg book",
                 null, "ar", null, metadataJson, userId,
-                Instant.now(), Instant.now()));
+                Instant.now(), Instant.now(),
+                null, null, null, null, null, null));
     }
 
     private void ensureBucket(String bucket) {

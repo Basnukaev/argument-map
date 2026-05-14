@@ -114,7 +114,8 @@ public class ShamelaToLibraryMapper {
                 metadataBuilder.build(shamelaBook),
                 createdBy,
                 now,
-                now
+                now,
+                null, null, null, null, null, null
         );
         bookRepository.save(book);
 

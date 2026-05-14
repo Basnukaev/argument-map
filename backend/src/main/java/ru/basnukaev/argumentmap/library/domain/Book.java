@@ -13,6 +13,12 @@ public record Book(
         String metadata,
         UUID createdBy,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        UUID muhaqqiqId,
+        UUID publisherId,
+        UUID publicationPlaceId,
+        Integer editionNumber,
+        Integer publishedYearHijri,
+        Integer publishedYearGregorian
 ) {
 }

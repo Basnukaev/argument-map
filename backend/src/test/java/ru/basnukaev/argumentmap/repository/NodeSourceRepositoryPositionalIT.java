@@ -78,7 +78,8 @@ class NodeSourceRepositoryPositionalIT {
 
         bookId = UUID.randomUUID();
         bookRepository.save(new Book(bookId, BookType.BOOK, "Тестовая книга", null, "ar",
-                null, null, userId, Instant.now(), Instant.now()));
+                null, null, userId, Instant.now(), Instant.now(),
+                null, null, null, null, null, null));
 
         sourceId = UUID.randomUUID();
         sourceRepository.save(new Source(sourceId, SourceType.BOOK, "Тестовая книга",

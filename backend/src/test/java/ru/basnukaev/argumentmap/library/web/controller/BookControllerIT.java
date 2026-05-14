@@ -297,7 +297,8 @@ class BookControllerIT {
         Instant now = Instant.now();
         return bookRepository.save(new Book(
                 UUID.randomUUID(), type, title, null, "ar",
-                null, null, userId, now, now
+                null, null, userId, now, now,
+                null, null, null, null, null, null
         ));
     }
 

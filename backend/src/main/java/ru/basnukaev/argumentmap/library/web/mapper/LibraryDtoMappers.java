@@ -53,7 +53,13 @@ public final class LibraryDtoMappers {
                 book.authorityId(), book.language(), book.description(),
                 jsonFromString(book.metadata()),
                 book.createdBy(), book.createdAt(), book.updatedAt(),
-                chapters
+                chapters,
+                book.muhaqqiqId(),
+                book.publisherId(),
+                book.publicationPlaceId(),
+                book.editionNumber(),
+                book.publishedYearHijri(),
+                book.publishedYearGregorian()
         );
     }
 

@@ -20,20 +20,37 @@ public class BookRepository {
 
     private static final String COLUMNS =
             "id, book_type, title, authority_id, language, description, metadata, "
-            + "created_by, created_at, updated_at";
+            + "created_by, created_at, updated_at, "
+            + "muhaqqiq_id, publisher_id, publication_place_id, "
+            + "edition_number, published_year_hijri, published_year_gregorian";
 
-    private static final RowMapper<Book> ROW_MAPPER = (rs, rn) -> new Book(
-            rs.getObject("id", UUID.class),
-            BookType.valueOf(rs.getString("book_type")),
-            rs.getString("title"),
-            rs.getObject("authority_id", UUID.class),
-            rs.getString("language"),
-            rs.getString("description"),
-            rs.getString("metadata"),
-            rs.getObject("created_by", UUID.class),
-            instant(rs, "created_at"),
-            instant(rs, "updated_at")
-    );
+    private static final RowMapper<Book> ROW_MAPPER = (rs, rn) -> {
+        int edition = rs.getInt("edition_number");
+        Integer editionOrNull = rs.wasNull() ? null : edition;
+        int yearH = rs.getInt("published_year_hijri");
+        Integer yearHOrNull = rs.wasNull() ? null : yearH;
+        int yearG = rs.getInt("published_year_gregorian");
+        Integer yearGOrNull = rs.wasNull() ? null : yearG;
+
+        return new Book(
+                rs.getObject("id", UUID.class),
+                BookType.valueOf(rs.getString("book_type")),
+                rs.getString("title"),
+                rs.getObject("authority_id", UUID.class),
+                rs.getString("language"),
+                rs.getString("description"),
+                rs.getString("metadata"),
+                rs.getObject("created_by", UUID.class),
+                instant(rs, "created_at"),
+                instant(rs, "updated_at"),
+                rs.getObject("muhaqqiq_id", UUID.class),
+                rs.getObject("publisher_id", UUID.class),
+                rs.getObject("publication_place_id", UUID.class),
+                editionOrNull,
+                yearHOrNull,
+                yearGOrNull
+        );
+    };
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -44,7 +61,7 @@ public class BookRepository {
     public Book save(Book book) {
         jdbcTemplate.update(
                 "INSERT INTO lib_books (" + COLUMNS + ") "
-                        + "VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?)",
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 book.id(),
                 book.bookType().name(),
                 book.title(),
@@ -54,7 +71,13 @@ public class BookRepository {
                 book.metadata(),
                 book.createdBy(),
                 odt(book.createdAt()),
-                odt(book.updatedAt())
+                odt(book.updatedAt()),
+                book.muhaqqiqId(),
+                book.publisherId(),
+                book.publicationPlaceId(),
+                book.editionNumber(),
+                book.publishedYearHijri(),
+                book.publishedYearGregorian()
         );
         return book;
     }
