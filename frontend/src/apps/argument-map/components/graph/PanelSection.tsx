@@ -35,7 +35,7 @@ function PanelSection({ icon: Icon, title, count, defaultOpen = true, onFirstOpe
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-5 py-3 text-left transition-colors hover:bg-slate-50"
+        className="flex w-full items-center gap-2 px-5 py-3 text-start transition-colors hover:bg-slate-50"
       >
         <Icon size={14} className="text-slate-500" aria-hidden="true" />
         <span className="text-[12px] font-semibold uppercase tracking-wider text-slate-700">
@@ -46,7 +46,7 @@ function PanelSection({ icon: Icon, title, count, defaultOpen = true, onFirstOpe
         )}
         <ChevronDown
           size={14}
-          className={`ml-auto text-slate-400 transition-transform ${open ? '' : '-rotate-90'}`}
+          className={`ms-auto text-slate-400 transition-transform ${open ? '' : '-rotate-90'}`}
           aria-hidden="true"
         />
       </button>

@@ -89,7 +89,7 @@ function TopicListPage() {
 
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-9 max-w-md flex-1 items-center rounded-md border border-slate-300 bg-white transition-colors focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20">
-            <Search size={16} className="ml-3 text-slate-400" aria-hidden="true" />
+            <Search size={16} className="ms-3 text-slate-400" aria-hidden="true" />
             <input
               type="search"
               value={search}
@@ -169,7 +169,7 @@ function TopicCard({ topic }: TopicCardProps) {
       <Card className="overflow-hidden transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md group-focus-visible:ring-2 group-focus-visible:ring-indigo-500 group-focus-visible:ring-offset-2">
         <div className="relative h-[110px] border-b border-slate-100 bg-gradient-to-br from-slate-50 to-white">
           <TopicMiniGraph nodeCount={nodeCount} edgeCount={edgeCount} />
-          <div className="absolute right-2 top-2 inline-flex h-5 items-center gap-1 rounded-md border border-slate-200 bg-white/90 px-1.5 text-[10px] font-medium text-slate-600 backdrop-blur">
+          <div className="absolute end-2 top-2 inline-flex h-5 items-center gap-1 rounded-md border border-slate-200 bg-white/90 px-1.5 text-[10px] font-medium text-slate-600 backdrop-blur">
             <Network size={10} aria-hidden="true" />
             {nodeCount} · {edgeCount}
           </div>

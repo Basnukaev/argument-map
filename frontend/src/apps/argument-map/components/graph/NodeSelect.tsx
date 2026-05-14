@@ -96,7 +96,7 @@ function NodeSelect({ value, onChange, options, excludeId, placeholder, disabled
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className={`flex w-full items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm transition-colors ${
+        className={`flex w-full items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-start text-sm transition-colors ${
           disabled
             ? 'cursor-not-allowed opacity-60'
             : 'hover:border-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20'
@@ -118,7 +118,7 @@ function NodeSelect({ value, onChange, options, excludeId, placeholder, disabled
         <ul
           role="listbox"
           aria-labelledby={buttonId}
-          className="absolute left-0 right-0 z-20 mt-1 max-h-72 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"
+          className="absolute inset-x-0 z-20 mt-1 max-h-72 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"
         >
           {filtered.length === 0 ? (
             <li className="px-3 py-2 text-sm italic text-gray-500">Нет доступных узлов</li>
@@ -132,7 +132,7 @@ function NodeSelect({ value, onChange, options, excludeId, placeholder, disabled
                     role="option"
                     aria-selected={isSelected}
                     onClick={() => pick(n.id)}
-                    className={`flex w-full items-start gap-2 px-3 py-2 text-left text-sm transition-colors ${
+                    className={`flex w-full items-start gap-2 px-3 py-2 text-start text-sm transition-colors ${
                       isSelected ? 'bg-indigo-50' : 'hover:bg-slate-50'
                     }`}
                   >

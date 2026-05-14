@@ -53,7 +53,7 @@ function NodeRevisionsSection({ nodeId }: Props) {
         type="button"
         onClick={toggle}
         aria-expanded={historyOpen}
-        className="flex w-full items-center gap-2 px-5 py-3 text-left transition-colors hover:bg-slate-50"
+        className="flex w-full items-center gap-2 px-5 py-3 text-start transition-colors hover:bg-slate-50"
       >
         <History size={14} className="text-slate-500" aria-hidden="true" />
         <span className="text-[12px] font-semibold uppercase tracking-wider text-slate-700">
@@ -63,9 +63,9 @@ function NodeRevisionsSection({ nodeId }: Props) {
           <span className="text-[11px] font-mono text-slate-400">{state.revisions.length}</span>
         )}
         {historyOpen ? (
-          <ChevronDown size={14} className="ml-auto text-slate-400" aria-hidden="true" />
+          <ChevronDown size={14} className="ms-auto text-slate-400" aria-hidden="true" />
         ) : (
-          <ChevronRight size={14} className="ml-auto text-slate-400" aria-hidden="true" />
+          <ChevronRight size={14} className="ms-auto text-slate-400 rtl:-scale-x-100" aria-hidden="true" />
         )}
       </button>
 

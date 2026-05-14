@@ -75,7 +75,7 @@ function NodeContentEditor({ nodeId, content, initialEditing, onSaved }: Props) 
             size="sm"
             icon={Pencil}
             onClick={startEdit}
-            className="-ml-2 mt-3"
+            className="-ms-2 mt-3"
           >
             Редактировать
           </Button>

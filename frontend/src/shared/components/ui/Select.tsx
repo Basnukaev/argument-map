@@ -122,7 +122,7 @@ function Select({
         <ul
           ref={menuRef}
           role="listbox"
-          className={`absolute left-0 right-0 z-40 mt-1.5 rounded-md border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-black/[0.04] ${options.length > maxVisibleItems ? 'max-h-64 overflow-y-auto' : ''}`}
+          className={`absolute inset-x-0 z-40 mt-1.5 rounded-md border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-black/[0.04] ${options.length > maxVisibleItems ? 'max-h-64 overflow-y-auto' : ''}`}
           style={{ minWidth: menuMinWidth ?? undefined }}
         >
           {options.map((o) => {

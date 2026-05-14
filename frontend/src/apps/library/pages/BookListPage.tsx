@@ -97,7 +97,7 @@ function BookListPage() {
 
         <div className="mb-6 flex flex-wrap items-center gap-3">
           <div className="flex h-9 max-w-md flex-1 items-center rounded-md border border-slate-300 bg-white transition-colors focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20">
-            <Search size={16} className="ml-3 text-slate-400" aria-hidden="true" />
+            <Search size={16} className="ms-3 text-slate-400" aria-hidden="true" />
             <input
               type="search"
               value={search}

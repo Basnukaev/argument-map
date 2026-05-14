@@ -79,7 +79,7 @@ function ContextMenu({ x, y, items, onClose, header }: Props) {
               item.onClick?.();
               onClose();
             }}
-            className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${colorClass}`}
+            className={`flex w-full items-center gap-2 px-3 py-1.5 text-start text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${colorClass}`}
           >
             {Icon && <Icon size={14} />}
             <span>{item.label}</span>

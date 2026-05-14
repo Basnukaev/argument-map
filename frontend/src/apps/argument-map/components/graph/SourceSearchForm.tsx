@@ -70,7 +70,7 @@ function SourceSearchForm({
         <Search
           size={14}
           aria-hidden="true"
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+          className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-slate-400"
         />
         <input
           type="text"
@@ -79,7 +79,7 @@ function SourceSearchForm({
           placeholder="Найти по названию или citation"
           aria-label="Поиск источника"
           disabled={submitting}
-          className="block w-full rounded-md border border-slate-300 bg-white py-2 pl-9 pr-3 text-[13px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+          className="block w-full rounded-md border border-slate-300 bg-white py-2 ps-9 pe-3 text-[13px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
         />
       </div>
 
@@ -120,7 +120,7 @@ function SourceSearchForm({
                     aria-selected={isSelected}
                     onClick={() => onSelect(src.id ?? null)}
                     disabled={submitting}
-                    className={`flex w-full items-start gap-2 px-3 py-2 text-left transition-colors ${
+                    className={`flex w-full items-start gap-2 px-3 py-2 text-start transition-colors ${
                       isSelected ? 'bg-indigo-50/70' : 'hover:bg-slate-50'
                     }`}
                   >
