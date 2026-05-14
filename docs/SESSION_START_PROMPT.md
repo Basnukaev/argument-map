@@ -185,16 +185,23 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 > **Этот раздел обновляется каждой сессией**. Всё выше - стабильное
 
-**Этап 20.c shamela bibliography parser** (после Сессии 31 - 20.a/b/f закрыты)
+**Этап 20.c shamela bibliography parser** (после Сессии 32 - 20.f redesign +
+i18n + FK variant A закрыты)
 
-Сессия 31 закрыла backend Этапа 20.a/b + frontend 20.f - structured
-academic citation работает end-to-end. Playwright smoke 15/15 проверок
-прошёл, все блоки LibraryCite видимы при pre-fill academic data.
+Сессия 32 закрыла:
+- **20.f LibraryCite redesign** (`72ddd0b`) - SourceCard variant D «всё к
+  правому борту» из Claude Design handoff. 12 атомов в
+  `shared/components/citation/sourceCard/`
+- **i18n minimal** (`c1a6ff1`, `d86e010`) - dictionary ru/ar 22 keys,
+  zustand store + localStorage persist + LocaleEffect синхронизирует
+  `<html lang dir>`. RU/AR toggle в Header. BookHeader structured
+- **FK variant A** (`8f3b2c9`) - миграция 25, surrogate `id UUID` PK для
+  node_sources. DELETE endpoint path: `/sources/{nodeSourceId}` (breaking)
 
 **Цель 20.c:** извлечь academic metadata из raw `lib_books.description`
 (там shamela хранит bibliography текст с мухаккиком, publisher и т.д.)
 
-**Стартовая последовательность Сессии 32:**
+**Стартовая последовательность Сессии 33:**
 
 1. **Узнать формат shamela bibliography** - в БД:
    ```sql
