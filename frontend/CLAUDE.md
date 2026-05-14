@@ -167,6 +167,18 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 - Не редактировать `design-reference/` (это input от Claude Design)
 - Не превентивно `useMemo` / `useCallback` без замеренной проблемы
 - Не использовать индекс массива как `key` в списках
+- Не использовать физические направленные Tailwind-классы
+  (`ml`/`mr`/`pl`/`pr`/`left`/`right`/`text-left`/`text-right`/
+  `border-l`/`border-r`/`rounded-l-`/`rounded-r-`) - только
+  логические (`ms`/`me`/`ps`/`pe`/`start`/`end`/`text-start`/
+  `text-end`/`border-s`/`border-e`/`rounded-s-`/`rounded-e-`).
+  Исключение: внутренности `NodeCard` и `CompactMiniMap` (граф
+  React Flow целиком не зеркалится). Подробно - в
+  `docs/coding-standards.md` раздел «RTL и bidi»
+- Не определять направление контента по локали интерфейса. Для
+  контента из API - `dir="auto"`, шрифт через `hasArabicScript`
+  из `@/shared/i18n`. Inline regex `/[؀-ۿ]/` в компонентах
+  запрещён - использовать единый модуль
 
 ## Когда запускать `npm run lint && npm run build && npm run test:run`
 
