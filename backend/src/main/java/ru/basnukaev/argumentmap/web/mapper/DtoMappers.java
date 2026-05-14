@@ -123,21 +123,21 @@ public final class DtoMappers {
     }
 
     /**
-     * Caнaонический mapper для GET endpoints - использует computed location
-     * из SQL JOIN и bookId из Source. Используется когда есть
-     * {@link NodeSourceRepository.NodeSourceWithLocation}.
+     * TEMP (Task 7 → Task 8): структурный mapper CitationDetail → CitationResponse
+     * будет реализован в Task 8. Сейчас игнорируем row.citation() и используем
+     * только NodeSource - в Task 8 NodeSourceResponse получит nested citation.
      */
     public static NodeSourceResponse toResponse(NodeSourceRepository.NodeSourceWithLocation row) {
         NodeSource link = row.ns();
         return new NodeSourceResponse(
                 link.nodeId(), link.sourceId(),
-                link.quote(), link.context(), row.computedLocation(),
+                link.quote(), link.context(), null,
                 link.mode(),
                 link.pageId(), link.rangeStart(), link.rangeEnd(),
                 link.pdfFileId(), link.pdfPageNumber(),
                 jsonFromString(link.pdfBbox()),
                 link.imageRegionId(),
-                row.bookId(),
+                row.citation() != null ? row.citation().bookId() : null,
                 link.createdAt()
         );
     }
