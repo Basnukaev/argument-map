@@ -108,7 +108,11 @@ function PageJump({
           className="h-7 w-20 rounded border border-slate-300 px-2 text-center font-mono text-[13px] outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
           aria-label="Номер страницы (internal)"
         />
-        {totalPages > 0 && <span className="font-mono text-slate-400">/ {totalPages}</span>}
+        {totalPages > 0 && (
+          <span className="font-mono text-slate-400">
+            <bdi dir="ltr">/ {totalPages}</bdi>
+          </span>
+        )}
       </div>
 
       {/* Editable shamela-блок (Том dropdown + printedPage input). Не
@@ -128,12 +132,17 @@ function PageJump({
               className="w-[100px]"
             />
           ) : currentPart != null ? (
-            <span
-              className={partIsArabic ? 'font-naskh' : 'font-mono'}
-              dir={partIsArabic ? 'rtl' : 'ltr'}
-            >
-              {partIsArabic ? `ج: ${currentPart}` : `Том ${currentPart}`}
-            </span>
+            partIsArabic ? (
+              <span className="font-naskh" dir="rtl">
+                <bdi>ج: </bdi>
+                <bdi>{currentPart}</bdi>
+              </span>
+            ) : (
+              <span className="font-mono" dir="ltr">
+                <bdi>Том </bdi>
+                <bdi>{currentPart}</bdi>
+              </span>
+            )
           ) : null}
           {currentPart != null && (currentPrintedPage != null || showPrintedInput) && (
             <span className="text-indigo-300">·</span>
@@ -157,7 +166,9 @@ function PageJump({
               />
             </div>
           ) : currentPrintedPage != null ? (
-            <span className="font-mono">Стр {currentPrintedPage}</span>
+            <span className="font-mono">
+              <bdi>Стр</bdi> <bdi dir="ltr">{currentPrintedPage}</bdi>
+            </span>
           ) : null}
         </div>
       )}

@@ -10,6 +10,7 @@ import PageView, {
 } from '@/shared/components/reader/PageView';
 import { apiGetRaw, apiPostRaw, formatApiError, ApiError } from '@/shared/api/client';
 import type { components } from '@/shared/api/types';
+import { hasArabicScript } from '@/shared/i18n';
 
 type Book = components['schemas']['BookSummaryResponse'];
 type BookDetailDto = components['schemas']['BookDetailResponse'];
@@ -249,7 +250,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
           {/* Left: BookListSidebar */}
           <aside className="flex w-[280px] flex-col gap-2">
             <div className="flex h-9 items-center rounded-md border border-slate-300 bg-white transition-colors focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20">
-              <Search size={14} className="ml-3 text-slate-400" aria-hidden="true" />
+              <Search size={14} className="ms-3 text-slate-400" aria-hidden="true" />
               <input
                 type="search"
                 value={search}
@@ -278,8 +279,8 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
                     onClick={() => b.id && handleSelectBook(b.id)}
                     className={
                       selectedBookId === b.id
-                        ? 'block w-full border-b border-slate-200 bg-indigo-50 px-3 py-2 text-left text-[12px] font-medium text-indigo-900'
-                        : 'block w-full border-b border-slate-100 px-3 py-2 text-left text-[12px] text-slate-700 hover:bg-slate-100'
+                        ? 'block w-full border-b border-slate-200 bg-indigo-50 px-3 py-2 text-start text-[12px] font-medium text-indigo-900'
+                        : 'block w-full border-b border-slate-100 px-3 py-2 text-start text-[12px] text-slate-700 hover:bg-slate-100'
                     }
                   >
                     {b.title}
@@ -363,8 +364,8 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
               </h3>
               {selection ? (
                 <blockquote
-                  className="mt-2 max-h-[200px] overflow-y-auto border-l-2 border-indigo-300 pl-2 text-[13px] italic text-slate-700"
-                  dir={isArabicLikely(selection.quote) ? 'rtl' : 'ltr'}
+                  className="mt-2 max-h-[200px] overflow-y-auto border-s-2 border-indigo-300 ps-2 text-[13px] italic text-slate-700"
+                  dir={hasArabicScript(selection.quote) ? 'rtl' : 'ltr'}
                 >
                   «{selection.quote}»
                 </blockquote>
@@ -417,10 +418,6 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
       </div>
     </div>
   );
-}
-
-function isArabicLikely(s: string): boolean {
-  return /[؀-ۿ]/.test(s);
 }
 
 export default CitationPicker;

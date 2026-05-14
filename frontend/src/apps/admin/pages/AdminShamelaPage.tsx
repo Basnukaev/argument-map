@@ -17,6 +17,7 @@ import Header from '@/shared/components/layout/Header';
 import { apiGetRaw, apiPostRaw, ApiError } from '@/shared/api/client';
 import type { components } from '@/shared/api/types';
 import { toast } from '@/shared/stores/toastStore';
+import { hasArabicScript } from '@/shared/i18n';
 
 type SyncStatus = components['schemas']['SyncStatusResponse'];
 type SearchResult = components['schemas']['StagingBookSearchResponse'];
@@ -38,16 +39,6 @@ function formatDateTime(iso: string | undefined): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return DATE_FORMAT.format(d);
-}
-
-/**
- * Эвристика арабского текста для RTL/naskh - тот же regex что в
- * BookReaderPage. Имена авторов и названия книг shamela почти все
- * на арабском, но могут попадаться римские транслиты.
- */
-function isArabic(text: string | undefined): boolean {
-  if (!text) return false;
-  return /[؀-ۿ]/.test(text);
 }
 
 function AdminShamelaPage() {
@@ -227,7 +218,7 @@ function AdminShamelaPage() {
                 <Stat
                   label="Master version"
                   value={status.masterVersion?.toString() ?? '0'}
-                  hint={`Последний sync: ${formatDateTime(status.lastSyncedAt)}`}
+                  hint={<>Последний sync: <bdi dir="ltr">{formatDateTime(status.lastSyncedAt)}</bdi></>}
                 />
                 <Stat
                   label="Категорий"
@@ -270,7 +261,7 @@ function AdminShamelaPage() {
             </p>
           )}
           <div className="flex h-9 max-w-xl items-center rounded-md border border-slate-300 bg-white transition-colors focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20">
-            <Search size={16} className="ml-3 text-slate-400" aria-hidden="true" />
+            <Search size={16} className="ms-3 text-slate-400" aria-hidden="true" />
             <input
               type="search"
               value={query}
@@ -280,7 +271,7 @@ function AdminShamelaPage() {
               aria-label="Поиск книг shamela"
             />
             {searchLoading && (
-              <Loader2 size={14} className="mr-3 animate-spin text-slate-400" aria-hidden="true" />
+              <Loader2 size={14} className="me-3 animate-spin text-slate-400" aria-hidden="true" />
             )}
           </div>
         </div>
@@ -315,7 +306,7 @@ function AdminShamelaPage() {
 interface StatProps {
   label: string;
   value: string;
-  hint?: string;
+  hint?: React.ReactNode;
 }
 
 function Stat({ label, value, hint }: StatProps) {
@@ -335,34 +326,37 @@ interface SearchResultRowProps {
 }
 
 function SearchResultRow({ result, onImport, isImporting }: SearchResultRowProps) {
-  const arabicName = isArabic(result.name);
-  const arabicAuthor = isArabic(result.authorName ?? undefined);
+  // dir="auto" - браузер сам определит направление по первому сильному символу.
+  // Шрифт font-naskh всё равно через эвристику (dir="auto" шрифт не переключает).
+  const arabicName = hasArabicScript(result.name ?? undefined);
+  const arabicAuthor = hasArabicScript(result.authorName ?? undefined);
 
   return (
     <li>
       <Card className="flex flex-wrap items-center gap-4 p-4 transition-colors hover:border-slate-300">
         <div className="min-w-0 flex-1">
           <div
+            dir="auto"
             className={
               arabicName
                 ? 'font-naskh text-[18px] font-semibold leading-snug text-slate-900'
                 : 'text-[15px] font-semibold leading-snug text-slate-900'
             }
-            dir={arabicName ? 'rtl' : 'ltr'}
           >
             {result.name ?? '(без названия)'}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-slate-500">
             {result.authorName && (
-              <span
-                className={arabicAuthor ? 'font-naskh' : ''}
-                dir={arabicAuthor ? 'rtl' : 'ltr'}
-              >
+              <span dir="auto" className={arabicAuthor ? 'font-naskh' : ''}>
                 {result.authorName}
               </span>
             )}
-            <span className="font-mono text-slate-400">id={result.bookId}</span>
-            <span className="font-mono text-slate-400">major={result.majorRelease}</span>
+            <span className="font-mono text-slate-400">
+              <bdi dir="ltr">id={result.bookId}</bdi>
+            </span>
+            <span className="font-mono text-slate-400">
+              <bdi dir="ltr">major={result.majorRelease}</bdi>
+            </span>
           </div>
         </div>
         {result.isMapped ? (

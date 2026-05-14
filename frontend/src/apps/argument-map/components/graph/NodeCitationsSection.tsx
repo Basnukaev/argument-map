@@ -18,7 +18,7 @@ import { SourceCard } from '@/shared/components/citation/sourceCard';
 import { apiGetRaw, apiDeleteRaw, formatApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { SOURCE_TYPE_LABEL } from '@/apps/argument-map/utils/attachmentTokens';
-import { hasArabicScript } from '@/apps/argument-map/components/graph/nodeDetailsUtils';
+import { hasArabicScript } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
 
 type SourceDto = components['schemas']['SourceResponse'];
@@ -359,15 +359,19 @@ function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) 
           <div dir="ltr" className="text-start text-[12px] text-slate-700">
             <UserIcon size={11} className="me-1 inline text-slate-400" aria-hidden="true" />
             <span className="font-medium">{authority.name}</span>
-            {authorMeta && <span className="ms-1.5 font-mono text-[11px] text-slate-500">· {authorMeta}</span>}
+            {authorMeta && (
+              <span className="ms-1.5 font-mono text-[11px] text-slate-500">
+                <span aria-hidden>·</span> <bdi>{authorMeta}</bdi>
+              </span>
+            )}
           </div>
         )}
 
         {(citation || snapshot) && (
           <div dir="ltr" className="text-start font-mono text-[11px] text-slate-500">
-            {citation}
-            {citation && snapshot && ' · '}
-            {snapshot}
+            {citation && <bdi>{citation}</bdi>}
+            {citation && snapshot && <span aria-hidden>{' · '}</span>}
+            {snapshot && <bdi>{snapshot}</bdi>}
           </div>
         )}
 

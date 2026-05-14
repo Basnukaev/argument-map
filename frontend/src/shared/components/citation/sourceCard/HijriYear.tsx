@@ -19,14 +19,14 @@ export function HijriYear({ hijri, gregorian }: Props) {
     <span>
       {hijri != null && (
         <>
-          {hijri}
+          <bdi>{hijri}</bdi>
           <span className="font-naskh">&thinsp;هـ</span>
         </>
       )}
       {hijri != null && gregorian != null && <>{'  /  '}</>}
       {gregorian != null && (
         <>
-          {gregorian} {t('cite.year.gregorian_suffix')}
+          <bdi>{gregorian}</bdi> {t('cite.year.gregorian_suffix')}
         </>
       )}
     </span>
