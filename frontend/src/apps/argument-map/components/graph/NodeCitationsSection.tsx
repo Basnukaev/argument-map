@@ -23,6 +23,7 @@ import type { components } from '@/shared/api/types';
 type SourceDto = components['schemas']['SourceResponse'];
 type AuthorityDto = components['schemas']['AuthorityResponse'];
 type NodeSourceDto = components['schemas']['NodeSourceResponse'];
+type CitationDto = components['schemas']['CitationResponse'];
 
 interface CitationsData {
   links: NodeSourceDto[];
@@ -39,39 +40,14 @@ type SourcesState =
 interface Props {
   nodeId: string | undefined;
   nodeContent: string;
-  /**
-   * Callback с агрегированными counts для inline meta-row в header
-   * родительской панели. lib = positional citations (TEXT/PDF/REGION),
-   * free = freeform (LEGACY). Вызывается после load и после detach.
-   */
   onCountsChange?: (counts: { lib: number; free: number }) => void;
 }
 
-/**
- * Секция «Опора» (مُسْتَنَدٌ / دَلِيلٌ) - lazy-loaded список подкреплений
- * (NodeSource), их источников (Source) и авторитетов (Authority) с
- * возможностью detach. Две точки входа:
- *
- * - «Привести источник» (primary, BookOpen) → {@link CitationPicker} -
- *   positional citation из импортированной library книги (TEXT/PDF/REGION mode)
- * - «Свободный» (ghost, Plus) → {@link AddSourceModal} - freeform legacy
- *   (URL, article, manual hadith) без library привязки (LEGACY mode)
- *
- * Список разделяет library-backed (indigo accent + Перейти к источнику)
- * vs freeform (slate background). Дизайн см.
- * `frontend/design-reference/project/citations.jsx` варианты B1.
- *
- * Lazy-load: данные грузятся только при первом раскрытии PanelSection
- * (onFirstOpen) - не блокируем рендер панели для узлов без подкреплений.
- */
 function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
   const [state, setState] = useState<SourcesState>({ kind: 'loading' });
   const [addSourceOpen, setAddSourceOpen] = useState(false);
   const [citationPickerOpen, setCitationPickerOpen] = useState(false);
 
-  // Eager-load on mount (вместо onFirstOpen) - чтобы родитель мог
-  // показать counts в header inline meta-row до раскрытия секции.
-  // Trade-off: 3 GET запроса при открытии panel; oк - user action.
   useEffect(() => {
     if (!nodeId) return;
     let cancelled = false;
@@ -195,24 +171,23 @@ interface CitationsListProps {
 }
 
 function buildDeepLink(link: NodeSourceDto): string | null {
-  if (!link.bookId) return null;
-  if (
-    link.mode === 'TEXT' &&
-    link.pageId &&
-    link.rangeStart != null &&
-    link.rangeEnd != null
-  ) {
-    return `/books/${link.bookId}?pageId=${link.pageId}&highlight=${link.rangeStart}-${link.rangeEnd}`;
+  const c = link.citation;
+  if (!c?.book?.id) return null;
+  if (link.mode === 'TEXT' && c.location?.pageId) {
+    const rangeStart = c.location.rangeStart;
+    const rangeEnd = c.location.rangeEnd;
+    const range = rangeStart != null && rangeEnd != null ? `&highlight=${rangeStart}-${rangeEnd}` : '';
+    return `/books/${c.book.id}?pageId=${c.location.pageId}${range}`;
   }
-  if (link.mode === 'PDF' && link.pdfFileId && link.pdfPageNumber != null) {
-    const bbox = link.pdfBbox as
+  if (link.mode === 'PDF' && c.pdf?.fileId && c.pdf.pageNumber != null) {
+    const bbox = c.pdf.bbox as
       | { x?: number; y?: number; width?: number; height?: number }
       | undefined;
     const bboxStr =
       bbox && bbox.x != null
         ? `&bbox=${bbox.x},${bbox.y},${bbox.width},${bbox.height}`
         : '';
-    return `/books/${link.bookId}?pdf=1&pdfPageNumber=${link.pdfPageNumber}${bboxStr}`;
+    return `/books/${c.book.id}?pdf=1&pdfPageNumber=${c.pdf.pageNumber}${bboxStr}`;
   }
   return null;
 }
@@ -251,25 +226,19 @@ function CitationsList({ state, onDetach }: CitationsListProps) {
     <div className="space-y-2">
       {links.map((link, idx) => {
         const source = link.sourceId ? sourceLookup.get(link.sourceId) : undefined;
-        const authority = source?.authorityId ? authorityLookup.get(source.authorityId) : undefined;
+        const authorityFallback = source?.authorityId
+          ? authorityLookup.get(source.authorityId)
+          : undefined;
         const key = link.sourceId ?? `${link.nodeId}-${idx}`;
         if (isLibraryMode(link.mode)) {
-          return (
-            <LibraryCite
-              key={key}
-              link={link}
-              source={source}
-              authority={authority}
-              onDetach={onDetach}
-            />
-          );
+          return <LibraryCite key={key} link={link} onDetach={onDetach} />;
         }
         return (
           <FreeformCite
             key={key}
             link={link}
             source={source}
-            authority={authority}
+            authority={authorityFallback}
             onDetach={onDetach}
           />
         );
@@ -278,34 +247,55 @@ function CitationsList({ state, onDetach }: CitationsListProps) {
   );
 }
 
-interface CiteProps {
+interface LibraryCiteProps {
   link: NodeSourceDto;
-  source: SourceDto | undefined;
-  authority: AuthorityDto | undefined;
   onDetach: (sourceId: string) => void;
 }
 
 /**
- * Карточка library-backed подкрепления (mode TEXT/PDF/REGION). Indigo
- * accent 3px слева, badge «Из библиотеки», title книги, location +
- * quote + context + клик «Перейти к источнику» (deep link с подсветкой).
+ * Карточка library-backed подкрепления (mode TEXT/PDF/REGION) - блочный
+ * рендер structured citation из ADR-028. Каждое поле в своём div со
+ * правильным dir (RTL для arabic) и шрифтом (font-naskh для арабского).
+ * Условный рендер - пропускаем блок если nested ref = null.
  */
-function LibraryCite({ link, source, authority, onDetach }: CiteProps) {
+function LibraryCite({ link, onDetach }: LibraryCiteProps) {
   const navigate = useNavigate();
-  const title = source?.title ?? '(книга недоступна)';
-  const location = link.location;
+  const c: CitationDto = link.citation ?? {};
+  const { authority, book, muhaqqiq, publisher, publicationPlace, location, pdf } = c;
+
+  const bookTitle = book?.title ?? '(книга недоступна)';
+  const bookIsArabic = hasArabicScript(bookTitle);
   const quote = link.quote;
-  const isRtl = hasArabicScript(quote ?? title);
+  const quoteIsArabic = hasArabicScript(quote);
   const deepLink = buildDeepLink(link);
-  const authorMeta = authority
-    ? [authority.era, authority.madhab].filter(Boolean).join(' · ')
-    : undefined;
+
+  // Композиция publisher · place · edition в одну строку - все опциональны
+  const editionParts: string[] = [];
+  if (publisher?.name) editionParts.push(`изд. ${publisher.name}`);
+  if (publicationPlace?.name) editionParts.push(publicationPlace.name);
+  if (book?.editionNumber != null) editionParts.push(`${book.editionNumber}-е изд.`);
+
+  // Композиция годов хиджри / григорианский
+  const yearParts: string[] = [];
+  if (book?.publishedYearHijri != null) yearParts.push(`${book.publishedYearHijri} هـ`);
+  if (book?.publishedYearGregorian != null) yearParts.push(`${book.publishedYearGregorian} м.`);
+
+  // Композиция location: Т.{part} · стр.{printedPage}
+  const locParts: string[] = [];
+  if (location?.part) locParts.push(`Т.${location.part}`);
+  if (location?.printedPage) {
+    locParts.push(`стр.${location.printedPage}`);
+  } else if (location?.pageNumber != null) {
+    locParts.push(`стр.${location.pageNumber}`);
+  }
+  if (pdf?.pageNumber != null) locParts.push(`PDF стр.${pdf.pageNumber}`);
 
   return (
     <article className="group relative overflow-hidden rounded-md border border-slate-200 bg-white transition-colors hover:border-indigo-300">
       <div className="absolute bottom-0 left-0 top-0 w-[3px] bg-indigo-600" />
-      <div className="py-2.5 pl-3.5 pr-2.5">
-        <div className="mb-1.5 flex items-start gap-2">
+      <div className="space-y-1.5 py-2.5 pl-3.5 pr-2.5">
+        {/* Header: бейдж + удалить */}
+        <div className="flex items-start gap-2">
           <span className="inline-flex items-center gap-1.5 rounded border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-indigo-700">
             <BookOpen size={13} aria-hidden="true" />
             Из библиотеки
@@ -321,49 +311,99 @@ function LibraryCite({ link, source, authority, onDetach }: CiteProps) {
           </button>
         </div>
 
+        {/* Author block: full_name + (т.{deathYearHijri} هـ). Fallback на short name */}
         {authority && (
-          <div className="mb-1.5 flex items-center gap-1.5 text-[12px]">
-            <UserIcon size={13} className="text-slate-400" aria-hidden="true" />
-            <span className="font-medium text-slate-700">{authority.name}</span>
-            {authorMeta && (
-              <span className="font-mono text-[11px] text-slate-500">· {authorMeta}</span>
+          <div
+            className={`flex items-center gap-1.5 text-[12.5px] text-slate-800 ${
+              authority.fullName && hasArabicScript(authority.fullName)
+                ? 'font-naskh text-[14px]'
+                : ''
+            }`}
+            dir={authority.fullName && hasArabicScript(authority.fullName) ? 'rtl' : 'ltr'}
+          >
+            <UserIcon size={13} className="text-slate-400 shrink-0" aria-hidden="true" />
+            <span className="font-medium">
+              {authority.fullName ?? authority.name}
+            </span>
+            {authority.deathYearHijri != null && (
+              <span className="text-slate-500" dir="rtl">
+                (т.{authority.deathYearHijri} هـ)
+              </span>
             )}
           </div>
         )}
 
+        {/* Book title block */}
         <div
           className={`text-[12.5px] font-semibold leading-snug text-slate-900 ${
-            isRtl && hasArabicScript(title) ? 'font-naskh text-[14px]' : ''
+            bookIsArabic ? 'font-naskh text-[14px]' : ''
           }`}
-          dir={isRtl && hasArabicScript(title) ? 'rtl' : 'ltr'}
+          dir={bookIsArabic ? 'rtl' : 'ltr'}
         >
-          {title}
+          {bookTitle}
         </div>
 
-        {location && (
-          <div className="mt-0.5 font-mono text-[11px] text-slate-500">{location}</div>
+        {/* Muhaqqiq block - тахкик: {fullName ?? name} */}
+        {muhaqqiq && (
+          <div
+            className={`text-[12px] text-slate-700 ${
+              (muhaqqiq.fullName ?? muhaqqiq.name) &&
+              hasArabicScript(muhaqqiq.fullName ?? muhaqqiq.name)
+                ? 'font-naskh text-[13px]'
+                : ''
+            }`}
+            dir={
+              (muhaqqiq.fullName ?? muhaqqiq.name) &&
+              hasArabicScript(muhaqqiq.fullName ?? muhaqqiq.name)
+                ? 'rtl'
+                : 'ltr'
+            }
+          >
+            <span className="text-slate-500">тахкик:</span>{' '}
+            <span className="font-medium">{muhaqqiq.fullName ?? muhaqqiq.name}</span>
+          </div>
         )}
 
+        {/* Publisher · place · edition block */}
+        {editionParts.length > 0 && (
+          <div className="text-[12px] text-slate-600">{editionParts.join(' · ')}</div>
+        )}
+
+        {/* Years block - хиджри / григорианский */}
+        {yearParts.length > 0 && (
+          <div className="font-mono text-[11px] text-slate-500" dir="ltr">
+            {yearParts.join(' / ')}
+          </div>
+        )}
+
+        {/* Location block */}
+        {locParts.length > 0 && (
+          <div className="font-mono text-[11px] text-slate-500">{locParts.join(' · ')}</div>
+        )}
+
+        {/* Quote block */}
         {quote && (
           <div
-            dir={isRtl ? 'rtl' : 'ltr'}
-            className={`mt-1.5 border-l-2 border-indigo-200 pl-2 text-[12.5px] leading-relaxed text-slate-700 ${
-              isRtl ? 'font-naskh text-[14px] not-italic leading-loose' : 'italic'
+            dir={quoteIsArabic ? 'rtl' : 'ltr'}
+            className={`mt-1 border-l-2 border-indigo-200 pl-2 text-[12.5px] leading-relaxed text-slate-700 ${
+              quoteIsArabic ? 'font-naskh text-[14px] not-italic leading-loose' : 'italic'
             }`}
           >
             «{quote}»
           </div>
         )}
 
+        {/* Context */}
         {link.context && (
-          <div className="mt-1.5 text-[11px] text-slate-500">{link.context}</div>
+          <div className="text-[11px] text-slate-500">{link.context}</div>
         )}
 
+        {/* Deep link */}
         {deepLink && (
           <button
             type="button"
             onClick={() => navigate(deepLink)}
-            className="mt-2 inline-flex items-center gap-1.5 rounded bg-indigo-600 px-2.5 py-1.5 text-[12px] font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
+            className="mt-1 inline-flex items-center gap-1.5 rounded bg-indigo-600 px-2.5 py-1.5 text-[12px] font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
           >
             <ExternalLink size={14} aria-hidden="true" />
             Перейти к источнику
@@ -374,12 +414,19 @@ function LibraryCite({ link, source, authority, onDetach }: CiteProps) {
   );
 }
 
+interface FreeformCiteProps {
+  link: NodeSourceDto;
+  source: SourceDto | undefined;
+  authority: AuthorityDto | undefined;
+  onDetach: (sourceId: string) => void;
+}
+
 /**
  * Карточка freeform подкрепления (mode LEGACY) - привязка через
- * существующий AddSourceModal. Slate background, badge «Свободная», без
- * deep link (нет library binding).
+ * существующий AddSourceModal. Slate background, badge «Свободная»,
+ * legacySnapshot из бэка как location.
  */
-function FreeformCite({ link, source, authority, onDetach }: CiteProps) {
+function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) {
   const sourceType = source?.sourceType;
   const kindLabel = sourceType ? SOURCE_TYPE_LABEL[sourceType] : 'источник';
   const title = source?.title ?? '(удалён из справочника)';
@@ -390,6 +437,7 @@ function FreeformCite({ link, source, authority, onDetach }: CiteProps) {
     ? [authority.era, authority.madhab].filter(Boolean).join(' · ')
     : undefined;
   const hasUrl = sourceType === 'URL' && Boolean(citation);
+  const snapshot = link.legacySnapshot;
 
   return (
     <article className="group rounded-md border border-slate-200 bg-slate-50/60 px-2.5 py-2.5">
@@ -433,11 +481,11 @@ function FreeformCite({ link, source, authority, onDetach }: CiteProps) {
 
       <div className="text-[12.5px] font-semibold leading-snug text-slate-900">{title}</div>
 
-      {(citation || link.location) && (
+      {(citation || snapshot) && (
         <div className="mt-0.5 font-mono text-[11px] text-slate-500">
           {citation}
-          {citation && link.location && ' · '}
-          {link.location}
+          {citation && snapshot && ' · '}
+          {snapshot}
         </div>
       )}
 

@@ -125,6 +125,12 @@ public final class DtoMappers {
      */
     public static NodeSourceResponse toResponse(NodeSourceRepository.NodeSourceWithLocation row) {
         NodeSource link = row.ns();
+        // legacySnapshot - заполняется только для LEGACY mode (freeform citation
+        // через AddSourceModal). Для TEXT/PDF/REGION snapshot хранится в БД для
+        // forensic трейса, но не отдаётся клиенту - там есть structured citation
+        String legacySnapshot = link.mode() == ru.basnukaev.argumentmap.domain.CitationMode.LEGACY
+                ? link.location()
+                : null;
         return new NodeSourceResponse(
                 link.nodeId(),
                 link.sourceId(),
@@ -132,6 +138,7 @@ public final class DtoMappers {
                 link.context(),
                 link.mode(),
                 toCitationResponse(row.citation()),
+                legacySnapshot,
                 link.createdAt()
         );
     }

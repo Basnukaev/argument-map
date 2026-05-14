@@ -509,6 +509,54 @@ export interface components {
             context?: string;
             location?: string;
         };
+        AuthorityCitationRef: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+            fullName?: string;
+            /** Format: int32 */
+            deathYearHijri?: number;
+        };
+        BookCitationRef: {
+            /** Format: uuid */
+            id?: string;
+            title?: string;
+            language?: string;
+            /** Format: int32 */
+            editionNumber?: number;
+            /** Format: int32 */
+            publishedYearHijri?: number;
+            /** Format: int32 */
+            publishedYearGregorian?: number;
+        };
+        CitationResponse: {
+            authority?: components["schemas"]["AuthorityCitationRef"];
+            book?: components["schemas"]["BookCitationRef"];
+            muhaqqiq?: components["schemas"]["MuhaqqiqRef"];
+            publisher?: components["schemas"]["PublisherRef"];
+            publicationPlace?: components["schemas"]["PublicationPlaceRef"];
+            location?: components["schemas"]["LocationRef"];
+            pdf?: components["schemas"]["PdfRef"];
+            region?: components["schemas"]["RegionRef"];
+        };
+        LocationRef: {
+            /** Format: uuid */
+            pageId?: string;
+            part?: string;
+            printedPage?: string;
+            /** Format: int32 */
+            pageNumber?: number;
+            /** Format: int32 */
+            rangeStart?: number;
+            /** Format: int32 */
+            rangeEnd?: number;
+        };
+        MuhaqqiqRef: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+            fullName?: string;
+        };
         NodeSourceResponse: {
             /** Format: uuid */
             nodeId?: string;
@@ -516,26 +564,36 @@ export interface components {
             sourceId?: string;
             quote?: string;
             context?: string;
-            location?: string;
             /** @enum {string} */
             mode?: "TEXT" | "PDF" | "REGION" | "LEGACY";
-            /** Format: uuid */
-            pageId?: string;
-            /** Format: int32 */
-            rangeStart?: number;
-            /** Format: int32 */
-            rangeEnd?: number;
-            /** Format: uuid */
-            pdfFileId?: string;
-            /** Format: int32 */
-            pdfPageNumber?: number;
-            pdfBbox?: components["schemas"]["JsonNode"];
-            /** Format: uuid */
-            imageRegionId?: string;
-            /** Format: uuid */
-            bookId?: string;
+            citation?: components["schemas"]["CitationResponse"];
+            legacySnapshot?: string;
             /** Format: date-time */
             createdAt?: string;
+        };
+        PdfRef: {
+            /** Format: uuid */
+            fileId?: string;
+            /** Format: int32 */
+            pageNumber?: number;
+            bbox?: components["schemas"]["JsonNode"];
+        };
+        PublicationPlaceRef: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+        };
+        PublisherRef: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+        };
+        RegionRef: {
+            /** Format: uuid */
+            id?: string;
+            printedPage?: string;
+            /** Format: int32 */
+            pageNumber?: number;
         };
         CitationRequest: {
             /** Format: uuid */
@@ -639,6 +697,9 @@ export interface components {
             metadata?: components["schemas"]["JsonNode"];
             /** Format: date-time */
             createdAt?: string;
+            fullName?: string;
+            /** Format: int32 */
+            deathYearHijri?: number;
         };
         SyncMasterResponse: {
             changed?: boolean;
@@ -775,6 +836,18 @@ export interface components {
             /** Format: date-time */
             updatedAt?: string;
             chapters?: components["schemas"]["ChapterResponse"][];
+            /** Format: uuid */
+            muhaqqiqId?: string;
+            /** Format: uuid */
+            publisherId?: string;
+            /** Format: uuid */
+            publicationPlaceId?: string;
+            /** Format: int32 */
+            editionNumber?: number;
+            /** Format: int32 */
+            publishedYearHijri?: number;
+            /** Format: int32 */
+            publishedYearGregorian?: number;
         };
         ChapterResponse: {
             /** Format: uuid */

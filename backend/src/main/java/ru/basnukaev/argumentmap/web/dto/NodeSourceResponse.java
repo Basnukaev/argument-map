@@ -18,6 +18,7 @@ public record NodeSourceResponse(
         String context,
         CitationMode mode,
         CitationResponse citation,
+        String legacySnapshot,
         Instant createdAt
 ) {
 }

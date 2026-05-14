@@ -287,7 +287,7 @@ describe('NodeDetailsPanel', () => {
               nodeId: NODE_ID,
               sourceId: SOURCE_ID,
               quote: 'В этот день я был рождён',
-              location: 'стр. 12, изд. Дар аль-кутуб',
+              legacySnapshot: 'стр. 12, изд. Дар аль-кутуб',
             },
           ]),
         ),
