@@ -81,11 +81,11 @@ class NodeCitationControllerIT {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.mode").value("TEXT"))
-                .andExpect(jsonPath("$.pageId").value(pageId.toString()))
-                .andExpect(jsonPath("$.rangeStart").value(0))
-                .andExpect(jsonPath("$.rangeEnd").value(87))
-                .andExpect(jsonPath("$.bookId").value(bookId.toString()))
-                .andExpect(jsonPath("$.location").value(containsString("Тестовая книга")));
+                .andExpect(jsonPath("$.citation.location.pageId").value(pageId.toString()))
+                .andExpect(jsonPath("$.citation.location.rangeStart").value(0))
+                .andExpect(jsonPath("$.citation.location.rangeEnd").value(87))
+                .andExpect(jsonPath("$.citation.book.id").value(bookId.toString()))
+                .andExpect(jsonPath("$.citation.book.title").value(containsString("Тестовая книга")));
     }
 
     @Test
@@ -101,9 +101,9 @@ class NodeCitationControllerIT {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.mode").value("PDF"))
-                .andExpect(jsonPath("$.pdfFileId").value(pdfFileId.toString()))
-                .andExpect(jsonPath("$.pdfPageNumber").value(47))
-                .andExpect(jsonPath("$.pdfBbox.x").value(0.1));
+                .andExpect(jsonPath("$.citation.pdf.fileId").value(pdfFileId.toString()))
+                .andExpect(jsonPath("$.citation.pdf.pageNumber").value(47))
+                .andExpect(jsonPath("$.citation.pdf.bbox.x").value(0.1));
     }
 
     @Test

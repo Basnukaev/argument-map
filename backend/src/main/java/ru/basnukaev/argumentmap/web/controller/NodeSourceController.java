@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
-import ru.basnukaev.argumentmap.domain.NodeSource;
+import ru.basnukaev.argumentmap.repository.NodeSourceRepository;
 import ru.basnukaev.argumentmap.service.NodeSourceService;
 import ru.basnukaev.argumentmap.web.dto.AttachSourceRequest;
 import ru.basnukaev.argumentmap.web.dto.NodeSourceResponse;
@@ -25,18 +25,27 @@ import ru.basnukaev.argumentmap.web.mapper.DtoMappers;
 public class NodeSourceController {
 
     private final NodeSourceService nodeSourceService;
+    private final NodeSourceRepository nodeSourceRepository;
 
-    public NodeSourceController(NodeSourceService nodeSourceService) {
+    public NodeSourceController(NodeSourceService nodeSourceService,
+                                 NodeSourceRepository nodeSourceRepository) {
         this.nodeSourceService = nodeSourceService;
+        this.nodeSourceRepository = nodeSourceRepository;
     }
 
     @PostMapping
     public ResponseEntity<NodeSourceResponse> attach(@PathVariable UUID nodeId,
                                                      @Valid @RequestBody AttachSourceRequest request) {
-        NodeSource link = nodeSourceService.attachSource(
+        nodeSourceService.attachSource(
                 nodeId, request.sourceId(), request.quote(), request.context(), request.location()
         );
-        return ResponseEntity.status(HttpStatus.CREATED).body(DtoMappers.toResponse(link));
+        // ADR-028: возвращаем response с structured citation - findByPkWithLocation
+        // делает тот же 9-JOIN что и list, чтобы клиент получил полную структуру сразу
+        NodeSourceResponse response = nodeSourceRepository
+                .findByPkWithLocation(nodeId, request.sourceId())
+                .map(DtoMappers::toResponse)
+                .orElseThrow();
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping

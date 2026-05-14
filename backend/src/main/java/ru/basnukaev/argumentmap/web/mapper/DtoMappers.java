@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import ru.basnukaev.argumentmap.domain.Authority;
+import ru.basnukaev.argumentmap.domain.CitationDetail;
 import ru.basnukaev.argumentmap.domain.Edge;
 import ru.basnukaev.argumentmap.domain.Node;
 import ru.basnukaev.argumentmap.domain.NodeSource;
@@ -16,11 +17,20 @@ import ru.basnukaev.argumentmap.domain.Topic;
 import ru.basnukaev.argumentmap.repository.NodeSourceRepository;
 import ru.basnukaev.argumentmap.repository.TopicWithCounts;
 import ru.basnukaev.argumentmap.service.GraphView;
+import ru.basnukaev.argumentmap.web.dto.AuthorityCitationRef;
 import ru.basnukaev.argumentmap.web.dto.AuthorityResponse;
+import ru.basnukaev.argumentmap.web.dto.BookCitationRef;
+import ru.basnukaev.argumentmap.web.dto.CitationResponse;
 import ru.basnukaev.argumentmap.web.dto.EdgeResponse;
 import ru.basnukaev.argumentmap.web.dto.GraphResponse;
+import ru.basnukaev.argumentmap.web.dto.LocationRef;
+import ru.basnukaev.argumentmap.web.dto.MuhaqqiqRef;
 import ru.basnukaev.argumentmap.web.dto.NodeResponse;
 import ru.basnukaev.argumentmap.web.dto.NodeSourceResponse;
+import ru.basnukaev.argumentmap.web.dto.PdfRef;
+import ru.basnukaev.argumentmap.web.dto.PublicationPlaceRef;
+import ru.basnukaev.argumentmap.web.dto.PublisherRef;
+import ru.basnukaev.argumentmap.web.dto.RegionRef;
 import ru.basnukaev.argumentmap.web.dto.RevisionResponse;
 import ru.basnukaev.argumentmap.web.dto.SourceResponse;
 import ru.basnukaev.argumentmap.web.dto.TopicResponse;
@@ -108,38 +118,85 @@ public final class DtoMappers {
         );
     }
 
-    public static NodeSourceResponse toResponse(NodeSource link) {
-        return new NodeSourceResponse(
-                link.nodeId(), link.sourceId(),
-                link.quote(), link.context(), link.location(),
-                link.mode(),
-                link.pageId(), link.rangeStart(), link.rangeEnd(),
-                link.pdfFileId(), link.pdfPageNumber(),
-                jsonFromString(link.pdfBbox()),
-                link.imageRegionId(),
-                null,
-                link.createdAt()
-        );
-    }
-
     /**
-     * TEMP (Task 7 → Task 8): структурный mapper CitationDetail → CitationResponse
-     * будет реализован в Task 8. Сейчас игнорируем row.citation() и используем
-     * только NodeSource - в Task 8 NodeSourceResponse получит nested citation.
+     * Mapper для GET endpoints (ADR-028) - использует structured CitationDetail
+     * из 9-JOIN SQL. Frontend получает nullable nested refs и рендерит каждое
+     * поле в своём блоке.
      */
     public static NodeSourceResponse toResponse(NodeSourceRepository.NodeSourceWithLocation row) {
         NodeSource link = row.ns();
         return new NodeSourceResponse(
-                link.nodeId(), link.sourceId(),
-                link.quote(), link.context(), null,
+                link.nodeId(),
+                link.sourceId(),
+                link.quote(),
+                link.context(),
                 link.mode(),
-                link.pageId(), link.rangeStart(), link.rangeEnd(),
-                link.pdfFileId(), link.pdfPageNumber(),
-                jsonFromString(link.pdfBbox()),
-                link.imageRegionId(),
-                row.citation() != null ? row.citation().bookId() : null,
+                toCitationResponse(row.citation()),
                 link.createdAt()
         );
+    }
+
+    public static CitationResponse toCitationResponse(CitationDetail c) {
+        if (c == null) return null;
+        return new CitationResponse(
+                toAuthorityRef(c),
+                toBookRef(c),
+                toMuhaqqiqRef(c),
+                toPublisherRef(c),
+                toPublicationPlaceRef(c),
+                toLocationRef(c),
+                toPdfRef(c),
+                toRegionRef(c)
+        );
+    }
+
+    private static AuthorityCitationRef toAuthorityRef(CitationDetail c) {
+        if (c.authorityId() == null) return null;
+        return new AuthorityCitationRef(
+                c.authorityId(), c.authorityName(),
+                c.authorFullName(), c.authorDeathYearHijri()
+        );
+    }
+
+    private static BookCitationRef toBookRef(CitationDetail c) {
+        if (c.bookId() == null) return null;
+        return new BookCitationRef(
+                c.bookId(), c.bookTitle(), c.bookLanguage(),
+                c.editionNumber(), c.publishedYearHijri(), c.publishedYearGregorian()
+        );
+    }
+
+    private static MuhaqqiqRef toMuhaqqiqRef(CitationDetail c) {
+        if (c.muhaqqiqId() == null) return null;
+        return new MuhaqqiqRef(c.muhaqqiqId(), c.muhaqqiqName(), c.muhaqqiqFullName());
+    }
+
+    private static PublisherRef toPublisherRef(CitationDetail c) {
+        if (c.publisherId() == null) return null;
+        return new PublisherRef(c.publisherId(), c.publisherName());
+    }
+
+    private static PublicationPlaceRef toPublicationPlaceRef(CitationDetail c) {
+        if (c.publicationPlaceId() == null) return null;
+        return new PublicationPlaceRef(c.publicationPlaceId(), c.publicationPlaceName());
+    }
+
+    private static LocationRef toLocationRef(CitationDetail c) {
+        if (c.pageId() == null) return null;
+        return new LocationRef(
+                c.pageId(), c.part(), c.printedPage(),
+                c.pageNumber(), c.rangeStart(), c.rangeEnd()
+        );
+    }
+
+    private static PdfRef toPdfRef(CitationDetail c) {
+        if (c.pdfFileId() == null) return null;
+        return new PdfRef(c.pdfFileId(), c.pdfPageNumber(), jsonFromString(c.pdfBbox()));
+    }
+
+    private static RegionRef toRegionRef(CitationDetail c) {
+        if (c.imageRegionId() == null) return null;
+        return new RegionRef(c.imageRegionId(), c.regionPrintedPage(), c.regionPageNumber());
     }
 
     /**

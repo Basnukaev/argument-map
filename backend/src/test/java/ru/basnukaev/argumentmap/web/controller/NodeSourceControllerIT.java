@@ -76,8 +76,7 @@ class NodeSourceControllerIT {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.nodeId").value(nodeId.toString()))
                 .andExpect(jsonPath("$.sourceId").value(sourceId.toString()))
-                .andExpect(jsonPath("$.quote").value("точная цитата"))
-                .andExpect(jsonPath("$.location").value("стр. 42"));
+                .andExpect(jsonPath("$.quote").value("точная цитата"));
     }
 
     @Test

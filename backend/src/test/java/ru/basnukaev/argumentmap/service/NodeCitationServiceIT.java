@@ -90,17 +90,13 @@ class NodeCitationServiceIT {
         NodeSourceResponse response = service.createCitation(nodeId, req);
 
         assertThat(response.mode()).isEqualTo(CitationMode.TEXT);
-        assertThat(response.pageId()).isEqualTo(pageId);
-        assertThat(response.rangeStart()).isEqualTo(0);
-        assertThat(response.rangeEnd()).isEqualTo(87);
-        assertThat(response.bookId()).isEqualTo(bookId);
-        assertThat(response.location())
-                .contains("Тафсир Ибн Касира")
-                .contains("Т.1")
-                .contains("стр.47")
-                // range символов теперь не отражается в location -
-                // это технический deep link payload, не academic citation
-                .doesNotContain("строки");
+        assertThat(response.citation().location().pageId()).isEqualTo(pageId);
+        assertThat(response.citation().location().rangeStart()).isEqualTo(0);
+        assertThat(response.citation().location().rangeEnd()).isEqualTo(87);
+        assertThat(response.citation().book().id()).isEqualTo(bookId);
+        assertThat(response.citation().book().title()).isEqualTo("Тафсир Ибн Касира");
+        assertThat(response.citation().location().part()).isEqualTo("1");
+        assertThat(response.citation().location().printedPage()).isEqualTo("47");
 
         Optional<Source> src = sourceRepository.findByBookId(bookId);
         assertThat(src).isPresent();
@@ -122,10 +118,9 @@ class NodeCitationServiceIT {
         NodeSourceResponse response = service.createCitation(nodeId, req);
 
         assertThat(response.mode()).isEqualTo(CitationMode.PDF);
-        assertThat(response.pdfFileId()).isEqualTo(pdfFileId);
-        assertThat(response.pdfPageNumber()).isEqualTo(47);
-        assertThat(response.pdfBbox()).isNotNull();
-        assertThat(response.location()).contains("PDF стр.47");
+        assertThat(response.citation().pdf().fileId()).isEqualTo(pdfFileId);
+        assertThat(response.citation().pdf().pageNumber()).isEqualTo(47);
+        assertThat(response.citation().pdf().bbox()).isNotNull();
     }
 
     @Test
@@ -141,7 +136,7 @@ class NodeCitationServiceIT {
         NodeSourceResponse response = service.createCitation(nodeId, req);
 
         assertThat(response.mode()).isEqualTo(CitationMode.REGION);
-        assertThat(response.imageRegionId()).isEqualTo(imageRegionId);
+        assertThat(response.citation().region().id()).isEqualTo(imageRegionId);
     }
 
     @Test
