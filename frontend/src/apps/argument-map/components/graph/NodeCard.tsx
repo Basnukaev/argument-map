@@ -4,6 +4,7 @@ import { MoreHorizontal } from 'lucide-react';
 import StatusBadge from '@/shared/components/ui/StatusBadge';
 import TypeChip from '@/shared/components/ui/TypeChip';
 import { STATUS_TOKENS, type NodeStatus, type NodeType } from '@/shared/utils/designTokens';
+import { hasArabicScript } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
 
 type NodeDto = components['schemas']['NodeResponse'];
@@ -27,6 +28,18 @@ function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
   const body = newlineIndex === -1 ? '' : fullContent.slice(newlineIndex + 1).trim();
   const truncatedBody =
     body.length > MAX_PREVIEW_LEN ? `${body.slice(0, MAX_PREVIEW_LEN)}…` : body;
+
+  // Направление текста узла - через dir="auto" (браузер сам определит по
+  // первому сильному символу). Шрифт - через эвристику, т.к. dir="auto"
+  // шрифт не переключает. Layout самой карточки (canvas, позиции, handles)
+  // остаётся LTR независимо от языка контента - граф пространственный.
+  const isArabicContent = hasArabicScript(fullContent);
+  const titleClass = isArabicContent
+    ? 'font-naskh text-[14px] font-semibold leading-[1.8] text-slate-900 text-pretty whitespace-pre-wrap break-words text-start'
+    : 'text-[13px] font-semibold leading-snug text-slate-900 text-pretty whitespace-pre-wrap break-words text-start';
+  const bodyClass = isArabicContent
+    ? 'mt-1 font-naskh text-[13px] leading-[1.85] text-slate-600 line-clamp-2 text-pretty whitespace-pre-wrap break-words text-start'
+    : 'mt-1 text-[12px] leading-relaxed text-slate-600 line-clamp-2 text-pretty whitespace-pre-wrap break-words text-start';
 
   // Handle hit-area расширена до 28×28 через ::before inset-[-8px] - удобно
   // попадать мышкой даже в визуально-12×12 точки. Видимы только на hover/select
@@ -70,7 +83,7 @@ function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
         </div>
 
         {title ? (
-          <p className="text-[13px] font-semibold leading-snug text-slate-900 text-pretty whitespace-pre-wrap break-words">
+          <p dir="auto" className={titleClass}>
             {title}
           </p>
         ) : (
@@ -78,7 +91,7 @@ function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
         )}
 
         {truncatedBody && (
-          <p className="mt-1 text-[12px] leading-relaxed text-slate-600 line-clamp-2 text-pretty whitespace-pre-wrap break-words">
+          <p dir="auto" className={bodyClass}>
             {truncatedBody}
           </p>
         )}
