@@ -344,7 +344,7 @@ describe('NodeDetailsPanel', () => {
       expect(screen.queryByText(/Имам Муслим/)).not.toBeInTheDocument();
     });
 
-    it('арабская цитата получает dir=rtl', async () => {
+    it('арабская цитата получает dir=auto (UA bidi resolution до rtl)', async () => {
       server.use(
         http.get(`${BASE}/api/v1/nodes/${NODE_ID}/sources`, () =>
           HttpResponse.json([
@@ -363,7 +363,9 @@ describe('NodeDetailsPanel', () => {
       renderPanel();
       await userEvent.click(screen.getByRole('button', { name: /Опора/ }));
       const quoteEl = await screen.findByText(/إنما الأعمال بالنيات/);
-      expect(quoteEl).toHaveAttribute('dir', 'rtl');
+      // dir="auto" - UA сам резолвит direction по первому strong char (arabic → rtl)
+      // Это правильнее explicit dir="rtl" - работает на любых mixed-script quotes
+      expect(quoteEl).toHaveAttribute('dir', 'auto');
     });
 
     it('пустой список показывает плейсхолдер', async () => {

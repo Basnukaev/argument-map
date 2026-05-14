@@ -1,19 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Anchor,
   AlertCircle,
   BookOpen,
   ChevronDown,
-  ExternalLink,
   Plus,
   Quote,
   Trash2,
+  User as UserIcon,
 } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import PanelSection from '@/apps/argument-map/components/graph/PanelSection';
 import AddSourceModal from '@/apps/argument-map/components/graph/AddSourceModal';
 import CitationPicker from '@/shared/components/citation/CitationPicker';
+import { SourceCard } from '@/shared/components/citation/sourceCard';
 import { apiGetRaw, apiDeleteRaw, formatApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { SOURCE_TYPE_LABEL } from '@/apps/argument-map/utils/attachmentTokens';
@@ -23,7 +24,6 @@ import type { components } from '@/shared/api/types';
 type SourceDto = components['schemas']['SourceResponse'];
 type AuthorityDto = components['schemas']['AuthorityResponse'];
 type NodeSourceDto = components['schemas']['NodeSourceResponse'];
-type CitationDto = components['schemas']['CitationResponse'];
 
 interface CitationsData {
   links: NodeSourceDto[];
@@ -48,16 +48,29 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
   const [addSourceOpen, setAddSourceOpen] = useState(false);
   const [citationPickerOpen, setCitationPickerOpen] = useState(false);
 
+  // ref на callback - чтобы effect не fire'ил при каждом render parent'а
+  // если он передаёт inline callback. Это fix для duplicate requests:
+  // раньше onCountsChange был в deps, parent менялся → effect перезапускался → 2x fetch
+  const onCountsChangeRef = useRef(onCountsChange);
+  useEffect(() => {
+    onCountsChangeRef.current = onCountsChange;
+  }, [onCountsChange]);
+
   useEffect(() => {
     if (!nodeId) return;
-    let cancelled = false;
+    // AbortController отменяет in-flight fetch на cleanup. В **production**
+    // StrictMode mount'ит один раз - один запрос на network. В **dev**
+    // StrictMode дважды mount'ит для catching side-effects, в network tab
+    // видно 2 запроса (первый отменён, второй complete) - это by-design
+    // React и не warning. См. https://react.dev/reference/react/StrictMode
+    const controller = new AbortController();
     Promise.all([
-      apiGetRaw<NodeSourceDto[]>(`/api/v1/nodes/${nodeId}/sources`),
-      apiGetRaw<SourceDto[]>(`/api/v1/sources`),
-      apiGetRaw<AuthorityDto[]>(`/api/v1/authorities`),
+      apiGetRaw<NodeSourceDto[]>(`/api/v1/nodes/${nodeId}/sources`, { signal: controller.signal }),
+      apiGetRaw<SourceDto[]>(`/api/v1/sources`, { signal: controller.signal }),
+      apiGetRaw<AuthorityDto[]>(`/api/v1/authorities`, { signal: controller.signal }),
     ])
       .then(([links, sources, authorities]) => {
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
         const sourceLookup = new Map<string, SourceDto>();
         for (const src of sources) {
           if (src.id) sourceLookup.set(src.id, src);
@@ -70,16 +83,16 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
           kind: 'loaded',
           data: { links, sourceLookup, authorityLookup },
         });
-        onCountsChange?.(computeCounts(links));
+        onCountsChangeRef.current?.(computeCounts(links));
       })
       .catch((e: unknown) => {
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
         setState({ kind: 'error', message: formatApiError(e, 'Не удалось загрузить опору') });
       });
     return () => {
-      cancelled = true;
+      controller.abort();
     };
-  }, [nodeId, onCountsChange]);
+  }, [nodeId]);
 
   async function detachSource(sourceId: string) {
     if (!nodeId) return;
@@ -87,13 +100,13 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
     const previous = state.data.links;
     const next = previous.filter((l) => l.sourceId !== sourceId);
     setState({ kind: 'loaded', data: { ...state.data, links: next } });
-    onCountsChange?.(computeCounts(next));
+    onCountsChangeRef.current?.(computeCounts(next));
     try {
       await apiDeleteRaw(`/api/v1/nodes/${nodeId}/sources/${sourceId}`);
     } catch (e: unknown) {
       toast.error(formatApiError(e, 'Не удалось отвязать подкрепление'));
       setState({ kind: 'loaded', data: { ...state.data, links: previous } });
-      onCountsChange?.(computeCounts(previous));
+      onCountsChangeRef.current?.(computeCounts(previous));
     }
   }
 
@@ -105,7 +118,7 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
         if (prev.kind !== 'loaded') return prev;
         return { kind: 'loaded', data: { ...prev.data, links } };
       });
-      onCountsChange?.(computeCounts(links));
+      onCountsChangeRef.current?.(computeCounts(links));
     } catch (e: unknown) {
       toast.error(formatApiError(e, 'Не удалось обновить опору'));
     }
@@ -209,7 +222,20 @@ function computeCounts(links: NodeSourceDto[]): { lib: number; free: number } {
   return { lib, free };
 }
 
+/**
+ * Выбрать latin/cyrillic title - source.title если cyrillic, иначе fallback на book.title.
+ * Используется для header карточки чтобы chip + title в LTR-subtree рендерились
+ * консистентно (русское название а не arabic title в RTL-флоу header'а)
+ */
+function pickLatinTitle(source: SourceDto | undefined, bookTitle?: string | null): string {
+  const st = source?.title;
+  if (st && !hasArabicScript(st)) return st;
+  if (bookTitle && !hasArabicScript(bookTitle)) return bookTitle;
+  return '(книга)';
+}
+
 function CitationsList({ state, onDetach }: CitationsListProps) {
+  const navigate = useNavigate();
   if (state.kind === 'not-loaded' || state.kind === 'loading') {
     return <p className="text-[12px] text-slate-500">Загрузка</p>;
   }
@@ -223,7 +249,7 @@ function CitationsList({ state, onDetach }: CitationsListProps) {
     );
   }
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       {links.map((link, idx) => {
         const source = link.sourceId ? sourceLookup.get(link.sourceId) : undefined;
         const authorityFallback = source?.authorityId
@@ -231,7 +257,17 @@ function CitationsList({ state, onDetach }: CitationsListProps) {
           : undefined;
         const key = link.sourceId ?? `${link.nodeId}-${idx}`;
         if (isLibraryMode(link.mode)) {
-          return <LibraryCite key={key} link={link} source={source} onDetach={onDetach} />;
+          const deepLink = buildDeepLink(link);
+          const titleLatin = pickLatinTitle(source, link.citation?.book?.title);
+          return (
+            <SourceCard
+              key={key}
+              link={link}
+              titleLatin={titleLatin}
+              onDelete={link.sourceId ? () => onDetach(link.sourceId!) : undefined}
+              onPrimaryAction={deepLink ? () => navigate(deepLink) : undefined}
+            />
+          );
         }
         return (
           <FreeformCite
@@ -247,306 +283,6 @@ function CitationsList({ state, onDetach }: CitationsListProps) {
   );
 }
 
-/**
- * Пара строк: arabic (RTL/naskh) + transliteration (LTR). Принцип P1-P2
- * mixed-script: каждая строка - один dominant direction, arabic и
- * transliteration в разных строках, не inline mixing.
- */
-function ScriptPair({
-  arabic,
-  translit,
-  arabicClass = 'text-[14px] font-medium text-slate-900 leading-snug',
-  translitClass = 'text-[12px] text-slate-600 italic',
-}: {
-  arabic?: string | null;
-  translit?: string | null;
-  arabicClass?: string;
-  translitClass?: string;
-}) {
-  const showArabic = arabic && hasArabicScript(arabic);
-  const showTranslit = translit && translit !== arabic && !hasArabicScript(translit);
-  if (!showArabic && !showTranslit) return null;
-  return (
-    <>
-      {showArabic && (
-        <div dir="rtl" className={`font-naskh text-start ${arabicClass}`}>
-          {arabic}
-        </div>
-      )}
-      {showTranslit && (
-        <div dir="ltr" className={`text-start ${translitClass}`}>
-          {translit}
-        </div>
-      )}
-    </>
-  );
-}
-
-interface LibraryCiteProps {
-  link: NodeSourceDto;
-  source: SourceDto | undefined;
-  onDetach: (sourceId: string) => void;
-}
-
-/**
- * Library-backed citation card (mode TEXT/PDF/REGION). Native <details>
- * collapse - <summary> одна LTR строка с компактной локацией, развёрнутый
- * контент - 6 структурных блоков. Каждая строка - один direction (P1).
- * Arabic content и cyrillic transliteration в разных строках (P2).
- */
-function LibraryCite({ link, source, onDetach }: LibraryCiteProps) {
-  const navigate = useNavigate();
-  const c: CitationDto = link.citation ?? {};
-  const { authority, book, muhaqqiq, publisher, publicationPlace, location, pdf } = c;
-
-  const deepLink = buildDeepLink(link);
-
-  // Summary - однострочный preview для свёрнутого state. Только LTR содержимое:
-  // ru transliteration (если есть source.title) + locator (Т.X стр.Y / PDF стр.Y)
-  const summaryTitle = pickLatinTitle({ sourceTitle: source?.title, bookTitle: book?.title });
-  const locator = buildLocator({ location, pdf });
-
-  // Editions: publisher · place · edition в одну LTR строку
-  const editionParts: string[] = [];
-  if (publisher?.name) editionParts.push(`изд. ${publisher.name}`);
-  if (publicationPlace?.name) editionParts.push(publicationPlace.name);
-  if (book?.editionNumber != null) editionParts.push(`${book.editionNumber}-е изд.`);
-
-  // Years в LTR mono. Arabic indicators هـ оборачиваются в isolate spans,
-  // иначе они flip'ают соседние цифры (bidi reorder strong RTL chars)
-  const yearHijri = book?.publishedYearHijri;
-  const yearGregorian = book?.publishedYearGregorian;
-  const hasYears = yearHijri != null || yearGregorian != null;
-
-  return (
-    <details className="group/c relative overflow-hidden rounded-md border border-slate-200 bg-white open:border-indigo-300">
-      <div className="absolute bottom-0 start-0 top-0 w-[3px] bg-indigo-600" />
-      <summary className="flex cursor-pointer list-none items-center gap-2 py-2 pe-2 ps-3.5 hover:bg-slate-50/50">
-        <span
-          className="inline-flex items-center gap-1 rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-700"
-          aria-label="Из библиотеки"
-        >
-          <BookOpen size={11} aria-hidden="true" />
-          Из библиотеки
-        </span>
-        <span className="flex-1 truncate text-[12.5px] text-slate-800" dir="ltr">
-          {summaryTitle}
-          {locator && <span className="ms-1.5 font-mono text-[11px] text-slate-500">· {locator}</span>}
-        </span>
-        <button
-          type="button"
-          aria-label="Отвязать опору"
-          onClick={(e) => {
-            e.preventDefault();
-            if (link.sourceId) onDetach(link.sourceId);
-          }}
-          className="rounded p-1 text-slate-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover/c:opacity-100"
-        >
-          <Trash2 size={13} aria-hidden="true" />
-        </button>
-        <ChevronDown
-          size={14}
-          className="text-slate-400 transition-transform group-open/c:rotate-180"
-          aria-hidden="true"
-        />
-      </summary>
-
-      <div className="space-y-2 border-t border-slate-100 px-3.5 py-2.5">
-        {/* Author block: pair arabic full_name / cyrillic short */}
-        {authority && (
-          <div className="space-y-0.5">
-            <ScriptPair
-              arabic={authority.fullName}
-              translit={authority.name}
-              arabicClass="text-[14px] font-medium text-slate-900 leading-snug"
-              translitClass="text-[12px] font-medium text-slate-800 leading-snug"
-            />
-            {authority.deathYearHijri != null && (
-              <div dir="ltr" className="text-start font-mono text-[11px] text-slate-500">
-                г. смерти: {authority.deathYearHijri}{' '}
-                <span dir="rtl" style={{ unicodeBidi: 'isolate' }} className="font-naskh">
-                  هـ
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Book title block: pair arabic title / ru transliteration */}
-        <div className="space-y-0.5">
-          <ScriptPair
-            arabic={book?.title}
-            translit={pickLatinTitle({ sourceTitle: source?.title, bookTitle: book?.title })}
-            arabicClass="text-[15px] font-bold text-slate-900 leading-snug"
-            translitClass="text-[12.5px] font-semibold text-slate-800 leading-snug"
-          />
-        </div>
-
-        {/* Muhaqqiq block: «тахкик» label LTR + arabic/translit pair */}
-        {muhaqqiq && (
-          <div className="space-y-0.5">
-            <div dir="ltr" className="text-start text-[11px] uppercase tracking-wider text-slate-500">
-              тахкик
-            </div>
-            <ScriptPair
-              arabic={muhaqqiq.fullName ?? muhaqqiq.name}
-              translit={
-                muhaqqiq.fullName && !hasArabicScript(muhaqqiq.fullName)
-                  ? muhaqqiq.fullName
-                  : muhaqqiq.name && !hasArabicScript(muhaqqiq.name)
-                    ? muhaqqiq.name
-                    : null
-              }
-              arabicClass="text-[13px] text-slate-800 leading-snug"
-              translitClass="text-[12px] text-slate-700"
-            />
-          </div>
-        )}
-
-        {/* Publisher/place/edition - LTR строка */}
-        {editionParts.length > 0 && (
-          <div dir="ltr" className="text-start text-[12px] text-slate-600">
-            {editionParts.join(' · ')}
-          </div>
-        )}
-
-        {/* Years - LTR mono. Arabic indicators isolated чтобы не flip'ать цифры */}
-        {hasYears && (
-          <div dir="ltr" className="text-start font-mono text-[11px] text-slate-500">
-            {yearHijri != null && (
-              <span>
-                {yearHijri}{' '}
-                <span dir="rtl" style={{ unicodeBidi: 'isolate' }} className="font-naskh">
-                  هـ
-                </span>
-              </span>
-            )}
-            {yearHijri != null && yearGregorian != null && <span> / </span>}
-            {yearGregorian != null && <span>{yearGregorian} м.</span>}
-          </div>
-        )}
-
-        {/* Location - LTR mono. Том может быть arabic ("المقدمة") - тогда отдельной RTL строкой */}
-        {location && (
-          <LocationRows location={location} />
-        )}
-
-        {/* Quote - native script ScriptPair (quote arabic + ru translation если есть. translation поле future, сейчас null) */}
-        {link.quote && (
-          <div className="border-s-2 border-indigo-200 ps-2">
-            <ScriptPair
-              arabic={hasArabicScript(link.quote) ? link.quote : null}
-              translit={hasArabicScript(link.quote) ? null : link.quote}
-              arabicClass="text-[14px] text-slate-700 leading-loose"
-              translitClass="text-[12.5px] italic text-slate-700 leading-relaxed"
-            />
-          </div>
-        )}
-
-        {/* Context (LTR) */}
-        {link.context && (
-          <div dir="ltr" className="text-start text-[11px] text-slate-500">
-            {link.context}
-          </div>
-        )}
-
-        {deepLink && (
-          <button
-            type="button"
-            onClick={() => navigate(deepLink)}
-            className="mt-1 inline-flex items-center gap-1.5 rounded bg-indigo-600 px-2.5 py-1.5 text-[12px] font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
-          >
-            <ExternalLink size={14} aria-hidden="true" />
-            Перейти к источнику
-          </button>
-        )}
-      </div>
-    </details>
-  );
-}
-
-/**
- * Location rows. Если part arabic - две строки (arabic том + LTR mono стр).
- * Иначе одна LTR mono строка с part + стр.
- */
-function LocationRows({
-  location,
-}: {
-  location: NonNullable<CitationDto['location']>;
-}) {
-  const part = location.part ?? null;
-  const printedPage = location.printedPage ?? null;
-  const pageNumber = location.pageNumber ?? null;
-  const pageDisplay = printedPage ?? (pageNumber != null ? String(pageNumber) : null);
-  const partIsArabic = part && hasArabicScript(part);
-
-  if (!part && !pageDisplay) return null;
-
-  if (partIsArabic) {
-    return (
-      <div className="space-y-0.5">
-        <div dir="rtl" className="font-naskh text-start text-[12px] text-slate-600">
-          {part}
-        </div>
-        {pageDisplay && (
-          <div dir="ltr" className="text-start font-mono text-[11px] text-slate-500">
-            стр. {pageDisplay}
-          </div>
-        )}
-      </div>
-    );
-  }
-  const parts: string[] = [];
-  if (part) parts.push(`Т. ${part}`);
-  if (pageDisplay) parts.push(`стр. ${pageDisplay}`);
-  return (
-    <div dir="ltr" className="text-start font-mono text-[11px] text-slate-500">
-      {parts.join(' · ')}
-    </div>
-  );
-}
-
-/**
- * Локатор для свёрнутого summary - короткий LTR `Т.X стр.Y` или `PDF стр.N`.
- * Если part arabic - используем page only (иначе summary становится mixed-script).
- */
-function buildLocator({
-  location,
-  pdf,
-}: {
-  location?: CitationDto['location'];
-  pdf?: CitationDto['pdf'];
-}): string | null {
-  if (pdf?.pageNumber != null) return `PDF стр. ${pdf.pageNumber}`;
-  if (!location) return null;
-  const printedPage = location.printedPage ?? (location.pageNumber != null ? String(location.pageNumber) : null);
-  const part = location.part;
-  if (part && !hasArabicScript(part)) {
-    if (printedPage) return `Т. ${part} · стр. ${printedPage}`;
-    return `Т. ${part}`;
-  }
-  if (printedPage) return `стр. ${printedPage}`;
-  return null;
-}
-
-/**
- * Выбрать latin/cyrillic title для summary и translit row. Приоритет:
- * 1. source.title - manual ru transliteration через AddSourceModal
- * 2. fallback: book.title если он сам не arabic (manually-created book)
- * 3. иначе null - summary покажет только locator
- */
-function pickLatinTitle({
-  sourceTitle,
-  bookTitle,
-}: {
-  sourceTitle?: string;
-  bookTitle?: string | null;
-}): string {
-  if (sourceTitle && !hasArabicScript(sourceTitle)) return sourceTitle;
-  if (bookTitle && !hasArabicScript(bookTitle)) return bookTitle;
-  return '(книга)';
-}
-
 interface FreeformCiteProps {
   link: NodeSourceDto;
   source: SourceDto | undefined;
@@ -555,8 +291,10 @@ interface FreeformCiteProps {
 }
 
 /**
- * Freeform citation card (mode LEGACY). Symmetric details collapse - summary
- * однострочный с title + freeform marker, развёрнутый - все детали.
+ * Freeform citation card (mode LEGACY) - native details/summary collapse.
+ * Простой LTR без bidi сложности - freeform обычно urls/articles/quotes
+ * на одном языке. Если будет arabic quote - QuoteBlock-like behavior через
+ * dir="auto" на самой quote string
  */
 function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) {
   const sourceType = source?.sourceType;
@@ -616,6 +354,7 @@ function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) 
 
         {authority && (
           <div dir="ltr" className="text-start text-[12px] text-slate-700">
+            <UserIcon size={11} className="me-1 inline text-slate-400" aria-hidden="true" />
             <span className="font-medium">{authority.name}</span>
             {authorMeta && <span className="ms-1.5 font-mono text-[11px] text-slate-500">· {authorMeta}</span>}
           </div>
@@ -630,13 +369,15 @@ function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) 
         )}
 
         {quote && (
-          <div className="border-s-2 border-slate-300 ps-2">
-            <ScriptPair
-              arabic={hasArabicScript(quote) ? quote : null}
-              translit={hasArabicScript(quote) ? null : quote}
-              arabicClass="text-[13px] text-slate-700 leading-loose"
-              translitClass="text-[12px] italic text-slate-600 leading-relaxed"
-            />
+          <div
+            dir="auto"
+            className={
+              hasArabicScript(quote)
+                ? 'border-s-2 border-slate-300 ps-2 font-naskh text-[14px] leading-loose text-slate-700 text-start'
+                : 'border-s-2 border-slate-300 ps-2 text-[12.5px] italic leading-relaxed text-slate-600 text-start'
+            }
+          >
+            «{quote}»
           </div>
         )}
 
