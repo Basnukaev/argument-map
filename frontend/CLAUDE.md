@@ -1,341 +1,184 @@
-# Argument Map — Frontend (Claude Code config)
+# Frontend - Claude Code config
 
-## Контекст: это монорепа
+Фронт-специфичные правила. Общие правила репо (стэк, layout,
+команды, conventional commits) - в корневом `../CLAUDE.md`.
+Правила документации - в `../docs/doc-hygiene.md`
 
-Этот `CLAUDE.md` — конфиг для работы над **фронтенд-частью** проекта
-Argument Map. Полная структура репозитория описана в `../README.md`.
+## Контекст проекта
 
-Правила:
-- Работать **только** в пределах папки `frontend/`. Не создавать, не
-  редактировать и не удалять файлы в корне репы и в `../backend/`
-  без явного запроса пользователя.
-- Общая документация проекта лежит в `../docs/` — её читаем, но
-  редактируем только когда изменения явно относятся к продукту в целом
-  (новый ADR, обновление roadmap, запись в progress).
-- Фронтенд-специфичная документация — в `frontend/docs/`.
-- Корневой `docker-compose.yml` общий — не копировать в `frontend/`.
+Платформа цифровых инструментов для исламских учёных и студентов
+(см. `../docs/vision.md`). Один React SPA обслуживающий **три
+приложения** под ADR-018 platform pivot и ADR-022 frontend reorg:
 
-## О проекте
+- **`src/apps/argument-map/`** - граф аргументации (React Flow),
+  узлы / связи / NodeDetailsPanel с секцией «Опора»
+- **`src/apps/library/`** - книги (BookListPage / BookReaderPage /
+  PdfViewer)
+- **`src/apps/admin/`** - admin tooling (AdminShamelaPage)
 
-SPA-фронтенд для Argument Map. Визуализация графа аргументов через
-React Flow в стиле Miro / Obsidian: drag-and-drop узлов, кастомные
-карточки с цветом по статусу, типизированные стрелки между узлами.
+Cross-app код - в `src/shared/`:
 
-Общается с бэкенд API по контракту из `../docs/api-contract.md`. Бэкенд
-полностью самодостаточен — фронт это только UI поверх него.
-
-## Стек
-
-- **React 19** + **TypeScript** (strict mode)
-- **Vite** — сборка и dev-сервер
-- **React Flow** (`@xyflow/react`) — визуализация графа
-- **Tailwind CSS** — стилизация (utility-first)
-- **React Router v7** — клиентский роутинг
-- **Zustand** — стейт-менеджмент (простая альтернатива Redux)
-- **openapi-typescript** — генерация TS-типов из `/v3/api-docs` бэка
-- **Vitest** + **React Testing Library** — тесты
-- **MSW** (Mock Service Worker) — моки API в тестах
-
-## Документация
-
-Перед началом работы **обязательно** прочитать.
-
-### Общая документация проекта (`../docs/`)
-- `../docs/progress.md` — журнал сессий, последние 2-3 записи
-- `../docs/roadmap.md` — что сделано, что в работе, что дальше
-- `../docs/decisions.md` — принятые архитектурные решения (ADR)
-- `../docs/gotchas.md` — известные ловушки и подводные камни проекта
-- `../docs/architecture.md` — высокоуровневая архитектура, доменные сущности
-- `../docs/glossary.md` — термины проекта
-- `../docs/api-contract.md` — **контракт API**, источник истины для фронта
-- `../docs/session-workflow.md` — компактный чек-лист сессии
-- `../docs/git-workflow.md` — Conventional Commits, правила ветвления
-
-### Фронтенд-специфичная документация (`docs/`)
-- `docs/coding-standards.md` — стандарты TypeScript/React, SOLID, KISS,
-  правила хуков и компонентов
-- `docs/ui-guidelines.md` — дизайн-система: цвета статусов, типы рёбер,
-  спецификация кастомных узлов и страниц
-
-## Работа с документацией (КРИТИЧНО)
-
-Эти правила обеспечивают непрерывность работы между сессиями. Контекст
-одной сессии теряется, поэтому документация — это "память" проекта.
-
-### В начале каждой сессии
-1. Прочитать `../docs/progress.md` — последние 2-3 записи
-2. Прочитать `../docs/roadmap.md` — найти текущую задачу
-3. Прочитать `../docs/decisions.md` — не нарушать принятые решения
-4. Прочитать `../docs/gotchas.md` — не наступить на известные грабли
-5. Прочитать `../docs/api-contract.md` — сверить ожидания по API
-6. Кратко озвучить пользователю: *"Вижу, последний раз делали X,
-   следующая задача — Y. Продолжаем?"*
-
-### Автономность в принятии решений
-
-Не спрашивай подтверждение на каждый шаг. Документация проекта
-достаточно полная чтобы принимать большинство решений самостоятельно.
-
-**Делай без спроса:**
-- Всё что покрыто существующими ADR, coding-standards, antipatterns,
-  api-design, testing-strategy, ui-guidelines
-- Выбор между вариантами реализации если один явно лучше
-- Декомпозиция задачи на подэтапы
-- Исправление багов найденных по ходу
-- Добавление тестов, gotchas, подзадач в roadmap
-
-**Спрашивай только когда:**
-- Настоящая дилемма — два варианта примерно равны и ты не уверен
-- Решение противоречит существующему ADR
-- Нужно менять API-контракт (breaking change)
-- Задача не описана в roadmap и ты не уверен нужна ли она вообще
-
-**Формат работы:**
-Не "покажу план → жду ок → покажу код → жду ок".
-А "прочитал доки → сказал что делаю → сделал → показал результат".
-Между стартом и результатом — молча работай, коммить по ходу.
-Если по пути принял неочевидное решение — запиши в progress.md,
-не останавливайся ради вопроса.
-
-### По ходу работы
-
-Документация - это "память" проекта между сессиями. Если её не вести
-ходом, в новой сессии теряется контекст и решения переоткрываются
-заново. Поэтому **после каждого `feat`/`fix` коммита** обязательный
-чек-лист (5-10 секунд):
-
-#### Чек-лист "что документировать" после коммита
-
-| Что произошло в коммите | Что обновить |
-|---|---|
-| Закрыт пункт roadmap | `roadmap.md` - проставить `[x]` |
-| Принято решение между альтернативами (где была дилемма) | `decisions.md` - **новый ADR** с разделами: Контекст / Решение / Альтернативы / Последствия |
-| Миграция БД, изменение доменной модели | `decisions.md` - ADR + `architecture.md` - упомянуть |
-| Изменилась схема `Node`/`Edge`/`Topic`/`User` | `architecture.md` - доменные сущности |
-| Новый/изменённый REST endpoint, новые поля DTO | `api-contract.md` - описание + история изменений |
-| Поймал баг через линтер/тесты/UI который **может повториться** | `gotchas.md` - симптом + причина + решение |
-| Новое доменное понятие (термин из бизнес-области) | `glossary.md` |
-| Изменились фронтенд-правила (стандарты TS/React/Tailwind) | `frontend/docs/coding-standards.md` или `ui-guidelines.md` |
-
-**Тревожные триггеры для ADR** - если что-то из этого было в коммите,
-почти наверняка нужен ADR:
-- Выбор между ≥2 рассмотренных подходов (rejected alternatives есть)
-- Изменение схемы БД (миграция Liquibase)
-- Изменение контракта API (новое поле/эндпоинт)
-- Решение "не делаем X сейчас, отложим до Y" (явный YAGNI с обоснованием)
-- Введение новой инфраструктурной системы (логирование, тосты,
-  observability и т.п.)
-
-**Тревожные триггеры для gotcha** - если что-то из этого ловили:
-- "Линтер ругается странно" + неочевидное решение
-- "Сборка падает с непонятной ошибкой" в WSL/инфраструктуре
-- React / RF / Tailwind / Spring "ведёт себя не как ожидалось"
-- Тесты ломаются от чего-то что выглядит несвязанным
-
-Не должно быть так что фикс делается, gotcha не записан, через две
-недели наступаем на тех же граблях.
-
-#### Не дожидайся конца сессии для документации
-
-Не "сделаю всё за раз в `progress.md`" - частично это правда (журнал
-сессии), но **ADR / gotcha / api-contract обновляются по ходу**, в
-коммите который к ним относится. Если ADR относится к коммиту X,
-то и в коммите X должен лежать обновлённый `decisions.md` (либо
-отдельным `docs:` коммитом сразу следом).
-
-Это даёт:
-- Атомарную ревизию: один коммит = одно изменение + его документация
-- Гарантию что документация не отстанет если сессия резко закончится
-  (лимит контекста, прерывание)
-
-### Эволюция документов
-Те же правила что в `backend/CLAUDE.md`. Кратко:
-- `roadmap.md` — карта, а не рельсы; добавлять подзадачи свободно,
-  удалять/переносить — обсуждать
-- `gotchas.md` — добавлять свободно, старые не редактировать
-- `decisions.md` — новые ADR свободно, старые не править. Заменять
-  через новый ADR со статусом "заменяет ADR-N"
-- `architecture.md` — изменять с осторожностью, серьёзные правки
-  обсуждать
-- `api-contract.md` — это совместный документ с бэком, изменения только
-  при явном изменении контракта
-- `progress.md` — только добавление новых записей сверху
-
-### В конце каждой сессии (ОБЯЗАТЕЛЬНО)
-Перед завершением создать запись в `../docs/progress.md`:
-
-```markdown
-## YYYY-MM-DD — Сессия N (frontend)
-### Сделано
-- конкретные выполненные задачи со ссылками на файлы/коммиты
-
-### Решения
-- принятые по ходу решения (если достойно ADR — также в decisions.md)
-
-### Проблемы
-- с чем столкнулись, как решили (если не решили — пометить "открыто")
-
-### Следующий шаг
-- конкретная следующая задача, чтобы новая сессия начала сразу с неё
-```
-
-**Помечать сессии префиксом `(frontend)`**, чтобы в общем журнале было
-видно к какой части монорепы относится запись.
-
-### При приближении к лимиту контекста
-Если чувствуешь, что контекст заполняется — **не дожидаясь просьбы**
-предложи пользователю сохранить состояние в `progress.md` максимально
-подробно, включая все незавершённые мысли и следующий конкретный шаг.
-
-## Соглашения по коду
-
-### Общие правила
-- **Язык:** комментарии и тексты UI на русском, имена компонентов,
-  функций, переменных — на английском.
-- **TypeScript strict mode** обязателен (`strict: true`,
-  `noUncheckedIndexedAccess: true`).
-- **Никаких `any`** — всегда явный тип или `unknown`.
-- **Без enum'ов** — union literal types вместо них:
-  `type NodeStatus = 'STANDING' | 'DISPUTED' | 'REFUTED' | 'UNVERIFIED'`.
-- **Импорты:** абсолютные через alias `@` = `src/`. Не использовать
-  длинные относительные пути типа `../../../components/ui/Button`.
-
-### React
-- Только функциональные компоненты, никаких class components.
-- Хуки: `useState`, `useEffect`, `useCallback`, `useMemo`, `useRef`,
-  кастомные `useXxx`.
-- `useMemo` / `useCallback` — только при реальной проблеме
-  производительности, не превентивно (YAGNI).
-- Один компонент — один файл.
-- Компонент > 100 строк — подумать о разделении.
-- Props destructuring в параметрах функции:
-  ```tsx
-  function NodeCard({ node, onSelect }: Props) { ... }
-  ```
-- `key` в списках — UUID из данных, **не** индекс массива.
-
-### CSS
-- Только Tailwind utility classes. Никаких `.css`/`.scss` файлов
-  отдельно.
-- Если набор классов повторяется в 3+ местах — выделить компонент или
-  использовать `cva` (class-variance-authority) для вариантов.
-
-### Именование
-- Компоненты: `PascalCase` (`TopicCard`, `ArgumentNode`, `GraphCanvas`).
-- Хуки: `useXxx` (`useTopicGraph`, `useApiClient`).
-- Сторы: `useXxxStore` (`useGraphStore`, `useTopicStore`).
-- Типы / интерфейсы: `PascalCase` (`TopicResponse`, `GraphViewData`).
-- Утилиты: `camelCase` (`formatDate`, `truncateContent`).
-- Файлы компонентов: `PascalCase.tsx`.
-- Файлы утилит / хуков / сторов: `camelCase.ts`.
-
-### Структура папок
 ```
 src/
-├── api/          — сгенерированные типы из OpenAPI + fetch-обёртки
-├── components/   — переиспользуемые UI-компоненты
-│   ├── ui/       — базовые (Button, Input, Card, Modal)
-│   └── graph/    — компоненты для React Flow (кастомные узлы, рёбра)
-├── pages/        — страницы (TopicList, TopicGraph, CreateTopic)
-├── stores/       — Zustand сторы
-├── hooks/        — кастомные хуки
-├── types/        — общие TypeScript типы
-├── utils/        — утилиты
-└── App.tsx       — корневой компонент с роутингом
+├── apps/
+│   ├── argument-map/
+│   │   ├── pages/         TopicListPage, TopicGraphPage, CreateTopicPage
+│   │   ├── components/
+│   │   │   └── graph/     NodeCard, CustomEdge, AddNodeModal,
+│   │   │                  AddEdgeModal, NodeDetailsPanel,
+│   │   │                  EdgeDetailsPanel, NodeCitationsSection,
+│   │   │                  CitationsList (LibraryCite + FreeformCite),
+│   │   │                  AddSourceModal
+│   │   └── utils/         edgeRules, graphLayout, attachmentTokens,
+│   │                      designTokens
+│   ├── library/
+│   │   ├── pages/         BookListPage, BookReaderPage
+│   │   ├── components/    PdfViewer, PageJump, ChapterTree
+│   │   └── utils/
+│   └── admin/
+│       └── pages/         AdminShamelaPage
+├── shared/
+│   ├── api/               autogenerated types.ts + fetch-клиент (client.ts)
+│   ├── components/
+│   │   ├── ui/            Button, Modal, Card, Toaster, Select,
+│   │   │                  Badge, StatusBadge, TypeChip, Kbd,
+│   │   │                  IconButton, ContextMenu
+│   │   ├── layout/        Header с навигацией
+│   │   └── citation/      CitationPicker
+│   ├── stores/            Zustand (toastStore и пр.)
+│   ├── utils/             общие
+│   └── types/             общие TypeScript типы
+├── App.tsx                корневой компонент с роутингом
+└── main.tsx
 ```
+
+Работа **только в пределах** `frontend/`. Корень и `../backend/`
+не трогать без явного запроса. Папку `design-reference/` -
+**не редактировать**, читать перед UI-изменениями (см. memory
+`feedback_design_reference_check.md`)
+
+## После коммита - чек-лист документации
+
+После **каждого** `feat`/`fix` коммита проверь:
+
+| Что произошло | Что обновить |
+|---|---|
+| Закрыт пункт roadmap | `../docs/roadmap.md` `[x]` |
+| Закрыт целый этап | `../docs/roadmap.md` - сжать в строку (см. `../docs/doc-hygiene.md` Принцип 3) |
+| Принято решение между альтернативами | новый ADR в `../docs/decisions.md` |
+| Новый/изменённый REST endpoint, поле DTO | `../docs/api-contract.md` |
+| Поймал баг через линтер / тесты / UI который может повториться | `../docs/gotchas.md` |
+| Новое доменное понятие | `../docs/glossary.md` |
+| Изменились фронтенд-правила | `frontend/docs/coding-standards.md` или `ui-guidelines.md` |
+
+ADR / gotcha / api-contract пишутся **сразу**, не в конце сессии
+
+### Триггеры для gotcha (фронт)
+
+- «Линтер ругается странно» + неочевидное решение
+- Сборка падает с непонятной ошибкой в WSL / инфраструктуре
+- React / RF / Tailwind / Vite ведёт себя не как ожидалось
+- Тесты ломаются от чего-то что выглядит несвязанным
+
+## Соглашения по TS/React
+
+### TypeScript
+
+- **strict mode** обязателен (`strict: true`,
+  `noUncheckedIndexedAccess: true`)
+- **Никаких `any`** - всегда явный тип или `unknown`
+- **Без `enum`** - union literal types вместо
+  (`type NodeStatus = 'STANDING' | 'DISPUTED' | ...`)
+- Импорты абсолютные через alias `@` = `src/`. Не использовать
+  длинные `../../../`
+
+### React
+
+- Только функциональные компоненты, никаких class components
+- `useMemo` / `useCallback` - только при реальной проблеме
+  производительности, не превентивно (YAGNI). Исключение: пропсы
+  для `React.memo`, объекты для `nodeTypes` / `edgeTypes` RF (см.
+  ui-guidelines)
+- Один компонент - один файл
+- Компонент >100 строк - подумать о разделении, >200 - точно
+  разделить
+- Props destructuring в параметрах
+- `key` в списках - **UUID из данных, не индекс массива**
+- Conditional render для одноразовых модалок `{open && <Modal/>}`
+  вместо useEffect-сброса state - идиома проекта, обходит
+  react-hooks/set-state-in-effect (см. gotchas + memory
+  `feedback_react_key_remount`)
+
+### CSS
+
+- Только Tailwind utility classes. **Никаких `.css`/`.scss`** файлов
+  отдельно
+- Если набор классов повторяется в 3+ местах - выделить компонент
+  или использовать `cva` (class-variance-authority)
+- Цвета и токены - через `apps/argument-map/utils/designTokens.ts`
+  (STATUS_TOKENS / NODE_TYPE_TOKENS / EDGE_TYPE_TOKENS). Не
+  хардкодить
+- Brand-цвет: indigo (не blue). focus-ring → indigo-500
+
+### Именование
+
+- Компоненты `PascalCase` (`TopicCard`, `ArgumentNode`,
+  `GraphCanvas`)
+- Хуки `useXxx` (`useTopicGraph`, `useApiClient`)
+- Сторы `useXxxStore` (`useGraphStore`, `useTopicStore`)
+- Типы / интерфейсы `PascalCase` (`TopicResponse`)
+- Утилиты `camelCase` (`formatDate`)
+- Файлы компонентов `PascalCase.tsx`, утилиты / хуки / сторы
+  `camelCase.ts`
+
+### RTL и арабский текст
+
+Эвристика арабского - Unicode 0x0600-0x06FF. При обнаружении -
+`dir="rtl"` + Tailwind `font-naskh` (Noto Naskh Arabic, подключён
+через `index.html` preconnect + `@theme --font-naskh`). См.
+`docs/glossary.md` исламскую секцию
 
 ### Тесты
-- **Vitest** + **React Testing Library** + **MSW** для моков API.
-- Тестировать поведение пользователя (`render`, `userEvent`, `screen`),
-  не implementation details.
-- Не тестировать стили / layout / pixel positions.
-- Тесты компонентов в `*.test.tsx` рядом с компонентом.
-- Утилиты — `*.test.ts` рядом.
-- **Naming convention:** frontend-тесты используют **русские описания**
-  (`'кнопка "Создать" disabled пока content пустой'`) - это осознанный
-  выбор для читаемости в UI-контексте. Backend-тесты используют
-  английский `method_behavior_outcome` (см. `backend/docs/coding-standards.md`).
-  Не унифицировать (T-11 audit: разные конвенции уместны разным
-  контекстам)
-- **Async helpers:** для async-операций использовать `waitForApi(...)`
-  (200ms timeout) из `@/test/asyncHelpers` - explicit signal "сколько
-  максимум ждать", быстрее при флэйке (T-04 audit)
 
-## Локальная разработка
+- **Vitest + React Testing Library + MSW** для моков API
+- Тестировать поведение пользователя (`render`, `userEvent`,
+  `screen`), не implementation details
+- Не тестировать стили / layout / pixel positions
+- Тесты компонентов в `*.test.tsx` рядом с компонентом
+- **Naming convention:** frontend-тесты используют **русские
+  описания** (`'кнопка "Создать" disabled пока content пустой'`) -
+  осознанный выбор для читаемости в UI-контексте. Backend-тесты -
+  английский `method_behavior_outcome`. Не унифицировать
+- **Async helpers:** для async-операций использовать
+  `waitForApi(...)` (200ms timeout) из `@/test/asyncHelpers` -
+  explicit signal «сколько максимум ждать»
 
-### Запуск Postgres + бэкенд
-Postgres из корневого `docker-compose up`, бэкенд из `../backend/` -
-Claude запускает сам в фоне с JDWP debug args:
-```bash
-cd ../backend && ./mvnw spring-boot:run \
-  -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005" \
-  > /tmp/backend.log 2>&1 &
-```
-Абдула подключается IntelliJ Remote JVM Debug к `localhost:5005`. Подробности в `../CLAUDE.md`.
-
-### Фронт
-```bash
-npm install
-npm run dev          # dev server (Vite, HMR)
-npm run build        # production build
-npm run preview      # preview production build
-npm run test         # тесты
-npm run lint         # ESLint
-npm run format       # Prettier
-npm run generate-api # генерация типов из OpenAPI бэка
-```
-
-### Когда запускать `npm run lint && npm run build && npm run test:run`
-
-**Не на каждый чих.** Полный прогон делается по факту, а не ритуально:
-- В конце завершённой логической фазы (новая страница/компонент с тестом,
-  рефакторинг группы файлов, подэтап готов)
-- Перед коммитом если в фазе были средние или крупные изменения
-- Когда есть конкретный сигнал что что-то могло сломаться (затронули
-  типы из openapi, поменяли архитектуру роутинга, рефакторинг state-store)
-
-Между мелкими правками одного компонента или косметическими корректировками
-- **не запускать**. ESLint/TS-error часто очевидны из контекста, прогонять
-  сборку каждые 30 секунд - шум, который съедает контекст и время.
-
-См. также общий чек-лист `../docs/session-workflow.md`.
-
-### Бэкенд API
-- Base URL настраивается через env: `VITE_API_URL`
-  (по умолчанию `http://localhost:9090`)
-- Vite dev-сервер проксирует `/api/*` на бэк (настраивается в
-  `vite.config.ts`)
-- Типы генерируются из `/v3/api-docs` бэка через `openapi-typescript`
-- Контракт зафиксирован в `../docs/api-contract.md` — сверяться при
-  расхождениях; OpenAPI и контракт-документ должны совпадать
-
-## Работа с задачами
-
-Следуем task-driven подходу: каждая крупная задача оформляется как
-запись в `../docs/roadmap.md` (Этап 7) с чек-листом подзадач. По мере
-выполнения — отмечать.
+Подробно - в `frontend/docs/coding-standards.md` и
+`frontend/docs/ui-guidelines.md`
 
 ## Что НЕ делать
 
 - Не использовать `any`
 - Не использовать class components
-- Не писать отдельные CSS/SCSS файлы (только Tailwind utility classes)
-- Не использовать TypeScript `enum` (union literal types вместо)
-- Не хардкодить API URL — только через `VITE_API_URL`
+- Не писать отдельные CSS/SCSS файлы (только Tailwind)
+- Не использовать TypeScript `enum` (union literal types)
+- Не хардкодить API URL - только через `VITE_API_URL`
 - Не лезть в `../backend/` и корень репы без явного запроса
-- Не превентивно `useMemo`/`useCallback` без замеренной проблемы
+- Не редактировать `design-reference/` (это input от Claude Design)
+- Не превентивно `useMemo` / `useCallback` без замеренной проблемы
 - Не использовать индекс массива как `key` в списках
 
-## Git-коммиты
+## Когда запускать `npm run lint && npm run build && npm run test:run`
 
-Используем Conventional Commits с scope для монорепы:
-- `<тип>(frontend): описание`
-- Типы: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `style`,
-  `perf`, `build`, `ci`
-- Примеры:
-    - `feat(frontend): add topic graph page`
-    - `fix(frontend): handle empty graph rendering`
-    - `chore(frontend): bump react-flow to 12.x`
-    - `docs: update ADR-009`
-- Scope `(frontend)` обязателен для изменений в `frontend/`
-- Scope не нужен для изменений в корне репы или общей документации
+См. корневой `../CLAUDE.md` секция «Когда запускать билды/тесты» и
+memory `feedback_no_frequent_builds.md`. Кратко - **не на каждом
+чихе**. По факту: в конце логической фазы, перед коммитом если
+были крупные изменения, при конкретном сигнале о возможной поломке.
+Мелкие правки одного компонента - не запускать
+
+## Smoke через playwright
+
+После UI-изменений сам гоняй playwright (headless), не жди user'а.
+После 2+ fails звать user'а. Всегда напомнить про вторичную
+проверку в браузере вручную. См. memory
+`feedback_playwright_for_ui.md`

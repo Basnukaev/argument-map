@@ -62,25 +62,30 @@ scripts/seed-mawlid.sh     # тестовая тема для argument-map
 
 ## Документация (в порядке важности для новой сессии)
 
-1. **`docs/SESSION_START_PROMPT.md`** - стартовый промпт со всеми
-   правилами автономии, эскалации, red lines
-2. **`docs/roadmap.md`** - текущий этап и backlog
-3. **`docs/decisions.md`** - ADR'ы (фундаментальные решения, последние
-   важные: ADR-018 platform pivot, ADR-021 source-first)
-4. **`docs/gotchas.md`** - известные ловушки и обходы
-5. **`docs/architecture.md`** + **`docs/architecture-platform.md`**
-6. **`docs/api-contract.md`** - источник истины REST контракта
-7. **`docs/glossary.md`** - термины проекта
-8. **`docs/progress.md`** - актуальный лог Сессий 22+
-   (`docs/archive/progress-sessions-1-21.md` - архив 0-21, читать
-   только при поиске исторического контекста)
-9. **`docs/superpowers/specs/`** - дизайн-спеки крупных работ
-10. **`docs/superpowers/audits/`** - аудиты кодовой базы (например
-    cleanup marathon 2026-05-11)
+1. **`docs/SESSION_START_PROMPT.md`** - стартовый промпт: автономный
+   режим, эскалация, red lines, текущий приоритет
+2. **`docs/roadmap.md`** - активные этапы (закрытые свёрнуты в строку)
+3. **`docs/backlog.md`** - идеи без привязки к этапу
+4. **`docs/decisions.md`** - ADR'ы (фундаментальные решения, последние
+   важные: ADR-018 platform pivot, ADR-022 frontend reorg, ADR-024
+   object storage, ADR-028 academic citation)
+5. **`docs/gotchas.md`** - известные ловушки и обходы
+6. **`docs/architecture.md`** + **`docs/architecture-platform.md`**
+7. **`docs/api-contract.md`** - источник истины REST контракта
+8. **`docs/glossary.md`** - термины проекта
+9. **`docs/progress.md`** - актуальный лог последних сессий
+   (`docs/archive/progress-sessions-*.md` - архив, читать только при
+   поиске исторического контекста)
+10. **`docs/doc-hygiene.md`** - правила поддержания документации
+    в порядке (когда сжимать roadmap, ротировать SESSION_START_PROMPT,
+    архивировать progress, и т.д.)
+11. **`docs/superpowers/specs/`** + **`audits/`** - дизайн-спеки и
+    аудиты крупных работ
 
 Бэкенд- и фронтенд-специфичные правила - в `backend/CLAUDE.md` и
 `frontend/CLAUDE.md`. Эти файлы строже корневого - читать их в первую
-очередь при работе в соответствующей части.
+очередь при работе в соответствующей части. **Они НЕ дублируют этот
+файл** - содержат только бэк- или фронт-специфику.
 
 ## Соглашения (краткая выжимка)
 
@@ -114,15 +119,18 @@ scripts/seed-mawlid.sh     # тестовая тема для argument-map
 ### Workflow
 
 - **Автономный режим:** тактические решения - сам без подтверждения
-  (см. `docs/SESSION_START_PROMPT.md` "АВТОНОМНЫЙ ЗАМЕСТИТЕЛЬ")
+  (см. `docs/SESSION_START_PROMPT.md` «Режим работы - автономный
+  заместитель»)
 - **WSL2:** backend, frontend и тесты гонять в WSL2, не Windows-side
 - **Backend / frontend rerun:** Claude сам запускает и перезапускает
-  оба dev-сервера по необходимости (миграция, regenerate-api, smoke-test).
-  Backend ВСЕГДА с JDWP debug args (Абдула подключается IntelliJ к
-  `:5005`) - команда в разделе «Команды» выше. Логи в `/tmp/backend.log`
-  и `/tmp/frontend.log`. При смене порта 9090 проверить занят ли -
-  если мой процесс, kill и перезапустить
+  оба dev-сервера по необходимости (миграция, regenerate-api,
+  smoke-test). Backend ВСЕГДА с JDWP debug args (Абдула подключается
+  IntelliJ к `:5005`) - команда в разделе «Команды» выше. Логи в
+  `/tmp/backend.log` и `/tmp/frontend.log`. При смене порта 9090
+  проверить занят ли - если мой процесс, kill и перезапустить
 - **Build cadence:** `./mvnw verify` / `npm run build` - в конце фазы,
-  не на каждый чих
+  не на каждый чих (см. memory `feedback_no_frequent_builds.md`)
 - **Документация по ходу:** ADR / gotcha / api-contract обновляются в
-  том же коммите что и код. progress.md - в конце сессии
+  том же коммите что и код. progress.md - в конце сессии. Правила
+  гигиены документации (сжатие закрытых этапов, ротация
+  SESSION_START_PROMPT, архивация progress) - в `docs/doc-hygiene.md`
