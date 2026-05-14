@@ -66,20 +66,20 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
           <StatusBadge status={status} size="lg" />
         </div>
         {nodeType !== 'QUESTION' && totalCitations !== null && totalCitations > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-slate-600">
-            <span className="inline-flex items-center gap-1">
-              <Anchor size={11} className="text-indigo-600" aria-hidden="true" />
-              <span className="font-mono font-semibold text-slate-700">{totalCitations}</span>
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-700">
+            <span className="inline-flex items-center gap-1.5">
+              <Anchor size={14} className="text-indigo-600" aria-hidden="true" />
+              <span className="font-mono font-semibold">{totalCitations}</span>
               <span>опора</span>
             </span>
             <span className="text-slate-300">(</span>
             <span className="inline-flex items-center gap-1" title="из библиотеки">
-              <BookOpen size={10} className="text-indigo-600" aria-hidden="true" />
+              <BookOpen size={13} className="text-indigo-600" aria-hidden="true" />
               <span className="font-mono">{citationCounts!.lib}</span>
             </span>
             <span className="text-slate-300">·</span>
             <span className="inline-flex items-center gap-1" title="свободные">
-              <Quote size={10} className="text-slate-500" aria-hidden="true" />
+              <Quote size={13} className="text-slate-500" aria-hidden="true" />
               <span className="font-mono">{citationCounts!.free}</span>
             </span>
             <span className="text-slate-300">)</span>

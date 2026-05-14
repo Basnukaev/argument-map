@@ -306,8 +306,8 @@ function LibraryCite({ link, source, authority, onDetach }: CiteProps) {
       <div className="absolute bottom-0 left-0 top-0 w-[3px] bg-indigo-600" />
       <div className="py-2.5 pl-3.5 pr-2.5">
         <div className="mb-1.5 flex items-start gap-2">
-          <span className="inline-flex items-center gap-1 rounded border border-indigo-200 bg-indigo-50 px-1.5 py-px text-[10px] font-bold uppercase tracking-wider text-indigo-700">
-            <BookOpen size={10} aria-hidden="true" />
+          <span className="inline-flex items-center gap-1.5 rounded border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-indigo-700">
+            <BookOpen size={13} aria-hidden="true" />
             Из библиотеки
           </span>
           <span className="flex-1" />
@@ -317,16 +317,16 @@ function LibraryCite({ link, source, authority, onDetach }: CiteProps) {
             onClick={() => link.sourceId && onDetach(link.sourceId)}
             className="rounded p-1 text-slate-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
           >
-            <Trash2 size={12} aria-hidden="true" />
+            <Trash2 size={14} aria-hidden="true" />
           </button>
         </div>
 
         {authority && (
-          <div className="mb-1.5 flex items-center gap-1.5 text-[11px]">
-            <UserIcon size={11} className="text-slate-400" aria-hidden="true" />
+          <div className="mb-1.5 flex items-center gap-1.5 text-[12px]">
+            <UserIcon size={13} className="text-slate-400" aria-hidden="true" />
             <span className="font-medium text-slate-700">{authority.name}</span>
             {authorMeta && (
-              <span className="font-mono text-[10px] text-slate-500">· {authorMeta}</span>
+              <span className="font-mono text-[11px] text-slate-500">· {authorMeta}</span>
             )}
           </div>
         )}
@@ -363,9 +363,9 @@ function LibraryCite({ link, source, authority, onDetach }: CiteProps) {
           <button
             type="button"
             onClick={() => navigate(deepLink)}
-            className="mt-2 inline-flex items-center gap-1 rounded bg-indigo-600 px-2 py-1 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
+            className="mt-2 inline-flex items-center gap-1.5 rounded bg-indigo-600 px-2.5 py-1.5 text-[12px] font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
           >
-            <ExternalLink size={11} aria-hidden="true" />
+            <ExternalLink size={14} aria-hidden="true" />
             Перейти к источнику
           </button>
         )}
@@ -394,20 +394,20 @@ function FreeformCite({ link, source, authority, onDetach }: CiteProps) {
   return (
     <article className="group rounded-md border border-slate-200 bg-slate-50/60 px-2.5 py-2.5">
       <div className="mb-1.5 flex items-start gap-2">
-        <span className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-100 px-1.5 py-px text-[10px] font-bold uppercase tracking-wider text-slate-700">
-          <Quote size={10} aria-hidden="true" />
+        <span className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-slate-700">
+          <Quote size={13} aria-hidden="true" />
           Свободная
         </span>
-        <span className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+        <span className="font-mono text-[11px] uppercase tracking-wide text-slate-500">
           {kindLabel}
         </span>
         <span className="flex-1" />
         {!hasUrl && sourceType === 'URL' && (
           <span
-            className="inline-flex items-center gap-1 text-[10px] text-amber-700"
+            className="inline-flex items-center gap-1.5 text-[11px] text-amber-700"
             title="URL не указан"
           >
-            <AlertCircle size={10} aria-hidden="true" />
+            <AlertCircle size={13} aria-hidden="true" />
             без URL
           </span>
         )}
@@ -417,16 +417,16 @@ function FreeformCite({ link, source, authority, onDetach }: CiteProps) {
           onClick={() => link.sourceId && onDetach(link.sourceId)}
           className="rounded p-1 text-slate-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
         >
-          <Trash2 size={12} aria-hidden="true" />
+          <Trash2 size={14} aria-hidden="true" />
         </button>
       </div>
 
       {authority && (
-        <div className="mb-1.5 flex items-center gap-1.5 text-[11px]">
-          <UserIcon size={11} className="text-slate-400" aria-hidden="true" />
+        <div className="mb-1.5 flex items-center gap-1.5 text-[12px]">
+          <UserIcon size={13} className="text-slate-400" aria-hidden="true" />
           <span className="font-medium text-slate-700">{authority.name}</span>
           {authorMeta && (
-            <span className="font-mono text-[10px] text-slate-500">· {authorMeta}</span>
+            <span className="font-mono text-[11px] text-slate-500">· {authorMeta}</span>
           )}
         </div>
       )}
