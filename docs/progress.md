@@ -17,6 +17,186 @@ Claude Code не тратят токены на исторический кон�
 
 ---
 
+## 2026-05-14 — Сессия 30 (frontend) — user-feedback fixes + 18.h.B1+C1 design polish
+
+Сессия открыта по результатам ручного browser-теста после Сессии 29.
+User дал три feedback пункта, все закрыты.
+
+### Сделано (5 коммитов)
+
+- **`5fc87d1`** `fix(frontend): 18.f.11 - переименовать «Цитаты» → «Опора»
+  + убрать range из location` - после Claude Design рекомендации в
+  `frontend/design-reference/project/citations.jsx`:
+  - Frontend: PanelSection title «Цитаты» → «Опора» (مُسْتَنَدٌ/دَلِيلٌ -
+    то на что опирается тезис), иконка Quote → Anchor. Семантически
+    богаче чем «Цитаты»/«Источники» для исламского контекста, покрывает
+    library + freeform. NodeDetailsPanel.test.tsx обновлён (25/25 pass)
+  - Backend: убран `«, строки X-Y»` из computed location SQL JOIN +
+    buildLocationSnapshot. Это были char offsets plain text (TreeWalker
+    по text nodes), не визуальные строки книги - технический highlight
+    payload для `?highlight=` deep link, не academic citation. Display
+    теперь чистый `Т.X стр.Y`
+  - Docs: roadmap «Этап 20 Academic citation metadata» добавлен (ADR-028),
+    glossary - термин «Опора» с этимологией, api-contract пример без range
+  - Backend перезапущен, smoke citation теперь возвращает
+    `"تفسير ابن كثير - ط ابن الجوزي, Т.المقدمة стр.3"` (чистый)
+
+- **`ced7e79`** `feat(frontend): 18.h.B1 + C1 - типизированные карточки +
+  header meta-row для «Опоры»` - применены B1+C1 из citations.jsx:
+  - **B1**: CitationsList разделён на LibraryCite vs FreeformCite по
+    `link.mode`:
+    - LibraryCite (TEXT/PDF/REGION): 3px indigo bar слева + «Из библиотеки»
+      badge BookOpen + title с RTL/naskh для arabic + location в моноширинном
+      + quote с indigo border-left + primary «Перейти к источнику» indigo
+      button (deep link)
+    - FreeformCite (LEGACY): slate background + «Свободная» badge Quote +
+      AlertCircle warning для URL без citation + citation·location композиция
+      + slate border quote
+  - **C1**: NodeDetailsPanel header получил inline meta-row под
+    StatusBadge - `⚓ N опора (📖 lib · ❝ free)` с раздельными counts
+  - **Архитектура lift-state-up**: NodeCitationsSection переключён с
+    `onFirstOpen` lazy-load на eager-load on mount (3 GET при open panel -
+    acceptable trade-off для visible counts в header до раскрытия секции).
+    `onCountsChange` callback пробрасывает агрегат `{lib, free}` в parent
+
+- **`6d9b6d8`** `fix(frontend): убрать Math.random() из render` -
+  react-hooks/no-impure-function-during-render error. Заменён на
+  index-based fallback key для list items без sourceId
+
+- **`364ee60`** `docs: пометить 18.h.B1+C1 done в roadmap + handoff` -
+  roadmap обновлён с deferred 18.h.A1, SESSION_START_PROMPT обновлён
+
+- **`22f1be4`** `fix(frontend): 18.h - увеличены иконки в опоре до читаемого
+  размера` - user feedback из screenshot: иконки 10-12px выглядели мельче
+  чем рядом стоящий 12px текст. Повышены до 13-14px:
+  - Badge icons (BookOpen/Quote/AlertCircle): 10 → 13
+  - Action button (ExternalLink): 11 → 14, кнопка увеличена px-2.5 py-1.5
+  - Trash удаление: 12 → 14
+  - Author UserIcon: 11 → 13, текст 11 → 12
+  - Header meta-row (Anchor/BookOpen/Quote): 11/10 → 14/13
+
+### Решения (Сессия 30)
+
+- **«Опора» вместо «Источники»** - Claude Design recommendation в
+  citations.jsx с serious обоснованием. «Источники» конфликтует с domain
+  term `Source` (Java record = master data типа QURAN/HADITH/BOOK).
+  «Опора» (مُسْتَنَدٌ) семантически прямой эквивалент исламского концепта
+- **Range убран из display location** - он бесполезен в academic citation
+  (не соответствует традиции исламского `бахс` где сноска = библиография
+  без позиций символов). Range остаётся только для технического highlight
+  через `?highlight=` query param
+- **Lift state up через callback** - вместо backend NodeResponse расширения
+  (citation counts), используем `onCountsChange` в NodeCitationsSection.
+  State colocation: данные где они используются, наружу только агрегаты
+- **Eager-load on mount** в NodeCitationsSection - 3 GET request при
+  открытии panel acceptable; trade-off для instantly-visible counts в
+  header meta-row
+- **18.h.A1 (NodeCard footer chips в графе) откладывается** - требует
+  backend NodeResponse расширение (aggregate citation counts через JOIN
+  в NodeRepository.findByTopicId). Duplicates данные с уже-видимым
+  header meta-row, low ROI
+
+### Проблемы
+
+- 3 react-hooks/set-state-in-effect errors в CitationPicker после изначальной
+  реализации - refactor через wrapped handlers (handleSelectBook/goPrev/goNext/
+  gotoPage) setting loading sync вне effect. Final 0 errors
+- Header meta-row может быть невидим в первый момент после mount (async
+  eager-load). Это **acceptable** UX - meta-row появляется через ~50-200ms
+  после API response
+
+### Следующий шаг
+
+**Сессия 31 - выбран Этап 20.a Academic citation metadata** (ADR-028).
+
+Контекст: исламский `бахс` (научное исследование) требует minimum 8
+полей в сноске - полное имя автора (с куньей/насабом/нисбой + годы жизни),
+полное название, **мухаккик (تحقيق)** - редактор тахкика (КРИТИЧНО,
+разные тахкики = разные пагинации), издательство, место, edition, год
+хиджры + григорианский, том+страница. Сейчас `lib_books` имеет только
+`title`, `authority_id`, `language`, `description`, `metadata` JSONB -
+недостаточно для бахс-grade citation.
+
+**Стартовая последовательность для Сессии 31:**
+
+1. **Прочитать прежде всего:**
+   - `docs/decisions.md` - ADR-024 + ADR-026 + ADR-027 как template
+   - `docs/roadmap.md` - секция «Этап 20 Полная академическая citation
+     metadata (ADR-028)» с подэтапами 20.a-f
+   - User response от Web Claude про academic citation requirements (см.
+     conversation history Сессии 30)
+   - `backend/src/main/resources/db/changelog/changes/20260508-16-create-library-tables.xml` -
+     current lib_books schema
+   - `backend/src/main/java/ru/basnukaev/argumentmap/library/domain/Book.java` - current record
+
+2. **Brainstorming через superpowers:brainstorming**: decisional на
+   data model. Три варианта:
+   - **Option A**: расширить `lib_books` 7-9 nullable полями. Простой,
+     один JOIN. Минус: нет 1:N для multi-edition books в будущем
+   - **Option B**: отдельная таблица `lib_book_editions` (1:N с
+     `lib_books` как work-level entity). Architecturally clean для
+     multi-edition future. Минус: dataset migration + дополнительный JOIN
+   - **Option C**: JSONB `academic_metadata` в lib_books. Минус: нет
+     query-able индексов на edition fields
+
+   **Tentative выбор: Option A с future-proofing comments**. Большинство
+   shamela books - single-edition в момент импорта. Migration path к
+   Option B возможна через rename `lib_books` → `lib_book_editions` +
+   добавление `lib_works` parent table если/когда multi-edition станет
+   реальным use case
+
+3. **ADR-028 draft** с обоснованием выбора Option, альтернативы, последствия
+
+4. **Liquibase миграция 24** - расширение lib_books:
+   - `muhaqqiq TEXT` - имя тахкик-редактора
+   - `publisher TEXT` - издательство
+   - `publication_place TEXT` - город издания
+   - `edition_number INTEGER` - номер издания (1, 2, ...)
+   - `published_year_hijri INTEGER` - год хиджры
+   - `published_year_gregorian INTEGER` - григорианский год
+   - `author_full_name TEXT` - полное имя автора с куньей/насабом/нисбой
+   - `author_death_year_hijri INTEGER` - год смерти автора (для
+     первого упоминания в сноске)
+
+5. **Java domain Book record** + BookRepository update (save/find COLUMNS)
+
+6. **BookSummaryResponse + BookDetailResponse** расширение
+   (frontend деpoлеется при regenerate-api в following step)
+
+7. **shamela bibliography parser** - извлечь что есть из raw bibliography
+   text (часто содержит мухаккика и publisher неструктурированно).
+   Regex-based extraction + leave fields NULL если не найдено
+
+8. **Computed location format** update в `NodeSourceRepository.findByNodeIdWithLocation`
+   - расширенный format когда поля доступны:
+   ```
+   {author_full_name} (т.{death_year}هـ), {title},
+   тахкик: {muhaqqiq}, изд. {publisher}, {publication_place},
+   {edition_number}-е изд., {year_hijri}هـ / {year_gregorian}م.,
+   Т.{part} стр.{printed_page}
+   ```
+   Fallback на простой `{title}, Т.X стр.Y` если academic fields null
+
+9. **IT** (~10-15 новых) - migration apply, save/find roundtrip,
+   computed location с full academic data, fallback с partial data
+
+10. **Documentation**: architecture.md (Book entity расширен), api-contract.md
+    (BookResponse изменён + changelog), glossary.md (термины мухаккик/edition/etc).
+    Frontend BookEditModal admin UI - отдельный подэтап 20.d позже
+
+**Объём 20.a-c (ADR + migration + domain)**: 1 сессия. **20.d-f**
+(parser + AdminModal + AddSourceModal): 1-2 сессии.
+
+**Инфраструктура (Сессия 31 entry):**
+- Postgres :5432 healthy, миграции до 23 включительно applied
+- MinIO :9000 healthy
+- Backend :9090 + JDWP :5005 running, NodeCitationService end-to-end
+- Frontend :5173 running с HMR
+- Smoke citation в production-БД: node 4139cb32... → citation на
+  Тафсир Ибн Касира (book 02bcfa43..., page a50ceb1a...)
+
+---
+
 ## 2026-05-13 — Сессия 29 (Task 5-11) — frontend 18.f ПОЛНОСТЬЮ закрыт - этап 18.f ЗАКРЫТ ЦЕЛИКОМ
 
 После backend foundation (Task 0-4) - frontend execution в той же сессии.

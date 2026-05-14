@@ -5,119 +5,107 @@
 начало новой сессии - Claude получит полный контекст без ручного
 объяснения.
 
-## КРИТИЧНО для Сессии 30+ (после Сессии 29 - этап 18.f ПОЛНОСТЬЮ ЗАКРЫТ)
+## КРИТИЧНО для Сессии 31+ (после Сессии 30 - этап 18.f + 18.h ЗАКРЫТЫ)
 
-Сессия 29 закрыла **весь этап 18.f CitationPicker** в одну сессию - 12 tasks
-из plan'а (Task 0-11), 11 коммитов (3 docs + 4 backend + 4 frontend) +
-финальный handoff. Полный stack от миграций БД до frontend deep links.
+Сессия 29 закрыла **весь этап 18.f CitationPicker** (12-task plan, full
+stack от миграций 22+23 до frontend deep links). Сессия 30 закрыла
+**18.h.B1+C1 design polish + user-feedback fixes** (Опора rename + range
+removal + типизированные карточки + header meta-row + icon resize).
 
 **Production-ready state:**
-- Backend: migrations 22+23 applied на production-БД, NodeCitationService
-  работает end-to-end (curl smoke прошёл в Task 4)
-- Frontend: CitationPicker + NodeCitationsSection 2 кнопки + BookReaderPage
-  deep links. 143/143 tests pass, TS clean, ESLint 0 errors, build success
-- Bundle initial 327kB/gzip 103kB (+71kB к pre-этапу 18.f)
+- Backend: migrations 22+23 applied, NodeCitationService работает
+  end-to-end (smoke прошёл с Arabic + Cyrillic location)
+- Frontend: CitationPicker + NodeCitationsSection с LibraryCite/FreeformCite +
+  header `⚓ N опора (📖 lib · ❝ free)` meta-row. 143/143 tests, 0 lint
+  errors, build success. Bundle initial 327kB/gzip 103kB
+- Производственные smoke данные: node `4139cb32-28ba-4d98-9954-225e8e3c863d`
+  имеет 1 citation на Тафсир Ибн Касира (book `02bcfa43-d269-4545-8e8b-965ed56dfc93`,
+  page `a50ceb1a-b54a-4f79-97e8-d00d5b18598e`)
 
-**Backend ready в production-БД** - migrations 22+23 applied, NodeCitationService
-работает end-to-end (curl smoke прошёл с Cyrillic + Arabic location).
+## ВЫБРАН ПРИОРИТЕТ Сессии 31: Этап 20.a-c Academic citation metadata (ADR-028)
 
-**Done в Сессии 29:**
-- Backend (Task 0-4): `67b3594` gotcha, `13823cd` migration 22 + ADR-026 + 8 IT,
-  `c1c1c9f` migration 23 + ADR-027 + 8 IT, `0b86a0e` NodeCitationService + 21 IT,
-  curl smoke прошёл. Production-БД миграции applied
-- Frontend (Task 5-11): `19129d5` extract mini-reader, `8793d0d` textRangeUtils +
-  PageView selection, `a8f24aa` CitationPicker компонент, `c6dfa18`
-  NodeCitationsSection две кнопки + deep links, `335701d` BookReaderPage deep
-  link parsing, `c11175a` lint+build verify
-- Docs/handoff: `af2254d` spec, `361a8bc` plan, `4ae81eb` + `e99b8c5` +
-  `9154dbb` промежуточные handoff
+User в режиме автономии передал выбор - **выбран Этап 20** как direct
+domain quality win. Каждая citation становится цитируемой в academic
+смысле для исламского `бахс` (научное исследование).
 
-**После Сессии 29 user-feedback fixes** (2 mini-коммита):
-- Секция «Цитаты» → **«Опора»** (مُسْتَنَدٌ/دَلِيلٌ) с иконкой `Anchor`.
-  Семантически богаче чем «Цитаты»/«Источники» для исламского контекста,
-  покрывает library + freeform. Рекомендация от Claude Design в
-  `frontend/design-reference/project/citations.jsx`
-- Backend computed location: убран `«строки X-Y»` (это были char offsets
-  plain text, не визуальные строки - технический highlight payload, не
-  academic citation). Display теперь только `Т.X стр.Y`, range используется
-  только для `?highlight=` deep link
+**Контекст**: для бахс сноска должна иметь minimum 8 полей -
+**мухаккик (تحقيق)** редактор тахкика КРИТИЧНО (разные тахкики = разные
+пагинации), издательство, место, edition, год хиджры+григорианский,
+полное имя автора с куньей/насабом/нисбой + годы жизни. Сейчас
+`lib_books` имеет только `title, authority_id, language, description,
+metadata` JSONB - недостаточно.
 
-**Сессия 30 - выбор приоритета** (этап 18.f закрыт целиком):
+**Стартовая последовательность для Сессии 31:**
 
-**Done в Сессии 29:**
-- `af2254d` design spec + `361a8bc` implementation plan (12 tasks)
-- `67b3594` Task 0 - gotcha lib_pages.id stability (mapper skip-if-existing
-  даёт invariant без UPSERT fix)
-- `13823cd` Task 1 - миграция 22 (Source.bookId FK) + ADR-026 + 8 IT
-- `c1c1c9f` Task 2 - миграция 23 (node_sources +7 positional колонок) +
-  ADR-027 + 8 IT
+1. **Прочитать перед началом** (в порядке важности):
+   - `docs/progress.md` секция «Сессия 30 → Следующий шаг» -
+     **detailed план Сессии 31** с tentative выбором Option A
+   - `docs/decisions.md` ADR-024/026/027 как template для нового ADR-028
+   - `docs/roadmap.md` секция «Этап 20 Полная академическая citation
+     metadata» подэтапы 20.a-f
+   - User Q&A с Web Claude про academic citation requirements (см.
+     conversation history в сессии 30 - 8 полей, мухаккик критичен)
+   - `backend/src/main/resources/db/changelog/changes/20260508-16-create-library-tables.xml` -
+     current lib_books schema (Этап 14)
+   - `backend/src/main/java/ru/basnukaev/argumentmap/library/domain/Book.java` -
+     current Book record
 
-1. **Этап 18.h.B1+C1 ЗАКРЫТ** (Сессия 30, `ced7e79` + `6d9b6d8`) -
-   типизированные LibraryCite/FreeformCite карточки + header meta-row
-   `⚓ N опора (📖 lib · ❝ free)`. 18.h.A1 (NodeCard footer chips в
-   графе) откладывается - требует backend NodeResponse расширение
-2. **Этап 20 Academic citation metadata** (~3-5 сессий) - **новый ADR-028**.
-   `lib_books` сейчас имеет minimum metadata, для proper academic citation
-   нужны: мухаккик (тахкик), издательство, место, edition, год хиджри+
-   григорианский, полное имя автора с куньей/насабом/нисбой. Без мухаккика
-   citation считается дефектной в исламском `бахс`. Подробности в roadmap
-   Этап 20.a-f
-3. **Этап 19 Q&A приложение** (~3-5 сессий) - валидация платформенности
-   через первое новое приложение поверх library. Backend: миграция
-   questions/answers/answer_citations, REST API CRUD. Frontend:
-   `src/apps/qa/`
-4. **PDF bbox selection в CitationPicker** (~1 сессия) - backend API
-   change (PdfFileInfoResponse с fileId UUID) + frontend PDF tab в picker
-5. **Marathon TODO** F-01 split TopicGraphPage (1161 LOC), F-02 split
-   BookReaderPage (714 LOC). Low ROI
+2. **Brainstorming через `superpowers:brainstorming`** - decisional на data
+   model. Три варианта Option A/B/C описаны в progress.md. **Tentative
+   choice: Option A** (расширить lib_books 7-9 nullable полями) с future-
+   proofing comments для миграции на Option B (отдельная lib_book_editions
+   1:N) если multi-edition станет реальным use case
 
-**Smoke данные в production-БД:**
-- node `4139cb32-28ba-4d98-9954-225e8e3c863d` имеет 1 citation на
-  Тафсир Ибн Касира (page `a50ceb1a...`, range 0-50, mode TEXT)
-- Можно использовать для browser-test «Перейти к источнику» button
+3. **ADR-028 draft** с обоснованием выбора, альтернативы, последствия
 
-**Ключевые артефакты (читать перед началом!):**
-1. `docs/superpowers/specs/2026-05-13-citation-picker-design.md` -
-   полный spec с архитектурой, data model, API, UX flow, error
-   handling, testing strategy
-2. `docs/superpowers/plans/2026-05-13-citation-picker.md` -
-   **12-task implementation plan** с bite-sized TDD steps,
-   complete code snippets, exact commit messages. **Начать с Task 0**
+4. **Liquibase миграция 24** - расширение lib_books полями: `muhaqqiq`,
+   `publisher`, `publication_place`, `edition_number`, `published_year_hijri`,
+   `published_year_gregorian`, `author_full_name`, `author_death_year_hijri`.
+   Все nullable - backward compatible
 
-Также см. `feedback_brainstorming_autonomy.md` в memory - не использовать
-Visual Companion в этом проекте, всё в чате через ASCII/text.
+5. **Java domain + Repository update** - Book record, BookRepository
+   save/find COLUMNS
 
-**Scope зафиксирован:**
-- MVP только argument-map (Q&A → Этап 19 отложен)
-- Full positional citation модель (миграции 22+23, ADR-026+027)
-- 4 modes: TEXT (pageId+range), PDF (pdfFileId+pdfPageNumber+bbox),
-  REGION (image_region_id, для будущих сканов), LEGACY (freeform)
-- AddSourceModal **сохраняется** как «Свободный источник» (вторая
-  кнопка), CitationPicker - новый primary flow «Привести источник»
-- Mini-reader extract из apps/library/components в shared/components/reader
-- Deep links через query params для navigation на citation source с
-  подсветкой фрагмента
+6. **DTO update** - BookSummaryResponse + BookDetailResponse + DtoMappers
+   (frontend regenerate-api в next session)
 
-**Объём этапа:** реалистично 1.5-2 сессии. Если context наполняется -
-handoff после Task 4 (backend done) или после Task 9 (frontend feature
-complete). См. progress.md Сессия 29 «Следующий шаг» для порядка
-tasks с estimates.
+7. **Computed location format** - обновить `NodeSourceRepository.findByNodeIdWithLocation`
+   SQL CASE для academic format когда поля доступны:
+   ```
+   {author_full_name} (т.{death_year}هـ), {title},
+   тахкик: {muhaqqiq}, изд. {publisher}, {publication_place},
+   {edition_number}-е изд., {year_hijri}هـ / {year_gregorian}م.,
+   Т.{part} стр.{printed_page}
+   ```
+   Fallback на `{title}, Т.X стр.Y` если academic fields null
 
-**Команды для исполнения plan'а:**
-- `superpowers:executing-plans` skill для TDD execution с checkpoint'ами
-- ИЛИ `superpowers:subagent-driven-development` если хочется один subagent
-  per task (рекомендуется для длительных tasks 3, 7 где много кода)
+8. **IT** (~10-15 новых)
 
-**page_id stability** уже выполнен через ShamelaToLibraryMapper.mapBook
-skip-if-existing - Task 0 в plan'е это только audit + добавление gotcha,
-fix не нужен.
+9. **Documentation**: architecture.md, api-contract.md, glossary.md
 
-**Инфраструктура (Сессия 30 entry):**
-- Postgres :5432 healthy (миграция 21 применена, **22+23 будут применены
-  в Task 1-2**)
-- Backend :9090 + JDWP :5005 running с MinIO streaming PDF stack
-- Frontend :5173 running
-- MinIO :9000 healthy с 4 buckets + 1 PDF object из smoke 25.b
+**Объём 20.a-c** (ADR + migration + domain + computed location): 1 сессия.
+**20.d** shamela bibliography parser: 0.5 сессии. **20.e** AdminModal +
+**20.f** AddSourceModal expanded: 1-1.5 сессии. Не блокирует Этап 19 Q&A
+(параллельно).
+
+**Альтернативные приоритеты** (если Этап 20 кажется слишком ambitious):
+- **Этап 19 Q&A приложение** (~3-5 сессий) - валидация platform pivot.
+  Q&A backend (questions/answers/answer_citations) + frontend src/apps/qa/
+- **PDF bbox в CitationPicker** (~1 сессия) - backend PdfFileInfoResponse
+  + fileId UUID, frontend PDF tab
+- **18.h.A1** NodeCard footer chips в графе - low ROI, backend NodeResponse
+  расширение
+
+**Инфраструктура (Сессия 31 entry):**
+- Postgres :5432 healthy, миграции до 23 включительно applied
+- MinIO :9000 healthy
+- Backend :9090 + JDWP :5005 running с NodeCitationService end-to-end
+- Frontend :5173 running с HMR
+- Production smoke citation в БД для test «Перейти к источнику»
+
+**Все ADR/gotcha/decisions сделаны:**
+- ADR-024 (MinIO storage), ADR-026 (Source.bookId), ADR-027 (positional
+  citation fields), gotcha lib_pages.id stability через mapper skip-if-existing
 
 ## КРИТИЧНО для Сессии 29+ (после Сессии 28 - этап 25.b ПОЛНОСТЬЮ закрыт)
 
