@@ -52,9 +52,8 @@ public class NodeSourceService {
     }
 
     /**
-     * Расширенная версия для GET endpoint - возвращает rows с computed
-     * location через SQL JOIN. Используется в новом NodeCitationController/
-     * NodeSourceController list.
+     * Расширенная версия для GET endpoint - возвращает rows с structured
+     * citation через 9 LEFT JOIN. Используется во всех clients
      */
     @Transactional(readOnly = true)
     public List<ru.basnukaev.argumentmap.repository.NodeSourceRepository.NodeSourceWithLocation>
@@ -65,11 +64,12 @@ public class NodeSourceService {
         return nodeSourceRepository.findByNodeIdWithLocation(nodeId);
     }
 
+    /** Detach по surrogate id (миграция 25, ADR-FK-A) */
     @Transactional
-    public void detachSource(UUID nodeId, UUID sourceId) {
-        boolean removed = nodeSourceRepository.delete(nodeId, sourceId);
+    public void detachById(UUID nodeSourceId) {
+        boolean removed = nodeSourceRepository.deleteById(nodeSourceId);
         if (!removed) {
-            throw new SourceNotFoundException(sourceId);
+            throw new SourceNotFoundException(nodeSourceId);
         }
     }
 }

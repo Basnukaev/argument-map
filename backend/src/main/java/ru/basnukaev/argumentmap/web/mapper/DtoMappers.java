@@ -132,6 +132,7 @@ public final class DtoMappers {
                 ? link.location()
                 : null;
         return new NodeSourceResponse(
+                link.id(),
                 link.nodeId(),
                 link.sourceId(),
                 link.quote(),

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import ru.basnukaev.argumentmap.domain.NodeSource;
 import ru.basnukaev.argumentmap.repository.NodeSourceRepository;
 import ru.basnukaev.argumentmap.service.NodeSourceService;
 import ru.basnukaev.argumentmap.web.dto.AttachSourceRequest;
@@ -36,13 +37,12 @@ public class NodeSourceController {
     @PostMapping
     public ResponseEntity<NodeSourceResponse> attach(@PathVariable UUID nodeId,
                                                      @Valid @RequestBody AttachSourceRequest request) {
-        nodeSourceService.attachSource(
+        NodeSource saved = nodeSourceService.attachSource(
                 nodeId, request.sourceId(), request.quote(), request.context(), request.location()
         );
-        // ADR-028: возвращаем response с structured citation - findByPkWithLocation
-        // делает тот же 9-JOIN что и list, чтобы клиент получил полную структуру сразу
+        // Возврат через findByIdWithLocation - один JOIN запрос для structured citation
         NodeSourceResponse response = nodeSourceRepository
-                .findByPkWithLocation(nodeId, request.sourceId())
+                .findByIdWithLocation(saved.id())
                 .map(DtoMappers::toResponse)
                 .orElseThrow();
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -54,9 +54,19 @@ public class NodeSourceController {
                 .map(DtoMappers::toResponse).toList();
     }
 
-    @DeleteMapping("/{sourceId}")
-    public ResponseEntity<Void> detach(@PathVariable UUID nodeId, @PathVariable UUID sourceId) {
-        nodeSourceService.detachSource(nodeId, sourceId);
+    /**
+     * Detach по surrogate id (миграция 25, ADR-FK-A). Раньше был
+     * `/sources/{sourceId}` - удалял один-единственный link для пары
+     * (node, source). Теперь N citations могут быть в той же паре с
+     * разными положениями, поэтому detach точечный по id link'а.
+     *
+     * `nodeId` в path остался для consistency URL hierarchy +
+     * potentially для авторизации (узел принадлежит user'у)
+     */
+    @DeleteMapping("/{nodeSourceId}")
+    public ResponseEntity<Void> detach(@PathVariable UUID nodeId,
+                                       @PathVariable UUID nodeSourceId) {
+        nodeSourceService.detachById(nodeSourceId);
         return ResponseEntity.noContent().build();
     }
 }

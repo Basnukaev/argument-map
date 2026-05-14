@@ -382,17 +382,20 @@ describe('NodeDetailsPanel', () => {
     });
 
     it('отвязка цитаты вызывает DELETE и убирает запись', async () => {
+      // Миграция 25 (FK variant A): detach по surrogate node_sources.id,
+      // не по (nodeId, sourceId) pair
+      const NODE_SOURCE_ID = '11111111-1111-1111-1111-111111111111';
       let deleteCalledFor: string | null = null;
       server.use(
         http.get(`${BASE}/api/v1/nodes/${NODE_ID}/sources`, () =>
-          HttpResponse.json([{ nodeId: NODE_ID, sourceId: SOURCE_ID }]),
+          HttpResponse.json([{ id: NODE_SOURCE_ID, nodeId: NODE_ID, sourceId: SOURCE_ID }]),
         ),
         http.get(`${BASE}/api/v1/sources`, () =>
           HttpResponse.json([{ id: SOURCE_ID, sourceType: 'BOOK', title: 'Какая-то книга' }]),
         ),
         http.get(`${BASE}/api/v1/authorities`, () => HttpResponse.json([])),
-        http.delete(`${BASE}/api/v1/nodes/${NODE_ID}/sources/${SOURCE_ID}`, () => {
-          deleteCalledFor = SOURCE_ID;
+        http.delete(`${BASE}/api/v1/nodes/${NODE_ID}/sources/${NODE_SOURCE_ID}`, () => {
+          deleteCalledFor = NODE_SOURCE_ID;
           return new HttpResponse(null, { status: 204 });
         }),
       );
@@ -400,7 +403,7 @@ describe('NodeDetailsPanel', () => {
       await userEvent.click(screen.getByRole('button', { name: /Опора/ }));
       await screen.findByText('Какая-то книга');
       await userEvent.click(screen.getByRole('button', { name: 'Отвязать опору' }));
-      await waitForApi(() => expect(deleteCalledFor).toBe(SOURCE_ID));
+      await waitForApi(() => expect(deleteCalledFor).toBe(NODE_SOURCE_ID));
       expect(screen.queryByText('Какая-то книга')).not.toBeInTheDocument();
     });
 

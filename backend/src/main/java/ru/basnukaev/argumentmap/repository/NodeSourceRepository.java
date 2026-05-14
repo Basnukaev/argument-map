@@ -20,7 +20,7 @@ import ru.basnukaev.argumentmap.domain.NodeSource;
 public class NodeSourceRepository {
 
     private static final String COLUMNS =
-            "node_id, source_id, quote, context, location, "
+            "id, node_id, source_id, quote, context, location, "
             + "page_id, range_start, range_end, "
             + "pdf_file_id, pdf_page_number, pdf_bbox, "
             + "image_region_id, "
@@ -35,6 +35,7 @@ public class NodeSourceRepository {
         Integer pdfPageOrNull = rs.wasNull() ? null : pdfPage;
 
         return new NodeSource(
+                rs.getObject("id", UUID.class),
                 rs.getObject("node_id", UUID.class),
                 rs.getObject("source_id", UUID.class),
                 rs.getString("quote"),
@@ -60,7 +61,8 @@ public class NodeSourceRepository {
     public NodeSource save(NodeSource link) {
         jdbcTemplate.update(
                 "INSERT INTO node_sources (" + COLUMNS + ") "
-                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?)",
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?)",
+                link.id(),
                 link.nodeId(),
                 link.sourceId(),
                 link.quote(),
@@ -78,11 +80,11 @@ public class NodeSourceRepository {
         return link;
     }
 
-    public Optional<NodeSource> findByIds(UUID nodeId, UUID sourceId) {
+    public Optional<NodeSource> findById(UUID id) {
         return jdbcTemplate.query(
-                "SELECT " + COLUMNS + " FROM node_sources WHERE node_id = ? AND source_id = ?",
+                "SELECT " + COLUMNS + " FROM node_sources WHERE id = ?",
                 ROW_MAPPER,
-                nodeId, sourceId
+                id
         ).stream().findFirst();
     }
 
@@ -102,6 +104,31 @@ public class NodeSourceRepository {
         );
     }
 
+    /** Удалить конкретную привязку по surrogate id (миграция 25, ADR-FK-A) */
+    public boolean deleteById(UUID id) {
+        return jdbcTemplate.update("DELETE FROM node_sources WHERE id = ?", id) > 0;
+    }
+
+    /**
+     * Backward-compat: возвращает first link для пары (node, source).
+     * После миграции 25 (FK variant A) пара не уникальна - может быть N
+     * citations на разных страницах/range. Used в legacy тестах и legacy
+     * AddSourceModal flow (one freeform link per pair)
+     */
+    public Optional<NodeSource> findByIds(UUID nodeId, UUID sourceId) {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM node_sources WHERE node_id = ? AND source_id = ? "
+                        + "ORDER BY created_at LIMIT 1",
+                ROW_MAPPER,
+                nodeId, sourceId
+        ).stream().findFirst();
+    }
+
+    /**
+     * Backward-compat: удалить **все** links для пары (node, source).
+     * Используется legacy detach flow. Для точечного detach использовать
+     * {@link #deleteById(UUID)}
+     */
     public boolean delete(UUID nodeId, UUID sourceId) {
         return jdbcTemplate.update(
                 "DELETE FROM node_sources WHERE node_id = ? AND source_id = ?",
@@ -232,14 +259,14 @@ public class NodeSourceRepository {
         );
     }
 
-    public Optional<NodeSourceWithLocation> findByPkWithLocation(UUID nodeId, UUID sourceId) {
+    public Optional<NodeSourceWithLocation> findByIdWithLocation(UUID id) {
         return jdbcTemplate.query(
-                JOIN_LOCATION_SQL + " WHERE ns.node_id = ? AND ns.source_id = ?",
+                JOIN_LOCATION_SQL + " WHERE ns.id = ?",
                 (rs, rn) -> new NodeSourceWithLocation(
                         ROW_MAPPER.mapRow(rs, rn),
                         citationFromRow(rs)
                 ),
-                nodeId, sourceId
+                id
         ).stream().findFirst();
     }
 }

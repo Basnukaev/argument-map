@@ -404,7 +404,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/nodes/{nodeId}/sources/{sourceId}": {
+    "/api/v1/nodes/{nodeId}/sources/{nodeSourceId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -558,6 +558,8 @@ export interface components {
             fullName?: string;
         };
         NodeSourceResponse: {
+            /** Format: uuid */
+            id?: string;
             /** Format: uuid */
             nodeId?: string;
             /** Format: uuid */
@@ -1764,7 +1766,7 @@ export interface operations {
             header?: never;
             path: {
                 nodeId: string;
-                sourceId: string;
+                nodeSourceId: string;
             };
             cookie?: never;
         };

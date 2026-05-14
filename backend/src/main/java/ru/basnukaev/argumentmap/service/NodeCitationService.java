@@ -165,10 +165,10 @@ public class NodeCitationService {
         }
         nodeSourceRepository.save(ns);
 
-        return nodeSourceRepository.findByPkWithLocation(nodeId, source.id())
+        return nodeSourceRepository.findByIdWithLocation(ns.id())
                 .map(DtoMappers::toResponse)
                 .orElseThrow(() -> new IllegalStateException(
-                        "node_sources row только что создан но findByPkWithLocation empty"));
+                        "node_sources row только что создан но findByIdWithLocation empty"));
     }
 
     private String buildLocationSnapshot(Book book, Page page, LibraryFile pdfFile, CitationRequest req) {

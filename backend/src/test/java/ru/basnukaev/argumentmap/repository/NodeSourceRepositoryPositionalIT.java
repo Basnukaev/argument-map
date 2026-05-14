@@ -165,7 +165,7 @@ class NodeSourceRepositoryPositionalIT {
     void checkConstraint_rejectsMixedTextAndPdfModes() {
         UUID pdfFileId = createLibraryFile();
         String bboxJson = "{\"x\":0,\"y\":0,\"width\":0.5,\"height\":0.5}";
-        NodeSource bad = new NodeSource(nodeId, sourceId, "q", "c", "loc",
+        NodeSource bad = new NodeSource(UUID.randomUUID(), nodeId, sourceId, "q", "c", "loc",
                 pageId, 0, 50,
                 pdfFileId, 1, bboxJson,
                 null,
@@ -177,7 +177,7 @@ class NodeSourceRepositoryPositionalIT {
 
     @Test
     void checkConstraint_rejectsInvalidRangeEndBeforeStart() {
-        NodeSource bad = new NodeSource(nodeId, sourceId, "q", "c", "loc",
+        NodeSource bad = new NodeSource(UUID.randomUUID(), nodeId, sourceId, "q", "c", "loc",
                 pageId, 100, 50,
                 null, null, null,
                 null,
@@ -189,7 +189,7 @@ class NodeSourceRepositoryPositionalIT {
 
     @Test
     void checkConstraint_rejectsTextModeWithoutRange() {
-        NodeSource bad = new NodeSource(nodeId, sourceId, "q", "c", "loc",
+        NodeSource bad = new NodeSource(UUID.randomUUID(), nodeId, sourceId, "q", "c", "loc",
                 pageId, null, null,
                 null, null, null,
                 null,

@@ -122,7 +122,16 @@ class NodeSourceControllerIT {
     void detachSource_returns204() throws Exception {
         attach(sourceId, null, null);
 
-        mockMvc.perform(delete("/api/v1/nodes/{nodeId}/sources/{sourceId}", nodeId, sourceId))
+        // Миграция 25 (FK variant A): DELETE по surrogate nodeSourceId
+        // вместо (nodeId, sourceId) pair - находим id через GET /sources
+        var listResult = mockMvc.perform(get("/api/v1/nodes/{nodeId}/sources", nodeId))
+                .andExpect(status().isOk())
+                .andReturn();
+        String responseBody = listResult.getResponse().getContentAsString();
+        var node = objectMapper.readTree(responseBody);
+        UUID nodeSourceId = UUID.fromString(node.get(0).get("id").asText());
+
+        mockMvc.perform(delete("/api/v1/nodes/{nodeId}/sources/{nodeSourceId}", nodeId, nodeSourceId))
                 .andExpect(status().isNoContent());
 
         mockMvc.perform(get("/api/v1/nodes/{nodeId}/sources", nodeId))
@@ -132,7 +141,7 @@ class NodeSourceControllerIT {
 
     @Test
     void detachSource_whenNotAttached_returns404() throws Exception {
-        mockMvc.perform(delete("/api/v1/nodes/{nodeId}/sources/{sourceId}", nodeId, sourceId))
+        mockMvc.perform(delete("/api/v1/nodes/{nodeId}/sources/{nodeSourceId}", nodeId, UUID.randomUUID()))
                 .andExpect(status().isNotFound());
     }
 

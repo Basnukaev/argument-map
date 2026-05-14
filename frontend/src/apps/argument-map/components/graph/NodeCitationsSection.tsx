@@ -94,15 +94,16 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
     };
   }, [nodeId]);
 
-  async function detachSource(sourceId: string) {
+  /** Detach по surrogate nodeSourceId (миграция 25 FK variant A) */
+  async function detachNodeSource(nodeSourceId: string) {
     if (!nodeId) return;
     if (state.kind !== 'loaded') return;
     const previous = state.data.links;
-    const next = previous.filter((l) => l.sourceId !== sourceId);
+    const next = previous.filter((l) => l.id !== nodeSourceId);
     setState({ kind: 'loaded', data: { ...state.data, links: next } });
     onCountsChangeRef.current?.(computeCounts(next));
     try {
-      await apiDeleteRaw(`/api/v1/nodes/${nodeId}/sources/${sourceId}`);
+      await apiDeleteRaw(`/api/v1/nodes/${nodeId}/sources/${nodeSourceId}`);
     } catch (e: unknown) {
       toast.error(formatApiError(e, 'Не удалось отвязать подкрепление'));
       setState({ kind: 'loaded', data: { ...state.data, links: previous } });
@@ -132,7 +133,7 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
         count={state.kind === 'loaded' ? state.data.links.length : undefined}
         defaultOpen={false}
       >
-        <CitationsList state={state} onDetach={detachSource} />
+        <CitationsList state={state} onDetach={detachNodeSource} />
         <div className="mt-2 flex gap-2">
           <Button
             type="button"
@@ -180,7 +181,8 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
 
 interface CitationsListProps {
   state: SourcesState;
-  onDetach: (sourceId: string) => void;
+  /** Передаётся nodeSourceId (link.id) - FK variant A */
+  onDetach: (nodeSourceId: string) => void;
 }
 
 function buildDeepLink(link: NodeSourceDto): string | null {
@@ -264,7 +266,7 @@ function CitationsList({ state, onDetach }: CitationsListProps) {
               key={key}
               link={link}
               titleLatin={titleLatin}
-              onDelete={link.sourceId ? () => onDetach(link.sourceId!) : undefined}
+              onDelete={link.id ? () => onDetach(link.id!) : undefined}
               onPrimaryAction={deepLink ? () => navigate(deepLink) : undefined}
             />
           );
@@ -287,7 +289,8 @@ interface FreeformCiteProps {
   link: NodeSourceDto;
   source: SourceDto | undefined;
   authority: AuthorityDto | undefined;
-  onDetach: (sourceId: string) => void;
+  /** Передаётся nodeSourceId (link.id) - FK variant A */
+  onDetach: (nodeSourceId: string) => void;
 }
 
 /**
@@ -334,7 +337,7 @@ function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) 
           aria-label="Отвязать опору"
           onClick={(e) => {
             e.preventDefault();
-            if (link.sourceId) onDetach(link.sourceId);
+            if (link.id) onDetach(link.id);
           }}
           className="rounded p-1 text-slate-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover/c:opacity-100"
         >

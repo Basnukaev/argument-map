@@ -12,6 +12,7 @@ import ru.basnukaev.argumentmap.domain.CitationMode;
  * каждое поле в своём блоке для правильного RTL/naskh.
  */
 public record NodeSourceResponse(
+        UUID id,
         UUID nodeId,
         UUID sourceId,
         String quote,

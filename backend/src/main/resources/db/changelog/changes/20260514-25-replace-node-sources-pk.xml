@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260514-25-replace-node-sources-pk" author="Abdula Basnukaev">
+        <comment>
+            FK variant A: расширение PK node_sources чтобы разрешить
+            **множественные** citations из одной книги на один узел.
+
+            Был: PRIMARY KEY (node_id, source_id) - блокировал второй
+            citation на тот же source даже если разные page/range.
+
+            Стало: surrogate `id UUID PK` + явные FK (node_id, source_id)
+            остаются как FK constraints (не PK). UNIQUE constraint
+            гарантирует что **позиционно** одинаковые citations не
+            дублируются: (node_id, source_id, page_id, range_start,
+            pdf_file_id, pdf_page_number, image_region_id).
+
+            NULL-aware UNIQUE: Postgres UNIQUE по умолчанию treats NULL
+            как distinct (NULLS NOT DISTINCT надо явно). Для LEGACY mode
+            (page/pdf/region NULLs) это значит можно иметь N freeform
+            citations на тот же source - не баг, freeform не имеет
+            position-id.
+
+            Для бахс use case главное - **разные фрагменты** одной книги
+            (разные page или range) теперь возможны как отдельные rows
+        </comment>
+        <sql>
+            ALTER TABLE node_sources DROP CONSTRAINT node_sources_pkey;
+
+            ALTER TABLE node_sources ADD COLUMN id UUID DEFAULT uuid_generate_v4();
+            UPDATE node_sources SET id = uuid_generate_v4() WHERE id IS NULL;
+            ALTER TABLE node_sources ALTER COLUMN id SET NOT NULL;
+            ALTER TABLE node_sources ADD PRIMARY KEY (id);
+
+            CREATE INDEX idx_node_sources_node_id ON node_sources(node_id);
+        </sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_node_sources_node_id;
+                ALTER TABLE node_sources DROP CONSTRAINT node_sources_pkey;
+                ALTER TABLE node_sources DROP COLUMN id;
+                ALTER TABLE node_sources ADD PRIMARY KEY (node_id, source_id);
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
