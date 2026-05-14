@@ -311,23 +311,26 @@ function LibraryCite({ link, onDetach }: LibraryCiteProps) {
           </button>
         </div>
 
-        {/* Author block: full_name + (т.{deathYearHijri} هـ). Fallback на short name */}
+        {/* Author block: full_name + (т.{deathYearHijri} هـ). Fallback на short name.
+            Контейнер LTR, arabic span внутри RTR - иначе двоеточие/скобки flip'аются */}
         {authority && (
-          <div
-            className={`flex items-center gap-1.5 text-[12.5px] text-slate-800 ${
-              authority.fullName && hasArabicScript(authority.fullName)
-                ? 'font-naskh text-[14px]'
-                : ''
-            }`}
-            dir={authority.fullName && hasArabicScript(authority.fullName) ? 'rtl' : 'ltr'}
-          >
+          <div className="flex items-center gap-1.5 text-[12.5px] text-slate-800" dir="ltr">
             <UserIcon size={13} className="text-slate-400 shrink-0" aria-hidden="true" />
-            <span className="font-medium">
-              {authority.fullName ?? authority.name}
-            </span>
+            {(() => {
+              const name = authority.fullName ?? authority.name;
+              const nameIsArabic = name && hasArabicScript(name);
+              return (
+                <span
+                  className={`font-medium ${nameIsArabic ? 'font-naskh text-[14px]' : ''}`}
+                  dir={nameIsArabic ? 'rtl' : 'ltr'}
+                >
+                  {name}
+                </span>
+              );
+            })()}
             {authority.deathYearHijri != null && (
-              <span className="text-slate-500" dir="rtl">
-                (т.{authority.deathYearHijri} هـ)
+              <span className="text-slate-500">
+                (т.{authority.deathYearHijri} <span className="font-naskh" dir="rtl">هـ</span>)
               </span>
             )}
           </div>
@@ -343,24 +346,23 @@ function LibraryCite({ link, onDetach }: LibraryCiteProps) {
           {bookTitle}
         </div>
 
-        {/* Muhaqqiq block - тахкик: {fullName ?? name} */}
+        {/* Muhaqqiq block - тахкик: {fullName ?? name}. Контейнер LTR чтобы
+            кириллический label "тахкик:" не flip'нулся; arabic span внутри RTL */}
         {muhaqqiq && (
-          <div
-            className={`text-[12px] text-slate-700 ${
-              (muhaqqiq.fullName ?? muhaqqiq.name) &&
-              hasArabicScript(muhaqqiq.fullName ?? muhaqqiq.name)
-                ? 'font-naskh text-[13px]'
-                : ''
-            }`}
-            dir={
-              (muhaqqiq.fullName ?? muhaqqiq.name) &&
-              hasArabicScript(muhaqqiq.fullName ?? muhaqqiq.name)
-                ? 'rtl'
-                : 'ltr'
-            }
-          >
+          <div className="text-[12px] text-slate-700" dir="ltr">
             <span className="text-slate-500">тахкик:</span>{' '}
-            <span className="font-medium">{muhaqqiq.fullName ?? muhaqqiq.name}</span>
+            {(() => {
+              const name = muhaqqiq.fullName ?? muhaqqiq.name;
+              const nameIsArabic = name && hasArabicScript(name);
+              return (
+                <span
+                  className={`font-medium ${nameIsArabic ? 'font-naskh text-[13px]' : ''}`}
+                  dir={nameIsArabic ? 'rtl' : 'ltr'}
+                >
+                  {name}
+                </span>
+              );
+            })()}
           </div>
         )}
 
@@ -376,9 +378,25 @@ function LibraryCite({ link, onDetach }: LibraryCiteProps) {
           </div>
         )}
 
-        {/* Location block */}
+        {/* Location block - LTR контейнер, arabic part inline-spaning RTL */}
         {locParts.length > 0 && (
-          <div className="font-mono text-[11px] text-slate-500">{locParts.join(' · ')}</div>
+          <div className="font-mono text-[11px] text-slate-500" dir="ltr">
+            {locParts.map((part, idx) => {
+              const isArabicPart = hasArabicScript(part);
+              return (
+                <span key={idx}>
+                  {idx > 0 && ' · '}
+                  {isArabicPart ? (
+                    <span className="font-naskh" dir="rtl" style={{ unicodeBidi: 'isolate' }}>
+                      {part}
+                    </span>
+                  ) : (
+                    <span>{part}</span>
+                  )}
+                </span>
+              );
+            })}
+          </div>
         )}
 
         {/* Quote block */}
