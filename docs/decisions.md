@@ -2320,3 +2320,133 @@ runtime валидацией координат 0-1 и `x+w/y+h <= 1`. `pdfBbox`
 - **gotchas.md "lib_pages.id стабильность"** - design decision что
   page_id стабильный для citation FK работает благодаря mapper
   skip-if-existing
+
+## ADR-028: Academic citation metadata - нормализованный middle path
+
+**Дата:** 2026-05-14
+**Статус:** принят
+**Связь:** ADR-017 (Source+Authority unification), ADR-018 (platform pivot),
+ADR-019 (library domain), ADR-026 (Source.bookId), ADR-027 (positional citation)
+
+### Контекст
+
+Текущая schema `lib_books` (`title, authority_id, language, description,
+metadata JSONB`) не покрывает академическую сноску исламского `бахс`
+(научного исследования). Для бахс-grade citation требуется минимум 8 полей:
+
+- полное имя автора (кунья + насаб + нисба)
+- год смерти автора по хиджре
+- название книги
+- **мухаккик (تحقيق)** - редактор тахкика. Критично - разные тахкики
+  одной книги имеют разные пагинации
+- издательство
+- место издания
+- номер издания
+- год издания по хиджре + григорианскому
+
+Сейчас computed location на backend возвращает `{title}, Т.X стр.Y` -
+слишком кратко для academic use case.
+
+### Решение
+
+Расширение schema по нормализованному middle path:
+
+1. **Справочники для high-reuse полей:**
+   - `lib_publishers (id, name UNIQUE, created_at)`
+   - `lib_publication_places (id, name UNIQUE, created_at)`
+   - `lib_muhaqqiqs (id, name UNIQUE, full_name, created_at)`
+
+   Reuse реальный - одно издательство публикует десятки книг. UNIQUE
+   на name + ETL `findOrCreate(name)` даёт data quality (нет typo-дублей
+   `Дар Тайба` vs `Дар-Тайба`).
+
+2. **Расширение `authorities`:**
+   - `+ full_name TEXT` - полное имя с куньей/насабом/нисбой
+   - `+ death_year_hijri INTEGER` - для footnote первого упоминания
+
+   `authorities` уже cross-book entity, естественное место для
+   академического имени автора.
+
+3. **Per-book scalars в `lib_books`:**
+   - `+ muhaqqiq_id`, `publisher_id`, `publication_place_id` UUID FK
+   - `+ edition_number`, `published_year_hijri`, `published_year_gregorian` INTEGER
+
+   Edition и годы не reusable - каждая книга имеет свои. Нет смысла в
+   справочнике.
+
+4. **Structured citation response** вместо склеенной строки. Backend
+   возвращает `CitationDetail` с 27 raw полями через 9 LEFT JOIN. DTO
+   `CitationResponse` содержит 8 nullable nested ref (authority, book,
+   muhaqqiq, publisher, publicationPlace, location, pdf, region). Frontend
+   рендерит каждое поле в своём блоке - решает проблему слипания арабского
+   текста с латинскими цифрами и кириллическими пометками типа `изд.`
+
+5. **No backward compat** - проект пока без production'а, миграция
+   чистая. Existing dev-rows получают NULL в новых FK (см. memory
+   `feedback_no_prod_no_backward_compat`).
+
+### Альтернативы (отвергнуты)
+
+**Option A - все 8 полей плоско в `lib_books` как TEXT/INTEGER без
+справочников.**
+- Простая миграция, никаких JOIN'ов
+- Минус: typo-дубли при импорте 1000+ книг (`Дар Тайба` / `Дар-Тайба`
+  / `دار طيبة`)
+- Минус: поиск книг по publisher / city / muhaqqiq невозможен без full-text
+- Editing publisher name требует обходить все книги
+
+**Option B - отдельная `lib_book_editions` 1:N.**
+- Clean architecture: lib_books = work, lib_book_editions = edition
+- Минус: каскад изменений массивный - `lib_pages.book_id` должен стать
+  `edition_id` (пагинации specific к edition), ETL переделывать, REST
+  API менять, frontend перерабатывать
+- Для MVP overkill: shamela импорт даёт **одно** издание per book
+- Future migration path сохранён: при появлении multi-edition use case
+  можно retrofit `lib_books` → `lib_book_editions` + создать `lib_works`
+  parent
+
+**Option C - JSONB `academic_metadata` в `lib_books`.**
+- Минимум schema changes
+- Минус: нет query-able индексов на отдельные поля
+- Минус: type safety теряется в Java (`Map<String, Object>` или нестед
+  record над JSONB)
+
+### Последствия
+
+**Положительные:**
+
+- Citation для бахс качества: 8-полевая сноска по конвенции исламской
+  академической традиции
+- Data quality через справочники: нет typo-дублей publisher/city/muhaqqiq
+- Поиск книг по publisher / city / muhaqqiq возможен (`WHERE publisher_id = ?`)
+- Frontend получает structured data - визуально читаемые блоки вместо
+  склеенной строки
+- Authority enrichment бенефит cross-book - расширенные поля видны в
+  любой книге автора
+
+**Отрицательные:**
+
+- 9 LEFT JOIN в citation query (приемлемо для 1-50 citations per node,
+  все на indexed FK)
+- Migration требует переимпорта существующих shamela-книг для заполнения
+  новых полей (acceptable - dev only, no prod)
+- Frontend `<LibraryCite>` ломается при regenerate-api - чинится в
+  подэтапе 20.f следующей сессии
+
+### Триггеры пересмотра
+
+- Появление реального multi-edition use case → миграция на Option B
+  (rename `lib_books` → `lib_book_editions` + создать `lib_works` parent)
+- Появление production'а + первых реальных пользователей → отмена
+  no-backward-compat правила
+- Если мухаккик начнёт регулярно совпадать с автором (один человек) -
+  retrofit FK на authorities
+
+### Связь с другими ADR
+
+- **ADR-017** (Source+Authority unification) - authority остаётся
+  cross-book entity, расширяем её академическими полями
+- **ADR-026** (Source.bookId) - Source даёт связь с книгой, ADR-028
+  обогащает книгу
+- **ADR-027** (positional citation) - CitationDetail включает positional
+  fields из ADR-027 + academic fields из ADR-028 в одну структуру

@@ -803,13 +803,16 @@ apps/* добавляется только когда возникнет кон�
 proper academic citation - сноска считается дефектной без указания
 мухаккика и года/издательства.
 
-- [ ] **20.a: ADR-028** - полная academic citation model. Альтернативы:
-      (а) расширить lib_books 7-9 nullable полями, (б) отдельная таблица
-      `lib_book_editions` (одна книга ↔ N изданий), (в) JSONB
-      `academic_metadata` в lib_books. Рекомендую (б) - 1:N для
-      multi-edition books в будущем
-- [ ] **20.b: Backend миграция + domain** - расширение схемы,
-      Book record получает поля или nested BookEdition record
+- [x] **20.a: ADR-028** - принят нормализованный middle path: справочники
+      для high-reuse полей (publisher/place/muhaqqiq), расширение
+      authorities для академического имени автора, per-book скаляры
+      (edition/years) плоско. Structured CitationResponse вместо
+      склеенной строки. Сессия 31
+- [x] **20.b: Backend миграция + domain** - миграция 24 (ALTER authorities,
+      CREATE 3 справочника, ALTER lib_books). 3 новых record + repository
+      (Publisher / PublicationPlace / Muhaqqiq) с findOrCreate. Authority
+      + Book расширены. CitationDetail (27 полей) + 9 LEFT JOIN.
+      CitationResponse + 8 nested ref DTO. 31 новый IT. Сессия 31
 - [ ] **20.c: Shamela bibliography parser** - извлекать что есть
       из raw `bibliography` text (часто содержит мухаккика и
       издательство в неструктурированном виде - regex + LLM fallback?)
@@ -818,13 +821,14 @@ proper academic citation - сноска считается дефектной б
 - [ ] **20.e: AddSourceModal расширенная форма** - при manual entry
       для sourceType=BOOK запросить полные поля (необязательны для URL/
       ARTICLE freeform)
-- [ ] **20.f: Computed location update** - расширенный format:
-      `Ибн Касир (т.774 хиджры), Тафсир аль-Куран аль-Азым,
-      тахкик: Сами ибн Мухаммад ас-Салама, изд. Дар Тайба, Эр-Рияд,
-      2-е изд., 1420 хиджры / 1999 м., Т.1 стр.145`
+- [ ] **20.f: Frontend `<LibraryCite>` блочный рендер** - regenerate-api,
+      переписать CitationsList.tsx / NodeCitationsSection.tsx на
+      structured citation. Каждый блок (author / title / muhaqqiq /
+      publisher · place · edition / years / location) - свой `<div>`
+      с правильным dir / font / стилем. Backend computed location
+      закрыт в 20.b - в виде structured CitationDetail из JOIN
 
-Объём: ~3-5 сессий. Не блокирует другие этапы - можно делать
-параллельно с этапом 19 Q&A.
+Объём 20.c-f: ~2-3 сессии. Не блокирует Этап 19 Q&A.
 
 ## Этап 21+. Аутентификация и далее
 

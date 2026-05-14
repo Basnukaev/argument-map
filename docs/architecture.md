@@ -288,6 +288,30 @@ DELETE /api/v1/library/books/{id}           — удалить книгу (ка�
 - `lib_image_regions` - регионы на скане с нормализованными
   координатами (0..1), CHECK `lib_image_regions_bounds`
 
+Academic citation metadata (миграция 24, ADR-028):
+
+- `lib_publishers (id, name UNIQUE, created_at)` - справочник издательств
+- `lib_publication_places (id, name UNIQUE, created_at)` - справочник
+  городов публикации
+- `lib_muhaqqiqs (id, name UNIQUE, full_name, created_at)` - справочник
+  редакторов тахкика
+- `lib_books` расширена 6 полями: 3 FK на справочники (`muhaqqiq_id`,
+  `publisher_id`, `publication_place_id` с `ON DELETE SET NULL`) +
+  3 per-book скаляра (`edition_number`, `published_year_hijri`,
+  `published_year_gregorian` с CHECK для sanity ranges)
+- `authorities` расширена 2 полями: `full_name TEXT` (полное имя с
+  куньей/насабом/нисбой) и `death_year_hijri INTEGER` для academic
+  first-mention footnote
+
+Citation response (ADR-028): `NodeSourceRepository.findByNodeIdWithLocation`
+делает 9 LEFT JOIN (sources → lib_books → authorities → lib_muhaqqiqs/
+lib_publishers/lib_publication_places + lib_pages для TEXT mode +
+lib_image_regions + второй lib_pages для REGION mode), возвращает
+structured `CitationDetail` (27 raw полей). DTO `CitationResponse`
+содержит 8 nullable nested refs (authority/book/muhaqqiq/publisher/
+publicationPlace/location/pdf/region) - frontend рисует каждый блок
+отдельно с правильным RTL/naskh.
+
 REST под `/api/v1/library/*`. Cross-domain зависимости только через
 service-фасад (например `BookService` валидирует `authority_id`
 через существующий `AuthorityRepository` из argument-map-домена).
