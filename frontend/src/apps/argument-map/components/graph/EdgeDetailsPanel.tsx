@@ -8,12 +8,14 @@ import {
   Layers,
   Quote,
   Info,
+  ArrowLeft,
   ArrowRight,
   type LucideIcon,
 } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import IconButton from '@/shared/components/ui/IconButton';
 import { apiPatchRaw, formatApiError } from '@/shared/api/client';
+import { useLocaleStore } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
 import {
   EDGE_TYPE_META,
@@ -85,7 +87,7 @@ function PanelSection({ icon: Icon, title, defaultOpen = true, children }: Secti
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-5 py-3 text-left transition-colors hover:bg-slate-50"
+        className="flex w-full items-center gap-2 px-5 py-3 text-start transition-colors hover:bg-slate-50"
       >
         <Icon size={14} className="text-slate-500" aria-hidden="true" />
         <span className="text-[12px] font-semibold uppercase tracking-wider text-slate-700">
@@ -93,7 +95,7 @@ function PanelSection({ icon: Icon, title, defaultOpen = true, children }: Secti
         </span>
         <ChevronDown
           size={14}
-          className={`ml-auto text-slate-400 transition-transform ${open ? '' : '-rotate-90'}`}
+          className={`ms-auto text-slate-400 transition-transform ${open ? '' : '-rotate-90'}`}
           aria-hidden="true"
         />
       </button>
@@ -114,7 +116,7 @@ function NodeMini({ node }: NodeMiniProps) {
   return (
     <div className="relative flex-1 overflow-hidden rounded-md border border-slate-200 bg-slate-50/40 px-2.5 py-2">
       <div
-        className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-l-md ${statusToken.bar}`}
+        className={`absolute start-0 top-0 bottom-0 w-[3px] rounded-s-md ${statusToken.bar}`}
         aria-hidden="true"
       />
       <div className={`text-[10px] font-semibold uppercase tracking-wider ${typeToken.chipText}`}>
@@ -165,6 +167,10 @@ function EdgeDetailsPanel({
   onUpdated,
   initialEditing = false,
 }: Props) {
+  // Стрелка from→to отражает направление структурного UI, не текста.
+  // В RTL-локали смыслово стрелка идёт справа (from) налево (to)
+  const locale = useLocaleStore((s) => s.locale);
+  const FlowArrow = locale === 'ar' ? ArrowLeft : ArrowRight;
   const fromType: NodeType = fromNode.nodeType ?? 'CLAIM';
   const toType: NodeType = toNode.nodeType ?? 'CLAIM';
   const currentEdgeType: EdgeType = edge.edgeType ?? 'SUPPORTS';
@@ -231,12 +237,12 @@ function EdgeDetailsPanel({
     <aside
       role="complementary"
       aria-label="Детали связи"
-      className="absolute right-0 top-0 bottom-0 z-10 flex w-[400px] flex-col border-l border-slate-200 bg-white shadow-xl"
+      className="absolute end-0 top-0 bottom-0 z-10 flex w-[400px] flex-col border-s border-slate-200 bg-white shadow-xl"
     >
       <header
         className={`relative border-b border-slate-200 bg-gradient-to-b ${gradientFor(currentEdgeType)} p-5`}
       >
-        <div className="absolute right-3 top-3">
+        <div className="absolute end-3 top-3">
           <IconButton icon={X} label="Закрыть панель" size="sm" onClick={onClose} />
         </div>
         <div className="flex items-center gap-2">
@@ -247,7 +253,9 @@ function EdgeDetailsPanel({
             <h2 className="truncate text-[10px] font-semibold uppercase tracking-wider text-slate-500">
               EDGE · {currentMeta.label}
             </h2>
-            <span className="font-mono text-[12px] text-slate-400">{shortId(edge.id)}</span>
+            <span className="font-mono text-[12px] text-slate-400">
+              <bdi dir="ltr">{shortId(edge.id)}</bdi>
+            </span>
           </div>
         </div>
         <p className="mt-2 text-[12px] text-slate-700">
@@ -259,7 +267,7 @@ function EdgeDetailsPanel({
         <PanelSection icon={Network} title="Связь" defaultOpen>
           <div className="flex items-center gap-2">
             <NodeMini node={fromNode} />
-            <ArrowRight size={20} className="shrink-0 text-slate-400" aria-hidden="true" />
+            <FlowArrow size={20} className="shrink-0 text-slate-400" aria-hidden="true" />
             <NodeMini node={toNode} />
           </div>
         </PanelSection>
@@ -405,16 +413,18 @@ function EdgeDetailsPanel({
         <PanelSection icon={Info} title="Метаданные" defaultOpen={false}>
           <dl className="grid grid-cols-[100px_1fr] gap-x-3 gap-y-2 text-[12px]">
             <dt className="text-slate-500">Создана</dt>
-            <dd className="text-slate-700">{formatDate(edge.createdAt)}</dd>
+            <dd className="text-slate-700">
+              <bdi dir="ltr">{formatDate(edge.createdAt)}</bdi>
+            </dd>
 
             <dt className="text-slate-500">Автор</dt>
             <dd className="font-mono text-slate-700" title={edge.createdBy}>
-              {shortId(edge.createdBy)}
+              <bdi dir="ltr">{shortId(edge.createdBy)}</bdi>
             </dd>
 
             <dt className="text-slate-500">ID</dt>
             <dd className="font-mono text-slate-700" title={edge.id}>
-              {shortId(edge.id)}
+              <bdi dir="ltr">{shortId(edge.id)}</bdi>
             </dd>
           </dl>
         </PanelSection>

@@ -12,6 +12,7 @@ import PageView, { type PageContentState, type PageDetail } from '@/shared/compo
 import { type ReaderMode } from '@/shared/components/reader/utils';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
+import { useLocaleStore } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
 
 // Lazy-load PdfViewer - тяжёлая зависимость (react-pdf + pdfjs-dist
@@ -41,6 +42,11 @@ function BookReaderPage() {
   const { bookId } = useParams<{ bookId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const locale = useLocaleStore((s) => s.locale);
+  // Стрелки toolbar пагинации - по локали интерфейса, не по языку книги.
+  // Навигация - UI-элемент: «следующая» = по направлению чтения локали
+  const prevIcon = locale === 'ar' ? ChevronRight : ChevronLeft;
+  const nextIcon = locale === 'ar' ? ChevronLeft : ChevronRight;
   const [state, setState] = useState<BookState>({ kind: 'loading' });
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [pageContent, setPageContent] = useState<PageContentState>({ kind: 'loading' });
@@ -352,7 +358,7 @@ function BookReaderPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      icon={ChevronLeft}
+                      icon={prevIcon}
                       onClick={goPrev}
                       disabled={!hasPrev}
                     >
@@ -374,7 +380,7 @@ function BookReaderPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        iconRight={ChevronRight}
+                        iconRight={nextIcon}
                         onClick={goNext}
                         disabled={!hasNext}
                       >

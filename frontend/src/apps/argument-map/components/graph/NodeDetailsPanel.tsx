@@ -41,12 +41,12 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
     <aside
       role="complementary"
       aria-label="Детали узла"
-      className="absolute right-0 top-0 bottom-0 z-10 flex w-[400px] flex-col border-l border-slate-200 bg-white shadow-xl"
+      className="absolute end-0 top-0 bottom-0 z-10 flex w-[400px] flex-col border-s border-slate-200 bg-white shadow-xl"
     >
       <header
         className={`relative border-b border-slate-200 bg-gradient-to-b ${typeToken.headerGradient} p-5`}
       >
-        <div className="absolute right-3 top-3">
+        <div className="absolute end-3 top-3">
           <IconButton icon={X} label="Закрыть панель" size="sm" onClick={onClose} />
         </div>
         <div className="flex items-center gap-2">
@@ -59,7 +59,9 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
             <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
               {typeToken.key} · {typeToken.label}
             </h2>
-            <span className="font-mono text-[12px] text-slate-400">{shortId(node.id)}</span>
+            <span className="font-mono text-[12px] text-slate-400">
+              <bdi dir="ltr">{shortId(node.id)}</bdi>
+            </span>
           </div>
         </div>
         <div className="mt-3 flex items-center gap-2">

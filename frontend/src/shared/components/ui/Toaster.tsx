@@ -44,7 +44,7 @@ function ToastItem({ toast }: { toast: Toast }) {
     >
       <Icon size={18} className={`shrink-0 mt-0.5 ${meta.icon}`} />
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-gray-900 break-words">{toast.message}</p>
+        <p dir="auto" className="text-sm text-gray-900 break-words">{toast.message}</p>
         {toast.action && (
           <button
             type="button"
@@ -75,7 +75,7 @@ function Toaster() {
   if (toasts.length === 0) return null;
   return (
     <div
-      className="pointer-events-none fixed bottom-4 right-4 z-50 flex flex-col-reverse gap-2"
+      className="pointer-events-none fixed bottom-4 end-4 z-50 flex flex-col-reverse gap-2"
       aria-live="polite"
     >
       {toasts.map((t) => (

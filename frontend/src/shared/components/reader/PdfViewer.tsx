@@ -13,6 +13,7 @@ import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
 import Select, { type SelectOption } from '@/shared/components/ui/Select';
 import { API_BASE_URL, apiGetRaw, ApiError } from '@/shared/api/client';
+import { hasArabicScript, useLocaleStore } from '@/shared/i18n';
 
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -111,8 +112,7 @@ function findFileIndexForPart(
   const contentFiles = files.filter((f) => !f.isCover);
 
   // Arabic part - exact label match
-  const arabicRe = /[؀-ۿ]/;
-  if (arabicRe.test(trimmed)) {
+  if (hasArabicScript(trimmed)) {
     const match = contentFiles.find((f) => (f.label ?? '').trim() === trimmed);
     return match?.index ?? null;
   }
@@ -137,6 +137,10 @@ function findFileIndexForPart(
 }
 
 function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfViewerProps) {
+  const locale = useLocaleStore((s) => s.locale);
+  // Toolbar (стрелки, направление flex) - по локали интерфейса.
+  // `isArabic` (язык книги) остаётся для контент-специфичных подсказок
+  const isRtlUi = locale === 'ar';
   const [state, setState] = useState<LoadState>({ kind: 'loading-info' });
   const [fileIndex, setFileIndex] = useState<number | null>(null);
   const startPage = initialPrintedPage && initialPrintedPage > 0 ? initialPrintedPage : 1;
@@ -205,7 +209,7 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
     // mutable let (правило react-hooks/immutability в React 19)
     return contentFiles.map((f, i) => {
       const raw = f.label ?? '';
-      const hasArabic = /[؀-ۿ]/.test(raw);
+      const hasArabic = hasArabicScript(raw);
       const looksLikeFilename = /^\d{2}_\d+/.test(raw);
       if (hasArabic) {
         return { index: f.index ?? 0, display: raw };
@@ -224,7 +228,7 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
 
   // Опции для кастомного Select: value=stringified fileIndex, label=display
   const volumeOptions: SelectOption[] = fileLabels.map((f) => {
-    const arabic = /[؀-ۿ]/.test(f.display);
+    const arabic = hasArabicScript(f.display);
     return {
       value: String(f.index),
       label: f.display,
@@ -320,7 +324,7 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
       {showVolumeSelector && (
         <div
           className="flex items-center gap-2 border-b border-slate-200 bg-slate-50/60 px-4 py-2"
-          dir={isArabic ? 'rtl' : 'ltr'}
+          dir={isRtlUi ? 'rtl' : 'ltr'}
         >
           <label
             className="text-[11px] uppercase tracking-wide text-slate-500"
@@ -334,7 +338,7 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
             options={volumeOptions}
             size="sm"
             ariaLabel="Выбор тома"
-            dir={isArabic ? 'rtl' : 'ltr'}
+            dir={isRtlUi ? 'rtl' : 'ltr'}
             menuMinWidth={140}
             className="w-[140px]"
           />
@@ -344,12 +348,12 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
       {/* Pagination toolbar */}
       <div
         className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2.5"
-        dir={isArabic ? 'rtl' : 'ltr'}
+        dir={isRtlUi ? 'rtl' : 'ltr'}
       >
         <Button
           variant="ghost"
           size="sm"
-          icon={isArabic ? ChevronRight : ChevronLeft}
+          icon={isRtlUi ? ChevronRight : ChevronLeft}
           onClick={goPrev}
           disabled={pageNumber <= 1}
         >
@@ -418,7 +422,7 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
         <Button
           variant="ghost"
           size="sm"
-          iconRight={isArabic ? ChevronLeft : ChevronRight}
+          iconRight={isRtlUi ? ChevronLeft : ChevronRight}
           onClick={goNext}
           disabled={!numPages || pageNumber >= numPages}
         >
