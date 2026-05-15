@@ -18,7 +18,7 @@ interface NavItem {
 const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { to: '/topics', labelKey: 'nav.topics' },
   { to: '/books', labelKey: 'nav.library' },
-  { to: '/qa', labelKey: 'nav.qa', disabled: true },
+  { to: '/qa', labelKey: 'nav.qa' },
   { to: '/admin/shamela', labelKey: 'nav.admin' },
 ];
 

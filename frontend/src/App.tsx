@@ -5,6 +5,9 @@ import CreateTopicPage from '@/apps/argument-map/pages/CreateTopicPage';
 import BookListPage from '@/apps/library/pages/BookListPage';
 import BookReaderPage from '@/apps/library/pages/BookReaderPage';
 import AdminShamelaPage from '@/apps/admin/pages/AdminShamelaPage';
+import QuestionListPage from '@/apps/qa/pages/QuestionListPage';
+import CreateQuestionPage from '@/apps/qa/pages/CreateQuestionPage';
+import QuestionDetailPage from '@/apps/qa/pages/QuestionDetailPage';
 import Toaster from '@/shared/components/ui/Toaster';
 import CommandPalette from '@/shared/components/layout/CommandPalette';
 import { usePaletteStore } from '@/shared/stores/paletteStore';
@@ -65,6 +68,9 @@ function App() {
         />
         <Route path="/books" element={<BookListPage />} />
         <Route path="/books/:bookId" element={<BookReaderPage />} />
+        <Route path="/qa" element={<QuestionListPage />} />
+        <Route path="/qa/new" element={<CreateQuestionPage />} />
+        <Route path="/qa/:questionId" element={<QuestionDetailPage />} />
         <Route path="/admin/shamela" element={<AdminShamelaPage />} />
       </Routes>
       <CommandPalette open={paletteOpen} onClose={closePalette} />

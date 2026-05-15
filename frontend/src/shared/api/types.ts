@@ -36,6 +36,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_2"];
+        put?: never;
+        post: operations["create_2"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/nodes": {
         parameters: {
             query?: never;
@@ -45,7 +61,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["create_2"];
+        post: operations["create_3"];
         delete?: never;
         options?: never;
         head?: never;
@@ -59,7 +75,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_2"];
+        get: operations["list_3"];
         put?: never;
         post: operations["attach"];
         delete?: never;
@@ -77,7 +93,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["create_3"];
+        post: operations["create_4"];
         delete?: never;
         options?: never;
         head?: never;
@@ -91,9 +107,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_3"];
+        get: operations["list_4"];
         put?: never;
-        post: operations["create_4"];
+        post: operations["create_5"];
         delete?: never;
         options?: never;
         head?: never;
@@ -109,7 +125,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["create_5"];
+        post: operations["create_6"];
         delete?: never;
         options?: never;
         head?: never;
@@ -123,9 +139,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_4"];
+        get: operations["list_5"];
         put?: never;
-        post: operations["create_6"];
+        post: operations["create_7"];
         delete?: never;
         options?: never;
         head?: never;
@@ -196,6 +212,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/questions/{questionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getOne"];
+        put?: never;
+        post?: never;
+        delete: operations["delete"];
+        options?: never;
+        head?: never;
+        patch: operations["update"];
+        trace?: never;
+    };
     "/api/v1/nodes/{nodeId}": {
         parameters: {
             query?: never;
@@ -206,10 +238,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete"];
+        delete: operations["delete_1"];
         options?: never;
         head?: never;
-        patch: operations["update"];
+        patch: operations["update_1"];
         trace?: never;
     };
     "/api/v1/library/books/{bookId}": {
@@ -219,13 +251,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["getOne"];
+        get: operations["getOne_1"];
         put?: never;
         post?: never;
-        delete: operations["delete_1"];
+        delete: operations["delete_2"];
         options?: never;
         head?: never;
-        patch: operations["update_1"];
+        patch: operations["update_2"];
         trace?: never;
     };
     "/api/v1/edges/{edgeId}": {
@@ -238,10 +270,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_2"];
+        delete: operations["delete_3"];
         options?: never;
         head?: never;
-        patch: operations["update_2"];
+        patch: operations["update_3"];
         trace?: never;
     };
     "/api/v1/topics/{topicId}": {
@@ -251,10 +283,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["getOne_1"];
+        get: operations["getOne_2"];
         put?: never;
         post?: never;
-        delete: operations["delete_3"];
+        delete: operations["delete_4"];
         options?: never;
         head?: never;
         patch?: never;
@@ -283,10 +315,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["getOne_2"];
+        get: operations["getOne_3"];
         put?: never;
         post?: never;
-        delete: operations["delete_4"];
+        delete: operations["delete_5"];
         options?: never;
         head?: never;
         patch?: never;
@@ -427,10 +459,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["getOne_3"];
+        get: operations["getOne_4"];
         put?: never;
         post?: never;
-        delete: operations["delete_5"];
+        delete: operations["delete_6"];
         options?: never;
         head?: never;
         patch?: never;
@@ -537,6 +569,24 @@ export interface components {
             metadata?: components["schemas"]["JsonNode"];
             /** Format: date-time */
             createdAt?: string;
+        };
+        CreateQuestionRequest: {
+            title: string;
+            body?: string;
+        };
+        QuestionResponse: {
+            /** Format: uuid */
+            id?: string;
+            title?: string;
+            body?: string;
+            /** @enum {string} */
+            status?: "OPEN" | "ANSWERED" | "CLOSED";
+            /** Format: uuid */
+            askedBy?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
         };
         CreateNodeRequest: {
             /** Format: uuid */
@@ -810,6 +860,12 @@ export interface components {
             updated?: number;
             /** Format: int32 */
             skipped?: number;
+        };
+        UpdateQuestionRequest: {
+            title?: string;
+            body?: string;
+            /** @enum {string} */
+            status?: "OPEN" | "ANSWERED" | "CLOSED";
         };
         UpdateNodeRequest: {
             content?: string;
@@ -1119,7 +1175,59 @@ export interface operations {
             };
         };
     };
+    list_2: {
+        parameters: {
+            query?: {
+                status?: "OPEN" | "ANSWERED" | "CLOSED";
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["QuestionResponse"][];
+                };
+            };
+        };
+    };
     create_2: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header: {
+                /** @description UUID текущего пользователя (ADR-006, временно до Spring Security в Этапе 6) */
+                "X-User-Id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateQuestionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["QuestionResponse"];
+                };
+            };
+        };
+    };
+    create_3: {
         parameters: {
             query?: never;
             header: {
@@ -1146,7 +1254,7 @@ export interface operations {
             };
         };
     };
-    list_2: {
+    list_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -1194,7 +1302,7 @@ export interface operations {
             };
         };
     };
-    create_3: {
+    create_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -1220,7 +1328,7 @@ export interface operations {
             };
         };
     };
-    list_3: {
+    list_4: {
         parameters: {
             query?: {
                 q?: string;
@@ -1243,7 +1351,7 @@ export interface operations {
             };
         };
     };
-    create_4: {
+    create_5: {
         parameters: {
             query: {
                 currentUserId: string;
@@ -1272,7 +1380,7 @@ export interface operations {
             };
         };
     };
-    create_5: {
+    create_6: {
         parameters: {
             query?: never;
             header: {
@@ -1299,7 +1407,7 @@ export interface operations {
             };
         };
     };
-    list_4: {
+    list_5: {
         parameters: {
             query?: {
                 q?: string;
@@ -1321,7 +1429,7 @@ export interface operations {
             };
         };
     };
-    create_6: {
+    create_7: {
         parameters: {
             query?: never;
             header?: never;
@@ -1434,7 +1542,75 @@ export interface operations {
             };
         };
     };
+    getOne: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["QuestionResponse"];
+                };
+            };
+        };
+    };
     delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateQuestionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["QuestionResponse"];
+                };
+            };
+        };
+    };
+    delete_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1454,7 +1630,7 @@ export interface operations {
             };
         };
     };
-    update: {
+    update_1: {
         parameters: {
             query?: never;
             header: {
@@ -1483,7 +1659,7 @@ export interface operations {
             };
         };
     };
-    getOne: {
+    getOne_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1505,7 +1681,7 @@ export interface operations {
             };
         };
     };
-    delete_1: {
+    delete_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -1525,7 +1701,7 @@ export interface operations {
             };
         };
     };
-    update_1: {
+    update_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -1551,7 +1727,7 @@ export interface operations {
             };
         };
     };
-    delete_2: {
+    delete_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -1571,7 +1747,7 @@ export interface operations {
             };
         };
     };
-    update_2: {
+    update_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -1597,7 +1773,7 @@ export interface operations {
             };
         };
     };
-    getOne_1: {
+    getOne_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -1619,7 +1795,7 @@ export interface operations {
             };
         };
     };
-    delete_3: {
+    delete_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -1661,7 +1837,7 @@ export interface operations {
             };
         };
     };
-    getOne_2: {
+    getOne_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -1683,7 +1859,7 @@ export interface operations {
             };
         };
     };
-    delete_4: {
+    delete_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -1889,7 +2065,7 @@ export interface operations {
             };
         };
     };
-    getOne_3: {
+    getOne_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -1911,7 +2087,7 @@ export interface operations {
             };
         };
     };
-    delete_5: {
+    delete_6: {
         parameters: {
             query?: never;
             header?: never;
