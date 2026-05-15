@@ -1,6 +1,15 @@
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 
+/**
+ * v2 Badge - generic chip-like элемент. В отличие от Chip (новый primitive),
+ * Badge поддерживает per-tone семантику для случаев когда нужен особый
+ * акцент (warning, success, info и т.д.). Для статусов узлов - StatusBadge.
+ *
+ * Тоны переведены на семантические токены через ink/accent/ok/warn/err
+ * с автоматической темизацией. Старые `tone` названия (slate, indigo и т.д.)
+ * сохранены как алиасы для backwards compatibility.
+ */
 type Tone =
   | 'slate'
   | 'indigo'
@@ -24,23 +33,28 @@ interface Props {
 }
 
 const SIZE_CLASSES: Record<Size, string> = {
-  sm: 'h-5 px-1.5 text-[11px] gap-1 rounded',
-  md: 'h-[22px] px-2 text-[11px] gap-1 rounded',
-  lg: 'h-7 px-2.5 text-[12px] gap-1.5 rounded-md',
+  sm: 'h-5 px-1.5 text-xs gap-1 rounded-sm',
+  md: 'h-[22px] px-2 text-xs gap-1 rounded-sm',
+  lg: 'h-7 px-2.5 text-xs gap-1.5 rounded-sm',
 };
 
 const ICON_SIZE: Record<Size, number> = { sm: 11, md: 12, lg: 14 };
 
+/**
+ * Старые цветные tones (slate/indigo/emerald/etc.) на новой палитре
+ * через семантические токены. Outline через border-{token}/30 - тонкий
+ * контур без жирной линии.
+ */
 const TONE_CLASSES: Record<Tone, string> = {
-  slate: 'bg-slate-100 text-slate-700 border-slate-200',
-  indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  amber: 'bg-amber-50 text-amber-800 border-amber-200',
-  red: 'bg-red-50 text-red-700 border-red-200',
-  blue: 'bg-blue-50 text-blue-700 border-blue-200',
-  violet: 'bg-violet-50 text-violet-700 border-violet-200',
-  sky: 'bg-sky-50 text-sky-700 border-sky-200',
-  teal: 'bg-teal-50 text-teal-700 border-teal-200',
+  slate: 'bg-ink-100 text-ink-700 border-ink-200',
+  indigo: 'bg-accent-50 text-accent-700 border-accent-100',
+  emerald: 'bg-ok-100 text-ok-700 border-ok-500/30',
+  amber: 'bg-warn-100 text-warn-700 border-warn-500/30',
+  red: 'bg-err-100 text-err-700 border-err-500/30',
+  blue: 'bg-edge-qualifies-bg text-edge-qualifies border-edge-qualifies/30',
+  violet: 'bg-type-abstract-bg text-type-abstract-fg border-type-abstract-fg/20',
+  sky: 'bg-edge-qualifies-bg text-edge-qualifies border-edge-qualifies/30',
+  teal: 'bg-type-empirical-bg text-type-empirical-fg border-type-empirical-fg/20',
 };
 
 function Badge({

@@ -21,7 +21,9 @@ describe('Button', () => {
 
   it('применяет классы варианта secondary', () => {
     render(<Button variant="secondary">Отмена</Button>);
-    expect(screen.getByRole('button')).toHaveClass('bg-white');
+    // v2 design system: secondary background через семантический токен
+    // bg-elevated (резолвится в --c-bg-elevated, переключается по теме)
+    expect(screen.getByRole('button')).toHaveClass('bg-elevated');
   });
 
   it('primary - default variant', () => {

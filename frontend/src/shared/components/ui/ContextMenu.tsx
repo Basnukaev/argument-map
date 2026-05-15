@@ -54,21 +54,21 @@ function ContextMenu({ x, y, items, onClose, header }: Props) {
       ref={ref}
       role="menu"
       style={{ left: x, top: y }}
-      className="fixed z-50 min-w-44 rounded-md border border-gray-200 bg-white py-1 shadow-lg"
+      className="fixed z-50 min-w-44 rounded-md border border-border bg-elevated py-1 shadow-sh3"
     >
       {header && (
-        <div className="border-b border-gray-100 px-3 py-1.5 text-xs text-gray-500">
+        <div className="border-b border-border px-3 py-1.5 text-xs text-ink-500">
           {header}
         </div>
       )}
       {items.map((item) => {
         if (item.separator) {
-          return <hr key={item.id} className="my-1 border-t border-gray-100" />;
+          return <hr key={item.id} className="my-1 border-t border-border" />;
         }
         const Icon = item.icon;
         const colorClass = item.danger
-          ? 'text-red-700 hover:bg-red-50'
-          : 'text-gray-800 hover:bg-gray-100';
+          ? 'text-err-700 hover:bg-err-100'
+          : 'text-ink-800 hover:bg-ink-100';
         return (
           <button
             key={item.id}

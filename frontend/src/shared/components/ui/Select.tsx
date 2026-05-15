@@ -88,8 +88,8 @@ function Select({
 
   const selected = options.find((o) => o.value === value);
   const sizeStyles = size === 'sm'
-    ? 'h-7 px-2.5 text-[12px] gap-1.5 rounded-md'
-    : 'h-9 px-3 text-[13px] gap-2 rounded-md';
+    ? 'h-7 px-2.5 text-xs gap-1.5 rounded-md'
+    : 'h-9 px-3 text-sm gap-2 rounded-md';
 
   return (
     <div ref={wrapperRef} className={`relative inline-block ${className}`} dir={dir}>
@@ -99,10 +99,10 @@ function Select({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel}
-        className={`inline-flex w-full items-center justify-between border bg-white font-medium text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/30 ${sizeStyles} ${
+        className={`inline-flex w-full items-center justify-between border bg-elevated font-medium text-ink-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/30 ${sizeStyles} ${
           open
-            ? 'border-indigo-500 ring-2 ring-indigo-500/20'
-            : 'border-slate-300 hover:border-slate-400'
+            ? 'border-accent-500 ring-2 ring-accent-500/20'
+            : 'border-ink-200 hover:border-ink-300'
         }`}
       >
         <span
@@ -113,7 +113,7 @@ function Select({
         </span>
         <ChevronDown
           size={size === 'sm' ? 12 : 14}
-          className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180 text-slate-600' : ''}`}
+          className={`shrink-0 text-ink-400 transition-transform ${open ? 'rotate-180 text-ink-600' : ''}`}
           aria-hidden="true"
         />
       </button>
@@ -122,7 +122,7 @@ function Select({
         <ul
           ref={menuRef}
           role="listbox"
-          className={`absolute inset-x-0 z-40 mt-1.5 rounded-md border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-black/[0.04] ${options.length > maxVisibleItems ? 'max-h-64 overflow-y-auto' : ''}`}
+          className={`absolute inset-x-0 z-40 mt-1.5 rounded-md border border-border bg-elevated py-1 shadow-sh3 ${options.length > maxVisibleItems ? 'max-h-64 overflow-y-auto' : ''}`}
           style={{ minWidth: menuMinWidth ?? undefined }}
         >
           {options.map((o) => {
@@ -136,10 +136,10 @@ function Select({
                     onChange(o.value);
                     setOpen(false);
                   }}
-                  className={`flex w-full items-center justify-center gap-2 px-2.5 py-1.5 text-[13px] transition-colors ${
+                  className={`flex w-full items-center justify-center gap-2 px-2.5 py-1.5 text-sm transition-colors ${
                     isSelected
-                      ? 'bg-indigo-50 text-indigo-800 font-semibold'
-                      : 'text-slate-700 hover:bg-slate-100 active:bg-slate-200'
+                      ? 'bg-accent-50 text-accent-700 font-semibold'
+                      : 'text-ink-700 hover:bg-ink-100 active:bg-ink-200'
                   }`}
                 >
                   <span
@@ -148,7 +148,7 @@ function Select({
                   >
                     {o.label}
                   </span>
-                  {isSelected && <Check size={12} className="shrink-0 text-indigo-600" aria-hidden="true" />}
+                  {isSelected && <Check size={12} className="shrink-0 text-accent-600" aria-hidden="true" />}
                 </button>
               </li>
             );

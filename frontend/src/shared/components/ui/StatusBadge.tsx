@@ -11,9 +11,9 @@ interface Props {
 }
 
 const SIZE_CLASSES: Record<Size, string> = {
-  sm: 'h-5 px-1.5 text-[11px] gap-1 rounded',
-  md: 'h-6 px-2 text-[11px] gap-1 rounded-md',
-  lg: 'h-7 px-2.5 text-[12px] gap-1.5 rounded-md',
+  sm: 'h-5 px-1.5 text-xs gap-1 rounded',
+  md: 'h-6 px-2 text-xs gap-1 rounded-md',
+  lg: 'h-7 px-2.5 text-xs gap-1.5 rounded-md',
 };
 
 const ICON_SIZE: Record<Size, number> = { sm: 11, md: 12, lg: 14 };

@@ -20,6 +20,11 @@ export type NodeType = NonNullable<NodeDto['nodeType']>;
 export type EdgeType = NonNullable<EdgeDto['edgeType']>;
 
 /**
+ * v2 design tokens. Все цвета через семантические Tailwind-classы
+ * (ok-/warn-/err-/ink-/accent-/type-abstract-/type-empirical-/edge-*)
+ * которые в свою очередь резолвятся через CSS-переменные --c-* и
+ * автоматически переключаются на [data-theme="dark"].
+ *
  * Токены содержат `labelKey` (DictKey) вместо строки label - чтобы
  * UI-компоненты переводили через useT() на текущую локаль.
  */
@@ -40,49 +45,49 @@ export const STATUS_TOKENS: Record<NodeStatus, StatusToken> = {
   STANDING: {
     key: 'STANDING',
     labelKey: 'status.STANDING',
-    bar: 'bg-emerald-500',
-    bg: 'bg-emerald-50',
-    text: 'text-emerald-700',
-    badgeBg: 'bg-emerald-100',
-    badgeText: 'text-emerald-800',
-    badgeBorder: 'border-emerald-200',
-    ring: 'ring-emerald-500/30',
+    bar: 'bg-ok-500',
+    bg: 'bg-ok-100',
+    text: 'text-ok-700',
+    badgeBg: 'bg-ok-100',
+    badgeText: 'text-ok-700',
+    badgeBorder: 'border-ok-500/30',
+    ring: 'ring-ok-500/30',
     Icon: Check,
   },
   DISPUTED: {
     key: 'DISPUTED',
     labelKey: 'status.DISPUTED',
-    bar: 'bg-amber-500',
-    bg: 'bg-amber-50',
-    text: 'text-amber-700',
-    badgeBg: 'bg-amber-100',
-    badgeText: 'text-amber-900',
-    badgeBorder: 'border-amber-200',
-    ring: 'ring-amber-500/30',
+    bar: 'bg-warn-500',
+    bg: 'bg-warn-100',
+    text: 'text-warn-700',
+    badgeBg: 'bg-warn-100',
+    badgeText: 'text-warn-700',
+    badgeBorder: 'border-warn-500/30',
+    ring: 'ring-warn-500/30',
     Icon: AlertTriangle,
   },
   REFUTED: {
     key: 'REFUTED',
     labelKey: 'status.REFUTED',
-    bar: 'bg-red-500',
-    bg: 'bg-red-50',
-    text: 'text-red-700',
-    badgeBg: 'bg-red-100',
-    badgeText: 'text-red-800',
-    badgeBorder: 'border-red-200',
-    ring: 'ring-red-500/30',
+    bar: 'bg-err-500',
+    bg: 'bg-err-100',
+    text: 'text-err-700',
+    badgeBg: 'bg-err-100',
+    badgeText: 'text-err-700',
+    badgeBorder: 'border-err-500/30',
+    ring: 'ring-err-500/30',
     Icon: XCircle,
   },
   UNVERIFIED: {
     key: 'UNVERIFIED',
     labelKey: 'status.UNVERIFIED',
-    bar: 'bg-slate-400',
-    bg: 'bg-slate-50',
-    text: 'text-slate-600',
-    badgeBg: 'bg-slate-100',
-    badgeText: 'text-slate-700',
-    badgeBorder: 'border-slate-200',
-    ring: 'ring-slate-400/30',
+    bar: 'bg-ink-400',
+    bg: 'bg-ink-100',
+    text: 'text-ink-600',
+    badgeBg: 'bg-ink-100',
+    badgeText: 'text-ink-600',
+    badgeBorder: 'border-ink-300',
+    ring: 'ring-ink-400/30',
     Icon: Circle,
   },
 };
@@ -93,55 +98,62 @@ export interface NodeTypeToken {
   hintKey: DictKey;
   chipBg: string;
   chipText: string;
-  headerGradient: string;
+  /** Solid background для panel header (вместо градиента из v1) */
+  headerBg: string;
   iconBg: string;
   iconText: string;
   Icon: LucideIcon;
 }
 
+/**
+ * Per v2 design system: QUESTION/CLAIM/ARGUMENT - "abstract" type family,
+ * EVIDENCE - "empirical" type family. Различие концептуальное (теоретическое
+ * утверждение vs наблюдение), и оно отражено в цвете chip.
+ * Иконка остаётся per-тип для visual cue.
+ */
 export const NODE_TYPE_TOKENS: Record<NodeType, NodeTypeToken> = {
   QUESTION: {
     key: 'QUESTION',
     labelKey: 'node.type.QUESTION',
     hintKey: 'node.type.QUESTION.hint',
-    chipBg: 'bg-violet-100',
-    chipText: 'text-violet-700',
-    headerGradient: 'from-violet-50/70 to-white',
-    iconBg: 'bg-violet-100',
-    iconText: 'text-violet-700',
+    chipBg: 'bg-type-abstract-bg',
+    chipText: 'text-type-abstract-fg',
+    headerBg: 'bg-type-abstract-bg',
+    iconBg: 'bg-type-abstract-bg',
+    iconText: 'text-type-abstract-fg',
     Icon: CircleHelp,
   },
   CLAIM: {
     key: 'CLAIM',
     labelKey: 'node.type.CLAIM',
     hintKey: 'node.type.CLAIM.hint',
-    chipBg: 'bg-indigo-100',
-    chipText: 'text-indigo-700',
-    headerGradient: 'from-indigo-50/70 to-white',
-    iconBg: 'bg-indigo-100',
-    iconText: 'text-indigo-700',
+    chipBg: 'bg-type-abstract-bg',
+    chipText: 'text-type-abstract-fg',
+    headerBg: 'bg-type-abstract-bg',
+    iconBg: 'bg-type-abstract-bg',
+    iconText: 'text-type-abstract-fg',
     Icon: Megaphone,
   },
   ARGUMENT: {
     key: 'ARGUMENT',
     labelKey: 'node.type.ARGUMENT',
     hintKey: 'node.type.ARGUMENT.hint',
-    chipBg: 'bg-sky-100',
-    chipText: 'text-sky-700',
-    headerGradient: 'from-sky-50/70 to-white',
-    iconBg: 'bg-sky-100',
-    iconText: 'text-sky-700',
+    chipBg: 'bg-type-abstract-bg',
+    chipText: 'text-type-abstract-fg',
+    headerBg: 'bg-type-abstract-bg',
+    iconBg: 'bg-type-abstract-bg',
+    iconText: 'text-type-abstract-fg',
     Icon: MessageSquareQuote,
   },
   EVIDENCE: {
     key: 'EVIDENCE',
     labelKey: 'node.type.EVIDENCE',
     hintKey: 'node.type.EVIDENCE.hint',
-    chipBg: 'bg-teal-100',
-    chipText: 'text-teal-700',
-    headerGradient: 'from-teal-50/70 to-white',
-    iconBg: 'bg-teal-100',
-    iconText: 'text-teal-700',
+    chipBg: 'bg-type-empirical-bg',
+    chipText: 'text-type-empirical-fg',
+    headerBg: 'bg-type-empirical-bg',
+    iconBg: 'bg-type-empirical-bg',
+    iconText: 'text-type-empirical-fg',
     Icon: FileText,
   },
 };
@@ -149,6 +161,7 @@ export const NODE_TYPE_TOKENS: Record<NodeType, NodeTypeToken> = {
 export interface EdgeTypeToken {
   key: EdgeType;
   labelKey: DictKey;
+  /** CSS var name для stroke - резолвится в React Flow runtime */
   stroke: string;
   strokeWidth: number;
   strokeDasharray?: string;
@@ -158,52 +171,56 @@ export interface EdgeTypeToken {
   badgeBorder: string;
 }
 
+/**
+ * Edge strokes используются как `style={{ stroke: token.stroke }}` в
+ * React Flow. CSS-var (var(--c-edge-supports)) подхватывает тему.
+ */
 export const EDGE_TYPE_TOKENS: Record<EdgeType, EdgeTypeToken> = {
   SUPPORTS: {
     key: 'SUPPORTS',
     labelKey: 'edge.type.SUPPORTS',
-    stroke: '#10b981',
+    stroke: 'var(--c-edge-supports)',
     strokeWidth: 2,
-    badgeBg: 'bg-emerald-50',
-    badgeText: 'text-emerald-700',
-    badgeBorder: 'border-emerald-200',
+    badgeBg: 'bg-edge-supports-bg',
+    badgeText: 'text-edge-supports',
+    badgeBorder: 'border-edge-supports/30',
   },
   REFUTES: {
     key: 'REFUTES',
     labelKey: 'edge.type.REFUTES',
-    stroke: '#ef4444',
+    stroke: 'var(--c-edge-refutes)',
     strokeWidth: 2,
-    badgeBg: 'bg-red-50',
-    badgeText: 'text-red-700',
-    badgeBorder: 'border-red-200',
+    badgeBg: 'bg-edge-refutes-bg',
+    badgeText: 'text-edge-refutes',
+    badgeBorder: 'border-edge-refutes/30',
   },
   INVALIDATES: {
     key: 'INVALIDATES',
     labelKey: 'edge.type.INVALIDATES',
-    stroke: '#b91c1c',
+    stroke: 'var(--c-edge-refutes)',
     strokeWidth: 3,
     strokeDasharray: '8 4',
-    badgeBg: 'bg-red-50',
-    badgeText: 'text-red-800',
-    badgeBorder: 'border-red-300',
+    badgeBg: 'bg-edge-refutes-bg',
+    badgeText: 'text-edge-refutes',
+    badgeBorder: 'border-edge-refutes/40',
   },
   QUALIFIES: {
     key: 'QUALIFIES',
     labelKey: 'edge.type.QUALIFIES',
-    stroke: '#3b82f6',
+    stroke: 'var(--c-edge-qualifies)',
     strokeWidth: 2,
-    badgeBg: 'bg-blue-50',
-    badgeText: 'text-blue-700',
-    badgeBorder: 'border-blue-200',
+    badgeBg: 'bg-edge-qualifies-bg',
+    badgeText: 'text-edge-qualifies',
+    badgeBorder: 'border-edge-qualifies/30',
   },
   RESPONDS_TO: {
     key: 'RESPONDS_TO',
     labelKey: 'edge.type.RESPONDS_TO',
-    stroke: '#94a3b8',
+    stroke: 'var(--c-edge-responds)',
     strokeWidth: 1.5,
     opacity: 0.7,
-    badgeBg: 'bg-slate-50',
-    badgeText: 'text-slate-600',
-    badgeBorder: 'border-slate-200',
+    badgeBg: 'bg-edge-responds-bg',
+    badgeText: 'text-edge-responds',
+    badgeBorder: 'border-edge-responds/30',
   },
 };

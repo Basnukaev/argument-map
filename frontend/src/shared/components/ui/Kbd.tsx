@@ -8,7 +8,7 @@ interface Props {
 function Kbd({ children, className = '' }: Props) {
   return (
     <kbd
-      className={`inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded border border-slate-300 bg-white text-[11px] font-mono text-slate-600 shadow-[0_1px_0_rgba(15,23,42,0.04)] ${className}`}
+      className={`inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-sm border border-ink-200 bg-elevated text-xs font-mono text-ink-700 shadow-sh1 ${className}`}
     >
       {children}
     </kbd>

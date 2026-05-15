@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import IconButton from '@/shared/components/ui/IconButton';
 import { X } from 'lucide-react';
+import { useT } from '@/shared/i18n';
 
 interface Props {
   open: boolean;
@@ -17,8 +18,19 @@ interface Props {
 /**
  * Модалка на нативном <dialog> - доступность (focus trap, Escape, role="dialog")
  * из коробки. Backdrop закрывает при клике на тёмную область.
+ *
+ * v2 токены: bg-elevated/border (переключаются по теме), shadow-sh4 для
+ * наивысшей elevation - модалка стоит над всем.
  */
-function Modal({ open, onClose, title, subtitle, children, maxWidth = 'max-w-lg' }: Props) {
+function Modal({
+  open,
+  onClose,
+  title,
+  subtitle,
+  children,
+  maxWidth = 'max-w-lg',
+}: Props) {
+  const t = useT();
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -42,16 +54,16 @@ function Modal({ open, onClose, title, subtitle, children, maxWidth = 'max-w-lg'
       ref={ref}
       onClose={onClose}
       onClick={handleBackdropClick}
-      className={`m-auto w-full ${maxWidth} rounded-lg border border-slate-200 bg-white p-0 shadow-2xl backdrop:bg-slate-900/40 backdrop:backdrop-blur-sm`}
+      className={`m-auto w-full ${maxWidth} rounded-lg border border-border bg-elevated p-0 shadow-sh4 backdrop:bg-black/50 backdrop:backdrop-blur-sm`}
     >
-      <header className="flex items-start justify-between gap-3 border-b border-slate-200 px-6 py-4">
+      <header className="flex items-start justify-between gap-3 border-b border-border px-6 py-4">
         <div className="min-w-0">
-          <h2 className="text-[16px] font-semibold text-slate-900">{title}</h2>
-          {subtitle && <p className="mt-0.5 text-[12px] text-slate-500">{subtitle}</p>}
+          <h2 className="text-base font-semibold text-ink-900">{title}</h2>
+          {subtitle && <p className="mt-0.5 text-xs text-ink-500">{subtitle}</p>}
         </div>
-        <IconButton icon={X} label="Закрыть" size="sm" onClick={onClose} />
+        <IconButton icon={X} label={t('common.close')} size="sm" onClick={onClose} />
       </header>
-      <div className="px-6 py-5">{children}</div>
+      <div className="px-6 py-5 text-ink-900">{children}</div>
     </dialog>
   );
 }

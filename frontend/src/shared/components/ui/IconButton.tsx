@@ -23,8 +23,8 @@ const ICON_PX: Record<Size, number> = { sm: 16, md: 18, lg: 20 };
 
 function ghostClasses(active: boolean): string {
   return active
-    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 border-transparent';
+    ? 'bg-accent-50 text-accent-700 border-accent-100'
+    : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900 border-transparent';
 }
 
 function IconButton({
@@ -39,13 +39,13 @@ function IconButton({
   const variantClass =
     variant === 'ghost'
       ? ghostClasses(active)
-      : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50';
+      : 'bg-elevated border-ink-200 text-ink-700 hover:bg-ink-50';
   return (
     <button
       type="button"
       title={label}
       aria-label={label}
-      className={`inline-flex items-center justify-center rounded-md border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 ${SIZE_CLASSES[size]} ${variantClass} ${className}`}
+      className={`inline-flex items-center justify-center rounded-sm border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${SIZE_CLASSES[size]} ${variantClass} ${className}`}
       {...rest}
     >
       <Icon size={ICON_PX[size]} aria-hidden="true" />
