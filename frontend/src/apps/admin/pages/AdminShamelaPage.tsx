@@ -17,7 +17,7 @@ import Header from '@/shared/components/layout/Header';
 import { apiGetRaw, apiPostRaw, ApiError } from '@/shared/api/client';
 import type { components } from '@/shared/api/types';
 import { toast } from '@/shared/stores/toastStore';
-import { hasArabicScript, useT } from '@/shared/i18n';
+import { hasArabicScript, useT, useFormatDate, useNumberFormat } from '@/shared/i18n';
 
 type SyncStatus = components['schemas']['SyncStatusResponse'];
 type SearchResult = components['schemas']['StagingBookSearchResponse'];
@@ -27,22 +27,14 @@ type SyncMasterResponse = components['schemas']['SyncMasterResponse'];
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-const DATE_FORMAT = new Intl.DateTimeFormat('ru-RU', {
-  day: 'numeric',
-  month: 'short',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
-function formatDateTime(iso: string | undefined): string {
-  if (!iso) return 'никогда';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return DATE_FORMAT.format(d);
-}
-
 function AdminShamelaPage() {
   const t = useT();
+  const formatDate = useFormatDate();
+  const formatNumber = useNumberFormat();
+  // Локализованный formatDateTime - использует useFormatDate в short stylа.
+  // При null/undefined возвращает «никогда» из словаря (раньше был хардкод)
+  const formatDateTime = (iso: string | undefined): string =>
+    iso ? formatDate(iso, 'short') : t('admin.last_sync_never_short');
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
@@ -74,7 +66,7 @@ function AdminShamelaPage() {
       })
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;
-        setStatusError(formatError(e, 'Не удалось загрузить статус'));
+        setStatusError(formatError(e, t('admin.status_load_error')));
       })
       .finally(() => {
         if (!controller.signal.aborted) setStatusLoading(false);
@@ -106,7 +98,7 @@ function AdminShamelaPage() {
         })
         .catch((e: unknown) => {
           if (controller.signal.aborted) return;
-          setSearchError(formatError(e, 'Поиск не удался'));
+          setSearchError(formatError(e, t('admin.search_failed')));
           setResults([]);
           setSearchLoading(false);
         });
@@ -148,7 +140,7 @@ function AdminShamelaPage() {
       }
       setReloadStatusToken((n) => n + 1);
     } catch (e) {
-      toast.error(formatError(e, 'Sync каталога не удался'));
+      toast.error(formatError(e, t('common.unknown_error')));
     } finally {
       setSyncing(false);
     }
@@ -174,7 +166,7 @@ function AdminShamelaPage() {
       );
       setReloadStatusToken((n) => n + 1);
     } catch (e) {
-      toast.error(formatError(e, `Импорт книги ${bookId} не удался`));
+      toast.error(formatError(e, `${t('admin.import_failed')}: ${bookId}`));
     } finally {
       setImportingId(null);
     }
@@ -226,16 +218,16 @@ function AdminShamelaPage() {
                 />
                 <Stat
                   label={t('admin.authors')}
-                  value={(status.authorsCount ?? 0).toLocaleString('ru-RU')}
+                  value={formatNumber(status.authorsCount ?? 0)}
                 />
                 <Stat
                   label={t('admin.books_in_staging')}
-                  value={(status.booksCount ?? 0).toLocaleString('ru-RU')}
-                  hint={`${t('admin.mapped_count')}: ${(status.mappedBooksCount ?? 0).toLocaleString('ru-RU')}`}
+                  value={formatNumber(status.booksCount ?? 0)}
+                  hint={`${t('admin.mapped_count')}: ${formatNumber(status.mappedBooksCount ?? 0)}`}
                 />
               </div>
               <Button icon={RefreshCw} onClick={onSyncMaster} disabled={syncing}>
-                {syncing ? t('common.loading') : t('admin.sync_button')}
+                {syncing ? t('admin.sync_in_progress') : t('admin.sync_button')}
               </Button>
             </div>
           )}
@@ -283,7 +275,7 @@ function AdminShamelaPage() {
         )}
 
         {!searchError && query.trim().length > 0 && results.length === 0 && !searchLoading && (
-          <p className="text-[13px] text-slate-500">Ничего не найдено по запросу "{query}"</p>
+          <p className="text-[13px] text-slate-500">{t('topic.list.not_found')}</p>
         )}
 
         {results.length > 0 && (
@@ -344,7 +336,7 @@ function SearchResultRow({ result, onImport, isImporting }: SearchResultRowProps
                 : 'text-[15px] font-semibold leading-snug text-slate-900'
             }
           >
-            {result.name ?? '(без названия)'}
+            {result.name ?? t('reader.no_book_title')}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-slate-500">
             {result.authorName && (
