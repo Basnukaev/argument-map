@@ -10,7 +10,7 @@ import PageView, {
 } from '@/shared/components/reader/PageView';
 import { apiGetRaw, apiPostRaw, formatApiError, ApiError } from '@/shared/api/client';
 import type { components } from '@/shared/api/types';
-import { hasArabicScript } from '@/shared/i18n';
+import { hasArabicScript, useT } from '@/shared/i18n';
 
 type Book = components['schemas']['BookSummaryResponse'];
 type BookDetailDto = components['schemas']['BookDetailResponse'];
@@ -51,6 +51,7 @@ type BookState =
  * проекта, обеспечивает чистый state при каждом открытии.
  */
 function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
+  const t = useT();
   const [booksState, setBooksState] = useState<BooksState>({ kind: 'loading' });
   const [search, setSearch] = useState('');
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
@@ -215,7 +216,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Привести источник"
+      aria-label={t('citation_picker.title_for')}
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget && !submitting) onClose();
@@ -227,11 +228,11 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
           <div className="min-w-0">
             <h2 className="flex items-center gap-2 text-[15px] font-semibold text-slate-900">
               <BookOpen size={18} className="text-indigo-600" aria-hidden="true" />
-              Привести источник для:
-              <span className="truncate text-slate-600 font-normal">«{truncatedNodeContent}»</span>
+              {t('citation_picker.title_for')}:
+              <span dir="auto" className="truncate text-slate-600 font-normal">«{truncatedNodeContent}»</span>
             </h2>
             <p className="mt-0.5 text-[11px] text-slate-500">
-              Выберите книгу, найдите фрагмент, выделите курсором и нажмите «Привести»
+              {t('citation_picker.subtitle')}
             </p>
           </div>
           <button
@@ -239,7 +240,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
             onClick={onClose}
             disabled={submitting}
             className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40"
-            aria-label="Закрыть"
+            aria-label={t('common.close')}
           >
             <X size={18} aria-hidden="true" />
           </button>
@@ -255,7 +256,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Поиск книги"
+                placeholder={t('citation_picker.search_book')}
                 className="flex-1 bg-transparent px-2.5 text-[13px] outline-none placeholder:text-slate-400"
               />
             </div>
@@ -269,7 +270,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
                 <p className="p-3 text-[12px] text-red-700">{booksState.message}</p>
               )}
               {booksState.kind === 'success' && filteredBooks.length === 0 && (
-                <p className="p-3 text-center text-[12px] italic text-slate-400">Ничего не найдено</p>
+                <p className="p-3 text-center text-[12px] italic text-slate-400">{t('citation_picker.nothing_found')}</p>
               )}
               {booksState.kind === 'success' &&
                 filteredBooks.map((b) => (
@@ -293,7 +294,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
           <section className="flex flex-1 min-w-0 flex-col gap-2 overflow-hidden">
             {bookState.kind === 'idle' && (
               <Card className="flex flex-1 items-center justify-center text-center">
-                <p className="text-[13px] italic text-slate-400">Выберите книгу в списке слева</p>
+                <p className="text-[13px] italic text-slate-400">{t('citation_picker.select_book_hint')}</p>
               </Card>
             )}
             {bookState.kind === 'loading' && (
@@ -317,10 +318,10 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
                     onClick={goPrev}
                     disabled={!hasPrev}
                   >
-                    Назад
+                    {t('reader.prev')}
                   </Button>
                   <div className="flex items-center gap-2 text-[13px] text-slate-700">
-                    <span className="text-slate-500">Стр</span>
+                    <span className="text-slate-500">{t('reader.page_short')}</span>
                     <input
                       type="number"
                       min={1}
@@ -330,9 +331,11 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
                         if (Number.isFinite(v)) gotoPage(v);
                       }}
                       className="h-7 w-16 rounded border border-slate-300 px-2 text-center font-mono outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-                      aria-label="Номер страницы"
+                      aria-label={t('reader.page')}
                     />
-                    <span className="font-mono text-slate-400">/ {bookState.pages.length}</span>
+                    <span className="font-mono text-slate-400">
+                      <bdi dir="ltr">/ {bookState.pages.length}</bdi>
+                    </span>
                   </div>
                   <Button
                     variant="ghost"
@@ -341,7 +344,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
                     onClick={goNext}
                     disabled={!hasNext}
                   >
-                    Вперёд
+                    {t('reader.next')}
                   </Button>
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto">
@@ -360,7 +363,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
           <aside className="flex w-[320px] flex-col gap-2">
             <Card className="p-3">
               <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Выделенный фрагмент
+                {t('citation_picker.selected_fragment')}
               </h3>
               {selection ? (
                 <blockquote
@@ -371,7 +374,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
                 </blockquote>
               ) : (
                 <p className="mt-2 text-[12px] italic text-slate-400">
-                  Выделите фрагмент текста на странице курсором
+                  {t('citation_picker.select_hint')}
                 </p>
               )}
               {selection && (
@@ -386,13 +389,13 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
                 htmlFor="citation-context"
                 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"
               >
-                Комментарий (опционально)
+                {t('citation_picker.comment_optional')}
               </label>
               <textarea
                 id="citation-context"
                 value={context}
                 onChange={(e) => setContext(e.target.value)}
-                placeholder="Как эта цитата подкрепляет тезис узла"
+                placeholder={t('citation_picker.comment_placeholder')}
                 rows={6}
                 className="mt-2 flex-1 resize-none rounded-md border border-slate-300 px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
               />
@@ -411,7 +414,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
               disabled={!selection || submitting}
               className="w-full justify-center"
             >
-              {submitting ? 'Привязываем' : 'Привести'}
+              {submitting ? t('common.saving') : t('citation_picker.submit')}
             </Button>
           </aside>
         </div>

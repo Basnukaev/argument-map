@@ -17,7 +17,7 @@ import Header from '@/shared/components/layout/Header';
 import { apiGetRaw, apiPostRaw, ApiError } from '@/shared/api/client';
 import type { components } from '@/shared/api/types';
 import { toast } from '@/shared/stores/toastStore';
-import { hasArabicScript } from '@/shared/i18n';
+import { hasArabicScript, useT } from '@/shared/i18n';
 
 type SyncStatus = components['schemas']['SyncStatusResponse'];
 type SearchResult = components['schemas']['StagingBookSearchResponse'];
@@ -42,6 +42,7 @@ function formatDateTime(iso: string | undefined): string {
 }
 
 function AdminShamelaPage() {
+  const t = useT();
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
@@ -187,11 +188,10 @@ function AdminShamelaPage() {
         <div className="mb-6">
           <h1 className="flex items-center gap-2.5 text-[28px] font-bold tracking-tight text-slate-900">
             <Settings size={26} className="text-indigo-600" aria-hidden="true" />
-            Админ · Shamela
+            {t('admin.title')} · Shamela
           </h1>
           <p className="mt-1 text-[13px] text-slate-500">
-            Импорт книг из каталога shamela.ws через desktop-API.
-            Поиск в staging, импорт по одной книге за клик
+            {t('admin.subtitle')}
           </p>
         </div>
 
@@ -200,14 +200,14 @@ function AdminShamelaPage() {
           {statusLoading && (
             <div className="flex items-center gap-2 text-[13px] text-slate-500">
               <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-              Загрузка статуса
+              {t('admin.loading_status')}
             </div>
           )}
           {statusError && (
             <div className="flex items-start gap-3 text-red-800">
               <AlertCircle size={20} className="mt-0.5 shrink-0 text-red-600" aria-hidden="true" />
               <div>
-                <p className="font-semibold">Ошибка загрузки статуса</p>
+                <p className="font-semibold">{t('admin.status_load_error')}</p>
                 <p className="mt-1 text-[13px]">{statusError}</p>
               </div>
             </div>
@@ -216,26 +216,26 @@ function AdminShamelaPage() {
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div className="grid flex-1 grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
                 <Stat
-                  label="Master version"
+                  label={t('admin.master_version')}
                   value={status.masterVersion?.toString() ?? '0'}
-                  hint={<>Последний sync: <bdi dir="ltr">{formatDateTime(status.lastSyncedAt)}</bdi></>}
+                  hint={<>{t('admin.last_sync')}: <bdi dir="ltr">{formatDateTime(status.lastSyncedAt)}</bdi></>}
                 />
                 <Stat
-                  label="Категорий"
+                  label={t('admin.categories')}
                   value={status.categoriesCount?.toString() ?? '0'}
                 />
                 <Stat
-                  label="Авторов"
+                  label={t('admin.authors')}
                   value={(status.authorsCount ?? 0).toLocaleString('ru-RU')}
                 />
                 <Stat
-                  label="Книг в staging"
+                  label={t('admin.books_in_staging')}
                   value={(status.booksCount ?? 0).toLocaleString('ru-RU')}
-                  hint={`Замаплено: ${(status.mappedBooksCount ?? 0).toLocaleString('ru-RU')}`}
+                  hint={`${t('admin.mapped_count')}: ${(status.mappedBooksCount ?? 0).toLocaleString('ru-RU')}`}
                 />
               </div>
               <Button icon={RefreshCw} onClick={onSyncMaster} disabled={syncing}>
-                {syncing ? 'Синхронизация…' : 'Синхронизировать каталог'}
+                {syncing ? t('common.loading') : t('admin.sync_button')}
               </Button>
             </div>
           )}
@@ -245,19 +245,19 @@ function AdminShamelaPage() {
         <div className="mb-4">
           <h2 className="mb-2 flex items-center gap-2 text-[16px] font-semibold text-slate-900">
             <Database size={18} className="text-indigo-600" aria-hidden="true" />
-            Поиск в каталоге shamela
+            {t('admin.search_in_catalog')}
           </h2>
           {(status?.booksCount ?? 0) === 0 && !statusLoading && (
             <p className="mb-3 text-[13px] text-slate-500">
-              Каталог пуст. Сначала запусти{' '}
+              {t('admin.empty_catalog_hint')}{' '}
               <button
                 type="button"
                 onClick={onSyncMaster}
                 className="text-indigo-600 underline hover:text-indigo-800"
               >
-                синхронизацию
+                {t('admin.sync_action_link')}
               </button>{' '}
-              чтобы загрузить ~8500 книг в staging
+              {t('admin.empty_catalog_hint_2')}
             </p>
           )}
           <div className="flex h-9 max-w-xl items-center rounded-md border border-slate-300 bg-white transition-colors focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20">
@@ -266,9 +266,9 @@ function AdminShamelaPage() {
               type="search"
               value={query}
               onChange={(e) => onQueryChange(e.target.value)}
-              placeholder="Поиск по названию или id · до 50 результатов"
+              placeholder={t('admin.search_placeholder')}
               className="flex-1 bg-transparent px-3 text-[13px] text-slate-900 outline-none placeholder:text-slate-400"
-              aria-label="Поиск книг shamela"
+              aria-label={t('admin.search_aria')}
             />
             {searchLoading && (
               <Loader2 size={14} className="me-3 animate-spin text-slate-400" aria-hidden="true" />
@@ -326,6 +326,7 @@ interface SearchResultRowProps {
 }
 
 function SearchResultRow({ result, onImport, isImporting }: SearchResultRowProps) {
+  const t = useT();
   // dir="auto" - браузер сам определит направление по первому сильному символу.
   // Шрифт font-naskh всё равно через эвристику (dir="auto" шрифт не переключает).
   const arabicName = hasArabicScript(result.name ?? undefined);
@@ -363,11 +364,11 @@ function SearchResultRow({ result, onImport, isImporting }: SearchResultRowProps
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 border border-emerald-200">
               <CheckCircle2 size={12} aria-hidden="true" />
-              Импортирована
+              {t('admin.imported')}
             </span>
             <Link to="/books">
               <Button variant="ghost" size="sm" iconRight={ExternalLink}>
-                В библиотеке
+                {t('admin.in_library')}
               </Button>
             </Link>
           </div>
@@ -378,7 +379,7 @@ function SearchResultRow({ result, onImport, isImporting }: SearchResultRowProps
             onClick={() => result.bookId !== undefined && onImport(result.bookId)}
             disabled={isImporting}
           >
-            {isImporting ? 'Импорт…' : 'Импортировать'}
+            {isImporting ? t('admin.importing') : t('admin.import')}
           </Button>
         )}
       </Card>

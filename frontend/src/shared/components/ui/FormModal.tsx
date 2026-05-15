@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 import Modal from '@/shared/components/ui/Modal';
 import Button from '@/shared/components/ui/Button';
 import Kbd from '@/shared/components/ui/Kbd';
+import { useT } from '@/shared/i18n';
 
 interface Props {
   open: boolean;
@@ -43,6 +44,7 @@ function FormModal({
   hotkeyHint,
   children,
 }: Props) {
+  const t = useT();
   return (
     <Modal open={open} onClose={onClose} title={title} maxWidth={maxWidth}>
       <form onSubmit={onSubmit} className="space-y-5">
@@ -62,9 +64,9 @@ function FormModal({
           ) : (
             <span />
           )}
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ms-auto flex items-center gap-2">
             <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
-              Отмена
+              {t('common.cancel')}
             </Button>
             <Button type="submit" icon={submitIcon} disabled={submitting || submitDisabled}>
               {submitting ? submittingLabel : submitLabel}

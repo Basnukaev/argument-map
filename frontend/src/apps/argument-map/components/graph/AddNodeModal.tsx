@@ -125,7 +125,7 @@ function AddNodeModal({
       onSubmit={handleSubmit}
       submitting={submitting}
       submitDisabled={!content.trim()}
-      submitLabel="Создать"
+      submitLabel={t('common.create')}
       submittingLabel="Создаём"
       submitIcon={Plus}
       error={error}
@@ -138,7 +138,7 @@ function AddNodeModal({
     >
       <fieldset disabled={submitting || lockNodeType} className="space-y-2">
           <legend className="text-[12px] font-medium text-slate-700">
-            Тип{lockNodeType ? ' (зафиксирован)' : ''}
+            {t('node.field.type')}
           </legend>
           <div className={`mt-2 grid gap-2 ${lockNodeType ? 'grid-cols-1' : 'grid-cols-4'}`}>
             {TYPE_ORDER.map((value) => {
@@ -184,7 +184,7 @@ function AddNodeModal({
 
         <div>
           <label htmlFor="node-content" className="mb-1.5 block text-[12px] font-medium text-slate-700">
-            Содержание
+            {t('node.field.content')}
           </label>
           <textarea
             id="node-content"
@@ -197,7 +197,7 @@ function AddNodeModal({
             className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
           />
           <span className="mt-1 block text-[11px] text-slate-500">
-            2-4 предложения. Можно отредактировать позже.
+            {t('node.field.content_hint')}
           </span>
         </div>
     </FormModal>
