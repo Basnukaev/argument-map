@@ -12,9 +12,14 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
+import ru.basnukaev.argumentmap.library.repository.MuhaqqiqRepository;
+import ru.basnukaev.argumentmap.library.repository.PublicationPlaceRepository;
+import ru.basnukaev.argumentmap.library.repository.PublisherRepository;
 import ru.basnukaev.argumentmap.library.shamela.etl.dto.ShamelaBookRow;
 import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaBookDao;
+import ru.basnukaev.argumentmap.library.shamela.service.mapper.ParsedBibliography;
 import ru.basnukaev.argumentmap.library.shamela.service.mapper.ShamelaAuthorityResolver;
+import ru.basnukaev.argumentmap.library.shamela.service.mapper.ShamelaBibliographyParser;
 import ru.basnukaev.argumentmap.library.shamela.service.mapper.ShamelaBookMetadataBuilder;
 import ru.basnukaev.argumentmap.library.shamela.service.mapper.ShamelaChapterMapper;
 import ru.basnukaev.argumentmap.library.shamela.service.mapper.ShamelaPageMapper;
@@ -50,6 +55,13 @@ import ru.basnukaev.argumentmap.library.shamela.service.mapper.ShamelaPageMapper
  *   <li>{@code language} = {@code "ar"} (каталог shamela арабский)</li>
  *   <li>{@code chapter_id} в {@code lib_pages} - NULL на MVP. Связь
  *       page→chapter откладывается на future iteration</li>
+ *   <li>{@code muhaqqiq_id} / {@code publisher_id} /
+ *       {@code publication_place_id} / {@code edition_number} /
+ *       {@code published_year_hijri/gregorian} - заполняются Этапом 20.c
+ *       через {@link ShamelaBibliographyParser} (regex над
+ *       {@code shamela_book.bibliography}). Парсер консервативен -
+ *       любое из 6 полей может остаться NULL если marker не найден.
+ *       Для админских правок руками будет Этап 20.d BookEditModal</li>
  * </ul>
  */
 @Service
@@ -71,19 +83,31 @@ public class ShamelaToLibraryMapper {
     private final ShamelaBookMetadataBuilder metadataBuilder;
     private final ShamelaChapterMapper chapterMapper;
     private final ShamelaPageMapper pageMapper;
+    private final ShamelaBibliographyParser bibliographyParser;
+    private final MuhaqqiqRepository muhaqqiqRepository;
+    private final PublisherRepository publisherRepository;
+    private final PublicationPlaceRepository publicationPlaceRepository;
 
     public ShamelaToLibraryMapper(ShamelaBookDao shamelaBookDao,
                                   BookRepository bookRepository,
                                   ShamelaAuthorityResolver authorityResolver,
                                   ShamelaBookMetadataBuilder metadataBuilder,
                                   ShamelaChapterMapper chapterMapper,
-                                  ShamelaPageMapper pageMapper) {
+                                  ShamelaPageMapper pageMapper,
+                                  ShamelaBibliographyParser bibliographyParser,
+                                  MuhaqqiqRepository muhaqqiqRepository,
+                                  PublisherRepository publisherRepository,
+                                  PublicationPlaceRepository publicationPlaceRepository) {
         this.shamelaBookDao = shamelaBookDao;
         this.bookRepository = bookRepository;
         this.authorityResolver = authorityResolver;
         this.metadataBuilder = metadataBuilder;
         this.chapterMapper = chapterMapper;
         this.pageMapper = pageMapper;
+        this.bibliographyParser = bibliographyParser;
+        this.muhaqqiqRepository = muhaqqiqRepository;
+        this.publisherRepository = publisherRepository;
+        this.publicationPlaceRepository = publicationPlaceRepository;
     }
 
     @Transactional
@@ -102,6 +126,14 @@ public class ShamelaToLibraryMapper {
         }
 
         UUID authorityId = authorityResolver.resolve(shamelaBook.authorId());
+        ParsedBibliography parsedBiblio = bibliographyParser.parse(shamelaBook.bibliography());
+        UUID muhaqqiqId = parsedBiblio.muhaqqiq() == null
+                ? null : muhaqqiqRepository.findOrCreate(parsedBiblio.muhaqqiq());
+        UUID publisherId = parsedBiblio.publisher() == null
+                ? null : publisherRepository.findOrCreate(parsedBiblio.publisher());
+        UUID publicationPlaceId = parsedBiblio.publicationPlace() == null
+                ? null : publicationPlaceRepository.findOrCreate(parsedBiblio.publicationPlace());
+
         Instant now = Instant.now();
         UUID bookUuid = UUID.randomUUID();
         Book book = new Book(
@@ -115,7 +147,12 @@ public class ShamelaToLibraryMapper {
                 createdBy,
                 now,
                 now,
-                null, null, null, null, null, null
+                muhaqqiqId,
+                publisherId,
+                publicationPlaceId,
+                parsedBiblio.editionNumber(),
+                parsedBiblio.publishedYearHijri(),
+                parsedBiblio.publishedYearGregorian()
         );
         bookRepository.save(book);
 
