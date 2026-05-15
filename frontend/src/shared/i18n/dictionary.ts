@@ -204,6 +204,8 @@ export const DICTIONARY = {
     'node.citations_empty': 'К узлу не привязано ни одной опоры',
     'node.citation_free_aria': 'Свободная',
     'node.citation_detach_aria': 'Отвязать опору',
+    'node.citation_add_library': 'Привести источник',
+    'node.citation_add_free': 'Свободный',
 
     // CitationPicker модалка
     'citation_picker.title_for': 'Привести источник для',
@@ -425,6 +427,8 @@ export const DICTIONARY = {
     'node.citations_empty': 'لا يوجد استناد مرتبط بهذه العقدة',
     'node.citation_free_aria': 'حرة',
     'node.citation_detach_aria': 'فصل الاستناد',
+    'node.citation_add_library': 'إرفاق مصدر',
+    'node.citation_add_free': 'حر',
 
     'citation_picker.title_for': 'إرفاق مصدر للعقدة',
     'citation_picker.subtitle': 'اختر الكتاب، ابحث عن المقطع، حدِّده بالمؤشر واضغط «إرفاق»',

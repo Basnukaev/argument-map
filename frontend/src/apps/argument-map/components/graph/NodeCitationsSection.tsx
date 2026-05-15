@@ -144,7 +144,7 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
             disabled={!nodeId}
             className="flex-1 justify-center"
           >
-            Привести источник
+            {t('node.citation_add_library')}
           </Button>
           <Button
             type="button"
@@ -155,7 +155,7 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
             disabled={!nodeId}
             className="flex-1 justify-center"
           >
-            Свободный
+            {t('node.citation_add_free')}
           </Button>
         </div>
       </PanelSection>
