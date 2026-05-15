@@ -50,11 +50,11 @@ function shortId(id?: string): string {
 
 const PREVIEW_LEN = 80;
 
-function nodePreview(node: NodeDto): string {
+function nodePreview(node: NodeDto, emptyText: string): string {
   const content = node.content ?? '';
   return content.length > PREVIEW_LEN
     ? `${content.slice(0, PREVIEW_LEN)}…`
-    : content || '(без содержимого)';
+    : content || emptyText;
 }
 
 interface SectionProps {
@@ -91,9 +91,10 @@ function PanelSection({ icon: Icon, title, defaultOpen = true, children }: Secti
 
 interface NodeMiniProps {
   node: NodeDto;
+  emptyText: string;
 }
 
-function NodeMini({ node }: NodeMiniProps) {
+function NodeMini({ node, emptyText }: NodeMiniProps) {
   const nodeType: NodeType = node.nodeType ?? 'CLAIM';
   const status: NodeStatus = node.status ?? 'UNVERIFIED';
   const typeToken = NODE_TYPE_TOKENS[nodeType];
@@ -107,8 +108,8 @@ function NodeMini({ node }: NodeMiniProps) {
       <div className={`text-[10px] font-semibold uppercase tracking-wider ${typeToken.chipText}`}>
         {nodeType}
       </div>
-      <div className="line-clamp-2 text-[12px] font-medium leading-snug text-slate-800">
-        {nodePreview(node)}
+      <div dir="auto" className="line-clamp-2 text-[12px] font-medium leading-snug text-slate-800">
+        {nodePreview(node, emptyText)}
       </div>
     </div>
   );
@@ -209,7 +210,7 @@ function EdgeDetailsPanel({
       setEditing(false);
       onUpdated();
     } catch (e: unknown) {
-      setSaveError(formatApiError(e, 'Не удалось сохранить'));
+      setSaveError(formatApiError(e, t('common.error')));
     } finally {
       setSaving(false);
     }
@@ -230,7 +231,7 @@ function EdgeDetailsPanel({
         className={`relative border-b border-slate-200 bg-gradient-to-b ${gradientFor(currentEdgeType)} p-5`}
       >
         <div className="absolute end-3 top-3">
-          <IconButton icon={X} label="Закрыть панель" size="sm" onClick={onClose} />
+          <IconButton icon={X} label={t('common.close')} size="sm" onClick={onClose} />
         </div>
         <div className="flex items-center gap-2">
           <span className={`grid h-8 w-8 place-items-center rounded-md ${iconBg.bg} ${iconBg.text}`}>
@@ -253,9 +254,9 @@ function EdgeDetailsPanel({
       <div className="flex-1 overflow-y-auto">
         <PanelSection icon={Network} title={t('edge.section.connection')} defaultOpen>
           <div className="flex items-center gap-2">
-            <NodeMini node={fromNode} />
+            <NodeMini node={fromNode} emptyText={t('node.empty_content')} />
             <FlowArrow size={20} className="shrink-0 text-slate-400" aria-hidden="true" />
-            <NodeMini node={toNode} />
+            <NodeMini node={toNode} emptyText={t('node.empty_content')} />
           </div>
         </PanelSection>
 
@@ -277,7 +278,7 @@ function EdgeDetailsPanel({
                 icon={Pencil}
                 onClick={startEdit}
               >
-                Редактировать
+                {t('common.edit')}
               </Button>
             )}
           </div>
@@ -286,7 +287,7 @@ function EdgeDetailsPanel({
             <div className="space-y-1.5">
               {allowedTypes.length === 0 && (
                 <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-[12px] text-amber-900">
-                  Текущая пара узлов не допускает ни один тип связи (см. ADR-010)
+                  {t('edge.error.disallowed_pair')}
                 </p>
               )}
               {allowedTypes.map((value) => {
@@ -360,11 +361,11 @@ function EdgeDetailsPanel({
               className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
             />
           ) : currentRationale ? (
-            <p className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-slate-800">
+            <p dir="auto" className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-slate-800">
               {currentRationale}
             </p>
           ) : (
-            <p className="text-[13px] italic text-slate-500">(не указано)</p>
+            <p className="text-[13px] italic text-slate-500">{t('node.empty_rationale')}</p>
           )}
         </PanelSection>
 
@@ -383,7 +384,7 @@ function EdgeDetailsPanel({
                 onClick={cancelEdit}
                 disabled={saving}
               >
-                Отмена
+                {t('common.cancel')}
               </Button>
               <Button
                 type="button"
@@ -391,7 +392,7 @@ function EdgeDetailsPanel({
                 onClick={save}
                 disabled={saving || allowedTypes.length === 0}
               >
-                {saving ? 'Сохраняем' : 'Сохранить'}
+                {saving ? t('common.saving') : t('common.save')}
               </Button>
             </div>
           </div>

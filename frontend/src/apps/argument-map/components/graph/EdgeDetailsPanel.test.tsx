@@ -96,7 +96,7 @@ describe('EdgeDetailsPanel', () => {
 
   it('крестик вызывает onClose', async () => {
     const { onClose } = renderPanel();
-    await userEvent.click(screen.getByRole('button', { name: 'Закрыть панель' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

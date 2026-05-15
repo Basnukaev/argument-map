@@ -54,7 +54,7 @@ function NodeContentEditor({ nodeId, content, initialEditing, onSaved }: Props) 
       setEditing(false);
       onSaved();
     } catch (e: unknown) {
-      setSaveError(formatApiError(e, 'Не удалось сохранить'));
+      setSaveError(formatApiError(e, t('common.error')));
     } finally {
       setSaving(false);
     }
@@ -69,7 +69,7 @@ function NodeContentEditor({ nodeId, content, initialEditing, onSaved }: Props) 
               {content}
             </p>
           ) : (
-            <p className="text-[14px] italic text-slate-400">(пусто)</p>
+            <p className="text-[14px] italic text-slate-400">{t('node.empty_content_short')}</p>
           )}
           <Button
             type="button"

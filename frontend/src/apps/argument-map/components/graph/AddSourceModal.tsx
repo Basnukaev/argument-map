@@ -4,6 +4,7 @@ import Modal from '@/shared/components/ui/Modal';
 import Button from '@/shared/components/ui/Button';
 import Kbd from '@/shared/components/ui/Kbd';
 import { apiGetRaw, apiPost, apiPostRaw, formatApiError } from '@/shared/api/client';
+import { useT } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
 import SourceSearchForm, {
   type SourceLoadState,
@@ -35,6 +36,7 @@ interface Props {
  * render: `{open && <AddSourceModal .../>}`.
  */
 function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
+  const t = useT();
   const [state, setState] = useState<SourceLoadState>({ kind: 'loading' });
   const [mode, setMode] = useState<Mode>('search');
   const [query, setQuery] = useState('');
@@ -54,7 +56,7 @@ function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
       })
       .catch((e: unknown) => {
         if (cancelled) return;
-        setState({ kind: 'error', message: formatApiError(e, 'Не удалось загрузить справочник') });
+        setState({ kind: 'error', message: formatApiError(e, t('common.list_search_failed')) });
       });
     return () => {
       cancelled = true;
@@ -86,7 +88,7 @@ function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
           : undefined,
     });
     if (!created.id) {
-      throw new Error('Бэк не вернул id нового источника');
+      throw new Error(t('common.unknown_error'));
     }
     await attachExisting(created.id);
   }
@@ -104,7 +106,7 @@ function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
       onAttached();
       onClose();
     } catch (e: unknown) {
-      setSubmitError(formatApiError(e, 'Не удалось привязать источник'));
+      setSubmitError(formatApiError(e, t('add_source.error.create_failed')));
       setSubmitting(false);
     }
   }
@@ -119,7 +121,7 @@ function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
     <Modal
       open
       onClose={handleClose}
-      title={mode === 'create' ? 'Создать новый источник' : 'Привязать источник'}
+      title={mode === 'create' ? t('add_source.title') : t('node.citation_add_library')}
     >
       <div className="space-y-4">
         {mode === 'search' ? (
@@ -167,11 +169,11 @@ function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
 
         <div className="flex items-center justify-between border-t border-slate-200 pt-3">
           <span className="hidden items-center gap-1 text-[11px] text-slate-500 sm:inline-flex">
-            <Kbd>Esc</Kbd> отмена
+            <Kbd>Esc</Kbd> {t('common.cancel')}
           </span>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ms-auto flex items-center gap-2">
             <Button type="button" variant="ghost" onClick={handleClose} disabled={submitting}>
-              Отмена
+              {t('common.cancel')}
             </Button>
             <Button
               type="button"
@@ -180,12 +182,10 @@ function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
               disabled={submitting || !(canAttach || canCreate)}
             >
               {submitting
-                ? mode === 'create'
-                  ? 'Создаём'
-                  : 'Привязываем'
+                ? t('common.saving')
                 : mode === 'create'
-                  ? 'Создать и привязать'
-                  : 'Привязать'}
+                  ? t('add_source.create_submit')
+                  : t('citation_picker.submit')}
             </Button>
           </div>
         </div>

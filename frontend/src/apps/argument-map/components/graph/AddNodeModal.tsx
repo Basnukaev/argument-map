@@ -93,7 +93,7 @@ function AddNodeModal({
             edgeType: autoEdge.edgeType,
           });
         } catch {
-          toast.warning('Узел создан, но связь не удалось добавить - привяжи вручную');
+          toast.warning(t('graph.toast.attach_failed'));
         }
       }
 
@@ -112,7 +112,7 @@ function AddNodeModal({
       onCreated();
       onClose();
     } catch (e: unknown) {
-      setError(formatApiError(e, 'Не удалось создать узел'));
+      setError(formatApiError(e, t('graph.toast.create_node_failed')));
       setSubmitting(false);
     }
   }
@@ -126,7 +126,7 @@ function AddNodeModal({
       submitting={submitting}
       submitDisabled={!content.trim()}
       submitLabel={t('common.create')}
-      submittingLabel="Создаём"
+      submittingLabel={t('common.saving')}
       submitIcon={Plus}
       error={error}
       hotkeyHint={

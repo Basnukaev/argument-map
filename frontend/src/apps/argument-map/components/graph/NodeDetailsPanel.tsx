@@ -74,15 +74,15 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
             <span className="inline-flex items-center gap-1.5">
               <Anchor size={14} className="text-indigo-600" aria-hidden="true" />
               <span className="font-mono font-semibold">{totalCitations}</span>
-              <span>опора</span>
+              <span>{t('node.support_short')}</span>
             </span>
             <span className="text-slate-300">(</span>
-            <span className="inline-flex items-center gap-1" title="из библиотеки">
+            <span className="inline-flex items-center gap-1" title={t('node.from_library')}>
               <BookOpen size={13} className="text-indigo-600" aria-hidden="true" />
               <span className="font-mono">{citationCounts!.lib}</span>
             </span>
             <span className="text-slate-300">·</span>
-            <span className="inline-flex items-center gap-1" title="свободные">
+            <span className="inline-flex items-center gap-1" title={t('node.freeform_short')}>
               <Quote size={13} className="text-slate-500" aria-hidden="true" />
               <span className="font-mono">{citationCounts!.free}</span>
             </span>

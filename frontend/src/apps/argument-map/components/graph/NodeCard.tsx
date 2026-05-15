@@ -74,7 +74,7 @@ function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
           <button
             type="button"
             tabIndex={-1}
-            aria-label="Действия"
+            aria-label="actions"
             className="-mr-1 text-slate-400 hover:text-slate-700 transition-colors"
             onClick={(e) => e.stopPropagation()}
           >
@@ -87,7 +87,7 @@ function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
             {title}
           </p>
         ) : (
-          <p className="text-[13px] italic text-slate-400">(пусто)</p>
+          <p className="text-[13px] italic text-slate-400">(...)</p>
         )}
 
         {truncatedBody && (

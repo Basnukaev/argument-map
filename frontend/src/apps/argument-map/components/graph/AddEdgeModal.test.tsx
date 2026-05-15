@@ -166,7 +166,7 @@ describe('AddEdgeModal', () => {
     await pickNode(user, 'Откуда', 'Тезис А'); // CLAIM
     await pickNode(user, 'Куда', 'Аргумент за А'); // ARGUMENT
 
-    expect(screen.getByText(/Эту пару узлов нельзя соединить/)).toBeInTheDocument();
+    expect(screen.getByText(/Эта пара узлов не допускает/)).toBeInTheDocument();
     expect(screen.queryByLabelText(/Поддерживает/i)).not.toBeInTheDocument();
     const submit = screen.getByRole('button', { name: 'Создать' }) as HTMLButtonElement;
     expect(submit.disabled).toBe(true);

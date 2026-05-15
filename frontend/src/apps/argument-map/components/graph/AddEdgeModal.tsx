@@ -87,11 +87,10 @@ function AddEdgeModal({
   }
 
   function validate(): string | null {
-    if (!fromNodeId) return 'Выбери исходный узел';
-    if (!toNodeId) return 'Выбери целевой узел';
-    if (fromNodeId === toNodeId) return 'Исходный и целевой узлы должны различаться';
+    if (!fromNodeId || !toNodeId) return t('edge.error.required');
+    if (fromNodeId === toNodeId) return t('edge.error.self_loop');
     if (!allowedTypes.includes(effectiveEdgeType)) {
-      return 'Эту пару узлов нельзя соединить выбранным типом';
+      return t('edge.error.disallowed_pair');
     }
     return null;
   }
@@ -118,7 +117,7 @@ function AddEdgeModal({
       onCreated();
       onClose();
     } catch (e: unknown) {
-      setError(formatApiError(e, 'Не удалось создать связь'));
+      setError(formatApiError(e, t('edge.error.create_failed')));
       setSubmitting(false);
     }
   }
@@ -132,8 +131,8 @@ function AddEdgeModal({
       onSubmit={handleSubmit}
       submitting={submitting}
       submitDisabled={!pairAllowed}
-      submitLabel="Создать"
-      submittingLabel="Создаём"
+      submitLabel={t('common.create')}
+      submittingLabel={t('common.saving')}
       submitIcon={LinkIcon}
       error={error}
       hotkeyHint={
@@ -144,7 +143,7 @@ function AddEdgeModal({
         ) : (
           <>
             <Kbd>⌘</Kbd>
-            <Kbd>↵</Kbd> создать
+            <Kbd>↵</Kbd> {t('common.create')}
           </>
         )
       }
@@ -155,7 +154,7 @@ function AddEdgeModal({
               htmlFor="edge-from"
               className="mb-1.5 block text-[12px] font-medium text-slate-700"
             >
-              Откуда
+              {t('edge.field.from')}
             </label>
             <NodeSelect
               id="edge-from"
@@ -171,7 +170,7 @@ function AddEdgeModal({
               htmlFor="edge-to"
               className="mb-1.5 block text-[12px] font-medium text-slate-700"
             >
-              Куда
+              {t('edge.field.to')}
             </label>
             <NodeSelect
               id="edge-to"
@@ -191,11 +190,10 @@ function AddEdgeModal({
           )}
           {pairSelected && !pairAllowed && (
             <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-[12px] text-amber-900">
-              Эту пару узлов нельзя соединить
+              {t('edge.error.disallowed_pair')}
               {fromNode?.nodeType && toNode?.nodeType
                 ? ` (${fromNode.nodeType} → ${toNode.nodeType})`
                 : ''}
-              . См. ADR-010.
             </p>
           )}
           {pairAllowed && (
@@ -260,7 +258,7 @@ function AddEdgeModal({
             htmlFor="edge-rationale"
             className="mb-1.5 block text-[12px] font-medium text-slate-700"
           >
-            Обоснование (необязательно)
+            {t('edge.field.rationale_optional')}
           </label>
           <textarea
             id="edge-rationale"

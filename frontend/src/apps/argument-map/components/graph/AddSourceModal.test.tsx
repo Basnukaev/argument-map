@@ -98,7 +98,7 @@ describe('AddSourceModal', () => {
     await userEvent.click(item);
     expect(screen.getByLabelText('Цитата')).toBeInTheDocument();
     expect(screen.getByLabelText('Контекст')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Привязать/ })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /Привести/ })).not.toBeDisabled();
   });
 
   it('Привязать делает POST и вызывает onAttached + onClose', async () => {
@@ -119,7 +119,7 @@ describe('AddSourceModal', () => {
     await userEvent.click(await screen.findByRole('option', { name: /Сахих Муслим/ }));
     await userEvent.type(screen.getByLabelText('Цитата'), 'Цитата');
     await userEvent.type(screen.getByLabelText('Контекст'), 'контекст');
-    await userEvent.click(screen.getByRole('button', { name: /Привязать/ }));
+    await userEvent.click(screen.getByRole('button', { name: /Привести/ }));
     await waitForApi(() => expect(onAttached).toHaveBeenCalledTimes(1));
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(receivedBody).toEqual({
@@ -140,7 +140,7 @@ describe('AddSourceModal', () => {
     );
     renderModal();
     await userEvent.click(await screen.findByRole('option', { name: /Бидая/ }));
-    await userEvent.click(screen.getByRole('button', { name: /Привязать/ }));
+    await userEvent.click(screen.getByRole('button', { name: /Привести/ }));
     await waitForApi(() => expect(receivedBody).not.toBeNull());
     expect(receivedBody).toEqual({ sourceId: SRC2 });
   });
@@ -162,7 +162,7 @@ describe('AddSourceModal', () => {
     );
     const { onAttached } = renderModal();
     await userEvent.click(await screen.findByRole('option', { name: /Сахих Муслим/ }));
-    await userEvent.click(screen.getByRole('button', { name: /Привязать/ }));
+    await userEvent.click(screen.getByRole('button', { name: /Привести/ }));
     expect(await screen.findByText(/Источник был удалён/)).toBeInTheDocument();
     expect(onAttached).not.toHaveBeenCalled();
   });
@@ -182,7 +182,7 @@ describe('AddSourceModal', () => {
       await userEvent.click(
         screen.getByRole('button', { name: /Создать новый источник/ }),
       );
-      expect(screen.getByRole('heading', { name: 'Создать новый источник' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Свободный источник' })).toBeInTheDocument();
       expect(screen.getByLabelText(/Название/)).toBeInTheDocument();
       expect(screen.getByLabelText(/Цитата для подписи/)).toBeInTheDocument();
     });
@@ -215,7 +215,7 @@ describe('AddSourceModal', () => {
         'AAOIFI Sharia Standard No. 21',
       );
       await userEvent.type(screen.getByLabelText(/Цитата для подписи/), '§4.2');
-      await userEvent.click(screen.getByRole('button', { name: /Создать и привязать/ }));
+      await userEvent.click(screen.getByRole('button', { name: /Добавить/ }));
       await waitForApi(() => expect(onAttached).toHaveBeenCalledTimes(1));
       expect(onClose).toHaveBeenCalledTimes(1);
       expect(createBody).toEqual({
@@ -247,10 +247,10 @@ describe('AddSourceModal', () => {
       await userEvent.type(screen.getByLabelText(/Название/), 'Какой-то хадис');
       await userEvent.click(screen.getByRole('radio', { name: /хадис/ }));
       // title заполнен но reliability ещё не выбрана - submit disabled
-      expect(screen.getByRole('button', { name: /Создать и привязать/ })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /Добавить/ })).toBeDisabled();
       // Выбираем reliability - кнопка становится активной
       await userEvent.click(screen.getByRole('radio', { name: /SAHIH/ }));
-      expect(screen.getByRole('button', { name: /Создать и привязать/ })).not.toBeDisabled();
+      expect(screen.getByRole('button', { name: /Добавить/ })).not.toBeDisabled();
     });
 
     it('кнопка "К поиску" возвращает в search-mode', async () => {
@@ -259,11 +259,11 @@ describe('AddSourceModal', () => {
       await screen.findByText(/Справочник пуст/);
       await userEvent.click(screen.getByRole('button', { name: /Создать новый источник/ }));
       expect(
-        screen.getByRole('heading', { name: 'Создать новый источник' }),
+        screen.getByRole('heading', { name: 'Свободный источник' }),
       ).toBeInTheDocument();
       await userEvent.click(screen.getByRole('button', { name: /К поиску/ }));
       expect(
-        screen.getByRole('heading', { name: 'Привязать источник' }),
+        screen.getByRole('heading', { name: 'Привести источник' }),
       ).toBeInTheDocument();
       expect(screen.getByLabelText('Поиск источника')).toBeInTheDocument();
     });

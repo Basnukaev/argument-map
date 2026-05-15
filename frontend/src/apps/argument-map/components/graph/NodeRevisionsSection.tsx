@@ -35,7 +35,7 @@ function NodeRevisionsSection({ nodeId }: Props) {
       const list = await apiGetRaw<RevisionDto[]>(`/api/v1/nodes/${nodeId}/revisions`);
       setState({ kind: 'loaded', revisions: list });
     } catch (e: unknown) {
-      setState({ kind: 'error', message: formatApiError(e, 'Не удалось загрузить историю') });
+      setState({ kind: 'error', message: formatApiError(e, t('graph.toast.history_load_failed')) });
     }
   }
 
@@ -91,7 +91,7 @@ function NodeRevisionsSection({ nodeId }: Props) {
                   className="overflow-hidden rounded-md border border-slate-200 bg-white"
                 >
                   <header className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px]">
-                    <span className="font-mono text-slate-500">ревизия</span>
+                    <span className="font-mono text-slate-500">{t('node.revision_label')}</span>
                     <span className="text-slate-500">
                       {formatDate(r.changedAt)} ·{' '}
                       <span className="font-mono" title={r.changedBy}>
