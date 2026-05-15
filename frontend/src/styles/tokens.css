@@ -1,0 +1,286 @@
+/* ──────────────────────────────────────────────────────────────
+   DESIGN SYSTEM TOKENS — v2
+   Scholarly workspace · Navy accent · Source Serif body · Inter UI
+
+   Эти переменные - семантический слой. На него опираются:
+   1. @theme в index.css (генерирует Tailwind utility-классы:
+      bg-accent-600, text-ink-700, font-arabic, rounded-lg и т.д.)
+   2. Внутренние стили компонентов через var(--c-*).
+   3. .prose стилизация в reader.
+
+   Темизация - через [data-theme="dark"] на <html>. Семантические
+   токены (--c-bg, --c-text, --c-border) автоматически переключаются.
+   ────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── COLORS ───────────────────────────────────────────────── */
+  /* Warm slate neutrals (не холодные blue-grey Tailwind defaults) */
+  --c-ink-900: #1a1814;
+  --c-ink-800: #29251f;
+  --c-ink-700: #3a3631;
+  --c-ink-600: #524d46;
+  --c-ink-500: #6b6660;
+  --c-ink-400: #918b83;
+  --c-ink-300: #b8b2a8;
+  --c-ink-200: #d8d3c8;
+  --c-ink-150: #e6e1d6;
+  --c-ink-100: #efeae0;
+  --c-ink-50: #f7f3ea;
+  --c-ink-0: #ffffff;
+
+  --c-surface-cool: #f8f8fa;
+  --c-surface-pure: #ffffff;
+  --c-paper: #fbfaf5;
+  --c-paper-deep: #f3f0e7;
+
+  /* Navy accent — single source of truth */
+  --c-accent-700: #1a3170;
+  --c-accent-600: #1e3a8a;
+  --c-accent-500: #2950b3;
+  --c-accent-100: #e0e7f5;
+  --c-accent-50: #eef2fb;
+
+  /* Status */
+  --c-ok-700: #14532d;
+  --c-ok-500: #16a34a;
+  --c-ok-100: #dcfce7;
+  --c-warn-700: #78350f;
+  --c-warn-500: #d97706;
+  --c-warn-100: #fef3c7;
+  --c-err-700: #7f1d1d;
+  --c-err-500: #dc2626;
+  --c-err-100: #fee2e2;
+
+  /* ── TYPOGRAPHY ───────────────────────────────────────────── */
+  /* Manrope - современный sans-serif с правильной cyrillic поддержкой,
+     character width оптимизированы под UI-плотность v2 дизайна */
+  --font-ui: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-serif: 'Source Serif 4', 'Source Serif Pro', 'Charter', Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-arabic: 'Amiri', 'Scheherazade New', 'Noto Naskh Arabic', serif;
+
+  /* 6-step scale. Nothing else exists. */
+  --t-xs: 12px;
+  --t-sm: 14px;
+  --t-base: 16px;
+  --t-md: 18px;
+  --t-lg: 22px;
+  --t-xl: 28px;
+  --t-2xl: 40px;
+
+  --lh-tight: 1.25;
+  --lh-snug: 1.45;
+  --lh-base: 1.55;
+  --lh-prose: 1.75;
+  --lh-arabic: 1.95;
+
+  /* ── SPACING ──────────────────────────────────────────────── */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 16px;
+  --s-4: 24px;
+  --s-5: 40px;
+  --s-6: 64px;
+
+  /* ── RADIUS ───────────────────────────────────────────────── */
+  --r-sm: 4px;
+  --r-md: 8px;
+  --r-lg: 12px;
+
+  /* ── ELEVATION ────────────────────────────────────────────── */
+  --sh-1: 0 1px 0 rgba(26, 24, 20, 0.04);
+  --sh-2: 0 1px 2px rgba(26, 24, 20, 0.06), 0 1px 1px rgba(26, 24, 20, 0.03);
+  --sh-3: 0 4px 16px rgba(26, 24, 20, 0.08), 0 1px 2px rgba(26, 24, 20, 0.04);
+  --sh-4: 0 10px 32px rgba(26, 24, 20, 0.12), 0 2px 4px rgba(26, 24, 20, 0.04);
+
+  /* Semantic surface aliases — switch per-theme. Использовать в
+     компонентах вместо хардкода ink-0 / #fff. */
+  --c-bg: var(--c-surface-cool);
+  --c-bg-elevated: var(--c-ink-0);
+  --c-bg-sunken: var(--c-ink-50);
+  --c-border: var(--c-ink-150);
+  --c-border-strong: var(--c-ink-200);
+  --c-text: var(--c-ink-900);
+  --c-text-muted: var(--c-ink-500);
+  --c-link: var(--c-accent-600);
+
+  /* Semantic tokens for graph node-type chips & edge labels. */
+  --c-type-abstract-bg: #ede9fe;
+  --c-type-abstract-fg: #5b21b6;
+  --c-type-empirical-bg: #d1fae5;
+  --c-type-empirical-fg: #065f46;
+  --c-edge-supports: #16a34a;
+  --c-edge-supports-bg: #f0fdf4;
+  --c-edge-refutes: #dc2626;
+  --c-edge-refutes-bg: #fef2f2;
+  --c-edge-qualifies: #2563eb;
+  --c-edge-qualifies-bg: #eff6ff;
+  --c-edge-responds: #525252;
+  --c-edge-responds-bg: #fafafa;
+
+  /* Density multiplier для prose vertical rhythm. 0.7-1.15. */
+  --density-scale: 1;
+}
+
+/* ── DARK THEME ────────────────────────────────────────────────
+   Применяется на <html data-theme="dark">. Ink scale инвертирован
+   (ink-0 = darkest, ink-900 = lightest), semantic значения сохраняют
+   смысл - text-muted остаётся приглушённым, bg-elevated остаётся
+   "над" bg.
+   ────────────────────────────────────────────────────────────── */
+[data-theme='dark'] {
+  --c-ink-900: #f5f1e6;
+  --c-ink-800: #e8e3d2;
+  --c-ink-700: #c9c4b6;
+  --c-ink-600: #a8a298;
+  --c-ink-500: #898478;
+  --c-ink-400: #6b675c;
+  --c-ink-300: #524e44;
+  --c-ink-200: #3d3a32;
+  --c-ink-150: #2f2c26;
+  --c-ink-100: #25231d;
+  --c-ink-50: #1d1b15;
+  --c-ink-0: #14130e;
+
+  --c-surface-cool: #14130e;
+  --c-surface-pure: #1a1812;
+  --c-paper: #1d1b15;
+  --c-paper-deep: #15140f;
+
+  /* Accent ярче в dark - сохраняет контраст на тёмных поверхностях */
+  --c-accent-700: #a5b4fc;
+  --c-accent-600: #818cf8;
+  --c-accent-500: #6366f1;
+  --c-accent-100: #2d2a5a;
+  --c-accent-50: #1e1d3c;
+
+  --c-ok-700: #6ee7b7;
+  --c-ok-500: #34d399;
+  --c-ok-100: #14302a;
+  --c-warn-700: #fde68a;
+  --c-warn-500: #fbbf24;
+  --c-warn-100: #2c2410;
+  --c-err-700: #fca5a5;
+  --c-err-500: #f87171;
+  --c-err-100: #3a1818;
+
+  --c-bg: #14130e;
+  --c-bg-elevated: #1d1b15;
+  --c-bg-sunken: #1a1812;
+  --c-border: #2a2720;
+  --c-border-strong: #3d3a32;
+  --c-text: #f5f1e6;
+  --c-text-muted: #898478;
+  --c-link: #8eaaff;
+
+  --sh-1: 0 1px 0 rgba(0, 0, 0, 0.3);
+  --sh-2: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 1px rgba(0, 0, 0, 0.25);
+  --sh-3: 0 4px 16px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --sh-4: 0 10px 32px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.3);
+
+  /* Graph type/edge - quieter в dark, без "glowing chip" эффекта */
+  --c-type-abstract-bg: #2a2347;
+  --c-type-abstract-fg: #c4b5fd;
+  --c-type-empirical-bg: #0f2e25;
+  --c-type-empirical-fg: #6ee7b7;
+  --c-edge-supports: #6ee7b7;
+  --c-edge-supports-bg: #0f2e25;
+  --c-edge-refutes: #fca5a5;
+  --c-edge-refutes-bg: #3a1a1a;
+  --c-edge-qualifies: #a5b4fc;
+  --c-edge-qualifies-bg: #1f1d3a;
+  --c-edge-responds: #a3a3a3;
+  --c-edge-responds-bg: #25231d;
+}
+
+/* ── BASE ─────────────────────────────────────────────────────── */
+body {
+  font-family: var(--font-ui);
+  color: var(--c-text);
+  background: var(--c-bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── PROSE (reader article body) ─────────────────────────────── */
+.prose {
+  font-family: var(--font-serif);
+  font-size: var(--t-md);
+  line-height: var(--lh-prose);
+  color: var(--c-text);
+  font-feature-settings: 'kern', 'liga', 'onum', 'pnum';
+}
+.prose p {
+  margin: 0 0 calc(1.1em * var(--density-scale, 1));
+  text-wrap: pretty;
+}
+.prose p:last-child {
+  margin-bottom: 0;
+}
+.prose h2 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: var(--t-lg);
+  line-height: var(--lh-snug);
+  margin: calc(1.8em * var(--density-scale, 1)) 0
+    calc(0.6em * var(--density-scale, 1));
+  color: var(--c-text);
+}
+.prose h3 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: var(--t-md);
+  margin: calc(1.5em * var(--density-scale, 1)) 0
+    calc(0.4em * var(--density-scale, 1));
+}
+.prose blockquote {
+  margin: 1.4em 0;
+  padding: 0.6em 1.2em;
+  border-inline-start: 3px solid var(--c-accent-600);
+  font-style: italic;
+  color: var(--c-ink-700);
+  background: var(--c-bg-sunken);
+}
+.prose .ref {
+  color: var(--c-accent-600);
+  font-family: var(--font-mono);
+  font-size: 0.78em;
+  vertical-align: super;
+  cursor: pointer;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+.prose .ref:hover {
+  background: var(--c-accent-100);
+}
+
+.prose-arabic {
+  font-family: var(--font-arabic);
+  font-size: 22px;
+  line-height: var(--lh-arabic);
+  direction: rtl;
+  text-align: justify;
+  font-feature-settings: 'kern', 'liga', 'calt';
+}
+.prose-arabic p {
+  margin: 0 0 1em;
+}
+
+/* Subtle scrollbar */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--c-ink-200);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--c-ink-300);
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}

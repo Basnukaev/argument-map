@@ -1,14 +1,119 @@
+@import './styles/tokens.css';
 @import 'tailwindcss';
 @import '@xyflow/react/dist/style.css';
 
 /*
- * Tailwind v4 @theme - кастомные токены превращаются в utility-классы.
- * --font-naskh => `font-naskh`. Подключение шрифта - через Google Fonts
- * <link> в index.html (preconnect + display=swap).
+ * Tailwind v4 @theme - кастомные токены превращаются в utility-классы:
+ *   --color-ink-900   → bg-ink-900 / text-ink-900 / border-ink-900
+ *   --font-arabic     → font-arabic
+ *   --text-md         → text-md
+ *   --radius-lg       → rounded-lg
+ *   --shadow-sh3      → shadow-sh3
+ *
+ * `@theme inline` важен - без inline v4 разворачивает var() статически
+ * при сборке, и темизация через [data-theme="dark"] на <html> не сработает.
+ * С inline переменные остаются как есть, переключение темы работает на лету.
+ *
+ * Bridge-слой: семантические --c-* / --t-* / --r-* / --sh-* живут в
+ * styles/tokens.css. Здесь только алиасы для Tailwind utilities.
  */
-@theme {
-  --font-naskh:
-    'Noto Naskh Arabic', 'Amiri', 'Scheherazade New', system-ui, serif;
+@theme inline {
+  /* === Colors === */
+  --color-bg: var(--c-bg);
+  --color-elevated: var(--c-bg-elevated);
+  --color-sunken: var(--c-bg-sunken);
+  --color-paper: var(--c-paper);
+  --color-border: var(--c-border);
+  --color-border-strong: var(--c-border-strong);
+
+  --color-ink-0: var(--c-ink-0);
+  --color-ink-50: var(--c-ink-50);
+  --color-ink-100: var(--c-ink-100);
+  --color-ink-150: var(--c-ink-150);
+  --color-ink-200: var(--c-ink-200);
+  --color-ink-300: var(--c-ink-300);
+  --color-ink-400: var(--c-ink-400);
+  --color-ink-500: var(--c-ink-500);
+  --color-ink-600: var(--c-ink-600);
+  --color-ink-700: var(--c-ink-700);
+  --color-ink-800: var(--c-ink-800);
+  --color-ink-900: var(--c-ink-900);
+
+  --color-accent-50: var(--c-accent-50);
+  --color-accent-100: var(--c-accent-100);
+  --color-accent-500: var(--c-accent-500);
+  --color-accent-600: var(--c-accent-600);
+  --color-accent-700: var(--c-accent-700);
+
+  --color-ok-100: var(--c-ok-100);
+  --color-ok-500: var(--c-ok-500);
+  --color-ok-700: var(--c-ok-700);
+  --color-warn-100: var(--c-warn-100);
+  --color-warn-500: var(--c-warn-500);
+  --color-warn-700: var(--c-warn-700);
+  --color-err-100: var(--c-err-100);
+  --color-err-500: var(--c-err-500);
+  --color-err-700: var(--c-err-700);
+
+  /* Graph type tokens - chips для QUESTION/CLAIM/ARGUMENT/EVIDENCE */
+  --color-type-abstract-bg: var(--c-type-abstract-bg);
+  --color-type-abstract-fg: var(--c-type-abstract-fg);
+  --color-type-empirical-bg: var(--c-type-empirical-bg);
+  --color-type-empirical-fg: var(--c-type-empirical-fg);
+
+  /* Graph edge tokens - labels на связях в графе */
+  --color-edge-supports: var(--c-edge-supports);
+  --color-edge-supports-bg: var(--c-edge-supports-bg);
+  --color-edge-refutes: var(--c-edge-refutes);
+  --color-edge-refutes-bg: var(--c-edge-refutes-bg);
+  --color-edge-qualifies: var(--c-edge-qualifies);
+  --color-edge-qualifies-bg: var(--c-edge-qualifies-bg);
+  --color-edge-responds: var(--c-edge-responds);
+  --color-edge-responds-bg: var(--c-edge-responds-bg);
+
+  /* === Fonts === */
+  --font-ui: var(--font-ui);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
+  --font-arabic: var(--font-arabic);
+  /* Совместимость с существующим font-naskh */
+  --font-naskh: var(--font-arabic);
+
+  /* === Text sizes === */
+  --text-xs: var(--t-xs);
+  --text-sm: var(--t-sm);
+  --text-base: var(--t-base);
+  --text-md: var(--t-md);
+  --text-lg: var(--t-lg);
+  --text-xl: var(--t-xl);
+  --text-2xl: var(--t-2xl);
+
+  /* === Radii === */
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+
+  /* === Shadows === */
+  --shadow-sh1: var(--sh-1);
+  --shadow-sh2: var(--sh-2);
+  --shadow-sh3: var(--sh-3);
+  --shadow-sh4: var(--sh-4);
+}
+
+/*
+ * Иконки: lucide-react рендерит SVG с дефолтным stroke-width: 2. Tabler-icons
+ * (которые в дизайн-референсе) используют stroke-width: 1.5 - линии выглядят
+ * тоньше и легче. Override применяется только когда у SVG нет явного
+ * `stroke-width` атрибута - компоненты которые сами устанавливают
+ * `strokeWidth={N}` (например React Flow edge labels, CustomEdge) свой
+ * вес сохраняют. Когда @tabler/icons-react станет доступен через npm
+ * (proxy timeout) - заменить через установку + shim.
+ */
+@layer base {
+  svg.lucide:not([stroke-width]),
+  .lucide-icon:not([stroke-width]) {
+    stroke-width: 1.5;
+  }
 }
 
 /*
@@ -32,23 +137,19 @@
   .book-content {
     white-space: pre-line;
   }
-  .book-content [data-type="title"] {
+  .book-content [data-type='title'] {
     display: block;
     font-weight: 700;
     font-size: 1.15em;
     margin-block-end: 0.5em;
-    color: rgb(15 23 42); /* slate-900 */
+    color: var(--c-text);
   }
-  /* Заголовок без визуального маркера: shamela тоже не показывает
-     служебный символ '舄' (он используется только для JS-индексации
-     заголовков на shamela.ws). Bold + slate-900 + блок достаточно
-     для визуального выделения title */
   .book-content blockquote {
     margin-block: 1em;
     padding-inline-start: 1em;
-    border-inline-start: 3px solid rgb(203 213 225); /* slate-300 */
+    border-inline-start: 3px solid var(--c-border-strong);
     font-style: italic;
-    color: rgb(71 85 105); /* slate-600 */
+    color: var(--c-text-muted);
   }
   .book-content h1,
   .book-content h2,
@@ -57,9 +158,15 @@
     margin-block: 0.8em 0.4em;
     font-weight: 700;
   }
-  .book-content h1 { font-size: 1.5em; }
-  .book-content h2 { font-size: 1.3em; }
-  .book-content h3 { font-size: 1.15em; }
+  .book-content h1 {
+    font-size: 1.5em;
+  }
+  .book-content h2 {
+    font-size: 1.3em;
+  }
+  .book-content h3 {
+    font-size: 1.15em;
+  }
 }
 
 /*

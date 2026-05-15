@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
 import App from '@/App';
 import { LocaleEffect } from '@/shared/i18n';
+import { ThemeEffect } from '@/shared/components/ThemeEffect';
 import '@/index.css';
 
 const rootElement = document.getElementById('root');
@@ -14,6 +15,7 @@ createRoot(rootElement).render(
   <StrictMode>
     <BrowserRouter>
       <LocaleEffect />
+      <ThemeEffect />
       <App />
     </BrowserRouter>
   </StrictMode>,

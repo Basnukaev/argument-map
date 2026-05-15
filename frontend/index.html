@@ -8,9 +8,31 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500;600&family=Amiri:wght@400;700&family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <!--
+      FOUC prevention для dark theme - применяем data-theme до React mount.
+      Иначе на первой отрисовке страница flash'ит в light theme, потом
+      ThemeEffect.tsx в useEffect перекидывает на dark - заметный мерцающий
+      переход. Inline script читает localStorage и prefers-color-scheme в том
+      же порядке что и themeStore.ts (single source of truth должна совпадать).
+    -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('app.theme');
+          var dark =
+            saved === 'dark' ||
+            (saved == null &&
+              window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+        } catch (e) {
+          /* localStorage может быть отключен - тогда default theme = light */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
