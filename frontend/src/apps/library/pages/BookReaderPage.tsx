@@ -12,7 +12,7 @@ import PageView, { type PageContentState, type PageDetail } from '@/shared/compo
 import { type ReaderMode } from '@/shared/components/reader/utils';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
-import { useLocaleStore } from '@/shared/i18n';
+import { useLocaleStore, useT } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
 
 // Lazy-load PdfViewer - тяжёлая зависимость (react-pdf + pdfjs-dist
@@ -43,6 +43,7 @@ function BookReaderPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const locale = useLocaleStore((s) => s.locale);
+  const t = useT();
   // Стрелки toolbar пагинации - по локали интерфейса, не по языку книги.
   // Навигация - UI-элемент: «следующая» = по направлению чтения локали
   const prevIcon = locale === 'ar' ? ChevronRight : ChevronLeft;
@@ -295,16 +296,17 @@ function BookReaderPage() {
               onClick={() => navigate('/books')}
               className="mb-3 inline-flex items-center gap-1.5 text-[12px] text-slate-600 transition-colors hover:text-indigo-600"
             >
-              <ArrowLeft size={14} aria-hidden="true" />К библиотеке
+              <ArrowLeft size={14} aria-hidden="true" />
+              {t('book.list.title')}
             </button>
             <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-              Содержание
+              {t('reader.chapters')}
             </h3>
             {state.kind === 'loading' && (
-              <div className="text-[12px] text-slate-400">Загрузка</div>
+              <div className="text-[12px] text-slate-400">{t('common.loading')}</div>
             )}
             {state.kind === 'success' && chapterTree.length === 0 && (
-              <p className="text-[12px] text-slate-400">Главы не указаны</p>
+              <p className="text-[12px] text-slate-400">{t('reader.chapters_empty')}</p>
             )}
             {state.kind === 'success' && chapterTree.length > 0 && (
               <ChapterList
@@ -322,7 +324,7 @@ function BookReaderPage() {
           {state.kind === 'loading' && (
             <div className="flex items-center justify-center gap-2 py-20 text-[13px] text-slate-500">
               <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-              Загрузка книги
+              {t('common.loading')}
             </div>
           )}
 
@@ -335,7 +337,7 @@ function BookReaderPage() {
                   aria-hidden="true"
                 />
                 <div>
-                  <p className="font-semibold text-red-900">Ошибка</p>
+                  <p className="font-semibold text-red-900">{t('common.error')}</p>
                   <p className="mt-1 text-[13px] text-red-800">{state.message}</p>
                 </div>
               </div>
@@ -362,7 +364,7 @@ function BookReaderPage() {
                       onClick={goPrev}
                       disabled={!hasPrev}
                     >
-                      Предыдущая
+                      {t('reader.prev')}
                     </Button>
                     <PageJump
                       key={pageNumber}
@@ -384,7 +386,7 @@ function BookReaderPage() {
                         onClick={goNext}
                         disabled={!hasNext}
                       >
-                        Следующая
+                      {t('reader.next')}
                       </Button>
                     </div>
                   </div>
@@ -407,7 +409,7 @@ function BookReaderPage() {
                       icon={ArrowLeft}
                       onClick={() => setReaderMode('text')}
                     >
-                      Назад к тексту
+                      {t('reader.back_to_text')}
                     </Button>
                   </div>
                   <Suspense

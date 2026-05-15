@@ -13,7 +13,7 @@ import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
 import Select, { type SelectOption } from '@/shared/components/ui/Select';
 import { API_BASE_URL, apiGetRaw, ApiError } from '@/shared/api/client';
-import { hasArabicScript, useLocaleStore } from '@/shared/i18n';
+import { hasArabicScript, useLocaleStore, useT } from '@/shared/i18n';
 
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -138,6 +138,7 @@ function findFileIndexForPart(
 
 function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfViewerProps) {
   const locale = useLocaleStore((s) => s.locale);
+  const t = useT();
   // Toolbar (стрелки, направление flex) - по локали интерфейса.
   // `isArabic` (язык книги) остаётся для контент-специфичных подсказок
   const isRtlUi = locale === 'ar';
@@ -219,11 +220,11 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
           .slice(0, i + 1)
           .filter((prev) => /^\d{2}_\d+/.test((prev.label ?? '').trim()))
           .length;
-        return { index: f.index ?? 0, display: `Том ${volumeNumber}` };
+        return { index: f.index ?? 0, display: `${t('reader.volume')} ${volumeNumber}` };
       }
       return { index: f.index ?? 0, display: raw };
     });
-  }, [contentFiles]);
+  }, [contentFiles, t]);
   const showVolumeSelector = fileLabels.length > 1;
 
   // Опции для кастомного Select: value=stringified fileIndex, label=display
@@ -330,14 +331,14 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
             className="text-[11px] uppercase tracking-wide text-slate-500"
             htmlFor="pdf-volume"
           >
-            Том
+            {t('reader.volume')}
           </label>
           <Select
             value={String(activeFileIndex)}
             onChange={(v) => handleVolumeChange(Number(v))}
             options={volumeOptions}
             size="sm"
-            ariaLabel="Выбор тома"
+            ariaLabel={t('reader.volume_aria')}
             dir={isRtlUi ? 'rtl' : 'ltr'}
             menuMinWidth={140}
             className="w-[140px]"
@@ -357,13 +358,13 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
           onClick={goPrev}
           disabled={pageNumber <= 1}
         >
-          Предыдущая
+          {t('reader.prev')}
         </Button>
 
         {/* Page jump input - как в text mode PageJump, но без source-first markers
             (в PDF одна страница = одно полотно, нет printedPage/part) */}
         <div className="flex items-center gap-2 text-[13px] text-slate-700">
-          <span className="text-slate-500">Стр</span>
+          <span className="text-slate-500">{t('reader.page_short')}</span>
           <input
             type="number"
             min={1}
@@ -378,9 +379,11 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
             }}
             onBlur={submitPageJump}
             className="h-7 w-16 rounded border border-slate-300 px-2 text-center font-mono text-[13px] outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-            aria-label="Номер PDF страницы"
+            aria-label={t('reader.page')}
           />
-          <span className="font-mono text-slate-400">/ {numPages ?? '…'}</span>
+          <span className="font-mono text-slate-400">
+            <bdi dir="ltr">/ {numPages ?? '…'}</bdi>
+          </span>
         </div>
 
         <div className="flex items-center gap-1">
@@ -389,7 +392,7 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
             onClick={zoomOut}
             disabled={scale <= 0.5}
             className="grid h-7 w-7 place-items-center rounded text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
-            aria-label="Уменьшить"
+            aria-label={t('reader.zoom_out')}
           >
             <ZoomOut size={14} />
           </button>
@@ -401,7 +404,7 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
             onClick={zoomIn}
             disabled={scale >= 3}
             className="grid h-7 w-7 place-items-center rounded text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
-            aria-label="Увеличить"
+            aria-label={t('reader.zoom_in')}
           >
             <ZoomIn size={14} />
           </button>
@@ -412,7 +415,7 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
             href={fileUrl}
             download={downloadFilename}
             className="ms-1 inline-flex h-7 items-center gap-1 rounded px-2 text-[12px] font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-indigo-700"
-            title="Скачать PDF целиком"
+            title={t('reader.download_pdf')}
           >
             <Download size={14} aria-hidden="true" />
             <span className="hidden sm:inline">PDF</span>
@@ -426,7 +429,7 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
           onClick={goNext}
           disabled={!numPages || pageNumber >= numPages}
         >
-          Следующая
+          {t('reader.next')}
         </Button>
       </div>
 

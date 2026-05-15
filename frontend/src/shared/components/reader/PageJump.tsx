@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Select, { type SelectOption } from '@/shared/components/ui/Select';
 import { isArabicText } from '@/shared/components/reader/utils';
+import { useT } from '@/shared/i18n';
 
 interface Props {
   currentPage: number;
@@ -50,6 +51,7 @@ function PageJump({
   onPartChange,
   onPrintedPageJump,
 }: Props) {
+  const t = useT();
   const [draft, setDraft] = useState<string>(String(currentPage));
   const [printedDraft, setPrintedDraft] = useState<string>(currentPrintedPage ?? '');
 
@@ -77,12 +79,12 @@ function PageJump({
   const showPrintedInput = onPrintedPageJump != null;
   const hasSourceMarker = currentPrintedPage != null || currentPart != null;
 
-  // Опции Тома: arabic part → render as-is с naskh, numeric → "Том N"
+  // Опции Тома: arabic part → render as-is с naskh, numeric → локализованное "Том N"
   const partOptions: SelectOption[] = availableParts.map((p) => {
     const arabic = isArabicText(p);
     return {
       value: p,
-      label: arabic ? p : `Том ${p}`,
+      label: arabic ? p : `${t('reader.volume')} ${p}`,
       labelClassName: arabic ? 'font-naskh' : '',
       dir: arabic ? 'rtl' : 'ltr',
     };
@@ -91,7 +93,7 @@ function PageJump({
   return (
     <div className="flex flex-wrap items-center gap-3 text-[13px] text-slate-700">
       <div className="flex items-center gap-2">
-        <span className="text-slate-500">Страница</span>
+        <span className="text-slate-500">{t('reader.page')}</span>
         <input
           type="number"
           min={1}
@@ -106,7 +108,7 @@ function PageJump({
           }}
           onBlur={submit}
           className="h-7 w-20 rounded border border-slate-300 px-2 text-center font-mono text-[13px] outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-          aria-label="Номер страницы (internal)"
+          aria-label={t('reader.page')}
         />
         {totalPages > 0 && (
           <span className="font-mono text-slate-400">
@@ -126,7 +128,7 @@ function PageJump({
               onChange={(v) => onPartChange?.(v)}
               options={partOptions}
               size="sm"
-              ariaLabel="Том"
+              ariaLabel={t('reader.volume_aria')}
               dir={partIsArabic ? 'rtl' : 'ltr'}
               menuMinWidth={120}
               className="w-[100px]"
@@ -139,7 +141,7 @@ function PageJump({
               </span>
             ) : (
               <span className="font-mono" dir="ltr">
-                <bdi>Том </bdi>
+                <bdi>{t('reader.volume')} </bdi>
                 <bdi>{currentPart}</bdi>
               </span>
             )
@@ -149,7 +151,7 @@ function PageJump({
           )}
           {showPrintedInput ? (
             <div className="flex items-center gap-1">
-              <span className="text-indigo-600">Стр</span>
+              <span className="text-indigo-600">{t('reader.page_short')}</span>
               <input
                 type="text"
                 value={printedDraft}
@@ -162,12 +164,12 @@ function PageJump({
                 }}
                 onBlur={submitPrintedJump}
                 className="h-6 w-12 rounded border border-indigo-200 bg-white px-1.5 text-center font-mono text-[12px] text-indigo-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-400"
-                aria-label="Страница оригинала"
+                aria-label={t('reader.page_short')}
               />
             </div>
           ) : currentPrintedPage != null ? (
             <span className="font-mono">
-              <bdi>Стр</bdi> <bdi dir="ltr">{currentPrintedPage}</bdi>
+              <bdi>{t('reader.page_short')}</bdi> <bdi dir="ltr">{currentPrintedPage}</bdi>
             </span>
           ) : null}
         </div>
