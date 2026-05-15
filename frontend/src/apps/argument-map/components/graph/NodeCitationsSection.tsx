@@ -18,7 +18,7 @@ import { SourceCard } from '@/shared/components/citation/sourceCard';
 import { apiGetRaw, apiDeleteRaw, formatApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { SOURCE_TYPE_LABEL } from '@/apps/argument-map/utils/attachmentTokens';
-import { hasArabicScript } from '@/shared/i18n';
+import { hasArabicScript, useT } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
 
 type SourceDto = components['schemas']['SourceResponse'];
@@ -44,6 +44,7 @@ interface Props {
 }
 
 function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
+  const t = useT();
   const [state, setState] = useState<SourcesState>({ kind: 'loading' });
   const [addSourceOpen, setAddSourceOpen] = useState(false);
   const [citationPickerOpen, setCitationPickerOpen] = useState(false);
@@ -129,7 +130,7 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
     <>
       <PanelSection
         icon={Anchor}
-        title="Опора"
+        title={t('node.section.support')}
         count={state.kind === 'loaded' ? state.data.links.length : undefined}
         defaultOpen={false}
       >
@@ -237,17 +238,18 @@ function pickLatinTitle(source: SourceDto | undefined, bookTitle?: string | null
 }
 
 function CitationsList({ state, onDetach }: CitationsListProps) {
+  const t = useT();
   const navigate = useNavigate();
   if (state.kind === 'not-loaded' || state.kind === 'loading') {
-    return <p className="text-[12px] text-slate-500">Загрузка</p>;
+    return <p className="text-[12px] text-slate-500">{t('common.loading')}</p>;
   }
   if (state.kind === 'error') {
-    return <p className="text-[12px] text-red-700">Ошибка: {state.message}</p>;
+    return <p className="text-[12px] text-red-700">{t('common.error')}: {state.message}</p>;
   }
   const { links, sourceLookup, authorityLookup } = state.data;
   if (links.length === 0) {
     return (
-      <p className="text-[12px] italic text-slate-500">К узлу не привязано ни одной опоры</p>
+      <p className="text-[12px] italic text-slate-500">{t('node.citations_empty')}</p>
     );
   }
   return (
@@ -300,6 +302,7 @@ interface FreeformCiteProps {
  * dir="auto" на самой quote string
  */
 function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) {
+  const t = useT();
   const sourceType = source?.sourceType;
   const kindLabel = sourceType ? SOURCE_TYPE_LABEL[sourceType] : 'источник';
   const title = source?.title ?? '(удалён из справочника)';
@@ -316,7 +319,7 @@ function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) 
       <summary className="flex cursor-pointer list-none items-center gap-2 px-2.5 py-2 hover:bg-slate-100/60">
         <span
           className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700"
-          aria-label="Свободная"
+          aria-label={t('node.citation_free_aria')}
         >
           <Quote size={11} aria-hidden="true" />
           Свободная
@@ -334,7 +337,7 @@ function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) 
         )}
         <button
           type="button"
-          aria-label="Отвязать опору"
+          aria-label={t('node.citation_detach_aria')}
           onClick={(e) => {
             e.preventDefault();
             if (link.id) onDetach(link.id);

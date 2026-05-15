@@ -13,6 +13,7 @@ import {
   type NodeType,
 } from '@/apps/argument-map/utils/edgeRules';
 import { EDGE_TYPE_TOKENS } from '@/shared/utils/designTokens';
+import { useT } from '@/shared/i18n';
 
 type NodeDto = components['schemas']['NodeResponse'];
 
@@ -45,6 +46,7 @@ function AddEdgeModal({
   onClose,
   onCreated,
 }: Props) {
+  const t = useT();
   const [fromNodeId, setFromNodeId] = useState(initialFromId);
   const [toNodeId, setToNodeId] = useState(initialToId);
   const [edgeType, setEdgeType] = useState<EdgeType>('SUPPORTS');
@@ -125,7 +127,7 @@ function AddEdgeModal({
     <FormModal
       open={open}
       onClose={handleClose}
-      title="Новая связь"
+      title={t('graph.title_new_edge')}
       maxWidth="max-w-xl"
       onSubmit={handleSubmit}
       submitting={submitting}
@@ -183,9 +185,9 @@ function AddEdgeModal({
         </fieldset>
 
         <fieldset disabled={submitting} className="space-y-2">
-          <legend className="text-[12px] font-medium text-slate-700">Тип связи</legend>
+          <legend className="text-[12px] font-medium text-slate-700">{t('edge.section.type')}</legend>
           {!pairSelected && (
-            <p className="text-[11px] text-slate-500">Сначала выбери оба узла</p>
+            <p className="text-[11px] text-slate-500">{t('edge.select_both_nodes')}</p>
           )}
           {pairSelected && !pairAllowed && (
             <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-[12px] text-amber-900">
@@ -232,7 +234,7 @@ function AddEdgeModal({
                       />
                     </div>
                     <span className="text-[11px] font-semibold leading-tight text-slate-900">
-                      {meta.label}
+                      {t(meta.labelKey)}
                     </span>
                     <svg width="100%" height="8" aria-hidden="true">
                       <line
@@ -268,7 +270,7 @@ function AddEdgeModal({
             maxLength={2000}
             disabled={submitting}
             className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-            placeholder="Зачем эта связь нужна — поможет другим читателям"
+            placeholder={t('edge.rationale_placeholder')}
           />
         </div>
 

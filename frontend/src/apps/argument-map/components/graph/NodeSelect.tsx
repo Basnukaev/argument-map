@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { NODE_TYPE_META, type NodeType } from '@/apps/argument-map/utils/edgeRules';
+import { useT } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
 
 type NodeDto = components['schemas']['NodeResponse'];
@@ -51,6 +52,7 @@ function previewContent(node: NodeDto): string {
  * для текущего масштаба (десятки узлов на тему) достаточно скролла.
  */
 function NodeSelect({ value, onChange, options, excludeId, placeholder, disabled, id }: Props) {
+  const t = useT();
   const fallbackId = useId();
   const buttonId = id ?? fallbackId;
 
@@ -121,7 +123,7 @@ function NodeSelect({ value, onChange, options, excludeId, placeholder, disabled
           className="absolute inset-x-0 z-20 mt-1 max-h-72 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"
         >
           {filtered.length === 0 ? (
-            <li className="px-3 py-2 text-sm italic text-gray-500">Нет доступных узлов</li>
+            <li className="px-3 py-2 text-sm italic text-gray-500">{t('graph.no_nodes_in_select')}</li>
           ) : (
             filtered.map((n) => {
               const isSelected = n.id === value;

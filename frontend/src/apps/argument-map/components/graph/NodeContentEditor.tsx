@@ -3,6 +3,7 @@ import { Pencil, MessageSquareQuote } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import PanelSection from '@/apps/argument-map/components/graph/PanelSection';
 import { apiPatchRaw, formatApiError } from '@/shared/api/client';
+import { useT } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
 
 type NodeDto = components['schemas']['NodeResponse'];
@@ -21,6 +22,7 @@ interface Props {
  * Хранит свой draft/saving/saveError state - не загрязняет orchestrator.
  */
 function NodeContentEditor({ nodeId, content, initialEditing, onSaved }: Props) {
+  const t = useT();
   const [editing, setEditing] = useState(initialEditing);
   const [draft, setDraft] = useState(content);
   const [saving, setSaving] = useState(false);
@@ -59,7 +61,7 @@ function NodeContentEditor({ nodeId, content, initialEditing, onSaved }: Props) 
   }
 
   return (
-    <PanelSection icon={MessageSquareQuote} title="Содержание" defaultOpen>
+    <PanelSection icon={MessageSquareQuote} title={t('node.section.content')} defaultOpen>
       {!editing ? (
         <div>
           {content ? (
@@ -77,7 +79,7 @@ function NodeContentEditor({ nodeId, content, initialEditing, onSaved }: Props) 
             onClick={startEdit}
             className="-ms-2 mt-3"
           >
-            Редактировать
+            {t('common.edit')}
           </Button>
         </div>
       ) : (
@@ -88,7 +90,7 @@ function NodeContentEditor({ nodeId, content, initialEditing, onSaved }: Props) 
             rows={6}
             maxLength={10000}
             disabled={saving}
-            aria-label="Содержание узла"
+            aria-label={t('node.content_aria')}
             className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
           />
           {saveError && (
@@ -104,7 +106,7 @@ function NodeContentEditor({ nodeId, content, initialEditing, onSaved }: Props) 
               onClick={cancelEdit}
               disabled={saving}
             >
-              Отмена
+              {t('common.cancel')}
             </Button>
             <Button
               type="button"
@@ -112,7 +114,7 @@ function NodeContentEditor({ nodeId, content, initialEditing, onSaved }: Props) 
               onClick={save}
               disabled={saving || !draft.trim()}
             >
-              {saving ? 'Сохраняем' : 'Сохранить'}
+              {saving ? t('common.saving') : t('common.save')}
             </Button>
           </div>
         </div>

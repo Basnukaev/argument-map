@@ -1,6 +1,7 @@
 import { BaseEdge, EdgeLabelRenderer, getBezierPath } from '@xyflow/react';
 import type { EdgeProps, Edge } from '@xyflow/react';
-import { getContextualEdgeLabel, EDGE_TYPE_META } from '@/apps/argument-map/utils/edgeRules';
+import { getContextualEdgeLabelKey, EDGE_TYPE_META } from '@/apps/argument-map/utils/edgeRules';
+import { useT } from '@/shared/i18n';
 import type { EdgeType, NodeType } from '@/apps/argument-map/utils/edgeRules';
 import { EDGE_TYPE_TOKENS } from '@/shared/utils/designTokens';
 
@@ -27,13 +28,14 @@ function CustomEdge(props: EdgeProps<CustomEdgeEdge>) {
     markerEnd,
   } = props;
 
+  const t = useT();
   const edgeType = data?.edgeType ?? 'SUPPORTS';
   const token = EDGE_TYPE_TOKENS[edgeType];
   const Icon = EDGE_TYPE_META[edgeType].Icon;
   const showLabel = data?.showLabel ?? true;
   const label =
     data?.fromType && data?.toType
-      ? getContextualEdgeLabel(data.fromType, edgeType, data.toType)
+      ? t(getContextualEdgeLabelKey(data.fromType, edgeType, data.toType))
       : '';
 
   const [edgePath, labelX, labelY] = getBezierPath({

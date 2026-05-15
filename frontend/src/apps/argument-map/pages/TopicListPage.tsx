@@ -12,23 +12,11 @@ import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import { apiGet, ApiError } from '@/shared/api/client';
-import { useT } from '@/shared/i18n';
+import { useT, useFormatDate } from '@/shared/i18n';
 import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
 
 type Topic = components['schemas']['TopicResponse'];
-
-const DATE_FORMAT = new Intl.DateTimeFormat('ru-RU', {
-  day: 'numeric',
-  month: 'short',
-});
-
-function formatShortDate(iso?: string): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return DATE_FORMAT.format(d);
-}
 
 function TopicListPage() {
   const t = useT();
@@ -158,14 +146,17 @@ interface TopicCardProps {
 }
 
 function TopicCard({ topic }: TopicCardProps) {
+  const t = useT();
+  const formatDate = useFormatDate();
   const nodeCount = topic.nodeCount ?? 0;
   const edgeCount = topic.edgeCount ?? 0;
-  const date = formatShortDate(topic.createdAt);
+  const date = formatDate(topic.createdAt, 'short');
+  const fallbackTitle = t('reader.no_book_title');
 
   return (
     <Link
       to={`/topics/${topic.id}`}
-      aria-label={topic.title ?? '(без названия)'}
+      aria-label={topic.title ?? fallbackTitle}
       className="group block focus:outline-none"
     >
       <Card className="overflow-hidden transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md group-focus-visible:ring-2 group-focus-visible:ring-indigo-500 group-focus-visible:ring-offset-2">
@@ -177,20 +168,22 @@ function TopicCard({ topic }: TopicCardProps) {
           </div>
         </div>
         <div className="p-4">
-          <h2 className="line-clamp-2 text-[14px] font-semibold leading-snug text-slate-900 transition-colors group-hover:text-indigo-700">
-            {topic.title ?? '(без названия)'}
+          <h2 dir="auto" className="line-clamp-2 text-[14px] font-semibold leading-snug text-slate-900 transition-colors group-hover:text-indigo-700">
+            {topic.title ?? fallbackTitle}
           </h2>
           {topic.description && (
-            <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-slate-500">
+            <p dir="auto" className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-slate-500">
               {topic.description}
             </p>
           )}
           <div className="mt-3 flex items-center justify-between text-[11px] text-slate-500">
-            <span className="font-mono">{topic.id.slice(0, 8)}</span>
+            <span className="font-mono">
+              <bdi dir="ltr">{topic.id.slice(0, 8)}</bdi>
+            </span>
             {date && (
               <span className="inline-flex items-center gap-1">
                 <Calendar size={11} aria-hidden="true" />
-                {date}
+                <bdi>{date}</bdi>
               </span>
             )}
           </div>

@@ -20,7 +20,7 @@ function renderPage() {
 }
 
 describe('TopicGraphPage', () => {
-  it('показывает "Загрузка графа" пока запрос идёт', () => {
+  it('показывает индикатор загрузки пока запрос идёт', () => {
     server.use(
       http.get(`${BASE}/api/v1/topics/${TOPIC_ID}/graph`, async () => {
         await new Promise((r) => setTimeout(r, 1000));
@@ -28,7 +28,7 @@ describe('TopicGraphPage', () => {
       }),
     );
     renderPage();
-    expect(screen.getByText('Загрузка графа')).toBeInTheDocument();
+    expect(screen.getByText('Загрузка')).toBeInTheDocument();
   });
 
   it('рендерит заголовок с title темы и описание', async () => {

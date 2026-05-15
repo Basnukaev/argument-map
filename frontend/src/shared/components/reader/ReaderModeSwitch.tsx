@@ -1,5 +1,6 @@
 import { FileText, Image as ImageIcon } from 'lucide-react';
 import type { ReaderMode } from '@/shared/components/reader/utils';
+import { useT, type DictKey } from '@/shared/i18n';
 
 interface Props {
   mode: ReaderMode;
@@ -12,9 +13,10 @@ interface Props {
  * выделением активного через bg-white + shadow.
  */
 function ReaderModeSwitch({ mode, onChange }: Props) {
-  const options: { k: ReaderMode; l: string; icon: typeof FileText }[] = [
-    { k: 'text', l: 'Текст', icon: FileText },
-    { k: 'pdf', l: 'PDF', icon: ImageIcon },
+  const t = useT();
+  const options: { k: ReaderMode; labelKey: DictKey; icon: typeof FileText }[] = [
+    { k: 'text', labelKey: 'reader.mode.text', icon: FileText },
+    { k: 'pdf', labelKey: 'reader.mode.pdf', icon: ImageIcon },
   ];
   return (
     <div className="inline-flex items-center gap-0.5 rounded-md bg-slate-100 p-0.5">
@@ -33,7 +35,7 @@ function ReaderModeSwitch({ mode, onChange }: Props) {
             }`}
           >
             <Icon size={13} aria-hidden="true" />
-            {o.l}
+            {t(o.labelKey)}
           </button>
         );
       })}

@@ -15,12 +15,12 @@ import {
 import Button from '@/shared/components/ui/Button';
 import IconButton from '@/shared/components/ui/IconButton';
 import { apiPatchRaw, formatApiError } from '@/shared/api/client';
-import { useLocaleStore } from '@/shared/i18n';
+import { useLocaleStore, useFormatDate, useT } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
 import {
   EDGE_TYPE_META,
   getAllowedEdgeTypes,
-  getContextualEdgeLabel,
+  getContextualEdgeLabelKey,
   type EdgeType,
   type NodeType,
 } from '@/apps/argument-map/utils/edgeRules';
@@ -41,21 +41,6 @@ interface Props {
   onClose: () => void;
   onUpdated: () => void;
   initialEditing?: boolean;
-}
-
-const DATE_FORMAT = new Intl.DateTimeFormat('ru-RU', {
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
-function formatDate(iso?: string): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return DATE_FORMAT.format(d);
 }
 
 function shortId(id?: string): string {
@@ -170,6 +155,8 @@ function EdgeDetailsPanel({
   // Стрелка from→to отражает направление структурного UI, не текста.
   // В RTL-локали смыслово стрелка идёт справа (from) налево (to)
   const locale = useLocaleStore((s) => s.locale);
+  const formatDate = useFormatDate();
+  const t = useT();
   const FlowArrow = locale === 'ar' ? ArrowLeft : ArrowRight;
   const fromType: NodeType = fromNode.nodeType ?? 'CLAIM';
   const toType: NodeType = toNode.nodeType ?? 'CLAIM';
@@ -228,7 +215,7 @@ function EdgeDetailsPanel({
     }
   }
 
-  const contextualLabel = getContextualEdgeLabel(fromType, currentEdgeType, toType);
+  const contextualLabel = t(getContextualEdgeLabelKey(fromType, currentEdgeType, toType));
   const currentMeta = EDGE_TYPE_META[currentEdgeType];
   const HeaderIcon = currentMeta.Icon;
   const iconBg = iconBgFor(currentEdgeType);
@@ -236,7 +223,7 @@ function EdgeDetailsPanel({
   return (
     <aside
       role="complementary"
-      aria-label="Детали связи"
+      aria-label={t('graph.details_aria_edge')}
       className="absolute end-0 top-0 bottom-0 z-10 flex w-[400px] flex-col border-s border-slate-200 bg-white shadow-xl"
     >
       <header
@@ -251,7 +238,7 @@ function EdgeDetailsPanel({
           </span>
           <div className="flex min-w-0 flex-col">
             <h2 className="truncate text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-              EDGE · {currentMeta.label}
+              EDGE · {t(currentMeta.labelKey)}
             </h2>
             <span className="font-mono text-[12px] text-slate-400">
               <bdi dir="ltr">{shortId(edge.id)}</bdi>
@@ -264,7 +251,7 @@ function EdgeDetailsPanel({
       </header>
 
       <div className="flex-1 overflow-y-auto">
-        <PanelSection icon={Network} title="Связь" defaultOpen>
+        <PanelSection icon={Network} title={t('edge.section.connection')} defaultOpen>
           <div className="flex items-center gap-2">
             <NodeMini node={fromNode} />
             <FlowArrow size={20} className="shrink-0 text-slate-400" aria-hidden="true" />
@@ -272,15 +259,15 @@ function EdgeDetailsPanel({
           </div>
         </PanelSection>
 
-        <PanelSection icon={Layers} title="Тип связи" defaultOpen>
+        <PanelSection icon={Layers} title={t('edge.section.type')} defaultOpen>
           <div className="mb-2 flex items-center justify-between">
             {!editing ? (
               <p className="text-[13px] text-slate-900">
-                <span className="font-semibold">{currentMeta.label}</span>
-                <span className="text-slate-500"> — {currentMeta.hint}</span>
+                <span className="font-semibold">{t(currentMeta.labelKey)}</span>
+                <span className="text-slate-500"> — {t(currentMeta.hintKey)}</span>
               </p>
             ) : (
-              <p className="text-[12px] text-slate-500">Выбери новый тип связи</p>
+              <p className="text-[12px] text-slate-500">{t('edge.pick_new_type')}</p>
             )}
             {!editing && (
               <Button
@@ -334,11 +321,11 @@ function EdgeDetailsPanel({
                           aria-hidden="true"
                         />
                         <span className="text-[12px] font-semibold text-slate-900">
-                          {meta.label}
+                          {t(meta.labelKey)}
                         </span>
                       </div>
                       <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
-                        {meta.hint}
+                        {t(meta.hintKey)}
                       </p>
                     </div>
                     <svg width="34" height="14" className="mt-1 shrink-0" aria-hidden="true">
@@ -360,7 +347,7 @@ function EdgeDetailsPanel({
           )}
         </PanelSection>
 
-        <PanelSection icon={Quote} title="Обоснование" defaultOpen>
+        <PanelSection icon={Quote} title={t('edge.section.rationale')} defaultOpen>
           {editing ? (
             <textarea
               value={draftRationale}
@@ -368,8 +355,8 @@ function EdgeDetailsPanel({
               rows={3}
               maxLength={2000}
               disabled={saving}
-              aria-label="Обоснование связи"
-              placeholder="Зачем эта связь нужна — поможет другим читателям"
+              aria-label={t('edge.rationale_aria')}
+              placeholder={t('edge.rationale_placeholder')}
               className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
             />
           ) : currentRationale ? (
@@ -410,19 +397,19 @@ function EdgeDetailsPanel({
           </div>
         )}
 
-        <PanelSection icon={Info} title="Метаданные" defaultOpen={false}>
+        <PanelSection icon={Info} title={t('edge.section.metadata')} defaultOpen={false}>
           <dl className="grid grid-cols-[100px_1fr] gap-x-3 gap-y-2 text-[12px]">
-            <dt className="text-slate-500">Создана</dt>
+            <dt className="text-slate-500">{t('edge.created_at')}</dt>
             <dd className="text-slate-700">
               <bdi dir="ltr">{formatDate(edge.createdAt)}</bdi>
             </dd>
 
-            <dt className="text-slate-500">Автор</dt>
+            <dt className="text-slate-500">{t('edge.author')}</dt>
             <dd className="font-mono text-slate-700" title={edge.createdBy}>
               <bdi dir="ltr">{shortId(edge.createdBy)}</bdi>
             </dd>
 
-            <dt className="text-slate-500">ID</dt>
+            <dt className="text-slate-500">{t('edge.id')}</dt>
             <dd className="font-mono text-slate-700" title={edge.id}>
               <bdi dir="ltr">{shortId(edge.id)}</bdi>
             </dd>

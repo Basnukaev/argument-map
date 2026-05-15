@@ -1,4 +1,5 @@
 import { STATUS_TOKENS, type NodeStatus } from '@/shared/utils/designTokens';
+import { useT } from '@/shared/i18n';
 
 type Size = 'sm' | 'md' | 'lg';
 
@@ -18,6 +19,7 @@ const SIZE_CLASSES: Record<Size, string> = {
 const ICON_SIZE: Record<Size, number> = { sm: 11, md: 12, lg: 14 };
 
 function StatusBadge({ status, size = 'md', showIcon = true, className = '' }: Props) {
+  const t = useT();
   const token = STATUS_TOKENS[status];
   const Icon = token.Icon;
   return (
@@ -27,7 +29,7 @@ function StatusBadge({ status, size = 'md', showIcon = true, className = '' }: P
       className={`inline-flex items-center font-medium border whitespace-nowrap ${SIZE_CLASSES[size]} ${token.badgeBg} ${token.badgeText} ${token.badgeBorder} ${className}`}
     >
       {showIcon && <Icon size={ICON_SIZE[size]} aria-hidden="true" />}
-      {token.label}
+      {t(token.labelKey)}
     </span>
   );
 }

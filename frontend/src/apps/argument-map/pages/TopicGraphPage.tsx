@@ -4,6 +4,7 @@ import { ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import GraphCanvas from '@/apps/argument-map/components/graph/GraphCanvas';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
+import { useT } from '@/shared/i18n';
 import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
 
@@ -19,6 +20,7 @@ type GraphResponse = components['schemas']['GraphResponse'];
  * и useEffect перетягивает свежий граф.
  */
 function TopicGraphPage() {
+  const t = useT();
   const { topicId } = useParams<{ topicId: string }>();
   const [state, setState] = useState<AsyncState<GraphResponse>>({ kind: 'loading' });
   const [refreshKey, setRefreshKey] = useState(0);
@@ -41,14 +43,15 @@ function TopicGraphPage() {
             ? `${e.problem.title}${e.problem.detail ? ': ' + e.problem.detail : ''}`
             : e instanceof Error
               ? e.message
-              : 'Не удалось загрузить граф';
+              : t('common.error');
         setState({ kind: 'error', message });
       });
     return () => controller.abort();
-  }, [topicId, refreshKey]);
+  }, [topicId, refreshKey, t]);
 
+  const fallbackTopicTitle = t('nav.topics');
   const topicTitle =
-    state.kind === 'success' ? (state.data.topic?.title ?? 'Граф темы') : 'Граф темы';
+    state.kind === 'success' ? (state.data.topic?.title ?? fallbackTopicTitle) : fallbackTopicTitle;
   const topicDescription =
     state.kind === 'success' ? state.data.topic?.description : undefined;
 
@@ -57,20 +60,22 @@ function TopicGraphPage() {
       <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2">
         <Link
           to="/topics"
-          aria-label="К списку"
+          aria-label={t('graph.back_to_list')}
           className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
         >
-          <ArrowLeft size={14} aria-hidden="true" />К списку
+          <ArrowLeft size={14} aria-hidden="true" />
+          {t('graph.back_to_list')}
         </Link>
         <span className="text-slate-300">/</span>
         <h1
+          dir="auto"
           className="truncate text-[14px] font-semibold text-slate-900"
           title={topicDescription || topicTitle}
         >
           {topicTitle}
         </h1>
         {topicDescription && (
-          <p className="hidden truncate text-[12px] text-slate-500 md:block">
+          <p dir="auto" className="hidden truncate text-[12px] text-slate-500 md:block">
             {topicDescription}
           </p>
         )}
@@ -80,7 +85,7 @@ function TopicGraphPage() {
         {state.kind === 'loading' && (
           <div className="absolute inset-0 flex items-center justify-center gap-2 text-[13px] text-slate-500">
             <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-            Загрузка графа
+            {t('common.loading')}
           </div>
         )}
 
@@ -90,7 +95,7 @@ function TopicGraphPage() {
               <div className="flex items-start gap-3">
                 <AlertCircle size={20} className="mt-0.5 shrink-0 text-red-600" aria-hidden="true" />
                 <div>
-                  <p className="font-semibold text-red-900">Ошибка</p>
+                  <p className="font-semibold text-red-900">{t('common.error')}</p>
                   <p className="mt-1 text-[13px] text-red-800">{state.message}</p>
                 </div>
               </div>

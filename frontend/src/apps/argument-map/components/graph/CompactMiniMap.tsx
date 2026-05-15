@@ -3,6 +3,7 @@ import { useNodes, useEdges, useStore, useReactFlow } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import type { NodeType, EdgeType } from '@/apps/argument-map/utils/edgeRules';
+import { useT } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
 
 type NodeDto = components['schemas']['NodeResponse'];
@@ -52,6 +53,7 @@ import { getBoundingBox, expandBounds, type BBox } from '@/apps/argument-map/uti
  * там же. Toggle развернуть/свернуть для большего размера
  */
 function CompactMiniMap() {
+  const t = useT();
   const nodes = useNodes();
   const edges = useEdges();
   // RF Transform = [tx, ty, zoom] (tuple, не объект)
@@ -138,7 +140,7 @@ function CompactMiniMap() {
           e.stopPropagation();
           setExpanded((v) => !v);
         }}
-        aria-label={expanded ? 'Свернуть мини-карту' : 'Развернуть мини-карту'}
+        aria-label={t('graph.minimap')}
         className="absolute right-1 top-1 z-10 rounded bg-white/90 p-1 text-gray-500 shadow-sm hover:bg-white hover:text-gray-700"
       >
         {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
@@ -151,7 +153,7 @@ function CompactMiniMap() {
         preserveAspectRatio="xMidYMid meet"
         onClick={handleClick}
         className="block cursor-pointer bg-gray-50"
-        aria-label="Мини-карта графа"
+        aria-label={t('graph.minimap_aria')}
       >
         {/* рёбра под узлами */}
         {edges.map((e: Edge) => {

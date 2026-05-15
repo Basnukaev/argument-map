@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, History } from 'lucide-react';
 import { apiGetRaw, formatApiError } from '@/shared/api/client';
-import { formatDate, shortId } from '@/apps/argument-map/components/graph/nodeDetailsUtils';
+import { shortId } from '@/apps/argument-map/components/graph/nodeDetailsUtils';
+import { useFormatDate, useT } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
 
 type RevisionDto = components['schemas']['RevisionResponse'];
@@ -22,6 +23,8 @@ interface Props {
  * что count прокидывается только когда уже loaded, иначе hidden.
  */
 function NodeRevisionsSection({ nodeId }: Props) {
+  const t = useT();
+  const formatDate = useFormatDate();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [state, setState] = useState<RevisionsState>({ kind: 'not-loaded' });
 
@@ -57,7 +60,7 @@ function NodeRevisionsSection({ nodeId }: Props) {
       >
         <History size={14} className="text-slate-500" aria-hidden="true" />
         <span className="text-[12px] font-semibold uppercase tracking-wider text-slate-700">
-          История изменений
+          {t('node.section.history')}
         </span>
         {state.kind === 'loaded' && (
           <span className="text-[11px] font-mono text-slate-400">{state.revisions.length}</span>
@@ -71,12 +74,12 @@ function NodeRevisionsSection({ nodeId }: Props) {
 
       {historyOpen && (
         <div className="space-y-2 px-5 pb-4">
-          {state.kind === 'loading' && <p className="text-[12px] text-slate-500">Загрузка</p>}
+          {state.kind === 'loading' && <p className="text-[12px] text-slate-500">{t('common.loading')}</p>}
           {state.kind === 'error' && (
-            <p className="text-[12px] text-red-700">Ошибка: {state.message}</p>
+            <p className="text-[12px] text-red-700">{t('common.error')}: {state.message}</p>
           )}
           {state.kind === 'loaded' && state.revisions.length === 0 && (
-            <p className="text-[12px] italic text-slate-500">Изменений ещё не было</p>
+            <p className="text-[12px] italic text-slate-500">{t('node.history_empty')}</p>
           )}
           {state.kind === 'loaded' &&
             state.revisions.length > 0 &&

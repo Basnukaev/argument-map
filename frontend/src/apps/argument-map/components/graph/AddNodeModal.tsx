@@ -8,6 +8,7 @@ import { toast } from '@/shared/stores/toastStore';
 import { NODE_TYPE_TOKENS, type NodeType } from '@/shared/utils/designTokens';
 import type { EdgeType } from '@/apps/argument-map/utils/edgeRules';
 import type { components } from '@/shared/api/types';
+import { useT } from '@/shared/i18n';
 
 type NodeResponse = components['schemas']['NodeResponse'];
 
@@ -49,6 +50,7 @@ function AddNodeModal({
   initialNodeType,
   autoEdge,
 }: Props) {
+  const t = useT();
   const [nodeType, setNodeType] = useState<NodeType>(initialNodeType ?? 'CLAIM');
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -119,7 +121,7 @@ function AddNodeModal({
     <FormModal
       open={open}
       onClose={handleClose}
-      title="Новый узел"
+      title={t('graph.title_new_node')}
       onSubmit={handleSubmit}
       submitting={submitting}
       submitDisabled={!content.trim()}
@@ -169,10 +171,10 @@ function AddNodeModal({
                     />
                   </div>
                   <span className="text-[12px] font-semibold text-slate-900">
-                    {token.label}
+                    {t(token.labelKey)}
                   </span>
                   <span className="line-clamp-2 text-[10px] leading-relaxed text-slate-500">
-                    {token.hint}
+                    {t(token.hintKey)}
                   </span>
                 </label>
               );

@@ -1,17 +1,7 @@
-const DATE_FORMAT = new Intl.DateTimeFormat('ru-RU', {
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
-export function formatDate(iso?: string): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return DATE_FORMAT.format(d);
-}
+/**
+ * Форматирование дат - через useFormatDate из @/shared/i18n (локаль-aware).
+ * Этот файл оставлен для shortId и других чистых утилит узлов
+ */
 
 export function shortId(id?: string): string {
   if (!id) return '—';

@@ -33,6 +33,7 @@ import {
 import { buildFlow, findFreePosition, sameIds } from '@/apps/argument-map/utils/graphPlacement';
 import { apiDeleteRaw, apiPatchRaw, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
+import { useT } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
 
 type GraphResponse = components['schemas']['GraphResponse'];
@@ -66,6 +67,7 @@ function readShowLabels(): boolean {
  * грузит данные и передаёт сюда `graph` + `topicId` + `onRefetch`.
  */
 function GraphCanvas({ graph, topicId, onRefetch }: Props) {
+  const t = useT();
   const [showEdgeLabels, setShowEdgeLabels] = useState<boolean>(readShowLabels);
 
   useEffect(() => {
@@ -376,7 +378,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
 
       const relatedItems: ContextMenuItem[] = [...relatedOptions].map((opt) => ({
         id: `add-${opt.newNodeType}-${opt.edgeType}-${opt.direction}`,
-        label: opt.label,
+        label: t(opt.labelKey),
         icon: Plus,
         onClick: () => {
           // lastNodesRef (а не nodes из closure) - useCallback не пере-создавался
@@ -606,8 +608,8 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
     <>
       {isEmpty ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-8 text-center">
-          <p className="text-gray-500">В этом графе пока нет узлов</p>
-          <Button onClick={() => setAddNodeOpen(true)}>Добавить первый узел</Button>
+          <p className="text-gray-500">{t('graph.empty')}</p>
+          <Button onClick={() => setAddNodeOpen(true)}>{t('graph.add_first_node')}</Button>
         </div>
       ) : (
         <ReactFlow

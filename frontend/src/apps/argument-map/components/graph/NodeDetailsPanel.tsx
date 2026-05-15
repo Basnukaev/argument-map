@@ -4,6 +4,7 @@ import IconButton from '@/shared/components/ui/IconButton';
 import StatusBadge from '@/shared/components/ui/StatusBadge';
 import { NODE_TYPE_TOKENS, type NodeType, type NodeStatus } from '@/shared/utils/designTokens';
 import { shortId } from '@/apps/argument-map/components/graph/nodeDetailsUtils';
+import { useT } from '@/shared/i18n';
 import NodeContentEditor from '@/apps/argument-map/components/graph/NodeContentEditor';
 import NodeMetadataSection from '@/apps/argument-map/components/graph/NodeMetadataSection';
 import NodeCitationsSection from '@/apps/argument-map/components/graph/NodeCitationsSection';
@@ -29,6 +30,7 @@ interface Props {
  * QUESTION-узлы не имеют цитат (ADR-002) - Citations скрыты для них.
  */
 function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: Props) {
+  const t = useT();
   const nodeType: NodeType = node.nodeType ?? 'CLAIM';
   const typeToken = NODE_TYPE_TOKENS[nodeType];
   const TypeIcon = typeToken.Icon;
@@ -40,14 +42,14 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
   return (
     <aside
       role="complementary"
-      aria-label="Детали узла"
+      aria-label={t('graph.details_aria_node')}
       className="absolute end-0 top-0 bottom-0 z-10 flex w-[400px] flex-col border-s border-slate-200 bg-white shadow-xl"
     >
       <header
         className={`relative border-b border-slate-200 bg-gradient-to-b ${typeToken.headerGradient} p-5`}
       >
         <div className="absolute end-3 top-3">
-          <IconButton icon={X} label="Закрыть панель" size="sm" onClick={onClose} />
+          <IconButton icon={X} label={t('common.close')} size="sm" onClick={onClose} />
         </div>
         <div className="flex items-center gap-2">
           <span
@@ -57,7 +59,7 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
           </span>
           <div className="flex flex-col">
             <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-              {typeToken.key} · {typeToken.label}
+              {typeToken.key} · {t(typeToken.labelKey)}
             </h2>
             <span className="font-mono text-[12px] text-slate-400">
               <bdi dir="ltr">{shortId(node.id)}</bdi>
