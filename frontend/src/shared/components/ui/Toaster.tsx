@@ -61,7 +61,7 @@ function ToastItem({ toast }: { toast: Toast }) {
       <button
         type="button"
         onClick={() => dismiss(toast.id)}
-        aria-label="Закрыть уведомление"
+        aria-label="dismiss"
         className="shrink-0 rounded p-0.5 text-gray-500 hover:bg-gray-200/50 hover:text-gray-700"
       >
         <X size={14} />

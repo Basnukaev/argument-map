@@ -29,7 +29,7 @@ describe('Toaster', () => {
   it('крестик dismiss убирает toast', async () => {
     toast.info('тест');
     render(<Toaster />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Закрыть уведомление' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'dismiss' }));
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 

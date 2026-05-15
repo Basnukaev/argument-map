@@ -70,7 +70,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
       .then((books) => setBooksState({ kind: 'success', books: books ?? [] }))
       .catch((e: unknown) => {
         if (ctl.signal.aborted) return;
-        setBooksState({ kind: 'error', message: formatApiError(e, 'Не удалось загрузить библиотеку') });
+        setBooksState({ kind: 'error', message: formatApiError(e, t('citation_picker.books_load_failed')) });
       });
     return () => ctl.abort();
   }, []);
@@ -97,7 +97,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
       })
       .catch((e: unknown) => {
         if (ctl.signal.aborted) return;
-        setBookState({ kind: 'error', message: formatApiError(e, 'Не удалось загрузить книгу') });
+        setBookState({ kind: 'error', message: formatApiError(e, t('reader.book_load_failed')) });
       });
     return () => ctl.abort();
   }, [selectedBookId]);
@@ -113,7 +113,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
       .then((page) => setPageContent({ kind: 'success', page }))
       .catch((e: unknown) => {
         if (ctl.signal.aborted) return;
-        setPageContent({ kind: 'error', message: formatApiError(e, 'Не удалось загрузить страницу') });
+        setPageContent({ kind: 'error', message: formatApiError(e, t('citation_picker.page_load_failed')) });
       });
     return () => ctl.abort();
   }, [bookState, pageNumber]);
@@ -201,9 +201,9 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
       onClose();
     } catch (e: unknown) {
       if (e instanceof ApiError) {
-        setSubmitError(formatApiError(e, 'Не удалось привязать цитату'));
+        setSubmitError(formatApiError(e, t('citation_picker.create_failed')));
       } else {
-        setSubmitError(formatApiError(e, 'Не удалось привязать цитату'));
+        setSubmitError(formatApiError(e, t('citation_picker.create_failed')));
       }
       setSubmitting(false);
     }

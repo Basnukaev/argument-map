@@ -107,7 +107,7 @@ function BookReaderPage() {
             ? `${e.problem.title}${e.problem.detail ? ': ' + e.problem.detail : ''}`
             : e instanceof Error
               ? e.message
-              : 'Не удалось загрузить книгу';
+              : t('reader.book_load_failed');
         setState({ kind: 'error', message });
       });
     return () => controller.abort();
@@ -138,7 +138,7 @@ function BookReaderPage() {
          
         setPageNumber(found.pageNumber);
       } else {
-        toast.warning('Страница не найдена, открыта первая');
+        toast.warning(t('reader.page_not_found'));
          
         setPageNumber(state.pages[0]?.pageNumber ?? 1);
       }
@@ -182,7 +182,7 @@ function BookReaderPage() {
             ? (e.problem.detail ?? e.problem.title)
             : e instanceof Error
               ? e.message
-              : 'Не удалось загрузить страницу';
+              : t('citation_picker.page_load_failed');
         setPageContent({ kind: 'error', message });
       });
     return () => controller.abort();
@@ -297,7 +297,7 @@ function BookReaderPage() {
               className="mb-3 inline-flex items-center gap-1.5 text-[12px] text-slate-600 transition-colors hover:text-indigo-600"
             >
               <ArrowLeft size={14} aria-hidden="true" />
-              {t('book.list.title')}
+              {t('reader.back_to_list')}
             </button>
             <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               {t('reader.chapters')}
@@ -416,7 +416,7 @@ function BookReaderPage() {
                     fallback={
                       <Card className="p-12 text-center">
                         <Loader2 size={20} className="mx-auto animate-spin text-slate-400" />
-                        <p className="mt-2 text-[12px] text-slate-500">Загрузка PDF viewer'а</p>
+                        <p className="mt-2 text-[12px] text-slate-500">{t('reader.pdf_preview_loading')}</p>
                       </Card>
                     }
                   >
@@ -449,7 +449,7 @@ function BookReaderPage() {
           <div
             role="separator"
             aria-orientation="horizontal"
-            aria-label="Изменить высоту PDF preview"
+            aria-label={t('reader.pdf_preview_resize_aria')}
             onPointerDown={handleResizeStart}
             className="group flex h-3 cursor-ns-resize items-center justify-center border-b border-slate-200 bg-slate-50 transition-colors hover:bg-indigo-50"
           >
@@ -457,11 +457,11 @@ function BookReaderPage() {
           </div>
           <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2">
             <h3 className="text-[13px] font-semibold text-slate-700">
-              PDF оригинал
+              {t('reader.pdf_original')}
               {currentPageMeta?.printedPage && (
                 <span className="ms-2 text-slate-500">
-                  · стр. {currentPageMeta.printedPage}
-                  {currentPart && ` · том ${currentPart}`}
+                  · {t('reader.short.page_prefix')} <bdi dir="ltr">{currentPageMeta.printedPage}</bdi>
+                  {currentPart && <> · {t('reader.volume').toLowerCase()} <bdi>{currentPart}</bdi></>}
                 </span>
               )}
             </h3>
@@ -475,13 +475,13 @@ function BookReaderPage() {
                   setPdfPreviewOpen(false);
                 }}
               >
-                На весь экран
+                {t('reader.pdf_fullscreen')}
               </Button>
               <button
                 type="button"
                 onClick={() => setPdfPreviewOpen(false)}
                 className="grid h-7 w-7 place-items-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                aria-label="Закрыть PDF preview"
+                aria-label={t('reader.pdf_preview_close')}
               >
                 <X size={14} />
               </button>

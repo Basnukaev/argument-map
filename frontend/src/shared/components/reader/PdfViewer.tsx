@@ -45,7 +45,12 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 
 interface PdfViewerProps {
   bookId: string;
-  isArabic: boolean;
+  /**
+   * @deprecated больше не используется - direction/icons теперь от локали.
+   * Оставлен для обратной совместимости с местами вызова, при следующей
+   * правке этих мест можно удалить prop полностью
+   */
+  isArabic?: boolean;
   /**
    * Том/часть из shamela mapping (`lib_pages.part`). Используется для
    * выбора правильного fileIndex - "Том 3" в shamela соответствует
@@ -136,11 +141,10 @@ function findFileIndexForPart(
   return null;
 }
 
-function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfViewerProps) {
+function PdfViewer({ bookId, initialPart, initialPrintedPage }: PdfViewerProps) {
   const locale = useLocaleStore((s) => s.locale);
   const t = useT();
-  // Toolbar (стрелки, направление flex) - по локали интерфейса.
-  // `isArabic` (язык книги) остаётся для контент-специфичных подсказок
+  // Toolbar (стрелки, направление flex) - по локали интерфейса
   const isRtlUi = locale === 'ar';
   const [state, setState] = useState<LoadState>({ kind: 'loading-info' });
   const [fileIndex, setFileIndex] = useState<number | null>(null);
@@ -187,7 +191,7 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
             ? e.problem.detail ?? e.problem.title
             : e instanceof Error
               ? e.message
-              : 'Не удалось загрузить PDF';
+              : t('reader.pdf_load_failed');
         setState({ kind: 'error', message });
       });
     return () => controller.abort();
@@ -242,7 +246,7 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
     return (
       <Card className="p-12 text-center">
         <Loader2 size={20} className="mx-auto animate-spin text-slate-400" aria-hidden="true" />
-        <p className="mt-2 text-[12px] text-slate-500">Загрузка PDF метаданных</p>
+        <p className="mt-2 text-[12px] text-slate-500">{t('reader.pdf_metadata_loading')}</p>
       </Card>
     );
   }
@@ -252,11 +256,10 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
       <Card className="p-12 text-center">
         <AlertCircle size={20} className="mx-auto text-slate-400" aria-hidden="true" />
         <p className="mt-2 text-[13px] text-slate-600">
-          У этой книги нет привязанного PDF-источника
+          {t('reader.pdf_unavailable')}
         </p>
         <p className="mt-1 text-[12px] text-slate-400">
-          Источник {isArabic ? '· المصدر الأصلي ' : ''}появится при импорте книги с PDF
-          (shamela / archive.org / upload)
+          {t('reader.pdf_will_appear')}
         </p>
       </Card>
     );
@@ -447,13 +450,13 @@ function PdfViewer({ bookId, isArabic, initialPart, initialPrintedPage }: PdfVie
               <div className="py-20 text-center">
                 <Loader2 size={20} className="mx-auto animate-spin text-slate-400" />
                 <p className="mt-2 text-[12px] text-slate-500">
-                  Загрузка PDF... первая загрузка может занять время (~50MB качается через прокси на нашем сервере)
+                  {t('reader.pdf_preview_load_long')}
                 </p>
               </div>
             }
             error={
               <Card className="border-red-200 bg-red-50 p-5">
-                <p className="text-[13px] text-red-800">Не удалось загрузить PDF файл</p>
+                <p className="text-[13px] text-red-800">{t('reader.pdf_load_failed')}</p>
               </Card>
             }
           >
