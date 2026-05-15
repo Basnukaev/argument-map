@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
+import { Lightbulb, Sparkles } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
+import Field from '@/shared/components/ui/Field';
+import Header from '@/shared/components/layout/Header';
 import { apiPost, ApiError } from '@/shared/api/client';
 
 type ValidationError = { field: string; message: string };
@@ -56,89 +59,119 @@ function CreateTopicPage() {
     return fieldErrors.find((e) => e.field === name)?.message;
   }
 
-  const inputClass =
-    'block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200';
-
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
-      <div className="mx-auto max-w-2xl">
-        <h1 className="mb-6 text-3xl font-bold text-gray-900">Создание темы</h1>
+    <main className="min-h-screen bg-bg">
+      <Header />
 
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
-          <div>
-            <label htmlFor="title" className="mb-1 block text-sm font-medium text-gray-700">
-              Название
-            </label>
-            <input
-              id="title"
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-              maxLength={500}
-              className={inputClass}
-              disabled={submitting}
-            />
-            {fieldError('title') && (
-              <p className="mt-1 text-sm text-red-600">{fieldError('title')}</p>
-            )}
-          </div>
+      <div className="mx-auto max-w-[1100px] px-6 py-6">
+        <div className="mb-6">
+          <h1 className="text-xl font-bold tracking-tight text-ink-900">
+            Создание темы
+          </h1>
+          <p className="mt-1 text-sm text-ink-500">
+            Корневой вопрос становится отправной точкой графа
+          </p>
+        </div>
 
-          <div>
-            <label htmlFor="description" className="mb-1 block text-sm font-medium text-gray-700">
-              Описание (необязательно)
-            </label>
-            <textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              maxLength={2000}
-              className={inputClass}
-              disabled={submitting}
-            />
-            {fieldError('description') && (
-              <p className="mt-1 text-sm text-red-600">{fieldError('description')}</p>
-            )}
-          </div>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
+          <form
+            onSubmit={handleSubmit}
+            noValidate
+            className="rounded-lg border border-border bg-elevated p-6 shadow-sh1"
+          >
+            <div className="flex flex-col gap-5">
+              <Field
+                label="Название"
+                hint="Краткая формулировка темы дискуссии"
+                required
+                error={fieldError('title')}
+              >
+                <Field.Input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  required
+                  maxLength={500}
+                  disabled={submitting}
+                />
+                <Field.Meta left={`${title.length} / 500`} />
+              </Field>
 
-          <div>
-            <label htmlFor="rootQuestion" className="mb-1 block text-sm font-medium text-gray-700">
-              Корневой вопрос
-            </label>
-            <textarea
-              id="rootQuestion"
-              value={rootQuestion}
-              onChange={(e) => setRootQuestion(e.target.value)}
-              required
-              rows={2}
-              maxLength={1000}
-              className={inputClass}
-              disabled={submitting}
-            />
-            <p className="mt-1 text-xs text-gray-500">Это станет корневым QUESTION-узлом графа</p>
-            {fieldError('rootQuestion') && (
-              <p className="mt-1 text-sm text-red-600">{fieldError('rootQuestion')}</p>
-            )}
-          </div>
+              <Field
+                label="Описание"
+                hint="Необязательно. Поможет другим понять контекст"
+                error={fieldError('description')}
+              >
+                <Field.Textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={3}
+                  maxLength={2000}
+                  disabled={submitting}
+                />
+                <Field.Meta left={`${description.length} / 2000`} />
+              </Field>
 
-          {formError && (
-            <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
-              {formError}
+              <Field
+                label="Корневой вопрос"
+                hint="Это станет корневым QUESTION-узлом графа"
+                required
+                error={fieldError('rootQuestion')}
+              >
+                <Field.Textarea
+                  value={rootQuestion}
+                  onChange={(e) => setRootQuestion(e.target.value)}
+                  required
+                  rows={2}
+                  maxLength={1000}
+                  disabled={submitting}
+                />
+                <Field.Meta left={`${rootQuestion.length} / 1000`} />
+              </Field>
+
+              {formError && (
+                <div className="rounded-sm border border-err-500/40 bg-err-100 p-3 text-sm text-err-700">
+                  {formError}
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 border-t border-border pt-4">
+                <Button
+                  type="submit"
+                  icon={Sparkles}
+                  disabled={submitting || !title.trim() || !rootQuestion.trim()}
+                >
+                  {submitting ? 'Создаём' : 'Создать'}
+                </Button>
+                <Link to="/topics">
+                  <Button type="button" variant="ghost" disabled={submitting}>
+                    Отмена
+                  </Button>
+                </Link>
+              </div>
             </div>
-          )}
+          </form>
 
-          <div className="flex items-center gap-3 pt-2">
-            <Button type="submit" disabled={submitting || !title.trim() || !rootQuestion.trim()}>
-              {submitting ? 'Создаём' : 'Создать'}
-            </Button>
-            <Link to="/topics">
-              <Button type="button" variant="secondary" disabled={submitting}>
-                Отмена
-              </Button>
-            </Link>
-          </div>
-        </form>
+          <aside className="lg:sticky lg:top-6 lg:self-start">
+            <div className="rounded-lg border border-border bg-paper p-5">
+              <div className="mb-3 flex items-center gap-2 text-ink-700">
+                <Lightbulb size={16} className="text-accent-600" aria-hidden />
+                <span className="text-xs font-semibold uppercase tracking-wider">
+                  Совет
+                </span>
+              </div>
+              <p className="text-sm leading-relaxed text-ink-700">
+                Хороший корневой вопрос - <strong>предметный</strong>,{' '}
+                <strong>конкретный</strong> и оставляет место для разных
+                ответов
+              </p>
+              <p className="mt-3 text-xs italic text-ink-500">
+                Например: «Допустимо ли совершать аль-маулид?» Не «Что такое
+                маулид?»
+              </p>
+            </div>
+          </aside>
+        </div>
       </div>
     </main>
   );

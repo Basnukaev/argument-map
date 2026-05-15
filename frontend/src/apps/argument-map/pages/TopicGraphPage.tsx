@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
+import Header from '@/shared/components/layout/Header';
 import GraphCanvas from '@/apps/argument-map/components/graph/GraphCanvas';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
 import { useT } from '@/shared/i18n';
@@ -56,47 +57,51 @@ function TopicGraphPage() {
     state.kind === 'success' ? state.data.topic?.description : undefined;
 
   return (
-    <div className="flex h-screen flex-col bg-slate-50/60">
-      <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2">
+    <div className="flex h-screen flex-col bg-bg">
+      <Header />
+      {/* Secondary crumb-bar под глобальным AppHeader: "К списку / Тема / описание".
+          Per design-reference TopicGraphPage v3 - граф наследует AppHeader как
+          и остальные страницы, и плюс свой локальный crumb для контекста темы */}
+      <div className="flex flex-none items-center gap-3 border-b border-border bg-elevated px-4 py-2">
         <Link
           to="/topics"
           aria-label={t('graph.back_to_list')}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
+          className="inline-flex h-7 items-center gap-1.5 rounded-sm px-2 text-xs font-medium text-ink-700 transition-colors hover:bg-ink-100 hover:text-ink-900"
         >
-          <ArrowLeft size={14} aria-hidden="true" />
+          <ArrowLeft size={13} aria-hidden />
           {t('graph.back_to_list')}
         </Link>
-        <span className="text-slate-300">/</span>
+        <span className="text-ink-300">/</span>
         <h1
           dir="auto"
-          className="truncate text-[14px] font-semibold text-slate-900"
+          className="truncate text-sm font-semibold text-ink-900"
           title={topicDescription || topicTitle}
         >
           {topicTitle}
         </h1>
         {topicDescription && (
-          <p dir="auto" className="hidden truncate text-[12px] text-slate-500 md:block">
+          <p dir="auto" className="hidden truncate text-xs text-ink-500 md:block">
             {topicDescription}
           </p>
         )}
-      </header>
+      </div>
 
       <main className="relative flex-1 overflow-hidden">
         {state.kind === 'loading' && (
-          <div className="absolute inset-0 flex items-center justify-center gap-2 text-[13px] text-slate-500">
-            <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+          <div className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-ink-500">
+            <Loader2 size={16} className="animate-spin" aria-hidden />
             {t('common.loading')}
           </div>
         )}
 
         {state.kind === 'error' && (
           <div className="absolute inset-0 flex items-center justify-center p-8">
-            <Card className="max-w-lg border-red-200 bg-red-50 p-5">
+            <Card className="max-w-lg p-5 border-err-500/40 bg-err-100">
               <div className="flex items-start gap-3">
-                <AlertCircle size={20} className="mt-0.5 shrink-0 text-red-600" aria-hidden="true" />
+                <AlertCircle size={20} className="mt-0.5 shrink-0 text-err-700" aria-hidden />
                 <div>
-                  <p className="font-semibold text-red-900">{t('common.error')}</p>
-                  <p className="mt-1 text-[13px] text-red-800">{state.message}</p>
+                  <p className="font-semibold text-err-700">{t('common.error')}</p>
+                  <p className="mt-1 text-sm text-err-700">{state.message}</p>
                 </div>
               </div>
             </Card>

@@ -44,9 +44,9 @@ describe('CreateTopicPage', () => {
     const user = userEvent.setup();
     renderWithRouter();
 
-    await user.type(screen.getByLabelText('Название'), 'Тестовая тема');
-    await user.type(screen.getByLabelText('Описание (необязательно)'), 'Описание');
-    await user.type(screen.getByLabelText('Корневой вопрос'), 'Это вопрос?');
+    await user.type(screen.getByLabelText(/^Название/), 'Тестовая тема');
+    await user.type(screen.getByLabelText(/^Описание/), 'Описание');
+    await user.type(screen.getByLabelText(/^Корневой вопрос/), 'Это вопрос?');
 
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
@@ -79,8 +79,8 @@ describe('CreateTopicPage', () => {
     const user = userEvent.setup();
     renderWithRouter();
 
-    await user.type(screen.getByLabelText('Название'), 'X');
-    await user.type(screen.getByLabelText('Корневой вопрос'), 'Q');
+    await user.type(screen.getByLabelText(/^Название/), 'X');
+    await user.type(screen.getByLabelText(/^Корневой вопрос/), 'Q');
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
     await waitForApi(() => {
@@ -106,8 +106,8 @@ describe('CreateTopicPage', () => {
     const user = userEvent.setup();
     renderWithRouter();
 
-    await user.type(screen.getByLabelText('Название'), 'X');
-    await user.type(screen.getByLabelText('Корневой вопрос'), 'Q');
+    await user.type(screen.getByLabelText(/^Название/), 'X');
+    await user.type(screen.getByLabelText(/^Корневой вопрос/), 'Q');
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
     await waitForApi(() => {

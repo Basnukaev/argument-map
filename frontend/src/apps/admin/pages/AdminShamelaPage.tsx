@@ -72,7 +72,7 @@ function AdminShamelaPage() {
         if (!controller.signal.aborted) setStatusLoading(false);
       });
     return () => controller.abort();
-  }, [reloadStatusToken]);
+  }, [reloadStatusToken, t]);
 
   /**
    * Debounced search при изменении query. Empty-query сценарий не
@@ -110,7 +110,7 @@ function AdminShamelaPage() {
         window.clearTimeout(debounceRef.current);
       }
     };
-  }, [query]);
+  }, [query, t]);
 
   const onQueryChange = (value: string) => {
     setQuery(value);
@@ -132,11 +132,15 @@ function AdminShamelaPage() {
       );
       if (res.changed) {
         toast.success(
-          `Каталог обновлён до версии ${res.currentVersion} · ` +
-            `${res.booksCount} книг, ${res.authorsCount} авторов`,
+          t('admin.sync_done')
+            .replace('{version}', String(res.currentVersion ?? ''))
+            .replace('{books}', String(res.booksCount ?? 0))
+            .replace('{authors}', String(res.authorsCount ?? 0)),
         );
       } else {
-        toast.info(`Каталог уже актуален (версия ${res.currentVersion})`);
+        toast.info(
+          t('admin.sync_uptodate').replace('{version}', String(res.currentVersion ?? '')),
+        );
       }
       setReloadStatusToken((n) => n + 1);
     } catch (e) {
@@ -158,8 +162,10 @@ function AdminShamelaPage() {
         undefined,
       );
       toast.success(
-        `Импортировано: ${imported.pagesCount} стр., ${imported.titlesCount} глав. ` +
-          `Маплено в lib_books · откройте /books/${mapped.bookId?.slice(0, 8)}…`,
+        t('admin.import_done')
+          .replace('{pages}', String(imported.pagesCount ?? 0))
+          .replace('{titles}', String(imported.titlesCount ?? 0))
+          .replace('{id}', mapped.bookId?.slice(0, 8) ?? ''),
       );
       setResults((prev) =>
         prev.map((r) => (r.bookId === bookId ? { ...r, isMapped: true } : r)),
@@ -173,34 +179,46 @@ function AdminShamelaPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50/60">
+    <main className="min-h-screen bg-bg">
       <Header />
 
-      <div className="mx-auto max-w-[1380px] px-6 py-8">
-        <div className="mb-6">
-          <h1 className="flex items-center gap-2.5 text-[28px] font-bold tracking-tight text-slate-900">
-            <Settings size={26} className="text-indigo-600" aria-hidden="true" />
-            {t('admin.title')} · Shamela
-          </h1>
-          <p className="mt-1 text-[13px] text-slate-500">
-            {t('admin.subtitle')}
-          </p>
+      <div className="mx-auto max-w-[1380px] px-6 py-6">
+        <div className="mb-6 flex items-end justify-between gap-4">
+          <div>
+            <h1 className="flex items-center gap-2.5 text-xl font-bold tracking-tight text-ink-900">
+              <Settings size={20} className="text-accent-600" aria-hidden />
+              {t('admin.title')} · Shamela
+            </h1>
+            <p className="mt-1 text-sm text-ink-500">{t('admin.subtitle')}</p>
+          </div>
+          {status && (
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium ${
+                (status.booksCount ?? 0) > 0
+                  ? 'bg-ok-100 text-ok-700 border border-ok-500/40'
+                  : 'bg-warn-100 text-warn-700 border border-warn-500/40'
+              }`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${(status.booksCount ?? 0) > 0 ? 'bg-ok-500' : 'bg-warn-500'}`} />
+              {(status.booksCount ?? 0) > 0 ? t('admin.status_ready') : t('admin.status_empty')}
+            </span>
+          )}
         </div>
 
         {/* Sync-status dashboard */}
         <Card className="mb-6 p-5">
           {statusLoading && (
-            <div className="flex items-center gap-2 text-[13px] text-slate-500">
+            <div className="flex items-center gap-2 text-sm text-ink-500">
               <Loader2 size={16} className="animate-spin" aria-hidden="true" />
               {t('admin.loading_status')}
             </div>
           )}
           {statusError && (
-            <div className="flex items-start gap-3 text-red-800">
-              <AlertCircle size={20} className="mt-0.5 shrink-0 text-red-600" aria-hidden="true" />
+            <div className="flex items-start gap-3 text-err-700">
+              <AlertCircle size={20} className="mt-0.5 shrink-0 text-err-700" aria-hidden="true" />
               <div>
                 <p className="font-semibold">{t('admin.status_load_error')}</p>
-                <p className="mt-1 text-[13px]">{statusError}</p>
+                <p className="mt-1 text-sm">{statusError}</p>
               </div>
             </div>
           )}
@@ -235,47 +253,47 @@ function AdminShamelaPage() {
 
         {/* Search section */}
         <div className="mb-4">
-          <h2 className="mb-2 flex items-center gap-2 text-[16px] font-semibold text-slate-900">
-            <Database size={18} className="text-indigo-600" aria-hidden="true" />
+          <h2 className="mb-2 flex items-center gap-2 text-base font-semibold text-ink-900">
+            <Database size={16} className="text-accent-600" aria-hidden />
             {t('admin.search_in_catalog')}
           </h2>
           {(status?.booksCount ?? 0) === 0 && !statusLoading && (
-            <p className="mb-3 text-[13px] text-slate-500">
+            <p className="mb-3 text-sm text-ink-500">
               {t('admin.empty_catalog_hint')}{' '}
               <button
                 type="button"
                 onClick={onSyncMaster}
-                className="text-indigo-600 underline hover:text-indigo-800"
+                className="text-accent-600 underline hover:text-accent-700"
               >
                 {t('admin.sync_action_link')}
               </button>{' '}
               {t('admin.empty_catalog_hint_2')}
             </p>
           )}
-          <div className="flex h-9 max-w-xl items-center rounded-md border border-slate-300 bg-white transition-colors focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20">
-            <Search size={16} className="ms-3 text-slate-400" aria-hidden="true" />
+          <div className="flex h-9 max-w-xl items-center rounded-md border border-border-strong bg-elevated transition-colors focus-within:border-accent-500 focus-within:ring-2 focus-within:ring-accent-500/20">
+            <Search size={16} className="ms-3 text-ink-400" aria-hidden="true" />
             <input
               type="search"
               value={query}
               onChange={(e) => onQueryChange(e.target.value)}
               placeholder={t('admin.search_placeholder')}
-              className="flex-1 bg-transparent px-3 text-[13px] text-slate-900 outline-none placeholder:text-slate-400"
+              className="flex-1 bg-transparent px-3 text-sm text-ink-900 outline-none placeholder:text-ink-400"
               aria-label={t('admin.search_aria')}
             />
             {searchLoading && (
-              <Loader2 size={14} className="me-3 animate-spin text-slate-400" aria-hidden="true" />
+              <Loader2 size={14} className="me-3 animate-spin text-ink-400" aria-hidden="true" />
             )}
           </div>
         </div>
 
         {searchError && (
-          <Card className="mb-4 border-red-200 bg-red-50 p-4">
-            <p className="text-[13px] text-red-800">{searchError}</p>
+          <Card className="mb-4 border-err-500/40 bg-err-100 p-4">
+            <p className="text-sm text-err-700">{searchError}</p>
           </Card>
         )}
 
         {!searchError && query.trim().length > 0 && results.length === 0 && !searchLoading && (
-          <p className="text-[13px] text-slate-500">{t('topic.list.not_found')}</p>
+          <p className="text-sm text-ink-500">{t('topic.list.not_found')}</p>
         )}
 
         {results.length > 0 && (
@@ -290,8 +308,69 @@ function AdminShamelaPage() {
             ))}
           </ul>
         )}
+
+        <ActivityLog />
       </div>
     </main>
+  );
+}
+
+/**
+ * Activity log - console-style блок с timeline последних admin-операций.
+ * Бэк пока не отдаёт реальный лог (потребуется /api/v1/admin/shamela/activity
+ * endpoint), здесь placeholder с примерами форматов. Когда бэк появится -
+ * заменить items на fetch'd данные. Структура повторяет дизайн-референс v3.
+ */
+function ActivityLog() {
+  const t = useT();
+  const items: ReadonlyArray<{
+    time: string;
+    kind: 'ok' | 'warn' | 'err';
+    message: string;
+  }> = [
+    { time: '14:22:08', kind: 'ok', message: 'sync-master: ничего нового (v 8517)' },
+    { time: '14:18:45', kind: 'ok', message: 'import-book/1503 → 4720 стр., 239 глав' },
+    { time: '14:18:45', kind: 'ok', message: 'map-book/1503 → lib_books/02bcfa43-d269…' },
+    { time: '14:12:11', kind: 'warn', message: 'import-book/23901 → 6 страниц без printedPage' },
+    { time: '14:02:54', kind: 'err', message: 'import-book/77810 → 422: PDF не найден на archive.org' },
+  ];
+  const kindClass: Record<'ok' | 'warn' | 'err', string> = {
+    ok: 'text-ok-700 bg-ok-100',
+    warn: 'text-warn-700 bg-warn-100',
+    err: 'text-err-700 bg-err-100',
+  };
+  const kindLabel: Record<'ok' | 'warn' | 'err', string> = {
+    ok: 'OK',
+    warn: 'WARN',
+    err: 'ERR',
+  };
+  return (
+    <section className="mt-8">
+      <h2 className="mb-3 text-base font-semibold text-ink-900">
+        {t('admin.activity_log')}
+      </h2>
+      <Card className="overflow-hidden p-0">
+        <ul className="divide-y divide-border font-mono text-xs">
+          {items.map((it, i) => (
+            <li
+              key={i}
+              className="flex items-baseline gap-3 px-4 py-2 text-ink-800"
+            >
+              <span className="text-ink-500 tabular-nums">{it.time}</span>
+              <span
+                className={`inline-flex h-5 items-center rounded-sm px-1.5 text-xs font-bold uppercase ${kindClass[it.kind]}`}
+              >
+                {kindLabel[it.kind]}
+              </span>
+              <span className="flex-1 break-all">{it.message}</span>
+            </li>
+          ))}
+        </ul>
+      </Card>
+      <p className="mt-2 text-xs text-ink-400">
+        {t('admin.activity_log_placeholder_hint')}
+      </p>
+    </section>
   );
 }
 
@@ -304,9 +383,13 @@ interface StatProps {
 function Stat({ label, value, hint }: StatProps) {
   return (
     <div>
-      <div className="text-[11px] uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-0.5 font-mono text-[20px] font-bold text-slate-900">{value}</div>
-      {hint && <div className="mt-0.5 text-[11px] text-slate-400">{hint}</div>}
+      <div className="text-xs uppercase tracking-wider text-ink-500 font-semibold">
+        {label}
+      </div>
+      <div className="mt-1 font-mono text-lg font-bold text-ink-900 tabular-nums">
+        {value}
+      </div>
+      {hint && <div className="mt-0.5 text-xs text-ink-400">{hint}</div>}
     </div>
   );
 }
@@ -326,35 +409,35 @@ function SearchResultRow({ result, onImport, isImporting }: SearchResultRowProps
 
   return (
     <li>
-      <Card className="flex flex-wrap items-center gap-4 p-4 transition-colors hover:border-slate-300">
+      <Card className="flex flex-wrap items-center gap-4 p-4 transition-colors hover:border-border-strong">
         <div className="min-w-0 flex-1">
           <div
             dir="auto"
             className={
               arabicName
-                ? 'font-naskh text-[18px] font-semibold leading-snug text-slate-900'
-                : 'text-[15px] font-semibold leading-snug text-slate-900'
+                ? 'font-naskh text-md font-semibold leading-snug text-ink-900'
+                : 'text-base font-semibold leading-snug text-ink-900'
             }
           >
             {result.name ?? t('reader.no_book_title')}
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-slate-500">
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-500">
             {result.authorName && (
               <span dir="auto" className={arabicAuthor ? 'font-naskh' : ''}>
                 {result.authorName}
               </span>
             )}
-            <span className="font-mono text-slate-400">
+            <span className="font-mono text-ink-400">
               <bdi dir="ltr">id={result.bookId}</bdi>
             </span>
-            <span className="font-mono text-slate-400">
+            <span className="font-mono text-ink-400">
               <bdi dir="ltr">major={result.majorRelease}</bdi>
             </span>
           </div>
         </div>
         {result.isMapped ? (
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 border border-emerald-200">
+            <span className="inline-flex items-center gap-1 rounded-md bg-ok-100 px-2 py-0.5 text-xs font-medium text-ok-700 border border-ok-500/40">
               <CheckCircle2 size={12} aria-hidden="true" />
               {t('admin.imported')}
             </span>

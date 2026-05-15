@@ -111,7 +111,7 @@ function BookReaderPage() {
         setState({ kind: 'error', message });
       });
     return () => controller.abort();
-  }, [bookId]);
+  }, [bookId, t]);
 
   // Deep link handling после загрузки pages - применяем query params один
   // раз когда state становится success. Это инициализация под query, не
@@ -143,7 +143,7 @@ function BookReaderPage() {
         setPageNumber(state.pages[0]?.pageNumber ?? 1);
       }
     }
-  }, [state, searchParams]);
+  }, [state, searchParams, t]);
 
   // Highlight range из ?highlight=start-end - parsing для PageView prop.
   // Silent fallback при corrupted значениях (NaN), не падаем.
@@ -186,7 +186,7 @@ function BookReaderPage() {
         setPageContent({ kind: 'error', message });
       });
     return () => controller.abort();
-  }, [state, pageNumber]);
+  }, [state, pageNumber, t]);
 
   const chapterTree: Chapter[] = state.kind === 'success' ? (state.book.chapters ?? []) : [];
   const totalPages = state.kind === 'success' ? state.pages.length : 0;
@@ -285,7 +285,7 @@ function BookReaderPage() {
     parsedPrintedPage != null && Number.isFinite(parsedPrintedPage) ? parsedPrintedPage : null;
 
   return (
-    <main className="min-h-screen bg-slate-50/60">
+    <main className="min-h-screen bg-bg">
       <Header />
 
       <div className="mx-auto flex max-w-[1380px] gap-6 px-6 py-6">
@@ -294,19 +294,19 @@ function BookReaderPage() {
             <button
               type="button"
               onClick={() => navigate('/books')}
-              className="mb-3 inline-flex items-center gap-1.5 text-[12px] text-slate-600 transition-colors hover:text-indigo-600"
+              className="mb-3 inline-flex items-center gap-1.5 text-xs text-ink-600 transition-colors hover:text-accent-600"
             >
               <ArrowLeft size={14} aria-hidden="true" />
               {t('reader.back_to_list')}
             </button>
-            <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">
               {t('reader.chapters')}
             </h3>
             {state.kind === 'loading' && (
-              <div className="text-[12px] text-slate-400">{t('common.loading')}</div>
+              <div className="text-xs text-ink-400">{t('common.loading')}</div>
             )}
             {state.kind === 'success' && chapterTree.length === 0 && (
-              <p className="text-[12px] text-slate-400">{t('reader.chapters_empty')}</p>
+              <p className="text-xs text-ink-400">{t('reader.chapters_empty')}</p>
             )}
             {state.kind === 'success' && chapterTree.length > 0 && (
               <ChapterList
@@ -322,23 +322,23 @@ function BookReaderPage() {
 
         <div className="min-w-0 flex-1">
           {state.kind === 'loading' && (
-            <div className="flex items-center justify-center gap-2 py-20 text-[13px] text-slate-500">
+            <div className="flex items-center justify-center gap-2 py-20 text-sm text-ink-500">
               <Loader2 size={16} className="animate-spin" aria-hidden="true" />
               {t('common.loading')}
             </div>
           )}
 
           {state.kind === 'error' && (
-            <Card className="border-red-200 bg-red-50 p-5">
+            <Card className="border-err-500/40 bg-err-100 p-5">
               <div className="flex items-start gap-3">
                 <AlertCircle
                   size={20}
-                  className="mt-0.5 shrink-0 text-red-600"
+                  className="mt-0.5 shrink-0 text-err-700"
                   aria-hidden="true"
                 />
                 <div>
-                  <p className="font-semibold text-red-900">{t('common.error')}</p>
-                  <p className="mt-1 text-[13px] text-red-800">{state.message}</p>
+                  <p className="font-semibold text-err-700">{t('common.error')}</p>
+                  <p className="mt-1 text-sm text-err-700">{state.message}</p>
                 </div>
               </div>
             </Card>
@@ -356,7 +356,7 @@ function BookReaderPage() {
                       Mode switch перенесён сюда из BookHeader - ближе к content,
                       consistent с overall reader controls
                       z-30 < aside z-40, не перекрываются */}
-                  <div className="sticky top-2 z-30 mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5 shadow-sm">
+                  <div className="sticky top-2 z-30 mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-elevated px-4 py-2.5 shadow-sm">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -415,8 +415,8 @@ function BookReaderPage() {
                   <Suspense
                     fallback={
                       <Card className="p-12 text-center">
-                        <Loader2 size={20} className="mx-auto animate-spin text-slate-400" />
-                        <p className="mt-2 text-[12px] text-slate-500">{t('reader.pdf_preview_loading')}</p>
+                        <Loader2 size={20} className="mx-auto animate-spin text-ink-400" />
+                        <p className="mt-2 text-xs text-ink-500">{t('reader.pdf_preview_loading')}</p>
                       </Card>
                     }
                   >
@@ -441,7 +441,7 @@ function BookReaderPage() {
           оригиналом). Кнопка Maximize2 = развернуть в fullscreen mode */}
       {pdfPreviewOpen && state.kind === 'success' && bookId && (
         <aside
-          className="fixed inset-x-0 bottom-0 z-40 flex flex-col border-t border-slate-300 bg-white shadow-2xl"
+          className="fixed inset-x-0 bottom-0 z-40 flex flex-col border-t border-border-strong bg-elevated shadow-2xl"
           style={{ height: `${sheetHeightVh}vh` }}
         >
           {/* Drag handle - тонкая зона сверху для resize высоты. Визуально
@@ -451,15 +451,15 @@ function BookReaderPage() {
             aria-orientation="horizontal"
             aria-label={t('reader.pdf_preview_resize_aria')}
             onPointerDown={handleResizeStart}
-            className="group flex h-3 cursor-ns-resize items-center justify-center border-b border-slate-200 bg-slate-50 transition-colors hover:bg-indigo-50"
+            className="group flex h-3 cursor-ns-resize items-center justify-center border-b border-border bg-ink-50 transition-colors hover:bg-accent-50"
           >
-            <span className="h-0.5 w-10 rounded-full bg-slate-300 transition-colors group-hover:bg-indigo-400" />
+            <span className="h-0.5 w-10 rounded-full bg-ink-300 transition-colors group-hover:bg-accent-500" />
           </div>
-          <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2">
-            <h3 className="text-[13px] font-semibold text-slate-700">
+          <div className="flex items-center justify-between border-b border-border bg-ink-50 px-4 py-2">
+            <h3 className="text-sm font-semibold text-ink-700">
               {t('reader.pdf_original')}
               {currentPageMeta?.printedPage && (
-                <span className="ms-2 text-slate-500">
+                <span className="ms-2 text-ink-500">
                   · {t('reader.short.page_prefix')} <bdi dir="ltr">{currentPageMeta.printedPage}</bdi>
                   {currentPart && <> · {t('reader.volume').toLowerCase()} <bdi>{currentPart}</bdi></>}
                 </span>
@@ -480,17 +480,17 @@ function BookReaderPage() {
               <button
                 type="button"
                 onClick={() => setPdfPreviewOpen(false)}
-                className="grid h-7 w-7 place-items-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                className="grid h-7 w-7 place-items-center rounded text-ink-500 hover:bg-ink-100 hover:text-ink-700"
                 aria-label={t('reader.pdf_preview_close')}
               >
                 <X size={14} />
               </button>
             </div>
           </div>
-          <div className="flex-1 overflow-auto bg-slate-100">
+          <div className="flex-1 overflow-auto bg-ink-100">
             <Suspense
               fallback={
-                <div className="grid h-full place-items-center text-[12px] text-slate-500">
+                <div className="grid h-full place-items-center text-xs text-ink-500">
                   <Loader2 size={20} className="animate-spin" />
                 </div>
               }
