@@ -24,6 +24,7 @@ type SearchResult = components['schemas']['StagingBookSearchResponse'];
 type ImportBookResponse = components['schemas']['ImportBookResponse'];
 type MapBookResponse = components['schemas']['MapBookResponse'];
 type SyncMasterResponse = components['schemas']['SyncMasterResponse'];
+type BackfillResponse = components['schemas']['BackfillBibliographyResponse'];
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -48,6 +49,7 @@ function AdminShamelaPage() {
 
   const debounceRef = useRef<number | null>(null);
   const [reloadStatusToken, setReloadStatusToken] = useState(0);
+  const [backfilling, setBackfilling] = useState(false);
 
   /**
    * Все setState идут в Promise-callbacks (.then/.catch) - это асинхронные
@@ -120,6 +122,26 @@ function AdminShamelaPage() {
       setSearchLoading(false);
     } else {
       setSearchLoading(true);
+    }
+  };
+
+  const onBackfillBibliography = async () => {
+    setBackfilling(true);
+    try {
+      const res = await apiPostRaw<BackfillResponse>(
+        '/api/v1/admin/shamela/backfill-bibliography',
+        undefined,
+      );
+      toast.success(
+        t('admin.backfill_done')
+          .replace('{scanned}', String(res.scanned ?? 0))
+          .replace('{updated}', String(res.updated ?? 0))
+          .replace('{skipped}', String(res.skipped ?? 0)),
+      );
+    } catch (e) {
+      toast.error(formatError(e, t('admin.backfill_failed')));
+    } finally {
+      setBackfilling(false);
     }
   };
 
@@ -244,9 +266,19 @@ function AdminShamelaPage() {
                   hint={`${t('admin.mapped_count')}: ${formatNumber(status.mappedBooksCount ?? 0)}`}
                 />
               </div>
-              <Button icon={RefreshCw} onClick={onSyncMaster} disabled={syncing}>
-                {syncing ? t('admin.sync_in_progress') : t('admin.sync_button')}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button icon={RefreshCw} onClick={onSyncMaster} disabled={syncing}>
+                  {syncing ? t('admin.sync_in_progress') : t('admin.sync_button')}
+                </Button>
+                <Button
+                  variant="outline"
+                  icon={Settings}
+                  onClick={onBackfillBibliography}
+                  disabled={backfilling}
+                >
+                  {backfilling ? t('common.loading') : t('admin.backfill_action')}
+                </Button>
+              </div>
             </div>
           )}
         </Card>

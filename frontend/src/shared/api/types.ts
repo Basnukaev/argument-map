@@ -180,6 +180,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/shamela/backfill-bibliography": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["backfillBibliography"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/nodes/{nodeId}": {
         parameters: {
             query?: never;
@@ -196,6 +212,22 @@ export interface paths {
         patch: operations["update"];
         trace?: never;
     };
+    "/api/v1/library/books/{bookId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getOne"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_1"];
+        options?: never;
+        head?: never;
+        patch: operations["update_1"];
+        trace?: never;
+    };
     "/api/v1/edges/{edgeId}": {
         parameters: {
             query?: never;
@@ -206,10 +238,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_1"];
+        delete: operations["delete_2"];
         options?: never;
         head?: never;
-        patch: operations["update_1"];
+        patch: operations["update_2"];
         trace?: never;
     };
     "/api/v1/topics/{topicId}": {
@@ -219,10 +251,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["getOne"];
+        get: operations["getOne_1"];
         put?: never;
         post?: never;
-        delete: operations["delete_2"];
+        delete: operations["delete_3"];
         options?: never;
         head?: never;
         patch?: never;
@@ -251,10 +283,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["getOne_1"];
+        get: operations["getOne_2"];
         put?: never;
         post?: never;
-        delete: operations["delete_3"];
+        delete: operations["delete_4"];
         options?: never;
         head?: never;
         patch?: never;
@@ -268,6 +300,38 @@ export interface paths {
             cookie?: never;
         };
         get: operations["getRevisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/publishers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/publication-places": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["search_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -292,17 +356,17 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/library/books/{bookId}": {
+    "/api/v1/library/muhaqqiqs": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["getOne_2"];
+        get: operations["search_2"];
         put?: never;
         post?: never;
-        delete: operations["delete_4"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -739,6 +803,14 @@ export interface components {
             /** Format: int32 */
             titlesCount?: number;
         };
+        BackfillBibliographyResponse: {
+            /** Format: int32 */
+            scanned?: number;
+            /** Format: int32 */
+            updated?: number;
+            /** Format: int32 */
+            skipped?: number;
+        };
         UpdateNodeRequest: {
             content?: string;
             /** Format: double */
@@ -746,79 +818,16 @@ export interface components {
             /** Format: double */
             posY?: number;
         };
-        UpdateEdgeRequest: {
-            /** Format: uuid */
-            fromNodeId?: string;
-            /** Format: uuid */
-            toNodeId?: string;
-            /** @enum {string} */
-            edgeType?: "SUPPORTS" | "REFUTES" | "QUALIFIES" | "INVALIDATES" | "RESPONDS_TO";
-            rationale?: string;
-            sourceHandle?: string;
-            targetHandle?: string;
-        };
-        GraphResponse: {
-            topic?: components["schemas"]["TopicResponse"];
-            nodes?: components["schemas"]["NodeResponse"][];
-            edges?: components["schemas"]["EdgeResponse"][];
-        };
-        RevisionResponse: {
-            /** Format: uuid */
-            id?: string;
-            /** Format: uuid */
-            nodeId?: string;
-            contentBefore?: string;
-            contentAfter?: string;
-            /** Format: uuid */
-            changedBy?: string;
-            /** Format: date-time */
-            changedAt?: string;
-        };
-        ImageRegionResponse: {
-            /** Format: uuid */
-            id?: string;
-            /** Format: double */
-            x?: number;
-            /** Format: double */
-            y?: number;
-            /** Format: double */
-            width?: number;
-            /** Format: double */
-            height?: number;
-            extractedText?: string;
-        };
-        PageResponse: {
-            /** Format: uuid */
-            id?: string;
-            /** Format: uuid */
-            bookId?: string;
-            /** Format: uuid */
-            chapterId?: string;
+        UpdateBookRequest: {
+            muhaqqiqName?: string;
+            publisherName?: string;
+            publicationPlaceName?: string;
             /** Format: int32 */
-            pageNumber?: number;
-            printedPage?: string;
-            part?: string;
+            editionNumber?: number;
             /** Format: int32 */
-            pdfPageNumber?: number;
-            textContent?: string;
-            imageUrl?: string;
-            imageRegions?: components["schemas"]["ImageRegionResponse"][];
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: date-time */
-            updatedAt?: string;
-        };
-        BookSummaryResponse: {
-            /** Format: uuid */
-            id?: string;
-            /** @enum {string} */
-            bookType?: "QURAN" | "HADITH_COLLECTION" | "BOOK" | "ARTICLE" | "MANUSCRIPT";
-            title?: string;
-            /** Format: uuid */
-            authorityId?: string;
-            language?: string;
-            /** Format: date-time */
-            createdAt?: string;
+            publishedYearHijri?: number;
+            /** Format: int32 */
+            publishedYearGregorian?: number;
         };
         BookDetailResponse: {
             /** Format: uuid */
@@ -865,6 +874,96 @@ export interface components {
             parentChapterId?: string;
             /** Format: int32 */
             startPageNumber?: number;
+        };
+        UpdateEdgeRequest: {
+            /** Format: uuid */
+            fromNodeId?: string;
+            /** Format: uuid */
+            toNodeId?: string;
+            /** @enum {string} */
+            edgeType?: "SUPPORTS" | "REFUTES" | "QUALIFIES" | "INVALIDATES" | "RESPONDS_TO";
+            rationale?: string;
+            sourceHandle?: string;
+            targetHandle?: string;
+        };
+        GraphResponse: {
+            topic?: components["schemas"]["TopicResponse"];
+            nodes?: components["schemas"]["NodeResponse"][];
+            edges?: components["schemas"]["EdgeResponse"][];
+        };
+        RevisionResponse: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            nodeId?: string;
+            contentBefore?: string;
+            contentAfter?: string;
+            /** Format: uuid */
+            changedBy?: string;
+            /** Format: date-time */
+            changedAt?: string;
+        };
+        PublisherResponse: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+        };
+        PublicationPlaceResponse: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+        };
+        ImageRegionResponse: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: double */
+            x?: number;
+            /** Format: double */
+            y?: number;
+            /** Format: double */
+            width?: number;
+            /** Format: double */
+            height?: number;
+            extractedText?: string;
+        };
+        PageResponse: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            bookId?: string;
+            /** Format: uuid */
+            chapterId?: string;
+            /** Format: int32 */
+            pageNumber?: number;
+            printedPage?: string;
+            part?: string;
+            /** Format: int32 */
+            pdfPageNumber?: number;
+            textContent?: string;
+            imageUrl?: string;
+            imageRegions?: components["schemas"]["ImageRegionResponse"][];
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        MuhaqqiqResponse: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+            fullName?: string;
+        };
+        BookSummaryResponse: {
+            /** Format: uuid */
+            id?: string;
+            /** @enum {string} */
+            bookType?: "QURAN" | "HADITH_COLLECTION" | "BOOK" | "ARTICLE" | "MANUSCRIPT";
+            title?: string;
+            /** Format: uuid */
+            authorityId?: string;
+            language?: string;
+            /** Format: date-time */
+            createdAt?: string;
         };
         StreamingResponseBody: Record<string, never>;
         PdfFileInfoResponse: {
@@ -1315,6 +1414,26 @@ export interface operations {
             };
         };
     };
+    backfillBibliography: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BackfillBibliographyResponse"];
+                };
+            };
+        };
+    };
     delete: {
         parameters: {
             query?: never;
@@ -1364,7 +1483,75 @@ export interface operations {
             };
         };
     };
+    getOne: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BookDetailResponse"];
+                };
+            };
+        };
+    };
     delete_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBookRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BookDetailResponse"];
+                };
+            };
+        };
+    };
+    delete_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -1384,7 +1571,7 @@ export interface operations {
             };
         };
     };
-    update_1: {
+    update_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -1410,7 +1597,7 @@ export interface operations {
             };
         };
     };
-    getOne: {
+    getOne_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1432,7 +1619,7 @@ export interface operations {
             };
         };
     };
-    delete_2: {
+    delete_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -1474,7 +1661,7 @@ export interface operations {
             };
         };
     };
-    getOne_1: {
+    getOne_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -1496,7 +1683,7 @@ export interface operations {
             };
         };
     };
-    delete_3: {
+    delete_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -1538,6 +1725,52 @@ export interface operations {
             };
         };
     };
+    search: {
+        parameters: {
+            query?: {
+                q?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PublisherResponse"][];
+                };
+            };
+        };
+    };
+    search_1: {
+        parameters: {
+            query?: {
+                q?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PublicationPlaceResponse"][];
+                };
+            };
+        };
+    };
     getPage: {
         parameters: {
             query?: never;
@@ -1560,13 +1793,14 @@ export interface operations {
             };
         };
     };
-    getOne_2: {
+    search_2: {
         parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                bookId: string;
+            query?: {
+                q?: string;
+                limit?: number;
             };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -1577,28 +1811,8 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["BookDetailResponse"];
+                    "*/*": components["schemas"]["MuhaqqiqResponse"][];
                 };
-            };
-        };
-    };
-    delete_4: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                bookId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };

@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { BookOpen, Search, AlertCircle, Loader2, Download, ChevronDown } from 'lucide-react';
+import { BookOpen, Search, AlertCircle, Loader2, Download, ChevronDown, Pencil } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import Button from '@/shared/components/ui/Button';
+import BookEditModal from '@/apps/admin/components/BookEditModal';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
+import { toast } from '@/shared/stores/toastStore';
 import { useT, type DictKey } from '@/shared/i18n';
 import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
 
 type Book = components['schemas']['BookSummaryResponse'];
 type BookType = NonNullable<Book['bookType']>;
+type BookDetailResponse = components['schemas']['BookDetailResponse'];
 
 /** Ключи в словаре через book.type.* - подцепляем через useT() */
 const BOOK_TYPE_DICT_KEY: Record<BookType, DictKey> = {
@@ -71,6 +74,23 @@ function BookListPage() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<BookType | 'ALL'>('ALL');
   const [sortBy, setSortBy] = useState<SortKey>('added');
+  const [editingBook, setEditingBook] = useState<BookDetailResponse | null>(null);
+  const [loadingEdit, setLoadingEdit] = useState<string | null>(null);
+
+  const handleEdit = async (bookId: string) => {
+    setLoadingEdit(bookId);
+    try {
+      const detail = await apiGetRaw<BookDetailResponse>(
+        `/api/v1/library/books/${bookId}`,
+      );
+      setEditingBook(detail);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast.error(message);
+    } finally {
+      setLoadingEdit(null);
+    }
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -245,21 +265,41 @@ function BookListPage() {
               .filter((b): b is Book & { id: string } => Boolean(b.id))
               .map((book) => (
                 <li key={book.id}>
-                  <BookCard book={book} />
+                  <BookCard
+                    book={book}
+                    onEdit={handleEdit}
+                    editLoading={loadingEdit === book.id}
+                  />
                 </li>
               ))}
           </ul>
         )}
       </div>
+      {editingBook && (
+        <BookEditModal
+          book={editingBook}
+          onClose={() => setEditingBook(null)}
+          onSaved={(updated) => {
+            // Обновляем localный массив books title-based fields не меняются,
+            // но обновлённая запись содержит новые FK + updated_at - перезагрузить
+            // нет смысла, состав books в списке не поменялся. Если когда-то
+            // BookSummary будет включать FK - надо будет refetch.
+            setEditingBook(null);
+            void updated;
+          }}
+        />
+      )}
     </main>
   );
 }
 
 interface BookCardProps {
   book: Book & { id: string };
+  onEdit: (bookId: string) => void;
+  editLoading: boolean;
 }
 
-function BookCard({ book }: BookCardProps) {
+function BookCard({ book, onEdit, editLoading }: BookCardProps) {
   const t = useT();
   const bookType = book.bookType ?? 'BOOK';
   const isArabic = book.language === 'ar';
@@ -268,14 +308,32 @@ function BookCard({ book }: BookCardProps) {
   const initialLetter = title.charAt(0).toUpperCase() || '?';
 
   return (
-    <Link
-      to={`/books/${book.id}`}
-      aria-label={title}
-      className="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bg rounded-md"
-    >
-      <Card interactive className="h-full overflow-hidden">
-        <Card.Cover color={coverColorFor(book.id)}>{initialLetter}</Card.Cover>
-        <Card.Body>
+    <div className="relative">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onEdit(book.id);
+        }}
+        disabled={editLoading}
+        title={t('admin.edit_book.action')}
+        className="absolute end-2 top-2 z-10 grid h-7 w-7 place-items-center rounded-sm bg-elevated/90 text-ink-600 shadow-sh1 backdrop-blur hover:bg-elevated hover:text-accent-700 disabled:opacity-50"
+      >
+        {editLoading ? (
+          <Loader2 size={13} className="animate-spin" aria-hidden />
+        ) : (
+          <Pencil size={13} aria-hidden />
+        )}
+      </button>
+      <Link
+        to={`/books/${book.id}`}
+        aria-label={title}
+        className="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bg rounded-md"
+      >
+        <Card interactive className="h-full overflow-hidden">
+          <Card.Cover color={coverColorFor(book.id)}>{initialLetter}</Card.Cover>
+          <Card.Body>
           <Card.Eyebrow>
             <span
               className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider ${BOOK_TYPE_BADGE[bookType]}`}
@@ -288,15 +346,16 @@ function BookCard({ book }: BookCardProps) {
               </span>
             )}
           </Card.Eyebrow>
-          <Card.Title arabic={isArabic}>{title}</Card.Title>
-          <Card.Meta>
-            <span className="font-mono text-xs">
-              <bdi dir="ltr">{book.id.slice(0, 8)}</bdi>
-            </span>
-          </Card.Meta>
-        </Card.Body>
-      </Card>
-    </Link>
+            <Card.Title arabic={isArabic}>{title}</Card.Title>
+            <Card.Meta>
+              <span className="font-mono text-xs">
+                <bdi dir="ltr">{book.id.slice(0, 8)}</bdi>
+              </span>
+            </Card.Meta>
+          </Card.Body>
+        </Card>
+      </Link>
+    </div>
   );
 }
 
