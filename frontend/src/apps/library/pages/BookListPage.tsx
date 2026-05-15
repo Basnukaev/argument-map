@@ -10,18 +10,20 @@ import {
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
+import { useT, type DictKey } from '@/shared/i18n';
 import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
 
 type Book = components['schemas']['BookSummaryResponse'];
 type BookType = NonNullable<Book['bookType']>;
 
-const BOOK_TYPE_LABEL: Record<BookType, string> = {
-  QURAN: 'Коран',
-  HADITH_COLLECTION: 'Сборник хадисов',
-  BOOK: 'Книга',
-  ARTICLE: 'Статья',
-  MANUSCRIPT: 'Рукопись',
+/** Ключи в словаре через book.type.* - подцепляем через useT() */
+const BOOK_TYPE_DICT_KEY: Record<BookType, DictKey> = {
+  QURAN: 'book.type.QURAN',
+  HADITH_COLLECTION: 'book.type.HADITH_COLLECTION',
+  BOOK: 'book.type.BOOK',
+  ARTICLE: 'book.type.ARTICLE',
+  MANUSCRIPT: 'book.type.MANUSCRIPT',
 };
 
 const BOOK_TYPE_BADGE: Record<BookType, string> = {
@@ -32,16 +34,18 @@ const BOOK_TYPE_BADGE: Record<BookType, string> = {
   MANUSCRIPT: 'bg-purple-50 text-purple-700 border-purple-200',
 };
 
-const BOOK_TYPE_FILTER: ReadonlyArray<{ value: BookType | 'ALL'; label: string }> = [
-  { value: 'ALL', label: 'Все типы' },
-  { value: 'BOOK', label: 'Книги' },
-  { value: 'HADITH_COLLECTION', label: 'Хадисы' },
-  { value: 'QURAN', label: 'Коран' },
-  { value: 'ARTICLE', label: 'Статьи' },
-  { value: 'MANUSCRIPT', label: 'Рукописи' },
+/** filter values - тип. Локализация labels - через t() в render */
+const BOOK_TYPE_FILTER_VALUES: ReadonlyArray<BookType | 'ALL'> = [
+  'ALL',
+  'BOOK',
+  'HADITH_COLLECTION',
+  'QURAN',
+  'ARTICLE',
+  'MANUSCRIPT',
 ];
 
 function BookListPage() {
+  const t = useT();
   const [state, setState] = useState<AsyncState<Book[]>>({ kind: 'loading' });
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<BookType | 'ALL'>('ALL');
@@ -83,13 +87,13 @@ function BookListPage() {
         <div className="mb-6">
           <h1 className="flex items-center gap-2.5 text-[28px] font-bold tracking-tight text-slate-900">
             <Library size={26} className="text-indigo-600" aria-hidden="true" />
-            Библиотека
+            {t('book.list.title')}
           </h1>
           {state.kind === 'success' && (
             <p className="mt-1 text-[13px] text-slate-500">
-              Импортированные классические труды и источники ·{' '}
+              {t('book.list.subtitle')} ·{' '}
               <span className="font-mono font-semibold text-slate-700">
-                {state.data.length} книг{state.data.length === 1 ? 'а' : ''}
+                <bdi dir="ltr">{state.data.length}</bdi> {t('book.list.books_suffix')}
               </span>
             </p>
           )}
@@ -102,24 +106,24 @@ function BookListPage() {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Поиск по названию"
+              placeholder={t('book.list.search_placeholder')}
               className="flex-1 bg-transparent px-3 text-[13px] text-slate-900 outline-none placeholder:text-slate-400"
-              aria-label="Поиск книг"
+              aria-label={t('common.search')}
             />
           </div>
           <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white p-1">
-            {BOOK_TYPE_FILTER.map((opt) => (
+            {BOOK_TYPE_FILTER_VALUES.map((value) => (
               <button
-                key={opt.value}
+                key={value}
                 type="button"
-                onClick={() => setTypeFilter(opt.value)}
+                onClick={() => setTypeFilter(value)}
                 className={
-                  typeFilter === opt.value
+                  typeFilter === value
                     ? 'rounded-md bg-indigo-600 px-2.5 py-1 text-[12px] font-medium text-white'
                     : 'rounded-md px-2.5 py-1 text-[12px] text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors'
                 }
               >
-                {opt.label}
+                {value === 'ALL' ? t('book.list.filter_all') : t(BOOK_TYPE_DICT_KEY[value])}
               </button>
             ))}
           </div>
@@ -128,7 +132,7 @@ function BookListPage() {
         {state.kind === 'loading' && (
           <div className="flex items-center justify-center gap-2 py-20 text-[13px] text-slate-500">
             <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-            Загрузка
+            {t('common.loading')}
           </div>
         )}
 
@@ -137,7 +141,7 @@ function BookListPage() {
             <div className="flex items-start gap-3">
               <AlertCircle size={20} className="mt-0.5 shrink-0 text-red-600" aria-hidden="true" />
               <div>
-                <p className="font-semibold text-red-900">Ошибка</p>
+                <p className="font-semibold text-red-900">{t('common.error')}</p>
                 <p className="mt-1 text-[13px] text-red-800">{state.message}</p>
               </div>
             </div>
@@ -147,20 +151,13 @@ function BookListPage() {
         {state.kind === 'success' && state.data.length === 0 && (
           <Card className="mx-auto max-w-2xl p-12 text-center">
             <BookOpen size={32} className="mx-auto mb-3 text-slate-400" aria-hidden="true" />
-            <p className="text-[15px] text-slate-700">Библиотека пуста</p>
-            <p className="mt-2 text-[13px] text-slate-500">
-              Импортируй книги через admin endpoint{' '}
-              <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[12px]">
-                POST /api/v1/admin/shamela/map-book/&#123;id&#125;
-              </code>
-            </p>
+            <p className="text-[15px] text-slate-700">{t('book.list.title')}</p>
           </Card>
         )}
 
         {state.kind === 'success' && state.data.length > 0 && filteredBooks.length === 0 && (
           <p className="text-center text-[13px] text-slate-500">
-            Ничего не найдено{search && ` по запросу "${search}"`}
-            {typeFilter !== 'ALL' && ` среди ${BOOK_TYPE_LABEL[typeFilter].toLowerCase()}`}
+            {t('topic.list.not_found')}
           </p>
         )}
 
@@ -185,13 +182,15 @@ interface BookCardProps {
 }
 
 function BookCard({ book }: BookCardProps) {
+  const t = useT();
   const bookType = book.bookType ?? 'BOOK';
   const isArabic = book.language === 'ar';
+  const fallbackTitle = t('reader.no_book_title');
 
   return (
     <Link
       to={`/books/${book.id}`}
-      aria-label={book.title ?? '(без названия)'}
+      aria-label={book.title ?? fallbackTitle}
       className="group block focus:outline-none"
     >
       <Card className="h-full overflow-hidden transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md group-focus-visible:ring-2 group-focus-visible:ring-indigo-500 group-focus-visible:ring-offset-2">
@@ -203,26 +202,26 @@ function BookCard({ book }: BookCardProps) {
             <span
               className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium ${BOOK_TYPE_BADGE[bookType]}`}
             >
-              {BOOK_TYPE_LABEL[bookType]}
+              {t(BOOK_TYPE_DICT_KEY[bookType])}
             </span>
             {book.language && (
               <span className="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono uppercase text-slate-600">
-                {book.language}
+                <bdi dir="ltr">{book.language}</bdi>
               </span>
             )}
           </div>
           <h2
+            dir="auto"
             className={
               isArabic
                 ? 'line-clamp-2 font-naskh text-[16px] font-semibold leading-snug text-slate-900 transition-colors group-hover:text-indigo-700'
                 : 'line-clamp-2 text-[14px] font-semibold leading-snug text-slate-900 transition-colors group-hover:text-indigo-700'
             }
-            dir={isArabic ? 'rtl' : 'ltr'}
           >
-            {book.title ?? '(без названия)'}
+            {book.title ?? fallbackTitle}
           </h2>
           <div className="mt-3 text-[11px] font-mono text-slate-500">
-            {book.id.slice(0, 8)}
+            <bdi dir="ltr">{book.id.slice(0, 8)}</bdi>
           </div>
         </div>
       </Card>

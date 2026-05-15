@@ -1,19 +1,20 @@
 import { Link, NavLink } from 'react-router';
 import { Network } from 'lucide-react';
 import LocaleSwitch from '@/shared/components/layout/LocaleSwitch';
+import { useT, type DictKey } from '@/shared/i18n';
 
 interface NavItem {
   to: string;
-  label: string;
+  labelKey: DictKey;
   /** Раздел не реализован - подсветка disabled, клик не делает ничего */
   disabled?: boolean;
 }
 
 const NAV_ITEMS: ReadonlyArray<NavItem> = [
-  { to: '/topics', label: 'Темы' },
-  { to: '/books', label: 'Библиотека' },
-  { to: '/qa', label: 'Q&A', disabled: true },
-  { to: '/admin/shamela', label: 'Админ' },
+  { to: '/topics', labelKey: 'nav.topics' },
+  { to: '/books', labelKey: 'nav.library' },
+  { to: '/qa', labelKey: 'nav.qa', disabled: true },
+  { to: '/admin/shamela', labelKey: 'nav.admin' },
 ];
 
 /**
@@ -30,16 +31,18 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
  * `/topics/new`, но не на `/topics/:id` (графовая страница).
  */
 function Header() {
+  const t = useT();
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex h-12 max-w-[1380px] items-center gap-3 px-6">
         {/* Бренд не зеркалится - логотип всегда «иконка слева + текст справа»
-            независимо от локали. dir="ltr" блокирует bidi-flip от родителя */}
+            независимо от локали. dir="ltr" блокирует bidi-flip от родителя.
+            "Argument Map" - бренд, не переводится */}
         <Link
           to="/topics"
           dir="ltr"
           className="flex items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 rounded-md"
-          aria-label="На главную"
+          aria-label={t('nav.home_aria')}
         >
           <span className="grid h-7 w-7 place-items-center rounded-md bg-indigo-600 text-white">
             <Network size={16} aria-hidden="true" />
@@ -55,9 +58,9 @@ function Header() {
               <span
                 key={item.to}
                 className="inline-flex h-7 cursor-not-allowed items-center rounded-md px-2.5 text-slate-400"
-                title="Будет в одном из следующих этапов"
+                title={t('nav.disabled_hint')}
               >
-                {item.label}
+                {t(item.labelKey)}
               </span>
             ) : (
               <NavLink
@@ -70,7 +73,7 @@ function Header() {
                     : 'inline-flex h-7 items-center rounded-md px-2.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors'
                 }
               >
-                {item.label}
+                {t(item.labelKey)}
               </NavLink>
             ),
           )}

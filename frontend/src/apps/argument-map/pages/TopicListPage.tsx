@@ -12,6 +12,7 @@ import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import { apiGet, ApiError } from '@/shared/api/client';
+import { useT } from '@/shared/i18n';
 import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
 
@@ -30,6 +31,7 @@ function formatShortDate(iso?: string): string {
 }
 
 function TopicListPage() {
+  const t = useT();
   const [state, setState] = useState<AsyncState<Topic[]>>({ kind: 'loading' });
   const [search, setSearch] = useState('');
 
@@ -71,19 +73,19 @@ function TopicListPage() {
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-[28px] font-bold tracking-tight text-slate-900">
-              Темы аргументации
+              {t('topic.list.title')}
             </h1>
             {state.kind === 'success' && (
               <p className="mt-1 text-[13px] text-slate-500">
-                Структурированные дискуссии в виде графа ·{' '}
+                {t('topic.list.subtitle_active')} ·{' '}
                 <span className="font-mono font-semibold text-slate-700">
-                  {state.data.length} актив{state.data.length === 1 ? 'ная' : 'ных'}
+                  <bdi dir="ltr">{state.data.length}</bdi> {t('topic.list.aria_topic_count')}
                 </span>
               </p>
             )}
           </div>
           <Link to="/topics/new">
-            <Button icon={Plus}>Создать тему</Button>
+            <Button icon={Plus}>{t('topic.list.create_button')}</Button>
           </Link>
         </div>
 
@@ -94,9 +96,9 @@ function TopicListPage() {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Поиск по теме или описанию"
+              placeholder={t('topic.list.search_placeholder')}
               className="flex-1 bg-transparent px-3 text-[13px] text-slate-900 outline-none placeholder:text-slate-400"
-              aria-label="Поиск тем"
+              aria-label={t('common.search')}
             />
           </div>
         </div>
@@ -104,7 +106,7 @@ function TopicListPage() {
         {state.kind === 'loading' && (
           <div className="flex items-center justify-center gap-2 py-20 text-[13px] text-slate-500">
             <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-            Загрузка
+            {t('common.loading')}
           </div>
         )}
 
@@ -113,7 +115,7 @@ function TopicListPage() {
             <div className="flex items-start gap-3">
               <AlertCircle size={20} className="mt-0.5 shrink-0 text-red-600" aria-hidden="true" />
               <div>
-                <p className="font-semibold text-red-900">Ошибка</p>
+                <p className="font-semibold text-red-900">{t('common.error')}</p>
                 <p className="mt-1 text-[13px] text-red-800">{state.message}</p>
               </div>
             </div>
@@ -122,16 +124,16 @@ function TopicListPage() {
 
         {state.kind === 'success' && state.data.length === 0 && (
           <Card className="mx-auto max-w-2xl p-12 text-center">
-            <p className="text-[15px] text-slate-700">Пока нет тем. Создай первую</p>
+            <p className="text-[15px] text-slate-700">{t('topic.list.empty')}</p>
             <Link to="/topics/new" className="mt-4 inline-block">
-              <Button icon={Plus}>Создать тему</Button>
+              <Button icon={Plus}>{t('topic.list.create_button')}</Button>
             </Link>
           </Card>
         )}
 
         {state.kind === 'success' && state.data.length > 0 && filteredTopics.length === 0 && (
           <p className="text-center text-[13px] text-slate-500">
-            Ничего не найдено по запросу "{search}"
+            {t('topic.list.not_found')}
           </p>
         )}
 
