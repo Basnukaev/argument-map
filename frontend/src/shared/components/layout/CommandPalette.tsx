@@ -29,7 +29,7 @@ interface Command {
 }
 
 /**
- * Cmd+K Command Palette. Глобальный поиск + быстрые навигационные команды.
+ * Alt+K Command Palette. Глобальный поиск + быстрые навигационные команды.
  *
  * Реализация - "container/body split": body монтируется только при open=true.
  * Это идиома проекта (см. memory feedback_react_key_remount) - сброс query/

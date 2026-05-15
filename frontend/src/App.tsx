@@ -33,11 +33,13 @@ function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        // capture phase + stopPropagation - иначе Chrome на Win/Linux
-        // обрабатывает Ctrl+K как native accelerator (focus адресной
-        // строки) до того как preventDefault на bubble-phase сработает.
-        // Linear/Vercel/Notion решают так же.
+      if (e.altKey && e.key.toLowerCase() === 'k') {
+        // Alt+K - на Mac это Option+K, e.altKey ловит оба.
+        // Был Cmd/Ctrl+K, но Chrome на Win/Linux перехватывает Ctrl+K
+        // как native accelerator (search via default engine) - даже
+        // capture phase + preventDefault не освобождают комбинацию.
+        // Alt+K чистый, не конфликтует с menubar accelerators (Alt+F,
+        // Alt+E и т.д.) и не зарезервирован браузерами.
         e.preventDefault();
         e.stopPropagation();
         togglePalette();

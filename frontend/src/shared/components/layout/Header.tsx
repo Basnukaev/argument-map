@@ -100,7 +100,8 @@ function Header() {
             title={t('common.search')}
           >
             <Search size={13} aria-hidden />
-            <Kbd>⌘K</Kbd>
+            <Kbd>Alt</Kbd>
+            <Kbd>K</Kbd>
           </button>
 
           <LocaleSwitch />
