@@ -14,11 +14,12 @@ interface Props {
 /**
  * Header страницы чтения книги.
  *
- * Структура (по аналогии с SourceCard variant D - всё к правому борту):
- * - Topline: book type chip + pages count (LTR, переключается на RTL для ar-локали)
- * - Title - arabic в font-naskh RTL, latin в LTR
+ * Структура:
+ * - Topline: book type chip + pages count (следует локали интерфейса)
+ * - Title - arabic в font-naskh RTL, latin в LTR (через dir="auto" wrap'ы)
  * - Metadata box: Автор / Год смерти / Тахкик / Издатель · Место / Издание / Год
- *   через RtlRow внутри RTL контейнера - labels к левому борту, values к правому
+ *   через RtlRow - локаль-aware: в RU labels слева, values справа; в AR
+ *   labels справа, values слева. Wikipedia infobox-style
  *
  * Labels переводятся через useT(). На ar-локали будут «المؤلف / التحقيق /
  * الناشر / الطبعة / السنة» вместо ru аналогов
@@ -71,7 +72,6 @@ function BookHeader({ book, pagesCount, children }: Props) {
         {hasStructuredMetadata && (
           <div
             className="mt-3 rounded-lg border border-slate-200 bg-slate-50/40 px-3.5 py-1.5"
-            dir="rtl"
           >
             {book.authority && (
               <RtlRow label={t('cite.label.author')}>

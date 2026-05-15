@@ -28,15 +28,14 @@ const SEP = (
 );
 
 /**
- * Source card - всё к правому борту (variant D из Claude Design handoff).
+ * Source card - layout локаль-aware (Wikipedia infobox style).
  *
- * Карточка под `dir="rtl"`. Values (FlexValue) сами выбирают шрифт + bidi
- * isolate по script: arabic → Noto Naskh + lang="ar", latin/cyrillic → Inter
- * в `<bdi dir="ltr">`. Quote блок использует `dir="auto"` → один компонент
- * правильно рендерит arabic, russian и english citations.
- *
- * Header и primary action в LTR-subtree чтобы chip, russian title, кнопка
- * рендерились нормально
+ * Карточка наследует direction от html.dir (локаль интерфейса). RtlRow
+ * кладёт label на start-edge, value на end-edge - в LTR это «label слева,
+ * value справа», в RTL «value слева, label справа». Values (FlexValue)
+ * сами выбирают шрифт + bidi isolate по script: arabic → Noto Naskh +
+ * lang="ar", latin/cyrillic → Inter в `<bdi dir="ltr">`. Quote блок -
+ * `dir="auto"`, один компонент работает для arabic, russian и english.
  */
 export function SourceCard({
   link,
@@ -52,10 +51,8 @@ export function SourceCard({
   const headerTitle = titleLatin ?? book?.title ?? '—';
 
   return (
-    <div className={CARD_SHELL} dir="rtl">
-      <div dir="ltr">
-        <SourceCardHeader title={headerTitle} onDelete={onDelete} />
-      </div>
+    <div className={CARD_SHELL}>
+      <SourceCardHeader title={headerTitle} onDelete={onDelete} />
 
       <QuoteBlock
         part={location?.part ?? null}

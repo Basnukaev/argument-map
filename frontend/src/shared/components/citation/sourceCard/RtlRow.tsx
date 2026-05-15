@@ -8,17 +8,15 @@ type Props = {
 };
 
 /**
- * Строка label/value внутри variant-D карточки (контейнер `dir="rtl"`).
+ * Строка label/value в карточке метаданных. Локаль-aware:
  *
- * Value получает `flex-1` и сидит на start edge → в RTL это **правый
- * край**. Label сидит на end edge → в RTL это **левый край**.
+ *   LTR-локаль:  Label                    value value value
+ *   RTL-локаль:  value value value                    Label
  *
- *   ┌────────────────────────────────────────────┐
- *   │ Label                       value value value│   ← visually
- *   └────────────────────────────────────────────┘
- *
- * `text-align: start` (logical) - cyrillic значения внутри `<Bdi>` читаются
- * LTR, но aligned к правому борту row
+ * Label на start-edge (LTR=left, RTL=right) - читается первым по
+ * direction локали. Value заполняет flex-1 с text-end - притягивается
+ * к противоположному, end-edge борту. Так делают Wikipedia infoboxes
+ * и обычные key-value metadata списки.
  */
 export function RtlRow({ label, children, last = false }: Props) {
   return (
@@ -27,10 +25,10 @@ export function RtlRow({ label, children, last = false }: Props) {
         last ? '' : 'border-b border-slate-100'
       }`}
     >
-      <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-start gap-0.5 text-start leading-[1.6] text-slate-900">
+      <Label className="shrink-0">{label}</Label>
+      <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-end gap-0.5 text-end leading-[1.6] text-slate-900">
         {children}
       </div>
-      <Label className="shrink-0 text-end">{label}</Label>
     </div>
   );
 }
