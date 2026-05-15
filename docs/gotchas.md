@@ -780,6 +780,45 @@ public class WebAsyncConfig implements WebMvcConfigurer {
 
 <!-- Добавлять новые ловушки сюда по мере их обнаружения -->
 
+## Chrome accelerators - Ctrl+K не отдать page-listener'у на Win/Linux
+
+**Симптом:** Command palette с биндом `Ctrl+K` открывает omnibox-search
+браузера вместо своего dialog. `e.preventDefault()` на keydown
+не помогает. На Mac (Cmd+K) - всё работает.
+
+**Причина:** Chrome на Win/Linux обрабатывает `Ctrl+K` как **native
+browser accelerator** (search via default search engine, аналогично
+`Ctrl+L` для address bar). Native accelerators обрабатываются раньше
+любого page JS - не помогает ни bubble phase, ни capture phase,
+ни `stopPropagation`. На Mac `Cmd+K` не имеет browser accelerator -
+поэтому там тот же код работает.
+
+**Решение:** Не использовать комбинации которые Chrome зарезервировал:
+- `Ctrl+K` (search), `Ctrl+E` (search), `Ctrl+L`/`Alt+D` (address bar)
+- `Ctrl+T` (new tab), `Ctrl+W` (close tab), `Ctrl+N` (new window)
+- `Ctrl+Shift+T` (reopen tab), `Ctrl+Tab` (next tab)
+- `Ctrl+R` / `F5` (reload) - можно intercept'ить но user-hostile
+- `Ctrl+P` (print) - можно intercept'ить, конфликтует
+
+**Безопасные:**
+- `Alt+<letter>` - НЕ конфликтует кроме menubar (Alt+F/Alt+E/Alt+V/
+  Alt+H/Alt+B/Alt+T - File/Edit/View/History/Bookmarks/Tools). Свободные:
+  `Alt+K`, `Alt+P`, `Alt+G`, `Alt+J` и т.д.
+- `Ctrl+/` - free
+- `Ctrl+;` - free (на us-кладе)
+- Single key вроде `/` (GitHub использует) - но конфликтует с inputs
+
+**Linear/Vercel/Notion** используют `Cmd+K` на Mac + другой shortcut
+на Win/Linux (часто без визуального hint).
+
+Мы выбрали `Alt+K` универсально - на Mac `Option+K`, `e.altKey` ловит обе.
+
+**Связано с:** Сессия 35 - CommandPalette изначально на `Cmd+K` с
+capture phase + stopPropagation, не помогло. Финальное решение -
+переезд на `Alt+K` (коммит `17353fa`).
+
+---
+
 ## React StrictMode duplicate API requests в dev
 
 **Симптом:** В DevTools Network tab каждый `useEffect`-fetch вызывается
