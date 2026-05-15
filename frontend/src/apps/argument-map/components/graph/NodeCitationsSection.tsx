@@ -88,7 +88,7 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
       })
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;
-        setState({ kind: 'error', message: formatApiError(e, 'Не удалось загрузить опору') });
+        setState({ kind: 'error', message: formatApiError(e, t('common.list_search_failed')) });
       });
     return () => {
       controller.abort();
@@ -106,7 +106,7 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
     try {
       await apiDeleteRaw(`/api/v1/nodes/${nodeId}/sources/${nodeSourceId}`);
     } catch (e: unknown) {
-      toast.error(formatApiError(e, 'Не удалось отвязать подкрепление'));
+      toast.error(formatApiError(e, t('common.unknown_error')));
       setState({ kind: 'loaded', data: { ...state.data, links: previous } });
       onCountsChangeRef.current?.(computeCounts(previous));
     }
@@ -122,7 +122,7 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
       });
       onCountsChangeRef.current?.(computeCounts(links));
     } catch (e: unknown) {
-      toast.error(formatApiError(e, 'Не удалось обновить опору'));
+      toast.error(formatApiError(e, t('graph.toast.update_failed')));
     }
   }
 
@@ -354,14 +354,24 @@ function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) 
       </summary>
 
       <div className="space-y-1.5 border-t border-slate-200 px-2.5 py-2">
+        {/* kindLabel - chip-type (BOOK/HADITH/URL), всегда LTR uppercase */}
         <div dir="ltr" className="text-start font-mono text-[10.5px] uppercase tracking-wide text-slate-500">
           {kindLabel}
         </div>
 
+        {/* authority/citation/context - контент из API, может быть на любом
+            языке. dir="auto" определит направление по первому сильному
+            символу. Шрифт font-naskh - через эвристику hasArabicScript */}
         {authority && (
-          <div dir="ltr" className="text-start text-[12px] text-slate-700">
+          <div dir="auto" className="text-[12px] text-slate-700">
             <UserIcon size={11} className="me-1 inline text-slate-400" aria-hidden="true" />
-            <span className="font-medium">{authority.name}</span>
+            <span
+              className={
+                hasArabicScript(authority.name) ? 'font-naskh font-medium' : 'font-medium'
+              }
+            >
+              {authority.name}
+            </span>
             {authorMeta && (
               <span className="ms-1.5 font-mono text-[11px] text-slate-500">
                 <span aria-hidden>·</span> <bdi>{authorMeta}</bdi>
@@ -371,7 +381,7 @@ function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) 
         )}
 
         {(citation || snapshot) && (
-          <div dir="ltr" className="text-start font-mono text-[11px] text-slate-500">
+          <div dir="auto" className="font-mono text-[11px] text-slate-500">
             {citation && <bdi>{citation}</bdi>}
             {citation && snapshot && <span aria-hidden>{' · '}</span>}
             {snapshot && <bdi>{snapshot}</bdi>}
@@ -392,7 +402,7 @@ function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) 
         )}
 
         {link.context && (
-          <div dir="ltr" className="text-start text-[11px] text-slate-500">
+          <div dir="auto" className="text-[11px] text-slate-500">
             {link.context}
           </div>
         )}
