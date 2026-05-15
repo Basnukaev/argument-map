@@ -779,3 +779,185 @@ public class WebAsyncConfig implements WebMvcConfigurer {
 ---
 
 <!-- Добавлять новые ловушки сюда по мере их обнаружения -->
+
+## React StrictMode duplicate API requests в dev
+
+**Симптом:** В DevTools Network tab каждый `useEffect`-fetch вызывается
+дважды при `npm run dev`. Например `GET /api/v1/topics/{id}/graph`
+прилетает 2 раза подряд. В production build (`npm run build` →
+`npm run preview`) - всё нормально, один запрос.
+
+**Причина:** `<React.StrictMode>` в `main.tsx` намеренно double-invoke'ит
+`useEffect` в development чтобы ловить bugs от non-idempotent side
+effects. Это not a bug - это feature React 18+. Production build
+StrictMode noop'ит.
+
+**Решение:** Не лечить. Реальные endpoint'ы идемпотентны (GET-only,
+второй POST detect'ится duplicate-key). Если конкретный effect
+дорогой и шумит logging - локально завернуть в `useRef` flag:
+
+```ts
+const calledOnce = useRef(false);
+useEffect(() => {
+  if (calledOnce.current) return;
+  calledOnce.current = true;
+  fetchExpensiveResource();
+}, []);
+```
+
+Но это **не general fix** - только для truly-once effects вроде analytics
+init. Большинство fetch'ей оставлять как есть.
+
+**Связано с:** Сессия 32 - debug первичный thought был "race condition в
+react-query", оказалось просто StrictMode. Не путать с реальными double-fire
+багами.
+
+---
+
+## Closure-функции из хуков должны быть `useCallback`-стабильны
+
+**Симптом:** Бесконечный fetch графа после добавления `t` (из useT)
+в `useEffect` deps. DevTools показывает loading spinner который
+никогда не останавливается, network tab спамит запросами.
+
+```ts
+const t = useT();
+useEffect(() => {
+  fetchGraph().catch(() => toast(t('error.fetch_failed')));
+}, [topicId, t]);  // ← t меняется каждый рендер → infinite loop
+```
+
+**Причина:** `useT` возвращал новую функцию на каждом рендере (closure
+над текущим `locale`). Любая stable function из ESLint exhaustive-deps
+заставляет добавить её в deps, а нестабильная reference триггерит
+повторный effect.
+
+**Решение:** **Все** хуки возвращающие функции обязаны мемоизировать
+их через `useCallback([dep])`:
+
+```ts
+export function useT() {
+  const locale = useLocaleStore(s => s.locale);
+  return useCallback(
+    (key: DictKey, params?: Record<string,string>) => translate(locale, key, params),
+    [locale]
+  );
+}
+```
+
+То же применимо к `useFormatDate` / `useNumberFormat` / любому custom
+хуку. Правило: если функция попадает в external deps - она `useCallback`.
+
+**Связано с:** Сессия 33 - infinite loop сжёг полчаса. Memory
+`feedback_stable_hooks_for_deps` зафиксировала правило.
+
+---
+
+## Batch-Edit по cyrillic строкам - silent skip без verify-grep
+
+**Симптом:** После 5+ замен через Edit tool по cyrillic-литералам
+(например `'Сохранить'` → `t('common.save')`) часть строк остаётся в
+коде хардкодом. Линтер их не ловит, тесты passing. Обнаруживается
+только когда пользователь видит хардкод в UI.
+
+**Причина:** Edit tool матчит `old_string` буквально, включая whitespace.
+Если в файле reformat (Prettier) поменял indentation на табы или сжал
+multi-line - match не срабатывает, Edit возвращает error. Но при
+**batch-run** через несколько Edit tools в одном response можно
+пропустить error notification и думать что всё прошло.
+
+Особо вреднo с cyrillic потому что:
+- VS Code grep по умолчанию case-insensitive, легко перепутать варианты
+- Похожие фразы (`'Сохранить'` / `'Сохраняем'`) дают partial false-positive
+
+**Решение:** После любой batch-замены по cyrillic в JSX **обязательно**
+verify-grep:
+
+```bash
+grep -nE "label:.*'[А-ЯЁ]" frontend/src/apps/argument-map/
+grep -nE ">[А-ЯЁ][^<]*<" frontend/src/apps/argument-map/
+grep -rn "placeholder=\"[А-ЯЁ]" frontend/src/
+```
+
+Если результаты non-empty - не закрывать commit пока не разобрано.
+
+**Связано с:** Сессия 33 - повторные находки хардкода в Сессии 34 code
+review (5+ leftover). Memory `feedback_grep_after_batch_edits` зафиксировала
+правило.
+
+---
+
+## Tailwind v4 `@theme inline` обязателен для runtime темизации
+
+**Симптом:** Создаёшь dark theme через `[data-theme="dark"]` override
+CSS variables. `themeStore` правильно ставит атрибут на `<html>`. Но
+визуально страница не меняется. DevTools Computed показывает что
+переменные обновились, но `bg-ink-900` рендерится **со старым цветом**.
+
+**Причина:** Tailwind v4 по умолчанию **inline-разворачивает** `var()`
+из `@theme` блока **на этапе сборки**. То есть `bg-ink-900` компилируется
+в `background-color: oklch(0.15 ...)` (resolved value), а не
+`background-color: var(--color-ink-900)`. Runtime override CSS variables
+не работает потому что в финальном CSS их и нет - они уже подставлены.
+
+```css
+/* ❌ не работает - var() inline-резолвится */
+@theme {
+  --color-ink-900: var(--c-ink-900);
+}
+
+/* ✅ работает - var() остаётся в финальном CSS */
+@theme inline {
+  --color-ink-900: var(--c-ink-900);
+}
+```
+
+**Решение:** Всегда использовать `@theme inline` если значения - это
+`var()` ссылки на runtime-managed CSS variables. Обычные literal values
+(`#fff`, `1rem`) можно в обычный `@theme` - они и так static.
+
+**Связано с:** Сессия 34 v2 migration. Без `inline` тёмная тема не
+работала весь первый день debugging. ADR-031 v2 design system.
+
+---
+
+## Mass-replace через sed после большой миграции требует grep audit
+
+**Симптом:** После 4 волн sed-replace (slate→ink, indigo→accent,
+border-slate-200→border-border, etc) build зелёный, tests passing, UI
+выглядит правильно. Через 2 дня замечаешь хардкод `text-[14px]` /
+`bg-emerald-100` / `rounded-xl` в коде - sed не подхватил.
+
+**Причина:** sed regex'ы ловят только conformant patterns. Real-world
+варианты которые sed пропускает:
+
+- `text-[14px]` (arbitrary value) - не покрыт scale class regex'ом
+- `bg-emerald-100` - emerald в проекте reserved для статуса ok, но
+  попал в legacy palette файл
+- `rounded-xl` (Tailwind 12px corner) - семантически не соответствует
+  rounded-md токену
+- `#c4b5fd` hex literal внутри inline `style={...}` - вне Tailwind scope
+
+**Решение:** После любой большой sed-миграции - audit grep на остатки:
+
+```bash
+# Палитра-leftover (slate / indigo / emerald / rose / amber)
+grep -rnE "(text|bg|border|ring|divide|from|to|via)-(slate|indigo|emerald|rose|amber|gray)-" frontend/src/ \
+  | grep -v "design-reference"
+
+# Arbitrary text sizes (нарушение typography scale)
+grep -rnE "text-\[[0-9]+(px|rem)" frontend/src/ | grep -v "design-reference"
+
+# Hex literals в JSX
+grep -rnE "(?:background|color|stroke|fill)[:=][^'\"]*['\"]#[0-9a-fA-F]" frontend/src/
+
+# Rounded scale violations
+grep -rnE "rounded-(xl|2xl|3xl|full)" frontend/src/ | grep -v "design-reference"
+```
+
+Любой match - не закрывать миграцию пока не triage'ит.
+
+**Связано с:** Сессия 34 code review нашёл 191 occurrence `text-[Xpx]`,
+7+ файлов с sed-leftover палитры. Memory `feedback_grep_after_batch_edits`.
+
+---

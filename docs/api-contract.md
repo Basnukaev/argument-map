@@ -428,11 +428,18 @@ targetHandle (выставить null) - null трактуется как "не 
 
 **Ответ (200 OK):** массив `NodeSourceResponse`.
 
-#### DELETE /api/v1/nodes/{nodeId}/sources/{sourceId}
+#### DELETE /api/v1/nodes/{nodeId}/sources/{nodeSourceId}
 
-Отвязать источник.
+Отвязать конкретный citation link по surrogate id (ADR-029).
+`nodeSourceId` - значение `NodeSourceResponse.id`, не `sourceId`.
+Точечный detach позволяет удалить один из N citation'ов на ту же пару
+(node, source) - например снять цитату с т.1 стр.45 оставив т.2 стр.110.
 
 **Ответ:** `204 No Content`. `404` - привязка не найдена.
+
+> **Breaking change** (Сессия 32, ADR-029): раньше path был
+> `/sources/{sourceId}` и удалял все citation'ы пары (node, source).
+> Теперь обязателен `nodeSourceId` (UUID самой связи).
 
 ### Привязка авторитетов к узлам — удалено в ADR-017
 
@@ -1100,10 +1107,11 @@ insert в node_sources с positional полями.
 - `404 pdf-not-available` - PDF не существует или soft-deleted
 - `404 image-region-not-found`
 
-### NodeSourceResponse (рефакторен в Этапе 20.a, ADR-028)
+### NodeSourceResponse (рефакторен в Этапе 20.a, ADR-028; surrogate id - ADR-029)
 
 ```json
 {
+  "id": "uuid",
   "nodeId": "uuid",
   "sourceId": "uuid",
   "quote": "string|null",
@@ -1160,6 +1168,10 @@ insert в node_sources с positional полями.
 }
 ```
 
+`id` (ADR-029) - surrogate UUID PK для отдельного citation link. Нужен
+для точечного `DELETE` (см. ниже) и idempotency key для будущего
+PATCH-обновления quote/context.
+
 `citation` - structured nested объект, каждый из 8 nested refs nullable.
 Frontend проверяет каждый и рендерит соответствующий блок (RTL/naskh для
 arabic полей, monospace для location). Старые плоские поля (location,
@@ -1183,6 +1195,7 @@ compatible.
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-14 | v1 | `NodeSourceResponse` получил поле `id` (UUID) - surrogate PK для citation link. **Breaking change path** `DELETE /api/v1/nodes/{nodeId}/sources/{sourceId}` → `DELETE /api/v1/nodes/{nodeId}/sources/{nodeSourceId}` (по `id` link'а, не `sourceId`). Теперь возможно несколько citation'ов на ту же пару (node, source) с разными positional context (page/range/pdf bbox) - старый composite PK блокировал | ADR-029: FK variant A - surrogate id для node_sources. Migration 25. Bahs-grade workflow требует множественные cit'ы из одной книги с разных страниц |
 | 2026-05-14 | v1 | **Breaking refactor** `NodeSourceResponse`: плоские поля `location`, `pageId`, `rangeStart`, `rangeEnd`, `pdfFileId`, `pdfPageNumber`, `pdfBbox`, `imageRegionId`, `bookId` **удалены** и заменены на nested `citation: CitationResponse` объект с 8 nullable refs (authority/book/muhaqqiq/publisher/publicationPlace/location/pdf/region). Новые DTO: `CitationResponse`, `AuthorityCitationRef`, `BookCitationRef`, `MuhaqqiqRef`, `PublisherRef`, `PublicationPlaceRef`, `LocationRef`, `PdfRef`, `RegionRef`. `AuthorityResponse` расширен полями `fullName` и `deathYearHijri` (nullable). `BookDetailResponse` расширен 6 nullable полями (muhaqqiqId, publisherId, publicationPlaceId, editionNumber, publishedYearHijri, publishedYearGregorian) | ADR-028: academic citation metadata. Бахс-grade citation требует 8 полей сноски (полное имя автора + год смерти, мухаккик, издатель, место, edition, годы). Structured response позволяет фронту рисовать каждое поле в своём блоке (RTL/naskh для арабского) вместо склеенной строки |
 | 2026-05-13 | v1 | Новый endpoint `POST /api/v1/nodes/{nodeId}/citations` для positional citation (TEXT/PDF/REGION modes). `NodeSourceResponse` расширен 9 полями: `mode`, `pageId`, `rangeStart`, `rangeEnd`, `pdfFileId`, `pdfPageNumber`, `pdfBbox`, `imageRegionId`, `bookId`. `SourceResponse` расширен полем `bookId` (UUID nullable, FK на lib_books). Новые ошибки: `400 invalid-citation`, `404 book-not-found`/`page-not-found`/`pdf-not-available`/`image-region-not-found`. Существующий `POST /api/v1/nodes/{nodeId}/sources` (legacy freeform) сохраняется для AddSourceModal flow | ADR-026 (Source.bookId FK для one-source-per-book), ADR-027 (positional citation fields в node_sources). Этап 18.f CitationPicker |
 | 2026-05-11 | v1 | `PdfFileInfoResponse` расширен полем `isCover` (boolean). Помечает обложку книги - по convention shamela/archive.org обложка лежит в `files[0]` когда metadata содержит `"cover": 1`. Фронт пропускает cover из основного potoka чтения - до фикса всегда грузил `fileIndex=0` (cover, 3 страницы) вместо реального контента | Bug fix: пользователь видел 3 страницы PDF вместо тысяч (cover файл попадал в reader как main content) |

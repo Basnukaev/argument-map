@@ -2450,3 +2450,345 @@ metadata JSONB`) не покрывает академическую сноску
   обогащает книгу
 - **ADR-027** (positional citation) - CitationDetail включает positional
   fields из ADR-027 + academic fields из ADR-028 в одну структуру
+
+## ADR-029: FK variant A - surrogate `id` PK для `node_sources`
+
+**Дата:** 2026-05-14
+**Статус:** принят
+**Связь:** ADR-017 (Source+Authority unification), ADR-026 (Source.bookId),
+ADR-027 (positional citation), ADR-028 (academic metadata)
+
+### Контекст
+
+После Этапа 18.f (CitationPicker, ADR-027) на один узел могут приходить
+**несколько** citation'ов из одной и той же книги - разные страницы, range,
+PDF bbox. Например: тезис «Ибн Касир считает Х» подкреплён цитатами из
+т.1 стр.45 и т.2 стр.110 одного `tafsir-ibn-kathir`.
+
+Старый PK `(node_id, source_id)` блокировал такой сценарий: вторая попытка
+attach citation на ту же пару (node, source) с другим positional context
+падала с `duplicate key`. Frontend получал 409 при добавлении валидного
+второго citation, что ломало UX bahs-workflow.
+
+Параллельно `DELETE /api/v1/nodes/{nodeId}/sources/{sourceId}` стирал
+**все** citation'ы пары - не было способа detach отдельный link.
+
+### Решение
+
+Миграция `20260514-25-replace-node-sources-pk`:
+
+1. **DROP composite PK** `(node_id, source_id)`
+2. **ADD** колонка `id UUID DEFAULT uuid_generate_v4() PRIMARY KEY`
+3. `node_id` + `source_id` остаются как обычные FK (не PK)
+4. CHECK `chk_node_sources_one_mode` из ADR-027 + positional NULL/NOT-NULL
+   контролируют логическую уникальность позиционных citations
+
+API contract:
+
+- `NodeSourceResponse.id` (UUID) - новое поле, position link identifier
+- `DELETE /api/v1/nodes/{nodeId}/sources/{nodeSourceId}` - path param
+  переименован с `{sourceId}` на `{nodeSourceId}` (**breaking**). Detach
+  точечный по id link'а, не по source
+
+`NodeSourceRepository`:
+- основной `deleteById(UUID)` (по surrogate)
+- сохранён legacy `deleteByNodeAndSource(nodeId, sourceId)` для пакетных
+  очисток на стороне service (delete-all-citations-for-pair)
+
+### Альтернативы (отвергнуты)
+
+**Option B - composite PK с positional fields:** `PRIMARY KEY (node_id,
+source_id, COALESCE(page_id, ...), COALESCE(range_start, -1), ...)`.
+- Минус: Postgres не поддерживает выражения в PK напрямую
+- Минус: NULL-handling в составном ключе хрупкий (NULLS NOT DISTINCT
+  только с Postgres 15+, синтаксис лишний)
+- Минус: 7-полевой PK даёт раздутый index size без выгоды vs UUID
+
+**Option C - отдельная `node_source_positions` 1:N табличка над
+`node_sources`:** node_sources хранит логическую связь (node↔source),
+positions - конкретные citation'ы.
+- Минус: дополнительный JOIN на каждое чтение citations узла
+- Минус: дублирование state (нужен LEFT JOIN для legacy без positions)
+- Over-engineering для use case где в 95% случаев один citation per pair
+
+**Option D - оставить composite PK + force unique fingerprint в
+quote/context:** обходить через текст самого citation
+- Минус: фронт обязан строить text-based key, ломается на одинаковом quote
+- Минус: empty quote (только positional citation) делает невозможным
+
+### Последствия
+
+**Положительные:**
+
+- Multi-citation per (node, source) работает без 409
+- Точечный detach отдельного citation link
+- Surrogate id даёт стабильный idempotency key для будущего PATCH (изменение
+  quote/context без re-attach)
+
+**Отрицательные:**
+
+- **Breaking change API path** `DELETE` - все clients должны обновиться.
+  Допустимо в no-prod режиме (memory `feedback_no_prod_no_backward_compat`)
+- Логическая уникальность не enforced на схеме - возможно создать два row
+  с идентичным positional context. Acceptable: фронт CitationPicker не
+  даёт повтор select, manual entry редкость
+- Legacy `deleteByNodeAndSource(nodeId, sourceId)` остался - если когда-то
+  понадобится unique фактической пары, нужно добавить UNIQUE на (node_id,
+  source_id) когда все positional NULL
+
+### Триггеры пересмотра
+
+- Production с реальными пользователями → возможно добавить UNIQUE
+  constraint на нормализованный positional fingerprint для защиты от
+  manual duplicates
+- Запрос на bulk-delete citations узла → отдельный endpoint
+  `DELETE /api/v1/nodes/{nodeId}/sources?sourceId={sid}` (плоский по
+  source) вместо batched id calls
+- Возникновение domain потребности «один citation на пару» → reintroduce
+  composite UNIQUE как partial index с `WHERE positional fields ALL NULL`
+
+### Связь с другими ADR
+
+- **ADR-027** (positional citation) - проблема multiple-citations-per-pair
+  стала актуальной только после introduction позиционных полей
+- **ADR-028** (academic metadata) - расширенная citation становится
+  weight-heavy, multi-citation сценарий выглядит ещё естественнее
+- **memory** `feedback_no_prod_no_backward_compat` - breaking change
+  допустим без compat layer
+
+## ADR-030: i18n архитектура - manual dictionary + DictKey union literal
+
+**Дата:** 2026-05-15
+**Статус:** принят
+**Связь:** ADR-018 (platform pivot), ADR-022 (frontend reorg)
+
+### Контекст
+
+Платформа двуязычная: русский (UI default для ru-target) + арабский
+(RTL, naskh/Amiri) для исламского контента и AR-локали UI. Сессия 33
+ввела полноценную локализацию - все хардкод-русские строки в видимом UI
+заменены на ключи.
+
+Требования:
+
+- Compile-time safety - typo в ключе должен ловить TypeScript
+- RTL bidi работает в каждой locale
+- Closure-функции из хуков (useT/useFormatDate/useNumberFormat) попадают
+  в `useEffect` deps - должны быть stable
+- Mixed-content (`<span>тема "{title}"</span>` где `title` арабский) -
+  через `<bdi>`, не break изоляции
+- Format chains: даты (Intl.DateTimeFormat) + числа (Intl.NumberFormat) -
+  locale-aware
+
+### Решение
+
+**Manual dictionary с DictKey union literal:**
+
+```ts
+export const DICTIONARY = {
+  ru: { 'common.save': 'Сохранить', /* ~280 ключей */ },
+  ar: { 'common.save': 'حفظ',     /* ~280 ключей */ },
+} as const;
+
+export type DictKey = keyof (typeof DICTIONARY)['ru'];
+
+export function useT(): (key: DictKey, params?: Record<string,string>) => string;
+```
+
+Стабилизация хуков через `useCallback([locale])`:
+
+```ts
+export function useT() {
+  const locale = useLocaleStore(s => s.locale);
+  return useCallback((key, params) => translate(locale, key, params), [locale]);
+}
+```
+
+**Token labels через labelKey/hintKey:**
+
+```ts
+export const NODE_TYPE_META: Record<NodeType, { labelKey: DictKey; hintKey: DictKey }> = {
+  QUESTION: { labelKey: 'node.type.question.label', hintKey: 'node.type.question.hint' },
+  ...
+};
+```
+
+Удалены `NODE_TYPE_LABEL` константы со склеенным русским текстом.
+
+**`script.ts` - единый `hasArabicScript`** (Unicode blocks Arabic /
+Supplement / Extended-A / Presentation Forms). Inline `/[؀-ۿ]/` regex'ы
+запрещены, заменены на импорт.
+
+**Direction control:**
+
+- `dir="auto"` на пользовательский контент (title узла, quote, authority
+  name) - браузер сам определяет первое strong-directional letter
+- `dir="ltr"` / `dir="rtl"` явно на UI chrome где локаль определяет
+- `<bdi>` для inline mixed-content
+
+**Полный гайд:** `frontend/docs/i18n-guide.md` (~280 строк) - 3 понятия
+которые нельзя путать (локаль UI / язык контента / направление текста),
+алгоритмы добавления UI/layout/иконки/контента, 8 пар ❌/✅
+анти-паттернов.
+
+### Альтернативы (отвергнуты)
+
+**Option A - i18next / react-intl:**
+- (+) Plural rules, ICU MessageFormat, lazy-loaded namespaces
+- Минус: 30+ KB bundle, мы используем только translate(key, params)
+- Минус: typing для ключей сложнее (`t('common.save')` это `string`, не
+  type-checked literal)
+- Минус: provider boilerplate vs zustand store
+- Платить за фичи которые не нужны при 280 ключах и без plural complexity
+
+**Option B - enum keys / namespace объекты:**
+- TypeScript enums запрещены проектом (project convention - union literal)
+- Namespace объекты теряют tree-shaking + неудобный refactor
+
+**Option C - inline string keys без types:**
+- Typo `'common.svae'` не ловится, runtime fallback на сам key
+- Refactor "rename one key across project" непредсказуем
+
+### Последствия
+
+**Положительные:**
+
+- Compile-time safety: `t('common.svae')` → TypeScript error
+- Refactor-friendly: rename ключа в `DICTIONARY` → все use sites показывают red
+- Zero runtime overhead - dictionary это `as const` object
+- Stable hooks через `useCallback` - корректное поведение `useEffect`
+  с `t in deps` без infinite-loop (см. gotchas про закрытые-функции-в-deps)
+
+**Отрицательные:**
+
+- Нет автоматической extraction незаявленных ключей - всё через ручной
+  ESLint scan / grep
+- Plural rules ручные (но в текущем UI пока не нужны - используется
+  `book.list.books_suffix` отдельным ключом)
+- AR translation качество зависит от ручной валидации - нет community translation tool
+
+### Триггеры пересмотра
+
+- 3-й язык (English / Turkish) → возможно стоит i18next с lazy bundles
+- ICU plural rules (`{count, plural, one {книга} few {книги} other {книг}}`)
+  становятся регулярными - manual словарь раздувается
+- Реальные translators (не Claude/Абдула) → нужна экспортируемая
+  XLIFF / POEditor pipeline
+
+### Связь с другими ADR
+
+- **ADR-018** (platform pivot) - арабский first-class требование платформы
+- **memory** `reference_i18n_guide` - canonical reference frontend/docs/i18n-guide.md
+- **memory** `feedback_stable_hooks_for_deps` - useCallback стабилизация
+  critical для `useEffect` корректности
+
+## ADR-031: v2 design system - семантические токены + Tailwind v4 `@theme inline`
+
+**Дата:** 2026-05-15
+**Статус:** принят
+**Связь:** ADR-022 (frontend reorg)
+
+### Контекст
+
+Сессия 34 - миграция всей frontend на v2 design system по handoff'у в
+`frontend/design-reference/v2/project/handoff/`. Требования:
+
+- Light + Dark theme переключаемые в runtime (без перезагрузки страницы)
+- Семантические токены (`bg-elevated`, `border-strong`, `accent-500`)
+  вместо прямых palette (`bg-slate-50`, `text-indigo-600`)
+- FOUC-free первая загрузка - тема применяется до React mount
+- Tokens работают как Tailwind utility-классы (`bg-ink-900`,
+  `border-accent-500`) для DX
+
+### Решение
+
+**Двухслойная token-архитектура:**
+
+1. **`src/styles/tokens.css`** - семантический слой CSS variables:
+   - ink-scale (0-900) - neutrals для текста / borders / fills
+   - accent-scale (50/100/500/600/700)
+   - ok/warn/err (по 3 ступени)
+   - type-abstract/empirical (chips для graph nodes)
+   - edge-supports/refutes/qualifies/responds (graph edges)
+   - surface aliases: `--c-bg`, `--c-bg-elevated`, `--c-bg-sunken`,
+     `--c-border`, `--c-text`, `--c-text-muted`
+   - `[data-theme="dark"]` block с inverted ink-scale и brighter accent
+
+2. **`src/index.css` `@theme inline` bridge** - алиасы для Tailwind v4:
+   ```css
+   @theme inline {
+     --color-ink-900: var(--c-ink-900);
+     --color-accent-500: var(--c-accent-500);
+     ...
+   }
+   ```
+   Tailwind v4 автоматически генерирует `bg-ink-900` / `text-ink-900` /
+   `border-ink-900` utilities из этих deklars.
+
+**`inline` keyword КРИТИЧЕН** - без него Tailwind v4 раскрывает `var()`
+**статически** на этапе сборки, и `[data-theme="dark"]` override
+перестаёт работать. См. gotcha.
+
+3. **`themeStore.ts`** (zustand + persist) + **`ThemeEffect.tsx`** -
+   single source of truth для текущей темы, sync на `<html data-theme>`.
+
+4. **FOUC inline script в `index.html`** до React mount:
+   ```js
+   (function() {
+     var saved = localStorage.getItem('app.theme');
+     var dark = saved === 'dark' || (saved == null && matchMedia(prefers-dark));
+     if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+   })();
+   ```
+
+### Альтернативы (отвергнуты)
+
+**Option A - Tailwind `dark:` prefix:**
+- Минус: classes удваиваются (`bg-white dark:bg-slate-900` везде)
+- Минус: нет runtime переключения - только media query или `darkMode: 'class'`,
+  и не масштабируется на multiple themes
+- Минус: семантика теряется - читая `bg-slate-900` нельзя понять «это
+  background card на тёмной?»
+
+**Option B - CSS-in-JS (Emotion / styled-components):**
+- Минус: bundle weight + runtime cost
+- Минус: проект уже на Tailwind, миграция глобально
+
+**Option C - Только CSS variables без Tailwind utility-bridge:**
+- Минус: вместо `bg-ink-900` приходится писать `style={{ background: 'var(--c-ink-900)' }}`
+  или `className="bg-[var(--c-ink-900)]"` - проигрыш DX
+
+### Последствия
+
+**Положительные:**
+
+- Dark theme переключается в runtime без перезагрузки
+- Семантическое именование - `bg-elevated` читается лучше чем `bg-slate-50`
+- Один source of truth - изменение `--c-accent-500` затрагивает все use sites
+- FOUC ликвидирован inline script'ом до React mount
+
+**Отрицательные:**
+
+- **`@theme inline` обязателен** - tooling gotcha, новый разработчик
+  легко потеряет `inline` при copy-paste из старого Tailwind v3 примера
+  (см. gotcha `gotchas-tailwind-v4-theme-inline.md`)
+- Mass-replace через sed (slate→ink, indigo→accent, и т.д.) - 4 волны
+  по всему src. Каждая волна требует grep audit на остатки -
+  code review нашёл 191 хардкод `text-[Xpx]` который sed пропустил
+- Tabler-icons недоступны через корпоративный proxy (ETIMEDOUT) -
+  workaround `svg.lucide:not([stroke-width]) { stroke-width: 1.5 }`,
+  visually approximates Tabler без install
+
+### Триггеры пересмотра
+
+- Третий theme (high-contrast, sepia) → возможно стоит вынести
+  `[data-theme="..."]` блоки в отдельные файлы
+- Дизайнер требует sub-tokens (semantic alias одного token на другой) -
+  current 2-layer достаточно, 3-й слой может upgrade
+- Tailwind v5+ может убрать `inline` keyword требование
+
+### Связь с другими ADR
+
+- **ADR-022** (frontend reorg) - `styles/tokens.css` логически часть shared
+- **memory** `feedback_grep_after_batch_edits` - mass-replace через sed
+  требует verify-grep на остатки
