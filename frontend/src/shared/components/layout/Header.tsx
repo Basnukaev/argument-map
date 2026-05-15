@@ -1,13 +1,12 @@
-import { useEffect, useState } from 'react';
 import { Link, NavLink } from 'react-router';
 import { Search } from 'lucide-react';
 import LocaleSwitch from '@/shared/components/layout/LocaleSwitch';
 import ThemeSwitch from '@/shared/components/layout/ThemeSwitch';
-import CommandPalette from '@/shared/components/layout/CommandPalette';
 import BellMenu from '@/shared/components/layout/BellMenu';
 import AvatarMenu from '@/shared/components/layout/AvatarMenu';
 import Kbd from '@/shared/components/ui/Kbd';
 import { useT, type DictKey } from '@/shared/i18n';
+import { usePaletteStore } from '@/shared/stores/paletteStore';
 
 interface NavItem {
   to: string;
@@ -42,20 +41,9 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
  */
 function Header() {
   const t = useT();
-  const [paletteOpen, setPaletteOpen] = useState(false);
-
-  // Глобальный Cmd+K / Ctrl+K - открыть command palette. Перехватываем
-  // на document, не на input - shortcut должен работать с любого фокуса.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setPaletteOpen((v) => !v);
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, []);
+  // Cmd+K listener живёт в App.tsx (см. paletteStore docstring) -
+  // Header только триггерит открытие через store.show().
+  const showPalette = usePaletteStore((s) => s.show);
 
   return (
     <>
@@ -107,7 +95,7 @@ function Header() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setPaletteOpen(true)}
+            onClick={showPalette}
             className="inline-flex h-7 items-center gap-2 px-2 rounded-sm text-xs text-ink-600 hover:bg-ink-100 hover:text-ink-900 transition-colors"
             title={t('common.search')}
           >
@@ -124,8 +112,6 @@ function Header() {
           <AvatarMenu initials="AB" />
         </div>
       </header>
-
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </>
   );
 }
