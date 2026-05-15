@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useLocaleStore } from './localeStore';
 
 const FORMATTERS = {
@@ -43,10 +44,15 @@ type DateStyle = 'full' | 'short';
  */
 export function useFormatDate(): (iso: string | undefined, style?: DateStyle) => string {
   const locale = useLocaleStore((s) => s.locale);
-  return (iso, style = 'full') => {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    return FORMATTERS[locale][style].format(d);
-  };
+  // useCallback - стабильный референс пока locale не сменилась. Позволяет
+  // включать formatDate в deps useEffect/useMemo без infinite-loop.
+  return useCallback(
+    (iso, style = 'full') => {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return iso;
+      return FORMATTERS[locale][style].format(d);
+    },
+    [locale],
+  );
 }
