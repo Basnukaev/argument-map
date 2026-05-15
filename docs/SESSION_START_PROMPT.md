@@ -185,9 +185,11 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 > **Этот раздел обновляется каждой сессией**. Всё выше - стабильное
 
-**Этап 20.d Admin BookEditModal** - UI для ручной правки academic
-metadata после автоматического parser fill (Этап 20.c полностью закрыт
-в Сессии 35 включая follow-up backfill endpoint)
+**Этап 20.e AddSourceModal расширенная форма** (~0.5 сессии) или
+**Этап 19 Q&A приложение** (~1 сессия)
+
+Этап 20 практически закрыт. Остался только мелкий 20.e - manual entry
+sourceType=BOOK с полным набором academic полей (см. ниже)
 
 ### Что было в Сессии 35
 
@@ -229,6 +231,12 @@ metadata после автоматического parser fill (Этап 20.c п
   description хранит CR character (chr(13)) как separator, не literal
   `\r` (2 char) как тесты предполагали. Regex расширен на alternation,
   +1 тест на CR variant. Smoke: 3/3 dev-книг backfilled
+- **Этап 20.d Admin BookEditModal** (2 коммита) - backend
+  PATCH /library/books/{id} + 3 autocomplete endpoints (muhaqqiqs/
+  publishers/publication-places), frontend модалка с 6 Field + 3
+  debounced autocomplete (AbortController cancel). Edit Pencil icon
+  на каждой Card в /books + кнопка backfill в /admin/shamela. Playwright
+  smoke: тафсир Ибн Касира prefilled all 6 полей с RTL natural через dir="auto"
 
 **Что НЕ сделано (отложено):**
 
@@ -241,31 +249,26 @@ metadata после автоматического parser fill (Этап 20.c п
 
 ### Стартовая последовательность Сессии 36
 
-**Этап 20.d Admin BookEditModal** (~1 сессия) - UI для ручной правки
-academic metadata после parser fill:
+**Опция A - Этап 20.e AddSourceModal расширенная** (~0.5 сессии):
 
-- Backend: `PATCH /api/v1/library/books/{id}` с расширенным request
-  (muhaqqiq/publisher/publicationPlace по имени → findOrCreate, edition/
-  hijri/gregorian как Integer)
-- Backend: справочные endpoints для autocomplete -
-  `GET /api/v1/library/muhaqqiqs?q=...` /
-  `GET /api/v1/library/publishers?q=...` /
-  `GET /api/v1/library/publication-places?q=...`. Простой LIKE поиск
-- Frontend: модалка с 6 полей (Field primitive из v2). Search-autocomplete
-  через debounced fetch, если name не найден - findOrCreate срабатывает
-  на save. Linkable из AdminShamelaPage и из BookDetailPage (когда
-  будет)
-- Smoke: открыть тафсир Ибн Касира, поменять мухаккика, сохранить,
-  проверить что в БД новый FK
+При выборе sourceType=BOOK показывать 6 academic полей (с переиспользованием
+autocomplete логики из BookEditModal - можно вынести как
+`<AcademicMetadataFields>` shared компонент). Save → POST на `/library/books`
+с расширенным `CreateBookRequest` ИЛИ 2-шаговый flow (POST + PATCH).
 
-**Опция альтернатива** - **Этап 19 Q&A приложение** - валидация
-платформенной архитектуры через второе приложение использующее common
-Source/Book stack. ADR-018 platform pivot обоснован но не доказан
-реальным вторым use case.
+**Опция B (рекомендую) - Этап 19 Q&A приложение** (~1 сессия):
 
-Backend на :9090 уже работает (рестартовал в Сессии 35 для backfill smoke).
-Frontend на :5173 должен подобрать всё через HMR. Если stale -
-`rm -rf node_modules/.vite`.
+Валидация платформенной архитектуры (ADR-018) через второе приложение
+использующее common Source/Book stack. Минимум: схема `questions` +
+service + REST + страница `/qa` со списком. Первый шаг - ADR Этапа 19
+со scope (только вопросы или вопросы+ответы).
+
+**Опция C - cleanup**: i18n placeholder в SourceSearchForm/SourceCreateForm
+(Сессия 33 backlog), ESLint rule на cyrillic literals в JSX, @tabler/icons
+retry.
+
+Backend на :9090 работает с свежим classpath после Сессии 35. Frontend
+на :5173 через HMR.
 
 ### Backlog после 20.c-e
 

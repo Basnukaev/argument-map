@@ -114,16 +114,32 @@ bibliography parser). Чисто отработавшая сессия в реж
   Regex расширен на alternation. Smoke: 3/3 dev-книг с заполненными FK
   (тафсир получил мухаккика+publisher+place+ed=1+hijri=1431+greg=1999,
   все аналогично)
+- **Этап 20.d Admin BookEditModal** (`ea42007` backend + `9c3467d`
+  frontend). Backend: `PATCH /api/v1/library/books/{id}` через
+  `UpdateBookRequest` (PATCH-семантика null=no change, ""=clear,
+  non-empty=findOrCreate). 3 autocomplete endpoints muhaqqiqs/publishers/
+  publication-places (ILIKE substring search). Frontend: BookEditModal
+  с 6 Field primitive + 3 inline autocomplete (debounce 250ms +
+  AbortController cancel). Pencil icon в Card.Cover на /books, кнопка
+  «Перечитать metadata» в /admin/shamela. Playwright smoke: тафсир
+  Ибн Касира prefilled 6 полей. Verify: backend 425/425, frontend
+  143/143, lint clean
 
 ### Следующий шаг (для Сессии 36)
 
-**Этап 20.d Admin BookEditModal** (~1 сессия):
-- Backend: `PATCH /api/v1/library/books/{id}` с расширенным request
-  (muhaqqiq/publisher/place names → findOrCreate, edition/years как Integer)
-- Backend: autocomplete endpoints `GET /api/v1/library/{muhaqqiqs,
-  publishers, publication-places}?q=...`
-- Frontend: модалка с 6 Field primitive, debounced autocomplete,
-  linkable из AdminShamelaPage и BookDetailPage
+Этап 20 практически закрыт. Опции на выбор:
+
+**Опция A - Этап 20.e AddSourceModal расширенная** (~0.5 сессии).
+При sourceType=BOOK дополнительные academic поля. Можно вынести
+`<AcademicMetadataFields>` shared компонент из BookEditModal logic.
+
+**Опция B (рекомендую) - Этап 19 Q&A приложение** (~1 сессия).
+Валидация ADR-018 platform pivot через второе приложение использующее
+common Source/Book stack. Минимум: схема questions + REST + страница
+/qa. Первый шаг - ADR Этапа 19 со scope.
+
+**Опция C - cleanup**: SourceSearchForm/SourceCreateForm i18n placeholder,
+ESLint rule на cyrillic JSX literals, @tabler/icons retry.
 
 Приоритет 2 (альтернатива):
 

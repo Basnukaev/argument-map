@@ -173,9 +173,15 @@ shamela не имеет нужной книги. MinIO storage готов из 2
       `POST /api/v1/admin/shamela/backfill-bibliography` для existing
       books через `ShamelaBibliographyBackfillService` (non-destructive
       merge). Smoke 3/3 dev-книг получили заполненные FK
-- [ ] **20.d:** Admin BookEditModal - UI для ручного дозаполнения
-      metadata после импорта (когда parser не справился). Search +
-      autocomplete по существующим справочникам
+- [x] **20.d:** Admin BookEditModal - модалка с 6 полей (Field primitive)
+      + 3 inline autocomplete с debounced fetch (250ms + AbortController
+      cancel). Backend `PATCH /api/v1/library/books/{id}` через
+      `UpdateBookRequest` (PATCH-семантика: null=no change, ""=clear,
+      non-empty=findOrCreate). 3 autocomplete endpoints
+      `GET /api/v1/library/{muhaqqiqs, publishers, publication-places}?q=&limit=`.
+      Frontend - Pencil icon в углу карточки в BookListPage + кнопка
+      «Перечитать metadata» в AdminShamelaPage (вызывает backfill).
+      Smoke: тафсир Ибн Касира prefilled all 6 полей
 - [ ] **20.e:** AddSourceModal расширенная форма - при manual entry
       для sourceType=BOOK запросить полные поля (необязательны для
       URL/ARTICLE freeform)
