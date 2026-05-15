@@ -131,12 +131,29 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 - Файлы компонентов `PascalCase.tsx`, утилиты / хуки / сторы
   `camelCase.ts`
 
-### RTL и арабский текст
+### RTL, i18n и арабский текст
 
-Эвристика арабского - Unicode 0x0600-0x06FF. При обнаружении -
-`dir="rtl"` + Tailwind `font-naskh` (Noto Naskh Arabic, подключён
-через `index.html` preconnect + `@theme --font-naskh`). См.
-`docs/glossary.md` исламскую секцию
+**Полный гайд - в `frontend/docs/i18n-guide.md`** (read it first
+при i18n-сессиях). Кратко:
+
+- Локаль UI ≠ язык контента ≠ направление текста - три разных
+  понятия, не путать
+- Все UI-строки через `useT()` + словарь `shared/i18n/dictionary.ts`,
+  никакого хардкода в JSX
+- Tailwind logical classes (`ms-*`, `me-*`, `text-start`, `border-s`),
+  физические - запрещены
+- Контент из API - `dir="auto"`, шрифт через `hasArabicScript` из
+  `@/shared/i18n`
+- Mixed-content (даты/ID/числа в RTL) - изоляция через `<bdi>`
+- Даты - через локаль-aware форматтер (см. `useFormatDate`), не
+  хардкод `ru-RU`
+- Иконки навигации (ChevronLeft/Right, ArrowLeft/Right) - по
+  локали интерфейса
+- Граф React Flow (canvas, позиции узлов) НЕ зеркалится -
+  пространственная структура
+
+Шрифт naskh подключён через `index.html` preconnect + `@theme
+--font-naskh`. См. `docs/glossary.md` исламскую секцию для терминов
 
 ### Тесты
 
