@@ -74,4 +74,17 @@ public class PublisherRepository {
                 ROW_MAPPER
         );
     }
+
+    /**
+     * Autocomplete-поиск для UI BookEditModal (Этап 20.d).
+     */
+    public List<Publisher> searchByName(String query, int limit) {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM lib_publishers WHERE name ILIKE ? "
+                        + "ORDER BY name LIMIT ?",
+                ROW_MAPPER,
+                "%" + query + "%",
+                limit
+        );
+    }
 }

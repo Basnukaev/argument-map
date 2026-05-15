@@ -115,6 +115,62 @@ public class BookService {
     }
 
     /**
+     * Partial update academic metadata (Этап 20.d, BookEditModal).
+     *
+     * <p>Для имён ({@code muhaqqiq}/{@code publisher}/{@code publicationPlace}):
+     * {@code null} = no change, blank string = clear FK to null, non-blank =
+     * {@code findOrCreate(name.trim())} в соответствующем справочнике.
+     *
+     * <p>Для целочисленных полей ({@code editionNumber}/{@code
+     * publishedYearHijri}/{@code publishedYearGregorian}): {@code null} =
+     * no change, value = replace.
+     *
+     * @return обновлённая книга (для возврата в response)
+     */
+    @Transactional
+    public Book updateAcademicMetadata(UUID bookId,
+                                       String muhaqqiqName,
+                                       String publisherName,
+                                       String publicationPlaceName,
+                                       Integer editionNumber,
+                                       Integer publishedYearHijri,
+                                       Integer publishedYearGregorian) {
+        Book book = bookRepository.findById(bookId)
+                .orElseThrow(() -> new BookNotFoundException(bookId));
+
+        UUID newMuhaqqiqId = resolveFk(muhaqqiqName, book.muhaqqiqId(),
+                muhaqqiqRepository::findOrCreate);
+        UUID newPublisherId = resolveFk(publisherName, book.publisherId(),
+                publisherRepository::findOrCreate);
+        UUID newPlaceId = resolveFk(publicationPlaceName, book.publicationPlaceId(),
+                publicationPlaceRepository::findOrCreate);
+
+        Integer newEdition = editionNumber != null ? editionNumber : book.editionNumber();
+        Integer newHijri = publishedYearHijri != null
+                ? publishedYearHijri : book.publishedYearHijri();
+        Integer newGregorian = publishedYearGregorian != null
+                ? publishedYearGregorian : book.publishedYearGregorian();
+
+        bookRepository.updateAcademicMetadata(
+                bookId, newMuhaqqiqId, newPublisherId, newPlaceId,
+                newEdition, newHijri, newGregorian
+        );
+        return bookRepository.findById(bookId).orElseThrow();
+    }
+
+    private static UUID resolveFk(String name, UUID currentFk,
+                                  java.util.function.Function<String, UUID> findOrCreate) {
+        if (name == null) {
+            return currentFk;
+        }
+        String trimmed = name.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        return findOrCreate.apply(trimmed);
+    }
+
+    /**
      * Список страниц книги. Если {@code fromPage}/{@code toPage} не
      * указаны - возвращает все страницы книги (без ограничений).
      * Для больших книг (Сахих аль-Бухари ~11208 страниц) это

@@ -742,6 +742,64 @@ Response 200 - `BookDetailResponse` (поля как в `BookResponse` +
 
 Ошибки: 404 `book-not-found`.
 
+### PATCH /api/v1/library/books/{id} - правка academic metadata (20.d)
+
+Partial update 6 academic полей: мухаккик, издатель, место издания,
+номер издания, год хиджры, год григориан. Title/authority/description
+не меняются через этот endpoint.
+
+PATCH-семантика:
+
+- **String** поля (`muhaqqiqName`, `publisherName`, `publicationPlaceName`):
+  `null` или отсутствие в JSON = no change (keep existing FK), пустая
+  строка `""` = clear FK to null, non-empty trimmed = `findOrCreate(name)`
+  в соответствующем справочнике + replace FK
+- **Integer** поля (`editionNumber`, `publishedYearHijri`,
+  `publishedYearGregorian`): `null` или отсутствие = no change,
+  значение = replace. Очистить Integer через JSON нельзя (acceptable
+  edge case)
+
+Тело запроса (`UpdateBookRequest`, все поля optional):
+```json
+{
+  "muhaqqiqName": "حكمت بن بشير بن ياسين",
+  "publisherName": "دار ابن الجوزي للنشر والتوزيع",
+  "publicationPlaceName": "السعودية",
+  "editionNumber": 1,
+  "publishedYearHijri": 1431,
+  "publishedYearGregorian": 1999
+}
+```
+
+Ответ `200 OK`: full `BookDetailResponse` с обновлёнными nested
+`muhaqqiq`/`publisher`/`publicationPlace` refs.
+
+Ошибки:
+- `404 book-not-found` - книга не существует
+
+### GET /api/v1/library/muhaqqiqs?q={query}&limit={n} - autocomplete (20.d)
+
+Search мухаккиков по подстроке имени (case-insensitive ILIKE по `name`
+и `full_name`). Используется фронтом для autocomplete в BookEditModal,
+чтобы избежать typo-дублей.
+
+Параметры:
+- `q` (опционально) - подстрока для поиска. Если не указан - возвращает
+  первые `limit` записей в алфавитном порядке
+- `limit` (опционально, default 20, max 100) - макс. количество
+
+Ответ `200 OK`: массив `MuhaqqiqResponse {id, name, fullName}`.
+
+### GET /api/v1/library/publishers?q={query}&limit={n} - autocomplete (20.d)
+
+Аналогично muhaqqiqs, но по `lib_publishers`. Поиск только по `name`
+(нет `full_name`). DTO: `PublisherResponse {id, name}`.
+
+### GET /api/v1/library/publication-places?q={query}&limit={n} - autocomplete (20.d)
+
+Аналогично publishers, по `lib_publication_places`. DTO:
+`PublicationPlaceResponse {id, name}`.
+
 ### DELETE /api/v1/library/books/{id} - удалить книгу
 
 Каскад через FK на `lib_chapters`/`lib_pages`/`lib_image_regions`.
@@ -1225,6 +1283,7 @@ compatible.
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-16 | v1 | Добавлены endpoints для Этапа 20.d Admin BookEditModal: `PATCH /api/v1/library/books/{id}` (partial update 6 academic полей через `UpdateBookRequest`, PATCH-семантика: null=no change, ""=clear, non-empty=findOrCreate); `GET /api/v1/library/muhaqqiqs?q=&limit=`, `GET /api/v1/library/publishers?q=&limit=`, `GET /api/v1/library/publication-places?q=&limit=` (autocomplete для UI). Новые DTO: `UpdateBookRequest`, `MuhaqqiqResponse{id,name,fullName}`, `PublisherResponse{id,name}`, `PublicationPlaceResponse{id,name}` | Этап 20.d: UI для ручной правки academic metadata после автоматического parser fill. Search-autocomplete защищает от typo-дублей в справочниках |
 | 2026-05-16 | v1 | Добавлен endpoint `POST /api/v1/admin/shamela/backfill-bibliography`. Прогоняет `ShamelaBibliographyParser` (20.c) по всем shamela-sourced книгам, заполняет `muhaqqiq_id`/`publisher_id`/`publication_place_id`/`edition_number`/`published_year_hijri`/`published_year_gregorian` через `findOrCreate` в справочниках. DTO: `BackfillBibliographyResponse{scanned, updated, skipped}`. Тело request пустое, без header'ов | Этап 20.c follow-up: добить existing books импортированные до появления parser'а. Smoke: 3/3 dev-книг получили заполненные FK после первого вызова |
 | 2026-05-14 | v1 | `NodeSourceResponse` получил поле `id` (UUID) - surrogate PK для citation link. **Breaking change path** `DELETE /api/v1/nodes/{nodeId}/sources/{sourceId}` → `DELETE /api/v1/nodes/{nodeId}/sources/{nodeSourceId}` (по `id` link'а, не `sourceId`). Теперь возможно несколько citation'ов на ту же пару (node, source) с разными positional context (page/range/pdf bbox) - старый composite PK блокировал | ADR-029: FK variant A - surrogate id для node_sources. Migration 25. Bahs-grade workflow требует множественные cit'ы из одной книги с разных страниц |
 | 2026-05-14 | v1 | **Breaking refactor** `NodeSourceResponse`: плоские поля `location`, `pageId`, `rangeStart`, `rangeEnd`, `pdfFileId`, `pdfPageNumber`, `pdfBbox`, `imageRegionId`, `bookId` **удалены** и заменены на nested `citation: CitationResponse` объект с 8 nullable refs (authority/book/muhaqqiq/publisher/publicationPlace/location/pdf/region). Новые DTO: `CitationResponse`, `AuthorityCitationRef`, `BookCitationRef`, `MuhaqqiqRef`, `PublisherRef`, `PublicationPlaceRef`, `LocationRef`, `PdfRef`, `RegionRef`. `AuthorityResponse` расширен полями `fullName` и `deathYearHijri` (nullable). `BookDetailResponse` расширен 6 nullable полями (muhaqqiqId, publisherId, publicationPlaceId, editionNumber, publishedYearHijri, publishedYearGregorian) | ADR-028: academic citation metadata. Бахс-grade citation требует 8 полей сноски (полное имя автора + год смерти, мухаккик, издатель, место, edition, годы). Structured response позволяет фронту рисовать каждое поле в своём блоке (RTL/naskh для арабского) вместо склеенной строки |

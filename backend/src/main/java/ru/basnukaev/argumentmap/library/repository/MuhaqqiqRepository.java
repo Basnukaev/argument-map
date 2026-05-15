@@ -76,4 +76,21 @@ public class MuhaqqiqRepository {
                 ROW_MAPPER
         );
     }
+
+    /**
+     * Autocomplete-поиск для UI BookEditModal (Этап 20.d). Case-insensitive
+     * substring через ILIKE. {@code query} обязателен и не должен быть
+     * пустым (caller валидирует).
+     */
+    public List<Muhaqqiq> searchByName(String query, int limit) {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM lib_muhaqqiqs "
+                        + "WHERE name ILIKE ? OR full_name ILIKE ? "
+                        + "ORDER BY name LIMIT ?",
+                ROW_MAPPER,
+                "%" + query + "%",
+                "%" + query + "%",
+                limit
+        );
+    }
 }

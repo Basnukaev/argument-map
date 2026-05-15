@@ -69,4 +69,17 @@ public class PublicationPlaceRepository {
                 ROW_MAPPER
         );
     }
+
+    /**
+     * Autocomplete-поиск для UI BookEditModal (Этап 20.d).
+     */
+    public List<PublicationPlace> searchByName(String query, int limit) {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM lib_publication_places WHERE name ILIKE ? "
+                        + "ORDER BY name LIMIT ?",
+                ROW_MAPPER,
+                "%" + query + "%",
+                limit
+        );
+    }
 }

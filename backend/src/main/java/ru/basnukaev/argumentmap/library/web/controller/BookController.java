@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,6 +27,7 @@ import ru.basnukaev.argumentmap.library.web.dto.BookSummaryResponse;
 import ru.basnukaev.argumentmap.library.web.dto.CreateBookRequest;
 import ru.basnukaev.argumentmap.library.web.dto.PageResponse;
 import ru.basnukaev.argumentmap.library.web.dto.PageSummaryResponse;
+import ru.basnukaev.argumentmap.library.web.dto.UpdateBookRequest;
 import ru.basnukaev.argumentmap.library.web.mapper.LibraryDtoMappers;
 import ru.basnukaev.argumentmap.web.CurrentUser;
 
@@ -64,6 +66,28 @@ public class BookController {
 
     @GetMapping("/books/{bookId}")
     public BookDetailResponse getOne(@PathVariable UUID bookId) {
+        BookDetail detail = bookService.getBookWithChapters(bookId);
+        return LibraryDtoMappers.toDetailResponse(detail);
+    }
+
+    /**
+     * Partial update academic metadata через {@link UpdateBookRequest}
+     * (Этап 20.d, BookEditModal). Title/authority/description/metadata не
+     * меняются через этот endpoint - только мухаккик, издатель, место
+     * издания, номер издания, годы по хиджре и григориану.
+     */
+    @PatchMapping("/books/{bookId}")
+    public BookDetailResponse update(@PathVariable UUID bookId,
+                                     @Valid @RequestBody UpdateBookRequest request) {
+        bookService.updateAcademicMetadata(
+                bookId,
+                request.muhaqqiqName(),
+                request.publisherName(),
+                request.publicationPlaceName(),
+                request.editionNumber(),
+                request.publishedYearHijri(),
+                request.publishedYearGregorian()
+        );
         BookDetail detail = bookService.getBookWithChapters(bookId);
         return LibraryDtoMappers.toDetailResponse(detail);
     }
