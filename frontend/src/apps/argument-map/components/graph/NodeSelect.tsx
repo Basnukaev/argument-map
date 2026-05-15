@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { NODE_TYPE_META, type NodeType } from '@/apps/argument-map/utils/edgeRules';
-import { useT } from '@/shared/i18n';
+import { useT, type DictKey } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
 
 type NodeDto = components['schemas']['NodeResponse'];
@@ -29,18 +29,18 @@ const STATUS_DOT: Record<NodeStatus, string | null> = {
   UNVERIFIED: null,
 };
 
-const STATUS_LABEL: Record<NodeStatus, string> = {
-  STANDING: 'Устоявшийся',
-  DISPUTED: 'Спорный',
-  REFUTED: 'Опровергнут',
-  UNVERIFIED: 'Не оценён',
+const STATUS_LABEL_KEY: Record<NodeStatus, DictKey> = {
+  STANDING: 'status.STANDING',
+  DISPUTED: 'status.DISPUTED',
+  REFUTED: 'status.REFUTED',
+  UNVERIFIED: 'status.UNVERIFIED',
 };
 
 const PREVIEW_LEN = 80;
 
-function previewContent(node: NodeDto): string {
+function previewContent(node: NodeDto, emptyText: string): string {
   const c = node.content ?? '';
-  return c.length > PREVIEW_LEN ? `${c.slice(0, PREVIEW_LEN)}…` : c || '(без содержимого)';
+  return c.length > PREVIEW_LEN ? `${c.slice(0, PREVIEW_LEN)}…` : c || emptyText;
 }
 
 /**
@@ -105,9 +105,9 @@ function NodeSelect({ value, onChange, options, excludeId, placeholder, disabled
         }`}
       >
         {selected ? (
-          <NodeOptionInline node={selected} />
+          <NodeOptionInline node={selected} t={t} />
         ) : (
-          <span className="flex-1 text-gray-500">{placeholder ?? '- выбрать узел -'}</span>
+          <span className="flex-1 text-gray-500">{placeholder ?? t('node.select_placeholder')}</span>
         )}
         <ChevronDown
           size={16}
@@ -138,7 +138,7 @@ function NodeSelect({ value, onChange, options, excludeId, placeholder, disabled
                       isSelected ? 'bg-indigo-50' : 'hover:bg-slate-50'
                     }`}
                   >
-                    <NodeOptionInline node={n} compact={false} />
+                    <NodeOptionInline node={n} compact={false} t={t} />
                   </button>
                 </li>
               );
@@ -152,32 +152,34 @@ function NodeSelect({ value, onChange, options, excludeId, placeholder, disabled
 
 interface InlineProps {
   node: NodeDto;
+  t: (key: DictKey) => string;
   compact?: boolean;
 }
 
 /** Inline-вид опции - используется и в триггере (compact), и в списке (full) */
-function NodeOptionInline({ node, compact = true }: InlineProps) {
+function NodeOptionInline({ node, t, compact = true }: InlineProps) {
   const nodeType: NodeType = node.nodeType ?? 'CLAIM';
   const meta = NODE_TYPE_META[nodeType];
   const Icon = meta.Icon;
   const status: NodeStatus = node.status ?? 'UNVERIFIED';
+  const statusLabel = t(STATUS_LABEL_KEY[status]);
 
   return (
     <>
       <Icon size={16} className="mt-0.5 shrink-0 text-gray-700" aria-hidden="true" />
       <span className="flex-1 min-w-0">
         <span className="flex items-center gap-2">
-          <span className="text-xs font-medium text-gray-500">{meta.label}</span>
+          <span className="text-xs font-medium text-gray-500">{t(meta.labelKey)}</span>
           {STATUS_DOT[status] && (
             <span
               className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[status]}`}
-              title={STATUS_LABEL[status]}
-              aria-label={STATUS_LABEL[status]}
+              title={statusLabel}
+              aria-label={statusLabel}
             />
           )}
         </span>
-        <span className={`block text-gray-900 ${compact ? 'truncate' : 'whitespace-pre-wrap break-words'}`}>
-          {previewContent(node)}
+        <span dir="auto" className={`block text-gray-900 ${compact ? 'truncate' : 'whitespace-pre-wrap break-words'}`}>
+          {previewContent(node, t('node.empty_content'))}
         </span>
       </span>
     </>

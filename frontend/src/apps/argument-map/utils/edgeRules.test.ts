@@ -4,7 +4,7 @@ import {
   getAllowedEdgeTypes,
   isEdgeAllowed,
   getContextualEdgeLabelKey,
-  NODE_TYPE_LABEL,
+  NODE_TYPE_META,
   EDGE_TYPE_META,
   type NodeType,
   type EdgeType,
@@ -86,13 +86,14 @@ describe('getContextualEdgeLabelKey', () => {
 });
 
 describe('маркеры', () => {
-  it('NODE_TYPE_LABEL содержит русские метки для всех типов', () => {
-    expect(NODE_TYPE_LABEL).toEqual({
-      QUESTION: 'Вопрос',
-      CLAIM: 'Тезис',
-      ARGUMENT: 'Довод',
-      EVIDENCE: 'Свид.',
-    });
+  it('NODE_TYPE_META содержит Icon, labelKey, hintKey для всех типов', () => {
+    for (const type of ['QUESTION', 'CLAIM', 'ARGUMENT', 'EVIDENCE'] as NodeType[]) {
+      const meta = NODE_TYPE_META[type];
+      expect(meta).toBeDefined();
+      expect(meta.Icon).toBeTruthy();
+      expect(meta.labelKey).toBe(`node.type.${type}`);
+      expect(meta.hintKey).toBe(`node.type.${type}.hint`);
+    }
   });
 
   it('EDGE_TYPE_META содержит Icon, labelKey, hintKey, colorClass для всех типов', () => {

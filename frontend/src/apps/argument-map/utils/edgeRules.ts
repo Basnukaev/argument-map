@@ -97,29 +97,20 @@ const EDGE_DEFAULT_LABEL_KEY: Record<EdgeType, DictKey> = {
 };
 
 /**
- * Короткие русские метки типов узлов. Должны совпадать с заголовками в
- * `NodeCard` (Вопрос/Тезис/Довод/Свидетельство). Используется в текстовых
- * сообщениях без иконки (toast'ы, alerts). Для UI с иконкой бери
- * NODE_TYPE_META.label - там полноценная метка вместе с lucide-иконкой
- */
-export const NODE_TYPE_LABEL: Record<NodeType, string> = {
-  QUESTION: 'Вопрос',
-  CLAIM: 'Тезис',
-  ARGUMENT: 'Довод',
-  EVIDENCE: 'Свид.',
-};
-
-/**
  * Метаданные типа узла для UI: lucide-иконка совпадает с тем что показывает
  * NodeCard на графе - так пользователь видит один и тот же символ и в карточке,
  * и при выборе типа в модалке. Решает проблему близких эмодзи 📢/💬
  * (Тезис/Довод) в шрифте операционной системы.
+ *
+ * Лейблы/подсказки - через DictKey, переводятся в render через useT().
+ * Для коротких меток (toast/alert без иконки) тот же labelKey - в RU
+ * это «Вопрос/Тезис/Довод/Свидетельство», в AR соответствующие переводы.
  */
-export const NODE_TYPE_META: Record<NodeType, { label: string; hint: string; Icon: LucideIcon }> = {
-  QUESTION: { label: 'Вопрос', hint: 'Корневой или уточняющий вопрос', Icon: CircleHelp },
-  CLAIM: { label: 'Тезис', hint: 'Утверждение которое доказывают', Icon: Megaphone },
-  ARGUMENT: { label: 'Довод', hint: 'Аргумент за/против тезиса', Icon: MessageSquareQuote },
-  EVIDENCE: { label: 'Свидетельство', hint: 'Хадис, цитата, факт', Icon: FileText },
+export const NODE_TYPE_META: Record<NodeType, { labelKey: DictKey; hintKey: DictKey; Icon: LucideIcon }> = {
+  QUESTION: { labelKey: 'node.type.QUESTION', hintKey: 'node.type.QUESTION.hint', Icon: CircleHelp },
+  CLAIM: { labelKey: 'node.type.CLAIM', hintKey: 'node.type.CLAIM.hint', Icon: Megaphone },
+  ARGUMENT: { labelKey: 'node.type.ARGUMENT', hintKey: 'node.type.ARGUMENT.hint', Icon: MessageSquareQuote },
+  EVIDENCE: { labelKey: 'node.type.EVIDENCE', hintKey: 'node.type.EVIDENCE.hint', Icon: FileText },
 };
 
 /**

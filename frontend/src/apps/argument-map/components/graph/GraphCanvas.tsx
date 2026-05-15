@@ -28,7 +28,7 @@ import {
   getAllowedEdgeTypes,
   getRelatedNodeOptions,
   isEdgeAllowed,
-  NODE_TYPE_LABEL,
+  NODE_TYPE_META,
 } from '@/apps/argument-map/utils/edgeRules';
 import { buildFlow, findFreePosition, sameIds } from '@/apps/argument-map/utils/graphPlacement';
 import { apiDeleteRaw, apiPatchRaw, ApiError } from '@/shared/api/client';
@@ -196,7 +196,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
       const allowed = getAllowedEdgeTypes(fromNode.nodeType, toNode.nodeType);
       if (allowed.length === 0) {
         toast.warning(
-          `${NODE_TYPE_LABEL[fromNode.nodeType]} → ${NODE_TYPE_LABEL[toNode.nodeType]}: эту пару нельзя соединить (см. ADR-010)`,
+          `${t(NODE_TYPE_META[fromNode.nodeType].labelKey)} → ${t(NODE_TYPE_META[toNode.nodeType].labelKey)}: ${t('edge.error.disallowed_pair')}`,
         );
         return;
       }
@@ -231,7 +231,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
     (oldEdge: Edge, newConnection: Connection) => {
       if (!newConnection.source || !newConnection.target) return;
       if (newConnection.source === newConnection.target) {
-        toast.warning('Узел не может ссылаться на себя');
+        toast.warning(t('edge.error.self_loop'));
         return;
       }
 
@@ -244,7 +244,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
 
       if (!isEdgeAllowed(fromNode.nodeType, edgeType, toNode.nodeType)) {
         toast.warning(
-          `${NODE_TYPE_LABEL[fromNode.nodeType]} → ${NODE_TYPE_LABEL[toNode.nodeType]}: тип "${edgeType}" недопустим для этой пары (см. ADR-010)`,
+          `${t(NODE_TYPE_META[fromNode.nodeType].labelKey)} → ${t(NODE_TYPE_META[toNode.nodeType].labelKey)}: ${t('edge.error.disallowed_pair')}`,
         );
         return;
       }
@@ -263,7 +263,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
             e instanceof ApiError
               ? `${e.problem.title}${e.problem.detail ? ': ' + e.problem.detail : ''}`
               : (e as Error).message;
-          toast.error(`Не удалось пересоединить: ${msg}`);
+          toast.error(`${t('graph.toast.update_failed')}: ${msg}`);
           onRefetch();
         });
     },
@@ -278,7 +278,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
         posY: node.position.y,
       }).catch((e: unknown) => {
         const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
-        toast.error(`Не удалось сохранить позицию: ${msg}`);
+        toast.error(`${t('graph.toast.update_failed')}: ${msg}`);
       });
     },
     [],
@@ -296,7 +296,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
         return;
       }
       const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
-      toast.error(`Не удалось удалить узел: ${msg}`);
+      toast.error(`${t('graph.toast.delete_failed')}: ${msg}`);
     }
   }
 
@@ -310,7 +310,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
         return;
       }
       const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
-      toast.error(`Не удалось удалить связь: ${msg}`);
+      toast.error(`${t('graph.toast.delete_failed')}: ${msg}`);
     }
   }
 
@@ -325,11 +325,11 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
       setContextMenu({
         x: event.clientX,
         y: event.clientY,
-        header: 'Холст',
+        header: t('graph.ctx.canvas'),
         items: [
           {
             id: 'create-node',
-            label: 'Создать узел здесь',
+            label: t('graph.ctx.create_here'),
             icon: Plus,
             onClick: () => {
               if (flowPos) setNodeDraft({ posX: flowPos.x, posY: flowPos.y });
@@ -418,13 +418,13 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
         },
         {
           id: 'bring-front',
-          label: 'На передний план',
+          label: t('graph.ctx.bring_front'),
           icon: ArrowUp,
           onClick: () => bringNodeToFront(node.id),
         },
         {
           id: 'send-back',
-          label: 'На задний план',
+          label: t('graph.ctx.send_back'),
           icon: ArrowDown,
           onClick: () => sendNodeToBack(node.id),
         },
@@ -455,11 +455,11 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
       setContextMenu({
         x: event.clientX,
         y: event.clientY,
-        header: 'Связь',
+        header: t('graph.ctx.section_edge'),
         items: [
           {
             id: 'edit-edge',
-            label: 'Редактировать',
+            label: t('common.edit'),
             icon: Pencil,
             onClick: () => {
               setDetailEdgeId(edge.id);
@@ -470,19 +470,19 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
           },
           {
             id: 'bring-front',
-            label: 'На передний план',
+            label: t('graph.ctx.bring_front'),
             icon: ArrowUp,
             onClick: () => bringEdgeToFront(edge.id),
           },
           {
             id: 'send-back',
-            label: 'На задний план',
+            label: t('graph.ctx.send_back'),
             icon: ArrowDown,
             onClick: () => sendEdgeToBack(edge.id),
           },
           {
             id: 'delete-edge',
-            label: 'Удалить',
+            label: t('common.delete'),
             icon: Trash2,
             danger: true,
             onClick: () => void deleteOneEdge(edge.id),
@@ -552,9 +552,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
 
   async function handleDelete() {
     if (selectedCount === 0) return;
-    const confirmed = window.confirm(
-      `Удалить ${selectedNodeIds.length} узл(а) и ${selectedEdgeIds.length} связ(и)?`,
-    );
+    const confirmed = window.confirm(t('graph.confirm.delete'));
     if (!confirmed) return;
 
     setDeleting(true);
@@ -579,7 +577,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
       onRefetch();
     } catch (e: unknown) {
       const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
-      window.alert(`Не удалось удалить: ${msg}`);
+      window.alert(`${t('graph.toast.delete_failed')}: ${msg}`);
     } finally {
       setDeleting(false);
     }
