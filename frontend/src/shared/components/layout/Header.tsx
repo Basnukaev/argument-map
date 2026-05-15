@@ -1,6 +1,12 @@
+import { useEffect, useState } from 'react';
 import { Link, NavLink } from 'react-router';
-import { Network } from 'lucide-react';
+import { Search } from 'lucide-react';
 import LocaleSwitch from '@/shared/components/layout/LocaleSwitch';
+import ThemeSwitch from '@/shared/components/layout/ThemeSwitch';
+import CommandPalette from '@/shared/components/layout/CommandPalette';
+import BellMenu from '@/shared/components/layout/BellMenu';
+import AvatarMenu from '@/shared/components/layout/AvatarMenu';
+import Kbd from '@/shared/components/ui/Kbd';
 import { useT, type DictKey } from '@/shared/i18n';
 
 interface NavItem {
@@ -18,46 +24,64 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
 ];
 
 /**
- * Глобальный top-bar страниц вне графа: список тем, библиотека,
- * формы создания. Содержит брендинг (логотип + название) и навигацию
- * между разделами супер-аппа. Используется во всех full-page UI -
- * `TopicListPage`, `BookListPage`, `BookReaderPage` и т.д.
+ * Глобальный top-bar для всех full-page UI (TopicList, BookList,
+ * AdminShamela, Reader). Использует v2 design system - семантические
+ * токены, единый стиль кнопок и pillов.
  *
- * Граф темы (`TopicGraphPage`) свой top-bar не использует - он
- * full-screen canvas с floating UI overlay.
+ * Состав:
+ * - brand: ﷽ logo + "Argument Map"
+ * - nav: Темы / Библиотека / Q&A (disabled) / Админ
+ * - right side:
+ *   - кнопка поиск ⌘K, открывает CommandPalette (тот же по Cmd/Ctrl+K)
+ *   - LocaleSwitch (RU/AR), ThemeSwitch (Sun/Moon)
+ *   - Bell - dropdown уведомлений (placeholder, нет бэка)
+ *   - Avatar - dropdown профиля (placeholder, нет auth)
  *
- * Активный раздел подсвечивается через `react-router` `NavLink` -
- * матчинг по path-префиксу: `/topics` подсвечивается на `/topics`,
- * `/topics/new`, но не на `/topics/:id` (графовая страница).
+ * Бренд не зеркалится при rtl - логотип всегда "иконка + текст".
+ * Граф темы (TopicGraphPage) использует свой top-bar, не этот.
  */
 function Header() {
   const t = useT();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // Глобальный Cmd+K / Ctrl+K - открыть command palette. Перехватываем
+  // на document, не на input - shortcut должен работать с любого фокуса.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
-    <header className="border-b border-slate-200 bg-white">
-      <div className="mx-auto flex h-12 max-w-[1380px] items-center gap-3 px-6">
-        {/* Бренд не зеркалится - логотип всегда «иконка слева + текст справа»
-            независимо от локали. dir="ltr" блокирует bidi-flip от родителя.
-            "Argument Map" - бренд, не переводится */}
+    <>
+      <header className="flex-none h-12 flex items-center gap-6 px-6 bg-elevated border-b border-border">
+        {/* Brand - не зеркалится при rtl. Используем 6-step scale (gap-2 = 8px) */}
         <Link
           to="/topics"
           dir="ltr"
-          className="flex items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 rounded-md"
+          className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 rounded-sm"
           aria-label={t('nav.home_aria')}
         >
-          <span className="grid h-7 w-7 place-items-center rounded-md bg-indigo-600 text-white">
-            <Network size={16} aria-hidden="true" />
+          <span className="grid h-7 w-7 place-items-center rounded-md bg-accent-600 text-ink-0 font-serif font-bold text-base">
+            ﷽
           </span>
-          <span className="text-[14px] font-bold tracking-tight text-slate-900">
+          <span className="text-sm font-semibold text-ink-900 tracking-tight">
             Argument Map
           </span>
         </Link>
-        <div className="h-5 w-px bg-slate-200" />
-        <nav className="flex items-center gap-1 text-[12px]">
+
+        {/* Navigation. gap-1 = 4px (s-1), достаточно между nav-pills */}
+        <nav className="flex gap-1 flex-1">
           {NAV_ITEMS.map((item) =>
             item.disabled ? (
               <span
                 key={item.to}
-                className="inline-flex h-7 cursor-not-allowed items-center rounded-md px-2.5 text-slate-400"
+                className="inline-flex h-7 cursor-not-allowed items-center rounded-sm px-3 text-xs font-medium text-ink-400"
                 title={t('nav.disabled_hint')}
               >
                 {t(item.labelKey)}
@@ -69,8 +93,8 @@ function Header() {
                 end={item.to === '/topics'}
                 className={({ isActive }) =>
                   isActive
-                    ? 'inline-flex h-7 items-center rounded-md bg-slate-100 px-2.5 font-medium text-slate-900'
-                    : 'inline-flex h-7 items-center rounded-md px-2.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors'
+                    ? 'inline-flex h-7 items-center rounded-sm bg-accent-50 px-3 text-xs font-medium text-accent-700'
+                    : 'inline-flex h-7 items-center rounded-sm px-3 text-xs font-medium text-ink-700 hover:bg-ink-100 hover:text-ink-900 transition-colors'
                 }
               >
                 {t(item.labelKey)}
@@ -78,11 +102,31 @@ function Header() {
             ),
           )}
         </nav>
-        <div className="ms-auto">
+
+        {/* Right cluster. gap-2 = 8px (s-2) - стандарт между chip-elements */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            className="inline-flex h-7 items-center gap-2 px-2 rounded-sm text-xs text-ink-600 hover:bg-ink-100 hover:text-ink-900 transition-colors"
+            title={t('common.search')}
+          >
+            <Search size={13} aria-hidden />
+            <Kbd>⌘K</Kbd>
+          </button>
+
           <LocaleSwitch />
+
+          <ThemeSwitch />
+
+          <BellMenu />
+
+          <AvatarMenu initials="AB" />
         </div>
-      </div>
-    </header>
+      </header>
+
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+    </>
   );
 }
 

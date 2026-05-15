@@ -15,7 +15,7 @@ const TopicGraphPage = lazy(() => import('@/apps/argument-map/pages/TopicGraphPa
 
 function GraphFallback() {
   return (
-    <div className="flex h-screen items-center justify-center text-gray-500">
+    <div className="flex h-screen items-center justify-center text-ink-500">
       Загрузка графа
     </div>
   );

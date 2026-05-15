@@ -3,9 +3,12 @@ import { useLocaleStore } from '@/shared/i18n';
 import type { Locale } from '@/shared/i18n';
 
 /**
- * Маленький RU/AR переключатель локали. Кликабельный chip с двумя сегментами
- * - active highlighted indigo. Persist через zustand store + localStorage,
- * LocaleEffect синхронизирует `<html dir lang>`
+ * Маленький RU/AR переключатель локали. Сегментированный chip с двумя
+ * пунктами - active highlighted accent. Persist через zustand store +
+ * localStorage. LocaleEffect синхронизирует `<html lang dir>`.
+ *
+ * Использует v2 design tokens (ink-/accent-/elevated/border) -
+ * автоматически переключается в dark theme.
  */
 function LocaleSwitch() {
   const locale = useLocaleStore((s) => s.locale);
@@ -18,12 +21,12 @@ function LocaleSwitch() {
 
   return (
     <div
-      className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-semibold"
+      className="inline-flex items-center gap-1 rounded-sm border border-ink-200 bg-elevated px-1.5 py-1 text-xs font-semibold"
       role="group"
       aria-label="Локаль интерфейса"
       dir="ltr"
     >
-      <Languages size={12} className="text-slate-400" aria-hidden />
+      <Languages size={12} className="text-ink-400" aria-hidden />
       {options.map((opt) => {
         const active = opt.value === locale;
         return (
@@ -34,8 +37,8 @@ function LocaleSwitch() {
             aria-pressed={active}
             className={
               active
-                ? 'rounded bg-indigo-600 px-1.5 py-0.5 text-white'
-                : 'rounded px-1.5 py-0.5 text-slate-600 hover:bg-slate-100'
+                ? 'rounded-sm bg-accent-600 px-1.5 py-0.5 text-ink-0'
+                : 'rounded-sm px-1.5 py-0.5 text-ink-600 hover:bg-ink-100'
             }
           >
             {opt.label}
