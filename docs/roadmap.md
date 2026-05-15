@@ -164,11 +164,13 @@ shamela не имеет нужной книги. MinIO storage готов из 2
 
 20.a/b/f закрыты (см. выше). Остаётся:
 
-- [ ] **20.c:** Shamela bibliography parser - извлекать что есть из
-      raw `bibliography` text (часто содержит мухаккика и
-      издательство в неструктурированном виде - regex + LLM fallback?).
-      Backfill endpoint в ShamelaAdminController для перезаполнения
-      existing books
+- [x] **20.c:** Shamela bibliography parser - regex-based extraction
+      из `lib_shamela_book.bibliography` (мухаккик/издатель/место/edition/
+      год хиджры+григориан). `ShamelaBibliographyParser` + интеграция в
+      `ShamelaToLibraryMapper.mapBook` через `findOrCreate` в Muhaqqiq/
+      Publisher/PublicationPlace репозиториях. 11 unit-тестов с реальными
+      фикстурами. **Follow-up:** bulk-backfill endpoint для existing
+      books (отложен)
 - [ ] **20.d:** Admin BookEditModal - UI для ручного дозаполнения
       metadata после импорта (когда parser не справился). Search +
       autocomplete по существующим справочникам

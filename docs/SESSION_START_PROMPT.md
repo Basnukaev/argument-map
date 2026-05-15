@@ -185,158 +185,159 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 > **Этот раздел обновляется каждой сессией**. Всё выше - стабильное
 
-**Этап 20.c shamela bibliography parser** (после Сессии 33 -
-полная RTL/i18n локализация фронта закрыта)
+**Этап 20.d Admin BookEditModal** или **20.c follow-up bulk-backfill
+endpoint** (после Сессии 35 - всё что было в working tree закоммичено
+8 атомарными коммитами, parser 20.c сделан, doc-долги Сессий 32-34
+закрыты)
 
-Сессия 33 закрыла системный фикс RTL/LTR + i18n покрытие:
-- **RTL/bidi mechanics** - единый `hasArabicScript` из `@/shared/i18n`,
-  все физические Tailwind-классы (`ml`/`mr`/`pl`/`pr`/`left`/`right`/
-  `text-left`/`border-l`) заменены на логические (`ms`/`me`/`ps`/`pe`/
-  `start`/`end`/`text-start`/`border-s`). Граф React Flow не зеркалится.
-  `dir="auto"` для контента из API, `<bdi>` для mixed-content
-- **i18n инфраструктура** - dictionary расширен с ~22 до ~280 ключей
-  по namespace'ам (nav/reader/common/topic.list/book.list/status/node.
-  type/edge.type/edge.label/graph.ctx/admin/citation_picker/add_source
-  и др.). Новые primitives: `useFormatDate`, `useNumberFormat` -
-  локаль-aware, стабильны через `useCallback`
-- **Token refactor** - `STATUS_TOKENS`/`NODE_TYPE_TOKENS`/`EDGE_TYPE_
-  TOKENS`/`NODE_TYPE_META`/`EDGE_TYPE_META`: `label/hint` → `labelKey/
-  hintKey: DictKey`. `getContextualEdgeLabel` → `getContextualEdgeLabelKey`.
-  `NODE_TYPE_LABEL` удалён. Один контракт «токен описывает визуал,
-  переводы в словаре»
-- **i18n покрытие всех страниц** - Header, TopicListPage, TopicGraphPage,
-  GraphCanvas (context menu/toasts/confirm), GraphPanels, NodeCard,
-  NodeDetailsPanel + 4 секции (Content/Metadata/Citations/Revisions),
-  EdgeDetailsPanel, AddNodeModal, AddEdgeModal, AddSourceModal,
-  CitationPicker, BookListPage, BookReaderPage + PageJump + PdfViewer,
-  AdminShamelaPage (DateFormat/NumberFormat локаль-aware)
-- **FormModal** общий компонент - точка одного перевода «Отмена» для
-  всех форм проекта (DRY)
-- **Документация** - `frontend/docs/i18n-guide.md` (~280 строк) -
-  canonical reference для будущих сессий: 3 понятия которые нельзя
-  путать (локаль/контент/направление), algorithms, anti-patterns,
-  чек-лист перед PR. Cross-link из CLAUDE.md и coding-standards
-- **Bugfix infinite-loop** - `useT`/`useFormatDate` стабилизированы
-  через useCallback (без этого `t` в deps useEffect ломал TopicGraphPage
-  бесконечными fetch'ами)
-- **Code review** через subagent - 11 strengths, 0 Critical, 12
-  Important - все закрыты в follow-up commits. Verdict «Ready to merge»
+### Что было в Сессии 35
 
-Закоммичено ~30 атомарных commit'ов локально, push в origin/master
-сделан в конце сессии. Тесты 143/143, build/typecheck чистые.
+Чисто отработавшая сессия в автономном режиме:
 
-Старая Сессия 32 (выжимка для контекста):
-- **20.f LibraryCite redesign** (`72ddd0b`) - SourceCard variant D
-- **i18n minimal** (`c1a6ff1`, `d86e010`) - первая итерация dictionary
-- **FK variant A** (`8f3b2c9`) - миграция 25, surrogate `id UUID` PK для
-  node_sources. DELETE path: `/sources/{nodeSourceId}` (breaking)
+- **v2 design migration** из Сессии 34 разложена в 6 атомарных коммитов:
+  tokens infrastructure → UI primitives → AppHeader+menus → pages
+  → graph → source card+reader. Все 6 коммитов прошли verify
+  (TS clean / ESLint 0 errors / 143/143 frontend tests)
+- **Doc-долги Сессий 32-34** закрыты одним `docs:` коммитом:
+  api-contract обновлён (NodeSourceResponse.id + DELETE
+  `/sources/{nodeSourceId}` + changelog), ADR-029 FK variant A,
+  ADR-030 i18n архитектура, ADR-031 v2 design system tokens,
+  5 gotchas (StrictMode duplicate / closure useCallback / batch-Edit
+  cyrillic / Tailwind v4 `@theme inline` / mass-replace sed grep audit)
+- **Этап 20.c shamela bibliography parser:**
+  - `ShamelaBibliographyParser` - regex по المحقق/الناشر/الطبعة/
+    عام النشر + arabic ordinal dictionary + arabic-indic digit
+    conversion
+  - `ParsedBibliography` record (6 nullable fields)
+  - Интегрирован в `ShamelaToLibraryMapper.mapBook` через
+    `findOrCreate` в Muhaqqiq/Publisher/PublicationPlace repos
+  - 11 unit-тестов с реальными фикстурами из dev-БД
+  - Verify: 425/425 backend tests pass
 
-**Цель 20.c:** извлечь academic metadata из raw `lib_books.description`
-(там shamela хранит bibliography текст с мухаккиком, publisher и т.д.)
+**Что НЕ сделано (отложено):**
 
-**Стартовая последовательность Сессии 34:**
+- **Bulk-backfill endpoint** для existing books (3 dev-книги в БД
+  остались с null FK) - требует BookRepository partial update + admin
+  endpoint. ~30 минут работы, не ложится естественно в parser commit
+- **@tabler/icons-react** через corp proxy всё ещё ETIMEDOUT, workaround
+  `svg.lucide:not([stroke-width])` остаётся
 
-1. **Узнать формат shamela bibliography** - в БД:
-   ```sql
-   SELECT id, title, description FROM lib_books
-   WHERE description IS NOT NULL LIMIT 5;
-   ```
-   Это покажет реальные префиксы (`المؤلف:`, `الكتاب:`, `تحقيق:`,
-   `الناشر:`, `الطبعة:`, `سنة النشر:` и т.п.)
+### Стартовая последовательность Сессии 36
 
-2. **Создать `ShamelaBibliographyParser`** в
-   `backend/src/main/java/ru/basnukaev/argumentmap/library/shamela/service/`:
-   - Regex-based extraction для каждого поля
-   - Fallback NULL если префикс не найден
-   - Return record `ParsedBibliography(muhaqqiq, publisher, place, edition, yearHijri, yearGregorian)`
+**1. Выбор приоритета (короткое решение, до начала кода):**
 
-3. **Интегрировать в `ShamelaToLibraryMapper.mapBook`** - после resolving
-   authority вызвать `bibliographyParser.parse(bibliography)`, для каждого
-   non-null поля вызвать `*Repository.findOrCreate(name)` и заполнить FK
-   на новой Book
+Опция A - **20.c follow-up bulk-backfill** (~30 мин):
+- `BookService.refreshBibliographyMetadata(bookId)` или batch-вариант
+- `POST /api/v1/admin/shamela/backfill-bibliography` endpoint
+- Frontend: кнопка в AdminShamelaPage «Перечитать metadata»
+- Smoke: запустить на 3 dev-книгах, проверить заполнение FK
 
-4. **Unit-тесты** с фикстурами реальных shamela bibliography строк
-   (5-10 разных книг)
+Опция B - **20.d Admin BookEditModal** (~1 сессия):
+- UI для ручной правки 6 academic полей после импорта
+- Search + autocomplete по справочникам через
+  `GET /api/v1/library/muhaqqiqs?q=...` (нужно ли создавать?) или inline
+- PATCH endpoint `/api/v1/library/books/{id}` с расширенным request
 
-5. **Опционально: bulk-backfill endpoint** в `ShamelaAdminController`:
-   `POST /api/v1/admin/shamela/backfill-academic-metadata` - пройтись
-   по всем замапленным книгам и обогатить пустые поля без re-import
+Опция C - **Этап 19 Q&A приложение** - валидация платформенной
+архитектуры через второе приложение использующее common stack.
+ADR-018 platform pivot обоснован но не доказан реальным вторым use case
 
-6. **Smoke**: re-map тестовой книги через `POST /api/v1/admin/shamela/map-book/{id}`,
-   curl `/api/v1/nodes/{id}/sources` - увидеть filled muhaqqiq/publisher
+Рекомендация - **A + B в одну сессию**: A быстрый, B логически следует
+после A (Admin может править ровно ту metadata которую backfill частично
+заполнил). Итого ~1.5 сессии. Или сделать A сразу + начать B, закрытие
+B перенести на 37.
 
-### Doc-долги после Сессий 32+33 (важно сделать в Сессии 34)
+**2. После выбора:**
 
-- **`api-contract.md`** обновить:
-  - `NodeSourceResponse` получил поле `id` (UUID) (из Сессии 32)
-  - `DELETE /api/v1/nodes/{nodeId}/sources/{nodeSourceId}` - **breaking
-    change** path param (раньше был `{sourceId}`) (из Сессии 32)
-  - `BookDetailResponse` обогащён nested refs (authority/muhaqqiq/
-    publisher/publicationPlace) (из Сессии 32)
-  - Строка в "Историю изменений"
-- **ADR-029** для FK variant A (decisional - surrogate id PK vs
-  composite PK с positional fields). Rejected alternatives
-- **ADR-030** для i18n архитектуры - после Сессии 33 решение
-  стало гораздо более развёрнутым: manual dictionary с DictKey
-  union literal types vs i18next, useCallback-стабилизация хуков,
-  локаль-aware токены через labelKey, FormModal как DRY-точка
-- **gotcha** `gotchas.md`:
-  - React StrictMode duplicate API requests в dev (Сессия 32)
-  - Closure-функции из хуков всегда стабилизировать через useCallback
-    если они потенциально попадут в deps useEffect/useMemo
-    (Сессия 33 - infinite loop в TopicGraphPage из-за нестабильного `t`)
-  - Batch-Edit'ы по cyrillic строкам - после делать `grep -nE
-    "label:.*'[А-ЯЁ]"` потому что Edit может silent-skip без error
-    если whitespace не точно совпадает (Сессия 33)
+Поднять backend (с JDWP флагом из CLAUDE.md) - он сейчас на старом
+classpath после parser changes Сессии 35, нужен restart чтобы
+findOrCreate работал.
 
-### Backlog i18n после Сессии 33 (не блокеры)
+Frontend на :5173 - после restart Vite должен подобрать v2 changes.
+Если HMR cache stale, `rm -rf node_modules/.vite` (Сессия 34 показала
+этот workflow).
 
-- **SourceSearchForm + SourceCreateForm + AttachFields placeholders** -
-  внутренние формы создания свободного источника (admin workflow).
-  Сами Modal-обёртки переведены, но детали полей внутри пока
-  захардкожены на русском
-- **ESLint pre-commit rule** на cyrillic literals в JSX attribute
-  strings - chyba review рекомендации, должно предотвратить регрессии
-- **AR locale parameterized tests** - сейчас тесты завязаны на
-  default `ru` локаль. Параметризовать setup для обеих локалей
-- **EDGE_DEFAULT_LABEL_KEY** - move declaration выше функции для
-  читаемости (M-1 из review)
-- **AR числа** - проверить что `Intl.NumberFormat('ar')` даёт
-  arabic-indic digits ١٢٣٤ или западные (зависит от runtime).
-  Если западные - добавить `useGrouping: false` или digit option
+### Backlog после 20.c-e
 
-### Что осталось из Этапа 20 после 20.c
-
-- **20.d Admin BookEditModal** (~1 сессия) - frontend UI для ручного
-  дозаполнения когда parser не справился. Search + autocomplete
-- **20.e AddSourceModal расширенная форма** (~0.5 сессии) - manual
-  entry sourceType=BOOK с полями
+- **Этап 19 Q&A приложение** (платформенная валидация)
+- **@tabler/icons-react retry** + shim + sed-replace когда сеть позволит
+- **Backlog i18n** (Сессия 33): SourceSearchForm/SourceCreateForm
+  placeholders на словарь, ESLint pre-commit rule на cyrillic literals
+  в JSX, AR parameterized tests, EDGE_DEFAULT_LABEL_KEY declaration
+  выше функции, AR числа через `Intl.NumberFormat('ar')`
 
 ### Известные мелочи (не блокеры)
 
-- **Backend running** - после изменений требует kill+restart
-  (`spring-boot:run` не подхватывает свежие classes автоматически)
 - **27 call sites `new Book(...)`** и **17 `new Authority(...)`** -
-  возможно future refactor на builder pattern
+  возможно future refactor на builder pattern. Сейчас Book получает
+  16 параметров, читать тяжело
+- **3 MSW unhandled rejections** в NodeDetailsPanel.test.tsx при
+  full vitest run - не ломают тесты (143/143 passed), известный
+  flaky issue infrastructure, не код
+- **Backend restart обязателен** после classpath changes -
+  `spring-boot:run` не подхватывает свежие classes автоматически
+- **Frontend rm -rf node_modules/.vite** иногда нужен после
+  mass-replace для очистки HMR cache
 
-### Инфра на момент Сессии 34 entry
+### Инфра на момент Сессии 36 entry
 
 - Postgres :5432, миграции до 25 включительно applied
 - MinIO :9000 healthy
-- Backend :9090 + JDWP :5005 running
-- Frontend :5173 running с HMR + localStorage `app.locale` для persist
+- Backend :9090 + JDWP :5005 - **рестарт обязателен** после parser
+  changes Сессии 35
+- Frontend :5173 - рестарт желателен после v2 коммитов
+- localStorage: `app.locale` + `app.theme` для persist
 - Smoke citation в production-БД (node `4139cb32-...` topic
-  `a6617d11-...`): Тафсир Ибн Касира с **filled** academic data
-  (мухаккик السلامة, publisher Дар Тайба, place Эр-Рияд, edition 2,
-  годы 1420/1999, author fullName + death 774)
-- Тестовая Source `132d75cc-...` имеет title `Тафсир Ибн Касира` -
-  ru transliteration (выставлено вручную в Сессии 31). Для других
-  shamela-imported books source.title пока arabic
+  `a6617d11-...`): Тафсир Ибн Касира с filled academic data
+- В dev-БД 3 mapped book'а с descriptions - кандидаты для bulk-backfill
 
-### Альтернативные приоритеты
+### Что было в Сессии 34
 
-- 20.d Admin BookEditModal (если parser хватает на 70%+ books)
-- Этап 19 Q&A приложение (валидация платформы)
+Большая UI-инициатива от Абдулы по миграции на v2 design system из
+`frontend/design-reference/v2/project/handoff/`:
+
+- **Tokens + темизация** - `src/styles/tokens.css` (новый, семантические
+  CSS-variables ink/accent/ok/warn/err + type-* + edge-* + surface
+  aliases, light + `[data-theme="dark"]`), `@theme inline` block в
+  `index.css` (Tailwind v4 - **inline обязателен**, без него тема не
+  переключается), `themeStore.ts` + `ThemeEffect.tsx`, FOUC inline
+  script в `index.html` до React mount
+- **Шрифты** - Manrope (UI) + Source Serif 4 + Amiri (preferred Arabic)
+  + Noto Naskh fallback. Подключены через Google Fonts preconnect
+- **Primitives** - Button (backwards-compat сохранён), Card + namespace
+  Cover/Body/Eyebrow/Title/Meta, новые Chip + Field, обновлены Modal /
+  IconButton / Badge / Kbd / Toaster / Select / ContextMenu / FormModal
+- **Layout** - Header переписан (бренд ﷽ + nav + поиск + LocaleSwitch +
+  **новый ThemeSwitch Sun/Moon** + **BellMenu** + **AvatarMenu**),
+  **CommandPalette** (Cmd+K глобально), 4 новых layout-компонента
+- **6 страниц + 18 графовых файлов** мигрированы:
+  BookListPage (+Импорт Shamela + сортировка + 5-col grid), TopicListPage,
+  CreateTopicPage (two-column form + Field primitive), TopicGraphPage
+  (+`<Header />` сверху + secondary crumb), BookReaderPage (bg-bg),
+  AdminShamelaPage (status pill + **Activity Log placeholder**)
+- **Graph fixes** - NodeCard rounded-md, NodeDetailsPanel убран gradient,
+  EdgeDetailsPanel gradient → solid `bg-edge-*-bg`, CompactMiniMap на
+  `var(--c-*)` для темизации + shift end-[416px] при detail panel,
+  удалена status legend (anti-pattern)
+- **Source card** - QuoteBlock на `bg-paper` (тёплый кремовый, не
+  голубой), "Перейти к источнику" - **outline** (не filled primary),
+  metadata раскрыта по default
+- **NodeCitations** - кнопки в vertical stack (текст не помещался)
+- **i18n** - ~25 новых ключей RU/AR (palette/notifications/avatar/
+  admin.status_*/activity_log/sync_done/import_done/book.list.sort_*)
+- **Tabler icons workaround** - `@tabler/icons-react` не установился
+  через корпоративный proxy (ETIMEDOUT). Глобальный CSS
+  `svg.lucide:not([stroke-width]) { stroke-width: 1.5 }` визуально
+  приближает к Tabler. Полная замена ждёт когда сеть позволит
+- **Code review через Agent** - 3 Critical / 10 Important / 7 Minor
+  все закрыты в этой же сессии (ESLint, tests, hex literals,
+  gradient anti-pattern, sed-leftovers, spacing-scale, text-[Xpx],
+  Modal i18n, toast i18n, exhaustive-deps, rounded-xl, FOUC, Amiri)
+
+**Verify:** TypeScript clean / ESLint 0 errors / 143/143 tests / build
+26s. Изменения в working tree, **НЕ закоммичены** - около 60 файлов
+plus 4 new (tokens.css, themeStore.ts, ThemeEffect.tsx, CommandPalette/
+BellMenu/AvatarMenu/Chip/Field/ThemeSwitch).
 
 **Memory:**
 - [[feedback-no-prod-no-backward-compat]] активно
@@ -344,3 +345,5 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
   чек-лист «что посмотреть» (URL/actions/expected)
 - [[feedback-responsive-ui-future]] - новый код держит в уме
   mobile/tablet через Tailwind responsive utilities + logical classes
+- [[feedback-grep-after-batch-edits]] - после sed/Edit mass-replace
+  делать verify-grep на остатки палитры / scale violations

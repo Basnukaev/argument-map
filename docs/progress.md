@@ -10,6 +10,278 @@
 
 ---
 
+## 2026-05-16 - Сессия 35 (frontend+backend+docs) - v2 коммиты + doc-долги + 20.c parser
+
+Подобрала uncommitted v2 design migration из Сессии 34, закрыла все
+зависшие doc-долги Сессий 32-34, и сделала Этап 20.c (shamela
+bibliography parser). Чисто отработавшая сессия в режиме автономии.
+
+### Сделано
+
+**v2 design migration (Сессия 34) разложена в 6 атомарных коммитов:**
+
+- `feat(frontend): v2 design tokens infrastructure` - styles/tokens.css
+  + index.css `@theme inline` + themeStore + ThemeEffect + index.html
+  FOUC script + Manrope/Source Serif/Amiri шрифты + clsx dep
+- `feat(frontend): v2 UI primitives на токенах` - 13 primitives + 2
+  новых (Chip/Field) + designTokens.ts
+- `feat(frontend): AppHeader + ThemeSwitch + CommandPalette + Bell/Avatar menus`
+- `feat(frontend): v2 pages migration + i18n keys` - 6 страниц
+  (BookList sort+import, TopicList, CreateTopic two-column, TopicGraph
+  AppHeader, BookReader, AdminShamela activity log) + ~25 ключей RU/AR
+- `refactor(frontend): graph v2 migration` - 20 файлов графа
+  (NodeCard rounded-md, EdgeDetailsPanel solid bg-edge-*-bg,
+  CompactMiniMap CSS vars, legend удалена, modals/forms tokens)
+- `refactor(frontend): source card + reader на v2 токенах` - 18 файлов
+  (QuoteBlock bg-paper, PrimaryButton outline, Collapsible default open,
+  reader compose)
+
+**Doc-долги Сессий 32-34 закрыты (один коммит `docs:`):**
+
+- **api-contract.md:** NodeSourceResponse.id (UUID), DELETE
+  `/sources/{nodeSourceId}` (breaking path), строка в "Историю изменений"
+- **ADR-029 FK variant A** - surrogate UUID id для node_sources, mig 25,
+  multi-citation per pair
+- **ADR-030 i18n архитектура** - manual dictionary с DictKey union
+  literal, useCallback стабилизация, alternatives (i18next отвергнут)
+- **ADR-031 v2 design system tokens** - двухслойная token-арх
+  (semantics tokens.css + @theme inline bridge), runtime темизация
+- **gotchas +5:** React StrictMode duplicate API requests (Сессия 32),
+  closure-функции useCallback (Сессия 33), batch-Edit cyrillic verify-grep
+  (Сессия 33), Tailwind v4 @theme inline обязателен (Сессия 34),
+  mass-replace sed grep audit (Сессия 34)
+
+**Этап 20.c shamela bibliography parser:**
+
+- `ShamelaBibliographyParser` - regex по 5 markers
+  (المحقق / حققه ووضع حواشيه / تحقيق / الناشر / الطبعة / عام النشر)
+- Heuristic split publisher по " - " для publicationPlace; explicit
+  `مكان النشر:` имеет приоритет
+- Arabic ordinal dictionary (الأولى=1, ..., العاشرة=10) + fallback на
+  arabic-indic digits
+- Years: arabic-indic digits перед `هـ` (хиджра) и `م` (григориан)
+- `ParsedBibliography` record - все 6 полей nullable, конс. парсер
+- Интегрирован в `ShamelaToLibraryMapper.mapBook` через
+  `findOrCreate` в `MuhaqqiqRepository`/`PublisherRepository`/
+  `PublicationPlaceRepository`. Заменил 6×null в Book record на FK+years
+- 11 unit-тестов с реальными фикстурами из dev-БД
+
+### Решения
+
+- **`@theme inline` зафиксирован в ADR-031** как required для v4
+  runtime темизации - без него `var()` раскрывается статически на этапе
+  сборки. Уровень gotcha + ADR
+- **Surrogate UUID id для node_sources** (ADR-029) обоснован vs
+  composite PK с positional fields (Option B, Postgres NULL-handling
+  хрупкий) и vs отдельная таблица node_source_positions (Option C,
+  over-engineering для 1:1)
+- **Parser консервативен** - вместо смелого парсинга всех вариантов
+  shamela bibliography возвращает null для missing markers. Admin
+  BookEditModal (20.d) дополучит UI для ручной правки
+- **Bulk-backfill endpoint** для existing books отложен на 20.c
+  follow-up - требует `BookRepository.update` + admin endpoint, не
+  ложится естественно в один pass с parser
+
+### Проблемы (открытые)
+
+- **Bulk-backfill 20.c follow-up** - 3 dev-книги в БД остались с null
+  FK (импорт до 20.c). Чтобы заполнить - либо новый endpoint
+  `POST /api/v1/admin/shamela/backfill-bibliography`, либо manual SQL.
+  Endpoint - один сервис-метод + один controller-метод + BookRepository
+  partial update SQL. ~30 минут работы
+- **Heuristic split publisher** по " - " - может слипнуть имя
+  издательства с пробелами на конце. Acceptable для MVP, при появлении
+  false positive (publisher усечён) - tighten condition (требовать
+  пробел или арабскую букву после `-` начала)
+- **@tabler/icons-react все еще blocked** через корпоративный proxy
+  (ETIMEDOUT). Workaround `svg.lucide:not([stroke-width])` остается
+
+### Следующий шаг (для Сессии 36)
+
+Приоритет 1 (наиболее логичное продолжение цепочки 20):
+
+1. **20.c follow-up: bulk-backfill endpoint** - заполнить FK для
+   уже импортированных книг. Service + controller + BookRepository
+   partial update. ~30 минут
+2. **Этап 20.d: Admin BookEditModal** - UI для ручной правки academic
+   metadata когда parser не справился. Search + autocomplete по
+   справочникам Muhaqqiq/Publisher/PublicationPlace. ~1 сессия
+
+Приоритет 2 (альтернатива):
+
+- **Этап 19 Q&A приложение** - валидация платформенной архитектуры
+  через второе приложение использующее common Source/Book stack
+- **@tabler/icons-react retry** когда сеть позволит → создать
+  `src/shared/icons.ts` shim + sed-replace `lucide-react` → `@/shared/icons`
+
+### Инфра на момент Сессии 36 entry
+
+- Postgres :5432 healthy (4+ days uptime), миграции до 25 включительно
+- MinIO :9000 healthy
+- Backend :9090 + JDWP :5005 (рестарт нужен после parser changes -
+  старый процесс на :9090 не подхватит новый classpath)
+- Frontend :5173 - после restart Vite должен подобрать v2 changes
+  (но кэш .vite может потребовать `rm -rf node_modules/.vite`)
+- Все 425 backend tests pass, frontend 143 tests pass, lint 0 errors
+
+---
+
+## 2026-05-15 - Сессия 34 (frontend) - v2 design migration
+
+Большая UI-инициатива от Абдулы: миграция всей фронт-страницы на v2 design
+system из `frontend/design-reference/v2/project/handoff/` (5 markdown'ов
+с tokens/components/pages + готовый tsx-набор). Этап 20.c parser **не
+начат**, перенесён на Сессию 35.
+
+### Архитектурные артефакты (durable)
+
+- **`frontend/src/styles/tokens.css`** (новый) - семантический слой
+  CSS variables: ink-scale (0-900), accent-50/100/500/600/700,
+  ok/warn/err по 3 ступени, type-abstract / type-empirical /
+  edge-supports/refutes/qualifies/responds для графа, surface aliases
+  (`--c-bg` / `--c-bg-elevated` / `--c-bg-sunken` / `--c-border` /
+  `--c-text` / `--c-text-muted`). `[data-theme="dark"]` block с
+  инвертированной ink-scale + ярче accent для контраста на тёмном
+- **`src/index.css`** - `@theme inline` bridge: `--color-ink-900 →
+  var(--c-ink-900)` чтобы Tailwind v4 автоматически генерировал
+  `bg-ink-900`/`text-ink-900`/`border-ink-900` utility-классы. `inline`
+  keyword обязателен - без него v4 раскрывает `var()` статически и
+  тема не переключается
+- **`src/shared/stores/themeStore.ts`** + **`src/shared/components/
+  ThemeEffect.tsx`** - zustand store с persist в `localStorage.app.theme`,
+  prefers-color-scheme fallback. ThemeEffect синхронизирует
+  `<html data-theme="dark">` после mount
+- **FOUC inline script** в `index.html` - читает localStorage до React
+  mount, ставит `data-theme` сразу - иначе flash light→dark при первой
+  загрузке
+- **Шрифты:** Manrope (UI) + Source Serif 4 (serif для prose) + Amiri
+  (arabic preferred) + Noto Naskh fallback - подключены через Google
+  Fonts preconnect
+- **Primitives** - `Button` (6 вариантов × 4 размера, backwards-compat),
+  `Card` + namespace `Card.Cover/Body/Eyebrow/Title/Meta`, новые `Chip`
+  и `Field` (с `Input`/`Textarea`/`Meta`), обновлены `Modal` / `IconButton`
+  / `Badge` / `Kbd` / `Toaster` / `Select` / `ContextMenu` / `FormModal`
+  на токены
+- **Layout** - `Header` (бренд ﷽ + nav + поиск ⌘K + LocaleSwitch +
+  ThemeSwitch + BellMenu + AvatarMenu), `CommandPalette` (Cmd+K,
+  фильтр + ↑↓Enter), `BellMenu` + `AvatarMenu` (placeholder dropdown'ы
+  до бэка)
+- **`designTokens.ts` рефакторен** на новые tokens-классы. Edge stroke
+  теперь `var(--c-edge-*)` чтобы React Flow переключал цвета в dark
+
+### Сделано
+
+В рабочем дереве (НЕ закоммичено в этой сессии - 1 большой changeset):
+
+- v2 tokens infrastructure (4 новых файла, переписан index.css)
+- 9 primitives обновлены / 2 новых (Chip, Field)
+- 4 layout-компонента: Header переписан, CommandPalette/BellMenu/
+  AvatarMenu/ThemeSwitch новые
+- 6 страниц мигрированы: BookListPage (+Импорт Shamela кнопка +
+  сортировка dropdown + 5-col grid 2xl), TopicListPage (Card.Body +
+  themeable mini-graph), CreateTopicPage (two-column form + Field
+  primitive + sticky aside paper-aside), TopicGraphPage (+`<Header />`
+  сверху + secondary crumb), BookReaderPage (bg-bg), AdminShamelaPage
+  (status pill + Activity Log placeholder с OK/WARN/ERR badges)
+- 18+ файлов графа: NodeCard rounded-md + shadow tokens + ring-2 для
+  selected, NodeDetailsPanel убран gradient, EdgeDetailsPanel gradient
+  → solid `bg-edge-*-bg`, CompactMiniMap на `var(--c-*)` для темизации,
+  shift end-[416px] при detail panel, удалена status legend (anti-pattern)
+- Source card: цитата на `bg-paper` (тёплый кремовый, не голубой),
+  "Перейти к источнику" - **outline** (не filled primary), metadata
+  раскрыта по default
+- NodeCitationsSection: кнопки "Привести источник / Свободный" из
+  side-by-side в vertical stack (текст обрезался)
+- `clsx@^2.1.1` добавлен в package.json как explicit dependency
+- Mass-replace через sed: 4 волны (borders / bg+text / accent+focus /
+  semantic colors) по всему src
+- i18n: ~25 новых ключей RU/AR (palette.*, notifications.empty,
+  avatar.*, admin.status_*, admin.activity_log, admin.sync_done,
+  book.list.sort_*/import_from_shamela)
+
+### Code review через Agent + 20 issues закрыты
+
+Subagent code review нашёл 3 Critical, 10 Important, 7 Minor. **Всё
+зафикшено в той же сессии:**
+
+- **C1** ESLint `react-hooks/set-state-in-effect` в CommandPalette →
+  container/body split с remount при `open` flip (key-trick idiom)
+- **C2** CreateTopicPage tests fail из-за Field `*` marker меняющего
+  accessible name → `aria-hidden="true"` + regex `getByLabelText(/^Название/)`
+- **C3** CompactMiniMap hex literals (`#c4b5fd` etc) → `var(--c-type-*)`,
+  `var(--c-{status}-500)`, `var(--c-edge-*)`, `var(--c-accent-500)`
+- **I4** EdgeDetailsPanel `bg-gradient-to-b from-emerald-50/70` →
+  solid `bg-edge-*-bg` через `headerBgFor()`
+- **I5** sed-leftovers (ring-indigo-400, divide-slate-100, rose,
+  shadow-xl, accent-indigo-600) - cleaned по 7 файлам
+- **I7-I8** spacing-scale + text-[Xpx] violations (191 occurrences) → 0
+- **I9** Modal `"Закрыть"` → `t('common.close')`
+- **I10** AdminShamela toast strings → i18n keys с `{placeholder}` interpolation
+- **I11** 16 `exhaustive-deps` warnings → 0 (добавлен `t` в deps,
+  он stable per memory `feedback_stable_hooks_for_deps`)
+- **I12** NodeCard `rounded-xl` → `rounded-md` + `shadow-sh*` tokens
+- **I13** Tabler stroke-width override через `:not([stroke-width])` -
+  не перебивает explicit `strokeWidth={2.5}` в edges/labels
+- **M14-M17** Amiri preload, FOUC inline script, fixed `bg-black/50`
+  backdrop (не `ink-900/40` который инвертируется в dark)
+
+### Решения
+
+- **Tailwind v4 `@theme inline`** обязателен для runtime темизации -
+  без `inline` v4 раскрывает `var()` статически при сборке и
+  `[data-theme="dark"]` не работает. Знание для будущих изменений
+  токенов (gotcha-кандидат)
+- **NODE_TYPE_TOKENS унификация** - QUESTION/CLAIM/ARGUMENT все
+  получили `type-abstract-bg/fg`, EVIDENCE - `type-empirical-*`.
+  Per handoff/02-tokens.md это semantic группировка (концепты vs
+  наблюдения), не per-тип палитра как в v1
+- **MiniMap shift через prop `detailOpen`** вместо абсолютной
+  позиции по центру: minimap всегда snap к inline-end, сдвигается на
+  416px (panel 400 + gap 16) когда виден detail panel
+- **CommandPalette container/body split** - state живёт в body
+  который unmount'ится при `open=false`, естественный reset через
+  remount. Альтернатива (useEffect + setQuery) ловит ESLint
+- **PrimaryButton "Перейти к источнику" outline** (не filled) per
+  референс v3 - primary CTA в detail panel это уже статусные кнопки
+  узла, переход в библиотеку - secondary
+- **Tabler icons workaround** - npm install падает через корпоративный
+  proxy (ETIMEDOUT). Глобальный CSS `svg.lucide:not([stroke-width])
+  { stroke-width: 1.5 }` визуально приближает lucide к Tabler без
+  установки. Когда сеть позволит - заменить через shim-модуль
+
+### Проблемы (открытые)
+
+- **@tabler/icons-react не установлен** - `npm install` падает
+  ETIMEDOUT через proxy `66.151.42.7:64526`. curl reachable, но
+  npm streaming не доходит. Сейчас визуальное приближение через
+  stroke-width override. Полная замена ждёт когда сеть позволит
+- **Backlog от Сессии 33 НЕ закрыт** - api-contract.md (DELETE path,
+  NodeSourceResponse.id, BookDetailResponse nested), ADR-029
+  (FK variant A), ADR-030 (i18n арх.), gotchas (StrictMode duplicate
+  requests, useT стабилизация, batch-Edit cyrillic) - оставлено
+  на Сессию 35 потому что эта была чисто UI работа
+- **Этап 20.c shamela parser НЕ начат** - перенесён на Сессию 35
+
+### Следующий шаг (для Сессии 35)
+
+1. **Закоммитить v2 миграцию** - changeset из этой сессии в working
+   tree, около 60 файлов. Разбить на атомарные коммиты по теме:
+   `feat(frontend): v2 design tokens + theme switching`,
+   `refactor(frontend): mass replace v1 → v2 palette`,
+   `feat(frontend): CommandPalette + BellMenu + AvatarMenu`,
+   `feat(frontend): BookList sort + import button`,
+   `feat(frontend): AdminShamela activity log`,
+   `fix(frontend): code-review follow-up Сессии 34`
+2. **Doc-долги от Сессии 33** - api-contract.md update, ADR-029/030,
+   gotchas (3 шт), плюс новая gotcha про `@theme inline` v4
+3. **Этап 20.c shamela bibliography parser** - оригинальный приоритет,
+   план в SESSION_START_PROMPT (раздел Текущий приоритет в Сессии 34)
+4. **@tabler/icons-react** - попробовать установить заново когда
+   proxy успокоится. Если сработает - shim-файл + sed-replace
+   `from 'lucide-react'` → `from '@/shared/icons'`
+
+---
+
 ## 2026-05-15 - Сессия 33 (frontend) - полная RTL/i18n локализация
 
 Пользователь дал детальный план фикса RTL/LTR + bidi для двуязычного
