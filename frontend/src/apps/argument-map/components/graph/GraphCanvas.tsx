@@ -407,7 +407,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
       items.push(
         {
           id: 'edit-node',
-          label: 'Редактировать',
+          label: t('common.edit'),
           icon: Pencil,
           onClick: () => {
             setDetailNodeId(node.id);
@@ -430,7 +430,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
         },
         {
           id: 'delete-node',
-          label: 'Удалить',
+          label: t('common.delete'),
           icon: Trash2,
           danger: true,
           onClick: () => void deleteOneNode(node.id),
@@ -440,7 +440,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
       setContextMenu({
         x: event.clientX,
         y: event.clientY,
-        header: 'Узел',
+        header: t('graph.ctx.section_node'),
         items,
       });
     },
