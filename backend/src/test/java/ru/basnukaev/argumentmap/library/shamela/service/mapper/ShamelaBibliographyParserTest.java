@@ -130,6 +130,25 @@ class ShamelaBibliographyParserTest {
     }
 
     @Test
+    void parsesRealCarriageReturnSeparator() {
+        // Production-БД хранит CR character chr(13), не literal "\r".
+        // Парсер должен ловить оба формата через regex alternation.
+        String biblio = "الكتاب: تفسير القرآن العظيم\r"
+                + "المؤلف: ابن كثير\r"
+                + "المحقق: حكمت بن بشير بن ياسين\r"
+                + "الناشر: دار ابن الجوزي للنشر والتوزيع - السعودية\r"
+                + "الطبعة: الأولى، ١٤٣١ هـ";
+
+        ParsedBibliography parsed = parser.parse(biblio);
+
+        assertThat(parsed.muhaqqiq()).isEqualTo("حكمت بن بشير بن ياسين");
+        assertThat(parsed.publisher()).isEqualTo("دار ابن الجوزي للنشر والتوزيع");
+        assertThat(parsed.publicationPlace()).isEqualTo("السعودية");
+        assertThat(parsed.editionNumber()).isEqualTo(1);
+        assertThat(parsed.publishedYearHijri()).isEqualTo(1431);
+    }
+
+    @Test
     void rejectsOutOfRangeYear() {
         // 99999 хр - явно мусор, должен быть filtered
         String biblio = "الطبعة: الأولى، ٩٩٩٩٩ هـ";

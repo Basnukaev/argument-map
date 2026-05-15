@@ -168,9 +168,11 @@ shamela не имеет нужной книги. MinIO storage готов из 2
       из `lib_shamela_book.bibliography` (мухаккик/издатель/место/edition/
       год хиджры+григориан). `ShamelaBibliographyParser` + интеграция в
       `ShamelaToLibraryMapper.mapBook` через `findOrCreate` в Muhaqqiq/
-      Publisher/PublicationPlace репозиториях. 11 unit-тестов с реальными
-      фикстурами. **Follow-up:** bulk-backfill endpoint для existing
-      books (отложен)
+      Publisher/PublicationPlace репозиториях. 12 unit-тестов с реальными
+      фикстурами (CR character separator + literal escape variant).
+      `POST /api/v1/admin/shamela/backfill-bibliography` для existing
+      books через `ShamelaBibliographyBackfillService` (non-destructive
+      merge). Smoke 3/3 dev-книг получили заполненные FK
 - [ ] **20.d:** Admin BookEditModal - UI для ручного дозаполнения
       metadata после импорта (когда parser не справился). Search +
       autocomplete по существующим справочникам

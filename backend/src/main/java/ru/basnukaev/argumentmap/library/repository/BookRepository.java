@@ -141,4 +141,50 @@ public class BookRepository {
                 String.valueOf(shamelaBookId)
         ).stream().findFirst();
     }
+
+    /**
+     * Все книги пришедшие из shamela ETL (имеют {@code metadata->>'shamela_book_id'}).
+     * Используется backfill сервисом для перечитывания academic metadata
+     * через {@code ShamelaBibliographyParser} - 20.c follow-up для книг
+     * импортированных до появления parser'а.
+     */
+    public List<Book> findAllShamelaSourced() {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM lib_books "
+                        + "WHERE metadata->>'shamela_book_id' IS NOT NULL "
+                        + "ORDER BY created_at",
+                ROW_MAPPER
+        );
+    }
+
+    /**
+     * Partial update только academic FK и years. Используется
+     * bibliography backfill - остальные поля книги не трогаем (title,
+     * description, authority_id и т.д. остаются нетронутыми).
+     *
+     * @return {@code true} если row обновлён (book найден)
+     */
+    public boolean updateAcademicMetadata(UUID bookId,
+                                          UUID muhaqqiqId,
+                                          UUID publisherId,
+                                          UUID publicationPlaceId,
+                                          Integer editionNumber,
+                                          Integer publishedYearHijri,
+                                          Integer publishedYearGregorian) {
+        int rows = jdbcTemplate.update(
+                "UPDATE lib_books SET "
+                        + "muhaqqiq_id = ?, publisher_id = ?, publication_place_id = ?, "
+                        + "edition_number = ?, published_year_hijri = ?, published_year_gregorian = ?, "
+                        + "updated_at = now() "
+                        + "WHERE id = ?",
+                muhaqqiqId,
+                publisherId,
+                publicationPlaceId,
+                editionNumber,
+                publishedYearHijri,
+                publishedYearGregorian,
+                bookId
+        );
+        return rows > 0;
+    }
 }

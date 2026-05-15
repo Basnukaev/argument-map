@@ -917,6 +917,36 @@ counts=0.
 - `404 shamela-not-found` - книга не в `lib_shamela_book`
 - `500 shamela-import-error`
 
+### POST /api/v1/admin/shamela/backfill-bibliography
+
+Прогнать `ShamelaBibliographyParser` (Этап 20.c) по всем книгам с
+`metadata->>'shamela_book_id' IS NOT NULL`. Для каждой выловленной
+academic-metadata выполняется `findOrCreate` в `lib_muhaqqiqs` /
+`lib_publishers` / `lib_publication_places` + UPDATE на `lib_books`.
+
+Non-destructive merge: если parser не вернул значение для поля,
+существующее значение FK сохраняется. Если parser вернул - перезаписывает
+(включая admin-edited - см. Этап 20.d follow-up).
+
+Используется один раз после деплоя 20.c parser, чтобы добить existing
+книги импортированные до его появления. Новые `map-book` calls автоматически
+заполняют metadata через mapper.
+
+Тело: пустое. Заголовки: не требуются.
+
+`200 OK`:
+```json
+{
+  "scanned": 3,
+  "updated": 3,
+  "skipped": 0
+}
+```
+
+- `scanned` - всего shamela-sourced книг проверено
+- `updated` - книги где parser нашёл хотя бы одно поле и был UPDATE
+- `skipped` - blank description / нет markers / backfill упал на конкретной книге
+
 ### GET /api/v1/admin/shamela/search?q={query}&limit={n}
 
 Поиск книг в `lib_shamela_book` для admin-страницы фронта. Substring
@@ -1195,6 +1225,7 @@ compatible.
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-16 | v1 | Добавлен endpoint `POST /api/v1/admin/shamela/backfill-bibliography`. Прогоняет `ShamelaBibliographyParser` (20.c) по всем shamela-sourced книгам, заполняет `muhaqqiq_id`/`publisher_id`/`publication_place_id`/`edition_number`/`published_year_hijri`/`published_year_gregorian` через `findOrCreate` в справочниках. DTO: `BackfillBibliographyResponse{scanned, updated, skipped}`. Тело request пустое, без header'ов | Этап 20.c follow-up: добить existing books импортированные до появления parser'а. Smoke: 3/3 dev-книг получили заполненные FK после первого вызова |
 | 2026-05-14 | v1 | `NodeSourceResponse` получил поле `id` (UUID) - surrogate PK для citation link. **Breaking change path** `DELETE /api/v1/nodes/{nodeId}/sources/{sourceId}` → `DELETE /api/v1/nodes/{nodeId}/sources/{nodeSourceId}` (по `id` link'а, не `sourceId`). Теперь возможно несколько citation'ов на ту же пару (node, source) с разными positional context (page/range/pdf bbox) - старый composite PK блокировал | ADR-029: FK variant A - surrogate id для node_sources. Migration 25. Bahs-grade workflow требует множественные cit'ы из одной книги с разных страниц |
 | 2026-05-14 | v1 | **Breaking refactor** `NodeSourceResponse`: плоские поля `location`, `pageId`, `rangeStart`, `rangeEnd`, `pdfFileId`, `pdfPageNumber`, `pdfBbox`, `imageRegionId`, `bookId` **удалены** и заменены на nested `citation: CitationResponse` объект с 8 nullable refs (authority/book/muhaqqiq/publisher/publicationPlace/location/pdf/region). Новые DTO: `CitationResponse`, `AuthorityCitationRef`, `BookCitationRef`, `MuhaqqiqRef`, `PublisherRef`, `PublicationPlaceRef`, `LocationRef`, `PdfRef`, `RegionRef`. `AuthorityResponse` расширен полями `fullName` и `deathYearHijri` (nullable). `BookDetailResponse` расширен 6 nullable полями (muhaqqiqId, publisherId, publicationPlaceId, editionNumber, publishedYearHijri, publishedYearGregorian) | ADR-028: academic citation metadata. Бахс-grade citation требует 8 полей сноски (полное имя автора + год смерти, мухаккик, издатель, место, edition, годы). Structured response позволяет фронту рисовать каждое поле в своём блоке (RTL/naskh для арабского) вместо склеенной строки |
 | 2026-05-13 | v1 | Новый endpoint `POST /api/v1/nodes/{nodeId}/citations` для positional citation (TEXT/PDF/REGION modes). `NodeSourceResponse` расширен 9 полями: `mode`, `pageId`, `rangeStart`, `rangeEnd`, `pdfFileId`, `pdfPageNumber`, `pdfBbox`, `imageRegionId`, `bookId`. `SourceResponse` расширен полем `bookId` (UUID nullable, FK на lib_books). Новые ошибки: `400 invalid-citation`, `404 book-not-found`/`page-not-found`/`pdf-not-available`/`image-region-not-found`. Существующий `POST /api/v1/nodes/{nodeId}/sources` (legacy freeform) сохраняется для AddSourceModal flow | ADR-026 (Source.bookId FK для one-source-per-book), ADR-027 (positional citation fields в node_sources). Этап 18.f CitationPicker |

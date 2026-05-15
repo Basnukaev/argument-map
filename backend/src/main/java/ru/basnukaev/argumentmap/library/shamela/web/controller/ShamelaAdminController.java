@@ -18,9 +18,11 @@ import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaSyncStateDao;
 import ru.basnukaev.argumentmap.library.shamela.service.BookImportResult;
 import ru.basnukaev.argumentmap.library.shamela.service.MappedBookResult;
 import ru.basnukaev.argumentmap.library.shamela.service.MasterSyncResult;
+import ru.basnukaev.argumentmap.library.shamela.service.ShamelaBibliographyBackfillService;
 import ru.basnukaev.argumentmap.library.shamela.service.ShamelaBookImportService;
 import ru.basnukaev.argumentmap.library.shamela.service.ShamelaMasterSyncService;
 import ru.basnukaev.argumentmap.library.shamela.service.ShamelaToLibraryMapper;
+import ru.basnukaev.argumentmap.library.shamela.web.dto.BackfillBibliographyResponse;
 import ru.basnukaev.argumentmap.library.shamela.web.dto.ImportBookResponse;
 import ru.basnukaev.argumentmap.library.shamela.web.dto.MapBookResponse;
 import ru.basnukaev.argumentmap.library.shamela.web.dto.StagingBookSearchResponse;
@@ -56,6 +58,7 @@ public class ShamelaAdminController {
     private final ShamelaMasterSyncService masterSyncService;
     private final ShamelaBookImportService bookImportService;
     private final ShamelaToLibraryMapper mapper;
+    private final ShamelaBibliographyBackfillService backfillService;
     private final ShamelaBookDao shamelaBookDao;
     private final ShamelaAuthorDao shamelaAuthorDao;
     private final ShamelaCategoryDao shamelaCategoryDao;
@@ -65,6 +68,7 @@ public class ShamelaAdminController {
     public ShamelaAdminController(ShamelaMasterSyncService masterSyncService,
                                   ShamelaBookImportService bookImportService,
                                   ShamelaToLibraryMapper mapper,
+                                  ShamelaBibliographyBackfillService backfillService,
                                   ShamelaBookDao shamelaBookDao,
                                   ShamelaAuthorDao shamelaAuthorDao,
                                   ShamelaCategoryDao shamelaCategoryDao,
@@ -73,6 +77,7 @@ public class ShamelaAdminController {
         this.masterSyncService = masterSyncService;
         this.bookImportService = bookImportService;
         this.mapper = mapper;
+        this.backfillService = backfillService;
         this.shamelaBookDao = shamelaBookDao;
         this.shamelaAuthorDao = shamelaAuthorDao;
         this.shamelaCategoryDao = shamelaCategoryDao;
@@ -152,6 +157,31 @@ public class ShamelaAdminController {
                         view.isMapped()
                 ))
                 .toList();
+    }
+
+    /**
+     * Bulk-backfill academic metadata по shamela-sourced книгам через
+     * {@link ShamelaBibliographyBackfillService}. Прогоняет parser по
+     * текущему {@code description}, для каждого выловленного поля делает
+     * {@code findOrCreate} в справочнике + UPDATE на книге. Существующие
+     * non-null FK не стираются (non-destructive merge).
+     *
+     * <p>Используется для книг импортированных до Этапа 20.c когда parser
+     * ещё не существовал. На каждый успешный sync-master + map-book
+     * после 20.c новые книги получают metadata автоматически.
+     *
+     * <p>Синхронный endpoint - для десятков книг secунды, для тысяч
+     * (после bulk-import) лучше будет async в follow-up.
+     */
+    @PostMapping("/backfill-bibliography")
+    public BackfillBibliographyResponse backfillBibliography() {
+        ShamelaBibliographyBackfillService.BackfillResult result =
+                backfillService.backfillAll();
+        return new BackfillBibliographyResponse(
+                result.scanned(),
+                result.updated(),
+                result.skipped()
+        );
     }
 
     /**

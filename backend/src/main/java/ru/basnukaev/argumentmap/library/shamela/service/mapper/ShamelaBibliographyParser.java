@@ -9,10 +9,15 @@ import org.springframework.stereotype.Component;
  * Извлекает academic citation metadata из неструктурированного arabic-текста
  * shamela bibliography (поле {@code lib_shamela_book.bibliography}). Этап 20.c.
  *
- * <p>Shamela хранит bibliography как один TEXT с разделителем {@code "\r"}
- * (literal backslash + r, не carriage return) между полями. Каждое поле имеет
- * arabic marker и текст после двоеточия. Парсер консервативен - возвращает
- * {@code null} для каждого поля если marker не найден или значение пустое.
+ * <p>Shamela хранит bibliography как один TEXT с разделителем между полями.
+ * Реальный production-формат - **CR character** ({@code chr(13)}), но в
+ * исходных Java-фикстурах и в некоторых staging-снимках встречается
+ * literal {@code \\r} (2 char: backslash + r) - не сконвертированный escape.
+ * Парсер ловит оба варианта через regex alternation, чтобы работать и на
+ * текущем production-БД, и на тестовых фикстурах с escape-нотацией.
+ * Каждое поле имеет arabic marker и текст после двоеточия. Парсер
+ * консервативен - возвращает {@code null} для каждого поля если marker
+ * не найден или значение пустое.
  *
  * <p>Поддерживаемые markers:
  * <ul>
@@ -40,7 +45,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class ShamelaBibliographyParser {
 
-    private static final String SHAMELA_SEPARATOR = "\\\\r";
+    // Разделитель: либо CR character (production), либо literal "\r"
+    // (2 char escape - встречается в фикстурах и некоторых dump'ах).
+    private static final String SHAMELA_SEPARATOR = "(?:\\r|\\\\r)";
 
     private static final Pattern MUHAQQIQ = compileField(
             "(?:المحقق|حققه ووضع حواشيه|تحقيق)"
