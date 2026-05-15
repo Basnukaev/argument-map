@@ -12,7 +12,7 @@ type Props = {
  */
 export function Bdi({ children, className = '' }: Props) {
   return (
-    <bdi dir="ltr" className={`text-[13px] text-slate-900 ${className}`}>
+    <bdi dir="ltr" className={`text-sm text-ink-900 ${className}`}>
       {children}
     </bdi>
   );

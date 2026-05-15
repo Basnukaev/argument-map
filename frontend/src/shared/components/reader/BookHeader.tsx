@@ -47,12 +47,12 @@ function BookHeader({ book, pagesCount, children }: Props) {
     <div className="mb-4 flex items-start justify-between gap-4">
       <div className="min-w-0 flex-1">
         <div
-          className="mb-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500"
+          className="mb-1 flex items-center gap-2 text-xs uppercase tracking-wide text-ink-500"
           dir={locale === 'ar' ? 'rtl' : 'ltr'}
         >
           <BookOpen size={12} aria-hidden="true" />
           <span>{typeLabel}</span>
-          <span className="text-slate-300">·</span>
+          <span className="text-ink-300">·</span>
           <span className="font-mono">
             {pagesCount} {t('book.pages_count_suffix')}
           </span>
@@ -61,8 +61,8 @@ function BookHeader({ book, pagesCount, children }: Props) {
         <h1
           className={
             titleIsArabic
-              ? 'font-naskh text-[26px] font-bold leading-tight text-slate-900'
-              : 'text-[22px] font-bold leading-tight text-slate-900'
+              ? 'font-naskh text-xl font-bold leading-tight text-ink-900'
+              : 'text-lg font-bold leading-tight text-ink-900'
           }
           dir={titleIsArabic ? 'rtl' : 'ltr'}
         >
@@ -71,7 +71,7 @@ function BookHeader({ book, pagesCount, children }: Props) {
 
         {hasStructuredMetadata && (
           <div
-            className="mt-3 rounded-lg border border-slate-200 bg-slate-50/40 px-3.5 py-1.5"
+            className="mt-3 rounded-lg border border-border bg-ink-50/40 px-3.5 py-1.5"
           >
             {book.authority && (
               <RtlRow label={t('cite.label.author')}>
@@ -99,7 +99,7 @@ function BookHeader({ book, pagesCount, children }: Props) {
                 <span dir="ltr" className="inline-flex items-baseline gap-1">
                   <FlexValue text={book.publisher?.name} />
                   {book.publisher && book.publicationPlace && (
-                    <span aria-hidden className="text-xs text-slate-400">·</span>
+                    <span aria-hidden className="text-xs text-ink-400">·</span>
                   )}
                   <FlexValue text={book.publicationPlace?.name} />
                 </span>
@@ -128,8 +128,8 @@ function BookHeader({ book, pagesCount, children }: Props) {
           <p
             className={
               isArabic
-                ? 'book-bibliography mt-2 font-naskh text-[14px] leading-relaxed text-slate-600'
-                : 'book-bibliography mt-2 text-[13px] leading-relaxed text-slate-600'
+                ? 'book-bibliography mt-2 font-naskh text-sm leading-relaxed text-ink-600'
+                : 'book-bibliography mt-2 text-sm leading-relaxed text-ink-600'
             }
             dir={isArabic ? 'rtl' : 'ltr'}
           >

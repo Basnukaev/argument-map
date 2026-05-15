@@ -10,7 +10,7 @@ interface Props {
 /**
  * Toggle между Text / PDF режимами reader'а. По дизайн-референсу
  * platform_reader.jsx::PageToolbar - сегментированный switcher с
- * выделением активного через bg-white + shadow.
+ * выделением активного через bg-elevated + shadow.
  */
 function ReaderModeSwitch({ mode, onChange }: Props) {
   const t = useT();
@@ -19,7 +19,7 @@ function ReaderModeSwitch({ mode, onChange }: Props) {
     { k: 'pdf', labelKey: 'reader.mode.pdf', icon: ImageIcon },
   ];
   return (
-    <div className="inline-flex items-center gap-0.5 rounded-md bg-slate-100 p-0.5">
+    <div className="inline-flex items-center gap-0.5 rounded-md bg-ink-100 p-0.5">
       {options.map((o) => {
         const Icon = o.icon;
         const active = mode === o.k;
@@ -28,10 +28,10 @@ function ReaderModeSwitch({ mode, onChange }: Props) {
             key={o.k}
             type="button"
             onClick={() => onChange(o.k)}
-            className={`inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-[12px] font-medium transition-colors ${
+            className={`inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors ${
               active
-                ? 'bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.06)]'
-                : 'text-slate-500 hover:text-slate-700'
+                ? 'bg-elevated text-ink-900 shadow-[0_1px_2px_rgba(15,23,42,0.06)]'
+                : 'text-ink-500 hover:text-ink-700'
             }`}
           >
             <Icon size={13} aria-hidden="true" />

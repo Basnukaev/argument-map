@@ -21,9 +21,9 @@ type Props = {
  */
 export function RtlRow({ label, children }: Props) {
   return (
-    <div className="flex flex-wrap items-baseline gap-x-1.5 py-0.5 leading-[1.7] text-[13px]">
+    <div className="flex flex-wrap items-baseline gap-x-1.5 py-0.5 leading-[1.7] text-sm">
       <Label className="shrink-0">{label}:</Label>
-      <div className="flex min-w-0 flex-wrap items-baseline gap-0.5 text-slate-900">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-0.5 text-ink-900">
         {children}
       </div>
     </div>

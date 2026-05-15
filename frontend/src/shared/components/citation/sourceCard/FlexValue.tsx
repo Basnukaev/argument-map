@@ -20,7 +20,7 @@ export function FlexValue({ text, size = 13, weight = 500 }: Props) {
     return (
       <span
         lang="ar"
-        className="font-naskh text-slate-900"
+        className="font-naskh text-ink-900"
         style={{ fontSize: size, fontWeight: weight }}
       >
         {text}

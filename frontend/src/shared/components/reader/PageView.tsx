@@ -119,17 +119,17 @@ function PageView({
   if (state.kind === 'loading') {
     return (
       <Card className="p-12 text-center">
-        <Loader2 size={20} className="mx-auto animate-spin text-slate-400" aria-hidden="true" />
-        <p className="mt-2 text-[12px] text-slate-500">Загрузка страницы</p>
+        <Loader2 size={20} className="mx-auto animate-spin text-ink-400" aria-hidden="true" />
+        <p className="mt-2 text-xs text-ink-500">Загрузка страницы</p>
       </Card>
     );
   }
   if (state.kind === 'error') {
     return (
-      <Card className="border-red-200 bg-red-50 p-5">
+      <Card className="border-err-500/40 bg-err-100 p-5">
         <div className="flex items-start gap-3">
-          <AlertCircle size={20} className="mt-0.5 shrink-0 text-red-600" aria-hidden="true" />
-          <p className="text-[13px] text-red-800">{state.message}</p>
+          <AlertCircle size={20} className="mt-0.5 shrink-0 text-err-700" aria-hidden="true" />
+          <p className="text-sm text-err-700">{state.message}</p>
         </div>
       </Card>
     );
@@ -144,7 +144,7 @@ function PageView({
         <button
           type="button"
           onClick={onOpenPdfPreview}
-          className="absolute end-4 top-3 inline-flex items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-[12px] font-semibold text-rose-700 shadow-sm transition-colors hover:border-rose-300 hover:bg-rose-100 hover:text-rose-800"
+          className="absolute end-4 top-3 inline-flex items-center gap-1.5 rounded-md border border-err-500/40 bg-err-100 px-2.5 py-1 text-xs font-semibold text-err-700 shadow-sm transition-colors hover:border-err-500/40 hover:bg-err-100 hover:text-err-700"
           title="Открыть PDF оригинала на этой странице"
         >
           <FileImage size={14} aria-hidden="true" />
@@ -152,13 +152,13 @@ function PageView({
         </button>
       )}
       {!text && !page.imageUrl && (
-        <p className="text-center text-[13px] text-slate-400">Страница пустая</p>
+        <p className="text-center text-sm text-ink-400">Страница пустая</p>
       )}
       {page.imageUrl && (
         <img
           src={page.imageUrl}
           alt={`Скан страницы ${page.pageNumber ?? ''}`}
-          className="mx-auto mb-4 max-h-[800px] w-auto rounded-md border border-slate-200"
+          className="mx-auto mb-4 max-h-[800px] w-auto rounded-md border border-border"
         />
       )}
       {text && (
@@ -166,8 +166,8 @@ function PageView({
           ref={contentRef}
           className={
             isArabic
-              ? 'book-content font-naskh text-[19px] leading-[2] text-slate-900'
-              : 'book-content text-[15px] leading-relaxed text-slate-900'
+              ? 'book-content font-naskh text-md leading-[2] text-ink-900'
+              : 'book-content text-base leading-relaxed text-ink-900'
           }
           dir={isArabic ? 'rtl' : 'ltr'}
           dangerouslySetInnerHTML={{ __html: sanitizePageHtml(text) }}

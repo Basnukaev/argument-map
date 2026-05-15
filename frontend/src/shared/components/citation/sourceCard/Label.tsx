@@ -9,7 +9,7 @@ type Props = {
 export function Label({ children, className = '' }: Props) {
   return (
     <span
-      className={`text-[10.5px] font-semibold uppercase tracking-wide text-slate-400 ${className}`}
+      className={`text-xs font-semibold uppercase tracking-wide text-ink-400 ${className}`}
     >
       {children}
     </span>

@@ -24,11 +24,11 @@ export function QuoteBlock({ part, page, quote, context }: Props) {
   const quoteIsAr = quote ? hasArabicScript(quote) : false;
   const partIsAr = part ? hasArabicScript(part) : false;
   return (
-    <div className="mt-1.5 rounded-xl border-s-[3px] border-indigo-500 bg-indigo-50/40 px-3.5 py-3">
-      <div className="mb-2 flex items-baseline justify-between gap-2 text-[11px] text-slate-400">
+    <div className="mt-1.5 rounded-md border border-border bg-paper px-3.5 py-3">
+      <div className="mb-2 flex items-baseline justify-between gap-2 text-xs text-ink-400">
         <span dir="ltr">
           {t('cite.page.short')}{' '}
-          <span className="font-semibold text-slate-700">{page ?? '—'}</span>
+          <span className="font-semibold text-ink-700">{page ?? '—'}</span>
         </span>
         {part && (
           <span
@@ -36,8 +36,8 @@ export function QuoteBlock({ part, page, quote, context }: Props) {
             lang={partIsAr ? 'ar' : undefined}
             className={
               partIsAr
-                ? 'font-naskh text-[13px] text-slate-600'
-                : 'text-[11px] text-slate-600'
+                ? 'font-naskh text-sm text-ink-600'
+                : 'text-xs text-ink-600'
             }
           >
             {part}
@@ -51,8 +51,8 @@ export function QuoteBlock({ part, page, quote, context }: Props) {
           lang={quoteIsAr ? 'ar' : undefined}
           className={
             quoteIsAr
-              ? 'font-naskh text-[19px] font-medium leading-[1.95] text-slate-900 text-start'
-              : 'text-[15px] leading-[1.6] text-slate-900 text-start'
+              ? 'font-naskh text-md font-medium leading-[1.95] text-ink-900 text-start'
+              : 'text-base leading-[1.6] text-ink-900 text-start'
           }
         >
           {quote}
@@ -62,7 +62,7 @@ export function QuoteBlock({ part, page, quote, context }: Props) {
       {context && (
         <div
           dir="auto"
-          className="mt-2.5 border-t border-dashed border-slate-200 pt-2 text-xs italic text-slate-400 text-start"
+          className="mt-2.5 border-t border-dashed border-border pt-2 text-xs italic text-ink-400 text-start"
         >
           «{context}»
         </div>

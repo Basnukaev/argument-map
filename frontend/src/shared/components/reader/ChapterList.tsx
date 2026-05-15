@@ -30,18 +30,18 @@ function getChapterLevelStyles(
   isArabic: boolean,
 ): { font: string; color: string; weight: string } {
   const baseSize = isArabic
-    ? ['text-[16px]', 'text-[14.5px]', 'text-[13.5px]', 'text-[12.5px]']
-    : ['text-[14px]', 'text-[13px]', 'text-[12px]', 'text-[11.5px]'];
+    ? ['text-base', 'text-sm', 'text-sm', 'text-xs']
+    : ['text-sm', 'text-sm', 'text-xs', 'text-xs'];
   const fontClass = isArabic ? 'font-naskh' : '';
   const size = baseSize[Math.min(depth, baseSize.length - 1)];
   const color =
     depth === 0
-      ? 'text-slate-900'
+      ? 'text-ink-900'
       : depth === 1
-        ? 'text-slate-700'
+        ? 'text-ink-700'
         : depth === 2
-          ? 'text-slate-600'
-          : 'text-slate-500';
+          ? 'text-ink-600'
+          : 'text-ink-500';
   const weight = depth === 0 ? 'font-semibold' : depth === 1 ? 'font-medium' : '';
   return { font: `${fontClass} ${size}`.trim(), color, weight };
 }
@@ -137,7 +137,7 @@ function ChapterItem({
           <button
             type="button"
             onClick={onToggleClick}
-            className="grid h-5 w-5 shrink-0 place-items-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            className="grid h-5 w-5 shrink-0 place-items-center rounded text-ink-400 hover:bg-ink-100 hover:text-ink-700"
             aria-label={isExpanded ? 'Свернуть' : 'Развернуть'}
             aria-expanded={isExpanded}
           >
@@ -241,7 +241,7 @@ function ChapterList(props: Props) {
       }
     });
 
-  const railClass = depth > 0 ? 'border-s border-slate-200/70 ms-[10px] ps-[6px]' : '';
+  const railClass = depth > 0 ? 'border-s border-border/70 ms-[10px] ps-[6px]' : '';
   const isBookArabic = bookLanguage === 'ar';
   const rootDir = depth === 0 ? (isBookArabic ? 'rtl' : 'ltr') : undefined;
 
@@ -259,10 +259,10 @@ function ChapterList(props: Props) {
         const isCurrent = chapterId !== '' && chapterId === currentChapterId;
         const indent = depth * 6;
         const stateClass = !clickable
-          ? 'cursor-default text-slate-500'
+          ? 'cursor-default text-ink-500'
           : isCurrent
-            ? 'bg-indigo-50 text-indigo-700 font-semibold cursor-pointer'
-            : `${styles.color} hover:bg-slate-100/70 hover:text-indigo-700 cursor-pointer`;
+            ? 'bg-accent-50 text-accent-700 font-semibold cursor-pointer'
+            : `${styles.color} hover:bg-ink-100/70 hover:text-accent-700 cursor-pointer`;
         const children = n.children ?? [];
         const hasChildren = children.length > 0;
         // Expand состояние: manual override побеждает auto. collapsed

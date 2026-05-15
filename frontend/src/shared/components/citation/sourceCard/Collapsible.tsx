@@ -20,17 +20,17 @@ export function Collapsible({
 }: Props) {
   const [open, setOpen] = useState<boolean>(defaultOpen);
   return (
-    <div className="border-t border-slate-100">
+    <div className="border-t border-border">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-2 rounded py-2.5 text-start focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+        className="flex w-full items-center justify-between gap-2 rounded py-2.5 text-start focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2"
       >
-        <span className="flex items-center gap-2 text-[10.5px] font-semibold uppercase tracking-wide text-slate-400">
+        <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-ink-400">
           {title}
           {count != null && (
-            <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-normal text-slate-600 normal-case">
+            <span className="rounded-full bg-ink-100 px-1.5 py-0.5 text-xs font-semibold tracking-normal text-ink-600 normal-case">
               {count}
             </span>
           )}
@@ -38,7 +38,7 @@ export function Collapsible({
         <ChevronDown
           aria-hidden
           size={13}
-          className={`text-slate-400 transition-transform ${
+          className={`text-ink-400 transition-transform ${
             open ? 'rotate-180' : ''
           }`}
         />

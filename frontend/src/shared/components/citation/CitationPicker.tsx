@@ -73,7 +73,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
         setBooksState({ kind: 'error', message: formatApiError(e, t('citation_picker.books_load_failed')) });
       });
     return () => ctl.abort();
-  }, []);
+  }, [t]);
 
   // Загрузка book detail + pages при выборе книги. Loading state выставляется
   // в handleSelectBook (event handler) не в effect - правило
@@ -100,7 +100,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
         setBookState({ kind: 'error', message: formatApiError(e, t('reader.book_load_failed')) });
       });
     return () => ctl.abort();
-  }, [selectedBookId]);
+  }, [selectedBookId, t]);
 
   // Загрузка контента текущей страницы. Loading state выставляется в gotoPage/
   // goPrev/goNext (handlers) не в effect.
@@ -116,7 +116,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
         setPageContent({ kind: 'error', message: formatApiError(e, t('citation_picker.page_load_failed')) });
       });
     return () => ctl.abort();
-  }, [bookState, pageNumber]);
+  }, [bookState, pageNumber, t]);
 
   // Esc закрывает (если не submitting)
   useEffect(() => {
@@ -217,21 +217,21 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
       role="dialog"
       aria-modal="true"
       aria-label={t('citation_picker.title_for')}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/60 backdrop-blur-sm p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget && !submitting) onClose();
       }}
     >
-      <div className="flex h-full max-h-[92vh] w-full max-w-[1480px] flex-col rounded-lg border border-slate-200 bg-white shadow-2xl">
+      <div className="flex h-full max-h-[92vh] w-full max-w-[1480px] flex-col rounded-lg border border-border bg-elevated shadow-2xl">
         {/* Header */}
-        <header className="flex items-start justify-between gap-3 border-b border-slate-200 px-6 py-3.5">
+        <header className="flex items-start justify-between gap-3 border-b border-border px-6 py-3.5">
           <div className="min-w-0">
-            <h2 className="flex items-center gap-2 text-[15px] font-semibold text-slate-900">
-              <BookOpen size={18} className="text-indigo-600" aria-hidden="true" />
+            <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900">
+              <BookOpen size={18} className="text-accent-600" aria-hidden="true" />
               {t('citation_picker.title_for')}:
-              <span dir="auto" className="truncate text-slate-600 font-normal">«{truncatedNodeContent}»</span>
+              <span dir="auto" className="truncate text-ink-600 font-normal">«{truncatedNodeContent}»</span>
             </h2>
-            <p className="mt-0.5 text-[11px] text-slate-500">
+            <p className="mt-0.5 text-xs text-ink-500">
               {t('citation_picker.subtitle')}
             </p>
           </div>
@@ -239,7 +239,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40"
+            className="rounded p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-700 disabled:opacity-40"
             aria-label={t('common.close')}
           >
             <X size={18} aria-hidden="true" />
@@ -250,27 +250,27 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
         <div className="flex flex-1 min-h-0 gap-3 p-3">
           {/* Left: BookListSidebar */}
           <aside className="flex w-[280px] flex-col gap-2">
-            <div className="flex h-9 items-center rounded-md border border-slate-300 bg-white transition-colors focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20">
-              <Search size={14} className="ms-3 text-slate-400" aria-hidden="true" />
+            <div className="flex h-9 items-center rounded-md border border-border-strong bg-elevated transition-colors focus-within:border-accent-500 focus-within:ring-2 focus-within:ring-accent-500/20">
+              <Search size={14} className="ms-3 text-ink-400" aria-hidden="true" />
               <input
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t('citation_picker.search_book')}
-                className="flex-1 bg-transparent px-2.5 text-[13px] outline-none placeholder:text-slate-400"
+                className="flex-1 bg-transparent px-2.5 text-sm outline-none placeholder:text-ink-400"
               />
             </div>
-            <div className="flex-1 overflow-y-auto rounded-md border border-slate-200 bg-slate-50/40">
+            <div className="flex-1 overflow-y-auto rounded-md border border-border bg-ink-50/40">
               {booksState.kind === 'loading' && (
                 <div className="p-4 text-center">
-                  <Loader2 size={16} className="mx-auto animate-spin text-slate-400" />
+                  <Loader2 size={16} className="mx-auto animate-spin text-ink-400" />
                 </div>
               )}
               {booksState.kind === 'error' && (
-                <p className="p-3 text-[12px] text-red-700">{booksState.message}</p>
+                <p className="p-3 text-xs text-err-700">{booksState.message}</p>
               )}
               {booksState.kind === 'success' && filteredBooks.length === 0 && (
-                <p className="p-3 text-center text-[12px] italic text-slate-400">{t('citation_picker.nothing_found')}</p>
+                <p className="p-3 text-center text-xs italic text-ink-400">{t('citation_picker.nothing_found')}</p>
               )}
               {booksState.kind === 'success' &&
                 filteredBooks.map((b) => (
@@ -280,8 +280,8 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
                     onClick={() => b.id && handleSelectBook(b.id)}
                     className={
                       selectedBookId === b.id
-                        ? 'block w-full border-b border-slate-200 bg-indigo-50 px-3 py-2 text-start text-[12px] font-medium text-indigo-900'
-                        : 'block w-full border-b border-slate-100 px-3 py-2 text-start text-[12px] text-slate-700 hover:bg-slate-100'
+                        ? 'block w-full border-b border-border bg-accent-50 px-3 py-2 text-start text-xs font-medium text-accent-700'
+                        : 'block w-full border-b border-border px-3 py-2 text-start text-xs text-ink-700 hover:bg-ink-100'
                     }
                   >
                     {b.title}
@@ -294,23 +294,23 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
           <section className="flex flex-1 min-w-0 flex-col gap-2 overflow-hidden">
             {bookState.kind === 'idle' && (
               <Card className="flex flex-1 items-center justify-center text-center">
-                <p className="text-[13px] italic text-slate-400">{t('citation_picker.select_book_hint')}</p>
+                <p className="text-sm italic text-ink-400">{t('citation_picker.select_book_hint')}</p>
               </Card>
             )}
             {bookState.kind === 'loading' && (
               <Card className="flex flex-1 items-center justify-center">
-                <Loader2 size={20} className="animate-spin text-slate-400" />
+                <Loader2 size={20} className="animate-spin text-ink-400" />
               </Card>
             )}
             {bookState.kind === 'error' && (
-              <Card className="flex flex-1 items-center justify-center border-red-200 bg-red-50 p-4">
-                <p className="text-[13px] text-red-800">{bookState.message}</p>
+              <Card className="flex flex-1 items-center justify-center border-err-500/40 bg-err-100 p-4">
+                <p className="text-sm text-err-700">{bookState.message}</p>
               </Card>
             )}
             {bookState.kind === 'success' && (
               <>
                 <BookHeader book={bookState.book} pagesCount={bookState.pages.length} />
-                <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2">
+                <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-elevated px-3 py-2">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -320,8 +320,8 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
                   >
                     {t('reader.prev')}
                   </Button>
-                  <div className="flex items-center gap-2 text-[13px] text-slate-700">
-                    <span className="text-slate-500">{t('reader.page_short')}</span>
+                  <div className="flex items-center gap-2 text-sm text-ink-700">
+                    <span className="text-ink-500">{t('reader.page_short')}</span>
                     <input
                       type="number"
                       min={1}
@@ -330,10 +330,10 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
                         const v = parseInt(e.target.value, 10);
                         if (Number.isFinite(v)) gotoPage(v);
                       }}
-                      className="h-7 w-16 rounded border border-slate-300 px-2 text-center font-mono outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                      className="h-7 w-16 rounded border border-border-strong px-2 text-center font-mono outline-none focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
                       aria-label={t('reader.page')}
                     />
-                    <span className="font-mono text-slate-400">
+                    <span className="font-mono text-ink-400">
                       <bdi dir="ltr">/ {bookState.pages.length}</bdi>
                     </span>
                   </div>
@@ -362,23 +362,23 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
           {/* Right: SelectionPanel */}
           <aside className="flex w-[320px] flex-col gap-2">
             <Card className="p-3">
-              <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-500">
                 {t('citation_picker.selected_fragment')}
               </h3>
               {selection ? (
                 <blockquote
-                  className="mt-2 max-h-[200px] overflow-y-auto border-s-2 border-indigo-300 ps-2 text-[13px] italic text-slate-700"
+                  className="mt-2 max-h-[200px] overflow-y-auto border-s-2 border-accent-100 ps-2 text-sm italic text-ink-700"
                   dir={hasArabicScript(selection.quote) ? 'rtl' : 'ltr'}
                 >
                   «{selection.quote}»
                 </blockquote>
               ) : (
-                <p className="mt-2 text-[12px] italic text-slate-400">
+                <p className="mt-2 text-xs italic text-ink-400">
                   {t('citation_picker.select_hint')}
                 </p>
               )}
               {selection && (
-                <p className="mt-2 font-mono text-[11px] text-slate-500">
+                <p className="mt-2 font-mono text-xs text-ink-500">
                   Символы {selection.rangeStart}-{selection.rangeEnd}
                 </p>
               )}
@@ -387,7 +387,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
             <Card className="flex flex-1 flex-col p-3">
               <label
                 htmlFor="citation-context"
-                className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+                className="text-xs font-semibold uppercase tracking-wide text-ink-500"
               >
                 {t('citation_picker.comment_optional')}
               </label>
@@ -397,12 +397,12 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
                 onChange={(e) => setContext(e.target.value)}
                 placeholder={t('citation_picker.comment_placeholder')}
                 rows={6}
-                className="mt-2 flex-1 resize-none rounded-md border border-slate-300 px-2.5 py-2 text-[13px] outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                className="mt-2 flex-1 resize-none rounded-md border border-border-strong px-2.5 py-2 text-sm outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
               />
             </Card>
 
             {submitError && (
-              <div className="rounded-md border border-red-300 bg-red-50 p-2.5 text-[12px] text-red-800">
+              <div className="rounded-md border border-err-500/40 bg-err-100 p-2.5 text-xs text-err-700">
                 {submitError}
               </div>
             )}

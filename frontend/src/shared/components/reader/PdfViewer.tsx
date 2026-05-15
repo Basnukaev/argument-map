@@ -195,7 +195,7 @@ function PdfViewer({ bookId, initialPart, initialPrintedPage }: PdfViewerProps) 
         setState({ kind: 'error', message });
       });
     return () => controller.abort();
-  }, [bookId, initialPart]);
+  }, [bookId, initialPart, t]);
 
   // Multi-volume - dropdown показываем когда есть >1 не-cover файла.
   // Labels: арабские шамеловские (المقدمة) показываем как есть, а
@@ -245,8 +245,8 @@ function PdfViewer({ bookId, initialPart, initialPrintedPage }: PdfViewerProps) 
   if (state.kind === 'loading-info') {
     return (
       <Card className="p-12 text-center">
-        <Loader2 size={20} className="mx-auto animate-spin text-slate-400" aria-hidden="true" />
-        <p className="mt-2 text-[12px] text-slate-500">{t('reader.pdf_metadata_loading')}</p>
+        <Loader2 size={20} className="mx-auto animate-spin text-ink-400" aria-hidden="true" />
+        <p className="mt-2 text-xs text-ink-500">{t('reader.pdf_metadata_loading')}</p>
       </Card>
     );
   }
@@ -254,11 +254,11 @@ function PdfViewer({ bookId, initialPart, initialPrintedPage }: PdfViewerProps) 
   if (state.kind === 'unavailable') {
     return (
       <Card className="p-12 text-center">
-        <AlertCircle size={20} className="mx-auto text-slate-400" aria-hidden="true" />
-        <p className="mt-2 text-[13px] text-slate-600">
+        <AlertCircle size={20} className="mx-auto text-ink-400" aria-hidden="true" />
+        <p className="mt-2 text-sm text-ink-600">
           {t('reader.pdf_unavailable')}
         </p>
-        <p className="mt-1 text-[12px] text-slate-400">
+        <p className="mt-1 text-xs text-ink-400">
           {t('reader.pdf_will_appear')}
         </p>
       </Card>
@@ -267,10 +267,10 @@ function PdfViewer({ bookId, initialPart, initialPrintedPage }: PdfViewerProps) 
 
   if (state.kind === 'error') {
     return (
-      <Card className="border-red-200 bg-red-50 p-5">
+      <Card className="border-err-500/40 bg-err-100 p-5">
         <div className="flex items-start gap-3">
-          <AlertCircle size={20} className="mt-0.5 shrink-0 text-red-600" aria-hidden="true" />
-          <p className="text-[13px] text-red-800">{state.message}</p>
+          <AlertCircle size={20} className="mt-0.5 shrink-0 text-err-700" aria-hidden="true" />
+          <p className="text-sm text-err-700">{state.message}</p>
         </div>
       </Card>
     );
@@ -327,11 +327,11 @@ function PdfViewer({ bookId, initialPart, initialPrintedPage }: PdfViewerProps) 
           option'ы не центрируются standard HTML */}
       {showVolumeSelector && (
         <div
-          className="flex items-center gap-2 border-b border-slate-200 bg-slate-50/60 px-4 py-2"
+          className="flex items-center gap-2 border-b border-border bg-ink-50/60 px-4 py-2"
           dir={isRtlUi ? 'rtl' : 'ltr'}
         >
           <label
-            className="text-[11px] uppercase tracking-wide text-slate-500"
+            className="text-xs uppercase tracking-wide text-ink-500"
             htmlFor="pdf-volume"
           >
             {t('reader.volume')}
@@ -351,7 +351,7 @@ function PdfViewer({ bookId, initialPart, initialPrintedPage }: PdfViewerProps) 
 
       {/* Pagination toolbar */}
       <div
-        className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2.5"
+        className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-elevated px-4 py-2.5"
         dir={isRtlUi ? 'rtl' : 'ltr'}
       >
         <Button
@@ -366,8 +366,8 @@ function PdfViewer({ bookId, initialPart, initialPrintedPage }: PdfViewerProps) 
 
         {/* Page jump input - как в text mode PageJump, но без source-first markers
             (в PDF одна страница = одно полотно, нет printedPage/part) */}
-        <div className="flex items-center gap-2 text-[13px] text-slate-700">
-          <span className="text-slate-500">{t('reader.page_short')}</span>
+        <div className="flex items-center gap-2 text-sm text-ink-700">
+          <span className="text-ink-500">{t('reader.page_short')}</span>
           <input
             type="number"
             min={1}
@@ -381,10 +381,10 @@ function PdfViewer({ bookId, initialPart, initialPrintedPage }: PdfViewerProps) 
               }
             }}
             onBlur={submitPageJump}
-            className="h-7 w-16 rounded border border-slate-300 px-2 text-center font-mono text-[13px] outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+            className="h-7 w-16 rounded border border-border-strong px-2 text-center font-mono text-sm outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
             aria-label={t('reader.page')}
           />
-          <span className="font-mono text-slate-400">
+          <span className="font-mono text-ink-400">
             <bdi dir="ltr">/ {numPages ?? '…'}</bdi>
           </span>
         </div>
@@ -394,19 +394,19 @@ function PdfViewer({ bookId, initialPart, initialPrintedPage }: PdfViewerProps) 
             type="button"
             onClick={zoomOut}
             disabled={scale <= 0.5}
-            className="grid h-7 w-7 place-items-center rounded text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
+            className="grid h-7 w-7 place-items-center rounded text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30"
             aria-label={t('reader.zoom_out')}
           >
             <ZoomOut size={14} />
           </button>
-          <span className="w-12 text-center font-mono text-[11px] text-slate-500 tabular-nums">
+          <span className="w-12 text-center font-mono text-xs text-ink-500 tabular-nums">
             {Math.round(scale * 100)}%
           </span>
           <button
             type="button"
             onClick={zoomIn}
             disabled={scale >= 3}
-            className="grid h-7 w-7 place-items-center rounded text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
+            className="grid h-7 w-7 place-items-center rounded text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30"
             aria-label={t('reader.zoom_in')}
           >
             <ZoomIn size={14} />
@@ -417,7 +417,7 @@ function PdfViewer({ bookId, initialPart, initialPrintedPage }: PdfViewerProps) 
           <a
             href={fileUrl}
             download={downloadFilename}
-            className="ms-1 inline-flex h-7 items-center gap-1 rounded px-2 text-[12px] font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-indigo-700"
+            className="ms-1 inline-flex h-7 items-center gap-1 rounded px-2 text-xs font-medium text-ink-600 transition-colors hover:bg-ink-100 hover:text-accent-700"
             title={t('reader.download_pdf')}
           >
             <Download size={14} aria-hidden="true" />
@@ -437,7 +437,7 @@ function PdfViewer({ bookId, initialPart, initialPrintedPage }: PdfViewerProps) 
       </div>
 
       {/* PDF viewport */}
-      <div className="overflow-auto bg-slate-100 p-4" style={{ minHeight: '600px' }}>
+      <div className="overflow-auto bg-ink-100 p-4" style={{ minHeight: '600px' }}>
         <div className="mx-auto flex justify-center">
           <Document
             key={fileUrl}
@@ -448,15 +448,15 @@ function PdfViewer({ bookId, initialPart, initialPrintedPage }: PdfViewerProps) 
             }}
             loading={
               <div className="py-20 text-center">
-                <Loader2 size={20} className="mx-auto animate-spin text-slate-400" />
-                <p className="mt-2 text-[12px] text-slate-500">
+                <Loader2 size={20} className="mx-auto animate-spin text-ink-400" />
+                <p className="mt-2 text-xs text-ink-500">
                   {t('reader.pdf_preview_load_long')}
                 </p>
               </div>
             }
             error={
-              <Card className="border-red-200 bg-red-50 p-5">
-                <p className="text-[13px] text-red-800">{t('reader.pdf_load_failed')}</p>
+              <Card className="border-err-500/40 bg-err-100 p-5">
+                <p className="text-sm text-err-700">{t('reader.pdf_load_failed')}</p>
               </Card>
             }
           >

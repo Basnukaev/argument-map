@@ -14,7 +14,7 @@ export function SourceCardHeader({ title, onDelete }: Props) {
     <div className="mb-1.5 flex items-center justify-between gap-2.5">
       <div className="flex min-w-0 items-center gap-2.5">
         <Chip icon={BookOpen}>{t('cite.chip.library')}</Chip>
-        <div className="truncate text-[13.5px] font-semibold text-slate-900">
+        <div className="truncate text-sm font-semibold text-ink-900">
           {title}
         </div>
       </div>
@@ -23,7 +23,7 @@ export function SourceCardHeader({ title, onDelete }: Props) {
           type="button"
           aria-label={t('cite.action.detach')}
           onClick={onDelete}
-          className="rounded p-1 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          className="rounded p-1 text-ink-400 transition-colors hover:bg-err-100 hover:text-err-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
         >
           <Trash2 size={13} aria-hidden />
         </button>

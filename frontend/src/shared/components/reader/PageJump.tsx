@@ -91,9 +91,9 @@ function PageJump({
   });
 
   return (
-    <div className="flex flex-wrap items-center gap-3 text-[13px] text-slate-700">
+    <div className="flex flex-wrap items-center gap-3 text-sm text-ink-700">
       <div className="flex items-center gap-2">
-        <span className="text-slate-500">{t('reader.page')}</span>
+        <span className="text-ink-500">{t('reader.page')}</span>
         <input
           type="number"
           min={1}
@@ -107,11 +107,11 @@ function PageJump({
             }
           }}
           onBlur={submit}
-          className="h-7 w-20 rounded border border-slate-300 px-2 text-center font-mono text-[13px] outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+          className="h-7 w-20 rounded border border-border-strong px-2 text-center font-mono text-sm outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
           aria-label={t('reader.page')}
         />
         {totalPages > 0 && (
-          <span className="font-mono text-slate-400">
+          <span className="font-mono text-ink-400">
             <bdi dir="ltr">/ {totalPages}</bdi>
           </span>
         )}
@@ -121,7 +121,7 @@ function PageJump({
           рендерится для книг без source markers (printedPage/part NULL
           у всех страниц - например для not-shamela импортов) */}
       {hasSourceMarker && (showPartSelector || showPrintedInput) && (
-        <div className="flex items-center gap-1.5 rounded-md border border-indigo-100 bg-indigo-50/60 px-2 py-1 text-[12px] text-indigo-800">
+        <div className="flex items-center gap-1.5 rounded-md border border-accent-100 bg-accent-50/60 px-2 py-1 text-xs text-accent-700">
           {showPartSelector ? (
             <Select
               value={currentPart ?? ''}
@@ -147,11 +147,11 @@ function PageJump({
             )
           ) : null}
           {currentPart != null && (currentPrintedPage != null || showPrintedInput) && (
-            <span className="text-indigo-300">·</span>
+            <span className="text-accent-100">·</span>
           )}
           {showPrintedInput ? (
             <div className="flex items-center gap-1">
-              <span className="text-indigo-600">{t('reader.page_short')}</span>
+              <span className="text-accent-600">{t('reader.page_short')}</span>
               <input
                 type="text"
                 value={printedDraft}
@@ -163,7 +163,7 @@ function PageJump({
                   }
                 }}
                 onBlur={submitPrintedJump}
-                className="h-6 w-12 rounded border border-indigo-200 bg-white px-1.5 text-center font-mono text-[12px] text-indigo-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-400"
+                className="h-6 w-12 rounded border border-accent-100 bg-elevated px-1.5 text-center font-mono text-xs text-accent-700 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500/30"
                 aria-label={t('reader.page_short')}
               />
             </div>

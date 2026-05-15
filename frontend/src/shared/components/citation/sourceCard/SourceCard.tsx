@@ -22,7 +22,7 @@ type Props = {
 };
 
 const SEP = (
-  <span aria-hidden className="px-1 text-xs text-slate-400">
+  <span aria-hidden className="px-1 text-xs text-ink-400">
     ·
   </span>
 );
@@ -61,7 +61,7 @@ export function SourceCard({
         context={link.context ?? null}
       />
 
-      <Collapsible title={t('cite.label.metadata')}>
+      <Collapsible title={t('cite.label.metadata')} defaultOpen>
         {authority && (
           <RtlRow label={t('cite.label.author')}>
             <FlexValue text={authority.fullName ?? authority.name} size={15} weight={600} />
