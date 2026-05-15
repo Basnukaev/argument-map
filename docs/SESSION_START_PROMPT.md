@@ -185,10 +185,9 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 > **Этот раздел обновляется каждой сессией**. Всё выше - стабильное
 
-**Этап 20.d Admin BookEditModal** или **20.c follow-up bulk-backfill
-endpoint** (после Сессии 35 - всё что было в working tree закоммичено
-8 атомарными коммитами, parser 20.c сделан, doc-долги Сессий 32-34
-закрыты)
+**Этап 20.d Admin BookEditModal** - UI для ручной правки academic
+metadata после автоматического parser fill (Этап 20.c полностью закрыт
+в Сессии 35 включая follow-up backfill endpoint)
 
 ### Что было в Сессии 35
 
@@ -214,48 +213,59 @@ endpoint** (после Сессии 35 - всё что было в working tree 
   - 11 unit-тестов с реальными фикстурами из dev-БД
   - Verify: 425/425 backend tests pass
 
+**Дополнительно сделано после первого handoff:**
+
+- **Command Palette shortcut Cmd+K → Alt+K** (3 коммита). Listener
+  поднят из Header.tsx в App.tsx через `paletteStore` (zustand) -
+  работает на любом route включая `TopicGraphPage` где Header не
+  монтируется. Chrome на Win/Linux перехватывает Ctrl+K как native
+  accelerator (даже capture phase + preventDefault не помогает),
+  поэтому миграция на Alt+K. Gotcha записана в `gotchas.md`. На Mac
+  Alt+K = Option+K, e.altKey ловит оба
+- **20.c follow-up bulk-backfill endpoint** (1 коммит)
+  `POST /api/v1/admin/shamela/backfill-bibliography` через
+  `ShamelaBibliographyBackfillService`. Non-destructive merge через
+  COALESCE-логику в сервисе. + **Critical parser fix**: real shamela
+  description хранит CR character (chr(13)) как separator, не literal
+  `\r` (2 char) как тесты предполагали. Regex расширен на alternation,
+  +1 тест на CR variant. Smoke: 3/3 dev-книг backfilled
+
 **Что НЕ сделано (отложено):**
 
-- **Bulk-backfill endpoint** для existing books (3 dev-книги в БД
-  остались с null FK) - требует BookRepository partial update + admin
-  endpoint. ~30 минут работы, не ложится естественно в parser commit
 - **@tabler/icons-react** через corp proxy всё ещё ETIMEDOUT, workaround
   `svg.lucide:not([stroke-width])` остаётся
+- **Cmd+K шорткат на Win/Linux** - даже Alt+K не сработал на стороне
+  user'а. Сейчас palette кликабельна через иконку поиска в Header
+  (Alt+K оставлен как fallback для других платформ). Может потребовать
+  ещё одной итерации - см. gotchas про Chrome accelerators
 
 ### Стартовая последовательность Сессии 36
 
-**1. Выбор приоритета (короткое решение, до начала кода):**
+**Этап 20.d Admin BookEditModal** (~1 сессия) - UI для ручной правки
+academic metadata после parser fill:
 
-Опция A - **20.c follow-up bulk-backfill** (~30 мин):
-- `BookService.refreshBibliographyMetadata(bookId)` или batch-вариант
-- `POST /api/v1/admin/shamela/backfill-bibliography` endpoint
-- Frontend: кнопка в AdminShamelaPage «Перечитать metadata»
-- Smoke: запустить на 3 dev-книгах, проверить заполнение FK
+- Backend: `PATCH /api/v1/library/books/{id}` с расширенным request
+  (muhaqqiq/publisher/publicationPlace по имени → findOrCreate, edition/
+  hijri/gregorian как Integer)
+- Backend: справочные endpoints для autocomplete -
+  `GET /api/v1/library/muhaqqiqs?q=...` /
+  `GET /api/v1/library/publishers?q=...` /
+  `GET /api/v1/library/publication-places?q=...`. Простой LIKE поиск
+- Frontend: модалка с 6 полей (Field primitive из v2). Search-autocomplete
+  через debounced fetch, если name не найден - findOrCreate срабатывает
+  на save. Linkable из AdminShamelaPage и из BookDetailPage (когда
+  будет)
+- Smoke: открыть тафсир Ибн Касира, поменять мухаккика, сохранить,
+  проверить что в БД новый FK
 
-Опция B - **20.d Admin BookEditModal** (~1 сессия):
-- UI для ручной правки 6 academic полей после импорта
-- Search + autocomplete по справочникам через
-  `GET /api/v1/library/muhaqqiqs?q=...` (нужно ли создавать?) или inline
-- PATCH endpoint `/api/v1/library/books/{id}` с расширенным request
+**Опция альтернатива** - **Этап 19 Q&A приложение** - валидация
+платформенной архитектуры через второе приложение использующее common
+Source/Book stack. ADR-018 platform pivot обоснован но не доказан
+реальным вторым use case.
 
-Опция C - **Этап 19 Q&A приложение** - валидация платформенной
-архитектуры через второе приложение использующее common stack.
-ADR-018 platform pivot обоснован но не доказан реальным вторым use case
-
-Рекомендация - **A + B в одну сессию**: A быстрый, B логически следует
-после A (Admin может править ровно ту metadata которую backfill частично
-заполнил). Итого ~1.5 сессии. Или сделать A сразу + начать B, закрытие
-B перенести на 37.
-
-**2. После выбора:**
-
-Поднять backend (с JDWP флагом из CLAUDE.md) - он сейчас на старом
-classpath после parser changes Сессии 35, нужен restart чтобы
-findOrCreate работал.
-
-Frontend на :5173 - после restart Vite должен подобрать v2 changes.
-Если HMR cache stale, `rm -rf node_modules/.vite` (Сессия 34 показала
-этот workflow).
+Backend на :9090 уже работает (рестартовал в Сессии 35 для backfill smoke).
+Frontend на :5173 должен подобрать всё через HMR. Если stale -
+`rm -rf node_modules/.vite`.
 
 ### Backlog после 20.c-e
 

@@ -96,16 +96,34 @@ bibliography parser). Чисто отработавшая сессия в реж
 - **@tabler/icons-react все еще blocked** через корпоративный proxy
   (ETIMEDOUT). Workaround `svg.lucide:not([stroke-width])` остается
 
+### Дополнительно сделано (после handoff Сессии 35)
+
+В той же сессии, после первого handoff коммита, продолжил работу:
+
+- **Cmd+K → Alt+K migration** (коммиты `3a39ad8`, `cefa404`, `17353fa`,
+  `dd4b1ca`). Палитра не открывалась с Cmd+K в Chrome на Win/Linux -
+  native accelerator перехватывал. Listener поднят из Header.tsx в
+  App.tsx через `paletteStore` (zustand) - работает на любом route
+  включая graph page. Capture phase + stopPropagation не освободили
+  Ctrl+K. Финальное решение - Alt+K. Gotcha в `gotchas.md` со списком
+  зарезервированных/свободных Chrome accelerators
+- **20.c follow-up bulk-backfill endpoint** (`59e8414`).
+  `POST /api/v1/admin/shamela/backfill-bibliography` через
+  `ShamelaBibliographyBackfillService`. Critical parser fix - real БД
+  хранит CR character (chr(13)) как separator, не literal `\r` (2 char).
+  Regex расширен на alternation. Smoke: 3/3 dev-книг с заполненными FK
+  (тафсир получил мухаккика+publisher+place+ed=1+hijri=1431+greg=1999,
+  все аналогично)
+
 ### Следующий шаг (для Сессии 36)
 
-Приоритет 1 (наиболее логичное продолжение цепочки 20):
-
-1. **20.c follow-up: bulk-backfill endpoint** - заполнить FK для
-   уже импортированных книг. Service + controller + BookRepository
-   partial update. ~30 минут
-2. **Этап 20.d: Admin BookEditModal** - UI для ручной правки academic
-   metadata когда parser не справился. Search + autocomplete по
-   справочникам Muhaqqiq/Publisher/PublicationPlace. ~1 сессия
+**Этап 20.d Admin BookEditModal** (~1 сессия):
+- Backend: `PATCH /api/v1/library/books/{id}` с расширенным request
+  (muhaqqiq/publisher/place names → findOrCreate, edition/years как Integer)
+- Backend: autocomplete endpoints `GET /api/v1/library/{muhaqqiqs,
+  publishers, publication-places}?q=...`
+- Frontend: модалка с 6 Field primitive, debounced autocomplete,
+  linkable из AdminShamelaPage и BookDetailPage
 
 Приоритет 2 (альтернатива):
 
