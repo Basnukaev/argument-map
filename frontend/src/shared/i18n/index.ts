@@ -5,3 +5,4 @@ export { useT } from './useT';
 export { LocaleEffect } from './LocaleEffect';
 export { hasArabicScript, getTextDirection } from './script';
 export { useFormatDate } from './useFormatDate';
+export { useNumberFormat } from './useNumberFormat';
