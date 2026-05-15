@@ -11,6 +11,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { components } from '@/shared/api/types';
+import type { DictKey } from '@/shared/i18n';
 
 type CreateEdgeRequest = components['schemas']['CreateEdgeRequest'];
 type CreateNodeRequest = components['schemas']['CreateNodeRequest'];
@@ -59,39 +60,40 @@ export function isEdgeAllowed(fromType: NodeType, edgeType: EdgeType, toType: No
 
 /**
  * Контекстная подпись ребра по тройке (fromType, edgeType, toType) - ADR-010,
- * раздел "Контекстные подписи рёбер". Если конкретного контекста нет,
- * возвращается дефолтный label типа.
+ * раздел "Контекстные подписи рёбер". Возвращает DictKey для перевода в
+ * месте вызова через useT() - поэтому функция остаётся чистой и тестируется
+ * на стороне ключей. Если конкретного контекста нет - дефолтный ключ типа.
  */
-export function getContextualEdgeLabel(
+export function getContextualEdgeLabelKey(
   fromType: NodeType,
   edgeType: EdgeType,
   toType: NodeType,
-): string {
+): DictKey {
   if (edgeType === 'SUPPORTS') {
-    if (fromType === 'EVIDENCE') return 'доказывает';
-    if (fromType === 'ARGUMENT' && toType === 'CLAIM') return 'поддерживает';
-    if (fromType === 'CLAIM' && toType === 'CLAIM') return 'согласуется с';
+    if (fromType === 'EVIDENCE') return 'edge.label.proves';
+    if (fromType === 'ARGUMENT' && toType === 'CLAIM') return 'edge.label.supports';
+    if (fromType === 'CLAIM' && toType === 'CLAIM') return 'edge.label.agrees';
   }
   if (edgeType === 'REFUTES') {
-    if (fromType === 'EVIDENCE') return 'опровергает';
-    if (fromType === 'ARGUMENT' && toType === 'CLAIM') return 'противоречит';
-    if (fromType === 'CLAIM' && toType === 'CLAIM') return 'несовместим с';
+    if (fromType === 'EVIDENCE') return 'edge.label.refutes';
+    if (fromType === 'ARGUMENT' && toType === 'CLAIM') return 'edge.label.contradicts';
+    if (fromType === 'CLAIM' && toType === 'CLAIM') return 'edge.label.incompatible';
   }
-  if (edgeType === 'INVALIDATES') return 'аннулирует';
+  if (edgeType === 'INVALIDATES') return 'edge.label.invalidates';
   if (edgeType === 'QUALIFIES') {
-    if (fromType === 'CLAIM' && toType === 'CLAIM') return 'сужает';
-    return 'уточняет';
+    if (fromType === 'CLAIM' && toType === 'CLAIM') return 'edge.label.narrows';
+    return 'edge.label.qualifies';
   }
-  if (edgeType === 'RESPONDS_TO') return 'отвечает на';
-  return EDGE_DEFAULT_LABEL[edgeType];
+  if (edgeType === 'RESPONDS_TO') return 'edge.label.responds';
+  return EDGE_DEFAULT_LABEL_KEY[edgeType];
 }
 
-const EDGE_DEFAULT_LABEL: Record<EdgeType, string> = {
-  SUPPORTS: 'поддерживает',
-  REFUTES: 'опровергает',
-  INVALIDATES: 'аннулирует',
-  QUALIFIES: 'уточняет',
-  RESPONDS_TO: 'отвечает',
+const EDGE_DEFAULT_LABEL_KEY: Record<EdgeType, DictKey> = {
+  SUPPORTS: 'edge.label.supports',
+  REFUTES: 'edge.label.refutes',
+  INVALIDATES: 'edge.label.invalidates',
+  QUALIFIES: 'edge.label.qualifies',
+  RESPONDS_TO: 'edge.label.responds_short',
 };
 
 /**
@@ -129,7 +131,7 @@ export interface RelatedNodeOption {
   newNodeType: NodeType;
   edgeType: EdgeType;
   direction: 'incoming' | 'outgoing';
-  label: string;
+  labelKey: DictKey;
 }
 
 /**
@@ -142,16 +144,16 @@ export function getRelatedNodeOptions(anchorType: NodeType): readonly RelatedNod
   switch (anchorType) {
     case 'CLAIM':
       return [
-        { newNodeType: 'ARGUMENT', edgeType: 'SUPPORTS', direction: 'incoming', label: 'Подтверждающий довод' },
-        { newNodeType: 'ARGUMENT', edgeType: 'REFUTES', direction: 'incoming', label: 'Опровергающий довод' },
-        { newNodeType: 'EVIDENCE', edgeType: 'SUPPORTS', direction: 'incoming', label: 'Подтверждающее свидетельство' },
-        { newNodeType: 'EVIDENCE', edgeType: 'REFUTES', direction: 'incoming', label: 'Опровергающее свидетельство' },
-        { newNodeType: 'QUESTION', edgeType: 'QUALIFIES', direction: 'incoming', label: 'Уточняющий вопрос' },
+        { newNodeType: 'ARGUMENT', edgeType: 'SUPPORTS', direction: 'incoming', labelKey: 'related.supports_argument' },
+        { newNodeType: 'ARGUMENT', edgeType: 'REFUTES', direction: 'incoming', labelKey: 'related.refutes_argument' },
+        { newNodeType: 'EVIDENCE', edgeType: 'SUPPORTS', direction: 'incoming', labelKey: 'related.supports_evidence' },
+        { newNodeType: 'EVIDENCE', edgeType: 'REFUTES', direction: 'incoming', labelKey: 'related.refutes_evidence' },
+        { newNodeType: 'QUESTION', edgeType: 'QUALIFIES', direction: 'incoming', labelKey: 'related.qualifies_question' },
       ];
     case 'ARGUMENT':
       return [
-        { newNodeType: 'ARGUMENT', edgeType: 'INVALIDATES', direction: 'incoming', label: 'Аннулирующий довод' },
-        { newNodeType: 'EVIDENCE', edgeType: 'INVALIDATES', direction: 'incoming', label: 'Аннулирующее свидетельство' },
+        { newNodeType: 'ARGUMENT', edgeType: 'INVALIDATES', direction: 'incoming', labelKey: 'related.invalidates_argument' },
+        { newNodeType: 'EVIDENCE', edgeType: 'INVALIDATES', direction: 'incoming', labelKey: 'related.invalidates_evidence' },
       ];
     case 'EVIDENCE':
       // К свидетельству ничего не подключается напрямую (по ADR-010 EVIDENCE -
@@ -159,8 +161,8 @@ export function getRelatedNodeOptions(anchorType: NodeType): readonly RelatedNod
       return [];
     case 'QUESTION':
       return [
-        { newNodeType: 'CLAIM', edgeType: 'RESPONDS_TO', direction: 'incoming', label: 'Тезис-ответ' },
-        { newNodeType: 'QUESTION', edgeType: 'QUALIFIES', direction: 'incoming', label: 'Уточняющий вопрос' },
+        { newNodeType: 'CLAIM', edgeType: 'RESPONDS_TO', direction: 'incoming', labelKey: 'related.responds_claim' },
+        { newNodeType: 'QUESTION', edgeType: 'QUALIFIES', direction: 'incoming', labelKey: 'related.qualifies_question' },
       ];
     default:
       return [];
@@ -174,11 +176,11 @@ export function getRelatedNodeOptions(anchorType: NodeType): readonly RelatedNod
  */
 export const EDGE_TYPE_META: Record<
   EdgeType,
-  { label: string; hint: string; Icon: LucideIcon; colorClass: string }
+  { labelKey: DictKey; hintKey: DictKey; Icon: LucideIcon; colorClass: string }
 > = {
-  SUPPORTS: { label: 'Поддерживает', hint: 'Аргумент за тезис', Icon: Check, colorClass: 'text-green-600' },
-  REFUTES: { label: 'Опровергает', hint: 'Аргумент против', Icon: X, colorClass: 'text-red-600' },
-  INVALIDATES: { label: 'Аннулирует', hint: 'Жёсткое мета-опровержение (kill)', Icon: Ban, colorClass: 'text-red-800' },
-  QUALIFIES: { label: 'Уточняет', hint: 'Сужает применимость', Icon: ChevronsRight, colorClass: 'text-blue-600' },
-  RESPONDS_TO: { label: 'Отвечает', hint: 'Реплика-ответ', Icon: Reply, colorClass: 'text-gray-500' },
+  SUPPORTS: { labelKey: 'edge.type.SUPPORTS', hintKey: 'edge.type.SUPPORTS.hint', Icon: Check, colorClass: 'text-green-600' },
+  REFUTES: { labelKey: 'edge.type.REFUTES', hintKey: 'edge.type.REFUTES.hint', Icon: X, colorClass: 'text-red-600' },
+  INVALIDATES: { labelKey: 'edge.type.INVALIDATES', hintKey: 'edge.type.INVALIDATES.hint', Icon: Ban, colorClass: 'text-red-800' },
+  QUALIFIES: { labelKey: 'edge.type.QUALIFIES', hintKey: 'edge.type.QUALIFIES.hint', Icon: ChevronsRight, colorClass: 'text-blue-600' },
+  RESPONDS_TO: { labelKey: 'edge.type.RESPONDS_TO', hintKey: 'edge.type.RESPONDS_TO.hint', Icon: Reply, colorClass: 'text-gray-500' },
 };

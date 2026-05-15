@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { components } from '@/shared/api/types';
+import type { DictKey } from '@/shared/i18n';
 
 type NodeDto = components['schemas']['NodeResponse'];
 type EdgeDto = components['schemas']['EdgeResponse'];
@@ -18,9 +19,13 @@ export type NodeStatus = NonNullable<NodeDto['status']>;
 export type NodeType = NonNullable<NodeDto['nodeType']>;
 export type EdgeType = NonNullable<EdgeDto['edgeType']>;
 
+/**
+ * Токены содержат `labelKey` (DictKey) вместо строки label - чтобы
+ * UI-компоненты переводили через useT() на текущую локаль.
+ */
 export interface StatusToken {
   key: NodeStatus;
-  label: string;
+  labelKey: DictKey;
   bar: string;
   bg: string;
   text: string;
@@ -34,7 +39,7 @@ export interface StatusToken {
 export const STATUS_TOKENS: Record<NodeStatus, StatusToken> = {
   STANDING: {
     key: 'STANDING',
-    label: 'Устоявшийся',
+    labelKey: 'status.STANDING',
     bar: 'bg-emerald-500',
     bg: 'bg-emerald-50',
     text: 'text-emerald-700',
@@ -46,7 +51,7 @@ export const STATUS_TOKENS: Record<NodeStatus, StatusToken> = {
   },
   DISPUTED: {
     key: 'DISPUTED',
-    label: 'Спорный',
+    labelKey: 'status.DISPUTED',
     bar: 'bg-amber-500',
     bg: 'bg-amber-50',
     text: 'text-amber-700',
@@ -58,7 +63,7 @@ export const STATUS_TOKENS: Record<NodeStatus, StatusToken> = {
   },
   REFUTED: {
     key: 'REFUTED',
-    label: 'Опровергнут',
+    labelKey: 'status.REFUTED',
     bar: 'bg-red-500',
     bg: 'bg-red-50',
     text: 'text-red-700',
@@ -70,7 +75,7 @@ export const STATUS_TOKENS: Record<NodeStatus, StatusToken> = {
   },
   UNVERIFIED: {
     key: 'UNVERIFIED',
-    label: 'Не оценён',
+    labelKey: 'status.UNVERIFIED',
     bar: 'bg-slate-400',
     bg: 'bg-slate-50',
     text: 'text-slate-600',
@@ -84,8 +89,8 @@ export const STATUS_TOKENS: Record<NodeStatus, StatusToken> = {
 
 export interface NodeTypeToken {
   key: NodeType;
-  label: string;
-  hint: string;
+  labelKey: DictKey;
+  hintKey: DictKey;
   chipBg: string;
   chipText: string;
   headerGradient: string;
@@ -97,8 +102,8 @@ export interface NodeTypeToken {
 export const NODE_TYPE_TOKENS: Record<NodeType, NodeTypeToken> = {
   QUESTION: {
     key: 'QUESTION',
-    label: 'Вопрос',
-    hint: 'Корневой или уточняющий вопрос',
+    labelKey: 'node.type.QUESTION',
+    hintKey: 'node.type.QUESTION.hint',
     chipBg: 'bg-violet-100',
     chipText: 'text-violet-700',
     headerGradient: 'from-violet-50/70 to-white',
@@ -108,8 +113,8 @@ export const NODE_TYPE_TOKENS: Record<NodeType, NodeTypeToken> = {
   },
   CLAIM: {
     key: 'CLAIM',
-    label: 'Тезис',
-    hint: 'Утверждение которое доказывают',
+    labelKey: 'node.type.CLAIM',
+    hintKey: 'node.type.CLAIM.hint',
     chipBg: 'bg-indigo-100',
     chipText: 'text-indigo-700',
     headerGradient: 'from-indigo-50/70 to-white',
@@ -119,8 +124,8 @@ export const NODE_TYPE_TOKENS: Record<NodeType, NodeTypeToken> = {
   },
   ARGUMENT: {
     key: 'ARGUMENT',
-    label: 'Довод',
-    hint: 'Аргумент за/против тезиса',
+    labelKey: 'node.type.ARGUMENT',
+    hintKey: 'node.type.ARGUMENT.hint',
     chipBg: 'bg-sky-100',
     chipText: 'text-sky-700',
     headerGradient: 'from-sky-50/70 to-white',
@@ -130,8 +135,8 @@ export const NODE_TYPE_TOKENS: Record<NodeType, NodeTypeToken> = {
   },
   EVIDENCE: {
     key: 'EVIDENCE',
-    label: 'Свидетельство',
-    hint: 'Хадис, цитата, факт',
+    labelKey: 'node.type.EVIDENCE',
+    hintKey: 'node.type.EVIDENCE.hint',
     chipBg: 'bg-teal-100',
     chipText: 'text-teal-700',
     headerGradient: 'from-teal-50/70 to-white',
@@ -143,7 +148,7 @@ export const NODE_TYPE_TOKENS: Record<NodeType, NodeTypeToken> = {
 
 export interface EdgeTypeToken {
   key: EdgeType;
-  label: string;
+  labelKey: DictKey;
   stroke: string;
   strokeWidth: number;
   strokeDasharray?: string;
@@ -156,7 +161,7 @@ export interface EdgeTypeToken {
 export const EDGE_TYPE_TOKENS: Record<EdgeType, EdgeTypeToken> = {
   SUPPORTS: {
     key: 'SUPPORTS',
-    label: 'Поддерживает',
+    labelKey: 'edge.type.SUPPORTS',
     stroke: '#10b981',
     strokeWidth: 2,
     badgeBg: 'bg-emerald-50',
@@ -165,7 +170,7 @@ export const EDGE_TYPE_TOKENS: Record<EdgeType, EdgeTypeToken> = {
   },
   REFUTES: {
     key: 'REFUTES',
-    label: 'Опровергает',
+    labelKey: 'edge.type.REFUTES',
     stroke: '#ef4444',
     strokeWidth: 2,
     badgeBg: 'bg-red-50',
@@ -174,7 +179,7 @@ export const EDGE_TYPE_TOKENS: Record<EdgeType, EdgeTypeToken> = {
   },
   INVALIDATES: {
     key: 'INVALIDATES',
-    label: 'Аннулирует',
+    labelKey: 'edge.type.INVALIDATES',
     stroke: '#b91c1c',
     strokeWidth: 3,
     strokeDasharray: '8 4',
@@ -184,7 +189,7 @@ export const EDGE_TYPE_TOKENS: Record<EdgeType, EdgeTypeToken> = {
   },
   QUALIFIES: {
     key: 'QUALIFIES',
-    label: 'Уточняет',
+    labelKey: 'edge.type.QUALIFIES',
     stroke: '#3b82f6',
     strokeWidth: 2,
     badgeBg: 'bg-blue-50',
@@ -193,7 +198,7 @@ export const EDGE_TYPE_TOKENS: Record<EdgeType, EdgeTypeToken> = {
   },
   RESPONDS_TO: {
     key: 'RESPONDS_TO',
-    label: 'Отвечает на',
+    labelKey: 'edge.type.RESPONDS_TO',
     stroke: '#94a3b8',
     strokeWidth: 1.5,
     opacity: 0.7,

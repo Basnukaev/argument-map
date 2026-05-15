@@ -3,7 +3,7 @@ import {
   EDGE_MATRIX,
   getAllowedEdgeTypes,
   isEdgeAllowed,
-  getContextualEdgeLabel,
+  getContextualEdgeLabelKey,
   NODE_TYPE_LABEL,
   EDGE_TYPE_META,
   type NodeType,
@@ -49,39 +49,39 @@ describe('EDGE_MATRIX (ADR-010)', () => {
   });
 });
 
-describe('getContextualEdgeLabel', () => {
-  it('EVIDENCE SUPPORTS → "доказывает"', () => {
-    expect(getContextualEdgeLabel('EVIDENCE', 'SUPPORTS', 'CLAIM')).toBe('доказывает');
-    expect(getContextualEdgeLabel('EVIDENCE', 'SUPPORTS', 'ARGUMENT')).toBe('доказывает');
+describe('getContextualEdgeLabelKey', () => {
+  it('EVIDENCE SUPPORTS → edge.label.proves', () => {
+    expect(getContextualEdgeLabelKey('EVIDENCE', 'SUPPORTS', 'CLAIM')).toBe('edge.label.proves');
+    expect(getContextualEdgeLabelKey('EVIDENCE', 'SUPPORTS', 'ARGUMENT')).toBe('edge.label.proves');
   });
 
-  it('ARGUMENT SUPPORTS CLAIM → "поддерживает"', () => {
-    expect(getContextualEdgeLabel('ARGUMENT', 'SUPPORTS', 'CLAIM')).toBe('поддерживает');
+  it('ARGUMENT SUPPORTS CLAIM → edge.label.supports', () => {
+    expect(getContextualEdgeLabelKey('ARGUMENT', 'SUPPORTS', 'CLAIM')).toBe('edge.label.supports');
   });
 
-  it('CLAIM SUPPORTS CLAIM → "согласуется с"', () => {
-    expect(getContextualEdgeLabel('CLAIM', 'SUPPORTS', 'CLAIM')).toBe('согласуется с');
+  it('CLAIM SUPPORTS CLAIM → edge.label.agrees', () => {
+    expect(getContextualEdgeLabelKey('CLAIM', 'SUPPORTS', 'CLAIM')).toBe('edge.label.agrees');
   });
 
   it('REFUTES варианты по контексту', () => {
-    expect(getContextualEdgeLabel('EVIDENCE', 'REFUTES', 'CLAIM')).toBe('опровергает');
-    expect(getContextualEdgeLabel('ARGUMENT', 'REFUTES', 'CLAIM')).toBe('противоречит');
-    expect(getContextualEdgeLabel('CLAIM', 'REFUTES', 'CLAIM')).toBe('несовместим с');
+    expect(getContextualEdgeLabelKey('EVIDENCE', 'REFUTES', 'CLAIM')).toBe('edge.label.refutes');
+    expect(getContextualEdgeLabelKey('ARGUMENT', 'REFUTES', 'CLAIM')).toBe('edge.label.contradicts');
+    expect(getContextualEdgeLabelKey('CLAIM', 'REFUTES', 'CLAIM')).toBe('edge.label.incompatible');
   });
 
-  it('INVALIDATES всегда "аннулирует"', () => {
-    expect(getContextualEdgeLabel('EVIDENCE', 'INVALIDATES', 'ARGUMENT')).toBe('аннулирует');
-    expect(getContextualEdgeLabel('ARGUMENT', 'INVALIDATES', 'ARGUMENT')).toBe('аннулирует');
+  it('INVALIDATES всегда edge.label.invalidates', () => {
+    expect(getContextualEdgeLabelKey('EVIDENCE', 'INVALIDATES', 'ARGUMENT')).toBe('edge.label.invalidates');
+    expect(getContextualEdgeLabelKey('ARGUMENT', 'INVALIDATES', 'ARGUMENT')).toBe('edge.label.invalidates');
   });
 
-  it('QUALIFIES: CLAIM→CLAIM "сужает", остальное "уточняет"', () => {
-    expect(getContextualEdgeLabel('CLAIM', 'QUALIFIES', 'CLAIM')).toBe('сужает');
-    expect(getContextualEdgeLabel('QUESTION', 'QUALIFIES', 'CLAIM')).toBe('уточняет');
-    expect(getContextualEdgeLabel('QUESTION', 'QUALIFIES', 'ARGUMENT')).toBe('уточняет');
+  it('QUALIFIES: CLAIM→CLAIM narrows, остальное qualifies', () => {
+    expect(getContextualEdgeLabelKey('CLAIM', 'QUALIFIES', 'CLAIM')).toBe('edge.label.narrows');
+    expect(getContextualEdgeLabelKey('QUESTION', 'QUALIFIES', 'CLAIM')).toBe('edge.label.qualifies');
+    expect(getContextualEdgeLabelKey('QUESTION', 'QUALIFIES', 'ARGUMENT')).toBe('edge.label.qualifies');
   });
 
-  it('RESPONDS_TO → "отвечает на"', () => {
-    expect(getContextualEdgeLabel('CLAIM', 'RESPONDS_TO', 'QUESTION')).toBe('отвечает на');
+  it('RESPONDS_TO → edge.label.responds', () => {
+    expect(getContextualEdgeLabelKey('CLAIM', 'RESPONDS_TO', 'QUESTION')).toBe('edge.label.responds');
   });
 });
 
@@ -95,13 +95,13 @@ describe('маркеры', () => {
     });
   });
 
-  it('EDGE_TYPE_META содержит Icon, label, hint, colorClass для всех типов', () => {
+  it('EDGE_TYPE_META содержит Icon, labelKey, hintKey, colorClass для всех типов', () => {
     for (const t of EDGE_TYPES) {
       const meta = EDGE_TYPE_META[t];
       expect(meta).toBeDefined();
       expect(meta.Icon).toBeTruthy();
-      expect(meta.label).toBeTruthy();
-      expect(meta.hint).toBeTruthy();
+      expect(meta.labelKey).toBeTruthy();
+      expect(meta.hintKey).toBeTruthy();
       expect(meta.colorClass).toMatch(/^text-/);
     }
   });
