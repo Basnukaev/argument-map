@@ -30,5 +30,6 @@
     <include file="db/changelog/changes/20260513-23-add-positional-fields-to-node-sources.xml"/>
     <include file="db/changelog/changes/20260514-24-add-academic-citation-metadata.xml"/>
     <include file="db/changelog/changes/20260514-25-replace-node-sources-pk.xml"/>
+    <include file="db/changelog/changes/20260516-26-create-questions-table.xml"/>
 
 </databaseChangeLog>

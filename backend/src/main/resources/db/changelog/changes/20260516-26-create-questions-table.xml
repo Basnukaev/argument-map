@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260516-26-create-questions-table" author="Abdula Basnukaev">
+        <comment>
+            Q&amp;A приложение - таблица questions. Этап 19.a, ADR-032
+            (Q&amp;A foundation - валидация ADR-018 platform pivot через
+            второе приложение использующее common Source/Book stack).
+
+            На MVP - только questions table. Source attach (question_sources
+            аналог node_sources) откладывается на 19.b после валидации
+            базовой UI/UX. Эта migration sets up foundation only.
+
+            status - VARCHAR enum: OPEN (только что задан) / ANSWERED
+            (есть accepted answer, future feature) / CLOSED (admin closed
+            duplicate/spam). На MVP только OPEN/CLOSED используются - но
+            schema готова к ANSWERED для будущей Этапа 19.c (ответы).
+        </comment>
+        <sql>
+            CREATE TABLE questions (
+                id UUID PRIMARY KEY,
+                title TEXT NOT NULL,
+                body TEXT,
+                status VARCHAR(20) NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN', 'ANSWERED', 'CLOSED')),
+                asked_by UUID,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
+            CREATE INDEX idx_questions_status_created
+                ON questions(status, created_at DESC);
+            CREATE INDEX idx_questions_asked_by
+                ON questions(asked_by) WHERE asked_by IS NOT NULL;
+        </sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_questions_asked_by;
+                DROP INDEX IF EXISTS idx_questions_status_created;
+                DROP TABLE questions;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

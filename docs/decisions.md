@@ -2792,3 +2792,106 @@ Supplement / Extended-A / Presentation Forms). Inline `/[؀-ۿ]/` regex'ы
 - **ADR-022** (frontend reorg) - `styles/tokens.css` логически часть shared
 - **memory** `feedback_grep_after_batch_edits` - mass-replace через sed
   требует verify-grep на остатки
+
+## ADR-032: Q&A приложение - foundation (Этап 19.a)
+
+**Дата:** 2026-05-16
+**Статус:** принят
+**Связь:** ADR-018 (platform pivot), ADR-022 (frontend reorg)
+
+### Контекст
+
+ADR-018 утверждает что проект - **платформа** для исламской науки, где
+`argument-map` это одно из приложений. Library - фундамент (Sources/Books),
+Q&A - второе приложение, валидирующее этот тезис: оно должно
+переиспользовать common Source/Book stack без копирования логики.
+
+После закрытия Этапов 14-25 (library), 18-20 (citation + academic
+metadata) появился готовый фундамент. Время добавить второе приложение
+чтобы платформенный pivot перестал быть только заявлением и стал
+работающим артефактом.
+
+Вопрос: какой scope MVP для Q&A в Этапе 19.a?
+
+### Решение
+
+**MVP scope - только questions, без attached sources (Этап 19.b отложен).**
+
+Минимум:
+
+1. **Schema** - одна table `questions(id, title, body, status, asked_by,
+   created_at, updated_at)`. Migration 26.
+2. **Domain** - `Question` record + `QuestionStatus` enum
+   ({@code OPEN}/{@code ANSWERED}/{@code CLOSED}).
+   `ANSWERED` зарезервирован для Этапа 19.c (ответы), но используется
+   только в CHECK constraint - на 19.a не пишется.
+3. **REST** - CRUD endpoints под `/api/v1/questions`:
+   - `POST` - create (требует X-User-Id для asked_by)
+   - `GET` - list с filters `?status=&q=`
+   - `GET /{id}` - detail
+   - `PATCH /{id}` - partial update title/body/status
+   - `DELETE /{id}` - hard delete (MVP без soft, нет audit ещё)
+4. **Frontend** - новое app `src/apps/qa/`:
+   - `QuestionListPage` - таблица с status badge + search
+   - `CreateQuestionPage` - простая форма title + body
+   - `QuestionDetailPage` - просмотр + edit + status переключение
+5. **Navigation** - Header pункт «Q&A» / `/qa`
+
+### Альтернативы (отвергнуты)
+
+**Option A - сразу с answers + accepted answer flow.**
+- (+) Полноценный Stack Overflow clone сразу
+- Минус: ~2x работа, не валидирует platform reuse сам по себе
+- Откладывается на 19.c
+
+**Option B - сразу с source attach (`question_sources`).**
+- (+) Доказывает platform reuse прямо в 19.a
+- Минус: ~1.5x работа, ставит UX risk (нет валидированной UI для
+  Source picker в Q&A контексте)
+- 19.a даёт baseline UI, 19.b добавляет source attach **после** того
+  как user проверил basic flow
+
+**Option C - комментарии без full Q&A semantic.**
+- (+) Минимум кода
+- Минус: не двинет проект к platform validation, комментарии менее
+  доказательны как "second app"
+
+### Последствия
+
+**Положительные:**
+
+- Baseline платформы - схема и архитектура подтверждены через два
+  приложения. Любой rebuild общих DTOs (например `BookDetailResponse`)
+  теперь не case for argument-map only
+- Низкий риск - 19.a не трогает existing schema, новая table independent
+- 19.b path известен - `question_sources` миграция аналогична
+  `node_sources` (Этап 18.f + ADR-027)
+
+**Отрицательные:**
+
+- Без source attach 19.a сама по себе не доказывает platform reuse -
+  только baseline. Полный proof только после 19.b
+- ANSWERED status в CHECK без code-side support - acceptable, schema
+  forward-compat
+- Hard delete без audit - acceptable для MVP, до production отдельный
+  ADR может ввести soft delete (см. ADR-022 cleanup conventions)
+
+### Триггеры пересмотра
+
+- **Этап 19.b source attach** - если выяснится что `question_sources`
+  требует существенно другую semantics чем `node_sources` (например
+  multiple-positional citations per pair) - пересмотреть и возможно
+  generalize `*_sources` patterns
+- **Production usage** - реальные вопросы могут показать что title без
+  body-search недостаточно - добавить full-text search через PG `tsvector`
+- **Answers (19.c)** - если answer становится first-class entity,
+  ANSWERED transition может требовать FK на accepted_answer_id
+
+### Связь с другими ADR
+
+- **ADR-018** (platform pivot) - этот ADR именно реализует pivot через
+  второе приложение
+- **ADR-022** (frontend reorg) - `src/apps/qa/` следует established
+  pattern (`argument-map`, `library`, `admin`)
+- **ADR-027** (positional citation в node_sources) - blueprint для
+  будущей `question_sources` миграции (19.b)

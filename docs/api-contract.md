@@ -1279,10 +1279,89 @@ nested citation.
 и computed location). Существующие clients игнорируют новые поля - backward
 compatible.
 
+## Q&A API (ADR-032, Этап 19.a)
+
+Второе приложение платформы (после argument-map и library). На MVP -
+standalone Question CRUD без attached sources. Source attach
+(`question_sources` аналог `node_sources`) отложен на Этап 19.b.
+
+### POST /api/v1/questions - создать вопрос
+
+Заголовки: `X-User-Id: <uuid>` (обязательный, для `asked_by`).
+
+Тело (`CreateQuestionRequest`):
+```json
+{
+  "title": "Каково положение хадиса о намазе?",
+  "body": "Подскажите достоверность хадиса с разными цепочками."
+}
+```
+
+Валидация:
+- `title` обязателен, NotBlank, до 500 символов
+- `body` опционален, до 10000 символов
+
+Ответ `201 Created` (`QuestionResponse`):
+```json
+{
+  "id": "uuid",
+  "title": "...",
+  "body": "...|null",
+  "status": "OPEN|ANSWERED|CLOSED",
+  "askedBy": "uuid|null",
+  "createdAt": "iso8601",
+  "updatedAt": "iso8601"
+}
+```
+
+### GET /api/v1/questions?status={s}&q={search}
+
+Список вопросов. Сортировка - сначала самые новые (created_at DESC).
+
+Параметры:
+- `status` (опционально) - фильтр по `OPEN`/`ANSWERED`/`CLOSED`
+- `q` (опционально) - case-insensitive ILIKE по `title`
+
+Ответ `200 OK`: массив `QuestionResponse`.
+
+### GET /api/v1/questions/{id}
+
+Detail вопроса. Ошибка `404 question-not-found`.
+
+### PATCH /api/v1/questions/{id}
+
+Partial update title/body/status. `null` поля = no change. Валидация
+размеров та же что в Create.
+
+Тело (`UpdateQuestionRequest`, все optional):
+```json
+{
+  "title": "...",
+  "body": "...",
+  "status": "OPEN|ANSWERED|CLOSED"
+}
+```
+
+Ответ `200 OK` - обновлённый `QuestionResponse`.
+
+### DELETE /api/v1/questions/{id}
+
+Hard delete (MVP без soft delete + audit). Ответ `204 No Content`.
+Ошибка `404 question-not-found`.
+
+### Что **не** реализовано в Этапе 19.a
+
+- `question_sources` table + attach/detach endpoints (Этап 19.b)
+- Answers (Этап 19.c) - `ANSWERED` status зарезервирован в CHECK
+  constraint, но writes ставятся только через ручной PATCH
+- Soft delete + audit (после auth)
+- Full-text search по body (сейчас только title ILIKE)
+
 ## История изменений контракта
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-16 | v1 | Q&A endpoints под `/api/v1/questions/*`: `POST` (CreateQuestionRequest{title, body}), `GET` list (filters `?status=&q=`), `GET /{id}` (QuestionResponse), `PATCH /{id}` (UpdateQuestionRequest, partial update), `DELETE /{id}`. Новый error `404 question-not-found`. `QuestionStatus` enum: OPEN/ANSWERED/CLOSED. Migration 26 `questions` table | ADR-032 Q&A foundation, Этап 19.a. Валидация ADR-018 platform pivot через второе приложение. На MVP без source attach (Этап 19.b) |
 | 2026-05-16 | v1 | Добавлены endpoints для Этапа 20.d Admin BookEditModal: `PATCH /api/v1/library/books/{id}` (partial update 6 academic полей через `UpdateBookRequest`, PATCH-семантика: null=no change, ""=clear, non-empty=findOrCreate); `GET /api/v1/library/muhaqqiqs?q=&limit=`, `GET /api/v1/library/publishers?q=&limit=`, `GET /api/v1/library/publication-places?q=&limit=` (autocomplete для UI). Новые DTO: `UpdateBookRequest`, `MuhaqqiqResponse{id,name,fullName}`, `PublisherResponse{id,name}`, `PublicationPlaceResponse{id,name}` | Этап 20.d: UI для ручной правки academic metadata после автоматического parser fill. Search-autocomplete защищает от typo-дублей в справочниках |
 | 2026-05-16 | v1 | Добавлен endpoint `POST /api/v1/admin/shamela/backfill-bibliography`. Прогоняет `ShamelaBibliographyParser` (20.c) по всем shamela-sourced книгам, заполняет `muhaqqiq_id`/`publisher_id`/`publication_place_id`/`edition_number`/`published_year_hijri`/`published_year_gregorian` через `findOrCreate` в справочниках. DTO: `BackfillBibliographyResponse{scanned, updated, skipped}`. Тело request пустое, без header'ов | Этап 20.c follow-up: добить existing books импортированные до появления parser'а. Smoke: 3/3 dev-книг получили заполненные FK после первого вызова |
 | 2026-05-14 | v1 | `NodeSourceResponse` получил поле `id` (UUID) - surrogate PK для citation link. **Breaking change path** `DELETE /api/v1/nodes/{nodeId}/sources/{sourceId}` → `DELETE /api/v1/nodes/{nodeId}/sources/{nodeSourceId}` (по `id` link'а, не `sourceId`). Теперь возможно несколько citation'ов на ту же пару (node, source) с разными positional context (page/range/pdf bbox) - старый composite PK блокировал | ADR-029: FK variant A - surrogate id для node_sources. Migration 25. Bahs-grade workflow требует множественные cit'ы из одной книги с разных страниц |

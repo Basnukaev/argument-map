@@ -74,6 +74,12 @@ public class GlobalExceptionHandler {
                 "book-not-found", ex.getMessage());
     }
 
+    @ExceptionHandler(QuestionNotFoundException.class)
+    public ProblemDetail handleQuestionNotFound(QuestionNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "Вопрос не найден",
+                "question-not-found", ex.getMessage());
+    }
+
     @ExceptionHandler(PageNotFoundException.class)
     public ProblemDetail handlePageNotFound(PageNotFoundException ex) {
         return problem(HttpStatus.NOT_FOUND, "Страница не найдена",

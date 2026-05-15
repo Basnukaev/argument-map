@@ -1,0 +1,79 @@
+package ru.basnukaev.argumentmap.qa.service;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import ru.basnukaev.argumentmap.exception.QuestionNotFoundException;
+import ru.basnukaev.argumentmap.qa.domain.Question;
+import ru.basnukaev.argumentmap.qa.domain.QuestionStatus;
+import ru.basnukaev.argumentmap.qa.repository.QuestionRepository;
+
+/**
+ * Сервисный слой Q&amp;A приложения (Этап 19.a, ADR-032).
+ */
+@Service
+public class QuestionService {
+
+    private final QuestionRepository repository;
+
+    public QuestionService(QuestionRepository repository) {
+        this.repository = repository;
+    }
+
+    @Transactional
+    public Question createQuestion(String title, String body, UUID askedBy) {
+        if (title == null || title.isBlank()) {
+            throw new IllegalArgumentException("title обязателен и не должен быть пустым");
+        }
+        Instant now = Instant.now();
+        Question q = new Question(
+                UUID.randomUUID(),
+                title.trim(),
+                body == null || body.isBlank() ? null : body.trim(),
+                QuestionStatus.OPEN,
+                askedBy,
+                now,
+                now
+        );
+        repository.save(q);
+        return q;
+    }
+
+    @Transactional(readOnly = true)
+    public List<Question> listQuestions(QuestionStatus status, String query) {
+        return repository.findAll(status, query);
+    }
+
+    @Transactional(readOnly = true)
+    public Question getQuestion(UUID id) {
+        return repository.findById(id)
+                .orElseThrow(() -> new QuestionNotFoundException(id));
+    }
+
+    /**
+     * Partial update - title/body/status. null значения = no change в
+     * соответствующем поле. Если ничего не передано в request, ничего
+     * не меняется кроме {@code updated_at = now()}.
+     */
+    @Transactional
+    public Question updateQuestion(UUID id, String title, String body, QuestionStatus status) {
+        // Pre-check существования - даёт чистый 404 вместо silent no-op
+        repository.findById(id).orElseThrow(() -> new QuestionNotFoundException(id));
+        String normalizedTitle = title != null && !title.isBlank() ? title.trim() : title;
+        String normalizedBody = body != null && !body.isBlank() ? body.trim() : body;
+        repository.update(id, normalizedTitle, normalizedBody, status);
+        return repository.findById(id).orElseThrow();
+    }
+
+    @Transactional
+    public void deleteQuestion(UUID id) {
+        boolean removed = repository.deleteById(id);
+        if (!removed) {
+            throw new QuestionNotFoundException(id);
+        }
+    }
+}
