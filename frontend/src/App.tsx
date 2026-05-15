@@ -34,12 +34,17 @@ function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        // capture phase + stopPropagation - иначе Chrome на Win/Linux
+        // обрабатывает Ctrl+K как native accelerator (focus адресной
+        // строки) до того как preventDefault на bubble-phase сработает.
+        // Linear/Vercel/Notion решают так же.
         e.preventDefault();
+        e.stopPropagation();
         togglePalette();
       }
     };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, { capture: true });
+    return () => window.removeEventListener('keydown', onKey, { capture: true });
   }, [togglePalette]);
 
   return (
