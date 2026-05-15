@@ -69,7 +69,7 @@ function SourceCreateForm({
       </Button>
 
       <fieldset disabled={submitting} className="space-y-3">
-        <legend className="mb-1 text-[12px] font-medium text-slate-700">
+        <legend className="mb-1 text-xs font-medium text-ink-700">
           Тип источника
         </legend>
         <div className="grid grid-cols-5 gap-2">
@@ -82,11 +82,11 @@ function SourceCreateForm({
                 title={SOURCE_TYPE_HINT[type]}
                 className={`flex cursor-pointer flex-col items-center gap-1 rounded-md border p-2 text-center transition-colors ${
                   isSelected
-                    ? 'border-indigo-500 bg-indigo-50/60 ring-1 ring-indigo-400'
-                    : 'border-slate-300 hover:bg-slate-50'
+                    ? 'border-accent-500 bg-accent-50/60 ring-1 ring-accent-500/30'
+                    : 'border-border-strong hover:bg-ink-50'
                 }`}
               >
-                <span className="grid h-6 w-6 place-items-center rounded bg-slate-100 text-slate-600">
+                <span className="grid h-6 w-6 place-items-center rounded bg-ink-100 text-ink-600">
                   <Icon size={13} aria-hidden="true" />
                 </span>
                 <input
@@ -103,7 +103,7 @@ function SourceCreateForm({
                   }
                   className="sr-only"
                 />
-                <span className="text-[10px] font-semibold text-slate-700">
+                <span className="text-xs font-semibold text-ink-700">
                   {SOURCE_TYPE_LABEL[type]}
                 </span>
               </label>
@@ -114,7 +114,7 @@ function SourceCreateForm({
         <div>
           <label
             htmlFor="create-title"
-            className="mb-1 block text-[12px] font-medium text-slate-700"
+            className="mb-1 block text-xs font-medium text-ink-700"
           >
             Название
           </label>
@@ -126,14 +126,14 @@ function SourceCreateForm({
             required
             maxLength={500}
             placeholder="Например: Сахих аль-Бухари, №3000"
-            className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+            className="block w-full rounded-md border border-border-strong bg-elevated px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400 outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
           />
         </div>
 
         <div>
           <label
             htmlFor="create-citation"
-            className="mb-1 block text-[12px] font-medium text-slate-700"
+            className="mb-1 block text-xs font-medium text-ink-700"
           >
             Цитата для подписи (опционально)
           </label>
@@ -144,13 +144,13 @@ function SourceCreateForm({
             onChange={(e) => onFormChange((f) => ({ ...f, citation: e.target.value }))}
             maxLength={500}
             placeholder="Том · страница · глава"
-            className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+            className="block w-full rounded-md border border-border-strong bg-elevated px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400 outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
           />
         </div>
 
         {form.sourceType === 'HADITH' && (
           <div>
-            <label className="mb-1 block text-[12px] font-medium text-slate-700">
+            <label className="mb-1 block text-xs font-medium text-ink-700">
               Степень достоверности (`reliability`)
             </label>
             <div className="grid grid-cols-3 gap-2">
@@ -159,10 +159,10 @@ function SourceCreateForm({
                 return (
                   <label
                     key={rel}
-                    className={`flex cursor-pointer items-center justify-center rounded-md border px-2 py-1.5 font-mono text-[11px] uppercase transition-colors ${
+                    className={`flex cursor-pointer items-center justify-center rounded-md border px-2 py-1.5 font-mono text-xs uppercase transition-colors ${
                       isSelected
-                        ? 'border-indigo-500 bg-indigo-50/60 text-indigo-800'
-                        : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                        ? 'border-accent-500 bg-accent-50/60 text-accent-700'
+                        : 'border-border-strong text-ink-700 hover:bg-ink-50'
                     }`}
                   >
                     <input
@@ -178,7 +178,7 @@ function SourceCreateForm({
                 );
               })}
             </div>
-            <p className="mt-1 text-[10px] text-slate-500">
+            <p className="mt-1 text-xs text-ink-500">
               Обязательно для типа `HADITH` хадис - бэк отвергнет без grade
               (`InvalidSourceException` 422)
             </p>

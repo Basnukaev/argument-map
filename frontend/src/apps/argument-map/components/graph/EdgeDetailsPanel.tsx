@@ -67,20 +67,20 @@ interface SectionProps {
 function PanelSection({ icon: Icon, title, defaultOpen = true, children }: SectionProps) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <section className="border-t border-slate-200">
+    <section className="border-t border-border">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-5 py-3 text-start transition-colors hover:bg-slate-50"
+        className="flex w-full items-center gap-2 px-5 py-3 text-start transition-colors hover:bg-ink-50"
       >
-        <Icon size={14} className="text-slate-500" aria-hidden="true" />
-        <span className="text-[12px] font-semibold uppercase tracking-wider text-slate-700">
+        <Icon size={14} className="text-ink-500" aria-hidden="true" />
+        <span className="text-xs font-semibold uppercase tracking-wider text-ink-700">
           {title}
         </span>
         <ChevronDown
           size={14}
-          className={`ms-auto text-slate-400 transition-transform ${open ? '' : '-rotate-90'}`}
+          className={`ms-auto text-ink-400 transition-transform ${open ? '' : '-rotate-90'}`}
           aria-hidden="true"
         />
       </button>
@@ -100,48 +100,50 @@ function NodeMini({ node, emptyText }: NodeMiniProps) {
   const typeToken = NODE_TYPE_TOKENS[nodeType];
   const statusToken = STATUS_TOKENS[status];
   return (
-    <div className="relative flex-1 overflow-hidden rounded-md border border-slate-200 bg-slate-50/40 px-2.5 py-2">
+    <div className="relative flex-1 overflow-hidden rounded-md border border-border bg-ink-50/40 px-2.5 py-2">
       <div
         className={`absolute start-0 top-0 bottom-0 w-[3px] rounded-s-md ${statusToken.bar}`}
         aria-hidden="true"
       />
-      <div className={`text-[10px] font-semibold uppercase tracking-wider ${typeToken.chipText}`}>
+      <div className={`text-xs font-semibold uppercase tracking-wider ${typeToken.chipText}`}>
         {nodeType}
       </div>
-      <div dir="auto" className="line-clamp-2 text-[12px] font-medium leading-snug text-slate-800">
+      <div dir="auto" className="line-clamp-2 text-xs font-medium leading-snug text-ink-800">
         {nodePreview(node, emptyText)}
       </div>
     </div>
   );
 }
 
-// edge gradient background for header - подбираем по edge type через токены
-function gradientFor(edgeType: EdgeType): string {
+// Edge-specific solid header background. Per v2 design system 01-system.md
+// anti-pattern: никаких decorative gradients. Используем edge-*-bg токены -
+// мягкий tinted фон, который автоматически переключается в dark theme.
+function headerBgFor(edgeType: EdgeType): string {
   switch (edgeType) {
     case 'SUPPORTS':
-      return 'from-emerald-50/70 to-white';
+      return 'bg-edge-supports-bg';
     case 'REFUTES':
     case 'INVALIDATES':
-      return 'from-red-50/70 to-white';
+      return 'bg-edge-refutes-bg';
     case 'QUALIFIES':
-      return 'from-blue-50/70 to-white';
+      return 'bg-edge-qualifies-bg';
     case 'RESPONDS_TO':
-      return 'from-slate-50/70 to-white';
+      return 'bg-edge-responds-bg';
   }
 }
 
 function iconBgFor(edgeType: EdgeType): { bg: string; text: string } {
   switch (edgeType) {
     case 'SUPPORTS':
-      return { bg: 'bg-emerald-100', text: 'text-emerald-700' };
+      return { bg: 'bg-ok-100', text: 'text-ok-700' };
     case 'REFUTES':
-      return { bg: 'bg-red-100', text: 'text-red-700' };
+      return { bg: 'bg-err-100', text: 'text-err-700' };
     case 'INVALIDATES':
-      return { bg: 'bg-red-100', text: 'text-red-800' };
+      return { bg: 'bg-err-100', text: 'text-err-700' };
     case 'QUALIFIES':
-      return { bg: 'bg-blue-100', text: 'text-blue-700' };
+      return { bg: 'bg-edge-qualifies-bg', text: 'text-edge-qualifies' };
     case 'RESPONDS_TO':
-      return { bg: 'bg-slate-100', text: 'text-slate-700' };
+      return { bg: 'bg-ink-100', text: 'text-ink-700' };
   }
 }
 
@@ -225,10 +227,10 @@ function EdgeDetailsPanel({
     <aside
       role="complementary"
       aria-label={t('graph.details_aria_edge')}
-      className="absolute end-0 top-0 bottom-0 z-10 flex w-[400px] flex-col border-s border-slate-200 bg-white shadow-xl"
+      className="absolute end-0 top-0 bottom-0 z-10 flex w-[400px] flex-col border-s border-border bg-elevated shadow-sh4"
     >
       <header
-        className={`relative border-b border-slate-200 bg-gradient-to-b ${gradientFor(currentEdgeType)} p-5`}
+        className={`relative border-b border-border ${headerBgFor(currentEdgeType)} p-5`}
       >
         <div className="absolute end-3 top-3">
           <IconButton icon={X} label={t('common.close')} size="sm" onClick={onClose} />
@@ -238,16 +240,16 @@ function EdgeDetailsPanel({
             <HeaderIcon size={16} aria-hidden="true" />
           </span>
           <div className="flex min-w-0 flex-col">
-            <h2 className="truncate text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <h2 className="truncate text-xs font-semibold uppercase tracking-wider text-ink-500">
               EDGE · {t(currentMeta.labelKey)}
             </h2>
-            <span className="font-mono text-[12px] text-slate-400">
+            <span className="font-mono text-xs text-ink-400">
               <bdi dir="ltr">{shortId(edge.id)}</bdi>
             </span>
           </div>
         </div>
-        <p className="mt-2 text-[12px] text-slate-700">
-          <span className="font-semibold text-slate-800">{contextualLabel}</span>
+        <p className="mt-2 text-xs text-ink-700">
+          <span className="font-semibold text-ink-800">{contextualLabel}</span>
         </p>
       </header>
 
@@ -255,7 +257,7 @@ function EdgeDetailsPanel({
         <PanelSection icon={Network} title={t('edge.section.connection')} defaultOpen>
           <div className="flex items-center gap-2">
             <NodeMini node={fromNode} emptyText={t('node.empty_content')} />
-            <FlowArrow size={20} className="shrink-0 text-slate-400" aria-hidden="true" />
+            <FlowArrow size={20} className="shrink-0 text-ink-400" aria-hidden="true" />
             <NodeMini node={toNode} emptyText={t('node.empty_content')} />
           </div>
         </PanelSection>
@@ -263,12 +265,12 @@ function EdgeDetailsPanel({
         <PanelSection icon={Layers} title={t('edge.section.type')} defaultOpen>
           <div className="mb-2 flex items-center justify-between">
             {!editing ? (
-              <p className="text-[13px] text-slate-900">
+              <p className="text-sm text-ink-900">
                 <span className="font-semibold">{t(currentMeta.labelKey)}</span>
-                <span className="text-slate-500"> — {t(currentMeta.hintKey)}</span>
+                <span className="text-ink-500"> — {t(currentMeta.hintKey)}</span>
               </p>
             ) : (
-              <p className="text-[12px] text-slate-500">{t('edge.pick_new_type')}</p>
+              <p className="text-xs text-ink-500">{t('edge.pick_new_type')}</p>
             )}
             {!editing && (
               <Button
@@ -286,7 +288,7 @@ function EdgeDetailsPanel({
           {editing && (
             <div className="space-y-1.5">
               {allowedTypes.length === 0 && (
-                <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-[12px] text-amber-900">
+                <p className="rounded-md border border-warn-500/40 bg-warn-100 p-2 text-xs text-warn-700">
                   {t('edge.error.disallowed_pair')}
                 </p>
               )}
@@ -300,8 +302,8 @@ function EdgeDetailsPanel({
                     key={value}
                     className={`flex cursor-pointer items-start gap-2 rounded-md border p-2 transition-colors ${
                       selected
-                        ? 'border-indigo-500 bg-indigo-50/60 ring-1 ring-indigo-400'
-                        : 'border-slate-300 hover:bg-slate-50'
+                        ? 'border-accent-500 bg-accent-50/60 ring-1 ring-accent-500/30'
+                        : 'border-border-strong hover:bg-ink-50'
                     }`}
                   >
                     <input
@@ -311,7 +313,7 @@ function EdgeDetailsPanel({
                       checked={selected}
                       onChange={() => setDraftType(value)}
                       disabled={saving}
-                      className="mt-1 accent-indigo-600"
+                      className="mt-1 accent-accent-500"
                     />
                     <div className="flex-1">
                       <div className="flex items-center gap-1.5">
@@ -321,11 +323,11 @@ function EdgeDetailsPanel({
                           style={{ color: token.stroke }}
                           aria-hidden="true"
                         />
-                        <span className="text-[12px] font-semibold text-slate-900">
+                        <span className="text-xs font-semibold text-ink-900">
                           {t(meta.labelKey)}
                         </span>
                       </div>
-                      <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
+                      <p className="mt-0.5 text-xs leading-relaxed text-ink-500">
                         {t(meta.hintKey)}
                       </p>
                     </div>
@@ -358,21 +360,21 @@ function EdgeDetailsPanel({
               disabled={saving}
               aria-label={t('edge.rationale_aria')}
               placeholder={t('edge.rationale_placeholder')}
-              className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              className="block w-full rounded-md border border-border-strong bg-elevated px-3 py-2 text-sm text-ink-900 outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
             />
           ) : currentRationale ? (
-            <p dir="auto" className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-slate-800">
+            <p dir="auto" className="whitespace-pre-wrap break-words text-sm leading-relaxed text-ink-800">
               {currentRationale}
             </p>
           ) : (
-            <p className="text-[13px] italic text-slate-500">{t('node.empty_rationale')}</p>
+            <p className="text-sm italic text-ink-500">{t('node.empty_rationale')}</p>
           )}
         </PanelSection>
 
         {editing && (
-          <div className="border-t border-slate-200 px-5 py-3 space-y-2">
+          <div className="border-t border-border px-5 py-3 space-y-2">
             {saveError && (
-              <div className="rounded-md border border-red-300 bg-red-50 p-2 text-[12px] text-red-800">
+              <div className="rounded-md border border-err-500/40 bg-err-100 p-2 text-xs text-err-700">
                 {saveError}
               </div>
             )}
@@ -399,19 +401,19 @@ function EdgeDetailsPanel({
         )}
 
         <PanelSection icon={Info} title={t('edge.section.metadata')} defaultOpen={false}>
-          <dl className="grid grid-cols-[100px_1fr] gap-x-3 gap-y-2 text-[12px]">
-            <dt className="text-slate-500">{t('edge.created_at')}</dt>
-            <dd className="text-slate-700">
+          <dl className="grid grid-cols-[100px_1fr] gap-x-3 gap-y-2 text-xs">
+            <dt className="text-ink-500">{t('edge.created_at')}</dt>
+            <dd className="text-ink-700">
               <bdi dir="ltr">{formatDate(edge.createdAt)}</bdi>
             </dd>
 
-            <dt className="text-slate-500">{t('edge.author')}</dt>
-            <dd className="font-mono text-slate-700" title={edge.createdBy}>
+            <dt className="text-ink-500">{t('edge.author')}</dt>
+            <dd className="font-mono text-ink-700" title={edge.createdBy}>
               <bdi dir="ltr">{shortId(edge.createdBy)}</bdi>
             </dd>
 
-            <dt className="text-slate-500">{t('edge.id')}</dt>
-            <dd className="font-mono text-slate-700" title={edge.id}>
+            <dt className="text-ink-500">{t('edge.id')}</dt>
+            <dd className="font-mono text-ink-700" title={edge.id}>
               <bdi dir="ltr">{shortId(edge.id)}</bdi>
             </dd>
           </dl>

@@ -169,9 +169,9 @@ export const EDGE_TYPE_META: Record<
   EdgeType,
   { labelKey: DictKey; hintKey: DictKey; Icon: LucideIcon; colorClass: string }
 > = {
-  SUPPORTS: { labelKey: 'edge.type.SUPPORTS', hintKey: 'edge.type.SUPPORTS.hint', Icon: Check, colorClass: 'text-green-600' },
-  REFUTES: { labelKey: 'edge.type.REFUTES', hintKey: 'edge.type.REFUTES.hint', Icon: X, colorClass: 'text-red-600' },
-  INVALIDATES: { labelKey: 'edge.type.INVALIDATES', hintKey: 'edge.type.INVALIDATES.hint', Icon: Ban, colorClass: 'text-red-800' },
-  QUALIFIES: { labelKey: 'edge.type.QUALIFIES', hintKey: 'edge.type.QUALIFIES.hint', Icon: ChevronsRight, colorClass: 'text-blue-600' },
-  RESPONDS_TO: { labelKey: 'edge.type.RESPONDS_TO', hintKey: 'edge.type.RESPONDS_TO.hint', Icon: Reply, colorClass: 'text-gray-500' },
+  SUPPORTS: { labelKey: 'edge.type.SUPPORTS', hintKey: 'edge.type.SUPPORTS.hint', Icon: Check, colorClass: 'text-edge-supports' },
+  REFUTES: { labelKey: 'edge.type.REFUTES', hintKey: 'edge.type.REFUTES.hint', Icon: X, colorClass: 'text-edge-refutes' },
+  INVALIDATES: { labelKey: 'edge.type.INVALIDATES', hintKey: 'edge.type.INVALIDATES.hint', Icon: Ban, colorClass: 'text-edge-refutes' },
+  QUALIFIES: { labelKey: 'edge.type.QUALIFIES', hintKey: 'edge.type.QUALIFIES.hint', Icon: ChevronsRight, colorClass: 'text-edge-qualifies' },
+  RESPONDS_TO: { labelKey: 'edge.type.RESPONDS_TO', hintKey: 'edge.type.RESPONDS_TO.hint', Icon: Reply, colorClass: 'text-edge-responds' },
 };

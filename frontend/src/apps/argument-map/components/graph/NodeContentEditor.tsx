@@ -65,11 +65,11 @@ function NodeContentEditor({ nodeId, content, initialEditing, onSaved }: Props) 
       {!editing ? (
         <div>
           {content ? (
-            <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed text-slate-800 text-pretty">
+            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-ink-800 text-pretty">
               {content}
             </p>
           ) : (
-            <p className="text-[14px] italic text-slate-400">{t('node.empty_content_short')}</p>
+            <p className="text-sm italic text-ink-400">{t('node.empty_content_short')}</p>
           )}
           <Button
             type="button"
@@ -91,10 +91,10 @@ function NodeContentEditor({ nodeId, content, initialEditing, onSaved }: Props) 
             maxLength={10000}
             disabled={saving}
             aria-label={t('node.content_aria')}
-            className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+            className="block w-full rounded-md border border-border-strong bg-elevated px-3 py-2 text-sm text-ink-900 outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
           />
           {saveError && (
-            <div className="rounded-md border border-red-300 bg-red-50 p-2 text-[12px] text-red-800">
+            <div className="rounded-md border border-err-500/40 bg-err-100 p-2 text-xs text-err-700">
               {saveError}
             </div>
           )}

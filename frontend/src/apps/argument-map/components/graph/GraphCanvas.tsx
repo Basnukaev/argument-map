@@ -209,7 +209,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
       });
       setAddEdgeOpen(true);
     },
-    [rawNodeDtos],
+    [rawNodeDtos, t],
   );
 
   function closeAddEdge() {
@@ -267,7 +267,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
           onRefetch();
         });
     },
-    [rawNodeDtos, onRefetch, setEdges],
+    [rawNodeDtos, onRefetch, setEdges, t],
   );
 
   // drag-end - PATCH с координатами, оптимистично. Ошибка - toast
@@ -281,7 +281,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
         toast.error(`${t('graph.toast.update_failed')}: ${msg}`);
       });
     },
-    [],
+    [t],
   );
 
   // удаление одного узла/ребра по id из контекстного меню. Без window.confirm:
@@ -339,7 +339,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
         ],
       });
     },
-    [rfInstance],
+    [rfInstance, t],
   );
 
   function closeAddNode() {
@@ -606,7 +606,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
     <>
       {isEmpty ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-8 text-center">
-          <p className="text-gray-500">{t('graph.empty')}</p>
+          <p className="text-ink-500">{t('graph.empty')}</p>
           <Button onClick={() => setAddNodeOpen(true)}>{t('graph.add_first_node')}</Button>
         </div>
       ) : (
@@ -636,7 +636,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={24} size={1} />
-          <CompactMiniMap />
+          <CompactMiniMap detailOpen={!!detailNode || !!detailEdge} />
           <GraphPanels
             showEdgeLabels={showEdgeLabels}
             onToggleLabels={() => setShowEdgeLabels((v) => !v)}

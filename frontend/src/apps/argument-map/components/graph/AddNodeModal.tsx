@@ -137,7 +137,7 @@ function AddNodeModal({
       }
     >
       <fieldset disabled={submitting || lockNodeType} className="space-y-2">
-          <legend className="text-[12px] font-medium text-slate-700">
+          <legend className="text-xs font-medium text-ink-700">
             {t('node.field.type')}
           </legend>
           <div className={`mt-2 grid gap-2 ${lockNodeType ? 'grid-cols-1' : 'grid-cols-4'}`}>
@@ -151,8 +151,8 @@ function AddNodeModal({
                   key={value}
                   className={`flex cursor-pointer flex-col gap-1.5 rounded-md border p-3 transition-colors ${
                     selected
-                      ? 'border-indigo-500 bg-indigo-50/60 ring-1 ring-indigo-400'
-                      : 'border-slate-300 hover:bg-slate-50'
+                      ? 'border-accent-500 bg-accent-50/60 ring-1 ring-accent-500/30'
+                      : 'border-border-strong hover:bg-ink-50'
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -167,13 +167,13 @@ function AddNodeModal({
                       value={value}
                       checked={selected}
                       onChange={() => setNodeType(value)}
-                      className="accent-indigo-600"
+                      className="accent-accent-500"
                     />
                   </div>
-                  <span className="text-[12px] font-semibold text-slate-900">
+                  <span className="text-xs font-semibold text-ink-900">
                     {t(token.labelKey)}
                   </span>
-                  <span className="line-clamp-2 text-[10px] leading-relaxed text-slate-500">
+                  <span className="line-clamp-2 text-xs leading-relaxed text-ink-500">
                     {t(token.hintKey)}
                   </span>
                 </label>
@@ -183,7 +183,7 @@ function AddNodeModal({
         </fieldset>
 
         <div>
-          <label htmlFor="node-content" className="mb-1.5 block text-[12px] font-medium text-slate-700">
+          <label htmlFor="node-content" className="mb-1.5 block text-xs font-medium text-ink-700">
             {t('node.field.content')}
           </label>
           <textarea
@@ -194,9 +194,9 @@ function AddNodeModal({
             rows={4}
             maxLength={10000}
             disabled={submitting}
-            className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+            className="block w-full rounded-md border border-border-strong bg-elevated px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400 outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
           />
-          <span className="mt-1 block text-[11px] text-slate-500">
+          <span className="mt-1 block text-xs text-ink-500">
             {t('node.field.content_hint')}
           </span>
         </div>

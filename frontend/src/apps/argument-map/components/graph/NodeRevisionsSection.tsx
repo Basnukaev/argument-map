@@ -51,35 +51,35 @@ function NodeRevisionsSection({ nodeId }: Props) {
   }
 
   return (
-    <section className="border-t border-slate-200">
+    <section className="border-t border-border">
       <button
         type="button"
         onClick={toggle}
         aria-expanded={historyOpen}
-        className="flex w-full items-center gap-2 px-5 py-3 text-start transition-colors hover:bg-slate-50"
+        className="flex w-full items-center gap-2 px-5 py-3 text-start transition-colors hover:bg-ink-50"
       >
-        <History size={14} className="text-slate-500" aria-hidden="true" />
-        <span className="text-[12px] font-semibold uppercase tracking-wider text-slate-700">
+        <History size={14} className="text-ink-500" aria-hidden="true" />
+        <span className="text-xs font-semibold uppercase tracking-wider text-ink-700">
           {t('node.section.history')}
         </span>
         {state.kind === 'loaded' && (
-          <span className="text-[11px] font-mono text-slate-400">{state.revisions.length}</span>
+          <span className="text-xs font-mono text-ink-400">{state.revisions.length}</span>
         )}
         {historyOpen ? (
-          <ChevronDown size={14} className="ms-auto text-slate-400" aria-hidden="true" />
+          <ChevronDown size={14} className="ms-auto text-ink-400" aria-hidden="true" />
         ) : (
-          <ChevronRight size={14} className="ms-auto text-slate-400 rtl:-scale-x-100" aria-hidden="true" />
+          <ChevronRight size={14} className="ms-auto text-ink-400 rtl:-scale-x-100" aria-hidden="true" />
         )}
       </button>
 
       {historyOpen && (
         <div className="space-y-2 px-5 pb-4">
-          {state.kind === 'loading' && <p className="text-[12px] text-slate-500">{t('common.loading')}</p>}
+          {state.kind === 'loading' && <p className="text-xs text-ink-500">{t('common.loading')}</p>}
           {state.kind === 'error' && (
-            <p className="text-[12px] text-red-700">{t('common.error')}: {state.message}</p>
+            <p className="text-xs text-err-700">{t('common.error')}: {state.message}</p>
           )}
           {state.kind === 'loaded' && state.revisions.length === 0 && (
-            <p className="text-[12px] italic text-slate-500">{t('node.history_empty')}</p>
+            <p className="text-xs italic text-ink-500">{t('node.history_empty')}</p>
           )}
           {state.kind === 'loaded' &&
             state.revisions.length > 0 &&
@@ -88,27 +88,27 @@ function NodeRevisionsSection({ nodeId }: Props) {
               .map((r) => (
                 <article
                   key={r.id}
-                  className="overflow-hidden rounded-md border border-slate-200 bg-white"
+                  className="overflow-hidden rounded-md border border-border bg-elevated"
                 >
-                  <header className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px]">
-                    <span className="font-mono text-slate-500">{t('node.revision_label')}</span>
-                    <span className="text-slate-500">
+                  <header className="flex items-center justify-between border-b border-border bg-ink-50 px-3 py-1.5 text-xs">
+                    <span className="font-mono text-ink-500">{t('node.revision_label')}</span>
+                    <span className="text-ink-500">
                       {formatDate(r.changedAt)} ·{' '}
                       <span className="font-mono" title={r.changedBy}>
                         {shortId(r.changedBy)}
                       </span>
                     </span>
                   </header>
-                  <div className="divide-y divide-slate-100 text-[12px] font-mono">
+                  <div className="divide-y divide-border text-xs font-mono">
                     {r.contentBefore && (
-                      <div className="whitespace-pre-wrap break-words bg-red-50/40 px-3 py-1.5 text-red-800">
-                        <span className="select-none text-red-500">- </span>
+                      <div className="whitespace-pre-wrap break-words bg-err-100/40 px-3 py-1.5 text-err-700">
+                        <span className="select-none text-err-500">- </span>
                         {r.contentBefore}
                       </div>
                     )}
                     {r.contentAfter && (
-                      <div className="whitespace-pre-wrap break-words bg-emerald-50/40 px-3 py-1.5 text-emerald-800">
-                        <span className="select-none text-emerald-600">+ </span>
+                      <div className="whitespace-pre-wrap break-words bg-ok-100/40 px-3 py-1.5 text-ok-700">
+                        <span className="select-none text-ok-700">+ </span>
                         {r.contentAfter}
                       </div>
                     )}

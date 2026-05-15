@@ -93,7 +93,7 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
     return () => {
       controller.abort();
     };
-  }, [nodeId]);
+  }, [nodeId, t]);
 
   /** Detach по surrogate nodeSourceId (миграция 25 FK variant A) */
   async function detachNodeSource(nodeSourceId: string) {
@@ -135,14 +135,16 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
         defaultOpen={false}
       >
         <CitationsList state={state} onDetach={detachNodeSource} />
-        <div className="mt-2 flex gap-2">
+        {/* Vertical stack - текст кнопки "Привести источник" длинный и не
+            вмещается в side-by-side layout в узком detail panel (~360px) */}
+        <div className="mt-2 flex flex-col gap-2">
           <Button
             type="button"
             size="sm"
             icon={BookOpen}
             onClick={() => setCitationPickerOpen(true)}
             disabled={!nodeId}
-            className="flex-1 justify-center"
+            full
           >
             {t('node.citation_add_library')}
           </Button>
@@ -153,7 +155,7 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
             icon={Plus}
             onClick={() => setAddSourceOpen(true)}
             disabled={!nodeId}
-            className="flex-1 justify-center"
+            full
           >
             {t('node.citation_add_free')}
           </Button>
@@ -241,15 +243,15 @@ function CitationsList({ state, onDetach }: CitationsListProps) {
   const t = useT();
   const navigate = useNavigate();
   if (state.kind === 'not-loaded' || state.kind === 'loading') {
-    return <p className="text-[12px] text-slate-500">{t('common.loading')}</p>;
+    return <p className="text-xs text-ink-500">{t('common.loading')}</p>;
   }
   if (state.kind === 'error') {
-    return <p className="text-[12px] text-red-700">{t('common.error')}: {state.message}</p>;
+    return <p className="text-xs text-err-700">{t('common.error')}: {state.message}</p>;
   }
   const { links, sourceLookup, authorityLookup } = state.data;
   if (links.length === 0) {
     return (
-      <p className="text-[12px] italic text-slate-500">{t('node.citations_empty')}</p>
+      <p className="text-xs italic text-ink-500">{t('node.citations_empty')}</p>
     );
   }
   return (
@@ -315,21 +317,21 @@ function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) 
   const snapshot = link.legacySnapshot;
 
   return (
-    <details className="group/c rounded-md border border-slate-200 bg-slate-50/60 open:bg-slate-50">
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-2.5 py-2 hover:bg-slate-100/60">
+    <details className="group/c rounded-md border border-border bg-ink-50/60 open:bg-ink-50">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-2.5 py-2 hover:bg-ink-100/60">
         <span
-          className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700"
+          className="inline-flex items-center gap-1 rounded border border-border bg-ink-100 px-1.5 py-0.5 text-xs font-bold uppercase tracking-wider text-ink-700"
           aria-label={t('node.citation_free_aria')}
         >
           <Quote size={11} aria-hidden="true" />
           Свободная
         </span>
-        <span className="flex-1 truncate text-[12.5px] text-slate-800" dir="ltr">
+        <span className="flex-1 truncate text-xs text-ink-800" dir="ltr">
           {title}
         </span>
         {!hasUrl && sourceType === 'URL' && (
           <span
-            className="inline-flex items-center gap-1 text-[11px] text-amber-700"
+            className="inline-flex items-center gap-1 text-xs text-warn-700"
             title="URL не указан"
           >
             <AlertCircle size={12} aria-hidden="true" />
@@ -342,20 +344,20 @@ function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) 
             e.preventDefault();
             if (link.id) onDetach(link.id);
           }}
-          className="rounded p-1 text-slate-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover/c:opacity-100"
+          className="rounded p-1 text-ink-400 opacity-0 transition-opacity hover:bg-err-100 hover:text-err-700 focus:opacity-100 group-hover/c:opacity-100"
         >
           <Trash2 size={13} aria-hidden="true" />
         </button>
         <ChevronDown
           size={14}
-          className="text-slate-400 transition-transform group-open/c:rotate-180"
+          className="text-ink-400 transition-transform group-open/c:rotate-180"
           aria-hidden="true"
         />
       </summary>
 
-      <div className="space-y-1.5 border-t border-slate-200 px-2.5 py-2">
+      <div className="space-y-1.5 border-t border-border px-2.5 py-2">
         {/* kindLabel - chip-type (BOOK/HADITH/URL), всегда LTR uppercase */}
-        <div dir="ltr" className="text-start font-mono text-[10.5px] uppercase tracking-wide text-slate-500">
+        <div dir="ltr" className="text-start font-mono text-xs uppercase tracking-wide text-ink-500">
           {kindLabel}
         </div>
 
@@ -363,8 +365,8 @@ function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) 
             языке. dir="auto" определит направление по первому сильному
             символу. Шрифт font-naskh - через эвристику hasArabicScript */}
         {authority && (
-          <div dir="auto" className="text-[12px] text-slate-700">
-            <UserIcon size={11} className="me-1 inline text-slate-400" aria-hidden="true" />
+          <div dir="auto" className="text-xs text-ink-700">
+            <UserIcon size={11} className="me-1 inline text-ink-400" aria-hidden="true" />
             <span
               className={
                 hasArabicScript(authority.name) ? 'font-naskh font-medium' : 'font-medium'
@@ -373,7 +375,7 @@ function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) 
               {authority.name}
             </span>
             {authorMeta && (
-              <span className="ms-1.5 font-mono text-[11px] text-slate-500">
+              <span className="ms-1.5 font-mono text-xs text-ink-500">
                 <span aria-hidden>·</span> <bdi>{authorMeta}</bdi>
               </span>
             )}
@@ -381,7 +383,7 @@ function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) 
         )}
 
         {(citation || snapshot) && (
-          <div dir="auto" className="font-mono text-[11px] text-slate-500">
+          <div dir="auto" className="font-mono text-xs text-ink-500">
             {citation && <bdi>{citation}</bdi>}
             {citation && snapshot && <span aria-hidden>{' · '}</span>}
             {snapshot && <bdi>{snapshot}</bdi>}
@@ -393,8 +395,8 @@ function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) 
             dir="auto"
             className={
               hasArabicScript(quote)
-                ? 'border-s-2 border-slate-300 ps-2 font-naskh text-[14px] leading-loose text-slate-700 text-start'
-                : 'border-s-2 border-slate-300 ps-2 text-[12.5px] italic leading-relaxed text-slate-600 text-start'
+                ? 'border-s-2 border-border-strong ps-2 font-naskh text-sm leading-loose text-ink-700 text-start'
+                : 'border-s-2 border-border-strong ps-2 text-xs italic leading-relaxed text-ink-600 text-start'
             }
           >
             «{quote}»
@@ -402,7 +404,7 @@ function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) 
         )}
 
         {link.context && (
-          <div dir="auto" className="text-[11px] text-slate-500">
+          <div dir="auto" className="text-xs text-ink-500">
             {link.context}
           </div>
         )}

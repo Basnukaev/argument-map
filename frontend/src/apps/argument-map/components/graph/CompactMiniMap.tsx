@@ -8,32 +8,33 @@ import type { components } from '@/shared/api/types';
 
 type NodeDto = components['schemas']['NodeResponse'];
 
-// fill узла на minimap - по типу. Цветной "квадратик типа" даёт
-// читаемую палитру: фиолет=Вопрос, синий=Тезис, янтарь=Довод, зелёный=Свид.
-// Совпадает с шапкой NodeCard (см. AddNodeModal radio-list)
+// Fill узла на minimap - через CSS variables, чтобы темизация и
+// семантика были сквозные с остальным графом. Per v2 design system
+// QUESTION/CLAIM/ARGUMENT - abstract type-family, EVIDENCE - empirical.
 const TYPE_FILL: Record<NodeType, string> = {
-  QUESTION: '#c4b5fd',
-  CLAIM: '#93c5fd',
-  ARGUMENT: '#fcd34d',
-  EVIDENCE: '#6ee7b7',
+  QUESTION: 'var(--c-type-abstract-fg)',
+  CLAIM: 'var(--c-type-abstract-fg)',
+  ARGUMENT: 'var(--c-type-abstract-fg)',
+  EVIDENCE: 'var(--c-type-empirical-fg)',
 };
 
-// stroke узла на minimap - по статусу. Серый для UNVERIFIED не отвлекает,
-// цвет загорается когда статус известен
+// stroke узла - по статусу через semantic var(--c-{status}-500). Серый
+// (ink-400) для UNVERIFIED не отвлекает, статусный цвет загорается только
+// когда оценка известна.
 const STATUS_STROKE: Record<NonNullable<NodeDto['status']>, string> = {
-  STANDING: '#16a34a',
-  DISPUTED: '#d97706',
-  REFUTED: '#dc2626',
-  UNVERIFIED: '#6b7280',
+  STANDING: 'var(--c-ok-500)',
+  DISPUTED: 'var(--c-warn-500)',
+  REFUTED: 'var(--c-err-500)',
+  UNVERIFIED: 'var(--c-ink-400)',
 };
 
-// hex рёбер - совпадают со stroke в CustomEdge
+// Edge stroke - те же edge-* токены что и в CustomEdge и EDGE_TYPE_TOKENS
 const EDGE_HEX: Record<EdgeType, string> = {
-  SUPPORTS: '#22c55e',
-  REFUTES: '#ef4444',
-  INVALIDATES: '#b91c1c',
-  QUALIFIES: '#3b82f6',
-  RESPONDS_TO: '#9ca3af',
+  SUPPORTS: 'var(--c-edge-supports)',
+  REFUTES: 'var(--c-edge-refutes)',
+  INVALIDATES: 'var(--c-edge-refutes)',
+  QUALIFIES: 'var(--c-edge-qualifies)',
+  RESPONDS_TO: 'var(--c-edge-responds)',
 };
 
 const PAD = 60;
@@ -46,13 +47,23 @@ const EXPANDED_H = 340;
 
 import { getBoundingBox, expandBounds, type BBox } from '@/apps/argument-map/utils/graphBounds';
 
+interface MiniMapProps {
+  /** Если true (узел/ребро selected, открыт detail panel) - сдвиг карты
+   *  на 416px от inline-end края чтобы не перекрываться панелью w-[400px] */
+  detailOpen?: boolean;
+}
+
 /**
  * Кастомная мини-карта: показывает узлы (как уменьшенные NodeCard через
  * SVG rect+иконку), рёбра как цветные линии, viewport-rectangle (где
  * сейчас камера) с синей обводкой. Click на minimap центрирует камеру
- * там же. Toggle развернуть/свернуть для большего размера
+ * там же. Toggle развернуть/свернуть для большего размера.
+ *
+ * Позиционирование per design-reference v3: всегда snap к inline-end
+ * краю (правый в LTR, левый в RTL). Когда detail panel открыт - shift
+ * на ширину panel + gap, чтобы visible одновременно с панелью.
  */
-function CompactMiniMap() {
+function CompactMiniMap({ detailOpen = false }: MiniMapProps) {
   const t = useT();
   const nodes = useNodes();
   const edges = useEdges();
@@ -131,7 +142,12 @@ function CompactMiniMap() {
 
   return (
     <div
-      className="absolute right-3 bottom-3 z-10 overflow-hidden rounded-md border border-slate-200 bg-white shadow-md"
+      // bottom-3 на inline-end (right в LTR / left в RTL). При открытом
+      // detail panel (w-[400px] на end-0) сдвигаемся на 416px чтобы оба
+      // элемента были visible одновременно
+      className={`absolute bottom-3 z-10 overflow-hidden rounded-md border border-border bg-elevated shadow-sh3 ${
+        detailOpen ? 'end-[416px]' : 'end-3'
+      }`}
       style={{ width: W }}
     >
       <button
@@ -141,7 +157,7 @@ function CompactMiniMap() {
           setExpanded((v) => !v);
         }}
         aria-label={t('graph.minimap')}
-        className="absolute right-1 top-1 z-10 rounded bg-white/90 p-1 text-gray-500 shadow-sm hover:bg-white hover:text-gray-700"
+        className="absolute end-1 top-1 z-10 rounded bg-elevated/90 p-1 text-ink-500 shadow-sh1 hover:bg-elevated hover:text-ink-700"
       >
         {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
       </button>
@@ -152,7 +168,7 @@ function CompactMiniMap() {
         viewBox={`${view.minX} ${view.minY} ${viewW} ${viewH}`}
         preserveAspectRatio="xMidYMid meet"
         onClick={handleClick}
-        className="block cursor-pointer bg-gray-50"
+        className="block cursor-pointer bg-ink-50"
         aria-label={t('graph.minimap_aria')}
       >
         {/* рёбра под узлами */}
@@ -194,6 +210,7 @@ function CompactMiniMap() {
               height={h}
               rx={8}
               fill={TYPE_FILL[nodeType]}
+              fillOpacity={0.4}
               stroke={STATUS_STROKE[status]}
               strokeWidth={status === 'UNVERIFIED' ? 1 : 3}
               vectorEffect="non-scaling-stroke"
@@ -201,14 +218,16 @@ function CompactMiniMap() {
           );
         })}
 
-        {/* viewport rectangle - где сейчас камера */}
+        {/* Viewport-индикатор камеры. Цвет через accent-500 - в обоих темах
+            читаемый. fill / stroke - тот же token с разной opacity */}
         <rect
           x={viewport.x}
           y={viewport.y}
           width={viewport.w}
           height={viewport.h}
-          fill="rgba(59,130,246,0.10)"
-          stroke="#3b82f6"
+          fill="var(--c-accent-500)"
+          fillOpacity={0.1}
+          stroke="var(--c-accent-500)"
           strokeWidth={2}
           strokeDasharray="6 4"
           vectorEffect="non-scaling-stroke"

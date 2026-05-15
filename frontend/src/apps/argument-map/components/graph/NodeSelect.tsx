@@ -23,9 +23,9 @@ interface Props {
 // без точки - иначе на свежем графе все узлы получают визуально одинаковую
 // серую точку, бесполезный шум. Цвета совпадают с STATUS_TOKENS.bar
 const STATUS_DOT: Record<NodeStatus, string | null> = {
-  STANDING: 'bg-emerald-500',
-  DISPUTED: 'bg-amber-500',
-  REFUTED: 'bg-red-500',
+  STANDING: 'bg-ok-500',
+  DISPUTED: 'bg-warn-500',
+  REFUTED: 'bg-err-500',
   UNVERIFIED: null,
 };
 
@@ -98,20 +98,20 @@ function NodeSelect({ value, onChange, options, excludeId, placeholder, disabled
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className={`flex w-full items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-start text-sm transition-colors ${
+        className={`flex w-full items-center gap-2 rounded-md border border-border-strong bg-elevated px-3 py-2 text-start text-sm transition-colors ${
           disabled
             ? 'cursor-not-allowed opacity-60'
-            : 'hover:border-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20'
+            : 'hover:border-ink-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/20'
         }`}
       >
         {selected ? (
           <NodeOptionInline node={selected} t={t} />
         ) : (
-          <span className="flex-1 text-gray-500">{placeholder ?? t('node.select_placeholder')}</span>
+          <span className="flex-1 text-ink-500">{placeholder ?? t('node.select_placeholder')}</span>
         )}
         <ChevronDown
           size={16}
-          className={`shrink-0 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`shrink-0 text-ink-500 transition-transform ${open ? 'rotate-180' : ''}`}
           aria-hidden="true"
         />
       </button>
@@ -120,10 +120,10 @@ function NodeSelect({ value, onChange, options, excludeId, placeholder, disabled
         <ul
           role="listbox"
           aria-labelledby={buttonId}
-          className="absolute inset-x-0 z-20 mt-1 max-h-72 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"
+          className="absolute inset-x-0 z-20 mt-1 max-h-72 overflow-y-auto rounded-md border border-border bg-elevated shadow-lg"
         >
           {filtered.length === 0 ? (
-            <li className="px-3 py-2 text-sm italic text-gray-500">{t('graph.no_nodes_in_select')}</li>
+            <li className="px-3 py-2 text-sm italic text-ink-500">{t('graph.no_nodes_in_select')}</li>
           ) : (
             filtered.map((n) => {
               const isSelected = n.id === value;
@@ -135,7 +135,7 @@ function NodeSelect({ value, onChange, options, excludeId, placeholder, disabled
                     aria-selected={isSelected}
                     onClick={() => pick(n.id)}
                     className={`flex w-full items-start gap-2 px-3 py-2 text-start text-sm transition-colors ${
-                      isSelected ? 'bg-indigo-50' : 'hover:bg-slate-50'
+                      isSelected ? 'bg-accent-50' : 'hover:bg-ink-50'
                     }`}
                   >
                     <NodeOptionInline node={n} compact={false} t={t} />
@@ -166,10 +166,10 @@ function NodeOptionInline({ node, t, compact = true }: InlineProps) {
 
   return (
     <>
-      <Icon size={16} className="mt-0.5 shrink-0 text-gray-700" aria-hidden="true" />
+      <Icon size={16} className="mt-0.5 shrink-0 text-ink-700" aria-hidden="true" />
       <span className="flex-1 min-w-0">
         <span className="flex items-center gap-2">
-          <span className="text-xs font-medium text-gray-500">{t(meta.labelKey)}</span>
+          <span className="text-xs font-medium text-ink-500">{t(meta.labelKey)}</span>
           {STATUS_DOT[status] && (
             <span
               className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[status]}`}
@@ -178,7 +178,7 @@ function NodeOptionInline({ node, t, compact = true }: InlineProps) {
             />
           )}
         </span>
-        <span dir="auto" className={`block text-gray-900 ${compact ? 'truncate' : 'whitespace-pre-wrap break-words'}`}>
+        <span dir="auto" className={`block text-ink-900 ${compact ? 'truncate' : 'whitespace-pre-wrap break-words'}`}>
           {previewContent(node, t('node.empty_content'))}
         </span>
       </span>

@@ -61,7 +61,7 @@ function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   function handleClose() {
     if (submitting) return;
@@ -162,13 +162,13 @@ function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
         )}
 
         {submitError && (
-          <div className="rounded-md border border-red-300 bg-red-50 p-3 text-[12px] text-red-800">
+          <div className="rounded-md border border-err-500/40 bg-err-100 p-3 text-xs text-err-700">
             {submitError}
           </div>
         )}
 
-        <div className="flex items-center justify-between border-t border-slate-200 pt-3">
-          <span className="hidden items-center gap-1 text-[11px] text-slate-500 sm:inline-flex">
+        <div className="flex items-center justify-between border-t border-border pt-3">
+          <span className="hidden items-center gap-1 text-xs text-ink-500 sm:inline-flex">
             <Kbd>Esc</Kbd> {t('common.cancel')}
           </span>
           <div className="ms-auto flex items-center gap-2">

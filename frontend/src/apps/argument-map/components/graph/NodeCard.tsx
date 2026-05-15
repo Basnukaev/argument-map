@@ -35,29 +35,29 @@ function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
   // остаётся LTR независимо от языка контента - граф пространственный.
   const isArabicContent = hasArabicScript(fullContent);
   const titleClass = isArabicContent
-    ? 'font-naskh text-[14px] font-semibold leading-[1.8] text-slate-900 text-pretty whitespace-pre-wrap break-words text-start'
-    : 'text-[13px] font-semibold leading-snug text-slate-900 text-pretty whitespace-pre-wrap break-words text-start';
+    ? 'font-naskh text-sm font-semibold leading-[1.8] text-ink-900 text-pretty whitespace-pre-wrap break-words text-start'
+    : 'text-sm font-semibold leading-snug text-ink-900 text-pretty whitespace-pre-wrap break-words text-start';
   const bodyClass = isArabicContent
-    ? 'mt-1 font-naskh text-[13px] leading-[1.85] text-slate-600 line-clamp-2 text-pretty whitespace-pre-wrap break-words text-start'
-    : 'mt-1 text-[12px] leading-relaxed text-slate-600 line-clamp-2 text-pretty whitespace-pre-wrap break-words text-start';
+    ? 'mt-1 font-naskh text-sm leading-[1.85] text-ink-600 line-clamp-2 text-pretty whitespace-pre-wrap break-words text-start'
+    : 'mt-1 text-xs leading-relaxed text-ink-600 line-clamp-2 text-pretty whitespace-pre-wrap break-words text-start';
 
   // Handle hit-area расширена до 28×28 через ::before inset-[-8px] - удобно
   // попадать мышкой даже в визуально-12×12 точки. Видимы только на hover/select
   const handleClass =
-    '!w-3 !h-3 !bg-white !border-[1.5px] !border-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-crosshair before:absolute before:inset-[-8px] before:content-[""]';
+    '!w-3 !h-3 !bg-elevated !border-[1.5px] !border-accent-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-crosshair before:absolute before:inset-[-8px] before:content-[""]';
 
   return (
     <div
-      className={`group relative w-[280px] rounded-xl border bg-white transition-shadow ${
+      className={`group relative w-[280px] rounded-md border bg-elevated transition-shadow ${
         selected
-          ? 'border-indigo-500 shadow-[0_0_0_3px_rgba(99,102,241,0.18),0_8px_20px_rgba(15,23,42,0.10)]'
-          : 'border-slate-200 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_2px_6px_rgba(15,23,42,0.04)] hover:border-slate-300 hover:shadow-[0_4px_12px_rgba(15,23,42,0.10)]'
+          ? 'border-accent-500 ring-2 ring-accent-500/30 shadow-sh3'
+          : 'border-border shadow-sh1 hover:border-border-strong hover:shadow-sh2'
       }`}
       title={fullContent}
     >
       <div
         data-testid="status-bar"
-        className={`absolute left-0 top-0 bottom-0 w-[5px] rounded-l-xl ${statusToken.bar}`}
+        className={`absolute left-0 top-0 bottom-0 w-[5px] rounded-l-md ${statusToken.bar}`}
         aria-hidden="true"
       />
 
@@ -75,7 +75,7 @@ function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
             type="button"
             tabIndex={-1}
             aria-label="actions"
-            className="-mr-1 text-slate-400 hover:text-slate-700 transition-colors"
+            className="-mr-1 text-ink-400 hover:text-ink-700 transition-colors"
             onClick={(e) => e.stopPropagation()}
           >
             <MoreHorizontal size={14} aria-hidden="true" />
@@ -87,7 +87,7 @@ function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
             {title}
           </p>
         ) : (
-          <p className="text-[13px] italic text-slate-400">(...)</p>
+          <p className="text-sm italic text-ink-400">(...)</p>
         )}
 
         {truncatedBody && (

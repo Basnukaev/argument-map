@@ -69,7 +69,7 @@ describe('NodeDetailsPanel', () => {
     renderPanel({ node: makeNode({ status: 'DISPUTED' }) });
     const badge = screen.getByTestId('status-badge');
     expect(badge).toHaveTextContent('Спорный');
-    // T-05: не тестируем конкретный Tailwind класс (bg-amber-100) -
+    // T-05: не тестируем конкретный Tailwind класс (bg-warn-100) -
     // хрупко к версиям/палитре. Текст 'Спорный' + правильный data-status
     // достаточно
     expect(badge).toHaveAttribute('data-status', 'DISPUTED');

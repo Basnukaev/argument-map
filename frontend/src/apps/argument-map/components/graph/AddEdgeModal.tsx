@@ -137,7 +137,7 @@ function AddEdgeModal({
       error={error}
       hotkeyHint={
         pairSelected && !pairAllowed ? (
-          <span className="inline-flex items-center gap-1 text-red-600">
+          <span className="inline-flex items-center gap-1 text-err-700">
             <AlertCircle size={12} aria-hidden="true" /> запрещённая пара
           </span>
         ) : (
@@ -152,7 +152,7 @@ function AddEdgeModal({
           <div>
             <label
               htmlFor="edge-from"
-              className="mb-1.5 block text-[12px] font-medium text-slate-700"
+              className="mb-1.5 block text-xs font-medium text-ink-700"
             >
               {t('edge.field.from')}
             </label>
@@ -168,7 +168,7 @@ function AddEdgeModal({
           <div>
             <label
               htmlFor="edge-to"
-              className="mb-1.5 block text-[12px] font-medium text-slate-700"
+              className="mb-1.5 block text-xs font-medium text-ink-700"
             >
               {t('edge.field.to')}
             </label>
@@ -184,12 +184,12 @@ function AddEdgeModal({
         </fieldset>
 
         <fieldset disabled={submitting} className="space-y-2">
-          <legend className="text-[12px] font-medium text-slate-700">{t('edge.section.type')}</legend>
+          <legend className="text-xs font-medium text-ink-700">{t('edge.section.type')}</legend>
           {!pairSelected && (
-            <p className="text-[11px] text-slate-500">{t('edge.select_both_nodes')}</p>
+            <p className="text-xs text-ink-500">{t('edge.select_both_nodes')}</p>
           )}
           {pairSelected && !pairAllowed && (
-            <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-[12px] text-amber-900">
+            <p className="rounded-md border border-warn-500/40 bg-warn-100 p-2 text-xs text-warn-700">
               {t('edge.error.disallowed_pair')}
               {fromNode?.nodeType && toNode?.nodeType
                 ? ` (${fromNode.nodeType} → ${toNode.nodeType})`
@@ -211,8 +211,8 @@ function AddEdgeModal({
                     key={value}
                     className={`flex cursor-pointer flex-col gap-1.5 rounded-md border p-2 transition-colors ${
                       selected
-                        ? 'border-indigo-500 bg-indigo-50/60 ring-1 ring-indigo-400'
-                        : 'border-slate-300 hover:bg-slate-50'
+                        ? 'border-accent-500 bg-accent-50/60 ring-1 ring-accent-500/30'
+                        : 'border-border-strong hover:bg-ink-50'
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -228,10 +228,10 @@ function AddEdgeModal({
                         value={value}
                         checked={selected}
                         onChange={() => setEdgeType(value)}
-                        className="accent-indigo-600"
+                        className="accent-accent-500"
                       />
                     </div>
-                    <span className="text-[11px] font-semibold leading-tight text-slate-900">
+                    <span className="text-xs font-semibold leading-tight text-ink-900">
                       {t(meta.labelKey)}
                     </span>
                     <svg width="100%" height="8" aria-hidden="true">
@@ -256,7 +256,7 @@ function AddEdgeModal({
         <div>
           <label
             htmlFor="edge-rationale"
-            className="mb-1.5 block text-[12px] font-medium text-slate-700"
+            className="mb-1.5 block text-xs font-medium text-ink-700"
           >
             {t('edge.field.rationale_optional')}
           </label>
@@ -267,7 +267,7 @@ function AddEdgeModal({
             rows={3}
             maxLength={2000}
             disabled={submitting}
-            className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+            className="block w-full rounded-md border border-border-strong bg-elevated px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400 outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
             placeholder={t('edge.rationale_placeholder')}
           />
         </div>

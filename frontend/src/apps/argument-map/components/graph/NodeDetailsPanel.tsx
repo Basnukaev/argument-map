@@ -43,10 +43,10 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
     <aside
       role="complementary"
       aria-label={t('graph.details_aria_node')}
-      className="absolute end-0 top-0 bottom-0 z-10 flex w-[400px] flex-col border-s border-slate-200 bg-white shadow-xl"
+      className="absolute end-0 top-0 bottom-0 z-10 flex w-[400px] flex-col border-s border-border bg-elevated shadow-sh3"
     >
       <header
-        className={`relative border-b border-slate-200 bg-gradient-to-b ${typeToken.headerGradient} p-5`}
+        className={`relative border-b border-border ${typeToken.headerBg} p-5`}
       >
         <div className="absolute end-3 top-3">
           <IconButton icon={X} label={t('common.close')} size="sm" onClick={onClose} />
@@ -58,10 +58,10 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
             <TypeIcon size={16} aria-hidden="true" />
           </span>
           <div className="flex flex-col">
-            <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-ink-500">
               {typeToken.key} · {t(typeToken.labelKey)}
             </h2>
-            <span className="font-mono text-[12px] text-slate-400">
+            <span className="font-mono text-xs text-ink-400">
               <bdi dir="ltr">{shortId(node.id)}</bdi>
             </span>
           </div>
@@ -70,23 +70,23 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
           <StatusBadge status={status} size="lg" />
         </div>
         {nodeType !== 'QUESTION' && totalCitations !== null && totalCitations > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-700">
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-700">
             <span className="inline-flex items-center gap-1.5">
-              <Anchor size={14} className="text-indigo-600" aria-hidden="true" />
+              <Anchor size={14} className="text-accent-600" aria-hidden="true" />
               <span className="font-mono font-semibold">{totalCitations}</span>
               <span>{t('node.support_short')}</span>
             </span>
-            <span className="text-slate-300">(</span>
+            <span className="text-ink-300">(</span>
             <span className="inline-flex items-center gap-1" title={t('node.from_library')}>
-              <BookOpen size={13} className="text-indigo-600" aria-hidden="true" />
+              <BookOpen size={13} className="text-accent-600" aria-hidden="true" />
               <span className="font-mono">{citationCounts!.lib}</span>
             </span>
-            <span className="text-slate-300">·</span>
+            <span className="text-ink-300">·</span>
             <span className="inline-flex items-center gap-1" title={t('node.freeform_short')}>
-              <Quote size={13} className="text-slate-500" aria-hidden="true" />
+              <Quote size={13} className="text-ink-500" aria-hidden="true" />
               <span className="font-mono">{citationCounts!.free}</span>
             </span>
-            <span className="text-slate-300">)</span>
+            <span className="text-ink-300">)</span>
           </div>
         )}
       </header>

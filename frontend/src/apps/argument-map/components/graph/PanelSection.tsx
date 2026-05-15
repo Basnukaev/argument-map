@@ -30,23 +30,23 @@ function PanelSection({ icon: Icon, title, count, defaultOpen = true, onFirstOpe
   }, [open, onFirstOpen]);
 
   return (
-    <section className="border-t border-slate-200">
+    <section className="border-t border-border">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-5 py-3 text-start transition-colors hover:bg-slate-50"
+        className="flex w-full items-center gap-2 px-5 py-3 text-start transition-colors hover:bg-ink-50"
       >
-        <Icon size={14} className="text-slate-500" aria-hidden="true" />
-        <span className="text-[12px] font-semibold uppercase tracking-wider text-slate-700">
+        <Icon size={14} className="text-ink-500" aria-hidden="true" />
+        <span className="text-xs font-semibold uppercase tracking-wider text-ink-700">
           {title}
         </span>
         {count !== undefined && (
-          <span className="text-[11px] font-mono text-slate-400">{count}</span>
+          <span className="text-xs font-mono text-ink-400">{count}</span>
         )}
         <ChevronDown
           size={14}
-          className={`ms-auto text-slate-400 transition-transform ${open ? '' : '-rotate-90'}`}
+          className={`ms-auto text-ink-400 transition-transform ${open ? '' : '-rotate-90'}`}
           aria-hidden="true"
         />
       </button>
