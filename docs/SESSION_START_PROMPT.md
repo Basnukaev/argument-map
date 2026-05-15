@@ -185,23 +185,56 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 > **Этот раздел обновляется каждой сессией**. Всё выше - стабильное
 
-**Этап 20.c shamela bibliography parser** (после Сессии 32 - 20.f redesign +
-i18n + FK variant A закрыты)
+**Этап 20.c shamela bibliography parser** (после Сессии 33 -
+полная RTL/i18n локализация фронта закрыта)
 
-Сессия 32 закрыла:
-- **20.f LibraryCite redesign** (`72ddd0b`) - SourceCard variant D «всё к
-  правому борту» из Claude Design handoff. 12 атомов в
-  `shared/components/citation/sourceCard/`
-- **i18n minimal** (`c1a6ff1`, `d86e010`) - dictionary ru/ar 22 keys,
-  zustand store + localStorage persist + LocaleEffect синхронизирует
-  `<html lang dir>`. RU/AR toggle в Header. BookHeader structured
+Сессия 33 закрыла системный фикс RTL/LTR + i18n покрытие:
+- **RTL/bidi mechanics** - единый `hasArabicScript` из `@/shared/i18n`,
+  все физические Tailwind-классы (`ml`/`mr`/`pl`/`pr`/`left`/`right`/
+  `text-left`/`border-l`) заменены на логические (`ms`/`me`/`ps`/`pe`/
+  `start`/`end`/`text-start`/`border-s`). Граф React Flow не зеркалится.
+  `dir="auto"` для контента из API, `<bdi>` для mixed-content
+- **i18n инфраструктура** - dictionary расширен с ~22 до ~280 ключей
+  по namespace'ам (nav/reader/common/topic.list/book.list/status/node.
+  type/edge.type/edge.label/graph.ctx/admin/citation_picker/add_source
+  и др.). Новые primitives: `useFormatDate`, `useNumberFormat` -
+  локаль-aware, стабильны через `useCallback`
+- **Token refactor** - `STATUS_TOKENS`/`NODE_TYPE_TOKENS`/`EDGE_TYPE_
+  TOKENS`/`NODE_TYPE_META`/`EDGE_TYPE_META`: `label/hint` → `labelKey/
+  hintKey: DictKey`. `getContextualEdgeLabel` → `getContextualEdgeLabelKey`.
+  `NODE_TYPE_LABEL` удалён. Один контракт «токен описывает визуал,
+  переводы в словаре»
+- **i18n покрытие всех страниц** - Header, TopicListPage, TopicGraphPage,
+  GraphCanvas (context menu/toasts/confirm), GraphPanels, NodeCard,
+  NodeDetailsPanel + 4 секции (Content/Metadata/Citations/Revisions),
+  EdgeDetailsPanel, AddNodeModal, AddEdgeModal, AddSourceModal,
+  CitationPicker, BookListPage, BookReaderPage + PageJump + PdfViewer,
+  AdminShamelaPage (DateFormat/NumberFormat локаль-aware)
+- **FormModal** общий компонент - точка одного перевода «Отмена» для
+  всех форм проекта (DRY)
+- **Документация** - `frontend/docs/i18n-guide.md` (~280 строк) -
+  canonical reference для будущих сессий: 3 понятия которые нельзя
+  путать (локаль/контент/направление), algorithms, anti-patterns,
+  чек-лист перед PR. Cross-link из CLAUDE.md и coding-standards
+- **Bugfix infinite-loop** - `useT`/`useFormatDate` стабилизированы
+  через useCallback (без этого `t` в deps useEffect ломал TopicGraphPage
+  бесконечными fetch'ами)
+- **Code review** через subagent - 11 strengths, 0 Critical, 12
+  Important - все закрыты в follow-up commits. Verdict «Ready to merge»
+
+Закоммичено ~30 атомарных commit'ов локально, push в origin/master
+сделан в конце сессии. Тесты 143/143, build/typecheck чистые.
+
+Старая Сессия 32 (выжимка для контекста):
+- **20.f LibraryCite redesign** (`72ddd0b`) - SourceCard variant D
+- **i18n minimal** (`c1a6ff1`, `d86e010`) - первая итерация dictionary
 - **FK variant A** (`8f3b2c9`) - миграция 25, surrogate `id UUID` PK для
-  node_sources. DELETE endpoint path: `/sources/{nodeSourceId}` (breaking)
+  node_sources. DELETE path: `/sources/{nodeSourceId}` (breaking)
 
 **Цель 20.c:** извлечь academic metadata из raw `lib_books.description`
 (там shamela хранит bibliography текст с мухаккиком, publisher и т.д.)
 
-**Стартовая последовательность Сессии 33:**
+**Стартовая последовательность Сессии 34:**
 
 1. **Узнать формат shamela bibliography** - в БД:
    ```sql
@@ -232,22 +265,45 @@ i18n + FK variant A закрыты)
 6. **Smoke**: re-map тестовой книги через `POST /api/v1/admin/shamela/map-book/{id}`,
    curl `/api/v1/nodes/{id}/sources` - увидеть filled muhaqqiq/publisher
 
-### Doc-долги после Сессии 32 (важно сделать в Сессии 33)
+### Doc-долги после Сессий 32+33 (важно сделать в Сессии 34)
 
 - **`api-contract.md`** обновить:
-  - `NodeSourceResponse` получил поле `id` (UUID)
+  - `NodeSourceResponse` получил поле `id` (UUID) (из Сессии 32)
   - `DELETE /api/v1/nodes/{nodeId}/sources/{nodeSourceId}` - **breaking
-    change** path param (раньше был `{sourceId}`)
+    change** path param (раньше был `{sourceId}`) (из Сессии 32)
   - `BookDetailResponse` обогащён nested refs (authority/muhaqqiq/
-    publisher/publicationPlace)
+    publisher/publicationPlace) (из Сессии 32)
   - Строка в "Историю изменений"
 - **ADR-029** для FK variant A (decisional - surrogate id PK vs
   composite PK с positional fields). Rejected alternatives
-- **ADR-030** для i18n архитектуры (manual dictionary vs i18next -
-  обоснование выбора)
-- **gotcha** `gotchas.md`: React StrictMode duplicate API requests в
-  dev. AbortController не fix'ит (request уже отправлен к moment
-  cleanup). By-design React 19, в production не воспроизводится
+- **ADR-030** для i18n архитектуры - после Сессии 33 решение
+  стало гораздо более развёрнутым: manual dictionary с DictKey
+  union literal types vs i18next, useCallback-стабилизация хуков,
+  локаль-aware токены через labelKey, FormModal как DRY-точка
+- **gotcha** `gotchas.md`:
+  - React StrictMode duplicate API requests в dev (Сессия 32)
+  - Closure-функции из хуков всегда стабилизировать через useCallback
+    если они потенциально попадут в deps useEffect/useMemo
+    (Сессия 33 - infinite loop в TopicGraphPage из-за нестабильного `t`)
+  - Batch-Edit'ы по cyrillic строкам - после делать `grep -nE
+    "label:.*'[А-ЯЁ]"` потому что Edit может silent-skip без error
+    если whitespace не точно совпадает (Сессия 33)
+
+### Backlog i18n после Сессии 33 (не блокеры)
+
+- **SourceSearchForm + SourceCreateForm + AttachFields placeholders** -
+  внутренние формы создания свободного источника (admin workflow).
+  Сами Modal-обёртки переведены, но детали полей внутри пока
+  захардкожены на русском
+- **ESLint pre-commit rule** на cyrillic literals в JSX attribute
+  strings - chyba review рекомендации, должно предотвратить регрессии
+- **AR locale parameterized tests** - сейчас тесты завязаны на
+  default `ru` локаль. Параметризовать setup для обеих локалей
+- **EDGE_DEFAULT_LABEL_KEY** - move declaration выше функции для
+  читаемости (M-1 из review)
+- **AR числа** - проверить что `Intl.NumberFormat('ar')` даёт
+  arabic-indic digits ١٢٣٤ или западные (зависит от runtime).
+  Если западные - добавить `useGrouping: false` или digit option
 
 ### Что осталось из Этапа 20 после 20.c
 
@@ -263,7 +319,7 @@ i18n + FK variant A закрыты)
 - **27 call sites `new Book(...)`** и **17 `new Authority(...)`** -
   возможно future refactor на builder pattern
 
-### Инфра на момент Сессии 33 entry
+### Инфра на момент Сессии 34 entry
 
 - Postgres :5432, миграции до 25 включительно applied
 - MinIO :9000 healthy

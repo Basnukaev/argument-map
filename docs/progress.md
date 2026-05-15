@@ -10,6 +10,104 @@
 
 ---
 
+## 2026-05-15 - Сессия 33 (frontend) - полная RTL/i18n локализация
+
+Пользователь дал детальный план фикса RTL/LTR + bidi для двуязычного
+интерфейса (RU/AR): 10 шагов от единого модуля определения арабского
+скрипта до документации. По ходу сессии расширилось до полной i18n-
+локализации - все хардкод-русские строки в видимом UI заменены на
+ключи из словаря.
+
+### Архитектурные артефакты (durable)
+
+- **`frontend/src/shared/i18n/`** - расширен новыми primitives:
+  - `script.ts` - единый `hasArabicScript` (Unicode blocks Arabic/
+    Supplement/Extended-A/Presentation Forms). Inline regex'ы
+    `/[؀-ۿ]/` запрещены - заменены на импорт
+  - `useFormatDate.ts` - локаль-aware Intl.DateTimeFormat (ru-RU/ar)
+    с стилями `full`/`short`. Стабилен через `useCallback([locale])`
+  - `useNumberFormat.ts` - локаль-aware Intl.NumberFormat
+  - `dictionary.ts` - расширен с ~22 до ~280 ключей в 15+
+    namespace'ах. DictKey union literal type даёт compile-time safety
+
+- **`frontend/docs/i18n-guide.md`** - canonical reference ~280 строк
+  для будущих сессий: 3 понятия которые нельзя путать (локаль UI /
+  язык контента / направление текста), алгоритмы добавления UI/layout/
+  иконки/контента, mixed-content через `<bdi>`, форматирование, что
+  зеркалится / не зеркалится, чек-лист перед PR, 8 пар анти-паттернов
+  ❌ vs ✅. Cross-link из `frontend/CLAUDE.md` и `coding-standards.md`
+
+- **Token refactor**: `STATUS_TOKENS`, `NODE_TYPE_TOKENS`,
+  `EDGE_TYPE_TOKENS`, `NODE_TYPE_META`, `EDGE_TYPE_META` - поле
+  `label/hint: string` → `labelKey/hintKey: DictKey`. Удалён
+  `NODE_TYPE_LABEL`. `getContextualEdgeLabel` → `getContextualEdgeLabelKey`.
+  Один контракт «токен описывает визуал, переводы в словаре»
+
+- **Tailwind logical classes** - все физические `ml/mr/pl/pr/left/right/
+  text-left/border-l/rounded-l-*` заменены на `ms/me/ps/pe/start/end/
+  text-start/border-s/rounded-s-*` во всём `src/` кроме `NodeCard.tsx`
+  и `CompactMiniMap.tsx` (граф React Flow - пространственная структура)
+
+### Сделано (~30 атомарных коммитов)
+
+Основные группы:
+- **Foundation** (`b3f724c`, `f8e1e13`, `f2ed968`, `133d484`) - модуль
+  script.ts, dictionary expansion, useFormatDate/useNumberFormat
+- **Token refactor** (`1a2679c`, `2e4b8f1`) - labelKey/hintKey DictKey
+- **Mechanic fixes** (`0d64867` физ.классы, `bb93e2b` Header бренд,
+  `3accf3a` NodeCard dir=auto+naskh, `e3f67fc` bidi-изоляция dates/IDs,
+  `8e062e4` панели/тосты по локали, `0c73474` RtlRow shamela inline,
+  `0a93b6f` FreeformCite dir=auto authority)
+- **i18n покрытие компонентов** (`08c9dd3`, `b829426`, `b458f56`,
+  `9052413`, `47ee880`, `80b795b`, `de14bdf`, `8a99e07`) - 25+
+  компонентов от Header до AdminShamela
+- **Hotfix** (`4a8eff5`) - useT/useFormatDate стабилизированы через
+  useCallback после диагностики infinite-loop fetch в TopicGraphPage
+- **Docs** (`7ef433d`, `d450277`) - i18n-guide.md + coding-standards
+  раздел RTL/bidi + CLAUDE.md правила
+- **Post-review cleanups** (`3581272` и др.) - после code review
+  feedback (12 Important issues все закрыты)
+
+### Code review (subagent)
+
+Запрошен через `/superpowers:requesting-code-review` после первой
+итерации (21 commit). Результат: 11 strengths, **0 Critical**, **12
+Important**, 7 Minor, verdict **Ready to merge**. Все Important
+закрыты в follow-up commits (~10 шт)
+
+### Ключевые design decisions
+
+- **Locale UI vs Content language vs Text direction** - три разных
+  понятия, не смешивать. UI следует `useLocaleStore`, контент -
+  `dir="auto"`, шрифт - `hasArabicScript`. Раньше было
+  `book.language === 'ar' ? 'rtl' : 'ltr'` в нескольких местах -
+  ломалось на «RU UI + AR книга»
+- **Inline shamela формат для метаданных** (вместо infobox) - в обеих
+  локалях `Label: value` на одной строке. Direction родителя зеркалит
+  порядок автоматически
+- **Граф React Flow не зеркалится** - canvas/позиции/minimap остаются
+  LTR. Меняется только текст внутри узлов (dir=auto + font-naskh) и
+  UI-панели вокруг канваса
+- **FormModal как DRY-точка** - «Отмена» переведена один раз в shared
+  компоненте, автоматически покрывает все формы
+
+### Что НЕ сделано (backlog для следующих сессий)
+
+- **Внутренние формы AddSourceModal** - SourceSearchForm/
+  SourceCreateForm/AttachFields placeholder'ы захардкожены
+- **ESLint pre-commit rule** на cyrillic literals в JSX
+- **AR locale parameterized tests** - сейчас завязаны на default `ru`
+- **Bibliography parser 20.c** - была планируемая работа Сессии 33,
+  переехала в Сессию 34
+
+### Метрики
+
+- 30 атомарных коммитов, push в origin/master в конце сессии
+- 143/143 тестов
+- Build/typecheck чист, ESLint только 16 safe warnings про `t in deps`
+
+---
+
 ## 2026-05-14 - Сессия 32 (full-stack) - 20.f LibraryCite redesign + i18n + FK variant A
 
 После Сессии 31 (бэк 20.a-b + frontend 20.f первая итерация) пользователь
