@@ -185,11 +185,10 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 > **Этот раздел обновляется каждой сессией**. Всё выше - стабильное
 
-**Этап 20.e AddSourceModal расширенная форма** (~0.5 сессии) или
-**Этап 19 Q&A приложение** (~1 сессия)
-
-Этап 20 практически закрыт. Остался только мелкий 20.e - manual entry
-sourceType=BOOK с полным набором academic полей (см. ниже)
+**Этап 19.b Q&A source attach** (~1 сессия) - валидация platform reuse
+через `question_sources` table (analog `node_sources`) + reuse
+CitationPicker компонента. Этап 19.a (Q&A foundation, ADR-032) закрыт
+в Сессии 35
 
 ### Что было в Сессии 35
 
@@ -237,6 +236,12 @@ sourceType=BOOK с полным набором academic полей (см. ниж
   debounced autocomplete (AbortController cancel). Edit Pencil icon
   на каждой Card в /books + кнопка backfill в /admin/shamela. Playwright
   smoke: тафсир Ибн Касира prefilled all 6 полей с RTL natural через dir="auto"
+- **Этап 19.a Q&A foundation** (2 коммита + ADR-032) - migration 26
+  questions table + Question domain/repo/service/controller + 3 frontend
+  pages (List/Create/Detail) + Header nav «Q&A» enabled. Полный UI CRUD
+  flow подтверждён playwright (create question → status change →
+  delete → empty list). Source attach отложен на 19.b - валидация
+  platform reuse будет именно там
 
 **Что НЕ сделано (отложено):**
 
@@ -249,26 +254,31 @@ sourceType=BOOK с полным набором academic полей (см. ниж
 
 ### Стартовая последовательность Сессии 36
 
-**Опция A - Этап 20.e AddSourceModal расширенная** (~0.5 сессии):
+**Опция A (рекомендую) - Этап 19.b Q&A source attach** (~1 сессия) -
+**настоящая валидация ADR-018 platform pivot**:
 
-При выборе sourceType=BOOK показывать 6 academic полей (с переиспользованием
-autocomplete логики из BookEditModal - можно вынести как
-`<AcademicMetadataFields>` shared компонент). Save → POST на `/library/books`
-с расширенным `CreateBookRequest` ИЛИ 2-шаговый flow (POST + PATCH).
+- Migration 27: `question_sources` table (analog `node_sources` с
+  ADR-027/029 - surrogate id PK, positional fields для TEXT/PDF/REGION
+  citation, CitationMode enum, FK на questions + sources)
+- Backend: NodeCitationService → generic CitationService или дублирование
+  с близкой сигнатурой. CitationPicker payload работает уже сейчас на
+  node_sources - проверить что та же логика catered к question_sources
+- Frontend: на QuestionDetailPage добавить секцию «Источники» с CitationPicker
+  (reuse из argument-map/components/citation). Это и есть **главный
+  proof** что platform работает - тот же picker без копирования
 
-**Опция B (рекомендую) - Этап 19 Q&A приложение** (~1 сессия):
+**Опция B - Этап 20.e AddSourceModal расширенная** (~0.5 сессии):
+При sourceType=BOOK показывать 6 academic полей. Reuse autocomplete
+из BookEditModal через shared `<AcademicMetadataFields>` компонент.
 
-Валидация платформенной архитектуры (ADR-018) через второе приложение
-использующее common Source/Book stack. Минимум: схема `questions` +
-service + REST + страница `/qa` со списком. Первый шаг - ADR Этапа 19
-со scope (только вопросы или вопросы+ответы).
+**Опция C - Этап 19.c Answers** (~1 сессия): Answers table + UI add
+answer + accepted answer flag. Полная Q&A semantic.
 
-**Опция C - cleanup**: i18n placeholder в SourceSearchForm/SourceCreateForm
-(Сессия 33 backlog), ESLint rule на cyrillic literals в JSX, @tabler/icons
-retry.
+**Опция D - cleanup**: SourceSearchForm/SourceCreateForm i18n
+placeholder (Сессия 33 backlog), ESLint rule на cyrillic literals в JSX,
+@tabler/icons retry.
 
-Backend на :9090 работает с свежим classpath после Сессии 35. Frontend
-на :5173 через HMR.
+Backend на :9090 работает с свежим classpath. Frontend на :5173 через HMR.
 
 ### Backlog после 20.c-e
 

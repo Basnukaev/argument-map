@@ -152,13 +152,19 @@ shamela не имеет нужной книги. MinIO storage готов из 2
 **Зачем:** проверить платформенность фундамента. Если library
 позволяет легко собрать новое приложение - архитектура работает
 
-- [ ] **19.a:** бэкенд Q&A модуль - `Question`, `Answer`,
-      `AnswerCitation` сущности. Базовый CRUD
-- [ ] **19.b:** `src/apps/qa/` фронт - страницы `/qa` (список
-      вопросов), `/qa/{id}` (вопрос + ответы со ссылками)
-- [ ] **19.c:** интеграция с library через CitationPicker - тот же
-      компонент что в argument-map. Если работает - валидация что
-      фундамент правильный
+- [x] **19.a:** Q&A foundation (ADR-032). Migration 26 `questions`
+      table + Question domain + QuestionStatus enum (OPEN/ANSWERED/
+      CLOSED). REST CRUD под `/api/v1/questions` (POST/GET list с
+      filters status/q/ GET/{id}/PATCH/DELETE). Frontend `src/apps/qa/`:
+      QuestionListPage с status filter + search, CreateQuestionPage
+      (Field + maxLength counters), QuestionDetailPage с status switcher
+      + delete. Header nav «Q&A» enabled. 30 i18n keys RU/AR
+- [ ] **19.b:** Source attach - `question_sources` table (analog
+      `node_sources`) + attach/detach endpoints. Frontend - reuse
+      CitationPicker. **Это валидация platform reuse**: тот же source
+      stack без копирования логики
+- [ ] **19.c:** Answers - `answers` table с FK на question + answer_id
+      в `questions` (accepted answer). UI для add answer + vote
 
 ### Этап 20. Полная академическая citation metadata - продолжение
 

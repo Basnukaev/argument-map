@@ -124,21 +124,32 @@ bibliography parser). Чисто отработавшая сессия в реж
   «Перечитать metadata» в /admin/shamela. Playwright smoke: тафсир
   Ибн Касира prefilled 6 полей. Verify: backend 425/425, frontend
   143/143, lint clean
+- **Этап 19.a Q&A foundation** (`ba5cf8c` backend + `8c75605` frontend
+  + ADR-032 в decisions.md). Migration 26 questions table + Question
+  domain/repo/service/controller (CRUD под /api/v1/questions). 3
+  frontend pages (QuestionListPage с status filter + search /
+  CreateQuestionPage с Field + counters / QuestionDetailPage с status
+  switcher + delete confirm). Header nav «Q&A» enabled. 29 i18n keys
+  RU/AR. Playwright headless подтвердил полный UI CRUD flow.
+  Backend verify 425/425
 
 ### Следующий шаг (для Сессии 36)
 
-Этап 20 практически закрыт. Опции на выбор:
+Этапы 20 и 19.a закрыты. Опции на выбор:
 
-**Опция A - Этап 20.e AddSourceModal расширенная** (~0.5 сессии).
-При sourceType=BOOK дополнительные academic поля. Можно вынести
-`<AcademicMetadataFields>` shared компонент из BookEditModal logic.
+**Опция A (рекомендую) - Этап 19.b Q&A source attach** (~1 сессия) -
+**настоящая валидация platform pivot**. Migration 27 `question_sources`
+(аналог `node_sources` через ADR-027/029) + reuse CitationPicker в
+QuestionDetailPage. Если работает - архитектура подтверждена.
 
-**Опция B (рекомендую) - Этап 19 Q&A приложение** (~1 сессия).
-Валидация ADR-018 platform pivot через второе приложение использующее
-common Source/Book stack. Минимум: схема questions + REST + страница
-/qa. Первый шаг - ADR Этапа 19 со scope.
+**Опция B - Этап 20.e AddSourceModal расширенная** (~0.5 сессии).
+При sourceType=BOOK дополнительные academic поля. Reuse autocomplete
+через shared `<AcademicMetadataFields>` компонент.
 
-**Опция C - cleanup**: SourceSearchForm/SourceCreateForm i18n placeholder,
+**Опция C - Этап 19.c Answers** (~1 сессия). Answers table + UI add
+answer + accepted answer flag.
+
+**Опция D - cleanup**: SourceSearchForm/SourceCreateForm i18n placeholder,
 ESLint rule на cyrillic JSX literals, @tabler/icons retry.
 
 Приоритет 2 (альтернатива):
