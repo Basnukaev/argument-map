@@ -18,12 +18,35 @@
   3 файла сломаны на master без изменений: TopicGraphPage.test.tsx
   (4 теста: title/empty-state/404-error/back-link), TopicListPage
   .test.tsx (3: empty/cards/5xx-error), NodeDetailsPanel.test.tsx
-  (5 тестов секции «Опора»: автор/без authorityId/arabic dir/empty/
-  delete). Регрессия появилась между Сессией 35 (143/143 pass) и
-  Сессией 36. Подозрение - i18n dictionary changes или async timing.
-  Все три теста используют MSW + RTL async waits - возможно
-  waitForApi timeout 200ms перестал хватать с обновлёнными
-  компонентами на v2 design tokens
+  (5 тестов секции «Опора»). Регрессия появилась между Сессией 35
+  (143/143 pass) и Сессией 36.
+
+  **Root cause найдено в Сессии 36 (частичная диагностика):**
+
+  Vitest stdout содержит React 19 warning «This ensures that you're
+  testing the behavior the user would see in the browser. Learn more
+  at https://react.dev/link/wrap-tests-with-act». React 19 строже к
+  async state updates - state не commit'ится в DOM без `act()` wrapper.
+  Все 12 fails - тесты с async fetch + `await waitForApi(() =>
+  expect(screen.getByText(...)))`. fetch resolve happens, но setState
+  не triggers DOM update без act().
+
+  Увеличение timeout 200ms → 1000ms не помогло - проблема не в время
+  ожидания, а в semantics React 19.
+
+  **План fix:**
+  1. Заменить pattern `await waitForApi(() => expect(getByText(...)))`
+     на `expect(await findByText(...)).toBeInTheDocument()` в 12
+     failed тестах. `findBy*` queries встроенно wraps в act() и
+     корректно работают в React 19
+  2. Либо обновить waitForApi чтобы оборачивать callback в `act()`
+     - `import { act } from '@testing-library/react'` + wrap
+  3. Возможно потребуется update React Testing Library (если устарела
+     для React 19 compatibility) - проверить @testing-library/react
+     версию vs RTL React 19 support
+
+  Время оценки fix: ~30-60 мин (диагностика уже сделана, осталось
+  apply pattern + verify).
 - [ ] Полнотекстовый поиск (когда появится на беке, Этап 6)
 - [ ] Экспорт графа в PNG / SVG
 - [ ] Тёмная тема
