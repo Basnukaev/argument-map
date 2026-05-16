@@ -36,6 +36,7 @@ public class QuestionService {
                 body == null || body.isBlank() ? null : body.trim(),
                 QuestionStatus.OPEN,
                 askedBy,
+                null,
                 now,
                 now
         );

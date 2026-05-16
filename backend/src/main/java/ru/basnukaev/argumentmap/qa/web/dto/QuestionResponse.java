@@ -11,6 +11,7 @@ public record QuestionResponse(
         String body,
         QuestionStatus status,
         UUID askedBy,
+        UUID acceptedAnswerId,
         Instant createdAt,
         Instant updatedAt
 ) {

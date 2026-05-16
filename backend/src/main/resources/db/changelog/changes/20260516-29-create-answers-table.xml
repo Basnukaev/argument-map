@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260516-29-create-answers-table" author="Abdula Basnukaev">
+        <comment>
+            Q&amp;A приложение - таблица answers. Этап 19.c, ADR-034.
+
+            Ответ на question. Один question → много answers. На MVP -
+            простая структура (id, question_id, body, author_id, timestamps),
+            без voting/comments/nesting. Принятый ответ помечается через
+            nullable FK questions.accepted_answer_id (migration 30).
+
+            ON DELETE CASCADE для question_id - удаление вопроса забирает
+            все его ответы. Author FK ссылается на users без cascade - запись
+            об удалении пользователя не должна выпиливать его историю.
+
+            Составной индекс (question_id, created_at) покрывает основной
+            запрос «список ответов для вопроса по дате». Author index
+            опциональный (на будущее - выборка ответов пользователя).
+        </comment>
+        <sql>
+            CREATE TABLE answers (
+                id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                question_id UUID NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+                body        TEXT NOT NULL,
+                author_id   UUID NOT NULL REFERENCES users(id),
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
+            CREATE INDEX idx_answers_question_id_created
+                ON answers(question_id, created_at);
+            CREATE INDEX idx_answers_author_id
+                ON answers(author_id);
+        </sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_answers_author_id;
+                DROP INDEX IF EXISTS idx_answers_question_id_created;
+                DROP TABLE answers;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

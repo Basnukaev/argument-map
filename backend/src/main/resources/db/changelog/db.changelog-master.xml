@@ -33,5 +33,7 @@
     <include file="db/changelog/changes/20260516-26-create-questions-table.xml"/>
     <include file="db/changelog/changes/20260516-27-add-fk-to-questions-asked-by.xml"/>
     <include file="db/changelog/changes/20260516-28-create-question-sources-table.xml"/>
+    <include file="db/changelog/changes/20260516-29-create-answers-table.xml"/>
+    <include file="db/changelog/changes/20260516-30-add-accepted-answer-to-questions.xml"/>
 
 </databaseChangeLog>

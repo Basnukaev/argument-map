@@ -19,7 +19,7 @@ import ru.basnukaev.argumentmap.qa.domain.QuestionStatus;
 public class QuestionRepository {
 
     private static final String COLUMNS =
-            "id, title, body, status, asked_by, created_at, updated_at";
+            "id, title, body, status, asked_by, accepted_answer_id, created_at, updated_at";
 
     private static final RowMapper<Question> ROW_MAPPER = (rs, rn) -> new Question(
             rs.getObject("id", UUID.class),
@@ -27,6 +27,7 @@ public class QuestionRepository {
             rs.getString("body"),
             QuestionStatus.valueOf(rs.getString("status")),
             rs.getObject("asked_by", UUID.class),
+            rs.getObject("accepted_answer_id", UUID.class),
             instant(rs, "created_at"),
             instant(rs, "updated_at")
     );
@@ -38,8 +39,12 @@ public class QuestionRepository {
     }
 
     public Question save(Question q) {
+        // accepted_answer_id опускаем - на создании вопроса ответа ещё нет
+        // (FK на answers.id, которая бы нарушала integrity). Колонка имеет
+        // DEFAULT NULL в схеме - устанавливается через acceptAnswer
         jdbcTemplate.update(
-                "INSERT INTO questions (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO questions (id, title, body, status, asked_by, created_at, updated_at) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?)",
                 q.id(),
                 q.title(),
                 q.body(),
@@ -49,6 +54,28 @@ public class QuestionRepository {
                 odt(q.updatedAt())
         );
         return q;
+    }
+
+    /**
+     * Установить принятый ответ + status = ANSWERED атомарно. Этап 19.c,
+     * ADR-034. Возвращает {@code true} если строка обновлена.
+     */
+    public boolean setAcceptedAnswer(UUID questionId, UUID answerId) {
+        return jdbcTemplate.update(
+                "UPDATE questions SET accepted_answer_id = ?, status = 'ANSWERED', "
+                        + "updated_at = now() WHERE id = ?",
+                answerId, questionId) > 0;
+    }
+
+    /**
+     * Снять принятие ответа: accepted_answer_id = NULL + status = OPEN.
+     * Этап 19.c, ADR-034.
+     */
+    public boolean revokeAcceptedAnswer(UUID questionId) {
+        return jdbcTemplate.update(
+                "UPDATE questions SET accepted_answer_id = NULL, status = 'OPEN', "
+                        + "updated_at = now() WHERE id = ?",
+                questionId) > 0;
     }
 
     public Optional<Question> findById(UUID id) {

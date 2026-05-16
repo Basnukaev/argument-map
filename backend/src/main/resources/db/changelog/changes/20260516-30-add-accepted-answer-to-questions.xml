@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260516-30-add-accepted-answer-to-questions" author="Abdula Basnukaev">
+        <comment>
+            Этап 19.c, ADR-034 - принятый ответ для question. Nullable FK
+            на answers(id) ON DELETE SET NULL.
+
+            ON DELETE SET NULL семантика: если принятый ответ удаляется,
+            questions.accepted_answer_id автоматически становится NULL,
+            но status НЕ возвращается в OPEN (это business decision,
+            делается в сервисе через явный revokeAcceptance). Schema
+            оставляет данные в консистентном состоянии при cascade-delete,
+            даже если приложение не вмешалось.
+
+            Partial индекс - acceptedAnswer выборки делаются только если
+            FK заполнен (когда status = ANSWERED).
+        </comment>
+        <sql>
+            ALTER TABLE questions
+                ADD COLUMN accepted_answer_id UUID
+                    REFERENCES answers(id) ON DELETE SET NULL;
+
+            CREATE INDEX idx_questions_accepted_answer
+                ON questions(accepted_answer_id)
+                WHERE accepted_answer_id IS NOT NULL;
+        </sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_questions_accepted_answer;
+                ALTER TABLE questions DROP COLUMN accepted_answer_id;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

@@ -80,6 +80,12 @@ public class GlobalExceptionHandler {
                 "question-not-found", ex.getMessage());
     }
 
+    @ExceptionHandler(AnswerNotFoundException.class)
+    public ProblemDetail handleAnswerNotFound(AnswerNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "Ответ не найден",
+                "answer-not-found", ex.getMessage());
+    }
+
     @ExceptionHandler(PageNotFoundException.class)
     public ProblemDetail handlePageNotFound(PageNotFoundException ex) {
         return problem(HttpStatus.NOT_FOUND, "Страница не найдена",

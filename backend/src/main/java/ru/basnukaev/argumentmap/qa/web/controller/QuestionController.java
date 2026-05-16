@@ -87,6 +87,7 @@ public class QuestionController {
                 q.body(),
                 q.status(),
                 q.askedBy(),
+                q.acceptedAnswerId(),
                 q.createdAt(),
                 q.updatedAt()
         );
