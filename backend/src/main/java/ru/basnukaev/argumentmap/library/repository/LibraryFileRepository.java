@@ -201,6 +201,26 @@ public class LibraryFileRepository {
     }
 
     /**
+     * Все active-файлы во всех bucket'ах. Используется
+     * {@code OrphanDetectionJanitor} (Этап 25.b) для reverse-sweep:
+     * проверяет наличие каждой catalog row в S3 через {@code headObject}.
+     * Partial index {@code idx_library_files_active} ускоряет.
+     *
+     * <p>Возвращает {@code List<LibraryFile>} полностью в memory - acceptable
+     * на ожидаемые объёмы (≤100k rows). Если объём вырастет до миллионов -
+     * переписать на cursor-based streaming через {@code JdbcTemplate.query}
+     * с {@code RowCallbackHandler}.
+     */
+    public List<LibraryFile> findAllActive() {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM library_files "
+                        + "WHERE deleted_at IS NULL "
+                        + "ORDER BY bucket, storage_key",
+                ROW_MAPPER
+        );
+    }
+
+    /**
      * Lookup по upstream URL - используется для re-import detection.
      * Если URL уже скачан и в catalog - не качаем заново. Partial
      * index {@code idx_library_files_source_url}.

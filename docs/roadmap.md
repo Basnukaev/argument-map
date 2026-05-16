@@ -249,8 +249,15 @@ shamela не имеет нужной книги. MinIO storage готов из 2
         DOWN с statusCode/errorCode при S3 ошибке. Auto-discovered Spring
         Actuator под ключом `objectStorage` в `/actuator/health`. 2 IT тестов
         с MinIO testcontainer. Используется load balancer / k8s readiness probe
-  - [ ] Orphan-detection janitor: фоновый job сравнивает MinIO
-        listObjects vs `library_files`
+  - [x] **Orphan-detection janitor** (Сессия 36) - `OrphanDetectionJanitor`
+        `@Scheduled` cron `0 0 3 * * *`. Forward sweep:
+        `listObjectsV2Paginator` per bucket → проверка
+        `findActiveByBucketAndKey`. Reverse sweep: `findAllActive` →
+        `headObject` per row. Log-only через `log.warn` с (type, bucket,
+        key, size, age) - manual review через логи. Conditional
+        `storage.janitor.enabled` (default false). 6 IT тестов с MinIO
+        testcontainer: matched/s3-only/catalog-only/soft-deleted/multi-
+        bucket/mixed
   - [ ] Integrity verification cron: weekly сверка `content_hash`
   - [ ] AWS SDK v2 migration legacy `RetryPolicy` → `RetryStrategy`
   - [x] **`StreamingResponseBody` bounded `ThreadPoolTaskExecutor`**

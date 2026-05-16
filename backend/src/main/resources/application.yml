@@ -46,6 +46,14 @@ storage:
     user-uploads: ${STORAGE_BUCKET_UPLOADS:library-user-uploads}
     page-images: ${STORAGE_BUCKET_PAGES:library-page-images}
     derived: ${STORAGE_BUCKET_DERIVED:derived-artifacts}
+  # Orphan-detection janitor (ADR-024, Этап 25.b). Cron job сверяет
+  # S3 listObjects vs library_files catalog и наоборот. Log-only -
+  # никаких автоудалений, manual review через логи. По умолчанию
+  # выключен (избегаем случайных scan'ов в dev/test).
+  janitor:
+    enabled: ${STORAGE_JANITOR_ENABLED:false}
+    # 03:00 ежедневно - после ночных backup'ов, до user-traffic peak
+    cron: ${STORAGE_JANITOR_CRON:0 0 3 * * *}
 
 # Конфиг интеграции с shamela.ws через её desktop-API (ADR-020).
 # Реверс-инжиниринг выполнен в параллельной сессии через mitmproxy на

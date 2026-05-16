@@ -2142,6 +2142,34 @@ operational concern.
 - Encryption-at-rest конфигурация bucket'ов - operational, через
   bucket policy на стороне провайдера
 
+**Amendment 2026-05-16 (Этап 25.b 5-й пункт - Orphan-detection janitor):**
+
+`OrphanDetectionJanitor` - cron job (`@Scheduled` в Spring) сверяет
+S3 buckets с `library_files` catalog в двух направлениях:
+
+- forward sweep: `listObjectsV2Paginator` по каждому bucket → per key
+  проверка `findActiveByBucketAndKey`. Если active row отсутствует →
+  s3-only orphan (есть blob в S3 без active catalog)
+- reverse sweep: `findAllActive()` → per row `headObject`. Если
+  `NoSuchKey` или 404 → catalog-only orphan (есть row без physical
+  blob)
+
+**Log-only**, без авто-удаления: каждый orphan через `log.warn` с
+(type, bucket, key, size, age). Автоудаление - небезопасно из-за race
+condition (concurrent `putAndRegister` между listObjects и check может
+быть classified как orphan и удалён). Manual review через логи /
+actuator metrics, удаление через CLI или admin endpoint в будущем
+
+Cron `0 0 3 * * *` (03:00 ежедневно - после ночных backup'ов, до
+user-traffic peak). Conditional через `storage.janitor.enabled`
+(default `false`) - избегаем accidental scan в dev/test. Bean
+включается через `@ConditionalOnProperty`, `@EnableScheduling` -
+в `S3ClientConfig`
+
+6 IT тестов с MinIO testcontainer покрывают: matched pair, S3-only,
+catalog-only, soft-deleted (не путать с catalog-only), multi-bucket
+aggregation, mixed scenario
+
 ## ADR-026: Source.bookId FK - one-source-per-book для citation flow
 
 **Дата:** 2026-05-13

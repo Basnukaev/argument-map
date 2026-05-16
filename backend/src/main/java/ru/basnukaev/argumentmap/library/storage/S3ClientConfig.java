@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -39,6 +40,7 @@ import software.amazon.awssdk.services.s3.S3Configuration;
  */
 @Configuration
 @EnableConfigurationProperties(ObjectStorageProperties.class)
+@EnableScheduling
 public class S3ClientConfig {
 
     private static final Logger log = LoggerFactory.getLogger(S3ClientConfig.class);
