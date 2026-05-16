@@ -10,7 +10,83 @@
 
 ---
 
-## 2026-05-16 - Сессия 36, подсессия 19.c (full-stack) - Q&A answers + accept-answer flow
+## 2026-05-16 - Сессия 36, подсессия 20.e (full-stack) - AddSourceModal academic form
+
+Параллельная подсессия закрытия Этапа 20.e - AddSourceModal расширенная
+форма для `sourceType=BOOK` с заполнением academic metadata. Работала
+параллельно с 19.c подсессией (разные файлы - 20.e касается library/
+source/citation, 19.c - qa/answer/question). Конфликтов с 19.c не было,
+коммиты прошли atomically.
+
+### Сделано
+
+**Backend (1 коммит `feat(backend): Этап 20.e ...`):**
+
+- `CreateBookRequest` расширен 6 опциональными academic полями
+  (muhaqqiqName / publisherName / publicationPlaceName / editionNumber /
+  publishedYearHijri / publishedYearGregorian), `@Min/@Max` validation
+  совпадает с UpdateBookRequest
+- `BookService.createBook` перегружен (старая 7-args сохранена для
+  shamela ETL + legacy callers, новая 13-args). resolveFk reused для
+  blank/non-blank → null / findOrCreate
+- `CreateSourceRequest` расширен опциональным `bookId: UUID`.
+  `SourceService.createSource` валидирует Book.exists → 404 при
+  nonexistent (вместо FK-violation 500). Старый legacy путь без bookId
+  работает как раньше
+- 9 новых IT тестов: 4 BookServiceIT (academic FK / без academic /
+  partial / duplicate reuses FK), 3 BookControllerIT (POST+GET с
+  academic / edition validation / year validation), 2 SourceControllerIT
+  (POST с bookId / 404 nonexistent)
+- `./mvnw verify` - 484 tests pass (было 475)
+
+**Frontend (1 коммит `feat(frontend): Этап 20.e ...`):**
+
+- Новый shared компонент
+  `frontend/src/shared/components/citation/AcademicMetadataFields.tsx`:
+  extracted из admin BookEditModal AutocompleteRow + 3 fetch helpers.
+  Controlled, не знает про PATCH vs CREATE semantics
+- BookEditModal мигрирован на shared компонент - дубль ~150 строк
+  удалён, UI identical
+- SourceCreateForm.CreateForm расширен полем `academic`. Conditional
+  render <AcademicMetadataFields/> только для `sourceType === 'BOOK'`.
+  При переключении type academic не очищается (UX)
+- AddSourceModal.createAndAttach: 2-step flow для BOOK с заполненным
+  academic (POST `/library/books` → POST `/sources` с `bookId` →
+  attach), иначе legacy single-step
+- types.ts регенерированы из обновлённого OpenAPI
+- 4 новых i18n key RU/AR
+- 4 новых AddSourceModal vitest теста (section visible / hidden /
+  2-step / legacy)
+- typecheck clean, lint 0 errors (3 react-refresh warnings, pre-existing
+  pattern), tests 146/147 pass (1 unrelated pre-existing reliability
+  radio test), build SUCCESS
+
+**Docs (1 коммит `docs: 20.e complete ...`):**
+
+- api-contract.md - запись в «История изменений» 16.05 v1 о расширении
+  CreateBookRequest + CreateSourceRequest. Новый ADR не нужен -
+  следует ADR-026 + ADR-028
+- roadmap.md - 20.e отмечен [x] с описанием
+- progress.md - эта запись
+
+### Гочи / отклонения
+
+- В первом проходе мои Edit'ы получили system reminder про "файл изменён
+  параллельно" - но при проверке через `git diff` все изменения были на
+  месте. Не было реальной race condition с 19.c подсессией. Параноя
+  ложная, файлы целы
+- BookResponse не содержит academic fields (только BookDetailResponse) -
+  IT тест `createBook_withAcademicFields` пришлось переписать на
+  POST + GET сценарий чтобы проверять через `$.muhaqqiq.name`
+- Сохранил backward compat для legacy callers `BookService.createBook` -
+  старая 7-args перегрузка осталась чтобы shamela ETL не сломать
+
+### Открытые вопросы / следующее
+
+- 20.c-e полностью закрыты, Этап 20 academic citation готов
+- Можно двигаться к 21 (мульти-юзер / auth) или 19.d (answer voting)
+
+
 
 Spawned subagent для закрытия Этапа 19.c (Answers) - главная сессия
 делегировала из-за заполнения контекста. Работа в автономном режиме,

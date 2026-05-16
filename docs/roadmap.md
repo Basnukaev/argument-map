@@ -203,9 +203,16 @@ shamela не имеет нужной книги. MinIO storage готов из 2
       Frontend - Pencil icon в углу карточки в BookListPage + кнопка
       «Перечитать metadata» в AdminShamelaPage (вызывает backfill).
       Smoke: тафсир Ибн Касира prefilled all 6 полей
-- [ ] **20.e:** AddSourceModal расширенная форма - при manual entry
-      для sourceType=BOOK запросить полные поля (необязательны для
-      URL/ARTICLE freeform)
+- [x] **20.e:** AddSourceModal extended form - при manual entry для
+      `sourceType=BOOK` показывается shared `<AcademicMetadataFields/>`
+      (6 полей муhaккик/издатель/место/edition/год хиджра/григориан).
+      Backend `CreateBookRequest` + `CreateSourceRequest` расширены
+      (`bookId` UUID, 6 academic optional). `BookService.createBook`
+      перегружен с findOrCreate в справочниках. 2-step UI flow: при
+      заполненном academic - POST `/api/v1/library/books` → POST
+      `/api/v1/sources` с `bookId` → attach. Legacy single-step без
+      `bookId` работает как раньше. BookEditModal мигрирован на shared
+      компонент. 9 backend IT + 4 frontend Vitest
 
 Объём 20.c-e: ~2 сессии. Не блокирует Этап 19 Q&A
 
