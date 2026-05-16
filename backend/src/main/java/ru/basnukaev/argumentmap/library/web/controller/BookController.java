@@ -49,7 +49,12 @@ public class BookController {
                 request.bookType(), request.title(), request.authorityId(),
                 request.language(), request.description(),
                 LibraryDtoMappers.jsonToString(request.metadata()),
-                currentUserId
+                currentUserId,
+                request.muhaqqiqName(), request.publisherName(),
+                request.publicationPlaceName(),
+                request.editionNumber(),
+                request.publishedYearHijri(),
+                request.publishedYearGregorian()
         );
         return ResponseEntity.created(URI.create("/api/v1/library/books/" + created.id()))
                 .body(LibraryDtoMappers.toResponse(created));

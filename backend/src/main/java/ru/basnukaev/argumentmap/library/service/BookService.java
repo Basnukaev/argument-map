@@ -66,15 +66,44 @@ public class BookService {
     public Book createBook(BookType bookType, String title, UUID authorityId,
                            String language, String description, String metadataJson,
                            UUID currentUserId) {
+        return createBook(bookType, title, authorityId, language, description,
+                metadataJson, currentUserId,
+                null, null, null, null, null, null);
+    }
+
+    /**
+     * Создание книги с опциональными academic полями (Этап 20.e). Если
+     * academic строка blank/null - FK остаётся null. Если non-blank -
+     * findOrCreate в соответствующем справочнике. Integer-поля
+     * сохраняются как переданы.
+     *
+     * <p>Используется AddSourceModal-flow когда пользователь руками
+     * заводит книгу с минимальной academic-метадатой; обычный shamela
+     * ETL вызывает старую перегрузку без academic.
+     */
+    @Transactional
+    public Book createBook(BookType bookType, String title, UUID authorityId,
+                           String language, String description, String metadataJson,
+                           UUID currentUserId,
+                           String muhaqqiqName, String publisherName,
+                           String publicationPlaceName,
+                           Integer editionNumber,
+                           Integer publishedYearHijri,
+                           Integer publishedYearGregorian) {
         if (authorityId != null && authorityRepository.findById(authorityId).isEmpty()) {
             throw new AuthorityNotFoundException(authorityId);
         }
+        UUID muhaqqiqId = resolveFk(muhaqqiqName, null, muhaqqiqRepository::findOrCreate);
+        UUID publisherId = resolveFk(publisherName, null, publisherRepository::findOrCreate);
+        UUID placeId = resolveFk(publicationPlaceName, null, publicationPlaceRepository::findOrCreate);
+
         Instant now = Instant.now();
         Book book = new Book(
                 UUID.randomUUID(), bookType, title, authorityId,
                 language, description, metadataJson, currentUserId,
                 now, now,
-                null, null, null, null, null, null
+                muhaqqiqId, publisherId, placeId,
+                editionNumber, publishedYearHijri, publishedYearGregorian
         );
         bookRepository.save(book);
         return book;

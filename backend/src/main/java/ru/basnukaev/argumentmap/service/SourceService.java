@@ -11,8 +11,10 @@ import ru.basnukaev.argumentmap.domain.Reliability;
 import ru.basnukaev.argumentmap.domain.Source;
 import ru.basnukaev.argumentmap.domain.SourceType;
 import ru.basnukaev.argumentmap.exception.AuthorityNotFoundException;
+import ru.basnukaev.argumentmap.exception.BookNotFoundException;
 import ru.basnukaev.argumentmap.exception.InvalidSourceException;
 import ru.basnukaev.argumentmap.exception.SourceNotFoundException;
+import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.repository.AuthorityRepository;
 import ru.basnukaev.argumentmap.repository.SourceRepository;
 
@@ -21,16 +23,20 @@ public class SourceService {
 
     private final SourceRepository sourceRepository;
     private final AuthorityRepository authorityRepository;
+    private final BookRepository bookRepository;
 
     public SourceService(SourceRepository sourceRepository,
-                         AuthorityRepository authorityRepository) {
+                         AuthorityRepository authorityRepository,
+                         BookRepository bookRepository) {
         this.sourceRepository = sourceRepository;
         this.authorityRepository = authorityRepository;
+        this.bookRepository = bookRepository;
     }
 
     @Transactional
     public Source createSource(SourceType sourceType, String title, String citation,
-                               Reliability reliability, UUID authorityId, String metadataJson) {
+                               Reliability reliability, UUID authorityId, UUID bookId,
+                               String metadataJson) {
         if (reliability != null && sourceType != SourceType.HADITH) {
             throw new InvalidSourceException(
                     "поле reliability допустимо только для типа HADITH"
@@ -39,9 +45,13 @@ public class SourceService {
         if (authorityId != null && authorityRepository.findById(authorityId).isEmpty()) {
             throw new AuthorityNotFoundException(authorityId);
         }
+        if (bookId != null && bookRepository.findById(bookId).isEmpty()) {
+            // 404 даёт чёткую ошибку клиенту вместо FK-violation 500
+            throw new BookNotFoundException(bookId);
+        }
         Source source = new Source(
                 UUID.randomUUID(), sourceType, title, citation,
-                reliability, authorityId, null, metadataJson, Instant.now()
+                reliability, authorityId, bookId, metadataJson, Instant.now()
         );
         sourceRepository.save(source);
         return source;

@@ -85,7 +85,8 @@ class BookControllerIT {
         JsonNode metadata = objectMapper.readTree("{\"shamela_id\":12345}");
         var req = new CreateBookRequest(
                 BookType.BOOK, "Маджму' аль-Фатава", null, "ar",
-                "сборник", metadata
+                "сборник", metadata,
+                null, null, null, null, null, null
         );
 
         mockMvc.perform(post("/api/v1/library/books")
@@ -103,7 +104,8 @@ class BookControllerIT {
 
     @Test
     void createBook_quranWithoutAuthor_returns201() throws Exception {
-        var req = new CreateBookRequest(BookType.QURAN, "Коран", null, "ar", null, null);
+        var req = new CreateBookRequest(BookType.QURAN, "Коран", null, "ar", null, null,
+                null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/library/books")
                         .header("X-User-Id", userId.toString())
@@ -117,7 +119,8 @@ class BookControllerIT {
     @Test
     void createBook_invalidAuthorityId_returns404_authorityNotFound() throws Exception {
         var req = new CreateBookRequest(
-                BookType.BOOK, "T", UUID.randomUUID(), "ar", null, null
+                BookType.BOOK, "T", UUID.randomUUID(), "ar", null, null,
+                null, null, null, null, null, null
         );
 
         mockMvc.perform(post("/api/v1/library/books")
@@ -130,7 +133,8 @@ class BookControllerIT {
 
     @Test
     void createBook_blankTitle_returns400_validation() throws Exception {
-        var req = new CreateBookRequest(BookType.BOOK, "  ", null, "ar", null, null);
+        var req = new CreateBookRequest(BookType.BOOK, "  ", null, "ar", null, null,
+                null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/library/books")
                         .header("X-User-Id", userId.toString())
@@ -153,7 +157,8 @@ class BookControllerIT {
 
     @Test
     void createBook_withoutUserHeader_returns400() throws Exception {
-        var req = new CreateBookRequest(BookType.BOOK, "T", null, "ar", null, null);
+        var req = new CreateBookRequest(BookType.BOOK, "T", null, "ar", null, null,
+                null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/library/books")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -291,6 +296,66 @@ class BookControllerIT {
         mockMvc.perform(get("/api/v1/library/pages/{id}", UUID.randomUUID()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value(containsString("page-not-found")));
+    }
+
+    @Test
+    void createBook_withAcademicFields_returns201_andPersistsFKs() throws Exception {
+        var req = new CreateBookRequest(
+                BookType.BOOK, "Иктида", null, "ar", null, null,
+                "Аль-Альбани", "Дар Тайба", "Эр-Рияд",
+                3, 1432, 2011
+        );
+
+        String createJson = mockMvc.perform(post("/api/v1/library/books")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID bookId = UUID.fromString(objectMapper.readTree(createJson).get("id").asText());
+
+        // BookDetailResponse через GET содержит academic FK + nested refs
+        mockMvc.perform(get("/api/v1/library/books/{id}", bookId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.muhaqqiqId").exists())
+                .andExpect(jsonPath("$.publisherId").exists())
+                .andExpect(jsonPath("$.publicationPlaceId").exists())
+                .andExpect(jsonPath("$.editionNumber").value(3))
+                .andExpect(jsonPath("$.publishedYearHijri").value(1432))
+                .andExpect(jsonPath("$.publishedYearGregorian").value(2011))
+                .andExpect(jsonPath("$.muhaqqiq.name").value("Аль-Альбани"))
+                .andExpect(jsonPath("$.publisher.name").value("Дар Тайба"))
+                .andExpect(jsonPath("$.publicationPlace.name").value("Эр-Рияд"));
+    }
+
+    @Test
+    void createBook_withInvalidEditionNumber_returns400() throws Exception {
+        var req = new CreateBookRequest(
+                BookType.BOOK, "T", null, "ar", null, null,
+                null, null, null, 100, null, null
+        );
+
+        mockMvc.perform(post("/api/v1/library/books")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[?(@.field=='editionNumber')]").exists());
+    }
+
+    @Test
+    void createBook_withYearOutOfRange_returns400() throws Exception {
+        var req = new CreateBookRequest(
+                BookType.BOOK, "T", null, "ar", null, null,
+                null, null, null, null, 99999, null
+        );
+
+        mockMvc.perform(post("/api/v1/library/books")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[?(@.field=='publishedYearHijri')]").exists());
     }
 
     private Book saveBook(String title, BookType type) {

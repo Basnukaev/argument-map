@@ -27,7 +27,10 @@ import ru.basnukaev.argumentmap.library.domain.ImageRegion;
 import ru.basnukaev.argumentmap.library.domain.Page;
 import ru.basnukaev.argumentmap.library.repository.ChapterRepository;
 import ru.basnukaev.argumentmap.library.repository.ImageRegionRepository;
+import ru.basnukaev.argumentmap.library.repository.MuhaqqiqRepository;
 import ru.basnukaev.argumentmap.library.repository.PageRepository;
+import ru.basnukaev.argumentmap.library.repository.PublicationPlaceRepository;
+import ru.basnukaev.argumentmap.library.repository.PublisherRepository;
 import ru.basnukaev.argumentmap.repository.AuthorityRepository;
 
 @SpringBootTest
@@ -49,6 +52,15 @@ class BookServiceIT {
 
     @Autowired
     private ImageRegionRepository imageRegionRepository;
+
+    @Autowired
+    private MuhaqqiqRepository muhaqqiqRepository;
+
+    @Autowired
+    private PublisherRepository publisherRepository;
+
+    @Autowired
+    private PublicationPlaceRepository publicationPlaceRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -246,6 +258,74 @@ class BookServiceIT {
     void getPage_nonexistent_throwsPageNotFound() {
         assertThatThrownBy(() -> bookService.getPage(UUID.randomUUID()))
                 .isInstanceOf(PageNotFoundException.class);
+    }
+
+    @Test
+    void createBook_withAcademicFields_resolvesFKsViaFindOrCreate() {
+        Book created = bookService.createBook(
+                BookType.BOOK, "Иктида", null, "ar", null, null, userId,
+                "Мухаммад аль-Альбани", "Дар Тайба", "Эр-Рияд",
+                3, 1432, 2011
+        );
+
+        assertThat(created.muhaqqiqId()).isNotNull();
+        assertThat(created.publisherId()).isNotNull();
+        assertThat(created.publicationPlaceId()).isNotNull();
+        assertThat(created.editionNumber()).isEqualTo(3);
+        assertThat(created.publishedYearHijri()).isEqualTo(1432);
+        assertThat(created.publishedYearGregorian()).isEqualTo(2011);
+
+        // FK resolved именно через findOrCreate - справочники содержат записи
+        assertThat(muhaqqiqRepository.findByName("Мухаммад аль-Альбани")).isPresent();
+        assertThat(publisherRepository.findByName("Дар Тайба")).isPresent();
+        assertThat(publicationPlaceRepository.findByName("Эр-Рияд")).isPresent();
+    }
+
+    @Test
+    void createBook_withoutAcademicFields_keepsAllFKsNull() {
+        Book created = bookService.createBook(
+                BookType.BOOK, "Без academic", null, "ar", null, null, userId,
+                null, null, null, null, null, null
+        );
+
+        assertThat(created.muhaqqiqId()).isNull();
+        assertThat(created.publisherId()).isNull();
+        assertThat(created.publicationPlaceId()).isNull();
+        assertThat(created.editionNumber()).isNull();
+        assertThat(created.publishedYearHijri()).isNull();
+        assertThat(created.publishedYearGregorian()).isNull();
+    }
+
+    @Test
+    void createBook_withPartialAcademic_resolvesOnlyProvided() {
+        Book created = bookService.createBook(
+                BookType.BOOK, "Частично", null, "ar", null, null, userId,
+                "  Ибн Усаймин  ", null, null, 2, null, null
+        );
+
+        // trimmed + findOrCreate
+        assertThat(created.muhaqqiqId()).isNotNull();
+        assertThat(muhaqqiqRepository.findByName("Ибн Усаймин")).isPresent();
+        assertThat(created.publisherId()).isNull();
+        assertThat(created.publicationPlaceId()).isNull();
+        assertThat(created.editionNumber()).isEqualTo(2);
+        assertThat(created.publishedYearHijri()).isNull();
+        assertThat(created.publishedYearGregorian()).isNull();
+    }
+
+    @Test
+    void createBook_withDuplicateMuhaqqiqName_reusesExistingFK() {
+        Book first = bookService.createBook(
+                BookType.BOOK, "Книга 1", null, "ar", null, null, userId,
+                "Аль-Альбани", null, null, null, null, null
+        );
+        Book second = bookService.createBook(
+                BookType.BOOK, "Книга 2", null, "ar", null, null, userId,
+                "Аль-Альбани", null, null, null, null, null
+        );
+
+        assertThat(first.muhaqqiqId()).isNotNull();
+        assertThat(second.muhaqqiqId()).isEqualTo(first.muhaqqiqId());
     }
 
     private Authority saveAuthor(String name) {

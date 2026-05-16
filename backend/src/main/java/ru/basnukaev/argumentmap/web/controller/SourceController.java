@@ -35,7 +35,7 @@ public class SourceController {
     public ResponseEntity<SourceResponse> create(@Valid @RequestBody CreateSourceRequest request) {
         Source created = sourceService.createSource(
                 request.sourceType(), request.title(), request.citation(),
-                request.reliability(), request.authorityId(),
+                request.reliability(), request.authorityId(), request.bookId(),
                 DtoMappers.jsonToString(request.metadata())
         );
         return ResponseEntity.created(URI.create("/api/v1/sources/" + created.id()))
