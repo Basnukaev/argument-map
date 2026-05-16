@@ -220,16 +220,22 @@ shamela не имеет нужной книги. MinIO storage готов из 2
 
 Основные подэтапы закрыты (см. выше в закрытых). Остаётся:
 
-- [ ] **25.b. operational hardening** - незакрытые пункты из ADR-024:
-  - Circuit breaker через Resilience4j (>50% errors за 60с → 503)
-  - Health-check indicator: `headBucket` ping в `actuator/health`
-  - Orphan-detection janitor: фоновый job сравнивает MinIO
-    listObjects vs `library_files`
-  - Integrity verification cron: weekly сверка `content_hash`
-  - AWS SDK v2 migration legacy `RetryPolicy` → `RetryStrategy`
-  - `StreamingResponseBody` bounded `ThreadPoolTaskExecutor` для
-    защиты от thread exhaustion
-  - `apiCallTimeout` split: connectTimeout vs apiCallTimeout per-request
+- **25.b. operational hardening** - незакрытые пункты из ADR-024:
+  - [x] **Circuit breaker через Resilience4j** (Сессия 36) -
+        `pdfDownload` instance защищает `HttpClientPdfFetcher.fetch()`,
+        50% failure threshold за окно из 10 запросов → OPEN 30 секунд →
+        HALF_OPEN 3 пробных → CLOSED. Fallback кидает
+        `ShamelaApiException` без upstream HTTP. 4 IT тесты pass.
+        Actuator endpoints `/circuitbreakers` + `/circuitbreakerevents`
+        для observability
+  - [ ] Health-check indicator: `headBucket` ping в `actuator/health`
+  - [ ] Orphan-detection janitor: фоновый job сравнивает MinIO
+        listObjects vs `library_files`
+  - [ ] Integrity verification cron: weekly сверка `content_hash`
+  - [ ] AWS SDK v2 migration legacy `RetryPolicy` → `RetryStrategy`
+  - [ ] `StreamingResponseBody` bounded `ThreadPoolTaskExecutor` для
+        защиты от thread exhaustion
+  - [ ] `apiCallTimeout` split: connectTimeout vs apiCallTimeout per-request
 - [ ] **25.d.2: text↔pdf page sync** - internal pageNumber →
       pdfPageNumber mapping с fallback на physical=internal если null.
       Требует Tier 1 admin page-mapping flow

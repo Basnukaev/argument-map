@@ -66,6 +66,48 @@ shamela:
   # если сеть недоступна вообще, а не висим на полминуты).
   connect-timeout-seconds: 10
 
+# Resilience4j Circuit Breaker (ADR-024, Этап 25.b - operational hardening).
+# Защищает upstream HTTP вызовы от cascading failures.
+#
+# pdfDownload - PDF fetch с archive.org (часто 503/timeout под нагрузкой).
+# При >50% ошибок за окно из 10 запросов -> circuit opens на 30 секунд.
+# В open state все запросы fail fast с ShamelaApiException -> 503 наружу.
+# Через 30 sec - HALF_OPEN: 3 пробных запроса, при успехе -> CLOSED.
+resilience4j:
+  circuitbreaker:
+    instances:
+      pdfDownload:
+        # COUNT_BASED проще TIME_BASED для PDF: даже редкие запросы должны
+        # учитываться. 10 запросов - reasonable окно для PDF (тяжёлые,
+        # не часто пользователь читает).
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        # Какие exceptions считать failure. ShamelaApiException - наш
+        # wrapper для HTTP 5xx/IO от archive.org.
+        record-exceptions:
+          - ru.basnukaev.argumentmap.library.shamela.api.ShamelaApiException
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+  # Metrics через actuator (см. management.endpoints.web ниже).
+  metrics:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # health для load balancer, info для версии. circuitbreakers
+        # для observability (curl /actuator/circuitbreakers выдаст state).
+        include: health,info,circuitbreakers,circuitbreakerevents
+  health:
+    circuitbreakers:
+      enabled: true
+
 ---
 spring:
   config:
