@@ -57,6 +57,10 @@ postgres-data/
 # Ruflo local state
 .claude-flow/
 .agents/
+.swarm/
 agentdb.rvf
 agentdb.rvf.lock
+ruvector.db
 *.ruflo.lock
+# Windows Zone.Identifier files
+*:Zone.Identifier
