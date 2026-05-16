@@ -53,3 +53,10 @@ postgres-data/
 /*.jpg
 /*.jpeg
 /*.webp
+
+# Ruflo local state
+.claude-flow/
+.agents/
+agentdb.rvf
+agentdb.rvf.lock
+*.ruflo.lock
