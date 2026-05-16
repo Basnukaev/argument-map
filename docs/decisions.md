@@ -2895,3 +2895,158 @@ metadata) появился готовый фундамент. Время доб�
   pattern (`argument-map`, `library`, `admin`)
 - **ADR-027** (positional citation в node_sources) - blueprint для
   будущей `question_sources` миграции (19.b)
+
+---
+
+## ADR-033: Q&A source attach - параллельная иерархия question_sources (Этап 19.b)
+
+**Дата:** 2026-05-16
+**Статус:** принят
+**Связь:** ADR-018 (platform pivot), ADR-027 (positional citation), ADR-029 (FK variant A), ADR-032 (Q&A foundation)
+
+### Контекст
+
+ADR-032 закрыл Этап 19.a (Q&A foundation) и зафиксировал что валидация
+platform pivot - в Этапе 19.b: добавить `question_sources` table-аналог
+`node_sources` + reuse `CitationPicker` без копирования бизнес-логики
+citation.
+
+Архитектурный вопрос - **как структурировать backend для двух типов
+сущностей** (node, question) с identical citation семантикой?
+
+Три варианта:
+
+**Опция A - generic citations table** с polymorphic FK
+(`entity_type ENUM('NODE','QUESTION') + entity_id UUID`):
+- breaking миграция `node_sources → citations` (rename + add columns)
+- один service + repository + controller на оба entity types
+- minimal код-дублирование, максимум refactoring existing
+
+**Опция B - параллельная иерархия** (`question_sources` рядом с
+`node_sources`, mirror schema, mirror domain/repo/service/controller):
+- zero breaking changes - existing path не трогаем
+- ~200 строк дублированного кода (~80% mirror)
+- proof of platform работает - то же самое решение применили дважды,
+  значит pattern переносим
+
+**Опция C - generic via inheritance** (`AbstractCitationService<E>`
++ specialization classes для каждого entity):
+- сложная типизация Java generics + JdbcTemplate generic parameters
+- средний refactor, нетривиальная maintenance
+
+### Решение
+
+**Опция B - параллельная иерархия `question_sources`.**
+
+Структура повторяет `node_sources` 1-в-1:
+
+```
+ru.basnukaev.argumentmap.qa.domain.QuestionSource         (record)
+ru.basnukaev.argumentmap.qa.repository.QuestionSourceRepository
+ru.basnukaev.argumentmap.qa.service.QuestionCitationService
+ru.basnukaev.argumentmap.qa.web.controller.QuestionCitationController
+ru.basnukaev.argumentmap.qa.web.dto.QuestionSourceResponse
+ru.basnukaev.argumentmap.qa.web.mapper.QaDtoMappers
+```
+
+REST endpoints симметричны `NodeCitationController`/`NodeSourceController`:
+
+- `POST /api/v1/questions/{id}/citations` - positional citation
+  (TEXT/PDF/REGION, reuse `CitationRequest`)
+- `GET  /api/v1/questions/{id}/sources` - list с structured citation
+- `DELETE /api/v1/questions/sources/{questionSourceId}` - detach
+
+Frontend `CitationPicker` расширен generic prop `targetType: 'nodes' |
+'questions'` + `targetId` - URL формируется как
+`/api/v1/${targetType}/${targetId}/citations`. **Тот же компонент** без
+fork.
+
+Reuse через core `DtoMappers.toCitationResponse(CitationDetail)` -
+mapping 9 LEFT JOIN polished один раз, повторно используется обоими
+mappers (`DtoMappers.toResponse(NodeSourceRepository.NodeSourceWithLocation)`
+и `QaDtoMappers.toResponse(QuestionSourceRepository.QuestionSourceWithLocation)`).
+
+Миграция 28 объединяет в одну то что для `node_sources` было разнесено
+на три (9 + 23 + 25): сразу surrogate UUID PK, positional fields,
+CHECK constraint один из четырёх режимов (LEGACY/TEXT/PDF/REGION).
+
+### Альтернативы (отвергнуты)
+
+**Опция A (generic citations table)** - отвергнута:
+
+- Premature generalization - сейчас только 2 entities (node, question).
+  Когда будет 3-4 (answers, comments?) - rationale для generic сильнее
+- Breaking миграция требует careful planning (data migration +
+  обновление 4 service'ов + 4 controller'ов + frontend)
+- Type safety теряется - `entity_id UUID` без typed FK constraint на
+  уровне БД. CASCADE-семантика становится сложнее
+
+**Опция C (generic via inheritance)** - отвергнута:
+
+- Java generics + JDBC + Spring не дружат - typed repositories дают
+  middle-tier complexity без proportional gain
+- Mirror code легче читать чем generic factory - junior developer
+  при наследовании увидит две похожих структуры и быстро поймёт
+  pattern
+
+### Последствия
+
+**Положительные:**
+
+- **ADR-018 platform pivot validated** - доказательство в коде:
+  - один Source record reuse (один `sources.id` для книги в обоих
+    `node_sources` и `question_sources`)
+  - один `CitationPicker` компонент через targetType prop
+  - один `SourceCard` компонент рендерит structured citation
+    identical
+  - 9 LEFT JOIN mapping reuse без переписывания
+- **Risk = 0** - existing argument-map flow не затронут, изменения
+  только additive (`CitationPicker` props extend)
+- **Маршрут расширения известен** - когда появятся answers (19.c) или
+  comments - повторим тот же pattern
+
+**Отрицательные:**
+
+- **~200 LOC дубликата** между `NodeSourceRepository` и
+  `QuestionSourceRepository`, между `NodeCitationService` и
+  `QuestionCitationService`. Diff минимальный (substitute `node_id`
+  → `question_id`, `nodes` → `questions`). При 3-м entity type
+  стоит ревизит к Option A или C
+- **No legacy freeform attach для questions** - только positional
+  (через CitationPicker). Schema поддерживает LEGACY mode, controller
+  не имеет attach endpoint. Если появится UX-кейс «freeform URL/
+  article attach для question» - добавить отдельный POST endpoint
+  + `QuestionSourceController` (analog `NodeSourceController`)
+
+**Технические артефакты:**
+
+- Migration 28 `question_sources` - 14 колонок + CHECK constraint +
+  5 индексов (2 full на question_id/source_id, 3 partial на
+  positional FKs)
+- 18 IT тестов через Testcontainers (mirror NodeCitationServiceIT,
+  +3 теста: list/detach/cascade-delete)
+- Frontend: новый компонент `QuestionCitationsSection.tsx` +
+  изменения `CitationPicker.tsx` (props refactor) +
+  `NodeCitationsSection.tsx` (передача targetType="nodes")
+- 5 i18n keys RU/AR (`qa.sources.*`)
+
+### Триггеры пересмотра
+
+- **3-й entity type для citations** (answers, comments) - revisit
+  Option A/C, generic citations table может стать рационален при
+  >=3 entities
+- **Performance issue** - если 9 LEFT JOIN на каждый GET список
+  citations станет bottleneck - возможно materialized view или
+  кэширование на repository уровне
+- **Многоуровневая иерархия Q&A** (question → answers → comments) -
+  если comment тоже сможет иметь citation, паттерн масштабируется,
+  но 4-я итерация - сигнал генерализировать
+
+### Связь с другими ADR
+
+- **ADR-018** (platform pivot) - этот ADR его финальная валидация
+- **ADR-027** (positional citation в node_sources) - schema blueprint
+  применённый к question_sources
+- **ADR-029** (FK variant A для node_sources) - surrogate UUID PK
+  применён сразу в migration 28 (не staged)
+- **ADR-032** (Q&A foundation) - 19.a baseline которое 19.b расширяет

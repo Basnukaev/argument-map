@@ -1349,9 +1349,59 @@ Partial update title/body/status. `null` поля = no change. Валидаци�
 Hard delete (MVP без soft delete + audit). Ответ `204 No Content`.
 Ошибка `404 question-not-found`.
 
-### Что **не** реализовано в Этапе 19.a
+### POST /api/v1/questions/{questionId}/citations - привязать positional citation (19.b)
 
-- `question_sources` table + attach/detach endpoints (Этап 19.b)
+Создаёт citation в одном из трёх режимов (TEXT/PDF/REGION). Структура
+запроса и ошибки **идентичны** `POST /api/v1/nodes/{nodeId}/citations`
+(ADR-027) - reuse того же `CitationRequest` DTO + `NodeCitationService`-
+аналог `QuestionCitationService` с identical валидацией.
+
+Request body (`CitationRequest`):
+
+```json
+{
+  "bookId":   "uuid-required",
+  "pageId":   "uuid (TEXT mode)",
+  "rangeStart": 0,
+  "rangeEnd":   87,
+  "pdfFileId":  "uuid (PDF mode)",
+  "pdfPageNumber": 47,
+  "pdfBbox":   { "x": 0.1, "y": 0.2, "width": 0.5, "height": 0.04 },
+  "imageRegionId": "uuid (REGION mode)",
+  "quote": "опциональный текст",
+  "context": "опциональный комментарий"
+}
+```
+
+Ровно один из (`pageId`/`pdfFileId`/`imageRegionId`) обязателен.
+Response `201 Created` с `QuestionSourceResponse` (структура аналогична
+`NodeSourceResponse`, но с `questionId` вместо `nodeId`, без поля
+`legacySnapshot` - freeform mode для questions не реализован).
+
+Ошибки:
+- `404 question-not-found` - вопрос с таким id не существует
+- `404 book-not-found`/`page-not-found`/`pdf-not-available`/`image-region-not-found`
+- `400 invalid-citation` - валидация (>1 mode, range_end<=range_start,
+  pageId не принадлежит bookId, etc)
+
+### GET /api/v1/questions/{questionId}/sources - список citations вопроса
+
+Возвращает `List<QuestionSourceResponse>` с structured citation (9 LEFT
+JOIN на authority/book/muhaqqiq/publisher/publication_place/page/region).
+Сортировка по `created_at`. Идентичная схема `GET /api/v1/nodes/{id}/sources`.
+
+### DELETE /api/v1/questions/sources/{questionSourceId} - detach citation
+
+Удаление по surrogate UUID id citation link'а (ADR-029 FK variant A).
+Response `204 No Content`. Ошибка `400 invalid-citation` если link не
+найден (semantically should be 404, оставлено для unified error handler -
+см. roadmap «Этап 6 нормализация error codes»).
+
+### Что **не** реализовано в Этапе 19.b
+
+- Freeform LEGACY citation для questions (нет `POST /api/v1/questions/
+  {id}/sources` legacy endpoint). Schema поддерживает, controller -
+  только если появится UX-кейс
 - Answers (Этап 19.c) - `ANSWERED` status зарезервирован в CHECK
   constraint, но writes ставятся только через ручной PATCH
 - Soft delete + audit (после auth)
@@ -1361,6 +1411,7 @@ Hard delete (MVP без soft delete + audit). Ответ `204 No Content`.
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-16 | v1 | Q&A citation endpoints: `POST /api/v1/questions/{id}/citations` (CitationRequest reused из ADR-027, TEXT/PDF/REGION mode), `GET /api/v1/questions/{id}/sources` (List<QuestionSourceResponse> с 9 LEFT JOIN), `DELETE /api/v1/questions/sources/{questionSourceId}`. Новый DTO `QuestionSourceResponse{id, questionId, sourceId, quote, context, mode, citation, createdAt}` - без legacySnapshot (нет LEGACY mode UI для questions). Migration 28 `question_sources` (объединяет mig 9+23+25 в одну: surrogate UUID PK сразу, positional fields, CHECK constraint один-из-четырёх) | ADR-033: параллельная иерархия `question_sources` рядом с `node_sources`. Финальная валидация ADR-018 platform pivot - тот же CitationPicker + SourceCard + 9-LEFT-JOIN structured citation reused между двумя entity types без копирования бизнес-логики |
 | 2026-05-16 | v1 | Q&A endpoints под `/api/v1/questions/*`: `POST` (CreateQuestionRequest{title, body}), `GET` list (filters `?status=&q=`), `GET /{id}` (QuestionResponse), `PATCH /{id}` (UpdateQuestionRequest, partial update), `DELETE /{id}`. Новый error `404 question-not-found`. `QuestionStatus` enum: OPEN/ANSWERED/CLOSED. Migration 26 `questions` table | ADR-032 Q&A foundation, Этап 19.a. Валидация ADR-018 platform pivot через второе приложение. На MVP без source attach (Этап 19.b) |
 | 2026-05-16 | v1 | Добавлены endpoints для Этапа 20.d Admin BookEditModal: `PATCH /api/v1/library/books/{id}` (partial update 6 academic полей через `UpdateBookRequest`, PATCH-семантика: null=no change, ""=clear, non-empty=findOrCreate); `GET /api/v1/library/muhaqqiqs?q=&limit=`, `GET /api/v1/library/publishers?q=&limit=`, `GET /api/v1/library/publication-places?q=&limit=` (autocomplete для UI). Новые DTO: `UpdateBookRequest`, `MuhaqqiqResponse{id,name,fullName}`, `PublisherResponse{id,name}`, `PublicationPlaceResponse{id,name}` | Этап 20.d: UI для ручной правки academic metadata после автоматического parser fill. Search-autocomplete защищает от typo-дублей в справочниках |
 | 2026-05-16 | v1 | Добавлен endpoint `POST /api/v1/admin/shamela/backfill-bibliography`. Прогоняет `ShamelaBibliographyParser` (20.c) по всем shamela-sourced книгам, заполняет `muhaqqiq_id`/`publisher_id`/`publication_place_id`/`edition_number`/`published_year_hijri`/`published_year_gregorian` через `findOrCreate` в справочниках. DTO: `BackfillBibliographyResponse{scanned, updated, skipped}`. Тело request пустое, без header'ов | Этап 20.c follow-up: добить existing books импортированные до появления parser'а. Smoke: 3/3 dev-книг получили заполненные FK после первого вызова |

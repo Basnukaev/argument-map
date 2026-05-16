@@ -8,6 +8,22 @@
 
 ## Фронт - общие улучшения
 
+- [ ] **Шрифт title книг в BookListPage** - текущий не нравится
+  Абдуле. Подобрать более красивый serif для title (возможно
+  Source Serif 4 уже подключённый, либо новый - PT Serif/Lora/
+  EB Garamond/Crimson Text). Reference - скрин от Абдулы
+  `BookListPage_(1).png` (16 мая). Заодно проверить spacing между
+  заголовком и метаданными карточки
+- [ ] **Фикс 12 pre-existing test failures** (диагностика Сессии 36).
+  3 файла сломаны на master без изменений: TopicGraphPage.test.tsx
+  (4 теста: title/empty-state/404-error/back-link), TopicListPage
+  .test.tsx (3: empty/cards/5xx-error), NodeDetailsPanel.test.tsx
+  (5 тестов секции «Опора»: автор/без authorityId/arabic dir/empty/
+  delete). Регрессия появилась между Сессией 35 (143/143 pass) и
+  Сессией 36. Подозрение - i18n dictionary changes или async timing.
+  Все три теста используют MSW + RTL async waits - возможно
+  waitForApi timeout 200ms перестал хватать с обновлёнными
+  компонентами на v2 design tokens
 - [ ] Полнотекстовый поиск (когда появится на беке, Этап 6)
 - [ ] Экспорт графа в PNG / SVG
 - [ ] Тёмная тема

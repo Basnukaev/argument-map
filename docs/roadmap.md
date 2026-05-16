@@ -159,10 +159,16 @@ shamela не имеет нужной книги. MinIO storage готов из 2
       QuestionListPage с status filter + search, CreateQuestionPage
       (Field + maxLength counters), QuestionDetailPage с status switcher
       + delete. Header nav «Q&A» enabled. 30 i18n keys RU/AR
-- [ ] **19.b:** Source attach - `question_sources` table (analog
-      `node_sources`) + attach/detach endpoints. Frontend - reuse
-      CitationPicker. **Это валидация platform reuse**: тот же source
-      stack без копирования логики
+- [x] **19.b:** Source attach - `question_sources` table (migration 28
+      объединила 9+23+25 в одну) + REST `POST /api/v1/questions/{id}/citations`
+      + `GET /{id}/sources` + `DELETE /sources/{questionSourceId}`.
+      Параллельная иерархия (ADR-033) в `qa/` package - `QuestionSource`/
+      `QuestionSourceRepository`/`QuestionCitationService`/
+      `QuestionCitationController` mirror `node_sources` stack.
+      Frontend - `CitationPicker` расширен `targetType: 'nodes' | 'questions'`
+      prop, `QuestionCitationsSection` использует тот же `SourceCard`.
+      18 IT тестов pass. Smoke playwright подтвердил identical UI
+      rendering structured citation на question detail page
 - [ ] **19.c:** Answers - `answers` table с FK на question + answer_id
       в `questions` (accepted answer). UI для add answer + vote
 
