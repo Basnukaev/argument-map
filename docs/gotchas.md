@@ -1000,3 +1000,73 @@ grep -rnE "rounded-(xl|2xl|3xl|full)" frontend/src/ | grep -v "design-reference"
 7+ файлов с sed-leftover палитры. Memory `feedback_grep_after_batch_edits`.
 
 ---
+
+## Node 24 + undici 7 - AbortSignal instanceof check ломает fetch в тестах
+
+**Симптом:** 12 frontend тестов в TopicListPage / TopicGraphPage /
+NodeDetailsPanel начали фейлить между Сессией 35 (143/143 pass) и
+Сессией 36 (131/143). Все async UI тесты с `apiGet(path, { signal:
+controller.signal })` фейлят на ожидании success-контента - вместо него
+рендерится error state с текстом `«Ошибка: RequestInit: Expected signal
+('AbortSignal {}') to be an instance of AbortSignal»`.
+
+**Причина:** Node 24 включает bundled undici 7 как
+`node:internal/deps/undici/undici`. Этот undici валидирует `signal
+instanceof AbortSignal` через **свой** internal prototype, недоступный
+из user-space. Любой `AbortSignal` созданный через user code (jsdom-овский
+ИЛИ native `globalThis.AbortController`) проваливает instanceof check
+внутри `Request` constructor. fetch падает с `TypeError` ещё до первого
+network call.
+
+Регрессия появилась от **обновления окружения** (Node 22/23 → 24), не от
+кода. Между Сессией 35 и 36 единственный commit `9ab061c chore: connect
+RuFlo` не трогал frontend.
+
+References:
+- github.com/nodejs/undici/issues/2596
+- github.com/nodejs/node/issues/56644
+
+**ОТВЕРГНУТАЯ гипотеза:** В Сессии 36 первая диагностика винила React 19
++ act() warning. Это было side-effect - act() warning появлялся как
+follow-up рендера error state. Реальная причина - fetch падал ДО любого
+state update.
+
+**Решение:** monkey-patch `globalThis.fetch` в `frontend/src/test-setup.ts`
+beforeAll() **после** `server.listen()` (msw v2 устанавливает свой
+fetchProxy в server.listen, наша обёртка должна идти ПОСЛЕ):
+
+```typescript
+function wrapFetchStripSignal(): void {
+  const current = globalThis.fetch;
+  globalThis.fetch = function wrappedFetch(input, init) {
+    if (init?.signal) {
+      const { signal: _signal, ...rest } = init;
+      return current.call(this, input, rest);
+    }
+    return current.call(this, input, init);
+  } as typeof fetch;
+}
+
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' });
+  wrapFetchStripSignal();
+});
+```
+
+В тестах cancellation/abort логика не нужна (MSW handlers синхронные),
+в prod fetch работает напрямую без обёртки.
+
+**Альтернативы (отвергнуто):** установить undici dep (меняет dep tree),
+заменить jsdom на happy-dom (rebreaks RTL utilities), pin Node 22 (downgrade
+не вариант), удалить `{ signal }` из apiGet (теряем prod cleanup-логику).
+
+**Применено:** Сессия 36 через test-regression-diagnoser ruflo subagent.
+142/143 проходит (12 регрессий восстановлены, 1 unrelated pre-existing
+fail в AddSourceModal.test.tsx).
+
+**Риски:** если когда-то понадобится тестировать cancellation/abort
+логику - наша обёртка её сломает. Либо переключиться на conditional
+strip (только в test env через VITE_TEST flag), либо обновить Node
+когда undici issue зафиксят.
+
+---
