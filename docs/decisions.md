@@ -3190,3 +3190,29 @@ per question не нуждается в JOIN. Когда появится multi-
 - **ADR-033** (параллельная иерархия) - паттерн mirror применённый для
   source attach, применён здесь для answers (отдельный пакет, отдельные
   service/repo/controller). Тот же mental model
+
+---
+
+## Дополнение к ADR-031: `--font-book-title` token (16.05)
+
+Запрос Абдулы 16.05 - текущий шрифт title книг в `BookListPage` не
+нравится (нейтральный Source Serif 4 без характера). Введён
+семантический token `--font-book-title` в `frontend/src/styles/tokens.css`
+со стеком `'EB Garamond', 'Source Serif 4', Georgia, serif` - классический
+Garamond revival с тёплым книжным характером, отличается от UI
+Source Serif 4 нейтрального academic-ощущения
+
+EB Garamond - free Google Font (Georg Duffner, revival по
+Egenolff-Berner specimen 1592). Подключён в `frontend/index.html` через
+тот же preconnect block что Manrope/Source Serif/Amiri
+
+Bridge в `@theme inline` (`frontend/src/index.css`) генерирует Tailwind
+utility `font-book-title`. Применён в `Card.Title` (только non-arabic
+ветка) - все Card.Title пока живут только в BookListPage. Размер
+поднят с `text-base` (16px) до `text-md` (18px) - у Garamond меньше
+x-height, на одной шкале выглядит мельче. Tracking `tracking-normal`
+вместо `tracking-tight` - Garamond и так плотный
+
+Token-first подход: чтобы заменить шрифт в будущем - один токен в
+`tokens.css`, без правки JSX. Применять `font-book-title` к арабским
+title не нужно - им подходит Amiri через `--font-arabic`

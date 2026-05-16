@@ -76,6 +76,7 @@
   --font-serif: var(--font-serif);
   --font-mono: var(--font-mono);
   --font-arabic: var(--font-arabic);
+  --font-book-title: var(--font-book-title);
   /* Совместимость с существующим font-naskh */
   --font-naskh: var(--font-arabic);
 

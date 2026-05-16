@@ -8,12 +8,14 @@
 
 ## Фронт - общие улучшения
 
-- [ ] **Шрифт title книг в BookListPage** - текущий не нравится
-  Абдуле. Подобрать более красивый serif для title (возможно
-  Source Serif 4 уже подключённый, либо новый - PT Serif/Lora/
-  EB Garamond/Crimson Text). Reference - скрин от Абдулы
-  `BookListPage_(1).png` (16 мая). Заодно проверить spacing между
-  заголовком и метаданными карточки
+- [x] **Шрифт title книг в BookListPage** - Сессия 36 подсессия
+  typography. Выбран **EB Garamond** через семантический token
+  `--font-book-title` для возможности замены без правки JSX. Применён
+  к `Card.Title` (non-arabic ветка) с подъёмом size до `text-md` (18px)
+  и `tracking-normal`. Подключён в `index.html` к существующему
+  Google Fonts preconnect block. Полная цепочка: `tokens.css` →
+  `@theme inline` bridge → Tailwind utility `font-book-title` →
+  `Card.Title`. Amendment к ADR-031 - см. `docs/decisions.md`
 - [x] **Фикс 12 pre-existing test failures** - закрыто в Сессии 36
   через ruflo test-regression-diagnoser subagent. Root cause найдено
   и verified: **Node 24 + undici 7 AbortSignal instanceof bug**

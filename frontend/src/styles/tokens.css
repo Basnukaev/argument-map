@@ -58,6 +58,14 @@
   --font-serif: 'Source Serif 4', 'Source Serif Pro', 'Charter', Georgia, serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   --font-arabic: 'Amiri', 'Scheherazade New', 'Noto Naskh Arabic', serif;
+  /* Book title - классический Garamond revival для красивых заголовков
+     книг в библиотеке. Введён в Сессии 36 (запрос Абдулы 16.05 -
+     текущий шрифт title не нравится). EB Garamond - free Google Font,
+     hand-revival от Georg Duffner на базе Garamond по Egenolff-Berner
+     specimen 1592. Тёплый книжный характер, отличается от UI Source
+     Serif 4 нейтрального academic-ощущения. Применяется к Card.Title
+     не-арабских книг через Tailwind utility font-book-title. */
+  --font-book-title: 'EB Garamond', 'Source Serif 4', Georgia, serif;
 
   /* 6-step scale. Nothing else exists. */
   --t-xs: 12px;

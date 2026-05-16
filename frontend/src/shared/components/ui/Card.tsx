@@ -98,7 +98,14 @@ function CardTitle({
   children: ReactNode;
   arabic?: boolean;
 }) {
-  const fontClass = arabic ? 'font-arabic text-md' : 'font-serif text-base';
+  // Non-arabic title использует --font-book-title (EB Garamond) - классический
+  // Garamond revival с тёплым книжным характером, отличается от UI
+  // Source Serif 4. См. tokens.css комментарий к --font-book-title.
+  // tracking-normal вместо tracking-tight т.к. Garamond уже плотный
+  // по-своему - дополнительное сжатие портит читаемость на base size.
+  const fontClass = arabic
+    ? 'font-arabic text-md'
+    : 'font-book-title text-md tracking-normal';
   return (
     <h3 dir="auto" className={`font-semibold text-ink-900 leading-tight m-0 ${fontClass}`}>
       {children}
