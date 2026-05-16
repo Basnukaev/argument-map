@@ -178,188 +178,104 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 > **Этот раздел обновляется каждой сессией**. Всё выше - стабильное
 
-**Этап 19.b Q&A source attach** (~1 сессия) - валидация platform reuse
-через `question_sources` table (analog `node_sources`) + reuse
-CitationPicker компонента. Этап 19.a (Q&A foundation, ADR-032) закрыт
-в Сессии 35
+**Сессия 36 epic - 32+ коммита, 9 ruflo agents, 5 этапов закрыто.**
+Полный summary в ruflo memory: `mcp__ruflo__memory_retrieve
+namespace=argument-map key=session-36-final-snapshot` + детальный
+лог в `docs/progress.md` запись от 16.05.
 
-### Что было в Сессии 35
+### Опции для Сессии 37 (по приоритету)
 
-Чисто отработавшая сессия в автономном режиме:
+**Опция A - RetryStrategy migration (последний 25.b пункт)** -
+AWS SDK v2 legacy `RetryPolicy.defaultRetryPolicy().toBuilder()` →
+новый `RetryStrategy` API в `S3ClientConfig`. Крупный refactor с
+blast radius (затрагивает all S3 calls). ~1-2 часа
 
-- **v2 design migration** из Сессии 34 разложена в 6 атомарных коммитов:
-  tokens infrastructure → UI primitives → AppHeader+menus → pages
-  → graph → source card+reader. Все 6 коммитов прошли verify
-  (TS clean / ESLint 0 errors / 143/143 frontend tests)
-- **Doc-долги Сессий 32-34** закрыты одним `docs:` коммитом:
-  api-contract обновлён (NodeSourceResponse.id + DELETE
-  `/sources/{nodeSourceId}` + changelog), ADR-029 FK variant A,
-  ADR-030 i18n архитектура, ADR-031 v2 design system tokens,
-  5 gotchas (StrictMode duplicate / closure useCallback / batch-Edit
-  cyrillic / Tailwind v4 `@theme inline` / mass-replace sed grep audit)
-- **Этап 20.c shamela bibliography parser:**
-  - `ShamelaBibliographyParser` - regex по المحقق/الناشر/الطبعة/
-    عام النشر + arabic ordinal dictionary + arabic-indic digit
-    conversion
-  - `ParsedBibliography` record (6 nullable fields)
-  - Интегрирован в `ShamelaToLibraryMapper.mapBook` через
-    `findOrCreate` в Muhaqqiq/Publisher/PublicationPlace repos
-  - 11 unit-тестов с реальными фикстурами из dev-БД
-  - Verify: 425/425 backend tests pass
+**Опция B - Source picker для Корана** (исламский backlog) - таб
+«Коран» в CitationPicker с навигацией по сурам, выбор аята, inline
+вставка с цитатой и переводом. Backend: integration с quran.com API
+или локальный mushaf-датасет. Frontend: новый таб в CitationPicker
+рядом с «Library». **Зависит от внешнего источника данных** - может
+блокироваться
 
-**Дополнительно сделано после первого handoff:**
+**Опция C - Source picker для Хадисов** - таб «Хадисы» с 9
+сборниками, фильтр по grade (sahih/hasan/daif), показ иснада.
+Интеграция с sunnah.com. Аналогично Опции B - **зависит от внешнего
+API**
 
-- **Command Palette shortcut Cmd+K → Alt+K** (3 коммита). Listener
-  поднят из Header.tsx в App.tsx через `paletteStore` (zustand) -
-  работает на любом route включая `TopicGraphPage` где Header не
-  монтируется. Chrome на Win/Linux перехватывает Ctrl+K как native
-  accelerator (даже capture phase + preventDefault не помогает),
-  поэтому миграция на Alt+K. Gotcha записана в `gotchas.md`. На Mac
-  Alt+K = Option+K, e.altKey ловит оба
-- **20.c follow-up bulk-backfill endpoint** (1 коммит)
-  `POST /api/v1/admin/shamela/backfill-bibliography` через
-  `ShamelaBibliographyBackfillService`. Non-destructive merge через
-  COALESCE-логику в сервисе. + **Critical parser fix**: real shamela
-  description хранит CR character (chr(13)) как separator, не literal
-  `\r` (2 char) как тесты предполагали. Regex расширен на alternation,
-  +1 тест на CR variant. Smoke: 3/3 dev-книг backfilled
-- **Этап 20.d Admin BookEditModal** (2 коммита) - backend
-  PATCH /library/books/{id} + 3 autocomplete endpoints (muhaqqiqs/
-  publishers/publication-places), frontend модалка с 6 Field + 3
-  debounced autocomplete (AbortController cancel). Edit Pencil icon
-  на каждой Card в /books + кнопка backfill в /admin/shamela. Playwright
-  smoke: тафсир Ибн Касира prefilled all 6 полей с RTL natural через dir="auto"
-- **Этап 19.a Q&A foundation** (2 коммита + ADR-032) - migration 26
-  questions table + Question domain/repo/service/controller + 3 frontend
-  pages (List/Create/Detail) + Header nav «Q&A» enabled. Полный UI CRUD
-  flow подтверждён playwright (create question → status change →
-  delete → empty list). Source attach отложен на 19.b - валидация
-  platform reuse будет именно там
+**Опция D - Этап 16 PDF/EPUB upload** - второй способ добавления
+книг (помимо Shamela). Apache Tika dependency + FileImportService +
+`POST /library/imports/file` multipart. MinIO storage уже готов
 
-**Что НЕ сделано (отложено):**
+**Опция E - 18.h.A1 NodeCard footer chips** - раздельный count
+library vs freeform на самой карточке узла в графе. Backend
+NodeResponse расширить + aggregate JOIN. ~30 мин
 
-- **@tabler/icons-react** через corp proxy всё ещё ETIMEDOUT, workaround
-  `svg.lucide:not([stroke-width])` остаётся
-- **Cmd+K шорткат на Win/Linux** - даже Alt+K не сработал на стороне
-  user'а. Сейчас palette кликабельна через иконку поиска в Header
-  (Alt+K оставлен как fallback для других платформ). Может потребовать
-  ещё одной итерации - см. gotchas про Chrome accelerators
+**Опция F - cleanup**:
+- 1 unrelated pre-existing fail в `AddSourceModal.test.tsx` про
+  reliability radio (existed до Сессии 36)
+- `package.json` + `package-lock.json` в корне репы (ruflo
+  artefacts от agentic-flow npm) - решить gitignore vs commit
+- Manual review layout AnswerCard когда длинный body + раскрытая
+  секция «Источники» (19.d agent отметил что playwright headless
+  не на 100% это покажет)
 
-### Стартовая последовательность Сессии 36
+### Инфра на момент Сессии 37 entry
 
-**Опция A (рекомендую) - Этап 19.b Q&A source attach** (~1 сессия) -
-**настоящая валидация ADR-018 platform pivot**:
+- Postgres :5432 healthy, миграции **до 31 включительно** applied
+  (28 question_sources, 29 answers, 30 accepted_answer_id, 31
+  answer_sources)
+- MinIO :9000 healthy
+- Backend :9090 + JDWP :5005 - перезапущен в Сессии 36 с новым
+  classpath (resilience4j + healthIndicator + AsyncWebConfig +
+  19.c/19.d + 25.b). Стартует с логом
+  «S3 timeouts: attempt=30s total=135s connect=5s» +
+  «MVC async executor configured: core=10, max=50, queue=100»
+- Frontend :5173 - может потребовать `rm -rf node_modules/.vite`
+  после массовых изменений (CitationPicker, types.ts регенерация)
+- **521 backend tests** (484 до Сессии 36, +37)
+- **146/147 frontend tests** (1 unrelated pre-existing
+  AddSourceModal radio test)
 
-- Migration 27: `question_sources` table (analog `node_sources` с
-  ADR-027/029 - surrogate id PK, positional fields для TEXT/PDF/REGION
-  citation, CitationMode enum, FK на questions + sources)
-- Backend: NodeCitationService → generic CitationService или дублирование
-  с близкой сигнатурой. CitationPicker payload работает уже сейчас на
-  node_sources - проверить что та же логика catered к question_sources
-- Frontend: на QuestionDetailPage добавить секцию «Источники» с CitationPicker
-  (reuse из argument-map/components/citation). Это и есть **главный
-  proof** что platform работает - тот же picker без копирования
+### Реальные artefacts в production-БД для smoke
 
-**Опция B - Этап 20.e AddSourceModal расширенная** (~0.5 сессии):
-При sourceType=BOOK показывать 6 academic полей. Reuse autocomplete
-из BookEditModal через shared `<AcademicMetadataFields>` компонент.
+- Test question `3796f633-1822-45fa-87e1-6337a603b6f1` с
+  attached citation (19.b validation)
+- Test answer `8872e584-ca2e-4b33-95ce-f3e545df55bb` со status
+  ANSWERED + attached citation (19.c + 19.d validation)
+- Source `132d75cc-cf4e-4d24-beb3-a4859ba0b776` (тафсир Ибн
+  Касира) **reused между 3 entity types**: node_sources +
+  question_sources + answer_sources - физический proof ADR-018
+  platform pivot
 
-**Опция C - Этап 19.c Answers** (~1 сессия): Answers table + UI add
-answer + accepted answer flag. Полная Q&A semantic.
+### Ruflo memory keys (Сессия 36) для load в новой сессии
 
-**Опция D - cleanup**: SourceSearchForm/SourceCreateForm i18n
-placeholder (Сессия 33 backlog), ESLint rule на cyrillic literals в JSX,
-@tabler/icons retry.
+```
+mcp__ruflo__memory_retrieve namespace=argument-map key=...
+```
 
-Backend на :9090 работает с свежим classpath. Frontend на :5173 через HMR.
+Priority (читать в порядке):
+1. `autonomy-mode` - правила автономии (ruflo-first v2)
+2. `ruflo-max-utilization-rule` - всегда использовать ruflo на максимум
+3. `ruflo-execution-pattern` - lessons: ruflo координирует, Claude
+   Code executes
+4. `strategic-direction-ruflo-migration` - long-term goal
+5. `session-36-final-snapshot` - снэпшот середины Сессии 36
+6. `e2e-platform-validation-3-entities` - production E2E proof
+7. `stage-19d-implementation-result`, `stage-20e-implementation-result`,
+   `stage-25b-orphan-janitor-result`, `stage-25b-integrity-cron-result`
+   - completion reports от subagents
+8. `test-regression-fix-plan` - Node 24 undici bug verdict
 
-### Backlog после 20.c-e
-
-- **Этап 19 Q&A приложение** (платформенная валидация)
-- **@tabler/icons-react retry** + shim + sed-replace когда сеть позволит
-- **Backlog i18n** (Сессия 33): SourceSearchForm/SourceCreateForm
-  placeholders на словарь, ESLint pre-commit rule на cyrillic literals
-  в JSX, AR parameterized tests, EDGE_DEFAULT_LABEL_KEY declaration
-  выше функции, AR числа через `Intl.NumberFormat('ar')`
+Architectural patterns в agentdb_pattern-store:
+- `mcp__ruflo__agentdb_pattern-search query="параллельная иерархия"`
+  → ADR-033 pattern с confidence=0.95 (validated 3 times)
 
 ### Известные мелочи (не блокеры)
 
-- **27 call sites `new Book(...)`** и **17 `new Authority(...)`** -
-  возможно future refactor на builder pattern. Сейчас Book получает
-  16 параметров, читать тяжело
-- **3 MSW unhandled rejections** в NodeDetailsPanel.test.tsx при
-  full vitest run - не ломают тесты (143/143 passed), известный
-  flaky issue infrastructure, не код
-- **Backend restart обязателен** после classpath changes -
-  `spring-boot:run` не подхватывает свежие classes автоматически
-- **Frontend rm -rf node_modules/.vite** иногда нужен после
-  mass-replace для очистки HMR cache
+- **playwright WSL2 не загружает Google Fonts** через corp proxy 407
+  - визуальная проверка шрифтов только в реальном браузере
+- **RetryStrategy migration отложен** - AWS SDK v2 API refactor с
+  большим blast radius, требует careful migration
+- **NodeCard footer chips** (18.h.A1) deferred - duplicate данные с
+  header meta-row, low value
 
-### Инфра на момент Сессии 36 entry
-
-- Postgres :5432, миграции до 25 включительно applied
-- MinIO :9000 healthy
-- Backend :9090 + JDWP :5005 - **рестарт обязателен** после parser
-  changes Сессии 35
-- Frontend :5173 - рестарт желателен после v2 коммитов
-- localStorage: `app.locale` + `app.theme` для persist
-- Smoke citation в production-БД (node `4139cb32-...` topic
-  `a6617d11-...`): Тафсир Ибн Касира с filled academic data
-- В dev-БД 3 mapped book'а с descriptions - кандидаты для bulk-backfill
-
-### Что было в Сессии 34
-
-Большая UI-инициатива от Абдулы по миграции на v2 design system из
-`frontend/design-reference/v2/project/handoff/`:
-
-- **Tokens + темизация** - `src/styles/tokens.css` (новый, семантические
-  CSS-variables ink/accent/ok/warn/err + type-* + edge-* + surface
-  aliases, light + `[data-theme="dark"]`), `@theme inline` block в
-  `index.css` (Tailwind v4 - **inline обязателен**, без него тема не
-  переключается), `themeStore.ts` + `ThemeEffect.tsx`, FOUC inline
-  script в `index.html` до React mount
-- **Шрифты** - Manrope (UI) + Source Serif 4 + Amiri (preferred Arabic)
-  + Noto Naskh fallback. Подключены через Google Fonts preconnect
-- **Primitives** - Button (backwards-compat сохранён), Card + namespace
-  Cover/Body/Eyebrow/Title/Meta, новые Chip + Field, обновлены Modal /
-  IconButton / Badge / Kbd / Toaster / Select / ContextMenu / FormModal
-- **Layout** - Header переписан (бренд ﷽ + nav + поиск + LocaleSwitch +
-  **новый ThemeSwitch Sun/Moon** + **BellMenu** + **AvatarMenu**),
-  **CommandPalette** (Cmd+K глобально), 4 новых layout-компонента
-- **6 страниц + 18 графовых файлов** мигрированы:
-  BookListPage (+Импорт Shamela + сортировка + 5-col grid), TopicListPage,
-  CreateTopicPage (two-column form + Field primitive), TopicGraphPage
-  (+`<Header />` сверху + secondary crumb), BookReaderPage (bg-bg),
-  AdminShamelaPage (status pill + **Activity Log placeholder**)
-- **Graph fixes** - NodeCard rounded-md, NodeDetailsPanel убран gradient,
-  EdgeDetailsPanel gradient → solid `bg-edge-*-bg`, CompactMiniMap на
-  `var(--c-*)` для темизации + shift end-[416px] при detail panel,
-  удалена status legend (anti-pattern)
-- **Source card** - QuoteBlock на `bg-paper` (тёплый кремовый, не
-  голубой), "Перейти к источнику" - **outline** (не filled primary),
-  metadata раскрыта по default
-- **NodeCitations** - кнопки в vertical stack (текст не помещался)
-- **i18n** - ~25 новых ключей RU/AR (palette/notifications/avatar/
-  admin.status_*/activity_log/sync_done/import_done/book.list.sort_*)
-- **Tabler icons workaround** - `@tabler/icons-react` не установился
-  через корпоративный proxy (ETIMEDOUT). Глобальный CSS
-  `svg.lucide:not([stroke-width]) { stroke-width: 1.5 }` визуально
-  приближает к Tabler. Полная замена ждёт когда сеть позволит
-- **Code review через Agent** - 3 Critical / 10 Important / 7 Minor
-  все закрыты в этой же сессии (ESLint, tests, hex literals,
-  gradient anti-pattern, sed-leftovers, spacing-scale, text-[Xpx],
-  Modal i18n, toast i18n, exhaustive-deps, rounded-xl, FOUC, Amiri)
-
-**Verify:** TypeScript clean / ESLint 0 errors / 143/143 tests / build
-26s. Изменения в working tree, **НЕ закоммичены** - около 60 файлов
-plus 4 new (tokens.css, themeStore.ts, ThemeEffect.tsx, CommandPalette/
-BellMenu/AvatarMenu/Chip/Field/ThemeSwitch).
-
-**Memory:**
-- [[feedback-no-prod-no-backward-compat]] активно
-- [[feedback-handoff-ui-checks]] - после frontend изменений давать
-  чек-лист «что посмотреть» (URL/actions/expected)
-- [[feedback-responsive-ui-future]] - новый код держит в уме
-  mobile/tablet через Tailwind responsive utilities + logical classes
-- [[feedback-grep-after-batch-edits]] - после sed/Edit mass-replace
-  делать verify-grep на остатки палитры / scale violations
