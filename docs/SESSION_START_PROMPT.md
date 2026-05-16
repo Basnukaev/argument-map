@@ -12,22 +12,28 @@ progress.md / roadmap.md и выкидывай
 
 ## Режим работы
 
-**Полная автономия в рамках проекта.** Правила (разрешено без спроса,
-red lines, escalation triggers, subagent usage, session handoff) -
-в ruflo memory:
+**Полная автономия + ruflo-first.** Двигаемся в сторону полного
+перехода на ruflo way работы со всех сторон (subagents, memory,
+session continuity, tasks, learning, code review). Strategic direction
+зафиксирован в `mcp__ruflo__memory_retrieve namespace=argument-map
+key=strategic-direction-ruflo-migration`.
 
-- `mcp__ruflo__memory_retrieve` с `namespace=argument-map`,
-  `key=autonomy-mode` - текущий snapshot правил с semantic recall
+Правила автономии и subagent usage:
+- `mcp__ruflo__memory_retrieve namespace=argument-map key=autonomy-mode`
+  - текущий snapshot правил с semantic recall (ruflo-first variant
+  v2 от 16.05). Subagents - **ВПРЕДЬ через ruflo**: для long-running
+  implementation tasks `mcp__ruflo__hive-mind_spawn` или
+  `mcp__ruflo__swarm_init`+`agent_spawn`, для quick research можно
+  нативный Agent subagent_type=Explore
 - `mcp__ruflo__autopilot_status` - состояние long-horizon resumption
   (включён 16.05, maxIterations=200, timeoutMinutes=720)
 - `mcp__ruflo__agentdb_pattern-search` - cross-session architectural
   patterns (например ADR-033 «параллельная иерархия» сохранён как
   `type=architectural-decision`)
 
-Новая сессия первым делом делает `mcp__ruflo__memory_retrieve
-namespace=argument-map key=autonomy-mode` перед чтением остальной
-документации - это заменяет ранее существовавший раздел про автономию
-здесь.
+Новая сессия первым делом делает `mcp__ruflo__memory_retrieve`
+для `autonomy-mode` + `strategic-direction-ruflo-migration` перед
+чтением остальной документации.
 
 ---
 
