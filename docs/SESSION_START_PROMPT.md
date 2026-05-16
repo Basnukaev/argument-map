@@ -10,50 +10,24 @@ progress.md / roadmap.md и выкидывай
 
 ---
 
-## Режим работы - автономный заместитель
+## Режим работы
 
-Абдула передал режим **полной автономии в рамках проекта**
+**Полная автономия в рамках проекта.** Правила (разрешено без спроса,
+red lines, escalation triggers, subagent usage, session handoff) -
+в ruflo memory:
 
-### Что разрешено без спроса
+- `mcp__ruflo__memory_retrieve` с `namespace=argument-map`,
+  `key=autonomy-mode` - текущий snapshot правил с semantic recall
+- `mcp__ruflo__autopilot_status` - состояние long-horizon resumption
+  (включён 16.05, maxIterations=200, timeoutMinutes=720)
+- `mcp__ruflo__agentdb_pattern-search` - cross-session architectural
+  patterns (например ADR-033 «параллельная иерархия» сохранён как
+  `type=architectural-decision`)
 
-- **Все тактические решения** - архитектура в рамках уже зафиксированного
-  стэка, декомпозиция, выбор библиотек, порядок этапов, разделение
-  коммитов
-- **Subagents через `Agent` tool** - использовать свободно: research
-  (Explore), code review, параллельная реализация независимых задач,
-  подсессии-делегаты при заполнении контекста
-- **Закрытие сессии** - запись в `progress.md` и обновление раздела
-  «Текущий приоритет» в этом файле. Новая сессия читает и продолжает
-  без апрува
-- **Коммиты** в любую часть репы - Conventional Commits, разумная
-  атомарность
-
-### Red lines - НИКОГДА без явного спроса
-
-- Не удалять системные папки (`~/.claude`, `~/.ssh`, etc) или другие
-  проекты в `~/projects/`
-- Не делать `git push --force` на main/master
-- Не амендить опубликованные коммиты
-- Не пропускать pre-commit hooks через `--no-verify`
-- Не менять стратегию проекта (`vision.md` / ADR-018) - уровень
-  Абдулы. Можно предлагать, не реализовывать без апрува
-- Не делать destructive ops (`git reset --hard`, `rm -rf` каталогов)
-  без понимания что отменяется
-
-### Когда эскалировать
-
-Не зависать молча на блокерах. Звать сразу если:
-
-- что-то не скачивается несколько раз (npm/maven/docker fail)
-- версия не находится и retry не помогает
-- что-то не запускается после ~3 разумных попыток диагностики
-- противоречие в спецификации/доках которое нельзя решить выбором
-- внешний blocker - API-ключ, доступ к shamela, OCR-модель
-
-Формат: «пробовал X и Y, не работает потому что Z, предлагаю A или
-B, твой выбор», не «как мне быть?» в вакууме
-
-Полная версия - в memory `feedback_full_autonomy_mode.md`
+Новая сессия первым делом делает `mcp__ruflo__memory_retrieve
+namespace=argument-map key=autonomy-mode` перед чтением остальной
+документации - это заменяет ранее существовавший раздел про автономию
+здесь.
 
 ---
 
@@ -63,12 +37,17 @@ B, твой выбор», не «как мне быть?» в вакууме
 
 ### 1. Прочитай в таком порядке
 
-1. **`CLAUDE.md`** (корень) - стэк, команды, layout, навигация по
+1. **Ruflo memory** - `mcp__ruflo__memory_retrieve namespace=argument-map
+   key=autonomy-mode` - правила автономии. Ранее были в `feedback_full_
+   autonomy_mode.md`, теперь живут в ruflo с semantic recall между
+   сессиями. И `key=argument-map-19b-completion-state` для последнего
+   completion snapshot
+2. **`CLAUDE.md`** (корень) - стэк, команды, layout, навигация по
    документации - уже в твоём контексте при старте
-2. **`docs/progress.md`** - последние 2-3 записи + «Следующий шаг»
-3. **`docs/roadmap.md`** - текущий приоритетный этап. Закрытые
+3. **`docs/progress.md`** - последние 2-3 записи + «Следующий шаг»
+4. **`docs/roadmap.md`** - текущий приоритетный этап. Закрытые
    этапы свёрнуты в одну строку, активные имеют чек-лист
-4. **«Текущий приоритет»** ниже в этом файле - что Абдула или
+5. **«Текущий приоритет»** ниже в этом файле - что Абдула или
    предыдущая сессия зафиксировали как next step
 
 ### 2. По мере работы читай по запросу
@@ -89,11 +68,19 @@ B, твой выбор», не «как мне быть?» в вакууме
 
 ### 3. Memory и feedback
 
-В `~/.claude/projects/-mnt-c-my-folders-projects-argument-map/memory/`
-есть auto-memory: автономный режим, decision authority, WSL-only,
-не-частые-билды, React key-trick, RTL/наshк, design-reference check,
-playwright для UI verification, no bulk shamela parsing, no backward
-compat. Прочитай `MEMORY.md` index при старте
+Два слоя памяти после миграции 16.05:
+
+- **Ruflo memory** (primary) - `mcp__ruflo__memory_retrieve` /
+  `mcp__ruflo__memory_search_unified` / `mcp__ruflo__agentdb_pattern-
+  search` с `namespace=argument-map`. Sub-cross-session recall через
+  HNSW vector store. Сюда переехал autonomy mode + architectural patterns
+- **Локальная файловая memory** (legacy) - в
+  `~/.claude/projects/-mnt-c-my-folders-projects-argument-map/memory/`.
+  Прочитай `MEMORY.md` index при старте - остались feedback'и про
+  decision authority, WSL-only, не-частые-билды, React key-trick,
+  RTL/наshк, design-reference check, playwright UI verification,
+  no bulk shamela parsing, no backward compat. Постепенно мигрировать
+  в ruflo при касании
 
 ### 4. Проверь актуальное состояние инфры
 

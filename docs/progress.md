@@ -10,6 +10,169 @@
 
 ---
 
+## 2026-05-16 - Сессия 36 (full-stack) - Этап 19.b валидация ADR-018 platform pivot
+
+Сессия в режиме полной автономии от Абдулы. Стартовала с просьбы
+«используй ruflo чтобы автомомно без меня делать все задачи в этом
+проекте». Этап 19.b закрыт чисто, далее cleanup опции D + review
+feedback + правки правил автономии по запросу user'а.
+
+### Сделано
+
+**Этап 19.b Q&A source attach (3 коммита feat + 1 fix):**
+
+- **Migration 28 question_sources** - объединяет в одну mig 9+23+25:
+  surrogate UUID PK сразу (ADR-029), positional fields для
+  TEXT/PDF/REGION mode (ADR-027) + LEGACY, CHECK constraint
+  один-из-четырёх, 5 индексов (2 full на question_id/source_id +
+  3 partial на positional FKs)
+- **Параллельная иерархия в `qa/` package** (ADR-033): QuestionSource
+  record (с textMode/pdfMode/regionMode factories), QuestionSourceRepository
+  (9 LEFT JOIN для structured CitationDetail), QuestionCitationService
+  (identical validation+ensure-Source+snapshot+PDF-bbox-serialization
+  логика), QuestionCitationController (POST citations/GET sources/DELETE
+  sources), QaDtoMappers (делегирует core DtoMappers.toCitationResponse)
+- **18 IT тестов**: TEXT/PDF/REGION mode + ensure-Source reuse + 404/400
+  паттерны (question/book/page/region not found, wrong-book, invalid
+  range, missing bookId) + list + detach + cascade delete
+- **Frontend reuse через generic CitationPicker** (refactor: nodeId →
+  targetType + targetId + targetLabel). URL формируется как
+  `/api/v1/${targetType}/${targetId}/citations`. NodeCitationsSection
+  передаёт targetType="nodes"
+- **QuestionCitationsSection** (новый apps/qa/components/) - reuse того
+  же SourceCard + buildDeepLink + pickLatinTitle. Только library-mode
+  citations (без freeform). Optimistic UI на detach. Loading/error/empty
+  states. Количество + count badge
+- **5 i18n keys RU/AR**: qa.sources.section_title/empty/add_button/
+  detached/detach_failed
+
+**Code review через Agent (subagent_type=reviewer):**
+
+Reviewer пометил 4 Important + 3 Minor. Все закрыты:
+
+- detach 404 вместо 400: QuestionCitationService.detachById бросает
+  SourceNotFoundException (mirror NodeSourceService)
+- DELETE URL hierarchy: `/api/v1/questions/{questionId}/sources/
+  {questionSourceId}` (mirror NodeSourceController + место под
+  авторизацию по владельцу)
+- SourceCardLink interface: SourceCard принимает структурный type
+  `{citation, quote, context}` - убрал двойной cast `as unknown as
+  NodeSourceResponse` в QuestionCitationsSection. NodeSourceResponse
+  и QuestionSourceResponse оба структурно совместимы
+- i18n «Символы» в CitationPicker через `citation_picker.chars_label`,
+  i18n «(книга)» через `source_form.untitled`, `sources ?? []` null
+  safety, IT тест detach_throws404
+
+**Cleanup опция D (1 коммит refactor):**
+
+SourceSearchForm/SourceCreateForm - все cyrillic literals заменены
+на t() с ключами `source_form.*` (~17 пар RU+AR). Это закрывает
+backlog Сессии 33.
+
+**Правила про subagents удалены (1 коммит docs):**
+
+По запросу user'а 16.05: «если в проекте где-то есть правила не
+использовать subagents или рой агентов или подсессии, удали эти
+правила». Поправлен SESSION_START_PROMPT + memory feedback_full_
+autonomy_mode.md - subagents теперь явно разрешены без ограничений.
+
+**Ruflo MCP использование:**
+
+User спросил почему мало используется ruflo. Объяснил: core Claude
+Code Agent tool + Skill + hooks - покрывают большинство кейсов;
+ruflo даёт **specific values** через agentdb_pattern-store /
+memory_store / agent_spawn. По факту:
+
+- pattern «параллельная иерархия для validation platform pivot»
+  сохранён в `mcp__ruflo__agentdb_pattern-store` (HNSW vector
+  store, type=architectural-decision, confidence=0.95)
+- состояние completion 19.b сохранено в `mcp__ruflo__memory_store`
+  с namespace=argument-map (384-dim embedding для semantic recall)
+
+### Решения
+
+**ADR-033 параллельная иерархия `question_sources`** - выбрана Опция B
+(mirror schema + parallel domain/repo/service/controller) vs Опция A
+(generic citations table с polymorphic FK - premature generalization
+для 2 entities, breaking миграция) vs Опция C (generic via Java
+inheritance - middle-tier complexity без gain). Trade-off: ~200 LOC
+дублированного кода за zero risk + proof of platform reuse. Revisit
+к Option A или C при 3-м entity type (answers, comments).
+
+**Q&A только positional citation, без freeform** - схема question_
+sources поддерживает LEGACY mode, controller не имеет attach endpoint.
+Если появится UX-кейс «freeform URL/article attach для question» -
+добавить отдельный POST endpoint.
+
+### Проблемы (открытые, не блокеры)
+
+- **12 pre-existing frontend test failures** (3 файла) - регрессия
+  между Сессией 35 (143/143 pass) и Сессией 36. Подтверждено
+  stash-проверкой что failures есть на чистом master без моих
+  изменений. Файлы: TopicGraphPage.test.tsx (4 теста), TopicListPage
+  .test.tsx (3), NodeDetailsPanel.test.tsx (5). Подозрение -
+  waitForApi 200ms timeout перестал хватать с v2 design tokens
+  компонентов. Подробности и план fix - в backlog
+- **Шрифт title книг в BookListPage** - запрос Абдулы с reference
+  screenshot. Записано в backlog для будущего этапа
+
+### Verify в конце сессии
+
+- Backend `./mvnw verify`: **455/455 tests pass, BUILD SUCCESS**
+- Frontend `npx tsc --noEmit`: clean
+- Frontend `npm run lint`: 0 errors, 1 pre-existing warning (не моя)
+- Frontend `npm run build`: SUCCESS 2.58s
+- Frontend `npm test`: 131/143 (12 pre-existing - см. выше)
+- Backend smoke через curl: POST question → POST citation TEXT mode →
+  GET sources возвращает structured citation (тафсир Ибн Касира с
+  authority/book/muhaqqiq/publisher/place/edition=1/hijri=1431/greg=1999)
+- Playwright headless smoke: question detail page рендерит SourceCard
+  identical как в NodeDetailsPanel - тот же chip «ИЗ БИБЛИОТЕКИ»,
+  arabic quote dir=auto, метаданные раскрыты по default
+
+### Следующий шаг (для Сессии 37)
+
+19.a + 19.b закрыты. Опции:
+
+**Опция A (~0.5 сессии) - 20.e AddSourceModal расширенная.** При
+sourceType=BOOK показывать 6 academic полей (мухаккик/издатель/место/
+edition/год хиджры/год григориан). Reuse AutocompleteRow из
+BookEditModal через shared `<AcademicMetadataFields>` компонент.
+**Важно:** сложнее чем кажется - при submit нужно либо создать Book
+row через `POST /api/v1/library/books` + linked Source, либо сохранить
+metadata в Source.metadata JSON. ADR требуется (выбор подхода). Текущий
+freeform Source.bookId=null - не позволяет SourceCard structured
+citation. Рекомендую создание Book row - правильнее семантически
+
+**Опция B (~1 сессия) - 19.c Answers.** answers table + UI add answer
++ accepted answer flag. Полная Q&A semantic. После - можно add
+answer_sources аналог question_sources используя тот же pattern из
+ADR-033 (ещё одна валидация platform reuse)
+
+**Опция C (~0.5 сессии) - фикс 12 pre-existing tests.** Диагностика
+регрессии TopicListPage/TopicGraphPage/NodeDetailsPanel.test.tsx
+между Сессией 35 и 36. Подозрение waitForApi timeout или MSW handler
+mismatch с v2 components
+
+**Опция D (~30 мин) - шрифт title в BookListPage.** Подобрать красивый
+serif (Source Serif 4 уже подключён, или новый - PT Serif/Lora/
+EB Garamond/Crimson Text). Reference screenshot Абдулы 16.05
+
+### Инфра на момент Сессии 37 entry
+
+- Postgres :5432 healthy, миграции до 28 включительно applied
+- MinIO :9000 healthy
+- Backend :9090 running после restart с новым DELETE URL hierarchy
+- Frontend :5173 - может потребовать `rm -rf node_modules/.vite` после
+  CitationPicker props changes
+- Test question `3796f633-1822-45fa-87e1-6337a603b6f1` с одной
+  citation в production-БД для smoke
+- Source `132d75cc-cf4e-4d24-beb3-a4859ba0b776` reused между
+  node_sources (тафсир тестового узла из Сессии 32 smoke) и
+  question_sources (созданный в этой сессии) - proof в БД
+
+---
+
 ## 2026-05-16 - Сессия 35 (frontend+backend+docs) - v2 коммиты + doc-долги + 20.c parser
 
 Подобрала uncommitted v2 design migration из Сессии 34, закрыла все
