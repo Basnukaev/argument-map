@@ -169,8 +169,17 @@ shamela не имеет нужной книги. MinIO storage готов из 2
       prop, `QuestionCitationsSection` использует тот же `SourceCard`.
       18 IT тестов pass. Smoke playwright подтвердил identical UI
       rendering structured citation на question detail page
-- [ ] **19.c:** Answers - `answers` table с FK на question + answer_id
-      в `questions` (accepted answer). UI для add answer + vote
+- [x] **19.c:** Answers + accept-answer flow (ADR-034). Migration 29
+      `answers` table + migration 30 `questions.accepted_answer_id`
+      nullable FK ON DELETE SET NULL. REST endpoints под `/api/v1`:
+      POST/GET `/questions/{id}/answers`, PATCH/DELETE `/answers/{id}`,
+      POST/DELETE `/questions/{id}/accepted-answer/{answerId}`.
+      `AnswerResponse` с derived `accepted: boolean`. 20 IT тестов
+      через Testcontainers (create / list ordered / accept / revoke /
+      cascade / SET NULL). Frontend - `AnswersSection.tsx` с inline-
+      формой добавления + AnswerCard с ribbon «Принят», кнопками
+      «Принять» (для asker) и «Удалить» (для author). 12 i18n keys
+      RU/AR. Voting + comments отложены на 19.d/19.e
 
 ### Этап 20. Полная академическая citation metadata - продолжение
 

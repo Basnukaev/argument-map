@@ -1402,15 +1402,114 @@ Response `204 No Content`. Ошибка `400 invalid-citation` если link н�
 - Freeform LEGACY citation для questions (нет `POST /api/v1/questions/
   {id}/sources` legacy endpoint). Schema поддерживает, controller -
   только если появится UX-кейс
-- Answers (Этап 19.c) - `ANSWERED` status зарезервирован в CHECK
-  constraint, но writes ставятся только через ручной PATCH
 - Soft delete + audit (после auth)
 - Full-text search по body (сейчас только title ILIKE)
+
+## Answers API (ADR-034, Этап 19.c)
+
+Ответы на questions. На MVP - простая структура: создание/чтение/
+редактирование/удаление + accept-answer flow. Voting + comments
+отложены на 19.d/19.e.
+
+### POST /api/v1/questions/{questionId}/answers - создать ответ
+
+Заголовки: `X-User-Id: <uuid>` (обязательный, для `author_id`).
+
+Тело (`CreateAnswerRequest`):
+```json
+{ "body": "Согласно хадису..." }
+```
+
+Валидация: `body` обязателен, NotBlank, до 10000 символов.
+
+Ответ `201 Created` (`AnswerResponse`):
+```json
+{
+  "id": "uuid",
+  "questionId": "uuid",
+  "body": "...",
+  "authorId": "uuid",
+  "createdAt": "iso8601",
+  "updatedAt": "iso8601",
+  "accepted": false
+}
+```
+
+Поле `accepted` - derived, рассчитывается сравнением `answer.id ==
+question.acceptedAnswerId`. На новом ответе всегда `false`.
+
+Ошибки:
+- `404 question-not-found` - вопрос не существует
+- `400` - body пустой / превышает лимит
+
+### GET /api/v1/questions/{questionId}/answers - список ответов
+
+Сортировка: принятый ответ первым (если есть), остальные по
+`created_at` ASC. Возвращает `List<AnswerResponse>`.
+
+Ошибки: `404 question-not-found`.
+
+### PATCH /api/v1/answers/{answerId} - редактировать ответ
+
+Тело (`UpdateAnswerRequest`): только `body` обязателен (NotBlank,
+до 10000).
+
+Ответ `200 OK` - обновлённый `AnswerResponse`.
+
+Ошибки:
+- `404 answer-not-found`
+- `400` - body пустой
+
+### DELETE /api/v1/answers/{answerId} - удалить ответ
+
+Ответ `204 No Content`. Ошибка `404 answer-not-found`.
+
+### POST /api/v1/questions/{questionId}/accepted-answer/{answerId}
+
+Принять ответ как accepted. Атомарно обновляет
+`questions.accepted_answer_id = answerId` + `status = 'ANSWERED'`.
+
+Ответ `200 OK` - обновлённый `QuestionResponse` (с
+`acceptedAnswerId` и `status = 'ANSWERED'`).
+
+Ошибки:
+- `404 question-not-found` / `404 answer-not-found`
+- `400 illegal-argument` - ответ принадлежит другому вопросу
+  (`Ответ X не принадлежит вопросу Y`)
+
+### DELETE /api/v1/questions/{questionId}/accepted-answer
+
+Снять принятие ответа. Атомарно очищает `accepted_answer_id = NULL`
++ переводит `status = 'OPEN'`.
+
+Ответ `200 OK` - обновлённый `QuestionResponse`.
+
+Ошибки: `404 question-not-found`.
+
+### Расширение QuestionResponse
+
+С Этапа 19.c в `QuestionResponse` добавлено поле:
+
+```
+"acceptedAnswerId": "uuid|null"
+```
+
+Не `null` означает что у вопроса есть принятый ответ (обычно когда
+`status = ANSWERED`).
+
+### Что **не** реализовано в Этапе 19.c
+
+- Voting на answers (up/down votes) - отложено на 19.d
+- Comments на answers - отложено на 19.e
+- Nested answers / threading - не в скоупе MVP
+- Edit history / revisions для answers (как для nodes есть revisions)
+- Soft delete (hard delete на MVP)
 
 ## История изменений контракта
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-16 | v1 | Answers + accept-answer flow для Q&A. Endpoints: `POST /api/v1/questions/{id}/answers` (CreateAnswerRequest{body}), `GET /api/v1/questions/{id}/answers` (List<AnswerResponse>, accepted первым), `PATCH /api/v1/answers/{id}` (UpdateAnswerRequest{body}), `DELETE /api/v1/answers/{id}`, `POST /api/v1/questions/{id}/accepted-answer/{answerId}` (status -> ANSWERED), `DELETE /api/v1/questions/{id}/accepted-answer` (status -> OPEN). Новый DTO `AnswerResponse{id, questionId, body, authorId, createdAt, updatedAt, accepted}` - `accepted` derived (сравнение с question.acceptedAnswerId). Новый error `404 answer-not-found`. `QuestionResponse` расширен полем `acceptedAnswerId: UUID nullable`. Migration 29 `answers` table + migration 30 `questions.accepted_answer_id` FK ON DELETE SET NULL | ADR-034 Q&A answers + accept flow, Этап 19.c. Single-accepted invariant через nullable FK на question, не boolean per answer. MVP без voting/comments/threading |
 | 2026-05-16 | v1 | Q&A citation endpoints: `POST /api/v1/questions/{id}/citations` (CitationRequest reused из ADR-027, TEXT/PDF/REGION mode), `GET /api/v1/questions/{id}/sources` (List<QuestionSourceResponse> с 9 LEFT JOIN), `DELETE /api/v1/questions/sources/{questionSourceId}`. Новый DTO `QuestionSourceResponse{id, questionId, sourceId, quote, context, mode, citation, createdAt}` - без legacySnapshot (нет LEGACY mode UI для questions). Migration 28 `question_sources` (объединяет mig 9+23+25 в одну: surrogate UUID PK сразу, positional fields, CHECK constraint один-из-четырёх) | ADR-033: параллельная иерархия `question_sources` рядом с `node_sources`. Финальная валидация ADR-018 platform pivot - тот же CitationPicker + SourceCard + 9-LEFT-JOIN structured citation reused между двумя entity types без копирования бизнес-логики |
 | 2026-05-16 | v1 | Q&A endpoints под `/api/v1/questions/*`: `POST` (CreateQuestionRequest{title, body}), `GET` list (filters `?status=&q=`), `GET /{id}` (QuestionResponse), `PATCH /{id}` (UpdateQuestionRequest, partial update), `DELETE /{id}`. Новый error `404 question-not-found`. `QuestionStatus` enum: OPEN/ANSWERED/CLOSED. Migration 26 `questions` table | ADR-032 Q&A foundation, Этап 19.a. Валидация ADR-018 platform pivot через второе приложение. На MVP без source attach (Этап 19.b) |
 | 2026-05-16 | v1 | Добавлены endpoints для Этапа 20.d Admin BookEditModal: `PATCH /api/v1/library/books/{id}` (partial update 6 academic полей через `UpdateBookRequest`, PATCH-семантика: null=no change, ""=clear, non-empty=findOrCreate); `GET /api/v1/library/muhaqqiqs?q=&limit=`, `GET /api/v1/library/publishers?q=&limit=`, `GET /api/v1/library/publication-places?q=&limit=` (autocomplete для UI). Новые DTO: `UpdateBookRequest`, `MuhaqqiqResponse{id,name,fullName}`, `PublisherResponse{id,name}`, `PublicationPlaceResponse{id,name}` | Этап 20.d: UI для ручной правки academic metadata после автоматического parser fill. Search-autocomplete защищает от typo-дублей в справочниках |

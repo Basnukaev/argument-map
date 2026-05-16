@@ -10,6 +10,114 @@
 
 ---
 
+## 2026-05-16 - Сессия 36, подсессия 19.c (full-stack) - Q&A answers + accept-answer flow
+
+Spawned subagent для закрытия Этапа 19.c (Answers) - главная сессия
+делегировала из-за заполнения контекста. Работа в автономном режиме,
+3 коммита по очереди.
+
+### Сделано
+
+**Backend (commit `bd16a44`):**
+
+- Migration 29 - `answers` table (id, question_id FK CASCADE, body,
+  author_id FK на users, timestamps). Composite index `(question_id,
+  created_at)` для основного query «список ответов для вопроса»
+- Migration 30 - `questions.accepted_answer_id` nullable FK на
+  answers(id) ON DELETE SET NULL + partial index
+- `Answer` record + `AnswerRepository` (save/findById/findByQuestionId/
+  findByQuestionIdSortedByAccepted/update/deleteById). Метод
+  sortedByAccepted - `ORDER BY (id = ?) DESC, created_at` для accepted-
+  first сортировки
+- `AnswerService` - 6 публичных методов: createAnswer (404 если
+  question отсутствует), getAnswersForQuestion (accepted first),
+  updateAnswer (PATCH body), deleteAnswer (404), acceptAnswer
+  (atomic 2-column update + проверка что answer принадлежит question),
+  revokeAcceptance (status -> OPEN)
+- `AnswerController` под `/api/v1` - 6 endpoints, derived `accepted`
+  boolean в `AnswerResponse` сравнением с `question.acceptedAnswerId`
+- `AnswerNotFoundException` + handler 404 `answer-not-found`
+- `QuestionResponse` + `Question` record расширены полем
+  `acceptedAnswerId: UUID nullable`
+- `QuestionRepository` save опускает accepted_answer_id (DEFAULT NULL)
+  + новые методы setAcceptedAnswer / revokeAcceptedAnswer
+- **20 IT тестов** в `AnswerServiceIT`: create (success / question
+  not found / blank body) / list (empty / question not found / sorted
+  by created_at / accepted first) / update (success / not found /
+  blank) / delete (success / not found) / accept (success / answer
+  not in question / question not found / answer not found) / revoke
+  (success) / cascade delete / ON DELETE SET NULL (statusUnchanged) /
+  bulk insert ordering
+- **475/475 tests pass** через `./mvnw verify`
+
+**Frontend (commit `8650d83`):**
+
+- `AnswersSection.tsx` - state machine loading/success/error, list
+  AnswerDto через GET, inline-форма (Field.Textarea + counter +
+  submit), refetch после create
+- `AnswerCard` (внутри файла) - dir="auto" + font-arabic для body,
+  derived `accepted` boolean из API, зелёный ribbon «Принят» с
+  CheckCircle icon. Кнопки:
+  - «Принять как ответ» / «Отозвать принятие» - только если asker
+    (DEV_USER_ID === question.askedBy)
+  - «Удалить» - только если author (DEV_USER_ID === answer.authorId)
+- Интеграция в `QuestionDetailPage.tsx` между QuestionCitationsSection
+  и кнопкой удаления вопроса. Новый callback `refetchQuestion` для
+  parent чтобы при accept/revoke получить свежий `acceptedAnswerId`
+  и `status`
+- Регенерирован `types.ts` через `npm run generate-api`
+- **12 i18n keys** RU + AR: `qa.answers.{section_title, empty,
+  add_button, placeholder, accept_button, revoke_button, accepted_label,
+  delete_button, delete_confirm, created, accepted, revoked}`
+- Lint: 0 errors, 1 pre-existing warning (SourceCreateForm fast-refresh)
+- Typecheck: clean
+- Build: clean при чистом test-setup.ts (есть pre-existing experimental
+  правка из предыдущей сессии которая ломает tsc -b, не моё)
+
+**Документация (commit pending):**
+
+- ADR-034 - решение Option B (nullable FK accepted_answer_id), 3
+  отвергнутые альтернативы (boolean per answer + CHECK / отдельная
+  таблица / voting/comments как часть 19.c)
+- api-contract.md - новый раздел «Answers API» с 6 endpoints +
+  расширение QuestionResponse + changelog запись
+- roadmap.md - 19.c отмечен [x]
+
+### Verify
+
+- backend `./mvnw verify`: 475/475 pass
+- frontend `npx tsc --noEmit -p tsconfig.app.json`: clean (исключая
+  pre-existing test-setup.ts experimental)
+- frontend `npm run lint`: 0 errors
+- frontend `npm run build`: clean при чистом test-setup.ts
+- backend restart на :9090 с JDWP, миграции 29+30 применились
+
+### Технические заметки
+
+- ON DELETE SET NULL семантика - удаление принятого ответа напрямую
+  SQL автоматически обнуляет accepted_answer_id, но status в OPEN не
+  возвращает (это business decision). Покрыто IT тестом
+  `onDeleteSetNull_acceptedAnswerDeleted_fkBecomesNull_statusUnchanged`
+- `current user` для UI - через `import.meta.env.VITE_DEV_USER_ID`
+  (та же модель как X-User-Id для mutating запросов). До Spring
+  Security в Этапе 6
+- Frontend `test-setup.ts` - в uncommitted state с experimental
+  AbortController override от предыдущей сессии, ломает `npm run
+  build`. Не трогал т.к. unrelated к 19.c. На master чистом - билд
+  собирается
+
+### Следующий шаг
+
+19.c закрыт. Открытые опции:
+- 19.d Voting (up/down votes на answers) - `answer_votes` table,
+  weighted ranking
+- 19.e Comments на answers - `answer_comments`
+- 20.e AddSourceModal расширенная (academic поля для sourceType=BOOK)
+- frontend test-setup.ts experimental - либо доделать либо откатить
+  (мешает build)
+- 12 pre-existing frontend test failures из предыдущей сессии в
+  backlog
+
 ## 2026-05-16 - Сессия 36 (full-stack) - Этап 19.b валидация ADR-018 platform pivot
 
 Сессия в режиме полной автономии от Абдулы. Стартовала с просьбы

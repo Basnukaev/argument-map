@@ -3050,3 +3050,143 @@ CHECK constraint один из четырёх режимов (LEGACY/TEXT/PDF/RE
 - **ADR-029** (FK variant A для node_sources) - surrogate UUID PK
   применён сразу в migration 28 (не staged)
 - **ADR-032** (Q&A foundation) - 19.a baseline которое 19.b расширяет
+
+## ADR-034: Q&A answers + accept-answer flow (Этап 19.c)
+
+**Дата:** 2026-05-16
+**Статус:** принят
+**Связь:** ADR-032 (Q&A foundation), ADR-033 (параллельная иерархия)
+
+### Контекст
+
+19.a/19.b закрыли foundation + source attach для questions. Осталась
+ключевая часть Q&A семантики - сами ответы. На MVP это:
+
+- `answers` table 1:N к `questions`
+- понятие «принятый ответ» - один ответ на вопрос помечен как accepted,
+  status вопроса при этом переходит в `ANSWERED`
+
+Архитектурный вопрос - **где хранить acceptance state**:
+
+**Option A - boolean `accepted` поле на каждой answer** + CHECK constraint
+«не больше одного accepted per question»:
+- CHECK с подзапросом в Postgres сложен (триггер или partial unique
+  index по `(question_id) WHERE accepted = true`)
+- Денормализация - business invariant дублируется в DB + service
+
+**Option B - nullable FK `questions.accepted_answer_id → answers(id)`**
+(ON DELETE SET NULL):
+- single-accepted invariant встроен в schema (FK один или NULL)
+- atomic update двух полей (`accepted_answer_id` + `status`) в одной
+  транзакции через `setAcceptedAnswer` repo-метод
+- semantic чище - «у вопроса есть указатель на принятый ответ» это
+  естественное направление, а не «ответы знают о своём accepted-флаге»
+
+**Option C - отдельная таблица `accepted_answers(question_id PK, answer_id)`**:
+- избыточно для single-value-per-question - превращает 1:1 в join
+
+### Решение
+
+**Option B - nullable FK `questions.accepted_answer_id`.**
+
+Структура (Этап 19.c):
+
+```
+ru.basnukaev.argumentmap.qa.domain.Answer                  (record)
+ru.basnukaev.argumentmap.qa.repository.AnswerRepository
+ru.basnukaev.argumentmap.qa.service.AnswerService
+ru.basnukaev.argumentmap.qa.web.controller.AnswerController
+ru.basnukaev.argumentmap.qa.web.dto.{Create,Update,Answer}*
+ru.basnukaev.argumentmap.exception.AnswerNotFoundException
+```
+
+REST endpoints:
+
+- `POST /api/v1/questions/{id}/answers` - создать ответ
+- `GET /api/v1/questions/{id}/answers` - список (accepted первым,
+  потом по created_at)
+- `PATCH /api/v1/answers/{id}` - редактировать body
+- `DELETE /api/v1/answers/{id}` - удалить
+- `POST /api/v1/questions/{id}/accepted-answer/{answerId}` - accept
+  (статус → ANSWERED)
+- `DELETE /api/v1/questions/{id}/accepted-answer` - revoke (статус → OPEN)
+
+Migration 29 создаёт `answers`, migration 30 добавляет
+`questions.accepted_answer_id` (ON DELETE SET NULL + partial индекс).
+
+`AnswerResponse` имеет derived поле `accepted: boolean` - service
+compute'ит сравнением `answer.id == question.acceptedAnswerId`. Frontend
+рендерит зелёный ribbon по этому полю.
+
+### Альтернативы (отвергнуто)
+
+**Option A (boolean per answer)** - отвергнута: CHECK с unique partial
+index работает, но добавляет invariant который надо помнить и
+синхронизировать с status вопроса - две точки данных вместо одной.
+
+**Option C (отдельная таблица)** - отвергнута: единственный value
+per question не нуждается в JOIN. Когда появится multi-accept (e.g.
+сортировка ответов по голосам) - переосмыслим.
+
+**Voting (up/down votes)** - откладывается на 19.d. Добавить таблицу
+`answer_votes(answer_id, user_id, value)` когда станет ясен UX (нужны
+ли модерация / weighted votes / topics-level karma).
+
+**Comments на answers** - откладывается на 19.e. Структура очевидна
+(`answer_comments` table), но без них MVP работает.
+
+**Nested answers (replies)** - не нужно для Q&A MVP. Threading -
+паттерн форумов, не Stack Overflow style.
+
+### Последствия
+
+**Положительные:**
+
+- **Schema-level single-accepted invariant** - один FK один accepted,
+  не нужны CHECK constraints
+- **ON DELETE SET NULL graceful degradation** - удаление принятого
+  ответа напрямую SQL (rare path) автоматически зануляет FK без
+  application crash, business code решает что делать со status
+- **REST симметрия** с argument-map / library - `/questions/{id}/answers`
+  по той же схеме что `/topics/{id}/nodes`, `/books/{id}/pages`
+- **Frontend reuse** - тот же Field/Card/Button stack, новый компонент
+  `AnswersSection` ~300 строк, mirror `QuestionCitationsSection`
+
+**Отрицательные:**
+
+- **Two-write atomic** - acceptAnswer обновляет accepted_answer_id +
+  status в одной транзакции. Если транзакция упадёт между записями,
+  состояние согласовано. Но separate repo-метод `setAcceptedAnswer`
+  обходит это - 1 UPDATE, 2 колонки
+- **ON DELETE SET NULL не корректирует status** - если accepted answer
+  удалить прямым SQL, FK обнулится но status остаётся ANSWERED.
+  Документировано в коде комментарием + покрыто IT тестом
+  `onDeleteSetNull_*_statusUnchanged`
+
+**Технические артефакты:**
+
+- 2 миграции (29 answers, 30 accepted_answer_id FK)
+- 20 IT тестов в `AnswerServiceIT` (create / list ordered / update /
+  delete / accept / revoke / cascade / SET NULL / bulk insert)
+- Frontend - `AnswersSection.tsx` + интеграция в `QuestionDetailPage` +
+  12 i18n keys RU/AR
+- `Question` record + `QuestionResponse` DTO расширены полем
+  `acceptedAnswerId`
+
+### Триггеры пересмотра
+
+- **Появление votes** (19.d) - добавит сортировку ответов по голосам,
+  accepted-first останется как priority override
+- **Появление модерации** - может добавить soft-delete для answers
+  (история помечена, не удалена). Сейчас hard delete
+- **Многоязычность ответов** - если ответы будут переводиться (en/ar
+  пары), потребуется `answer_translations` parallel hierarchy
+- **Threaded discussion** - если UX потребует обсуждения внутри ответа,
+  пересмотр в сторону `answer_comments` рядом с `answer_votes`
+
+### Связь с другими ADR
+
+- **ADR-032** (Q&A foundation) - 19.a baseline для всей Q&A иерархии
+- **ADR-033** (параллельная иерархия) - паттерн mirror применённый для
+  source attach, применён здесь для answers (отдельный пакет, отдельные
+  service/repo/controller). Тот же mental model
