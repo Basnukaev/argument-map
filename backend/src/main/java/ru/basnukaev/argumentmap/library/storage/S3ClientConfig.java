@@ -39,7 +39,7 @@ import software.amazon.awssdk.services.s3.S3Configuration;
  * </ul>
  */
 @Configuration
-@EnableConfigurationProperties(ObjectStorageProperties.class)
+@EnableConfigurationProperties({ObjectStorageProperties.class, IntegrityVerificationProperties.class})
 @EnableScheduling
 public class S3ClientConfig {
 

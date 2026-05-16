@@ -2115,6 +2115,39 @@ operational concern.
 - Если AWS SDK v2 устаревает или появится более удобный вариант
   (например common-storage-api JEP в Java) - возможен switch
 
+**Amendment 25.b - Integrity verification cron (Сессия 36):**
+
+Реализация 6-го пункта operational hardening из ADR-024.
+`IntegrityVerificationJob` - `@Scheduled` cron `0 0 4 * * SUN` (weekly,
+воскресенье 04:00), пройти `findAllActive` и для каждой row сравнить
+streaming SHA-256 физического blob'а с `content_hash` в catalog.
+
+Решения:
+- **Log-only, без auto-fix** - mismatch это data corruption alarm,
+  ремонт требует context (re-download из `source_url` или restore из
+  backup), который автомату принимать нельзя. Manual review через
+  `log.error` грепаемый по `integrity CORRUPTION`
+- **Weekly а не daily** - SHA-256 sweep всей библиотеки тяжелее daily
+  orphan-list. Для 10k files × 20MB = ~200GB read. На воскресной
+  ночи acceptable, в будни лишний throughput не нужен
+- **`storage.integrity.delay-millis` (100ms) между files** - throttle
+  S3 endpoint при крупной library. В тестах ставим 0 через property
+  override. Альтернатива через rate-limiter сложнее, sleep-based throttle
+  достаточен для weekly cron
+- **`NoSuchKey` → log.warn MISSING без отдельного counter/report** -
+  consolidated catalog-only orphan report уже даёт `OrphanDetectionJanitor`
+  reverse sweep. Дублировать не нужно, но фиксируем в логе для
+  self-contained трейса этого sweep'а
+- **Case-insensitive hash сравнение** - наш `HexFormat.of()` даёт
+  lower-case, но catalog может быть импортирован из системы с upper-case.
+  `equalsIgnoreCase` убирает class ложных corruption alarms
+- **Default `enabled=false`** - повторяет паттерн `OrphanDetectionJanitor`,
+  избегаем accidental tяжёлого sweep'а в dev/test
+
+Дополняет `OrphanDetectionJanitor`: тот ловит «есть/нет» по spec'у
+key'ев, этот ловит silent bit-rot когда объект на месте но байты
+изменились.
+
 **Связь с другими ADR:**
 
 - **ADR-018** (платформенный pivot) - storage слой делает платформу

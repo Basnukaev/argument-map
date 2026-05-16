@@ -258,7 +258,17 @@ shamela не имеет нужной книги. MinIO storage готов из 2
         `storage.janitor.enabled` (default false). 6 IT тестов с MinIO
         testcontainer: matched/s3-only/catalog-only/soft-deleted/multi-
         bucket/mixed
-  - [ ] Integrity verification cron: weekly сверка `content_hash`
+  - [x] **Integrity verification cron** (Сессия 36) -
+        `IntegrityVerificationJob` `@Scheduled` cron `0 0 4 * * SUN`
+        (воскресенье 04:00, weekly). `findAllActive` → для каждой row
+        `getObject` + streaming SHA-256 через `MessageDigest` → сравнение
+        case-insensitive с `content_hash`. Mismatch → `log.error`
+        CORRUPTION; `NoSuchKey` → `log.warn` MISSING (consolidated report
+        через `OrphanDetectionJanitor`). Throttle между files
+        `storage.integrity.delay-millis` (default 100ms, 0 в тестах).
+        Conditional `storage.integrity.enabled` (default false). 6 IT
+        тестов с MinIO testcontainer: healthy/corrupted/missing/soft-
+        deleted-skipped/mixed/case-insensitive-hash
   - [ ] AWS SDK v2 migration legacy `RetryPolicy` → `RetryStrategy`
   - [x] **`StreamingResponseBody` bounded `ThreadPoolTaskExecutor`**
         (Сессия 36) - `AsyncWebConfig` устанавливает `ThreadPoolTaskExecutor`

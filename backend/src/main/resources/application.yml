@@ -54,6 +54,19 @@ storage:
     enabled: ${STORAGE_JANITOR_ENABLED:false}
     # 03:00 ежедневно - после ночных backup'ов, до user-traffic peak
     cron: ${STORAGE_JANITOR_CRON:0 0 3 * * *}
+  # Integrity verification cron (ADR-024, Этап 25.b 6-й пункт). Weekly
+  # Sunday streaming SHA-256 verification всех library_files vs реальные
+  # S3 objects - детектирует bit-rot/silent corruption. Log-only (manual
+  # review через grep логов). По умолчанию выключен (full body read всей
+  # library тяжёлый, не нужен в dev/test).
+  integrity:
+    enabled: ${STORAGE_INTEGRITY_ENABLED:false}
+    # Воскресенье 04:00 - после backup'ов, минимальная нагрузка.
+    # Weekly cadence потому что sweep всех blob'ов тяжелее daily orphan-list
+    cron: ${STORAGE_INTEGRITY_CRON:0 0 4 * * SUN}
+    # Пауза между files в ms - throttle S3 endpoint при крупной library.
+    # 0 для тестов / маленьких объёмов. 100ms = ~10 files/sec cap
+    delay-millis: ${STORAGE_INTEGRITY_DELAY_MILLIS:100}
 
 # Конфиг интеграции с shamela.ws через её desktop-API (ADR-020).
 # Реверс-инжиниринг выполнен в параллельной сессии через mitmproxy на
