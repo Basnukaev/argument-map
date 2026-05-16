@@ -11,7 +11,7 @@ import {
   ApiError,
 } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
-import { useT, useFormatDate, hasArabicScript } from '@/shared/i18n';
+import { useT, useFormatDate, hasArabicScript, type DictKey } from '@/shared/i18n';
 import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
 
@@ -22,6 +22,12 @@ const STATUS_BADGE: Record<Status, string> = {
   OPEN: 'bg-ok-100 text-ok-700',
   ANSWERED: 'bg-accent-100 text-accent-700',
   CLOSED: 'bg-ink-100 text-ink-600',
+};
+
+const STATUS_LABEL: Record<Status, DictKey> = {
+  OPEN: 'qa.status.OPEN',
+  ANSWERED: 'qa.status.ANSWERED',
+  CLOSED: 'qa.status.CLOSED',
 };
 
 function QuestionDetailPage() {
@@ -148,7 +154,7 @@ function Detail({ question, updating, onStatusChange, onDelete }: DetailProps) {
         <span
           className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider ${STATUS_BADGE[status]}`}
         >
-          {t(`qa.status.${status}` as never)}
+          {t(STATUS_LABEL[status])}
         </span>
         <span className="text-xs text-ink-400">
           <bdi dir="ltr">
@@ -189,7 +195,7 @@ function Detail({ question, updating, onStatusChange, onDelete }: DetailProps) {
                 : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900'
             }`}
           >
-            {t(`qa.status.${s}` as never)}
+            {t(STATUS_LABEL[s])}
           </button>
         ))}
       </div>

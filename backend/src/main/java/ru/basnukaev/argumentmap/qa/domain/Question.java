@@ -12,7 +12,9 @@ import java.util.UUID;
  * паттерн аналогичный {@code node_sources}, доказывая что platform
  * archmodel переиспользуется.
  *
- * @param askedBy nullable - на MVP нет auth, заполняется из X-User-Id
+ * @param askedBy FK на users(id), NOT NULL - заполняется из X-User-Id
+ *                через {@code CurrentUserArgumentResolver}. Миграция 27
+ *                добавила FK constraint после code review Сессии 35
  */
 public record Question(
         UUID id,

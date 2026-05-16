@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260516-27-add-fk-to-questions-asked-by" author="Abdula Basnukaev">
+        <comment>
+            Code review fix (Сессия 35, Important #1): questions.asked_by
+            должна быть NOT NULL + FK на users(id). По convention остальных
+            таблиц (topics.created_by, nodes.created_by - см. миграции 03/04).
+
+            Migration 26 создала колонку как nullable без FK, что:
+            - конфликтует с {@code CurrentUserArgumentResolver} который throws
+              если X-User-Id missing на POST (asked_by всегда заполнен) -
+              dead state space
+            - silent-inserts dangling refs если X-User-Id содержит несуществующий
+              UUID (validate-format-not-existence)
+
+            TRUNCATE allowed per memory feedback_no_prod_no_backward_compat -
+            существующие dev-rows не критичны, нет prod.
+        </comment>
+        <sql>
+            TRUNCATE TABLE questions;
+
+            ALTER TABLE questions
+                ALTER COLUMN asked_by SET NOT NULL,
+                ADD CONSTRAINT fk_questions_asked_by
+                    FOREIGN KEY (asked_by) REFERENCES users(id);
+        </sql>
+        <rollback>
+            <sql>
+                ALTER TABLE questions
+                    DROP CONSTRAINT fk_questions_asked_by,
+                    ALTER COLUMN asked_by DROP NOT NULL;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

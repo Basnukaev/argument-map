@@ -11,7 +11,7 @@ import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
-import { useT, useFormatDate, hasArabicScript } from '@/shared/i18n';
+import { useT, useFormatDate, hasArabicScript, type DictKey } from '@/shared/i18n';
 import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
 
@@ -22,6 +22,19 @@ const STATUS_BADGE: Record<Status, string> = {
   OPEN: 'bg-ok-100 text-ok-700',
   ANSWERED: 'bg-accent-100 text-accent-700',
   CLOSED: 'bg-ink-100 text-ink-600',
+};
+
+const STATUS_LABEL: Record<Status, DictKey> = {
+  OPEN: 'qa.status.OPEN',
+  ANSWERED: 'qa.status.ANSWERED',
+  CLOSED: 'qa.status.CLOSED',
+};
+
+const FILTER_LABEL: Record<'ALL' | Status, DictKey> = {
+  ALL: 'qa.list.filter_all',
+  OPEN: 'qa.list.filter_open',
+  ANSWERED: 'qa.list.filter_answered',
+  CLOSED: 'qa.list.filter_closed',
 };
 
 function QuestionListPage() {
@@ -107,7 +120,7 @@ function QuestionListPage() {
                     : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900'
                 }`}
               >
-                {t(`qa.list.filter_${s.toLowerCase()}` as never)}
+                {t(FILTER_LABEL[s])}
               </button>
             ))}
           </div>
@@ -167,7 +180,7 @@ function QuestionListPage() {
                           <span
                             className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider ${STATUS_BADGE[status]}`}
                           >
-                            {t(`qa.status.${status}` as never)}
+                            {t(STATUS_LABEL[status])}
                           </span>
                           <div className="min-w-0 flex-1">
                             <p

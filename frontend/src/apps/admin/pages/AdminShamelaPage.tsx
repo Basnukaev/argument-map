@@ -271,7 +271,7 @@ function AdminShamelaPage() {
                   {syncing ? t('admin.sync_in_progress') : t('admin.sync_button')}
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   icon={Settings}
                   onClick={onBackfillBibliography}
                   disabled={backfilling}

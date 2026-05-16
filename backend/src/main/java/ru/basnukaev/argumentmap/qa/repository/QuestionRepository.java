@@ -3,6 +3,7 @@ package ru.basnukaev.argumentmap.qa.repository;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.instant;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.odt;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -67,7 +68,7 @@ public class QuestionRepository {
     public List<Question> findAll(QuestionStatus status, String query) {
         StringBuilder sql = new StringBuilder("SELECT ")
                 .append(COLUMNS).append(" FROM questions WHERE 1=1");
-        java.util.List<Object> args = new java.util.ArrayList<>();
+        List<Object> args = new ArrayList<>();
         if (status != null) {
             sql.append(" AND status = ?");
             args.add(status.name());
@@ -88,7 +89,7 @@ public class QuestionRepository {
      */
     public boolean update(UUID id, String title, String body, QuestionStatus status) {
         StringBuilder sql = new StringBuilder("UPDATE questions SET updated_at = now()");
-        java.util.List<Object> args = new java.util.ArrayList<>();
+        List<Object> args = new ArrayList<>();
         if (title != null) {
             sql.append(", title = ?");
             args.add(title);

@@ -26,8 +26,10 @@ import ru.basnukaev.argumentmap.web.CurrentUser;
 
 /**
  * REST endpoint для Q&amp;A вопросов (Этап 19.a, ADR-032).
- * Reads без auth (X-User-Id optional); writes требуют X-User-Id для
- * заполнения {@code asked_by}.
+ *
+ * <p>Только POST требует {@code X-User-Id} (для заполнения {@code asked_by}).
+ * GET/PATCH/DELETE без auth на MVP - до появления authorization будут
+ * mutating операции открыты. Спецификация в api-contract.md.
  */
 @RestController
 @RequestMapping("/api/v1/questions")
