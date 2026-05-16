@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260516-31-create-answer-sources-table" author="Abdula Basnukaev">
+        <comment>
+            Этап 19.d - источники привязанные к answer. Параллельная
+            иерархия (ADR-033) повторена в 3-й раз: после node_sources
+            (миграции 9 + 23 + 25) и question_sources (миграция 28).
+
+            Цель Этапа 19.d - подтвердить ADR-033 паттерн на 3-й сущности
+            (node → question → answer) и зафиксировать что platform pivot
+            (ADR-018) масштабируется без необходимости перехода на generic
+            citations table. Risk = 0, additive only.
+
+            Структура - точная копия 28 миграции с подменой question_id
+            → answer_id (FK на answers(id) ON DELETE CASCADE):
+
+              - surrogate `id UUID` PK сразу (FK variant A, ADR-029)
+              - positional fields для TEXT/PDF/REGION mode (ADR-027)
+              - LEGACY mode (все positional NULL) для freeform
+
+            CHECK constraint - один из четырёх режимов. FK ON DELETE
+            RESTRICT защищает data integrity. Партиальные индексы на
+            positional FK не разрастаются за счёт LEGACY rows.
+
+            Для Q&amp;A MVP - только positional citation через
+            CitationPicker, freeform attach отложен. Schema готова к
+            обоим режимам.
+        </comment>
+        <sql>
+            CREATE TABLE answer_sources (
+                id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                answer_id         UUID NOT NULL REFERENCES answers(id)             ON DELETE CASCADE,
+                source_id         UUID NOT NULL REFERENCES sources(id)             ON DELETE CASCADE,
+                quote             TEXT,
+                context           TEXT,
+                location          TEXT,
+                page_id           UUID REFERENCES lib_pages(id)                    ON DELETE RESTRICT,
+                range_start       INTEGER,
+                range_end         INTEGER,
+                pdf_file_id       UUID REFERENCES library_files(file_id)           ON DELETE RESTRICT,
+                pdf_page_number   INTEGER,
+                pdf_bbox          JSONB,
+                image_region_id   UUID REFERENCES lib_image_regions(id)            ON DELETE RESTRICT,
+                created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
+            ALTER TABLE answer_sources
+                ADD CONSTRAINT chk_answer_sources_one_mode
+                CHECK (
+                  (page_id IS NOT NULL AND range_start IS NOT NULL AND range_end IS NOT NULL
+                   AND range_start &gt;= 0 AND range_end &gt; range_start
+                   AND pdf_file_id IS NULL AND image_region_id IS NULL)
+                  OR
+                  (pdf_file_id IS NOT NULL AND pdf_page_number IS NOT NULL AND pdf_bbox IS NOT NULL
+                   AND pdf_page_number &gt;= 1
+                   AND page_id IS NULL AND image_region_id IS NULL)
+                  OR
+                  (image_region_id IS NOT NULL AND page_id IS NULL AND pdf_file_id IS NULL)
+                  OR
+                  (page_id IS NULL AND pdf_file_id IS NULL AND image_region_id IS NULL)
+                );
+
+            CREATE INDEX idx_answer_sources_answer_id ON answer_sources(answer_id);
+            CREATE INDEX idx_answer_sources_source_id ON answer_sources(source_id);
+            CREATE INDEX idx_answer_sources_page_id   ON answer_sources(page_id)
+                WHERE page_id IS NOT NULL;
+            CREATE INDEX idx_answer_sources_pdf_file_id ON answer_sources(pdf_file_id)
+                WHERE pdf_file_id IS NOT NULL;
+            CREATE INDEX idx_answer_sources_image_region_id ON answer_sources(image_region_id)
+                WHERE image_region_id IS NOT NULL;
+        </sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_answer_sources_image_region_id;
+                DROP INDEX IF EXISTS idx_answer_sources_pdf_file_id;
+                DROP INDEX IF EXISTS idx_answer_sources_page_id;
+                DROP INDEX IF EXISTS idx_answer_sources_source_id;
+                DROP INDEX IF EXISTS idx_answer_sources_answer_id;
+                DROP TABLE answer_sources;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
