@@ -196,6 +196,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/answers/{answerId}/citations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["create_10"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/shamela/sync-master": {
         parameters: {
             query?: never;
@@ -548,6 +564,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/answers/{answerId}/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_8"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/shamela/sync-status": {
         parameters: {
             query?: never;
@@ -623,6 +655,22 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["detach_1"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/answers/{answerId}/sources/{answerSourceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["detach_2"];
         options?: never;
         head?: never;
         patch?: never;
@@ -973,6 +1021,21 @@ export interface components {
             fullName?: string;
             /** Format: int32 */
             deathYearHijri?: number;
+        };
+        AnswerSourceResponse: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            answerId?: string;
+            /** Format: uuid */
+            sourceId?: string;
+            quote?: string;
+            context?: string;
+            /** @enum {string} */
+            mode?: "TEXT" | "PDF" | "REGION" | "LEGACY";
+            citation?: components["schemas"]["CitationResponse"];
+            /** Format: date-time */
+            createdAt?: string;
         };
         SyncMasterResponse: {
             changed?: boolean;
@@ -1715,6 +1778,32 @@ export interface operations {
             };
         };
     };
+    create_10: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                answerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CitationRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AnswerSourceResponse"];
+                };
+            };
+        };
+    };
     syncMaster: {
         parameters: {
             query?: never;
@@ -2437,6 +2526,28 @@ export interface operations {
             };
         };
     };
+    list_8: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                answerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AnswerSourceResponse"][];
+                };
+            };
+        };
+    };
     syncStatus: {
         parameters: {
             query?: never;
@@ -2530,6 +2641,27 @@ export interface operations {
             path: {
                 nodeId: string;
                 nodeSourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    detach_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                answerId: string;
+                answerSourceId: string;
             };
             cookie?: never;
         };

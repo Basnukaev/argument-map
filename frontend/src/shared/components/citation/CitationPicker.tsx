@@ -21,10 +21,10 @@ type PageSummaryDto = components['schemas']['PageSummaryResponse'] & {
 
 interface Props {
   /** Тип сущности к которой привязывается citation - влияет на URL */
-  targetType: 'nodes' | 'questions';
-  /** id сущности (node или question) */
+  targetType: 'nodes' | 'questions' | 'answers';
+  /** id сущности (node, question или answer) */
   targetId: string;
-  /** Короткий label для header «Привязать к: ...» (node.content или question.title) */
+  /** Короткий label для header «Привязать к: ...» (node.content / question.title / answer.body preview) */
   targetLabel: string;
   onClose: () => void;
   onCreated: () => void;

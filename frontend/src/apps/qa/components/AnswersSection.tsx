@@ -4,6 +4,8 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle,
+  ChevronDown,
+  ChevronUp,
   Trash2,
 } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
@@ -18,6 +20,7 @@ import {
 import { toast } from '@/shared/stores/toastStore';
 import { hasArabicScript, useFormatDate, useT } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
+import AnswerCitationsSection from './AnswerCitationsSection';
 
 type AnswerDto = components['schemas']['AnswerResponse'];
 
@@ -251,6 +254,13 @@ function AnswerCard({
   const t = useT();
   const isBodyArabic = answer.body ? hasArabicScript(answer.body) : false;
   const accepted = answer.accepted === true;
+  const [sourcesOpen, setSourcesOpen] = useState(false);
+
+  // body preview для CitationPicker header label (первые 80 символов)
+  const bodyPreview = (() => {
+    const body = answer.body ?? '';
+    return body.length > 80 ? body.substring(0, 77) + '...' : body;
+  })();
 
   return (
     <Card
@@ -277,6 +287,17 @@ function AnswerCard({
           </bdi>
         </span>
         <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            icon={sourcesOpen ? ChevronUp : ChevronDown}
+            onClick={() => setSourcesOpen((v) => !v)}
+          >
+            {sourcesOpen
+              ? t('qa.answers.sources_hide')
+              : t('qa.answers.sources_show')}
+          </Button>
           {isAsker && !accepted && (
             <Button
               type="button"
@@ -315,6 +336,13 @@ function AnswerCard({
           )}
         </div>
       </div>
+
+      {sourcesOpen && answer.id && (
+        <AnswerCitationsSection
+          answerId={answer.id}
+          answerBodyPreview={bodyPreview}
+        />
+      )}
     </Card>
   );
 }

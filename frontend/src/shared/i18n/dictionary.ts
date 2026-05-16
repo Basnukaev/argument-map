@@ -135,6 +135,9 @@ export const DICTIONARY = {
     'qa.answers.created': 'Ответ опубликован',
     'qa.answers.accepted': 'Ответ принят',
     'qa.answers.revoked': 'Принятие отозвано',
+    'qa.answers.sources_show': 'Показать источники',
+    'qa.answers.sources_hide': 'Скрыть источники',
+    'qa.answers.sources_attach': 'Привести источник',
 
     // SourceSearchForm / SourceCreateForm (Этап 12 freeform AddSourceModal)
     'source_form.search_placeholder': 'Найти по названию или citation',
@@ -571,6 +574,9 @@ export const DICTIONARY = {
     'qa.answers.created': 'تم نشر الإجابة',
     'qa.answers.accepted': 'تم قبول الإجابة',
     'qa.answers.revoked': 'تم إلغاء القبول',
+    'qa.answers.sources_show': 'إظهار المصادر',
+    'qa.answers.sources_hide': 'إخفاء المصادر',
+    'qa.answers.sources_attach': 'إرفاق مصدر',
 
     'source_form.search_placeholder': 'ابحث بالعنوان أو الاستشهاد',
     'source_form.search_aria': 'بحث في المصادر',
