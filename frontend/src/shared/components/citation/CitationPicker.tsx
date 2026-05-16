@@ -383,7 +383,7 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
               )}
               {selection && (
                 <p className="mt-2 font-mono text-xs text-ink-500">
-                  Символы {selection.rangeStart}-{selection.rangeEnd}
+                  {t('citation_picker.chars_label')} {selection.rangeStart}-{selection.rangeEnd}
                 </p>
               )}
             </Card>

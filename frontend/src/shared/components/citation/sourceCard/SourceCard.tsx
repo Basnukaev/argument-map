@@ -10,10 +10,20 @@ import { QuoteBlock } from './QuoteBlock';
 import { RtlRow } from './RtlRow';
 import { SourceCardHeader } from './SourceCardHeader';
 
-type NodeSourceDto = components['schemas']['NodeSourceResponse'];
+/**
+ * Минимальный contract для renderable citation link. Структурно
+ * совместим с {@code NodeSourceResponse} и {@code QuestionSourceResponse}
+ * (и любым будущим *SourceResponse, например для answers). Используется
+ * вместо двойного type cast `as unknown as NodeSourceResponse`.
+ */
+export type SourceCardLink = {
+  citation?: components['schemas']['CitationResponse'] | null;
+  quote?: string | null;
+  context?: string | null;
+};
 
 type Props = {
-  link: NodeSourceDto;
+  link: SourceCardLink;
   /** Translit / ru title для header (например source.title) - fallback на book.title */
   titleLatin?: string | null;
   onDelete?: () => void;

@@ -50,7 +50,7 @@ function QuestionCitationsSection({ questionId, questionTitle }: Props) {
       .then(([links, sources]) => {
         if (controller.signal.aborted) return;
         const sourceLookup = new Map<string, SourceDto>();
-        for (const s of sources) {
+        for (const s of sources ?? []) {
           if (s.id) sourceLookup.set(s.id, s);
         }
         setState({ kind: 'success', links, sourceLookup });
@@ -79,7 +79,7 @@ function QuestionCitationsSection({ questionId, questionTitle }: Props) {
     const previous = state.links;
     setState({ ...state, links: previous.filter((l) => l.id !== questionSourceId) });
     try {
-      await apiDeleteRaw(`/api/v1/questions/sources/${questionSourceId}`);
+      await apiDeleteRaw(`/api/v1/questions/${questionId}/sources/${questionSourceId}`);
       toast.success(t('qa.sources.detached'));
     } catch (e) {
       toast.error(formatApiError(e, t('qa.sources.detach_failed')));
@@ -113,7 +113,7 @@ function QuestionCitationsSection({ questionId, questionTitle }: Props) {
     const st = source?.title;
     if (st && !hasArabicScript(st)) return st;
     if (bookTitle && !hasArabicScript(bookTitle)) return bookTitle;
-    return '(книга)';
+    return t('source_form.untitled');
   }
 
   return (
@@ -166,7 +166,7 @@ function QuestionCitationsSection({ questionId, questionTitle }: Props) {
             return (
               <SourceCard
                 key={link.id}
-                link={link as unknown as components['schemas']['NodeSourceResponse']}
+                link={link}
                 titleLatin={titleLatin}
                 onDelete={link.id ? () => detachCitation(link.id!) : undefined}
                 onPrimaryAction={deepLink ? () => navigate(deepLink) : undefined}

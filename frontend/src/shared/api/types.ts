@@ -532,7 +532,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/questions/sources/{questionSourceId}": {
+    "/api/v1/questions/{questionId}/sources/{questionSourceId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -2266,6 +2266,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                questionId: string;
                 questionSourceId: string;
             };
             cookie?: never;

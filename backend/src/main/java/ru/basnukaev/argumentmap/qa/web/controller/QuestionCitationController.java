@@ -25,14 +25,16 @@ import ru.basnukaev.argumentmap.web.dto.CitationRequest;
  *
  * <p>POST {@code /api/v1/questions/{id}/citations} - create (TEXT/PDF/REGION).
  * <p>GET  {@code /api/v1/questions/{id}/sources} - list с structured citation.
- * <p>DELETE {@code /api/v1/questions/sources/{questionSourceId}} - detach.
+ * <p>DELETE {@code /api/v1/questions/{id}/sources/{questionSourceId}} - detach.
  *
  * <p>Symmetric с {@code NodeCitationController}/{@code NodeSourceController}.
+ * URL hierarchy сохраняет `questionId` в DELETE-пути для consistency и под
+ * будущую авторизацию по владельцу question (зеркало {@code NodeSourceController}).
  * Legacy freeform attach (через AddSourceModal) для Q&amp;A не реализован -
  * schema готова, добавим если появится UX-кейс.
  */
 @RestController
-@RequestMapping("/api/v1/questions")
+@RequestMapping("/api/v1/questions/{questionId}")
 public class QuestionCitationController {
 
     private final QuestionCitationService service;
@@ -41,20 +43,21 @@ public class QuestionCitationController {
         this.service = service;
     }
 
-    @PostMapping("/{questionId}/citations")
+    @PostMapping("/citations")
     @ResponseStatus(HttpStatus.CREATED)
     public QuestionSourceResponse create(@PathVariable UUID questionId,
                                          @Valid @RequestBody CitationRequest request) {
         return service.createCitation(questionId, request);
     }
 
-    @GetMapping("/{questionId}/sources")
+    @GetMapping("/sources")
     public List<QuestionSourceResponse> list(@PathVariable UUID questionId) {
         return service.getQuestionSourcesWithLocation(questionId);
     }
 
     @DeleteMapping("/sources/{questionSourceId}")
-    public ResponseEntity<Void> detach(@PathVariable UUID questionSourceId) {
+    public ResponseEntity<Void> detach(@PathVariable UUID questionId,
+                                       @PathVariable UUID questionSourceId) {
         service.detachById(questionSourceId);
         return ResponseEntity.noContent().build();
     }

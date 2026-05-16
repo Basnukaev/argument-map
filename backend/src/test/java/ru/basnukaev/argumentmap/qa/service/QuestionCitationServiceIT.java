@@ -26,6 +26,7 @@ import ru.basnukaev.argumentmap.exception.ImageRegionNotFoundException;
 import ru.basnukaev.argumentmap.exception.InvalidCitationException;
 import ru.basnukaev.argumentmap.exception.PageNotFoundException;
 import ru.basnukaev.argumentmap.exception.QuestionNotFoundException;
+import ru.basnukaev.argumentmap.exception.SourceNotFoundException;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.Page;
@@ -299,11 +300,10 @@ class QuestionCitationServiceIT {
     }
 
     @Test
-    void detachById_notFound_throws400() {
+    void detachById_notFound_throws404() {
         UUID missing = UUID.randomUUID();
         assertThatThrownBy(() -> service.detachById(missing))
-                .isInstanceOf(InvalidCitationException.class)
-                .hasMessageContaining("не найден");
+                .isInstanceOf(SourceNotFoundException.class);
     }
 
     @Test

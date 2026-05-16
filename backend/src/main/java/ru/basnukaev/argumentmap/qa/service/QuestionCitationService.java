@@ -19,6 +19,7 @@ import ru.basnukaev.argumentmap.exception.ImageRegionNotFoundException;
 import ru.basnukaev.argumentmap.exception.InvalidCitationException;
 import ru.basnukaev.argumentmap.exception.PageNotFoundException;
 import ru.basnukaev.argumentmap.exception.QuestionNotFoundException;
+import ru.basnukaev.argumentmap.exception.SourceNotFoundException;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.LibraryFile;
 import ru.basnukaev.argumentmap.library.domain.Page;
@@ -187,9 +188,7 @@ public class QuestionCitationService {
     public void detachById(UUID questionSourceId) {
         boolean removed = questionSourceRepository.deleteById(questionSourceId);
         if (!removed) {
-            // 404 - link не найден. Используем InvalidCitationException
-            // как nearest semantic - exception handler уже мапит на 400/404
-            throw new InvalidCitationException("question_sources link не найден: " + questionSourceId);
+            throw new SourceNotFoundException(questionSourceId);
         }
     }
 
