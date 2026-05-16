@@ -8,6 +8,10 @@ import {
   type SourceType,
 } from '@/apps/argument-map/utils/attachmentTokens';
 import AttachFields from '@/apps/argument-map/components/graph/AttachFields';
+import AcademicMetadataFields, {
+  EMPTY_ACADEMIC_METADATA,
+  type AcademicMetadataValues,
+} from '@/shared/components/citation/AcademicMetadataFields';
 import { useT } from '@/shared/i18n';
 
 export type Reliability = 'SAHIH' | 'HASAN' | 'DAIF' | '';
@@ -17,6 +21,8 @@ export interface CreateForm {
   title: string;
   citation: string;
   reliability: Reliability;
+  /** academic metadata (только для sourceType=BOOK создаёт linked Book) */
+  academic: AcademicMetadataValues;
 }
 
 export const INITIAL_CREATE_FORM: CreateForm = {
@@ -24,6 +30,7 @@ export const INITIAL_CREATE_FORM: CreateForm = {
   title: '',
   citation: '',
   reliability: '',
+  academic: EMPTY_ACADEMIC_METADATA,
 };
 
 interface Props {
@@ -43,6 +50,12 @@ interface Props {
  * Create-mode AddSourceModal: форма создания нового источника с выбором
  * типа, обязательным title, опциональным citation, reliability для
  * HADITH, плюс AttachFields для метаданных привязки.
+ *
+ * Для sourceType=BOOK дополнительно показывается секция
+ * AcademicMetadataFields (Этап 20.e). При переключении type на не-BOOK
+ * academic поля скрываются но не очищаются - чтобы пользователь не терял
+ * ввод при случайном переключении. AddSourceModal.createAndAttach
+ * фильтрует это на отправку.
  */
 function SourceCreateForm({
   form,
@@ -186,6 +199,22 @@ function SourceCreateForm({
           </div>
         )}
       </fieldset>
+
+      {form.sourceType === 'BOOK' && (
+        <div className="space-y-2 rounded-md border border-border bg-ink-50/40 p-3">
+          <div className="text-xs font-semibold text-ink-800">
+            {t('source_form.academic_section')}
+          </div>
+          <p className="text-xs text-ink-500">{t('source_form.academic_hint')}</p>
+          <AcademicMetadataFields
+            values={form.academic}
+            onChange={(next) =>
+              onFormChange((f) => ({ ...f, academic: next }))
+            }
+            disabled={submitting}
+          />
+        </div>
+      )}
 
       <AttachFields
         quote={quote}

@@ -268,4 +268,109 @@ describe('AddSourceModal', () => {
       expect(screen.getByLabelText('Поиск источника')).toBeInTheDocument();
     });
   });
+
+  describe('Этап 20.e - academic metadata для BOOK', () => {
+    it('при sourceType=BOOK секция academic-полей видна', async () => {
+      server.use(http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json([])));
+      renderModal();
+      await screen.findByText(/Справочник пуст/);
+      await userEvent.click(screen.getByRole('button', { name: /Создать новый источник/ }));
+      // дефолтный sourceType = BOOK
+      expect(screen.getByText(/Академические данные/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Мухаккик/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Издатель/)).toBeInTheDocument();
+    });
+
+    it('при sourceType≠BOOK academic-секция скрыта', async () => {
+      server.use(http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json([])));
+      renderModal();
+      await screen.findByText(/Справочник пуст/);
+      await userEvent.click(screen.getByRole('button', { name: /Создать новый источник/ }));
+      await userEvent.click(screen.getByRole('radio', { name: /хадис/ }));
+      expect(screen.queryByText(/Академические данные/)).not.toBeInTheDocument();
+    });
+
+    it('BOOK с academic-данными - 2-step POST (books + sources с bookId)', async () => {
+      const NEW_BOOK_ID = 'aaaa1111-aaaa-1111-aaaa-111111111111';
+      const NEW_SRC_ID = 'bbbb2222-bbbb-2222-bbbb-222222222222';
+      let booksBody: Record<string, unknown> | null = null;
+      let sourcesBody: Record<string, unknown> | null = null;
+      let attachBody: Record<string, unknown> | null = null;
+      server.use(
+        http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json([])),
+        http.post(`${BASE}/api/v1/library/books`, async ({ request }) => {
+          booksBody = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json(
+            { id: NEW_BOOK_ID, title: booksBody.title, bookType: 'BOOK' },
+            { status: 201 },
+          );
+        }),
+        http.post(`${BASE}/api/v1/sources`, async ({ request }) => {
+          sourcesBody = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({
+            id: NEW_SRC_ID,
+            sourceType: 'BOOK',
+            title: sourcesBody.title,
+            bookId: NEW_BOOK_ID,
+          });
+        }),
+        http.post(`${BASE}/api/v1/nodes/${NODE_ID}/sources`, async ({ request }) => {
+          attachBody = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ nodeId: NODE_ID, sourceId: NEW_SRC_ID });
+        }),
+      );
+      const { onAttached } = renderModal();
+      await screen.findByText(/Справочник пуст/);
+      await userEvent.click(screen.getByRole('button', { name: /Создать новый источник/ }));
+      await userEvent.type(screen.getByLabelText(/Название/), 'Иктида');
+      await userEvent.type(screen.getByLabelText(/Мухаккик/), 'Аль-Альбани');
+      await userEvent.click(screen.getByRole('button', { name: /Добавить/ }));
+      await waitForApi(() => expect(onAttached).toHaveBeenCalledTimes(1));
+      // 2-step: POST books -> POST sources с bookId -> POST attach
+      expect(booksBody).toMatchObject({
+        bookType: 'BOOK',
+        title: 'Иктида',
+        language: 'ar',
+        muhaqqiqName: 'Аль-Альбани',
+      });
+      expect(sourcesBody).toMatchObject({
+        sourceType: 'BOOK',
+        title: 'Иктида',
+        bookId: NEW_BOOK_ID,
+      });
+      expect(attachBody).toEqual({ sourceId: NEW_SRC_ID });
+    });
+
+    it('BOOK без academic-данных - legacy single-step (только POST /sources)', async () => {
+      const NEW_SRC_ID = 'cccc3333-cccc-3333-cccc-333333333333';
+      let booksCalled = false;
+      let sourcesBody: Record<string, unknown> | null = null;
+      server.use(
+        http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json([])),
+        http.post(`${BASE}/api/v1/library/books`, () => {
+          booksCalled = true;
+          return HttpResponse.json({ id: 'should-not-be-called' });
+        }),
+        http.post(`${BASE}/api/v1/sources`, async ({ request }) => {
+          sourcesBody = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({
+            id: NEW_SRC_ID,
+            sourceType: 'BOOK',
+            title: sourcesBody.title,
+          });
+        }),
+        http.post(`${BASE}/api/v1/nodes/${NODE_ID}/sources`, () =>
+          HttpResponse.json({ nodeId: NODE_ID, sourceId: NEW_SRC_ID }),
+        ),
+      );
+      const { onAttached } = renderModal();
+      await screen.findByText(/Справочник пуст/);
+      await userEvent.click(screen.getByRole('button', { name: /Создать новый источник/ }));
+      await userEvent.type(screen.getByLabelText(/Название/), 'Просто книга без academic');
+      await userEvent.click(screen.getByRole('button', { name: /Добавить/ }));
+      await waitForApi(() => expect(onAttached).toHaveBeenCalledTimes(1));
+      expect(booksCalled).toBe(false);
+      expect(sourcesBody).not.toHaveProperty('bookId');
+    });
+  });
 });

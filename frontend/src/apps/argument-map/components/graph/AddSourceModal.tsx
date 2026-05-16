@@ -13,9 +13,11 @@ import SourceCreateForm, {
   INITIAL_CREATE_FORM,
   type CreateForm,
 } from '@/apps/argument-map/components/graph/SourceCreateForm';
+import { parseIntOrNull } from '@/shared/components/citation/AcademicMetadataFields';
 
 type SourceDto = components['schemas']['SourceResponse'];
 type NodeSourceDto = components['schemas']['NodeSourceResponse'];
+type BookResponseDto = components['schemas']['BookResponse'];
 
 type Mode = 'search' | 'create';
 
@@ -78,6 +80,31 @@ function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
   }
 
   async function createAndAttach(): Promise<void> {
+    // Этап 20.e: для sourceType=BOOK с заполненным academic - 2-step flow:
+    // 1) POST /library/books -> bookId
+    // 2) POST /sources с bookId
+    // 3) attach
+    // Иначе - legacy single-step без bookId.
+    let bookId: string | undefined;
+    if (createForm.sourceType === 'BOOK' && hasAcademicData(createForm)) {
+      const a = createForm.academic;
+      const createdBook = await apiPostRaw<BookResponseDto>(
+        '/api/v1/library/books',
+        {
+          bookType: 'BOOK',
+          title: createForm.title.trim(),
+          language: 'ar',
+          muhaqqiqName: a.muhaqqiq.trim() || undefined,
+          publisherName: a.publisher.trim() || undefined,
+          publicationPlaceName: a.place.trim() || undefined,
+          editionNumber: parseIntOrNull(a.edition) ?? undefined,
+          publishedYearHijri: parseIntOrNull(a.yearHijri) ?? undefined,
+          publishedYearGregorian: parseIntOrNull(a.yearGregorian) ?? undefined,
+        },
+      );
+      bookId = createdBook.id ?? undefined;
+    }
+
     const created = await apiPost('/api/v1/sources', {
       sourceType: createForm.sourceType,
       title: createForm.title.trim(),
@@ -86,6 +113,7 @@ function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
         createForm.sourceType === 'HADITH' && createForm.reliability
           ? createForm.reliability
           : undefined,
+      ...(bookId ? { bookId } : {}),
     });
     if (!created.id) {
       throw new Error(t('common.unknown_error'));
@@ -191,6 +219,18 @@ function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
         </div>
       </div>
     </Modal>
+  );
+}
+
+function hasAcademicData(form: CreateForm): boolean {
+  const a = form.academic;
+  return (
+    a.muhaqqiq.trim() !== '' ||
+    a.publisher.trim() !== '' ||
+    a.place.trim() !== '' ||
+    a.edition.trim() !== '' ||
+    a.yearHijri.trim() !== '' ||
+    a.yearGregorian.trim() !== ''
   );
 }
 

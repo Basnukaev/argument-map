@@ -153,6 +153,9 @@ export const DICTIONARY = {
     'source_form.citation_placeholder': 'Том · страница · глава',
     'source_form.reliability_label': 'Степень достоверности',
     'source_form.reliability_hint': 'Обязательно для хадиса - бэк отвергнет без grade',
+    'source_form.academic_section': 'Академические данные книги (опционально)',
+    'source_form.academic_hint':
+      'Если заполнено - создаётся карточка книги в библиотеке, что даёт structured citation',
 
     // common
     'common.loading': 'Загрузка',
@@ -585,6 +588,9 @@ export const DICTIONARY = {
     'source_form.citation_placeholder': 'الجزء · الصفحة · الباب',
     'source_form.reliability_label': 'درجة الصحة',
     'source_form.reliability_hint': 'إلزامي للحديث - يرفض الخادم بدون درجة',
+    'source_form.academic_section': 'البيانات الأكاديمية للكتاب (اختياري)',
+    'source_form.academic_hint':
+      'إذا تم التعبئة - يتم إنشاء بطاقة الكتاب في المكتبة لاستشهاد منظم',
 
     'common.loading': 'جارٍ التحميل',
     'common.error': 'خطأ',

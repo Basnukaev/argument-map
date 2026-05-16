@@ -662,6 +662,8 @@ export interface components {
             reliability?: "SAHIH" | "HASAN" | "DAIF";
             /** Format: uuid */
             authorityId?: string;
+            /** Format: uuid */
+            bookId?: string;
             metadata?: components["schemas"]["JsonNode"];
         };
         JsonNode: Record<string, never>;
@@ -895,6 +897,15 @@ export interface components {
             language: string;
             description?: string;
             metadata?: components["schemas"]["JsonNode"];
+            muhaqqiqName?: string;
+            publisherName?: string;
+            publicationPlaceName?: string;
+            /** Format: int32 */
+            editionNumber?: number;
+            /** Format: int32 */
+            publishedYearHijri?: number;
+            /** Format: int32 */
+            publishedYearGregorian?: number;
         };
         BookResponse: {
             /** Format: uuid */
