@@ -8,6 +8,7 @@ import {
   type SourceType,
 } from '@/apps/argument-map/utils/attachmentTokens';
 import AttachFields from '@/apps/argument-map/components/graph/AttachFields';
+import { useT } from '@/shared/i18n';
 
 type SourceDto = components['schemas']['SourceResponse'];
 
@@ -51,6 +52,7 @@ function SourceSearchForm({
   onLocationChange,
   submitting,
 }: Props) {
+  const t = useT();
   const filtered = useMemo<SourceDto[]>(() => {
     if (state.kind !== 'loaded') return [];
     const q = query.trim().toLowerCase();
@@ -76,8 +78,8 @@ function SourceSearchForm({
           type="text"
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
-          placeholder="Найти по названию или citation"
-          aria-label="Поиск источника"
+          placeholder={t('source_form.search_placeholder')}
+          aria-label={t('source_form.search_aria')}
           disabled={submitting}
           className="block w-full rounded-md border border-border-strong bg-elevated py-2 ps-9 pe-3 text-sm text-ink-900 placeholder:text-ink-400 outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
         />
@@ -85,25 +87,25 @@ function SourceSearchForm({
 
       <div className="max-h-[260px] overflow-y-auto rounded-md border border-border bg-elevated">
         {state.kind === 'loading' && (
-          <p className="px-3 py-4 text-xs text-ink-500">Загрузка справочника</p>
+          <p className="px-3 py-4 text-xs text-ink-500">{t('source_form.loading')}</p>
         )}
         {state.kind === 'error' && (
-          <p className="px-3 py-4 text-xs text-err-700">Ошибка: {state.message}</p>
+          <p className="px-3 py-4 text-xs text-err-700">{t('common.error')}: {state.message}</p>
         )}
         {state.kind === 'loaded' && state.sources.length === 0 && (
           <p className="px-3 py-4 text-xs italic text-ink-500">
-            Справочник пуст - создайте первый источник кнопкой ниже
+            {t('source_form.empty')}
           </p>
         )}
         {state.kind === 'loaded' && state.sources.length > 0 && filtered.length === 0 && (
           <p className="px-3 py-4 text-xs italic text-ink-500">
-            Ничего не нашлось по запросу «{query}»
+            {t('source_form.no_results')} «{query}»
           </p>
         )}
         {state.kind === 'loaded' && filtered.length > 0 && (
           <ul
             role="listbox"
-            aria-label="Справочник источников"
+            aria-label={t('source_form.list_aria')}
             className="divide-y divide-border"
           >
             {filtered.map((src) => {
@@ -139,7 +141,7 @@ function SourceSearchForm({
                         )}
                       </div>
                       <div className="text-sm font-semibold text-ink-800 line-clamp-1">
-                        {src.title ?? '(без названия)'}
+                        {src.title ?? t('source_form.untitled')}
                       </div>
                       {src.citation && (
                         <div className="font-mono text-xs text-ink-500 line-clamp-1">
@@ -164,7 +166,7 @@ function SourceSearchForm({
         disabled={submitting}
         className="w-full justify-center"
       >
-        Создать новый источник
+        {t('source_form.create_new')}
       </Button>
 
       {hasSelection && (

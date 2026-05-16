@@ -8,6 +8,7 @@ import {
   type SourceType,
 } from '@/apps/argument-map/utils/attachmentTokens';
 import AttachFields from '@/apps/argument-map/components/graph/AttachFields';
+import { useT } from '@/shared/i18n';
 
 export type Reliability = 'SAHIH' | 'HASAN' | 'DAIF' | '';
 
@@ -55,6 +56,7 @@ function SourceCreateForm({
   onLocationChange,
   submitting,
 }: Props) {
+  const t = useT();
   return (
     <>
       <Button
@@ -65,12 +67,12 @@ function SourceCreateForm({
         onClick={onBack}
         disabled={submitting}
       >
-        К поиску в справочнике
+        {t('source_form.back_to_search')}
       </Button>
 
       <fieldset disabled={submitting} className="space-y-3">
         <legend className="mb-1 text-xs font-medium text-ink-700">
-          Тип источника
+          {t('source_form.type_legend')}
         </legend>
         <div className="grid grid-cols-5 gap-2">
           {SOURCE_TYPE_ORDER.map((type) => {
@@ -116,7 +118,7 @@ function SourceCreateForm({
             htmlFor="create-title"
             className="mb-1 block text-xs font-medium text-ink-700"
           >
-            Название
+            {t('source_form.title_label')}
           </label>
           <input
             id="create-title"
@@ -125,7 +127,7 @@ function SourceCreateForm({
             onChange={(e) => onFormChange((f) => ({ ...f, title: e.target.value }))}
             required
             maxLength={500}
-            placeholder="Например: Сахих аль-Бухари, №3000"
+            placeholder={t('source_form.title_placeholder')}
             className="block w-full rounded-md border border-border-strong bg-elevated px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400 outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
           />
         </div>
@@ -135,7 +137,7 @@ function SourceCreateForm({
             htmlFor="create-citation"
             className="mb-1 block text-xs font-medium text-ink-700"
           >
-            Цитата для подписи (опционально)
+            {t('source_form.citation_label')}
           </label>
           <input
             id="create-citation"
@@ -143,7 +145,7 @@ function SourceCreateForm({
             value={form.citation}
             onChange={(e) => onFormChange((f) => ({ ...f, citation: e.target.value }))}
             maxLength={500}
-            placeholder="Том · страница · глава"
+            placeholder={t('source_form.citation_placeholder')}
             className="block w-full rounded-md border border-border-strong bg-elevated px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400 outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
           />
         </div>
@@ -151,7 +153,7 @@ function SourceCreateForm({
         {form.sourceType === 'HADITH' && (
           <div>
             <label className="mb-1 block text-xs font-medium text-ink-700">
-              Степень достоверности (`reliability`)
+              {t('source_form.reliability_label')}
             </label>
             <div className="grid grid-cols-3 gap-2">
               {(['SAHIH', 'HASAN', 'DAIF'] as const).map((rel) => {
@@ -179,8 +181,7 @@ function SourceCreateForm({
               })}
             </div>
             <p className="mt-1 text-xs text-ink-500">
-              Обязательно для типа `HADITH` хадис - бэк отвергнет без grade
-              (`InvalidSourceException` 422)
+              {t('source_form.reliability_hint')}
             </p>
           </div>
         )}
