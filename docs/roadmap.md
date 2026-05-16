@@ -238,8 +238,11 @@ shamela не имеет нужной книги. MinIO storage готов из 2
         listObjects vs `library_files`
   - [ ] Integrity verification cron: weekly сверка `content_hash`
   - [ ] AWS SDK v2 migration legacy `RetryPolicy` → `RetryStrategy`
-  - [ ] `StreamingResponseBody` bounded `ThreadPoolTaskExecutor` для
-        защиты от thread exhaustion
+  - [x] **`StreamingResponseBody` bounded `ThreadPoolTaskExecutor`**
+        (Сессия 36) - `AsyncWebConfig` устанавливает `ThreadPoolTaskExecutor`
+        как default для async MVC: core=10, max=50, queue=100, keepAlive=60s,
+        `CallerRunsPolicy` для back-pressure (вместо OOM thread exhaustion),
+        async timeout=5мин. Микрометр метрики автоматически в `/actuator/metrics/executor.*`
   - [ ] `apiCallTimeout` split: connectTimeout vs apiCallTimeout per-request
 - [ ] **25.d.2: text↔pdf page sync** - internal pageNumber →
       pdfPageNumber mapping с fallback на physical=internal если null.
