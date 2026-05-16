@@ -10,6 +10,122 @@
 
 ---
 
+## 2026-05-16 - Сессия 36, подсессия 19.d (full-stack) - Answer sources, ADR-033 итерация 3
+
+Закрытие Этапа 19.d - параллельная иерархия `answer_sources` для
+ответов в Q&A. 3-я итерация паттерна ADR-033 (node_sources, question_
+sources, answer_sources) подтверждает что platform pivot (ADR-018)
+масштабируется без перехода на generic citations table.
+
+### Сделано
+
+**Backend (1 коммит `feat(backend): Этап 19.d ...`):**
+
+- Migration 31 `answer_sources` table - mirror migration 28 с
+  `answer_id` FK на `answers(id) ON DELETE CASCADE`, surrogate UUID PK
+  сразу (FK variant A), positional fields для TEXT/PDF/REGION mode,
+  CHECK constraint один-из-четырёх, 5 индексов (2 full + 3 partial)
+- `qa/domain/AnswerSource.java` - record + 3 static factories
+  textMode/pdfMode/regionMode, идентичен `QuestionSource` substitute
+  question_id → answer_id
+- `qa/repository/AnswerSourceRepository.java` - JDBC RowMapper + save/
+  findById/findByAnswerId/deleteById + 9-LEFT-JOIN `JOIN_LOCATION_SQL`
+  + `AnswerSourceWithLocation` record + `findByAnswerIdWithLocation`/
+  `findByIdWithLocation`. **Gotcha поймал**: SQL alias `as` для
+  `answer_sources` это reserved keyword Postgres - использовал `ansrc`
+- `qa/service/AnswerCitationService.java` - identical логика с
+  `QuestionCitationService`: TEXT/PDF/REGION validation, page.bookId
+  match, ensure-or-create Source per book, snapshot location format,
+  pdfBbox JSON serialization. Кидает `AnswerNotFoundException` (уже
+  существовал от 19.c)
+- `qa/web/controller/AnswerCitationController.java` - 3 endpoint
+  `/api/v1/answers/{id}/{citations|sources}` mirror QuestionCitation
+- `qa/web/dto/AnswerSourceResponse.java` - record с `answerId` вместо
+  `questionId`
+- `QaDtoMappers.toResponse` перегружен по типу аргумента - один класс
+  на оба citation flow в qa модуле (question + answer)
+- 19 IT тестов `AnswerCitationServiceIT` (Testcontainers, mirror 18
+  от QuestionCitationServiceIT + extra empty list test)
+
+**Frontend (1 коммит `feat(frontend): Этап 19.d ...`):**
+
+- `shared/components/citation/CitationPicker.tsx` - расширение
+  `targetType` union literal: `'nodes' | 'questions' → 'nodes' |
+  'questions' | 'answers'`. Никаких других изменений - URL формула
+  `/api/v1/${targetType}/${targetId}/citations` уже generic
+- `apps/qa/components/AnswerCitationsSection.tsx` - новый компонент
+  mirror `QuestionCitationsSection` с подменой questionId → answerId.
+  Использует `targetType='answers'` для CitationPicker, тот же
+  `SourceCard` без fork. Reuse i18n keys `qa.sources.*`
+- `apps/qa/components/AnswersSection.tsx` - в `AnswerCard` добавлен
+  toggle «Показать/Скрыть источники» (chevron icon), при раскрытии
+  рендерится `AnswerCitationsSection` collapsed-by-default. Не
+  перегружает layout AnswerCard когда у вопроса много ответов
+- `shared/i18n/dictionary.ts` - 3 новых ключа RU/AR
+  (`qa.answers.sources_show/sources_hide/sources_attach`)
+- `shared/api/types.ts` regenerated через `npm run generate-api` -
+  `AnswerSourceResponse` schema появилась автоматически из OpenAPI
+
+**Docs (1 коммит `docs: 19.d complete ...`):**
+
+- `api-contract.md` - новая секция «Answer sources API (ADR-033
+  итерация 3, Этап 19.d)» с описанием 3 endpoint + запись в истории
+  изменений
+- `roadmap.md` - 19.d `[x]` строка с summary и явной отметкой что
+  ADR-033 валидирован 3 раза
+- `decisions.md` - Amendment к ADR-033 «3-я итерация - паттерн
+  валидирован», триггер пересмотра передвинут на 4-й entity type +
+  метрики 19.d для сравнения с 19.b
+
+### Verify
+
+- `./mvnw clean verify` - **507/507 tests pass, BUILD SUCCESS**
+  (включая мои 19 новых IT, общий счёт вырос с 488 до 507)
+- frontend typecheck clean, lint 0 errors (3 pre-existing warnings)
+- frontend tests **146/147** - 1 unrelated pre-existing
+  AddSourceModal radio fail (зафиксирован в session-36-final-snapshot)
+- frontend build SUCCESS 2.41s
+- backend перезапущен на :9090, types.ts regen прошёл
+- playwright headless smoke на existing question
+  `3796f633-1822-...` подтвердил:
+  - AnswerCard рендерится с 2 кнопками toggle и attach
+  - Toggle «Показать источники» раскрывает AnswerCitationsSection
+  - Внутри секции «Источники не прицеплены» + кнопка «Привести источник»
+  - Кнопка открывает CitationPicker dialog с правильным targetLabel
+    (preview body ответа, не title вопроса)
+- end-to-end через curl: POST /citations создал structured citation
+  с полным academic 9-LEFT-JOIN response (authority/book/muhaqqiq/
+  publisher/edition/year), DELETE /sources/{id} вернул 204, cleanup OK
+
+### Не сделано в 19.d (отложено)
+
+- Freeform LEGACY citation для answers (schema готова, controller
+  endpoint - если появится UX-кейс типа AddSourceModal-аналога для
+  answers)
+- Frontend тесты для AnswerCitationsSection - mirror policy от 19.b
+  (там тоже не делали unit тестов QuestionCitationsSection, smoke
+  через playwright достаточно)
+- Soft delete + audit - после auth
+
+### Что посмотреть руками
+
+1. Открой `/qa/3796f633-1822-45fa-87e1-6337a603b6f1`
+2. Создай новый ответ через форму внизу
+3. На AnswerCard нажми кнопку «Показать источники»
+4. Должен раскрыться блок «Источники» с «Источники не прицеплены» и
+   кнопкой «Привести источник»
+5. Нажми кнопку - откроется CitationPicker модалка с header
+   «Привести источник для: «<твоё body превью>»»
+6. Выбери книгу из списка слева, страницу, выдели текст, нажми
+   «Привести» - citation создаётся, модалка закрывается, в секции
+   появляется SourceCard
+7. На SourceCard нажми «Перейти к источнику» - откроется reader
+   с подсветкой fragment'a (тот же deep-link flow что для questions)
+8. Кнопка корзины в SourceCard - detach citation, появляется toast
+   «Источник отвязан»
+
+---
+
 ## 2026-05-16 - Сессия 36, подсессия 20.e (full-stack) - AddSourceModal academic form
 
 Параллельная подсессия закрытия Этапа 20.e - AddSourceModal расширенная

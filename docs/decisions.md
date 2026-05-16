@@ -3051,6 +3051,42 @@ CHECK constraint один из четырёх режимов (LEGACY/TEXT/PDF/RE
   применён сразу в migration 28 (не staged)
 - **ADR-032** (Q&A foundation) - 19.a baseline которое 19.b расширяет
 
+### Amendment 2026-05-16: 3-я итерация (Этап 19.d) - паттерн валидирован
+
+После закрытия Этапа 19.d (`answer_sources` через migration 31 +
+`AnswerSource`/`AnswerSourceRepository`/`AnswerCitationService`/
+`AnswerCitationController` mirror question stack):
+
+- паттерн применён **3 раза подряд** на 3 entity types (node, question,
+  answer) без значимых сюрпризов
+- единственная находка - SQL alias `as` для `answer_sources` reserved
+  keyword (использован `ansrc`), мелкая стилистическая правка
+- весь citation core (`CitationRequest`, `CitationDetail`, 9-LEFT-JOIN
+  mapping, `SourceCard`, `CitationPicker`) reused **без fork** через
+  `targetType` prop
+- `QaDtoMappers.toResponse` перегружен по типу row - один класс на оба
+  citation flow в qa модуле (question + answer), общий
+  `DtoMappers.toCitationResponse` делегирование сохранено
+- `AnswerCitationsSection` встроен в `AnswerCard` collapsed-by-default
+  через toggle - на странице с многими ответами список citations
+  per-answer не перегружает layout
+
+**Триггер пересмотра передвинут**: ранее «3-й entity type → revisit
+Option A» - после успешного 3-го применения порог пересмотра сдвинут
+на 4-й entity type. Если появится `comment_sources` (комментарии к
+ответам) с 4-м mirror stack - тогда серьёзно рассматривать generic
+citations table или AbstractCitationService inheritance. До 4-го
+применения паттерн считается стабильным.
+
+**Метрики 19.d** (для сравнения с 19.b):
+- migration: 1 файл (mirror 28, ~80 строк)
+- backend: 5 Java файлов (~470 LOC) + 1 mapper расширение
+- frontend: 1 новый компонент (~180 LOC) + 1-line CitationPicker extend +
+  1-line AnswersSection integration + 3 i18n keys
+- tests: +19 IT (mirror 18 + extra empty list assertion)
+- total session effort: ~3-4 часа (вместо blueprint оценки 6-8h - mirror
+  policy ускорил)
+
 ## ADR-034: Q&A answers + accept-answer flow (Этап 19.c)
 
 **Дата:** 2026-05-16

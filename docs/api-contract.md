@@ -1499,16 +1499,75 @@ question.acceptedAnswerId`. На новом ответе всегда `false`.
 
 ### Что **не** реализовано в Этапе 19.c
 
-- Voting на answers (up/down votes) - отложено на 19.d
-- Comments на answers - отложено на 19.e
+- Voting на answers (up/down votes) - откладывается на отдельный этап
+- Comments на answers - откладывается на отдельный этап
 - Nested answers / threading - не в скоупе MVP
 - Edit history / revisions для answers (как для nodes есть revisions)
 - Soft delete (hard delete на MVP)
+
+## Answer sources API (ADR-033 итерация 3, Этап 19.d)
+
+Citation на ответы - параллельная иерархия `answer_sources` рядом с
+`question_sources` и `node_sources`. Та же семантика, тот же
+`CitationRequest`, тот же 9-LEFT-JOIN structured response. 3-я
+итерация валидирует что platform pivot (ADR-018) масштабируется
+без перехода на generic citations table.
+
+### POST /api/v1/answers/{answerId}/citations - привязать positional citation
+
+Создаёт citation в одном из трёх режимов (TEXT/PDF/REGION). Request
+body, валидация и ошибки идентичны
+`POST /api/v1/questions/{id}/citations` и
+`POST /api/v1/nodes/{id}/citations` (ADR-027) - reuse того же
+`CitationRequest` DTO + `AnswerCitationService`-аналог
+`QuestionCitationService` с identical логикой.
+
+Response `201 Created` с `AnswerSourceResponse` (структура аналогична
+`QuestionSourceResponse`, но с `answerId` вместо `questionId`):
+
+```json
+{
+  "id": "uuid",
+  "answerId": "uuid",
+  "sourceId": "uuid",
+  "quote": "...",
+  "context": "...",
+  "mode": "TEXT|PDF|REGION",
+  "citation": { "...": "9-полевая structured citation (ADR-028)" },
+  "createdAt": "iso-instant"
+}
+```
+
+Ошибки:
+- `404 answer-not-found` - ответ с таким id не существует
+- `404 book-not-found`/`page-not-found`/`pdf-not-available`/`image-region-not-found`
+- `400 invalid-citation` - валидация (>1 mode, range_end<=range_start,
+  pageId не принадлежит bookId, etc)
+
+### GET /api/v1/answers/{answerId}/sources - список citations ответа
+
+Возвращает `List<AnswerSourceResponse>` с structured citation. Сортировка
+по `created_at`. Идентичная схема `GET /api/v1/questions/{id}/sources`.
+
+### DELETE /api/v1/answers/{answerId}/sources/{answerSourceId} - detach citation
+
+Удаление по surrogate UUID id citation link'а (ADR-029 FK variant A).
+URL hierarchy сохраняет `answerId` под будущую авторизацию по владельцу
+ответа (зеркало QuestionCitationController). Response `204 No Content`.
+Ошибка `404 source-not-found` если link не найден.
+
+### Что **не** реализовано в Этапе 19.d
+
+- Freeform LEGACY citation для answers (нет
+  `POST /api/v1/answers/{id}/sources` legacy endpoint). Schema
+  поддерживает - добавим если появится UX-кейс
+- Soft delete + audit (после auth)
 
 ## История изменений контракта
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-16 | v1 | Answer citation endpoints: `POST /api/v1/answers/{id}/citations` (CitationRequest reused, TEXT/PDF/REGION), `GET /api/v1/answers/{id}/sources` (List<AnswerSourceResponse> с 9 LEFT JOIN), `DELETE /api/v1/answers/{id}/sources/{answerSourceId}`. Новый DTO `AnswerSourceResponse{id, answerId, sourceId, quote, context, mode, citation, createdAt}` - mirror QuestionSourceResponse. Migration 31 `answer_sources` (тот же шаблон что migration 28: surrogate UUID PK сразу, positional fields, CHECK constraint один-из-четырёх, FK на answers ON DELETE CASCADE) | ADR-033 итерация 3: параллельная иерархия `answer_sources` рядом с `question_sources` и `node_sources`. 3-е применение паттерна подтверждает что platform pivot (ADR-018) масштабируется - тот же CitationPicker + SourceCard + 9-LEFT-JOIN structured citation reused для третьей сущности без копирования бизнес-логики |
 | 2026-05-16 | v1 | `CreateBookRequest` расширен 6 опциональными academic полями (`muhaqqiqName`/`publisherName`/`publicationPlaceName`/`editionNumber`/`publishedYearHijri`/`publishedYearGregorian`) с теми же validation rules что в `UpdateBookRequest` (`@Min/@Max`). Backend `BookService.createBook` перегружен - non-blank `name` → `findOrCreate` в справочнике, blank/null → FK остаётся null. `CreateSourceRequest` расширен опциональным `bookId: UUID` - связывает Source с уже существующей Book (ADR-026), `SourceService` валидирует exists через `404 book-not-found`. Старый legacy путь без `bookId` продолжает работать | Этап 20.e: AddSourceModal manual book entry 2-step flow (POST `/library/books` с academic → POST `/sources` с `bookId`). Соответствует ADR-026 + ADR-028, новых архитектурных решений нет |
 | 2026-05-16 | v1 | Answers + accept-answer flow для Q&A. Endpoints: `POST /api/v1/questions/{id}/answers` (CreateAnswerRequest{body}), `GET /api/v1/questions/{id}/answers` (List<AnswerResponse>, accepted первым), `PATCH /api/v1/answers/{id}` (UpdateAnswerRequest{body}), `DELETE /api/v1/answers/{id}`, `POST /api/v1/questions/{id}/accepted-answer/{answerId}` (status -> ANSWERED), `DELETE /api/v1/questions/{id}/accepted-answer` (status -> OPEN). Новый DTO `AnswerResponse{id, questionId, body, authorId, createdAt, updatedAt, accepted}` - `accepted` derived (сравнение с question.acceptedAnswerId). Новый error `404 answer-not-found`. `QuestionResponse` расширен полем `acceptedAnswerId: UUID nullable`. Migration 29 `answers` table + migration 30 `questions.accepted_answer_id` FK ON DELETE SET NULL | ADR-034 Q&A answers + accept flow, Этап 19.c. Single-accepted invariant через nullable FK на question, не boolean per answer. MVP без voting/comments/threading |
 | 2026-05-16 | v1 | Q&A citation endpoints: `POST /api/v1/questions/{id}/citations` (CitationRequest reused из ADR-027, TEXT/PDF/REGION mode), `GET /api/v1/questions/{id}/sources` (List<QuestionSourceResponse> с 9 LEFT JOIN), `DELETE /api/v1/questions/sources/{questionSourceId}`. Новый DTO `QuestionSourceResponse{id, questionId, sourceId, quote, context, mode, citation, createdAt}` - без legacySnapshot (нет LEGACY mode UI для questions). Migration 28 `question_sources` (объединяет mig 9+23+25 в одну: surrogate UUID PK сразу, positional fields, CHECK constraint один-из-четырёх) | ADR-033: параллельная иерархия `question_sources` рядом с `node_sources`. Финальная валидация ADR-018 platform pivot - тот же CitationPicker + SourceCard + 9-LEFT-JOIN structured citation reused между двумя entity types без копирования бизнес-логики |

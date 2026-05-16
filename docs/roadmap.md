@@ -179,7 +179,22 @@ shamela не имеет нужной книги. MinIO storage готов из 2
       cascade / SET NULL). Frontend - `AnswersSection.tsx` с inline-
       формой добавления + AnswerCard с ribbon «Принят», кнопками
       «Принять» (для asker) и «Удалить» (для author). 12 i18n keys
-      RU/AR. Voting + comments отложены на 19.d/19.e
+      RU/AR. Voting + comments в backlog как отдельные этапы
+- [x] **19.d:** Answer sources - параллельная иерархия `answer_sources`
+      (ADR-033 итерация 3). Migration 31 mirror migration 28 - тот же
+      шаблон (surrogate UUID PK + positional fields + CHECK constraint
+      один-из-четырёх + 5 индексов), FK на `answers(id) ON DELETE CASCADE`.
+      Backend: `AnswerSource` record + `AnswerSourceRepository` (с alias
+      `ansrc` - `as` reserved keyword) + `AnswerCitationService` + 3
+      REST endpoint под `/api/v1/answers/{id}/{citations|sources}`.
+      `QaDtoMappers.toResponse` перегружен по типу - один класс на оба
+      flow. Frontend: `CitationPicker` расширен `targetType: 'answers'`,
+      новый `AnswerCitationsSection` mirror `QuestionCitationsSection`,
+      встроен в `AnswerCard` collapsed-by-default через toggle.
+      19 IT тестов pass (mirror 18 от 19.b + extra empty list test).
+      Smoke playwright подтвердил identical citation rendering на answer
+      level. **ADR-033 паттерн валидирован 3 раза подряд - platform
+      pivot масштабируется без перехода на generic citations table**
 
 ### Этап 20. Полная академическая citation metadata - продолжение
 
