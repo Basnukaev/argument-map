@@ -5,6 +5,7 @@ import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import QuestionCitationsSection from '@/apps/qa/components/QuestionCitationsSection';
+import AnswersSection from '@/apps/qa/components/AnswersSection';
 import {
   apiDeleteRaw,
   apiGetRaw,
@@ -57,6 +58,17 @@ function QuestionDetailPage() {
       });
     return () => controller.abort();
   }, [questionId]);
+
+  const refetchQuestion = async () => {
+    if (!questionId) return;
+    try {
+      const fresh = await apiGetRaw<Question>(`/api/v1/questions/${questionId}`);
+      setState({ kind: 'success', data: fresh });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast.error(message);
+    }
+  };
 
   const handleStatusChange = async (status: Status) => {
     if (!questionId) return;
@@ -129,6 +141,7 @@ function QuestionDetailPage() {
             updating={updating}
             onStatusChange={handleStatusChange}
             onDelete={handleDelete}
+            onRefetchQuestion={refetchQuestion}
           />}
       </div>
     </main>
@@ -140,9 +153,10 @@ interface DetailProps {
   updating: boolean;
   onStatusChange: (s: Status) => void;
   onDelete: () => void;
+  onRefetchQuestion: () => void;
 }
 
-function Detail({ question, updating, onStatusChange, onDelete }: DetailProps) {
+function Detail({ question, updating, onStatusChange, onDelete, onRefetchQuestion }: DetailProps) {
   const t = useT();
   const formatDate = useFormatDate();
   const status = question.status ?? 'OPEN';
@@ -205,6 +219,15 @@ function Detail({ question, updating, onStatusChange, onDelete }: DetailProps) {
         <QuestionCitationsSection
           questionId={question.id}
           questionTitle={question.title ?? ''}
+        />
+      )}
+
+      {question.id && (
+        <AnswersSection
+          questionId={question.id}
+          askedBy={question.askedBy}
+          acceptedAnswerId={question.acceptedAnswerId}
+          onAcceptanceChange={onRefetchQuestion}
         />
       )}
 
