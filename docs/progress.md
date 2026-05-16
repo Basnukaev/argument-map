@@ -130,9 +130,23 @@ sources поддерживает LEGACY mode, controller не имеет attach 
   identical как в NodeDetailsPanel - тот же chip «ИЗ БИБЛИОТЕКИ»,
   arabic quote dir=auto, метаданные раскрыты по default
 
+### Подсессия 19.c запущена в Сессии 36
+
+В конце Сессии 36 (по причине заполнения контекста ~60%) запущен
+Agent subagent_type=coder в фоне для реализации Этапа 19.c (Answers).
+Полный handoff prompt включает: миграции 29+30, domain/repo/service/
+controller Answer, accept-answer flow через PATCH UpdateQuestionRequest
+расширение, IT тесты, frontend QuestionDetailPage секция «Ответы»,
+ADR-034, api-contract, roadmap [x].
+
+Agent работает автономно. Результат - набор коммитов на master или
+эскалация если столкнётся с блокером. Может закончить раньше окончания
+Сессии 36 или продолжить в следующей сессии (ruflo autopilot включён,
+maxIterations=200, timeoutMinutes=720).
+
 ### Следующий шаг (для Сессии 37)
 
-19.a + 19.b закрыты. Опции:
+19.a + 19.b закрыты, 19.c в работе через подсессию. Опции:
 
 **Опция A (~0.5 сессии) - 20.e AddSourceModal расширенная.** При
 sourceType=BOOK показывать 6 academic полей (мухаккик/издатель/место/
