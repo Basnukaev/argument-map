@@ -4,6 +4,7 @@ import { ArrowLeft, Trash2, AlertCircle, Loader2 } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
+import QuestionCitationsSection from '@/apps/qa/components/QuestionCitationsSection';
 import {
   apiDeleteRaw,
   apiGetRaw,
@@ -200,7 +201,14 @@ function Detail({ question, updating, onStatusChange, onDelete }: DetailProps) {
         ))}
       </div>
 
-      <div className="flex justify-end border-t border-ink-100 pt-4">
+      {question.id && (
+        <QuestionCitationsSection
+          questionId={question.id}
+          questionTitle={question.title ?? ''}
+        />
+      )}
+
+      <div className="mt-6 flex justify-end border-t border-ink-100 pt-4">
         <Button
           variant="ghost"
           icon={Trash2}

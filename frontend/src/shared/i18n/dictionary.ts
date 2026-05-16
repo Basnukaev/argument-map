@@ -118,6 +118,11 @@ export const DICTIONARY = {
     'qa.detail.delete': 'Удалить вопрос',
     'qa.detail.delete_confirm': 'Удалить вопрос навсегда?',
     'qa.detail.deleted': 'Вопрос удалён',
+    'qa.sources.section_title': 'Источники',
+    'qa.sources.empty': 'Источники не прицеплены',
+    'qa.sources.add_button': 'Привести источник',
+    'qa.sources.detached': 'Источник отвязан',
+    'qa.sources.detach_failed': 'Не удалось отвязать источник',
 
     // common
     'common.loading': 'Загрузка',
@@ -516,6 +521,11 @@ export const DICTIONARY = {
     'qa.detail.delete': 'حذف السؤال',
     'qa.detail.delete_confirm': 'حذف السؤال نهائياً؟',
     'qa.detail.deleted': 'تم حذف السؤال',
+    'qa.sources.section_title': 'المصادر',
+    'qa.sources.empty': 'لم تُرفق مصادر بعد',
+    'qa.sources.add_button': 'إرفاق مصدر',
+    'qa.sources.detached': 'تم فصل المصدر',
+    'qa.sources.detach_failed': 'تعذّر فصل المصدر',
 
     'common.loading': 'جارٍ التحميل',
     'common.error': 'خطأ',

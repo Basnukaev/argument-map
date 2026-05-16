@@ -52,7 +52,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/nodes": {
+    "/api/v1/questions/{questionId}/citations": {
         parameters: {
             query?: never;
             header?: never;
@@ -62,6 +62,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["create_3"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["create_4"];
         delete?: never;
         options?: never;
         head?: never;
@@ -93,7 +109,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["create_4"];
+        post: operations["create_5"];
         delete?: never;
         options?: never;
         head?: never;
@@ -109,7 +125,7 @@ export interface paths {
         };
         get: operations["list_4"];
         put?: never;
-        post: operations["create_5"];
+        post: operations["create_6"];
         delete?: never;
         options?: never;
         head?: never;
@@ -125,7 +141,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["create_6"];
+        post: operations["create_7"];
         delete?: never;
         options?: never;
         head?: never;
@@ -141,7 +157,7 @@ export interface paths {
         };
         get: operations["list_5"];
         put?: never;
-        post: operations["create_7"];
+        post: operations["create_8"];
         delete?: never;
         options?: never;
         head?: never;
@@ -324,6 +340,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/questions/{questionId}/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_6"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/nodes/{nodeId}/revisions": {
         parameters: {
             query?: never;
@@ -500,7 +532,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/nodes/{nodeId}/sources/{nodeSourceId}": {
+    "/api/v1/questions/sources/{questionSourceId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -511,6 +543,22 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["detach"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/{nodeId}/sources/{nodeSourceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["detach_1"];
         options?: never;
         head?: never;
         patch?: never;
@@ -588,40 +636,34 @@ export interface components {
             /** Format: date-time */
             updatedAt?: string;
         };
-        CreateNodeRequest: {
+        CitationRequest: {
             /** Format: uuid */
-            topicId: string;
-            /** @enum {string} */
-            nodeType: "QUESTION" | "CLAIM" | "ARGUMENT" | "EVIDENCE";
-            content: string;
-        };
-        NodeResponse: {
+            bookId: string;
             /** Format: uuid */
-            id?: string;
+            pageId?: string;
+            /** Format: int32 */
+            rangeStart?: number;
+            /** Format: int32 */
+            rangeEnd?: number;
             /** Format: uuid */
-            topicId?: string;
-            /** @enum {string} */
-            nodeType?: "QUESTION" | "CLAIM" | "ARGUMENT" | "EVIDENCE";
-            content?: string;
-            /** @enum {string} */
-            status?: "STANDING" | "DISPUTED" | "REFUTED" | "UNVERIFIED";
-            /** Format: double */
-            posX?: number;
-            /** Format: double */
-            posY?: number;
+            pdfFileId?: string;
+            /** Format: int32 */
+            pdfPageNumber?: number;
+            pdfBbox?: components["schemas"]["PdfBbox"];
             /** Format: uuid */
-            createdBy?: string;
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: date-time */
-            updatedAt?: string;
-        };
-        AttachSourceRequest: {
-            /** Format: uuid */
-            sourceId: string;
+            imageRegionId?: string;
             quote?: string;
             context?: string;
-            location?: string;
+        };
+        PdfBbox: {
+            /** Format: double */
+            x?: number;
+            /** Format: double */
+            y?: number;
+            /** Format: double */
+            width?: number;
+            /** Format: double */
+            height?: number;
         };
         AuthorityCitationRef: {
             /** Format: uuid */
@@ -671,22 +713,6 @@ export interface components {
             name?: string;
             fullName?: string;
         };
-        NodeSourceResponse: {
-            /** Format: uuid */
-            id?: string;
-            /** Format: uuid */
-            nodeId?: string;
-            /** Format: uuid */
-            sourceId?: string;
-            quote?: string;
-            context?: string;
-            /** @enum {string} */
-            mode?: "TEXT" | "PDF" | "REGION" | "LEGACY";
-            citation?: components["schemas"]["CitationResponse"];
-            legacySnapshot?: string;
-            /** Format: date-time */
-            createdAt?: string;
-        };
         PdfRef: {
             /** Format: uuid */
             fileId?: string;
@@ -704,6 +730,21 @@ export interface components {
             id?: string;
             name?: string;
         };
+        QuestionSourceResponse: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            questionId?: string;
+            /** Format: uuid */
+            sourceId?: string;
+            quote?: string;
+            context?: string;
+            /** @enum {string} */
+            mode?: "TEXT" | "PDF" | "REGION" | "LEGACY";
+            citation?: components["schemas"]["CitationResponse"];
+            /** Format: date-time */
+            createdAt?: string;
+        };
         RegionRef: {
             /** Format: uuid */
             id?: string;
@@ -711,34 +752,56 @@ export interface components {
             /** Format: int32 */
             pageNumber?: number;
         };
-        CitationRequest: {
+        CreateNodeRequest: {
             /** Format: uuid */
-            bookId: string;
+            topicId: string;
+            /** @enum {string} */
+            nodeType: "QUESTION" | "CLAIM" | "ARGUMENT" | "EVIDENCE";
+            content: string;
+        };
+        NodeResponse: {
             /** Format: uuid */
-            pageId?: string;
-            /** Format: int32 */
-            rangeStart?: number;
-            /** Format: int32 */
-            rangeEnd?: number;
+            id?: string;
             /** Format: uuid */
-            pdfFileId?: string;
-            /** Format: int32 */
-            pdfPageNumber?: number;
-            pdfBbox?: components["schemas"]["PdfBbox"];
+            topicId?: string;
+            /** @enum {string} */
+            nodeType?: "QUESTION" | "CLAIM" | "ARGUMENT" | "EVIDENCE";
+            content?: string;
+            /** @enum {string} */
+            status?: "STANDING" | "DISPUTED" | "REFUTED" | "UNVERIFIED";
+            /** Format: double */
+            posX?: number;
+            /** Format: double */
+            posY?: number;
             /** Format: uuid */
-            imageRegionId?: string;
+            createdBy?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        AttachSourceRequest: {
+            /** Format: uuid */
+            sourceId: string;
             quote?: string;
             context?: string;
+            location?: string;
         };
-        PdfBbox: {
-            /** Format: double */
-            x?: number;
-            /** Format: double */
-            y?: number;
-            /** Format: double */
-            width?: number;
-            /** Format: double */
-            height?: number;
+        NodeSourceResponse: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            nodeId?: string;
+            /** Format: uuid */
+            sourceId?: string;
+            quote?: string;
+            context?: string;
+            /** @enum {string} */
+            mode?: "TEXT" | "PDF" | "REGION" | "LEGACY";
+            citation?: components["schemas"]["CitationResponse"];
+            legacySnapshot?: string;
+            /** Format: date-time */
+            createdAt?: string;
         };
         CreateBookRequest: {
             /** @enum {string} */
@@ -1230,6 +1293,32 @@ export interface operations {
     create_3: {
         parameters: {
             query?: never;
+            header?: never;
+            path: {
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CitationRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["QuestionSourceResponse"];
+                };
+            };
+        };
+    };
+    create_4: {
+        parameters: {
+            query?: never;
             header: {
                 /** @description UUID текущего пользователя (ADR-006, временно до Spring Security в Этапе 6) */
                 "X-User-Id": string;
@@ -1302,7 +1391,7 @@ export interface operations {
             };
         };
     };
-    create_4: {
+    create_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -1351,7 +1440,7 @@ export interface operations {
             };
         };
     };
-    create_5: {
+    create_6: {
         parameters: {
             query: {
                 currentUserId: string;
@@ -1380,7 +1469,7 @@ export interface operations {
             };
         };
     };
-    create_6: {
+    create_7: {
         parameters: {
             query?: never;
             header: {
@@ -1429,7 +1518,7 @@ export interface operations {
             };
         };
     };
-    create_7: {
+    create_8: {
         parameters: {
             query?: never;
             header?: never;
@@ -1879,6 +1968,28 @@ export interface operations {
             };
         };
     };
+    list_6: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["QuestionSourceResponse"][];
+                };
+            };
+        };
+    };
     getRevisions: {
         parameters: {
             query?: never;
@@ -2151,6 +2262,26 @@ export interface operations {
         };
     };
     detach: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionSourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    detach_1: {
         parameters: {
             query?: never;
             header?: never;

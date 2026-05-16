@@ -172,8 +172,9 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
 
       {citationPickerOpen && nodeId && (
         <CitationPicker
-          nodeId={nodeId}
-          nodeContent={nodeContent}
+          targetType="nodes"
+          targetId={nodeId}
+          targetLabel={nodeContent}
           onClose={() => setCitationPickerOpen(false)}
           onCreated={reloadSources}
         />

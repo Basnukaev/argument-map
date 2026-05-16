@@ -20,8 +20,12 @@ type PageSummaryDto = components['schemas']['PageSummaryResponse'] & {
 };
 
 interface Props {
-  nodeId: string;
-  nodeContent: string;
+  /** Тип сущности к которой привязывается citation - влияет на URL */
+  targetType: 'nodes' | 'questions';
+  /** id сущности (node или question) */
+  targetId: string;
+  /** Короткий label для header «Привязать к: ...» (node.content или question.title) */
+  targetLabel: string;
   onClose: () => void;
   onCreated: () => void;
 }
@@ -50,7 +54,7 @@ type BookState =
  * <p>Conditional render (`{open && <CitationPicker .../>}`) - idiom
  * проекта, обеспечивает чистый state при каждом открытии.
  */
-function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
+function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated }: Props) {
   const t = useT();
   const [booksState, setBooksState] = useState<BooksState>({ kind: 'loading' });
   const [search, setSearch] = useState('');
@@ -189,7 +193,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await apiPostRaw(`/api/v1/nodes/${nodeId}/citations`, {
+      await apiPostRaw(`/api/v1/${targetType}/${targetId}/citations`, {
         bookId: selectedBookId,
         pageId: selection.pageId,
         rangeStart: selection.rangeStart,
@@ -209,8 +213,8 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
     }
   }
 
-  const truncatedNodeContent =
-    nodeContent.length > 80 ? nodeContent.substring(0, 77) + '...' : nodeContent;
+  const truncatedTargetLabel =
+    targetLabel.length > 80 ? targetLabel.substring(0, 77) + '...' : targetLabel;
 
   return (
     <div
@@ -229,7 +233,7 @@ function CitationPicker({ nodeId, nodeContent, onClose, onCreated }: Props) {
             <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900">
               <BookOpen size={18} className="text-accent-600" aria-hidden="true" />
               {t('citation_picker.title_for')}:
-              <span dir="auto" className="truncate text-ink-600 font-normal">«{truncatedNodeContent}»</span>
+              <span dir="auto" className="truncate text-ink-600 font-normal">«{truncatedTargetLabel}»</span>
             </h2>
             <p className="mt-0.5 text-xs text-ink-500">
               {t('citation_picker.subtitle')}
