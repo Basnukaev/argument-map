@@ -1,7 +1,10 @@
 package ru.basnukaev.argumentmap.library.storage;
 
 import java.net.URI;
+import java.time.Duration;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -38,6 +41,8 @@ import software.amazon.awssdk.services.s3.S3Configuration;
 @EnableConfigurationProperties(ObjectStorageProperties.class)
 public class S3ClientConfig {
 
+    private static final Logger log = LoggerFactory.getLogger(S3ClientConfig.class);
+
     private final ObjectStorageProperties properties;
 
     public S3ClientConfig(ObjectStorageProperties properties) {
@@ -57,10 +62,24 @@ public class S3ClientConfig {
                 .numRetries(properties.maxRetries())
                 .build();
 
+        // apiCallTimeout split (ADR-024, Этап 25.b operational hardening).
+        // Раньше apiCallTimeout == apiCallAttemptTimeout == readTimeout
+        // → retries не успевали пройти если первый attempt пошёл до конца
+        // timeout'а. Теперь:
+        //   - apiCallAttemptTimeout = readTimeout (per single attempt)
+        //   - apiCallTimeout = readTimeout × (maxRetries + 1) + 50% jitter
+        //     (total wall-clock budget включая backoff между retries)
+        Duration attemptTimeout = properties.readTimeout();
+        Duration totalTimeout = attemptTimeout.multipliedBy(properties.maxRetries() + 1L)
+                .plus(attemptTimeout.dividedBy(2));
+        log.info("S3 timeouts: attempt={}s total={}s connect={}s",
+                attemptTimeout.toSeconds(), totalTimeout.toSeconds(),
+                properties.connectTimeout().toSeconds());
+
         ClientOverrideConfiguration overrideConfig = ClientOverrideConfiguration.builder()
                 .retryPolicy(retryPolicy)
-                .apiCallTimeout(properties.readTimeout())
-                .apiCallAttemptTimeout(properties.readTimeout())
+                .apiCallTimeout(totalTimeout)
+                .apiCallAttemptTimeout(attemptTimeout)
                 .build();
 
         UrlConnectionHttpClient.Builder httpClientBuilder = UrlConnectionHttpClient.builder()

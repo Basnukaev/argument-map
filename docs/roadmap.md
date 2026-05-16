@@ -243,7 +243,12 @@ shamela не имеет нужной книги. MinIO storage готов из 2
         как default для async MVC: core=10, max=50, queue=100, keepAlive=60s,
         `CallerRunsPolicy` для back-pressure (вместо OOM thread exhaustion),
         async timeout=5мин. Микрометр метрики автоматически в `/actuator/metrics/executor.*`
-  - [ ] `apiCallTimeout` split: connectTimeout vs apiCallTimeout per-request
+  - [x] **`apiCallTimeout` split** (Сессия 36) - `apiCallAttemptTimeout`
+        = `readTimeout` (per single attempt), `apiCallTimeout` =
+        `readTimeout × (maxRetries + 1) + 50% jitter` (total wall-clock
+        budget включая backoff между retries). Раньше overall = single
+        attempt → retries не успевали пройти. Логирование вычисленных
+        timeouts в startup для observability
 - [ ] **25.d.2: text↔pdf page sync** - internal pageNumber →
       pdfPageNumber mapping с fallback на physical=internal если null.
       Требует Tier 1 admin page-mapping flow
