@@ -39,6 +39,7 @@ vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 function wrapFetchStripSignal(): void {
   const current = globalThis.fetch;
   globalThis.fetch = function wrappedFetch(
+    this: unknown,
     input: RequestInfo | URL,
     init?: RequestInit,
   ): Promise<Response> {
