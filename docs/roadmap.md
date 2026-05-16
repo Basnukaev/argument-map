@@ -228,7 +228,12 @@ shamela не имеет нужной книги. MinIO storage готов из 2
         `ShamelaApiException` без upstream HTTP. 4 IT тесты pass.
         Actuator endpoints `/circuitbreakers` + `/circuitbreakerevents`
         для observability
-  - [ ] Health-check indicator: `headBucket` ping в `actuator/health`
+  - [x] **Health-check indicator** (Сессия 36) - `ObjectStorageHealthIndicator`
+        implements `HealthIndicator`, делает `HeadBucket` на primary bucket
+        `library-imported-books`. UP с {endpoint, bucket, latencyMs} details,
+        DOWN с statusCode/errorCode при S3 ошибке. Auto-discovered Spring
+        Actuator под ключом `objectStorage` в `/actuator/health`. 2 IT тестов
+        с MinIO testcontainer. Используется load balancer / k8s readiness probe
   - [ ] Orphan-detection janitor: фоновый job сравнивает MinIO
         listObjects vs `library_files`
   - [ ] Integrity verification cron: weekly сверка `content_hash`
