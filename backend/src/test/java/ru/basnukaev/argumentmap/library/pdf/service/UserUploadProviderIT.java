@@ -26,6 +26,8 @@ import ru.basnukaev.argumentmap.library.domain.LibraryFile;
 import ru.basnukaev.argumentmap.library.domain.LibraryFileSourceType;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfLocation;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfMetadata;
+import ru.basnukaev.argumentmap.library.pdf.domain.PdfStreamingResult;
+import ru.basnukaev.argumentmap.library.pdf.domain.RangeSpec;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.storage.ObjectStorageProperties;
 import ru.basnukaev.argumentmap.library.storage.ObjectStorageService;
@@ -200,6 +202,71 @@ class UserUploadProviderIT {
             byte[] read = stream.readAllBytes();
             assertThat(read).containsExactly(samplePdfBytes);
         }
+    }
+
+    @Test
+    void openStream_nullRange_returnsFullContentNonPartial() throws Exception {
+        Book book = saveUserUploadedBook(42, "manual.pdf");
+
+        try (PdfStreamingResult result = provider.openStream(book, 0, null)) {
+            assertThat(result.isPartial()).isFalse();
+            assertThat(result.totalSize()).isEqualTo(samplePdfBytes.length);
+            assertThat(result.contentLength()).isEqualTo(samplePdfBytes.length);
+            assertThat(result.startInclusive()).isZero();
+            assertThat(result.endInclusive()).isEqualTo(samplePdfBytes.length - 1);
+            assertThat(result.stream().readAllBytes()).containsExactly(samplePdfBytes);
+        }
+    }
+
+    @Test
+    void openStream_withBoundedRange_returnsPartialContent() throws Exception {
+        Book book = saveUserUploadedBook(42, "manual.pdf");
+
+        try (PdfStreamingResult result = provider.openStream(book, 0, new RangeSpec(100L, 199L))) {
+            assertThat(result.isPartial()).isTrue();
+            assertThat(result.totalSize()).isEqualTo(samplePdfBytes.length);
+            assertThat(result.contentLength()).isEqualTo(100);
+            assertThat(result.startInclusive()).isEqualTo(100);
+            assertThat(result.endInclusive()).isEqualTo(199);
+
+            byte[] read = result.stream().readAllBytes();
+            assertThat(read).hasSize(100);
+            for (int i = 0; i < 100; i++) {
+                assertThat(read[i]).isEqualTo(samplePdfBytes[100 + i]);
+            }
+        }
+    }
+
+    @Test
+    void openStream_openEndedRange_returnsTailOfFile() throws Exception {
+        Book book = saveUserUploadedBook(42, "manual.pdf");
+
+        // bytes=900- => до конца файла (включительно)
+        try (PdfStreamingResult result = provider.openStream(book, 0, new RangeSpec(900L, null))) {
+            assertThat(result.isPartial()).isTrue();
+            assertThat(result.startInclusive()).isEqualTo(900);
+            assertThat(result.endInclusive()).isEqualTo(samplePdfBytes.length - 1);
+            assertThat(result.contentLength()).isEqualTo(samplePdfBytes.length - 900);
+
+            byte[] read = result.stream().readAllBytes();
+            assertThat(read).hasSize(samplePdfBytes.length - 900);
+        }
+    }
+
+    @Test
+    void openStream_rangeStartBeyondFile_throwsRangeNotSatisfiable() {
+        Book book = saveUserUploadedBook(42, "manual.pdf");
+
+        assertThatThrownBy(() -> provider.openStream(book, 0, new RangeSpec(50_000L, 60_000L)))
+                .isInstanceOf(RangeNotSatisfiableException.class);
+    }
+
+    @Test
+    void openStream_invalidFileIndex_throwsPdfNotAvailable() {
+        Book book = saveUserUploadedBook(42, "manual.pdf");
+
+        assertThatThrownBy(() -> provider.openStream(book, 1, null))
+                .isInstanceOf(PdfNotAvailableException.class);
     }
 
     /**

@@ -4,9 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,6 +35,8 @@ import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.LibraryFile;
 import ru.basnukaev.argumentmap.library.domain.LibraryFileSourceType;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfLocation;
+import ru.basnukaev.argumentmap.library.pdf.domain.PdfStreamingResult;
+import ru.basnukaev.argumentmap.library.pdf.domain.RangeSpec;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.repository.LibraryFileRepository;
 import ru.basnukaev.argumentmap.library.storage.ObjectStorageProperties;
@@ -204,6 +209,103 @@ class PdfLinksSourceProviderIT {
         Book book = saveShamelaBook(6, "01_book.pdf");
 
         assertThat(provider.supports(book)).isTrue();
+    }
+
+    @Test
+    void openStream_cacheHit_streamsFromMinIO_noUpstreamCall() throws Exception {
+        Book book = saveShamelaBook(6, "01_book.pdf");
+        // Pre-fill cache через locateFile
+        provider.locateFile(book, 0);
+        verify(pdfFetcher, times(1)).fetch(any(URI.class), any(Path.class));
+
+        try (PdfStreamingResult result = provider.openStream(
+                book, 0, new RangeSpec(100L, 199L))) {
+            assertThat(result.isPartial()).isTrue();
+            assertThat(result.startInclusive()).isEqualTo(100);
+            assertThat(result.endInclusive()).isEqualTo(199);
+            assertThat(result.totalSize()).isEqualTo(upstreamPdfBytes.length);
+            assertThat(result.contentLength()).isEqualTo(100);
+            byte[] read = result.stream().readAllBytes();
+            assertThat(read).hasSize(100);
+            for (int i = 0; i < 100; i++) {
+                assertThat(read[i]).isEqualTo(upstreamPdfBytes[100 + i]);
+            }
+        }
+
+        // Upstream НЕ был вызван повторно для openStream - MinIO Range
+        verify(pdfFetcher, times(1)).fetch(any(URI.class), any(Path.class));
+        verify(pdfFetcher, never()).openStream(any(URI.class), any(RangeSpec.class));
+    }
+
+    @Test
+    void openStream_cacheMissNullRange_syncCacheFill_thenStreamsFromMinIO() throws Exception {
+        Book book = saveShamelaBook(6, "01_book.pdf");
+
+        try (PdfStreamingResult result = provider.openStream(book, 0, null)) {
+            assertThat(result.isPartial()).isFalse();
+            assertThat(result.contentLength()).isEqualTo(upstreamPdfBytes.length);
+            byte[] read = result.stream().readAllBytes();
+            assertThat(read).containsExactly(upstreamPdfBytes);
+        }
+
+        // Cache fill через locateFile path
+        verify(pdfFetcher, times(1)).fetch(any(URI.class), any(Path.class));
+        verify(pdfFetcher, never()).openStream(any(URI.class), any(RangeSpec.class));
+    }
+
+    @Test
+    void openStream_cacheMissWithRange_lazyForwardToUpstream_noCacheFill() throws Exception {
+        Book book = saveShamelaBook(6, "01_book.pdf");
+        byte[] forwardedChunk = new byte[200];
+        for (int i = 0; i < forwardedChunk.length; i++) {
+            forwardedChunk[i] = (byte) (i + 50);
+        }
+        // Stub pdfFetcher.openStream возвращает кусок как-будто архив отдал 206
+        when(pdfFetcher.openStream(any(URI.class), any(RangeSpec.class)))
+                .thenAnswer(inv -> {
+                    RangeSpec rs = inv.getArgument(1);
+                    return new PdfStreamingResult(
+                            new ByteArrayInputStream(forwardedChunk),
+                            forwardedChunk.length,
+                            rs.startInclusive(),
+                            rs.startInclusive() + forwardedChunk.length - 1,
+                            upstreamPdfBytes.length,
+                            true);
+                });
+
+        try (PdfStreamingResult result = provider.openStream(
+                book, 0, new RangeSpec(0L, 199L))) {
+            assertThat(result.isPartial()).isTrue();
+            assertThat(result.contentLength()).isEqualTo(200);
+            assertThat(result.startInclusive()).isZero();
+            assertThat(result.endInclusive()).isEqualTo(199);
+            assertThat(result.totalSize()).isEqualTo(upstreamPdfBytes.length);
+            assertThat(result.stream().readAllBytes()).containsExactly(forwardedChunk);
+        }
+
+        // pdfFetcher.openStream - вызвался ровно один раз, fetch (full download) - НЕ вызывался
+        verify(pdfFetcher, times(1)).openStream(any(URI.class), any(RangeSpec.class));
+        verify(pdfFetcher, never()).fetch(any(URI.class), any(Path.class));
+        // Catalog должен остаться пустым - lazy без cache fill
+        assertThat(libraryFileRepository.findActiveByBookId(book.id())).isEmpty();
+    }
+
+    @Test
+    void openStream_invalidFileIndex_throwsPdfNotAvailable() {
+        Book book = saveShamelaBook(6, "01_book.pdf");
+
+        assertThatThrownBy(() -> provider.openStream(book, 99, null))
+                .isInstanceOf(PdfNotAvailableException.class);
+    }
+
+    @Test
+    void openStream_cacheHit_rangeStartBeyondFile_throwsRangeNotSatisfiable() {
+        Book book = saveShamelaBook(6, "01_book.pdf");
+        provider.locateFile(book, 0);
+
+        assertThatThrownBy(() -> provider.openStream(
+                book, 0, new RangeSpec(100_000L, 200_000L)))
+                .isInstanceOf(RangeNotSatisfiableException.class);
     }
 
     @Test
