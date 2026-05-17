@@ -76,7 +76,7 @@ class NodeCitationServiceIT {
 
         pageId = UUID.randomUUID();
         pageRepository.save(new Page(pageId, bookId, null, 1, "47", "1", null,
-                "وأرى أن لا تكون البدعة...", null, Instant.now(), Instant.now()));
+                "وأرى أن لا تكون البدعة...", null, null, Instant.now(), Instant.now()));
     }
 
     @Test

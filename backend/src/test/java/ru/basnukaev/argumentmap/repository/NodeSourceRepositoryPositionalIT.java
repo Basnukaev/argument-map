@@ -87,7 +87,7 @@ class NodeSourceRepositoryPositionalIT {
 
         pageId = UUID.randomUUID();
         pageRepository.save(new Page(pageId, bookId, null, 1, "1", "1", null,
-                "Текст страницы для теста", null, Instant.now(), Instant.now()));
+                "Текст страницы для теста", null, null, Instant.now(), Instant.now()));
     }
 
     @Test

@@ -67,7 +67,7 @@ class NodeCitationControllerIT {
                 null, null, null, null, null, null));
         pageId = UUID.randomUUID();
         pageRepository.save(new Page(pageId, bookId, null, 1, "1", "1", null,
-                "текст", null, Instant.now(), Instant.now()));
+                "текст", null, null, Instant.now(), Instant.now()));
     }
 
     @Test

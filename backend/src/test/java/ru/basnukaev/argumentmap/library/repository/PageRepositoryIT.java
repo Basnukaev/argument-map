@@ -63,7 +63,7 @@ class PageRepositoryIT {
         Page page = new Page(
                 UUID.randomUUID(), book.id(), null, 1,
                 null, null, null,
-                "بسم الله", null, Instant.now(), Instant.now()
+                "بسم الله", null, null, Instant.now(), Instant.now()
         );
 
         pageRepository.save(page);
@@ -78,7 +78,7 @@ class PageRepositoryIT {
         Page page = new Page(
                 UUID.randomUUID(), book.id(), null, 1,
                 null, null, null,
-                null, "https://example.com/scan-1.jpg", Instant.now(), Instant.now()
+                null, "https://example.com/scan-1.jpg", null, Instant.now(), Instant.now()
         );
 
         pageRepository.save(page);
@@ -93,7 +93,7 @@ class PageRepositoryIT {
         Page page = new Page(
                 UUID.randomUUID(), book.id(), null, 1,
                 null, null, null,
-                null, null, Instant.now(), Instant.now()
+                null, null, null, Instant.now(), Instant.now()
         );
 
         assertThatThrownBy(() -> pageRepository.save(page))
@@ -106,13 +106,13 @@ class PageRepositoryIT {
         pageRepository.save(new Page(
                 UUID.randomUUID(), book.id(), null, 5,
                 null, null, null,
-                "first", null, Instant.now(), Instant.now()
+                "first", null, null, Instant.now(), Instant.now()
         ));
 
         Page duplicate = new Page(
                 UUID.randomUUID(), book.id(), null, 5,
                 null, null, null,
-                "second", null, Instant.now(), Instant.now()
+                "second", null, null, Instant.now(), Instant.now()
         );
 
         assertThatThrownBy(() -> pageRepository.save(duplicate))
@@ -125,7 +125,7 @@ class PageRepositoryIT {
             pageRepository.save(new Page(
                     UUID.randomUUID(), book.id(), null, i,
                     null, null, null,
-                    "page " + i, null, Instant.now(), Instant.now()
+                    "page " + i, null, null, Instant.now(), Instant.now()
             ));
         }
 
@@ -139,7 +139,7 @@ class PageRepositoryIT {
         Page page = pageRepository.save(new Page(
                 UUID.randomUUID(), book.id(), null, 1,
                 null, null, null,
-                "x", null, Instant.now(), Instant.now()
+                "x", null, null, Instant.now(), Instant.now()
         ));
 
         bookRepository.deleteById(book.id());
@@ -155,7 +155,7 @@ class PageRepositoryIT {
         Page page = pageRepository.save(new Page(
                 UUID.randomUUID(), book.id(), chapter.id(), 1,
                 null, null, null,
-                "x", null, Instant.now(), Instant.now()
+                "x", null, null, Instant.now(), Instant.now()
         ));
 
         chapterRepository.deleteById(chapter.id());
@@ -168,7 +168,7 @@ class PageRepositoryIT {
         Page page = new Page(
                 UUID.randomUUID(), book.id(), null, 0,
                 null, null, null,
-                "x", null, Instant.now(), Instant.now()
+                "x", null, null, Instant.now(), Instant.now()
         );
 
         assertThatThrownBy(() -> pageRepository.save(page))
@@ -180,7 +180,7 @@ class PageRepositoryIT {
         Page page = pageRepository.save(new Page(
                 UUID.randomUUID(), book.id(), null, 5,
                 "47", "المقدمة", 720,
-                "x", null, Instant.now(), Instant.now()
+                "x", null, null, Instant.now(), Instant.now()
         ));
 
         Page reloaded = pageRepository.findById(page.id()).orElseThrow();
@@ -193,23 +193,23 @@ class PageRepositoryIT {
     void findDistinctPartsByBookId_returnsUniqueOrderedParts() {
         pageRepository.save(new Page(
                 UUID.randomUUID(), book.id(), null, 1,
-                "1", "المقدمة", null, "p1", null, Instant.now(), Instant.now()
+                "1", "المقدمة", null, "p1", null, null, Instant.now(), Instant.now()
         ));
         pageRepository.save(new Page(
                 UUID.randomUUID(), book.id(), null, 2,
-                "2", "المقدمة", null, "p2", null, Instant.now(), Instant.now()
+                "2", "المقدمة", null, "p2", null, null, Instant.now(), Instant.now()
         ));
         pageRepository.save(new Page(
                 UUID.randomUUID(), book.id(), null, 3,
-                "1", "1", null, "p3", null, Instant.now(), Instant.now()
+                "1", "1", null, "p3", null, null, Instant.now(), Instant.now()
         ));
         pageRepository.save(new Page(
                 UUID.randomUUID(), book.id(), null, 4,
-                "2", "2", null, "p4", null, Instant.now(), Instant.now()
+                "2", "2", null, "p4", null, null, Instant.now(), Instant.now()
         ));
         pageRepository.save(new Page(
                 UUID.randomUUID(), book.id(), null, 5,
-                null, null, null, "p5", null, Instant.now(), Instant.now()
+                null, null, null, "p5", null, null, Instant.now(), Instant.now()
         ));
 
         List<String> parts = pageRepository.findDistinctPartsByBookId(book.id());

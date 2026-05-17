@@ -199,7 +199,7 @@ class BookServiceIT {
             pageRepository.save(new Page(
                     UUID.randomUUID(), book.id(), null, i,
                     null, null, null,
-                    "p" + i, null, Instant.now(), Instant.now()
+                    "p" + i, null, null, Instant.now(), Instant.now()
             ));
         }
 
@@ -218,7 +218,7 @@ class BookServiceIT {
             pageRepository.save(new Page(
                     UUID.randomUUID(), book.id(), null, i,
                     null, null, null,
-                    "p", null, Instant.now(), Instant.now()
+                    "p", null, null, Instant.now(), Instant.now()
             ));
         }
 
@@ -241,7 +241,7 @@ class BookServiceIT {
         Page page = pageRepository.save(new Page(
                 UUID.randomUUID(), book.id(), null, 1,
                 null, null, null,
-                null, "https://x/scan.jpg", Instant.now(), Instant.now()
+                null, "https://x/scan.jpg", null, Instant.now(), Instant.now()
         ));
         imageRegionRepository.save(new ImageRegion(
                 UUID.randomUUID(), page.id(), 0.1, 0.1, 0.5, 0.5, "بسم الله", Instant.now()
