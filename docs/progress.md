@@ -11,6 +11,96 @@
 
 ---
 
+## 2026-05-17 - Сессия 40 Responsive Фаза 2
+
+Production-prep продолжение Сессии 39: закрыты все 10 точек Responsive
+Фазы 2. До этой сессии mobile (<768px) работал только на foundation
+из Фазы 1 (Modal, Header, NodeDetailsPanel) - остальные страницы
+выпадали за viewport. Сейчас 0 horizontal scroll на 375px на всех
+ключевых страницах (топики/книги/Q&A/админ/reader). 179/179 tests
+pass, build clean, lint clean.
+
+**Что сделано (10 коммитов по точке + 1 doc):**
+
+1. **#1 BookReaderPage drawer + fullscreen PDF preview** (bf2d94f) -
+   на <md inline sidebar с chapters скрыт, заменён на drawer Modal
+   (full-screen). Открывается из toolbar кнопкой «Главы» (icon List).
+   PDF preview overlay на mobile занимает h-dvh (max-md:inset-0)
+   вместо bottom-sheet с drag-handle (drag скрыт). Sticky toolbar
+   снят на mobile (md:sticky) - browser address-bar collapsing
+   делает sticky прыгающим
+2. **#2 sticky chapters sidebar - dvh вместо vh** (e48c244) -
+   max-h calc(100vh-7rem) → calc(100dvh-7rem). vh не учитывает
+   collapsing address-bar на iOS Safari / Chrome
+3. **#3 PdfViewer toolbar - vertical stack на mobile** (9c51bf2) -
+   6+ items toolbar (prev/page/next + zoom/scale/zoom/download) на
+   <sm в 2 ряда вместо ломаного flex-wrap. Через `flex-col sm:flex-row`
+   + group rolled через `sm:contents`
+4. **#4+#5 cards layout - mobile padding reduction** (cea3b06) -
+   TopicListPage / QuestionListPage / BookListPage уже были responsive
+   (grid-cols-1 sm:grid-cols-2 lg:grid-cols-3). Дополнено
+   px-3 py-6 на mobile вместо px-6 py-8 - +24px content width
+5. **#6 CreateQuestionPage hint - mobile padding** (389d4eb) - тот же
+   паттерн padding reduction + CreateTopicPage. Hint остаётся видимым
+   ниже формы (не в collapsible) - lg:grid-cols-[1fr_300px] стэкается
+6. **#7 AdminShamelaPage mobile stack + table h-scroll** (4cbcdb2) -
+   ResultsTable в overflow-x-auto + min-w-[668px] (sticky header
+   скроллируется синхронно). StatusStrip status chip получил
+   col-span-2 sm:col-span-3 - на mobile занимает полную ширину строки
+7. **#8 CitationPicker tab switcher** (2d1c4a4) - 3-колоночный layout
+   (books 280 + reader flex + selection 320) на <sm заменён на 3-tab
+   switcher (books / reader / selection). Auto-switch после выбора
+   книги (books → reader). Tab selection с badge-dot если есть
+   selection. Reader-tab disabled до выбора книги. Modal-обёртка
+   fullscreen на mobile (h-dvh, rounded-none, subtitle скрыт)
+8. **#9 FileUploadModal academic - 1-col grid** (35ccb31) - 3 numeric
+   поля (edition/yearHijri/yearGregorian) grid-cols-3 → grid-cols-1
+   sm:grid-cols-3. Затрагивает FileUploadModal, BookEditModal,
+   AddSourceModal (общий AcademicMetadataFields)
+9. **#10 BookListPage filter chips overflow** (0f3bc7a) - filter
+   chips на mobile в overflow-x-auto + -mx-3 px-3 для edge-to-edge
+   scrollbar (standard mobile category pattern). Та же правка
+   применена к QuestionListPage chips для consistency
+
+**i18n - 3 новых ключа (RU+AR):**
+- `citation_picker.tab_books` / `tab_reader` / `tab_selection`
+
+**Playwright smoke @ 375x812:**
+
+Все 5 list/create страниц + BookReader дают scroll=365/375 (нет
+horizontal overflow). Screenshots в `/tmp/responsive-phase2-*-375.png`
+
+**Документация:**
+- roadmap.md - Responsive Фаза 1+2 сжата в одну строку closed-stages,
+  активная секция «User feedback Responsive» убрана. Принцип 3
+  doc-hygiene (закрытый этап = строка)
+- backlog.md - Фаза 2 чек-лист убран, добавлена Фаза 3 (3 точки
+  возможных улучшений без обязательств)
+- progress.md - эта запись
+- coding-standards.md - примеры grid responsive, drawer pattern,
+  dvh использование, overflow scroll для chips - см. следующий
+  коммит
+
+**Что user проверить руками:**
+
+Chrome DevTools emulation iPhone 13 (390×844) + iPad Mini (768×1024):
+1. `/topics`, `/qa`, `/books` - cards в 1 col, padding 12px, filter
+   chips скроллятся горизонтально
+2. `/admin/shamela` - 5 stat карточек + status chip в 2-col, после
+   sync ResultsTable скроллится горизонтально на mobile
+3. `/books/{id}` - кнопка «Содержание» открывает drawer Modal со
+   списком глав. PDF mode тоже показывает «Содержание»
+4. `/qa/new` - форма сверху, hint снизу (не сжато). Padding 12px
+5. CitationPicker (открыть из node deтails / question detail
+   citations panel) - на mobile должны быть 3 tab (книги/чтение/
+   выделение), при выборе книги автоматически в reader
+6. FileUploadModal в `/admin/shamela` (кнопка «Из файла») - раскрыть
+   academic секцию, поля edition/years в одну колонку
+
+Tests: 179 passes (24 test files). Build: 497KB main bundle gzipped.
+
+---
+
 ## 2026-05-17 - Сессия 39 Responsive Фаза 1
 
 Production-prep работа по адаптации UI под mobile (375+) и tablet

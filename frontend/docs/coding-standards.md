@@ -478,8 +478,10 @@ Unicode Bidi Algorithm может склеить цифры с соседним�
 ## Responsive
 
 UI должен работать на mobile (375px+) и tablet (768px+) viewport.
-Фаза 1 (Modal, Header, NodeDetailsPanel, Select) закрыта в Сессии
-39 - см. `docs/roadmap.md` секция «User feedback Responsive»
+Фаза 1 (Modal, Header, NodeDetailsPanel, Select) - Сессия 39.
+Фаза 2 (BookReader drawer, PdfViewer 2-row, CitationPicker tabs,
+list/create padding, table h-scroll, filter chips overflow) -
+Сессия 40. Обе сжаты в roadmap closed-stages
 
 ### Mobile-first + breakpoint prefixes
 
@@ -547,6 +549,123 @@ Mobile browser address-bar collapsing - на iOS Safari / Chrome
 `100vh` шире viewport когда bar развёрнут. Использовать `h-dvh`
 (dynamic viewport height) - корректное значение в обоих состояниях.
 Modal Фазы 1 уже использует
+
+### Grid responsive (cards layout)
+
+Стандартный паттерн для list-страниц:
+
+```tsx
+<ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+```
+
+Mobile-first: на 375px одна колонка, на >=640 две, на >=1024 три,
+на >=1280 четыре. `gap-4` константен - визуальный rhythm не должен
+прыгать на breakpoints. См. `BookListPage` (5 cols max),
+`TopicListPage` (3 cols max)
+
+### Container padding на mobile
+
+`px-3 py-6 sm:px-6 sm:py-8` - mobile padding 12px/24px, desktop
+24px/32px. На 375px это даёт +24px content width vs константного
+px-6. Применяется ко всем `<main>` containers списочных и
+create-страниц
+
+### Filter chips - overflow-x-auto на mobile
+
+6+ chips в filter bar не помещаются в 375px. Стандарт mobile -
+horizontal scroll (iOS Safari / Android Chrome знакомый gesture):
+
+```tsx
+<div className="-mx-3 flex overflow-x-auto px-3 sm:mx-0 sm:overflow-visible sm:px-0">
+  <div className="flex gap-1 shrink-0">
+    {chips.map((c) => (
+      <button key={c} className="... whitespace-nowrap">{c}</button>
+    ))}
+  </div>
+</div>
+```
+
+`-mx-3 px-3` cancellation - scrollbar идёт edge-to-edge без обрезки
+padding parent'а. `whitespace-nowrap` на chip обязателен - иначе
+длинные локализации (arabic) ломают на 2 строки
+
+### Drawer pattern на mobile (chapters sidebar и т.п.)
+
+Inline sidebar (280px aside слева) на mobile занимает половину
+viewport - неприемлемо. Переезжает в `Modal` (full-screen из
+Фазы 1), открывается из кнопки в content:
+
+```tsx
+// Desktop: inline. Mobile: hidden - открывается через button + Modal
+<aside className="hidden w-[280px] shrink-0 md:block">
+  <Card className="sticky top-6 max-h-[calc(100dvh-7rem)] overflow-y-auto p-4">
+    {chaptersContent}
+  </Card>
+</aside>
+
+{/* В toolbar - кнопка «Главы» которая открывает drawer */}
+<Button icon={List} className="md:hidden" onClick={() => setOpen(true)}>
+  Главы
+</Button>
+
+{isMobile && open && (
+  <Modal open onClose={() => setOpen(false)} title="Главы">
+    {chaptersContent}
+  </Modal>
+)}
+```
+
+`chaptersContent` - extracted JSX, переиспользуется между inline и
+drawer. Не дублировать markup
+
+### Table h-scroll на mobile
+
+Data table с фиксированной grid-template (например 668px суммарно)
+на 375px не помещается. Решение - `overflow-x-auto` wrapper +
+`min-w-[668px]` inner:
+
+```tsx
+<div className="overflow-x-auto rounded-lg border border-border bg-elevated">
+  <div className="min-w-[668px]">
+    <div className="sticky top-0 grid ..." style={{ gridTemplateColumns }}>
+      {/* headers */}
+    </div>
+    <ul>{/* rows */}</ul>
+  </div>
+</div>
+```
+
+Sticky header работает корректно - двигается синхронно при
+horizontal scroll. См. `AdminShamelaPage::ResultsTable`
+
+### Tab switcher для multi-column модалок
+
+3-колоночные модалки (BooksList + Reader + SelectionPanel)
+на mobile превращаются в tab switcher вместо 3 столбцов. Auto-switch
+табов после действия (`books → reader` после выбора книги):
+
+```tsx
+const [tab, setTab] = useState<'books' | 'reader' | 'selection'>('books');
+
+return (
+  <>
+    <div role="tablist" className="flex border-b sm:hidden">
+      <TabButton active={tab === 'books'} onClick={() => setTab('books')}>Книги</TabButton>
+      {/* ... */}
+    </div>
+    <div className="flex flex-1 gap-3">
+      <aside className={`${isMobile && tab !== 'books' ? 'hidden' : 'flex'} sm:flex`}>
+        ...
+      </aside>
+      {/* center, right - аналогично */}
+    </div>
+  </>
+);
+```
+
+Не использовать conditional render `{tab === 'X' && <Panel/>}` -
+unmount теряет internal state форм. Использовать CSS toggle через
+hidden/flex classes. См. `CitationPicker.tsx`
 
 ### Testing
 
