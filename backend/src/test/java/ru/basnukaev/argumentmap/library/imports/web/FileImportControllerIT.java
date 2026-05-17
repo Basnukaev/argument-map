@@ -324,6 +324,23 @@ class FileImportControllerIT {
     }
 
     @Test
+    void POST_withInvalidLanguage_returns422() throws Exception {
+        byte[] pdfBytes = buildPdf(List.of("p"));
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "bad-lang.pdf", MediaType.APPLICATION_PDF_VALUE, pdfBytes);
+
+        mockMvc.perform(multipart("/api/v1/library/imports/file")
+                        .file(file)
+                        .param("language", "zzzz")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.type")
+                        .value("https://argumentmap.example/errors/file-import-error"))
+                .andExpect(jsonPath("$.detail")
+                        .value(Matchers.containsString("language")));
+    }
+
+    @Test
     void POST_minimumFields_filenameAsTitleAndArDefault() throws Exception {
         byte[] pdfBytes = buildPdf(List.of("one page"));
         MockMultipartFile file = new MockMultipartFile(

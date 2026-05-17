@@ -30,7 +30,10 @@ import ru.basnukaev.argumentmap.web.CurrentUser;
  *   <li>{@code title} (optional) - override автоматически извлечённого
  *       из PDF metadata</li>
  *   <li>{@code authorityId} (optional) - UUID существующего автора</li>
- *   <li>{@code language} (optional) - ISO 639-1, default {@code "ar"}</li>
+ *   <li>{@code language} (optional) - ISO 639-1 из whitelist
+ *       {@code ar|ru|en} (mirror frontend FileUploadModal), default
+ *       {@code "ar"} применяется в сервисе если blank. Неподдерживаемое
+ *       значение → 422</li>
  *   <li>{@code description} (optional) - заметки</li>
  *   <li>Academic-поля (Этап 16.g, optional) - {@code muhaqqiqName},
  *       {@code publisherName}, {@code publicationPlaceName},
@@ -69,6 +72,13 @@ public class FileImportController {
      */
     static final Set<String> ALLOWED_MIME_TYPES = Set.of(MediaType.APPLICATION_PDF_VALUE);
 
+    /**
+     * Whitelist допустимых ISO 639-1 кодов языка для user-upload.
+     * Совпадает с set'ом в frontend форме (FileUploadModal) - закрывает
+     * contract drift между backend и frontend. Расширяется по запросу.
+     */
+    static final Set<String> ALLOWED_LANGUAGES = Set.of("ar", "ru", "en");
+
     // Mirror диапазонов из CreateBookRequest/UpdateBookRequest DTO (Этап 20.e).
     // Если меняются там - надо менять здесь
     private static final int EDITION_MIN = 1;
@@ -100,6 +110,7 @@ public class FileImportController {
             @CurrentUser UUID currentUserId) {
 
         validateFile(file);
+        validateLanguage(language);
         validateAcademicRanges(editionNumber, publishedYearHijri, publishedYearGregorian);
 
         byte[] bytes;
@@ -152,6 +163,24 @@ public class FileImportController {
             throw new UnsupportedMediaTypeException(
                     "тип файла " + contentType + " не поддерживается, ожидаются: "
                             + ALLOWED_MIME_TYPES);
+        }
+    }
+
+    /**
+     * Валидация language-кода по whitelist. Blank/null - валидно
+     * (сервис применит default {@code "ar"}). Иначе значение должно
+     * быть в {@link #ALLOWED_LANGUAGES}.
+     *
+     * @throws FileImportException 422 если значение вне whitelist'а
+     */
+    private static void validateLanguage(String language) {
+        if (language == null || language.isBlank()) {
+            return;
+        }
+        if (!ALLOWED_LANGUAGES.contains(language)) {
+            throw new FileImportException(
+                    "language должен быть одним из " + ALLOWED_LANGUAGES
+                            + ", получено '" + language + "'");
         }
     }
 
