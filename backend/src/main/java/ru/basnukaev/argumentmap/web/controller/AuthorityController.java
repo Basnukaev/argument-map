@@ -19,6 +19,8 @@ import ru.basnukaev.argumentmap.domain.Authority;
 import ru.basnukaev.argumentmap.service.AuthorityService;
 import ru.basnukaev.argumentmap.web.dto.AuthorityResponse;
 import ru.basnukaev.argumentmap.web.dto.CreateAuthorityRequest;
+import ru.basnukaev.argumentmap.web.dto.PageRequest;
+import ru.basnukaev.argumentmap.web.dto.PagedResponse;
 import ru.basnukaev.argumentmap.web.mapper.DtoMappers;
 
 @RestController
@@ -41,12 +43,32 @@ public class AuthorityController {
                 .body(DtoMappers.toResponse(created));
     }
 
+    /**
+     * Пагинированный список авторитетов (Этап pagination).
+     *
+     * <p>Фильтры (опциональные):
+     * <ul>
+     *   <li>{@code q} - подстрока в name (case-insensitive)</li>
+     *   <li>{@code era} - exact match по veka/эпохе (свободный текст,
+     *       не enum: "XIII-XIV век", "сахаба", "табиины" и т.д.)</li>
+     * </ul>
+     *
+     * <p>Note: {@code madhab} как фильтр - не в MVP. Свободный текст и
+     * variability (ханбалитский / Hanbali / حنبلي) делает фильтр без
+     * нормализации малополезным. Когда понадобится - вводим master-data
+     * таблицу мазхабов с FK.
+     */
     @GetMapping
-    public List<AuthorityResponse> list(@RequestParam(name = "q", required = false) String query) {
-        List<Authority> found = (query == null || query.isBlank())
-                ? authorityService.listAuthorities()
-                : authorityService.searchByName(query);
-        return found.stream().map(DtoMappers::toResponse).toList();
+    public PagedResponse<AuthorityResponse> list(
+            @RequestParam(name = "q", required = false) String query,
+            @RequestParam(name = "era", required = false) String era,
+            @RequestParam(name = "page", required = false) Integer page,
+            @RequestParam(name = "size", required = false) Integer size) {
+        PageRequest pr = PageRequest.from(page, size);
+        List<Authority> items = authorityService.listPage(query, era, pr.size(), pr.offset());
+        long total = authorityService.countFiltered(query, era);
+        List<AuthorityResponse> mapped = items.stream().map(DtoMappers::toResponse).toList();
+        return PagedResponse.of(mapped, pr.page(), pr.size(), total);
     }
 
     @GetMapping("/{authorityId}")

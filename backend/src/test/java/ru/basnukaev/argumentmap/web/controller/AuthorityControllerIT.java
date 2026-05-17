@@ -80,13 +80,16 @@ class AuthorityControllerIT {
     }
 
     @Test
-    void listAuthorities_returnsAll() throws Exception {
+    void listAuthorities_returnsAllAsPagedResponse() throws Exception {
         createAuthority("a");
         createAuthority("b");
 
         mockMvc.perform(get("/api/v1/authorities"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2));
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalElements").value(2));
     }
 
     @Test
@@ -97,7 +100,46 @@ class AuthorityControllerIT {
 
         mockMvc.perform(get("/api/v1/authorities").param("q", "имам"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2));
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    @Test
+    void listAuthorities_paginated_secondPage() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            createAuthority("auth-" + i);
+        }
+        mockMvc.perform(get("/api/v1/authorities")
+                        .param("page", "1").param("size", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.totalElements").value(5))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.hasPrev").value(true));
+    }
+
+    @Test
+    void listAuthorities_filterByEra_returnsOnlyMatching() throws Exception {
+        createAuthorityWithEra("Малик", "VIII век");
+        createAuthorityWithEra("Шафии", "VIII век");
+        createAuthorityWithEra("Ибн Таймия", "XIII-XIV век");
+
+        mockMvc.perform(get("/api/v1/authorities").param("era", "VIII век"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    private UUID createAuthorityWithEra(String name, String era) throws Exception {
+        var req = new CreateAuthorityRequest(name, null, era, null, null);
+        String json = mockMvc.perform(post("/api/v1/authorities")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return UUID.fromString(objectMapper.readTree(json).get("id").asText());
     }
 
     @Test

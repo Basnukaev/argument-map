@@ -3,6 +3,7 @@ package ru.basnukaev.argumentmap.repository;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.instant;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.odt;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -79,6 +80,42 @@ public class AuthorityRepository {
                 ROW_MAPPER,
                 "%" + query + "%"
         );
+    }
+
+    /**
+     * Пагинированный список с фильтрами. era - exact match (varchar в схеме,
+     * без enum-whitelist - в проекте свободный текст типа "XIII-XIV век").
+     * Сортировка: name (исторический порядок для справочника учёных).
+     */
+    public List<Authority> findPage(String query, String era, int limit, int offset) {
+        StringBuilder sql = new StringBuilder("SELECT ").append(COLUMNS)
+                .append(" FROM authorities WHERE 1=1");
+        List<Object> args = new ArrayList<>();
+        appendFilters(sql, args, query, era);
+        sql.append(" ORDER BY name LIMIT ? OFFSET ?");
+        args.add(limit);
+        args.add(offset);
+        return jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray());
+    }
+
+    public long countFiltered(String query, String era) {
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM authorities WHERE 1=1");
+        List<Object> args = new ArrayList<>();
+        appendFilters(sql, args, query, era);
+        Long count = jdbcTemplate.queryForObject(sql.toString(), Long.class, args.toArray());
+        return count == null ? 0L : count;
+    }
+
+    private static void appendFilters(StringBuilder sql, List<Object> args,
+                                      String query, String era) {
+        if (query != null && !query.isBlank()) {
+            sql.append(" AND name ILIKE ?");
+            args.add("%" + query + "%");
+        }
+        if (era != null && !era.isBlank()) {
+            sql.append(" AND era = ?");
+            args.add(era);
+        }
     }
 
     /**

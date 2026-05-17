@@ -48,6 +48,16 @@ public class AuthorityService {
         return authorityRepository.searchByName(query);
     }
 
+    @Transactional(readOnly = true)
+    public List<Authority> listPage(String query, String era, int limit, int offset) {
+        return authorityRepository.findPage(query, era, limit, offset);
+    }
+
+    @Transactional(readOnly = true)
+    public long countFiltered(String query, String era) {
+        return authorityRepository.countFiltered(query, era);
+    }
+
     @Transactional
     public void deleteAuthority(UUID id) {
         boolean removed = authorityRepository.deleteById(id);
