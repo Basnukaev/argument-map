@@ -405,37 +405,21 @@ diacritics-aware lookup). Подробности и план - в `docs/backlog.
       30+ backend IT (246 frontend + 605 backend total). Transitional в
       dev/test: GET /api/** остаётся permitAll - покрывает 60+ existing IT
       без переписывания. В prod profile GET тоже authenticated()
-- [x] **Этап 22 (Сессия 42-43, ADR-043) - RBAC permissions per-entity:**
-      backend (22.a) topics.visibility (PRIVATE/SHARED/PUBLIC) +
-      topic_members M:N (MEMBER/EDITOR) + миграция 36 + PermissionService +
-      TopicAccessDeniedException/TopicWriteAccessDeniedException (403
-      forbidden-topic-access/write) + ADMIN bypass. Service-layer ассерты
-      (TopicService/NodeService/EdgeService) + (userId, role) перегрузки +
-      SecurityContextUtils.currentRole(). REST: POST/GET/PATCH/DELETE
-      /api/v1/topics/{id}/members + PATCH /api/v1/topics/{id}/visibility.
-      ~43 backend test. Frontend (22.b): VisibilityRadioGroup + VisibilityBadge
-      компоненты, radio в CreateTopicPage, TopicMembersModal с add/remove/role
-      change, badge на TopicListPage cards + TopicGraphPage header с change
-      visibility/manage members кнопками для owner, hiding write actions
-      (canWrite в GraphCanvas/GraphPanels), permissionErrors helper для
-      локализации 403 forbidden-topic-* в toast. 12 новых frontend test
-      (CreateTopicPage +3, TopicMembersModal 5, итого 311 frontend)
-- [x] **22.c (Сессия 37, ADR-043 Amendment) - RBAC extension на library
-      books + Q&A guards:** миграция 37 `lib_books.visibility` (default
-      PUBLIC для open library) + `lib_book_members` M:N (MEMBER/EDITOR);
-      `PermissionService.canReadBook`/`canWriteBook`/`isBookOwner` +
-      assertions; `BookMemberService` + REST POST/GET/PATCH/DELETE
-      `/api/v1/library/books/{id}/members` + PATCH `/visibility`;
-      BookController visibility-фильтр в list/get/delete/update +
-      `FileImportService` ставит PRIVATE для user-uploads. Q&A: author/
-      admin guard в `QuestionService.update/deleteQuestion(.., userId,
-      role)` и `AnswerService.update/deleteAnswer(.., userId, role)` -
-      без visibility model (open discussion). Новые exceptions: Book/
-      Answer/QuestionWriteAccessDeniedException + BookAccessDenied +
-      BookMemberNotFound → 403 forbidden-{book|answer|question}-write,
-      forbidden-book-access. Total 733 tests (+29 от 22.b: 13 IT
-      PermissionServiceBookIT + 10 BookMemberControllerIT + 5 Answer/
-      QuestionControllerIT + 1 BookControllerIT permission case)
+- [x] **Этап 22 (Сессии 42-44, ADR-043 + Amendment) - RBAC permissions
+      per-entity:** topics (22.a backend + 22.b frontend) + library books
+      (22.c backend + 22.c.f frontend) + Q&A author guards. Hybrid visibility
+      model (PRIVATE/SHARED/PUBLIC) + members M:N (MEMBER/EDITOR) + ADMIN
+      bypass через PermissionService service-layer ассерты. Миграции 36
+      (topic_members) + 37 (lib_books.visibility + lib_book_members). REST
+      POST/GET/PATCH/DELETE `/api/v1/{topics|library/books}/{id}/members`
+      + PATCH `/visibility`. 403 Problem Details
+      `forbidden-{topic|book|answer|question}-{access|write}`. Q&A без
+      visibility - только author/admin guards. Frontend: VisibilityRadioGroup
+      + VisibilityBadge в shared (reuse topics+books), Topic/BookMembersModal,
+      visibility radio в CreateTopicPage/BookEditModal, badge на Topic/BookList
+      cards + Topic/BookReader headers с change/manage кнопками для owner,
+      hiding write actions, permissionErrors helper. Total: backend 733+
+      tests, frontend 333 (Topic/BookMembersModal по 5 + CreateTopicPage +3)
 - [ ] **22.d:** Audit log per-entity - кто что менял когда + кто
       получил/потерял access (отдельная таблица + endpoint history).
       Сейчас trace только через revisions для контента и стандартный

@@ -11,6 +11,75 @@
 
 ---
 
+## 2026-05-18 - Этап 22.c.f frontend - book visibility + members UI (Этап 22 закрыт)
+
+Зеркало 22.b TopicMembersModal/visibility UI для library books (ADR-043
+Amendment). Параллельно с voting-subagent (NodeCard vote buttons - моя
+зона была library/admin/shared, не пересекались)
+
+**Реализовано (4 атомарных коммита + docs):**
+
+1. **types.ts regen** + **VisibilityRadioGroup/VisibilityBadge → shared**
+   (`shared/components/visibility/`). Generic тип `Visibility` (alias
+   `TopicVisibility` для backward compat) + проп `labelPrefix`
+   ('topic.visibility' | 'book.visibility'). Старые файлы в
+   `apps/argument-map/components/` стали re-export'ами - не правил все
+   callsite'ы в одном PR
+2. **BookMembersModal** + **BookEditModal extension** - точная копия
+   паттерна TopicMembersModal с заменой endpoint'ов и i18n. BookEditModal
+   получил секцию visibility (radio) + кнопку «Управление участниками»
+   при SHARED. i18n словарь дополнен 9 ключами `book.visibility.*` + 23
+   `book.members.*` + 6 `book.permission.*` (RU + AR)
+3. **VisibilityBadge на BookListPage cards** (compact, в Card.Eyebrow
+   рядом с book type chip и language). **BookReaderPage header** через
+   BookHeader children slot: owner/admin видят кликабельный badge для
+   смены + Members button при SHARED, прочие - read-only badge. Local
+   `BookVisibilityChangeForm` mirror VisibilityChangeForm из TopicGraphPage
+4. **permissionErrors.ts** дополнен `forbidden-book-{access|write}`
+   → `book.permission.{forbidden_access|forbidden_write}`
+
+**Результаты:**
+
+- `npm test -- --run`: **333/333 pass** (+5 BookMembersModal tests, baseline
+  328 → 333)
+- `npm run lint`: 0 errors, 7 warnings (existing fast-refresh)
+- `npm run build`: success (PdfViewer chunk warning остался - existing)
+- `npx tsc --noEmit -p tsconfig.app.json`: clean
+- Playwright smoke (headless): login admin → /books показывает 7 visibility
+  badges (Globe для shamela PUBLIC) → открыть книгу → header показывает
+  кликабельный «Публичная» badge → modal с 3 radio (Приватная/Разделяемая/
+  Публичная) → смена на SHARED → save → Members button появляется → клик →
+  модалка «Участники книги» с owner-row (Crown + UUID) → revert PUBLIC
+
+**Этап 22 (a + b + c + c.f) закрыт целиком** - roadmap сжат в одну запись
+
+**Что отложено (22.d):**
+
+- Audit log per-entity - кто что менял когда + кто получил/потерял access
+- Private Q&A model (visibility + members для questions/answers) если
+  понадобится для закрытых учёных групп
+- Owner check на BookListPage `Pencil` action - сейчас не gated на UI
+  (показан всем). Бэк сам отдаёт 403 и toast показывает локализованное
+  сообщение через formatPermissionError. UI gating требует createdBy
+  в BookSummaryResponse - backlog
+
+**Проверить руками:**
+
+- `/books` - visibility badges (Globe для PUBLIC, Lock для PRIVATE,
+  Users для SHARED) на каждой карточке рядом с book type chip
+- Открыть любую книгу из списка - в правом верхнем углу header'а
+  должен быть кликабельный badge с visibility (для admin) + кнопка
+  «Управление участниками» если SHARED
+- Click visibility badge → modal с 3 radio'ами, hint текст под каждым
+- Сменить на SHARED → save → появится Members button → click →
+  модалка с owner-row сверху + форма добавления (UUID + role select)
+- Upload новой PDF через `/admin` → книга создаётся PRIVATE (backend
+  default для user-uploads), сразу видна с Lock badge в /books
+- AR-локаль (RU/AR switch в header) - все badges/modals на арабском
+  (`خاص` / `مشترك` / `عام`)
+
+---
+
 ## 2026-05-18 - Этап 22.c RBAC extension: library books + Q&A guards
 
 Расширил ADR-043 RBAC permissions per-entity (Этап 22.a-b - topics) на
