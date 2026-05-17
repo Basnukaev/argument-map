@@ -12,10 +12,11 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
 
@@ -32,8 +33,12 @@ import software.amazon.awssdk.services.s3.S3Configuration;
  *   <li>{@code UrlConnectionHttpClient} - lightweight blocking client.
  *       Default netty (async/reactive) тяжелее, не нужен для синхронного
  *       use-case с Range streaming через ServletOutputStream</li>
- *   <li>Retry policy - встроенный exponential backoff на 5xx, throttling,
- *       connection reset. {@code maxRetries} из properties</li>
+ *   <li>Retry strategy - {@code AwsRetryStrategy.standardRetryStrategy()}
+ *       (современный API вместо deprecated {@code RetryPolicy}). Встроенный
+ *       exponential backoff с jitter, retry на 5xx / throttling /
+ *       connection reset. {@code maxAttempts = maxRetries + 1} - первая
+ *       попытка не считается retry в новом API, поэтому семантика
+ *       сохранена идентично legacy {@code numRetries}</li>
  *   <li>{@code endpointOverride} - dev указывает на MinIO localhost,
  *       prod на S3 провайдера</li>
  * </ul>
@@ -60,8 +65,13 @@ public class S3ClientConfig {
                 .pathStyleAccessEnabled(properties.pathStyleAccess())
                 .build();
 
-        RetryPolicy retryPolicy = RetryPolicy.defaultRetryPolicy().toBuilder()
-                .numRetries(properties.maxRetries())
+        // AWS SDK v2 RetryStrategy (заменил deprecated RetryPolicy в 2.26+).
+        // standardRetryStrategy() = exponential backoff с jitter + retry на
+        // transient errors (5xx, throttling, connection reset). maxAttempts
+        // включает первую попытку, поэтому +1 к maxRetries для сохранения
+        // семантики (numRetries=3 → 1 initial + 3 retries = 4 attempts).
+        RetryStrategy retryStrategy = AwsRetryStrategy.standardRetryStrategy().toBuilder()
+                .maxAttempts(properties.maxRetries() + 1)
                 .build();
 
         // apiCallTimeout split (ADR-024, Этап 25.b operational hardening).
@@ -79,7 +89,7 @@ public class S3ClientConfig {
                 properties.connectTimeout().toSeconds());
 
         ClientOverrideConfiguration overrideConfig = ClientOverrideConfiguration.builder()
-                .retryPolicy(retryPolicy)
+                .retryStrategy(retryStrategy)
                 .apiCallTimeout(totalTimeout)
                 .apiCallAttemptTimeout(attemptTimeout)
                 .build();

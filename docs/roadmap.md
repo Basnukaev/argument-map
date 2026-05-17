@@ -269,7 +269,14 @@ shamela не имеет нужной книги. MinIO storage готов из 2
         Conditional `storage.integrity.enabled` (default false). 6 IT
         тестов с MinIO testcontainer: healthy/corrupted/missing/soft-
         deleted-skipped/mixed/case-insensitive-hash
-  - [ ] AWS SDK v2 migration legacy `RetryPolicy` → `RetryStrategy`
+  - [x] **AWS SDK v2 migration `RetryPolicy` → `RetryStrategy`** (Сессия 37) -
+        deprecated `software.amazon.awssdk.core.retry.RetryPolicy` заменён
+        на современный `software.amazon.awssdk.retries.api.RetryStrategy`
+        через `AwsRetryStrategy.standardRetryStrategy()`. Семантика
+        сохранена: exponential backoff с jitter + retry на 5xx /
+        throttling / connection reset. `maxAttempts = maxRetries + 1`
+        (новый API считает initial attempt частью лимита, legacy
+        `numRetries` нет). `apiCallTimeout` split (см. ниже) не тронут
   - [x] **`StreamingResponseBody` bounded `ThreadPoolTaskExecutor`**
         (Сессия 36) - `AsyncWebConfig` устанавливает `ThreadPoolTaskExecutor`
         как default для async MVC: core=10, max=50, queue=100, keepAlive=60s,

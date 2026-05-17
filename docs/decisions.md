@@ -2115,6 +2115,41 @@ operational concern.
 - Если AWS SDK v2 устаревает или появится более удобный вариант
   (например common-storage-api JEP в Java) - возможен switch
 
+**Amendment 25.b - RetryStrategy migration (Сессия 37):**
+
+Закрытие последнего пункта operational hardening Этапа 25.b - переход с
+deprecated `software.amazon.awssdk.core.retry.RetryPolicy` на
+современный `software.amazon.awssdk.retries.api.RetryStrategy` API.
+`RetryPolicy` помечен deprecated в AWS SDK v2 начиная с 2.26.x (новый
+retry API введён для лучшей композиции, явного `maxAttempts` вместо
+`numRetries`, и pluggable `BackoffStrategy`).
+
+Решения:
+- **`AwsRetryStrategy.standardRetryStrategy()`** - выбран standard mode
+  (не `legacyRetryStrategy()` и не `adaptiveRetryStrategy()`). Standard
+  даёт exponential backoff с jitter + retry на 5xx/throttling/
+  connection reset - то же что давал старый `RetryPolicy.defaultRetryPolicy()`.
+  Legacy mode семантически equivalent старому SDK v1 behaviour, нам не
+  нужен. Adaptive добавляет client-side rate limiting (token bucket
+  per service+region) - полезно для high-throughput AWS Lambda, но
+  оверкилл для нашего low-traffic S3 backend с known endpoint
+- **`maxAttempts = maxRetries + 1`** - новый API считает initial
+  attempt частью `maxAttempts`, legacy `numRetries` не считал. `+1`
+  сохраняет идентичную семантику: `maxRetries=3` → `4 attempts total`
+  → `1 initial + 3 retries`. Если оставить без `+1` - retry budget
+  тихо сократился бы с 3 до 2 retries
+- **`ClientOverrideConfiguration.retryStrategy(...)`** заменил
+  `.retryPolicy(...)`. Оба метода существуют параллельно (старый ещё
+  не удалён, только deprecated) - это упрощает миграцию
+- **Не трогали `apiCallTimeout` / `apiCallAttemptTimeout` split** -
+  он сделан в предыдущей итерации 25.b и работает корректно с новым
+  RetryStrategy (timeouts настраиваются на уровне
+  `ClientOverrideConfiguration`, retry strategy их не затрагивает)
+
+Триггер пересмотра в footer ADR-024 («Если AWS SDK v2 устаревает или
+появится более удобный вариант») уже отрабатывал именно этот случай -
+SDK сам предложил более удобный API внутри той же major-версии.
+
 **Amendment 25.b - Integrity verification cron (Сессия 36):**
 
 Реализация 6-го пункта operational hardening из ADR-024.

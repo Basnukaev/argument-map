@@ -10,6 +10,62 @@
 
 ---
 
+## 2026-05-17 - Сессия 37, 25.b - RetryStrategy migration
+
+Закрытие последнего пункта Этапа 25.b operational hardening - миграция
+с deprecated `RetryPolicy` AWS SDK v2 на современный `RetryStrategy` API.
+Этап 25.b теперь полностью закрыт
+
+### Сделано
+
+**Backend (1 коммит `feat(backend): Этап 25.b - RetryStrategy ...`):**
+
+- `S3ClientConfig.java`:
+  - import `software.amazon.awssdk.core.retry.RetryPolicy` удалён,
+    добавлены `software.amazon.awssdk.awscore.retry.AwsRetryStrategy` +
+    `software.amazon.awssdk.retries.api.RetryStrategy`
+  - `RetryPolicy.defaultRetryPolicy().toBuilder().numRetries(N).build()`
+    заменён на
+    `AwsRetryStrategy.standardRetryStrategy().toBuilder().maxAttempts(N+1).build()`.
+    `+1` потому что новый API считает initial attempt частью лимита,
+    legacy `numRetries` - нет. Семантика exponential backoff с jitter +
+    retry на 5xx / throttling / connection reset идентична
+  - `ClientOverrideConfiguration.builder().retryPolicy(...)` →
+    `.retryStrategy(...)`. Остальные настройки (`apiCallTimeout`,
+    `apiCallAttemptTimeout`) не тронуты
+  - JavaDoc обновлён, упоминает что используется `RetryStrategy` и
+    почему `+1` для `maxAttempts`
+- Документация: `roadmap.md` 25.b отметка `[x]` + summary,
+  `decisions.md` ADR-024 Amendment про переход на `RetryStrategy`,
+  эта запись в `progress.md`
+
+### Verify
+
+- `./mvnw verify` - **521/521 tests pass, BUILD SUCCESS**, 01:14 min
+  (включая 6 IT `IntegrityVerificationJobIT`, 6 IT `OrphanDetectionJanitorIT`,
+  ObjectStorageService IT с MinIO testcontainer)
+- `./mvnw -DskipTests clean compile` - zero deprecation warnings
+  (filter применил для AWS SDK)
+- Версия AWS SDK 2.44.4 (bom-import) - `RetryStrategy` доступен с 2.26.x,
+  обновлять SDK не пришлось
+- API contract: внешних изменений нет (внутренняя конфигурация
+  S3 client'а)
+
+### Гочи / отклонения
+
+- В первом проходе чуть не использовал `AwsRetryStrategy.defaultRetryStrategy()`
+  (общий, абстрактный) - но `standardRetryStrategy()` возвращает
+  конкретный `StandardRetryStrategy` с `toBuilder()` нужным для
+  `maxAttempts` override. `defaultRetryStrategy()` возвращает только
+  базовый `RetryStrategy` без явного типа конкретного варианта
+- Проверка bytecode'а через `javap` была быстрее чем чтение AWS docs -
+  подтвердил что `ClientOverrideConfiguration.Builder.retryStrategy(RetryStrategy)`
+  существует и работает рядом со старым `.retryPolicy(...)` (тот не
+  удалён, только deprecated). Это даёт backward compat если кто-то
+  ещё на legacy
+
+---
+
 ## 2026-05-16 - Сессия 36, подсессия 19.d (full-stack) - Answer sources, ADR-033 итерация 3
 
 Закрытие Этапа 19.d - параллельная иерархия `answer_sources` для
