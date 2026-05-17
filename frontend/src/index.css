@@ -1,3 +1,46 @@
+/*
+ * Self-hosted шрифты через @fontsource-variable - заменяют Google Fonts
+ * CDN (был в index.html до Сессии 38). Преимущества:
+ *
+ * 1. FOUT убит: WOFF2-файлы в JS-bundle, Vite их хэширует и инжектит
+ *    как <link rel="modulepreload"> в <head> - грузятся параллельно с
+ *    основным bundle, до first paint. Раньше браузер делал:
+ *    HTML → CSS @ Google → WOFF2 @ Google (3 round-trips, FOUT swap).
+ * 2. Variable fonts: один WOFF2 файл = все веса 100-900 через
+ *    font-variation-settings: 'wght' N. Раньше 5 weights × 2 styles
+ *    = 10 файлов на шрифт.
+ * 3. Privacy: нет cross-origin запросов к Google.
+ *
+ * Cyrillic subset идёт автоматически через unicode-range -
+ * браузер качает только нужное.
+ */
+@import '@fontsource-variable/manrope';
+@import '@fontsource-variable/source-serif-4';
+@import '@fontsource-variable/jetbrains-mono';
+@import '@fontsource/amiri/arabic-400.css';
+@import '@fontsource/amiri/arabic-700.css';
+@import '@fontsource/scheherazade-new/arabic-400.css';
+@import '@fontsource/scheherazade-new/arabic-700.css';
+@import '@fontsource/noto-naskh-arabic/arabic-400.css';
+@import '@fontsource/noto-naskh-arabic/arabic-700.css';
+@import '@fontsource/reem-kufi/arabic-400.css';
+@import '@fontsource/reem-kufi/arabic-700.css';
+@import '@fontsource/cairo/arabic-400.css';
+@import '@fontsource/cairo/arabic-700.css';
+@import '@fontsource/tajawal/arabic-400.css';
+@import '@fontsource/tajawal/arabic-700.css';
+/*
+ * Доп. шрифты для Font Tweaker (Сессия 38). Загружены upfront
+ * чтобы переключение пар в UI было instant без FOUT.
+ * Variable axis wght даёт ~50KB на font family.
+ */
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/lora';
+@import '@fontsource-variable/bitter';
+@import '@fontsource-variable/playfair-display';
+@import '@fontsource-variable/ibm-plex-sans';
+@import '@fontsource-variable/literata';
+
 @import './styles/tokens.css';
 @import 'tailwindcss';
 @import '@xyflow/react/dist/style.css';
@@ -76,7 +119,6 @@
   --font-serif: var(--font-serif);
   --font-mono: var(--font-mono);
   --font-arabic: var(--font-arabic);
-  --font-book-title: var(--font-book-title);
   /* Совместимость с существующим font-naskh */
   --font-naskh: var(--font-arabic);
 

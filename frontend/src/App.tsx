@@ -8,6 +8,7 @@ import AdminShamelaPage from '@/apps/admin/pages/AdminShamelaPage';
 import QuestionListPage from '@/apps/qa/pages/QuestionListPage';
 import CreateQuestionPage from '@/apps/qa/pages/CreateQuestionPage';
 import QuestionDetailPage from '@/apps/qa/pages/QuestionDetailPage';
+import SettingsPage from '@/apps/settings/pages/SettingsPage';
 import Toaster from '@/shared/components/ui/Toaster';
 import CommandPalette from '@/shared/components/layout/CommandPalette';
 import { usePaletteStore } from '@/shared/stores/paletteStore';
@@ -66,6 +67,7 @@ function App() {
         <Route path="/qa/new" element={<CreateQuestionPage />} />
         <Route path="/qa/:questionId" element={<QuestionDetailPage />} />
         <Route path="/admin/shamela" element={<AdminShamelaPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Routes>
       <CommandPalette open={paletteOpen} onClose={closePalette} />
       <Toaster />

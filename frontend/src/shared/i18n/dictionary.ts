@@ -539,6 +539,48 @@ export const DICTIONARY = {
     'common.minus': '—',
     'common.list_search_failed': 'Не удалось загрузить список',
     'common.unknown_error': 'Произошла ошибка',
+
+    // settings page (Сессия 38 - Font Tweaker)
+    'settings.link.aria': 'Открыть настройки',
+    'settings.link.title': 'Настройки',
+    'settings.breadcrumb': 'Настройки',
+    'settings.title': 'Настройки приложения',
+    'settings.subtitle':
+      'Изменения применяются мгновенно и сохраняются между сессиями',
+    'settings.section.theme': 'Тема',
+    'settings.section.theme.hint':
+      'Светлая или тёмная палитра. Семантические токены переключаются автоматически',
+    'settings.theme.light': 'Светлая',
+    'settings.theme.dark': 'Тёмная',
+    'settings.section.fontPair': 'Пара шрифтов',
+    'settings.section.fontPair.hint':
+      'Sans-serif для UI и serif для книжных заголовков. Применяется к латинице и кириллице',
+    'settings.section.titleWeight': 'Вес заголовка',
+    'settings.section.titleWeight.hint':
+      'Толщина названий книг в карточках. От 300 (тонкий) до 900 (черный)',
+    'settings.titleWeight.aria': 'Вес заголовка',
+    'settings.section.bodyWeight': 'Вес UI-текста',
+    'settings.section.bodyWeight.hint':
+      'Толщина body-текста в навигации, кнопках, лейблах',
+    'settings.bodyWeight.aria': 'Вес UI текста',
+    'settings.bodyWeight.preview': 'Навигация, кнопки, лейблы',
+    'settings.section.density': 'Плотность чтения',
+    'settings.section.density.hint':
+      'Множитель vertical rhythm для prose в reader. Меньше - компактнее, больше - больше воздуха',
+    'settings.density.aria': 'Плотность чтения',
+    'settings.section.arabicFont': 'Арабский шрифт',
+    'settings.section.arabicFont.hint':
+      'Naskh / Kufi гарнитуры для арабских текстов - названий книг, цитат, bismillah-логотипа',
+    'settings.preview.title': 'Священный Коран',
+    'settings.preview.arabic': 'تفسير ابن كثير - بسم الله الرحمن الرحيم',
+    'settings.reset.action': 'Сбросить шрифты',
+    'settings.reset.hint':
+      'Удалит выбор шрифтов, веса, плотности и арабского шрифта из localStorage. Тема остаётся',
+    'settings.reset.confirm.title': 'Сбросить настройки шрифтов?',
+    'settings.reset.confirm.body':
+      'Будут удалены пара шрифтов, веса заголовка/UI, плотность и выбор арабского шрифта. Восстановятся значения по умолчанию. Тема остаётся без изменений',
+    'settings.reset.confirm.ok': 'Сбросить',
+    'settings.reset.confirm.cancel': 'Отмена',
   },
   ar: {
     'cite.chip.library': 'من المكتبة',
@@ -1036,6 +1078,47 @@ export const DICTIONARY = {
     'common.minus': '—',
     'common.list_search_failed': 'فشل تحميل القائمة',
     'common.unknown_error': 'حدث خطأ',
+
+    // settings page (Сессия 38)
+    'settings.link.aria': 'فتح الإعدادات',
+    'settings.link.title': 'الإعدادات',
+    'settings.breadcrumb': 'الإعدادات',
+    'settings.title': 'إعدادات التطبيق',
+    'settings.subtitle': 'التغييرات تُطبَّق فورًا وتُحفَظ بين الجلسات',
+    'settings.section.theme': 'المظهر',
+    'settings.section.theme.hint':
+      'لوحة فاتحة أو داكنة. تتبدل العلامات الدلالية تلقائيًا',
+    'settings.theme.light': 'فاتح',
+    'settings.theme.dark': 'داكن',
+    'settings.section.fontPair': 'زوج الخطوط',
+    'settings.section.fontPair.hint':
+      'خط sans-serif للواجهة وخط serif لعناوين الكتب. يُطبَّق على اللاتينية والسيريلية',
+    'settings.section.titleWeight': 'وزن العنوان',
+    'settings.section.titleWeight.hint':
+      'سُمك أسماء الكتب في البطاقات. من 300 (نحيف) إلى 900 (أسود)',
+    'settings.titleWeight.aria': 'وزن العنوان',
+    'settings.section.bodyWeight': 'وزن نصّ الواجهة',
+    'settings.section.bodyWeight.hint':
+      'سُمك نصّ الواجهة في التنقّل والأزرار والعلامات',
+    'settings.bodyWeight.aria': 'وزن نصّ الواجهة',
+    'settings.bodyWeight.preview': 'التنقّل، الأزرار، العلامات',
+    'settings.section.density': 'كثافة القراءة',
+    'settings.section.density.hint':
+      'مُضاعِف الإيقاع العمودي للنصّ في القارئ. أقل - أكثر إحكامًا، أكثر - فضاء أكبر',
+    'settings.density.aria': 'كثافة القراءة',
+    'settings.section.arabicFont': 'الخطّ العربي',
+    'settings.section.arabicFont.hint':
+      'خطوط النسخ / الكوفي للنصوص العربية - عناوين الكتب والاقتباسات وشعار البسملة',
+    'settings.preview.title': 'القرآن الكريم',
+    'settings.preview.arabic': 'تفسير ابن كثير - بسم الله الرحمن الرحيم',
+    'settings.reset.action': 'إعادة ضبط الخطوط',
+    'settings.reset.hint':
+      'سيُحذَف اختيار الخطوط والأوزان والكثافة والخطّ العربي من localStorage. يبقى المظهر كما هو',
+    'settings.reset.confirm.title': 'إعادة ضبط إعدادات الخطوط؟',
+    'settings.reset.confirm.body':
+      'سيُحذَف زوج الخطوط، أوزان العنوان والواجهة، الكثافة واختيار الخطّ العربي. ستُستعاد القيم الافتراضية. يبقى المظهر بدون تغيير',
+    'settings.reset.confirm.ok': 'إعادة الضبط',
+    'settings.reset.confirm.cancel': 'إلغاء',
   },
 } as const;
 

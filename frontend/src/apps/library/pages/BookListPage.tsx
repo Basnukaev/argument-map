@@ -309,7 +309,6 @@ interface BookCardProps {
 function BookCard({ book, onEdit, editLoading }: BookCardProps) {
   const t = useT();
   const bookType = book.bookType ?? 'BOOK';
-  const isArabic = book.language === 'ar';
   const fallbackTitle = t('reader.no_book_title');
   const title = book.title ?? fallbackTitle;
   const initialLetter = title.charAt(0).toUpperCase() || '?';
@@ -353,7 +352,7 @@ function BookCard({ book, onEdit, editLoading }: BookCardProps) {
               </span>
             )}
           </Card.Eyebrow>
-            <Card.Title arabic={isArabic}>{title}</Card.Title>
+            <Card.Title>{title}</Card.Title>
             <Card.Meta>
               <span className="font-mono text-xs">
                 <bdi dir="ltr">{book.id.slice(0, 8)}</bdi>

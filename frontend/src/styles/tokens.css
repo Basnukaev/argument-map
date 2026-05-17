@@ -51,21 +51,23 @@
   --c-err-500: #dc2626;
   --c-err-100: #fee2e2;
 
-  /* ── TYPOGRAPHY ───────────────────────────────────────────── */
+  /* ── TYPOGRAPHY ───────────────────────────────────────────────
+     Все шрифты self-hosted через @fontsource-variable (импорт в
+     index.css). Variable axis = wght 100-900 в одном WOFF2 файле.
+     Имена 'X Variable' - конвенция fontsource для variable cuts. */
+
   /* Manrope - современный sans-serif с правильной cyrillic поддержкой,
      character width оптимизированы под UI-плотность v2 дизайна */
-  --font-ui: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-serif: 'Source Serif 4', 'Source Serif Pro', 'Charter', Georgia, serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-ui:
+    'Manrope Variable', 'Manrope', system-ui, -apple-system, 'Segoe UI',
+    sans-serif;
+  --font-serif:
+    'Source Serif 4 Variable', 'Source Serif 4', 'Source Serif Pro', 'Charter',
+    Georgia, serif;
+  --font-mono:
+    'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo,
+    monospace;
   --font-arabic: 'Amiri', 'Scheherazade New', 'Noto Naskh Arabic', serif;
-  /* Book title - классический Garamond revival для красивых заголовков
-     книг в библиотеке. Введён в Сессии 36 (запрос Абдулы 16.05 -
-     текущий шрифт title не нравится). EB Garamond - free Google Font,
-     hand-revival от Georg Duffner на базе Garamond по Egenolff-Berner
-     specimen 1592. Тёплый книжный характер, отличается от UI Source
-     Serif 4 нейтрального academic-ощущения. Применяется к Card.Title
-     не-арабских книг через Tailwind utility font-book-title. */
-  --font-book-title: 'EB Garamond', 'Source Serif 4', Georgia, serif;
 
   /* 6-step scale. Nothing else exists. */
   --t-xs: 12px;
@@ -204,10 +206,21 @@
 /* ── BASE ─────────────────────────────────────────────────────── */
 body {
   font-family: var(--font-ui);
+  /* body-weight ставит FontPairEffect (default 400). Через var() остаётся
+     реактивной к live tweaker в Settings. */
+  font-weight: var(--body-weight, 400);
   color: var(--c-text);
   background: var(--c-bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* Book/topic title typography - вынесено из inline-style Card.tsx чтобы
+   не делать грязный `as unknown as number` cast для var(). Класс
+   применяется к не-arabic заголовкам в Card.Title; arabic заголовки
+   используют свой набор inline-styles т.к. зависят от --font-arabic. */
+.book-title {
+  font-weight: var(--title-weight, 600);
 }
 
 /* ── PROSE (reader article body) ─────────────────────────────── */

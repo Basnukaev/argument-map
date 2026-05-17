@@ -5,12 +5,14 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Argument Map</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=JetBrains+Mono:wght@400;500;600&family=Amiri:wght@400;700&family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
+    <!--
+      Шрифты: self-hosted через @fontsource-variable (импорт в
+      src/index.css). Google Fonts CDN убран в Сессии 38 - причина:
+      убрать FOUT при reload (DNS lookup + 2 round-trips fonts.gstatic.com
+      → CSS → WOFF2 давали flash системными fallback'ами на 100-300ms).
+      Теперь Vite инжектит шрифты как hashed assets с
+      <link rel="modulepreload">, грузятся параллельно с bundle.
+    -->
     <!--
       FOUC prevention для dark theme - применяем data-theme до React mount.
       Иначе на первой отрисовке страница flash'ит в light theme, потом

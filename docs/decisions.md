@@ -3818,3 +3818,118 @@ layout-independence (`KeyK` не зависит от текущей раскла
   GraphCanvas Undo восстанавливает только nodes (edges теряются),
   что задокументировано в hint к Undo кнопке. Отдельный известный
   trade-off, не impact'ит export/import - это про runtime UX
+
+## ADR-038: Self-hosted шрифты + Font Tweaker через CSS variables (Сессия 38)
+
+### Контекст
+
+После 47.png/48.png report от Абдулы вскрылись две проблемы типографики:
+
+1. **FOUT при reload.** Шрифты грузились с Google Fonts CDN (`fonts.googleapis.com` →
+   `fonts.gstatic.com`, два cross-origin round-trip'а + `font-display: swap`).
+   Между HTML parse и WOFF2 arrival браузер рендерил текст системным
+   fallback (Segoe UI / Inter system) - на 100-300ms возникал «острый
+   жирный» вид, потом swap на правильный шрифт. Особенно бросалось в
+   глаза для названий книг в `BookListPage`
+2. **«Уродский шрифт» для русских заголовков.** `--font-book-title`
+   был EB Garamond, **который в @fontsource не имеет Cyrillic subset**.
+   Для «Священный Коран» браузер падал на fallback Source Serif 4,
+   а пользователю казалось что меняем переменную, но картинка не
+   реагирует (несколько сессий правили weight 600→500, ничего не
+   менялось видимо)
+
+Параллельно Абдула захотел live-tweaker (как у Claude Web Design) - чтобы
+переключать шрифт в реальном времени и подобрать идеал
+
+### Решение
+
+#### Часть 1: self-hosted шрифты через `@fontsource-variable`
+
+Заменён Google Fonts CDN на npm-пакеты `@fontsource-variable/*` (variable
+WOFF2 в JS-bundle, hash'ируются Vite'ом). Установлены:
+- **Latin/Cyrillic**: Manrope, Source Serif 4, Inter, Lora, Bitter,
+  Playfair Display, IBM Plex Sans, Literata, JetBrains Mono
+- **Arabic**: Amiri, Scheherazade New, Noto Naskh Arabic, Reem Kufi,
+  Cairo, Tajawal (последние два - sans-serif arabic)
+
+Импорт через `@import '@fontsource-variable/X'` в `src/index.css`.
+Vite инжектит как `<link rel="modulepreload">` до first paint - **FOUT
+исчезает полностью** (first paint = final paint, подтверждено playwright)
+
+`--font-book-title` удалён из `tokens.css` - книжные заголовки теперь
+используют общий `--font-serif` = Source Serif 4 Variable (с полным
+Cyrillic). Card.Title для не-arabic применяет `.book-title` CSS class
+(`font-weight: var(--title-weight, 600)`) - значение реактивно
+переключается через FontPairEffect
+
+#### Часть 2: Font Tweaker UI как extensible Settings page
+
+Новое мини-приложение `src/apps/settings/` с `/settings` route.
+Архитектура три слоя:
+
+1. **State** - `useFontPairStore` (Zustand) с persist в localStorage
+   (5 ключей: `app.fontPair`, `app.titleWeight`, `app.bodyWeight`,
+   `app.density`, `app.arabicFont`). Аналог `useThemeStore`
+2. **Effect** - `<FontPairEffect />` (mounted в `main.tsx` рядом с
+   `ThemeEffect`) синхронизирует state с CSS-variables на `<html>`
+   через `setProperty`. 5 useEffect (per-property) - изолированные
+   dep arrays, минимум write'ов при изменении одного значения
+3. **UI** - `<FontSettings />` компонент с радио-списком пар (15) и
+   арабских (6), слайдерами (title/body weight + density), Theme
+   switch (light/dark), Reset через проектный Modal
+
+Latin/Cyrillic стек и Arabic стек **разделены** на независимые селекторы -
+эти шрифты родом из разных типографических традиций (Manrope не имеет
+arabic, Amiri не имеет latin), комбинация «пары» бессмысленна
+
+### Последствия
+
+(+) **FOUT убит** - first paint вижуально идентичен final paint.
+Privacy benefit - нет cross-origin запросов к Google. Bundle растёт
+на ~500KB (WOFF2-variations cyrillic+latin subsets для 9 семейств) -
+acceptable trade-off
+(+) **Bug fix #1**: книжные заголовки теперь корректно рендерятся
+для кириллицы (Source Serif 4 имеет полный subset)
+(+) **Bug fix #2**: `Card.Title` авто-детектит arabic через
+`hasArabicScript(content)`, а не по `book.language` field (см.
+[[gotcha_book_language_vs_content_script]])
+(+) **Tweaker live**: 15 пар × 6 арабских × 3 слайдера = ~270
+комбинаций, переключение мгновенное через CSS variables (один
+write, cascade сам делает остальное - никаких React re-renders)
+(+) **Extensible settings**: `SettingsPage` готов к новым секциям
+(hotkeys, radius scale, locale default, etc.) - 3 шага: store field,
+useEffect в FontPairEffect, новая `<section>` в FontSettings
+(−) **`@fontsource` subset trap** - не все семейства имеют Cyrillic
+subset. Зафиксировано отдельной gotcha. EB Garamond, Fraunces,
+Space Grotesk, DM Sans, Crimson Pro были попробованы и отвергнуты
+(−) **Density slider** влияет только на `.prose` в reader -
+расширение на UI-spacing требует протаскивания `--density-scale`
+через все Tailwind spacing-токены, отложено
+
+### Альтернативы рассмотренные
+
+- **Fraunces** для книжных названий - современный display serif с
+  opsz axis - **отвергнут**, нет Cyrillic в @fontsource
+- **Cormorant** Variable - hand-tooled Garamond revival с Cyrillic -
+  пробовали, но Абдула предпочёл нейтральный Source Serif 4
+- **Theme provider через Context API** (вместо CSS variables) -
+  потребовало бы re-render всего дерева при смене шрифта, plus
+  pollution через ThemeContext всюду. CSS variables - cleaner
+
+### Связанные решения
+
+- **ADR-022** (Frontend reorg / platform pivot) - settings/ это
+  четвёртое мини-приложение в `src/apps/`, следует той же
+  конвенции что argument-map/library/admin/qa
+- **i18n правило** (CLAUDE.md) - все строки в FontSettings через
+  `useT()` + dictionary keys `settings.*` (ru + ar)
+
+### Known limitations
+
+- **Density label misleading**: «Плотность чтения» (бывш. «Плотность
+  UI») влияет только на reader prose, не на UI spacing. Расширить -
+  отдельная задача
+- **Theme не сбрасывается в Reset**: «Сбросить шрифты» сбрасывает 5
+  font-related preferences, theme остаётся - намеренный choice
+  (theme это глобальная preference, не часть font preset). Hint
+  под кнопкой это поясняет

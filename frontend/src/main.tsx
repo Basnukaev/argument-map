@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router';
 import App from '@/App';
 import { LocaleEffect } from '@/shared/i18n';
 import { ThemeEffect } from '@/shared/components/ThemeEffect';
+import { FontPairEffect } from '@/shared/components/FontPairEffect';
 import '@/index.css';
 
 const rootElement = document.getElementById('root');
@@ -16,6 +17,7 @@ createRoot(rootElement).render(
     <BrowserRouter>
       <LocaleEffect />
       <ThemeEffect />
+      <FontPairEffect />
       <App />
     </BrowserRouter>
   </StrictMode>,

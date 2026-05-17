@@ -1,4 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react';
+import { hasArabicScript } from '@/shared/i18n';
 
 /**
  * v2 Card - дискретная content-единица с hover/click affordance.
@@ -93,22 +94,47 @@ Card.Eyebrow = CardEyebrow;
 
 function CardTitle({
   children,
-  arabic = false,
+  arabic,
 }: {
   children: ReactNode;
+  /**
+   * Если не передан - детектится автоматически из children по
+   * Arabic Unicode range. Принципиально: язык контента ≠ локаль UI
+   * ≠ field language в DB. Книга может иметь `language='ar'` (оригинал
+   * на арабском) но отображаемое имя «Священный Коран» - кириллица.
+   * Amiri не имеет глифов для кириллицы → fallback на browser-default
+   * serif. Поэтому решаем по фактическому содержимому, не по метаданным.
+   */
   arabic?: boolean;
 }) {
-  // Non-arabic title использует --font-book-title (EB Garamond) - классический
-  // Garamond revival с тёплым книжным характером. Для cyrillic (например
-  // «Священный Коран») EB Garamond не имеет subset → fallback на
-  // Source Serif 4 (тёплый serif с cyrillic). font-weight 500 (medium)
-  // вместо 600 чтобы не был «острым жирным» - book titles на корешках
-  // обычно набираются в нормальном весе, не bold
-  const fontClass = arabic
-    ? 'font-arabic text-md font-semibold'
-    : 'font-book-title text-md font-medium tracking-normal';
+  const isArabic =
+    arabic ?? (typeof children === 'string' && hasArabicScript(children));
+  // Параметры из design-reference/v2/project/page-book-list.jsx:201-203.
+  // Arabic: font-arabic (Amiri) + 18px + weight 600.
+  // Non-arabic: font-serif (Source Serif 4 Variable) + 15px + weight 600
+  // + line-height 1.3. font-optical-sizing: auto активирует opsz axis
+  // Source Serif 4 - браузер выбирает display vs body cut автоматически.
+  if (isArabic) {
+    return (
+      <h3
+        dir="auto"
+        className="text-ink-900 m-0 font-arabic"
+        style={{ fontSize: 18, fontWeight: 600, lineHeight: 1.3 }}
+      >
+        {children}
+      </h3>
+    );
+  }
   return (
-    <h3 dir="auto" className={`text-ink-900 leading-tight m-0 ${fontClass}`}>
+    <h3
+      dir="auto"
+      className="text-ink-900 m-0 font-serif book-title"
+      style={{
+        fontSize: 15,
+        lineHeight: 1.3,
+        fontOpticalSizing: 'auto',
+      }}
+    >
       {children}
     </h3>
   );

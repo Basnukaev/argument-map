@@ -1281,3 +1281,97 @@ base). Резервирует место для scrollbar даже когда е
 одинаковой ширины. Modern CSS spec, поддерживается Chrome 94+, Firefox
 97+, Safari 18+. Применено в Сессии 40.
 
+
+---
+
+## @fontsource Cyrillic subset trap
+
+**Симптом:** меняешь `--font-book-title` или другую font CSS-variable,
+запускаешь dev-сервер - в браузере **ничего не меняется** для русских
+названий книг (для латинских `Smoke test 16.h` шрифт переключается
+нормально). Несколько сессий пытались править weight 500→600→500 -
+картинка не реагирует, пользователь раздражается
+
+**Причина:** не все семейства в `@fontsource` / `@fontsource-variable`
+поставляются с **Cyrillic subset**. Конкретно отсутствуют:
+- EB Garamond
+- Fraunces
+- Space Grotesk
+- DM Sans
+- Crimson Pro
+- Cormorant Garamond / Cormorant SC (есть только Cormorant general purpose)
+
+Когда CSS-правило ставит `font-family: 'EB Garamond'`, браузер парсит
+все `@font-face` декларации этого family, проверяет `unicode-range`
+каждой. Для кириллических символов (U+0400-04FF) match не находится →
+браузер падает на следующий шрифт в font-stack (`Source Serif 4`,
+`Georgia`, ...). Меняешь `--font-book-title` - но fallback тот же,
+визуально ничего не меняется
+
+**Reproducer:**
+```bash
+grep -l "cyrillic" node_modules/@fontsource-variable/{eb-garamond,fraunces,space-grotesk}/*.css
+# пусто - этих subsets нет
+
+grep -l "cyrillic" node_modules/@fontsource-variable/{source-serif-4,manrope,inter,lora}/*.css
+# найдёт - эти семейства покрывают cyrillic
+```
+
+**Решение:** **перед добавлением нового font** проверять subset coverage:
+```bash
+grep -l "cyrillic" node_modules/@fontsource*/{package}/*.css
+```
+Если cyrillic нет - либо использовать только для latin контента, либо
+не использовать вообще. **Для книжных названий обязателен cyrillic
+subset** - проект bilingual ru/ar.
+
+Семейства с полным cyrillic (на Сессию 38): Manrope, Source Serif 4,
+Inter, Lora, Bitter, Playfair Display, IBM Plex Sans, Literata,
+JetBrains Mono
+
+**Узнано:** Сессия 38 при работе над Font Tweaker. До этого несколько
+сессий пытались поменять `--font-book-title: EB Garamond` и удивлялись
+что ничего не меняется - был fallback на Source Serif 4 всё время.
+
+---
+
+## book.language ≠ направление шрифта контента
+
+**Симптом:** в `Card.Title` для книги «Священный Коран» (поле
+`book.language = 'ar'` в БД, но title по-русски) шрифт рендерится
+**Amiri'ом** (font-arabic), хотя текст кириллический. Amiri не имеет
+глифов для кириллицы → fallback на browser-default serif → визуально
+выглядит как «уродский жирный»
+
+**Причина:** в коде использовался naive check `isArabic = book.language
+=== 'ar'` для выбора между `font-arabic` и `font-serif`. Но **язык
+оригинала книги ≠ язык отображаемого названия**:
+- Книга оригинально на арабском (`language='ar'`)
+- Russian-локализованное название «Священный Коран» хранится в `title`
+- Контент title - кириллица, не arabic script
+
+Amiri покрывает только Arabic Unicode ranges (U+0600-06FF). Для
+кириллицы у него нет глифов - браузер показывает «недоступные» через
+font-stack fallback
+
+**Реactor:** `Card.Title` auto-detect шрифт по **содержимому** через
+`hasArabicScript(children)` из `@/shared/i18n`:
+```tsx
+const isArabic =
+  arabic ?? (typeof children === 'string' && hasArabicScript(children));
+```
+Если контент содержит арабские глифы (regex `/[؀-ۿ...]/`) → `font-arabic`.
+Иначе → `font-serif` (с латиницей+кириллицей)
+
+**Reproducer:** см. `frontend/src/shared/components/ui/Card.tsx:94-110` и
+`frontend/src/shared/i18n/script.ts`
+
+**Правило проекта** (зафиксировано в CLAUDE.md):
+> Для контента из API - `dir="auto"`, шрифт через `hasArabicScript` из
+> `@/shared/i18n`. Inline regex `/[؀-ۿ]/` в компонентах запрещён -
+> использовать единый модуль
+
+**Узнано:** Сессия 38, при анализе FOUT через playwright computed styles
+показали что **все** Card.Title рендерятся через Amiri (включая
+«Священный Коран», «Smoke test 16.h»). Корень - `book.language === 'ar'`
+у всех тестовых книг
