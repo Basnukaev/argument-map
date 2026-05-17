@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
-import { AlertCircle, ChevronLeft, ChevronRight, Loader2, ArrowLeft, Maximize2, X } from 'lucide-react';
+import { AlertCircle, ChevronLeft, ChevronRight, Loader2, ArrowLeft, Maximize2, X, List } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import Button from '@/shared/components/ui/Button';
+import Modal from '@/shared/components/ui/Modal';
 import Header from '@/shared/components/layout/Header';
 import BookHeader from '@/shared/components/reader/BookHeader';
 import ReaderModeSwitch from '@/shared/components/reader/ReaderModeSwitch';
@@ -13,6 +14,7 @@ import { type ReaderMode } from '@/shared/components/reader/utils';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useLocaleStore, useT } from '@/shared/i18n';
+import { useIsMobile } from '@/shared/hooks/useViewport';
 import type { components } from '@/shared/api/types';
 
 // Lazy-load PdfViewer - тяжёлая зависимость (react-pdf + pdfjs-dist
@@ -60,6 +62,10 @@ function BookReaderPage() {
   // верхнем border. По умолчанию 65vh - комфортно видеть и text сверху
   // и PDF снизу одновременно
   const [sheetHeightVh, setSheetHeightVh] = useState(65);
+  // На mobile sidebar с chapters tree вынесен в drawer (Modal full-screen),
+  // открывается через кнопку List в content. На desktop sidebar inline.
+  const isMobile = useIsMobile();
+  const [chaptersDrawerOpen, setChaptersDrawerOpen] = useState(false);
 
   const handleResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -284,39 +290,53 @@ function BookReaderPage() {
   const currentPrintedPage =
     parsedPrintedPage != null && Number.isFinite(parsedPrintedPage) ? parsedPrintedPage : null;
 
+  // ChapterSidebar content - переиспользуется в desktop aside и mobile drawer
+  const handleChapterSelect = (pn: number) => {
+    gotoPage(pn);
+    setChaptersDrawerOpen(false);
+  };
+
+  const chaptersContent = (
+    <>
+      <button
+        type="button"
+        onClick={() => navigate('/books')}
+        className="mb-3 inline-flex items-center gap-1.5 text-xs text-ink-600 transition-colors hover:text-accent-600"
+      >
+        <ArrowLeft size={14} aria-hidden="true" />
+        {t('reader.back_to_list')}
+      </button>
+      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">
+        {t('reader.chapters')}
+      </h3>
+      {state.kind === 'loading' && (
+        <div className="text-xs text-ink-400">{t('common.loading')}</div>
+      )}
+      {state.kind === 'success' && chapterTree.length === 0 && (
+        <p className="text-xs text-ink-400">{t('reader.chapters_empty')}</p>
+      )}
+      {state.kind === 'success' && chapterTree.length > 0 && (
+        <ChapterList
+          nodes={chapterTree}
+          depth={0}
+          onSelect={handleChapterSelect}
+          currentPage={pageNumber}
+          bookLanguage={state.book.language}
+        />
+      )}
+    </>
+  );
+
   return (
     <main className="min-h-screen bg-bg">
       <Header />
 
-      <div className="mx-auto flex max-w-[1380px] gap-6 px-6 py-6">
-        <aside className="w-[280px] shrink-0">
+      <div className="mx-auto flex max-w-[1380px] gap-6 px-3 py-4 md:px-6 md:py-6">
+        {/* Desktop: inline sidebar. Mobile: hidden - доступ через кнопку
+            «Главы» в content (см. ниже) которая открывает drawer Modal */}
+        <aside className="hidden w-[280px] shrink-0 md:block">
           <Card className="sticky top-6 max-h-[calc(100vh-7rem)] overflow-y-auto p-4">
-            <button
-              type="button"
-              onClick={() => navigate('/books')}
-              className="mb-3 inline-flex items-center gap-1.5 text-xs text-ink-600 transition-colors hover:text-accent-600"
-            >
-              <ArrowLeft size={14} aria-hidden="true" />
-              {t('reader.back_to_list')}
-            </button>
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">
-              {t('reader.chapters')}
-            </h3>
-            {state.kind === 'loading' && (
-              <div className="text-xs text-ink-400">{t('common.loading')}</div>
-            )}
-            {state.kind === 'success' && chapterTree.length === 0 && (
-              <p className="text-xs text-ink-400">{t('reader.chapters_empty')}</p>
-            )}
-            {state.kind === 'success' && chapterTree.length > 0 && (
-              <ChapterList
-                nodes={chapterTree}
-                depth={0}
-                onSelect={gotoPage}
-                currentPage={pageNumber}
-                bookLanguage={state.book.language}
-              />
-            )}
+            {chaptersContent}
           </Card>
         </aside>
 
@@ -352,11 +372,25 @@ function BookReaderPage() {
               </Card>
               {readerMode === 'text' && (
                 <>
-                  {/* Sticky toolbar: prev/next + page jump + reader mode switch.
-                      Mode switch перенесён сюда из BookHeader - ближе к content,
-                      consistent с overall reader controls
-                      z-30 < aside z-40, не перекрываются */}
-                  <div className="sticky top-2 z-30 mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-elevated px-4 py-2.5 shadow-sm">
+                  {/* Toolbar: prev/next + page jump + reader mode switch.
+                      Desktop: sticky top-2 (z-30 < aside z-40).
+                      Mobile: НЕ sticky - browser address-bar collapsing
+                      делает sticky прыгающим и недостойным места на узком
+                      экране. На mobile добавлена кнопка «Главы» которая
+                      открывает drawer Modal со списком (chapters tree
+                      основной отсутствующий элемент при скрытом sidebar) */}
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-elevated px-3 py-2.5 shadow-sm md:sticky md:top-2 md:z-30 md:gap-3 md:px-4">
+                    {/* Mobile only: «Главы» кнопка слева. Desktop: hidden
+                        (chapters в inline sidebar) */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={List}
+                      onClick={() => setChaptersDrawerOpen(true)}
+                      className="md:hidden"
+                    >
+                      {t('reader.chapters')}
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -401,13 +435,25 @@ function BookReaderPage() {
               {readerMode === 'pdf' && (
                 <>
                   {/* В fullscreen PDF mode - кнопка "Назад к тексту" чтобы юзер
-                      мог вернуться к чтению с того места где был */}
-                  <div className="mb-3 flex justify-end">
+                      мог вернуться к чтению с того места где был.
+                      На mobile добавляем кнопку «Главы» которая открывает
+                      drawer (т.к. inline sidebar скрыт на mobile) */}
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={List}
+                      onClick={() => setChaptersDrawerOpen(true)}
+                      className="md:hidden"
+                    >
+                      {t('reader.chapters')}
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       icon={ArrowLeft}
                       onClick={() => setReaderMode('text')}
+                      className="ms-auto"
                     >
                       {t('reader.back_to_text')}
                     </Button>
@@ -438,20 +484,24 @@ function BookReaderPage() {
       {/* Inline PDF preview overlay - shamela-like bottom sheet с PdfViewer.
           Не модалка а fixed bottom-positioned panel чтобы text сверху
           оставался видимым (юзер сравнивает text транскрипцию с PDF
-          оригиналом). Кнопка Maximize2 = развернуть в fullscreen mode */}
+          оригиналом). Кнопка Maximize2 = развернуть в fullscreen mode.
+          На mobile - занимает всю высоту (h-dvh) без drag handle:
+          одновременное чтение text + PDF на 375px нерелевантно, проще
+          показать PDF как fullscreen modal-like overlay */}
       {pdfPreviewOpen && state.kind === 'success' && bookId && (
         <aside
-          className="fixed inset-x-0 bottom-0 z-40 flex flex-col border-t border-border-strong bg-elevated shadow-2xl"
-          style={{ height: `${sheetHeightVh}vh` }}
+          className="fixed inset-x-0 bottom-0 z-40 flex flex-col border-t border-border-strong bg-elevated shadow-2xl max-md:inset-0 max-md:h-dvh"
+          style={isMobile ? undefined : { height: `${sheetHeightVh}vh` }}
         >
           {/* Drag handle - тонкая зона сверху для resize высоты. Визуально
-              «гриф» из 3 точек по центру, hover показывает усиление */}
+              «гриф» из 3 точек по центру, hover показывает усиление.
+              Скрыт на mobile - sheet всегда fullscreen */}
           <div
             role="separator"
             aria-orientation="horizontal"
             aria-label={t('reader.pdf_preview_resize_aria')}
             onPointerDown={handleResizeStart}
-            className="group flex h-3 cursor-ns-resize items-center justify-center border-b border-border bg-ink-50 transition-colors hover:bg-accent-50"
+            className="group hidden h-3 cursor-ns-resize items-center justify-center border-b border-border bg-ink-50 transition-colors hover:bg-accent-50 md:flex"
           >
             <span className="h-0.5 w-10 rounded-full bg-ink-300 transition-colors group-hover:bg-accent-500" />
           </div>
@@ -505,6 +555,19 @@ function BookReaderPage() {
             </Suspense>
           </div>
         </aside>
+      )}
+
+      {/* Mobile chapters drawer - Modal full-screen уже из Фазы 1. Только
+          mount/unmount по условию isMobile && open, чтобы native <dialog>
+          showModal не конфликтовал с PDF preview overlay */}
+      {isMobile && chaptersDrawerOpen && (
+        <Modal
+          open
+          onClose={() => setChaptersDrawerOpen(false)}
+          title={t('reader.chapters')}
+        >
+          {chaptersContent}
+        </Modal>
       )}
     </main>
   );
