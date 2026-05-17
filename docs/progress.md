@@ -11,6 +11,83 @@
 
 ---
 
+## 2026-05-18 - Pagination + filters для всех GET-list endpoints (backlog closed)
+
+Backend backlog task созрела - справочники и темы растут, raw-array
+ответы на каждый GET становились дорогими. Закрыта параллельно с
+frontend subagent'ом по true tashkeel removal (зоны не пересеклись:
+бэк = `backend/`, фронт subagent = RichTextRenderer/Tashkeel
+extension, я = `web.dto` + repository/service/controller + 1 frontend
+page).
+
+**Реализовано (7 атомарных feat-коммитов + 1 docs):**
+
+1. **`PagedResponse<T>` + `PageRequest` helpers** - простые records
+   в `web.dto` без Spring Data Pageable (на проекте JDBC, не плодим
+   dep). PagedResponse{items, page, size, totalElements, totalPages,
+   hasNext, hasPrev}. PageRequest: default page=0, size=20,
+   MAX_SIZE=100 clamp. 11 unit-тестов на edge cases (null/negative/
+   over-max)
+2. **`GET /sources`** - PagedResponse + `?type=&reliability=` фильтры.
+   Combination validation: reliability только при type=HADITH
+   (иначе 400 illegal-argument). Repository паттерн `findPage +
+   countFiltered` с общим `appendFilters` helper. IT +7
+3. **`GET /authorities`** - PagedResponse + `?era=` (exact match,
+   свободный текст). madhab фильтр умышленно отложен (нужна
+   нормализация). IT +2
+4. **`GET /topics`** - PagedResponse + `?visibility=` whitelist
+   PRIVATE/SHARED/PUBLIC поверх ADR-043 visibility-clipping.
+   Сортировка changed на `created_at DESC` (для UI consistency
+   с sources/questions); старый findVisibleToUserWithCounts с ASC
+   оставлен для internal callers (TopicImportService). IT +3
+5. **`GET /library/books`** - PagedResponse + `?authorityId=` /
+   `?publisherId=` фильтры. IT +2
+6. **`GET /questions`** - PagedResponse, `?status=` уже был. IT +1
+7. **TopicListPage frontend** - regenerate types.ts, AsyncState
+   изменён на TopicsAccum {topics, page, hasNext, totalElements},
+   Load More button в конце списка (скрывается при client-side
+   search). apiGetRaw для query-params (apiGet принимает только
+   keyof paths). 4 теста переведены на PagedResponse mock shape.
+   i18n key `common.load_more` (RU/AR)
+
+**Документация:**
+
+- `docs/api-contract.md` - новая секция «Пагинация GET-list
+  endpoints» + обновлены 5 endpoint описаний с новыми query
+  params + history entry с breaking change объяснением
+- `docs/backlog.md` - pagination + фильтрация **закрыто**.
+  Добавлены 2 новых: «Frontend pagination для остальных list
+  pages» (BookListPage/QuestionListPage/AdminShamela/
+  CitationPicker - Load More паттерн) и «Cursor-based pagination
+  (если станет нужно)» - offset OK пока нет миллионов записей
+- `backend/CLAUDE.md` - новая секция «Pagination + filters
+  (GET-list endpoints)» с правилами (Repository паттерн, Service
+  валидация enum-whitelist, Controller интеграция,
+  IllegalArgumentException → 400 vs InvalidXyzException → 422)
+
+**Backward compat не сохранён** (memory
+`feedback_no_prod_no_backward_compat` - нет prod, ломаем смело).
+Frontend список pages обновлён в той же сессии только частично -
+TopicListPage smoke; остальные в backlog как continuation для
+следующих сессий.
+
+**Тесты:** backend `./mvnw verify` BUILD SUCCESS 701/701 pass
+(+14 IT + 11 unit от baseline). Frontend `npm test --run`
+328/328 pass (4 TopicListPage теста обновлены под PagedResponse
+mock).
+
+**Smoke curl на dev backend:**
+
+```bash
+curl 'http://localhost:9090/api/v1/sources?page=0&size=5'
+# {items:[...], page:0, size:5, totalElements:16, totalPages:4, hasNext:true, hasPrev:false}
+
+curl 'http://localhost:9090/api/v1/sources?type=BOOK&reliability=SAHIH'
+# 400 illegal-argument: «фильтр reliability допустим только при type=HADITH»
+```
+
+---
+
 ## 2026-05-18 - True tashkeel removal закрыт (Этап 17.0.c gotcha cleared)
 
 Frontend subagent-цикл, параллельный backend пагинации/фильтрации

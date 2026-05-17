@@ -163,10 +163,19 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
 
 ## Бэк - бэклог
 
-- [ ] Пагинация для GET-list эндпоинтов (`/sources`,
-      `/authorities`) - пока не нужна, справочники маленькие
-- [ ] Фильтрация `?type=`, `?reliability=`, `?era=`, `?madhab=` -
-      пока есть только `?q=`
+- [x] **Пагинация + фильтрация для всех GET-list endpoints** -
+      закрыто 2026-05-18. Все 5 endpoints (`/sources`,
+      `/authorities`, `/topics`, `/library/books`, `/questions`)
+      возвращают `PagedResponse<T>` обёртку. Default `page=0&size=20`,
+      max `size=100`. Новые фильтры: sources `?type=&reliability=`,
+      authorities `?era=`, topics `?visibility=`, books
+      `?authorityId=&publisherId=`. Combination validation
+      (reliability только при type=HADITH) → 400 illegal-argument.
+      Helper'ы `PagedResponse.of()` + `PageRequest.from()` в
+      `web.dto`. Repository паттерн `findPage`+`countFiltered` с
+      общим `appendFilters`. Breaking change для frontend
+      (raw-array → PagedResponse). 1 page (TopicListPage)
+      обновлён smoke; остальные frontend pages - см. ниже
 - [ ] Аутентификация (Spring Security + JWT) - см. Этап 21 в
       roadmap
 - [ ] Реализация Dung's argumentation framework для продвинутого
@@ -174,6 +183,21 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
 - [x] Импорт / экспорт темы в JSON - закрыт в Сессии 39
       (ADR-037, GET `/topics/{id}/export` + POST `/topics/import`)
 - [ ] Голосование за вес аргументов
+- [ ] **Frontend pagination для остальных list pages** -
+      backend GET-list endpoints вернули PagedResponse в сессии
+      pagination. Обновлён только `TopicListPage` (smoke
+      validation). Оставшиеся: `BookListPage` (apps/library),
+      `QuestionListPage` (apps/qa), `AdminShamelaPage` results,
+      `SourcePickerBooks` (если успели включить unified search),
+      `CitationPicker` source-tab. MVP - Load More button в конце
+      списка (fetches next page, appends). Реальная pagination
+      (1/2/3/Next/Prev) - upgrade когда станет критичным UX
+- [ ] **Cursor-based pagination (если станет нужно)** - сейчас
+      offset-based, простая работа для UI. Cursor (created_at +
+      id) станет нужен когда: (1) у тем будут миллионы записей -
+      OFFSET становится дорогим (`OFFSET 1000000` PG скиппает
+      миллион строк), (2) infinite scroll с stable порядком при
+      concurrent inserts. До тех пор offset OK
 
 ## Tech debt / performance optimization
 

@@ -77,6 +77,51 @@ integration тестов) дополнительно работает legacy п�
 Назначение - не ломать existing integration тесты и frontend dev до
 появления login UI в Этапе 21.b. После - удалить полностью.
 
+### Пагинация GET-list endpoints
+
+Все list endpoints возвращают обёртку `PagedResponse<T>` (Этап
+pagination):
+
+```json
+{
+  "items": [ /* массив T */ ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 42,
+  "totalPages": 3,
+  "hasNext": true,
+  "hasPrev": false
+}
+```
+
+- `page` - 0-based номер текущей страницы (echo из запроса)
+- `size` - количество элементов на страницу (echo из запроса после
+  clamp/default)
+- `totalElements` - общее количество строк удовлетворяющих фильтрам
+- `totalPages` - `ceil(totalElements/size)`, минимум 1
+- `hasNext` - есть ли следующая страница (`page+1 < totalPages`)
+- `hasPrev` - есть ли предыдущая (`page > 0`)
+
+**Query параметры pagination (одинаковы для всех list endpoints):**
+
+- `?page=N` - 0-based номер страницы. Default `0`. Отрицательные →
+  reset to 0
+- `?size=N` - элементов на страницу. Default `20`, **max `100`**
+  (значения > 100 clamps до 100). 0 или отрицательное → default
+
+**Без `page/size` параметров** - возвращается первая страница
+(`?page=0&size=20`) обёрнутая в `PagedResponse`. Это **breaking change**
+для frontend относительно raw-array ответа до Этапа pagination;
+backward compat не поддерживается (нет prod).
+
+**Покрытые endpoints:**
+
+- `GET /api/v1/sources` (см. ниже фильтры `?type=&reliability=`)
+- `GET /api/v1/authorities` (`?era=`)
+- `GET /api/v1/topics` (`?visibility=`)
+- `GET /api/v1/library/books` (`?type=&authorityId=&publisherId=`)
+- `GET /api/v1/questions` (`?status=&q=` уже были)
+
 ## Эндпоинты
 
 ### Auth (ADR-040, Этап 21.a)
@@ -220,7 +265,7 @@ password 8..100 символов.
 
 #### GET /api/v1/topics
 
-Список тем **видимых текущему user'у** (ADR-043). USER видит:
+Список тем **видимых текущему user'у** (ADR-043) с пагинацией. USER видит:
 - свои темы (любого visibility)
 - SHARED где он member
 - все PUBLIC
@@ -229,7 +274,18 @@ ADMIN видит все темы без фильтра.
 
 **Заголовки:** `X-User-Id: <uuid>` (обязательно для visibility-фильтра)
 
-**Ответ (200 OK):** массив `TopicResponse` (см. POST).
+**Параметры:**
+- `visibility` (опционально) - whitelist `PRIVATE` / `SHARED` / `PUBLIC`.
+  Фильтрует **внутри** set'а уже видимых пользователю (USER+visibility=
+  PRIVATE = только свои PRIVATE; USER+visibility=PUBLIC = все PUBLIC).
+  Невалидное значение → `400 illegal-argument`
+- `page` (опционально, default 0), `size` (default 20, max 100)
+
+**Сортировка:** `created_at DESC` (последние созданные сверху - для UI
+list page consistency с sources/questions). Старый internal endpoint
+findVisibleToUserWithCounts остался с ASC для обратной совместимости
+
+**Ответ (200 OK):** `PagedResponse<TopicResponse>`.
 
 #### GET /api/v1/topics/{topicId}
 
@@ -573,12 +629,27 @@ targetHandle (выставить null) - null трактуется как "не 
 
 #### GET /api/v1/sources
 
-Список источников или поиск по названию.
+Список источников или поиск по названию. **Пагинация** через
+`?page=&size=` (см. секцию «Пагинация GET-list endpoints»).
 
 **Параметры:**
 - `q` (опционально) - подстрока для поиска по `title` (case-insensitive)
+- `type` (опционально) - whitelist: `QURAN` / `HADITH` / `BOOK` / `ARTICLE` / `URL`
+- `reliability` (опционально) - whitelist: `SAHIH` / `HASAN` / `DAIF`.
+  **Допустим только когда `type=HADITH`** (или type не задан); иначе
+  `400 illegal-argument` («фильтр reliability допустим только при
+  type=HADITH»)
+- `page` (опционально, default 0) - 0-based номер страницы
+- `size` (опционально, default 20, max 100) - элементов на страницу
 
-**Ответ (200 OK):** массив `SourceResponse`.
+**Сортировка:** `created_at DESC` (новые источники сверху)
+
+**Ответ (200 OK):** `PagedResponse<SourceResponse>`.
+
+**Пример:**
+```bash
+curl 'http://localhost:9090/api/v1/sources?type=HADITH&reliability=SAHIH&size=10'
+```
 
 #### GET /api/v1/sources/{sourceId}
 
@@ -624,9 +695,23 @@ targetHandle (выставить null) - null трактуется как "не 
 
 #### GET /api/v1/authorities
 
-Список или поиск по имени (`q`).
+Список авторитетов с пагинацией и фильтрами.
 
-**Ответ (200 OK):** массив `AuthorityResponse`.
+**Параметры:**
+- `q` (опционально) - подстрока для поиска по `name` (case-insensitive)
+- `era` (опционально) - exact match по эпохе (свободный текст,
+  например `XIII-XIV век`, `сахаба`, `табиины`). Без enum-whitelist
+- `page` (опционально, default 0) - 0-based страница
+- `size` (опционально, default 20, max 100)
+
+**Note:** `madhab` как фильтр **не в MVP**. Свободный текст и
+variability (ханбалитский / Hanbali / حنبلي) делают фильтр без
+нормализации малополезным. Когда понадобится - вводим master-data
+таблицу мазхабов с FK.
+
+**Сортировка:** `name ASC` (исторический порядок справочника учёных)
+
+**Ответ (200 OK):** `PagedResponse<AuthorityResponse>`.
 
 #### GET /api/v1/authorities/{authorityId}
 
@@ -919,26 +1004,35 @@ Header `Location: /api/v1/library/books/{id}`.
 - 400 `missing-user-header` - нет `X-User-Id`
 - 404 `authority-not-found` - `authorityId` указан, но запись отсутствует
 
-### GET /api/v1/library/books?q={search}&type={bookType} - список
+### GET /api/v1/library/books - пагинированный список
 
-Query: `q` (optional, ILIKE по title), `type` (optional, фильтр по
-`bookType`). Сортировка по `createdAt`.
+Query:
+- `q` (optional, ILIKE по title)
+- `type` (optional, `BookType` enum)
+- `authorityId` (optional, UUID) - фильтр по автору
+- `publisherId` (optional, UUID) - фильтр по издателю (academic справочник)
+- `page` (optional, default 0), `size` (optional, default 20, max 100)
 
-Response 200 - массив `BookSummary` (без description, metadata,
+Сортировка: `created_at DESC` (новые сверху).
+
+Response 200 - `PagedResponse<BookSummary>` (без description, metadata,
 createdBy, updatedAt - они в детальном GET):
 ```json
-[
-  {
-    "id": "...",
-    "bookType": "QURAN",
-    "title": "Священный Коран",
-    "authorityId": null,
-    "language": "ar",
-    "createdAt": "..."
-  }
-]
+{
+  "items": [
+    {
+      "id": "...",
+      "bookType": "QURAN",
+      "title": "Священный Коран",
+      "authorityId": null,
+      "language": "ar",
+      "createdAt": "..."
+    }
+  ],
+  "page": 0, "size": 20, "totalElements": 42, "totalPages": 3,
+  "hasNext": true, "hasPrev": false
+}
 ```
-Pagination не делаем на MVP.
 
 ### GET /api/v1/library/books/{id} - книга с деревом chapters
 
@@ -1912,15 +2006,18 @@ standalone Question CRUD без attached sources. Source attach
 }
 ```
 
-### GET /api/v1/questions?status={s}&q={search}
+### GET /api/v1/questions
 
-Список вопросов. Сортировка - сначала самые новые (created_at DESC).
+Список вопросов с пагинацией. Сортировка - сначала самые новые
+(`created_at DESC`). Использует partial индекс
+`idx_questions_status_created`.
 
 Параметры:
 - `status` (опционально) - фильтр по `OPEN`/`ANSWERED`/`CLOSED`
 - `q` (опционально) - case-insensitive ILIKE по `title`
+- `page` (опционально, default 0), `size` (default 20, max 100)
 
-Ответ `200 OK`: массив `QuestionResponse`.
+Ответ `200 OK`: `PagedResponse<QuestionResponse>`.
 
 ### GET /api/v1/questions/{id}
 
@@ -2282,6 +2379,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-18 | v1 | Pagination + filters для всех GET-list endpoints. **Breaking change**: `GET /api/v1/sources`, `/authorities`, `/topics`, `/library/books`, `/questions` теперь возвращают `PagedResponse<T>{items, page, size, totalElements, totalPages, hasNext, hasPrev}` вместо raw array. Default `page=0&size=20`, max `size=100` (значения сверху clamps до 100). Новые фильтры: **sources** `?type=` (whitelist QURAN/HADITH/BOOK/ARTICLE/URL) + `?reliability=` (whitelist SAHIH/HASAN/DAIF, допустим только при type=HADITH иначе 400 illegal-argument); **authorities** `?era=` (свободный текст exact match); **topics** `?visibility=` (whitelist PRIVATE/SHARED/PUBLIC внутри set'а уже видимых ADR-043); **library/books** `?authorityId=` + `?publisherId=` (UUID FK фильтры); **questions** - `?status=` уже было, добавлена только pagination. Helper'ы `PagedResponse<T>.of()` + `PageRequest.from()` в `web.dto`. Repository паттерн: `findPage(...) + countFiltered(...)` с общим `appendFilters()` helper для одного источника истины WHERE clause. Сортировка единая по умолчанию `created_at DESC` (новые сверху) кроме authorities (`name ASC` для исторического порядка справочника). Старый `findAll` сохранён где используется internal callers (TopicImportService, shamela ETL). Существующие 11 list-related IT обновлены на `$.items`, добавлено 14 новых IT (pagination, filters, invalid combos). Total backend tests 701/701 pass | Backlog task созрел - справочники растут. Hardcoded array выдавал бы все sources/authorities на каждом GET. Memory `feedback_no_prod_no_backward_compat` - ломаем raw-array contract смело, frontend обновляем в той же сессии (минимально 1 page как smoke, остальные в backlog) |
 | 2026-05-17 | v1 | Этап 22 - RBAC permissions per-entity (ADR-043). Миграция 36 ALTER `topics` добавляет колонку `visibility VARCHAR(20) NOT NULL DEFAULT 'PRIVATE'` (CHECK PRIVATE/SHARED/PUBLIC) + 2 индекса; новая таблица `topic_members` (id, topic_id FK CASCADE, user_id FK CASCADE, role CHECK MEMBER/EDITOR, added_at, added_by, UNIQUE topic+user). **Breaking semantic change**: GET endpoints у topics теперь требуют X-User-Id даже на read - visibility check возвращает 403 `forbidden-topic-access` для приватных тем чужого user'а; список `GET /api/v1/topics` фильтруется по UNION (own + shared-member + public). DELETE темы возвращает 403 `forbidden-topic-write` если не owner/ADMIN (раньше любой мог удалять). `TopicResponse` расширен полем `visibility: PRIVATE|SHARED|PUBLIC`. `CreateTopicRequest` принимает опциональное `visibility` (default PRIVATE). 5 новых endpoint: `PATCH /api/v1/topics/{id}/visibility` (UpdateTopicVisibilityRequest, owner only); `POST /api/v1/topics/{id}/members` (AddTopicMemberRequest{userId, role}, owner only, 201); `GET /api/v1/topics/{id}/members` (TopicMemberResponse[], requires read access); `PATCH /api/v1/topics/{id}/members/{memberId}` (UpdateTopicMemberRequest{role}, owner only); `DELETE /api/v1/topics/{id}/members/{memberId}` (owner или self-leave). Новые ошибки: `403 forbidden-topic-access`, `403 forbidden-topic-write` (с topicId/userId в properties), `404 topic-member-not-found`. ADMIN role (из ADR-040) bypass всех visibility checks. NodeController/EdgeController endpoints DELETE/PATCH/GET тоже требуют @CurrentUser для permission check на parent topic | ADR-043: hybrid visibility-модель (3 уровня) + topic_members M:N для co-editing. Rejected: полный RBAC (over-engineering), org/team ownership (нет user-base), per-action permissions (избыточная гранулярность). MVP scope - только topics; library books / Q&A questions добавятся отдельной миграцией если понадобится. Audit log отложен |
 | 2026-05-17 | v1 | Этап 17.e - AI editing pass backend (ADR-042). Миграция 35 ALTER `lib_pages` добавляет 3 nullable колонки: `ai_edit_status` (CHECK PENDING/PROCESSING/DONE/FAILED) + `ai_edit_started_at`/`ai_edit_completed_at` + partial index по status WHERE NOT NULL. **2 новых endpoint'a**: `POST /api/v1/library/pages/{pageId}/ai-edit` (триггер async через Anthropic Claude, returns 202 `AiEditJobResponse{pageId, status, startedAt, completedAt, hasTextContent}`); `GET /api/v1/library/pages/{pageId}/ai-edit` (polling). Pre-flight check `AnthropicClient.isEnabled()` - если `ANTHROPIC_API_KEY=disabled` (default) → 503 `ai-edit-not-configured` синхронно вместо background FAILED. Успешный AI edit пишет ProseMirror JSON в существующую `lib_pages.formatted_content` (миграция 33). Новые ошибки: 503 `ai-edit-not-configured` (config), 502/503 `anthropic-api-error` (upstream Anthropic non-2xx либо IO). AiEditService через `@Async("aiEditTaskExecutor")` (core=2, max=4, queue=50). Resilience4j Retry instance `anthropicApi` (3 attempts, exponential backoff). Prompt template в `resources/prompts/ai-edit-tahqiq.txt` - few-shot examples + правила распознавания (hadith/ayah/heading/footnote/colorHighlight). Frontend UI кнопка отложена | ADR-042: Anthropic Claude single-provider MVP. Rejected: OpenAI (слабее arabic), Gemini (no JSON guarantee + lock-in), local LLM (heavy GPU), HF API (rate limits), Anthropic Java SDK (heavy dep). Triggers revisit: cost/quality/privacy/availability |
 | 2026-05-17 | v1 | Этап 17.a-c - OCR pipeline backend (ADR-041). Миграция 34 ALTER `lib_pages` добавляет 6 nullable колонок: `image_bucket`/`image_storage_key`/`image_uploaded_at` (pointer на скан в MinIO bucket `library-page-images`) + `ocr_status` (CHECK constraint PENDING/PROCESSING/DONE/FAILED) + `ocr_started_at`/`ocr_completed_at`. **3 новых endpoint'a**: `POST /api/v1/library/books/{bookId}/pages` multipart (file image/jpeg|png|webp|tiff + pageNumber query, до 20MB, возвращает PageResponse 200, либо создаёт placeholder Page либо обновляет existing); `POST /api/v1/library/pages/{pageId}/ocr` (триггер async Tesseract OCR, returns 202 OcrJobResponse{pageId, status, startedAt, completedAt, hasImage}); `GET /api/v1/library/pages/{pageId}/ocr` (polling status). **3 endpoint'a для ImageRegion** (17.c): `POST /api/v1/library/pages/{pageId}/regions` (body CreateImageRegionRequest{x,y,width,height,extractedText?} normalized 0..1, 201 + Location), `GET /api/v1/library/pages/{pageId}/regions` (list sorted by created_at), `DELETE /api/v1/library/pages/regions/{regionId}` (204, update намеренно нет - regions immutable). `PageResponse` расширен 6 image/OCR полями (`imageBucket`/`imageStorageKey`/`imageUploadedAt`/`ocrStatus`/`ocrStartedAt`/`ocrCompletedAt`). Новые ошибки: 422 `page-image-error` (empty file / wrong MIME / zero pageNumber), 415 `unsupported-media-type` (для page image). OcrService через Tess4j 5.13.0 + @Async с dedicated `ocrTaskExecutor` (core=2, max=4). Tesseract сам - system dependency (`apt install tesseract-ocr tesseract-ocr-ara`), docs в backend/CLAUDE.md | ADR-041: Tess4j (Tesseract Java wrapper) выбран как OCR engine - free, offline, supports ara/rus/eng, минимальная Java integration. Rejected: GCV (paid + cloud), PaddleOCR (Python-only), Tika (тонкая обёртка над Tess4j). Triggers revisit: PaddleOCR microservice если quality arabic < 70% на manuscripts |
