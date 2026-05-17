@@ -16,7 +16,8 @@ import ru.basnukaev.argumentmap.domain.Topic;
 @Repository
 public class TopicRepository {
 
-    private static final String COLUMNS = "id, title, description, root_node_id, created_by, created_at";
+    private static final String COLUMNS =
+            "id, title, description, root_node_id, created_by, created_at, visibility";
 
     private static final RowMapper<Topic> ROW_MAPPER = (rs, rn) -> new Topic(
             rs.getObject("id", UUID.class),
@@ -24,7 +25,8 @@ public class TopicRepository {
             rs.getString("description"),
             rs.getObject("root_node_id", UUID.class),
             rs.getObject("created_by", UUID.class),
-            instant(rs, "created_at")
+            instant(rs, "created_at"),
+            rs.getString("visibility")
     );
 
     /**
@@ -35,7 +37,7 @@ public class TopicRepository {
      * хранят его напрямую - см. ADR-003 о двух таблицах nodes+edges)
      */
     private static final String COUNTS_SQL_BASE = """
-            SELECT t.id, t.title, t.description, t.root_node_id, t.created_by, t.created_at,
+            SELECT t.id, t.title, t.description, t.root_node_id, t.created_by, t.created_at, t.visibility,
                    COALESCE(nc.cnt, 0) AS node_count,
                    COALESCE(ec.cnt, 0) AS edge_count
             FROM topics t
@@ -64,13 +66,14 @@ public class TopicRepository {
 
     public Topic save(Topic topic) {
         jdbcTemplate.update(
-                "INSERT INTO topics (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO topics (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?)",
                 topic.id(),
                 topic.title(),
                 topic.description(),
                 topic.rootNodeId(),
                 topic.createdBy(),
-                odt(topic.createdAt())
+                odt(topic.createdAt()),
+                topic.visibility()
         );
         return topic;
     }
@@ -106,7 +109,51 @@ public class TopicRepository {
         jdbcTemplate.update("UPDATE topics SET root_node_id = ? WHERE id = ?", rootNodeId, topicId);
     }
 
+    /**
+     * Меняет visibility темы (ADR-043). Проверка прав - в Service.
+     */
+    public void updateVisibility(UUID topicId, String visibility) {
+        jdbcTemplate.update("UPDATE topics SET visibility = ? WHERE id = ?", visibility, topicId);
+    }
+
     public boolean deleteById(UUID id) {
         return jdbcTemplate.update("DELETE FROM topics WHERE id = ?", id) > 0;
+    }
+
+    /**
+     * Темы, видимые пользователю (ADR-043) - UNION трёх веток:
+     * <ul>
+     *   <li>PRIVATE темы где он owner (created_by = userId)
+     *   <li>SHARED темы где он owner ИЛИ член (через JOIN topic_members)
+     *   <li>все PUBLIC темы
+     * </ul>
+     * DISTINCT через UNION (без ALL) - убирает дубли если user одновременно
+     * owner и member своей же SHARED темы (member self-add edge case).
+     * ADMIN - используй {@link #findAllWithCounts()} напрямую через PermissionService.
+     */
+    public List<TopicWithCounts> findVisibleToUserWithCounts(UUID userId) {
+        String sql = """
+                SELECT t.id, t.title, t.description, t.root_node_id, t.created_by, t.created_at, t.visibility,
+                       COALESCE(nc.cnt, 0) AS node_count,
+                       COALESCE(ec.cnt, 0) AS edge_count
+                FROM topics t
+                LEFT JOIN (
+                    SELECT topic_id, COUNT(*) AS cnt FROM nodes GROUP BY topic_id
+                ) nc ON nc.topic_id = t.id
+                LEFT JOIN (
+                    SELECT n.topic_id, COUNT(*) AS cnt
+                    FROM edges e
+                    JOIN nodes n ON n.id = e.from_node_id
+                    GROUP BY n.topic_id
+                ) ec ON ec.topic_id = t.id
+                WHERE t.visibility = 'PUBLIC'
+                   OR t.created_by = ?
+                   OR (t.visibility = 'SHARED' AND EXISTS (
+                        SELECT 1 FROM topic_members tm
+                        WHERE tm.topic_id = t.id AND tm.user_id = ?
+                   ))
+                ORDER BY created_at
+                """;
+        return jdbcTemplate.query(sql, WITH_COUNTS_MAPPER, userId, userId);
     }
 }

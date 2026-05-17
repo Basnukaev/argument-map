@@ -181,7 +181,8 @@ class TopicExportServiceIT {
     private Topic createTopicWithRoot(String title, String rootQuestion) {
         Instant now = Instant.now();
         UUID topicId = UUID.randomUUID();
-        Topic topic = new Topic(topicId, title, null, null, userId, now);
+        Topic topic = new Topic(topicId, title, null, null, userId, now,
+                ru.basnukaev.argumentmap.domain.TopicVisibility.PRIVATE);
         topicRepository.save(topic);
         UUID nodeId = UUID.randomUUID();
         Node root = new Node(nodeId, topicId, NodeType.QUESTION, rootQuestion,

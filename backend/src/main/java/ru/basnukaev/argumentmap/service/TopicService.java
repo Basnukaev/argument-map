@@ -11,6 +11,7 @@ import ru.basnukaev.argumentmap.domain.Node;
 import ru.basnukaev.argumentmap.domain.NodeStatus;
 import ru.basnukaev.argumentmap.domain.NodeType;
 import ru.basnukaev.argumentmap.domain.Topic;
+import ru.basnukaev.argumentmap.domain.TopicVisibility;
 import ru.basnukaev.argumentmap.exception.TopicNotFoundException;
 import ru.basnukaev.argumentmap.repository.NodeRepository;
 import ru.basnukaev.argumentmap.repository.TopicRepository;
@@ -36,11 +37,27 @@ public class TopicService {
     @Transactional
     public Topic createTopic(String title, String description,
                              String rootQuestionContent, UUID userId) {
+        return createTopic(title, description, rootQuestionContent,
+                TopicVisibility.PRIVATE, userId);
+    }
+
+    @Transactional
+    public Topic createTopic(String title, String description,
+                             String rootQuestionContent, String visibility, UUID userId) {
+        if (visibility == null) {
+            visibility = TopicVisibility.PRIVATE;
+        }
+        if (!TopicVisibility.isValid(visibility)) {
+            throw new IllegalArgumentException(
+                    "Невалидное visibility: " + visibility
+                            + " (ожидается PRIVATE/SHARED/PUBLIC)"
+            );
+        }
         Instant now = Instant.now();
 
         Topic topic = new Topic(
                 UUID.randomUUID(), title, description,
-                null, userId, now
+                null, userId, now, visibility
         );
         topicRepository.save(topic);
 

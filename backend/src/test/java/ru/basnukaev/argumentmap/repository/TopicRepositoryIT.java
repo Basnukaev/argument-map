@@ -21,6 +21,7 @@ import ru.basnukaev.argumentmap.domain.EdgeType;
 import ru.basnukaev.argumentmap.domain.NodeStatus;
 import ru.basnukaev.argumentmap.domain.NodeType;
 import ru.basnukaev.argumentmap.domain.Topic;
+import ru.basnukaev.argumentmap.domain.TopicVisibility;
 
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.odt;
 
@@ -54,7 +55,8 @@ class TopicRepositoryIT {
                 "Разбор аргументов сторон",
                 null,
                 userId,
-                Instant.now().truncatedTo(ChronoUnit.MICROS)
+                Instant.now().truncatedTo(ChronoUnit.MICROS),
+                TopicVisibility.PRIVATE
         );
 
         topicRepository.save(topic);
@@ -76,8 +78,8 @@ class TopicRepositoryIT {
     @Test
     void findAll_returnsAllTopicsOrderedByCreatedAt() {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
-        Topic older = new Topic(UUID.randomUUID(), "Older", null, null, userId, now.minusSeconds(60));
-        Topic newer = new Topic(UUID.randomUUID(), "Newer", null, null, userId, now);
+        Topic older = new Topic(UUID.randomUUID(), "Older", null, null, userId, now.minusSeconds(60), TopicVisibility.PRIVATE);
+        Topic newer = new Topic(UUID.randomUUID(), "Newer", null, null, userId, now, TopicVisibility.PRIVATE);
         topicRepository.save(newer);
         topicRepository.save(older);
 
@@ -88,7 +90,7 @@ class TopicRepositoryIT {
 
     @Test
     void updateRootNodeId_setsFkToNode() {
-        Topic topic = new Topic(UUID.randomUUID(), "T", null, null, userId, Instant.now());
+        Topic topic = new Topic(UUID.randomUUID(), "T", null, null, userId, Instant.now(), TopicVisibility.PRIVATE);
         topicRepository.save(topic);
         UUID nodeId = insertNode(topic.id());
 
@@ -100,7 +102,7 @@ class TopicRepositoryIT {
 
     @Test
     void deleteById_removesTopic_andCascadesNodes() {
-        Topic topic = new Topic(UUID.randomUUID(), "T", null, null, userId, Instant.now());
+        Topic topic = new Topic(UUID.randomUUID(), "T", null, null, userId, Instant.now(), TopicVisibility.PRIVATE);
         topicRepository.save(topic);
         UUID nodeId = insertNode(topic.id());
 
@@ -122,8 +124,8 @@ class TopicRepositoryIT {
     @Test
     void findAllWithCounts_returnsTopicsWithNodeAndEdgeAggregates() {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
-        Topic topicA = new Topic(UUID.randomUUID(), "A", null, null, userId, now.minusSeconds(60));
-        Topic topicB = new Topic(UUID.randomUUID(), "B", null, null, userId, now);
+        Topic topicA = new Topic(UUID.randomUUID(), "A", null, null, userId, now.minusSeconds(60), TopicVisibility.PRIVATE);
+        Topic topicB = new Topic(UUID.randomUUID(), "B", null, null, userId, now, TopicVisibility.PRIVATE);
         topicRepository.save(topicA);
         topicRepository.save(topicB);
 
@@ -149,7 +151,7 @@ class TopicRepositoryIT {
 
     @Test
     void findAllWithCounts_topicWithoutNodesReturnsZeroCounts() {
-        Topic empty = new Topic(UUID.randomUUID(), "Пустая", null, null, userId, Instant.now());
+        Topic empty = new Topic(UUID.randomUUID(), "Пустая", null, null, userId, Instant.now(), TopicVisibility.PRIVATE);
         topicRepository.save(empty);
 
         List<TopicWithCounts> result = topicRepository.findAllWithCounts();
@@ -164,7 +166,7 @@ class TopicRepositoryIT {
 
     @Test
     void findByIdWithCounts_returnsAggregatesForOneTopic() {
-        Topic topic = new Topic(UUID.randomUUID(), "T", null, null, userId, Instant.now());
+        Topic topic = new Topic(UUID.randomUUID(), "T", null, null, userId, Instant.now(), TopicVisibility.PRIVATE);
         topicRepository.save(topic);
         UUID n1 = insertNode(topic.id());
         UUID n2 = insertNode(topic.id());

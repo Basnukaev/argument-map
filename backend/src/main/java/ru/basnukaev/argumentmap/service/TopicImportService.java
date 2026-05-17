@@ -119,7 +119,8 @@ public class TopicImportService {
         // 2. Sources с remapping authority_id + find-or-skip book_id
         Map<UUID, UUID> sourceIdMap = importSources(dto.sources(), authorityIdMap, warnings, now);
 
-        // 3. Topic с новым id (без root_node_id - дописывается после nodes)
+        // 3. Topic с новым id (без root_node_id - дописывается после nodes).
+        // Импорт по умолчанию приватный - кому импорт нужен пускай сам шерит (ADR-043)
         UUID newTopicId = UUID.randomUUID();
         Topic newTopic = new Topic(
                 newTopicId,
@@ -127,7 +128,8 @@ public class TopicImportService {
                 dto.topic().description(),
                 null,
                 currentUserId,
-                now
+                now,
+                ru.basnukaev.argumentmap.domain.TopicVisibility.PRIVATE
         );
         topicRepository.save(newTopic);
 
