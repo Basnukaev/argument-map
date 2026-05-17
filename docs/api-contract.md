@@ -505,6 +505,82 @@ EDITOR'ов.
 **Ошибки:**
 - `404` - узел не найден
 
+### Голосование за вес аргументов (миграция 38)
+
+Пользователи могут голосовать за/против узлов (`EVIDENCE`/`ARGUMENT`)
+усиливая или ослабляя их в графе. Один user - один голос на один node,
+значения `+1` (upvote, поддержать) и `-1` (downvote, не согласен).
+Нейтральная позиция не сохраняется отдельно - вместо неё row удаляется.
+Голоса агрегируются и попадают в `NodeResponse.vote*` поля при загрузке
+графа.
+
+**Permission модель:** vote требует только read-access к topic'у узла -
+голос это reaction, не write. Анонимный user не может голосовать
+(вернётся 401 / 400 missing-user-header).
+
+**Влияние на статусы:** vote'ы НЕ участвуют в StatusCalculation (Dung-style
+аргументация остаётся неизменной). Голоса - параллельный сигнал силы
+от сообщества.
+
+**MVP 3-point scale** `{-1, +1}`. Возможное расширение до 5-point
+`{-2..+2}` (категории силы) - в backlog'е.
+
+#### POST /api/v1/nodes/{nodeId}/vote
+
+Upsert голоса вызывающего user'а. Идемпотентен - повторный POST с тем
+же weight оставляет всё как есть; POST с другим weight меняет.
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+**Запрос:**
+```json
+{ "weight": 1 }
+```
+- `weight`: int, обязательно. Допустимые значения: `1` или `-1`.
+
+**Ответ (201 Created):**
+```json
+{
+  "nodeId": "uuid",
+  "upvotes": 4,
+  "downvotes": 1,
+  "score": 3,
+  "userVote": 1
+}
+```
+
+**Ошибки:**
+- `400 invalid-vote` - weight не из `{-1, +1}`
+- `400` - validation (weight отсутствует)
+- `404 node-not-found` - узла нет
+- `403 forbidden-topic-access` - не видит тему (PRIVATE чужого user'а)
+
+#### DELETE /api/v1/nodes/{nodeId}/vote
+
+Снять голос. Идемпотентен - если голоса не было, возвращает 204
+без ошибки.
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+**Ответ:** `204 No Content`
+
+**Ошибки:**
+- `404 node-not-found` - узла нет
+- `403 forbidden-topic-access` - не видит тему
+
+#### GET /api/v1/nodes/{nodeId}/votes
+
+Текущая статистика голосов + персональный голос вызывающего user'а.
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+**Ответ (200 OK):** `NodeVoteStatsResponse` - та же схема что у POST.
+`userVote` = `null` если вызывающий user не голосовал.
+
+**Ошибки:**
+- `404 node-not-found`
+- `403 forbidden-topic-access`
+
 ### Рёбра (Edges)
 
 #### POST /api/v1/edges
@@ -819,11 +895,36 @@ variability (ханбалитский / Hanbali / حنبلي) делают фи�
   "posY": -67.89,
   "createdBy": "uuid",
   "createdAt": "iso8601",
-  "updatedAt": "iso8601"
+  "updatedAt": "iso8601",
+  "voteUpvotes": 0,
+  "voteDownvotes": 0,
+  "voteScore": 0,
+  "userVote": null
 }
 ```
 `posX`/`posY` - координаты узла на канвасе графа. `null` для
 узлов, которые ещё не перетаскивались (фронт применит автолейаут).
+
+`voteUpvotes`/`voteDownvotes`/`voteScore` - агрегаты голосов
+(миграция 38, см. секцию «Голосование за вес аргументов»).
+Заполняются на GET `/api/v1/topics/{id}/graph` (bulk-load один SQL
+на весь граф) и mutating endpoints на узлах. `userVote` ∈ `{-1, +1, null}`
+- голос вызывающего user'а, `null` если не голосовал. На POST `/api/v1/nodes`
+для нового узла поля заполняются нулями (голосов ещё нет).
+
+### NodeVoteStatsResponse
+```json
+{
+  "nodeId": "uuid",
+  "upvotes": 4,
+  "downvotes": 1,
+  "score": 3,
+  "userVote": 1
+}
+```
+Возвращается на POST/GET /api/v1/nodes/{id}/vote(s).
+`score` = `upvotes - downvotes` (может быть отрицательным).
+`userVote` ∈ `{-1, +1, null}`.
 
 ### EdgeResponse
 ```json
@@ -2532,6 +2633,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-18 | v1 | Голосование за вес аргументов. Миграция 38 - новая таблица `node_votes (id UUID PK, node_id FK CASCADE, user_id FK CASCADE, weight SMALLINT CHECK IN (-1,1), voted_at TIMESTAMPTZ, UNIQUE(node_id, user_id))` + 2 индекса. 3 новых REST endpoint под `/api/v1/nodes/{id}`: `POST /vote` (CreateNodeVoteRequest{weight: -1\|+1} → 201 NodeVoteStatsResponse{nodeId, upvotes, downvotes, score, userVote}, upsert через ON CONFLICT), `DELETE /vote` (204, идемпотентен), `GET /votes` (NodeVoteStatsResponse). `NodeResponse` расширен 4 полями: `voteUpvotes`/`voteDownvotes`/`voteScore` (int), `userVote` (Integer nullable - голос вызывающего user'а). В `GET /api/v1/topics/{id}/graph` поля заполняются bulk-load из NodeVoteRepository (2 SQL на весь граф - не N+1). Новая ошибка `400 invalid-vote` (weight ∉ {-1,+1}). Permission: vote требует canReadTopic (видишь узел - можешь vote, не write-access, голос это reaction). Голоса НЕ влияют на StatusCalculation - сигнал силы аргумента ортогональный Dung-style status. MVP 3-point scale; 5-point {-2..+2} в backlog | Backlog «Голосование за вес аргументов» закрыт. Пользователи могут усиливать или ослаблять `EVIDENCE`/`ARGUMENT` узлы. Frontend - компактный VoteWidget в NodeCard footer (только для ARGUMENT/EVIDENCE - QUESTION/CLAIM не голосуются), upvote/downvote toggle с optimistic UI |
 | 2026-05-18 | v1 | Этап 22.c - RBAC permissions per-entity для library books + Q&A guards (ADR-043 Amendment). Миграция 37 ALTER `lib_books` добавляет колонку `visibility VARCHAR(20) NOT NULL DEFAULT 'PUBLIC'` (CHECK PRIVATE/SHARED/PUBLIC, в отличие от topics с default PRIVATE - books default PUBLIC для open library); 2 индекса (`visibility`, `created_by+visibility`); новая таблица `lib_book_members` (структура mirror `topic_members`: id, book_id FK CASCADE, user_id FK CASCADE, role CHECK MEMBER/EDITOR, added_at, added_by, UNIQUE book+user). **Breaking semantic change для library books**: GET endpoints у `/library/books` теперь требуют X-User-Id (visibility-фильтр в SQL: PUBLIC OR created_by=? OR (SHARED AND EXISTS lib_book_members)); GET `/library/books/{id}` возвращает 403 `forbidden-book-access` для PRIVATE чужого user'а; DELETE/PATCH книги возвращает 403 `forbidden-book-write` если не owner/EDITOR/ADMIN. `BookResponse`/`BookSummaryResponse`/`BookDetailResponse` расширены полем `visibility: PRIVATE\|SHARED\|PUBLIC`. **POST `/library/books` (REST) устанавливает visibility=PUBLIC по умолчанию**, **POST `/library/imports/file` (PDF upload) устанавливает PRIVATE** (user-uploads приватны). 5 новых book endpoint: `PATCH /api/v1/library/books/{id}/visibility` (UpdateBookVisibilityRequest, owner only); `POST /api/v1/library/books/{id}/members` (AddBookMemberRequest{userId, role}, owner only, 201); `GET /api/v1/library/books/{id}/members` (BookMemberResponse[], requires read access); `PATCH /api/v1/library/books/{id}/members/{memberId}` (UpdateBookMemberRequest{role}, owner only); `DELETE /api/v1/library/books/{id}/members/{memberId}` (owner или self-leave). **Q&A guards**: PATCH/DELETE `/api/v1/questions/{id}` и PATCH/DELETE `/api/v1/answers/{id}` теперь требуют X-User-Id (author check) и возвращают 403 `forbidden-question-write` / `forbidden-answer-write` если actor не автор и не ADMIN. Visibility-модель для questions/answers НЕ добавляется (open discussion semantics). Новые ошибки: `403 forbidden-book-access`/`forbidden-book-write` (с bookId/userId в properties), `404 book-member-not-found`, `403 forbidden-question-write`/`forbidden-answer-write` | ADR-043 Amendment: extend visibility/members pattern на books (тот же 3-уровневый model с PUBLIC-default), Q&A через author guards без visibility model. Rejected: default PRIVATE для books (shamela ETL ожидает massive batch видимым сразу), shared `topic_members` для books (нарушает separation), полный visibility для questions (over-engineering для public discussion). Audit log отложен в 22.d |
 | 2026-05-18 | v1 | Pagination + filters для всех GET-list endpoints. **Breaking change**: `GET /api/v1/sources`, `/authorities`, `/topics`, `/library/books`, `/questions` теперь возвращают `PagedResponse<T>{items, page, size, totalElements, totalPages, hasNext, hasPrev}` вместо raw array. Default `page=0&size=20`, max `size=100` (значения сверху clamps до 100). Новые фильтры: **sources** `?type=` (whitelist QURAN/HADITH/BOOK/ARTICLE/URL) + `?reliability=` (whitelist SAHIH/HASAN/DAIF, допустим только при type=HADITH иначе 400 illegal-argument); **authorities** `?era=` (свободный текст exact match); **topics** `?visibility=` (whitelist PRIVATE/SHARED/PUBLIC внутри set'а уже видимых ADR-043); **library/books** `?authorityId=` + `?publisherId=` (UUID FK фильтры); **questions** - `?status=` уже было, добавлена только pagination. Helper'ы `PagedResponse<T>.of()` + `PageRequest.from()` в `web.dto`. Repository паттерн: `findPage(...) + countFiltered(...)` с общим `appendFilters()` helper для одного источника истины WHERE clause. Сортировка единая по умолчанию `created_at DESC` (новые сверху) кроме authorities (`name ASC` для исторического порядка справочника). Старый `findAll` сохранён где используется internal callers (TopicImportService, shamela ETL). Существующие 11 list-related IT обновлены на `$.items`, добавлено 14 новых IT (pagination, filters, invalid combos). Total backend tests 701/701 pass | Backlog task созрел - справочники растут. Hardcoded array выдавал бы все sources/authorities на каждом GET. Memory `feedback_no_prod_no_backward_compat` - ломаем raw-array contract смело, frontend обновляем в той же сессии (минимально 1 page как smoke, остальные в backlog) |
 | 2026-05-17 | v1 | Этап 22 - RBAC permissions per-entity (ADR-043). Миграция 36 ALTER `topics` добавляет колонку `visibility VARCHAR(20) NOT NULL DEFAULT 'PRIVATE'` (CHECK PRIVATE/SHARED/PUBLIC) + 2 индекса; новая таблица `topic_members` (id, topic_id FK CASCADE, user_id FK CASCADE, role CHECK MEMBER/EDITOR, added_at, added_by, UNIQUE topic+user). **Breaking semantic change**: GET endpoints у topics теперь требуют X-User-Id даже на read - visibility check возвращает 403 `forbidden-topic-access` для приватных тем чужого user'а; список `GET /api/v1/topics` фильтруется по UNION (own + shared-member + public). DELETE темы возвращает 403 `forbidden-topic-write` если не owner/ADMIN (раньше любой мог удалять). `TopicResponse` расширен полем `visibility: PRIVATE|SHARED|PUBLIC`. `CreateTopicRequest` принимает опциональное `visibility` (default PRIVATE). 5 новых endpoint: `PATCH /api/v1/topics/{id}/visibility` (UpdateTopicVisibilityRequest, owner only); `POST /api/v1/topics/{id}/members` (AddTopicMemberRequest{userId, role}, owner only, 201); `GET /api/v1/topics/{id}/members` (TopicMemberResponse[], requires read access); `PATCH /api/v1/topics/{id}/members/{memberId}` (UpdateTopicMemberRequest{role}, owner only); `DELETE /api/v1/topics/{id}/members/{memberId}` (owner или self-leave). Новые ошибки: `403 forbidden-topic-access`, `403 forbidden-topic-write` (с topicId/userId в properties), `404 topic-member-not-found`. ADMIN role (из ADR-040) bypass всех visibility checks. NodeController/EdgeController endpoints DELETE/PATCH/GET тоже требуют @CurrentUser для permission check на parent topic | ADR-043: hybrid visibility-модель (3 уровня) + topic_members M:N для co-editing. Rejected: полный RBAC (over-engineering), org/team ownership (нет user-base), per-action permissions (избыточная гранулярность). MVP scope - только topics; library books / Q&A questions добавятся отдельной миграцией если понадобится. Audit log отложен |

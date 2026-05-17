@@ -112,6 +112,24 @@
 хука. Используется при drag-create запрещённых пар, ошибках
 сохранения позиции и других не-блокирующих сообщениях.
 
+**Голосование за аргумент / vote (миграция 38)** — пользовательский
+сигнал силы узла (`ARGUMENT` или `EVIDENCE`). 1 user может
+проголосовать за 1 узел один раз с весом `+1` (upvote, поддержать)
+либо `-1` (downvote, не согласен). Нейтральная позиция не сохраняется
+отдельно - вместо неё row удаляется через DELETE. **Голоса
+ортогональны `StatusCalculation`** - они не меняют логического
+статуса узла (`STANDING`/`DISPUTED`/...), а параллельно отражают
+коллективную оценку силы. Permission: vote требует только
+read-access к topic'у (это reaction, не write). MVP 3-point scale
+`{-1, +1}`; возможное расширение до 5-point `{-2..+2}` - в backlog.
+Хранится в `node_votes (id, node_id, user_id, weight, voted_at)` с
+UNIQUE на `(node_id, user_id)`. Агрегаты `upvotes`/`downvotes`/
+`score = upvotes - downvotes` живут в `NodeResponse.vote*` и
+заполняются bulk-load в `GET /api/v1/topics/{id}/graph`. На фронте -
+`VoteWidget` в `NodeCard` footer (только для ARGUMENT/EVIDENCE -
+QUESTION/CLAIM не голосуются, тезис/вопрос не нуждается в
+weight-сигнале).
+
 ## Понятия исламской текстологии (для будущих этапов)
 
 Термины из домена работы с хадисами и тафсиром. Сейчас в коде не

@@ -182,7 +182,19 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       пересчёта статусов
 - [x] Импорт / экспорт темы в JSON - закрыт в Сессии 39
       (ADR-037, GET `/topics/{id}/export` + POST `/topics/import`)
-- [ ] Голосование за вес аргументов
+- [x] **Голосование за вес аргументов** - закрыто 2026-05-18.
+      Миграция 38 `node_votes` (UUID PK, FK CASCADE на nodes+users,
+      weight SMALLINT CHECK IN (-1,1), UNIQUE node+user). 3 endpoint
+      под `/api/v1/nodes/{id}/vote(s)` (POST upsert / DELETE
+      idempotent / GET stats). `NodeResponse` расширен 4 vote-полями
+      + bulk-load в graph endpoint (2 SQL на весь граф, не N+1).
+      Frontend `VoteWidget` в `NodeCard` для `ARGUMENT`/`EVIDENCE` -
+      compact upvote/downvote toggle с optimistic UI. MVP 3-point
+      scale {-1, +1}. Permission: vote требует только canReadTopic
+      (видишь узел - можешь vote, не write-access). Голоса НЕ
+      влияют на StatusCalculation - ортогональный сигнал силы.
+      Отложено: 5-point scale {-2..+2}, vote-driven status hints,
+      voter-list UI (transparency), агрегаты в `TopicResponse`
 - [x] **Frontend pagination для остальных list pages** -
       закрыто 2026-05-18. Обновлены: `BookListPage` (apps/library),
       `QuestionListPage` (apps/qa), `CitationPicker` source-tab.

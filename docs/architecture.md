@@ -131,6 +131,41 @@ Figma на shared доске). Если потребуется персонал�
 - отдельный ADR с таблицей `node_positions(node_id, user_id, pos_x,
 pos_y)`. Сейчас не нужно - проект на MVP-стадии без авторизации.
 
+### 8. Голосование за вес аргументов (миграция 38)
+
+Пользователи могут голосовать за / против узлов (`EVIDENCE` и
+`ARGUMENT`) усиливая или ослабляя их в графе. Один user - один
+голос на один node, значения `+1` (upvote, поддержать) и `-1`
+(downvote, не согласен). Нейтральная позиция не сохраняется -
+вместо неё row удаляется через DELETE. MVP 3-point scale; 5-point
+`{-2..+2}` (с категориями силы) - в backlog'е.
+
+Хранение - таблица `node_votes (id, node_id, user_id, weight, voted_at)`
+с UNIQUE на `(node_id, user_id)`. Upsert через `ON CONFLICT DO UPDATE`
+в repository.
+
+**Permission модель:** vote требует только canReadTopic - видишь узел,
+можешь vote. Не требуется write-access: голос это reaction (как
+лайк), а не контентное изменение. PRIVATE-темы автоматически защищены
+read-фильтром.
+
+**Влияние на статусы.** Голоса НЕ участвуют в `StatusCalculation`.
+`STANDING`/`DISPUTED`/`REFUTED` остаются производными от структуры
+рёбер по Dung-style алгоритму (см. п. 4 / ADR-007). Vote'ы -
+параллельный сигнал силы от сообщества, не влияющий на логику
+графа.
+
+**Bulk-load** в `GET /api/v1/topics/{id}/graph`: 2 SQL на весь граф
+(агрегаты + персональные голоса по списку nodeId), результат
+прокидывается в `NodeResponse.voteUpvotes`/`voteDownvotes`/`voteScore`/
+`userVote`. Не N+1.
+
+**Frontend** - `VoteWidget` в `NodeCard` footer для `ARGUMENT`/
+`EVIDENCE` (`QUESTION` и `CLAIM` не голосуются - вопрос и тезис
+не нуждаются в weight-сигнале). Compact upvote / score / downvote,
+toggle-семантика (повторный click по уже-активному голосу снимает
+его). Optimistic UI с revert при error.
+
 ## Доменные сущности
 
 ### Topic

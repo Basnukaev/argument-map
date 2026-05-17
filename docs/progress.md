@@ -11,6 +11,101 @@
 
 ---
 
+## 2026-05-18 - Голосование за вес аргументов (backend + frontend)
+
+Backlog-задача из раздела «Бэк - бэклог» закрыта. Параллельно с
+22.c.f subagent'ом (book visibility/members) - не пересекались по
+файлам: я работал в `backend/` + `apps/argument-map/components/graph/`,
+тот - в `apps/library/`/`apps/admin/`/`shared/components/visibility/`
+
+**Реализовано (7 атомарных коммитов):**
+
+1. **Миграция 38** `node_votes (id UUID PK, node_id+user_id FK CASCADE,
+   weight SMALLINT CHECK IN (-1,1), voted_at TIMESTAMPTZ, UNIQUE node+user)`
+   + 2 индекса. Domain records `NodeVote` + `VoteStats`. `NodeVoteRepository`
+   с upsert через ON CONFLICT, bulk-aggregation для graph endpoint
+2. **NodeVoteService** + `InvalidVoteException` (→ 400 invalid-vote).
+   Permission: vote требует только `canReadTopic` (голос это reaction,
+   не write-access). PRIVATE-темы защищены автоматически
+3. **3 REST endpoint** `/api/v1/nodes/{id}/vote(s)`: POST upsert (201),
+   DELETE idempotent (204), GET stats. Валидация weight ∈ {-1,+1} в
+   сервисе; @NotNull на DTO
+4. **NodeResponse расширен** 4 vote-полями (`voteUpvotes`/`voteDownvotes`/
+   `voteScore`/`userVote`). Legacy `DtoMappers.toResponse(Node)` сохранён
+   (нули + null). `GET /topics/{id}/graph` делает 2 bulk-SQL на весь
+   граф (не N+1). Single-node mutating endpoints тоже подгружают актуальную
+   статистику в один ответ
+5. **VoteWidget** в `NodeCard` для `ARGUMENT`/`EVIDENCE` - compact
+   chevron-up/score/chevron-down с toggle (повторный click снимает),
+   optimistic UI с revert, click stopPropagation. Auth-aware - анонимный
+   click показывает toast info вместо запроса. Pure helper
+   `computeOptimistic` вынесен и покрыт 4 unit-кейсами
+6. **IT backend**: 8 service IT + 9 controller IT (включая GET /graph
+   проверяет что vote-поля попадают через bulk-load)
+7. **Docs**: api-contract.md (новая history entry + endpoints section +
+   NodeVoteStatsResponse + расширение NodeResponse), architecture.md
+   (новый раздел «8. Голосование за вес аргументов»), glossary.md
+   (термин «Голосование за аргумент»), backlog.md (item закрыт)
+
+**Результаты:**
+
+- `./mvnw verify` BUILD SUCCESS - **750 tests, 0 failures, 0 errors, 2
+  skipped** (baseline 733 + 17 новых vote IT)
+- Frontend: `npm run test:run` **341/341 pass** (baseline 333 + 8 VoteWidget
+  тестов)
+- `npm run lint`: 0 errors (7 pre-existing warnings)
+- `npm run build`: success
+- `npx tsc --noEmit -p tsconfig.app.json`: clean
+- types.ts регенерирован - `NodeResponse` получил vote-поля,
+  `NodeVoteStatsResponse` + `CreateNodeVoteRequest` schemas доступны
+
+**Решения:**
+
+- **3-point scale {-1, +1}** для MVP. 5-point {-2..+2} (категории силы)
+  в backlog'е. 3-point - современный паттерн (Reddit/HN), проще UI
+- **Vote не сохраняется как 0** - removeVote = DELETE row. Иначе семантика
+  «голосовал ли я» становится мутной
+- **Vote не влияет на StatusCalculation** - Dung-style логика остаётся
+  чистой. Голоса - параллельный сигнал силы (как лайки на FB), не
+  меняющий структурные статусы STANDING/DISPUTED
+- **Permission - canReadTopic, не canWriteTopic** - vote это reaction
+  на узел, не его изменение. PRIVATE-темы защищены автоматически (не
+  видишь = не голосуешь)
+- **VoteWidget только для ARGUMENT/EVIDENCE** - QUESTION (корневой
+  вопрос темы) и CLAIM (главный тезис) не голосуются: они структурные,
+  не аргументы за/против
+- **Bulk-load в graph endpoint** через 2 SQL (агрегаты + персональные
+  голоса). N+1 загрузка по каждому узлу при render'е графа была бы
+  катастрофой при большом графе
+
+**Что отложено:**
+
+- 5-point scale {-2..+2} с категориями («слабое»/«сильное» несогласие)
+- Voter list UI - показать кто именно голосовал (transparency).
+  Backend endpoint `GET /api/v1/nodes/{id}/votes/voters` отложен,
+  на бэке `NodeVoteRepository.findByNodeId(...)` готов для этого
+- Vote-driven UI hints в StatusCalculation - например подсвечивать
+  «STANDING но downvoted» как «слабый аргумент». Это product-level
+  feature, не MVP
+- Vote aggregates в `TopicResponse` - топ-обсуждаемые аргументы темы,
+  «3 самых сильных EVIDENCE»
+
+**Проверить руками:**
+
+- открой `/topics/{any}` где есть `ARGUMENT` или `EVIDENCE` узлы
+- в footer карточки увидишь компактный виджет: chevron-up / score / chevron-down
+- click upvote (зелёная стрелка вверх) - счёт +1, кнопка подсвечена emerald
+- click downvote - смена голоса на -1, score обновляется
+- повторный click по уже-активному голосу - DELETE, счёт возвращается
+- click по кнопке без логина (logout через AvatarMenu) - toast «Войдите
+  чтобы голосовать», запроса не идёт
+- network tab показывает 2 bulk SQL при загрузке /graph (агрегаты +
+  user votes), не N+1
+- swagger UI на `/swagger-ui/index.html` показывает 3 новых endpoint'а
+  под `/api/v1/nodes/{nodeId}/vote(s)`
+
+---
+
 ## 2026-05-18 - Этап 22.c.f frontend - book visibility + members UI (Этап 22 закрыт)
 
 Зеркало 22.b TopicMembersModal/visibility UI для library books (ADR-043
