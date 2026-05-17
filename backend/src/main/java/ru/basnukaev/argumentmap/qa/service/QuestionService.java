@@ -50,6 +50,17 @@ public class QuestionService {
     }
 
     @Transactional(readOnly = true)
+    public List<Question> listQuestionsPage(QuestionStatus status, String query,
+                                            int limit, int offset) {
+        return repository.findPage(status, query, limit, offset);
+    }
+
+    @Transactional(readOnly = true)
+    public long countQuestions(QuestionStatus status, String query) {
+        return repository.countFiltered(status, query);
+    }
+
+    @Transactional(readOnly = true)
     public Question getQuestion(UUID id) {
         return repository.findById(id)
                 .orElseThrow(() -> new QuestionNotFoundException(id));

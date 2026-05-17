@@ -96,6 +96,37 @@ public class QuestionRepository {
         StringBuilder sql = new StringBuilder("SELECT ")
                 .append(COLUMNS).append(" FROM questions WHERE 1=1");
         List<Object> args = new ArrayList<>();
+        appendFilters(sql, args, status, query);
+        sql.append(" ORDER BY created_at DESC");
+        return jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray());
+    }
+
+    /**
+     * Пагинированный аналог {@link #findAll(QuestionStatus, String)}.
+     * Использует partial индекс {@code idx_questions_status_created}.
+     */
+    public List<Question> findPage(QuestionStatus status, String query,
+                                   int limit, int offset) {
+        StringBuilder sql = new StringBuilder("SELECT ")
+                .append(COLUMNS).append(" FROM questions WHERE 1=1");
+        List<Object> args = new ArrayList<>();
+        appendFilters(sql, args, status, query);
+        sql.append(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
+        args.add(limit);
+        args.add(offset);
+        return jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray());
+    }
+
+    public long countFiltered(QuestionStatus status, String query) {
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM questions WHERE 1=1");
+        List<Object> args = new ArrayList<>();
+        appendFilters(sql, args, status, query);
+        Long count = jdbcTemplate.queryForObject(sql.toString(), Long.class, args.toArray());
+        return count == null ? 0L : count;
+    }
+
+    private static void appendFilters(StringBuilder sql, List<Object> args,
+                                      QuestionStatus status, String query) {
         if (status != null) {
             sql.append(" AND status = ?");
             args.add(status.name());
@@ -104,8 +135,6 @@ public class QuestionRepository {
             sql.append(" AND title ILIKE ?");
             args.add("%" + query + "%");
         }
-        sql.append(" ORDER BY created_at DESC");
-        return jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray());
     }
 
     /**

@@ -23,6 +23,8 @@ import ru.basnukaev.argumentmap.qa.web.dto.CreateQuestionRequest;
 import ru.basnukaev.argumentmap.qa.web.dto.QuestionResponse;
 import ru.basnukaev.argumentmap.qa.web.dto.UpdateQuestionRequest;
 import ru.basnukaev.argumentmap.web.CurrentUser;
+import ru.basnukaev.argumentmap.web.dto.PageRequest;
+import ru.basnukaev.argumentmap.web.dto.PagedResponse;
 
 /**
  * REST endpoint для Q&amp;A вопросов (Этап 19.a, ADR-032).
@@ -51,13 +53,23 @@ public class QuestionController {
                 .body(toResponse(created));
     }
 
+    /**
+     * Пагинированный список вопросов (Этап pagination). Status/q фильтры
+     * существовали; добавлены ?page=&size= с PagedResponse wrapper.
+     */
     @GetMapping
-    public List<QuestionResponse> list(
+    public PagedResponse<QuestionResponse> list(
             @RequestParam(name = "status", required = false) QuestionStatus status,
-            @RequestParam(name = "q", required = false) String query) {
-        return service.listQuestions(status, query).stream()
+            @RequestParam(name = "q", required = false) String query,
+            @RequestParam(name = "page", required = false) Integer page,
+            @RequestParam(name = "size", required = false) Integer size) {
+        PageRequest pr = PageRequest.from(page, size);
+        List<Question> items = service.listQuestionsPage(status, query, pr.size(), pr.offset());
+        long total = service.countQuestions(status, query);
+        List<QuestionResponse> mapped = items.stream()
                 .map(QuestionController::toResponse)
                 .toList();
+        return PagedResponse.of(mapped, pr.page(), pr.size(), total);
     }
 
     @GetMapping("/{questionId}")

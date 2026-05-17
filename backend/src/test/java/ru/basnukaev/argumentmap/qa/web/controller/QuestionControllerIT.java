@@ -111,14 +111,15 @@ class QuestionControllerIT {
 
         mockMvc.perform(get("/api/v1/questions").param("status", "CLOSED"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].id").value(q2.toString()));
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(q2.toString()));
 
         // sanity: без фильтра видно оба (включая возможно созданные прошлыми тестами,
         // но мы в @Transactional rollback - значит только наши)
         mockMvc.perform(get("/api/v1/questions"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2));
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.totalElements").value(2));
         // suppress unused warning
         assert q1 != null;
     }
@@ -130,8 +131,24 @@ class QuestionControllerIT {
 
         mockMvc.perform(get("/api/v1/questions").param("q", "хадис"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].title").value("Каково положение хадиса"));
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].title").value("Каково положение хадиса"));
+    }
+
+    @Test
+    void listQuestions_paginated_returnsCorrectPage() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            createDirect("q-" + i, "OPEN");
+        }
+        mockMvc.perform(get("/api/v1/questions")
+                        .param("page", "1").param("size", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.totalElements").value(5))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.hasPrev").value(true));
     }
 
     @Test
