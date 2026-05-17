@@ -77,7 +77,7 @@ function QuestionListPage() {
   return (
     <main className="min-h-screen bg-bg">
       <Header />
-      <div className="mx-auto max-w-[1380px] px-6 py-8">
+      <div className="mx-auto max-w-[1380px] px-3 py-6 sm:px-6 sm:py-8">
         <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
