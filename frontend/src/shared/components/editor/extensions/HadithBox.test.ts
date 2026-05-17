@@ -4,31 +4,44 @@
  * собирает node-spec (name / group / content / attributes /
  * commands)
  */
-import { describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test } from 'vitest';
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { HadithBox } from './HadithBox';
 
+// Tracking active editors для cleanup - иначе ProseMirror DOMObserver
+// timer fires после teardown теста и валит uncaught exception на jsdom
+const activeEditors: Editor[] = [];
+
 function makeEditor(initialContent?: object) {
-  return new Editor({
+  const editor = new Editor({
     extensions: [StarterKit, HadithBox],
     content: initialContent ?? { type: 'doc', content: [{ type: 'paragraph' }] },
   });
+  activeEditors.push(editor);
+  return editor;
 }
+
+afterEach(() => {
+  while (activeEditors.length > 0) {
+    const e = activeEditors.pop();
+    e?.destroy();
+  }
+});
 
 describe('HadithBox extension', () => {
   test('регистрирует node hadithBox в schema с group=block и content=block+', () => {
     const editor = makeEditor();
     const nodeType = editor.schema.nodes.hadithBox;
     expect(nodeType).toBeDefined();
-    expect(nodeType.spec.group).toBe('block');
-    expect(nodeType.spec.content).toBe('block+');
+    expect(nodeType?.spec.group).toBe('block');
+    expect(nodeType?.spec.content).toBe('block+');
   });
 
   test('default attributes source="" и grade="sahih"', () => {
     const editor = makeEditor();
     const nodeType = editor.schema.nodes.hadithBox;
-    const defaults = nodeType.spec.attrs as Record<string, { default: unknown }> | undefined;
+    const defaults = nodeType?.spec.attrs as Record<string, { default: unknown }> | undefined;
     expect(defaults?.source?.default).toBe('');
     expect(defaults?.grade?.default).toBe('sahih');
   });

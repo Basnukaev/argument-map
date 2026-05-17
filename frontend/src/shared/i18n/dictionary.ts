@@ -619,6 +619,45 @@ export const DICTIONARY = {
     'admin.page_editor.hadith.confirm': 'Применить',
     'admin.page_editor.hadith.cancel': 'Отмена',
 
+    // Этап 17.0.b - AyahBox / Marginalia / Footnote / ColorHighlight
+    'admin.page_editor.toolbar.ayah': 'Аят',
+    'admin.page_editor.toolbar.ayah_remove': 'Снять аят-бокс',
+    'admin.page_editor.toolbar.marginalia': 'Заметка на полях',
+    'admin.page_editor.toolbar.marginalia_remove': 'Снять заметку',
+    'admin.page_editor.toolbar.footnote': 'Сноска',
+    'admin.page_editor.toolbar.footnote_remove': 'Снять сноску',
+    'admin.page_editor.toolbar.highlight': 'Цвет',
+    'admin.page_editor.toolbar.highlight_remove': 'Убрать цвет',
+
+    'admin.page_editor.ayah.dialog_title': 'Аят Корана',
+    'admin.page_editor.ayah.surah_label': 'Сура',
+    'admin.page_editor.ayah.ayah_label': 'Номер аята',
+    'admin.page_editor.ayah.translation_label': 'Перевод (необязательно)',
+    'admin.page_editor.ayah.translation_placeholder': 'Русский перевод смысла',
+    'admin.page_editor.ayah.confirm': 'Применить',
+    'admin.page_editor.ayah.cancel': 'Отмена',
+
+    'admin.page_editor.marginalia.dialog_title': 'Заметка на полях',
+    'admin.page_editor.marginalia.side_label': 'Сторона',
+    'admin.page_editor.marginalia.side_start': 'Начало строки',
+    'admin.page_editor.marginalia.side_end': 'Конец строки',
+    'admin.page_editor.marginalia.confirm': 'Применить',
+    'admin.page_editor.marginalia.cancel': 'Отмена',
+
+    'admin.page_editor.footnote.dialog_title': 'Сноска',
+    'admin.page_editor.footnote.content_label': 'Текст сноски',
+    'admin.page_editor.footnote.content_placeholder': 'Пояснение или ссылка',
+    'admin.page_editor.footnote.confirm': 'Применить',
+    'admin.page_editor.footnote.cancel': 'Отмена',
+    'admin.page_editor.footnote.empty_selection_hint': 'Выделите текст-якорь для сноски',
+
+    'admin.page_editor.highlight.label': 'Цвет подсветки',
+    'admin.page_editor.highlight.red': 'Красный',
+    'admin.page_editor.highlight.blue': 'Синий',
+    'admin.page_editor.highlight.green': 'Зелёный',
+    'admin.page_editor.highlight.yellow': 'Жёлтый',
+    'admin.page_editor.highlight.purple': 'Фиолетовый',
+
     // Auth (Этап 21.b, ADR-040)
     'auth.brand.tagline': 'Аргумент-карта · платформа для научной работы',
     'auth.required_to_view': 'Войдите, чтобы продолжить',
@@ -1239,6 +1278,45 @@ export const DICTIONARY = {
     'admin.page_editor.hadith.grade.daif': 'ضعيف',
     'admin.page_editor.hadith.confirm': 'تطبيق',
     'admin.page_editor.hadith.cancel': 'إلغاء',
+
+    // المرحلة 17.0.b - AyahBox / Marginalia / Footnote / ColorHighlight
+    'admin.page_editor.toolbar.ayah': 'آية',
+    'admin.page_editor.toolbar.ayah_remove': 'إزالة صندوق الآية',
+    'admin.page_editor.toolbar.marginalia': 'حاشية',
+    'admin.page_editor.toolbar.marginalia_remove': 'إزالة الحاشية',
+    'admin.page_editor.toolbar.footnote': 'تعليق',
+    'admin.page_editor.toolbar.footnote_remove': 'إزالة التعليق',
+    'admin.page_editor.toolbar.highlight': 'لون',
+    'admin.page_editor.toolbar.highlight_remove': 'إزالة اللون',
+
+    'admin.page_editor.ayah.dialog_title': 'آية قرآنية',
+    'admin.page_editor.ayah.surah_label': 'السورة',
+    'admin.page_editor.ayah.ayah_label': 'رقم الآية',
+    'admin.page_editor.ayah.translation_label': 'الترجمة (اختياري)',
+    'admin.page_editor.ayah.translation_placeholder': 'ترجمة المعنى بالروسية',
+    'admin.page_editor.ayah.confirm': 'تطبيق',
+    'admin.page_editor.ayah.cancel': 'إلغاء',
+
+    'admin.page_editor.marginalia.dialog_title': 'حاشية',
+    'admin.page_editor.marginalia.side_label': 'الجهة',
+    'admin.page_editor.marginalia.side_start': 'بداية السطر',
+    'admin.page_editor.marginalia.side_end': 'نهاية السطر',
+    'admin.page_editor.marginalia.confirm': 'تطبيق',
+    'admin.page_editor.marginalia.cancel': 'إلغاء',
+
+    'admin.page_editor.footnote.dialog_title': 'تعليق',
+    'admin.page_editor.footnote.content_label': 'نص التعليق',
+    'admin.page_editor.footnote.content_placeholder': 'شرح أو إشارة',
+    'admin.page_editor.footnote.confirm': 'تطبيق',
+    'admin.page_editor.footnote.cancel': 'إلغاء',
+    'admin.page_editor.footnote.empty_selection_hint': 'حدّد نصًّا ليكون مرجع التعليق',
+
+    'admin.page_editor.highlight.label': 'لون التظليل',
+    'admin.page_editor.highlight.red': 'أحمر',
+    'admin.page_editor.highlight.blue': 'أزرق',
+    'admin.page_editor.highlight.green': 'أخضر',
+    'admin.page_editor.highlight.yellow': 'أصفر',
+    'admin.page_editor.highlight.purple': 'بنفسجي',
 
     // Auth (Этап 21.b, ADR-040)
     'auth.brand.tagline': 'خريطة الحجج · منصّة للبحث العلمي',

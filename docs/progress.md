@@ -11,6 +11,66 @@
 
 ---
 
+## 2026-05-17 - Сессия 42 Этап 17.0.b - 4 custom Tiptap extensions
+
+Continuation Этапа 17.0 - после MVP с HadithBox (Сессия 41) реализованы
+ещё 4 extensions из 7 запланированных в ADR-039. Параллельная сессия
+с frontend login UI (Этап 21.b) - изоляция зон: моя `editor/extensions/`
++ `tiptap.css` + `AdminPageEditorPage` + `admin.page_editor.*` keys.
+
+**Реализовано:**
+
+1. **AyahBox** - блочный node (group=block, content=block+) с
+   attributes surah (1-114) / ayah (>=1) / translation (optional).
+   wrapIn/lift команды как у HadithBox. Визуал: `bg-amber-50` +
+   `border-amber-400` + орнаментальные `﴿ ﴾` в углах
+2. **Marginalia** - блочный node с RTL-aware `data-side` = 'start' |
+   'end'. На desktop (`>=769px`) - float сбоку через
+   `float: inline-start/end` + `max-width: 30%`. На mobile - inline
+   blockquote-like. content=block+ для wrapIn совместимости
+3. **Footnote** - Mark (вариант B из ADR-039), `<sup data-type=
+   "footnote" title="...">`. Auto-numbering чисто CSS counter в
+   `tiptap.css` (`.ProseMirror { counter-reset: footnote; }` +
+   `.footnote-ref::before { counter-increment: footnote; content:
+   '[' counter(footnote) ']' }`) - без JS, пересчёт автоматический.
+   Native browser tooltip из атрибута `title`
+4. **ColorHighlight** - Mark с whitelist 5 цветов (red/blue/green/
+   yellow/purple). setColorHighlight с toggle behaviour (тот же цвет
+   на selection = снимает mark). parseHTML читает color из class или
+   data-color. Tailwind 700-level колор палитра + dark mode (-400)
+
+**AdminPageEditorPage toolbar:** добавлены 5 кнопок (Hadith
+существовала + 4 новых). HadithBox/AyahBox/Marginalia/Footnote
+открывают Modal для attrs; ColorHighlight - palette dropdown с
+swatches 5 цветов. Каждый блок-extension показывает `×` remove
+кнопку рядом когда active
+
+**Файлы:**
+- `frontend/src/shared/components/editor/extensions/AyahBox.{ts,test.ts}`
+- `frontend/src/shared/components/editor/extensions/Marginalia.{ts,test.ts}`
+- `frontend/src/shared/components/editor/extensions/Footnote.{ts,test.ts}`
+- `frontend/src/shared/components/editor/extensions/ColorHighlight.{ts,test.ts}`
+- `frontend/src/styles/tiptap.css` - дополнен 4 блоками CSS + dark
+  mode для каждого + media-queries для marginalia
+- `frontend/src/apps/admin/pages/AdminPageEditorPage.tsx` - 5
+  кнопок + 4 модалки + highlight palette
+- `frontend/src/shared/components/reader/PageView.tsx` - READER_
+  EXTENSIONS расширен 4 новыми (синхронизация admin↔reader, без
+  этого reader падал бы на unknown node types)
+- `frontend/src/shared/i18n/dictionary.ts` - +40 keys RU/AR
+
+**Тесты:** 241/241 frontend pass (24 новых + auth-subagent работа).
+lint clean, typecheck clean, build clean
+
+**Отложено:**
+- Этап 17.0.c: оставшиеся 3 extensions (Tashkeel mark /
+  DecoratedHeading / PageNumber)
+- AI editing pipeline (Этап 17.e)
+- OCR pipeline (Этап 17.a-17.d) - архитектурный prerequisite ADR-039
+  закрыт, можно стартовать
+
+---
+
 ## 2026-05-17 - Сессия 41 Этап 17.0 Tiptap rich text editor MVP
 
 Параллельная сессия с Spring Security/JWT (Этап 21.a) - моя зона

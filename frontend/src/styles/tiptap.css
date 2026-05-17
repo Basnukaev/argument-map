@@ -58,6 +58,165 @@
   }
 }
 
+/* AyahBox (Этап 17.0.b) - блочный node для аята Корана. Более
+   ornament-стильный чем HadithBox: gold accent border + subtle
+   gold background, орнаментальные арабские скобки `﴿ ﴾` в углах
+   имитируют классическую тахкик-вёрстку Кор'ана */
+.ayah-box {
+  background: rgb(255 251 235 / 0.7); /* amber-50-ish */
+  border: 1px solid rgb(251 191 36); /* amber-400 */
+  border-radius: 8px;
+  padding: 1.25rem 1.75rem;
+  margin: 1rem 0;
+  position: relative;
+}
+
+.ayah-box::before,
+.ayah-box::after {
+  position: absolute;
+  font-size: 1.75rem;
+  line-height: 1;
+  color: rgb(180 83 9); /* amber-700 */
+  background: rgb(255 255 255);
+  padding: 0 0.25rem;
+  top: -0.5rem;
+}
+
+.ayah-box::before {
+  content: '﴿';
+  left: 0.5rem;
+}
+
+.ayah-box::after {
+  content: '﴾';
+  right: 0.5rem;
+}
+
+/* В RTL ornament-скобки тоже выглядят корректно - они симметричны
+   арабской письменности, специальный mirror не нужен */
+
+@media (prefers-color-scheme: dark) {
+  .ayah-box {
+    background: rgb(120 53 15 / 0.2); /* amber-900 dim */
+    border-color: rgb(217 119 6); /* amber-600 */
+  }
+  .ayah-box::before,
+  .ayah-box::after {
+    background: rgb(31 41 55);
+    color: rgb(251 191 36);
+  }
+}
+
+/* Marginalia (Этап 17.0.b) - комментарий мухаккика на полях.
+   Desktop: float сбоку (логические start/end через data-side),
+   маленький курсив, мягкая граница. Mobile (<=768px): сворачивается
+   в inline-блок после параграфа */
+.marginalia {
+  font-size: 0.8125rem; /* text-xs+1 */
+  font-style: italic;
+  color: rgb(75 85 99); /* slate-600 */
+  background: rgb(248 250 252 / 0.7); /* slate-50 */
+  border-inline-start: 3px solid rgb(148 163 184); /* slate-400 */
+  padding: 0.5rem 0.75rem;
+  margin: 0.5rem 0;
+  border-radius: 0 4px 4px 0;
+}
+
+@media (min-width: 769px) {
+  .marginalia[data-side='start'] {
+    float: inline-start;
+    max-width: 30%;
+    margin-inline-end: 1rem;
+    clear: inline-start;
+  }
+  .marginalia[data-side='end'] {
+    float: inline-end;
+    max-width: 30%;
+    margin-inline-start: 1rem;
+    clear: inline-end;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .marginalia {
+    color: rgb(203 213 225); /* slate-300 */
+    background: rgb(15 23 42 / 0.5); /* slate-900 */
+    border-inline-start-color: rgb(100 116 139); /* slate-500 */
+  }
+}
+
+/* Footnote (Этап 17.0.b) - inline mark `<sup>` с auto-numbering
+   через CSS counter. Содержимое сноски показывается через native
+   browser tooltip из атрибута `title`. Counter работает scope'ом
+   `.ProseMirror` - сбрасывается при каждом редакторе/render */
+.ProseMirror,
+.tiptap-render {
+  counter-reset: footnote;
+}
+
+.footnote-ref {
+  color: rgb(29 78 216); /* blue-700 */
+  cursor: help;
+  font-size: 0.75em;
+  margin-inline: 0.125em;
+}
+
+.footnote-ref::before {
+  counter-increment: footnote;
+  content: '[' counter(footnote) ']';
+}
+
+@media (prefers-color-scheme: dark) {
+  .footnote-ref {
+    color: rgb(96 165 250); /* blue-400 */
+  }
+}
+
+/* ColorHighlight (Этап 17.0.b) - inline mark с whitelist из 5
+   цветов. Используем text color (не background) для классической
+   тахкик-эстетики - красные key terms, синие имена и т.д. */
+.color-highlight {
+  font-weight: 500;
+}
+
+.color-highlight-red {
+  color: rgb(185 28 28); /* red-700 */
+}
+
+.color-highlight-blue {
+  color: rgb(29 78 216); /* blue-700 */
+}
+
+.color-highlight-green {
+  color: rgb(21 128 61); /* green-700 */
+}
+
+.color-highlight-yellow {
+  color: rgb(161 98 7); /* yellow-700 (хорошо читаемый на белом) */
+}
+
+.color-highlight-purple {
+  color: rgb(126 34 206); /* purple-700 */
+}
+
+@media (prefers-color-scheme: dark) {
+  .color-highlight-red {
+    color: rgb(248 113 113); /* red-400 */
+  }
+  .color-highlight-blue {
+    color: rgb(96 165 250); /* blue-400 */
+  }
+  .color-highlight-green {
+    color: rgb(74 222 128); /* green-400 */
+  }
+  .color-highlight-yellow {
+    color: rgb(250 204 21); /* yellow-400 */
+  }
+  .color-highlight-purple {
+    color: rgb(192 132 252); /* purple-400 */
+  }
+}
+
 /* Tiptap ProseMirror focus / cursor стили - минимальный override
    чтобы кастомный focus ring был не блокирующий, а ненавязчивый */
 .ProseMirror:focus {

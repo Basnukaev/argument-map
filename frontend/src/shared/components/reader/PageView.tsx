@@ -10,12 +10,17 @@ import {
 } from '@/shared/components/reader/textRangeUtils';
 import RichTextRenderer from '@/shared/components/editor/RichTextRenderer';
 import { HadithBox } from '@/shared/components/editor/extensions/HadithBox';
+import { AyahBox } from '@/shared/components/editor/extensions/AyahBox';
+import { Marginalia } from '@/shared/components/editor/extensions/Marginalia';
+import { Footnote } from '@/shared/components/editor/extensions/Footnote';
+import { ColorHighlight } from '@/shared/components/editor/extensions/ColorHighlight';
 
 // Custom Tiptap extensions для read-only render. Список должен совпадать
 // с extensions в AdminPageEditorPage - иначе пользовательский HadithBox
-// упадёт на «unknown node type». По мере добавления новых extensions
-// (AyahBox / Marginalia / Footnote / etc) - расширять этот массив
-const READER_EXTENSIONS = [HadithBox];
+// упадёт на «unknown node type». Этап 17.0.b расширил его до 5 custom
+// extensions; следующие 3 (Tashkeel / DecoratedHeading / PageNumber)
+// будут добавлены отдельным этапом
+const READER_EXTENSIONS = [HadithBox, AyahBox, Marginalia, Footnote, ColorHighlight];
 
 // Source-first поля (миграция 19, ADR-021) - в runtime есть, но types.ts
 // регенерируется отдельно. Intersection даёт безопасный доступ.

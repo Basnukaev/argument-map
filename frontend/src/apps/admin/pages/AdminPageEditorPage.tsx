@@ -3,8 +3,10 @@
  *
  * Маршрут /admin/library/pages/:pageId/edit. Загружает страницу через
  * GET /api/v1/library/pages/{id}, рендерит {@link RichTextEditor} с
- * StarterKit + HadithBox extension. Toolbar над editor'ом даёт кнопки
- * Bold / Italic / H1-3 / Blockquote / HadithBox.
+ * StarterKit + 5 custom extensions (HadithBox / AyahBox / Marginalia /
+ * Footnote / ColorHighlight). Toolbar над editor'ом даёт кнопки
+ * Bold / Italic / H1-3 / Blockquote / HadithBox / AyahBox / Marginalia /
+ * Footnote / ColorHighlight palette.
  *
  * Save flow: PATCH /api/v1/library/pages/{id}/formatted-content с
  * ProseMirror JSON (editor.getJSON()). Backend хранит в jsonb колонке
@@ -28,6 +30,10 @@ import {
   AlertCircle,
   Save,
   BookOpen,
+  Book,
+  StickyNote,
+  Asterisk,
+  Palette,
 } from 'lucide-react';
 import type { Editor } from '@tiptap/react';
 import Button from '@/shared/components/ui/Button';
@@ -37,6 +43,14 @@ import Header from '@/shared/components/layout/Header';
 import RichTextEditor from '@/shared/components/editor/RichTextEditor';
 import { wrapPlainTextAsDoc } from '@/shared/components/editor/RichTextRenderer';
 import { HadithBox, type HadithGrade } from '@/shared/components/editor/extensions/HadithBox';
+import { AyahBox } from '@/shared/components/editor/extensions/AyahBox';
+import { Marginalia, type MarginaliaSide } from '@/shared/components/editor/extensions/Marginalia';
+import { Footnote } from '@/shared/components/editor/extensions/Footnote';
+import {
+  ColorHighlight,
+  HIGHLIGHT_COLORS,
+  type HighlightColor,
+} from '@/shared/components/editor/extensions/ColorHighlight';
 import { apiGetRaw, apiPatchRaw, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useT } from '@/shared/i18n';
@@ -53,7 +67,17 @@ type State =
   | { kind: 'success'; page: PageResponse; content: object | null }
   | { kind: 'error'; message: string };
 
-const EDITOR_EXTENSIONS = [HadithBox];
+const EDITOR_EXTENSIONS = [HadithBox, AyahBox, Marginalia, Footnote, ColorHighlight];
+
+// Swatch цвета для highlight dropdown - синхронизированы с CSS
+// в `tiptap.css` (color-highlight-{color})
+const HIGHLIGHT_SWATCHES: Record<HighlightColor, string> = {
+  red: '#b91c1c',
+  blue: '#1d4ed8',
+  green: '#15803d',
+  yellow: '#a16207',
+  purple: '#7e22ce',
+};
 
 function AdminPageEditorPage() {
   const { pageId } = useParams<{ pageId: string }>();
@@ -64,9 +88,29 @@ function AdminPageEditorPage() {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [currentJson, setCurrentJson] = useState<object | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // HadithBox modal
   const [hadithModalOpen, setHadithModalOpen] = useState(false);
   const [hadithSource, setHadithSource] = useState('');
   const [hadithGrade, setHadithGrade] = useState<HadithGrade>('sahih');
+
+  // AyahBox modal
+  const [ayahModalOpen, setAyahModalOpen] = useState(false);
+  const [ayahSurah, setAyahSurah] = useState(1);
+  const [ayahAyah, setAyahAyah] = useState(1);
+  const [ayahTranslation, setAyahTranslation] = useState('');
+
+  // Marginalia modal
+  const [marginaliaModalOpen, setMarginaliaModalOpen] = useState(false);
+  const [marginaliaSide, setMarginaliaSide] = useState<MarginaliaSide>('start');
+
+  // Footnote modal
+  const [footnoteModalOpen, setFootnoteModalOpen] = useState(false);
+  const [footnoteContent, setFootnoteContent] = useState('');
+  const [footnoteEmptySelection, setFootnoteEmptySelection] = useState(false);
+
+  // ColorHighlight palette dropdown
+  const [highlightPaletteOpen, setHighlightPaletteOpen] = useState(false);
 
   useEffect(() => {
     if (!pageId) return;
@@ -75,9 +119,6 @@ function AdminPageEditorPage() {
       signal: controller.signal,
     })
       .then((page) => {
-        // Если formatted_content есть - используем напрямую, иначе
-        // оборачиваем text_content в minimal paragraph-doc (ADR-039
-        // backward compat для Shamela/PDFBox страниц)
         const initialContent = page.formattedContent ?? wrapPlainTextAsDoc(page.textContent);
         setState({ kind: 'success', page, content: initialContent });
         setCurrentJson(initialContent);
@@ -115,7 +156,6 @@ function AdminPageEditorPage() {
     }
   }, [pageId, currentJson, t]);
 
-  // Toolbar handlers - вызываются если editor готов
   const isActive = (mark: string, attrs?: Record<string, unknown>): boolean => {
     return editor?.isActive(mark, attrs) ?? false;
   };
@@ -127,8 +167,8 @@ function AdminPageEditorPage() {
   const cmdH3 = () => editor?.chain().focus().toggleHeading({ level: 3 }).run();
   const cmdBlockquote = () => editor?.chain().focus().toggleBlockquote().run();
 
+  // HadithBox handlers
   const openHadithDialog = () => {
-    // Pre-fill из текущего node если уже HadithBox - editor.getAttributes
     if (editor?.isActive('hadithBox')) {
       const attrs = editor.getAttributes('hadithBox') as { source?: string; grade?: HadithGrade };
       setHadithSource(attrs.source ?? '');
@@ -143,7 +183,6 @@ function AdminPageEditorPage() {
   const confirmHadith = () => {
     if (!editor) return;
     if (editor.isActive('hadithBox')) {
-      // Update attributes existing HadithBox (вместо wrap-in)
       editor.chain().focus().updateAttributes('hadithBox', {
         source: hadithSource,
         grade: hadithGrade,
@@ -159,6 +198,107 @@ function AdminPageEditorPage() {
 
   const removeHadith = () => {
     editor?.chain().focus().unsetHadithBox().run();
+  };
+
+  // AyahBox handlers
+  const openAyahDialog = () => {
+    if (editor?.isActive('ayahBox')) {
+      const attrs = editor.getAttributes('ayahBox') as {
+        surah?: number;
+        ayah?: number;
+        translation?: string;
+      };
+      setAyahSurah(attrs.surah ?? 1);
+      setAyahAyah(attrs.ayah ?? 1);
+      setAyahTranslation(attrs.translation ?? '');
+    } else {
+      setAyahSurah(1);
+      setAyahAyah(1);
+      setAyahTranslation('');
+    }
+    setAyahModalOpen(true);
+  };
+
+  const confirmAyah = () => {
+    if (!editor) return;
+    const attrs = { surah: ayahSurah, ayah: ayahAyah, translation: ayahTranslation };
+    if (editor.isActive('ayahBox')) {
+      editor.chain().focus().updateAttributes('ayahBox', attrs).run();
+    } else {
+      editor.chain().focus().setAyahBox(attrs).run();
+    }
+    setAyahModalOpen(false);
+  };
+
+  const removeAyah = () => {
+    editor?.chain().focus().unsetAyahBox().run();
+  };
+
+  // Marginalia handlers
+  const openMarginaliaDialog = () => {
+    if (editor?.isActive('marginalia')) {
+      const attrs = editor.getAttributes('marginalia') as { side?: MarginaliaSide };
+      setMarginaliaSide(attrs.side ?? 'start');
+    } else {
+      setMarginaliaSide('start');
+    }
+    setMarginaliaModalOpen(true);
+  };
+
+  const confirmMarginalia = () => {
+    if (!editor) return;
+    if (editor.isActive('marginalia')) {
+      editor.chain().focus().updateAttributes('marginalia', { side: marginaliaSide }).run();
+    } else {
+      editor.chain().focus().setMarginalia({ side: marginaliaSide }).run();
+    }
+    setMarginaliaModalOpen(false);
+  };
+
+  const removeMarginalia = () => {
+    editor?.chain().focus().unsetMarginalia().run();
+  };
+
+  // Footnote handlers
+  const openFootnoteDialog = () => {
+    if (!editor) return;
+    // Footnote это mark - требует non-empty selection.
+    // Если уже на footnote-mark - pre-fill, иначе требуем выделение
+    if (editor.isActive('footnote')) {
+      const attrs = editor.getAttributes('footnote') as { content?: string };
+      setFootnoteContent(attrs.content ?? '');
+      setFootnoteEmptySelection(false);
+    } else {
+      const { from, to } = editor.state.selection;
+      if (from === to) {
+        setFootnoteEmptySelection(true);
+        setFootnoteContent('');
+      } else {
+        setFootnoteEmptySelection(false);
+        setFootnoteContent('');
+      }
+    }
+    setFootnoteModalOpen(true);
+  };
+
+  const confirmFootnote = () => {
+    if (!editor) return;
+    editor.chain().focus().setFootnote(footnoteContent).run();
+    setFootnoteModalOpen(false);
+  };
+
+  const removeFootnote = () => {
+    editor?.chain().focus().unsetFootnote().run();
+  };
+
+  // ColorHighlight handlers
+  const applyHighlight = (color: HighlightColor) => {
+    editor?.chain().focus().setColorHighlight(color).run();
+    setHighlightPaletteOpen(false);
+  };
+
+  const removeHighlight = () => {
+    editor?.chain().focus().unsetColorHighlight().run();
   };
 
   if (state.kind === 'loading') {
@@ -275,6 +415,7 @@ function AdminPageEditorPage() {
             label={t('admin.page_editor.toolbar.blockquote')}
           />
           <ToolbarDivider />
+          {/* HadithBox */}
           <ToolbarButton
             active={isActive('hadithBox')}
             onClick={openHadithDialog}
@@ -287,6 +428,87 @@ function AdminPageEditorPage() {
               onClick={removeHadith}
               icon={<span className="text-xs">×</span>}
               label={t('admin.page_editor.toolbar.hadith_remove')}
+            />
+          )}
+          {/* AyahBox */}
+          <ToolbarButton
+            active={isActive('ayahBox')}
+            onClick={openAyahDialog}
+            icon={<Book size={14} />}
+            label={t('admin.page_editor.toolbar.ayah')}
+          />
+          {isActive('ayahBox') && (
+            <ToolbarButton
+              active={false}
+              onClick={removeAyah}
+              icon={<span className="text-xs">×</span>}
+              label={t('admin.page_editor.toolbar.ayah_remove')}
+            />
+          )}
+          {/* Marginalia */}
+          <ToolbarButton
+            active={isActive('marginalia')}
+            onClick={openMarginaliaDialog}
+            icon={<StickyNote size={14} />}
+            label={t('admin.page_editor.toolbar.marginalia')}
+          />
+          {isActive('marginalia') && (
+            <ToolbarButton
+              active={false}
+              onClick={removeMarginalia}
+              icon={<span className="text-xs">×</span>}
+              label={t('admin.page_editor.toolbar.marginalia_remove')}
+            />
+          )}
+          {/* Footnote */}
+          <ToolbarButton
+            active={isActive('footnote')}
+            onClick={openFootnoteDialog}
+            icon={<Asterisk size={14} />}
+            label={t('admin.page_editor.toolbar.footnote')}
+          />
+          {isActive('footnote') && (
+            <ToolbarButton
+              active={false}
+              onClick={removeFootnote}
+              icon={<span className="text-xs">×</span>}
+              label={t('admin.page_editor.toolbar.footnote_remove')}
+            />
+          )}
+          {/* ColorHighlight palette */}
+          <div className="relative">
+            <ToolbarButton
+              active={isActive('colorHighlight')}
+              onClick={() => setHighlightPaletteOpen((v) => !v)}
+              icon={<Palette size={14} />}
+              label={t('admin.page_editor.toolbar.highlight')}
+            />
+            {highlightPaletteOpen && (
+              <div
+                className="absolute top-full mt-1 z-20 flex gap-1 rounded-md border border-border bg-bg p-1.5 shadow-md"
+                role="menu"
+                aria-label={t('admin.page_editor.highlight.label')}
+              >
+                {HIGHLIGHT_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => applyHighlight(color)}
+                    title={t(`admin.page_editor.highlight.${color}`)}
+                    aria-label={t(`admin.page_editor.highlight.${color}`)}
+                    className="h-6 w-6 rounded border border-border transition-transform hover:scale-110"
+                    style={{ backgroundColor: HIGHLIGHT_SWATCHES[color] }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+          {isActive('colorHighlight') && (
+            <ToolbarButton
+              active={false}
+              onClick={removeHighlight}
+              icon={<span className="text-xs">×</span>}
+              label={t('admin.page_editor.toolbar.highlight_remove')}
             />
           )}
         </Card>
@@ -304,7 +526,7 @@ function AdminPageEditorPage() {
         </Card>
       </div>
 
-      {/* HadithBox attributes dialog */}
+      {/* HadithBox dialog */}
       {hadithModalOpen && (
         <Modal
           open
@@ -340,6 +562,143 @@ function AdminPageEditorPage() {
               </Button>
               <Button variant="primary" size="sm" onClick={confirmHadith}>
                 {t('admin.page_editor.hadith.confirm')}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* AyahBox dialog */}
+      {ayahModalOpen && (
+        <Modal
+          open
+          onClose={() => setAyahModalOpen(false)}
+          title={t('admin.page_editor.ayah.dialog_title')}
+        >
+          <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-ink-700">{t('admin.page_editor.ayah.surah_label')}</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={114}
+                  value={ayahSurah}
+                  onChange={(e) => setAyahSurah(Math.max(1, Math.min(114, Number(e.target.value) || 1)))}
+                  className="rounded-md border border-border bg-bg px-3 py-1.5 text-sm focus:border-accent-500 focus:outline-none"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-ink-700">{t('admin.page_editor.ayah.ayah_label')}</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={ayahAyah}
+                  onChange={(e) => setAyahAyah(Math.max(1, Number(e.target.value) || 1))}
+                  className="rounded-md border border-border bg-bg px-3 py-1.5 text-sm focus:border-accent-500 focus:outline-none"
+                />
+              </label>
+            </div>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-ink-700">{t('admin.page_editor.ayah.translation_label')}</span>
+              <textarea
+                value={ayahTranslation}
+                onChange={(e) => setAyahTranslation(e.target.value)}
+                placeholder={t('admin.page_editor.ayah.translation_placeholder')}
+                rows={3}
+                className="rounded-md border border-border bg-bg px-3 py-1.5 text-sm focus:border-accent-500 focus:outline-none"
+              />
+            </label>
+            <div className="mt-2 flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setAyahModalOpen(false)}>
+                {t('admin.page_editor.ayah.cancel')}
+              </Button>
+              <Button variant="primary" size="sm" onClick={confirmAyah}>
+                {t('admin.page_editor.ayah.confirm')}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Marginalia dialog */}
+      {marginaliaModalOpen && (
+        <Modal
+          open
+          onClose={() => setMarginaliaModalOpen(false)}
+          title={t('admin.page_editor.marginalia.dialog_title')}
+        >
+          <div className="flex flex-col gap-3">
+            <fieldset className="flex flex-col gap-2 text-sm">
+              <legend className="text-ink-700">{t('admin.page_editor.marginalia.side_label')}</legend>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="marginalia-side"
+                  value="start"
+                  checked={marginaliaSide === 'start'}
+                  onChange={() => setMarginaliaSide('start')}
+                />
+                <span>{t('admin.page_editor.marginalia.side_start')}</span>
+              </label>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="marginalia-side"
+                  value="end"
+                  checked={marginaliaSide === 'end'}
+                  onChange={() => setMarginaliaSide('end')}
+                />
+                <span>{t('admin.page_editor.marginalia.side_end')}</span>
+              </label>
+            </fieldset>
+            <div className="mt-2 flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setMarginaliaModalOpen(false)}>
+                {t('admin.page_editor.marginalia.cancel')}
+              </Button>
+              <Button variant="primary" size="sm" onClick={confirmMarginalia}>
+                {t('admin.page_editor.marginalia.confirm')}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Footnote dialog */}
+      {footnoteModalOpen && (
+        <Modal
+          open
+          onClose={() => setFootnoteModalOpen(false)}
+          title={t('admin.page_editor.footnote.dialog_title')}
+        >
+          <div className="flex flex-col gap-3">
+            {footnoteEmptySelection ? (
+              <p className="text-sm text-warn-700">
+                {t('admin.page_editor.footnote.empty_selection_hint')}
+              </p>
+            ) : (
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-ink-700">{t('admin.page_editor.footnote.content_label')}</span>
+                <textarea
+                  value={footnoteContent}
+                  onChange={(e) => setFootnoteContent(e.target.value)}
+                  placeholder={t('admin.page_editor.footnote.content_placeholder')}
+                  rows={4}
+                  className="rounded-md border border-border bg-bg px-3 py-1.5 text-sm focus:border-accent-500 focus:outline-none"
+                />
+              </label>
+            )}
+            <div className="mt-2 flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setFootnoteModalOpen(false)}>
+                {t('admin.page_editor.footnote.cancel')}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={confirmFootnote}
+                disabled={footnoteEmptySelection || !footnoteContent}
+              >
+                {t('admin.page_editor.footnote.confirm')}
               </Button>
             </div>
           </div>

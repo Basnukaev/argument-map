@@ -225,10 +225,19 @@ ADR-039
       иначе fallback на старый `sanitizePageHtml`. 30 i18n keys
       RU/AR (`admin.page_editor.*`), 14 frontend tests, 4 backend IT.
       628/628 backend pass, 193/193 frontend pass
-- [ ] **17.0.b - оставшиеся 7 custom extensions:** AyahBox /
-      Marginalia / Footnote / ColorHighlight / Tashkeel /
-      DecoratedHeading / PageNumber (по ADR-039). Каждое отдельным
-      коммитом по паттерну HadithBox
+- [x] **17.0.b - 4 из 7 custom extensions:** AyahBox (surah/ayah/
+      translation attrs, gold accent + `﴿ ﴾` ornament), Marginalia
+      (block с RTL-aware `data-side` start/end, desktop float +
+      mobile inline), Footnote (Mark variant B - `<sup>` + CSS
+      counter auto-numbering + native `title` tooltip), ColorHighlight
+      (5-color whitelist: red/blue/green/yellow/purple с toggle
+      behaviour). +24 schema-теста (HadithBox baseline 6 → 30 total
+      по extensions). AdminPageEditorPage toolbar расширен 5
+      кнопками + ColorHighlight palette dropdown. READER_EXTENSIONS
+      в PageView синхронизирован. ~40 i18n keys RU/AR. 241/241
+      frontend tests pass
+- [ ] **17.0.c - оставшиеся 3 custom extensions:** Tashkeel mark /
+      DecoratedHeading / PageNumber (по ADR-039)
 - [ ] **17.a:** PageImageService - upload изображений-страниц через
       `POST /api/v1/library/books/{id}/pages` (multipart, по одной)
 - [ ] **17.b:** Tess4j integration - OCR арабского через `ara`
