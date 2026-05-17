@@ -64,3 +64,5 @@ ruvector.db
 *.ruflo.lock
 # Windows Zone.Identifier files
 *:Zone.Identifier
+/package.json
+/package-lock.json

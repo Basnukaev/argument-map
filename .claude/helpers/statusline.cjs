@@ -630,155 +630,33 @@ function progressBar(current, total) {
 }
 
 function generateStatusline() {
-  const git = getGitInfo();
-  // Prefer model name from Claude Code stdin data, fallback to file-based detection
-  const modelName = getModelFromStdin() || getModelName();
-  const ctxInfo = getContextFromStdin();
-  const costInfo = getCostFromStdin();
-  const progress = getV3Progress();
-  const security = getSecurityStatus();
-  const swarm = getSwarmStatus();
-  const system = getSystemMetrics();
-  const adrs = getADRStatus();
-  const hooks = getHooksStatus();
-  const agentdb = getAgentDBStats();
-  const tests = getTestStats();
-  const session = getSessionStats();
-  const integration = getIntegrationStatus();
-  const lines = [];
+    // Читаем только то что нужно для компактной строки
+    const ctxInfo = getContextFromStdin();
+    const costInfo = getCostFromStdin();
+    const session = getSessionStats();
 
-  // Header — read version from the FIRST package.json we find, preferring
-  // the plugin install at ~/.claude/plugins/marketplaces/ruflo/package.json.
-  // The previous list only checked project-local node_modules, so plugin
-  // users saw the hard-coded fallback (V3.5) even on newer alphas (#1951).
-  let pkgVersion = '3.6';
-  try {
-    const home = require('os').homedir();
-    const pkgPaths = [
-      // 1. The plugin's own root (installed via /plugin install).
-      path.join(home, '.claude', 'plugins', 'marketplaces', 'ruflo', 'package.json'),
-      // 2. Project-local @claude-flow/cli — npm-style install.
-      path.join(CWD, 'node_modules', '@claude-flow', 'cli', 'package.json'),
-      // 3. Project-local ruflo umbrella.
-      path.join(CWD, 'node_modules', 'ruflo', 'package.json'),
-      // 4. Source-checkout location (when developing in this repo).
-      path.join(CWD, 'v3', '@claude-flow', 'cli', 'package.json'),
-    ];
-    for (const p of pkgPaths) {
-      if (!fs.existsSync(p)) continue;
-      try {
-        const pkg = JSON.parse(fs.readFileSync(p, 'utf-8'));
-        if (pkg && typeof pkg.version === 'string' && pkg.version.length > 0) {
-          pkgVersion = pkg.version;
-          break;
-        }
-      } catch { /* malformed package.json — try next */ }
+    const parts = [];
+
+    // Длительность сессии (из stdin Claude Code, или fallback на локальные файлы)
+    const duration = costInfo ? costInfo.duration : session.duration;
+    if (duration) {
+        parts.push(c.cyan + '\u23F1 ' + duration + c.reset);
     }
-  } catch { /* fall through to the hardcoded default */ }
-  let header = c.bold + c.brightPurple + '\u258A RuFlo V' + pkgVersion + ' ' + c.reset;
-  header += (swarm.coordinationActive ? c.brightCyan : c.dim) + '\u25CF ' + c.brightCyan + git.name + c.reset;
-  if (git.gitBranch) {
-    header += '  ' + c.dim + '\u2502' + c.reset + '  ' + c.brightBlue + '\u23C7 ' + git.gitBranch + c.reset;
-    const changes = git.modified + git.staged + git.untracked;
-    if (changes > 0) {
-      let ind = '';
-      if (git.staged > 0) ind += c.brightGreen + '+' + git.staged + c.reset;
-      if (git.modified > 0) ind += c.brightYellow + '~' + git.modified + c.reset;
-      if (git.untracked > 0) ind += c.dim + '?' + git.untracked + c.reset;
-      header += ' ' + ind;
+
+    // Процент контекста с цветом по уровню заполнения
+    if (ctxInfo && ctxInfo.usedPct > 0) {
+        const ctxColor = ctxInfo.usedPct >= 90 ? c.brightRed
+            : ctxInfo.usedPct >= 70 ? c.brightYellow
+                : c.brightGreen;
+        parts.push(ctxColor + '\u25CF ' + ctxInfo.usedPct + '% ctx' + c.reset);
     }
-    if (git.ahead > 0) header += ' ' + c.brightGreen + '\u2191' + git.ahead + c.reset;
-    if (git.behind > 0) header += ' ' + c.brightRed + '\u2193' + git.behind + c.reset;
-  }
-  header += '  ' + c.dim + '\u2502' + c.reset + '  ' + c.purple + modelName + c.reset;
-  // Show session duration from Claude Code stdin if available, else from local files
-  const duration = costInfo ? costInfo.duration : session.duration;
-  if (duration) header += '  ' + c.dim + '\u2502' + c.reset + '  ' + c.cyan + '\u23F1 ' + duration + c.reset;
-  // Show context usage from Claude Code stdin if available
-  if (ctxInfo && ctxInfo.usedPct > 0) {
-    const ctxColor = ctxInfo.usedPct >= 90 ? c.brightRed : ctxInfo.usedPct >= 70 ? c.brightYellow : c.brightGreen;
-    header += '  ' + c.dim + '\u2502' + c.reset + '  ' + ctxColor + '\u25CF ' + ctxInfo.usedPct + '% ctx' + c.reset;
-  }
-  // Show cost from Claude Code stdin if available
-  if (costInfo && costInfo.costUsd > 0) {
-    header += '  ' + c.dim + '\u2502' + c.reset + '  ' + c.brightYellow + '$' + costInfo.costUsd.toFixed(2) + c.reset;
-  }
-  lines.push(header);
 
-  // Separator
-  lines.push(c.dim + '\u2500'.repeat(53) + c.reset);
+    // Стоимость
+    if (costInfo && costInfo.costUsd > 0) {
+        parts.push(c.brightYellow + '$' + costInfo.costUsd.toFixed(2) + c.reset);
+    }
 
-  // Line 1: DDD Domains
-  const domainsColor = progress.domainsCompleted >= 3 ? c.brightGreen : progress.domainsCompleted > 0 ? c.yellow : c.red;
-  let perfIndicator;
-  if (agentdb.hasHnsw && agentdb.vectorCount > 0) {
-    const speedup = agentdb.vectorCount > 10000 ? '12500x' : agentdb.vectorCount > 1000 ? '150x' : '10x';
-    perfIndicator = c.brightGreen + '\u26A1 HNSW ' + speedup + c.reset;
-  } else if (progress.patternsLearned > 0) {
-    const pk = progress.patternsLearned >= 1000 ? (progress.patternsLearned / 1000).toFixed(1) + 'k' : String(progress.patternsLearned);
-    perfIndicator = c.brightYellow + '\uD83D\uDCDA ' + pk + ' patterns' + c.reset;
-  } else {
-    perfIndicator = c.dim + '\u26A1 target: 150x-12500x' + c.reset;
-  }
-  lines.push(
-    c.brightCyan + '\uD83C\uDFD7\uFE0F  DDD Domains' + c.reset + '    ' + progressBar(progress.domainsCompleted, progress.totalDomains) + '  ' +
-    domainsColor + progress.domainsCompleted + c.reset + '/' + c.brightWhite + progress.totalDomains + c.reset + '    ' + perfIndicator
-  );
-
-  // Line 2: Swarm + Hooks + CVE + Memory + Intelligence
-  const swarmInd = swarm.coordinationActive ? c.brightGreen + '\u25C9' + c.reset : c.dim + '\u25CB' + c.reset;
-  const agentsColor = swarm.activeAgents > 0 ? c.brightGreen : c.red;
-  const secIcon = security.status === 'CLEAN' ? '\uD83D\uDFE2' : (security.status === 'IN_PROGRESS' || security.status === 'STALE') ? '\uD83D\uDFE1' : (security.status === 'NONE' ? '\u26AA' : '\uD83D\uDD34');
-  const secColor = security.status === 'CLEAN' ? c.brightGreen : (security.status === 'IN_PROGRESS' || security.status === 'STALE') ? c.brightYellow : (security.status === 'NONE' ? c.dim : c.brightRed);
-  const hooksColor = hooks.enabled > 0 ? c.brightGreen : c.dim;
-  const intellColor = system.intelligencePct >= 80 ? c.brightGreen : system.intelligencePct >= 40 ? c.brightYellow : c.dim;
-
-  lines.push(
-    c.brightYellow + '\uD83E\uDD16 Swarm' + c.reset + '  ' + swarmInd + ' [' + agentsColor + String(swarm.activeAgents).padStart(2) + c.reset + '/' + c.brightWhite + swarm.maxAgents + c.reset + ']  ' +
-    c.brightPurple + '\uD83D\uDC65 ' + system.subAgents + c.reset + '    ' +
-    c.brightBlue + '\uD83E\uDE9D ' + hooksColor + hooks.enabled + c.reset + '/' + c.brightWhite + hooks.total + c.reset + '    ' +
-    secIcon + ' ' + secColor + 'CVE ' + security.cvesFixed + c.reset + '/' + c.brightWhite + security.totalCves + c.reset + '    ' +
-    c.brightCyan + '\uD83D\uDCBE ' + system.memoryMB + 'MB' + c.reset + '    ' +
-    intellColor + '\uD83E\uDDE0 ' + String(system.intelligencePct).padStart(3) + '%' + c.reset
-  );
-
-  // Line 3: Architecture
-  const dddColor = progress.dddProgress >= 50 ? c.brightGreen : progress.dddProgress > 0 ? c.yellow : c.red;
-  const adrColor = adrs.count > 0 ? (adrs.implemented === adrs.count ? c.brightGreen : c.yellow) : c.dim;
-  const adrDisplay = adrs.compliance > 0 ? adrColor + '\u25CF' + adrs.compliance + '%' + c.reset : adrColor + '\u25CF' + adrs.implemented + '/' + adrs.count + c.reset;
-
-  lines.push(
-    c.brightPurple + '\uD83D\uDD27 Architecture' + c.reset + '    ' +
-    c.cyan + 'ADRs' + c.reset + ' ' + adrDisplay + '  ' + c.dim + '\u2502' + c.reset + '  ' +
-    c.cyan + 'DDD' + c.reset + ' ' + dddColor + '\u25CF' + String(progress.dddProgress).padStart(3) + '%' + c.reset + '  ' + c.dim + '\u2502' + c.reset + '  ' +
-    c.cyan + 'Security' + c.reset + ' ' + secColor + '\u25CF' + security.status + c.reset
-  );
-
-  // Line 4: AgentDB, Tests, Integration
-  const hnswInd = agentdb.hasHnsw ? c.brightGreen + '\u26A1' + c.reset : '';
-  const sizeDisp = agentdb.dbSizeKB >= 1024 ? (agentdb.dbSizeKB / 1024).toFixed(1) + 'MB' : agentdb.dbSizeKB + 'KB';
-  const vectorColor = agentdb.vectorCount > 0 ? c.brightGreen : c.dim;
-  const testColor = tests.testFiles > 0 ? c.brightGreen : c.dim;
-
-  let integStr = '';
-  if (integration.mcpServers.total > 0) {
-    const mcpCol = integration.mcpServers.enabled === integration.mcpServers.total ? c.brightGreen :
-                   integration.mcpServers.enabled > 0 ? c.brightYellow : c.red;
-    integStr += c.cyan + 'MCP' + c.reset + ' ' + mcpCol + '\u25CF' + integration.mcpServers.enabled + '/' + integration.mcpServers.total + c.reset;
-  }
-  if (integration.hasDatabase) integStr += (integStr ? '  ' : '') + c.brightGreen + '\u25C6' + c.reset + 'DB';
-  if (integration.hasApi) integStr += (integStr ? '  ' : '') + c.brightGreen + '\u25C6' + c.reset + 'API';
-  if (!integStr) integStr = c.dim + '\u25CF none' + c.reset;
-
-  lines.push(
-    c.brightCyan + '\uD83D\uDCCA AgentDB' + c.reset + '    ' +
-    c.cyan + 'Vectors' + c.reset + ' ' + vectorColor + '\u25CF' + agentdb.vectorCount + hnswInd + c.reset + '  ' + c.dim + '\u2502' + c.reset + '  ' +
-    c.cyan + 'Size' + c.reset + ' ' + c.brightWhite + sizeDisp + c.reset + '  ' + c.dim + '\u2502' + c.reset + '  ' +
-    c.cyan + 'Tests' + c.reset + ' ' + testColor + '\u25CF' + tests.testFiles + c.reset + ' ' + c.dim + '(~' + tests.testCases + ' cases)' + c.reset + '  ' + c.dim + '\u2502' + c.reset + '  ' +
-    integStr
-  );
-
-  return lines.join('\n');
+    return parts.join('  ' + c.dim + '\u2502' + c.reset + '  ');
 }
 
 // JSON output
