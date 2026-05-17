@@ -32,12 +32,13 @@ import {
   NODE_TYPE_META,
 } from '@/apps/argument-map/utils/edgeRules';
 import { buildFlow, findFreePosition, sameIds } from '@/apps/argument-map/utils/graphPlacement';
-import { apiDeleteRaw, apiPatchRaw, ApiError } from '@/shared/api/client';
+import { apiDeleteRaw, apiPatchRaw, apiPost, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useT } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
 
 type GraphResponse = components['schemas']['GraphResponse'];
+type NodeDto = components['schemas']['NodeResponse'];
 type EdgeDto = components['schemas']['EdgeResponse'];
 
 // nodeTypes/edgeTypes - стабильные ссылки между рендерами, иначе RF
@@ -290,8 +291,116 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
     [t],
   );
 
-  // удаление одного узла/ребра по id из контекстного меню. Без window.confirm:
-  // явный пункт меню уже выражает намерение
+  // Re-create узла из snapshot после undo. POST /nodes восстанавливает
+  // type/content (без id - бэк выдаст новый), затем PATCH прокидывает posX/posY.
+  // Edges НЕ восстанавливаются - re-create меняет id, а edges указывают на старые
+  // id. Это документировано в hint'е к "Отменить" кнопке (см. i18n
+  // graph.node.undo_no_edges_hint). Прагматичный trade-off: undo нужен для
+  // случайных удалений leaf-узлов где edges и так минимальны
+  async function restoreNodeFromSnapshot(snapshot: NodeDto): Promise<void> {
+    if (!snapshot.topicId || !snapshot.nodeType || snapshot.content === undefined) return;
+    try {
+      const created = (await apiPost('/api/v1/nodes', {
+        topicId: snapshot.topicId,
+        nodeType: snapshot.nodeType,
+        content: snapshot.content,
+      })) as NodeDto;
+      if (
+        created.id &&
+        snapshot.posX !== undefined &&
+        snapshot.posY !== undefined
+      ) {
+        try {
+          await apiPatchRaw(`/api/v1/nodes/${created.id}`, {
+            posX: snapshot.posX,
+            posY: snapshot.posY,
+          });
+        } catch {
+          // позиционирование не блокирует восстановление
+        }
+      }
+      onRefetch();
+    } catch (e: unknown) {
+      const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
+      toast.error(`${t('graph.node.undo_failed')}: ${msg}`);
+    }
+  }
+
+  /**
+   * Единая точка удаления узлов/рёбер. Используется из context menu (один
+   * узел/ребро) и хоткея Del/Backspace (bulk-selection). Семантика silent:
+   * никакого `window.confirm` - намерение уже выражено через явный пункт
+   * меню или Del-нажатие, плюс показанный toast с Undo даёт reversibility
+   * на 5 секунд (паттерн Gmail/Slack).
+   *
+   * Возвращает true если хоть что-то реально удалили (для очистки selection).
+   */
+  async function runDelete(nodeIds: string[], edgeIds: string[]): Promise<boolean> {
+    // отфильтровываем корневой узел - бэк бы вернул 409 NodeIsRootException
+    const nodesToDelete = nodeIds.filter((id) => id !== rootNodeId);
+    const rootSkipped = nodesToDelete.length !== nodeIds.length;
+
+    // snapshot для undo - до удаления, иначе rawNodeDtos уже не содержит
+    const nodeSnapshots = nodesToDelete
+      .map((id) => rawNodeDtos.find((n) => n.id === id))
+      .filter((n): n is NodeDto => !!n);
+
+    if (nodesToDelete.length === 0 && edgeIds.length === 0) {
+      if (rootSkipped) toast.warning(t('graph.root.delete_skipped_toast'));
+      return false;
+    }
+
+    setDeleting(true);
+    try {
+      // рёбра первыми чтобы не получить 404 если узел уже удалит ребро каскадом
+      for (const edgeId of edgeIds) {
+        try {
+          await apiDeleteRaw(`/api/v1/edges/${edgeId}`);
+        } catch (e: unknown) {
+          if (!(e instanceof ApiError && e.status === 404)) throw e;
+        }
+      }
+      for (const nodeId of nodesToDelete) {
+        try {
+          await apiDeleteRaw(`/api/v1/nodes/${nodeId}`);
+        } catch (e: unknown) {
+          if (!(e instanceof ApiError && e.status === 404)) throw e;
+        }
+      }
+      setSelectedNodeIds([]);
+      setSelectedEdgeIds([]);
+      onRefetch();
+
+      // undo - только если удалили хотя бы один узел (рёбра restoring не
+      // реализован: они дешевле в воссоздании руками, и без полного snapshot
+      // edges-таблицы при bulk-delete восстановление было бы хрупким)
+      if (nodeSnapshots.length > 0) {
+        const message =
+          nodeSnapshots.length === 1
+            ? t('graph.node.deleted_toast')
+            : t('graph.node.deleted_toast_multi').replace('{count}', String(nodeSnapshots.length));
+        toast.success(message, {
+          label: t('graph.node.deleted_undo'),
+          hint: t('graph.node.undo_no_edges_hint'),
+          onClick: () => {
+            void Promise.all(nodeSnapshots.map((s) => restoreNodeFromSnapshot(s)));
+          },
+        });
+      } else if (edgeIds.length > 0) {
+        toast.success(t('graph.edge.deleted_toast'));
+      }
+
+      if (rootSkipped) toast.warning(t('graph.root.delete_skipped_toast'));
+      return true;
+    } catch (e: unknown) {
+      const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
+      toast.error(`${t('graph.toast.delete_failed')}: ${msg}`);
+      return false;
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   async function deleteOneNode(nodeId: string) {
     // защитный barrier: context menu уже скрывает пункт удаления для корня,
     // но если новая точка входа добавится - не дать сделать заведомо
@@ -300,31 +409,11 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
       toast.warning(t('graph.root.delete_hint'));
       return;
     }
-    try {
-      await apiDeleteRaw(`/api/v1/nodes/${nodeId}`);
-      onRefetch();
-    } catch (e: unknown) {
-      if (e instanceof ApiError && e.status === 404) {
-        onRefetch();
-        return;
-      }
-      const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
-      toast.error(`${t('graph.toast.delete_failed')}: ${msg}`);
-    }
+    await runDelete([nodeId], []);
   }
 
   async function deleteOneEdge(edgeId: string) {
-    try {
-      await apiDeleteRaw(`/api/v1/edges/${edgeId}`);
-      onRefetch();
-    } catch (e: unknown) {
-      if (e instanceof ApiError && e.status === 404) {
-        onRefetch();
-        return;
-      }
-      const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
-      toast.error(`${t('graph.toast.delete_failed')}: ${msg}`);
-    }
+    await runDelete([], [edgeId]);
   }
 
   // правый клик на pane - "Создать узел здесь" с координатами курсора
@@ -591,45 +680,12 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
     [selectedNodeIds, selectedEdgeIds, contextMenu, rootNodeId],
   );
 
+  // Public entry для Del/Backspace и toolbar-кнопки. Без `window.confirm`:
+  // намерение выражено явным нажатием Del; reversibility через Undo toast
+  // (см. runDelete). Унифицирует hotkey + context menu + toolbar bulk-delete
   async function handleDelete() {
     if (selectedCount === 0) return;
-    const confirmed = window.confirm(t('graph.confirm.delete'));
-    if (!confirmed) return;
-
-    // отфильтровываем корневой узел - бэк бы вернул 409 (NodeIsRootException),
-    // лучше тихо пропустить + toast объяснение чем падать с alert
-    const nodesToDelete = selectedNodeIds.filter((id) => id !== rootNodeId);
-    const rootSkipped = nodesToDelete.length !== selectedNodeIds.length;
-
-    setDeleting(true);
-    try {
-      // рёбра первыми чтобы не получить 404 если узел уже удалит ребро каскадом
-      for (const edgeId of selectedEdgeIds) {
-        try {
-          await apiDeleteRaw(`/api/v1/edges/${edgeId}`);
-        } catch (e: unknown) {
-          if (!(e instanceof ApiError && e.status === 404)) throw e;
-        }
-      }
-      for (const nodeId of nodesToDelete) {
-        try {
-          await apiDeleteRaw(`/api/v1/nodes/${nodeId}`);
-        } catch (e: unknown) {
-          if (!(e instanceof ApiError && e.status === 404)) throw e;
-        }
-      }
-      setSelectedNodeIds([]);
-      setSelectedEdgeIds([]);
-      if (rootSkipped) {
-        toast.warning(t('graph.root.delete_skipped_toast'));
-      }
-      onRefetch();
-    } catch (e: unknown) {
-      const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
-      window.alert(`${t('graph.toast.delete_failed')}: ${msg}`);
-    } finally {
-      setDeleting(false);
-    }
+    await runDelete(selectedNodeIds, selectedEdgeIds);
   }
 
   // initial меняется при refetch - синхронизируем nodes/edges, сохраняя
