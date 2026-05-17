@@ -133,7 +133,13 @@
   GET polling, 503 если ANTHROPIC_API_KEY не настроен, prompt template
   в resources/prompts/ai-edit-tahqiq.txt, AiEditConfig dedicated pool,
   20+ tests (validation + stub HttpServer + service IT + controller IT
-  + опциональный live). Frontend AI edit UI отложен в backlog.
+  + опциональный live). **17.e.f** Frontend: useAiEdit hook (polling
+  каждые 3 сек, max 5 мин hard timeout, AbortController cleanup,
+  ApiError 503 → toast), кнопка «AI редактирование» (Wand2 icon,
+  indigo accent) в AdminPageEditorPage toolbar, processing overlay
+  с counter + cancel, callback применяет formattedContent в editor
+  и в state (isFallback hint исчезает после success). 10 i18n keys
+  ru/ar, 5 useAiEdit тестов (vi.useFakeTimers). 304 tests pass.
   **17.f** ADR-041 + ADR-042. ImagePageRenderer (18.e) - отдельный
   пункт в Этапе 18
 - **Responsive Фаза 1+2** (закрыто Сессии 39+40) - mobile/tablet

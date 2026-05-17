@@ -11,6 +11,76 @@
 
 ---
 
+## 2026-05-17 - Этап 17.e.f frontend AI editing button (закрытие Этапа 17 целиком)
+
+Закрывающий subagent-cycle на свежезавершённом 17.e backend
+(commits 357cb1b..3903c4d) - подключить UI кнопку для async AI edit
+через Anthropic Claude. Параллельно крутился второй subagent над
+22.b TopicEditModal visibility - зоны не пересеклись (admin/pages/
++ shared/hooks/ + 10 ai.* dictionary keys vs argument-map/components/
++ topic.* keys).
+
+**Реализовано (2 атомарных feat-коммита + 1 docs):**
+
+1. **useAiEdit hook + 5 тестов** (commit `efa6ae4`) -
+   `shared/hooks/useAiEdit.ts`. POST триггер + polling GET каждые
+   3 сек до DONE/FAILED, 5 мин hard timeout. AbortController + 3
+   timer ref (interval / timeout / UI ticker) - cleanup в cancel()
+   и unmount useEffect. callbackRef через useEffect (react-hooks/refs
+   rule - нельзя писать в ref во время render). При DONE - fetch
+   /pages/{id} для свежего formattedContent, передача в callback.
+   Транзитные network errors не валят polling - ждём next tick;
+   ApiError 404 → failed. 503 пробрасывается из start() как ApiError
+   чтобы callsite сам показал локализованный toast.
+   Тесты используют vi.useFakeTimers + advanceTimersByTimeAsync для
+   ускорения polling cadence: happy path / 503 / 5-мин timeout /
+   cancel / unmount
+
+2. **AI button + overlay + 10 i18n keys** (commit `7aff03f`) -
+   `apps/admin/pages/AdminPageEditorPage.tsx`. Кнопка «AI
+   редактирование» (Wand2 icon, indigo accent) в конце toolbar -
+   визуально отличается от format-кнопок. Pre-flight: textContent
+   empty → toast.warning, aiBusy → toast.info, иначе toast.info
+   «Запущено» + aiEdit.start. Editor area получает overlay
+   (bg-bg/85 + backdrop-blur) пока aiBusy, editable={!aiBusy}.
+   Overlay показывает Loader2 + counter + кнопку «Отменить» (только
+   polling, не сам job - контракт ADR-042 bounded pool). При DONE
+   callback применяет content в editor (setContent + emitUpdate:false)
+   + currentJson + patches state.page.formattedContent чтобы
+   isFallback hint исчез. 10 ru/ar i18n keys.
+   PageResponse type alias переделан с intersection на Omit+intersect
+   т.к. после regenerate-api formattedContent появился как JsonNode
+   (Record<string, never>) - не совместим с editor.getJSON() (object)
+
+3. **roadmap update** (этот коммит) - 17.e блок дополнен описанием
+   17.e.f. Backlog запись "Frontend AI edit UI отложен" убрана из
+   roadmap (была в строке про 17.e). Этап 17 закрыт целиком (a-f).
+
+**Verify:**
+- npm run lint: 0 errors, 5 pre-existing warnings (не мои файлы)
+- npx tsc --noEmit -p tsconfig.app.json: clean
+- npm run build: clean (3.10s)
+- npm run test:run: 304 tests pass (baseline 299 + 5 useAiEdit)
+
+**Не сделано (отложено):**
+- Playwright smoke с реальным ANTHROPIC_API_KEY - требует key на
+  backend, пользователь проверит руками. UI-смоук без key (увидеть
+  503 toast) тоже валидный сценарий
+- AdminPageEditorPage.test.tsx (компонентный тест) - hook покрыт
+  отдельно, button render следует общему паттерну остальных toolbar
+  кнопок (уже проверены индиректно через RichTextEditor.test.tsx)
+
+**Известные ограничения:**
+- aiEdit.cancel() прерывает polling но не сам Anthropic-запрос на
+  backend - это design по ADR-042 (bounded task pool, нет REST для
+  cancel). Status вернётся в idle, но через 30 сек backend пометит
+  страницу DONE/FAILED. Можно перезапросить через polling button
+- 5-минутный hard timeout срабатывает если backend завис в
+  PROCESSING - UI покажет failed toast. Пользователь может
+  кликнуть AI button заново (idempotent на state machine)
+
+---
+
 ## 2026-05-17 - Этап 22 RBAC permissions per-entity (topics visibility), ADR-043
 
 Параллельно с AI edit subagent (Этап 17.e). Зоны не пересеклись -
