@@ -55,7 +55,11 @@ function Header() {
           className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 rounded-sm"
           aria-label={t('nav.home_aria')}
         >
-          <span className="grid h-7 w-7 place-items-center rounded-md bg-accent-600 text-ink-0 font-serif font-bold text-base">
+          {/* ﷽ (U+FDFD) - арабская лигатура Бисмиллах, горизонтальный
+              aspect-ratio ~4:1. Квадратный 28×28 box обрезал её → используем
+              w-auto + px-2.5 чтобы box расширялся под каллиграфию. font-arabic
+              даёт правильный naskh rendering вместо системного serif fallback */}
+          <span className="inline-flex h-7 w-auto min-w-7 items-center justify-center rounded-md bg-accent-600 px-2.5 font-arabic text-base font-semibold leading-none text-ink-0">
             ﷽
           </span>
           <span className="text-sm font-semibold text-ink-900 tracking-tight">
