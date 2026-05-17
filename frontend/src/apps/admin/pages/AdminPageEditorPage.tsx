@@ -35,6 +35,7 @@ import {
   Asterisk,
   Palette,
   Sparkles,
+  Hash,
 } from 'lucide-react';
 import type { Editor } from '@tiptap/react';
 import Button from '@/shared/components/ui/Button';
@@ -60,6 +61,7 @@ import {
   type DecoratedHeadingLevel,
   type DecoratedHeadingOrnament,
 } from '@/shared/components/editor/extensions/DecoratedHeading';
+import { PageNumber } from '@/shared/components/editor/extensions/PageNumber';
 import { apiGetRaw, apiPatchRaw, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useT } from '@/shared/i18n';
@@ -84,6 +86,7 @@ const EDITOR_EXTENSIONS = [
   ColorHighlight,
   Tashkeel,
   DecoratedHeading,
+  PageNumber,
 ];
 
 // Glyph preview для DecoratedHeading ornament selector в модалке
@@ -142,6 +145,10 @@ function AdminPageEditorPage() {
   const [decoratedHeadingLevel, setDecoratedHeadingLevel] = useState<DecoratedHeadingLevel>(2);
   const [decoratedHeadingOrnament, setDecoratedHeadingOrnament] =
     useState<DecoratedHeadingOrnament>('diamond');
+
+  // PageNumber modal
+  const [pageNumberModalOpen, setPageNumberModalOpen] = useState(false);
+  const [pageNumberValue, setPageNumberValue] = useState(1);
 
   useEffect(() => {
     if (!pageId) return;
@@ -368,6 +375,20 @@ function AdminPageEditorPage() {
 
   const removeDecoratedHeading = () => {
     editor?.chain().focus().unsetDecoratedHeading().run();
+  };
+
+  // PageNumber handlers
+  const openPageNumberDialog = () => {
+    // pre-fill из текущего page.pageNumber если есть, иначе 1
+    const fallback = state.kind === 'success' ? (state.page.pageNumber ?? 1) : 1;
+    setPageNumberValue(fallback);
+    setPageNumberModalOpen(true);
+  };
+
+  const confirmPageNumber = () => {
+    if (!editor) return;
+    editor.chain().focus().setPageNumber(pageNumberValue).run();
+    setPageNumberModalOpen(false);
   };
 
   if (state.kind === 'loading') {
@@ -603,6 +624,13 @@ function AdminPageEditorPage() {
               label={t('admin.page_editor.toolbar.decorated_heading_remove')}
             />
           )}
+          {/* PageNumber */}
+          <ToolbarButton
+            active={false}
+            onClick={openPageNumberDialog}
+            icon={<Hash size={14} />}
+            label={t('admin.page_editor.toolbar.page_number')}
+          />
         </Card>
 
         {/* Editor area */}
@@ -815,6 +843,43 @@ function AdminPageEditorPage() {
               </Button>
               <Button variant="primary" size="sm" onClick={confirmDecoratedHeading}>
                 {t('admin.page_editor.decorated_heading.confirm')}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* PageNumber dialog */}
+      {pageNumberModalOpen && (
+        <Modal
+          open
+          onClose={() => setPageNumberModalOpen(false)}
+          title={t('admin.page_editor.page_number.dialog_title')}
+        >
+          <div className="flex flex-col gap-3">
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-ink-700">
+                {t('admin.page_editor.page_number.number_label')}
+              </span>
+              <input
+                type="number"
+                min={1}
+                value={pageNumberValue}
+                onChange={(e) =>
+                  setPageNumberValue(Math.max(1, Number(e.target.value) || 1))
+                }
+                className="rounded-md border border-border bg-bg px-3 py-1.5 text-sm focus:border-accent-500 focus:outline-none"
+              />
+            </label>
+            <p className="text-xs text-ink-500">
+              {t('admin.page_editor.page_number.hint')}
+            </p>
+            <div className="mt-2 flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setPageNumberModalOpen(false)}>
+                {t('admin.page_editor.page_number.cancel')}
+              </Button>
+              <Button variant="primary" size="sm" onClick={confirmPageNumber}>
+                {t('admin.page_editor.page_number.confirm')}
               </Button>
             </div>
           </div>

@@ -680,6 +680,13 @@ export const DICTIONARY = {
     'admin.page_editor.decorated_heading.ornament.crescent': 'Полумесяц',
     'admin.page_editor.decorated_heading.confirm': 'Применить',
     'admin.page_editor.decorated_heading.cancel': 'Отмена',
+    // Этап 17.0.c - PageNumber
+    'admin.page_editor.toolbar.page_number': 'Номер страницы',
+    'admin.page_editor.page_number.dialog_title': 'Номер страницы',
+    'admin.page_editor.page_number.number_label': 'Номер',
+    'admin.page_editor.page_number.hint': 'Декоративный inline-маркер ⟦N⟧ для границы страницы',
+    'admin.page_editor.page_number.confirm': 'Вставить',
+    'admin.page_editor.page_number.cancel': 'Отмена',
 
     // Auth (Этап 21.b, ADR-040)
     'auth.brand.tagline': 'Аргумент-карта · платформа для научной работы',
@@ -1363,6 +1370,13 @@ export const DICTIONARY = {
     'admin.page_editor.decorated_heading.ornament.crescent': 'هلال',
     'admin.page_editor.decorated_heading.confirm': 'تطبيق',
     'admin.page_editor.decorated_heading.cancel': 'إلغاء',
+    // Этап 17.0.c - PageNumber
+    'admin.page_editor.toolbar.page_number': 'رقم الصفحة',
+    'admin.page_editor.page_number.dialog_title': 'رقم الصفحة',
+    'admin.page_editor.page_number.number_label': 'الرقم',
+    'admin.page_editor.page_number.hint': 'علامة زخرفية ⟦N⟧ لحدّ الصفحة',
+    'admin.page_editor.page_number.confirm': 'إدراج',
+    'admin.page_editor.page_number.cancel': 'إلغاء',
 
     // Auth (Этап 21.b, ADR-040)
     'auth.brand.tagline': 'خريطة الحجج · منصّة للبحث العلمي',

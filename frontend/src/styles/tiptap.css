@@ -306,6 +306,31 @@ h4.decorated-heading {
   }
 }
 
+/* PageNumber (Этап 17.0.c) - inline atom для номера страницы.
+   Decorative bracketing `⟦N⟧` через ::before content + attr(),
+   маленький размер, gray. Атом не выделяется юзером в reader
+   (user-select: none) - служит чисто декоративным маркером границы
+   страницы оригинала */
+.page-number {
+  display: inline-block;
+  color: rgb(107 114 128); /* gray-500 */
+  font-size: 0.75em;
+  font-weight: 500;
+  margin: 0 0.25em;
+  vertical-align: baseline;
+  user-select: none;
+}
+
+.page-number::before {
+  content: '⟦' attr(data-number) '⟧';
+}
+
+@media (prefers-color-scheme: dark) {
+  .page-number {
+    color: rgb(156 163 175); /* gray-400 */
+  }
+}
+
 /* Tiptap ProseMirror focus / cursor стили - минимальный override
    чтобы кастомный focus ring был не блокирующий, а ненавязчивый */
 .ProseMirror:focus {
