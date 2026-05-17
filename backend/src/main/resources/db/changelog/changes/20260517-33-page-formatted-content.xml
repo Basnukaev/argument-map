@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260517-33-page-formatted-content" author="Abdula Basnukaev">
+        <comment>
+            Этап 17.0 - rich text editor для книг (ADR-039). Добавляем
+            nullable jsonb колонку для хранения ProseMirror JSON
+            (Tiptap output). Без CHECK на schema формата - валидируется
+            на application level (frontend генерирует валидный JSON
+            через Tiptap; backend принимает любой валидный JSON,
+            прозрачно проксирует в reader).
+
+            Backward compat: NULL означает «не редактировалось» -
+            frontend оборачивает text_content в минимальный paragraph-
+            document. Никакой data migration для существующих
+            Shamela/PDFBox-импортированных страниц.
+
+            text_content остаётся для FTS (через будущий ES) и для
+            fallback render.
+        </comment>
+        <sql>
+            ALTER TABLE lib_pages ADD COLUMN formatted_content JSONB NULL;
+        </sql>
+        <rollback>
+            <sql>
+                ALTER TABLE lib_pages DROP COLUMN formatted_content;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

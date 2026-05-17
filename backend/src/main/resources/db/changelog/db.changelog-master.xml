@@ -36,5 +36,7 @@
     <include file="db/changelog/changes/20260516-29-create-answers-table.xml"/>
     <include file="db/changelog/changes/20260516-30-add-accepted-answer-to-questions.xml"/>
     <include file="db/changelog/changes/20260516-31-create-answer-sources-table.xml"/>
+    <include file="db/changelog/changes/20260517-32-extend-users-for-auth.xml"/>
+    <include file="db/changelog/changes/20260517-33-page-formatted-content.xml"/>
 
 </databaseChangeLog>
