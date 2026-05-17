@@ -276,6 +276,54 @@ class FileImportControllerIT {
     }
 
     @Test
+    void POST_upload_thenGET_pdfInfo_returnsValidResponseWithUploadedBucket() throws Exception {
+        // E2E проверка closes critical code review issue (Этап 16.h):
+        // PDF загруженный через upload должен быть читаем через
+        // /pdf/info endpoint - чтобы reader на frontend открыл книгу
+        byte[] pdfBytes = buildPdf(List.of("page 1 text", "page 2 text", "page 3 text"));
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "manual.pdf", MediaType.APPLICATION_PDF_VALUE, pdfBytes);
+
+        MvcResult uploadResult = mockMvc.perform(multipart("/api/v1/library/imports/file")
+                        .file(file)
+                        .param("title", "Полное руководство")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        JsonNode uploadBody = objectMapper.readTree(
+                uploadResult.getResponse().getContentAsString());
+        String bookId = uploadBody.get("bookId").asText();
+
+        // Главная проверка: GET /pdf/info - до 16.h возвращал 404
+        // pdf-not-available потому что PdfLinksSourceProvider не находил
+        // pdf_links в metadata user-uploaded книги
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/api/v1/library/books/" + bookId + "/pdf/info")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.files").isArray())
+                .andExpect(jsonPath("$.files.length()").value(1))
+                .andExpect(jsonPath("$.files[0].index").value(0))
+                .andExpect(jsonPath("$.files[0].label").value("manual"))
+                .andExpect(jsonPath("$.files[0].isCover").value(false))
+                .andExpect(jsonPath("$.files[0].sizeBytes").value(pdfBytes.length))
+                .andExpect(jsonPath("$.files[0].pageCount").value(3))
+                .andExpect(jsonPath("$.totalSizeBytes").value(pdfBytes.length));
+
+        // Также проверим что streaming endpoint работает (полный download
+        // без Range) - frontend сначала запросит без Range, посмотрит
+        // Accept-Ranges, потом перейдёт на range-mode
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/api/v1/library/books/" + bookId + "/pdf?fileIndex=0")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Accept-Ranges", "bytes"))
+                .andExpect(header().string("Content-Type",
+                        Matchers.startsWith(MediaType.APPLICATION_PDF_VALUE)));
+    }
+
+    @Test
     void POST_minimumFields_filenameAsTitleAndArDefault() throws Exception {
         byte[] pdfBytes = buildPdf(List.of("one page"));
         MockMultipartFile file = new MockMultipartFile(

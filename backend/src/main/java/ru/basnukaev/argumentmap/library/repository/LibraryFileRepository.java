@@ -201,6 +201,26 @@ public class LibraryFileRepository {
     }
 
     /**
+     * Active-файлы книги отфильтрованные по {@code source_type}.
+     * Используется {@code UserUploadProvider} для проверки supports и
+     * получения singleton blob'а user-uploaded книги (Этап 16.h).
+     *
+     * <p>Возвращает в порядке {@code downloaded_at} - для user-upload
+     * книг обычно один файл, для других source-type'ов может быть multi.
+     */
+    public List<LibraryFile> findActiveByBookIdAndSourceType(
+            UUID bookId, LibraryFileSourceType sourceType) {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM library_files "
+                        + "WHERE book_id = ? AND source_type = ? AND deleted_at IS NULL "
+                        + "ORDER BY downloaded_at",
+                ROW_MAPPER,
+                bookId,
+                sourceType.name()
+        );
+    }
+
+    /**
      * Все active-файлы во всех bucket'ах. Используется
      * {@code OrphanDetectionJanitor} (Этап 25.b) для reverse-sweep:
      * проверяет наличие каждой catalog row в S3 через {@code headObject}.

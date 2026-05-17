@@ -20,10 +20,17 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
  * {@link PdfSourceProvider} bean'ы в Spring-контексте (отсортированы
  * по {@code @Order}), выбирает первого подходящего для книги.
  *
- * <p>На MVP - один provider ({@link PdfLinksSourceProvider}).
- * Будущие: UserUploadProvider (order=50) для книг загруженных
- * пользователем в {@code library-user-uploads}, ArchiveOrgDirect для
- * книг с прямым archive.org ID без shamela-импорта.
+ * <p>Текущие провайдеры:
+ * <ul>
+ *   <li>{@link UserUploadProvider} (order=50) - книги загруженные
+ *       пользователем через {@code POST /imports/file}, blob уже в
+ *       {@code library-user-uploads} bucket (Этап 16.h)</li>
+ *   <li>{@link PdfLinksSourceProvider} (order=100) - книги с
+ *       {@code metadata.pdf_links} (shamela / archive.org), lazy cache
+ *       upstream → MinIO {@code library-imported-books}</li>
+ * </ul>
+ * Будущее: ArchiveOrgDirect для книг с прямым archive.org ID без
+ * shamela-импорта.
  *
  * <p>После 25.b.6 - PDF идут напрямую через
  * {@link ObjectStorageService}. Никакого локального файлового кеша:
