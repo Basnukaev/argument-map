@@ -70,9 +70,12 @@ export function useAiEdit(
   const startedAtRef = useRef<number>(0);
 
   // Стабильная reference на callback - не пересоздаём polling-логику
-  // при каждом render родителя
+  // при каждом render родителя. Обновляем в effect (нельзя писать в
+  // ref во время render - react-hooks/refs rule + concurrent-safe)
   const callbackRef = useRef(onContentReady);
-  callbackRef.current = onContentReady;
+  useEffect(() => {
+    callbackRef.current = onContentReady;
+  }, [onContentReady]);
 
   const clearTimers = useCallback(() => {
     if (intervalRef.current) {

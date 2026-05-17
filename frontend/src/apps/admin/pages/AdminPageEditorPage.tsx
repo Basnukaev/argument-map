@@ -36,6 +36,7 @@ import {
   Palette,
   Sparkles,
   Hash,
+  Wand2,
 } from 'lucide-react';
 import type { Editor } from '@tiptap/react';
 import Button from '@/shared/components/ui/Button';
@@ -65,11 +66,13 @@ import { PageNumber } from '@/shared/components/editor/extensions/PageNumber';
 import { apiGetRaw, apiPatchRaw, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useT } from '@/shared/i18n';
+import { useAiEdit } from '@/shared/hooks/useAiEdit';
 import type { components } from '@/shared/api/types';
 
-type PageResponse = components['schemas']['PageResponse'] & {
-  // formattedContent ещё не в openapi types (требует regenerate-api после
-  // backend deploy). Intersection даёт безопасный доступ
+// formattedContent в openapi маппится как JsonNode (Record<string, never>),
+// но реально это произвольный ProseMirror JSON. Перекрываем чтобы тип
+// был совместим с editor.getJSON() (`object`) и с useAiEdit callback
+type PageResponse = Omit<components['schemas']['PageResponse'], 'formattedContent'> & {
   formattedContent?: object | null;
 };
 
@@ -149,6 +152,33 @@ function AdminPageEditorPage() {
   // PageNumber modal
   const [pageNumberModalOpen, setPageNumberModalOpen] = useState(false);
   const [pageNumberValue, setPageNumberValue] = useState(1);
+
+  // AI edit hook (Этап 17.e.f, ADR-042). Callback применяет результат
+  // в editor (setContent) и в локальный currentJson чтобы Save flow
+  // подхватил уже обработанную версию
+  const handleAiContentReady = useCallback(
+    (formattedContent: object) => {
+      if (editor) {
+        editor.commands.setContent(formattedContent, { emitUpdate: false });
+      }
+      setCurrentJson(formattedContent);
+      // Обновляем page.formattedContent в state - иначе isFallback hint
+      // продолжит светиться после успешного AI edit
+      setState((prev) =>
+        prev.kind === 'success'
+          ? {
+              ...prev,
+              page: { ...prev.page, formattedContent },
+              content: formattedContent,
+            }
+          : prev,
+      );
+      toast.success(t('admin.page_editor.ai.success_toast'));
+    },
+    [editor, t],
+  );
+  const aiEdit = useAiEdit(handleAiContentReady);
+  const aiBusy = aiEdit.status === 'pending' || aiEdit.status === 'processing';
 
   useEffect(() => {
     if (!pageId) return;
@@ -391,6 +421,42 @@ function AdminPageEditorPage() {
     setPageNumberModalOpen(false);
   };
 
+  // AI edit handler (Этап 17.e.f). Pre-flight checks: text_content
+  // должен быть (OCR пройден) + не дублируем если polling уже идёт.
+  const handleAiEditClick = async () => {
+    if (state.kind !== 'success' || !pageId) return;
+    const hasText = state.page.textContent != null && state.page.textContent.trim().length > 0;
+    if (!hasText) {
+      toast.warning(t('admin.page_editor.ai.no_text_warning'));
+      return;
+    }
+    if (aiBusy) {
+      toast.info(t('admin.page_editor.ai.already_processing_info'));
+      return;
+    }
+    try {
+      // toast.info до start - чтобы пользователь сразу видел сигнал.
+      // start сам поставит status в pending/processing, что render'ит overlay
+      toast.info(t('admin.page_editor.ai.started_toast'));
+      await aiEdit.start(pageId);
+      // status === 'failed' значит polling завершился неуспехом
+      // (timeout либо 404 на странице) - покажем error toast
+      if (aiEdit.status === 'failed') {
+        toast.error(t('admin.page_editor.ai.failed_toast'));
+      }
+    } catch (e) {
+      if (e instanceof ApiError && e.is('ai-edit-not-configured')) {
+        toast.error(t('admin.page_editor.ai.not_configured_toast'));
+        return;
+      }
+      // generic fallback
+      const msg = e instanceof ApiError
+        ? (e.problem.detail ?? e.problem.title)
+        : t('admin.page_editor.ai.failed_toast');
+      toast.error(msg);
+    }
+  };
+
   if (state.kind === 'loading') {
     return (
       <main className="min-h-screen bg-bg">
@@ -631,18 +697,66 @@ function AdminPageEditorPage() {
             icon={<Hash size={14} />}
             label={t('admin.page_editor.toolbar.page_number')}
           />
+          <ToolbarDivider />
+          {/* AI editing pass (Этап 17.e.f, ADR-042). Indigo accent
+              чтобы визуально отличался от обычных format-кнопок -
+              это не markup-action, а вызов внешнего LLM */}
+          <button
+            type="button"
+            onClick={handleAiEditClick}
+            disabled={aiBusy}
+            title={t('admin.page_editor.ai.button_tooltip')}
+            aria-label={t('admin.page_editor.ai.button_label')}
+            className={
+              'inline-flex h-7 items-center gap-1 rounded px-2 text-xs transition-colors ' +
+              (aiBusy
+                ? 'cursor-not-allowed bg-indigo-100 text-indigo-400 dark:bg-indigo-900/30 dark:text-indigo-500'
+                : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/40 dark:text-indigo-300 dark:hover:bg-indigo-900/60')
+            }
+          >
+            {aiBusy ? (
+              <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+            ) : (
+              <Wand2 size={14} aria-hidden="true" />
+            )}
+            <span>{t('admin.page_editor.ai.button_label')}</span>
+          </button>
         </Card>
 
         {/* Editor area */}
-        <Card className="p-5">
+        <Card className="relative p-5">
           <RichTextEditor
             content={state.content}
             onChange={setCurrentJson}
-            editable
+            editable={!aiBusy}
             extensions={EDITOR_EXTENSIONS}
             onEditorReady={setEditor}
             className="prose prose-sm max-w-none min-h-[400px] focus:outline-none"
           />
+          {aiBusy && (
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded bg-bg/85 backdrop-blur-sm"
+              role="status"
+              aria-live="polite"
+            >
+              <div className="flex items-center gap-2 text-sm font-medium text-indigo-700 dark:text-indigo-300">
+                <Loader2 size={18} className="animate-spin" aria-hidden="true" />
+                <span>
+                  {t('admin.page_editor.ai.processing_overlay').replace(
+                    '{seconds}',
+                    String(aiEdit.elapsedSeconds),
+                  )}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={aiEdit.cancel}
+                className="rounded-md border border-border bg-bg px-3 py-1 text-xs text-ink-700 hover:bg-ink-100"
+              >
+                {t('admin.page_editor.ai.cancel_polling')}
+              </button>
+            </div>
+          )}
         </Card>
       </div>
 

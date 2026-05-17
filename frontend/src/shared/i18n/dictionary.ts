@@ -695,6 +695,18 @@ export const DICTIONARY = {
     'admin.page_editor.page_number.hint': 'Декоративный inline-маркер ⟦N⟧ для границы страницы',
     'admin.page_editor.page_number.confirm': 'Вставить',
     'admin.page_editor.page_number.cancel': 'Отмена',
+    // Этап 17.e.f - AI editing pass (ADR-042)
+    'admin.page_editor.toolbar.ai_edit': 'AI редактирование',
+    'admin.page_editor.ai.button_label': 'AI редактирование',
+    'admin.page_editor.ai.button_tooltip': 'AI размечает арабский текст под тахкик-стиль',
+    'admin.page_editor.ai.started_toast': 'AI редактирование запущено (~10-30 сек)',
+    'admin.page_editor.ai.success_toast': 'AI редактирование завершено',
+    'admin.page_editor.ai.failed_toast': 'AI редактирование не удалось. Попробуйте ещё раз позже',
+    'admin.page_editor.ai.not_configured_toast': 'AI editing не настроен. Установите ANTHROPIC_API_KEY на backend',
+    'admin.page_editor.ai.no_text_warning': 'Сначала запустите OCR для извлечения текста',
+    'admin.page_editor.ai.already_processing_info': 'AI редактирование уже выполняется…',
+    'admin.page_editor.ai.processing_overlay': 'AI редактирование… {seconds}s',
+    'admin.page_editor.ai.cancel_polling': 'Отменить',
 
     // Auth (Этап 21.b, ADR-040)
     'auth.brand.tagline': 'Аргумент-карта · платформа для научной работы',
@@ -1393,6 +1405,18 @@ export const DICTIONARY = {
     'admin.page_editor.page_number.hint': 'علامة زخرفية ⟦N⟧ لحدّ الصفحة',
     'admin.page_editor.page_number.confirm': 'إدراج',
     'admin.page_editor.page_number.cancel': 'إلغاء',
+    // Этап 17.e.f - AI editing pass (ADR-042)
+    'admin.page_editor.toolbar.ai_edit': 'تحرير بالذكاء الاصطناعي',
+    'admin.page_editor.ai.button_label': 'تحرير بالذكاء الاصطناعي',
+    'admin.page_editor.ai.button_tooltip': 'يُنسّق الذكاء الاصطناعي النصّ العربي وفق أسلوب التحقيق',
+    'admin.page_editor.ai.started_toast': 'بدأ التحرير بالذكاء الاصطناعي (~10-30 ثانية)',
+    'admin.page_editor.ai.success_toast': 'اكتمل التحرير بالذكاء الاصطناعي',
+    'admin.page_editor.ai.failed_toast': 'فشل التحرير بالذكاء الاصطناعي. حاول لاحقاً',
+    'admin.page_editor.ai.not_configured_toast': 'التحرير بالذكاء الاصطناعي غير مُعَدّ. اضبط ANTHROPIC_API_KEY على الخادم',
+    'admin.page_editor.ai.no_text_warning': 'شغّل التعرّف الضوئي على الحروف (OCR) أوّلاً لاستخراج النصّ',
+    'admin.page_editor.ai.already_processing_info': 'التحرير بالذكاء الاصطناعي قيد التنفيذ…',
+    'admin.page_editor.ai.processing_overlay': 'جارٍ التحرير بالذكاء الاصطناعي… {seconds} ث',
+    'admin.page_editor.ai.cancel_polling': 'إلغاء',
 
     // Auth (Этап 21.b, ADR-040)
     'auth.brand.tagline': 'خريطة الحجج · منصّة للبحث العلمي',
