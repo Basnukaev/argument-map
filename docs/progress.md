@@ -11,6 +11,118 @@
 
 ---
 
+## 2026-05-17 - Сессия 41 Этап 17.0 Tiptap rich text editor MVP
+
+Параллельная сессия с Spring Security/JWT (Этап 21.a) - моя зона
+lib_pages + frontend editor, без затрагивания auth/security кода.
+Реализован MVP rich text editor согласно ADR-039 (закрыт в предыдущей
+сессии). Цель - structured хранение богатой типографики тахкика
+(хадис-боксы, marginalia, footnotes и т.д.) **до** запуска OCR pipeline
+Этапа 17 - чтобы не плодить долг.
+
+**Backend:**
+
+1. Миграция 33 - `lib_pages.formatted_content jsonb NULL` (миграция 32
+   занята auth-агентом)
+2. `Page` domain получает поле `formattedContent: String` (хранится как
+   raw JSON-строка через `?::jsonb` cast - паттерн уже использовался
+   для `lib_books.metadata`)
+3. `PageRepository` extended RowMapper + `updateFormattedContent`
+   partial update
+4. `PageResponse` получает поле `formattedContent: JsonNode` - structured
+   response, не плоская строка
+5. `UpdateFormattedContentRequest{formattedContent: JsonNode}` с
+   `@NotNull` validation
+6. `BookService.updateFormattedContent` - trust frontend (schema
+   validation на фронте), throw `PageNotFoundException` если page нет
+7. `PATCH /api/v1/library/pages/{id}/formatted-content` в BookController
+8. 4 IT теста (valid HadithBox + invalid JSON + empty doc + 404)
+9. Все 9 call sites `new Page(...)` обновлены под 12-arg ctor
+
+Также пофиксил критический баг в `application.yml` (auth-агент засунул
+`spring.liquibase` блок под `auth:` - все IT падали из-за «changelog
+yaml does not exist» fallback path). Переставил блок под `spring`.
+
+**Frontend:**
+
+1. Установлен Tiptap 3.23 - `@tiptap/react` + `@tiptap/starter-kit`
+   + `@tiptap/core` + `@tiptap/pm`
+2. Shared editor в `src/shared/components/editor/`:
+   - `RichTextEditor.tsx` - headless wrapper над `useEditor` +
+     `EditorContent` с props content/onChange/editable/extensions/
+     onEditorReady
+   - `RichTextRenderer.tsx` - read-only wrapper для reader view
+   - `wrapPlainTextAsDoc` utility - оборачивает plain text в minimal
+     paragraph-doc для legacy fallback
+3. Первый custom extension `extensions/HadithBox.ts`:
+   - group:'block', content:'block+', defining:true
+   - attributes source (string) + grade ('sahih'|'hasan'|'daif')
+     с fallback на 'sahih' при невалидном
+   - parseHTML/renderHTML для div[data-type="hadith-box"] -
+     SSR-friendly для будущего generateHTML path
+   - commands setHadithBox/unsetHadithBox
+4. CSS `src/styles/tiptap.css` - peach background, dashed border,
+   `«`/`»` ornament через ::before + dir-aware mirror для RTL,
+   dark mode adjustments
+5. `AdminPageEditorPage` (`/admin/library/pages/:pageId/edit`):
+   - GET /api/v1/library/pages/{id} + initial fallback на
+     wrapPlainTextAsDoc(textContent) если formattedContent null
+   - Toolbar Bold/Italic/H1-3/Blockquote/HadithBox (с Modal
+     source+grade) + кнопка unsetHadithBox когда курсор в HadithBox
+   - Save через PATCH endpoint + toast
+6. `BookReaderPage.PageView` - если formattedContent non-null,
+   рендерит через RichTextRenderer (с HadithBox extension), иначе
+   старый sanitizePageHtml путь
+7. 30 i18n keys RU/AR (`admin.page_editor.*`)
+8. 14 frontend tests (6 HadithBox schema + 8 RichTextRenderer/
+   wrapPlainTextAsDoc)
+
+**Backward compat (ADR-039 фиксирует):** NULL formatted_content для
+тысяч existing PDFBox-imported и Shamela-imported страниц - они
+рендерятся через fallback wrap text_content в paragraph-doc, никакой
+data migration не нужно.
+
+**Что отложено в Этап 17.0.b:**
+
+- Остальные 7 custom extensions (AyahBox / Marginalia / Footnote /
+  ColorHighlight / Tashkeel / DecoratedHeading / PageNumber) - каждое
+  отдельным коммитом по паттерну HadithBox
+- Highlight ranges + ЛКМ-selection (citation flow) в formatted mode -
+  пока только в legacy режиме, нужен ProseMirror selection API
+- AI editing integration (LLM возвращает JSON с разметкой) - Этап 17.e
+- OCR pipeline для image-сканов - Этап 17.a-d
+- Кнопка/ссылка «Редактировать» из reader на admin editor - UX-сессия
+  с Абдулой
+
+**Тесты:** 628/628 backend pass, 193/193 frontend pass, lint clean,
+build clean, typecheck clean.
+
+**Smoke test:**
+
+```
+curl -X PATCH http://localhost:9090/api/v1/library/pages/{PAGE_ID}/formatted-content \
+  -H "X-User-Id: ..." -H "Content-Type: application/json" \
+  -d '{"formattedContent":{"type":"doc","content":[{"type":"hadithBox",
+       "attrs":{"source":"Бухари 1","grade":"sahih"},
+       "content":[{"type":"paragraph","content":[{"type":"text",
+                  "text":"إنما الأعمال بالنيات"}]}]}]}}'
+# Returns 200 + PageResponse с formattedContent в теле
+# GET той же page returns ту же formattedContent
+```
+
+**Коммиты:**
+
+- backend миграция 33
+- backend PATCH endpoint + Page domain + DTO + service + production
+  callers + application.yml fix
+- backend IT тесты + Page ctor обновления в 9 IT файлах
+- frontend Tiptap install + RichTextEditor + RichTextRenderer
+- frontend HadithBox extension + tiptap.css
+- frontend AdminPageEditorPage + 30 i18n keys
+- frontend BookReaderPage PageView обновление
+
+---
+
 ## 2026-05-17 - Сессия 41 Этап 21.a Spring Security + JWT backend foundation
 
 Параллельная сессия с Tiptap (Этап 17.0 migration 33) - моя зона

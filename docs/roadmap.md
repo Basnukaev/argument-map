@@ -206,14 +206,29 @@ ADR-039
       text_content в minimal paragraph-doc (никакой data migration
       для существующих Shamela/PDFBox книг). Подробности и open
       questions - в ADR-039
-- [ ] **17.0 (PREREQUISITE) - implementation:** Liquibase миграция
-      32 (`ALTER TABLE lib_pages ADD COLUMN formatted_content jsonb
-      NULL` + rollback), backend `PageResponse` / `UpdatePageRequest`
-      расширения, frontend - Tiptap setup (`@tiptap/react` +
-      StarterKit + 8 custom extensions), `BookContentEditor` либо
-      расширение `BookEditModal`, reader fallback для null
-      formatted_content. Дизайн-сессия с Абдулой по toolbar i18n
-      терминам (Хадис vs Бокс хадиса и т.д.)
+- [x] **17.0 (PREREQUISITE) - implementation MVP:** Liquibase миграция
+      33 (`ALTER TABLE lib_pages ADD COLUMN formatted_content jsonb
+      NULL` + rollback). Backend - `PageResponse.formattedContent:
+      JsonNode`, `UpdateFormattedContentRequest`, `PATCH
+      /api/v1/library/pages/{id}/formatted-content`,
+      `BookService.updateFormattedContent`. Frontend - Tiptap 3.23
+      install (`@tiptap/react` + `@tiptap/starter-kit` + `@tiptap/core`
+      + `@tiptap/pm`), shared `RichTextEditor` + `RichTextRenderer`
+      wrapper'ы + `wrapPlainTextAsDoc` utility для legacy fallback.
+      Первый custom extension - `HadithBox` (source/grade attributes,
+      `setHadithBox`/`unsetHadithBox` commands, CSS из `tiptap.css` с
+      peach background + dashed border + dir-aware `«`/`»` ornament).
+      `AdminPageEditorPage` маршрут `/admin/library/pages/:pageId/edit`
+      с минимальным toolbar (Bold/Italic/H1-3/Blockquote/HadithBox с
+      Modal source+grade). `BookReaderPage` `PageView` рендерит
+      `formatted_content` через `RichTextRenderer` когда non-null,
+      иначе fallback на старый `sanitizePageHtml`. 30 i18n keys
+      RU/AR (`admin.page_editor.*`), 14 frontend tests, 4 backend IT.
+      628/628 backend pass, 193/193 frontend pass
+- [ ] **17.0.b - оставшиеся 7 custom extensions:** AyahBox /
+      Marginalia / Footnote / ColorHighlight / Tashkeel /
+      DecoratedHeading / PageNumber (по ADR-039). Каждое отдельным
+      коммитом по паттерну HadithBox
 - [ ] **17.a:** PageImageService - upload изображений-страниц через
       `POST /api/v1/library/books/{id}/pages` (multipart, по одной)
 - [ ] **17.b:** Tess4j integration - OCR арабского через `ara`

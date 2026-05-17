@@ -978,6 +978,10 @@ Response 200 - `PageResponse`:
   "pdfPageNumber": null,
   "textContent": "...",
   "imageUrl": "https://...",
+  "formattedContent": {
+    "type": "doc",
+    "content": [...]
+  },
   "imageRegions": [
     {
       "id": "...",
@@ -998,9 +1002,50 @@ Response 200 - `PageResponse`:
 Сейчас всегда `null` - ETL pipeline не скачивает PDF на MVP.
 Заполняется в будущем (Этап PDF integration).
 
+`formattedContent` (миграция 33, ADR-039) - ProseMirror JSON, Tiptap
+output. NULL для legacy Shamela/PDFBox-импортированных страниц - фронт
+оборачивает `textContent` в minimal paragraph-document через
+`wrapPlainTextAsDoc` (RichTextRenderer fallback).
+
 Координаты `imageRegions` нормализованы (0..1), не пиксельные.
 
 Ошибки: 404 `page-not-found`.
+
+### PATCH /api/v1/library/pages/{id}/formatted-content - сохранить ProseMirror JSON (Этап 17.0)
+
+ADR-039 (Tiptap rich text editor). Сохраняет `formatted_content` jsonb
+поле для admin editor flow. Backend не валидирует ProseMirror schema -
+принимает любой синтаксически валидный JSON (schema валидация на
+фронте через Tiptap extensions).
+
+Body - `UpdateFormattedContentRequest`:
+```json
+{
+  "formattedContent": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "hadithBox",
+        "attrs": {"source": "Бухари 1", "grade": "sahih"},
+        "content": [
+          {"type": "paragraph", "content": [{"type": "text", "text": "..."}]}
+        ]
+      }
+    ]
+  }
+}
+```
+
+Response 200 - `PageResponse` (см. выше) с обновлённым `formattedContent`.
+`text_content` не трогается - сохраняется для FTS (будущий ES) и для
+fallback render. `updated_at` bump.
+
+Требует X-User-Id header (либо Bearer JWT в prod) - mutating endpoint
+под Spring Security `.anyRequest().authenticated()`.
+
+Ошибки:
+- 404 `page-not-found` - id не найден
+- 400 - syntactically invalid JSON в body
 
 ### Что **не** реализовано в Этапе 14
 
@@ -1919,6 +1964,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-17 | v1 | Этап 17.0 - Tiptap rich text editor MVP (ADR-039). Новый endpoint `PATCH /api/v1/library/pages/{id}/formatted-content` принимает `UpdateFormattedContentRequest{formattedContent: JsonNode}` и сохраняет ProseMirror JSON в новой `lib_pages.formatted_content jsonb NULL` колонке (миграция 33). Backend не валидирует ProseMirror schema - принимает любой валидный JSON (валидация на фронте через Tiptap extensions). `PageResponse` расширен полем `formattedContent: JsonNode \| null`. Backward compat: NULL для legacy Shamela/PDFBox страниц → фронт оборачивает `textContent` в minimal paragraph-doc через `wrapPlainTextAsDoc`. `text_content` не трогается (FTS + fallback). Требует X-User-Id/JWT auth | ADR-039: Tiptap (на ProseMirror) выбран как rich text editor платформы. Первый custom extension - HadithBox с source/grade attrs. Подготовка к Этапу 17 OCR pipeline (структурированное хранение AI editing output) |
 | 2026-05-17 | v1 | Этап 21.a Spring Security + JWT (ADR-040). Новый namespace `/api/v1/auth/*` с 5 endpoints: `POST /register` (RegisterRequest{email/username/password}, validation: email/3..50 ASCII username/8..100 password), `POST /login` (LoginRequest{email/password}), `POST /refresh` (CookieValue refresh_token, no-rotation MVP), `POST /logout` (clear cookie), `GET /me` (требует Bearer). Response DTO `AuthResponse{accessToken, accessTokenExpiresAt, user{id,username,email,role}}` + Set-Cookie refresh_token (HttpOnly+Secure+SameSite=Strict+Path=/+Max-Age=604800). Access TTL 15мин, refresh TTL 7д, HS256 signature через `auth.jwt.secret` (env AUTH_JWT_SECRET в prod). Новые error types: `401 invalid-credentials` (login fail или disabled), `401 invalid-token` (JWT тампер/expired/невалидный), `401 unauthorized` (no auth on protected endpoint), `409 email-already-taken`, `409 username-already-taken`, `404 user-not-found`. **Breaking semantic change**: ВСЕ mutating endpoints теперь требуют либо `Authorization: Bearer <jwt>`, либо (в dev/local/test profile) X-User-Id fallback. Запрос без обоих → 401 (раньше 400 `missing-user-header`). Existing IT обновлены: 4 теста с `missing-user-header` → 401. `GET /api/**` в dev/local/test profile остаётся permitAll (transitional до Этапа 21.b). Migration 32 `users` ALTER + password_hash/role/enabled/updated_at. OpenAPI X-User-Id header теперь required=false (Bearer JWT - основной путь) | ADR-040 JWT-based auth. Этап 21.a backend foundation, Этап 21.b frontend login UI следующей сессией |
 | 2026-05-17 | v1 | Новый error type `node-is-root` (409 Conflict). Возвращается из `DELETE /api/v1/nodes/{id}` когда `id` совпадает с `topics.root_node_id` соответствующей темы. Дополнительные properties `nodeId` и `topicId`. До фикса корневой узел удалялся успешно - разрушал граф (orphan edges + сломанный status recalc). Чтобы удалить корень - удалить тему целиком через `DELETE /api/v1/topics/{topicId}` | User feedback #1 Сессии 38: пользователь поймал руками что в `TopicGraphPage` можно через NodeDetailsPanel / context menu удалить корневой QUESTION узел. Backend guard + frontend hide-button симметрично |
 | 2026-05-17 | v1 | Этап 16.h post-review fix - после `POST /api/v1/library/imports/file` книга **сразу** доступна на чтение через существующие `GET /api/v1/library/books/{bookId}/pdf/info` (single-file metadata) и `GET /pdf?fileIndex=0` (streaming). До фикса возвращали 404 `pdf-not-available`. Параметр `language` получил whitelist `ar\|ru\|en` - вне whitelist → 422 `file-import-error` (mirror frontend FileUploadModal). Новых endpoints нет | Critical issue code review Сессии 37: `PdfLinksSourceProvider.supports` проверял `metadata.pdf_links` который `FileImportService` не пишет. Новый `UserUploadProvider` (@Order=50) опрашивает `library_files` по (book_id, source_type=USER_UPLOAD). Контракт language исправляет drift между frontend whitelist и backend acceptance |
