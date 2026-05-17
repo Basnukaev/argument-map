@@ -285,3 +285,38 @@ indexer (выбор при наступлении этапа).
 **Зачем именно сейчас зафиксировать:** если Этап 17 OCR пойдёт без
 этого плана - попадёт в plain text storage и потом переделывать
 больно. Принять архитектуру **до** того как набьём data.
+
+### Editor improvements (после закрытия ADR-039)
+
+ADR-039 закрыт - 8 custom Tiptap extensions реализованы (HadithBox /
+AyahBox / Marginalia / Footnote / ColorHighlight / Tashkeel /
+DecoratedHeading / PageNumber). Что осталось доделать в editor stack
+по мере дозревания UX:
+
+- **True tashkeel removal через runtime regex DOM walk** -
+  сейчас Tashkeel mark в reader при toggle «Без огласовок» визуально
+  не удаляет диакритические знаки (CSS-placeholder, см. gotcha
+  «Tashkeel full removal требует runtime text manipulation»). Full
+  implementation: custom NodeView (React component через
+  `ReactNodeViewRenderer`) который при `hideTashkeel=true` regex'ом
+  заменяет text content без `[ً-ْٰ]+`. Альтернатива - хук в
+  PageView после mount через `TreeWalker(NodeFilter.SHOW_TEXT)`.
+  Тесты: идемпотентность toggle (повторное переключение восстанавливает
+  оригинал), работа с nested marks (footnote внутри tashkeel
+  и наоборот)
+- **Custom font для tashkeel toggle через font-feature-settings** -
+  альтернативный путь без runtime DOM walk: использовать шрифт где
+  tashkeel - отдельные ligature glyphs которые можно скрыть через
+  `font-feature-settings`. Требует поиска / создания такого font
+  asset (большинство free naskh-шрифтов это не поддерживают)
+- **Drag-handle для блочных extensions** (HadithBox / AyahBox /
+  Marginalia / DecoratedHeading) - сейчас перемещение между
+  параграфами через выделение + cut/paste. Tiptap Drag Handle
+  extension даст visible handle при hover, удобнее для admin
+- **Collaborative editing (Yjs)** - на будущее когда команда
+  редакторов >1, чтобы избежать lost-update конфликтов на одной
+  странице. Tiptap имеет `@tiptap/extension-collaboration` based
+  on Yjs (CRDT). Стек: WebSocket server + Y.Doc per page
+- **Slash menu** (`/hadith`, `/ayah`, `/note`) - быстрый ввод
+  custom blocks из клавиатуры без mouse в toolbar.
+  `@tiptap/extension-mention`-style approach

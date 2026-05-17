@@ -11,6 +11,87 @@
 
 ---
 
+## 2026-05-17 - Этап 17.0.c - 3 финальных Tiptap extensions, ADR-039 закрыт
+
+Закрыт ADR-039 целиком - 8 из 8 custom extensions реализованы.
+Параллельная задача с graph export и login UI - зоны не пересеклись
+(Tiptap extensions в `shared/components/editor/extensions/` + reader
+PageView + admin editor page, graph export в `apps/argument-map/`,
+auth в `apps/auth/` + `shared/stores/authStore.ts`)
+
+**Реализовано (3 extensions):**
+
+1. **Tashkeel** (`Tashkeel.ts`) - inline mark для семантической
+   маркировки текста с арабскими диакритическими знаками. MVP scope:
+   mark сериализуется, в reader кнопка «С огласовками / Без огласовок»
+   ставит класс `.hide-tashkeel` на article. CSS - placeholder
+   (визуально не меняет диакритики). Full removal через regex по
+   text nodes - в backlog «True tashkeel removal». Новая gotcha
+   объясняет почему MVP именно такой
+2. **DecoratedHeading** (`DecoratedHeading.ts`) - block node для
+   заголовков с symmetric ornament glyph. Атрибуты: `level` (1-4) +
+   `ornament` (diamond/flower/star/crescent). Render через h1..h4
+   + data-attrs, CSS `::before/::after` content per ornament.
+   `parseHTML priority: 60` чтобы StarterKit Heading не перехватил
+   matching tag
+3. **PageNumber** (`PageNumber.ts`) - inline atom для декоративной
+   разметки границы страницы оригинала внутри абзаца. Render через
+   `<span data-type="page-number">` + CSS `::before` с
+   `content: '⟦' attr(data-number) '⟧'`. Self-contained
+   (`atom: true`), не выделяется (`user-select: none`)
+
+**Интеграция:**
+
+- `AdminPageEditorPage` toolbar расширен 3 кнопками (Tashkeel toggle,
+  DecoratedHeading с Modal radio level/ornament, PageNumber с Modal
+  number input). Pre-fill PageNumber из текущего page.pageNumber
+- `PageView` (reader): `READER_EXTENSIONS` довёл до 8 extensions,
+  добавлен toggle для tashkeel (только для арабского контента),
+  кнопка в header рядом с PDF preview
+- `tiptap.css` - стили для 3 новых extensions (Tashkeel placeholder,
+  DecoratedHeading per-ornament glyphs + per-level font-sizes,
+  PageNumber decorative bracketing)
+- ~24 новых i18n keys RU/AR (admin toolbar + DH/PN modals + reader
+  tashkeel show/hide)
+- 19 новых schema-тестов (Tashkeel: 5, DecoratedHeading: 8,
+  PageNumber: 6). Frontend total **284 тестов pass** (было 241)
+
+**Документация:**
+
+- `docs/roadmap.md` - Этап 17.0 / 17.0.b / 17.0.c сжаты в одну
+  строку «Tiptap editor + 8 custom extensions (ADR-039 закрыт)».
+  Открытыми остаются 17.a-f (OCR pipeline + AI editing)
+- `docs/gotchas.md` - новая gotcha «Tashkeel full removal требует
+  runtime text manipulation» с симптомом / причиной / решением (MVP) /
+  TODO для future
+- `docs/backlog.md` - новый раздел «Editor improvements (после
+  закрытия ADR-039)» с True tashkeel removal, font-feature-settings
+  альтернативой, Drag-handle для блочных extensions, collaborative
+  editing через Yjs, slash menu
+
+**Коммиты (4):**
+
+- `feat(frontend): Этап 17 - Tashkeel mark + reader toggle (MVP CSS-only placeholder)`
+- `feat(frontend): Этап 17 - DecoratedHeading с 4 ornament вариантами`
+- `feat(frontend): Этап 17 - PageNumber inline decorative element`
+- `docs: Этап 17 - 3 финальных extensions, ADR-039 implementation closed`
+
+**Verify:** lint 0 errors, typecheck clean, build success, 284/284
+frontend tests pass
+
+**Отложено:**
+
+- True tashkeel removal через runtime regex DOM walk (NodeView с
+  React или TreeWalker hook в PageView)
+- OCR pipeline (17.a-d): PageImageService upload, Tess4j integration,
+  ImageRegion API, re-OCR endpoint
+- AI editing pass (17.e): LLM расставляет structure через Tiptap
+  custom nodes, manual review через editor
+
+**Handoff:** что можно проверить руками - в финальном отчёте
+
+---
+
 ## 2026-05-17 - graph export PNG/SVG (backlog cleared)
 
 Закрыт пункт backlog «Экспорт графа в PNG / SVG». Параллельная задача

@@ -195,49 +195,21 @@ headings, color highlights). Подробный план - в `docs/backlog.md`
 раздел «Editor для кастомизации текста книг». **Выбран Tiptap** -
 ADR-039
 
-- [x] **17.0 (PREREQUISITE) - architectural decision:** ADR-039
-      закрыт (`docs/decisions.md`). Выбран Tiptap (ProseMirror)
-      vs Lexical / Slate / CKEditor / TinyMCE. Storage - ProseMirror
-      JSON в новой колонке `lib_pages.formatted_content jsonb NULL`
-      (миграция 32, plan'ируется в Этапе 17.0 implementation).
-      Custom extensions: HadithBox / AyahBox / Marginalia / Footnote
-      / ColorHighlight / Tashkeel mark / DecoratedHeading / PageNumber.
-      Backward compat: NULL formatted_content → fallback wrap
-      text_content в minimal paragraph-doc (никакой data migration
-      для существующих Shamela/PDFBox книг). Подробности и open
-      questions - в ADR-039
-- [x] **17.0 (PREREQUISITE) - implementation MVP:** Liquibase миграция
-      33 (`ALTER TABLE lib_pages ADD COLUMN formatted_content jsonb
-      NULL` + rollback). Backend - `PageResponse.formattedContent:
-      JsonNode`, `UpdateFormattedContentRequest`, `PATCH
-      /api/v1/library/pages/{id}/formatted-content`,
-      `BookService.updateFormattedContent`. Frontend - Tiptap 3.23
-      install (`@tiptap/react` + `@tiptap/starter-kit` + `@tiptap/core`
-      + `@tiptap/pm`), shared `RichTextEditor` + `RichTextRenderer`
-      wrapper'ы + `wrapPlainTextAsDoc` utility для legacy fallback.
-      Первый custom extension - `HadithBox` (source/grade attributes,
-      `setHadithBox`/`unsetHadithBox` commands, CSS из `tiptap.css` с
-      peach background + dashed border + dir-aware `«`/`»` ornament).
-      `AdminPageEditorPage` маршрут `/admin/library/pages/:pageId/edit`
-      с минимальным toolbar (Bold/Italic/H1-3/Blockquote/HadithBox с
-      Modal source+grade). `BookReaderPage` `PageView` рендерит
-      `formatted_content` через `RichTextRenderer` когда non-null,
-      иначе fallback на старый `sanitizePageHtml`. 30 i18n keys
-      RU/AR (`admin.page_editor.*`), 14 frontend tests, 4 backend IT.
-      628/628 backend pass, 193/193 frontend pass
-- [x] **17.0.b - 4 из 7 custom extensions:** AyahBox (surah/ayah/
-      translation attrs, gold accent + `﴿ ﴾` ornament), Marginalia
-      (block с RTL-aware `data-side` start/end, desktop float +
-      mobile inline), Footnote (Mark variant B - `<sup>` + CSS
-      counter auto-numbering + native `title` tooltip), ColorHighlight
-      (5-color whitelist: red/blue/green/yellow/purple с toggle
-      behaviour). +24 schema-теста (HadithBox baseline 6 → 30 total
-      по extensions). AdminPageEditorPage toolbar расширен 5
-      кнопками + ColorHighlight palette dropdown. READER_EXTENSIONS
-      в PageView синхронизирован. ~40 i18n keys RU/AR. 241/241
-      frontend tests pass
-- [ ] **17.0.c - оставшиеся 3 custom extensions:** Tashkeel mark /
-      DecoratedHeading / PageNumber (по ADR-039)
+- [x] **17.0 - Tiptap editor + 8 custom extensions (ADR-039 закрыт целиком).**
+      ADR-039 (Tiptap vs Lexical/Slate/CKEditor/TinyMCE, storage =
+      ProseMirror JSON в `lib_pages.formatted_content jsonb`), migration 33,
+      backend `PATCH /pages/{id}/formatted-content`, frontend Tiptap 3.23
+      + RichTextEditor/RichTextRenderer wrappers, AdminPageEditorPage
+      `/admin/library/pages/:pageId/edit` с toolbar (Bold/Italic/H1-3/
+      Blockquote + 8 custom). 8 custom extensions: HadithBox (peach +
+      `«»` ornament), AyahBox (gold + `﴿ ﴾`), Marginalia (RTL-aware
+      `data-side`, desktop float / mobile inline), Footnote (`<sup>` +
+      CSS counter), ColorHighlight (5-color whitelist + toggle),
+      Tashkeel mark (reader toggle «С/Без огласовок», MVP placeholder
+      CSS - full removal в backlog), DecoratedHeading (4 ornament:
+      diamond/flower/star/crescent, levels 1-4), PageNumber (inline
+      atom `⟦N⟧`). 43 schema-теста, ~58 i18n keys RU/AR, READER_EXTENSIONS
+      синхронизирован с EDITOR_EXTENSIONS. 284/284 frontend tests pass
 - [ ] **17.a:** PageImageService - upload изображений-страниц через
       `POST /api/v1/library/books/{id}/pages` (multipart, по одной)
 - [ ] **17.b:** Tess4j integration - OCR арабского через `ara`

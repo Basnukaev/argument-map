@@ -21,6 +21,51 @@
 
 ---
 
+## Tashkeel full removal требует runtime text manipulation
+
+**Симптом:** Reader имеет кнопку «С огласовками / Без огласовок» которая
+ставит класс `.hide-tashkeel` на article-wrapper, но визуально текст
+**не меняется** - арабские диакритические знаки (`َ`, `ِ`, `ُ`, `ْ`,
+`ّ`, `ٰ`) остаются на экране даже при `hideTashkeel=true`. Юзер ждёт
+«голый» текст без огласовок но получает тот же текст что и был.
+
+**Причина:** диакритические знаки (Unicode range `U+064B`-`U+0652` +
+superscript alef `U+0670`) - это **combining characters**, не отдельные
+glyphs. Чистый CSS не может их «скрыть» через `display: none` или
+`visibility: hidden` - они часть text node того же символа. Реальные
+способы убрать огласовки:
+
+1. **runtime regex removal** по text nodes (DOM walk через
+   `TreeWalker(NodeFilter.SHOW_TEXT)`, замена `/[ً-ْٰ]+/g`
+   на `""`)
+2. **font-feature-settings** через специальный шрифт где tashkeel -
+   separate ligature glyphs (требует custom font asset)
+3. **double render** - хранить два text representation в данных и
+   переключаться между ними (raise data volume + breaks editing UX)
+
+Опция 1 - наиболее реалистична, но требует careful обхода
+React-managed DOM (через ref, после mount, перед каждым render).
+В Tiptap reader это означает кастомный NodeView для Tashkeel mark
+который JS'ом подменяет text.
+
+**Решение (MVP, Этап 17.0.c):** Tashkeel mark **есть** и
+сериализуется (`<span data-type="tashkeel">`), но при `hideTashkeel`
+визуально ничего не меняется - placeholder CSS-правило `.hide-tashkeel
+.tashkeel { /* no-op */ }`. Это даёт data layer (admin может пометить
+текст) без full UX. Future-full implementation - в backlog «True
+tashkeel removal через runtime regex DOM walk» (раздел Editor
+improvements).
+
+**TODO:** при дозревании - добавить custom NodeView к Tashkeel mark
+(React component через `ReactNodeViewRenderer`) который при
+`hideTashkeel=true` рендерит `children` через regex-replaced строку,
+иначе - оригинал. Или альтернативно - хук на уровне PageView который
+после mount проходит TreeWalker'ом и заменяет content text nodes.
+Тесты должны проверить идемпотентность (повторный toggle восстанавливает
+оригинал)
+
+---
+
 ## Каждый PdfSourceProvider должен явно поддержать новый source type
 **Симптом:** Загруженный через `POST /api/v1/library/imports/file` PDF
 успешно появляется в MinIO + `library_files` (status 201), но при
