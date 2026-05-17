@@ -841,6 +841,18 @@ export const DICTIONARY = {
     'logout.failed': 'Не удалось выйти',
 
     'access.admin_required': 'Доступно только администраторам',
+
+    // Vote (голосование за вес аргументов, миграция 38)
+    'vote.upvote_tooltip': 'Поддержать аргумент',
+    'vote.downvote_tooltip': 'Не согласен с аргументом',
+    'vote.score_label': 'Счёт: {score}',
+    'vote.voters_count': '{count} голосов',
+    'vote.required_auth': 'Войдите чтобы голосовать',
+    'vote.success': 'Голос засчитан',
+    'vote.removed': 'Голос отменён',
+    'vote.failed': 'Не удалось проголосовать',
+    'vote.no_votes': 'голосов пока нет',
+    'vote.aria_widget': 'Виджет голосования',
   },
   ar: {
     'cite.chip.library': 'من المكتبة',
@@ -1634,6 +1646,18 @@ export const DICTIONARY = {
     'logout.failed': 'تعذّر تسجيل الخروج',
 
     'access.admin_required': 'متاح للمسؤولين فقط',
+
+    // Vote (الفصل 38 - التصويت على وزن الحجج)
+    'vote.upvote_tooltip': 'دعم الحجة',
+    'vote.downvote_tooltip': 'الاعتراض على الحجة',
+    'vote.score_label': 'النتيجة: {score}',
+    'vote.voters_count': '{count} صوت',
+    'vote.required_auth': 'سجّل الدخول للتصويت',
+    'vote.success': 'تم تسجيل الصوت',
+    'vote.removed': 'تم إلغاء الصوت',
+    'vote.failed': 'تعذّر التصويت',
+    'vote.no_votes': 'لا توجد أصوات بعد',
+    'vote.aria_widget': 'أداة التصويت',
   },
 } as const;
 

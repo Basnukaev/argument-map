@@ -6,6 +6,7 @@ import TypeChip from '@/shared/components/ui/TypeChip';
 import { STATUS_TOKENS, type NodeStatus, type NodeType } from '@/shared/utils/designTokens';
 import { hasArabicScript } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
+import VoteWidget from './VoteWidget';
 
 type NodeDto = components['schemas']['NodeResponse'];
 
@@ -94,6 +95,18 @@ function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
           <p dir="auto" className={bodyClass}>
             {truncatedBody}
           </p>
+        )}
+
+        {(nodeType === 'ARGUMENT' || nodeType === 'EVIDENCE') && (
+          <div className="mt-2 flex justify-end">
+            <VoteWidget
+              nodeId={data.id ?? ''}
+              upvotes={data.voteUpvotes ?? 0}
+              downvotes={data.voteDownvotes ?? 0}
+              score={data.voteScore ?? 0}
+              userVote={data.userVote ?? null}
+            />
+          </div>
         )}
       </div>
     </div>
