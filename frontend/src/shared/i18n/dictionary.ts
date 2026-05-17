@@ -410,6 +410,10 @@ export const DICTIONARY = {
     'admin.file_upload.academic.hide_section': 'Скрыть академические данные',
     'admin.file_upload.academic.help':
       'Мухаккик, издатель, место и год издания. Заполнено хотя бы одно поле - книга создаётся со structured citation, иначе минимальная карточка',
+    'admin.sync.error.shamela_unreachable':
+      'внешний сервис shamela.ws недоступен. возможно требуется VPN или сервис временно лежит. попробуйте позже',
+    'admin.sync.error.shamela_archive': 'не удалось распаковать архив shamela - попробуйте ещё раз',
+    'admin.sync.error.shamela_reader': 'ошибка чтения каталога shamela - возможно битый файл',
 
     // graph context menu / toasts / confirms
     'graph.ctx.canvas': 'Холст',
@@ -864,6 +868,10 @@ export const DICTIONARY = {
     'admin.file_upload.academic.hide_section': 'إخفاء البيانات الأكاديمية',
     'admin.file_upload.academic.help':
       'المحقق والناشر ومكان وسنة النشر. إذا تم تعبئة حقل واحد على الأقل - يُنشأ الكتاب باستشهاد منظم، وإلا - بطاقة الحد الأدنى',
+    'admin.sync.error.shamela_unreachable':
+      'خدمة shamela.ws الخارجية غير متاحة. ربما يلزم VPN أو الخدمة معطّلة مؤقتًا. حاول لاحقًا',
+    'admin.sync.error.shamela_archive': 'تعذّر فك ضغط أرشيف shamela - حاول مرة أخرى',
+    'admin.sync.error.shamela_reader': 'خطأ في قراءة كاتالوج shamela - ربما ملف تالف',
 
     'graph.ctx.canvas': 'الفضاء',
     'graph.ctx.create_here': 'إنشاء عقدة هنا',

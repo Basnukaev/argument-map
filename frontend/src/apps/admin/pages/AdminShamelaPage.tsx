@@ -169,7 +169,7 @@ function AdminShamelaPage() {
       }
       setReloadStatusToken((n) => n + 1);
     } catch (e) {
-      toast.error(formatError(e, t('common.unknown_error')));
+      toast.error(formatShamelaError(e, t));
     } finally {
       setSyncing(false);
     }
@@ -527,6 +527,34 @@ function formatError(e: unknown, fallback: string): string {
   }
   if (e instanceof Error) return e.message;
   return fallback;
+}
+
+/**
+ * Локализованный mapping для shamela-specific ошибок. Сырое Problem
+ * Details `detail` от бэка показывать юзеру плохо (содержит технические
+ * детали типа замаскированного api_key, URL'а с патчем). Мапим по
+ * problem.type → понятное сообщение на текущей локали.
+ *
+ * Маркеры problem.type (slug в конце URL):
+ * - shamela-api-error - 502 от внешнего dev.shamela.ws (недоступен/VPN)
+ * - shamela-archive-error - битый ZIP/SQLite архив с патчем
+ * - shamela-reader-error - ошибка чтения SQLite после распаковки
+ */
+function formatShamelaError(e: unknown, t: (k: import('@/shared/i18n').DictKey) => string): string {
+  if (e instanceof ApiError) {
+    if (e.is('shamela-api-error')) {
+      return t('admin.sync.error.shamela_unreachable');
+    }
+    if (e.is('shamela-archive-error')) {
+      return t('admin.sync.error.shamela_archive');
+    }
+    if (e.is('shamela-reader-error')) {
+      return t('admin.sync.error.shamela_reader');
+    }
+    return `${e.problem.title}${e.problem.detail ? ': ' + e.problem.detail : ''}`;
+  }
+  if (e instanceof Error) return e.message;
+  return t('common.unknown_error');
 }
 
 export default AdminShamelaPage;
