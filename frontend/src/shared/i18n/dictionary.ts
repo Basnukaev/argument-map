@@ -430,6 +430,8 @@ export const DICTIONARY = {
     'graph.toast.update_failed': 'Не удалось обновить',
     'graph.toast.history_load_failed': 'Не удалось загрузить историю',
     'graph.confirm.delete': 'Удалить выбранное?',
+    'graph.root.delete_hint': 'корневой вопрос нельзя удалить - удалите тему целиком',
+    'graph.root.delete_skipped_toast': 'выбранный корневой узел не был удалён - удалите тему целиком',
 
     // form labels (AddEdgeModal)
     'edge.field.from': 'Откуда',
@@ -887,6 +889,8 @@ export const DICTIONARY = {
     'graph.toast.update_failed': 'فشل التحديث',
     'graph.toast.history_load_failed': 'فشل تحميل السجل',
     'graph.confirm.delete': 'حذف المحدد؟',
+    'graph.root.delete_hint': 'لا يمكن حذف السؤال الجذري - احذف الموضوع بأكمله',
+    'graph.root.delete_skipped_toast': 'لم تُحذف العقدة الجذرية - احذف الموضوع بأكمله',
 
     'edge.field.from': 'من',
     'edge.field.to': 'إلى',

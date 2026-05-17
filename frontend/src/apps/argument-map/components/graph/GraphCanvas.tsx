@@ -182,6 +182,11 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
 
   const rawNodeDtos = useMemo(() => graph.nodes ?? [], [graph.nodes]);
 
+  // корневой узел темы - его удаление запрещено (бэк бросает 409
+  // NodeIsRootException, см. #1). Используем для (а) скрытия пункта
+  // "Удалить" в context menu, (б) фильтрации в bulk-delete из toolbar
+  const rootNodeId = graph.topic?.rootNodeId ?? null;
+
   // drag из handle одного узла на handle другого - проверяем матрицу
   // ADR-010 ДО открытия модалки. Запрещённую пару показываем тостом
   const handleConnect = useCallback(
@@ -287,6 +292,13 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
   // удаление одного узла/ребра по id из контекстного меню. Без window.confirm:
   // явный пункт меню уже выражает намерение
   async function deleteOneNode(nodeId: string) {
+    // защитный barrier: context menu уже скрывает пункт удаления для корня,
+    // но если новая точка входа добавится - не дать сделать заведомо
+    // обречённый запрос (бэк бросит 409 NodeIsRootException)
+    if (nodeId === rootNodeId) {
+      toast.warning(t('graph.root.delete_hint'));
+      return;
+    }
     try {
       await apiDeleteRaw(`/api/v1/nodes/${nodeId}`);
       onRefetch();
@@ -428,14 +440,26 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
           icon: ArrowDown,
           onClick: () => sendNodeToBack(node.id),
         },
-        {
+      );
+      // удаление недоступно для корневого узла темы (бэк бы вернул 409
+      // NodeIsRootException, но UX лучше скрыть пункт + показать hint)
+      if (node.id !== rootNodeId) {
+        items.push({
           id: 'delete-node',
           label: t('common.delete'),
           icon: Trash2,
           danger: true,
           onClick: () => void deleteOneNode(node.id),
-        },
-      );
+        });
+      } else {
+        items.push({
+          id: 'delete-node-root-disabled',
+          label: `${t('common.delete')} · ${t('graph.root.delete_hint')}`,
+          icon: Trash2,
+          disabled: true,
+          onClick: () => {},
+        });
+      }
 
       setContextMenu({
         x: event.clientX,
@@ -550,10 +574,45 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
     onCloseDetail: closeDetail,
   });
 
+  // Del/Backspace - удалить выделенные узлы/рёбра. Временный handler
+  // (#3 фидбэк Сессии 38) - будет мигрирован в единую hotkey систему
+  // когда параллельный subagent закончит унификацию через react-hotkeys-hook.
+  // Использует event.code а не event.key чтобы работало на любой раскладке.
+  // Игнорирует когда фокус в input/textarea/contentEditable (юзер редактирует
+  // содержание узла / textarea модалки)
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.code !== 'Delete' && event.code !== 'Backspace') return;
+
+      const active = document.activeElement;
+      if (active instanceof HTMLElement) {
+        const tag = active.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || active.isContentEditable) return;
+      }
+      // нативный modal открыт - не наш кейс
+      if (document.querySelector('dialog[open]')) return;
+      if (contextMenu) return;
+      if (selectedNodeIds.length === 0 && selectedEdgeIds.length === 0) return;
+
+      event.preventDefault();
+      void handleDelete();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+    // handleDelete пересоздаётся при изменении selectedNodeIds/Edges/rootNodeId,
+    // эффект перевешивает listener - это OK для редкого keypress flow
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedNodeIds, selectedEdgeIds, contextMenu, rootNodeId]);
+
   async function handleDelete() {
     if (selectedCount === 0) return;
     const confirmed = window.confirm(t('graph.confirm.delete'));
     if (!confirmed) return;
+
+    // отфильтровываем корневой узел - бэк бы вернул 409 (NodeIsRootException),
+    // лучше тихо пропустить + toast объяснение чем падать с alert
+    const nodesToDelete = selectedNodeIds.filter((id) => id !== rootNodeId);
+    const rootSkipped = nodesToDelete.length !== selectedNodeIds.length;
 
     setDeleting(true);
     try {
@@ -565,7 +624,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
           if (!(e instanceof ApiError && e.status === 404)) throw e;
         }
       }
-      for (const nodeId of selectedNodeIds) {
+      for (const nodeId of nodesToDelete) {
         try {
           await apiDeleteRaw(`/api/v1/nodes/${nodeId}`);
         } catch (e: unknown) {
@@ -574,6 +633,9 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
       }
       setSelectedNodeIds([]);
       setSelectedEdgeIds([]);
+      if (rootSkipped) {
+        toast.warning(t('graph.root.delete_skipped_toast'));
+      }
       onRefetch();
     } catch (e: unknown) {
       const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
