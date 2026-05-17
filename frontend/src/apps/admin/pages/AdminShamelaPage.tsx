@@ -1,19 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import { Link } from 'react-router';
 import {
   AlertCircle,
+  BookOpen,
   CheckCircle2,
-  Database,
   Download,
   ExternalLink,
   FileUp,
   Loader2,
+  MoreHorizontal,
   RefreshCw,
   Search,
   Settings,
 } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
-import Card from '@/shared/components/ui/Card';
+import IconButton from '@/shared/components/ui/IconButton';
+import ContextMenu from '@/shared/components/ui/ContextMenu';
 import Header from '@/shared/components/layout/Header';
 import { apiGetRaw, apiPostRaw, ApiError } from '@/shared/api/client';
 import type { components } from '@/shared/api/types';
@@ -34,8 +37,6 @@ function AdminShamelaPage() {
   const t = useT();
   const formatDate = useFormatDate();
   const formatNumber = useNumberFormat();
-  // Локализованный formatDateTime - использует useFormatDate в short stylа.
-  // При null/undefined возвращает «никогда» из словаря (раньше был хардкод)
   const formatDateTime = (iso: string | undefined): string =>
     iso ? formatDate(iso, 'short') : t('admin.last_sync_never_short');
   const [status, setStatus] = useState<SyncStatus | null>(null);
@@ -53,15 +54,11 @@ function AdminShamelaPage() {
   const [reloadStatusToken, setReloadStatusToken] = useState(0);
   const [backfilling, setBackfilling] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
 
-  /**
-   * Все setState идут в Promise-callbacks (.then/.catch) - это асинхронные
-   * хвосты, не synchronous body of effect. ESLint правило
-   * react-hooks/set-state-in-effect запрещает только sync setState в теле
-   * эффекта. Через `reloadStatusToken` триггерим повторный fetch после
-   * sync-master / import-book (вместо вызова shared async функции,
-   * который lint считает potential synchronous setState из call graph)
-   */
+  // Все setState идут в Promise-callbacks - lint react-hooks/set-state-in-effect
+  // запрещает только sync setState в теле эффекта. reloadStatusToken
+  // триггерит refetch после sync/import (мутации статуса)
   useEffect(() => {
     const controller = new AbortController();
     apiGetRaw<SyncStatus>('/api/v1/admin/shamela/sync-status', { signal: controller.signal })
@@ -79,12 +76,8 @@ function AdminShamelaPage() {
     return () => controller.abort();
   }, [reloadStatusToken, t]);
 
-  /**
-   * Debounced search при изменении query. Empty-query сценарий не
-   * требует state-сброса - в JSX через `query.trim().length > 0` гард
-   * results просто не показываются. Это derived state вместо
-   * synchronous setState reset (правило set-state-in-effect)
-   */
+  // Debounced search: пустой query → results просто не рендерятся (derived
+  // state), не нужен синхронный setState reset в теле эффекта
   useEffect(() => {
     if (query.trim().length === 0) {
       return;
@@ -203,182 +196,412 @@ function AdminShamelaPage() {
     }
   };
 
+  const openHeaderMenu = (e: ReactMouseEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    // ••• теперь слева от primary кнопок - меню разворачивается
+    // вправо от кнопки. Прижимаем левый край меню к левому краю
+    // кнопки, размещаем сразу под (bottom + 4px зазор)
+    setMenuPos({ x: rect.left, y: rect.bottom + 4 });
+  };
+
+  const catalogReady = (status?.booksCount ?? 0) > 0;
+  const showEmptyHero = !statusLoading && !statusError && status !== null && !catalogReady;
+  const showSearchUI = catalogReady;
+
   return (
     <main className="min-h-screen bg-bg">
       <Header />
 
-      <div className="mx-auto max-w-[1380px] px-6 py-6">
-        <div className="mb-6 flex items-end justify-between gap-4">
-          <div>
-            <h1 className="flex items-center gap-2.5 text-xl font-bold tracking-tight text-ink-900">
-              <Settings size={20} className="text-accent-600" aria-hidden />
-              {t('admin.title')} · Shamela
-            </h1>
-            <p className="mt-1 text-sm text-ink-500">{t('admin.subtitle')}</p>
-          </div>
-          {status && (
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium ${
-                (status.booksCount ?? 0) > 0
-                  ? 'bg-ok-100 text-ok-700 border border-ok-500/40'
-                  : 'bg-warn-100 text-warn-700 border border-warn-500/40'
-              }`}
-            >
-              <span className={`h-1.5 w-1.5 rounded-full ${(status.booksCount ?? 0) > 0 ? 'bg-ok-500' : 'bg-warn-500'}`} />
-              {(status.booksCount ?? 0) > 0 ? t('admin.status_ready') : t('admin.status_empty')}
-            </span>
-          )}
-        </div>
-
-        {/* Sync-status dashboard */}
-        <Card className="mb-6 p-5">
-          {statusLoading && (
-            <div className="flex items-center gap-2 text-sm text-ink-500">
-              <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-              {t('admin.loading_status')}
-            </div>
-          )}
-          {statusError && (
-            <div className="flex items-start gap-3 text-err-700">
-              <AlertCircle size={20} className="mt-0.5 shrink-0 text-err-700" aria-hidden="true" />
-              <div>
-                <p className="font-semibold">{t('admin.status_load_error')}</p>
-                <p className="mt-1 text-sm">{statusError}</p>
-              </div>
-            </div>
-          )}
-          {status && (
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div className="grid flex-1 grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
-                <Stat
-                  label={t('admin.master_version')}
-                  value={status.masterVersion?.toString() ?? '0'}
-                  hint={<>{t('admin.last_sync')}: <bdi dir="ltr">{formatDateTime(status.lastSyncedAt)}</bdi></>}
-                />
-                <Stat
-                  label={t('admin.categories')}
-                  value={status.categoriesCount?.toString() ?? '0'}
-                />
-                <Stat
-                  label={t('admin.authors')}
-                  value={formatNumber(status.authorsCount ?? 0)}
-                />
-                <Stat
-                  label={t('admin.books_in_staging')}
-                  value={formatNumber(status.booksCount ?? 0)}
-                  hint={`${t('admin.mapped_count')}: ${formatNumber(status.mappedBooksCount ?? 0)}`}
-                />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button icon={RefreshCw} onClick={onSyncMaster} disabled={syncing}>
-                  {syncing ? t('admin.sync_in_progress') : t('admin.sync_button')}
-                </Button>
-                <Button
-                  variant="secondary"
-                  icon={Settings}
-                  onClick={onBackfillBibliography}
-                  disabled={backfilling}
-                >
-                  {backfilling ? t('common.loading') : t('admin.backfill_action')}
-                </Button>
-              </div>
-            </div>
-          )}
-        </Card>
-
-        {/* File upload section - альтернатива shamela import */}
-        <Card className="mb-6 flex flex-wrap items-center justify-between gap-4 p-5">
+      <div className="mx-auto max-w-[1380px] px-6 py-8">
+        {/* === Editorial header: eyebrow + serif h1 + descriptor === */}
+        <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900">
-              <FileUp size={16} className="text-accent-600" aria-hidden />
-              {t('admin.file_upload.section_title')}
-            </h2>
-            <p className="mt-1 text-sm text-ink-500">
-              {t('admin.file_upload.section_subtitle')}
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
+              {t('admin.eyebrow')}
+            </div>
+            <h1 className="font-serif text-[28px] font-semibold leading-tight tracking-tight text-ink-900">
+              {t('admin.hero_title')}
+            </h1>
+            <p className="mt-1.5 max-w-[680px] text-sm text-ink-500">
+              {t('admin.subtitle')}
             </p>
           </div>
-          <Button icon={FileUp} onClick={() => setUploadOpen(true)}>
-            {t('admin.file_upload.section_action')}
-          </Button>
-        </Card>
+          <div className="flex items-center gap-2">
+            {/* Порядок: overflow → secondary → primary. Primary CTA
+                всегда anchored к правому краю - это конвенция admin
+                tools (gmail/github/notion). •••с дополнительными
+                действиями уходит влево, как secondary entry point */}
+            <IconButton
+              icon={MoreHorizontal}
+              label={t('admin.menu.more_actions')}
+              size="md"
+              onClick={openHeaderMenu}
+            />
+            <Button
+              variant="secondary"
+              icon={FileUp}
+              onClick={() => setUploadOpen(true)}
+            >
+              {t('admin.file_upload.section_action_short')}
+            </Button>
+            <Button icon={RefreshCw} onClick={onSyncMaster} disabled={syncing}>
+              {syncing ? t('admin.sync_in_progress') : t('admin.sync_button')}
+            </Button>
+          </div>
+        </header>
 
-        {uploadOpen && (
-          <FileUploadModal
-            open
-            onClose={() => setUploadOpen(false)}
-            onUploaded={() => setReloadStatusToken((n) => n + 1)}
+        {/* === Status states === */}
+        {statusLoading && (
+          <div className="mb-8 flex items-center gap-2 rounded-lg border border-border bg-elevated px-5 py-4 text-sm text-ink-500">
+            <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+            {t('admin.loading_status')}
+          </div>
+        )}
+
+        {statusError && (
+          <div className="mb-8 flex items-start gap-3 rounded-lg border border-err-500/40 bg-err-100 px-5 py-4 text-err-700">
+            <AlertCircle size={20} className="mt-0.5 shrink-0" aria-hidden="true" />
+            <div>
+              <p className="font-semibold">{t('admin.status_load_error')}</p>
+              <p className="mt-1 text-sm">{statusError}</p>
+            </div>
+          </div>
+        )}
+
+        {showEmptyHero && (
+          <EmptyCatalogHero onSync={onSyncMaster} syncing={syncing} />
+        )}
+
+        {status && catalogReady && (
+          <StatusStrip
+            status={status}
+            formatNumber={formatNumber}
+            formatDateTime={formatDateTime}
           />
         )}
 
-        {/* Search section */}
-        <div className="mb-4">
-          <h2 className="mb-2 flex items-center gap-2 text-base font-semibold text-ink-900">
-            <Database size={16} className="text-accent-600" aria-hidden />
-            {t('admin.search_in_catalog')}
-          </h2>
-          {(status?.booksCount ?? 0) === 0 && !statusLoading && (
-            <p className="mb-3 text-sm text-ink-500">
-              {t('admin.empty_catalog_hint')}{' '}
-              <button
-                type="button"
-                onClick={onSyncMaster}
-                className="text-accent-600 underline hover:text-accent-700"
-              >
-                {t('admin.sync_action_link')}
-              </button>{' '}
-              {t('admin.empty_catalog_hint_2')}
-            </p>
-          )}
-          <div className="flex h-9 max-w-xl items-center rounded-md border border-border-strong bg-elevated transition-colors focus-within:border-accent-500 focus-within:ring-2 focus-within:ring-accent-500/20">
-            <Search size={16} className="ms-3 text-ink-400" aria-hidden="true" />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => onQueryChange(e.target.value)}
-              placeholder={t('admin.search_placeholder')}
-              className="flex-1 bg-transparent px-3 text-sm text-ink-900 outline-none placeholder:text-ink-400"
-              aria-label={t('admin.search_aria')}
+        {/* === Hero search === */}
+        {showSearchUI && (
+          <section className="mb-5">
+            {/* Без иконки в h2: одна иконка в input уже служит visual
+                anchor'ом секции. попытка align'нуть h2-icon с input-icon
+                ловит micro-delta (разный размер + 1px border input'а) и
+                читается как «почти-выровнено», что хуже чем чистая
+                типографика без шума */}
+            <h2 className="mb-2 text-sm font-semibold text-ink-900">
+              {t('admin.search_in_catalog')}
+            </h2>
+            <HeroSearchInput
+              query={query}
+              onQueryChange={onQueryChange}
+              searchLoading={searchLoading}
+              matchCount={results.length}
+              hint={t('admin.search_placeholder')}
+              ariaLabel={t('admin.search_aria')}
+              matchCountTemplate={t('admin.hero.match_count')}
             />
-            {searchLoading && (
-              <Loader2 size={14} className="me-3 animate-spin text-ink-400" aria-hidden="true" />
-            )}
-          </div>
-        </div>
+          </section>
+        )}
 
+        {/* === Search results / error / not-found === */}
         {searchError && (
-          <Card className="mb-4 border-err-500/40 bg-err-100 p-4">
-            <p className="text-sm text-err-700">{searchError}</p>
-          </Card>
+          <div className="mb-8 rounded-lg border border-err-500/40 bg-err-100 px-4 py-3 text-sm text-err-700">
+            {searchError}
+          </div>
         )}
 
         {!searchError && query.trim().length > 0 && results.length === 0 && !searchLoading && (
-          <p className="text-sm text-ink-500">{t('topic.list.not_found')}</p>
+          <p className="mb-8 text-sm text-ink-500">{t('topic.list.not_found')}</p>
         )}
 
         {results.length > 0 && (
-          <ul className="space-y-2">
-            {results.map((r) => (
-              <SearchResultRow
-                key={r.bookId}
-                result={r}
-                onImport={onImport}
-                isImporting={importingId === r.bookId}
-              />
-            ))}
-          </ul>
+          <ResultsTable
+            results={results}
+            onImport={onImport}
+            importingId={importingId}
+          />
         )}
 
-        <ActivityLog />
+        {/* === Activity log === */}
+        {catalogReady && <ActivityLog />}
       </div>
+
+      {/* === Overflow menu (rare admin actions) === */}
+      {menuPos && (
+        <ContextMenu
+          x={menuPos.x}
+          y={menuPos.y}
+          onClose={() => setMenuPos(null)}
+          items={[
+            {
+              id: 'backfill',
+              label: t('admin.backfill_action'),
+              icon: Settings,
+              disabled: backfilling,
+              onClick: () => {
+                setMenuPos(null);
+                void onBackfillBibliography();
+              },
+            },
+          ]}
+        />
+      )}
+
+      {uploadOpen && (
+        <FileUploadModal
+          open
+          onClose={() => setUploadOpen(false)}
+          onUploaded={() => setReloadStatusToken((n) => n + 1)}
+        />
+      )}
     </main>
   );
 }
 
+// ====================================================================
+//                          Sub-components
+// ====================================================================
+
+interface StatusStripProps {
+  status: SyncStatus;
+  formatNumber: (n: number) => string;
+  formatDateTime: (iso: string | undefined) => string;
+}
+
+function StatusStrip({ status, formatNumber, formatDateTime }: StatusStripProps) {
+  const t = useT();
+  const mapped = status.mappedBooksCount ?? 0;
+  const total = status.booksCount ?? 0;
+  const mappedText = `${formatNumber(mapped)} / ${formatNumber(total)}`;
+  const version = status.masterVersion?.toString() ?? '0';
+  const lastSync = formatDateTime(status.lastSyncedAt);
+
+  // 5 stat'ов + status chip как 6-я колонка (как в design-reference v2).
+  // divide-x на grid даёт vertical hairlines между ячейками - визуальное
+  // разделение метрик которое нужно в dense data strip. без gap-x:
+  // divide-x не работает корректно с gap-x (расходятся 1px borders и gap)
+  return (
+    <section className="mb-8 overflow-hidden rounded-lg border border-border bg-elevated">
+      <div className="grid grid-cols-2 divide-y divide-border sm:grid-cols-3 sm:divide-y-0 sm:[&>*]:border-s sm:[&>*]:border-border sm:[&>*:first-child]:border-s-0 lg:grid-cols-[repeat(5,minmax(0,1fr))_auto]">
+        <Stat
+          label={t('admin.master_version')}
+          value={version}
+          hint={
+            <>
+              {t('admin.last_sync')}: <bdi dir="ltr">{lastSync}</bdi>
+            </>
+          }
+        />
+        <Stat label={t('admin.categories')} value={status.categoriesCount?.toString() ?? '0'} />
+        <Stat label={t('admin.authors')} value={formatNumber(status.authorsCount ?? 0)} />
+        <Stat label={t('admin.books_in_staging')} value={formatNumber(total)} />
+        <Stat label={t('admin.mapped_count')} value={mappedText} accent />
+        <div className="flex items-center justify-end px-5 py-4">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-ok-500/30 bg-ok-100 px-2.5 py-0.5 text-[11px] font-medium text-ok-700 whitespace-nowrap">
+            <span className="h-1.5 w-1.5 rounded-full bg-ok-500" aria-hidden />
+            <span className="font-mono tabular-nums">
+              <bdi dir="ltr">
+                v{version} · sync {lastSync}
+              </bdi>
+            </span>
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+interface HeroSearchInputProps {
+  query: string;
+  onQueryChange: (v: string) => void;
+  searchLoading: boolean;
+  matchCount: number;
+  hint: string;
+  ariaLabel: string;
+  matchCountTemplate: string;
+}
+
+function HeroSearchInput({
+  query,
+  onQueryChange,
+  searchLoading,
+  matchCount,
+  hint,
+  ariaLabel,
+  matchCountTemplate,
+}: HeroSearchInputProps) {
+  const active = query.trim().length > 0;
+  return (
+    <div
+      className={`flex h-10 max-w-2xl items-center rounded-md bg-elevated transition-all ${
+        active
+          ? 'border-[1.5px] border-accent-500 shadow-[0_0_0_3px_color-mix(in_srgb,var(--c-accent-500)_15%,transparent)]'
+          : 'border border-border-strong focus-within:border-accent-500 focus-within:ring-2 focus-within:ring-accent-500/20'
+      }`}
+    >
+      <Search size={15} className="ms-3 text-ink-400" aria-hidden="true" />
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => onQueryChange(e.target.value)}
+        placeholder={hint}
+        className="flex-1 bg-transparent px-3 text-sm text-ink-900 outline-none placeholder:text-ink-400"
+        aria-label={ariaLabel}
+      />
+      {searchLoading ? (
+        <Loader2 size={14} className="me-3 animate-spin text-ink-400" aria-hidden="true" />
+      ) : (
+        active &&
+        matchCount > 0 && (
+          <span className="me-3 font-mono text-xs tabular-nums text-ink-500">
+            {matchCountTemplate.replace('{n}', String(matchCount))}
+          </span>
+        )
+      )}
+    </div>
+  );
+}
+
+interface ResultsTableProps {
+  results: SearchResult[];
+  onImport: (bookId: number) => void;
+  importingId: number | null;
+}
+
+function ResultsTable({ results, onImport, importingId }: ResultsTableProps) {
+  const t = useT();
+  // grid template одинаков для header и row - sync через CSS variable не нужен,
+  // inline style гарантирует выравнивание колонок
+  const gridCols = '88px 1fr 220px 80px 200px';
+  return (
+    <div className="mb-8 overflow-hidden rounded-lg border border-border bg-elevated">
+      <div
+        className="sticky top-0 z-[1] grid items-center gap-3 border-b border-border bg-sunken px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-500"
+        style={{ gridTemplateColumns: gridCols }}
+      >
+        <span>{t('admin.table.id')}</span>
+        <span>{t('admin.table.name')}</span>
+        <span>{t('admin.table.author')}</span>
+        <span>{t('admin.table.major')}</span>
+        {/* Заголовок СТАТУС намеренно left-aligned (как остальные)
+            хотя кнопки в content прижаты к правому краю. Консистентность
+            всех headers важнее «нависания» header над content - типовой
+            компромисс для action-колонок в data-tables */}
+        <span>{t('admin.table.status')}</span>
+      </div>
+      <ul className="divide-y divide-border">
+        {results.map((r) => (
+          <SearchResultRow
+            key={r.bookId}
+            result={r}
+            onImport={onImport}
+            isImporting={importingId === r.bookId}
+            gridCols={gridCols}
+          />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+interface SearchResultRowProps {
+  result: SearchResult;
+  onImport: (bookId: number) => void;
+  isImporting: boolean;
+  gridCols: string;
+}
+
+function SearchResultRow({ result, onImport, isImporting, gridCols }: SearchResultRowProps) {
+  const t = useT();
+  // dir="auto" - браузер сам определит направление по первому сильному символу.
+  // hasArabicScript для переключения font-naskh (dir="auto" шрифт не меняет)
+  const arabicName = hasArabicScript(result.name ?? undefined);
+  const arabicAuthor = hasArabicScript(result.authorName ?? undefined);
+
+  return (
+    <li>
+      <div
+        className="grid items-center gap-3 px-4 py-2.5 transition-colors hover:bg-sunken/60"
+        style={{ gridTemplateColumns: gridCols }}
+      >
+        <div className="font-mono text-xs text-ink-500 tabular-nums">
+          <bdi dir="ltr">{result.bookId}</bdi>
+        </div>
+        <div
+          dir="auto"
+          className={`min-w-0 truncate text-sm font-medium leading-snug text-ink-900 ${
+            arabicName ? 'font-naskh text-base' : ''
+          }`}
+          title={result.name ?? ''}
+        >
+          {result.name ?? t('reader.no_book_title')}
+        </div>
+        <div
+          dir="auto"
+          className={`min-w-0 truncate text-xs text-ink-600 ${arabicAuthor ? 'font-naskh text-sm' : ''}`}
+          title={result.authorName ?? ''}
+        >
+          {result.authorName ?? '—'}
+        </div>
+        <div className="font-mono text-xs text-ink-500 tabular-nums">
+          <bdi dir="ltr">v{result.majorRelease}</bdi>
+        </div>
+        <div className="flex justify-end">
+          {result.isMapped ? (
+            // Чип «Импортирована» + кнопка «В библиотеке» = дублирование:
+            // обе сущности говорят «книга уже у нас». достаточно одной
+            // кнопки с галкой - и status marker (✓) и actionable navigation
+            <Link to="/books">
+              <Button variant="ghost" size="sm" icon={CheckCircle2} iconRight={ExternalLink}>
+                {t('admin.in_library')}
+              </Button>
+            </Link>
+          ) : (
+            <Button
+              icon={Download}
+              size="sm"
+              onClick={() => result.bookId !== undefined && onImport(result.bookId)}
+              disabled={isImporting}
+            >
+              {isImporting ? t('admin.importing') : t('admin.import')}
+            </Button>
+          )}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+interface EmptyCatalogHeroProps {
+  onSync: () => void;
+  syncing: boolean;
+}
+
+function EmptyCatalogHero({ onSync, syncing }: EmptyCatalogHeroProps) {
+  const t = useT();
+  return (
+    <section className="mb-8 flex flex-col items-center gap-4 rounded-lg border border-border bg-elevated px-6 py-10 text-center sm:flex-row sm:text-start">
+      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-accent-50 text-accent-600">
+        <BookOpen size={24} aria-hidden />
+      </div>
+      <div className="min-w-0 flex-1">
+        <h2 className="font-serif text-xl font-semibold text-ink-900">
+          {t('admin.empty_catalog_hero.title')}
+        </h2>
+        <p className="mt-1 max-w-[560px] text-sm text-ink-500">
+          {t('admin.empty_catalog_hero.body')}
+        </p>
+      </div>
+      <Button icon={RefreshCw} size="lg" onClick={onSync} disabled={syncing}>
+        {syncing ? t('admin.sync_in_progress') : t('admin.empty_catalog_hero.action')}
+      </Button>
+    </section>
+  );
+}
+
 /**
- * Activity log - console-style блок с timeline последних admin-операций.
- * Бэк пока не отдаёт реальный лог (потребуется /api/v1/admin/shamela/activity
- * endpoint), здесь placeholder с примерами форматов. Когда бэк появится -
- * заменить items на fetch'd данные. Структура повторяет дизайн-референс v3.
+ * Activity log - компактный console-style timeline последних admin-операций.
+ * Backend пока не отдаёт реальный лог, placeholder со структурой формата
  */
 function ActivityLog() {
   const t = useT();
@@ -404,20 +627,15 @@ function ActivityLog() {
     err: 'ERR',
   };
   return (
-    <section className="mt-8">
-      <h2 className="mb-3 text-base font-semibold text-ink-900">
-        {t('admin.activity_log')}
-      </h2>
-      <Card className="overflow-hidden p-0">
-        <ul className="divide-y divide-border font-mono text-xs">
+    <section>
+      <h2 className="mb-2 text-sm font-semibold text-ink-900">{t('admin.activity_log')}</h2>
+      <div className="max-h-[200px] overflow-auto rounded-lg border border-border bg-elevated">
+        <ul className="divide-y divide-border font-mono text-[11px]">
           {items.map((it, i) => (
-            <li
-              key={i}
-              className="flex items-baseline gap-3 px-4 py-2 text-ink-800"
-            >
+            <li key={i} className="flex items-baseline gap-3 px-3 py-1.5 text-ink-800">
               <span className="text-ink-500 tabular-nums">{it.time}</span>
               <span
-                className={`inline-flex h-5 items-center rounded-sm px-1.5 text-xs font-bold uppercase ${kindClass[it.kind]}`}
+                className={`inline-flex h-[18px] min-w-[40px] items-center justify-center rounded-sm px-1 text-[10px] font-bold uppercase ${kindClass[it.kind]}`}
               >
                 {kindLabel[it.kind]}
               </span>
@@ -425,8 +643,8 @@ function ActivityLog() {
             </li>
           ))}
         </ul>
-      </Card>
-      <p className="mt-2 text-xs text-ink-400">
+      </div>
+      <p className="mt-2 text-[11px] text-ink-400">
         {t('admin.activity_log_placeholder_hint')}
       </p>
     </section>
@@ -437,87 +655,25 @@ interface StatProps {
   label: string;
   value: string;
   hint?: React.ReactNode;
+  /** accent для главной (headline) метрики - например, замаплено / всего */
+  accent?: boolean;
 }
 
-function Stat({ label, value, hint }: StatProps) {
+function Stat({ label, value, hint, accent = false }: StatProps) {
   return (
-    <div>
-      <div className="text-xs uppercase tracking-wider text-ink-500 font-semibold">
+    <div className="min-w-0 px-5 py-4">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-500">
         {label}
       </div>
-      <div className="mt-1 font-mono text-lg font-bold text-ink-900 tabular-nums">
+      <div
+        className={`mt-1 font-mono text-[22px] font-bold leading-none tabular-nums ${
+          accent ? 'text-accent-600' : 'text-ink-900'
+        }`}
+      >
         {value}
       </div>
-      {hint && <div className="mt-0.5 text-xs text-ink-400">{hint}</div>}
+      {hint && <div className="mt-1.5 text-[11px] text-ink-400">{hint}</div>}
     </div>
-  );
-}
-
-interface SearchResultRowProps {
-  result: SearchResult;
-  onImport: (bookId: number) => void;
-  isImporting: boolean;
-}
-
-function SearchResultRow({ result, onImport, isImporting }: SearchResultRowProps) {
-  const t = useT();
-  // dir="auto" - браузер сам определит направление по первому сильному символу.
-  // Шрифт font-naskh всё равно через эвристику (dir="auto" шрифт не переключает).
-  const arabicName = hasArabicScript(result.name ?? undefined);
-  const arabicAuthor = hasArabicScript(result.authorName ?? undefined);
-
-  return (
-    <li>
-      <Card className="flex flex-wrap items-center gap-4 p-4 transition-colors hover:border-border-strong">
-        <div className="min-w-0 flex-1">
-          <div
-            dir="auto"
-            className={
-              arabicName
-                ? 'font-naskh text-md font-semibold leading-snug text-ink-900'
-                : 'text-base font-semibold leading-snug text-ink-900'
-            }
-          >
-            {result.name ?? t('reader.no_book_title')}
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-500">
-            {result.authorName && (
-              <span dir="auto" className={arabicAuthor ? 'font-naskh' : ''}>
-                {result.authorName}
-              </span>
-            )}
-            <span className="font-mono text-ink-400">
-              <bdi dir="ltr">id={result.bookId}</bdi>
-            </span>
-            <span className="font-mono text-ink-400">
-              <bdi dir="ltr">major={result.majorRelease}</bdi>
-            </span>
-          </div>
-        </div>
-        {result.isMapped ? (
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-md bg-ok-100 px-2 py-0.5 text-xs font-medium text-ok-700 border border-ok-500/40">
-              <CheckCircle2 size={12} aria-hidden="true" />
-              {t('admin.imported')}
-            </span>
-            <Link to="/books">
-              <Button variant="ghost" size="sm" iconRight={ExternalLink}>
-                {t('admin.in_library')}
-              </Button>
-            </Link>
-          </div>
-        ) : (
-          <Button
-            icon={Download}
-            size="sm"
-            onClick={() => result.bookId !== undefined && onImport(result.bookId)}
-            disabled={isImporting}
-          >
-            {isImporting ? t('admin.importing') : t('admin.import')}
-          </Button>
-        )}
-      </Card>
-    </li>
   );
 }
 
@@ -531,9 +687,9 @@ function formatError(e: unknown, fallback: string): string {
 
 /**
  * Локализованный mapping для shamela-specific ошибок. Сырое Problem
- * Details `detail` от бэка показывать юзеру плохо (содержит технические
- * детали типа замаскированного api_key, URL'а с патчем). Мапим по
- * problem.type → понятное сообщение на текущей локали.
+ * Details detail от бэка показывать юзеру плохо (содержит технические
+ * детали вроде маскированного api_key). Мапим по problem.type → понятное
+ * сообщение на текущей локали.
  *
  * Маркеры problem.type (slug в конце URL):
  * - shamela-api-error - 502 от внешнего dev.shamela.ws (недоступен/VPN)
@@ -542,13 +698,14 @@ function formatError(e: unknown, fallback: string): string {
  */
 function formatShamelaError(e: unknown, t: (k: import('@/shared/i18n').DictKey) => string): string {
   if (e instanceof ApiError) {
-    if (e.is('shamela-api-error')) {
+    const type = e.problem.type ?? '';
+    if (type.endsWith('/shamela-api-error')) {
       return t('admin.sync.error.shamela_unreachable');
     }
-    if (e.is('shamela-archive-error')) {
+    if (type.endsWith('/shamela-archive-error')) {
       return t('admin.sync.error.shamela_archive');
     }
-    if (e.is('shamela-reader-error')) {
+    if (type.endsWith('/shamela-reader-error')) {
       return t('admin.sync.error.shamela_reader');
     }
     return `${e.problem.title}${e.problem.detail ? ': ' + e.problem.detail : ''}`;
