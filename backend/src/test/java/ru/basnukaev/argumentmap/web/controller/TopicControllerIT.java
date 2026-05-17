@@ -144,14 +144,17 @@ class TopicControllerIT {
     }
 
     @Test
-    void listTopics_returnsArray() throws Exception {
+    void listTopics_returnsPagedResponse() throws Exception {
         createTopicViaApi();
 
         mockMvc.perform(get("/api/v1/topics")
                         .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray())
-                .andExpect(jsonPath("$.length()").value(1));
+                .andExpect(jsonPath("$.items").isArray())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalElements").value(1));
     }
 
     @Test
@@ -162,8 +165,53 @@ class TopicControllerIT {
                         .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
                 // только что созданная тема имеет 1 узел (корневой вопрос) и 0 рёбер
-                .andExpect(jsonPath("$[0].nodeCount").value(1))
-                .andExpect(jsonPath("$[0].edgeCount").value(0));
+                .andExpect(jsonPath("$.items[0].nodeCount").value(1))
+                .andExpect(jsonPath("$.items[0].edgeCount").value(0));
+    }
+
+    @Test
+    void listTopics_paginated_returnsCorrectPage() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            createTopicViaApi();
+        }
+        mockMvc.perform(get("/api/v1/topics")
+                        .header("X-User-Id", userId.toString())
+                        .param("page", "1").param("size", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.totalElements").value(5))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.hasPrev").value(true));
+    }
+
+    @Test
+    void listTopics_filterByVisibility_returnsOnlyMatching() throws Exception {
+        createTopicViaApi(); // PRIVATE (default)
+        // создаём PUBLIC тему этим же user'ом
+        var publicReq = new CreateTopicRequest("Pub", null, "Q?", "PUBLIC");
+        mockMvc.perform(post("/api/v1/topics")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(publicReq)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/v1/topics")
+                        .header("X-User-Id", userId.toString())
+                        .param("visibility", "PUBLIC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].visibility").value("PUBLIC"));
+    }
+
+    @Test
+    void listTopics_invalidVisibilityFilter_returns400() throws Exception {
+        mockMvc.perform(get("/api/v1/topics")
+                        .header("X-User-Id", userId.toString())
+                        .param("visibility", "SUPER_SECRET"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value(containsString("illegal-argument")));
     }
 
     @Test
@@ -273,8 +321,8 @@ class TopicControllerIT {
         mockMvc.perform(get("/api/v1/topics")
                         .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].id").value(privateTopicId.toString()));
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(privateTopicId.toString()));
     }
 
     @Test

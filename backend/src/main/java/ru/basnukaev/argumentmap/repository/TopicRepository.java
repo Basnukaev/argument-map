@@ -3,6 +3,7 @@ package ru.basnukaev.argumentmap.repository;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.instant;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.odt;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -155,5 +156,82 @@ public class TopicRepository {
                 ORDER BY created_at
                 """;
         return jdbcTemplate.query(sql, WITH_COUNTS_MAPPER, userId, userId);
+    }
+
+    private static final String VISIBLE_TO_USER_WHERE = """
+            WHERE (t.visibility = 'PUBLIC'
+                   OR t.created_by = ?
+                   OR (t.visibility = 'SHARED' AND EXISTS (
+                        SELECT 1 FROM topic_members tm
+                        WHERE tm.topic_id = t.id AND tm.user_id = ?
+                   )))
+            """;
+
+    /**
+     * Пагинированный список тем видимых user'у с опциональным фильтром
+     * по visibility (внутри set'а уже видимых). Используется REST endpoint
+     * GET /api/v1/topics с {@code ?page=&size=&visibility=}.
+     *
+     * <p>Порядок ORDER BY t.created_at DESC - последние созданные сверху.
+     * Это отличается от {@link #findVisibleToUserWithCounts(UUID)}
+     * (ASC), но для UI list page последние созданные - что нужно
+     * по UX-default'у (consistent with sources/questions).
+     */
+    public List<TopicWithCounts> findVisibleToUserPage(UUID userId, String visibility,
+                                                       int limit, int offset) {
+        StringBuilder sql = new StringBuilder(COUNTS_SQL_BASE).append(VISIBLE_TO_USER_WHERE);
+        List<Object> args = new ArrayList<>();
+        args.add(userId);
+        args.add(userId);
+        if (visibility != null) {
+            sql.append(" AND t.visibility = ?");
+            args.add(visibility);
+        }
+        sql.append(" ORDER BY t.created_at DESC LIMIT ? OFFSET ?");
+        args.add(limit);
+        args.add(offset);
+        return jdbcTemplate.query(sql.toString(), WITH_COUNTS_MAPPER, args.toArray());
+    }
+
+    public long countVisibleToUser(UUID userId, String visibility) {
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM topics t ")
+                .append(VISIBLE_TO_USER_WHERE);
+        List<Object> args = new ArrayList<>();
+        args.add(userId);
+        args.add(userId);
+        if (visibility != null) {
+            sql.append(" AND t.visibility = ?");
+            args.add(visibility);
+        }
+        Long count = jdbcTemplate.queryForObject(sql.toString(), Long.class, args.toArray());
+        return count == null ? 0L : count;
+    }
+
+    /**
+     * ADMIN paginated: все темы, без visibility-фильтра пользователя.
+     * Используется когда role=ADMIN на REST уровне.
+     */
+    public List<TopicWithCounts> findAllPage(String visibility, int limit, int offset) {
+        StringBuilder sql = new StringBuilder(COUNTS_SQL_BASE).append(" WHERE 1=1");
+        List<Object> args = new ArrayList<>();
+        if (visibility != null) {
+            sql.append(" AND t.visibility = ?");
+            args.add(visibility);
+        }
+        sql.append(" ORDER BY t.created_at DESC LIMIT ? OFFSET ?");
+        args.add(limit);
+        args.add(offset);
+        return jdbcTemplate.query(sql.toString(), WITH_COUNTS_MAPPER, args.toArray());
+    }
+
+    public long countAll(String visibility) {
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM topics t WHERE 1=1");
+        List<Object> args = new ArrayList<>();
+        if (visibility != null) {
+            sql.append(" AND t.visibility = ?");
+            args.add(visibility);
+        }
+        Long count = jdbcTemplate.queryForObject(sql.toString(), Long.class, args.toArray());
+        return count == null ? 0L : count;
     }
 }

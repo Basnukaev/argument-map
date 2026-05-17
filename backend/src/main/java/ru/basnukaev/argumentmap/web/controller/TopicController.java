@@ -17,15 +17,19 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.domain.Topic;
+import ru.basnukaev.argumentmap.repository.TopicWithCounts;
 import ru.basnukaev.argumentmap.service.GraphService;
 import ru.basnukaev.argumentmap.service.PermissionService;
 import ru.basnukaev.argumentmap.service.TopicService;
 import ru.basnukaev.argumentmap.web.CurrentUser;
 import ru.basnukaev.argumentmap.web.dto.CreateTopicRequest;
 import ru.basnukaev.argumentmap.web.dto.GraphResponse;
+import ru.basnukaev.argumentmap.web.dto.PageRequest;
+import ru.basnukaev.argumentmap.web.dto.PagedResponse;
 import ru.basnukaev.argumentmap.web.dto.TopicResponse;
 import ru.basnukaev.argumentmap.web.dto.UpdateTopicVisibilityRequest;
 import ru.basnukaev.argumentmap.web.mapper.DtoMappers;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api/v1/topics")
@@ -55,13 +59,30 @@ public class TopicController {
         return ResponseEntity.created(URI.create("/api/v1/topics/" + created.id())).body(body);
     }
 
+    /**
+     * Пагинированный список тем видимых user'у (ADR-043).
+     *
+     * <p>Пагинация: ?page=&size= (default 0/20, max size=100).
+     * Фильтр: ?visibility= (PRIVATE/SHARED/PUBLIC) внутри set'а уже
+     * видимых пользователю. Например USER+visibility=PUBLIC = только
+     * PUBLIC темы (свои+чужие); USER+visibility=PRIVATE = только свои
+     * PRIVATE.
+     *
+     * <p>ADMIN видит все темы без visibility-clipping.
+     */
     @GetMapping
-    public List<TopicResponse> list(@CurrentUser UUID userId) {
-        // ADR-043: только видимые user'у темы (PRIVATE owned + SHARED member + PUBLIC).
-        // ADMIN получает все темы - bypass в TopicService.
+    public PagedResponse<TopicResponse> list(
+            @CurrentUser UUID userId,
+            @RequestParam(name = "visibility", required = false) String visibility,
+            @RequestParam(name = "page", required = false) Integer page,
+            @RequestParam(name = "size", required = false) Integer size) {
         String role = SecurityContextUtils.currentRole();
-        return topicService.listVisibleTopicsWithCounts(userId, role).stream()
-                .map(DtoMappers::toResponse).toList();
+        PageRequest pr = PageRequest.from(page, size);
+        List<TopicWithCounts> items = topicService.listVisibleTopicsPage(
+                userId, role, visibility, pr.size(), pr.offset());
+        long total = topicService.countVisibleTopics(userId, role, visibility);
+        List<TopicResponse> mapped = items.stream().map(DtoMappers::toResponse).toList();
+        return PagedResponse.of(mapped, pr.page(), pr.size(), total);
     }
 
     @GetMapping("/{topicId}")

@@ -124,6 +124,42 @@ public class TopicService {
         return topicRepository.findVisibleToUserWithCounts(userId);
     }
 
+    /**
+     * Пагинированный список тем с visibility-фильтром. ADMIN видит все,
+     * USER - только видимые (см. {@link #listVisibleTopicsWithCounts}).
+     *
+     * @param visibility опционально - whitelist {@link TopicVisibility};
+     *                   {@code null} = без фильтра. Валидируется до SQL
+     */
+    @Transactional(readOnly = true)
+    public List<TopicWithCounts> listVisibleTopicsPage(UUID userId, String role,
+                                                       String visibility,
+                                                       int limit, int offset) {
+        validateVisibility(visibility);
+        if (UserRole.ADMIN.equals(role)) {
+            return topicRepository.findAllPage(visibility, limit, offset);
+        }
+        return topicRepository.findVisibleToUserPage(userId, visibility, limit, offset);
+    }
+
+    @Transactional(readOnly = true)
+    public long countVisibleTopics(UUID userId, String role, String visibility) {
+        validateVisibility(visibility);
+        if (UserRole.ADMIN.equals(role)) {
+            return topicRepository.countAll(visibility);
+        }
+        return topicRepository.countVisibleToUser(userId, visibility);
+    }
+
+    private static void validateVisibility(String visibility) {
+        if (visibility != null && !TopicVisibility.isValid(visibility)) {
+            throw new IllegalArgumentException(
+                    "Невалидное visibility-фильтр: " + visibility
+                            + " (ожидается PRIVATE/SHARED/PUBLIC)"
+            );
+        }
+    }
+
     @Transactional(readOnly = true)
     public TopicWithCounts getTopicWithCounts(UUID topicId) {
         return topicRepository.findByIdWithCounts(topicId)
