@@ -65,7 +65,7 @@
      specimen 1592. Тёплый книжный характер, отличается от UI Source
      Serif 4 нейтрального academic-ощущения. Применяется к Card.Title
      не-арабских книг через Tailwind utility font-book-title. */
-  --font-book-title: 'Manrope', 'Source Serif', Georgia, serif;
+  --font-book-title: 'EB Garamond', 'Source Serif 4', Georgia, serif;
 
   /* 6-step scale. Nothing else exists. */
   --t-xs: 12px;

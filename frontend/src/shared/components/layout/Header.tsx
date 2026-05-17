@@ -59,7 +59,11 @@ function Header() {
               aspect-ratio ~4:1. Квадратный 28×28 box обрезал её → используем
               w-auto + px-2.5 чтобы box расширялся под каллиграфию. font-arabic
               даёт правильный naskh rendering вместо системного serif fallback */}
-          <span className="inline-flex h-7 w-auto min-w-7 items-center justify-center rounded-md bg-accent-600 px-2.5 font-arabic text-base font-semibold leading-none text-ink-0">
+          {/* ﷽ компактный mode: text-sm + минимальный padding. logo
+              работает как symbol-identity (узнаётся по форме вязи),
+              читаемость как текста не важна - поэтому жертвуем размером
+              ради геометрической компактности. nav остаётся рядом */}
+          <span className="inline-flex h-7 w-auto min-w-7 items-center justify-center rounded-md bg-accent-600 px-1.5 font-arabic text-sm font-semibold leading-none text-ink-0">
             ﷽
           </span>
           <span className="text-sm font-semibold text-ink-900 tracking-tight">
