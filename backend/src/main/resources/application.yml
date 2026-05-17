@@ -92,6 +92,16 @@ storage:
     # 0 для тестов / маленьких объёмов. 100ms = ~10 files/sec cap
     delay-millis: ${STORAGE_INTEGRITY_DELAY_MILLIS:100}
 
+# OCR pipeline (ADR-041, Этап 17.b). Tess4j wrapper над system Tesseract.
+# Tesseract сам - НЕ Maven dependency, нужно установить на host:
+#   sudo apt install tesseract-ocr tesseract-ocr-ara tesseract-ocr-rus
+# (см. backend/CLAUDE.md раздел OCR).
+ocr:
+  tessdata:
+    # Path к .traineddata файлам. Debian/WSL2 default - /usr/share/tesseract-ocr/4.00/tessdata
+    # macOS Homebrew - /opt/homebrew/share/tessdata
+    path: ${OCR_TESSDATA_PATH:/usr/share/tesseract-ocr/4.00/tessdata}
+
 # Конфиг интеграции с shamela.ws через её desktop-API (ADR-020).
 # Реверс-инжиниринг выполнен в параллельной сессии через mitmproxy на
 # официальном desktop-клиенте shamela 4. Endpoints статические,

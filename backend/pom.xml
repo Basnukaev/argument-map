@@ -125,6 +125,30 @@
 			<artifactId>url-connection-client</artifactId>
 		</dependency>
 		<!--
+			Tess4j (ADR-041) - Java JNA wrapper над Tesseract C++ для OCR
+			арабских/русских сканов рукописей. Tesseract сам - system
+			dependency, нужно установить отдельно (см. backend/CLAUDE.md
+			раздел OCR): на Debian/WSL2 `sudo apt install tesseract-ocr
+			tesseract-ocr-ara tesseract-ocr-rus`. Tess4j подключает native
+			через JNA. Используется в library.imports.OcrService для Этапа 17.b.
+		-->
+		<dependency>
+			<groupId>net.sourceforge.tess4j</groupId>
+			<artifactId>tess4j</artifactId>
+			<version>5.13.0</version>
+			<exclusions>
+				<!--
+					tess4j тащит slf4j-simple в compile-scope - конфликтует
+					с logback-classic из spring-boot-starter (multi-binding
+					warning + непредсказуемый routing log'ов). Исключаем.
+				-->
+				<exclusion>
+					<groupId>org.slf4j</groupId>
+					<artifactId>slf4j-simple</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<!--
 			Spring Security 6.x (ADR-040). Версия managed Spring Boot 3.5 BOM.
 			Дёргает за собой spring-security-config / -core / -web.
 		-->
