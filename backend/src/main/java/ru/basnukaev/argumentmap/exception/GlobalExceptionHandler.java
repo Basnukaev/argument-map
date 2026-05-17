@@ -16,6 +16,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import ru.basnukaev.argumentmap.library.imports.FileImportException;
 import ru.basnukaev.argumentmap.library.imports.web.UnsupportedMediaTypeException;
 import ru.basnukaev.argumentmap.library.pdf.service.PdfNotAvailableException;
+import ru.basnukaev.argumentmap.library.pdf.service.RangeNotSatisfiableException;
 import ru.basnukaev.argumentmap.library.shamela.api.ShamelaApiException;
 import ru.basnukaev.argumentmap.library.shamela.etl.ShamelaArchiveException;
 import ru.basnukaev.argumentmap.library.shamela.etl.ShamelaReaderException;
@@ -129,6 +130,17 @@ public class GlobalExceptionHandler {
     public ProblemDetail handlePdfNotAvailable(PdfNotAvailableException ex) {
         return problem(HttpStatus.NOT_FOUND,
                 "PDF недоступен", "pdf-not-available", ex.getMessage());
+    }
+
+    @ExceptionHandler(RangeNotSatisfiableException.class)
+    public ProblemDetail handleRangeNotSatisfiable(RangeNotSatisfiableException ex) {
+        ProblemDetail pd = problem(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE,
+                "Range вне диапазона файла",
+                "range-not-satisfiable",
+                ex.getMessage());
+        pd.setProperty("start", ex.start());
+        pd.setProperty("totalSize", ex.totalSize());
+        return pd;
     }
 
     @ExceptionHandler(MissingUserHeaderException.class)

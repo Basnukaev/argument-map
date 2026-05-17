@@ -10,6 +10,8 @@ import ru.basnukaev.argumentmap.exception.BookNotFoundException;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfLocation;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfMetadata;
+import ru.basnukaev.argumentmap.library.pdf.domain.PdfStreamingResult;
+import ru.basnukaev.argumentmap.library.pdf.domain.RangeSpec;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.storage.ObjectStorageService;
 import software.amazon.awssdk.core.ResponseInputStream;
@@ -95,6 +97,20 @@ public class PdfService {
             PdfLocation loc, long startInclusive, long endInclusive) {
         return objectStorageService.getRange(
                 loc.bucket(), loc.storageKey(), startInclusive, endInclusive);
+    }
+
+    /**
+     * Lazy streaming через provider (25.d.5, ADR-023 amendment). Если
+     * {@code range == null} - full content (HTTP 200). Не-null range -
+     * 206 Partial Content. Provider сам решает откуда взять bytes
+     * (MinIO для cached / user-upload, archive.org forward для cache
+     * miss).
+     */
+    public PdfStreamingResult openStream(UUID bookId, int fileIndex, RangeSpec range) {
+        Book book = loadBook(bookId);
+        PdfSourceProvider provider = findProvider(book)
+                .orElseThrow(() -> new PdfNotAvailableException(bookId));
+        return provider.openStream(book, fileIndex, range);
     }
 
     private Book loadBook(UUID bookId) {

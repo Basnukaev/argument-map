@@ -17,7 +17,10 @@ import ru.basnukaev.argumentmap.library.domain.LibraryFileSourceType;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfFileInfo;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfLocation;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfMetadata;
+import ru.basnukaev.argumentmap.library.pdf.domain.PdfStreamingResult;
+import ru.basnukaev.argumentmap.library.pdf.domain.RangeSpec;
 import ru.basnukaev.argumentmap.library.repository.LibraryFileRepository;
+import ru.basnukaev.argumentmap.library.storage.ObjectStorageService;
 
 /**
  * Provider для книг загруженных пользователем через
@@ -59,11 +62,14 @@ public class UserUploadProvider implements PdfSourceProvider {
 
     private final LibraryFileRepository libraryFileRepository;
     private final ObjectMapper objectMapper;
+    private final ObjectStorageService objectStorageService;
 
     public UserUploadProvider(LibraryFileRepository libraryFileRepository,
-                              ObjectMapper objectMapper) {
+                              ObjectMapper objectMapper,
+                              ObjectStorageService objectStorageService) {
         this.libraryFileRepository = libraryFileRepository;
         this.objectMapper = objectMapper;
+        this.objectStorageService = objectStorageService;
     }
 
     @Override
@@ -106,6 +112,31 @@ public class UserUploadProvider implements PdfSourceProvider {
         log.debug("user-upload pdf locate: book={} bucket={} key={}",
                 book.id(), file.bucket(), file.storageKey());
         return new PdfLocation(file.bucket(), file.storageKey(), file.sizeBytes(), CONTENT_TYPE);
+    }
+
+    /**
+     * MinIO native Range через {@code GetObjectRequest.range()}. Blob
+     * уже в bucket'е (uploaded), никакого upstream fetching - просто
+     * прозрачно стримим chunk из S3. Stream закрывается caller'ом.
+     */
+    @Override
+    public PdfStreamingResult openStream(Book book, int fileIndex, RangeSpec range) {
+        PdfLocation loc = locateFile(book, fileIndex);
+        long total = loc.sizeBytes();
+
+        if (range == null) {
+            var stream = objectStorageService.get(loc.bucket(), loc.storageKey());
+            return new PdfStreamingResult(stream, total, 0L, total - 1, total, false);
+        }
+
+        if (range.startInclusive() >= total) {
+            throw new RangeNotSatisfiableException(range.startInclusive(), total);
+        }
+        long end = range.resolvedEndInclusive(total);
+        long length = end - range.startInclusive() + 1;
+        var stream = objectStorageService.getRange(loc.bucket(), loc.storageKey(),
+                range.startInclusive(), end);
+        return new PdfStreamingResult(stream, length, range.startInclusive(), end, total, true);
     }
 
     /**

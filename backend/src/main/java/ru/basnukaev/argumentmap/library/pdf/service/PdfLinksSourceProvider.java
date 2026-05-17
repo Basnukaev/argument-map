@@ -25,6 +25,8 @@ import ru.basnukaev.argumentmap.library.domain.LibraryFileSourceType;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfFileInfo;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfLocation;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfMetadata;
+import ru.basnukaev.argumentmap.library.pdf.domain.PdfStreamingResult;
+import ru.basnukaev.argumentmap.library.pdf.domain.RangeSpec;
 import ru.basnukaev.argumentmap.library.repository.LibraryFileRepository;
 import ru.basnukaev.argumentmap.library.shamela.api.ShamelaApiException;
 import ru.basnukaev.argumentmap.library.storage.ObjectStorageProperties;
@@ -166,12 +168,82 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
     }
 
     /**
+     * Lazy streaming (25.d.5, ADR-023 amendment). Логика:
+     * <ul>
+     *   <li>Cache hit в {@code library_files} → MinIO Range (быстро,
+     *       никакого upstream call)</li>
+     *   <li>Cache miss + {@code range == null} (full download) → синхронно
+     *       качаем upstream через {@link #downloadAndRegister} + стримим
+     *       из MinIO. Это редкий path - обычно вызывается из admin smoke
+     *       или integration tests</li>
+     *   <li>Cache miss + Range != null → форвардим Range к archive.org через
+     *       {@link PdfFetcher#openStream}. Bytes идут upstream → backend →
+     *       клиент напрямую. MinIO cache не пополняется (избегаем tee
+     *       complexity, MinIO fill отдельный flow через {@link #locateFile})</li>
+     * </ul>
+     *
+     * <p>Если archive.org проигнорировал Range header и вернул 200 -
+     * {@link PdfStreamingResult#isPartial()} = false, controller отдаст
+     * full content вместо 206. Это нормально для не-Range-aware mirror'ов
+     * (хотя archive.org обычно поддерживает Range нативно).
+     */
+    @Override
+    public PdfStreamingResult openStream(Book book, int fileIndex, RangeSpec range) {
+        PdfMetadata meta = getMetadata(book);
+        if (fileIndex < 0 || fileIndex >= meta.files().size()) {
+            throw new PdfNotAvailableException(book.id(), fileIndex, meta.files().size());
+        }
+        if (meta.root() == null || meta.root().isBlank()) {
+            throw new ShamelaApiException(
+                    "pdf_links.root отсутствует для книги " + book.id());
+        }
+        PdfFileInfo file = meta.files().get(fileIndex);
+        String bucket = storageProperties.buckets().importedBooks();
+        String storageKey = storageKey(book, file);
+
+        Optional<LibraryFile> cached = libraryFileRepository
+                .findActiveByBucketAndKey(bucket, storageKey);
+        if (cached.isPresent()) {
+            return streamFromMinIO(bucket, storageKey, cached.get().sizeBytes(), range);
+        }
+
+        // Cache miss - решаем по наличию range: lazy upstream vs sync cache fill
+        if (range == null) {
+            log.info("pdf cache miss + full request: sync cache fill для book={} file={}",
+                    book.id(), file.filename());
+            PdfLocation loc = locateFile(book, fileIndex);
+            return streamFromMinIO(loc.bucket(), loc.storageKey(), loc.sizeBytes(), null);
+        }
+
+        URI url = URI.create(meta.root() + file.filename());
+        log.info("pdf cache miss + range request: lazy forward к {} range=bytes={}-{}",
+                url, range.startInclusive(),
+                range.endInclusive() != null ? range.endInclusive() : "");
+        return pdfFetcher.openStream(url, range);
+    }
+
+    /**
      * Storage key для объекта в bucket'е. Format
      * {@code {book_id}/{filename}} - читаем в {@code mc ls bucket/<bookId>/}
      * увидим все pdf-файлы книги.
      */
     private static String storageKey(Book book, PdfFileInfo file) {
         return book.id() + "/" + file.filename();
+    }
+
+    private PdfStreamingResult streamFromMinIO(
+            String bucket, String storageKey, long totalSize, RangeSpec range) {
+        if (range == null) {
+            var stream = objectStorageService.get(bucket, storageKey);
+            return new PdfStreamingResult(stream, totalSize, 0L, totalSize - 1, totalSize, false);
+        }
+        if (range.startInclusive() >= totalSize) {
+            throw new RangeNotSatisfiableException(range.startInclusive(), totalSize);
+        }
+        long end = range.resolvedEndInclusive(totalSize);
+        long length = end - range.startInclusive() + 1;
+        var stream = objectStorageService.getRange(bucket, storageKey, range.startInclusive(), end);
+        return new PdfStreamingResult(stream, length, range.startInclusive(), end, totalSize, true);
     }
 
     /**
