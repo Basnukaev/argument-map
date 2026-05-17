@@ -111,6 +111,11 @@ describe('useAiEdit', () => {
     expect((captured as ApiError).status).toBe(503);
     expect((captured as ApiError).is('ai-edit-not-configured')).toBe(true);
     expect(onReady).not.toHaveBeenCalled();
+    // После 503 status должен вернуться в idle - overlay не должен залипать.
+    // 503 уже залогирован toast'ом в callsite, никакого «processing» state
+    // не должно остаться
+    expect(result.current.status).toBe('idle');
+    expect(result.current.elapsedSeconds).toBe(0);
   });
 
   it('polling timeout: после 5 минут статус становится failed', async () => {

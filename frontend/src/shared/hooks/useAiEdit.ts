@@ -149,6 +149,11 @@ export function useAiEdit(
         // callsite показал toast.
         if (controller.signal.aborted) return;
         cleanupOnError();
+        // Сбрасываем UI обратно в idle - иначе overlay висит пока пользователь
+        // не кликнет cancel. 503 уже залогирован toast'ом в callsite.
+        setStatus('idle');
+        setElapsedSeconds(0);
+        startedAtRef.current = 0;
         throw e;
       }
 
