@@ -276,6 +276,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/library/books/{bookId}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_8"];
+        put?: never;
+        post: operations["add_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/edges": {
         parameters: {
             query?: never;
@@ -299,7 +315,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_8"];
+        get: operations["list_9"];
         put?: never;
         post: operations["create_10"];
         delete?: never;
@@ -548,7 +564,23 @@ export interface paths {
         patch: operations["update_3"];
         trace?: never;
     };
-    "/api/v1/edges/{edgeId}": {
+    "/api/v1/library/books/{bookId}/visibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateVisibility_1"];
+        trace?: never;
+    };
+    "/api/v1/library/books/{bookId}/members/{memberId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -564,7 +596,7 @@ export interface paths {
         patch: operations["update_4"];
         trace?: never;
     };
-    "/api/v1/answers/{answerId}": {
+    "/api/v1/edges/{edgeId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -580,6 +612,22 @@ export interface paths {
         patch: operations["update_5"];
         trace?: never;
     };
+    "/api/v1/answers/{answerId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["delete_6"];
+        options?: never;
+        head?: never;
+        patch: operations["update_6"];
+        trace?: never;
+    };
     "/api/v1/topics/{topicId}": {
         parameters: {
             query?: never;
@@ -590,7 +638,7 @@ export interface paths {
         get: operations["getOne_2"];
         put?: never;
         post?: never;
-        delete: operations["delete_6"];
+        delete: operations["delete_7"];
         options?: never;
         head?: never;
         patch?: never;
@@ -638,7 +686,7 @@ export interface paths {
         get: operations["getOne_3"];
         put?: never;
         post?: never;
-        delete: operations["delete_7"];
+        delete: operations["delete_8"];
         options?: never;
         head?: never;
         patch?: never;
@@ -651,7 +699,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_9"];
+        get: operations["list_10"];
         put?: never;
         post?: never;
         delete?: never;
@@ -782,7 +830,7 @@ export interface paths {
         get: operations["getOne_4"];
         put?: never;
         post?: never;
-        delete: operations["delete_8"];
+        delete: operations["delete_9"];
         options?: never;
         head?: never;
         patch?: never;
@@ -811,7 +859,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_10"];
+        get: operations["list_11"];
         put?: never;
         post?: never;
         delete?: never;
@@ -910,7 +958,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_9"];
+        delete: operations["delete_10"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1441,6 +1489,7 @@ export interface components {
             createdAt?: string;
             /** Format: date-time */
             updatedAt?: string;
+            visibility?: string;
         };
         PageResponse: {
             /** Format: uuid */
@@ -1472,6 +1521,24 @@ export interface components {
             createdAt?: string;
             /** Format: date-time */
             updatedAt?: string;
+        };
+        AddBookMemberRequest: {
+            /** Format: uuid */
+            userId: string;
+            role: string;
+        };
+        BookMemberResponse: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            bookId?: string;
+            /** Format: uuid */
+            userId?: string;
+            role?: string;
+            /** Format: date-time */
+            addedAt?: string;
+            /** Format: uuid */
+            addedBy?: string;
         };
         CreateEdgeRequest: {
             /** Format: uuid */
@@ -1670,6 +1737,7 @@ export interface components {
             muhaqqiq?: components["schemas"]["MuhaqqiqRef"];
             publisher?: components["schemas"]["PublisherRef"];
             publicationPlace?: components["schemas"]["PublicationPlaceRef"];
+            visibility?: string;
         };
         ChapterResponse: {
             /** Format: uuid */
@@ -1681,6 +1749,12 @@ export interface components {
             parentChapterId?: string;
             /** Format: int32 */
             startPageNumber?: number;
+        };
+        UpdateBookVisibilityRequest: {
+            visibility: string;
+        };
+        UpdateBookMemberRequest: {
+            role: string;
         };
         UpdateEdgeRequest: {
             /** Format: uuid */
@@ -1779,6 +1853,7 @@ export interface components {
             language?: string;
             /** Format: date-time */
             createdAt?: string;
+            visibility?: string;
         };
         PagedResponseBookSummaryResponse: {
             items?: components["schemas"]["BookSummaryResponse"][];
@@ -2515,15 +2590,19 @@ export interface operations {
     };
     list_7: {
         parameters: {
-            query?: {
+            query: {
                 q?: string;
                 type?: "QURAN" | "HADITH_COLLECTION" | "BOOK" | "ARTICLE" | "MANUSCRIPT";
                 authorityId?: string;
                 publisherId?: string;
                 page?: number;
                 size?: number;
+                currentUserId: string;
             };
-            header?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -2630,6 +2709,60 @@ export interface operations {
             };
         };
     };
+    list_8: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                bookId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BookMemberResponse"][];
+                };
+            };
+        };
+    };
+    add_1: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                bookId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddBookMemberRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BookMemberResponse"];
+                };
+            };
+        };
+    };
     create_9: {
         parameters: {
             query?: never;
@@ -2657,7 +2790,7 @@ export interface operations {
             };
         };
     };
-    list_8: {
+    list_9: {
         parameters: {
             query?: {
                 q?: string;
@@ -3016,8 +3149,13 @@ export interface operations {
     };
     delete_1: {
         parameters: {
-            query?: never;
-            header?: never;
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
             path: {
                 questionId: string;
             };
@@ -3036,8 +3174,13 @@ export interface operations {
     };
     update_1: {
         parameters: {
-            query?: never;
-            header?: never;
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
             path: {
                 questionId: string;
             };
@@ -3140,8 +3283,13 @@ export interface operations {
     };
     getOne_1: {
         parameters: {
-            query?: never;
-            header?: never;
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
             path: {
                 bookId: string;
             };
@@ -3162,8 +3310,13 @@ export interface operations {
     };
     delete_3: {
         parameters: {
-            query?: never;
-            header?: never;
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
             path: {
                 bookId: string;
             };
@@ -3182,8 +3335,13 @@ export interface operations {
     };
     update_3: {
         parameters: {
-            query?: never;
-            header?: never;
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
             path: {
                 bookId: string;
             };
@@ -3206,7 +3364,92 @@ export interface operations {
             };
         };
     };
+    updateVisibility_1: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                bookId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBookVisibilityRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BookResponse"];
+                };
+            };
+        };
+    };
     delete_4: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                bookId: string;
+                memberId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_4: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                bookId: string;
+                memberId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBookMemberRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BookMemberResponse"];
+                };
+            };
+        };
+    };
+    delete_5: {
         parameters: {
             query?: never;
             header?: {
@@ -3229,7 +3472,7 @@ export interface operations {
             };
         };
     };
-    update_4: {
+    update_5: {
         parameters: {
             query?: never;
             header?: {
@@ -3258,10 +3501,15 @@ export interface operations {
             };
         };
     };
-    delete_5: {
+    delete_6: {
         parameters: {
-            query?: never;
-            header?: never;
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
             path: {
                 answerId: string;
             };
@@ -3278,10 +3526,15 @@ export interface operations {
             };
         };
     };
-    update_5: {
+    update_6: {
         parameters: {
-            query?: never;
-            header?: never;
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
             path: {
                 answerId: string;
             };
@@ -3329,7 +3582,7 @@ export interface operations {
             };
         };
     };
-    delete_6: {
+    delete_7: {
         parameters: {
             query?: never;
             header?: {
@@ -3421,7 +3674,7 @@ export interface operations {
             };
         };
     };
-    delete_7: {
+    delete_8: {
         parameters: {
             query?: never;
             header?: never;
@@ -3441,7 +3694,7 @@ export interface operations {
             };
         };
     };
-    list_9: {
+    list_10: {
         parameters: {
             query?: never;
             header?: never;
@@ -3649,7 +3902,7 @@ export interface operations {
             };
         };
     };
-    delete_8: {
+    delete_9: {
         parameters: {
             query?: never;
             header?: never;
@@ -3689,7 +3942,7 @@ export interface operations {
             };
         };
     };
-    list_10: {
+    list_11: {
         parameters: {
             query?: never;
             header?: never;
@@ -3818,7 +4071,7 @@ export interface operations {
             };
         };
     };
-    delete_9: {
+    delete_10: {
         parameters: {
             query?: never;
             header?: never;
