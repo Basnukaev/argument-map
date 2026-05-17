@@ -1136,6 +1136,76 @@ PDF-источника или fileIndex out of range).
 - `GET /admin/shamela/book/{id}/pdf/{fileIndex}` - lazy PDF download
   через `StreamingResponseBody` + tempfile cleanup. Согласовано с
   ADR-020 «PDF lazy»
+
+## File import API (ADR-035, Этап 16)
+
+Второй способ добавления книг в library - пользователь загружает PDF
+через multipart upload, бэк извлекает текст постранично через PDFBox,
+создаёт `Book` + `Page[]` + сохраняет оригинал в `library-user-uploads`
+bucket. Альтернативa shamela ETL для случаев когда нужной книги в
+shamela нет.
+
+### POST /api/v1/library/imports/file - загрузка PDF
+
+Content-Type: `multipart/form-data`. Поля:
+
+| Поле | Тип | Required | Описание |
+|---|---|---|---|
+| `file` | binary | yes | PDF файл (`application/pdf`), до 50MB |
+| `title` | string | no | Override title (иначе берётся из PDF metadata, fallback на filename без расширения) |
+| `authorityId` | UUID | no | FK на существующего автора |
+| `language` | string | no | ISO 639-1, default `"ar"` |
+| `description` | string | no | Свободный текст |
+| `X-User-Id` (header) | UUID | yes | Загрузчик книги |
+
+Response 201 - `FileImportResponse`:
+```json
+{
+  "bookId": "60ae04bc-cc91-489c-b416-2ac9f886fa1b",
+  "fileId": "ab2e4b5c-a76b-7cb9-d585-24e40ea8ec2d",
+  "pageCount": 247,
+  "contentHash": "c6c0b50cc5133e627b3056cd6d52e61a3d8fd55a5790a45f49d7e37dd4da027e",
+  "sizeBytes": 4587023,
+  "bucket": "library-user-uploads",
+  "storageKey": "60ae04bc-cc91-489c-b416-2ac9f886fa1b/uploaded.pdf"
+}
+```
+
+Headers: `Location: /api/v1/library/books/{bookId}`
+
+Side-effects:
+- Новая строка в `lib_books` с `book_type=BOOK`, `metadata.user_uploaded=true`,
+  `metadata.original_filename`, `metadata.pdf_page_count`
+- N строк в `lib_pages` где N = phys-страниц PDF.
+  `page_number = pdf_page_number = i+1` (1-based), `chapter_id=null`
+  (PDF без chapter outline), `text_content` = PDFTextStripper output
+  (может быть пустой строкой для scanned-images PDF)
+- PDF blob в `library-user-uploads` bucket по ключу `{bookId}/{filename}`
+  (filename sanitized: path stripped, пробелы -> `_`)
+- Строка в `library_files` с `source_type=USER_UPLOAD`, `source_url=null`,
+  `content_hash` SHA-256
+
+Ошибки:
+- 400 `missing-user-header` - нет `X-User-Id`
+- 413 `payload-too-large` - превышен лимит 50MB (Spring multipart
+  enforce'ит до парсинга controller'а)
+- 415 `unsupported-media-type` - content type не `application/pdf`
+- 422 `file-import-error` - corrupted PDF, encrypted PDF, 0-страничный
+  PDF, пустой файл
+
+### Что **не** реализовано в Этапе 16
+
+- **EPUB import** - см. ADR-035 «EPUB отложен». 95% контента -
+  PDF, EPUB добавим когда появится UX-кейс. MIME whitelist сейчас
+  только `application/pdf`
+- **Password-protected PDF decrypt** - encrypted PDF возвращают 422.
+  Decrypt с password добавим если будет запрос
+- **OCR для scanned-images PDF** - страницы без extractable text
+  получают пустую `text_content`. OCR pipeline планируется в
+  Этапе 17 (image-сканы)
+- **Auto-chapter detection** - PDF outline (bookmarks) не парсится.
+  Все pages создаются с `chapter_id=null`. Будущая фича когда
+  понадобится navigation tree из PDF
 - Async POST endpoints через `@Async`/queue - на MVP синхронные
 - Bulk endpoints (`POST /map-books?ids=...`) - до решения bulk vs
   lazy после фронт-валидации
@@ -1567,6 +1637,7 @@ URL hierarchy сохраняет `answerId` под будущую авториз
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-17 | v1 | Новый endpoint `POST /api/v1/library/imports/file` (multipart/form-data, до 50MB, только `application/pdf`). Поля: `file` (required), опциональные `title`/`authorityId`/`language`/`description`, header `X-User-Id`. Response 201 - `FileImportResponse{bookId, fileId, pageCount, contentHash, sizeBytes, bucket, storageKey}` + Location header. Создаёт Book (`bookType=BOOK`, `metadata.user_uploaded=true`) + Page[] (по одной на phys-страницу PDF, `pageNumber=pdfPageNumber=i+1`, `textContent` через PDFBox PDFTextStripper) + library_files entry (`sourceType=USER_UPLOAD`). Новые ошибки: 413 `payload-too-large` (Spring multipart limit), 415 `unsupported-media-type`, 422 `file-import-error` | ADR-035: Apache PDFBox 3.0.5 для page-by-page extraction. Этап 16.a-e. Второй способ добавления книг помимо shamela ETL. EPUB отложен - нет UX-кейса |
 | 2026-05-16 | v1 | Answer citation endpoints: `POST /api/v1/answers/{id}/citations` (CitationRequest reused, TEXT/PDF/REGION), `GET /api/v1/answers/{id}/sources` (List<AnswerSourceResponse> с 9 LEFT JOIN), `DELETE /api/v1/answers/{id}/sources/{answerSourceId}`. Новый DTO `AnswerSourceResponse{id, answerId, sourceId, quote, context, mode, citation, createdAt}` - mirror QuestionSourceResponse. Migration 31 `answer_sources` (тот же шаблон что migration 28: surrogate UUID PK сразу, positional fields, CHECK constraint один-из-четырёх, FK на answers ON DELETE CASCADE) | ADR-033 итерация 3: параллельная иерархия `answer_sources` рядом с `question_sources` и `node_sources`. 3-е применение паттерна подтверждает что platform pivot (ADR-018) масштабируется - тот же CitationPicker + SourceCard + 9-LEFT-JOIN structured citation reused для третьей сущности без копирования бизнес-логики |
 | 2026-05-16 | v1 | `CreateBookRequest` расширен 6 опциональными academic полями (`muhaqqiqName`/`publisherName`/`publicationPlaceName`/`editionNumber`/`publishedYearHijri`/`publishedYearGregorian`) с теми же validation rules что в `UpdateBookRequest` (`@Min/@Max`). Backend `BookService.createBook` перегружен - non-blank `name` → `findOrCreate` в справочнике, blank/null → FK остаётся null. `CreateSourceRequest` расширен опциональным `bookId: UUID` - связывает Source с уже существующей Book (ADR-026), `SourceService` валидирует exists через `404 book-not-found`. Старый legacy путь без `bookId` продолжает работать | Этап 20.e: AddSourceModal manual book entry 2-step flow (POST `/library/books` с academic → POST `/sources` с `bookId`). Соответствует ADR-026 + ADR-028, новых архитектурных решений нет |
 | 2026-05-16 | v1 | Answers + accept-answer flow для Q&A. Endpoints: `POST /api/v1/questions/{id}/answers` (CreateAnswerRequest{body}), `GET /api/v1/questions/{id}/answers` (List<AnswerResponse>, accepted первым), `PATCH /api/v1/answers/{id}` (UpdateAnswerRequest{body}), `DELETE /api/v1/answers/{id}`, `POST /api/v1/questions/{id}/accepted-answer/{answerId}` (status -> ANSWERED), `DELETE /api/v1/questions/{id}/accepted-answer` (status -> OPEN). Новый DTO `AnswerResponse{id, questionId, body, authorId, createdAt, updatedAt, accepted}` - `accepted` derived (сравнение с question.acceptedAnswerId). Новый error `404 answer-not-found`. `QuestionResponse` расширен полем `acceptedAnswerId: UUID nullable`. Migration 29 `answers` table + migration 30 `questions.accepted_answer_id` FK ON DELETE SET NULL | ADR-034 Q&A answers + accept flow, Этап 19.c. Single-accepted invariant через nullable FK на question, не boolean per answer. MVP без voting/comments/threading |

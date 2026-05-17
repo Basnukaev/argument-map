@@ -92,6 +92,13 @@
   surrogate `id UUID` PK заменил `(node_id, source_id)`. User может
   прицепить N разных фрагментов одной книги к одному узлу. DELETE
   endpoint path меняется на `/sources/{nodeSourceId}`
+- **Этап 16. Library - PDF/EPUB upload** (закрыт Сессия 37, ADR-035) -
+  PDFBox 3.0.5 page-by-page extraction, `FileImportService` + `POST
+  /api/v1/library/imports/file` multipart до 50MB, `library-user-uploads`
+  bucket (ADR-024), `BucketBootstrap` для dev first-run. 16 IT
+  (FileImportServiceIT + FileImportControllerIT через MockMvc +
+  Testcontainers MinIO). EPUB отложен - нет UX-кейса. Backend
+  верифицирован 537/537
 
 ---
 
@@ -102,21 +109,6 @@
 - [ ] Полнотекстовый поиск по содержимому узлов (Postgres `tsvector`)
 - [ ] Реализация Dung's argumentation framework для продвинутого пересчёта
 - [ ] Импорт/экспорт темы в JSON
-
-### Этап 16. Library - PDF/EPUB upload
-
-**Зачем:** второй способ добавления книг. Покрывает случаи когда
-shamela не имеет нужной книги. MinIO storage готов из 25.b
-
-- [ ] **16.a:** Apache Tika dependency + `FileImportService` -
-      извлечение текста и metadata из PDF/EPUB
-- [ ] **16.b:** REST endpoint `POST /api/v1/library/imports/file`
-      multipart/form-data, размер до 50MB
-- [ ] **16.c:** MinIO storage уже есть из 25.b - загруженные PDF
-      сохраняются в `library-user-uploads` bucket
-- [ ] **16.d:** PDF page-by-page extraction, `Page.page_number`
-      соответствует физической странице PDF
-- [ ] **16.e:** IT с зафиксированными PDF/EPUB-фикстурами
 
 ### Этап 17. Library - image-сканы + OCR
 

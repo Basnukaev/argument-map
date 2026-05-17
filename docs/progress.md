@@ -10,6 +10,129 @@
 
 ---
 
+## 2026-05-17 - Сессия 37, Этап 16 - PDF/EPUB upload (backend)
+
+Закрытие всего Этапа 16 одним подходом - PDF upload через multipart
+endpoint, page-by-page extraction через PDFBox, blob storage в
+существующий MinIO bucket. EPUB сознательно отложен (см. ADR-035) -
+нет UX-кейса, основной контент - PDF
+
+### Сделано
+
+**Backend (3 коммита feat + 1 docs):**
+
+`feat(backend): Этап 16.a/d - FileImportService с PDFBox page-by-page extraction`:
+- `pom.xml`: добавлен `org.apache.pdfbox:pdfbox:3.0.5` (~3MB transitive
+  с fontbox + commons-logging)
+- `library/imports/` - новый пакет с тремя файлами:
+  - `ImportMetadata.java` - record для опциональных полей
+    (title/authorityId/language/description)
+  - `FileImportException.java` - кастомное исключение для bad PDF
+  - `FileImportService.java` - бизнес-логика `@Transactional importPdf()`:
+    `Loader.loadPDF(byte[])` → check encrypted/empty → resolve title
+    (user > PDF metadata > filename) → `BookService.createBook` →
+    `PDFTextStripper.setStartPage/setEndPage` для каждой phys-страницы →
+    `pageRepository.save(Page{pageNumber=i+1, pdfPageNumber=i+1, textContent})`
+    → `ObjectStorageService.putAndRegister(bucket=userUploads,
+    sourceType=USER_UPLOAD)`. Helper'ы: `resolveTitle`,
+    `buildBookMetadataJson` (с user_uploaded/original_filename/
+    pdf_page_count маркерами), `sanitizeFilename` (strip path,
+    replace whitespace -> `_`)
+
+`feat(backend): Этап 16.b/c - POST /library/imports/file multipart endpoint + bucket bootstrap`:
+- `library/imports/web/FileImportController.java` -
+  `POST /api/v1/library/imports/file` multipart/form-data:
+  - `@RequestParam("file") MultipartFile` + опциональные string params
+    + `@CurrentUser UUID`
+  - Pre-validation: empty file → 422, wrong MIME → 415
+  - 201 Created + Location header
+- `FileImportResponse.java` - record для ответа
+- `UnsupportedMediaTypeException.java` - для 415 mapping
+- `application.yml`:
+  - `spring.servlet.multipart.max-file-size=50MB` +
+    `max-request-size=50MB`
+  - Новый `storage.bucket-bootstrap.enabled` flag (default false для IT),
+    в local-profile = true
+- `library/storage/BucketBootstrap.java` - `@ConditionalOnProperty`
+  `@EventListener(ApplicationReadyEvent)` создаёт 4 bucket'а
+  idempotent через `HeadBucket → CreateBucket` + включает versioning
+  для 3 critical. Удобно для dev first-run
+- `GlobalExceptionHandler.java` расширен 3 handlers:
+  - `FileImportException` → 422 `file-import-error`
+  - `UnsupportedMediaTypeException` → 415 `unsupported-media-type`
+  - `MaxUploadSizeExceededException` (Spring multipart) → 413
+    `payload-too-large`
+
+`feat(backend): Этап 16.e - IT для FileImport через Testcontainers MinIO + MockMvc`:
+- `FileImportServiceIT` (10 тестов через `@SpringBootTest`):
+  3-page PDF → Book+3Pages с правильным pageNumber/pdfPageNumber/
+  textContent, title priority (override/metadata/filename), MinIO
+  blob verification через `listObjectVersions`, filename
+  sanitization (path strip + space replace), empty/corrupted → 422,
+  default language ar, metadata JSON markers
+- `FileImportControllerIT` (6 тестов через MockMvc):
+  valid PDF → 201 + Location + body, wrong MIME → 415, empty → 422,
+  corrupted → 422 c detail "PDF", missing X-User-Id → 400, minimum
+  fields path
+- PDF фикстуры генерируются programmatically в каждом тесте через
+  PDFBox (`PDDocument` + `PDPageContentStream`) - не коммитим
+  binary'и. WSL2 fallback `LiberationSans for Helvetica` - не
+  аффектит text extraction
+
+**Документация:**
+- `decisions.md` - **новый ADR-035** «PDFBox для page-by-page
+  extraction (vs Tika, EPUB отложен)»: альтернативы (Tika избыточен -
+  внутри тоже PDFBox; Aspose/iText commercial; PDFBox 2.x устарел),
+  EPUB обоснование откладывания, последствия (50MB limit, encrypted
+  not supported, scanned-images empty text_content, WSL2 fontbox
+  warning, ADR-024 bucket выбор)
+- `api-contract.md` - новая секция «File import API (ADR-035, Этап 16)»
+  с полным контрактом endpoint'а + не-реализовано список + entry
+  в «История изменений»
+- `roadmap.md` - Этап 16 целиком сжат в строку и перемещён в
+  «Закрытые этапы». 16.a-e checkboxes удалены
+- эта запись в `progress.md`
+
+### Verify
+
+- `./mvnw verify` - **537/537 tests pass, BUILD SUCCESS**, 01:23 min
+  (было 521, +16 новых: 10 FileImportServiceIT + 6 FileImportControllerIT)
+- `./mvnw -DskipTests compile` - 236 source files, zero warnings от
+  нашего кода (Mockito self-attaching warning - не наш)
+
+### Гочи / отклонения
+
+- **EPUB отложен сознательно** - в спеке этапа было «опционально,
+  если EPUB кажется too much - сделай только PDF». Сделал только
+  PDF. epub4j-core добавит другую API (manifest+spine parsing,
+  chapter vs page semantics), нетривиальная работа без UX-кейса.
+  Зафиксировано в ADR-035
+- **BucketBootstrap default off в тестах** - IT поднимают свои MinIO
+  через `@Container static MinIOContainer` + сами создают buckets в
+  `@BeforeEach`. Если bootstrap бы запускался при каждом
+  `@SpringBootTest` - race с тестовым setUp. Решение:
+  `@ConditionalOnProperty matchIfMissing=false`, в `application-local`
+  выставляем `true`. В test config-section yaml не выставляем
+- **PDFBox 3.x new API** - `PDDocument.load(byte[])` deprecated в 3.x,
+  использовать `Loader.loadPDF(byte[])` из `org.apache.pdfbox.Loader`.
+  Это static factory class. Не очевидно сходу - первый шаг попробовал
+  старый API из 2.x docs, компилятор сразу укажет
+- **WSL2 fontbox warning** - `Using fallback font LiberationSans for
+  base font Helvetica` появляется на каждом text extraction. Не
+  аффектит результат (text всё равно extract'ится) - PDFBox использует
+  LibreOffice fonts из системы. Warning не лечится без install
+  оригинальных Helvetica
+- **Scanned-images PDF (нет text layer)** - PDFTextStripper возвращает
+  пустую строку. Сохраняем как `""` (empty string), CHECK constraint
+  `lib_pages_content_present` (`text_content IS NOT NULL OR image_url
+  IS NOT NULL`) допускает - проверяет только NULL. В будущем (Этап 17)
+  такие страницы пойдут через OCR pipeline
+- **Page.chapter_id=null для всех страниц** - PDF outline (bookmarks)
+  не парсится в этой версии. Все page без chapter. Если позже
+  понадобится structure - добавим `PDDocumentOutline` walker
+
+---
+
 ## 2026-05-17 - Сессия 37, 25.b - RetryStrategy migration
 
 Закрытие последнего пункта Этапа 25.b operational hardening - миграция

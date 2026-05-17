@@ -3348,3 +3348,124 @@ x-height, на одной шкале выглядит мельче. Tracking `tr
 Token-first подход: чтобы заменить шрифт в будущем - один токен в
 `tokens.css`, без правки JSX. Применять `font-book-title` к арабским
 title не нужно - им подходит Amiri через `--font-arabic`
+
+---
+
+## ADR-035: Apache PDFBox для page-by-page extraction (vs Tika, EPUB отложен)
+
+**Дата:** 2026-05-17
+**Статус:** принято
+**Связь:** ADR-019 (Library MVP), ADR-024 (object storage), ADR-026 (Source.bookId)
+
+### Контекст
+
+Этап 16 - второй способ добавления книг в library, после shamela ETL.
+Пользователь загружает PDF (50MB limit) через
+`POST /api/v1/library/imports/file`, бэк:
+
+1. Извлекает текст постранично (одна phys-страница PDF → одна `lib_pages`
+   row с `text_content`)
+2. Создаёт `lib_books` row с `book_type=BOOK`
+3. Сохраняет оригинал PDF в `library-user-uploads` bucket с
+   `library_files` catalog entry
+
+Доменная модель (миграция 16, ADR-019) требует **page granularity** -
+`lib_pages.page_number` UNIQUE per book + `pdf_page_number` для linking
+с PDF reader (ADR-021). Это не «один PDF → одна textcontent», а N pages.
+
+### Решение
+
+**Используем Apache PDFBox 3.0.5** напрямую вместо Apache Tika.
+
+API из PDFBox 3.x:
+- `Loader.loadPDF(byte[])` - parse PDF из byte array (вместо
+  deprecated `PDDocument.load()` из 2.x)
+- `PDDocument.getNumberOfPages()` - число phys-страниц
+- `PDFTextStripper.setStartPage(i).setEndPage(i).getText(doc)` -
+  извлечение текста одной страницы (1-based)
+- `PDDocumentInformation.getTitle()` - PDF metadata title
+
+Цепочка в `FileImportService.importPdf`:
+
+```
+Loader.loadPDF(bytes) → check encrypted/empty → resolve title
+   → BookService.createBook(BOOK, title, ..., metadata.user_uploaded=true)
+   → for i in 1..numPages:
+        stripper.setStartPage(i); stripper.setEndPage(i);
+        Page page = new Page(pageNumber=i, pdfPageNumber=i,
+                              textContent=stripper.getText(doc));
+        pageRepository.save(page);
+   → ObjectStorageService.putAndRegister(bucket="library-user-uploads",
+        sourceType=USER_UPLOAD, ...)
+```
+
+Транзакционно - `@Transactional` на service метод, при failure (corrupted
+PDF после части pages, S3 unreachable) откатывается всё. Orphan blob в
+bucket'е (если put прошёл а транзакция повалилась) детектируется
+существующим `OrphanDetectionJanitor` (ADR-024).
+
+### Альтернативы рассмотрены
+
+1. **Apache Tika** (универсальный extraction framework) - **отклонено**.
+   Tika хорошо парсит metadata из десятков форматов (PDF/DOCX/HTML/EPUB/...),
+   но даёт только flat text без page boundaries из коробки. PDF-specific
+   handler внутри Tika - тот же PDFBox. Использовать Tika как обёртку
+   избыточно: добавляем dependency + abstraction layer ради API который
+   потом нужно обходить чтобы получить per-page text. Tika полезен когда
+   нужен «один stream из любого формата», нам нужна структура
+
+2. **Aspose.PDF / iText commercial** - **отклонено**. Aspose дороже,
+   iText под AGPL без commercial license проблематичен для платформы
+
+3. **PDFBox 2.x** - **отклонено**. 3.x уже stable, имеет новое
+   `Loader` API (вместо deprecated static `PDDocument.load`),
+   современный fontbox 3.x. Mainstream выбор для новых проектов
+
+### EPUB - отложен
+
+EPUB-импорт был в исходном плане Этапа 16 (через `epub4j-core` или
+аналог), но **не реализован** в этой сессии. Причины:
+
+- 95% контента которым пользуются исламские учёные - PDF (shamela
+  даёт PDF, archive.org даёт PDF). EPUB встречается редко
+- epub4j-core - дополнительная dependency с другим API (parsing
+  manifest + spine, extraction text из XHTML chapters). Нетривиальная
+  работа per-chapter vs per-page semantics: EPUB страниц не имеет,
+  только chapters. Маппинг на нашу `lib_pages` нетривиален
+- Нет реального UX-кейса сейчас. Когда появится - сделаем отдельным
+  этапом
+
+В коде это отражено TODO в JavaDoc `FileImportService`. REST endpoint
+`POST /library/imports/file` сейчас whitelist'ит только
+`application/pdf` через `FileImportController.ALLOWED_MIME_TYPES` -
+расширим набор когда добавим EPUB парсинг
+
+### Последствия
+
+- Новая dependency `org.apache.pdfbox:pdfbox:3.0.5` (~3MB transitive
+  включая fontbox + commons-logging)
+- 50MB upload limit через `spring.servlet.multipart.max-file-size` -
+  превышение даёт 413 Payload Too Large (новый handler в
+  `GlobalExceptionHandler` под `payload-too-large` type)
+- Encrypted PDF не поддерживаются - возвращает 422
+  `file-import-error` (decrypt с password добавим если будет запрос)
+- Scanned-images PDF (нет text layer) сохраняет пустую строку в
+  `text_content` - CHECK constraint `lib_pages_content_present`
+  допускает empty string. В будущем (Этап 17) такие страницы могут
+  идти через OCR pipeline
+- WSL2 PDFBox warning: `Using fallback font LiberationSans for
+  Helvetica` - WSL2 минимальная установка не имеет Helvetica, PDFBox
+  fall back на LibreOffice fonts. Не аффектит text extraction
+- ADR-024 четыре bucket'а: user uploads попадают в
+  `library-user-uploads` (critical, versioning ON), `sourceType=USER_UPLOAD`
+
+### Связанные решения
+
+- **ADR-019** (Library MVP) - `lib_books` + `lib_pages` schema на
+  которой импорт работает
+- **ADR-021** (source-first pagination) - `Page.pdfPageNumber` поле
+  используется напрямую (для user-upload phys page = pdf page)
+- **ADR-024** (object storage) - `library-user-uploads` bucket
+  определён, `USER_UPLOAD` уже в LibraryFileSourceType enum
+- **ADR-026** (Source.bookId) - созданная Book может быть привязана
+  как Source через существующий AddSourceModal flow
