@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.qa.domain.Question;
 import ru.basnukaev.argumentmap.qa.domain.QuestionStatus;
 import ru.basnukaev.argumentmap.qa.service.QuestionService;
@@ -80,15 +81,22 @@ public class QuestionController {
     @PatchMapping("/{questionId}")
     public QuestionResponse update(
             @PathVariable UUID questionId,
-            @Valid @RequestBody UpdateQuestionRequest request) {
+            @Valid @RequestBody UpdateQuestionRequest request,
+            @CurrentUser UUID currentUserId) {
+        // ADR-043 Amendment (Этап 22.c): only author or admin
+        String role = SecurityContextUtils.currentRole();
         Question updated = service.updateQuestion(
-                questionId, request.title(), request.body(), request.status());
+                questionId, request.title(), request.body(), request.status(),
+                currentUserId, role);
         return toResponse(updated);
     }
 
     @DeleteMapping("/{questionId}")
-    public ResponseEntity<Void> delete(@PathVariable UUID questionId) {
-        service.deleteQuestion(questionId);
+    public ResponseEntity<Void> delete(@PathVariable UUID questionId,
+                                       @CurrentUser UUID currentUserId) {
+        // ADR-043 Amendment (Этап 22.c): only author or admin
+        String role = SecurityContextUtils.currentRole();
+        service.deleteQuestion(questionId, currentUserId, role);
         return ResponseEntity.noContent().build();
     }
 

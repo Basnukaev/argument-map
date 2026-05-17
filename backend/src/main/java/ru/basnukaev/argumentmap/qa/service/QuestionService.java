@@ -7,7 +7,9 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.exception.QuestionNotFoundException;
+import ru.basnukaev.argumentmap.exception.QuestionWriteAccessDeniedException;
 import ru.basnukaev.argumentmap.qa.domain.Question;
 import ru.basnukaev.argumentmap.qa.domain.QuestionStatus;
 import ru.basnukaev.argumentmap.qa.repository.QuestionRepository;
@@ -82,6 +84,11 @@ public class QuestionService {
      *       в Create, поэтому "сбрасывать в null" - валидный сценарий</li>
      * </ul>
      */
+    /**
+     * Backward-compat без author/admin guard - используется internal
+     * callers (тесты, миграционные сценарии). REST endpoint должен
+     * использовать {@link #updateQuestion(UUID, String, String, QuestionStatus, UUID, String)}.
+     */
     @Transactional
     public Question updateQuestion(UUID id, String title, String body, QuestionStatus status) {
         // Pre-check существования - даёт чистый 404 вместо silent no-op
@@ -108,11 +115,47 @@ public class QuestionService {
         return repository.findById(id).orElseThrow();
     }
 
+    /**
+     * Обновление вопроса с author/admin guard (ADR-043 Amendment, Этап 22.c).
+     * Только автор (asked_by) или ADMIN могут редактировать.
+     *
+     * @throws QuestionWriteAccessDeniedException если не автор и не ADMIN (403)
+     */
+    @Transactional
+    public Question updateQuestion(UUID id, String title, String body, QuestionStatus status,
+                                   UUID actorUserId, String actorRole) {
+        assertAuthorOrAdmin(id, actorUserId, actorRole);
+        return updateQuestion(id, title, body, status);
+    }
+
     @Transactional
     public void deleteQuestion(UUID id) {
         boolean removed = repository.deleteById(id);
         if (!removed) {
             throw new QuestionNotFoundException(id);
+        }
+    }
+
+    /**
+     * Удаление вопроса с author/admin guard (ADR-043 Amendment, Этап 22.c).
+     * Только автор (asked_by) или ADMIN могут удалить.
+     *
+     * @throws QuestionWriteAccessDeniedException если не автор и не ADMIN (403)
+     */
+    @Transactional
+    public void deleteQuestion(UUID id, UUID actorUserId, String actorRole) {
+        assertAuthorOrAdmin(id, actorUserId, actorRole);
+        deleteQuestion(id);
+    }
+
+    private void assertAuthorOrAdmin(UUID id, UUID actorUserId, String actorRole) {
+        Question question = repository.findById(id)
+                .orElseThrow(() -> new QuestionNotFoundException(id));
+        if (UserRole.ADMIN.equals(actorRole)) {
+            return;
+        }
+        if (!question.askedBy().equals(actorUserId)) {
+            throw new QuestionWriteAccessDeniedException(id, actorUserId);
         }
     }
 }

@@ -7,7 +7,9 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.exception.AnswerNotFoundException;
+import ru.basnukaev.argumentmap.exception.AnswerWriteAccessDeniedException;
 import ru.basnukaev.argumentmap.exception.QuestionNotFoundException;
 import ru.basnukaev.argumentmap.qa.domain.Answer;
 import ru.basnukaev.argumentmap.qa.domain.Question;
@@ -61,16 +63,32 @@ public class AnswerService {
         return answerRepository.findByQuestionIdSortedByAccepted(questionId, q.acceptedAnswerId());
     }
 
+    /**
+     * Backward-compat: без author check, оставлено для internal callers
+     * (миграционные/тестовые сценарии). REST endpoint должен использовать
+     * {@link #updateAnswer(UUID, String, UUID, String)}.
+     */
     @Transactional
     public Answer updateAnswer(UUID answerId, String body) {
         if (body == null || body.isBlank()) {
             throw new IllegalArgumentException("body обязателен и не должен быть пустым");
         }
-        // Pre-check для чистого 404
         answerRepository.findById(answerId)
                 .orElseThrow(() -> new AnswerNotFoundException(answerId));
         answerRepository.update(answerId, body.trim());
         return answerRepository.findById(answerId).orElseThrow();
+    }
+
+    /**
+     * Обновление ответа с author/admin guard (ADR-043 Amendment, Этап 22.c).
+     * Только автор ответа или ADMIN могут редактировать.
+     *
+     * @throws AnswerWriteAccessDeniedException если не автор и не ADMIN (403)
+     */
+    @Transactional
+    public Answer updateAnswer(UUID answerId, String body, UUID actorUserId, String actorRole) {
+        assertAuthorOrAdmin(answerId, actorUserId, actorRole);
+        return updateAnswer(answerId, body);
     }
 
     @Transactional
@@ -78,6 +96,29 @@ public class AnswerService {
         boolean removed = answerRepository.deleteById(answerId);
         if (!removed) {
             throw new AnswerNotFoundException(answerId);
+        }
+    }
+
+    /**
+     * Удаление ответа с author/admin guard (ADR-043 Amendment, Этап 22.c).
+     * Только автор ответа или ADMIN могут удалить.
+     *
+     * @throws AnswerWriteAccessDeniedException если не автор и не ADMIN (403)
+     */
+    @Transactional
+    public void deleteAnswer(UUID answerId, UUID actorUserId, String actorRole) {
+        assertAuthorOrAdmin(answerId, actorUserId, actorRole);
+        deleteAnswer(answerId);
+    }
+
+    private void assertAuthorOrAdmin(UUID answerId, UUID actorUserId, String actorRole) {
+        Answer answer = answerRepository.findById(answerId)
+                .orElseThrow(() -> new AnswerNotFoundException(answerId));
+        if (UserRole.ADMIN.equals(actorRole)) {
+            return;
+        }
+        if (!answer.authorId().equals(actorUserId)) {
+            throw new AnswerWriteAccessDeniedException(answerId, actorUserId);
         }
     }
 
