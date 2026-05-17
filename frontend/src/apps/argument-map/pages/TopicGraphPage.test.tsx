@@ -60,7 +60,7 @@ describe('TopicGraphPage', () => {
     });
   });
 
-  it('показывает ошибку при 404 с Problem Details', async () => {
+  it('показывает illustrated not-found state при 404 без UUID наружу', async () => {
     server.use(
       http.get(`${BASE}/api/v1/topics/${TOPIC_ID}/graph`, () =>
         HttpResponse.json(
@@ -75,10 +75,13 @@ describe('TopicGraphPage', () => {
       ),
     );
     renderPage();
+    // 404 → illustrated panel с serif h2 + CTA «К списку тем». Raw
+    // detail с UUID не утекает наружу (security/UX hygiene)
     await waitForApi(() => {
-      expect(screen.getByText('Ошибка')).toBeInTheDocument();
+      expect(screen.getByText('Тема не найдена')).toBeInTheDocument();
     });
-    expect(screen.getByText(/не найдена/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /к списку тем/i })).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(TOPIC_ID))).not.toBeInTheDocument();
   });
 
   it('ссылка "К списку" указывает на /topics', async () => {

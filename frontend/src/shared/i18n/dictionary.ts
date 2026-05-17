@@ -77,6 +77,9 @@ export const DICTIONARY = {
     'topic.list.search_placeholder': 'Поиск по теме или описанию',
     'topic.list.empty': 'Пока нет тем. Создай первую',
     'topic.list.not_found': 'Ничего не найдено',
+    'topic.not_found_hero.title': 'Тема не найдена',
+    'topic.not_found_hero.body': 'Тема могла быть удалена или ссылка неверна. Откройте список и выберите доступную тему',
+    'topic.not_found_hero.action': 'К списку тем',
     'topic.list.aria_topic_count': 'активных',
 
     // book list page
@@ -582,6 +585,9 @@ export const DICTIONARY = {
     'topic.list.search_placeholder': 'بحث بالموضوع أو الوصف',
     'topic.list.empty': 'لا توجد مواضيع بعد. أنشئ أوّل واحد',
     'topic.list.not_found': 'لا توجد نتائج',
+    'topic.not_found_hero.title': 'الموضوع غير موجود',
+    'topic.not_found_hero.body': 'قد يكون الموضوع محذوفاً أو الرابط غير صحيح. افتح القائمة واختر موضوعاً متاحاً',
+    'topic.not_found_hero.action': 'إلى قائمة المواضيع',
     'topic.list.aria_topic_count': 'نشط',
 
     'book.list.eyebrow': 'المكتبة · الفهرس',

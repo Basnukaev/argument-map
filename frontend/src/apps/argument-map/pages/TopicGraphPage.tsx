@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, AlertCircle, BookOpen, Loader2 } from 'lucide-react';
+import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import GraphCanvas from '@/apps/argument-map/components/graph/GraphCanvas';
@@ -10,6 +11,9 @@ import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
 
 type GraphResponse = components['schemas']['GraphResponse'];
+// Локальное расширение AsyncState для 404 - illustrated empty state
+// вместо generic error card (см. design-system.md empty state pattern)
+type TopicState = AsyncState<GraphResponse> | { kind: 'not-found' };
 
 /**
  * Страница графа аргументации. Тонкий orchestrator: грузит граф темы,
@@ -23,7 +27,7 @@ type GraphResponse = components['schemas']['GraphResponse'];
 function TopicGraphPage() {
   const t = useT();
   const { topicId } = useParams<{ topicId: string }>();
-  const [state, setState] = useState<AsyncState<GraphResponse>>({ kind: 'loading' });
+  const [state, setState] = useState<TopicState>({ kind: 'loading' });
   const [refreshKey, setRefreshKey] = useState(0);
 
   const refetch = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -39,6 +43,12 @@ function TopicGraphPage() {
       })
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;
+        // 404 → специальный illustrated state. Не показываем raw UUID
+        // в сообщении - пользователю не нужны технические детали
+        if (e instanceof ApiError && e.status === 404) {
+          setState({ kind: 'not-found' });
+          return;
+        }
         const message =
           e instanceof ApiError
             ? `${e.problem.title}${e.problem.detail ? ': ' + e.problem.detail : ''}`
@@ -91,6 +101,29 @@ function TopicGraphPage() {
           <div className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-ink-500">
             <Loader2 size={16} className="animate-spin" aria-hidden />
             {t('common.loading')}
+          </div>
+        )}
+
+        {state.kind === 'not-found' && (
+          <div className="absolute inset-0 flex items-center justify-center p-8">
+            <section className="flex max-w-xl flex-col items-center gap-5 rounded-lg border border-border bg-elevated px-8 py-12 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent-50 text-accent-600">
+                <BookOpen size={28} aria-hidden />
+              </div>
+              <div>
+                <h2 className="font-serif text-2xl font-semibold text-ink-900">
+                  {t('topic.not_found_hero.title')}
+                </h2>
+                <p className="mt-2 max-w-[440px] text-sm text-ink-500">
+                  {t('topic.not_found_hero.body')}
+                </p>
+              </div>
+              <Link to="/topics">
+                <Button icon={ArrowLeft}>
+                  {t('topic.not_found_hero.action')}
+                </Button>
+              </Link>
+            </section>
           </div>
         )}
 
