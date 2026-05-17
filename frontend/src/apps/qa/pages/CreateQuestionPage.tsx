@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Lightbulb } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import Field from '@/shared/components/ui/Field';
 import Header from '@/shared/components/layout/Header';
@@ -50,7 +50,7 @@ function CreateQuestionPage() {
   return (
     <main className="min-h-screen bg-bg">
       <Header />
-      <div className="mx-auto max-w-2xl px-6 py-8">
+      <div className="mx-auto max-w-[1100px] px-6 py-8">
         <header className="mb-6">
           <Link
             to="/qa"
@@ -70,6 +70,9 @@ function CreateQuestionPage() {
           </p>
         </header>
 
+        {/* 2-column layout с hint panel справа - design-system pattern,
+            parity с CreateTopicPage. На <lg экранах collapse в стопку */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <Field
             label={t('qa.create.field_title')}
@@ -115,6 +118,25 @@ function CreateQuestionPage() {
             </Button>
           </div>
         </form>
+
+          <aside className="lg:sticky lg:top-6 lg:self-start">
+            <div className="rounded-lg border border-border bg-paper p-5">
+              <div className="mb-3 flex items-center gap-2 text-ink-700">
+                <Lightbulb size={16} className="text-accent-600" aria-hidden />
+                <span className="text-xs font-semibold uppercase tracking-wider">
+                  {t('qa.create.hint_eyebrow')}
+                </span>
+              </div>
+              <p
+                className="text-sm leading-relaxed text-ink-700"
+                dangerouslySetInnerHTML={{ __html: t('qa.create.hint_body') }}
+              />
+              <p className="mt-3 text-xs italic text-ink-500">
+                {t('qa.create.hint_example')}
+              </p>
+            </div>
+          </aside>
+        </div>
       </div>
     </main>
   );
