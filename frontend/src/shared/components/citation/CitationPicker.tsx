@@ -12,6 +12,7 @@ import { apiGetRaw, apiPostRaw, formatApiError, ApiError } from '@/shared/api/cl
 import type { components } from '@/shared/api/types';
 import { hasArabicScript, useT } from '@/shared/i18n';
 import { useHotkey } from '@/shared/hooks/useHotkey';
+import { useIsMobile } from '@/shared/hooks/useViewport';
 
 type Book = components['schemas']['BookSummaryResponse'];
 type BookDetailDto = components['schemas']['BookDetailResponse'];
@@ -55,8 +56,11 @@ type BookState =
  * <p>Conditional render (`{open && <CitationPicker .../>}`) - idiom
  * проекта, обеспечивает чистый state при каждом открытии.
  */
+type MobileTab = 'books' | 'reader' | 'selection';
+
 function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated }: Props) {
   const t = useT();
+  const isMobile = useIsMobile();
   const [booksState, setBooksState] = useState<BooksState>({ kind: 'loading' });
   const [search, setSearch] = useState('');
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
@@ -67,6 +71,11 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
   const [context, setContext] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // На mobile - 3-tab switcher между books / reader / selection.
+  // Auto-переключение: при выборе книги → reader, при появлении
+  // selection в reader → selection (см. эффект ниже).
+  // Не используется на desktop (3 колонки видны одновременно)
+  const [mobileTab, setMobileTab] = useState<MobileTab>('books');
 
   // Загрузка списка книг при первом рендере
   useEffect(() => {
@@ -153,6 +162,9 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
     setSelection(null);
     setPageContent({ kind: 'loading' });
     setSelectedBookId(bookId);
+    // На mobile - после выбора книги сразу перевести юзера в reader tab,
+    // иначе он останется на books и должен будет вручную переключиться
+    if (isMobile) setMobileTab('reader');
   }
   function goPrev() {
     if (bookState.kind !== 'success' || !hasPrev) return;
@@ -222,21 +234,23 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
       role="dialog"
       aria-modal="true"
       aria-label={t('citation_picker.title_for')}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/60 backdrop-blur-sm p-0 sm:p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget && !submitting) onClose();
       }}
     >
-      <div className="flex h-full max-h-[92vh] w-full max-w-[1480px] flex-col rounded-lg border border-border bg-elevated shadow-2xl">
+      <div className="flex h-dvh w-full max-w-[1480px] flex-col rounded-none border-0 bg-elevated shadow-2xl sm:h-full sm:max-h-[92vh] sm:rounded-lg sm:border sm:border-border">
         {/* Header */}
-        <header className="flex items-start justify-between gap-3 border-b border-border px-6 py-3.5">
+        <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3 sm:px-6 sm:py-3.5">
           <div className="min-w-0">
             <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900">
-              <BookOpen size={18} className="text-accent-600" aria-hidden="true" />
-              {t('citation_picker.title_for')}:
-              <span dir="auto" className="truncate text-ink-600 font-normal">«{truncatedTargetLabel}»</span>
+              <BookOpen size={18} className="text-accent-600 shrink-0" aria-hidden="true" />
+              <span className="truncate">
+                {t('citation_picker.title_for')}:{' '}
+                <span dir="auto" className="text-ink-600 font-normal">«{truncatedTargetLabel}»</span>
+              </span>
             </h2>
-            <p className="mt-0.5 text-xs text-ink-500">
+            <p className="mt-0.5 text-xs text-ink-500 hidden sm:block">
               {t('citation_picker.subtitle')}
             </p>
           </div>
@@ -244,17 +258,50 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="rounded p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-700 disabled:opacity-40"
+            className="rounded p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-700 disabled:opacity-40 shrink-0"
             aria-label={t('common.close')}
           >
             <X size={18} aria-hidden="true" />
           </button>
         </header>
 
-        {/* Body 3-column */}
-        <div className="flex flex-1 min-h-0 gap-3 p-3">
+        {/* Mobile tabs - 3 переключателя поверх body. На desktop hidden,
+            используется 3-колоночный layout без табов */}
+        <div
+          role="tablist"
+          aria-label={t('citation_picker.title_for')}
+          className="flex border-b border-border bg-ink-50/60 px-2 sm:hidden"
+        >
+          <MobileTabButton
+            label={t('citation_picker.tab_books')}
+            active={mobileTab === 'books'}
+            onClick={() => setMobileTab('books')}
+          />
+          <MobileTabButton
+            label={t('citation_picker.tab_reader')}
+            active={mobileTab === 'reader'}
+            disabled={!selectedBookId}
+            onClick={() => setMobileTab('reader')}
+          />
+          <MobileTabButton
+            label={t('citation_picker.tab_selection')}
+            active={mobileTab === 'selection'}
+            badge={selection ? '•' : undefined}
+            onClick={() => setMobileTab('selection')}
+          />
+        </div>
+
+        {/* Body 3-column on desktop. На mobile - один активный таб на полную
+            ширину (через hidden/flex switching). Используем CSS classes
+            вместо conditional render чтобы не сбрасывать internal state
+            форм при переключении табов */}
+        <div className="flex flex-1 min-h-0 gap-3 p-2 sm:p-3">
           {/* Left: BookListSidebar */}
-          <aside className="flex w-[280px] flex-col gap-2">
+          <aside
+            className={`${
+              isMobile && mobileTab !== 'books' ? 'hidden' : 'flex'
+            } w-full flex-col gap-2 sm:flex sm:w-[280px]`}
+          >
             <div className="flex h-9 items-center rounded-md border border-border-strong bg-elevated transition-colors focus-within:border-accent-500 focus-within:ring-2 focus-within:ring-accent-500/20">
               <Search size={14} className="ms-3 text-ink-400" aria-hidden="true" />
               <input
@@ -296,7 +343,11 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
           </aside>
 
           {/* Center: EmbeddedReader */}
-          <section className="flex flex-1 min-w-0 flex-col gap-2 overflow-hidden">
+          <section
+            className={`${
+              isMobile && mobileTab !== 'reader' ? 'hidden' : 'flex'
+            } flex-1 min-w-0 flex-col gap-2 overflow-hidden sm:flex`}
+          >
             {bookState.kind === 'idle' && (
               <Card className="flex flex-1 items-center justify-center text-center">
                 <p className="text-sm italic text-ink-400">{t('citation_picker.select_book_hint')}</p>
@@ -365,7 +416,11 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
           </section>
 
           {/* Right: SelectionPanel */}
-          <aside className="flex w-[320px] flex-col gap-2">
+          <aside
+            className={`${
+              isMobile && mobileTab !== 'selection' ? 'hidden' : 'flex'
+            } w-full flex-col gap-2 sm:flex sm:w-[320px]`}
+          >
             <Card className="p-3">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-500">
                 {t('citation_picker.selected_fragment')}
@@ -425,6 +480,42 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
         </div>
       </div>
     </div>
+  );
+}
+
+interface MobileTabButtonProps {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+  /** Bullet/dot для индикатора что в табе есть unread / selection */
+  badge?: string;
+}
+
+/**
+ * Кнопка переключателя tab на mobile-режиме CitationPicker.
+ * Активный получает accent-border-bottom и accent-цвет текста.
+ * Disabled (reader без selectedBookId) - greyed-out, не кликается.
+ */
+function MobileTabButton({ label, active, onClick, disabled, badge }: MobileTabButtonProps) {
+  const baseClass =
+    'flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium border-b-2 transition-colors';
+  const activeClass = 'border-accent-500 text-accent-700';
+  const idleClass = disabled
+    ? 'border-transparent text-ink-300 cursor-not-allowed'
+    : 'border-transparent text-ink-600 hover:text-ink-900';
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      disabled={disabled}
+      onClick={onClick}
+      className={`${baseClass} ${active ? activeClass : idleClass}`}
+    >
+      <span>{label}</span>
+      {badge && <span className="text-accent-500" aria-hidden>{badge}</span>}
+    </button>
   );
 }
 

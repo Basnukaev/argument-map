@@ -520,6 +520,9 @@ export const DICTIONARY = {
     'citation_picker.page_load_failed': 'Не удалось загрузить страницу',
     'citation_picker.no_selection': 'Не выделен фрагмент',
     'citation_picker.chars_label': 'Символы',
+    'citation_picker.tab_books': 'Книги',
+    'citation_picker.tab_reader': 'Чтение',
+    'citation_picker.tab_selection': 'Выделение',
 
     // AddSourceModal (полная миграция)
     'add_source.title': 'Свободный источник',
@@ -1061,6 +1064,9 @@ export const DICTIONARY = {
     'citation_picker.page_load_failed': 'فشل تحميل الصفحة',
     'citation_picker.no_selection': 'لم يُحدَّد مقطع',
     'citation_picker.chars_label': 'الأحرف',
+    'citation_picker.tab_books': 'الكتب',
+    'citation_picker.tab_reader': 'القراءة',
+    'citation_picker.tab_selection': 'التحديد',
 
     'add_source.title': 'مصدر حر',
     'add_source.field.kind': 'النوع',
