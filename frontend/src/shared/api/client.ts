@@ -72,6 +72,14 @@ type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
 const MUTATING_METHODS: ReadonlySet<Method> = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 
+/**
+ * Auth endpoints не идут через 401-retry pipeline - они сами и есть pipeline.
+ * 401 от /auth/login - валидный «неверные креды», retry бессмыслен.
+ */
+function isAuthEndpoint(path: string): boolean {
+  return path.startsWith('/api/v1/auth/');
+}
+
 interface RequestOptions {
   method?: Method;
   body?: unknown;
@@ -85,10 +93,67 @@ interface RequestOptions {
 }
 
 /**
+ * Lazy import authStore чтобы избежать circular dependency: authStore
+ * импортирует ApiError из этого модуля. Делаем dynamic-обращение через
+ * function ref - инициализируется ниже в `_attachAuthStore`. До инициализации
+ * (например в unit-тестах без auth) request работает без Bearer headers
+ * и без retry-on-401 - тесты явно мокают handlers через MSW
+ */
+type AuthAccessor = {
+  getAccessToken: () => string | null;
+  refresh: () => Promise<string | null>;
+  clearSession: () => void;
+};
+let authAccessor: AuthAccessor | null = null;
+
+export function _attachAuthAccessor(accessor: AuthAccessor): void {
+  authAccessor = accessor;
+}
+
+/**
+ * Сериализованный refresh - если 5 параллельных запросов получают 401
+ * одновременно, refresh должен сделаться ОДИН раз. Очередь хранится
+ * как single promise, остальные ждут его.
+ */
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (authAccessor == null) return null;
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    try {
+      return await authAccessor!.refresh();
+    } finally {
+      // через микротик - чтобы все параллельные wait'еры успели await'нуться
+      // на текущий promise прежде чем мы освободим slot для следующего цикла
+      queueMicrotask(() => {
+        refreshPromise = null;
+      });
+    }
+  })();
+  return refreshPromise;
+}
+
+/**
  * Низкоуровневый запрос к API. Сам не используется - через типизированные
  * хелперы apiGet / apiPost / apiPatch / apiDelete / apiPostMultipart.
+ *
+ * Поддерживает auth flow (ADR-040):
+ *   1. Если есть accessToken в authStore - добавляет Authorization: Bearer
+ *   2. Если ответ 401 (не на /auth/*) - пробует refresh + retry один раз
+ *   3. Если refresh fail - чистит session, оригинальный 401 ApiError бросается
+ *
+ * Cookies (refresh) шлются через credentials: 'include'.
  */
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  return requestWithRetry<T>(path, options, false);
+}
+
+async function requestWithRetry<T>(
+  path: string,
+  options: RequestOptions,
+  isRetry: boolean,
+): Promise<T> {
   const method = options.method ?? 'GET';
   const headers: Record<string, string> = {
     Accept: 'application/json',
@@ -96,7 +161,15 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   if (options.body !== undefined && options.formData === undefined) {
     headers['Content-Type'] = 'application/json';
   }
-  if (MUTATING_METHODS.has(method) && DEV_USER_ID) {
+
+  // Bearer JWT приоритет - prod auth flow. X-User-Id оставляем как fallback
+  // для dev/tests где Bearer ещё не выдан (e.g. integration shimmy) -
+  // backend XUserIdAuthenticationFilter поднимает ту же AuthenticatedUser.
+  // Если есть оба - Bearer выигрывает (Spring Security filter chain)
+  const accessToken = authAccessor?.getAccessToken() ?? null;
+  if (accessToken && !isAuthEndpoint(path)) {
+    headers['Authorization'] = `Bearer ${accessToken}`;
+  } else if (MUTATING_METHODS.has(method) && DEV_USER_ID) {
     headers['X-User-Id'] = DEV_USER_ID;
   }
 
@@ -113,7 +186,24 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     headers,
     body: fetchBody,
     signal: options.signal,
+    // credentials для refresh cookie на любом auth-aware вызове
+    credentials: 'include',
   });
+
+  // 401 на не-auth endpoint и ещё не пробовали refresh - попытка
+  if (
+    response.status === 401 &&
+    !isRetry &&
+    !isAuthEndpoint(path) &&
+    authAccessor != null
+  ) {
+    const newToken = await refreshAccessToken();
+    if (newToken) {
+      return requestWithRetry<T>(path, options, true);
+    }
+    // refresh fail - clear session, дальше throw ApiError(401) как обычно
+    authAccessor.clearSession();
+  }
 
   if (response.status === 204) {
     return undefined as T;
