@@ -16,8 +16,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookType;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.service.BookDetail;
 import ru.basnukaev.argumentmap.library.service.BookService;
 import ru.basnukaev.argumentmap.library.service.PageDetail;
@@ -28,6 +30,7 @@ import ru.basnukaev.argumentmap.library.web.dto.CreateBookRequest;
 import ru.basnukaev.argumentmap.library.web.dto.PageResponse;
 import ru.basnukaev.argumentmap.library.web.dto.PageSummaryResponse;
 import ru.basnukaev.argumentmap.library.web.dto.UpdateBookRequest;
+import ru.basnukaev.argumentmap.library.web.dto.UpdateBookVisibilityRequest;
 import ru.basnukaev.argumentmap.library.web.dto.UpdateFormattedContentRequest;
 import ru.basnukaev.argumentmap.library.web.mapper.LibraryDtoMappers;
 import ru.basnukaev.argumentmap.web.CurrentUser;
@@ -48,6 +51,10 @@ public class BookController {
     public ResponseEntity<BookResponse> create(
             @Valid @RequestBody CreateBookRequest request,
             @CurrentUser UUID currentUserId) {
+        // ADR-043 Amendment: REST POST оставляет visibility=PUBLIC по
+        // умолчанию (open library default), пользователь может позже
+        // сменить через PATCH /visibility. Поведение существующих
+        // shamela ETL preservenо.
         Book created = bookService.createBook(
                 request.bookType(), request.title(), request.authorityId(),
                 request.language(), request.description(),
@@ -57,7 +64,8 @@ public class BookController {
                 request.publicationPlaceName(),
                 request.editionNumber(),
                 request.publishedYearHijri(),
-                request.publishedYearGregorian()
+                request.publishedYearGregorian(),
+                BookVisibility.PUBLIC
         );
         return ResponseEntity.created(URI.create("/api/v1/library/books/" + created.id()))
                 .body(LibraryDtoMappers.toResponse(created));
@@ -81,11 +89,18 @@ public class BookController {
             @RequestParam(name = "authorityId", required = false) UUID authorityId,
             @RequestParam(name = "publisherId", required = false) UUID publisherId,
             @RequestParam(name = "page", required = false) Integer page,
-            @RequestParam(name = "size", required = false) Integer size) {
+            @RequestParam(name = "size", required = false) Integer size,
+            @CurrentUser UUID currentUserId) {
+        // ADR-043 Amendment: visibility filter применяется на repository
+        // уровне через listVisibleBooksPage. PRIVATE owned + SHARED member
+        // + PUBLIC видны user'у. ADMIN видит всё.
+        String role = SecurityContextUtils.currentRole();
         PageRequest pr = PageRequest.from(page, size);
-        List<Book> items = bookService.listBooksPage(query, type, authorityId, publisherId,
+        List<Book> items = bookService.listVisibleBooksPage(currentUserId, role,
+                query, type, authorityId, publisherId,
                 pr.size(), pr.offset());
-        long total = bookService.countBooks(query, type, authorityId, publisherId);
+        long total = bookService.countVisibleBooks(currentUserId, role,
+                query, type, authorityId, publisherId);
         List<BookSummaryResponse> mapped = items.stream()
                 .map(LibraryDtoMappers::toSummary)
                 .toList();
@@ -93,8 +108,10 @@ public class BookController {
     }
 
     @GetMapping("/books/{bookId}")
-    public BookDetailResponse getOne(@PathVariable UUID bookId) {
-        BookDetail detail = bookService.getBookWithChapters(bookId);
+    public BookDetailResponse getOne(@PathVariable UUID bookId,
+                                     @CurrentUser UUID currentUserId) {
+        String role = SecurityContextUtils.currentRole();
+        BookDetail detail = bookService.getBookWithChapters(bookId, currentUserId, role);
         return LibraryDtoMappers.toDetailResponse(detail);
     }
 
@@ -106,7 +123,9 @@ public class BookController {
      */
     @PatchMapping("/books/{bookId}")
     public BookDetailResponse update(@PathVariable UUID bookId,
-                                     @Valid @RequestBody UpdateBookRequest request) {
+                                     @Valid @RequestBody UpdateBookRequest request,
+                                     @CurrentUser UUID currentUserId) {
+        String role = SecurityContextUtils.currentRole();
         bookService.updateAcademicMetadata(
                 bookId,
                 request.muhaqqiqName(),
@@ -114,15 +133,31 @@ public class BookController {
                 request.publicationPlaceName(),
                 request.editionNumber(),
                 request.publishedYearHijri(),
-                request.publishedYearGregorian()
+                request.publishedYearGregorian(),
+                currentUserId, role
         );
-        BookDetail detail = bookService.getBookWithChapters(bookId);
+        BookDetail detail = bookService.getBookWithChapters(bookId, currentUserId, role);
         return LibraryDtoMappers.toDetailResponse(detail);
     }
 
+    /**
+     * Меняет visibility книги (ADR-043 Amendment). Только owner (или ADMIN).
+     */
+    @PatchMapping("/books/{bookId}/visibility")
+    public BookResponse updateVisibility(@PathVariable UUID bookId,
+                                         @Valid @RequestBody UpdateBookVisibilityRequest request,
+                                         @CurrentUser UUID currentUserId) {
+        String role = SecurityContextUtils.currentRole();
+        Book updated = bookService.updateVisibility(bookId, request.visibility(),
+                currentUserId, role);
+        return LibraryDtoMappers.toResponse(updated);
+    }
+
     @DeleteMapping("/books/{bookId}")
-    public ResponseEntity<Void> delete(@PathVariable UUID bookId) {
-        bookService.deleteBook(bookId);
+    public ResponseEntity<Void> delete(@PathVariable UUID bookId,
+                                       @CurrentUser UUID currentUserId) {
+        String role = SecurityContextUtils.currentRole();
+        bookService.deleteBook(bookId, currentUserId, role);
         return ResponseEntity.noContent().build();
     }
 

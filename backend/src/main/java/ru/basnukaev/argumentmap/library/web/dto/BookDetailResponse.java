@@ -33,6 +33,7 @@ public record BookDetailResponse(
         AuthorityCitationRef authority,
         MuhaqqiqRef muhaqqiq,
         PublisherRef publisher,
-        PublicationPlaceRef publicationPlace
+        PublicationPlaceRef publicationPlace,
+        String visibility
 ) {
 }

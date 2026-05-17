@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import ru.basnukaev.argumentmap.domain.Authority;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookMember;
 import ru.basnukaev.argumentmap.library.domain.ImageRegion;
 import ru.basnukaev.argumentmap.library.domain.Muhaqqiq;
 import ru.basnukaev.argumentmap.library.domain.Page;
@@ -17,6 +18,7 @@ import ru.basnukaev.argumentmap.library.service.BookDetail;
 import ru.basnukaev.argumentmap.library.service.ChapterNode;
 import ru.basnukaev.argumentmap.library.service.PageDetail;
 import ru.basnukaev.argumentmap.library.web.dto.BookDetailResponse;
+import ru.basnukaev.argumentmap.library.web.dto.BookMemberResponse;
 import ru.basnukaev.argumentmap.library.web.dto.BookResponse;
 import ru.basnukaev.argumentmap.library.web.dto.BookSummaryResponse;
 import ru.basnukaev.argumentmap.library.web.dto.ChapterResponse;
@@ -40,14 +42,23 @@ public final class LibraryDtoMappers {
                 book.id(), book.bookType(), book.title(),
                 book.authorityId(), book.language(), book.description(),
                 jsonFromString(book.metadata()),
-                book.createdBy(), book.createdAt(), book.updatedAt()
+                book.createdBy(), book.createdAt(), book.updatedAt(),
+                book.visibility()
         );
     }
 
     public static BookSummaryResponse toSummary(Book book) {
         return new BookSummaryResponse(
                 book.id(), book.bookType(), book.title(),
-                book.authorityId(), book.language(), book.createdAt()
+                book.authorityId(), book.language(), book.createdAt(),
+                book.visibility()
+        );
+    }
+
+    public static BookMemberResponse toResponse(BookMember member) {
+        return new BookMemberResponse(
+                member.id(), member.bookId(), member.userId(),
+                member.role(), member.addedAt(), member.addedBy()
         );
     }
 
@@ -71,7 +82,8 @@ public final class LibraryDtoMappers {
                 toAuthorityRef(detail.authority()),
                 toMuhaqqiqRef(detail.muhaqqiq()),
                 toPublisherRef(detail.publisher()),
-                toPublicationPlaceRef(detail.publicationPlace())
+                toPublicationPlaceRef(detail.publicationPlace()),
+                book.visibility()
         );
     }
 

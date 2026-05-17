@@ -17,6 +17,7 @@ public record BookResponse(
         JsonNode metadata,
         UUID createdBy,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        String visibility
 ) {
 }
