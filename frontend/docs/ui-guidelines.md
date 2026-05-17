@@ -335,21 +335,28 @@ native `window.confirm`, `window.alert`, `window.prompt`. Они
 ### Reversible destructive (delete c возможностью восстановления)
 
 Паттерн Gmail / Slack / macOS Finder: silent action + toast.success
-с действующей кнопкой действия на 3-5 секунд
+с действующей кнопкой действия на 5 секунд
 
 ```ts
-toast.success(t('graph.node.deleted_toast'), {
-  label: t('graph.node.deleted_undo'),
-  hint: t('graph.node.undo_no_edges_hint'), // optional title-tooltip
-  onClick: () => restoreFromSnapshot(snapshot),
-});
+toast.success(
+  t('graph.node.deleted_toast'),
+  {
+    label: t('graph.node.deleted_undo'),
+    hint: t('graph.node.undo_no_edges_hint'), // optional title-tooltip
+    onClick: () => restoreFromSnapshot(snapshot),
+  },
+  { ttl: 5000 }, // явный override - default 3000 мало для bulk-delete recovery
+);
 ```
 
 Параметры:
 - snapshot для restore **сохранять до** DELETE (после узла нет в
   state, восстанавливать не из чего)
-- success-toast TTL по defaults `3000ms` (см. `toastStore`) -
-  достаточно успеть нажать Undo, не назойливо
+- TTL `5000ms` для destructive action recovery (явный override через
+  3-й аргумент `toast.success`): default success-TTL `3000ms` мал
+  чтобы успеть прочитать сообщение «Удалено N узлов» и нажать Undo,
+  особенно при bulk-delete. 5 сек - стандарт Gmail / Slack /
+  macOS Finder для аналогичных undo-snackbar'ов
 - если restore имеет ограничения (например edges теряются при
   re-create нового id) - предупреждать через `hint` на action кнопке
   (HTML title tooltip)

@@ -379,13 +379,21 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
           nodeSnapshots.length === 1
             ? t('graph.node.deleted_toast')
             : t('graph.node.deleted_toast_multi').replace('{count}', String(nodeSnapshots.length));
-        toast.success(message, {
-          label: t('graph.node.deleted_undo'),
-          hint: t('graph.node.undo_no_edges_hint'),
-          onClick: () => {
-            void Promise.all(nodeSnapshots.map((s) => restoreNodeFromSnapshot(s)));
+        // 5 секунд TTL для destructive action recovery (паттерн Gmail /
+        // Slack / macOS Finder) - явно больше дефолтных 3 сек на success
+        // toast: пользователю нужно прочитать сообщение и среагировать
+        // на Undo, что не успеть за 3 сек особенно при bulk-delete
+        toast.success(
+          message,
+          {
+            label: t('graph.node.deleted_undo'),
+            hint: t('graph.node.undo_no_edges_hint'),
+            onClick: () => {
+              void Promise.all(nodeSnapshots.map((s) => restoreNodeFromSnapshot(s)));
+            },
           },
-        });
+          { ttl: 5000 },
+        );
       } else if (edgeIds.length > 0) {
         toast.success(t('graph.edge.deleted_toast'));
       }

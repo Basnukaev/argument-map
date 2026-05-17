@@ -69,14 +69,21 @@ export const useToastStore = create<ToastState>((set, get) => ({
   },
 }));
 
+/** Опции переопределения дефолтного поведения toast (TTL и пр.). */
+export interface ToastOptions {
+  /** Переопределение TTL в мс. Если не указан - используется default
+   *  по типу (см. `DEFAULT_TTL`). 0 = не закрывать автоматически. */
+  ttl?: number;
+}
+
 /** Удобный шорткат для вызова из любого callback без хука. */
 export const toast = {
-  error: (message: string, action?: ToastAction) =>
-    useToastStore.getState().show({ kind: 'error', message, action }),
-  warning: (message: string, action?: ToastAction) =>
-    useToastStore.getState().show({ kind: 'warning', message, action }),
-  info: (message: string, action?: ToastAction) =>
-    useToastStore.getState().show({ kind: 'info', message, action }),
-  success: (message: string, action?: ToastAction) =>
-    useToastStore.getState().show({ kind: 'success', message, action }),
+  error: (message: string, action?: ToastAction, opts?: ToastOptions) =>
+    useToastStore.getState().show({ kind: 'error', message, action, ttl: opts?.ttl }),
+  warning: (message: string, action?: ToastAction, opts?: ToastOptions) =>
+    useToastStore.getState().show({ kind: 'warning', message, action, ttl: opts?.ttl }),
+  info: (message: string, action?: ToastAction, opts?: ToastOptions) =>
+    useToastStore.getState().show({ kind: 'info', message, action, ttl: opts?.ttl }),
+  success: (message: string, action?: ToastAction, opts?: ToastOptions) =>
+    useToastStore.getState().show({ kind: 'success', message, action, ttl: opts?.ttl }),
 };
