@@ -183,15 +183,18 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
 - [x] Импорт / экспорт темы в JSON - закрыт в Сессии 39
       (ADR-037, GET `/topics/{id}/export` + POST `/topics/import`)
 - [ ] Голосование за вес аргументов
-- [ ] **Frontend pagination для остальных list pages** -
-      backend GET-list endpoints вернули PagedResponse в сессии
-      pagination. Обновлён только `TopicListPage` (smoke
-      validation). Оставшиеся: `BookListPage` (apps/library),
-      `QuestionListPage` (apps/qa), `AdminShamelaPage` results,
-      `SourcePickerBooks` (если успели включить unified search),
-      `CitationPicker` source-tab. MVP - Load More button в конце
-      списка (fetches next page, appends). Реальная pagination
-      (1/2/3/Next/Prev) - upgrade когда станет критичным UX
+- [x] **Frontend pagination для остальных list pages** -
+      закрыто 2026-05-18. Обновлены: `BookListPage` (apps/library),
+      `QuestionListPage` (apps/qa), `CitationPicker` source-tab.
+      `AdminShamelaPage` search endpoint оставлен (raw array,
+      не paginated на бэке - admin staging search). Pattern: тот же
+      Load More как в `TopicListPage` - state `{items, page,
+      hasNext, totalElements}`, кнопка скрыта при активном
+      client-side filter/search. `CitationPicker` использует
+      `size=100` без Load More (modal layout). `QuestionListPage`
+      использует server-side `?status=` через URL param с reset
+      page=0 при смене фильтра. Реальная pagination (1/2/3/
+      Next/Prev) - upgrade когда станет критичным UX
 - [ ] **Cursor-based pagination (если станет нужно)** - сейчас
       offset-based, простая работа для UI. Cursor (created_at +
       id) станет нужен когда: (1) у тем будут миллионы записей -

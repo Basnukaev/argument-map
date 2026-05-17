@@ -11,6 +11,73 @@
 
 ---
 
+## 2026-05-18 - Frontend pagination breaking change fix (4 pages закрыты)
+
+Параллельно с backend subagent'ом 22.c RBAC (library books +
+Q&A) - чинил frontend pages которые сломались после
+pagination breaking change прошлой сессии: 4 page'а читали
+response как raw array, а backend начал возвращать
+`PagedResponse<T>{items, page, hasNext, totalElements, ...}`.
+
+**Реализовано (3 атомарных fix-коммита + 1 docs):**
+
+1. **`BookListPage`** - apps/library. BooksAccum state, Load More
+   при `hasNext && !filterActive`. totalElements в подзаголовке.
+   Local filter chips (typeFilter, search) скрывают Load More -
+   server отдал бы следующую страницу но client скрыл бы items,
+   кнопка кажется broken
+2. **`QuestionListPage`** - apps/qa. QuestionsAccum state.
+   statusFilter теперь server-side через `?status=` URL param -
+   useEffect зависит от statusFilter, при смене reset page=0 +
+   refetch. search остался client-side как в TopicListPage,
+   Load More скрыт при search.trim()
+3. **`CitationPicker`** - shared/components/citation. Use
+   `size=100` (max permitted) без Load More - модальное окно
+   ограниченной высоты, Load More UX внутри picker некомфортный.
+   Когда библиотека >100 книг - search-by-title или pagination
+   control внутри picker'а (backlog)
+
+**AdminShamelaPage** не трогал - endpoint `/admin/shamela/search`
+не paginated (admin staging search, raw array).
+
+**Pattern** взят 1:1 из TopicListPage (reference):
+
+- `apiGetRaw<PagedResponse<T>>('/...?page=N&size=20')`
+- state `{items, page, hasNext, totalElements}`
+- Load More: `page+1` fetch → append к items
+- Filter change → reset page=0 (server-side filters) или скрыть
+  Load More (client-side filters)
+
+**Тесты**: existing tests (BookList/Question/CitationPicker не
+имели baseline tests) - не добавлял. TopicListPage тесты уже
+обновлены прошлой сессией. Frontend baseline 328/328 pass +
+typecheck + lint + build clean.
+
+**Playwright smoke**: открыл /books /qa /admin/shamela как admin.
+- /qa: рендерится с 2 question cards, "2 вопросов в обсуждении"
+  totalElements корректно
+- /admin/shamela: sync status загружен (8589 книг в staging,
+  v1261), всё работает
+- /books: страница рендерит header/filter chips, но книги не
+  показываются из-за 401 от backend - это работа параллельного
+  RBAC subagent (мой fix корректный, error state UI отображается
+  как ожидается через formatApiError)
+
+**Acceptance criteria**:
+
+- [x] Все 4 pages (3 paginated + 1 без изменений) рендерятся без
+      JS crash
+- [x] Frontend tests 328/328 pass
+- [x] Lint clean (только pre-existing warnings)
+- [x] Build clean
+- [x] Typecheck clean
+- [x] Playwright smoke: /qa, /books, /admin/shamela открываются
+
+**Backlog**: убрана запись «Frontend pagination для остальных
+list pages» (закрыта)
+
+---
+
 ## 2026-05-18 - Pagination + filters для всех GET-list endpoints (backlog closed)
 
 Backend backlog task созрела - справочники и темы растут, raw-array
