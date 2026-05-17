@@ -11,13 +11,24 @@ import {
 import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
-import { apiGetRaw, ApiError } from '@/shared/api/client';
+import { apiGetRaw, ApiError, formatApiError } from '@/shared/api/client';
+import { toast } from '@/shared/stores/toastStore';
 import { useT, useFormatDate, hasArabicScript, type DictKey } from '@/shared/i18n';
 import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
 
 type Question = components['schemas']['QuestionResponse'];
 type Status = NonNullable<Question['status']>;
+type PagedQuestions = components['schemas']['PagedResponseQuestionResponse'];
+
+const PAGE_SIZE = 20;
+
+interface QuestionsAccum {
+  questions: Question[];
+  page: number;
+  hasNext: boolean;
+  totalElements: number;
+}
 
 const STATUS_BADGE: Record<Status, string> = {
   OPEN: 'bg-ok-100 text-ok-700',
@@ -41,15 +52,34 @@ const FILTER_LABEL: Record<'ALL' | Status, DictKey> = {
 function QuestionListPage() {
   const t = useT();
   const formatDate = useFormatDate();
-  const [state, setState] = useState<AsyncState<Question[]>>({ kind: 'loading' });
+  const [state, setState] = useState<AsyncState<QuestionsAccum>>({ kind: 'loading' });
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<Status | 'ALL'>('ALL');
+  const [loadingMore, setLoadingMore] = useState(false);
 
+  /**
+   * Backend поддерживает server-side ?status= фильтр. При смене filter
+   * сбрасываем page=0 и перезапрашиваем - это правильный путь для
+   * server-side фильтра (см. api-contract). Search query - client-side
+   * по уже загруженной выборке (поиск pertopic в backlog)
+   */
   useEffect(() => {
     const controller = new AbortController();
-    apiGetRaw<Question[]>('/api/v1/questions', { signal: controller.signal })
-      .then((questions) => {
-        setState({ kind: 'success', data: questions ?? [] });
+    const statusParam = statusFilter === 'ALL' ? '' : `&status=${statusFilter}`;
+    apiGetRaw<PagedQuestions>(
+      `/api/v1/questions?page=0&size=${PAGE_SIZE}${statusParam}`,
+      { signal: controller.signal },
+    )
+      .then((paged) => {
+        setState({
+          kind: 'success',
+          data: {
+            questions: (paged.items ?? []) as Question[],
+            page: paged.page ?? 0,
+            hasNext: paged.hasNext ?? false,
+            totalElements: paged.totalElements ?? 0,
+          },
+        });
       })
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;
@@ -62,17 +92,46 @@ function QuestionListPage() {
         setState({ kind: 'error', message });
       });
     return () => controller.abort();
-  }, []);
+  }, [statusFilter]);
+
+  /**
+   * Load More - подгружает следующую страницу с тем же statusFilter
+   */
+  const handleLoadMore = async () => {
+    if (state.kind !== 'success' || !state.data.hasNext || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = state.data.page + 1;
+      const statusParam = statusFilter === 'ALL' ? '' : `&status=${statusFilter}`;
+      const resp = await apiGetRaw<PagedQuestions>(
+        `/api/v1/questions?page=${nextPage}&size=${PAGE_SIZE}${statusParam}`,
+      );
+      const nextItems = (resp.items ?? []) as Question[];
+      setState({
+        kind: 'success',
+        data: {
+          questions: [...state.data.questions, ...nextItems],
+          page: resp.page ?? nextPage,
+          hasNext: resp.hasNext ?? false,
+          totalElements: resp.totalElements ?? state.data.totalElements,
+        },
+      });
+    } catch (e: unknown) {
+      toast.error(formatApiError(e, t('qa.list.subtitle')));
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     if (state.kind !== 'success') return [];
     const q = search.trim().toLowerCase();
-    return state.data.filter((qn) => {
-      if (statusFilter !== 'ALL' && qn.status !== statusFilter) return false;
+    // statusFilter уже применён server-side, фильтруем только по search
+    return state.data.questions.filter((qn) => {
       if (!q) return true;
       return (qn.title ?? '').toLowerCase().includes(q);
     });
-  }, [state, search, statusFilter]);
+  }, [state, search]);
 
   return (
     <main className="min-h-screen bg-bg">
@@ -89,7 +148,7 @@ function QuestionListPage() {
             {state.kind === 'success' && (
               <p className="mt-1.5 max-w-[680px] text-sm text-ink-500">
                 <span className="font-medium text-ink-700">
-                  <bdi dir="ltr">{state.data.length}</bdi>
+                  <bdi dir="ltr">{state.data.totalElements}</bdi>
                 </span>{' '}
                 {t('qa.list.subtitle')}
               </p>
@@ -154,7 +213,7 @@ function QuestionListPage() {
           </Card>
         )}
 
-        {state.kind === 'success' && state.data.length === 0 && (
+        {state.kind === 'success' && state.data.questions.length === 0 && (
           <Card className="mx-auto max-w-2xl p-12 text-center">
             <HelpCircle
               size={32}
@@ -165,13 +224,14 @@ function QuestionListPage() {
           </Card>
         )}
 
-        {state.kind === 'success' && state.data.length > 0 && filtered.length === 0 && (
+        {state.kind === 'success' && state.data.questions.length > 0 && filtered.length === 0 && (
           <p className="text-center text-sm text-ink-500">
             {t('topic.list.not_found')}
           </p>
         )}
 
         {state.kind === 'success' && filtered.length > 0 && (
+          <>
           <ul className="flex flex-col gap-2">
             {filtered
               .filter((q): q is Question & { id: string } => Boolean(q.id))
@@ -237,6 +297,27 @@ function QuestionListPage() {
                 );
               })}
           </ul>
+
+          {/*
+            Load More - подгружает следующую страницу backend. Скрыт при
+            активном search query (client-side фильтр): новые items
+            прилетят но скроются фильтром, что создаёт впечатление будто
+            кнопка «не работает». statusFilter в URL params, новые items
+            приходят уже отфильтрованные server-side - search не мешает
+          */}
+          {state.data.hasNext && !search.trim() && (
+            <div className="mt-6 flex justify-center">
+              <Button
+                variant="ghost"
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                icon={loadingMore ? Loader2 : undefined}
+              >
+                {loadingMore ? t('common.loading') : t('common.load_more')}
+              </Button>
+            </div>
+          )}
+          </>
         )}
       </div>
     </main>
