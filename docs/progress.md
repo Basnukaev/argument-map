@@ -10,6 +10,95 @@
 
 ---
 
+## 2026-05-17 - Сессия 37, Этап 16.g - academic fields в FileImportController
+
+Закрыли feature gap из Этапов 16.b/f - расширили `POST
+/api/v1/library/imports/file` 6 опциональными academic-полями
+(`muhaqqiqName`/`publisherName`/`publicationPlaceName`/`editionNumber`/
+`publishedYearHijri`/`publishedYearGregorian`) с теми же диапазонами
+что в `CreateBookRequest` (edition 1..99, year 1..9999). Mirror
+паттерна 2-step flow в `AddSourceModal` Этапа 20.e: пользователь
+больше не должен после upload вторым шагом открывать `BookEditModal`
+для добавления тахкика - всё в одной модалке
+
+### Backend
+
+`feat(backend): Этап 16.g - FileImportController academic fields`:
+
+- `ImportMetadata` record расширен с 4 до 10 полей + helper
+  `hasAcademicData()` (non-blank string или non-null int). Старый
+  4-args конструктор сохранён через delegation на 10-args для
+  обратной совместимости с тестами
+- `FileImportService.importPdf` развилка: если `hasAcademicData()` -
+  вызывает 13-args `BookService.createBook` (которая делает
+  `findOrCreate` в справочниках через 20.e инфраструктуру), иначе
+  старый 7-args путь без academic FK (shamela ETL-совместимый)
+- `FileImportController.uploadFile` - 6 новых `@RequestParam`
+  опциональных + helper `validateAcademicRanges()` для ручной
+  валидации диапазонов. Bean Validation для `@RequestParam`
+  требует `@Validated` на классе + handler для
+  `HandlerMethodValidationException`, что в проекте нигде не
+  настроено - ручная валидация бросает `FileImportException`
+  → 422 `file-import-error`
+- 3 новых IT в `FileImportServiceIT`:
+  `importPdf_withAcademicData_callsCreateBook13Args` (все 3 FK
+  заполнены через findOrCreate), `_withPartialAcademicData_*`
+  (mixed null/non-null, blank treated as null),
+  `_withoutAcademicData_keepsLegacyPathAndNullFKs` (sanity что
+  старый путь работает)
+- 3 новых IT в `FileImportControllerIT`:
+  `POST_withAcademicMultipart_returns201AndBookHasAcademicFK`
+  (verify через JOIN), `POST_withInvalidEditionRange_returns422`,
+  `POST_withInvalidYearRange_returns422`
+- `./mvnw verify`: **543 IT pass** (было 537, +6). Backend
+  верифицирован
+
+### Frontend
+
+`feat(frontend): Этап 16.g - FileUploadModal collapsible academic section`:
+
+- В `FileUploadModal` добавили **свернутую по умолчанию** секцию
+  «Академические данные». Toggle через `<button aria-expanded>`
+  с chevron icon (ChevronRight / ChevronDown), i18n текст меняется
+  по состоянию (`admin.file_upload.academic.show_section` /
+  `hide_section`)
+- Использовали **существующий** shared `<AcademicMetadataFields/>`
+  (тот же что в `BookEditModal` 20.d и `SourceCreateForm` 20.e) -
+  **не дублируем**. 6 полей: 3 autocomplete (мухаккик / издатель /
+  место) + 3 number (edition / year_hijri / year_gregorian)
+- Submit handler trim'нутые non-empty значения отправляет в FormData
+  как новые multipart поля. Int-поля через `parseIntOrNull`. Backend
+  получает только заполненное (отсутствие param = no FK)
+- types регенерированы через `npm run generate-api` - openapi spec
+  бэка добавил 6 новых query полей в operation
+- 4 новых vitest: collapsed-by-default,
+  toggle-раскрывает-6-полей, submit-с-academic-полями-в-FormData
+  (мокаем `globalThis.fetch` напрямую - jsdom + node 24 undici не
+  парсят `request.formData()` из FormData body, передаётся как-есть
+  строкой `"[object FormData]"`. Решение в комменте теста),
+  submit-без-academic-не-шлёт-поля
+- **156 vitest pass** (было 152, +4). Lint clean, build clean,
+  typecheck clean
+
+### Документация
+
+- `api-contract.md` - секция «File import API» дополнена 6 новыми
+  полями + примечание о ручной валидации диапазонов. Запись в
+  «История изменений» (сверху)
+- `roadmap.md` - строка Этапа 16 дополнена упоминанием 16.g
+- `progress.md` - эта запись
+
+### Коммиты
+
+- `945d4b9` feat(backend): Этап 16.g - FileImportController academic fields (mirror 20.e)
+- `9dbfac4` feat(frontend): Этап 16.g - FileUploadModal collapsible academic section (reuses AcademicMetadataFields)
+- `<этот>` docs: 16.g complete - api-contract + roadmap + progress
+
+ADR не требовался - просто следование уже принятому паттерну
+ADR-028 (academic citation metadata) + ADR-035 (PDFBox)
+
+---
+
 ## 2026-05-17 - Сессия 37, Этап 16.f - PDF upload (frontend admin)
 
 Минимальный admin UX для PDF upload поверх уже готового backend

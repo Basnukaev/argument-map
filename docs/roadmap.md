@@ -101,7 +101,14 @@
   верифицирован 537/537. **16.f frontend** - admin `FileUploadModal`
   на `/admin/shamela` (третий Card блок + `apiPostMultipart` helper +
   локализованный mapping ошибок 413/415/422), 5 vitest. Дизайн временный
-  до появления полноценного user-facing UX-референса
+  до появления полноценного user-facing UX-референса. **16.g** -
+  закрыт feature gap: endpoint расширен 6 academic полями
+  (`muhaqqiqName`/`publisherName`/`publicationPlaceName`/`editionNumber`/
+  `publishedYearHijri`/`publishedYearGregorian`) с ручной range валидацией,
+  Backend 543 IT pass. Frontend - collapsible секция через shared
+  `<AcademicMetadataFields/>` (тот же что в 20.e), 156 vitest. Mirror
+  паттерна AddSourceModal 20.e (2-step flow): пользователь больше не
+  должен после upload вторым шагом открывать BookEditModal
 
 ---
 
