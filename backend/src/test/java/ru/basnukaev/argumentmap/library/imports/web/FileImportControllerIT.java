@@ -15,6 +15,8 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,6 +30,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -76,6 +79,9 @@ class FileImportControllerIT {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Autowired
     private S3Client s3Client;
@@ -172,6 +178,101 @@ class FileImportControllerIT {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type")
                         .value("https://argumentmap.example/errors/missing-user-header"));
+    }
+
+    @Test
+    void POST_withAcademicMultipart_returns201AndBookHasAcademicFK() throws Exception {
+        byte[] pdfBytes = buildPdf(List.of("p"));
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "academic.pdf", MediaType.APPLICATION_PDF_VALUE, pdfBytes);
+
+        MvcResult result = mockMvc.perform(multipart("/api/v1/library/imports/file")
+                        .file(file)
+                        .param("title", "С academic")
+                        .param("language", "ar")
+                        .param("muhaqqiqName", "Шуайб аль-Арнаут")
+                        .param("publisherName", "Дар Тайба")
+                        .param("publicationPlaceName", "Бейрут")
+                        .param("editionNumber", "3")
+                        .param("publishedYearHijri", "1435")
+                        .param("publishedYearGregorian", "2014")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.bookId").isNotEmpty())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        String bookId = body.get("bookId").asText();
+
+        // verify через JOIN: книга связана с правильным muhaqqiq/publisher/place
+        // и integer-поля сохранены
+        Integer muhaqqiqMatch = jdbcTemplate.queryForObject(
+                "SELECT 1 FROM lib_books b JOIN lib_muhaqqiqs m ON b.muhaqqiq_id = m.id "
+                        + "WHERE b.id = ?::uuid AND m.name = ?",
+                Integer.class, bookId, "Шуайб аль-Арнаут");
+        org.assertj.core.api.Assertions.assertThat(muhaqqiqMatch).isEqualTo(1);
+
+        Integer publisherMatch = jdbcTemplate.queryForObject(
+                "SELECT 1 FROM lib_books b JOIN lib_publishers p ON b.publisher_id = p.id "
+                        + "WHERE b.id = ?::uuid AND p.name = ?",
+                Integer.class, bookId, "Дар Тайба");
+        org.assertj.core.api.Assertions.assertThat(publisherMatch).isEqualTo(1);
+
+        Integer placeMatch = jdbcTemplate.queryForObject(
+                "SELECT 1 FROM lib_books b JOIN lib_publication_places pp "
+                        + "ON b.publication_place_id = pp.id "
+                        + "WHERE b.id = ?::uuid AND pp.name = ?",
+                Integer.class, bookId, "Бейрут");
+        org.assertj.core.api.Assertions.assertThat(placeMatch).isEqualTo(1);
+
+        Integer edition = jdbcTemplate.queryForObject(
+                "SELECT edition_number FROM lib_books WHERE id = ?::uuid",
+                Integer.class, bookId);
+        org.assertj.core.api.Assertions.assertThat(edition).isEqualTo(3);
+
+        Integer yearHijri = jdbcTemplate.queryForObject(
+                "SELECT published_year_hijri FROM lib_books WHERE id = ?::uuid",
+                Integer.class, bookId);
+        org.assertj.core.api.Assertions.assertThat(yearHijri).isEqualTo(1435);
+
+        Integer yearGregorian = jdbcTemplate.queryForObject(
+                "SELECT published_year_gregorian FROM lib_books WHERE id = ?::uuid",
+                Integer.class, bookId);
+        org.assertj.core.api.Assertions.assertThat(yearGregorian).isEqualTo(2014);
+    }
+
+    @Test
+    void POST_withInvalidEditionRange_returns422() throws Exception {
+        byte[] pdfBytes = buildPdf(List.of("p"));
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "bad.pdf", MediaType.APPLICATION_PDF_VALUE, pdfBytes);
+
+        mockMvc.perform(multipart("/api/v1/library/imports/file")
+                        .file(file)
+                        .param("editionNumber", "150")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.type")
+                        .value("https://argumentmap.example/errors/file-import-error"))
+                .andExpect(jsonPath("$.detail")
+                        .value(Matchers.containsString("editionNumber")));
+    }
+
+    @Test
+    void POST_withInvalidYearRange_returns422() throws Exception {
+        byte[] pdfBytes = buildPdf(List.of("p"));
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "bad-year.pdf", MediaType.APPLICATION_PDF_VALUE, pdfBytes);
+
+        mockMvc.perform(multipart("/api/v1/library/imports/file")
+                        .file(file)
+                        .param("publishedYearHijri", "99999")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.type")
+                        .value("https://argumentmap.example/errors/file-import-error"))
+                .andExpect(jsonPath("$.detail")
+                        .value(Matchers.containsString("publishedYearHijri")));
     }
 
     @Test

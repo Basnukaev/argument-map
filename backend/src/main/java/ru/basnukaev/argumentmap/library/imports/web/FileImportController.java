@@ -32,6 +32,13 @@ import ru.basnukaev.argumentmap.web.CurrentUser;
  *   <li>{@code authorityId} (optional) - UUID существующего автора</li>
  *   <li>{@code language} (optional) - ISO 639-1, default {@code "ar"}</li>
  *   <li>{@code description} (optional) - заметки</li>
+ *   <li>Academic-поля (Этап 16.g, optional) - {@code muhaqqiqName},
+ *       {@code publisherName}, {@code publicationPlaceName},
+ *       {@code editionNumber} (1..99), {@code publishedYearHijri} (1..9999),
+ *       {@code publishedYearGregorian} (1..9999). Mirror диапазонов из
+ *       {@code CreateBookRequest}/{@code UpdateBookRequest}. Если хотя бы
+ *       одно заполнено - {@code FileImportService} вызывает 13-args
+ *       перегрузку {@code BookService.createBook} с findOrCreate FK</li>
  * </ul>
  *
  * <p>Размер enforce'ится Spring multipart parser'ом до того как
@@ -42,6 +49,13 @@ import ru.basnukaev.argumentmap.web.CurrentUser;
  * <p>MIME type валидируется через whitelist {@link #ALLOWED_MIME_TYPES} -
  * только {@code application/pdf}. EPUB добавится когда появится
  * implementation (см. ADR-035).
+ *
+ * <p>Validation academic Integer-полей сделана руками в {@link
+ * #validateAcademicRanges} - {@code @RequestParam} с Bean Validation
+ * требует {@code @Validated} на классе + handler для
+ * {@code HandlerMethodValidationException}, что в проекте нигде не
+ * настроено. Ручная валидация бросает {@link FileImportException} →
+ * 422 file-import-error с понятным сообщением.
  */
 @RestController
 @RequestMapping("/api/v1/library/imports")
@@ -54,6 +68,13 @@ public class FileImportController {
      * (application/epub+zip) добавится когда будет реализован EPUB-import.
      */
     static final Set<String> ALLOWED_MIME_TYPES = Set.of(MediaType.APPLICATION_PDF_VALUE);
+
+    // Mirror диапазонов из CreateBookRequest/UpdateBookRequest DTO (Этап 20.e).
+    // Если меняются там - надо менять здесь
+    private static final int EDITION_MIN = 1;
+    private static final int EDITION_MAX = 99;
+    private static final int YEAR_MIN = 1;
+    private static final int YEAR_MAX = 9999;
 
     private final FileImportService fileImportService;
 
@@ -70,9 +91,16 @@ public class FileImportController {
             @RequestParam(value = "authorityId", required = false) UUID authorityId,
             @RequestParam(value = "language", required = false) String language,
             @RequestParam(value = "description", required = false) String description,
+            @RequestParam(value = "muhaqqiqName", required = false) String muhaqqiqName,
+            @RequestParam(value = "publisherName", required = false) String publisherName,
+            @RequestParam(value = "publicationPlaceName", required = false) String publicationPlaceName,
+            @RequestParam(value = "editionNumber", required = false) Integer editionNumber,
+            @RequestParam(value = "publishedYearHijri", required = false) Integer publishedYearHijri,
+            @RequestParam(value = "publishedYearGregorian", required = false) Integer publishedYearGregorian,
             @CurrentUser UUID currentUserId) {
 
         validateFile(file);
+        validateAcademicRanges(editionNumber, publishedYearHijri, publishedYearGregorian);
 
         byte[] bytes;
         try {
@@ -81,9 +109,14 @@ public class FileImportController {
             throw new FileImportException("не удалось прочитать uploaded файл", e);
         }
 
-        ImportMetadata metadata = new ImportMetadata(title, authorityId, language, description);
-        log.info("file import: filename={} size={}B by user={}",
-                file.getOriginalFilename(), bytes.length, currentUserId);
+        ImportMetadata metadata = new ImportMetadata(
+                title, authorityId, language, description,
+                muhaqqiqName, publisherName, publicationPlaceName,
+                editionNumber, publishedYearHijri, publishedYearGregorian
+        );
+        log.info("file import: filename={} size={}B academic={} by user={}",
+                file.getOriginalFilename(), bytes.length,
+                metadata.hasAcademicData(), currentUserId);
 
         ImportResult result = fileImportService.importPdf(
                 bytes, file.getOriginalFilename(), metadata, currentUserId);
@@ -119,6 +152,35 @@ public class FileImportController {
             throw new UnsupportedMediaTypeException(
                     "тип файла " + contentType + " не поддерживается, ожидаются: "
                             + ALLOWED_MIME_TYPES);
+        }
+    }
+
+    /**
+     * Валидация academic Integer-полей (16.g) - mirror диапазонов из
+     * {@code CreateBookRequest} / {@code UpdateBookRequest} DTO.
+     *
+     * @throws FileImportException 422 если значение вне допустимого
+     *                             диапазона
+     */
+    private static void validateAcademicRanges(Integer editionNumber,
+                                                Integer publishedYearHijri,
+                                                Integer publishedYearGregorian) {
+        if (editionNumber != null && (editionNumber < EDITION_MIN || editionNumber > EDITION_MAX)) {
+            throw new FileImportException(
+                    "editionNumber должен быть в диапазоне " + EDITION_MIN
+                            + ".." + EDITION_MAX + ", получено " + editionNumber);
+        }
+        if (publishedYearHijri != null
+                && (publishedYearHijri < YEAR_MIN || publishedYearHijri > YEAR_MAX)) {
+            throw new FileImportException(
+                    "publishedYearHijri должен быть в диапазоне " + YEAR_MIN
+                            + ".." + YEAR_MAX + ", получено " + publishedYearHijri);
+        }
+        if (publishedYearGregorian != null
+                && (publishedYearGregorian < YEAR_MIN || publishedYearGregorian > YEAR_MAX)) {
+            throw new FileImportException(
+                    "publishedYearGregorian должен быть в диапазоне " + YEAR_MIN
+                            + ".." + YEAR_MAX + ", получено " + publishedYearGregorian);
         }
     }
 }

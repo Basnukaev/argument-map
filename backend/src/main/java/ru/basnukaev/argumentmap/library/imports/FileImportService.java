@@ -127,13 +127,32 @@ public class FileImportService {
                     ? effectiveMeta.language() : "ar";
             String metadataJson = buildBookMetadataJson(filename, numPages);
 
-            Book book = bookService.createBook(
-                    BookType.BOOK, title, effectiveMeta.authorityId(),
-                    language, effectiveMeta.description(),
-                    metadataJson, currentUserId
-            );
-            log.info("PDF импорт: создана книга id={} title='{}' страниц={}",
-                    book.id(), title, numPages);
+            Book book;
+            if (effectiveMeta.hasAcademicData()) {
+                // 16.g: пользователь заполнил academic-метаданные в upload
+                // форме - используем 13-args overload который сделает
+                // findOrCreate в lib_muhaqqiqs/publishers/places
+                book = bookService.createBook(
+                        BookType.BOOK, title, effectiveMeta.authorityId(),
+                        language, effectiveMeta.description(),
+                        metadataJson, currentUserId,
+                        effectiveMeta.muhaqqiqName(),
+                        effectiveMeta.publisherName(),
+                        effectiveMeta.publicationPlaceName(),
+                        effectiveMeta.editionNumber(),
+                        effectiveMeta.publishedYearHijri(),
+                        effectiveMeta.publishedYearGregorian()
+                );
+            } else {
+                // Старый путь (shamela-совместимый): academic FK = null
+                book = bookService.createBook(
+                        BookType.BOOK, title, effectiveMeta.authorityId(),
+                        language, effectiveMeta.description(),
+                        metadataJson, currentUserId
+                );
+            }
+            log.info("PDF импорт: создана книга id={} title='{}' страниц={} academic={}",
+                    book.id(), title, numPages, effectiveMeta.hasAcademicData());
 
             // page-by-page extraction. PDFTextStripper'у задаём диапазон
             // [i+1, i+1] для одной страницы (API 1-based)

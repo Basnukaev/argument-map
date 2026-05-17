@@ -32,7 +32,10 @@ import ru.basnukaev.argumentmap.library.domain.LibraryFileSourceType;
 import ru.basnukaev.argumentmap.library.domain.Page;
 import ru.basnukaev.argumentmap.library.imports.FileImportService.ImportResult;
 import ru.basnukaev.argumentmap.library.repository.LibraryFileRepository;
+import ru.basnukaev.argumentmap.library.repository.MuhaqqiqRepository;
 import ru.basnukaev.argumentmap.library.repository.PageRepository;
+import ru.basnukaev.argumentmap.library.repository.PublicationPlaceRepository;
+import ru.basnukaev.argumentmap.library.repository.PublisherRepository;
 import ru.basnukaev.argumentmap.library.storage.ObjectStorageProperties;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.BucketVersioningStatus;
@@ -78,6 +81,15 @@ class FileImportServiceIT {
 
     @Autowired
     private PageRepository pageRepository;
+
+    @Autowired
+    private MuhaqqiqRepository muhaqqiqRepository;
+
+    @Autowired
+    private PublisherRepository publisherRepository;
+
+    @Autowired
+    private PublicationPlaceRepository publicationPlaceRepository;
 
     @Autowired
     private ObjectStorageProperties properties;
@@ -235,6 +247,71 @@ class FileImportServiceIT {
                 .contains("\"user_uploaded\":true")
                 .contains("\"original_filename\":\"marker.pdf\"")
                 .contains("\"pdf_page_count\":2");
+    }
+
+    @Test
+    void importPdf_withAcademicData_callsCreateBook13Args() {
+        byte[] pdfBytes = buildPdf(List.of("p"), null);
+        ImportMetadata meta = new ImportMetadata(
+                "Книга с тахкиком", null, "ar", null,
+                "Шуайб аль-Арнаут", "Дар Тайба", "Бейрут",
+                3, 1435, 2014
+        );
+
+        ImportResult result = service.importPdf(pdfBytes, "academic.pdf", meta, userId);
+
+        // все 3 FK заполнены - findOrCreate в справочниках сработал
+        assertThat(result.book().muhaqqiqId()).isNotNull();
+        assertThat(result.book().publisherId()).isNotNull();
+        assertThat(result.book().publicationPlaceId()).isNotNull();
+        assertThat(muhaqqiqRepository.findById(result.book().muhaqqiqId()).orElseThrow().name())
+                .isEqualTo("Шуайб аль-Арнаут");
+        assertThat(publisherRepository.findById(result.book().publisherId()).orElseThrow().name())
+                .isEqualTo("Дар Тайба");
+        assertThat(publicationPlaceRepository.findById(result.book().publicationPlaceId())
+                .orElseThrow().name())
+                .isEqualTo("Бейрут");
+        assertThat(result.book().editionNumber()).isEqualTo(3);
+        assertThat(result.book().publishedYearHijri()).isEqualTo(1435);
+        assertThat(result.book().publishedYearGregorian()).isEqualTo(2014);
+    }
+
+    @Test
+    void importPdf_withPartialAcademicData_resolvesFKsForFilledFieldsOnly() {
+        byte[] pdfBytes = buildPdf(List.of("p"), null);
+        // только publisher + год хиджры; muhaqqiq/place/edition/year_gregorian пустые
+        ImportMetadata meta = new ImportMetadata(
+                null, null, "ar", null,
+                null, "Только издатель", "  ",
+                null, 1440, null
+        );
+
+        ImportResult result = service.importPdf(pdfBytes, "partial.pdf", meta, userId);
+
+        assertThat(result.book().muhaqqiqId()).isNull();
+        assertThat(result.book().publisherId()).isNotNull();
+        assertThat(result.book().publicationPlaceId()).isNull();
+        assertThat(result.book().editionNumber()).isNull();
+        assertThat(result.book().publishedYearHijri()).isEqualTo(1440);
+        assertThat(result.book().publishedYearGregorian()).isNull();
+        assertThat(publisherRepository.findById(result.book().publisherId()).orElseThrow().name())
+                .isEqualTo("Только издатель");
+    }
+
+    @Test
+    void importPdf_withoutAcademicData_keepsLegacyPathAndNullFKs() {
+        // sanity: старый 7-args путь без academic FK продолжает работать
+        byte[] pdfBytes = buildPdf(List.of("p"), null);
+
+        ImportResult result = service.importPdf(pdfBytes, "no-academic.pdf",
+                ImportMetadata.empty(), userId);
+
+        assertThat(result.book().muhaqqiqId()).isNull();
+        assertThat(result.book().publisherId()).isNull();
+        assertThat(result.book().publicationPlaceId()).isNull();
+        assertThat(result.book().editionNumber()).isNull();
+        assertThat(result.book().publishedYearHijri()).isNull();
+        assertThat(result.book().publishedYearGregorian()).isNull();
     }
 
     /**
