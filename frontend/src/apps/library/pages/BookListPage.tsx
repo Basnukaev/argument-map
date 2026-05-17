@@ -5,7 +5,7 @@ import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import Button from '@/shared/components/ui/Button';
 import BookEditModal from '@/apps/admin/components/BookEditModal';
-import { apiGetRaw, ApiError } from '@/shared/api/client';
+import { apiGetRaw, ApiError, formatApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useT, type DictKey } from '@/shared/i18n';
 import type { AsyncState } from '@/shared/types/async';
@@ -14,6 +14,16 @@ import type { components } from '@/shared/api/types';
 type Book = components['schemas']['BookSummaryResponse'];
 type BookType = NonNullable<Book['bookType']>;
 type BookDetailResponse = components['schemas']['BookDetailResponse'];
+type PagedBooks = components['schemas']['PagedResponseBookSummaryResponse'];
+
+const PAGE_SIZE = 20;
+
+interface BooksAccum {
+  books: Book[];
+  page: number;
+  hasNext: boolean;
+  totalElements: number;
+}
 
 /** Ключи в словаре через book.type.* - подцепляем через useT() */
 const BOOK_TYPE_DICT_KEY: Record<BookType, DictKey> = {
@@ -70,12 +80,13 @@ type SortKey = 'added' | 'title' | 'type';
 
 function BookListPage() {
   const t = useT();
-  const [state, setState] = useState<AsyncState<Book[]>>({ kind: 'loading' });
+  const [state, setState] = useState<AsyncState<BooksAccum>>({ kind: 'loading' });
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<BookType | 'ALL'>('ALL');
   const [sortBy, setSortBy] = useState<SortKey>('added');
   const [editingBook, setEditingBook] = useState<BookDetailResponse | null>(null);
   const [loadingEdit, setLoadingEdit] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const handleEdit = async (bookId: string) => {
     setLoadingEdit(bookId);
@@ -94,9 +105,23 @@ function BookListPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    apiGetRaw<Book[]>('/api/v1/library/books', { signal: controller.signal })
-      .then((books) => {
-        setState({ kind: 'success', data: books ?? [] });
+    // apiGetRaw используется т.к. query-params не входят в keyof paths
+    // openapi-typescript. Backend pagination breaking change (см.
+    // api-contract): GET /library/books → PagedResponse<BookSummaryResponse>
+    apiGetRaw<PagedBooks>(
+      `/api/v1/library/books?page=0&size=${PAGE_SIZE}`,
+      { signal: controller.signal },
+    )
+      .then((paged) => {
+        setState({
+          kind: 'success',
+          data: {
+            books: (paged.items ?? []) as Book[],
+            page: paged.page ?? 0,
+            hasNext: paged.hasNext ?? false,
+            totalElements: paged.totalElements ?? 0,
+          },
+        });
       })
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;
@@ -111,10 +136,42 @@ function BookListPage() {
     return () => controller.abort();
   }, []);
 
+  /**
+   * Load More - подгружает следующую страницу backend pagination,
+   * аппендит к existing list. Local filter/sort применяются поверх -
+   * Load More скрыт когда активны filter chips (typeFilter !== ALL) или
+   * есть search query, чтобы юзер не запутался почему «новые элементы
+   * не появились» (они появились но отфильтрованы клиентом)
+   */
+  const handleLoadMore = async () => {
+    if (state.kind !== 'success' || !state.data.hasNext || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = state.data.page + 1;
+      const resp = await apiGetRaw<PagedBooks>(
+        `/api/v1/library/books?page=${nextPage}&size=${PAGE_SIZE}`,
+      );
+      const nextItems = (resp.items ?? []) as Book[];
+      setState({
+        kind: 'success',
+        data: {
+          books: [...state.data.books, ...nextItems],
+          page: resp.page ?? nextPage,
+          hasNext: resp.hasNext ?? false,
+          totalElements: resp.totalElements ?? state.data.totalElements,
+        },
+      });
+    } catch (e: unknown) {
+      toast.error(formatApiError(e, t('book.list.subtitle')));
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const filteredBooks = useMemo(() => {
     if (state.kind !== 'success') return [];
     const q = search.trim().toLowerCase();
-    const list = state.data.filter((b) => {
+    const list = state.data.books.filter((b) => {
       if (typeFilter !== 'ALL' && b.bookType !== typeFilter) return false;
       if (!q) return true;
       return (b.title ?? '').toLowerCase().includes(q);
@@ -132,6 +189,8 @@ function BookListPage() {
     }
     return list;
   }, [state, search, typeFilter, sortBy]);
+
+  const filterActive = search.trim().length > 0 || typeFilter !== 'ALL';
 
   return (
     <main className="min-h-screen bg-bg">
@@ -152,7 +211,7 @@ function BookListPage() {
                 <>
                   {' '}·{' '}
                   <span className="font-medium text-ink-700">
-                    <bdi dir="ltr">{state.data.length}</bdi>{' '}
+                    <bdi dir="ltr">{state.data.totalElements}</bdi>{' '}
                     {t('book.list.books_suffix')}
                   </span>
                 </>
@@ -253,7 +312,7 @@ function BookListPage() {
           </Card>
         )}
 
-        {state.kind === 'success' && state.data.length === 0 && (
+        {state.kind === 'success' && state.data.books.length === 0 && (
           <Card className="mx-auto max-w-2xl p-12 text-center">
             <BookOpen
               size={32}
@@ -265,7 +324,7 @@ function BookListPage() {
         )}
 
         {state.kind === 'success' &&
-          state.data.length > 0 &&
+          state.data.books.length > 0 &&
           filteredBooks.length === 0 && (
             <p className="text-center text-sm text-ink-500">
               {t('topic.list.not_found')}
@@ -273,19 +332,42 @@ function BookListPage() {
           )}
 
         {state.kind === 'success' && filteredBooks.length > 0 && (
-          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            {filteredBooks
-              .filter((b): b is Book & { id: string } => Boolean(b.id))
-              .map((book) => (
-                <li key={book.id}>
-                  <BookCard
-                    book={book}
-                    onEdit={handleEdit}
-                    editLoading={loadingEdit === book.id}
-                  />
-                </li>
-              ))}
-          </ul>
+          <>
+            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              {filteredBooks
+                .filter((b): b is Book & { id: string } => Boolean(b.id))
+                .map((book) => (
+                  <li key={book.id}>
+                    <BookCard
+                      book={book}
+                      onEdit={handleEdit}
+                      editLoading={loadingEdit === book.id}
+                    />
+                  </li>
+                ))}
+            </ul>
+
+            {/*
+              Load More - подгружает следующую страницу backend. Скрыт
+              когда активны local filter chips или search query - иначе
+              кажется что Load More «не работает» (новые items приходят
+              но скрыты фильтром). При снятии фильтра кнопка появится
+              если есть ещё страницы. Server-side фильтрация по search
+              через ?q= - upgrade для backlog
+            */}
+            {state.data.hasNext && !filterActive && (
+              <div className="mt-6 flex justify-center">
+                <Button
+                  variant="ghost"
+                  onClick={handleLoadMore}
+                  disabled={loadingMore}
+                  icon={loadingMore ? Loader2 : undefined}
+                >
+                  {loadingMore ? t('common.loading') : t('common.load_more')}
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
       {editingBook && (
