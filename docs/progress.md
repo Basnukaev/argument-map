@@ -11,6 +11,81 @@
 
 ---
 
+## 2026-05-17 - Этап 22.b frontend RBAC permissions UI (закрытие Этапа 22 целиком)
+
+Параллельный subagent-cycle к 17.e.f - реализация фронтенд-части
+ADR-043 (backend закрыт в Сессии 42, commits `1435e69`..`ae86efe`).
+Зоны не пересеклись: 17.e.f трогал `admin/pages/` + `shared/hooks/`
++ `ai_edit.*` ключи; здесь - `argument-map/components/` + `topic.*`
+ключи.
+
+**Реализовано (5 атомарных feat-коммитов + 1 docs):**
+
+1. **VisibilityRadioGroup + CreateTopicPage + 40+ i18n keys**
+   (commit `15d5657`) - radio group с 3 опциями (Lock/Users/Globe
+   icons, RU/AR labels + подсказки). Body POST /api/v1/topics теперь
+   с полем visibility (default PRIVATE). 40+ i18n keys в обеих
+   локалях сразу: `topic.visibility.*`, `topic.members.*`,
+   `topic.permission.*`. Тесты: 3 новых +1 обновлён existing
+   happy path (теперь с visibility=PRIVATE в body)
+
+2. **TopicMembersModal + permissionErrors helper** (commit `0472c49`) -
+   `apps/argument-map/components/TopicMembersModal.tsx`. Modal с
+   списком членов (inline role switcher MEMBER/EDITOR + trash),
+   owner-row с badge «Владелец» (отдельная строка над members),
+   форма add UUID + radio role. MVP без user search - только UUID
+   input + client-side regex validation. Toast errors на 400
+   duplicate, 403 forbidden, invalid UUID. `formatPermissionError`
+   helper в `shared/api/permissionErrors.ts` - маппит ApiError
+   `forbidden-topic-access/write` на локализованные строки. 5 тестов
+
+3. **VisibilityBadge + badge на TopicListPage cards** (commit `b6eb19e`) -
+   Compact badge (только иконка с tooltip по умолчанию) в углу
+   TopicCard heading chunk. Не нарушает existing layout polish.
+   Reuse'ится в TopicGraphPage header
+
+4. **hiding write actions в GraphCanvas/GraphPanels** (commit `c8a091f`) -
+   Новый prop `canWrite` (default true для backwards compat тестов).
+   При false скрываем: Add Node / Add Edge / Delete кнопки в
+   GraphPanels, pane context menu, mutating items в node/edge
+   context menu, кнопку Add First Node в empty state. Read-only
+   действия (z-order, open details panel) - оставляем
+
+5. **TopicGraphPage integration: badge/change/manage + permission UX**
+   (commit `0175c86`) - В header: VisibilityBadge с tooltip,
+   кнопка смены visibility (только owner/admin) → Modal с
+   VisibilityRadioGroup + PATCH /visibility, кнопка «Управление
+   участниками» при SHARED → TopicMembersModal, badge «Только
+   чтение» (Lock) для non-owner на PRIVATE. canWrite оценка на
+   фронте как `isOwner || isAdmin || visibility !== 'PRIVATE'` -
+   optimistic, backend ассертит точно
+
+**Технические заметки:**
+
+- `Select` компонент - custom prop API `options[]` + onChange(value),
+  не нативный `<select>`. Сначала ошибочно использовал нативный API,
+  потом заменил
+- Field.Input для UUID - принимает `className`, но `spellCheck` через
+  `...rest` тоже доходит до native input
+- HTMLDialogElement.showModal/close polyfill в TopicMembersModal.test
+  (jsdom не реализует) + `window.confirm` stub для DELETE flow
+
+**Метрики:** 5 файлов создано (VisibilityRadioGroup, VisibilityBadge,
+TopicMembersModal + test, permissionErrors), 4 файла изменено
+(CreateTopicPage + test, TopicListPage, TopicGraphPage, GraphCanvas,
+GraphPanels, dictionary). 12 новых тестов (299 baseline → 311). Lint
+0 errors (6 pre-existing warnings). Build 3.0s clean. Typecheck clean
+
+**Отложено в backlog Этапа 22.c+:**
+
+- Full user search (autocomplete по email/username) - сейчас MVP
+  только UUID input
+- Transfer ownership UX (перевод owner на другого user'а) - бэк
+  отдельно проверять
+- Permission UX для library books / Q&A - повтор паттерна
+
+---
+
 ## 2026-05-17 - Этап 17.e.f frontend AI editing button (закрытие Этапа 17 целиком)
 
 Закрывающий subagent-cycle на свежезавершённом 17.e backend

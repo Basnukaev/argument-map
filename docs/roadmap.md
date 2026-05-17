@@ -405,21 +405,21 @@ diacritics-aware lookup). Подробности и план - в `docs/backlog.
       30+ backend IT (246 frontend + 605 backend total). Transitional в
       dev/test: GET /api/** остаётся permitAll - покрывает 60+ existing IT
       без переписывания. В prod profile GET тоже authenticated()
-- [x] **Этап 22 (Сессия 42, ADR-043) - RBAC permissions per-entity:**
-      backend topics.visibility (PRIVATE/SHARED/PUBLIC) + topic_members
-      M:N (MEMBER/EDITOR) + миграция 36 + PermissionService с матрицей
-      ADR-043 + TopicAccessDeniedException/TopicWriteAccessDeniedException
-      (403 forbidden-topic-access/write) + ADMIN bypass. Service-layer
-      ассерты (TopicService/NodeService/EdgeService) + новые перегрузки с
-      (userId, role) + SecurityContextUtils.currentRole() helper.
-      Новые REST: POST/GET/PATCH/DELETE /api/v1/topics/{id}/members +
-      PATCH /api/v1/topics/{id}/visibility. ~43 новых backend test
-      (20 unit + 11 IT PermissionService + 10 IT TopicMemberController
-      + 4-5 расширение TopicControllerIT). Frontend UI (radio
-      visibility + members modal) - **Этап 22.b** (отложен)
-- [ ] **22.b:** Frontend UI для visibility/members - TopicEditModal
-      radio (PRIVATE/SHARED/PUBLIC) + sub-modal управления членами,
-      i18n keys `topic.visibility.*` / `topic.members.*`
+- [x] **Этап 22 (Сессия 42-43, ADR-043) - RBAC permissions per-entity:**
+      backend (22.a) topics.visibility (PRIVATE/SHARED/PUBLIC) +
+      topic_members M:N (MEMBER/EDITOR) + миграция 36 + PermissionService +
+      TopicAccessDeniedException/TopicWriteAccessDeniedException (403
+      forbidden-topic-access/write) + ADMIN bypass. Service-layer ассерты
+      (TopicService/NodeService/EdgeService) + (userId, role) перегрузки +
+      SecurityContextUtils.currentRole(). REST: POST/GET/PATCH/DELETE
+      /api/v1/topics/{id}/members + PATCH /api/v1/topics/{id}/visibility.
+      ~43 backend test. Frontend (22.b): VisibilityRadioGroup + VisibilityBadge
+      компоненты, radio в CreateTopicPage, TopicMembersModal с add/remove/role
+      change, badge на TopicListPage cards + TopicGraphPage header с change
+      visibility/manage members кнопками для owner, hiding write actions
+      (canWrite в GraphCanvas/GraphPanels), permissionErrors helper для
+      локализации 403 forbidden-topic-* в toast. 12 новых frontend test
+      (CreateTopicPage +3, TopicMembersModal 5, итого 311 frontend)
 - [ ] **22.c:** RBAC расширение на library books и Q&A questions -
       повтор паттерна visibility/members когда понадобится
       multi-tenant книги или приватные ответы
