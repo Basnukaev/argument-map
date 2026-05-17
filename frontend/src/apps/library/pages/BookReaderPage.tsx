@@ -335,7 +335,7 @@ function BookReaderPage() {
         {/* Desktop: inline sidebar. Mobile: hidden - доступ через кнопку
             «Главы» в content (см. ниже) которая открывает drawer Modal */}
         <aside className="hidden w-[280px] shrink-0 md:block">
-          <Card className="sticky top-6 max-h-[calc(100vh-7rem)] overflow-y-auto p-4">
+          <Card className="sticky top-6 max-h-[calc(100dvh-7rem)] overflow-y-auto p-4">
             {chaptersContent}
           </Card>
         </aside>
