@@ -412,6 +412,38 @@ attributes `ornament` (`diamond` / `flower` / `bracket` / `none`)
 CSS pseudo-element. Имитирует орнаментальные разделители разделов
 в классических тахкиках.
 
+## Audit log (ADR-043 Amendment 3, Этап 22.d)
+
+**Audit log** - таблица `audit_log` (миграция 39) - event-sourcing lite
+аудит-трейл мутаций. Каждый create/update/delete + visibility/member-
+changes пишет 1 row synchronous в той же транзакции что и main flow.
+Не reconstruct'ит state из event log - source of truth только для
+compliance/debugging/observability.
+
+**AuditEntityType** - константы (string literals, не enum) для
+`entity_type` колонки: `TOPIC` / `NODE` / `EDGE` / `BOOK` / `QUESTION` /
+`ANSWER` / `TOPIC_MEMBER` / `BOOK_MEMBER` / `NODE_SOURCE` /
+`QUESTION_SOURCE` / `ANSWER_SOURCE`. Не enum чтобы добавление нового
+типа не требовало миграции - валидация через `isValid()`.
+
+**AuditAction** - параллельные константы для `action` колонки: `CREATE`
+/ `UPDATE` / `DELETE` / `VISIBILITY_CHANGE` / `MEMBER_ADD` /
+`MEMBER_REMOVE` / `MEMBER_ROLE_CHANGE`.
+
+**parentEntityType / parentEntityId** - линковка child entity к parent
+для одно-запросного fetch'а всей темы (node/edge → TOPIC, chapter/page →
+BOOK, answer → QUESTION). Через partial index `(parent_entity_type,
+parent_entity_id, created_at DESC) WHERE parent_entity_id NOT NULL`.
+
+**changes** - jsonb колонка с описанием изменения:
+- CREATE: `{"created": {...key fields snapshot}}`
+- UPDATE: `{"field": {"old": X, "new": Y}}`
+- DELETE: `{"deleted": {...snapshot}}`
+- VISIBILITY_CHANGE: `{"visibility": {"old", "new"}}`
+- MEMBER_*: `{"userId", "role": scalar | {"old", "new"}}`
+
+Frontend парсит по action - schema не валидируется backend'ом.
+
 ## Удалённые понятия
 
 **Weight (вес)** — было поле `int 1-10`, "субъективная сила

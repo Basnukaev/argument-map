@@ -420,11 +420,21 @@ diacritics-aware lookup). Подробности и план - в `docs/backlog.
       cards + Topic/BookReader headers с change/manage кнопками для owner,
       hiding write actions, permissionErrors helper. Total: backend 733+
       tests, frontend 333 (Topic/BookMembersModal по 5 + CreateTopicPage +3)
-- [ ] **22.d:** Audit log per-entity - кто что менял когда + кто
-      получил/потерял access (отдельная таблица + endpoint history).
-      Сейчас trace только через revisions для контента и стандартный
-      request log. Также - private Q&A model (visibility + members
-      для questions/answers) если понадобится для закрытых учёных групп
+- [x] **22.d (Сессия 37, ADR-043 Amendment 3) - audit log per-entity:**
+      миграция 39 + `AuditLogService` synchronous в той же транзакции
+      что и mutation. Integration во все mutation-сервисы (TopicService,
+      NodeService, EdgeService, BookService, QuestionService, AnswerService,
+      TopicMemberService, BookMemberService) - 8 действий
+      (CREATE/UPDATE/DELETE/VISIBILITY_CHANGE/MEMBER_ADD/MEMBER_REMOVE/
+      MEMBER_ROLE_CHANGE). REST `GET /api/v1/audit/{topics|books}/{id}`
+      (owner+EDITOR), `/audit/me` (свои), `/audit/admin` (ADMIN only с
+      entityType/actorId/dateFrom/dateTo фильтрами). `PagedResponse<
+      AuditLogResponse>` с username bulk-JOIN. Backend 770 tests +16.
+      Private Q&A visibility model и admin UI - отложены в 22.e/backlog
+- [ ] **22.e:** Admin UI для audit log (frontend) + private Q&A model
+      (visibility + members для questions/answers) если понадобится
+      для закрытых учёных групп + audit retention policy janitor
+      (cron cleanup >6 месяцев когда хранилище подскочит)
 - [ ] **23+:** Open list - sanad explorer, multi-grading, RTL UI,
       экспорт PDF/SVG, mobile, advanced search. См. `docs/backlog.md`
       раздел «Будущие фичи»

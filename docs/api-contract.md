@@ -2512,6 +2512,111 @@ URL hierarchy сохраняет `answerId` под будущую авториз
   поддерживает - добавим если появится UX-кейс
 - Soft delete + audit (после auth)
 
+## Audit log API (ADR-043 Amendment 3, Этап 22.d)
+
+Просмотр аудит-трейла мутаций per-entity. Все mutations
+(create/update/delete + visibility/member changes) на topics / nodes /
+edges / books / questions / answers / members пишутся в `audit_log`
+synchronous в той же транзакции что и main flow.
+
+**Permission rules:**
+
+- `/audit/topics/{id}` и `/audit/books/{id}` - owner + EDITOR
+  (privileged даже на SHARED/PUBLIC)
+- `/audit/me` - любой authenticated user (видит только свои actions)
+- `/audit/admin` - только `UserRole.ADMIN`
+
+### GET /api/v1/audit/topics/{topicId}
+
+audit темы + всех её child entities (nodes/edges/topic_members).
+Query: `?page=&size=` (default 0/20, max size=100).
+
+**Response 200** - `PagedResponse<AuditLogResponse>`:
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "entityType": "TOPIC",
+      "entityId": "uuid",
+      "parentEntityType": null,
+      "parentEntityId": null,
+      "action": "CREATE",
+      "actorUserId": "uuid",
+      "actorUsername": "string",
+      "changes": "{\"created\":{\"title\":\"...\",\"visibility\":\"PUBLIC\"}}",
+      "createdAt": "2026-05-18T12:00:00Z"
+    }
+  ],
+  "page": 0, "size": 20,
+  "totalElements": 5, "totalPages": 1,
+  "hasNext": false, "hasPrev": false
+}
+```
+
+**Ошибки:**
+
+- 403 forbidden-topic-access - не owner и не EDITOR (либо приватная
+  тема не для вас)
+- 403 forbidden-topic-write - можете читать, но не писать (member
+  без EDITOR)
+- 404 topic-not-found
+
+### GET /api/v1/audit/books/{bookId}
+
+Mirror /audit/topics для книг. Permission: `assertCanWriteBook`.
+Ошибки: 403 forbidden-book-access / forbidden-book-write / 404
+book-not-found.
+
+### GET /api/v1/audit/me
+
+audit-trail current user'а - что он делал. Любой authenticated.
+Query: `?page=&size=`.
+
+### GET /api/v1/audit/admin
+
+Admin-only endpoint с фильтрами:
+
+- `entityType` - whitelist `TOPIC` / `NODE` / `EDGE` / `BOOK` /
+  `QUESTION` / `ANSWER` / `TOPIC_MEMBER` / `BOOK_MEMBER` /
+  `*_SOURCE`. Невалидный → 400 illegal-argument
+- `actorId` - UUID
+- `dateFrom`, `dateTo` - ISO-8601 instants (`2026-05-18T10:00:00Z`)
+- `page`, `size`
+
+**Ошибки:**
+
+- 403 forbidden-admin-only - не ADMIN
+- 400 illegal-argument - невалидный entityType / dateFrom / dateTo
+
+### AuditLogResponse
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `id` | UUID | id записи в audit_log |
+| `entityType` | string | `TOPIC` / `NODE` / `EDGE` / etc |
+| `entityId` | UUID | id затронутой сущности |
+| `parentEntityType` | string \| null | parent для child entities (TOPIC для node/edge) |
+| `parentEntityId` | UUID \| null | id parent'а |
+| `action` | string | `CREATE` / `UPDATE` / `DELETE` / `VISIBILITY_CHANGE` / `MEMBER_ADD` / `MEMBER_REMOVE` / `MEMBER_ROLE_CHANGE` |
+| `actorUserId` | UUID | кто выполнил действие |
+| `actorUsername` | string \| null | JOIN с users.username для UI |
+| `changes` | string (JSON) | raw jsonb - формат зависит от action (см. ниже) |
+| `createdAt` | timestamp | UTC |
+
+**Формат `changes` JSON по action:**
+
+- `CREATE`: `{"created": {...snapshot}}`
+- `UPDATE`: `{"field": {"old": X, "new": Y}, ...}`
+- `DELETE`: `{"deleted": {...snapshot}}`
+- `VISIBILITY_CHANGE`: `{"visibility": {"old": "PRIVATE", "new": "PUBLIC"}}`
+- `MEMBER_ADD` / `MEMBER_REMOVE`: `{"userId": "uuid", "role": "EDITOR"}`
+- `MEMBER_ROLE_CHANGE`: `{"userId": "uuid", "role": {"old": "MEMBER", "new": "EDITOR"}}`
+
+Frontend парсит `changes` по `action` - схема не валидируется
+backend'ом (changes это free-form jsonb).
+
 ## Topic export/import API (ADR-037, Этап 6)
 
 JSON-сериализация темы целиком для backup и обмена между инстансами.
@@ -2633,6 +2738,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-18 | v1 | Audit log per-entity (Этап 22.d, ADR-043 Amendment 3). Миграция 39 - новая таблица `audit_log (id, entity_type, entity_id, parent_entity_type, parent_entity_id, action, actor_user_id REFERENCES users, changes jsonb, metadata jsonb, created_at)` + 4 индекса. 4 новых REST endpoint под `/api/v1/audit/*`: `GET /topics/{id}` (owner+EDITOR через assertCanWrite), `GET /books/{id}` (owner+EDITOR через assertCanWriteBook), `GET /me` (любой authenticated, свои actions), `GET /admin?entityType=&actorId=&dateFrom=&dateTo=` (ADMIN только). Все возвращают `PagedResponse<AuditLogResponse>` сортировка `created_at DESC`. Новый DTO `AuditLogResponse{id, entityType, entityId, parentEntityType, parentEntityId, action, actorUserId, actorUsername, changes (raw json string), createdAt}` - username bulk-load JOIN (не N+1). Audit пишется synchronous в той же транзакции что и mutation через `AuditLogService.logCreate/Update/Delete/VisibilityChange/MemberAdd/MemberRemove/MemberRoleChange` из integration в TopicService/NodeService/EdgeService/BookService/QuestionService/AnswerService/TopicMemberService/BookMemberService. Format `changes` зависит от action: CREATE/DELETE `{created\|deleted: snapshot}`, UPDATE `{field: {old, new}}`, VISIBILITY_CHANGE `{visibility: {old, new}}`, MEMBER_* `{userId, role: scalar или {old, new}}`. Новые ошибки: `403 forbidden-admin-only` (AdminOnlyException) - не ADMIN | ADR-043 Amendment 3: закрытие долга «audit log отложен» из Amendment 2. Event-sourcing lite - 1 row на каждую mutation для compliance + debugging. Synchronous в той же transaction - rollback main flow откатит audit. Manual logging (не Spring AOP) - явный контроль snapshot/diff'а. Admin UI отложен до 22.e/backlog |
 | 2026-05-18 | v1 | Голосование за вес аргументов. Миграция 38 - новая таблица `node_votes (id UUID PK, node_id FK CASCADE, user_id FK CASCADE, weight SMALLINT CHECK IN (-1,1), voted_at TIMESTAMPTZ, UNIQUE(node_id, user_id))` + 2 индекса. 3 новых REST endpoint под `/api/v1/nodes/{id}`: `POST /vote` (CreateNodeVoteRequest{weight: -1\|+1} → 201 NodeVoteStatsResponse{nodeId, upvotes, downvotes, score, userVote}, upsert через ON CONFLICT), `DELETE /vote` (204, идемпотентен), `GET /votes` (NodeVoteStatsResponse). `NodeResponse` расширен 4 полями: `voteUpvotes`/`voteDownvotes`/`voteScore` (int), `userVote` (Integer nullable - голос вызывающего user'а). В `GET /api/v1/topics/{id}/graph` поля заполняются bulk-load из NodeVoteRepository (2 SQL на весь граф - не N+1). Новая ошибка `400 invalid-vote` (weight ∉ {-1,+1}). Permission: vote требует canReadTopic (видишь узел - можешь vote, не write-access, голос это reaction). Голоса НЕ влияют на StatusCalculation - сигнал силы аргумента ортогональный Dung-style status. MVP 3-point scale; 5-point {-2..+2} в backlog | Backlog «Голосование за вес аргументов» закрыт. Пользователи могут усиливать или ослаблять `EVIDENCE`/`ARGUMENT` узлы. Frontend - компактный VoteWidget в NodeCard footer (только для ARGUMENT/EVIDENCE - QUESTION/CLAIM не голосуются), upvote/downvote toggle с optimistic UI |
 | 2026-05-18 | v1 | Этап 22.c - RBAC permissions per-entity для library books + Q&A guards (ADR-043 Amendment). Миграция 37 ALTER `lib_books` добавляет колонку `visibility VARCHAR(20) NOT NULL DEFAULT 'PUBLIC'` (CHECK PRIVATE/SHARED/PUBLIC, в отличие от topics с default PRIVATE - books default PUBLIC для open library); 2 индекса (`visibility`, `created_by+visibility`); новая таблица `lib_book_members` (структура mirror `topic_members`: id, book_id FK CASCADE, user_id FK CASCADE, role CHECK MEMBER/EDITOR, added_at, added_by, UNIQUE book+user). **Breaking semantic change для library books**: GET endpoints у `/library/books` теперь требуют X-User-Id (visibility-фильтр в SQL: PUBLIC OR created_by=? OR (SHARED AND EXISTS lib_book_members)); GET `/library/books/{id}` возвращает 403 `forbidden-book-access` для PRIVATE чужого user'а; DELETE/PATCH книги возвращает 403 `forbidden-book-write` если не owner/EDITOR/ADMIN. `BookResponse`/`BookSummaryResponse`/`BookDetailResponse` расширены полем `visibility: PRIVATE\|SHARED\|PUBLIC`. **POST `/library/books` (REST) устанавливает visibility=PUBLIC по умолчанию**, **POST `/library/imports/file` (PDF upload) устанавливает PRIVATE** (user-uploads приватны). 5 новых book endpoint: `PATCH /api/v1/library/books/{id}/visibility` (UpdateBookVisibilityRequest, owner only); `POST /api/v1/library/books/{id}/members` (AddBookMemberRequest{userId, role}, owner only, 201); `GET /api/v1/library/books/{id}/members` (BookMemberResponse[], requires read access); `PATCH /api/v1/library/books/{id}/members/{memberId}` (UpdateBookMemberRequest{role}, owner only); `DELETE /api/v1/library/books/{id}/members/{memberId}` (owner или self-leave). **Q&A guards**: PATCH/DELETE `/api/v1/questions/{id}` и PATCH/DELETE `/api/v1/answers/{id}` теперь требуют X-User-Id (author check) и возвращают 403 `forbidden-question-write` / `forbidden-answer-write` если actor не автор и не ADMIN. Visibility-модель для questions/answers НЕ добавляется (open discussion semantics). Новые ошибки: `403 forbidden-book-access`/`forbidden-book-write` (с bookId/userId в properties), `404 book-member-not-found`, `403 forbidden-question-write`/`forbidden-answer-write` | ADR-043 Amendment: extend visibility/members pattern на books (тот же 3-уровневый model с PUBLIC-default), Q&A через author guards без visibility model. Rejected: default PRIVATE для books (shamela ETL ожидает massive batch видимым сразу), shared `topic_members` для books (нарушает separation), полный visibility для questions (over-engineering для public discussion). Audit log отложен в 22.d |
 | 2026-05-18 | v1 | Pagination + filters для всех GET-list endpoints. **Breaking change**: `GET /api/v1/sources`, `/authorities`, `/topics`, `/library/books`, `/questions` теперь возвращают `PagedResponse<T>{items, page, size, totalElements, totalPages, hasNext, hasPrev}` вместо raw array. Default `page=0&size=20`, max `size=100` (значения сверху clamps до 100). Новые фильтры: **sources** `?type=` (whitelist QURAN/HADITH/BOOK/ARTICLE/URL) + `?reliability=` (whitelist SAHIH/HASAN/DAIF, допустим только при type=HADITH иначе 400 illegal-argument); **authorities** `?era=` (свободный текст exact match); **topics** `?visibility=` (whitelist PRIVATE/SHARED/PUBLIC внутри set'а уже видимых ADR-043); **library/books** `?authorityId=` + `?publisherId=` (UUID FK фильтры); **questions** - `?status=` уже было, добавлена только pagination. Helper'ы `PagedResponse<T>.of()` + `PageRequest.from()` в `web.dto`. Repository паттерн: `findPage(...) + countFiltered(...)` с общим `appendFilters()` helper для одного источника истины WHERE clause. Сортировка единая по умолчанию `created_at DESC` (новые сверху) кроме authorities (`name ASC` для исторического порядка справочника). Старый `findAll` сохранён где используется internal callers (TopicImportService, shamela ETL). Существующие 11 list-related IT обновлены на `$.items`, добавлено 14 новых IT (pagination, filters, invalid combos). Total backend tests 701/701 pass | Backlog task созрел - справочники растут. Hardcoded array выдавал бы все sources/authorities на каждом GET. Memory `feedback_no_prod_no_backward_compat` - ломаем raw-array contract смело, frontend обновляем в той же сессии (минимально 1 page как smoke, остальные в backlog) |

@@ -334,7 +334,41 @@ author/admin guard:
 - Frontend получает 403 с типизированным problem-detail - локализация
   через `permissionErrors` helper (existing для topics)
 - **Private Q&A** (visibility model для questions/answers) **отложен**
-  в 22.d - расширим если возникнет use-case закрытых учёных групп
+  в 22.e - расширим если возникнет use-case закрытых учёных групп
+
+#### Audit log (ADR-043 Amendment 3, Этап 22.d)
+
+Event-sourcing lite аудит мутаций. **Synchronous** в той же транзакции
+что и main flow - rollback main откатит audit. Manual logging (не Spring
+AOP) - каждый mutation-сайт явно вызывает `auditLogService.log*`.
+
+- **AuditLogService** методы:
+  - `logCreate(entityType, entityId, parentType?, parentId?, actor,
+    snapshot)`
+  - `logUpdate(...., Map<String, FieldDiff>)` - FieldDiff(old, new)
+  - `logDelete(...., snapshot)`
+  - `logVisibilityChange(entityType, entityId, actor, old, new)`
+  - `logMemberAdd/Remove/RoleChange(memberEntityType, memberId,
+    parentType, parentId, actor, userId, role)`
+- **Где логировать** - в role-overload методе сервиса (где известен
+  actor userId). Legacy-перегрузки без role не пишут audit (используются
+  только в тестах и internal callers). EdgeService - audit в
+  `createEdge(... userId)` legacy потому что родительский путь через
+  userId единственный, не через role
+- **Snapshot - только key fields** (title/content/visibility), не
+  полный entity. Полные snapshots для `nodes.content`/`metadataJson`
+  раздуют jsonb. Для debugging достаточно identifying fields
+- **REST endpoints**:
+  - `GET /api/v1/audit/topics/{id}` - assertCanWrite (только owner +
+    EDITOR, не SHARED/PUBLIC MEMBER)
+  - `GET /api/v1/audit/books/{id}` - assertCanWriteBook
+  - `GET /api/v1/audit/me` - любой authenticated, фильтр по
+    actor=current
+  - `GET /api/v1/audit/admin?entityType=&actorId=&dateFrom=&dateTo=` -
+    ADMIN only через `AdminOnlyException` → 403 forbidden-admin-only
+- **Не покрыто:** admin UI (отложен 22.e/backlog), async logging
+  (через outbox если performance overhead станет ощутимым), retention
+  policy janitor (cron когда audit_log >GB)
 
 ### Транзакции
 

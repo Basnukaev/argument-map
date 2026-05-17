@@ -11,6 +11,89 @@
 
 ---
 
+## 2026-05-18 - Audit log per-entity (Этап 22.d, backend, ADR-043 Amendment 3)
+
+Закрыт долг из 22-го этапа Amendment 2 «audit log отложен в 22.d».
+Параллельно работал frontend subagent над smart edge routing - не
+пересекались (он `frontend/`, я `backend/`)
+
+**Реализовано (7 атомарных коммитов):**
+
+1. **Миграция 39 + domain + repository** - `audit_log` таблица (event-
+   sourcing lite, 1 row per mutation). 4 индекса:
+   `(entity_type, entity_id, created_at DESC)`, partial
+   `(parent_entity_type, parent_entity_id, ...)`, `(actor_user_id, ...)`,
+   `(created_at DESC)`. `AuditLog` record + `AuditEntityType` /
+   `AuditAction` constants (string literals не enum - добавление нового
+   типа не требует миграции). `AuditLogRepository` с `findByEntityPage`
+   / `findByParentOrSelfPage` (UNION self + child для GET /audit/topics)
+   / `findByActorPage` / `findFilteredPage` (admin с
+   entityType/actorId/dateFrom/dateTo, единый `appendAdminFilters`
+   helper - count не разойдётся с list)
+2. **AuditLogService** - synchronous в той же транзакции что и mutation
+   через `@Transactional`. `logCreate/Update/Delete` + специализированные
+   `logVisibilityChange` / `logMemberAdd/Remove/RoleChange`.
+   JSON-сериализация changes через ObjectMapper - если падает, log
+   warning + сохраняем row без changes detail (entity_id/action всё
+   равно фиксируются). `FieldDiff(old, new)` record для UPDATE с
+   per-field diff
+3. **Integration TopicService/NodeService/EdgeService** - 5 mutation
+   точек получили audit. TopicService createTopic пишет 2 entries
+   (TOPIC + root NODE с parent=TOPIC). EdgeService updateEdge - audit
+   в role-overload т.к. legacy без userId
+4. **Integration BookService/QuestionService/AnswerService/Member services** -
+   8 mutation точек. BookMember/TopicMember - audit
+   MEMBER_ADD/REMOVE/ROLE_CHANGE с parent=TOPIC/BOOK. Shamela
+   ETL и TopicImportService используют repositories напрямую - audit
+   bulk-операций не пишется (acceptable, они имеют свой INFO log)
+5. **AuditLogController + DTOs + handlers** - 4 endpoint'а с
+   permission rules. AdminOnlyException → 403 forbidden-admin-only.
+   Username для actor JOIN'ится bulk (один проход по unique IDs на
+   страницу, не N+1). Date-фильтры - ISO-8601 instants
+6. **IT тесты +16** - AuditLogServiceIT (8: sanity persist, FieldDiff
+   round-trip, snapshot DELETE, DESC sort, UNION self+child, actor
+   filter, visibility/member changes) + AuditLogControllerIT (7: owner
+   200, non-owner 403, includes child entities, /me filter, admin 403,
+   admin 200 с filters, admin invalid entity 400) + TopicControllerIT
+   `createTopic_writesAuditEntry` integration test (POST /topics → 2
+   audit rows)
+7. **Docs** - ADR-043 Amendment 3 (event-sourcing rationale + manual
+   logging vs AOP + rejected alternatives) + api-contract.md новая
+   секция «Audit log API» + history entry + glossary «Audit log /
+   AuditEntityType / AuditAction / parentEntity / changes JSON format» +
+   backend/CLAUDE.md дополнение раздела Permissions + roadmap 22.d
+   `[x]` + 22.e добавлен (admin UI + private Q&A + retention janitor)
+
+**Результаты:**
+
+- `./mvnw verify` BUILD SUCCESS, 770 тестов (754 + 16 новых).
+  Одиночный transient MinIO container start fail прошёл на retry,
+  не связан с нашими изменениями
+- Audit пишется synchronous - rollback main flow откатит audit row
+- ADMIN bypass всех endpoints через `UserRole.ADMIN.equals(role)`
+
+**Что отложено:**
+
+- Admin UI для audit (страница `/admin/audit` с фильтрами + таблицей) -
+  22.e или backlog
+- Private Q&A visibility model (если возникнет use-case закрытых
+  учёных групп) - 22.e
+- Async logging через outbox pattern - YAGNI до появления performance
+  overhead
+- Retention policy janitor (cron cleanup >6 месяцев) - до тех пор пока
+  размер audit_log не подскочит до GB
+
+**Smoke-check:**
+
+- `POST /api/v1/topics` создаёт 2 audit_log rows (TOPIC + root NODE)
+  - проверено через TopicControllerIT
+- `GET /api/v1/audit/topics/{id}` возвращает 200 для owner, 403 для
+  non-owner - проверено в AuditLogControllerIT
+- Frontend контракт не сломан (новые endpoints additive, существующие
+  не тронуты)
+
+---
+
 ## 2026-05-18 - Smart edge routing (frontend, backlog → закрыто)
 
 Backlog-задача из «Фронт - общие улучшения» закрыта. Параллельно

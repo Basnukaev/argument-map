@@ -4993,3 +4993,115 @@ lib_book_members + AnswerService/QuestionService author guards
 - **(−)** Audit log для permission changes (кто стал EDITOR / был
   удалён из members / сменил visibility) всё ещё **отложен** - 22.d
 
+### Amendment 3: Audit log per-entity (Этап 22.d)
+**Дата:** 2026-05-18
+**Реализовано:** Сессия 37, миграция 39 + `AuditLogService` +
+`AuditLogController` + integration во все mutation-сервисы
+
+Закрываем долг закрытый Amendment 2 «audit log отложен».
+
+**Архитектура - event-sourcing lite:**
+
+- Каждая mutation (create/update/delete/visibility/member-changes)
+  пишет 1 row в `audit_log` synchronous в той же транзакции что и
+  main flow. Не пытаемся reconstruct'ить state из event log -
+  `audit_log` source of truth только для observability/compliance/
+  debugging
+- Если main flow rollback'нется - audit row тоже откатится. Если
+  audit insert упадёт - rollback всего (acceptable: лучше отказать
+  чем сохранить mutation без audit trail)
+
+**Схема `audit_log` (миграция 39):**
+
+```sql
+CREATE TABLE audit_log (
+    id uuid PRIMARY KEY,
+    entity_type varchar(50),      -- TOPIC/NODE/EDGE/BOOK/QUESTION/ANSWER/
+                                  -- TOPIC_MEMBER/BOOK_MEMBER/*_SOURCE
+    entity_id uuid,
+    parent_entity_type varchar(50) NULL,  -- TOPIC для child node/edge,
+                                          -- BOOK для chapter/page
+    parent_entity_id uuid NULL,
+    action varchar(30),            -- CREATE/UPDATE/DELETE/
+                                   -- VISIBILITY_CHANGE/MEMBER_ADD/
+                                   -- MEMBER_REMOVE/MEMBER_ROLE_CHANGE
+    actor_user_id uuid NOT NULL REFERENCES users(id),
+    changes jsonb,                 -- {field: {old, new}} либо snapshot
+    metadata jsonb,                -- reserved для user_agent/ip
+    created_at timestamptz
+);
+```
+
+Indexes: `(entity_type, entity_id, created_at DESC)`, partial
+`(parent_entity_type, parent_entity_id, created_at DESC) WHERE NOT NULL`,
+`(actor_user_id, created_at DESC)`, `(created_at DESC)`.
+
+**Manual logging (не Spring AOP):**
+
+Каждый mutation-метод в существующих сервисах добавляет 1 явный
+вызов `auditLogService.log*`. Альтернатива - Spring AOP/@Aspect -
+отвергнута: проще debug'ать manual'ные вызовы, не нужно гадать какой
+aspect перехватил какой метод, явный контроль над snapshot/diff'ом.
+
+**REST endpoints:**
+
+- `GET /api/v1/audit/topics/{id}` - audit темы + всех её child
+  entities (nodes/edges/topic_members). `assertCanWrite` - только
+  owner + EDITOR (audit privileged даже на SHARED/PUBLIC)
+- `GET /api/v1/audit/books/{id}` - mirror для книг через
+  `assertCanWriteBook`
+- `GET /api/v1/audit/me` - что я делал, любой authenticated
+- `GET /api/v1/audit/admin?entityType=&actorId=&dateFrom=&dateTo=` -
+  admin-only, требует `UserRole.ADMIN` (новый
+  `AdminOnlyException` → 403 forbidden-admin-only)
+
+Все endpoints возвращают `PagedResponse<AuditLogResponse>` с
+`actorUsername` JOIN'нутым bulk (один проход по uniq actor IDs на
+страницу, не N+1).
+
+**Rejected alternatives:**
+
+- **Async audit** - отвергнуто. Если main flow rollback'ается -
+  async audit запись осталась бы и показывала бы фиктивный CREATE.
+  Synchronous в той же транзакции это решает за счёт малого
+  performance hit (1 extra INSERT в transaction)
+- **Spring AOP / @Auditable annotation** - отвергнуто. AOP скрывает
+  что и куда пишется, сложнее debug'ать; каждое поле в snapshot
+  всё равно надо выбирать руками
+- **Хранить full snapshots для CREATE/DELETE** - только key fields
+  (title, content, visibility). Полный snapshot слишком много места
+  при `nodes.content`/`books.metadataJson` = огромные JSON; для
+  debugging достаточно identifying fields
+- **Audit log retention policy** (cron cleanup older than N months) -
+  **отложено** до накопления реальных данных, сейчас можно вручную
+  через admin SQL. Когда хранилище подскочит - добавим
+  `AuditLogRetentionJanitor` по аналогии с
+  `IntegrityVerificationJob`
+
+**Что не покрыто (admin UI / 22.e):**
+
+REST-endpoints работают, audit пишется, можно curl'ом смотреть. UI
+для admin - отложен до 22.e либо backlog. Frontend сейчас не имеет
+audit-страницы (см. roadmap 22.e или backlog).
+
+**Async logging** - если backend начнёт страдать от performance
+overhead (1 extra INSERT в каждой mutation) - перейти на async
+через outbox pattern (mutation → outbox table → async worker →
+audit_log). Сейчас YAGNI.
+
+**Последствия:**
+
+- **(+)** Закрыт долг security/compliance - кто что когда менял
+  трекается по всем major entities
+- **(+)** debugging incident'ов: «откуда взялась эта тема» / «кто
+  поменял visibility» - смотрим `audit_log` per-entity
+- **(+)** ADMIN получает global view через
+  `GET /api/v1/audit/admin` - можно искать suspicious patterns
+- **(−)** Каждая mutation - extra 1 INSERT, что в high-traffic
+  scenarios может ощущаться. На MVP-нагрузке (десятки
+  RPS) - незначительно
+- **(−)** `audit_log` будет расти без ограничений до тех пор
+  пока retention policy не добавлен. При высоком трафике -
+  GB размер за месяцы. План: cron janitor + retention >
+  6 месяцев когда понадобится
+
