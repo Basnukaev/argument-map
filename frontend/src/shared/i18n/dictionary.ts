@@ -578,6 +578,16 @@ export const DICTIONARY = {
     'graph.export.success': 'Граф экспортирован: {filename}',
     'graph.export.error': 'Не удалось экспортировать граф',
 
+    // layout algorithm switch
+    'layout.menu_label': 'Алгоритм раскладки',
+    'layout.algorithm_label': 'Алгоритм раскладки',
+    'layout.algorithm_dagre': 'Стандартный (dagre)',
+    'layout.algorithm_elk': 'Умный (elkjs)',
+    'layout.algorithm_hint': 'ELK лучше для сложных графов с большим числом рёбер - разводит их вокруг узлов',
+    'layout.applying': 'Раскладка...',
+    'layout.applied': 'Раскладка обновлена',
+    'layout.failed': 'Не удалось пересчитать раскладку',
+
     // form labels (AddEdgeModal)
     'edge.field.from': 'Откуда',
     'edge.field.to': 'Куда',
@@ -1389,6 +1399,15 @@ export const DICTIONARY = {
     'graph.export.svg': 'SVG (متجه)',
     'graph.export.success': 'تم تصدير الرسم: {filename}',
     'graph.export.error': 'تعذّر تصدير الرسم',
+
+    'layout.menu_label': 'خوارزمية التخطيط',
+    'layout.algorithm_label': 'خوارزمية التخطيط',
+    'layout.algorithm_dagre': 'القياسي (dagre)',
+    'layout.algorithm_elk': 'الذكي (elkjs)',
+    'layout.algorithm_hint': 'ELK أفضل للرسوم المعقدة ذات الحواف الكثيرة - يلفّها حول العقد',
+    'layout.applying': 'جارٍ التخطيط...',
+    'layout.applied': 'تم تحديث التخطيط',
+    'layout.failed': 'تعذّر إعادة حساب التخطيط',
 
     'edge.field.from': 'من',
     'edge.field.to': 'إلى',

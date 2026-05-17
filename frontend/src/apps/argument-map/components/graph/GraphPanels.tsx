@@ -12,6 +12,9 @@ import {
   Download,
   FileImage,
   FileCode,
+  Network,
+  Loader2,
+  Check,
 } from 'lucide-react';
 import IconButton from '@/shared/components/ui/IconButton';
 import Kbd from '@/shared/components/ui/Kbd';
@@ -23,6 +26,10 @@ import {
   exportGraphAsSvg,
 } from '@/apps/argument-map/utils/graphExport';
 import { toast } from '@/shared/stores/toastStore';
+import {
+  useLayoutAlgorithmStore,
+  type LayoutAlgorithm,
+} from '@/shared/stores/layoutAlgorithmStore';
 
 interface Props {
   showEdgeLabels: boolean;
@@ -42,6 +49,11 @@ interface Props {
   /** Read-only: скрыть mutating кнопки (Add Node / Add Edge / Delete).
    * Export, zoom, label toggle - всегда доступны. Default true */
   canWrite?: boolean;
+  /** ELK layout сейчас пересчитывается (loading indicator на кнопке) */
+  layoutPending?: boolean;
+  /** Триггер ELK re-layout - вызывается при выборе ELK в layout-menu.
+   * Owner логики - GraphCanvas (там state nodes/edges и rfInstance) */
+  onApplyElkLayout?: () => void | Promise<void>;
 }
 
 /**
@@ -69,11 +81,17 @@ function GraphPanels({
   topicTitle,
   graphContainerRef,
   canWrite = true,
+  layoutPending = false,
+  onApplyElkLayout,
 }: Props) {
   const t = useT();
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [exporting, setExporting] = useState<false | 'png' | 'svg'>(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
+  const layoutMenuRef = useRef<HTMLDivElement>(null);
+  const algorithm = useLayoutAlgorithmStore((s) => s.algorithm);
+  const setAlgorithm = useLayoutAlgorithmStore((s) => s.setAlgorithm);
 
   // Dismiss popover при клике вне меню и при Escape
   useEffect(() => {
@@ -88,6 +106,34 @@ function GraphPanels({
   }, [exportMenuOpen]);
 
   useHotkey('escape', () => setExportMenuOpen(false), { enabled: exportMenuOpen });
+
+  // Layout-menu - тот же паттерн что export: click-outside + Esc dismiss.
+  // Отдельный useEffect (а не общий с export) - state у каждого свой,
+  // listener короче и pointerdown срабатывает только на нужное меню
+  useEffect(() => {
+    if (!layoutMenuOpen) return;
+    function onPointerDown(e: PointerEvent) {
+      if (layoutMenuRef.current && !layoutMenuRef.current.contains(e.target as Node)) {
+        setLayoutMenuOpen(false);
+      }
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [layoutMenuOpen]);
+
+  useHotkey('escape', () => setLayoutMenuOpen(false), { enabled: layoutMenuOpen });
+
+  function pickAlgorithm(next: LayoutAlgorithm) {
+    setLayoutMenuOpen(false);
+    if (next === algorithm) return;
+    setAlgorithm(next);
+    if (next === 'elk' && onApplyElkLayout) {
+      // ELK выбран - триггерим one-shot re-layout. dagre - просто сохраняем
+      // preference в store, действующий layout остаётся пока пользователь
+      // вручную не перетащит узлы или не добавит новых
+      void onApplyElkLayout();
+    }
+  }
 
   async function handleExport(format: 'png' | 'svg') {
     setExportMenuOpen(false);
@@ -154,6 +200,56 @@ function GraphPanels({
           active={showEdgeLabels}
           onClick={onToggleLabels}
         />
+        {/* Layout-algorithm dropdown - тот же паттерн что export-меню.
+           Icon в loading-state крутится пока async ELK пересчитывает */}
+        <div ref={layoutMenuRef} className="relative">
+          <IconButton
+            icon={layoutPending ? Loader2 : Network}
+            label={t('layout.menu_label')}
+            size="md"
+            active={layoutMenuOpen || algorithm === 'elk'}
+            onClick={() => setLayoutMenuOpen((v) => !v)}
+            className={layoutPending ? '[&_svg]:animate-spin' : ''}
+          />
+          {layoutMenuOpen && (
+            <div
+              role="menu"
+              aria-label={t('layout.menu_label')}
+              className="absolute start-full top-0 z-50 ms-2 min-w-64 rounded-md border border-border bg-elevated py-1 shadow-sh3"
+            >
+              <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-500">
+                {t('layout.algorithm_label')}
+              </div>
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={algorithm === 'dagre'}
+                onClick={() => pickAlgorithm('dagre')}
+                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-start text-sm text-ink-700 hover:bg-ink-100"
+              >
+                <span>{t('layout.algorithm_dagre')}</span>
+                {algorithm === 'dagre' && (
+                  <Check size={14} className="shrink-0 text-accent-600" aria-hidden />
+                )}
+              </button>
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={algorithm === 'elk'}
+                onClick={() => pickAlgorithm('elk')}
+                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-start text-sm text-ink-700 hover:bg-ink-100"
+              >
+                <span>{t('layout.algorithm_elk')}</span>
+                {algorithm === 'elk' && (
+                  <Check size={14} className="shrink-0 text-accent-600" aria-hidden />
+                )}
+              </button>
+              <div className="border-t border-border px-3 py-2 text-xs text-ink-500">
+                {t('layout.algorithm_hint')}
+              </div>
+            </div>
+          )}
+        </div>
         <div className="my-1 h-px w-7 bg-ink-200" />
         {/* Export dropdown - кнопка + всплывающее меню справа от toolbar.
            Position relative parent + absolute popover чтобы меню оставалось

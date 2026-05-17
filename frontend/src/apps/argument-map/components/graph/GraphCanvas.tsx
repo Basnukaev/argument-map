@@ -36,6 +36,7 @@ import { apiDeleteRaw, apiPatchRaw, apiPost, ApiError } from '@/shared/api/clien
 import { toast } from '@/shared/stores/toastStore';
 import { useT } from '@/shared/i18n';
 import { useThemeStore } from '@/shared/stores/themeStore';
+import { applyLayout } from '@/apps/argument-map/utils/graphLayout';
 import type { components } from '@/shared/api/types';
 
 type GraphResponse = components['schemas']['GraphResponse'];
@@ -83,6 +84,7 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
   // остаются светлыми на тёмной странице. Berührется effectiveTheme
   // через themeStore - не reactive к смене темы без re-render канваса
   const effectiveTheme = useThemeStore((s) => s.effectiveTheme);
+  const [layoutPending, setLayoutPending] = useState(false);
   const [showEdgeLabels, setShowEdgeLabels] = useState<boolean>(readShowLabels);
 
   useEffect(() => {
@@ -109,6 +111,51 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
   useEffect(() => {
     lastNodesRef.current = nodes;
   }, [nodes]);
+
+  // edges ref - чтобы triggerElkRelayout (useCallback с минимальным deps)
+  // читал свежие edges без пере-создания на каждый edge-change
+  const edgesRef = useRef<CustomEdgeEdge[]>(edges);
+  useEffect(() => {
+    edgesRef.current = edges;
+  }, [edges]);
+
+  // rfInstance ref - rfInstance state declaration ниже (после initial state),
+  // циклические зависимости избегаются через ref. fitView читает свежее
+  // значение в момент callback выполнения
+  const rfInstanceRef = useRef<ReactFlowInstance<NodeCardNode, CustomEdgeEdge> | null>(null);
+
+  // ELK re-layout - one-shot trigger при переключении алгоритма на elk.
+  // НЕ запускается на каждый refetch (т.к. posX/posY уже сохранены и
+  // dagre/layoutGraph их уважает). Вызывается из GraphPanels при click
+  // на ELK в layout-menu. После применения - PATCH'ит новые координаты
+  // на бэк, дальше работает как обычные сохранённые позиции
+  const triggerElkRelayout = useCallback(async () => {
+    if (lastNodesRef.current.length === 0) return;
+    setLayoutPending(true);
+    try {
+      const currentNodes = lastNodesRef.current;
+      const laidOut = await applyLayout(currentNodes, edgesRef.current, 'elk', 'LR');
+      setNodes(laidOut);
+      // PATCH каждый узел с новыми координатами - дальнейшие refetch'и
+      // будут уважать ELK-позиции как обычные сохранённые
+      for (const n of laidOut) {
+        apiPatchRaw(`/api/v1/nodes/${n.id}`, {
+          posX: n.position.x,
+          posY: n.position.y,
+        }).catch(() => {
+          // не блокирующая - при ошибке next toggle перерассчитает
+        });
+      }
+      toast.success(t('layout.applied'));
+      // fitView после layout - иначе ELK может разложить узлы за viewport
+      setTimeout(() => rfInstanceRef.current?.fitView({ padding: 0.15 }), 50);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(`${t('layout.failed')}: ${msg}`);
+    } finally {
+      setLayoutPending(false);
+    }
+  }, [setNodes, t]);
 
   // Узлы из бэка без posX/posY - dagre проставляет им позиции на фронте,
   // но эти позиции живут только в RF-state. Чтобы layout был стабильным
@@ -755,7 +802,10 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
           onConnect={handleConnect}
           onReconnect={handleReconnect}
           onNodeDragStop={handleNodeDragStop}
-          onInit={setRfInstance}
+          onInit={(inst) => {
+            setRfInstance(inst);
+            rfInstanceRef.current = inst;
+          }}
           onPaneContextMenu={handlePaneContextMenu}
           onNodeContextMenu={handleNodeContextMenu}
           onEdgeContextMenu={handleEdgeContextMenu}
@@ -787,6 +837,8 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
             rfInstance={rfInstance as ReactFlowInstance<never, never> | null}
             topicTitle={graph.topic?.title}
             canWrite={canWrite}
+            layoutPending={layoutPending}
+            onApplyElkLayout={triggerElkRelayout}
           />
         </ReactFlow>
       )}
