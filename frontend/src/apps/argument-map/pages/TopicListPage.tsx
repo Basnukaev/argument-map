@@ -25,6 +25,7 @@ import { useT, useFormatDate } from '@/shared/i18n';
 import { toast } from '@/shared/stores/toastStore';
 import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
+import VisibilityBadge from '@/apps/argument-map/components/VisibilityBadge';
 
 type Topic = components['schemas']['TopicResponse'];
 type TopicImportResponse = components['schemas']['TopicImportResponse'];
@@ -305,12 +306,19 @@ function TopicCard({ topic }: TopicCardProps) {
           </button>
         </div>
         <Card.Body>
-          <h2
-            dir="auto"
-            className="line-clamp-2 text-sm font-semibold leading-snug text-ink-900 transition-colors group-hover:text-accent-700"
-          >
-            {title}
-          </h2>
+          <div className="flex items-start justify-between gap-2">
+            <h2
+              dir="auto"
+              className="line-clamp-2 flex-1 text-sm font-semibold leading-snug text-ink-900 transition-colors group-hover:text-accent-700"
+            >
+              {title}
+            </h2>
+            <VisibilityBadge
+              visibility={topic.visibility}
+              compact
+              className="mt-0.5 shrink-0"
+            />
+          </div>
           {topic.description && (
             <p
               dir="auto"
