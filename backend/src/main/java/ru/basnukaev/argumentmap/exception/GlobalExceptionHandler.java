@@ -185,6 +185,28 @@ public class GlobalExceptionHandler {
                 "Невалидный или истёкший токен", "invalid-token", ex.getMessage());
     }
 
+    // ---- permissions (ADR-043, Этап 22) ----
+
+    @ExceptionHandler(TopicAccessDeniedException.class)
+    public ProblemDetail handleTopicAccessDenied(TopicAccessDeniedException ex) {
+        ProblemDetail pd = problem(HttpStatus.FORBIDDEN,
+                "Нет доступа к теме", "forbidden-topic-access",
+                "У вас нет прав на чтение этой темы");
+        pd.setProperty("topicId", ex.getTopicId().toString());
+        pd.setProperty("userId", ex.getUserId().toString());
+        return pd;
+    }
+
+    @ExceptionHandler(TopicWriteAccessDeniedException.class)
+    public ProblemDetail handleTopicWriteAccessDenied(TopicWriteAccessDeniedException ex) {
+        ProblemDetail pd = problem(HttpStatus.FORBIDDEN,
+                "Нет прав на изменение темы", "forbidden-topic-write",
+                "У вас нет прав на запись в эту тему");
+        pd.setProperty("topicId", ex.getTopicId().toString());
+        pd.setProperty("userId", ex.getUserId().toString());
+        return pd;
+    }
+
     @ExceptionHandler(UnsupportedExportFormatException.class)
     public ProblemDetail handleUnsupportedExportFormat(UnsupportedExportFormatException ex) {
         ProblemDetail pd = problem(HttpStatus.UNPROCESSABLE_ENTITY,
