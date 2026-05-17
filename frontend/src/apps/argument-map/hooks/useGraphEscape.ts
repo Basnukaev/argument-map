@@ -27,7 +27,7 @@ export function useGraphEscape({
 }: Params) {
   useHotkey(
     'escape',
-    () => {
+    (e) => {
       // нативный <dialog open> закроется сам (showModal API)
       if (document.querySelector('dialog[open]')) return;
       // ContextMenu имеет свой Esc-обработчик
@@ -38,18 +38,24 @@ export function useGraphEscape({
         active instanceof HTMLElement && active.closest('aside[role="complementary"]');
 
       if (inSidebar && hasDetail) {
+        e.preventDefault();
         onCloseDetail();
         return;
       }
       if (hasSelection) {
+        e.preventDefault();
         onClearSelection();
         return;
       }
       if (hasDetail) {
+        e.preventDefault();
         onCloseDetail();
       }
     },
-    { enableOnFormTags: true },
+    // preventDefault=false критично: иначе native <dialog> showModal не
+    // получит cancel event и не закроется по Esc. preventDefault мы
+    // зовём вручную внутри callback только когда реально обрабатываем
+    { enableOnFormTags: true, preventDefault: false },
     [hasSelection, hasDetail, hasContextMenu, onClearSelection, onCloseDetail],
   );
 }
