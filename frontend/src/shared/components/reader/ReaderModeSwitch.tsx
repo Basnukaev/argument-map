@@ -30,7 +30,7 @@ function ReaderModeSwitch({ mode, onChange }: Props) {
             onClick={() => onChange(o.k)}
             className={`inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors ${
               active
-                ? 'bg-elevated text-ink-900 shadow-[0_1px_2px_rgba(15,23,42,0.06)]'
+                ? 'bg-elevated text-ink-900 shadow-sh2'
                 : 'text-ink-500 hover:text-ink-700'
             }`}
           >

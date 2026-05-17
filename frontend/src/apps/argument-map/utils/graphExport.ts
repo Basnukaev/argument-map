@@ -81,8 +81,22 @@ export function isExcludedFromExport(node: Element): boolean {
 interface ExportOptions {
   /** density-multiplier для PNG: 1=стандарт, 2=retina, 4=print. SVG ignore */
   pixelRatio?: number;
-  /** фон canvas - дефолт white (cleaner для print + screenshot) */
+  /**
+   * фон canvas. Если не передан - читается из CSS variable `--c-bg` на
+   * `<html>`, что автоматически адаптируется под текущую тему (light/dark).
+   * Раньше был хардкод '#ffffff' - dark theme экспортировался на белом
+   * фоне, тёмный текст узлов сливался с background
+   */
   backgroundColor?: string;
+}
+
+/** Считывает effective background для export из CSS var `--c-bg` на <html>.
+ * Fallback на '#ffffff' (light) если var не доступен (SSR / тесты) */
+function readThemeBackground(): string {
+  if (typeof window === 'undefined') return '#ffffff';
+  const styles = window.getComputedStyle(document.documentElement);
+  const bg = styles.getPropertyValue('--c-bg').trim();
+  return bg || '#ffffff';
 }
 
 /** Триггерит браузерный download через программный клик по `<a download>`.
@@ -104,7 +118,7 @@ export async function exportGraphAsPng(
   options: ExportOptions = {},
 ): Promise<void> {
   const dataUrl = await toPng(graphElement, {
-    backgroundColor: options.backgroundColor ?? '#ffffff',
+    backgroundColor: options.backgroundColor ?? readThemeBackground(),
     pixelRatio: options.pixelRatio ?? 2,
     filter: (node) => !isExcludedFromExport(node),
   });
@@ -117,7 +131,7 @@ export async function exportGraphAsSvg(
   options: ExportOptions = {},
 ): Promise<void> {
   const dataUrl = await toSvg(graphElement, {
-    backgroundColor: options.backgroundColor ?? '#ffffff',
+    backgroundColor: options.backgroundColor ?? readThemeBackground(),
     filter: (node) => !isExcludedFromExport(node),
   });
   triggerDownload(dataUrl, filename);

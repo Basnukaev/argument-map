@@ -47,7 +47,7 @@
 }
 
 /* Dark mode adjustments - peach контрастнее на тёмном фоне */
-@media (prefers-color-scheme: dark) {
+[data-theme='dark'] {
   .hadith-box {
     background: rgb(127 29 29 / 0.2);
     border-color: rgb(185 28 28);
@@ -95,7 +95,7 @@
 /* В RTL ornament-скобки тоже выглядят корректно - они симметричны
    арабской письменности, специальный mirror не нужен */
 
-@media (prefers-color-scheme: dark) {
+[data-theme='dark'] {
   .ayah-box {
     background: rgb(120 53 15 / 0.2); /* amber-900 dim */
     border-color: rgb(217 119 6); /* amber-600 */
@@ -137,7 +137,7 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
+[data-theme='dark'] {
   .marginalia {
     color: rgb(203 213 225); /* slate-300 */
     background: rgb(15 23 42 / 0.5); /* slate-900 */
@@ -166,7 +166,7 @@
   content: '[' counter(footnote) ']';
 }
 
-@media (prefers-color-scheme: dark) {
+[data-theme='dark'] {
   .footnote-ref {
     color: rgb(96 165 250); /* blue-400 */
   }
@@ -199,7 +199,7 @@
   color: rgb(126 34 206); /* purple-700 */
 }
 
-@media (prefers-color-scheme: dark) {
+[data-theme='dark'] {
   .color-highlight-red {
     color: rgb(248 113 113); /* red-400 */
   }
@@ -296,7 +296,7 @@ h4.decorated-heading {
   line-height: 1.5;
 }
 
-@media (prefers-color-scheme: dark) {
+[data-theme='dark'] {
   .decorated-heading {
     color: rgb(229 231 235); /* gray-200 */
   }
@@ -325,7 +325,7 @@ h4.decorated-heading {
   content: '⟦' attr(data-number) '⟧';
 }
 
-@media (prefers-color-scheme: dark) {
+[data-theme='dark'] {
   .page-number {
     color: rgb(156 163 175); /* gray-400 */
   }

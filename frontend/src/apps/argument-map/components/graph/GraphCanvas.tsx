@@ -35,6 +35,7 @@ import { buildFlow, findFreePosition, sameIds } from '@/apps/argument-map/utils/
 import { apiDeleteRaw, apiPatchRaw, apiPost, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useT } from '@/shared/i18n';
+import { useThemeStore } from '@/shared/stores/themeStore';
 import type { components } from '@/shared/api/types';
 
 type GraphResponse = components['schemas']['GraphResponse'];
@@ -70,6 +71,11 @@ function readShowLabels(): boolean {
  */
 function GraphCanvas({ graph, topicId, onRefetch }: Props) {
   const t = useT();
+  // React Flow `colorMode` prop переключает CSS-vars пакета (controls,
+  // background dots, attribution) под light/dark. Без него controls
+  // остаются светлыми на тёмной странице. Berührется effectiveTheme
+  // через themeStore - не reactive к смене темы без re-render канваса
+  const effectiveTheme = useThemeStore((s) => s.effectiveTheme);
   const [showEdgeLabels, setShowEdgeLabels] = useState<boolean>(readShowLabels);
 
   useEffect(() => {
@@ -746,6 +752,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
           maxZoom={1.5}
           elevateNodesOnSelect={false}
           elevateEdgesOnSelect={false}
+          colorMode={effectiveTheme}
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={24} size={1} />
