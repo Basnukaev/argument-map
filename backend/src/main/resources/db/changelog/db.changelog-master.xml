@@ -38,5 +38,6 @@
     <include file="db/changelog/changes/20260516-31-create-answer-sources-table.xml"/>
     <include file="db/changelog/changes/20260517-32-extend-users-for-auth.xml"/>
     <include file="db/changelog/changes/20260517-33-page-formatted-content.xml"/>
+    <include file="db/changelog/changes/20260517-34-image-scans-fields.xml"/>
 
 </databaseChangeLog>

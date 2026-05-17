@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260517-34-image-scans-fields" author="Abdula Basnukaev">
+        <comment>
+            Этап 17.a/b - image-сканы страниц + OCR pipeline (ADR-041).
+
+            Дополняем lib_pages 6 nullable колонками для хранения метаданных
+            uploaded скана + OCR state machine:
+
+              image_bucket / image_storage_key / image_uploaded_at -
+                координаты файла в MinIO bucket `library-page-images`.
+                Сам blob не дублируется в БД - только pointer.
+
+              ocr_status - state machine PENDING -> PROCESSING -> DONE/FAILED.
+                NULL = ещё не запускали (страница без image либо PDF-imported).
+                CHECK constraint enforces валидные значения.
+
+              ocr_started_at / ocr_completed_at - timestamps для observability
+                (latency analysis + cron retry для зависших PROCESSING).
+
+            Никакой data migration для existing страниц - все колонки nullable,
+            старые page rows получают NULL без изменений. Существующее поле
+            text_content остаётся - после успешного OCR туда пишется
+            распознанный текст (overwrite если был).
+
+            Существующий CHECK lib_pages_content_present (text_content OR
+            image_url IS NOT NULL) - не трогаем. Image-only страница до OCR
+            требует image_url - наполняется PageImageService через
+            relative URL `s3://bucket/key` либо null, тогда обязателен
+            text_content. ImagePageRenderer (18.e) рендерит по image_bucket/
+            key через signed URL endpoint.
+        </comment>
+        <sql>
+            ALTER TABLE lib_pages
+                ADD COLUMN image_bucket       VARCHAR(100) NULL,
+                ADD COLUMN image_storage_key  VARCHAR(500) NULL,
+                ADD COLUMN image_uploaded_at  TIMESTAMPTZ NULL,
+                ADD COLUMN ocr_status         VARCHAR(20)  NULL
+                    CHECK (ocr_status IN ('PENDING', 'PROCESSING', 'DONE', 'FAILED')),
+                ADD COLUMN ocr_started_at     TIMESTAMPTZ NULL,
+                ADD COLUMN ocr_completed_at   TIMESTAMPTZ NULL;
+
+            CREATE INDEX idx_lib_pages_ocr_status ON lib_pages(ocr_status)
+                WHERE ocr_status IS NOT NULL;
+        </sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_lib_pages_ocr_status;
+                ALTER TABLE lib_pages
+                    DROP COLUMN ocr_completed_at,
+                    DROP COLUMN ocr_started_at,
+                    DROP COLUMN ocr_status,
+                    DROP COLUMN image_uploaded_at,
+                    DROP COLUMN image_storage_key,
+                    DROP COLUMN image_bucket;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
