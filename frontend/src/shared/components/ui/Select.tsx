@@ -25,9 +25,10 @@ interface Props {
   dir?: 'rtl' | 'ltr';
   /** Минимальная ширина menu в px (по умолчанию = trigger width) */
   menuMinWidth?: number;
-  /** Сколько опций показывать без scrollbar. >: dropdown получает max-h
-   * + overflow-y-auto. ≤: без max-h, без scrollbar (опции уместаются).
-   * По умолчанию 12 - для большинства dropdown'ов (тома, фильтры) хватает */
+  /** Hint - после Сессии 39 dropdown всегда получает CSS-only `max-h:
+   * min(16rem, 50vh)` чтобы корректно скроллиться на любом viewport.
+   * Prop остался для совместимости и как data-attribute (тесты могут
+   * проверять желаемый count). По умолчанию 12 */
   maxVisibleItems?: number;
 }
 
@@ -120,8 +121,14 @@ function Select({
         <ul
           ref={menuRef}
           role="listbox"
-          className={`absolute inset-x-0 z-40 mt-1.5 rounded-md border border-border bg-elevated py-1 shadow-sh3 ${options.length > maxVisibleItems ? 'max-h-64 overflow-y-auto' : ''}`}
+          // max-h использует `min(16rem, 50vh)` - на desktop стандартный
+          // 16rem (256px) ≈ 12 опций ×~22px. На mobile / коротком viewport
+          // 50vh не даёт menu вылезти за экран. overflow-y-auto всегда
+          // активен - cheaper чем conditional class, browsers handle гладко
+          // (scrollbar appearance только при реальном overflow)
+          className="absolute inset-x-0 z-40 mt-1.5 max-h-[min(16rem,50vh)] overflow-y-auto rounded-md border border-border bg-elevated py-1 shadow-sh3"
           style={{ minWidth: menuMinWidth ?? undefined }}
+          data-max-visible={maxVisibleItems}
         >
           {options.map((o) => {
             const isSelected = o.value === value;
