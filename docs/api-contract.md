@@ -982,7 +982,7 @@ Request body:
 - `description` (optional, ≤5000): короткое описание
 - `metadata` (optional): произвольный JSON для тип-специфики
 
-Response 201, body - полный `BookResponse`:
+Response 201, body - полный `BookResponse` (ADR-043 Amendment добавил `visibility`):
 ```json
 {
   "id": "...",
@@ -994,10 +994,18 @@ Response 201, body - полный `BookResponse`:
   "metadata": { ... },
   "createdBy": "uuid-of-user",
   "createdAt": "ISO-8601",
-  "updatedAt": "ISO-8601"
+  "updatedAt": "ISO-8601",
+  "visibility": "PUBLIC"
 }
 ```
 Header `Location: /api/v1/library/books/{id}`.
+
+**visibility** (ADR-043 Amendment, Этап 22.c):
+- REST POST устанавливает `PUBLIC` по умолчанию (open library)
+- File-import flow (`POST /api/v1/library/imports/file`) -
+  устанавливает `PRIVATE` (user-upload черновики приватны)
+- Сменить можно через `PATCH /api/v1/library/books/{id}/visibility`
+  (только owner / ADMIN)
 
 Ошибки:
 - 400 `validation` - blank title, missing bookType, bad metadata JSON
@@ -1005,6 +1013,8 @@ Header `Location: /api/v1/library/books/{id}`.
 - 404 `authority-not-found` - `authorityId` указан, но запись отсутствует
 
 ### GET /api/v1/library/books - пагинированный список
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно с 22.c для visibility-фильтра)
 
 Query:
 - `q` (optional, ILIKE по title)
@@ -1015,8 +1025,11 @@ Query:
 
 Сортировка: `created_at DESC` (новые сверху).
 
+**Visibility-фильтр** (ADR-043 Amendment): user видит PUBLIC + свои
+PRIVATE + SHARED где он member. ADMIN видит все.
+
 Response 200 - `PagedResponse<BookSummary>` (без description, metadata,
-createdBy, updatedAt - они в детальном GET):
+createdBy, updatedAt - они в детальном GET; включает `visibility`):
 ```json
 {
   "items": [
@@ -1026,7 +1039,8 @@ createdBy, updatedAt - они в детальном GET):
       "title": "Священный Коран",
       "authorityId": null,
       "language": "ar",
-      "createdAt": "..."
+      "createdAt": "...",
+      "visibility": "PUBLIC"
     }
   ],
   "page": 0, "size": 20, "totalElements": 42, "totalPages": 3,
@@ -1113,8 +1127,112 @@ PATCH-семантика:
 Ответ `200 OK`: full `BookDetailResponse` с обновлёнными nested
 `muhaqqiq`/`publisher`/`publicationPlace` refs.
 
+**Заголовки:** `X-User-Id: <uuid>` (обязательно с 22.c для permission check)
+
 Ошибки:
 - `404 book-not-found` - книга не существует
+- `403 forbidden-book-write` - не owner / EDITOR / ADMIN (ADR-043 Amendment)
+
+### PATCH /api/v1/library/books/{id}/visibility - сменить visibility (22.c)
+
+Меняет уровень доступа книги (ADR-043 Amendment). **Только owner или
+ADMIN** - EDITOR этого не может (privilege-escalation).
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+Тело запроса (`UpdateBookVisibilityRequest`):
+```json
+{ "visibility": "SHARED" }
+```
+Allowed values: `PRIVATE` / `SHARED` / `PUBLIC`.
+
+Ответ `200 OK`: full `BookResponse` с обновлённым `visibility`.
+
+Ошибки:
+- `400 validation` - invalid value
+- `403 forbidden-book-write` - не owner и не ADMIN
+- `404 book-not-found`
+
+### POST /api/v1/library/books/{bookId}/members - добавить члена (22.c)
+
+Добавить user как `MEMBER` или `EDITOR` SHARED-книги (ADR-043 Amendment).
+**Только owner или ADMIN** (privilege-escalation guard).
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+Тело запроса (`AddBookMemberRequest`):
+```json
+{
+  "userId": "uuid-of-collaborator",
+  "role": "MEMBER"
+}
+```
+- `userId` (required UUID): user который добавляется
+- `role` (required): `MEMBER` (read-only) | `EDITOR` (read + write
+  PATCH metadata)
+
+Ответ `201 Created`, `BookMemberResponse`:
+```json
+{
+  "id": "...",
+  "bookId": "...",
+  "userId": "...",
+  "role": "MEMBER",
+  "addedAt": "ISO-8601",
+  "addedBy": "uuid-of-owner"
+}
+```
+Header `Location: /api/v1/library/books/{bookId}/members/{memberId}`.
+
+Ошибки:
+- `400 validation` - invalid role / missing userId
+- `400 illegal-argument` - owner добавляет сам себя; user уже member
+  (UNIQUE constraint)
+- `403 forbidden-book-write` - не owner и не ADMIN
+- `404 book-not-found`
+
+### GET /api/v1/library/books/{bookId}/members - список членов (22.c)
+
+Все члены книги. Видеть могут все кто имеет read-доступ к книге.
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+Ответ `200 OK`: `BookMemberResponse[]` (sorted by `addedAt`).
+
+Ошибки:
+- `403 forbidden-book-access` - нет read-доступа к книге
+- `404 book-not-found`
+
+### PATCH /api/v1/library/books/{bookId}/members/{memberId} - сменить роль (22.c)
+
+**Только owner или ADMIN**.
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+Тело запроса (`UpdateBookMemberRequest`):
+```json
+{ "role": "EDITOR" }
+```
+
+Ответ `200 OK`: обновлённый `BookMemberResponse`.
+
+Ошибки:
+- `400 validation` - invalid role
+- `403 forbidden-book-write` - не owner и не ADMIN
+- `404 book-not-found` или `book-member-not-found`
+
+### DELETE /api/v1/library/books/{bookId}/members/{memberId} - удалить члена (22.c)
+
+**Owner или ADMIN** могут удалить любого. **MEMBER** может удалить
+только себя (self-leave).
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+Ответ `204 No Content`.
+
+Ошибки:
+- `403 forbidden-book-write` - не self-leave и не owner/ADMIN
+- `404 book-not-found` или `book-member-not-found`
 
 ### GET /api/v1/library/muhaqqiqs?q={query}&limit={n} - autocomplete (20.d)
 
@@ -1141,9 +1259,14 @@ Search мухаккиков по подстроке имени (case-insensitive
 
 ### DELETE /api/v1/library/books/{id} - удалить книгу
 
-Каскад через FK на `lib_chapters`/`lib_pages`/`lib_image_regions`.
+Каскад через FK на `lib_chapters`/`lib_pages`/`lib_image_regions` +
+`lib_book_members`. **Только owner или ADMIN** (ADR-043 Amendment) -
+EDITOR этого не может.
 
-Response 204 (success), 404 `book-not-found`.
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+Response 204 (success), 404 `book-not-found`, 403 `forbidden-book-write`
+если не owner и не ADMIN.
 
 ### GET /api/v1/library/books/{bookId}/pages?from={N}&to={M} - страницы
 
@@ -2028,6 +2151,11 @@ Detail вопроса. Ошибка `404 question-not-found`.
 Partial update title/body/status. `null` поля = no change. Валидация
 размеров та же что в Create.
 
+**Заголовки:** `X-User-Id: <uuid>` (обязательно с 22.c для author/admin guard)
+
+**Permission** (ADR-043 Amendment, Этап 22.c): только автор вопроса
+(`askedBy`) или ADMIN могут редактировать.
+
 Тело (`UpdateQuestionRequest`, все optional):
 ```json
 {
@@ -2039,10 +2167,23 @@ Partial update title/body/status. `null` поля = no change. Валидаци�
 
 Ответ `200 OK` - обновлённый `QuestionResponse`.
 
+Ошибки:
+- `403 forbidden-question-write` - не автор и не ADMIN
+- `404 question-not-found`
+
 ### DELETE /api/v1/questions/{id}
 
-Hard delete (MVP без soft delete + audit). Ответ `204 No Content`.
-Ошибка `404 question-not-found`.
+Hard delete (MVP без soft delete + audit).
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+**Permission** (ADR-043 Amendment): только автор или ADMIN.
+
+Ответ `204 No Content`.
+
+Ошибки:
+- `403 forbidden-question-write` - не автор и не ADMIN
+- `404 question-not-found`
 
 ### POST /api/v1/questions/{questionId}/citations - привязать positional citation (19.b)
 
@@ -2146,6 +2287,11 @@ question.acceptedAnswerId`. На новом ответе всегда `false`.
 
 ### PATCH /api/v1/answers/{answerId} - редактировать ответ
 
+**Заголовки:** `X-User-Id: <uuid>` (обязательно с 22.c)
+
+**Permission** (ADR-043 Amendment, Этап 22.c): только автор ответа
+(`authorId`) или ADMIN могут редактировать.
+
 Тело (`UpdateAnswerRequest`): только `body` обязателен (NotBlank,
 до 10000).
 
@@ -2154,10 +2300,17 @@ question.acceptedAnswerId`. На новом ответе всегда `false`.
 Ошибки:
 - `404 answer-not-found`
 - `400` - body пустой
+- `403 forbidden-answer-write` - не автор и не ADMIN
 
 ### DELETE /api/v1/answers/{answerId} - удалить ответ
 
-Ответ `204 No Content`. Ошибка `404 answer-not-found`.
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+**Permission** (ADR-043 Amendment): только автор или ADMIN.
+
+Ответ `204 No Content`. Ошибки:
+- `404 answer-not-found`
+- `403 forbidden-answer-write` - не автор и не ADMIN
 
 ### POST /api/v1/questions/{questionId}/accepted-answer/{answerId}
 
@@ -2379,6 +2532,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-18 | v1 | Этап 22.c - RBAC permissions per-entity для library books + Q&A guards (ADR-043 Amendment). Миграция 37 ALTER `lib_books` добавляет колонку `visibility VARCHAR(20) NOT NULL DEFAULT 'PUBLIC'` (CHECK PRIVATE/SHARED/PUBLIC, в отличие от topics с default PRIVATE - books default PUBLIC для open library); 2 индекса (`visibility`, `created_by+visibility`); новая таблица `lib_book_members` (структура mirror `topic_members`: id, book_id FK CASCADE, user_id FK CASCADE, role CHECK MEMBER/EDITOR, added_at, added_by, UNIQUE book+user). **Breaking semantic change для library books**: GET endpoints у `/library/books` теперь требуют X-User-Id (visibility-фильтр в SQL: PUBLIC OR created_by=? OR (SHARED AND EXISTS lib_book_members)); GET `/library/books/{id}` возвращает 403 `forbidden-book-access` для PRIVATE чужого user'а; DELETE/PATCH книги возвращает 403 `forbidden-book-write` если не owner/EDITOR/ADMIN. `BookResponse`/`BookSummaryResponse`/`BookDetailResponse` расширены полем `visibility: PRIVATE\|SHARED\|PUBLIC`. **POST `/library/books` (REST) устанавливает visibility=PUBLIC по умолчанию**, **POST `/library/imports/file` (PDF upload) устанавливает PRIVATE** (user-uploads приватны). 5 новых book endpoint: `PATCH /api/v1/library/books/{id}/visibility` (UpdateBookVisibilityRequest, owner only); `POST /api/v1/library/books/{id}/members` (AddBookMemberRequest{userId, role}, owner only, 201); `GET /api/v1/library/books/{id}/members` (BookMemberResponse[], requires read access); `PATCH /api/v1/library/books/{id}/members/{memberId}` (UpdateBookMemberRequest{role}, owner only); `DELETE /api/v1/library/books/{id}/members/{memberId}` (owner или self-leave). **Q&A guards**: PATCH/DELETE `/api/v1/questions/{id}` и PATCH/DELETE `/api/v1/answers/{id}` теперь требуют X-User-Id (author check) и возвращают 403 `forbidden-question-write` / `forbidden-answer-write` если actor не автор и не ADMIN. Visibility-модель для questions/answers НЕ добавляется (open discussion semantics). Новые ошибки: `403 forbidden-book-access`/`forbidden-book-write` (с bookId/userId в properties), `404 book-member-not-found`, `403 forbidden-question-write`/`forbidden-answer-write` | ADR-043 Amendment: extend visibility/members pattern на books (тот же 3-уровневый model с PUBLIC-default), Q&A через author guards без visibility model. Rejected: default PRIVATE для books (shamela ETL ожидает massive batch видимым сразу), shared `topic_members` для books (нарушает separation), полный visibility для questions (over-engineering для public discussion). Audit log отложен в 22.d |
 | 2026-05-18 | v1 | Pagination + filters для всех GET-list endpoints. **Breaking change**: `GET /api/v1/sources`, `/authorities`, `/topics`, `/library/books`, `/questions` теперь возвращают `PagedResponse<T>{items, page, size, totalElements, totalPages, hasNext, hasPrev}` вместо raw array. Default `page=0&size=20`, max `size=100` (значения сверху clamps до 100). Новые фильтры: **sources** `?type=` (whitelist QURAN/HADITH/BOOK/ARTICLE/URL) + `?reliability=` (whitelist SAHIH/HASAN/DAIF, допустим только при type=HADITH иначе 400 illegal-argument); **authorities** `?era=` (свободный текст exact match); **topics** `?visibility=` (whitelist PRIVATE/SHARED/PUBLIC внутри set'а уже видимых ADR-043); **library/books** `?authorityId=` + `?publisherId=` (UUID FK фильтры); **questions** - `?status=` уже было, добавлена только pagination. Helper'ы `PagedResponse<T>.of()` + `PageRequest.from()` в `web.dto`. Repository паттерн: `findPage(...) + countFiltered(...)` с общим `appendFilters()` helper для одного источника истины WHERE clause. Сортировка единая по умолчанию `created_at DESC` (новые сверху) кроме authorities (`name ASC` для исторического порядка справочника). Старый `findAll` сохранён где используется internal callers (TopicImportService, shamela ETL). Существующие 11 list-related IT обновлены на `$.items`, добавлено 14 новых IT (pagination, filters, invalid combos). Total backend tests 701/701 pass | Backlog task созрел - справочники растут. Hardcoded array выдавал бы все sources/authorities на каждом GET. Memory `feedback_no_prod_no_backward_compat` - ломаем raw-array contract смело, frontend обновляем в той же сессии (минимально 1 page как smoke, остальные в backlog) |
 | 2026-05-17 | v1 | Этап 22 - RBAC permissions per-entity (ADR-043). Миграция 36 ALTER `topics` добавляет колонку `visibility VARCHAR(20) NOT NULL DEFAULT 'PRIVATE'` (CHECK PRIVATE/SHARED/PUBLIC) + 2 индекса; новая таблица `topic_members` (id, topic_id FK CASCADE, user_id FK CASCADE, role CHECK MEMBER/EDITOR, added_at, added_by, UNIQUE topic+user). **Breaking semantic change**: GET endpoints у topics теперь требуют X-User-Id даже на read - visibility check возвращает 403 `forbidden-topic-access` для приватных тем чужого user'а; список `GET /api/v1/topics` фильтруется по UNION (own + shared-member + public). DELETE темы возвращает 403 `forbidden-topic-write` если не owner/ADMIN (раньше любой мог удалять). `TopicResponse` расширен полем `visibility: PRIVATE|SHARED|PUBLIC`. `CreateTopicRequest` принимает опциональное `visibility` (default PRIVATE). 5 новых endpoint: `PATCH /api/v1/topics/{id}/visibility` (UpdateTopicVisibilityRequest, owner only); `POST /api/v1/topics/{id}/members` (AddTopicMemberRequest{userId, role}, owner only, 201); `GET /api/v1/topics/{id}/members` (TopicMemberResponse[], requires read access); `PATCH /api/v1/topics/{id}/members/{memberId}` (UpdateTopicMemberRequest{role}, owner only); `DELETE /api/v1/topics/{id}/members/{memberId}` (owner или self-leave). Новые ошибки: `403 forbidden-topic-access`, `403 forbidden-topic-write` (с topicId/userId в properties), `404 topic-member-not-found`. ADMIN role (из ADR-040) bypass всех visibility checks. NodeController/EdgeController endpoints DELETE/PATCH/GET тоже требуют @CurrentUser для permission check на parent topic | ADR-043: hybrid visibility-модель (3 уровня) + topic_members M:N для co-editing. Rejected: полный RBAC (over-engineering), org/team ownership (нет user-base), per-action permissions (избыточная гранулярность). MVP scope - только topics; library books / Q&A questions добавятся отдельной миграцией если понадобится. Audit log отложен |
 | 2026-05-17 | v1 | Этап 17.e - AI editing pass backend (ADR-042). Миграция 35 ALTER `lib_pages` добавляет 3 nullable колонки: `ai_edit_status` (CHECK PENDING/PROCESSING/DONE/FAILED) + `ai_edit_started_at`/`ai_edit_completed_at` + partial index по status WHERE NOT NULL. **2 новых endpoint'a**: `POST /api/v1/library/pages/{pageId}/ai-edit` (триггер async через Anthropic Claude, returns 202 `AiEditJobResponse{pageId, status, startedAt, completedAt, hasTextContent}`); `GET /api/v1/library/pages/{pageId}/ai-edit` (polling). Pre-flight check `AnthropicClient.isEnabled()` - если `ANTHROPIC_API_KEY=disabled` (default) → 503 `ai-edit-not-configured` синхронно вместо background FAILED. Успешный AI edit пишет ProseMirror JSON в существующую `lib_pages.formatted_content` (миграция 33). Новые ошибки: 503 `ai-edit-not-configured` (config), 502/503 `anthropic-api-error` (upstream Anthropic non-2xx либо IO). AiEditService через `@Async("aiEditTaskExecutor")` (core=2, max=4, queue=50). Resilience4j Retry instance `anthropicApi` (3 attempts, exponential backoff). Prompt template в `resources/prompts/ai-edit-tahqiq.txt` - few-shot examples + правила распознавания (hadith/ayah/heading/footnote/colorHighlight). Frontend UI кнопка отложена | ADR-042: Anthropic Claude single-provider MVP. Rejected: OpenAI (слабее arabic), Gemini (no JSON guarantee + lock-in), local LLM (heavy GPU), HF API (rate limits), Anthropic Java SDK (heavy dep). Triggers revisit: cost/quality/privacy/availability |

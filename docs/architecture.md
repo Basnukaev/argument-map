@@ -436,11 +436,12 @@ Permissions ниже (ADR-043).
 Refresh token rotation - **no** в MVP (см. ADR-040 «Открытые вопросы»).
 Refresh blacklist - **no** в MVP. Multiple sessions per user - допустимо.
 
-## Permissions / Visibility model (Этап 22, ADR-043)
+## Permissions / Visibility model (Этап 22 + 22.c, ADR-043 + Amendment)
 
-Per-entity authorization для topics. Hybrid model: visibility-enum в
-БД + M:N таблица членов для co-editing. Library books / Q&A questions
-сейчас не permission-controlled (откладывается до явного use-case).
+Per-entity authorization для topics и library books. Hybrid model:
+visibility-enum в БД + M:N таблица членов для co-editing. Q&A
+questions/answers - open discussion + author/admin guards (без
+visibility model).
 
 **Топология данных:**
 
@@ -503,8 +504,48 @@ topics                                  topic_members
 - `PATCH /api/v1/topics/{id}/visibility` (owner)
 - `POST/GET/PATCH/DELETE /api/v1/topics/{id}/members[/...]`
 
-**Что отложено** (Этап 22.b/c/d):
+**Что отложено** (Этап 22.d):
 
-- frontend UI - radio visibility + members sub-modal
-- RBAC на library books / Q&A questions - повтор паттерна когда понадобится
+- frontend UI для book members + visibility (зеркало 22.b
+  TopicMembersModal/VisibilityRadioGroup для books)
+- private Q&A (visibility model для questions/answers если возникнет
+  use-case закрытых учёных групп)
 - audit log (кто что менял когда + permission changes) - отдельная таблица
+
+### Library books (ADR-043 Amendment, Этап 22.c)
+
+Та же модель как topics с одним отличием:
+
+| Аспект | Topics | Library books |
+|--------|--------|---------------|
+| Default visibility | **PRIVATE** | **PUBLIC** (open library) |
+| Таблица членов | `topic_members` | `lib_book_members` |
+| Owner column | `topics.created_by` | `lib_books.created_by` (уже NOT NULL с миграции 16) |
+| Service | `TopicMemberService` | `BookMemberService` |
+| Exception типы | `Topic*` (403 forbidden-topic-*) | `Book*` (403 forbidden-book-*) |
+
+Default PUBLIC для books - shamela ETL загружает книги в batch и user
+ожидает увидеть их сразу. Новые user-uploads через
+`FileImportService.importPdf` → **PRIVATE** (user черновики приватны).
+
+REST endpoints mirror topics:
+- `GET/POST/PATCH/DELETE /api/v1/library/books/{id}` - все требуют
+  X-User-Id для permission check
+- `PATCH /api/v1/library/books/{id}/visibility` (owner only)
+- `POST/GET/PATCH/DELETE /api/v1/library/books/{id}/members[/...]`
+
+### Q&A author/admin guards (ADR-043 Amendment, Этап 22.c)
+
+Questions/answers - **открытая дискуссия** (видны всем authenticated,
+visibility model не добавляется). Mutating операции защищены только
+guards в Service-слое:
+
+- `QuestionService.updateQuestion/deleteQuestion(.., userId, role)` -
+  автор (asked_by) или ADMIN
+- `AnswerService.updateAnswer/deleteAnswer(.., userId, role)` -
+  автор (author_id) или ADMIN
+- 403 `forbidden-question-write` / `forbidden-answer-write` если не
+  автор и не ADMIN
+
+Когда понадобится private Q&A (закрытые группы учёных) - расширим
+отдельной миграцией по тому же visibility/members паттерну (22.d).

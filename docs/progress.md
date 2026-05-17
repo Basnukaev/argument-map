@@ -11,6 +11,92 @@
 
 ---
 
+## 2026-05-18 - Этап 22.c RBAC extension: library books + Q&A guards
+
+Расширил ADR-043 RBAC permissions per-entity (Этап 22.a-b - topics) на
+library books и Q&A. Параллельно с frontend pagination fix subagent'ом.
+
+**Реализовано (8 атомарных коммитов):**
+
+1. **Миграция 37** - `lib_books.visibility VARCHAR(20) NOT NULL DEFAULT
+   'PUBLIC'` + CHECK constraint + 2 индекса; новая таблица
+   `lib_book_members` (mirror `topic_members`: id, book_id FK CASCADE,
+   user_id FK CASCADE, role MEMBER/EDITOR, added_at, added_by, UNIQUE
+   book+user). Default PUBLIC (в отличие от topics PRIVATE) сохраняет
+   open library для shamela imports
+2. **Book domain extension** - `Book` record + `visibility String`,
+   `BookMember` record, `BookVisibility` / `BookMemberRole` константы,
+   `BookMemberRepository` (JDBC + 9 методов)
+3. **PermissionService extension** - `canReadBook` / `canWriteBook` /
+   `isBookOwner` + `assertCanReadBook` / `assertCanWriteBook` /
+   `assertIsBookOwner`. Те же исключения паттерн что у topics:
+   `BookAccessDeniedException` (403 forbidden-book-access),
+   `BookWriteAccessDeniedException` (403 forbidden-book-write),
+   `BookMemberNotFoundException` (404 book-member-not-found). ADMIN bypass
+4. **BookService permission integration** - перегрузки с `(userId, role)`:
+   `getBookWithChapters`, `deleteBook`, `updateVisibility`,
+   `updateAcademicMetadata`. Новый `listVisibleBooksPage` +
+   `countVisibleBooks`. `BookRepository.findVisibleToUserPage` SQL UNION
+   паттерн (PUBLIC OR created_by=? OR SHARED+EXISTS lib_book_members).
+   `FileImportService.importPdf` теперь ставит **PRIVATE** для user-
+   uploads (REST POST через BookController остаётся PUBLIC по умолчанию)
+5. **BookMemberController + REST endpoints** -
+   `POST/GET/PATCH/DELETE /api/v1/library/books/{id}/members` (mirror
+   TopicMemberController). DTO: `AddBookMemberRequest`,
+   `UpdateBookMemberRequest`, `BookMemberResponse`,
+   `UpdateBookVisibilityRequest`. BookController расширен `PATCH
+   /books/{id}/visibility` и permission-checking всех existing endpoints
+6. **Q&A author/admin guards** - `AnswerService` новые перегрузки
+   `updateAnswer/deleteAnswer(id, body, actorUserId, actorRole)` -
+   автор или ADMIN. `QuestionService` аналогично. `AnswerController` /
+   `QuestionController` PATCH/DELETE используют новые guards через
+   `SecurityContextUtils.currentRole()`. Visibility model для Q&A НЕ
+   добавлена (open discussion - все могут читать). Exceptions:
+   `AnswerWriteAccessDeniedException` / `QuestionWriteAccessDeniedException`
+   → 403 forbidden-{answer|question}-write
+7. **IT покрытие** - новые: `PermissionServiceBookIT` (13 тестов vis
+   matrix), `BookMemberControllerIT` (10 REST + auth), `AnswerControllerIT`
+   (5 author/admin guards). Обновлены `QuestionControllerIT` (+2
+   permission tests, существующие adapted под обязательный X-User-Id),
+   `BookControllerIT` (+3 visibility tests + adapted existing). Также
+   фикс - `ShamelaToLibraryMapper` передаёт PUBLIC, 49 existing тестов
+   через python-script патчены до 17-args Book ctor с
+   `BookVisibility.PUBLIC` default
+8. **Документация** - ADR-043 Amendment секция (rationale PUBLIC default
+   для books, Q&A no-visibility-by-design); api-contract.md visibility
+   поля в Book*Response + 5 новых REST endpoint docs + Q&A guards в
+   PATCH/DELETE; history entry; roadmap 22.c → [x]; backend/CLAUDE.md
+   permissions раздел дополнен
+
+**Результаты:**
+
+- `./mvnw verify`: **BUILD SUCCESS, 733 tests, 0 failures, 2 skipped**
+  (+29 от 22.b 704 baseline; целевые 701+ покрыты)
+- Backend dev :9090 перезапущен с миграцией 37 - liquibase applied
+  successfully (47ms), `lib_book_members` создана
+- Параллельный frontend subagent (pagination fix) не пересекался с
+  backend зоной - чистое разделение
+
+**Что отложено:**
+
+- Frontend UI для book members + visibility (зеркало 22.b
+  TopicMembersModal) - будет в следующей сессии
+- Private Q&A (visibility model для questions/answers) - 22.d, добавим
+  если возникнет use-case закрытых учёных групп
+- Audit log per-entity (кто что менял когда, кто потерял access) - 22.d
+
+**Проверить руками:**
+
+- `curl -H "X-User-Id: 00000000-0000-0000-0000-000000000001"
+  http://localhost:9090/api/v1/library/books` - вернёт PagedResponse
+  с visibility поле в items
+- Создать PRIVATE book через POST `/library/imports/file` (PDF upload),
+  убедиться что другой user не видит её в `GET /library/books`
+- Попробовать удалить чужой Q&A answer без ADMIN role - ожидать 403
+  forbidden-answer-write
+
+---
+
 ## 2026-05-18 - Frontend pagination breaking change fix (4 pages закрыты)
 
 Параллельно с backend subagent'ом 22.c RBAC (library books +

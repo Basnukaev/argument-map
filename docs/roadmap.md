@@ -420,13 +420,27 @@ diacritics-aware lookup). Подробности и план - в `docs/backlog.
       (canWrite в GraphCanvas/GraphPanels), permissionErrors helper для
       локализации 403 forbidden-topic-* в toast. 12 новых frontend test
       (CreateTopicPage +3, TopicMembersModal 5, итого 311 frontend)
-- [ ] **22.c:** RBAC расширение на library books и Q&A questions -
-      повтор паттерна visibility/members когда понадобится
-      multi-tenant книги или приватные ответы
+- [x] **22.c (Сессия 37, ADR-043 Amendment) - RBAC extension на library
+      books + Q&A guards:** миграция 37 `lib_books.visibility` (default
+      PUBLIC для open library) + `lib_book_members` M:N (MEMBER/EDITOR);
+      `PermissionService.canReadBook`/`canWriteBook`/`isBookOwner` +
+      assertions; `BookMemberService` + REST POST/GET/PATCH/DELETE
+      `/api/v1/library/books/{id}/members` + PATCH `/visibility`;
+      BookController visibility-фильтр в list/get/delete/update +
+      `FileImportService` ставит PRIVATE для user-uploads. Q&A: author/
+      admin guard в `QuestionService.update/deleteQuestion(.., userId,
+      role)` и `AnswerService.update/deleteAnswer(.., userId, role)` -
+      без visibility model (open discussion). Новые exceptions: Book/
+      Answer/QuestionWriteAccessDeniedException + BookAccessDenied +
+      BookMemberNotFound → 403 forbidden-{book|answer|question}-write,
+      forbidden-book-access. Total 733 tests (+29 от 22.b: 13 IT
+      PermissionServiceBookIT + 10 BookMemberControllerIT + 5 Answer/
+      QuestionControllerIT + 1 BookControllerIT permission case)
 - [ ] **22.d:** Audit log per-entity - кто что менял когда + кто
       получил/потерял access (отдельная таблица + endpoint history).
       Сейчас trace только через revisions для контента и стандартный
-      request log
+      request log. Также - private Q&A model (visibility + members
+      для questions/answers) если понадобится для закрытых учёных групп
 - [ ] **23+:** Open list - sanad explorer, multi-grading, RTL UI,
       экспорт PDF/SVG, mobile, advanced search. См. `docs/backlog.md`
       раздел «Будущие фичи»

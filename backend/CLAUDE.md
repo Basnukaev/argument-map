@@ -282,9 +282,6 @@ bypass всех visibility checks.
   `/api/v1/topics/{id}/members[/...]`. Только owner может add/update
   role/remove (EDITOR не может - privilege escalation). MEMBER может
   удалить только себя (self-leave)
-- **MVP scope - только topics**. Library books / Q&A questions сейчас
-  не permission-controlled. Когда понадобится - повторяем паттерн
-  (visibility + members) отдельной миграцией
 - **Audit log** (кто что менял когда + permission changes) - **отложен**.
   Сейчас trace только через `revisions` для контента и стандартный
   request log
@@ -292,6 +289,52 @@ bypass всех visibility checks.
   создавали тему сами и оперировали с тем же userId (default PRIVATE +
   owner = full access). Кто читал/удалял без header - теперь должен
   передавать X-User-Id (или 400 missing-user-header в dev/test)
+
+#### Library books (ADR-043 Amendment, Этап 22.c)
+
+Расширение visibility/members модели на `lib_books`. **Default
+PUBLIC** для existing rows (в отличие от topics PRIVATE) - shamela
+ETL и старые user-uploads - open library. Новые user-uploads через
+`FileImportService.importPdf` → **PRIVATE** (черновики приватны).
+
+- **PermissionService** - `canReadBook` / `canWriteBook` / `isBookOwner`
+  + `assertCanReadBook` / `assertCanWriteBook` / `assertIsBookOwner`.
+  Те же exception/HTTP паттерны что у topics: `BookAccessDeniedException`
+  → 403 forbidden-book-access, `BookWriteAccessDeniedException` → 403
+  forbidden-book-write, `BookMemberNotFoundException` → 404
+- **Book members** - `BookMemberService` + REST
+  `/api/v1/library/books/{id}/members[/...]`. Mirror TopicMember (owner
+  add/update/remove, MEMBER self-leave). `BookMemberRepository` mirror
+  TopicMemberRepository
+- **BookRepository** - `findVisibleToUserPage` / `countVisibleToUser`
+  для visibility filter (PUBLIC OR created_by=? OR SHARED+EXISTS
+  lib_book_members). Старый `findPage` без filter оставлен для
+  internal (shamela sync, admin)
+- **BookController endpoints обязательно требуют X-User-Id** на GET
+  `/books`, GET `/books/{id}`, PATCH `/books/{id}`, DELETE
+  `/books/{id}`, PATCH `/books/{id}/visibility`. Listings показывают
+  только видимое user'у. Existing IT обновлены - все 49 `new Book(...)`
+  получили 17-й аргумент `BookVisibility.PUBLIC` через python-script
+  patch
+
+#### Q&A guards (ADR-043 Amendment, Этап 22.c)
+
+**НЕ добавляем visibility model** - questions/answers по дизайну open
+discussion (видны всем authenticated). Защищаем только mutating через
+author/admin guard:
+
+- `QuestionService.updateQuestion(id, ..., actorUserId, actorRole)` +
+  `deleteQuestion(id, actorUserId, actorRole)` - guards. Старые
+  без actor оставлены для internal callers
+- `AnswerService.updateAnswer(id, body, actorUserId, actorRole)` +
+  `deleteAnswer(id, actorUserId, actorRole)` - аналогично
+- Exceptions: `QuestionWriteAccessDeniedException` → 403
+  forbidden-question-write, `AnswerWriteAccessDeniedException` → 403
+  forbidden-answer-write. Не автор и не ADMIN → 403
+- Frontend получает 403 с типизированным problem-detail - локализация
+  через `permissionErrors` helper (existing для topics)
+- **Private Q&A** (visibility model для questions/answers) **отложен**
+  в 22.d - расширим если возникнет use-case закрытых учёных групп
 
 ### Транзакции
 
