@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Audit log per-entity (Этап 22.d, ADR-043 Amendment 3).
+
+        Event-sourcing lite - каждая mutation (create/update/delete +
+        visibility/member changes) пишет 1 row. Не reconstruct'им state
+        из event log, audit_log - source of truth только для
+        observability/compliance/debugging.
+
+        entity_type - 'TOPIC' / 'NODE' / 'EDGE' / 'BOOK' / 'QUESTION' /
+        'ANSWER' / 'TOPIC_MEMBER' / 'BOOK_MEMBER' / 'NODE_SOURCE' /
+        'QUESTION_SOURCE' / 'ANSWER_SOURCE'.
+
+        parent_entity_type/id - для child entities (node/edge → TOPIC,
+        chapter/page → BOOK) чтобы можно было одним запросом получить
+        весь audit темы.
+
+        action - 'CREATE' / 'UPDATE' / 'DELETE' / 'VISIBILITY_CHANGE' /
+        'MEMBER_ADD' / 'MEMBER_REMOVE' / 'MEMBER_ROLE_CHANGE'.
+
+        actor_user_id - кто выполнил действие (NOT NULL, FK к users).
+
+        changes - JSONB:
+        - для CREATE: snapshot {created: {...}} либо null (entity ссылается
+          через entity_id)
+        - для UPDATE: {field: {old: X, new: Y}, ...}
+        - для DELETE: snapshot {deleted: {...}}
+        - для VISIBILITY_CHANGE: {visibility: {old: PUBLIC, new: SHARED}}
+        - для MEMBER_*: {memberId, userId, role: {old: MEMBER, new: EDITOR}}
+
+        metadata - reserved для user_agent/ip (не заполняем сейчас, MVP).
+
+        Indexes:
+        - (entity_type, entity_id, created_at DESC) - fetch logs для конкретной
+          сущности новые сверху
+        - (parent_entity_type, parent_entity_id, created_at DESC) partial WHERE
+          parent_entity_id NOT NULL - fetch logs для всех child entities темы
+        - (actor_user_id, created_at DESC) - "что user делал" (admin tooling +
+          GET /audit/me)
+        - (created_at DESC) - global admin sweep + retention cleanup
+    -->
+    <changeSet id="20260518-39-audit-log" author="Abdula Basnukaev">
+        <comment>Таблица audit_log для трекинга мутаций per-entity</comment>
+        <sql>
+            CREATE TABLE audit_log (
+                id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                entity_type           VARCHAR(50) NOT NULL,
+                entity_id             UUID NOT NULL,
+                parent_entity_type    VARCHAR(50),
+                parent_entity_id      UUID,
+                action                VARCHAR(30) NOT NULL,
+                actor_user_id         UUID NOT NULL REFERENCES users(id),
+                changes               JSONB,
+                metadata              JSONB,
+                created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
+            CREATE INDEX idx_audit_log_entity
+                ON audit_log(entity_type, entity_id, created_at DESC);
+            CREATE INDEX idx_audit_log_parent
+                ON audit_log(parent_entity_type, parent_entity_id, created_at DESC)
+                WHERE parent_entity_id IS NOT NULL;
+            CREATE INDEX idx_audit_log_actor
+                ON audit_log(actor_user_id, created_at DESC);
+            CREATE INDEX idx_audit_log_created
+                ON audit_log(created_at DESC);
+        </sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_audit_log_created;
+                DROP INDEX IF EXISTS idx_audit_log_actor;
+                DROP INDEX IF EXISTS idx_audit_log_parent;
+                DROP INDEX IF EXISTS idx_audit_log_entity;
+                DROP TABLE IF EXISTS audit_log;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

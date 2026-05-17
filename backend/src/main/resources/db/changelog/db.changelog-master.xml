@@ -43,5 +43,6 @@
     <include file="db/changelog/changes/20260517-36-topic-rbac.xml"/>
     <include file="db/changelog/changes/20260518-37-library-rbac.xml"/>
     <include file="db/changelog/changes/20260518-38-node-votes.xml"/>
+    <include file="db/changelog/changes/20260518-39-audit-log.xml"/>
 
 </databaseChangeLog>
