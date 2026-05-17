@@ -29,7 +29,14 @@
   reproducer + альтернативами + рисками - в `docs/gotchas.md` секция
   «Node 24 + undici 7 - AbortSignal instanceof check».
 - [ ] Полнотекстовый поиск (НЕ через Postgres tsvector - см. раздел «Архитектурные решения» ниже)
-- [ ] Экспорт графа в PNG / SVG
+- [x] **Экспорт графа в PNG / SVG** - закрыто 2026-05-17. Реализовано
+  через `html-to-image` + кнопка с popover (PNG/SVG) в `GraphPanels`
+  toolbar. Filename `topic-{slug}-{YYYY-MM-DD}.{ext}` через slugify
+  с fallback `topic` для cyrillic/arabic titles. fitView + 150ms
+  задержка перед snapshot. PDF export НЕ реализован - оставить в
+  backlog отдельным пунктом при necessity. Подробно в `docs/progress.md`
+- [ ] **PDF export графа** - отдельная задача (jspdf или native
+  print-to-PDF), приоритет low - PNG/SVG покрывает основной use case
 - [ ] Тёмная тема
 - [ ] Локализация (i18n) при появлении второй локали
 - [ ] **Smart edge routing** (опционально, если 4-handles + dagre

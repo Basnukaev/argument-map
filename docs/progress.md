@@ -11,6 +11,46 @@
 
 ---
 
+## 2026-05-17 - graph export PNG/SVG (backlog cleared)
+
+Закрыт пункт backlog «Экспорт графа в PNG / SVG». Параллельная задача
+к Tiptap extensions и login UI - зоны не пересеклись (фронтовая
+кнопка в `apps/argument-map/components/graph/`, новые ключи под
+prefix `graph.export.*` не пересекаются с `topic.export.*` JSON)
+
+**Реализовано:**
+
+1. **`graphExport` utility** (`apps/argument-map/utils/graphExport.ts`) -
+   wraps html-to-image `toPng`/`toSvg`. Slugify filename для
+   латиницы / fallback `topic` для cyrillic / arabic. Filter
+   исключает overlay-элементы React Flow (controls, minimap,
+   attribution, panel). `triggerDownload` через программный клик
+   по `<a download>` с DOM-attachment для Firefox/Safari совместимости
+2. **Toolbar button** в `GraphPanels` - Download IconButton +
+   inline popover с PNG/SVG опциями. Перед export -
+   `fitView({ padding: 0.1 })` + 150ms задержка для стабилизации
+   React Flow. Топик title из `graph.topic.title` пробрасывается
+   через GraphCanvas
+3. **i18n** - 6 ключей `graph.export.*` в RU/AR словарях
+   (button, hint, png, svg, success с filename placeholder, error)
+4. **Тесты** - 19 unit-тестов с моком `html-to-image`: slugify
+   variations, filter exclusions, download trigger, опции
+   pixelRatio (default 2x retina, override до 4x для print)
+
+**Bundle:** html-to-image ~10KB gzipped, single dep, MIT, активный maintenance
+
+**Не сделано (отложено):**
+- PDF export (отдельная задача, требует jspdf, больше работы) -
+  оставить в backlog как future improvement если станет важно
+- Quality dropdown (1x/2x/4x pixelRatio toggle в UI) - YAGNI пока,
+  default 2x подходит для retina screenshot + reasonable file size
+
+**Коммиты:**
+- `feat(frontend): graphExport utility - PNG/SVG через html-to-image`
+- `feat(frontend): экспорт графа кнопка в TopicGraphPage toolbar`
+
+---
+
 ## 2026-05-17 - Сессия 42 Этап 21.b - frontend login UI, Этап 21 целиком закрыт
 
 Параллельно с Tiptap extensions (см. ниже) - frontend auth end-to-end
