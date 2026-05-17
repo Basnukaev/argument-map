@@ -183,23 +183,29 @@ function BookListPage() {
               aria-label={t('common.search')}
             />
           </div>
-          <div className="flex items-center gap-1 rounded-sm border border-ink-200 bg-elevated p-1">
-            {BOOK_TYPE_FILTER_VALUES.map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setTypeFilter(value)}
-                className={
-                  typeFilter === value
-                    ? 'rounded-sm bg-accent-600 px-2.5 py-1 text-xs font-medium text-ink-0'
-                    : 'rounded-sm px-2.5 py-1 text-xs text-ink-600 hover:bg-ink-100 hover:text-ink-900 transition-colors'
-                }
-              >
-                {value === 'ALL'
-                  ? t('book.list.filter_all')
-                  : t(BOOK_TYPE_DICT_KEY[value])}
-              </button>
-            ))}
+          {/* Filter chips - на mobile overflow-x scroll (6 chips × ~70px =
+              420px не помещаются в 375px viewport). Desktop - inline
+              без скролла. -mx-3 compensate parent px-3 чтобы scrollbar
+              шёл от edge to edge на mobile */}
+          <div className="-mx-3 flex overflow-x-auto px-3 sm:mx-0 sm:overflow-visible sm:px-0">
+            <div className="flex items-center gap-1 rounded-sm border border-ink-200 bg-elevated p-1 shrink-0">
+              {BOOK_TYPE_FILTER_VALUES.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setTypeFilter(value)}
+                  className={
+                    typeFilter === value
+                      ? 'rounded-sm bg-accent-600 px-2.5 py-1 text-xs font-medium text-ink-0 whitespace-nowrap'
+                      : 'rounded-sm px-2.5 py-1 text-xs text-ink-600 hover:bg-ink-100 hover:text-ink-900 transition-colors whitespace-nowrap'
+                  }
+                >
+                  {value === 'ALL'
+                    ? t('book.list.filter_all')
+                    : t(BOOK_TYPE_DICT_KEY[value])}
+                </button>
+              ))}
+            </div>
           </div>
           {/* Сортировка - native <select> stylized под design-system. Не
               делаем custom dropdown ради UX-простоты + native a11y */}

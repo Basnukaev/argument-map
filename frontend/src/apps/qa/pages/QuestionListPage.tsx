@@ -112,21 +112,26 @@ function QuestionListPage() {
               dir="auto"
             />
           </div>
-          <div className="flex gap-1">
-            {(['ALL', 'OPEN', 'ANSWERED', 'CLOSED'] as const).map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setStatusFilter(s)}
-                className={`inline-flex h-7 items-center rounded-sm px-3 text-xs font-medium transition-colors ${
-                  statusFilter === s
-                    ? 'bg-accent-50 text-accent-700'
-                    : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900'
-                }`}
-              >
-                {t(FILTER_LABEL[s])}
-              </button>
-            ))}
+          {/* Filter chips - на mobile overflow-x scroll если не помещаются.
+              4 chip обычно укладываются в 375px (~280px ширины), но при
+              длинных локализациях arabic могут вылезти - safety net */}
+          <div className="-mx-3 flex overflow-x-auto px-3 sm:mx-0 sm:overflow-visible sm:px-0">
+            <div className="flex gap-1 shrink-0">
+              {(['ALL', 'OPEN', 'ANSWERED', 'CLOSED'] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setStatusFilter(s)}
+                  className={`inline-flex h-7 items-center rounded-sm px-3 text-xs font-medium transition-colors whitespace-nowrap ${
+                    statusFilter === s
+                      ? 'bg-accent-50 text-accent-700'
+                      : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900'
+                  }`}
+                >
+                  {t(FILTER_LABEL[s])}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
