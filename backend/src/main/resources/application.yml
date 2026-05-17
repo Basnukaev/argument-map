@@ -10,6 +10,14 @@ spring:
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.xml
 
+  # File upload limits (Этап 16.b). 50MB достаточно для большинства
+  # арабских PDF книг (тафсиры и сборники хадисов обычно 10-30MB).
+  # Превышение -> 413 Payload Too Large через GlobalExceptionHandler.
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
 app:
   cors:
     # Список разрешённых origin'ов через запятую. По умолчанию пусто
@@ -46,6 +54,13 @@ storage:
     user-uploads: ${STORAGE_BUCKET_UPLOADS:library-user-uploads}
     page-images: ${STORAGE_BUCKET_PAGES:library-page-images}
     derived: ${STORAGE_BUCKET_DERIVED:derived-artifacts}
+  # Bucket bootstrap (Этап 16.c). При старте приложения создаёт 4 bucket'а
+  # (idempotent через HeadBucket) и включает versioning для 3 critical.
+  # По умолчанию off - IT создают buckets сами через @BeforeEach. В dev
+  # удобно включить чтобы docker-compose first-run не требовал ручного
+  # `mc mb local/library-user-uploads`.
+  bucket-bootstrap:
+    enabled: ${STORAGE_BUCKET_BOOTSTRAP_ENABLED:false}
   # Orphan-detection janitor (ADR-024, Этап 25.b). Cron job сверяет
   # S3 listObjects vs library_files catalog и наоборот. Log-only -
   # никаких автоудалений, manual review через логи. По умолчанию
@@ -144,6 +159,12 @@ spring:
 app:
   cors:
     allowed-origins: "http://localhost:5173,http://localhost:4173"
+
+# В local-profile bucket bootstrap включён - MinIO docker-compose без
+# ручного создания bucket'ов. В тестах остаётся off (default).
+storage:
+  bucket-bootstrap:
+    enabled: true
 
 ---
 spring:

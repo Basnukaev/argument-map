@@ -11,7 +11,10 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import ru.basnukaev.argumentmap.library.imports.FileImportException;
+import ru.basnukaev.argumentmap.library.imports.web.UnsupportedMediaTypeException;
 import ru.basnukaev.argumentmap.library.pdf.service.PdfNotAvailableException;
 import ru.basnukaev.argumentmap.library.shamela.api.ShamelaApiException;
 import ru.basnukaev.argumentmap.library.shamela.etl.ShamelaArchiveException;
@@ -191,6 +194,31 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.INTERNAL_SERVER_ERROR,
                 "Ошибка чтения SQLite shamela", "shamela-reader-error",
                 ex.getMessage());
+    }
+
+    // ---- file import (Этап 16) ----
+
+    @ExceptionHandler(FileImportException.class)
+    public ProblemDetail handleFileImport(FileImportException ex) {
+        log.warn("file import error: {}", ex.getMessage());
+        return problem(HttpStatus.UNPROCESSABLE_ENTITY,
+                "Ошибка импорта файла", "file-import-error", ex.getMessage());
+    }
+
+    @ExceptionHandler(UnsupportedMediaTypeException.class)
+    public ProblemDetail handleUnsupportedMediaType(UnsupportedMediaTypeException ex) {
+        return problem(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                "Неподдерживаемый тип файла", "unsupported-media-type", ex.getMessage());
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ProblemDetail handleMaxUploadSize(MaxUploadSizeExceededException ex) {
+        log.warn("upload size exceeded: maxSize={} bytes", ex.getMaxUploadSize());
+        return problem(HttpStatus.PAYLOAD_TOO_LARGE,
+                "Превышен максимальный размер файла",
+                "payload-too-large",
+                "Размер загружаемого файла превышает лимит "
+                        + ex.getMaxUploadSize() + " bytes");
     }
 
     private ProblemDetail problem(HttpStatus status, String title, String typeSlug, String detail) {
