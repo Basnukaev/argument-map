@@ -6,6 +6,7 @@ import {
   Database,
   Download,
   ExternalLink,
+  FileUp,
   Loader2,
   RefreshCw,
   Search,
@@ -18,6 +19,7 @@ import { apiGetRaw, apiPostRaw, ApiError } from '@/shared/api/client';
 import type { components } from '@/shared/api/types';
 import { toast } from '@/shared/stores/toastStore';
 import { hasArabicScript, useT, useFormatDate, useNumberFormat } from '@/shared/i18n';
+import FileUploadModal from '@/apps/admin/components/FileUploadModal';
 
 type SyncStatus = components['schemas']['SyncStatusResponse'];
 type SearchResult = components['schemas']['StagingBookSearchResponse'];
@@ -50,6 +52,7 @@ function AdminShamelaPage() {
   const debounceRef = useRef<number | null>(null);
   const [reloadStatusToken, setReloadStatusToken] = useState(0);
   const [backfilling, setBackfilling] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   /**
    * Все setState идут в Promise-callbacks (.then/.catch) - это асинхронные
@@ -282,6 +285,30 @@ function AdminShamelaPage() {
             </div>
           )}
         </Card>
+
+        {/* File upload section - альтернатива shamela import */}
+        <Card className="mb-6 flex flex-wrap items-center justify-between gap-4 p-5">
+          <div className="min-w-0 flex-1">
+            <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900">
+              <FileUp size={16} className="text-accent-600" aria-hidden />
+              {t('admin.file_upload.section_title')}
+            </h2>
+            <p className="mt-1 text-sm text-ink-500">
+              {t('admin.file_upload.section_subtitle')}
+            </p>
+          </div>
+          <Button icon={FileUp} onClick={() => setUploadOpen(true)}>
+            {t('admin.file_upload.section_action')}
+          </Button>
+        </Card>
+
+        {uploadOpen && (
+          <FileUploadModal
+            open
+            onClose={() => setUploadOpen(false)}
+            onUploaded={() => setReloadStatusToken((n) => n + 1)}
+          />
+        )}
 
         {/* Search section */}
         <div className="mb-4">
