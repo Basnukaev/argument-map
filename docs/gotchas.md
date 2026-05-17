@@ -70,48 +70,55 @@ ThemeEffect). Использовать CSS native nesting (Chrome 112+, Firefox
 
 ---
 
-## Tashkeel full removal требует runtime text manipulation
+## Tashkeel removal через ProseMirror JSON transform (закрыто)
 
-**Симптом:** Reader имеет кнопку «С огласовками / Без огласовок» которая
-ставит класс `.hide-tashkeel` на article-wrapper, но визуально текст
-**не меняется** - арабские диакритические знаки (`َ`, `ِ`, `ُ`, `ْ`,
-`ّ`, `ٰ`) остаются на экране даже при `hideTashkeel=true`. Юзер ждёт
-«голый» текст без огласовок но получает тот же текст что и был.
+**Симптом исторически:** Reader имел кнопку «С огласовками / Без
+огласовок» которая ставила класс `.hide-tashkeel` на article-wrapper,
+но визуально текст **не менялся** - арабские диакритические знаки
+(`َ`, `ِ`, `ُ`, `ْ`, `ّ`, `ٰ`) оставались на экране даже при
+`hideTashkeel=true`. Это было MVP placeholder в Этапе 17.0.c.
 
-**Причина:** диакритические знаки (Unicode range `U+064B`-`U+0652` +
+**Причина:** диакритические знаки (Unicode range `U+064B`-`U+065F` +
 superscript alef `U+0670`) - это **combining characters**, не отдельные
 glyphs. Чистый CSS не может их «скрыть» через `display: none` или
 `visibility: hidden` - они часть text node того же символа. Реальные
 способы убрать огласовки:
 
-1. **runtime regex removal** по text nodes (DOM walk через
-   `TreeWalker(NodeFilter.SHOW_TEXT)`, замена `/[ً-ْٰ]+/g`
-   на `""`)
-2. **font-feature-settings** через специальный шрифт где tashkeel -
+1. **JSON transform перед render** - модифицировать ProseMirror
+   document tree (заменить `text` поля у text-nodes через regex)
+   **до** того как Tiptap отрендерит. Functional, React-friendly,
+   без DOM-walk
+2. **runtime regex по DOM** через `TreeWalker(NodeFilter.SHOW_TEXT)`
+   после mount + замена `textContent`. Конфликтует с React reconciler
+3. **font-feature-settings** через специальный шрифт где tashkeel -
    separate ligature glyphs (требует custom font asset)
-3. **double render** - хранить два text representation в данных и
+4. **double render** - хранить два text representation в данных и
    переключаться между ними (raise data volume + breaks editing UX)
 
-Опция 1 - наиболее реалистична, но требует careful обхода
-React-managed DOM (через ref, после mount, перед каждым render).
-В Tiptap reader это означает кастомный NodeView для Tashkeel mark
-который JS'ом подменяет text.
+**Решение (закрыто):** выбрана опция 1 - чистая functional
+трансформация ProseMirror JSON. Утилиты в
+`frontend/src/shared/components/editor/utils/stripTashkeel.ts`:
 
-**Решение (MVP, Этап 17.0.c):** Tashkeel mark **есть** и
-сериализуется (`<span data-type="tashkeel">`), но при `hideTashkeel`
-визуально ничего не меняется - placeholder CSS-правило `.hide-tashkeel
-.tashkeel { /* no-op */ }`. Это даёт data layer (admin может пометить
-текст) без full UX. Future-full implementation - в backlog «True
-tashkeel removal через runtime regex DOM walk» (раздел Editor
-improvements).
+- `stripTashkeelText(s)` - regex `/[ً-ٰٟ]/g` по строке
+- `stripTashkeelFromDoc(doc, strip)` - рекурсивный walk JSON-tree,
+  трансформ text-nodes, сохранение marks и attrs (включая сам
+  `tashkeel` mark - он остаётся как семантический маркер)
 
-**TODO:** при дозревании - добавить custom NodeView к Tashkeel mark
-(React component через `ReactNodeViewRenderer`) который при
-`hideTashkeel=true` рендерит `children` через regex-replaced строку,
-иначе - оригинал. Или альтернативно - хук на уровне PageView который
-после mount проходит TreeWalker'ом и заменяет content text nodes.
-Тесты должны проверить идемпотентность (повторный toggle восстанавливает
-оригинал)
+`RichTextRenderer` принимает `hideTashkeel: boolean` prop, через
+useMemo вычисляет processed content и передаёт в Tiptap. Toggle
+обратно - тот же useMemo с другим input, возвращает оригинал
+(идемпотентно, без mutation). Tatweel `U+0640` НЕ удаляется -
+это горизонтальное растяжение буквы (каллиграфия), не диакритик;
+отдельный feature в backlog при необходимости.
+
+В legacy fallback path (когда `page.formattedContent` = null и
+рендерится sanitized HTML) `hideTashkeel` применяется через
+`stripTashkeelText` к raw text до `sanitizePageHtml`.
+
+Покрытие: 17 тестов (15 для утилит + 2 интеграционных в
+RichTextRenderer) - идемпотентность, рекурсия nested структур,
+сохранение marks и attrs, no-mutation, latin/tatweel
+негативные случаи.
 
 ---
 

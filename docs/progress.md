@@ -11,6 +11,50 @@
 
 ---
 
+## 2026-05-18 - True tashkeel removal закрыт (Этап 17.0.c gotcha cleared)
+
+Frontend subagent-цикл, параллельный backend пагинации/фильтрации
+(зоны не пересеклись - бэк трогал `backend/`, фронт - Tiptap reader).
+Закрытие gotcha из Сессии Tiptap final: «Tashkeel full removal требует
+runtime text manipulation» - до сих пор toggle «Без огласовок» в
+BookReader был CSS-placeholder и визуально диакритики оставались.
+
+**Реализовано (2 атомарных feat-коммита + 1 docs):**
+
+1. **stripTashkeel utility + 15 тестов** - новая папка
+   `shared/components/editor/utils/`. `stripTashkeelText(s)` через
+   regex `/[ً-ٰٟ]/g` (U+064B-U+065F + U+0670 khanjariyya, без
+   tatweel). `stripTashkeelFromDoc(doc, strip)` - рекурсивный walk
+   ProseMirror JSON tree, трансформ text-nodes, сохранение marks
+   и attrs, no-mutation. Тесты: basmala/hamdala/khanjariyya,
+   идемпотентность, nested HadithBox, latin/tatweel негативы,
+   strip=false opt-out, null/undefined defensive
+
+2. **RichTextRenderer hideTashkeel prop + 2 теста** - useMemo
+   processed content, передача в Tiptap useEditor. PageView пробрасывает
+   state `hideTashkeel` сразу через prop вместо `.hide-tashkeel` CSS
+   класса (CSS-hook остался для опциональных индикаторов). Legacy
+   fallback path (NULL formattedContent + sanitizePageHtml) тоже
+   применяет `stripTashkeelText` к raw text до sanitize. Tashkeel mark
+   JSDoc + tiptap.css - очищены от MVP-комментариев
+
+3. **docs:** backlog.md - убран пункт «True tashkeel removal через
+   runtime regex DOM walk» из «Editor improvements». gotchas.md -
+   запись переписана как «закрыто», с разделом «Решение» (выбран
+   подход 1 - JSON transform, не DOM-walk, не custom NodeView).
+   progress.md - эта запись
+
+**Verify:** lint 0 errors (6 pre-existing warnings), tsc clean,
+build 3.29s, test:run 328 passed (311 baseline + 17 новых)
+
+**Что проверить руками:** открыть BookReaderPage с arabic content
+(seed-mawlid.sh или любая книга на ar), toggle «Без огласовок» -
+text реально меняется (диакритики исчезают), toggle обратно -
+огласовки возвращаются. Работает на обоих путях: formatted ProseMirror
+JSON и legacy sanitized HTML.
+
+---
+
 ## 2026-05-17 - Этап 22.b frontend RBAC permissions UI (закрытие Этапа 22 целиком)
 
 Параллельный subagent-cycle к 17.e.f - реализация фронтенд-части

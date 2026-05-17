@@ -305,17 +305,6 @@ AyahBox / Marginalia / Footnote / ColorHighlight / Tashkeel /
 DecoratedHeading / PageNumber). Что осталось доделать в editor stack
 по мере дозревания UX:
 
-- **True tashkeel removal через runtime regex DOM walk** -
-  сейчас Tashkeel mark в reader при toggle «Без огласовок» визуально
-  не удаляет диакритические знаки (CSS-placeholder, см. gotcha
-  «Tashkeel full removal требует runtime text manipulation»). Full
-  implementation: custom NodeView (React component через
-  `ReactNodeViewRenderer`) который при `hideTashkeel=true` regex'ом
-  заменяет text content без `[ً-ْٰ]+`. Альтернатива - хук в
-  PageView после mount через `TreeWalker(NodeFilter.SHOW_TEXT)`.
-  Тесты: идемпотентность toggle (повторное переключение восстанавливает
-  оригинал), работа с nested marks (footnote внутри tashkeel
-  и наоборот)
 - **Custom font для tashkeel toggle через font-feature-settings** -
   альтернативный путь без runtime DOM walk: использовать шрифт где
   tashkeel - отдельные ligature glyphs которые можно скрыть через
