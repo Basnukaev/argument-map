@@ -1173,3 +1173,48 @@ Frontend tests не зависят от этого - vitest+jsdom не ренд�
 
 Зафиксировано Сессией 39 при playwright диагностике #6 шрифта
 title книг (пользователь жаловался на «выврвиглазный шрифт»).
+
+---
+
+## `event.key` vs `event.code` в keyboard handlers - layout independence
+
+**Симптом:** hotkey'и срабатывают на en-раскладке но не на ru/ar.
+Например `Alt+K` открывает Command Palette в EN, но в RU тот же
+физический keypress ничего не делает (хотя пользователь видит
+«K» на клавиатуре).
+
+**Причина:** `e.key` возвращает символ который **производит** клавиша
+в текущей раскладке: `'k'` на en, `'л'` на ru (на стандартной ЙЦУКЕН),
+`'ل'` на ar. Проверка `e.key.toLowerCase() === 'k'` пройдёт только
+на en. `e.code` возвращает **физическую** клавишу (`'KeyK'` всегда)
+и от раскладки не зависит.
+
+**Reproducer:**
+```ts
+window.addEventListener('keydown', (e) => {
+  console.log(`key=${e.key} code=${e.code}`);
+});
+// EN раскладка, нажать K: key=k code=KeyK
+// RU раскладка, та же клавиша: key=л code=KeyK
+// AR раскладка, та же клавиша: key=ل code=KeyK
+```
+
+**Решение:** для буквенных hotkey'ев использовать `event.code`. Во
+фронте все hotkey'и зарегистрированы через `useHotkey`
+(`@/shared/hooks/useHotkey`, см. ADR-036) который ставит `useKey: true`
+в default options - react-hotkeys-hook матчит по `event.code` для
+буквенных автоматически. Модификаторы (`alt`/`ctrl`/`shift`/`meta`)
+от раскладки не зависят и без useKey.
+
+**Когда писать `addEventListener('keydown')` вручную (legacy code,
+третьесторонняя интеграция):**
+
+```ts
+window.addEventListener('keydown', (e) => {
+  if (e.altKey && e.code === 'KeyK') { ... }  // ✓ layout-independent
+  // НЕ: if (e.altKey && e.key.toLowerCase() === 'k')  // ✗ зависит от layout
+});
+```
+
+Зафиксировано Сессией 39 при унификации hotkey'ев (#2 фидбэк -
+Alt+K не работал на ru-раскладке у пользователя).

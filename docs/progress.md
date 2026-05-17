@@ -10,6 +10,81 @@
 
 ---
 
+## 2026-05-17 - Сессия 39, hotkey unification (#2 / #4)
+
+Параллельно с bug-fix subagent'ом закрыли последние два observable
+замечания пользователя (#2 Alt+K на не-EN раскладке, #4 ⌘+↵ submit).
+Вместо точечного fix'а провели **системную унификацию** всех keyboard
+shortcuts через `react-hotkeys-hook` 5.x с обёрткой `useHotkey`
+(ADR-036). Заодно подобрали Del/Backspace handler subagent'а (#3) -
+мигрировали на ту же систему
+
+### Frontend (4 commits)
+
+- `1ba8faa` feat **infra** - `react-hotkeys-hook@5.3.2` +
+  `shared/hooks/useHotkey.ts` (тонкая обёртка с дефолтами:
+  preventDefault, enableOnFormTags=false, useKey=true для
+  layout-independence) + `shared/components/ui/ShortcutHint.tsx`
+  (отображение combination как набор `<Kbd>` с platform-aware glyph'ами:
+  `mod` → `⌘` Mac / `Ctrl` Win/Linux). 8 vitest (useHotkey 3 +
+  ShortcutHint 5)
+- `e4b5938` refactor **миграция 16 файлов**:
+  - App.tsx (Alt+K palette - решает #2 через useKey:true)
+  - CommandPalette (escape/arrows/enter + enableOnFormTags)
+  - CitationPicker, ContextMenu, AvatarMenu, BellMenu, Select,
+    NodeSelect, useGraphEscape - escape close
+  - GraphCanvas Del/Backspace (#3 migrated на useHotkey
+    `'delete,backspace'`)
+  - FormModal - автоматический `mod+enter` submit +
+    `<ShortcutHint keys="mod+enter">` в footer. Решает #4.
+    `<Kbd>⌘</Kbd>` хардкоды убраны из AddNodeModal/AddEdgeModal
+  - Header `<ShortcutHint keys="alt+k">` вместо `<Kbd>Alt</Kbd><Kbd>K</Kbd>`
+  - PageJump/PdfViewer inline onKeyDown оставлены с комментариями
+    (form-bound Enter-to-submit, не global hotkey - идиоматично)
+- `b2517c3` fix **#2/#4 + preventDefault gotcha** - useGraphEscape
+  `preventDefault: false` на уровне опций + ручной
+  `e.preventDefault()` в callback только когда реально обрабатываем.
+  Иначе react-hotkeys-hook стопал бы Esc до того как native
+  `<dialog>` его получит - Modal не закрывался бы по Escape
+
+### Docs (этот commit)
+
+- ADR-036 react-hotkeys-hook + альтернативы (vanilla, hotkeys-js,
+  tinykeys) с обоснованием
+- `frontend/docs/coding-standards.md` секция Hotkeys: useHotkey
+  вместо addEventListener, modifier `mod` для cross-platform,
+  preventDefault gotcha для native dialog, `ShortcutHint` для UI
+- `gotchas.md` запись «event.key vs event.code в keyboard handlers»
+  с reproducer ru/ar/en раскладок
+- roadmap: #2/#4 → `[x]` (#3 уже был помечен subagent'ом, чуть
+  доуточнили формулировку)
+
+### Verify
+
+- `npx tsc --noEmit -p tsconfig.app.json` clean
+- `npm run lint` 0 errors (4 warnings pre-existing)
+- `npm run build` 2.57s ok
+- `npm run test:run` 167/167 pass (156 baseline + 8 useHotkey/ShortcutHint
+  + 3 от bug-fix subagent'а AdminShamela)
+- playwright headless smoke 5/5:
+  - Alt+K open palette
+  - Esc close palette
+  - AddNodeModal open
+  - Esc close AddNodeModal (после preventDefault fix)
+  - Cmd+Enter submit AddNodeModal
+
+### Что осталось
+
+- #6 финальное решение по шрифту - waiting Абдулу
+- Опции A-H из SESSION_START_PROMPT не тронуты
+
+### Следующий шаг
+
+Все 6 user feedback закрыты. Можно двигаться к Опциям A-H по выбору
+Абдулы (Этап 17 OCR / импорт-экспорт темы JSON / прочее)
+
+---
+
 ## 2026-05-17 - Сессия 39, user feedback #1 / #3 / #5 / #6
 
 Закрыли 4 из 6 observable замечаний пользователя из конца Сессии 38

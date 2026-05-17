@@ -3469,3 +3469,109 @@ EPUB-импорт был в исходном плане Этапа 16 (чере�
   определён, `USER_UPLOAD` уже в LibraryFileSourceType enum
 - **ADR-026** (Source.bookId) - созданная Book может быть привязана
   как Source через существующий AddSourceModal flow
+
+## ADR-036: react-hotkeys-hook для централизованных hotkeys
+
+### Контекст
+
+К Сессии 38 фронт накопил **17+ точек** регистрации keyboard
+shortcuts через `document.addEventListener('keydown', ...)` или
+inline `onKeyDown={e => e.key === '...'}` - в Modal, ContextMenu,
+CitationPicker, AvatarMenu, BellMenu, Select, NodeSelect, App
+(Alt+K palette), CommandPalette (arrows/enter/escape),
+useGraphEscape, GraphCanvas (Del/Backspace). Это привело к двум
+багам в фидбэке Сессии 38:
+
+- **#2: Alt+K не работал на русской/арабской раскладке** -
+  `e.key.toLowerCase() === 'k'` зависит от raw `event.key`, который
+  меняется с раскладкой (`'к'` на ru-layout вместо `'k'`)
+- **#4: ⌘+↵ не работал в формах AddNodeModal/AddEdgeModal** - не
+  было реализовано вообще, в JSX лежал хардкодный `<Kbd>⌘</Kbd>`
+  как «напоминалка» без обработчика
+
+Плюс системные проблемы:
+- хардкод `'⌘'`/`'⌥'` glyph'ов в JSX без platform detection (показывали
+  Mac-glyph и на Win/Linux)
+- дублирование логики «закрыть по Escape» в 7+ компонентах
+- ContextMenu и Modal могли конфликтовать (оба слушали Escape global)
+- невозможно скоупить hotkeys (когда modal открыт, graph shortcuts
+  всё равно срабатывают)
+
+### Решение
+
+**Внедрить `react-hotkeys-hook` 5.x** как единую систему для всех
+keyboard shortcuts во фронте. Создать:
+
+- `shared/hooks/useHotkey.ts` - тонкая обёртка над `useHotkeys` с
+  дефолтами проекта (`preventDefault: true`, `enableOnFormTags: false`,
+  `useKey: true`)
+- `shared/components/ui/ShortcutHint.tsx` - UI-helper отображения
+  combination как набора `<Kbd>` с platform-aware glyph'ами
+  (`mod` → `⌘` Mac / `Ctrl` Win/Linux, аналогично для `alt`/`shift`)
+
+Modifier `mod` из react-hotkeys-hook - cross-platform: на Mac
+маппится на `metaKey` (⌘), на Win/Linux на `ctrlKey`. Используем
+его везде где нужна стандартная submit-семантика (`mod+enter` в
+FormModal).
+
+Опция `useKey: true` (вкл в default) переключает матчинг с
+`event.key` на `event.code` для буквенных клавиш - решает баг #2
+layout-independence (`KeyK` не зависит от текущей раскладки).
+
+### Альтернативы рассмотрены
+
+1. **vanilla `addEventListener` (status quo)** - **отклонено**.
+   Накопленный долг (17+ точек), нет platform abstraction для
+   modifier'ов, нет scopes, требуется ручной cleanup в useEffect.
+   Каждая новая фича переписывает похожий handler
+
+2. **`hotkeys-js`** (vanilla JS, ~6KB, 12k stars) - **отклонено**.
+   Зрелая библиотека, но без нативной React интеграции - нужен
+   wrapper всё равно. `react-hotkeys-hook` под капотом использует
+   тот же подход, но даёт React lifecycle (cleanup в return),
+   scopes как React component tree, hooks-API. Меньше boilerplate
+   для нашего случая
+
+3. **`tinykeys`** (~600 байт, минималистичная) - **отклонено**.
+   Очень компактная, поддерживает sequences (`g g` для go-to-top),
+   но БЕЗ scopes, БЕЗ enableOnFormTags discrimination, БЕЗ useKey
+   layout-independent опции. Пришлось бы дописывать слой поверх -
+   получили бы локальный аналог react-hotkeys-hook. Не стоит
+
+4. **Mousetrap / hotkeys-vanilla** - **отклонено**. Mousetrap не
+   active maintenance, vanilla без React hooks - всё ведёт к
+   wrapper'у. react-hotkeys-hook решает проблему «из коробки»
+
+### Последствия
+
+- Новая dependency `react-hotkeys-hook@5.3.2` (~3KB gzip,
+  side-effect-free, активно maintained, поддерживает React 19)
+- Единая точка изменений когда понадобится: добавить scope, поменять
+  default options, поддержать sequences (`g t` для go to topics)
+- `<ShortcutHint keys="mod+enter" />` отображает правильный glyph
+  на каждой платформе автоматически - больше не лежит хардкод
+  `⌘` в JSX
+- `enableOnFormTags: false` по default защищает от срабатывания
+  hotkey'ев пока пользователь печатает - реже false positives.
+  Где нужно (CommandPalette arrows/enter, FormModal submit) -
+  explicit override `enableOnFormTags: true`
+- `useKey: true` в default - layout-independent для буквенных
+  hotkey'ев. Не аффектит модификаторы (alt/ctrl/shift/meta всегда
+  по platform-modifier flags)
+- preventDefault gotcha: для Escape (когда есть native `<dialog>`)
+  ставим `preventDefault: false` + ручной `e.preventDefault()`
+  только когда callback реально обрабатывает - иначе native dialog
+  Esc не закроется. Описан в `useGraphEscape` коммент + gotcha
+- frontend tests: 8 новых (useHotkey 3 + ShortcutHint 5),
+  существующие тесты (167 total) проходят без изменений - userEvent
+  `{Escape}`/`{Alt>}k{/Alt}` совместимы с react-hotkeys-hook
+
+### Связанные решения
+
+- **ADR-022** (frontend reorg) - `shared/hooks/` location следует
+  cross-app pattern
+- **ADR-031** (v2 design system) - `Kbd` UI компонент использован
+  внутри `ShortcutHint`
+- **ADR-030** (i18n) - glyph'и `⌘`/`Ctrl`/`↵` нейтральные относительно
+  локали (Mac/Win convention одинаковый в ru/ar), но названия клавиш
+  типа `Esc`/`Del`/`Tab` могут потребовать локализации позже

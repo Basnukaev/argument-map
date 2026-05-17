@@ -201,6 +201,59 @@ function NodeCard(props: NodeCardProps) {
 - Валидация на клиенте — те же правила что у бэка (Bean Validation),
   но "best effort". Серверная валидация — источник истины
 
+### Hotkeys (keyboard shortcuts)
+
+Все глобальные / контекстные keyboard shortcuts регистрируются через
+`useHotkey` из `@/shared/hooks/useHotkey` — обёртка над
+`react-hotkeys-hook` (ADR-036).
+
+**НЕ использовать `addEventListener('keydown')` или
+`document.addEventListener('keydown')`** — фронт мигрирован полностью
+(Сессия 38). Единственное исключение — inline `onKeyDown={...}` на
+одном конкретном `<input>` для Enter-to-submit семантики (PageJump,
+PdfViewer) — это форма-bound локальная логика, не global hotkey.
+
+```tsx
+import { useHotkey } from '@/shared/hooks/useHotkey';
+
+// глобальный hotkey, не срабатывает в input/textarea
+useHotkey('alt+k', () => togglePalette());
+
+// submit формы по Cmd/Ctrl+Enter (работает в textarea)
+useHotkey('mod+enter', () => formRef.current?.requestSubmit(), {
+  enableOnFormTags: true,
+  enabled: open,  // только когда модалка открыта
+});
+
+// Escape в picker'е с input'ом
+useHotkey('escape', onClose, { enableOnFormTags: true });
+```
+
+**Modifier `mod`** — cross-platform: `⌘` на Mac, `Ctrl` на Win/Linux.
+Использовать вместо `meta+enter,ctrl+enter` — короче и канонично.
+
+**`useKey: true`** в default options делает буквенные hotkey'ы
+layout-independent (event.code → KeyK не зависит от ru/ar/en
+раскладки). Отдельно включать не нужно.
+
+**preventDefault gotcha:** для Escape когда есть native `<dialog
+showModal()>` — ставить `preventDefault: false` в опциях и звать
+`e.preventDefault()` вручную внутри callback только когда реально
+обрабатываем. Иначе native dialog Esc не закроется. См. `useGraphEscape`.
+
+**UI display** — `<ShortcutHint keys="mod+enter" />` рендерит правильный
+glyph для платформы (Mac/Win/Linux) автоматически. Не хардкодить `⌘`
+в JSX.
+
+```tsx
+import ShortcutHint from '@/shared/components/ui/ShortcutHint';
+
+<button>
+  <Search size={13} />
+  <ShortcutHint keys="alt+k" />
+</button>
+```
+
 ## React Flow специфика
 
 ### `nodeTypes` / `edgeTypes` — вне компонента

@@ -127,15 +127,17 @@
       по `topic.root_node_id`), frontend скрывает «Удалить» в
       context menu для корня + bulk-delete фильтрует root +
       toast.warning
-- [ ] **#2:** Alt+K не работает на не-английской раскладке -
-      `event.code === 'KeyK'` (параллельный hotkey subagent)
-- [x] **#3:** Del/Backspace handler в `TopicGraphPage` -
-      временный `useEffect` в `GraphCanvas` через `event.code`,
-      re-use `handleDelete` (root filter уже там). TODO: мигрировать
-      на единую hotkey систему после #2/#4
-- [ ] **#4:** ⌘+↵ create + общая централизация hotkeys через
-      `react-hotkeys-hook` + i18n-aware `Cmd`/`Ctrl` отображение
-      (параллельный hotkey subagent)
+- [x] **#2:** Alt+K layout-independent - решено через `useHotkey`
+      wrapper над `react-hotkeys-hook` (useKey:true → event.code)
+- [x] **#3:** Del/Backspace handler в `TopicGraphPage` мигрирован
+      с временного useEffect на `useHotkey('delete,backspace', ...)`
+      в `GraphCanvas` - после унификации
+- [x] **#4:** ⌘+↵ submit в FormModal через `useHotkey('mod+enter',
+      formRef.current?.requestSubmit, { enableOnFormTags: true })`.
+      `<ShortcutHint keys="mod+enter">` показывает ⌘ на Mac / Ctrl
+      на Win/Linux. Хардкодные `<Kbd>⌘</Kbd>` в AddNodeModal/
+      AddEdgeModal убраны. ADR-036 + миграция 17+ существующих
+      keydown handlers на единую систему
 - [x] **#5:** shamela 502 → локализованный toast вместо сырого
       Problem Details с замаскированным api_key. Mapping по
       `problem.type` (`shamela-api-error` / `-archive-error` /
