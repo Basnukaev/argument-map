@@ -430,32 +430,19 @@ ADR-039
 
 ### Этап 21+. Аутентификация и далее
 
-- [x] **21.a (backend foundation, Сессия 41, ADR-040):** Spring Security 6 +
-      JWT HS256, jjwt 0.12.6, BCrypt. Миграция 32 `users` ALTER
-      (`password_hash`/`role`/`enabled`/`updated_at` + CHECK USER|ADMIN +
-      idx_users_email_lower). Auth package - `User`/`UserRole`/`AuthTokens`/
-      `AuthenticatedUser` domain, `UserRepository`, `JwtService`/`AuthService`/
-      `UserService`, `AuthController` (5 endpoints: register/login/refresh/
-      logout/me). Security wiring - `SecurityConfig` (STATELESS, CSRF off,
-      CORS via WebMvcConfig), `JwtAuthenticationFilter` (Bearer header),
-      `XUserIdAuthenticationFilter` (dev/test fallback @Profile),
-      `JwtAuthenticationEntryPoint` (Problem Details 401). Refresh token в
-      HttpOnly+Secure+SameSite=Strict cookie. `CurrentUserArgumentResolver`
-      переключён с header на SecurityContext - API `@CurrentUser` не
-      изменился. `DevUserSeeder` создаёт fixed admin@argumentmap.local /
-      admin12345 (UUID 0000...0001) при старте в local/dev. 30+ IT
-      (JwtServiceIT 7 + AuthServiceIT 10 + AuthControllerIT 13). 4
-      existing IT обновлены: missing-user-header → 401. **Transitional
-      в dev/test:** `GET /api/**` остаётся permitAll - покрывает 60+
-      existing IT без переписывания. В prod profile GET тоже authenticated().
-      После 21.b - убрать всю transitional ветку
-- [ ] **21.b (frontend login UI):** Login + Register page (форма email/
-      password или email/username/password), AuthStore (Zustand) с
-      access token in memory + auto-refresh on 401, apiClient interceptor
-      (Authorization: Bearer + retry on refresh), Logout button, /me
-      на старте для resume session. Удалить mock UUID-конвенцию. После
-      этого - убрать XUserIdAuthenticationFilter и transitional GET
-      permitAll из SecurityConfig
+- [x] **Этап 21 (Сессия 41, ADR-040) - auth end-to-end:** backend Spring
+      Security 6 + JWT (jjwt 0.12.6) + BCrypt + миграция 32 users ALTER
+      (password_hash/role/enabled) + AuthController (register/login/refresh/
+      logout/me) + httpOnly+Secure+SameSite=Strict refresh cookie +
+      JwtAuthenticationFilter + XUserIdAuthenticationFilter dev fallback +
+      DevUserSeeder (admin@argumentmap.local/admin12345). Frontend AuthStore
+      (Zustand, persist user) + apiClient Bearer interceptor + refresh-on-401
+      с dedup queue + LoginPage/RegisterPage (hero-style AuthShell) +
+      ProtectedRoute + AdminRoute (requireRole) + Logout flow в AvatarMenu +
+      Vite proxy /api+/actuator для same-origin cookies. 36 frontend tests +
+      30+ backend IT (246 frontend + 605 backend total). Transitional в
+      dev/test: GET /api/** остаётся permitAll - покрывает 60+ existing IT
+      без переписывания. В prod profile GET тоже authenticated()
 - [ ] **22:** Многопользовательский режим - private/shared/public
       visibility для тем, books, ответов
 - [ ] **23+:** Open list - sanad explorer, multi-grading, RTL UI,

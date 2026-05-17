@@ -1422,3 +1422,46 @@ given types` - стало 12 параметров вместо 11
 **Решение:** игнорировать ошибки `library.repository.PageRepositoryIT`
 и `qa.service.QuestionCitationServiceIT` в этой сессии. Подождать пока
 parallel subagent закроет свою задачу - он сам обновит конструкторы
+
+## SameSite=Strict refresh cookie + cross-origin fetch - не работает в dev
+
+**Симптом:** Этап 21.b login flow в браузере падает: фронт делает POST
+`/api/v1/auth/login` на :9090, получает 200 + Set-Cookie, но
+последующий `/api/v1/auth/refresh` валится с CORS error
+«'Access-Control-Allow-Credentials' header in the response is ''
+which must be 'true' when the request's credentials mode is 'include'»
+
+**Причина:** два момента:
+1. backend Этап 21.a `WebMvcConfig.addCorsMappings` имеет
+   `.allowCredentials(false)` - блокирует любой `credentials: 'include'`
+   fetch cross-origin
+2. SameSite=Strict refresh cookie вообще не отправляется браузером
+   cross-origin (:5173 → :9090) даже если CORS бы пропустил
+
+**Решение в рамках frontend (без правки backend):** Vite proxy +
+relative API_BASE_URL:
+- `vite.config.ts` - `server.proxy: { '/api': 'http://localhost:9090' }`
+- `client.ts` - `API_BASE_URL = ''` в browser, абсолютный URL только
+  в test mode (msw слушает `http://test.local`)
+
+Через proxy фронт и API живут на одном origin (5173) - cookies
+работают, CORS не нужен. В prod aналогичный setup через nginx/
+Cloudflare reverse proxy
+
+См. ADR-040 + `frontend/vite.config.ts` + `frontend/src/shared/api/
+client.ts` + frontend/CLAUDE.md «Auth» секция
+
+## React 19 StrictMode double-effect для loadCurrentUser
+
+**Симптом:** на mount App.tsx делает 2 запроса `POST /auth/refresh`
+вместо одного. В dev consolelog `[MSW] intercepted...` дублируется
+
+**Причина:** React 19 StrictMode в dev умышленно дважды вызывает
+useEffect ради ловли побочных эффектов
+
+**Решение:** хранить `initialized` флаг в authStore. useEffect
+вызывает `loadCurrentUser()` только если `!initialized`. После
+первого call (success или fail) флаг ставится в true, второй render
+видит initialized=true и пропускает. Двух запросов нет
+
+См. `frontend/src/shared/stores/authStore.ts` + `App.tsx`

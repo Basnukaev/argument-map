@@ -11,6 +11,97 @@
 
 ---
 
+## 2026-05-17 - Сессия 42 Этап 21.b - frontend login UI, Этап 21 целиком закрыт
+
+Параллельно с Tiptap extensions (см. ниже) - frontend auth end-to-end
+интеграция с backend Этапа 21.a (ADR-040). Зона: AuthStore, apiClient
+interceptor, новое app `src/apps/auth/`, ProtectedRoute, Logout в
+AvatarMenu, Vite proxy. Не пересекалась с Tiptap subagent'ом
+
+**Реализовано:**
+
+1. **AuthStore** (`shared/stores/authStore.ts`) - Zustand store:
+   login/register/logout/refreshAccessToken/loadCurrentUser. Persist
+   только user в localStorage (быстрый UI bootstrap), accessToken в
+   памяти (XSS-safety, ADR-040), refresh в httpOnly cookie. raw fetch
+   внутри store - избегаем circular dep с apiClient
+2. **apiClient interceptor** - Bearer Authorization header если
+   accessToken есть, 401 → refresh + retry один раз. Конкурентные
+   refresh дедуплицируются через single in-flight Promise (5 параллельных
+   401 = один refresh запрос). Связка с authStore через `authBridge.ts`
+   (lazy injection через AuthAccessor pattern)
+3. **LoginPage + RegisterPage** (`apps/auth/pages/`) с AuthShell -
+   hero-style standalone (без Header). Field/Button primitives. Client-
+   side валидация для register (email regex, password >=8, match).
+   Locale-aware ошибки: 401 → «Неверный email или пароль», 409 с
+   type=email-already-taken → «Email уже используется»
+4. **ProtectedRoute** (`shared/components/auth/`) - splash «Загрузка»
+   пока bootstrap, redirect на `/login?redirect=<path>` без user,
+   `requireRole="ADMIN"` для `/admin/*` (USER → silent redirect /topics)
+5. **App.tsx routing** - все `/topics`, `/books`, `/qa`, `/settings`
+   через `<ProtectedRoute>`, `/admin/*` с `requireRole="ADMIN"`,
+   `/login` + `/register` public. На mount - `loadCurrentUser()` один
+   раз (initialized гард защищает от React 19 StrictMode double-effect)
+6. **AvatarMenu Logout** - показывает user.username + email из
+   authStore, кнопка «Выйти» вызывает logout() + navigate /login.
+   initials autogen из username
+7. **Vite proxy + relative API_BASE_URL** - critical fix: SameSite=Strict
+   refresh cookie не шлётся cross-origin :5173 → :9090, плюс backend
+   CORS Этапа 21.a имеет `allowCredentials(false)`. Решение в рамках
+   frontend - vite.config proxy `/api`+`/actuator`, API_BASE_URL=''
+   для browser (через proxy). Tests остаются на VITE_API_URL для msw.
+   Backend не тронут - prod fix через nginx/Cloudflare same-origin
+8. **i18n** - 25+ keys auth.* / login.* / register.* / logout.* /
+   access.* в обе локали (RU/AR)
+
+**Файлы:**
+- `frontend/src/shared/stores/authStore.{ts,test.ts}` - 10 тестов
+- `frontend/src/shared/api/{client,authBridge}.ts` + client.test - 12
+  новых interceptor тестов
+- `frontend/src/apps/auth/components/AuthShell.tsx`
+- `frontend/src/apps/auth/pages/LoginPage.{tsx,test.tsx}` - 5 тестов
+- `frontend/src/apps/auth/pages/RegisterPage.{tsx,test.tsx}` - 4 теста
+- `frontend/src/shared/components/auth/ProtectedRoute.{tsx,test.tsx}` -
+  5 тестов
+- `frontend/src/shared/components/layout/AvatarMenu.tsx` - logout flow
+- `frontend/src/App.tsx` + `main.tsx` - routing, installAuthBridge
+- `frontend/vite.config.ts` - proxy config
+- `frontend/src/shared/i18n/dictionary.ts` - 25+ keys × 2 locales
+
+**Метрики:**
+- 246 frontend tests passed (210 baseline + 36 new auth tests)
+- tsc clean, eslint 0 errors (5 pre-existing warnings)
+- production build clean (3.14s)
+- Playwright headless smoke: 5/5 шагов passed (/topics protected
+  redirect → login → /topics → logout → /login → /register render)
+
+**Что отложено (Этап 22+ / backlog):**
+- Forgot password flow (нужен email-сервис, ADR пока нет)
+- Email verification (та же причина)
+- OAuth (Google / GitHub) - после v1 если будет спрос
+- RBAC permissions per-entity (Visibility/ACL) - явный Этап 22 в
+  roadmap
+- Backend CORS `allowCredentials(true)` для prod без proxy - откладывается
+  до выбора deployment topology (Cloudflare vs nginx vs ALB)
+
+**Коммиты (6):**
+- `aaa858b` feat(frontend): Этап 21.b AuthStore Zustand с persist user
+- `a288ee8` feat(frontend): Этап 21.b apiClient Bearer + refresh-on-401
+  interceptor
+- `1cdda13` feat(frontend): Этап 21.b LoginPage + RegisterPage компоненты
+- `de252fc` feat(frontend): Этап 21.b ProtectedRoute + AdminRoute wrappers
+  + App routing
+- `56f1c48` feat(frontend): Этап 21.b Header Logout + initial
+  loadCurrentUser
+- `43fd35a` fix(frontend): Этап 21.b Vite proxy для /api+/actuator +
+  relative API_BASE_URL
+
+**Этап 21 целиком закрыт** - backend Этап 21.a (ADR-040, Сессия 41) +
+frontend Этап 21.b (эта сессия). Свёрнут в строку «Закрытые этапы»
+в roadmap
+
+---
+
 ## 2026-05-17 - Сессия 42 Этап 17.0.b - 4 custom Tiptap extensions
 
 Continuation Этапа 17.0 - после MVP с HadithBox (Сессия 41) реализованы
