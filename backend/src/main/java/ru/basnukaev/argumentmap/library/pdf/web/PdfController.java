@@ -18,25 +18,31 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import ru.basnukaev.argumentmap.library.pdf.domain.PdfLocation;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfMetadata;
+import ru.basnukaev.argumentmap.library.pdf.domain.PdfStreamingResult;
+import ru.basnukaev.argumentmap.library.pdf.domain.RangeSpec;
 import ru.basnukaev.argumentmap.library.pdf.service.PdfService;
 import ru.basnukaev.argumentmap.library.web.dto.PdfFileInfoResponse;
 import ru.basnukaev.argumentmap.library.web.dto.PdfInfoResponse;
 
 /**
  * REST endpoints для streaming PDF-файлов книг. Source-agnostic
- * (ADR-021, ADR-024): backend сам выбирает provider'а, читает PDF
- * напрямую из object storage (MinIO/S3) и проксирует Range chunks
- * клиенту.
+ * (ADR-021, ADR-024, ADR-023 amendment): backend сам выбирает
+ * provider'а, провайдер сам решает откуда читать (MinIO bucket или
+ * upstream archive.org через Range forwarding).
  *
- * <p>После 25.b.6 - lazy streaming через {@link StreamingResponseBody}:
- * bytes идут MinIO → backend → frontend без полной загрузки в память.
- * PDF.js (frontend react-pdf) запрашивает chunks по 64KB-1MB через
- * Range header.
+ * <p>25.d.5 - lazy streaming через {@code PdfService.openStream}:
+ * <ul>
+ *   <li>cache hit (MinIO) → провайдер открывает {@code GetObjectRequest.range()}
+ *       стрим, bytes идут S3 → backend → клиент</li>
+ *   <li>cache miss + Range → провайдер открывает HTTP Range к archive.org,
+ *       bytes идут upstream → backend → клиент (без буферизации в памяти)</li>
+ *   <li>cache miss + full → провайдер синхронно скачивает + кеширует +
+ *       стримит из MinIO (legacy path для admin)</li>
+ * </ul>
  *
- * <p>Chunk-size limit = 1MB (1024*1024). Если клиент запрашивает
- * больше - обрезаем. Балансирует между:
+ * <p>Chunk-size limit = 1MB. Если клиент запрашивает больше - обрезаем.
+ * Балансирует между:
  * <ul>
  *   <li>слишком мелкие chunks: много HTTP-запросов, latency накапливается</li>
  *   <li>слишком крупные chunks: память сервера, медленный TTFB</li>
@@ -71,49 +77,64 @@ public class PdfController {
             @RequestParam(defaultValue = "0") int fileIndex,
             @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader
     ) {
-        PdfLocation loc = pdfService.locate(bookId, fileIndex);
-        long length = loc.sizeBytes();
+        RangeSpec rangeSpec = parseRangeHeader(rangeHeader);
+        PdfStreamingResult result = pdfService.openStream(bookId, fileIndex, rangeSpec);
 
-        List<HttpRange> ranges = rangeHeader == null
-                ? List.of()
-                : HttpRange.parseRanges(rangeHeader);
-
-        if (ranges.isEmpty()) {
-            // Полный download без Range. PDF.js при первом запросе посмотрит
-            // на Accept-Ranges: bytes и далее перейдёт на range-режим
+        if (!result.isPartial()) {
+            log.debug("pdf full stream: book={} fileIndex={} total={}",
+                    bookId, fileIndex, result.totalSize());
             StreamingResponseBody body = output -> {
-                try (var stream = pdfService.openFull(loc)) {
-                    stream.transferTo(output);
+                try (PdfStreamingResult res = result) {
+                    res.stream().transferTo(output);
                 }
             };
             return ResponseEntity.ok()
                     .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                     .contentType(MediaType.APPLICATION_PDF)
-                    .contentLength(length)
+                    .contentLength(result.contentLength())
                     .body(body);
         }
 
-        HttpRange range = ranges.get(0);
-        long start = range.getRangeStart(length);
-        long requestedEnd = range.getRangeEnd(length);
-        long actualEnd = Math.min(start + DEFAULT_CHUNK_SIZE - 1, requestedEnd);
-        long rangeLength = actualEnd - start + 1;
-
-        log.debug("pdf range: book={} fileIndex={} start={} length={} total={}",
-                bookId, fileIndex, start, rangeLength, length);
-
+        log.debug("pdf range stream: book={} fileIndex={} bytes={}-{}/{}",
+                bookId, fileIndex, result.startInclusive(), result.endInclusive(), result.totalSize());
         StreamingResponseBody body = output -> {
-            try (var stream = pdfService.openRange(loc, start, actualEnd)) {
-                stream.transferTo(output);
+            try (PdfStreamingResult res = result) {
+                res.stream().transferTo(output);
             }
         };
-
         return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                 .header(HttpHeaders.CONTENT_RANGE,
-                        "bytes " + start + "-" + actualEnd + "/" + length)
+                        "bytes " + result.startInclusive() + "-" + result.endInclusive()
+                                + "/" + result.totalSize())
                 .contentType(MediaType.APPLICATION_PDF)
-                .contentLength(rangeLength)
+                .contentLength(result.contentLength())
                 .body(body);
+    }
+
+    /**
+     * Парсит HTTP Range header в {@link RangeSpec}. Поддерживает только
+     * первый диапазон если их несколько (multi-range PDF.js не использует).
+     * Применяет {@link #DEFAULT_CHUNK_SIZE} cap на end чтобы не отдать
+     * клиенту 100MB одним response - PDF.js пере-запросит следующий
+     * chunk после получения первого.
+     *
+     * @return {@code null} если header отсутствует (full request)
+     */
+    private static RangeSpec parseRangeHeader(String rangeHeader) {
+        if (rangeHeader == null || rangeHeader.isBlank()) {
+            return null;
+        }
+        List<HttpRange> ranges = HttpRange.parseRanges(rangeHeader);
+        if (ranges.isEmpty()) {
+            return null;
+        }
+        HttpRange first = ranges.get(0);
+        // HttpRange.getRangeStart/getRangeEnd требуют length - используем
+        // Long.MAX_VALUE как unbounded и потом cap'аем по chunk size в provider
+        long start = first.getRangeStart(Long.MAX_VALUE);
+        long requestedEnd = first.getRangeEnd(Long.MAX_VALUE);
+        long cappedEnd = Math.min(start + DEFAULT_CHUNK_SIZE - 1, requestedEnd);
+        return new RangeSpec(start, cappedEnd);
     }
 }

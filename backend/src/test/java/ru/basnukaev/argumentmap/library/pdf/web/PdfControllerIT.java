@@ -1,7 +1,9 @@
 package ru.basnukaev.argumentmap.library.pdf.web;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -9,7 +11,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,22 +27,23 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfFileInfo;
-import ru.basnukaev.argumentmap.library.pdf.domain.PdfLocation;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfMetadata;
+import ru.basnukaev.argumentmap.library.pdf.domain.PdfStreamingResult;
+import ru.basnukaev.argumentmap.library.pdf.domain.RangeSpec;
 import ru.basnukaev.argumentmap.library.pdf.service.PdfNotAvailableException;
 import ru.basnukaev.argumentmap.library.pdf.service.PdfService;
-import software.amazon.awssdk.core.ResponseInputStream;
-import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import ru.basnukaev.argumentmap.library.pdf.service.RangeNotSatisfiableException;
 
 /**
  * IT для {@link PdfController}. Mock'аем {@link PdfService} - не
  * тестируем сами provider'ы (это unit-уровень), focus на wiring
  * controller'а: Range header parsing, content-type, status codes,
- * 404 для книг без PDF.
+ * 404 для книг без PDF, 416 Range Not Satisfiable.
  *
- * <p>После 25.b.6 PDF идёт через {@code PdfService.openRange/openFull}
- * (stream из MinIO), не через {@code FileSystemResource}. Mock возвращает
- * {@link ResponseInputStream} обёрнутый над {@link ByteArrayInputStream}.
+ * <p>После 25.d.5 - controller использует {@code PdfService.openStream}
+ * (lazy через provider). Mock возвращает {@link PdfStreamingResult} с
+ * {@link ByteArrayInputStream} вокруг known bytes - проверяем wiring
+ * status codes, headers, content.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -56,7 +58,6 @@ class PdfControllerIT {
 
     private UUID bookId;
     private byte[] sampleBytes;
-    private PdfLocation sampleLocation;
 
     @BeforeEach
     void setUp() {
@@ -65,11 +66,6 @@ class PdfControllerIT {
         for (int i = 0; i < sampleBytes.length; i++) {
             sampleBytes[i] = (byte) (i % 256);
         }
-        sampleLocation = new PdfLocation(
-                "library-imported-books",
-                bookId + "/01.pdf",
-                sampleBytes.length,
-                "application/pdf");
     }
 
     @Test
@@ -112,9 +108,8 @@ class PdfControllerIT {
 
     @Test
     void streamPdf_withoutRange_returnsFullFile() throws Exception {
-        Mockito.when(pdfService.locate(bookId, 0)).thenReturn(sampleLocation);
-        Mockito.when(pdfService.openFull(sampleLocation))
-                .thenAnswer(inv -> mockS3Stream(sampleBytes));
+        Mockito.when(pdfService.openStream(eq(bookId), eq(0), isNull()))
+                .thenReturn(fullResult(sampleBytes));
 
         mockMvc.perform(get("/api/v1/library/books/{id}/pdf", bookId))
                 .andExpect(status().isOk())
@@ -125,15 +120,14 @@ class PdfControllerIT {
 
     @Test
     void streamPdf_withRange_returnsPartialContent() throws Exception {
-        Mockito.when(pdfService.locate(bookId, 0)).thenReturn(sampleLocation);
-        Mockito.when(pdfService.openRange(eq(sampleLocation),
-                        Mockito.anyLong(), Mockito.anyLong()))
+        Mockito.when(pdfService.openStream(eq(bookId), eq(0), any(RangeSpec.class)))
                 .thenAnswer(inv -> {
-                    long start = inv.getArgument(1);
-                    long end = inv.getArgument(2);
+                    RangeSpec rs = inv.getArgument(2);
+                    long start = rs.startInclusive();
+                    long end = rs.endInclusive();
                     byte[] slice = new byte[(int) (end - start + 1)];
                     System.arraycopy(sampleBytes, (int) start, slice, 0, slice.length);
-                    return mockS3Stream(slice);
+                    return partialResult(slice, start, end, sampleBytes.length);
                 });
 
         mockMvc.perform(get("/api/v1/library/books/{id}/pdf", bookId)
@@ -148,20 +142,19 @@ class PdfControllerIT {
 
     @Test
     void streamPdf_withFileIndex_passesToService() throws Exception {
-        Mockito.when(pdfService.locate(bookId, 3)).thenReturn(sampleLocation);
-        Mockito.when(pdfService.openFull(sampleLocation))
-                .thenAnswer(inv -> mockS3Stream(sampleBytes));
+        Mockito.when(pdfService.openStream(eq(bookId), eq(3), isNull()))
+                .thenReturn(fullResult(sampleBytes));
 
         mockMvc.perform(get("/api/v1/library/books/{id}/pdf", bookId)
                         .param("fileIndex", "3"))
                 .andExpect(status().isOk());
 
-        Mockito.verify(pdfService).locate(bookId, 3);
+        Mockito.verify(pdfService).openStream(eq(bookId), eq(3), isNull());
     }
 
     @Test
     void streamPdf_invalidFileIndex_returns404() throws Exception {
-        Mockito.when(pdfService.locate(bookId, 99))
+        Mockito.when(pdfService.openStream(eq(bookId), eq(99), isNull()))
                 .thenThrow(new PdfNotAvailableException(bookId, 99, 5));
 
         mockMvc.perform(get("/api/v1/library/books/{id}/pdf", bookId)
@@ -172,24 +165,43 @@ class PdfControllerIT {
 
     @Test
     void streamPdf_bookWithoutPdf_returns404() throws Exception {
-        Mockito.when(pdfService.locate(bookId, 0))
+        Mockito.when(pdfService.openStream(eq(bookId), eq(0), isNull()))
                 .thenThrow(new PdfNotAvailableException(bookId));
 
         mockMvc.perform(get("/api/v1/library/books/{id}/pdf", bookId))
                 .andExpect(status().isNotFound());
     }
 
-    /**
-     * Создаёт {@code ResponseInputStream<GetObjectResponse>} обёртку
-     * вокруг известных bytes. Используется для mock'а
-     * {@code PdfService.openFull/openRange}.
-     */
-    private static ResponseInputStream<GetObjectResponse> mockS3Stream(byte[] content) {
-        InputStream raw = new ByteArrayInputStream(content);
-        GetObjectResponse resp = GetObjectResponse.builder()
-                .contentLength((long) content.length)
-                .contentType("application/pdf")
-                .build();
-        return new ResponseInputStream<>(resp, software.amazon.awssdk.http.AbortableInputStream.create(raw));
+    @Test
+    void streamPdf_rangeOutsideFile_returns416() throws Exception {
+        Mockito.when(pdfService.openStream(eq(bookId), eq(0), any(RangeSpec.class)))
+                .thenThrow(new RangeNotSatisfiableException(50_000, 10_000));
+
+        mockMvc.perform(get("/api/v1/library/books/{id}/pdf", bookId)
+                        .header(HttpHeaders.RANGE, "bytes=50000-60000"))
+                .andExpect(status().isRequestedRangeNotSatisfiable())
+                .andExpect(jsonPath("$.type").value(containsString("range-not-satisfiable")))
+                .andExpect(jsonPath("$.start").value(50_000))
+                .andExpect(jsonPath("$.totalSize").value(10_000));
+    }
+
+    private static PdfStreamingResult fullResult(byte[] content) {
+        return new PdfStreamingResult(
+                new ByteArrayInputStream(content),
+                content.length,
+                0L,
+                content.length - 1,
+                content.length,
+                false);
+    }
+
+    private static PdfStreamingResult partialResult(byte[] slice, long start, long end, long total) {
+        return new PdfStreamingResult(
+                new ByteArrayInputStream(slice),
+                slice.length,
+                start,
+                end,
+                total,
+                true);
     }
 }
