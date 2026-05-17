@@ -39,6 +39,9 @@ interface Props {
   /** Контейнер графа - источник DOM-snapshot для html-to-image. Если null,
    * экспорт fallback на `.react-flow__viewport` через querySelector */
   graphContainerRef?: React.RefObject<HTMLElement | null>;
+  /** Read-only: скрыть mutating кнопки (Add Node / Add Edge / Delete).
+   * Export, zoom, label toggle - всегда доступны. Default true */
+  canWrite?: boolean;
 }
 
 /**
@@ -65,6 +68,7 @@ function GraphPanels({
   rfInstance,
   topicTitle,
   graphContainerRef,
+  canWrite = true,
 }: Props) {
   const t = useT();
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
@@ -130,15 +134,19 @@ function GraphPanels({
         position="top-left"
         className="!m-3 flex w-12 flex-col items-center gap-1 rounded-md border border-border bg-elevated/95 py-2 shadow-md backdrop-blur"
       >
-        <IconButton icon={Plus} label={t('graph.add_node')} size="md" onClick={onAddNode} />
-        <IconButton
-          icon={Link2}
-          label={canAddEdge ? t('graph.create_edge') : t('graph.need_two_nodes')}
-          size="md"
-          disabled={!canAddEdge}
-          onClick={onAddEdge}
-        />
-        <div className="my-1 h-px w-7 bg-ink-200" />
+        {canWrite && (
+          <>
+            <IconButton icon={Plus} label={t('graph.add_node')} size="md" onClick={onAddNode} />
+            <IconButton
+              icon={Link2}
+              label={canAddEdge ? t('graph.create_edge') : t('graph.need_two_nodes')}
+              size="md"
+              disabled={!canAddEdge}
+              onClick={onAddEdge}
+            />
+            <div className="my-1 h-px w-7 bg-ink-200" />
+          </>
+        )}
         <IconButton
           icon={showEdgeLabels ? Eye : EyeOff}
           label={showEdgeLabels ? t('graph.hide_edge_labels') : t('graph.show_edge_labels')}
@@ -186,19 +194,23 @@ function GraphPanels({
             </div>
           )}
         </div>
-        <div className="my-1 h-px w-7 bg-ink-200" />
-        <IconButton
-          icon={Trash2}
-          label={
-            selectedCount === 0
-              ? t('graph.delete_hint_empty')
-              : `${t('graph.delete_count')} (${selectedCount})`
-          }
-          size="md"
-          disabled={selectedCount === 0 || deleting}
-          onClick={onDelete}
-          className={selectedCount > 0 && !deleting ? '!text-err-700 hover:!bg-err-100' : ''}
-        />
+        {canWrite && (
+          <>
+            <div className="my-1 h-px w-7 bg-ink-200" />
+            <IconButton
+              icon={Trash2}
+              label={
+                selectedCount === 0
+                  ? t('graph.delete_hint_empty')
+                  : `${t('graph.delete_count')} (${selectedCount})`
+              }
+              size="md"
+              disabled={selectedCount === 0 || deleting}
+              onClick={onDelete}
+              className={selectedCount > 0 && !deleting ? '!text-err-700 hover:!bg-err-100' : ''}
+            />
+          </>
+        )}
       </Panel>
 
       <Panel

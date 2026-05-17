@@ -51,6 +51,13 @@ interface Props {
   graph: GraphResponse;
   topicId: string;
   onRefetch: () => void;
+  /**
+   * Может ли текущий пользователь писать в тему. Если false - кнопки
+   * Add Node / Add Edge / Delete скрываются, context-menu mutating
+   * actions недоступны. Подсветка read-only - в TopicGraphPage header.
+   * Default: true для backwards compat (тесты GraphCanvas без props)
+   */
+  canWrite?: boolean;
 }
 
 const SHOW_LABELS_LS_KEY = 'argmap.showEdgeLabels';
@@ -69,7 +76,7 @@ function readShowLabels(): boolean {
  * Не зависит от страничного шаблона: page (`TopicGraphPage`) только
  * грузит данные и передаёт сюда `graph` + `topicId` + `onRefetch`.
  */
-function GraphCanvas({ graph, topicId, onRefetch }: Props) {
+function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
   const t = useT();
   // React Flow `colorMode` prop переключает CSS-vars пакета (controls,
   // background dots, attribution) под light/dark. Без него controls
@@ -430,10 +437,12 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
     await runDelete([], [edgeId]);
   }
 
-  // правый клик на pane - "Создать узел здесь" с координатами курсора
+  // правый клик на pane - "Создать узел здесь" с координатами курсора.
+  // Для read-only режима меню не показываем (single mutating action - create)
   const handlePaneContextMenu = useCallback(
     (event: React.MouseEvent | MouseEvent) => {
       event.preventDefault();
+      if (!canWrite) return;
       const flowPos = rfInstance?.screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
@@ -455,7 +464,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
         ],
       });
     },
-    [rfInstance, t],
+    [rfInstance, t, canWrite],
   );
 
   function closeAddNode() {
@@ -490,7 +499,8 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
       event.preventDefault();
       const data = node.data as NodeCardData | undefined;
       const anchorType = data?.nodeType;
-      const relatedOptions = anchorType ? getRelatedNodeOptions(anchorType) : [];
+      const relatedOptions =
+        canWrite && anchorType ? getRelatedNodeOptions(anchorType) : [];
 
       const relatedItems: ContextMenuItem[] = [...relatedOptions].map((opt) => ({
         id: `add-${opt.newNodeType}-${opt.edgeType}-${opt.direction}`,
@@ -546,23 +556,26 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
         },
       );
       // удаление недоступно для корневого узла темы (бэк бы вернул 409
-      // NodeIsRootException, но UX лучше скрыть пункт + показать hint)
-      if (node.id !== rootNodeId) {
-        items.push({
-          id: 'delete-node',
-          label: t('common.delete'),
-          icon: Trash2,
-          danger: true,
-          onClick: () => void deleteOneNode(node.id),
-        });
-      } else {
-        items.push({
-          id: 'delete-node-root-disabled',
-          label: `${t('common.delete')} · ${t('graph.root.delete_hint')}`,
-          icon: Trash2,
-          disabled: true,
-          onClick: () => {},
-        });
+      // NodeIsRootException, но UX лучше скрыть пункт + показать hint).
+      // А также скрываем для read-only пользователей
+      if (canWrite) {
+        if (node.id !== rootNodeId) {
+          items.push({
+            id: 'delete-node',
+            label: t('common.delete'),
+            icon: Trash2,
+            danger: true,
+            onClick: () => void deleteOneNode(node.id),
+          });
+        } else {
+          items.push({
+            id: 'delete-node-root-disabled',
+            label: `${t('common.delete')} · ${t('graph.root.delete_hint')}`,
+            icon: Trash2,
+            disabled: true,
+            onClick: () => {},
+          });
+        }
       }
 
       setContextMenu({
@@ -580,46 +593,49 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
   const handleEdgeContextMenu = useCallback(
     (event: React.MouseEvent, edge: Edge) => {
       event.preventDefault();
+      const items: ContextMenuItem[] = [
+        {
+          id: 'edit-edge',
+          label: t('common.edit'),
+          icon: Pencil,
+          onClick: () => {
+            setDetailEdgeId(edge.id);
+            setDetailNodeId(null);
+            setEditTargetEdgeId(edge.id);
+            setEditTargetNodeId(null);
+          },
+        },
+        {
+          id: 'bring-front',
+          label: t('graph.ctx.bring_front'),
+          icon: ArrowUp,
+          onClick: () => bringEdgeToFront(edge.id),
+        },
+        {
+          id: 'send-back',
+          label: t('graph.ctx.send_back'),
+          icon: ArrowDown,
+          onClick: () => sendEdgeToBack(edge.id),
+        },
+      ];
+      if (canWrite) {
+        items.push({
+          id: 'delete-edge',
+          label: t('common.delete'),
+          icon: Trash2,
+          danger: true,
+          onClick: () => void deleteOneEdge(edge.id),
+        });
+      }
       setContextMenu({
         x: event.clientX,
         y: event.clientY,
         header: t('graph.ctx.section_edge'),
-        items: [
-          {
-            id: 'edit-edge',
-            label: t('common.edit'),
-            icon: Pencil,
-            onClick: () => {
-              setDetailEdgeId(edge.id);
-              setDetailNodeId(null);
-              setEditTargetEdgeId(edge.id);
-              setEditTargetNodeId(null);
-            },
-          },
-          {
-            id: 'bring-front',
-            label: t('graph.ctx.bring_front'),
-            icon: ArrowUp,
-            onClick: () => bringEdgeToFront(edge.id),
-          },
-          {
-            id: 'send-back',
-            label: t('graph.ctx.send_back'),
-            icon: ArrowDown,
-            onClick: () => sendEdgeToBack(edge.id),
-          },
-          {
-            id: 'delete-edge',
-            label: t('common.delete'),
-            icon: Trash2,
-            danger: true,
-            onClick: () => void deleteOneEdge(edge.id),
-          },
-        ],
+        items,
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setEdges, setNodes],
+    [setEdges, setNodes, canWrite],
   );
 
   // RF onSelectionChange срабатывает при каждом setNodes даже если selection
@@ -726,7 +742,9 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
       {isEmpty ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-8 text-center">
           <p className="text-ink-500">{t('graph.empty')}</p>
-          <Button onClick={() => setAddNodeOpen(true)}>{t('graph.add_first_node')}</Button>
+          {canWrite && (
+            <Button onClick={() => setAddNodeOpen(true)}>{t('graph.add_first_node')}</Button>
+          )}
         </div>
       ) : (
         <ReactFlow
@@ -768,6 +786,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
             onDelete={handleDelete}
             rfInstance={rfInstance as ReactFlowInstance<never, never> | null}
             topicTitle={graph.topic?.title}
+            canWrite={canWrite}
           />
         </ReactFlow>
       )}
