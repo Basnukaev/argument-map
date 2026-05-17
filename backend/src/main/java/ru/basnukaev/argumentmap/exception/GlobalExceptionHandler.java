@@ -150,6 +150,40 @@ public class GlobalExceptionHandler {
                 "missing-user-header", ex.getMessage());
     }
 
+    // ---- auth (ADR-040, Этап 21) ----
+
+    @ExceptionHandler(UserNotFoundException.class)
+    public ProblemDetail handleUserNotFound(UserNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND,
+                "Пользователь не найден", "user-not-found", ex.getMessage());
+    }
+
+    @ExceptionHandler(EmailAlreadyTakenException.class)
+    public ProblemDetail handleEmailTaken(EmailAlreadyTakenException ex) {
+        return problem(HttpStatus.CONFLICT,
+                "Email уже зарегистрирован", "email-already-taken", ex.getMessage());
+    }
+
+    @ExceptionHandler(UsernameAlreadyTakenException.class)
+    public ProblemDetail handleUsernameTaken(UsernameAlreadyTakenException ex) {
+        return problem(HttpStatus.CONFLICT,
+                "Имя пользователя занято", "username-already-taken", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ProblemDetail handleInvalidCredentials(InvalidCredentialsException ex) {
+        // Унифицированный ответ - не leak'аем какой именно факт неверный.
+        return problem(HttpStatus.UNAUTHORIZED,
+                "Неверный email или пароль", "invalid-credentials",
+                "Неверный email или пароль");
+    }
+
+    @ExceptionHandler(InvalidTokenException.class)
+    public ProblemDetail handleInvalidToken(InvalidTokenException ex) {
+        return problem(HttpStatus.UNAUTHORIZED,
+                "Невалидный или истёкший токен", "invalid-token", ex.getMessage());
+    }
+
     @ExceptionHandler(UnsupportedExportFormatException.class)
     public ProblemDetail handleUnsupportedExportFormat(UnsupportedExportFormatException ex) {
         ProblemDetail pd = problem(HttpStatus.UNPROCESSABLE_ENTITY,
