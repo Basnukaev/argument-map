@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router';
 import {
   Network,
   Plus,
@@ -7,21 +7,35 @@ import {
   Calendar,
   AlertCircle,
   Loader2,
+  Download,
+  Upload,
 } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
-import { apiGet, ApiError } from '@/shared/api/client';
+import {
+  apiGet,
+  apiGetRaw,
+  apiPostMultipart,
+  API_BASE_URL,
+  ApiError,
+  formatApiError,
+} from '@/shared/api/client';
 import { useT, useFormatDate } from '@/shared/i18n';
+import { toast } from '@/shared/stores/toastStore';
 import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
 
 type Topic = components['schemas']['TopicResponse'];
+type TopicImportResponse = components['schemas']['TopicImportResponse'];
 
 function TopicListPage() {
   const t = useT();
+  const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<AsyncState<Topic[]>>({ kind: 'loading' });
   const [search, setSearch] = useState('');
+  const [importBusy, setImportBusy] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -41,6 +55,55 @@ function TopicListPage() {
       });
     return () => controller.abort();
   }, []);
+
+  /**
+   * Trigger native file picker. `<input type="file">` стилизуется плохо -
+   * храним hidden и click'аем программно из обычной кнопки
+   */
+  const triggerFilePicker = () => {
+    fileInputRef.current?.click();
+  };
+
+  /**
+   * Прочитать выбранный файл и POST'ом multipart отправить на /import.
+   * При успехе - toast.success с кнопкой "Открыть" → navigate на новую
+   * тему. Warnings из ответа показываются как отдельный toast.warning
+   */
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // reset value сразу - чтобы повторный выбор того же файла триггерил
+    // onChange (browser optimizes away identical selection)
+    e.target.value = '';
+    if (!file) return;
+
+    setImportBusy(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await apiPostMultipart<TopicImportResponse>(
+        '/api/v1/topics/import',
+        formData,
+      );
+      if (response.warnings && response.warnings.length > 0) {
+        toast.warning(t('topic.import.warning_no_book'));
+      }
+      toast.success(t('topic.import.success'), {
+        label: t('topic.import.open'),
+        onClick: () => navigate(`/topics/${response.topicId}`),
+      });
+      // refetch topic list - новая тема должна появиться в каталоге
+      const topics = (await apiGet('/api/v1/topics')) as Topic[];
+      setState({ kind: 'success', data: topics ?? [] });
+    } catch (err: unknown) {
+      if (err instanceof ApiError && err.is('unsupported-format-version')) {
+        toast.error(t('topic.import.error_format'));
+      } else {
+        toast.error(formatApiError(err, t('topic.import.failed')));
+      }
+    } finally {
+      setImportBusy(false);
+    }
+  };
 
   const filteredTopics = useMemo(() => {
     if (state.kind !== 'success') return [];
@@ -79,9 +142,27 @@ function TopicListPage() {
               )}
             </p>
           </div>
-          <Link to="/topics/new">
-            <Button icon={Plus}>{t('topic.list.create_button')}</Button>
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              icon={Upload}
+              variant="ghost"
+              onClick={triggerFilePicker}
+              disabled={importBusy}
+            >
+              {t('topic.import.button')}
+            </Button>
+            <Link to="/topics/new">
+              <Button icon={Plus}>{t('topic.list.create_button')}</Button>
+            </Link>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json,.json"
+              onChange={handleFileSelected}
+              className="hidden"
+              aria-hidden
+            />
+          </div>
         </header>
 
         <div className="mb-6 flex items-center gap-3">
@@ -167,6 +248,39 @@ function TopicCard({ topic }: TopicCardProps) {
   const fallbackTitle = t('reader.no_book_title');
   const title = topic.title ?? fallbackTitle;
 
+  /**
+   * Скачать тему через прямой fetch с absolute URL + создать ObjectURL +
+   * программный клик по `<a download>` (стандартный браузерный паттерн).
+   * stopPropagation на event - чтобы не сработал navigate из обёрточного
+   * `<Link>`
+   */
+  const handleExport = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const dto = await apiGetRaw<unknown>(`/api/v1/topics/${topic.id}/export`);
+      const blob = new Blob([JSON.stringify(dto, null, 2)], {
+        type: 'application/json',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `topic-${topic.id.slice(0, 8)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // освобождение памяти - после клика, без задержки blob может
+      // не успеть открыться в некоторых браузерах. setTimeout 0ms даёт
+      // event loop отработать download trigger
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (err: unknown) {
+      toast.error(formatApiError(err, t('topic.export.failed')));
+    }
+    // explicitly mark unused - URL.createObjectURL не используется
+    // вне этой функции. API_BASE_URL для будущих direct-URL fetch'ей
+    void API_BASE_URL;
+  };
+
   return (
     <Link
       to={`/topics/${topic.id}`}
@@ -180,6 +294,15 @@ function TopicCard({ topic }: TopicCardProps) {
             <Network size={10} aria-hidden />
             {nodeCount} · {edgeCount}
           </div>
+          <button
+            type="button"
+            onClick={handleExport}
+            title={t('topic.export.button')}
+            aria-label={t('topic.export.button')}
+            className="absolute start-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-sm border border-border bg-elevated/90 text-ink-600 opacity-0 transition-opacity hover:bg-ink-50 hover:text-ink-900 focus:opacity-100 group-hover:opacity-100 backdrop-blur"
+          >
+            <Download size={12} aria-hidden />
+          </button>
         </div>
         <Card.Body>
           <h2

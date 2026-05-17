@@ -20,6 +20,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/topics/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importMultipart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sources": {
         parameters: {
             query?: never;
@@ -404,6 +420,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/topics/{topicId}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["export"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sources/{sourceId}": {
         parameters: {
             query?: never;
@@ -716,6 +748,142 @@ export interface components {
             nodeCount?: number;
             /** Format: int32 */
             edgeCount?: number;
+        };
+        TopicImportResponse: {
+            /** Format: uuid */
+            topicId?: string;
+            /** Format: int32 */
+            importedNodes?: number;
+            /** Format: int32 */
+            importedEdges?: number;
+            /** Format: int32 */
+            importedNodeSources?: number;
+            /** Format: int32 */
+            importedSources?: number;
+            /** Format: int32 */
+            importedAuthorities?: number;
+            warnings?: string[];
+        };
+        AuthorityData: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+            bio?: string;
+            era?: string;
+            madhab?: string;
+            metadata?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            fullName?: string;
+            /** Format: int32 */
+            deathYearHijri?: number;
+        };
+        BookRef: {
+            /** Format: uuid */
+            id?: string;
+            title?: string;
+            /** Format: uuid */
+            authorityId?: string;
+        };
+        EdgeData: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            fromNodeId?: string;
+            /** Format: uuid */
+            toNodeId?: string;
+            edgeType?: string;
+            rationale?: string;
+            sourceHandle?: string;
+            targetHandle?: string;
+            /** Format: uuid */
+            createdBy?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        NodeData: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            topicId?: string;
+            nodeType?: string;
+            content?: string;
+            status?: string;
+            /** Format: double */
+            posX?: number;
+            /** Format: double */
+            posY?: number;
+            /** Format: uuid */
+            createdBy?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        NodeSourceData: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            nodeId?: string;
+            /** Format: uuid */
+            sourceId?: string;
+            quote?: string;
+            context?: string;
+            location?: string;
+            /** Format: uuid */
+            pageId?: string;
+            /** Format: int32 */
+            rangeStart?: number;
+            /** Format: int32 */
+            rangeEnd?: number;
+            /** Format: uuid */
+            pdfFileId?: string;
+            /** Format: int32 */
+            pdfPageNumber?: number;
+            pdfBbox?: string;
+            /** Format: uuid */
+            imageRegionId?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        SourceData: {
+            /** Format: uuid */
+            id?: string;
+            sourceType?: string;
+            title?: string;
+            citation?: string;
+            reliability?: string;
+            /** Format: uuid */
+            authorityId?: string;
+            /** Format: uuid */
+            bookId?: string;
+            metadata?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        TopicData: {
+            /** Format: uuid */
+            id?: string;
+            title?: string;
+            description?: string;
+            /** Format: uuid */
+            rootNodeId?: string;
+            /** Format: uuid */
+            createdBy?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        TopicExportDto: {
+            formatVersion?: string;
+            /** Format: date-time */
+            exportedAt?: string;
+            topic?: components["schemas"]["TopicData"];
+            nodes?: components["schemas"]["NodeData"][];
+            edges?: components["schemas"]["EdgeData"][];
+            nodeSources?: components["schemas"]["NodeSourceData"][];
+            sources?: components["schemas"]["SourceData"][];
+            authorities?: components["schemas"]["AuthorityData"][];
+            books?: components["schemas"]["BookRef"][];
         };
         CreateSourceRequest: {
             /** @enum {string} */
@@ -1377,6 +1545,41 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["TopicResponse"];
+                };
+            };
+        };
+    };
+    importMultipart: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header: {
+                /** @description UUID текущего пользователя (ADR-006, временно до Spring Security в Этапе 6) */
+                "X-User-Id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                    /** Format: uuid */
+                    currentUserId?: string;
+                };
+                "application/json": components["schemas"]["TopicExportDto"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TopicImportResponse"];
                 };
             };
         };
@@ -2302,6 +2505,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["GraphResponse"];
+                };
+            };
+        };
+    };
+    export: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                topicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TopicExportDto"];
                 };
             };
         };
