@@ -5,7 +5,9 @@ import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import Button from '@/shared/components/ui/Button';
 import BookEditModal from '@/apps/admin/components/BookEditModal';
+import VisibilityBadge from '@/shared/components/visibility/VisibilityBadge';
 import { apiGetRaw, ApiError, formatApiError } from '@/shared/api/client';
+import { formatPermissionError } from '@/shared/api/permissionErrors';
 import { toast } from '@/shared/stores/toastStore';
 import { useT, type DictKey } from '@/shared/i18n';
 import type { AsyncState } from '@/shared/types/async';
@@ -96,8 +98,12 @@ function BookListPage() {
       );
       setEditingBook(detail);
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      toast.error(message);
+      // 22.c.f: для книг куда юзер не имеет write-доступа бэк отдаёт 403
+      // forbidden-book-write на PATCH; для read 403 forbidden-book-access.
+      // Здесь GET book detail - может прийти forbidden-book-access если
+      // private чужой книги вдруг попала в list (теоретически не должна)
+      const permMsg = formatPermissionError(e, t);
+      toast.error(permMsg ?? formatApiError(e, t('common.error')));
     } finally {
       setLoadingEdit(null);
     }
@@ -439,6 +445,15 @@ function BookCard({ book, onEdit, editLoading }: BookCardProps) {
                 <bdi dir="ltr">{book.language}</bdi>
               </span>
             )}
+            {/* Visibility badge (22.c.f, ADR-043 Amendment). Шамела imports
+                default'ятся в PUBLIC, user-uploads через FileImportService
+                в PRIVATE. Backend - источник истины; здесь только indicator
+                чтобы юзер видел кто ещё имеет доступ */}
+            <VisibilityBadge
+              visibility={book.visibility}
+              labelPrefix="book.visibility"
+              compact
+            />
           </Card.Eyebrow>
             <Card.Title>{title}</Card.Title>
             <Card.Meta>

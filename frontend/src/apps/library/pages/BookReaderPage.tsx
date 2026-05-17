@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
-import { AlertCircle, ChevronLeft, ChevronRight, Loader2, ArrowLeft, Maximize2, X, List } from 'lucide-react';
+import { AlertCircle, ChevronLeft, ChevronRight, Loader2, ArrowLeft, Maximize2, X, List, Users, Lock } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import Button from '@/shared/components/ui/Button';
 import Modal from '@/shared/components/ui/Modal';
@@ -11,8 +11,15 @@ import ChapterList, { type Chapter } from '@/shared/components/reader/ChapterLis
 import PageJump from '@/shared/components/reader/PageJump';
 import PageView, { type PageContentState, type PageDetail } from '@/shared/components/reader/PageView';
 import { type ReaderMode } from '@/shared/components/reader/utils';
-import { apiGetRaw, ApiError } from '@/shared/api/client';
+import VisibilityBadge from '@/shared/components/visibility/VisibilityBadge';
+import VisibilityRadioGroup, {
+  type Visibility,
+} from '@/shared/components/visibility/VisibilityRadioGroup';
+import BookMembersModal from '@/apps/library/components/BookMembersModal';
+import { apiGetRaw, apiPatchRaw, ApiError, formatApiError } from '@/shared/api/client';
+import { formatPermissionError } from '@/shared/api/permissionErrors';
 import { toast } from '@/shared/stores/toastStore';
+import { useAuthStore } from '@/shared/stores/authStore';
 import { useLocaleStore, useT } from '@/shared/i18n';
 import { useIsMobile } from '@/shared/hooks/useViewport';
 import type { components } from '@/shared/api/types';
@@ -46,14 +53,21 @@ function BookReaderPage() {
   const [searchParams] = useSearchParams();
   const locale = useLocaleStore((s) => s.locale);
   const t = useT();
+  const currentUser = useAuthStore((s) => s.user);
   // Стрелки toolbar пагинации - по локали интерфейса, не по языку книги.
   // Навигация - UI-элемент: «следующая» = по направлению чтения локали
   const prevIcon = locale === 'ar' ? ChevronRight : ChevronLeft;
   const nextIcon = locale === 'ar' ? ChevronLeft : ChevronRight;
   const [state, setState] = useState<BookState>({ kind: 'loading' });
+  const [refreshKey, setRefreshKey] = useState(0);
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [pageContent, setPageContent] = useState<PageContentState>({ kind: 'loading' });
   const [readerMode, setReaderMode] = useState<ReaderMode>('text');
+  // Members + visibility modals (22.c.f, ADR-043 Amendment). Open only
+  // for owner/admin
+  const [membersOpen, setMembersOpen] = useState(false);
+  const [visibilityModalOpen, setVisibilityModalOpen] = useState(false);
+  const [savingVisibility, setSavingVisibility] = useState(false);
   // Inline PDF preview - shamela-like UX: кнопка 📕 на странице text mode
   // открывает PDF в overlay внизу экрана. Из preview можно "развернуть на
   // весь экран" → readerMode=pdf + закрытие overlay
@@ -117,7 +131,7 @@ function BookReaderPage() {
         setState({ kind: 'error', message });
       });
     return () => controller.abort();
-  }, [bookId, t]);
+  }, [bookId, refreshKey, t]);
 
   // Deep link handling после загрузки pages - применяем query params один
   // раз когда state становится success. Это инициализация под query, не
@@ -296,6 +310,42 @@ function BookReaderPage() {
     setChaptersDrawerOpen(false);
   };
 
+  // Permission check на основании book.createdBy. Бэк - источник истины и
+  // сам бросает 403 при попытке write без прав (мы локализуем через
+  // formatPermissionError). UI hint - чтобы пользователь видел read-only
+  // не сделав запрос. ADMIN - bypass'ит проверки на бэке, показываем кнопки
+  const book = state.kind === 'success' ? state.book : undefined;
+  const visibility: Visibility = (book?.visibility ?? 'PRIVATE') as Visibility;
+  const isOwner = Boolean(
+    currentUser && book?.createdBy && currentUser.id === book.createdBy,
+  );
+  const isAdmin = currentUser?.role === 'ADMIN';
+  const canWriteOptimistic = isOwner || isAdmin || visibility !== 'PRIVATE';
+
+  async function handleSaveVisibility(next: Visibility) {
+    if (!bookId || next === visibility) {
+      setVisibilityModalOpen(false);
+      return;
+    }
+    setSavingVisibility(true);
+    try {
+      await apiPatchRaw(`/api/v1/library/books/${bookId}/visibility`, {
+        visibility: next,
+      });
+      toast.success(t('book.visibility.change_success'));
+      setVisibilityModalOpen(false);
+      setRefreshKey((k) => k + 1);
+    } catch (err: unknown) {
+      const permMsg =
+        err instanceof ApiError ? formatPermissionError(err, t) : null;
+      toast.error(
+        permMsg ?? formatApiError(err, t('book.visibility.change_failed')),
+      );
+    } finally {
+      setSavingVisibility(false);
+    }
+  }
+
   const chaptersContent = (
     <>
       <button
@@ -368,7 +418,54 @@ function BookReaderPage() {
             <>
               {/* BookHeader в Card-wrapper для consistency с PageView ширины */}
               <Card className="mb-4 p-5">
-                <BookHeader book={state.book} pagesCount={totalPages} />
+                <BookHeader book={state.book} pagesCount={totalPages}>
+                  {/* Visibility / members controls (22.c.f, ADR-043 Amendment).
+                      Owner/admin видят кнопку смены visibility (badge кликабелен)
+                      и кнопку «Управление участниками» при SHARED. Прочие user'ы
+                      только read-only badge + Lock badge если read-only */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {!canWriteOptimistic && (
+                      <span
+                        title={t('book.permission.read_only_hint')}
+                        className="inline-flex items-center gap-1 rounded-sm border border-border bg-elevated px-1.5 py-0.5 text-xs font-medium text-ink-500"
+                      >
+                        <Lock size={11} aria-hidden />
+                        {t('book.permission.read_only')}
+                      </span>
+                    )}
+                    {(isOwner || isAdmin) && (
+                      <button
+                        type="button"
+                        onClick={() => setVisibilityModalOpen(true)}
+                        title={t('book.visibility.change_action')}
+                        className="inline-flex items-center gap-1 rounded-sm border border-border bg-elevated px-1.5 py-0.5 text-xs font-medium text-ink-700 transition-colors hover:bg-ink-100"
+                      >
+                        <VisibilityBadge
+                          visibility={visibility}
+                          labelPrefix="book.visibility"
+                          className="border-0 bg-transparent !px-0 !py-0"
+                        />
+                      </button>
+                    )}
+                    {!isOwner && !isAdmin && (
+                      <VisibilityBadge
+                        visibility={visibility}
+                        labelPrefix="book.visibility"
+                      />
+                    )}
+                    {(isOwner || isAdmin) && visibility === 'SHARED' && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        icon={Users}
+                        onClick={() => setMembersOpen(true)}
+                      >
+                        {t('book.members.manage_button')}
+                      </Button>
+                    )}
+                  </div>
+                </BookHeader>
               </Card>
               {readerMode === 'text' && (
                 <>
@@ -569,7 +666,76 @@ function BookReaderPage() {
           {chaptersContent}
         </Modal>
       )}
+
+      {/* Members modal - SHARED books, открывается только для owner/admin */}
+      {membersOpen && bookId && (
+        <BookMembersModal
+          open={membersOpen}
+          bookId={bookId}
+          ownerUserId={book?.createdBy}
+          onClose={() => setMembersOpen(false)}
+        />
+      )}
+
+      {/* Change visibility modal - radio group + Save/Cancel */}
+      {visibilityModalOpen && (
+        <Modal
+          open={visibilityModalOpen}
+          onClose={() => setVisibilityModalOpen(false)}
+          title={t('book.visibility.field_label')}
+          subtitle={t('book.visibility.field_hint')}
+          maxWidth="max-w-xl"
+        >
+          <BookVisibilityChangeForm
+            initial={visibility}
+            saving={savingVisibility}
+            onCancel={() => setVisibilityModalOpen(false)}
+            onSave={(v) => void handleSaveVisibility(v)}
+          />
+        </Modal>
+      )}
     </main>
+  );
+}
+
+interface VisibilityChangeFormProps {
+  initial: Visibility;
+  saving: boolean;
+  onCancel: () => void;
+  onSave: (next: Visibility) => void;
+}
+
+/**
+ * Local форма выбора visibility - параллельна `VisibilityChangeForm` из
+ * TopicGraphPage. Дублирование - 10 строк, абстракцию не выделяем (YAGNI:
+ * если 3-я страница появится с тем же паттерном - тогда вынесем generic
+ * `<VisibilityChangeForm>` в shared)
+ */
+function BookVisibilityChangeForm({
+  initial,
+  saving,
+  onCancel,
+  onSave,
+}: VisibilityChangeFormProps) {
+  const t = useT();
+  const [draft, setDraft] = useState<Visibility>(initial);
+  return (
+    <div className="flex flex-col gap-4">
+      <VisibilityRadioGroup
+        value={draft}
+        onChange={setDraft}
+        disabled={saving}
+        labelPrefix="book.visibility"
+      />
+      <div className="flex items-center justify-end gap-2">
+        <Button variant="ghost" onClick={onCancel} disabled={saving}>
+          {t('common.cancel')}
+        </Button>
+        <Button onClick={() => onSave(draft)} disabled={saving}>
+          {saving ? t('common.loading') : t('book.visibility.change_action')}
+        </Button>
+      </div>
+    </div>
   );
 }
 
