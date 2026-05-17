@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import ru.basnukaev.argumentmap.library.imports.AiEditNotConfiguredException;
+import ru.basnukaev.argumentmap.library.imports.AnthropicApiException;
 import ru.basnukaev.argumentmap.library.imports.FileImportException;
 import ru.basnukaev.argumentmap.library.imports.PageImageException;
 import ru.basnukaev.argumentmap.library.imports.web.UnsupportedMediaTypeException;
@@ -303,6 +305,36 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.UNPROCESSABLE_ENTITY,
                 "Ошибка загрузки изображения страницы",
                 "page-image-error", ex.getMessage());
+    }
+
+    // ---- AI editing (Этап 17.e, ADR-042) ----
+
+    @ExceptionHandler(AiEditNotConfiguredException.class)
+    public ProblemDetail handleAiEditNotConfigured(AiEditNotConfiguredException ex) {
+        // 503 Service Unavailable - configuration issue, не bug.
+        // Detail для admin: что делать (env var).
+        return problem(HttpStatus.SERVICE_UNAVAILABLE,
+                "AI editing не настроен",
+                "ai-edit-not-configured",
+                ex.getMessage());
+    }
+
+    @ExceptionHandler(AnthropicApiException.class)
+    public ProblemDetail handleAnthropicApi(AnthropicApiException ex) {
+        log.warn("Anthropic API error (status={}): {}",
+                ex.statusCode(), ex.getMessage());
+        // 502 Bad Gateway если upstream вернул не-2xx;
+        // 503 если IOException / connection failed (statusCode=0)
+        HttpStatus status = ex.statusCode() == 0
+                ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.BAD_GATEWAY;
+        ProblemDetail pd = problem(status,
+                "Anthropic API недоступен",
+                "anthropic-api-error",
+                ex.getMessage());
+        if (ex.statusCode() > 0) {
+            pd.setProperty("upstreamStatus", ex.statusCode());
+        }
+        return pd;
     }
 
     @ExceptionHandler(UnsupportedMediaTypeException.class)
