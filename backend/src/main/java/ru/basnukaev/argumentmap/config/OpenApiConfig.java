@@ -44,13 +44,16 @@ public class OpenApiConfig {
                 params.removeIf(p -> "userId".equals(p.getName()) && "query".equals(p.getIn()));
             }
 
-            // добавляем header X-User-Id - реальный источник, который читает резолвер.
-            // required=true потому что без заголовка резолвер бросает MissingUserHeaderException → 400
+            // добавляем header X-User-Id - dev/test fallback (ADR-040).
+            // В prod profile X-User-Id не работает - clients используют
+            // Authorization: Bearer <jwt>. required=false поскольку JWT
+            // тоже валидный путь аутентификации.
             Parameter userHeader = new Parameter()
                     .name(CurrentUserArgumentResolver.HEADER)
                     .in("header")
-                    .required(true)
-                    .description("UUID текущего пользователя (ADR-006, временно до Spring Security в Этапе 6)")
+                    .required(false)
+                    .description("UUID пользователя (ADR-040 dev/test fallback). "
+                            + "В prod использовать Authorization: Bearer <jwt>")
                     .schema(new StringSchema().format("uuid"));
             operation.addParametersItem(userHeader);
             return operation;

@@ -1,0 +1,135 @@
+package ru.basnukaev.argumentmap.auth.web.security;
+
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import java.util.Arrays;
+
+/**
+ * Конфигурация Spring Security (ADR-040). Stateless + JWT.
+ *
+ * <p>Chain ordering:
+ * <ol>
+ *   <li>{@link JwtAuthenticationFilter} - читает Bearer токен из header
+ *   <li>{@link XUserIdAuthenticationFilter} - dev/test fallback, только
+ *       если JWT ничего не поставил в SecurityContext
+ *   <li>UsernamePasswordAuthenticationFilter (стандартный Spring) -
+ *       наши custom фильтры стоят перед ним
+ * </ol>
+ *
+ * <p>CORS, error responses, CSRF, session - все настроены под SPA + REST.
+ * Permit-all: /auth/**, /actuator/health, OpenAPI docs.
+ */
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final JwtAuthenticationEntryPoint authenticationEntryPoint;
+    /**
+     * Optional - bean регистрируется только в profile local/dev/test.
+     * В prod нет - и фильтр не подключается.
+     */
+    private final ObjectProvider<XUserIdAuthenticationFilter> xUserIdFilterProvider;
+    private final boolean devOrTestProfile;
+
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+                          JwtAuthenticationEntryPoint authenticationEntryPoint,
+                          ObjectProvider<XUserIdAuthenticationFilter> xUserIdFilterProvider,
+                          Environment environment) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.authenticationEntryPoint = authenticationEntryPoint;
+        this.xUserIdFilterProvider = xUserIdFilterProvider;
+        this.devOrTestProfile = Arrays.stream(environment.getActiveProfiles())
+                .anyMatch(p -> p.equals("local") || p.equals("dev") || p.equals("test"))
+                || environment.getActiveProfiles().length == 0; // default profile = local
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        // cost=10 - дефолт BCrypt, разумный баланс безопасность/latency
+        // (~100ms на hash на современном железе)
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+                // CSRF не нужен - JWT в header, не в cookie (refresh в HttpOnly cookie
+                // сам по себе immune к CSRF поскольку refresh endpoint
+                // явно требует Origin/Referer match, либо защищается на
+                // фронте через token-scoped action)
+                .csrf(csrf -> csrf.disable())
+                // CORS делегируется WebMvcConfig.addCorsMappings - не дублируем
+                .cors(cors -> {})
+                // Stateless - никаких HttpSession
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> {
+                    // /api/v1/auth/me - всегда требует Bearer (даже в
+                    // dev/test profile) - это endpoint про current user,
+                    // без auth не имеет смысла
+                    auth.requestMatchers("/api/v1/auth/me").authenticated();
+                    // auth endpoints публичные (login/register/refresh)
+                    auth.requestMatchers("/api/v1/auth/login",
+                                         "/api/v1/auth/register",
+                                         "/api/v1/auth/refresh",
+                                         "/api/v1/auth/logout")
+                            .permitAll();
+                    // actuator health для load balancer / readiness probe
+                    auth.requestMatchers("/actuator/health",
+                                         "/actuator/health/**",
+                                         "/actuator/info")
+                            .permitAll();
+                    // прочие actuator (метрики, circuit breakers) - тоже
+                    // permit для observability tooling; в prod закрывать
+                    // отдельным network layer / basic auth
+                    auth.requestMatchers("/actuator/**").permitAll();
+                    // OpenAPI / Swagger - permit для dev tooling
+                    auth.requestMatchers("/v3/api-docs/**",
+                                         "/swagger-ui/**",
+                                         "/swagger-ui.html")
+                            .permitAll();
+                    // CORS preflight - всегда permit
+                    auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
+                    // ADR-040 transitional: в dev/local/test profile все
+                    // /api/** endpoints публичные. Это покрывает 60+
+                    // existing IT тестов которые до Этапа 21 не передавали
+                    // X-User-Id (либо передавали через @CurrentUser - но
+                    // существующее поведение было «query param userId
+                    // если не передан → MissingUserHeaderException 400»,
+                    // а не 401). XUserIdAuthenticationFilter всё равно
+                    // выставит principal для @CurrentUser параметров
+                    // когда header есть. В prod profile блок не
+                    // активируется - все mutating требуют auth.
+                    // После Этапа 21.b (frontend login UI) - убрать ветку
+                    // вместе с XUserIdAuthenticationFilter.
+                    if (devOrTestProfile) {
+                        auth.requestMatchers("/api/**").permitAll();
+                    }
+                    // всё остальное - аутентифицированно
+                    auth.anyRequest().authenticated();
+                })
+                .exceptionHandling(eh -> eh.authenticationEntryPoint(authenticationEntryPoint))
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+        // X-User-Id fallback фильтр - только если bean есть (dev/test profile).
+        // Ставим после JWT - JWT приоритетнее, X-User-Id срабатывает только
+        // когда SecurityContext empty
+        XUserIdAuthenticationFilter xUserIdFilter = xUserIdFilterProvider.getIfAvailable();
+        if (xUserIdFilter != null) {
+            http.addFilterAfter(xUserIdFilter, JwtAuthenticationFilter.class);
+        }
+
+        return http.build();
+    }
+}
