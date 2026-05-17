@@ -16,6 +16,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.library.domain.AiEditStatus;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.Page;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
@@ -72,7 +73,7 @@ class AiEditServiceIT {
                 UUID.randomUUID(), BookType.MANUSCRIPT, "AI Edit Test Book",
                 null, "ar", null, null, userId, now, now,
                 null, null, null, null, null, null
-        ));
+        , BookVisibility.PUBLIC));
 
         // По умолчанию client enabled - тесты которым нужен disabled
         // делают org.mockito.Mockito.when(...) в test body

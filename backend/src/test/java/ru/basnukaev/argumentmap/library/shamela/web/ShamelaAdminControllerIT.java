@@ -26,6 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.shamela.api.ShamelaApiException;
@@ -281,7 +282,7 @@ class ShamelaAdminControllerIT {
                 null, "{\"shamela_book_id\":41557}", testUserId,
                 Instant.now(), Instant.now(),
                 null, null, null, null, null, null
-        ));
+        , BookVisibility.PUBLIC));
 
         mockMvc.perform(get("/api/v1/admin/shamela/search").param("q", "البخاري"))
                 .andExpect(status().isOk())
@@ -387,7 +388,7 @@ class ShamelaAdminControllerIT {
                 null, "{\"shamela_book_id\":1}", testUserId,
                 Instant.now(), Instant.now(),
                 null, null, null, null, null, null
-        ));
+        , BookVisibility.PUBLIC));
         jdbcTemplate.update(
                 "UPDATE lib_shamela_sync_state SET master_version = 1261, last_synced_at = now() WHERE id = 1");
 

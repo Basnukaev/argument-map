@@ -29,6 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.domain.Authority;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.Chapter;
 import ru.basnukaev.argumentmap.library.domain.ImageRegion;
@@ -176,7 +177,8 @@ class BookControllerIT {
         saveBook("a", BookType.BOOK);
         saveBook("b", BookType.QURAN);
 
-        mockMvc.perform(get("/api/v1/library/books"))
+        mockMvc.perform(get("/api/v1/library/books")
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(2))
                 .andExpect(jsonPath("$.page").value(0))
@@ -189,7 +191,8 @@ class BookControllerIT {
         saveBook("Сахих аль-Бухари", BookType.HADITH_COLLECTION);
         saveBook("Муснад Ахмада", BookType.HADITH_COLLECTION);
 
-        mockMvc.perform(get("/api/v1/library/books").param("q", "сахих"))
+        mockMvc.perform(get("/api/v1/library/books").param("q", "сахих")
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].title").value("Сахих аль-Бухари"));
@@ -200,7 +203,8 @@ class BookControllerIT {
         saveBook("Коран", BookType.QURAN);
         saveBook("Книга", BookType.BOOK);
 
-        mockMvc.perform(get("/api/v1/library/books").param("type", "QURAN"))
+        mockMvc.perform(get("/api/v1/library/books").param("type", "QURAN")
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].bookType").value("QURAN"));
@@ -212,7 +216,8 @@ class BookControllerIT {
             saveBook("book-" + i, BookType.BOOK);
         }
         mockMvc.perform(get("/api/v1/library/books")
-                        .param("page", "1").param("size", "2"))
+                        .param("page", "1").param("size", "2")
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(2))
                 .andExpect(jsonPath("$.page").value(1))
@@ -233,7 +238,8 @@ class BookControllerIT {
         saveBookWithAuthority("Other", BookType.BOOK, null);
 
         mockMvc.perform(get("/api/v1/library/books")
-                        .param("authorityId", authorityId.toString()))
+                        .param("authorityId", authorityId.toString())
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].title").value("Сахих"));
@@ -245,7 +251,7 @@ class BookControllerIT {
                 UUID.randomUUID(), type, title, authorityId, "ar",
                 null, null, userId, now, now,
                 null, null, null, null, null, null
-        ));
+        , BookVisibility.PUBLIC));
     }
 
     @Test
@@ -258,7 +264,8 @@ class BookControllerIT {
                 UUID.randomUUID(), book.id(), root.id(), "Глава 1.1", 0, null, Instant.now()
         ));
 
-        mockMvc.perform(get("/api/v1/library/books/{id}", book.id()))
+        mockMvc.perform(get("/api/v1/library/books/{id}", book.id())
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(book.id().toString()))
                 .andExpect(jsonPath("$.chapters.length()").value(1))
@@ -269,7 +276,8 @@ class BookControllerIT {
 
     @Test
     void getBook_nonexistent_returns404() throws Exception {
-        mockMvc.perform(get("/api/v1/library/books/{id}", UUID.randomUUID()))
+        mockMvc.perform(get("/api/v1/library/books/{id}", UUID.randomUUID())
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value(containsString("book-not-found")));
     }
@@ -278,18 +286,100 @@ class BookControllerIT {
     void deleteBook_existing_returns204() throws Exception {
         Book book = saveBook("x", BookType.BOOK);
 
-        mockMvc.perform(delete("/api/v1/library/books/{id}", book.id()))
+        // ADR-043 Amendment: owner может delete
+        mockMvc.perform(delete("/api/v1/library/books/{id}", book.id())
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isNoContent());
 
-        mockMvc.perform(get("/api/v1/library/books/{id}", book.id()))
+        mockMvc.perform(get("/api/v1/library/books/{id}", book.id())
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void deleteBook_nonexistent_returns404() throws Exception {
-        mockMvc.perform(delete("/api/v1/library/books/{id}", UUID.randomUUID()))
+        mockMvc.perform(delete("/api/v1/library/books/{id}", UUID.randomUUID())
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value(containsString("book-not-found")));
+    }
+
+    @Test
+    void deleteBook_nonOwner_returns403() throws Exception {
+        // ADR-043 Amendment (Этап 22.c): only owner or admin
+        Book book = saveBook("x", BookType.BOOK);
+        UUID otherUserId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
+                otherUserId, "user-" + otherUserId, otherUserId + "@example.com"
+        );
+
+        mockMvc.perform(delete("/api/v1/library/books/{id}", book.id())
+                        .header("X-User-Id", otherUserId.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type").value(containsString("forbidden-book-write")));
+    }
+
+    @Test
+    void getBook_PRIVATE_nonOwner_returns403() throws Exception {
+        // ADR-043 Amendment: PRIVATE book - не owner не видит
+        UUID otherUserId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
+                otherUserId, "user-" + otherUserId, otherUserId + "@example.com"
+        );
+        UUID privateBookId = UUID.randomUUID();
+        Instant now = Instant.now();
+        bookRepository.save(new Book(
+                privateBookId, BookType.BOOK, "Private", null, "ar",
+                null, null, userId, now, now,
+                null, null, null, null, null, null,
+                BookVisibility.PRIVATE
+        ));
+
+        mockMvc.perform(get("/api/v1/library/books/{id}", privateBookId)
+                        .header("X-User-Id", otherUserId.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type").value(containsString("forbidden-book-access")));
+    }
+
+    @Test
+    void listBooks_PUBLIC_visibleToAll() throws Exception {
+        // ADR-043 Amendment: PUBLIC book виден другому user'у
+        UUID otherUserId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
+                otherUserId, "user-" + otherUserId, otherUserId + "@example.com"
+        );
+        saveBook("Public book", BookType.BOOK);
+
+        mockMvc.perform(get("/api/v1/library/books")
+                        .header("X-User-Id", otherUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void listBooks_PRIVATE_invisibleToOther() throws Exception {
+        // ADR-043 Amendment: PRIVATE book НЕ виден другому user'у
+        UUID otherUserId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
+                otherUserId, "user-" + otherUserId, otherUserId + "@example.com"
+        );
+        UUID privateBookId = UUID.randomUUID();
+        Instant now = Instant.now();
+        bookRepository.save(new Book(
+                privateBookId, BookType.BOOK, "Private", null, "ar",
+                null, null, userId, now, now,
+                null, null, null, null, null, null,
+                BookVisibility.PRIVATE
+        ));
+
+        mockMvc.perform(get("/api/v1/library/books")
+                        .header("X-User-Id", otherUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
     }
 
     @Test
@@ -460,7 +550,8 @@ class BookControllerIT {
         UUID bookId = UUID.fromString(objectMapper.readTree(createJson).get("id").asText());
 
         // BookDetailResponse через GET содержит academic FK + nested refs
-        mockMvc.perform(get("/api/v1/library/books/{id}", bookId))
+        mockMvc.perform(get("/api/v1/library/books/{id}", bookId)
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.muhaqqiqId").exists())
                 .andExpect(jsonPath("$.publisherId").exists())
@@ -509,7 +600,7 @@ class BookControllerIT {
                 UUID.randomUUID(), type, title, null, "ar",
                 null, null, userId, now, now,
                 null, null, null, null, null, null
-        ));
+        , BookVisibility.PUBLIC));
     }
 
     private Authority saveAuthor(String name) {

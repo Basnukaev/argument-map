@@ -31,6 +31,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.OcrStatus;
 import ru.basnukaev.argumentmap.library.domain.Page;
@@ -136,7 +137,7 @@ class OcrServiceIT {
                 UUID.randomUUID(), BookType.MANUSCRIPT, "OCR Test Book",
                 null, "en", null, null, userId, now, now,
                 null, null, null, null, null, null
-        ));
+        , BookVisibility.PUBLIC));
     }
 
     @Test

@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.domain.Authority;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.repository.AuthorityRepository;
 
@@ -56,7 +57,7 @@ class BookRepositoryIT {
                 "37-томный сборник",
                 "{\"volumes\":37}", userId, now, now,
                 null, null, null, null, null, null
-        );
+        , BookVisibility.PUBLIC);
 
         bookRepository.save(book);
 
@@ -77,7 +78,7 @@ class BookRepositoryIT {
                 null, null, userId,
                 Instant.now(), Instant.now(),
                 null, null, null, null, null, null
-        );
+        , BookVisibility.PUBLIC);
 
         bookRepository.save(quran);
 
@@ -97,7 +98,7 @@ class BookRepositoryIT {
                 author.id(), "ar", null, null, userId,
                 Instant.now(), Instant.now(),
                 null, null, null, null, null, null
-        ));
+        , BookVisibility.PUBLIC));
 
         authorityRepository.deleteById(author.id());
 
@@ -144,10 +145,10 @@ class BookRepositoryIT {
         Instant base = Instant.now().truncatedTo(ChronoUnit.MICROS);
         Book older = new Book(UUID.randomUUID(), BookType.BOOK, "older",
                 null, "ar", null, null, userId, base.minusSeconds(60), base.minusSeconds(60),
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, BookVisibility.PUBLIC);
         Book newer = new Book(UUID.randomUUID(), BookType.BOOK, "newer",
                 null, "ar", null, null, userId, base, base,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, BookVisibility.PUBLIC);
         bookRepository.save(newer);
         bookRepository.save(older);
 
@@ -178,7 +179,7 @@ class BookRepositoryIT {
                 "{\"shamela_id\":12345}", userId,
                 Instant.now(), Instant.now(),
                 null, null, null, null, null, null
-        ));
+        , BookVisibility.PUBLIC));
 
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM lib_books WHERE metadata @> ?::jsonb",
@@ -196,7 +197,7 @@ class BookRepositoryIT {
         Instant now = Instant.now();
         return new Book(UUID.randomUUID(), type, title, null, "ar",
                 null, null, userId, now, now,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, BookVisibility.PUBLIC);
     }
 
     // ADR-028 academic citation metadata
@@ -225,7 +226,7 @@ class BookRepositoryIT {
                 null, null, userId, Instant.now(), Instant.now(),
                 muhaqqiqId, publisherId, placeId,
                 2, 1420, 1999
-        );
+        , BookVisibility.PUBLIC);
 
         bookRepository.save(book);
 
@@ -252,7 +253,7 @@ class BookRepositoryIT {
                 null, null, userId, Instant.now(), Instant.now(),
                 null, publisherId, null,
                 null, 1430, null
-        );
+        , BookVisibility.PUBLIC);
 
         bookRepository.save(book);
 
@@ -270,7 +271,7 @@ class BookRepositoryIT {
                 UUID.randomUUID(), BookType.BOOK, "bad edition",
                 null, "ar", null, null, userId, Instant.now(), Instant.now(),
                 null, null, null, 0, null, null
-        );
+        , BookVisibility.PUBLIC);
 
         assertThatThrownBy(() -> bookRepository.save(bad))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
@@ -282,7 +283,7 @@ class BookRepositoryIT {
                 UUID.randomUUID(), BookType.BOOK, "future book",
                 null, "ar", null, null, userId, Instant.now(), Instant.now(),
                 null, null, null, null, null, 2500
-        );
+        , BookVisibility.PUBLIC);
 
         assertThatThrownBy(() -> bookRepository.save(bad))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);

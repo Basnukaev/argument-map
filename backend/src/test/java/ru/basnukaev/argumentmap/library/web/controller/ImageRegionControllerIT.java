@@ -26,6 +26,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.Page;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
@@ -72,7 +73,7 @@ class ImageRegionControllerIT {
                 UUID.randomUUID(), BookType.MANUSCRIPT, "Manuscript",
                 null, "ar", null, null, userId, now, now,
                 null, null, null, null, null, null
-        ));
+        , BookVisibility.PUBLIC));
         page = pageRepository.save(new Page(
                 UUID.randomUUID(), book.id(), null, 1,
                 null, null, null,

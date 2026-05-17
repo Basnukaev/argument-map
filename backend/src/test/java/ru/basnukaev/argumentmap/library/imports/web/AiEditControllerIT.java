@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.library.domain.AiEditStatus;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.Page;
 import ru.basnukaev.argumentmap.library.imports.AnthropicClient;
@@ -72,7 +73,7 @@ class AiEditControllerIT {
                 UUID.randomUUID(), BookType.MANUSCRIPT, "Ctrl Test",
                 null, "ar", null, null, userId, now, now,
                 null, null, null, null, null, null
-        ));
+        , BookVisibility.PUBLIC));
     }
 
     @Test

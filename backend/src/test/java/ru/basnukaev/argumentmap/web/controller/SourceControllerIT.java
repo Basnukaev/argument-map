@@ -28,6 +28,7 @@ import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.domain.Reliability;
 import ru.basnukaev.argumentmap.domain.SourceType;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.web.dto.CreateSourceRequest;
@@ -288,7 +289,7 @@ class SourceControllerIT {
                 UUID.randomUUID(), BookType.BOOK, title, null, "ar",
                 null, null, userId, now, now,
                 null, null, null, null, null, null
-        ));
+        , BookVisibility.PUBLIC));
     }
 
     private UUID createSource(String title) throws Exception {

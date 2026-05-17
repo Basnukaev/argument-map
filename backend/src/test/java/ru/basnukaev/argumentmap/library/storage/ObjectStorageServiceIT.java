@@ -25,6 +25,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.LibraryFile;
 import ru.basnukaev.argumentmap.library.domain.LibraryFileSourceType;
@@ -400,7 +401,7 @@ class ObjectStorageServiceIT {
         Instant now = Instant.now();
         return new Book(UUID.randomUUID(), BookType.BOOK, title, null, "ar",
                 null, null, userId, now, now,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, BookVisibility.PUBLIC);
     }
 
     private byte[] randomBytes(int size) {

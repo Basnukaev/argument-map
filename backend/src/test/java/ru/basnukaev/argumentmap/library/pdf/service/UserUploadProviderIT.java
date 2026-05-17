@@ -21,6 +21,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.LibraryFile;
 import ru.basnukaev.argumentmap.library.domain.LibraryFileSourceType;
@@ -127,7 +128,7 @@ class UserUploadProviderIT {
                 UUID.randomUUID(), BookType.BOOK, "Empty book",
                 null, "ar", null, "{}", userId,
                 Instant.now(), Instant.now(),
-                null, null, null, null, null, null));
+                null, null, null, null, null, null, BookVisibility.PUBLIC));
 
         assertThat(provider.supports(book)).isFalse();
     }
@@ -186,7 +187,7 @@ class UserUploadProviderIT {
                 UUID.randomUUID(), BookType.BOOK, "No blob book",
                 null, "ar", null, "{}", userId,
                 Instant.now(), Instant.now(),
-                null, null, null, null, null, null));
+                null, null, null, null, null, null, BookVisibility.PUBLIC));
 
         assertThatThrownBy(() -> provider.locateFile(book, 0))
                 .isInstanceOf(PdfNotAvailableException.class);
@@ -282,7 +283,7 @@ class UserUploadProviderIT {
                 UUID.randomUUID(), BookType.BOOK, "User upload",
                 null, "ar", null, metadataJson, userId,
                 Instant.now(), Instant.now(),
-                null, null, null, null, null, null));
+                null, null, null, null, null, null, BookVisibility.PUBLIC));
         String storageKey = book.id() + "/" + filename;
         objectStorageService.putAndRegister(
                 uploadsBucket, storageKey,
@@ -300,7 +301,7 @@ class UserUploadProviderIT {
                 UUID.randomUUID(), BookType.BOOK, "User upload no count",
                 null, "ar", null, metadataJson, userId,
                 Instant.now(), Instant.now(),
-                null, null, null, null, null, null));
+                null, null, null, null, null, null, BookVisibility.PUBLIC));
         String storageKey = book.id() + "/" + filename;
         objectStorageService.putAndRegister(
                 uploadsBucket, storageKey,
@@ -322,7 +323,7 @@ class UserUploadProviderIT {
                 UUID.randomUUID(), BookType.BOOK, "Shamela book",
                 null, "ar", null, metadataJson, userId,
                 Instant.now(), Instant.now(),
-                null, null, null, null, null, null));
+                null, null, null, null, null, null, BookVisibility.PUBLIC));
         String bucket = storageProperties.buckets().importedBooks();
         ensureBucket(bucket);
         String storageKey = book.id() + "/" + filename;

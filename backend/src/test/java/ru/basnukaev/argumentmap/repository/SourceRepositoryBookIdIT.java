@@ -19,6 +19,7 @@ import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.domain.Source;
 import ru.basnukaev.argumentmap.domain.SourceType;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 
@@ -147,7 +148,7 @@ class SourceRepositoryBookIdIT {
         UUID id = UUID.randomUUID();
         Book b = new Book(id, BookType.BOOK, title, null, "ar", null,
                 null, userId, Instant.now(), Instant.now(),
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, BookVisibility.PUBLIC);
         bookRepository.save(b);
         return id;
     }

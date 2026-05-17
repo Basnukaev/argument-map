@@ -21,6 +21,7 @@ import ru.basnukaev.argumentmap.domain.NodeSource;
 import ru.basnukaev.argumentmap.domain.Source;
 import ru.basnukaev.argumentmap.domain.SourceType;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.Page;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
@@ -79,7 +80,7 @@ class NodeSourceRepositoryPositionalIT {
         bookId = UUID.randomUUID();
         bookRepository.save(new Book(bookId, BookType.BOOK, "Тестовая книга", null, "ar",
                 null, null, userId, Instant.now(), Instant.now(),
-                null, null, null, null, null, null));
+                null, null, null, null, null, null, BookVisibility.PUBLIC));
 
         sourceId = UUID.randomUUID();
         sourceRepository.save(new Source(sourceId, SourceType.BOOK, "Тестовая книга",

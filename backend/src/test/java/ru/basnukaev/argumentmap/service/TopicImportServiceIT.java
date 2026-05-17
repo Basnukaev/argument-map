@@ -28,6 +28,7 @@ import ru.basnukaev.argumentmap.domain.SourceType;
 import ru.basnukaev.argumentmap.domain.Topic;
 import ru.basnukaev.argumentmap.exception.UnsupportedExportFormatException;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.repository.AuthorityRepository;
@@ -344,7 +345,7 @@ class TopicImportServiceIT {
         UUID bookId = UUID.randomUUID();
         bookRepository.save(new Book(bookId, BookType.BOOK, "Существующая книга",
                 null, "ar", null, null, userId, Instant.now(), Instant.now(),
-                null, null, null, null, null, null));
+                null, null, null, null, null, null, BookVisibility.PUBLIC));
 
         UUID origTopicId = UUID.randomUUID();
         UUID origSrcId = UUID.randomUUID();

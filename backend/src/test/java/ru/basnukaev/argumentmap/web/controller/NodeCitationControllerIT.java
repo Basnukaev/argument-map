@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.domain.PdfBbox;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.Page;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
@@ -64,7 +65,7 @@ class NodeCitationControllerIT {
         bookId = UUID.randomUUID();
         bookRepository.save(new Book(bookId, BookType.BOOK, "Тестовая книга", null, "ar",
                 null, null, userId, Instant.now(), Instant.now(),
-                null, null, null, null, null, null));
+                null, null, null, null, null, null, BookVisibility.PUBLIC));
         pageId = UUID.randomUUID();
         pageRepository.save(new Page(pageId, bookId, null, 1, "1", "1", null,
                 "текст", null, null, Instant.now(), Instant.now()));

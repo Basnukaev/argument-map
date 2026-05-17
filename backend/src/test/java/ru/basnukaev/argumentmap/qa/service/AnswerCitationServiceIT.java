@@ -28,6 +28,7 @@ import ru.basnukaev.argumentmap.exception.InvalidCitationException;
 import ru.basnukaev.argumentmap.exception.PageNotFoundException;
 import ru.basnukaev.argumentmap.exception.SourceNotFoundException;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.Page;
 import ru.basnukaev.argumentmap.library.pdf.service.PdfNotAvailableException;
@@ -80,7 +81,7 @@ class AnswerCitationServiceIT {
         bookId = UUID.randomUUID();
         bookRepository.save(new Book(bookId, BookType.BOOK, "Тафсир Ибн Касира", null, "ar",
                 null, null, userId, Instant.now(), Instant.now(),
-                null, null, null, null, null, null));
+                null, null, null, null, null, null, BookVisibility.PUBLIC));
 
         pageId = UUID.randomUUID();
         pageRepository.save(new Page(pageId, bookId, null, 1, "47", "1", null,
@@ -202,7 +203,7 @@ class AnswerCitationServiceIT {
         UUID otherBookId = UUID.randomUUID();
         bookRepository.save(new Book(otherBookId, BookType.BOOK, "other", null, "ar",
                 null, null, userId, Instant.now(), Instant.now(),
-                null, null, null, null, null, null));
+                null, null, null, null, null, null, BookVisibility.PUBLIC));
 
         CitationRequest req = new CitationRequest(otherBookId,
                 pageId, 0, 10, null, null, null, null, null, null);

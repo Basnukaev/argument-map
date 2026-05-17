@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.Chapter;
 
@@ -48,7 +49,7 @@ class ChapterRepositoryIT {
                 UUID.randomUUID(), BookType.BOOK, "T", null, "ar",
                 null, null, userId, now, now,
                 null, null, null, null, null, null
-        ));
+        , BookVisibility.PUBLIC));
     }
 
     @Test
@@ -89,7 +90,7 @@ class ChapterRepositoryIT {
                 UUID.randomUUID(), BookType.BOOK, "Other", null, "ar",
                 null, null, userId, Instant.now(), Instant.now(),
                 null, null, null, null, null, null
-        ));
+        , BookVisibility.PUBLIC));
         chapterRepository.save(new Chapter(UUID.randomUUID(), otherBook.id(), null, "X", 0, null, Instant.now()));
 
         List<Chapter> result = chapterRepository.findByBookId(book.id());

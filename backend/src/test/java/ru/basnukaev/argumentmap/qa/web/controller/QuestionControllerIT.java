@@ -164,7 +164,9 @@ class QuestionControllerIT {
         var req = new UpdateQuestionRequest(null, null,
                 ru.basnukaev.argumentmap.qa.domain.QuestionStatus.CLOSED);
 
+        // ADR-043 Amendment: автор может update
         mockMvc.perform(patch("/api/v1/questions/" + qid)
+                        .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
@@ -178,6 +180,7 @@ class QuestionControllerIT {
         var req = new UpdateQuestionRequest("   ", null, null);
 
         mockMvc.perform(patch("/api/v1/questions/" + qid)
+                        .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isBadRequest());
@@ -188,16 +191,39 @@ class QuestionControllerIT {
         var req = new UpdateQuestionRequest("New", null, null);
 
         mockMvc.perform(patch("/api/v1/questions/" + UUID.randomUUID())
+                        .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isNotFound());
     }
 
     @Test
+    void patchQuestion_byNonAuthor_returns403() throws Exception {
+        // ADR-043 Amendment (Этап 22.c): only author or admin
+        UUID otherUserId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
+                otherUserId, "user-" + otherUserId, otherUserId + "@example.com"
+        );
+        UUID qid = createDirect("Title", "OPEN");
+        var req = new UpdateQuestionRequest("Хакер", null, null);
+
+        mockMvc.perform(patch("/api/v1/questions/" + qid)
+                        .header("X-User-Id", otherUserId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type").value(org.hamcrest.Matchers
+                        .containsString("forbidden-question-write")));
+    }
+
+    @Test
     void deleteQuestion_returns204() throws Exception {
         UUID qid = createDirect("Title", "OPEN");
 
-        mockMvc.perform(delete("/api/v1/questions/" + qid))
+        // ADR-043 Amendment: автор может delete
+        mockMvc.perform(delete("/api/v1/questions/" + qid)
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isNoContent());
 
         mockMvc.perform(get("/api/v1/questions/" + qid))
@@ -206,8 +232,26 @@ class QuestionControllerIT {
 
     @Test
     void deleteQuestion_whenMissing_returns404() throws Exception {
-        mockMvc.perform(delete("/api/v1/questions/" + UUID.randomUUID()))
+        mockMvc.perform(delete("/api/v1/questions/" + UUID.randomUUID())
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deleteQuestion_byNonAuthor_returns403() throws Exception {
+        // ADR-043 Amendment (Этап 22.c): only author or admin
+        UUID otherUserId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
+                otherUserId, "user-" + otherUserId, otherUserId + "@example.com"
+        );
+        UUID qid = createDirect("Title", "OPEN");
+
+        mockMvc.perform(delete("/api/v1/questions/" + qid)
+                        .header("X-User-Id", otherUserId.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type").value(org.hamcrest.Matchers
+                        .containsString("forbidden-question-write")));
     }
 
     private UUID createDirect(String title, String statusName) {

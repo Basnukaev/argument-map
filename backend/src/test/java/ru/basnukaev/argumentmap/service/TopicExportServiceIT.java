@@ -27,6 +27,7 @@ import ru.basnukaev.argumentmap.domain.SourceType;
 import ru.basnukaev.argumentmap.domain.Topic;
 import ru.basnukaev.argumentmap.exception.TopicNotFoundException;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.repository.AuthorityRepository;
@@ -224,7 +225,7 @@ class TopicExportServiceIT {
         UUID id = UUID.randomUUID();
         Book b = new Book(id, BookType.BOOK, title, authorityId, "ar",
                 null, null, userId, now, now,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, BookVisibility.PUBLIC);
         bookRepository.save(b);
         return b;
     }
