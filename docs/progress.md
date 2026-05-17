@@ -10,6 +10,125 @@
 
 ---
 
+## 2026-05-17 - Сессия 37, Этап 16.f - PDF upload (frontend admin)
+
+Минимальный admin UX для PDF upload поверх уже готового backend
+endpoint'a (см. предыдущую запись от 2026-05-17). Без дизайн-референса
+расширили существующую `AdminShamelaPage` третьим Card блоком - быстрый
+способ начать пользоваться новой возможностью пока полноценный UX
+не дизайнится
+
+### Сделано
+
+**Frontend (2 коммита feat + 1 docs):**
+
+`feat(frontend): apiPostMultipart helper для multipart uploads`:
+- `shared/api/client.ts` - расширение low-level `request()`:
+  новое поле `formData?: FormData` в `RequestOptions`. Когда передано,
+  Content-Type не выставляется вручную - браузер сам формирует
+  `multipart/form-data; boundary=...`. Если выставить руками - boundary
+  не подставится и Spring multipart parser отвергнет запрос
+- новый экспорт `apiPostMultipart<T>(path, formData, options)` - тонкая
+  обёртка для FormData uploads
+- регенерация `shared/api/types.ts` через `npm run generate-api` -
+  появились `FileImportResponse` и `operations.uploadFile`
+
+`feat(frontend): Этап 16.f - FileUploadModal + AdminShamelaPage upload section`:
+- `apps/admin/components/FileUploadModal.tsx` (~280 строк):
+  - на базе `FormModal` (Modal + form + footer + cancel/submit + error)
+  - file picker: стилизованный label с dashed-border вокруг
+    скрытого `<input type="file" className="sr-only" accept="application/pdf">`,
+    focus-within ring через Tailwind, иконка `FileText`
+  - после выбора - preview filename (`<bdi>` + dir=auto для mixed-content) +
+    размер в KB/MB через `useNumberFormat` для локаль-aware чисел
+  - поля: title (text, `dir="auto"`, `font-naskh` при арабском вводе),
+    language Select RU/AR/EN (default ar), description Textarea
+  - submit disabled пока `file === null`
+  - после 201 - `toast.success` с action «Открыть книгу» который
+    делает `navigate('/books/{bookId}')` + `onUploaded` callback
+    + reset state + `onClose()`
+  - `mapErrorMessage`: 413 → too_large, 415 → wrong_format,
+    422 → corrupt_pdf, TypeError → network, fallback → generic
+- `apps/admin/components/FileUploadModal.test.tsx` (5 vitest):
+  disabled-submit без файла, happy path (file + title + state + toast
+  + callbacks), 413/415/422 локализованные сообщения. Conditional render
+  `{open && <Modal/>}` + `<MemoryRouter>` для `useNavigate`. Mock
+  `HTMLDialogElement.showModal/close` как в AddSourceModal.test
+- `apps/admin/pages/AdminShamelaPage.tsx`:
+  - добавлен `useState uploadOpen`
+  - третий Card блок «Загрузить PDF» между sync-status и search section -
+    иконка `FileUp`, title + subtitle, primary кнопка «Загрузить новую
+    книгу»
+  - conditional render `{uploadOpen && <FileUploadModal .../>}`
+  - `onUploaded` триггерит refresh sync-status (увеличение `reloadStatusToken`)
+- `shared/i18n/dictionary.ts` - **28 keys** префикс `admin.file_upload.*`
+  в обеих локалях ru/ar (section_title/subtitle/action, modal
+  title/subtitle, file_label/help/choose/change, field_title/authority/
+  language/description, lang_ar/ru/en, submit/submitting, success_toast/
+  open_book, error_too_large/wrong_format/corrupt_pdf/network/generic)
+
+**Документация:**
+- `roadmap.md` - строка Этапа 16 дополнена упоминанием 16.f frontend
+  (третий Card блок + apiPostMultipart helper + локализованный error
+  mapping + 5 vitest)
+- эта запись в `progress.md`
+- `api-contract.md` **не правилось** - frontend подсессия не меняла
+  endpoint contract (только потребляет уже задокументированный)
+
+### Verify
+
+- `npm run lint` - 0 errors (3 pre-existing warnings unrelated)
+- `npm run test:run` - **152/152 passed** (147 baseline + 5 новых).
+  Pre-existing AddSourceModal "reliability radio" fail упомянутый в
+  SESSION_START_PROMPT уже не воспроизводится
+- `npx tsc --noEmit -p tsconfig.app.json` - clean
+- `npm run build` - SUCCESS, 2.77s, 2344 modules transformed
+- **playwright smoke (headless WSL2)** - открыл `/admin/shamela`,
+  убедился что кнопка «Загрузить новую книгу» рендерится, клик
+  открывает модалку с правильным title «Загрузка PDF в библиотеку»,
+  file picker label «Выбрать файл» виден, submit-кнопка disabled без
+  файла, все поля (title/language/description) присутствуют.
+  Скриншоты в `/tmp/file-upload-modal-*.png`
+
+### Гетча тестового окружения
+
+В jsdom Request с `FormData` body не сохраняет multipart
+Content-Type корректно - `request.formData()` падает с
+"Content-Type was not multipart/form-data". В реальном браузере fetch
+с FormData всегда формирует правильный `multipart/form-data; boundary=...`.
+Решение: в happy-path тесте проверяем хит endpoint + state
+после-успеха (onUploaded/onClose/toast), не парсим тело запроса.
+Реальная multipart-сборка проверена руками через playwright (запрос
+до бэка пока не дошёл, но это сценарий следующей manual проверки)
+
+### Что НЕ сделано
+
+- Поля `authorityName` / `muhaqqiqName` / `publisherName` /
+  `publicationPlaceName` / `editionNumber` / `publishedYearHijri` /
+  `publishedYearGregorian` - в задаче упомянуты но **бэкенд endpoint
+  их не принимает** (только `title`, `authorityId` UUID, `language`,
+  `description`). Эти поля выставляются через PATCH metadata позже
+  (как в `BookEditModal`). Сразу при upload их нет - сознательное
+  упрощение MVP. Если нужно - сделать через `CreateBookRequest`
+  отдельный flow или дополнить `FileImportController` query-params
+- `authorityId` поле не вынесено в UI - требует autocomplete по
+  authorities (есть `GET /api/v1/authorities`), не самый минимальный
+  UX. Отложено
+- Drag-and-drop для file - простой picker через label
+
+### Следующий шаг
+
+- **Опция 1**: manual smoke на реальный PDF через UI (Абдула) -
+  выбрать локальный PDF, загрузить, убедиться что `/books/{id}` открыл
+  валидный reader с N-страничным контентом
+- **Опция 2**: добавить authorityId autocomplete в FileUploadModal
+  (получить `GET /authorities`, отрендерить как Select)
+- **Опция 3**: вернуться к опциям A-F из Сессии 36 entry
+  (RetryStrategy migration / Source picker Корана / Хадисов / NodeCard
+  footer chips / cleanup pre-existing)
+
+---
+
 ## 2026-05-17 - Сессия 37, Этап 16 - PDF/EPUB upload (backend)
 
 Закрытие всего Этапа 16 одним подходом - PDF upload через multipart

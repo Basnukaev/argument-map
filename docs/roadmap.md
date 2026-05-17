@@ -98,7 +98,10 @@
   bucket (ADR-024), `BucketBootstrap` для dev first-run. 16 IT
   (FileImportServiceIT + FileImportControllerIT через MockMvc +
   Testcontainers MinIO). EPUB отложен - нет UX-кейса. Backend
-  верифицирован 537/537
+  верифицирован 537/537. **16.f frontend** - admin `FileUploadModal`
+  на `/admin/shamela` (третий Card блок + `apiPostMultipart` helper +
+  локализованный mapping ошибок 413/415/422), 5 vitest. Дизайн временный
+  до появления полноценного user-facing UX-референса
 
 ---
 
