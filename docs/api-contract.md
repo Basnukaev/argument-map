@@ -36,23 +36,143 @@ OpenAPI-спецификация: `/v3/api-docs` (JSON), Swagger UI: `/swagger-u
 - **ID:** UUID v4 как строки
 - **Ошибки:** RFC 7807 Problem Details (`Content-Type:
   application/problem+json`)
-- **Аутентификация:** временная заглушка через заголовок `X-User-Id`
-  (UUID). Полноценная Bearer JWT - на Этапе 6+ (см. ADR-006)
+- **Аутентификация:** Bearer JWT через `Authorization: Bearer <token>`
+  (ADR-040, Этап 21.a). Получение токена - `POST /api/v1/auth/login`
+  (см. секцию Auth ниже). Refresh token - HttpOnly cookie. В dev/test/local
+  profile **дополнительно** работает legacy `X-User-Id` header
+  (см. подсекцию ниже) - до завершения Этапа 21.b (frontend login UI)
 
-### Заголовок `X-User-Id`
+### Аутентификация - Bearer JWT (Этап 21.a, ADR-040)
 
-Все мутирующие эндпоинты (`POST`, `PATCH`) требуют заголовок
-`X-User-Id: <uuid>`. UUID должен соответствовать существующему
-пользователю в таблице `users`.
+Все endpoint'ы за исключением:
 
-- Заголовок отсутствует - `400 Bad Request` (тип `missing-user-header`)
-- Невалидный UUID - `400 Bad Request`
-- UUID валидный, но пользователя нет - `422 Unprocessable Entity`
-  (FK-нарушение, тип `data-integrity-violation`)
+- `/api/v1/auth/login`, `/register`, `/refresh`, `/logout` (auth flow)
+- `/actuator/health`, `/actuator/info` (load balancer)
+- `/v3/api-docs/**`, `/swagger-ui/**` (OpenAPI docs)
+- `OPTIONS /**` (CORS preflight)
+- `GET /api/**` в dev/local/test profile (transitional, см. ADR-040)
 
-`GET` и `DELETE` не требуют заголовка.
+требуют валидный access token в header:
+
+```
+Authorization: Bearer <jwt>
+```
+
+Token содержит UUID пользователя в `sub` claim + username/email/role.
+Срок жизни access - 15 минут, refresh - 7 дней.
+
+- Header отсутствует - `401 Unauthorized`
+- Token истёк - `401 Unauthorized` (тип `unauthorized`)
+- Token подделан / некорректный - `401 Unauthorized` (тип `unauthorized`)
+- Пользователь disabled - `401 Unauthorized`
+
+### Заголовок `X-User-Id` (dev/test fallback, ADR-040)
+
+В profile `local` / `dev` / `test` (default для local dev и для всех
+integration тестов) дополнительно работает legacy путь через
+`X-User-Id: <uuid>` header. Если SecurityContext пуст и header
+содержит существующего user'а в `users` - principal устанавливается
+автоматически. В prod profile фильтр не активируется.
+
+Назначение - не ломать existing integration тесты и frontend dev до
+появления login UI в Этапе 21.b. После - удалить полностью.
 
 ## Эндпоинты
+
+### Auth (ADR-040, Этап 21.a)
+
+Все эндпоинты под `/api/v1/auth/*` - публичные (не требуют
+аутентификации). Возвращают `Set-Cookie: refresh_token=...` где
+применимо (HttpOnly + Secure + SameSite=Strict).
+
+#### POST /api/v1/auth/register
+
+Регистрация нового пользователя. Сразу выдаёт access + refresh.
+
+**Запрос:**
+```json
+{
+  "email": "user@example.com",
+  "username": "user1",
+  "password": "min8chars"
+}
+```
+
+Валидация: email формат RFC, username 3..50 ASCII буквы/цифры/`_-`,
+password 8..100 символов.
+
+**Ответ:** `201 Created`
+```json
+{
+  "accessToken": "<jwt>",
+  "accessTokenExpiresAt": "2026-05-17T18:18:27Z",
+  "user": {
+    "id": "<uuid>",
+    "username": "user1",
+    "email": "user@example.com",
+    "role": "USER"
+  }
+}
+```
++ `Set-Cookie: refresh_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`
+
+**Ошибки:**
+- 400 `validation` - невалидные поля
+- 409 `email-already-taken` - email уже зарегистрирован
+- 409 `username-already-taken` - username занят
+
+#### POST /api/v1/auth/login
+
+Логин по email + password.
+
+**Запрос:**
+```json
+{ "email": "user@example.com", "password": "..." }
+```
+
+**Ответ:** `200 OK` тот же формат что у register + cookie.
+
+**Ошибки:**
+- 401 `invalid-credentials` - неверный email или пароль, либо disabled
+
+#### POST /api/v1/auth/refresh
+
+Обновление access token через refresh cookie. Refresh переиспользуется
+(no-rotation MVP, см. ADR-040).
+
+**Запрос:** body пустой, `Cookie: refresh_token=<jwt>` обязателен.
+
+**Ответ:** `200 OK` тот же формат что login.
+
+**Ошибки:**
+- 401 `invalid-token` - cookie отсутствует / невалидный / expired
+
+#### POST /api/v1/auth/logout
+
+Очистка refresh cookie. Access token не invalidates (короткоживущий,
+истечёт сам). Полная revocation - после ADR-040 «Открытые вопросы»
+будущая работа.
+
+**Ответ:** `204 No Content` + `Set-Cookie: refresh_token=; Max-Age=0`
+
+#### GET /api/v1/auth/me
+
+Текущий аутентифицированный пользователь.
+
+**Заголовки:** `Authorization: Bearer <jwt>` (обязательно)
+
+**Ответ:** `200 OK`
+```json
+{
+  "id": "<uuid>",
+  "username": "user1",
+  "email": "user@example.com",
+  "role": "USER"
+}
+```
+
+**Ошибки:**
+- 401 - не аутентифицирован
 
 ### Темы (Topics)
 
@@ -1799,7 +1919,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
-| 2026-05-17 | v1 | Этап 6 - новые endpoints `GET /api/v1/topics/{id}/export` (Content-Disposition attachment, returns `TopicExportDto` с unique sources/authorities/books refs) и `POST /api/v1/topics/import` (consumes JSON body или multipart file). DTO: `TopicExportDto{formatVersion, exportedAt, topic, nodes[], edges[], nodeSources[], sources[], authorities[], books[]}` + nested records, `TopicImportResponse{topicId, importedNodes, importedEdges, importedNodeSources, importedSources, importedAuthorities, warnings[]}`. Новый error type `422 unsupported-format-version` с `receivedVersion`+`supportedVersions` properties в Problem Details. UUID remapping при импорте (Map oldUUID→newUUID), authorities find-or-create по name, books find-or-skip с warning. createdBy перезаписан на импортирующего (security). Revisions намеренно не в payload | ADR-037 формат экспорта темы. Этап 6 backup + обмен темами между инстансами. Q&A не привязан к topic - не включается в payload (standalone domain) |
+| 2026-05-17 | v1 | Этап 21.a Spring Security + JWT (ADR-040). Новый namespace `/api/v1/auth/*` с 5 endpoints: `POST /register` (RegisterRequest{email/username/password}, validation: email/3..50 ASCII username/8..100 password), `POST /login` (LoginRequest{email/password}), `POST /refresh` (CookieValue refresh_token, no-rotation MVP), `POST /logout` (clear cookie), `GET /me` (требует Bearer). Response DTO `AuthResponse{accessToken, accessTokenExpiresAt, user{id,username,email,role}}` + Set-Cookie refresh_token (HttpOnly+Secure+SameSite=Strict+Path=/+Max-Age=604800). Access TTL 15мин, refresh TTL 7д, HS256 signature через `auth.jwt.secret` (env AUTH_JWT_SECRET в prod). Новые error types: `401 invalid-credentials` (login fail или disabled), `401 invalid-token` (JWT тампер/expired/невалидный), `401 unauthorized` (no auth on protected endpoint), `409 email-already-taken`, `409 username-already-taken`, `404 user-not-found`. **Breaking semantic change**: ВСЕ mutating endpoints теперь требуют либо `Authorization: Bearer <jwt>`, либо (в dev/local/test profile) X-User-Id fallback. Запрос без обоих → 401 (раньше 400 `missing-user-header`). Existing IT обновлены: 4 теста с `missing-user-header` → 401. `GET /api/**` в dev/local/test profile остаётся permitAll (transitional до Этапа 21.b). Migration 32 `users` ALTER + password_hash/role/enabled/updated_at. OpenAPI X-User-Id header теперь required=false (Bearer JWT - основной путь) | ADR-040 JWT-based auth. Этап 21.a backend foundation, Этап 21.b frontend login UI следующей сессией |
 | 2026-05-17 | v1 | Новый error type `node-is-root` (409 Conflict). Возвращается из `DELETE /api/v1/nodes/{id}` когда `id` совпадает с `topics.root_node_id` соответствующей темы. Дополнительные properties `nodeId` и `topicId`. До фикса корневой узел удалялся успешно - разрушал граф (orphan edges + сломанный status recalc). Чтобы удалить корень - удалить тему целиком через `DELETE /api/v1/topics/{topicId}` | User feedback #1 Сессии 38: пользователь поймал руками что в `TopicGraphPage` можно через NodeDetailsPanel / context menu удалить корневой QUESTION узел. Backend guard + frontend hide-button симметрично |
 | 2026-05-17 | v1 | Этап 16.h post-review fix - после `POST /api/v1/library/imports/file` книга **сразу** доступна на чтение через существующие `GET /api/v1/library/books/{bookId}/pdf/info` (single-file metadata) и `GET /pdf?fileIndex=0` (streaming). До фикса возвращали 404 `pdf-not-available`. Параметр `language` получил whitelist `ar\|ru\|en` - вне whitelist → 422 `file-import-error` (mirror frontend FileUploadModal). Новых endpoints нет | Critical issue code review Сессии 37: `PdfLinksSourceProvider.supports` проверял `metadata.pdf_links` который `FileImportService` не пишет. Новый `UserUploadProvider` (@Order=50) опрашивает `library_files` по (book_id, source_type=USER_UPLOAD). Контракт language исправляет drift между frontend whitelist и backend acceptance |
 | 2026-05-17 | v1 | `POST /api/v1/library/imports/file` расширен 6 опциональными academic полями (`muhaqqiqName`/`publisherName`/`publicationPlaceName`/`editionNumber`/`publishedYearHijri`/`publishedYearGregorian`) с теми же диапазонами что в `CreateBookRequest` (edition 1..99, year 1..9999). Если хотя бы одно заполнено - бэк через 13-args `BookService.createBook` делает `findOrCreate` в `lib_muhaqqiqs`/`lib_publishers`/`lib_publication_places`, иначе legacy 7-args путь без FK. Out-of-range диапазон → 422 `file-import-error` (ручная валидация в controller, Bean Validation для `@RequestParam` в проекте не настроена) | Этап 16.g: закрытие MVP-разрыва 16.b/f. Пользователь больше не должен после upload вторым шагом открывать BookEditModal для добавления тахкика. Mirror паттерна AddSourceModal 20.e |

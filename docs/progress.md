@@ -11,6 +11,129 @@
 
 ---
 
+## 2026-05-17 - Сессия 41 Этап 21.a Spring Security + JWT backend foundation
+
+Параллельная сессия с Tiptap (Этап 17.0 migration 33) - моя зона
+security/auth/users, без затрагивания lib_pages и frontend. Реализован
+backend для реальной аутентификации согласно ADR-040 - заменили
+заглушку ADR-006 (X-User-Id header без проверки) на полноценный
+Bearer JWT через Spring Security 6 + jjwt 0.12.6.
+
+**Что сделано (5+1 атомарных коммитов):**
+
+1. ADR-040 в `docs/decisions.md` + миграция 32 `users` ALTER
+   (password_hash NULLABLE / role VARCHAR(20) DEFAULT 'USER' с CHECK
+   USER|ADMIN / enabled BOOLEAN DEFAULT TRUE / updated_at TIMESTAMPTZ
+   + LOWER(email) functional index). Rationale: транзитная password_hash
+   nullable - legacy dev users без пароля продолжают работать через
+   X-User-Id fallback. После Этапа 21.b убрать NULL отдельной миграцией
+2. Auth domain + UserRepository + UserService - records `User`/
+   `UserRole`/`AuthTokens`/`AuthenticatedUser`, JDBC `UserRepository`
+   (findById/findByEmail/findByUsername case-insensitive, existsBy*,
+   updatePassword, setEnabled), `UserService.register` с
+   BCryptPasswordEncoder + проверкой дубликатов email/username
+3. JwtService + AuthService + AuthController - HS256 через jjwt,
+   access 15мин / refresh 7д, typ-claim для различения. `AuthService.login`
+   - dummy-hash на отсутствующего user'а для timing-protection.
+   `AuthService.refresh` - проверка typ=refresh, переиспользование
+   (no-rotation MVP). `AuthController` - 5 endpoints (register / login /
+   refresh / logout / me), refresh в HttpOnly+Secure+SameSite=Strict
+   cookie с Max-Age 604800
+4. SecurityConfig + 2 фильтра + EntryPoint - `JwtAuthenticationFilter`
+   (Authorization: Bearer, не падает на ошибке - молча даёт 401 на
+   EntryPoint), `XUserIdAuthenticationFilter` (@Profile local/dev/test
+   - читает X-User-Id если SecurityContext empty - dev/test fallback),
+   `JwtAuthenticationEntryPoint` (Problem Details 401).
+   `CurrentUserArgumentResolver` переключён с header на SecurityContext
+   - **API `@CurrentUser` не изменилось**, controllers не трогали.
+   `DevUserSeeder` (@Profile local/dev) создаёт fixed
+   admin@argumentmap.local / admin12345 (UUID 0000...0001 - тот же что
+   мок во фронте до Этапа 21.b)
+5. IT - `JwtServiceIT` 7 (round-trip access+refresh, tampered signature,
+   garbage, foreign-key signature, short-secret-init-fail, expired через
+   reflection), `AuthServiceIT` 10 (register valid/dupe email/dupe
+   username, login valid/wrong-pw/unknown-email/disabled, refresh
+   valid/access-as-refresh-throws/garbage), `AuthControllerIT` 13
+   (register 201+cookie, register invalid email/short pw/dupe, login
+   200/401, /me 200/401/invalid-bearer, refresh 200/no-cookie-401,
+   logout 204+max-age=0). Total 30 новых IT
+6. (финальный) docs - api-contract.md новая секция Bearer JWT + /auth/*
+   endpoints + history entry; roadmap.md Этап 21 разбит на 21.a (закрыт)
+   + 21.b (open); architecture.md новый раздел Authentication;
+   progress.md - эта запись
+
+**Transitional X-User-Id (ADR-040):**
+
+Existing 60+ integration тестов не передавали X-User-Id на GET/list
+запросы (исторически @CurrentUser был только на POST/PATCH). После
+включения Spring Security ВСЕ endpoints формально требовали auth.
+Решение: `SecurityConfig` с детекцией profile через `Environment` -
+в `local`/`dev`/`test` profile делает `permitAll()` для всего `/api/**`
+**кроме** `/api/v1/auth/me` (всегда требует Bearer). В prod profile
+блок не активируется. После Этапа 21.b - убрать transitional ветку
+вместе с XUserIdAuthenticationFilter.
+
+При permitAll request всё равно проходит через
+`XUserIdAuthenticationFilter`: если есть X-User-Id - principal ставится,
+`@CurrentUser` его извлекает. Если нет - `MissingUserHeaderException`
+(старое поведение). Symmetry сохранена.
+
+**Существующие IT обновлены:**
+
+- TopicControllerIT, BookControllerIT, FileImportControllerIT,
+  TopicExportImportControllerIT - 4 теста c `missing-user-header 400` →
+  обновлены на `unauthorized 401`. ADR-040 явно меняет семантику: без
+  любой auth (Bearer или X-User-Id в dev) - 401 от Spring Security
+  EntryPoint
+- OpenApiIT - 2 теста с X-User-Id `required=true` → `required=false`
+  (после ADR-040 Bearer JWT - основной путь, X-User-Id - dev fallback)
+
+**Dependencies added (pom.xml):**
+
+- `spring-boot-starter-security` (BOM-managed version)
+- `jjwt-api` + `jjwt-impl` (runtime) + `jjwt-jackson` (runtime) 0.12.6
+- `spring-security-test` (test scope) - для MockMvc helpers (не
+  использован в текущих IT, оставлен для следующих сессий)
+
+**Config (application.yml):**
+
+```yaml
+auth:
+  jwt:
+    secret: ${AUTH_JWT_SECRET:dev-only-do-not-use-in-prod-...-min-32-chars}
+    access-token-ttl-minutes: ${AUTH_ACCESS_TTL_MINUTES:15}
+    refresh-token-ttl-days: ${AUTH_REFRESH_TTL_DAYS:7}
+```
+
+JwtService throws `IllegalStateException` если secret < 32 байт - prevents
+shipping dev placeholder в prod.
+
+**Smoke (curl):**
+
+После backend rerun проверено:
+- `POST /api/v1/auth/register` с {email, username, password} → 201 + accessToken + Set-Cookie refresh_token
+- `POST /api/v1/auth/login` с {email, password} → 200 + accessToken
+- `GET /api/v1/auth/me` с `Authorization: Bearer <jwt>` → 200 + user info
+- `GET /api/v1/auth/me` без header → 401 Problem Details
+- `GET /api/v1/topics` с X-User-Id (dev fallback) → 200 (existing flow работает)
+
+**Не сделано в этой сессии:**
+
+- frontend login UI - **Этап 21.b** (следующая сессия): LoginPage,
+  RegisterPage, AuthStore (Zustand), apiClient interceptor (Bearer +
+  refresh-on-401), Logout, resume session через /me
+- refresh token rotation + blacklist - см. ADR-040 «Открытые вопросы»
+- OAuth2 / social login - не входит в исламский use-case
+
+**Что user может проверить руками:**
+
+- запустить backend (если ещё не) - dev seeder создаст admin user
+- `curl -X POST http://localhost:9090/api/v1/auth/login -H 'Content-Type: application/json' -d '{"email":"admin@argumentmap.local","password":"admin12345"}'` - получить access token
+- `curl http://localhost:9090/api/v1/auth/me -H 'Authorization: Bearer <token>'` - увидеть user info
+- swagger ui `/swagger-ui/index.html` - проверить новые `/auth/*` endpoints видны
+
+---
+
 ## 2026-05-17 - Сессия 40 Responsive Фаза 2
 
 Production-prep продолжение Сессии 39: закрыты все 10 точек Responsive

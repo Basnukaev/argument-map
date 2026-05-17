@@ -390,3 +390,47 @@ Shamela ETL разнесён на specific responsibilities:
   - `ShamelaDaoSupport` - утилиты для 5 DAO (nullable setters/getters,
     BATCH_SIZE, sumAffected)
   - DAOs (Author, Book, Category, Page, Title, SyncState)
+
+## Authentication (Этап 21.a, ADR-040)
+
+Stateless JWT через Spring Security 6 + jjwt 0.12.6 (HS256).
+
+```
+┌──────────────┐   POST /auth/login          ┌────────────────┐
+│ Frontend SPA │ ─────────────────────────▶  │ AuthController │
+│              │ ◀────── 200 + access JWT ── │                │
+│              │   + Set-Cookie refresh      └────────────────┘
+│              │
+│              │   Authorization:            ┌────────────────────────┐
+│              │   Bearer <access>           │ JwtAuthenticationFilter│
+│              │ ─────────────────────────▶  │ ↓ validates            │
+│              │                             │ SecurityContextHolder  │
+│              │                             │ ↓                      │
+│              │                             │ @CurrentUser UUID      │
+│              │                             │ (CurrentUserArgument-  │
+│              │                             │  Resolver реад из      │
+│              │                             │  SecurityContext)      │
+└──────────────┘                             └────────────────────────┘
+```
+
+Package: `ru.basnukaev.argumentmap.auth/`
+- `domain/` - `User` / `UserRole` / `AuthTokens` / `AuthenticatedUser` records
+- `repository/UserRepository` - JDBC, case-insensitive email/username lookup
+- `service/`
+  - `JwtService` - generate/validate access+refresh, HS256 через jjwt
+  - `AuthService` - login / refresh flow (BCrypt password verify)
+  - `UserService` - register / lookup / enable-disable
+- `web/`
+  - `AuthController` - 5 endpoints (register / login / refresh / logout / me)
+  - `dto/` - RegisterRequest / LoginRequest / AuthResponse / MeResponse
+  - `security/`
+    - `SecurityConfig` - SecurityFilterChain (STATELESS, CSRF off)
+    - `JwtAuthenticationFilter` - Authorization: Bearer
+    - `XUserIdAuthenticationFilter` - dev/test/local profile fallback
+    - `JwtAuthenticationEntryPoint` - 401 Problem Details
+- `DevUserSeeder` - admin@argumentmap.local / admin12345 для dev
+
+Roles: `USER`/`ADMIN` (CHECK constraint + index). RBAC per-entity - Этап 22.
+
+Refresh token rotation - **no** в MVP (см. ADR-040 «Открытые вопросы»).
+Refresh blacklist - **no** в MVP. Multiple sessions per user - допустимо.

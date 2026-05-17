@@ -1375,3 +1375,50 @@ const isArabic =
 показали что **все** Card.Title рендерятся через Amiri (включая
 «Священный Коран», «Smoke test 16.h»). Корень - `book.language === 'ar'`
 у всех тестовых книг
+
+## JWT HS256 - secret минимум 32 байта (256 бит)
+**Симптом:** при старте Spring Boot падает с
+`io.jsonwebtoken.security.WeakKeyException` либо наш
+`IllegalStateException("auth.jwt.secret должен быть минимум 256 бит")`
+
+**Причина:** jjwt 0.12.x жёстко валидирует длину ключа для HS256 -
+строго 32 байта (256 бит) и больше. Если просто скопировать `secret: foo`
+в `application.yml` - не запустится. RFC 8017 + JWA RFC 7518: HMAC-SHA256
+ключ должен быть не меньше output длины (32 байта)
+
+**Решение:** в `application.yml` дефолтный secret сделан заведомо
+длиннее 32 ASCII-символов. В prod **обязательно** через env
+`AUTH_JWT_SECRET` минимум 32 байта (генерируется через
+`openssl rand -hex 32` - 64 hex символа = 32 байта). Документировано
+в `backend/CLAUDE.md` и в ADR-040. `JwtService` конструктор бросает
+explicit IllegalStateException с понятным сообщением
+
+## Spring Security 6 - порядок requestMatchers важен
+**Симптом:** добавил `.requestMatchers("/api/**").permitAll()` для
+дев-режима, а `/api/v1/auth/me` тоже permitAll'нулся (хотя должен
+быть authenticated) - тесты `GET /auth/me without auth → 401` падают
+с `200 OK`
+
+**Причина:** в Spring Security 6 `authorizeHttpRequests` matcher'ы
+применяются в порядке объявления, **первый матч выигрывает**.
+Если `/api/**` permitAll стоит перед `.anyRequest().authenticated()`,
+он покрывает и /auth/me
+
+**Решение:** более специфичные правила объявлять РАНЬШЕ общих.
+Конкретно: `auth.requestMatchers("/api/v1/auth/me").authenticated()`
+ДО `auth.requestMatchers("/api/**").permitAll()`. См. SecurityConfig
++ AuthControllerIT.GET_me_withoutAuth_returns401
+
+## Параллельная сессия на Page record - не свой код, не трогать
+**Симптом:** `./mvnw test-compile` падает на PageRepositoryIT /
+QuestionCitationServiceIT с `constructor Page cannot be applied to
+given types` - стало 12 параметров вместо 11
+
+**Причина:** parallel subagent (Tiptap, Этап 17.0) добавил
+`formattedContent` поле в `library.domain.Page` record. Существующие
+тесты ещё не обновлены, потому что он в процессе работы. Не моя зона
+ответственности - не трогать его код
+
+**Решение:** игнорировать ошибки `library.repository.PageRepositoryIT`
+и `qa.service.QuestionCitationServiceIT` в этой сессии. Подождать пока
+parallel subagent закроет свою задачу - он сам обновит конструкторы

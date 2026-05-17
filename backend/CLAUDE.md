@@ -126,8 +126,25 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 - DTO `*Request` / `*Response` (выбранная конвенция)
 - Problem Details RFC 7807 через `@ControllerAdvice` глобально
 - Валидация через Bean Validation (`@Valid` + аннотации)
-- `X-User-Id` header через `@CurrentUser` + argument resolver
-  (ADR-006)
+- `@CurrentUser UUID userId` извлекается из SecurityContext (Bearer JWT
+  через `JwtAuthenticationFilter`, или X-User-Id fallback в dev/test
+  через `XUserIdAuthenticationFilter`). ADR-040 заменил ADR-006
+  заглушку. API аннотации не изменилось
+
+### Security (ADR-040)
+
+- **Spring Security 6** + **jjwt 0.12.x** (HS256)
+- Auth endpoints под `/api/v1/auth/*` - публичные
+- Все mutating endpoints требуют principal (Bearer JWT в prod, либо
+  X-User-Id в dev/test/local profile)
+- `auth.jwt.secret` в prod через env `AUTH_JWT_SECRET` минимум 256 бит
+  (`openssl rand -hex 32` для генерации). dev placeholder в
+  `application.yml` падает при попытке shipping в prod через
+  IllegalStateException на старте
+- Access token TTL 15 мин, refresh TTL 7 дней (HttpOnly+Secure+
+  SameSite=Strict cookie)
+- Roles: `USER` / `ADMIN` (CHECK constraint). RBAC permissions
+  per-entity - Этап 22
 
 ### Транзакции
 
