@@ -16,13 +16,22 @@ import { Marginalia } from '@/shared/components/editor/extensions/Marginalia';
 import { Footnote } from '@/shared/components/editor/extensions/Footnote';
 import { ColorHighlight } from '@/shared/components/editor/extensions/ColorHighlight';
 import { Tashkeel } from '@/shared/components/editor/extensions/Tashkeel';
+import { DecoratedHeading } from '@/shared/components/editor/extensions/DecoratedHeading';
 
 // Custom Tiptap extensions для read-only render. Список должен совпадать
 // с extensions в AdminPageEditorPage - иначе пользовательский HadithBox
 // упадёт на «unknown node type». Этап 17.0.c добавил Tashkeel mark +
-// reader-toggle для огласовок. DecoratedHeading и PageNumber - в
-// следующих коммитах
-const READER_EXTENSIONS = [HadithBox, AyahBox, Marginalia, Footnote, ColorHighlight, Tashkeel];
+// DecoratedHeading node (ornament glyphs). PageNumber - в следующем
+// коммите
+const READER_EXTENSIONS = [
+  HadithBox,
+  AyahBox,
+  Marginalia,
+  Footnote,
+  ColorHighlight,
+  Tashkeel,
+  DecoratedHeading,
+];
 
 // Source-first поля (миграция 19, ADR-021) - в runtime есть, но types.ts
 // регенерируется отдельно. Intersection даёт безопасный доступ.

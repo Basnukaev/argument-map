@@ -34,6 +34,7 @@ import {
   StickyNote,
   Asterisk,
   Palette,
+  Sparkles,
 } from 'lucide-react';
 import type { Editor } from '@tiptap/react';
 import Button from '@/shared/components/ui/Button';
@@ -52,6 +53,13 @@ import {
   type HighlightColor,
 } from '@/shared/components/editor/extensions/ColorHighlight';
 import { Tashkeel } from '@/shared/components/editor/extensions/Tashkeel';
+import {
+  DecoratedHeading,
+  HEADING_LEVELS,
+  HEADING_ORNAMENTS,
+  type DecoratedHeadingLevel,
+  type DecoratedHeadingOrnament,
+} from '@/shared/components/editor/extensions/DecoratedHeading';
 import { apiGetRaw, apiPatchRaw, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useT } from '@/shared/i18n';
@@ -75,7 +83,16 @@ const EDITOR_EXTENSIONS = [
   Footnote,
   ColorHighlight,
   Tashkeel,
+  DecoratedHeading,
 ];
+
+// Glyph preview для DecoratedHeading ornament selector в модалке
+const ORNAMENT_GLYPHS: Record<DecoratedHeadingOrnament, string> = {
+  diamond: '◆',
+  flower: '❀',
+  star: '❖',
+  crescent: '❉',
+};
 
 // Swatch цвета для highlight dropdown - синхронизированы с CSS
 // в `tiptap.css` (color-highlight-{color})
@@ -119,6 +136,12 @@ function AdminPageEditorPage() {
 
   // ColorHighlight palette dropdown
   const [highlightPaletteOpen, setHighlightPaletteOpen] = useState(false);
+
+  // DecoratedHeading modal
+  const [decoratedHeadingModalOpen, setDecoratedHeadingModalOpen] = useState(false);
+  const [decoratedHeadingLevel, setDecoratedHeadingLevel] = useState<DecoratedHeadingLevel>(2);
+  const [decoratedHeadingOrnament, setDecoratedHeadingOrnament] =
+    useState<DecoratedHeadingOrnament>('diamond');
 
   useEffect(() => {
     if (!pageId) return;
@@ -312,6 +335,39 @@ function AdminPageEditorPage() {
   // Tashkeel - простой toggle на выделенном тексте (mark без attrs)
   const toggleTashkeel = () => {
     editor?.chain().focus().toggleTashkeel().run();
+  };
+
+  // DecoratedHeading handlers
+  const openDecoratedHeadingDialog = () => {
+    if (editor?.isActive('decoratedHeading')) {
+      const attrs = editor.getAttributes('decoratedHeading') as {
+        level?: DecoratedHeadingLevel;
+        ornament?: DecoratedHeadingOrnament;
+      };
+      setDecoratedHeadingLevel(attrs.level ?? 2);
+      setDecoratedHeadingOrnament(attrs.ornament ?? 'diamond');
+    } else {
+      setDecoratedHeadingLevel(2);
+      setDecoratedHeadingOrnament('diamond');
+    }
+    setDecoratedHeadingModalOpen(true);
+  };
+
+  const confirmDecoratedHeading = () => {
+    if (!editor) return;
+    editor
+      .chain()
+      .focus()
+      .setDecoratedHeading({
+        level: decoratedHeadingLevel,
+        ornament: decoratedHeadingOrnament,
+      })
+      .run();
+    setDecoratedHeadingModalOpen(false);
+  };
+
+  const removeDecoratedHeading = () => {
+    editor?.chain().focus().unsetDecoratedHeading().run();
   };
 
   if (state.kind === 'loading') {
@@ -532,6 +588,21 @@ function AdminPageEditorPage() {
             icon={<span className="text-xs font-semibold">َِّ</span>}
             label={t('admin.page_editor.toolbar.tashkeel')}
           />
+          {/* DecoratedHeading */}
+          <ToolbarButton
+            active={isActive('decoratedHeading')}
+            onClick={openDecoratedHeadingDialog}
+            icon={<Sparkles size={14} />}
+            label={t('admin.page_editor.toolbar.decorated_heading')}
+          />
+          {isActive('decoratedHeading') && (
+            <ToolbarButton
+              active={false}
+              onClick={removeDecoratedHeading}
+              icon={<span className="text-xs">×</span>}
+              label={t('admin.page_editor.toolbar.decorated_heading_remove')}
+            />
+          )}
         </Card>
 
         {/* Editor area */}
@@ -679,6 +750,71 @@ function AdminPageEditorPage() {
               </Button>
               <Button variant="primary" size="sm" onClick={confirmMarginalia}>
                 {t('admin.page_editor.marginalia.confirm')}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* DecoratedHeading dialog */}
+      {decoratedHeadingModalOpen && (
+        <Modal
+          open
+          onClose={() => setDecoratedHeadingModalOpen(false)}
+          title={t('admin.page_editor.decorated_heading.dialog_title')}
+        >
+          <div className="flex flex-col gap-3">
+            <fieldset className="flex flex-col gap-2 text-sm">
+              <legend className="text-ink-700">
+                {t('admin.page_editor.decorated_heading.level_label')}
+              </legend>
+              <div className="flex flex-wrap gap-2">
+                {HEADING_LEVELS.map((lvl) => (
+                  <label key={lvl} className="inline-flex items-center gap-1.5">
+                    <input
+                      type="radio"
+                      name="decorated-heading-level"
+                      value={lvl}
+                      checked={decoratedHeadingLevel === lvl}
+                      onChange={() => setDecoratedHeadingLevel(lvl)}
+                    />
+                    <span>H{lvl}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <fieldset className="flex flex-col gap-2 text-sm">
+              <legend className="text-ink-700">
+                {t('admin.page_editor.decorated_heading.ornament_label')}
+              </legend>
+              <div className="flex flex-wrap gap-3">
+                {HEADING_ORNAMENTS.map((orn) => (
+                  <label key={orn} className="inline-flex items-center gap-1.5">
+                    <input
+                      type="radio"
+                      name="decorated-heading-ornament"
+                      value={orn}
+                      checked={decoratedHeadingOrnament === orn}
+                      onChange={() => setDecoratedHeadingOrnament(orn)}
+                    />
+                    <span aria-hidden="true" className="text-base">
+                      {ORNAMENT_GLYPHS[orn]}
+                    </span>
+                    <span>{t(`admin.page_editor.decorated_heading.ornament.${orn}`)}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <div className="mt-2 flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDecoratedHeadingModalOpen(false)}
+              >
+                {t('admin.page_editor.decorated_heading.cancel')}
+              </Button>
+              <Button variant="primary" size="sm" onClick={confirmDecoratedHeading}>
+                {t('admin.page_editor.decorated_heading.confirm')}
               </Button>
             </div>
           </div>

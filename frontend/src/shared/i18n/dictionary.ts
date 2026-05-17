@@ -668,6 +668,18 @@ export const DICTIONARY = {
 
     // Этап 17.0.c - Tashkeel (3 финальных extensions, ADR-039)
     'admin.page_editor.toolbar.tashkeel': 'Огласовки (tashkeel)',
+    // Этап 17.0.c - DecoratedHeading
+    'admin.page_editor.toolbar.decorated_heading': 'Декорированный заголовок',
+    'admin.page_editor.toolbar.decorated_heading_remove': 'Снять декорированный заголовок',
+    'admin.page_editor.decorated_heading.dialog_title': 'Декорированный заголовок',
+    'admin.page_editor.decorated_heading.level_label': 'Уровень',
+    'admin.page_editor.decorated_heading.ornament_label': 'Орнамент',
+    'admin.page_editor.decorated_heading.ornament.diamond': 'Ромб',
+    'admin.page_editor.decorated_heading.ornament.flower': 'Цветок',
+    'admin.page_editor.decorated_heading.ornament.star': 'Звезда',
+    'admin.page_editor.decorated_heading.ornament.crescent': 'Полумесяц',
+    'admin.page_editor.decorated_heading.confirm': 'Применить',
+    'admin.page_editor.decorated_heading.cancel': 'Отмена',
 
     // Auth (Этап 21.b, ADR-040)
     'auth.brand.tagline': 'Аргумент-карта · платформа для научной работы',
@@ -1339,6 +1351,18 @@ export const DICTIONARY = {
 
     // Этап 17.0.c - Tashkeel (3 финальных extensions, ADR-039)
     'admin.page_editor.toolbar.tashkeel': 'التشكيل',
+    // Этап 17.0.c - DecoratedHeading
+    'admin.page_editor.toolbar.decorated_heading': 'عنوان مزخرف',
+    'admin.page_editor.toolbar.decorated_heading_remove': 'إزالة العنوان المزخرف',
+    'admin.page_editor.decorated_heading.dialog_title': 'عنوان مزخرف',
+    'admin.page_editor.decorated_heading.level_label': 'المستوى',
+    'admin.page_editor.decorated_heading.ornament_label': 'الزخرفة',
+    'admin.page_editor.decorated_heading.ornament.diamond': 'معيّن',
+    'admin.page_editor.decorated_heading.ornament.flower': 'زهرة',
+    'admin.page_editor.decorated_heading.ornament.star': 'نجمة',
+    'admin.page_editor.decorated_heading.ornament.crescent': 'هلال',
+    'admin.page_editor.decorated_heading.confirm': 'تطبيق',
+    'admin.page_editor.decorated_heading.cancel': 'إلغاء',
 
     // Auth (Этап 21.b, ADR-040)
     'auth.brand.tagline': 'خريطة الحجج · منصّة للبحث العلمي',
