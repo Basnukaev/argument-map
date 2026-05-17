@@ -5,6 +5,7 @@ import CreateTopicPage from '@/apps/argument-map/pages/CreateTopicPage';
 import BookListPage from '@/apps/library/pages/BookListPage';
 import BookReaderPage from '@/apps/library/pages/BookReaderPage';
 import AdminShamelaPage from '@/apps/admin/pages/AdminShamelaPage';
+import AdminPageEditorPage from '@/apps/admin/pages/AdminPageEditorPage';
 import QuestionListPage from '@/apps/qa/pages/QuestionListPage';
 import CreateQuestionPage from '@/apps/qa/pages/CreateQuestionPage';
 import QuestionDetailPage from '@/apps/qa/pages/QuestionDetailPage';
@@ -67,6 +68,7 @@ function App() {
         <Route path="/qa/new" element={<CreateQuestionPage />} />
         <Route path="/qa/:questionId" element={<QuestionDetailPage />} />
         <Route path="/admin/shamela" element={<AdminShamelaPage />} />
+        <Route path="/admin/library/pages/:pageId/edit" element={<AdminPageEditorPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Routes>
       <CommandPalette open={paletteOpen} onClose={closePalette} />
