@@ -22,6 +22,7 @@ import ru.basnukaev.argumentmap.library.pdf.domain.PdfMetadata;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfStreamingResult;
 import ru.basnukaev.argumentmap.library.pdf.domain.RangeSpec;
 import ru.basnukaev.argumentmap.library.pdf.service.PdfService;
+import ru.basnukaev.argumentmap.library.pdf.service.RangeNotSatisfiableException;
 import ru.basnukaev.argumentmap.library.web.dto.PdfFileInfoResponse;
 import ru.basnukaev.argumentmap.library.web.dto.PdfInfoResponse;
 
@@ -119,7 +120,20 @@ public class PdfController {
      * клиенту 100MB одним response - PDF.js пере-запросит следующий
      * chunk после получения первого.
      *
+     * <p>Suffix-ranges {@code bytes=-N} (RFC 7233 "последние N байт")
+     * через {@link HttpRange.SuffixByteRange} - явно отвергаются 416.
+     * Причина: parser не имеет на руках totalSize чтобы перевести в
+     * абсолютный диапазон, а наивный {@code getRangeStart(Long.MAX_VALUE)}
+     * дал бы {@code MAX-N}, после прибавления chunk size получили бы
+     * long overflow → degenerate diapason → провайдер всё равно бросил
+     * бы 416, но кодовый путь был бы случайно-correct и confusing.
+     * Suffix-ranges PDF.js не использует, для curl/wget явный 416 с
+     * объяснением лучше скрытого overflow. Если в будущем понадобится
+     * поддержка - надо расширить {@link RangeSpec} suffix-режимом и
+     * резолвить в provider'е где известен totalSize.
+     *
      * @return {@code null} если header отсутствует (full request)
+     * @throws RangeNotSatisfiableException для suffix-range request'ов
      */
     private static RangeSpec parseRangeHeader(String rangeHeader) {
         if (rangeHeader == null || rangeHeader.isBlank()) {
@@ -130,6 +144,14 @@ public class PdfController {
             return null;
         }
         HttpRange first = ranges.get(0);
+        // HttpRange.SuffixByteRange (RFC 7233 "bytes=-N") - package-private,
+        // нельзя instanceof. Detection через class simple name: либо
+        // SuffixByteRange либо ByteRange. Альтернатива - проверка
+        // getRangeStart на overflow-симптом (start > totalSize/2), но
+        // string-compare надёжнее и явнее намерения
+        if ("SuffixByteRange".equals(first.getClass().getSimpleName())) {
+            throw RangeNotSatisfiableException.unsupportedSuffix();
+        }
         // HttpRange.getRangeStart/getRangeEnd требуют length - используем
         // Long.MAX_VALUE как unbounded и потом cap'аем по chunk size в provider
         long start = first.getRangeStart(Long.MAX_VALUE);

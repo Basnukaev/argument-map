@@ -185,6 +185,41 @@ class PdfControllerIT {
                 .andExpect(jsonPath("$.totalSize").value(10_000));
     }
 
+    /**
+     * Suffix-range {@code bytes=-N} (RFC 7233 "последние N байт") - не
+     * поддерживается этим эндпоинтом. PDF.js его не использует, а
+     * наивный {@code getRangeStart(Long.MAX_VALUE)} дал бы long overflow
+     * при capping по chunk size. Controller отвергает suffix-range
+     * явным 416 с понятным detail. PdfService при этом НЕ вызывается -
+     * ошибка бросается на этапе parse Range header.
+     */
+    @Test
+    void streamPdf_withSuffixRange_returns416Cleanly() throws Exception {
+        mockMvc.perform(get("/api/v1/library/books/{id}/pdf", bookId)
+                        .header(HttpHeaders.RANGE, "bytes=-500"))
+                .andExpect(status().isRequestedRangeNotSatisfiable())
+                .andExpect(jsonPath("$.type").value(containsString("range-not-satisfiable")))
+                .andExpect(jsonPath("$.detail").value(containsString("Suffix-range")));
+
+        // важно: PdfService не должен быть вызван - parser отверг range
+        // ДО роутинга в service
+        Mockito.verify(pdfService, Mockito.never()).openStream(any(), any(Integer.class), any());
+    }
+
+    /**
+     * Suffix-range превышающий file size - тот же путь, тот же 416.
+     * Проверяем что наш short-circuit detect работает независимо от
+     * значения N (валидное «последние 500 байт» или невалидное
+     * «последние 50000 байт для 10000-байтного файла»).
+     */
+    @Test
+    void streamPdf_withSuffixRangeExceedingFile_returns416() throws Exception {
+        mockMvc.perform(get("/api/v1/library/books/{id}/pdf", bookId)
+                        .header(HttpHeaders.RANGE, "bytes=-50000"))
+                .andExpect(status().isRequestedRangeNotSatisfiable())
+                .andExpect(jsonPath("$.type").value(containsString("range-not-satisfiable")));
+    }
+
     private static PdfStreamingResult fullResult(byte[] content) {
         return new PdfStreamingResult(
                 new ByteArrayInputStream(content),
