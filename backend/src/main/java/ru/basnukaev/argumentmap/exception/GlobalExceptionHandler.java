@@ -271,6 +271,15 @@ public class GlobalExceptionHandler {
         return pd;
     }
 
+    @ExceptionHandler(AdminOnlyException.class)
+    public ProblemDetail handleAdminOnly(AdminOnlyException ex) {
+        ProblemDetail pd = problem(HttpStatus.FORBIDDEN,
+                "Только администратор", "forbidden-admin-only",
+                "Этот endpoint доступен только пользователям с ролью ADMIN");
+        pd.setProperty("userId", ex.getUserId().toString());
+        return pd;
+    }
+
     @ExceptionHandler(UnsupportedExportFormatException.class)
     public ProblemDetail handleUnsupportedExportFormat(UnsupportedExportFormatException ex) {
         ProblemDetail pd = problem(HttpStatus.UNPROCESSABLE_ENTITY,
