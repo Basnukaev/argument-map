@@ -7,12 +7,17 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import ru.basnukaev.argumentmap.auth.domain.UserRole;
+import ru.basnukaev.argumentmap.domain.AuditEntityType;
 import ru.basnukaev.argumentmap.exception.QuestionNotFoundException;
 import ru.basnukaev.argumentmap.exception.QuestionWriteAccessDeniedException;
 import ru.basnukaev.argumentmap.qa.domain.Question;
 import ru.basnukaev.argumentmap.qa.domain.QuestionStatus;
 import ru.basnukaev.argumentmap.qa.repository.QuestionRepository;
+import ru.basnukaev.argumentmap.service.AuditLogService;
 
 /**
  * Сервисный слой Q&amp;A приложения (Этап 19.a, ADR-032).
@@ -21,9 +26,11 @@ import ru.basnukaev.argumentmap.qa.repository.QuestionRepository;
 public class QuestionService {
 
     private final QuestionRepository repository;
+    private final AuditLogService auditLogService;
 
-    public QuestionService(QuestionRepository repository) {
+    public QuestionService(QuestionRepository repository, AuditLogService auditLogService) {
         this.repository = repository;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -43,6 +50,15 @@ public class QuestionService {
                 now
         );
         repository.save(q);
+
+        // ADR-043 Amendment 3 (22.d) - audit CREATE
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("title", q.title());
+        snapshot.put("body", q.body());
+        snapshot.put("status", QuestionStatus.OPEN.name());
+        auditLogService.logCreate(AuditEntityType.QUESTION, q.id(), null, null,
+                askedBy, snapshot);
+
         return q;
     }
 
@@ -125,7 +141,27 @@ public class QuestionService {
     public Question updateQuestion(UUID id, String title, String body, QuestionStatus status,
                                    UUID actorUserId, String actorRole) {
         assertAuthorOrAdmin(id, actorUserId, actorRole);
-        return updateQuestion(id, title, body, status);
+        Question before = repository.findById(id).orElseThrow();
+        Question after = updateQuestion(id, title, body, status);
+
+        // ADR-043 Amendment 3 (22.d) - audit UPDATE с per-field diff
+        Map<String, AuditLogService.FieldDiff> diff = new LinkedHashMap<>();
+        if (!java.util.Objects.equals(before.title(), after.title())) {
+            diff.put("title", new AuditLogService.FieldDiff(before.title(), after.title()));
+        }
+        if (!java.util.Objects.equals(before.body(), after.body())) {
+            diff.put("body", new AuditLogService.FieldDiff(before.body(), after.body()));
+        }
+        if (!java.util.Objects.equals(before.status(), after.status())) {
+            diff.put("status", new AuditLogService.FieldDiff(
+                    before.status() == null ? null : before.status().name(),
+                    after.status() == null ? null : after.status().name()));
+        }
+        if (!diff.isEmpty()) {
+            auditLogService.logUpdate(AuditEntityType.QUESTION, id, null, null,
+                    actorUserId, diff);
+        }
+        return after;
     }
 
     @Transactional
@@ -145,6 +181,16 @@ public class QuestionService {
     @Transactional
     public void deleteQuestion(UUID id, UUID actorUserId, String actorRole) {
         assertAuthorOrAdmin(id, actorUserId, actorRole);
+        Question existing = repository.findById(id).orElseThrow();
+
+        // ADR-043 Amendment 3 (22.d) - audit DELETE до самого delete
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("title", existing.title());
+        snapshot.put("body", existing.body());
+        snapshot.put("status", existing.status() == null ? null : existing.status().name());
+        auditLogService.logDelete(AuditEntityType.QUESTION, id, null, null,
+                actorUserId, snapshot);
+
         deleteQuestion(id);
     }
 

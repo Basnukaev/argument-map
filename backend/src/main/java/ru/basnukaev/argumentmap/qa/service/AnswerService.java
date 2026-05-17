@@ -7,7 +7,11 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import ru.basnukaev.argumentmap.auth.domain.UserRole;
+import ru.basnukaev.argumentmap.domain.AuditEntityType;
 import ru.basnukaev.argumentmap.exception.AnswerNotFoundException;
 import ru.basnukaev.argumentmap.exception.AnswerWriteAccessDeniedException;
 import ru.basnukaev.argumentmap.exception.QuestionNotFoundException;
@@ -15,6 +19,7 @@ import ru.basnukaev.argumentmap.qa.domain.Answer;
 import ru.basnukaev.argumentmap.qa.domain.Question;
 import ru.basnukaev.argumentmap.qa.repository.AnswerRepository;
 import ru.basnukaev.argumentmap.qa.repository.QuestionRepository;
+import ru.basnukaev.argumentmap.service.AuditLogService;
 
 /**
  * Сервисный слой ответов в Q&amp;A приложении (Этап 19.c, ADR-034).
@@ -24,10 +29,13 @@ public class AnswerService {
 
     private final AnswerRepository answerRepository;
     private final QuestionRepository questionRepository;
+    private final AuditLogService auditLogService;
 
-    public AnswerService(AnswerRepository answerRepository, QuestionRepository questionRepository) {
+    public AnswerService(AnswerRepository answerRepository, QuestionRepository questionRepository,
+                         AuditLogService auditLogService) {
         this.answerRepository = answerRepository;
         this.questionRepository = questionRepository;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -48,6 +56,13 @@ public class AnswerService {
                 now
         );
         answerRepository.save(a);
+
+        // ADR-043 Amendment 3 (22.d) - audit CREATE с parent=QUESTION
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("body", a.body());
+        auditLogService.logCreate(AuditEntityType.ANSWER, a.id(),
+                AuditEntityType.QUESTION, questionId, authorId, snapshot);
+
         return a;
     }
 
@@ -88,7 +103,18 @@ public class AnswerService {
     @Transactional
     public Answer updateAnswer(UUID answerId, String body, UUID actorUserId, String actorRole) {
         assertAuthorOrAdmin(answerId, actorUserId, actorRole);
-        return updateAnswer(answerId, body);
+        Answer before = answerRepository.findById(answerId).orElseThrow();
+        Answer after = updateAnswer(answerId, body);
+
+        // ADR-043 Amendment 3 (22.d) - audit UPDATE body diff
+        if (!java.util.Objects.equals(before.body(), after.body())) {
+            Map<String, AuditLogService.FieldDiff> diff = new LinkedHashMap<>();
+            diff.put("body", new AuditLogService.FieldDiff(before.body(), after.body()));
+            auditLogService.logUpdate(AuditEntityType.ANSWER, answerId,
+                    AuditEntityType.QUESTION, before.questionId(),
+                    actorUserId, diff);
+        }
+        return after;
     }
 
     @Transactional
@@ -108,6 +134,15 @@ public class AnswerService {
     @Transactional
     public void deleteAnswer(UUID answerId, UUID actorUserId, String actorRole) {
         assertAuthorOrAdmin(answerId, actorUserId, actorRole);
+        Answer existing = answerRepository.findById(answerId).orElseThrow();
+
+        // ADR-043 Amendment 3 (22.d) - audit DELETE с parent=QUESTION
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("body", existing.body());
+        auditLogService.logDelete(AuditEntityType.ANSWER, answerId,
+                AuditEntityType.QUESTION, existing.questionId(),
+                actorUserId, snapshot);
+
         deleteAnswer(answerId);
     }
 

@@ -8,6 +8,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import ru.basnukaev.argumentmap.domain.AuditEntityType;
 import ru.basnukaev.argumentmap.domain.TopicMember;
 import ru.basnukaev.argumentmap.domain.TopicMemberRole;
 import ru.basnukaev.argumentmap.exception.TopicAccessDeniedException;
@@ -31,13 +32,16 @@ public class TopicMemberService {
     private final TopicMemberRepository topicMemberRepository;
     private final TopicRepository topicRepository;
     private final PermissionService permissionService;
+    private final AuditLogService auditLogService;
 
     public TopicMemberService(TopicMemberRepository topicMemberRepository,
                               TopicRepository topicRepository,
-                              PermissionService permissionService) {
+                              PermissionService permissionService,
+                              AuditLogService auditLogService) {
         this.topicMemberRepository = topicMemberRepository;
         this.topicRepository = topicRepository;
         this.permissionService = permissionService;
+        this.auditLogService = auditLogService;
     }
 
     /**
@@ -73,7 +77,12 @@ public class TopicMemberService {
                 role, Instant.now(), actorUserId
         );
         try {
-            return topicMemberRepository.save(member);
+            TopicMember saved = topicMemberRepository.save(member);
+            // ADR-043 Amendment 3 (22.d) - audit MEMBER_ADD
+            auditLogService.logMemberAdd(AuditEntityType.TOPIC_MEMBER, saved.id(),
+                    AuditEntityType.TOPIC, topicId, actorUserId,
+                    newMemberUserId, role);
+            return saved;
         } catch (DuplicateKeyException ex) {
             throw new IllegalArgumentException(
                     "Пользователь " + newMemberUserId + " уже является членом темы " + topicId
@@ -114,6 +123,11 @@ public class TopicMemberService {
             throw new TopicWriteAccessDeniedException(topicId, actorUserId);
         }
 
+        // ADR-043 Amendment 3 (22.d) - audit MEMBER_REMOVE до delete
+        auditLogService.logMemberRemove(AuditEntityType.TOPIC_MEMBER, memberId,
+                AuditEntityType.TOPIC, topicId, actorUserId,
+                member.userId(), member.role());
+
         topicMemberRepository.delete(memberId);
     }
 
@@ -136,7 +150,16 @@ public class TopicMemberService {
         }
         permissionService.assertIsOwner(topicId, actorUserId, actorRole);
 
+        String oldRole = existing.role();
         topicMemberRepository.updateRole(memberId, newRole);
+
+        // ADR-043 Amendment 3 (22.d) - audit MEMBER_ROLE_CHANGE только если
+        // действительно изменилось
+        if (oldRole == null || !oldRole.equals(newRole)) {
+            auditLogService.logMemberRoleChange(AuditEntityType.TOPIC_MEMBER, memberId,
+                    AuditEntityType.TOPIC, topicId, actorUserId,
+                    existing.userId(), oldRole, newRole);
+        }
         return topicMemberRepository.findById(memberId).orElseThrow();
     }
 }

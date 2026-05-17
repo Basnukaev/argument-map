@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.basnukaev.argumentmap.exception.AuthorityNotFoundException;
 import ru.basnukaev.argumentmap.exception.BookNotFoundException;
 import ru.basnukaev.argumentmap.exception.PageNotFoundException;
+import ru.basnukaev.argumentmap.domain.AuditEntityType;
 import ru.basnukaev.argumentmap.domain.Authority;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookType;
@@ -30,6 +31,7 @@ import ru.basnukaev.argumentmap.library.repository.PageRepository;
 import ru.basnukaev.argumentmap.library.repository.PublicationPlaceRepository;
 import ru.basnukaev.argumentmap.library.repository.PublisherRepository;
 import ru.basnukaev.argumentmap.repository.AuthorityRepository;
+import ru.basnukaev.argumentmap.service.AuditLogService;
 import ru.basnukaev.argumentmap.service.PermissionService;
 
 @Service
@@ -46,6 +48,7 @@ public class BookService {
     private final PublisherRepository publisherRepository;
     private final PublicationPlaceRepository publicationPlaceRepository;
     private final PermissionService permissionService;
+    private final AuditLogService auditLogService;
 
     public BookService(BookRepository bookRepository,
                        ChapterRepository chapterRepository,
@@ -55,7 +58,8 @@ public class BookService {
                        MuhaqqiqRepository muhaqqiqRepository,
                        PublisherRepository publisherRepository,
                        PublicationPlaceRepository publicationPlaceRepository,
-                       PermissionService permissionService) {
+                       PermissionService permissionService,
+                       AuditLogService auditLogService) {
         this.bookRepository = bookRepository;
         this.chapterRepository = chapterRepository;
         this.pageRepository = pageRepository;
@@ -65,6 +69,7 @@ public class BookService {
         this.publisherRepository = publisherRepository;
         this.publicationPlaceRepository = publicationPlaceRepository;
         this.permissionService = permissionService;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -148,6 +153,18 @@ public class BookService {
                 visibility
         );
         bookRepository.save(book);
+
+        // ADR-043 Amendment 3 (22.d) - audit CREATE.
+        // currentUserId NOT NULL constraint в lib_books, FK к users -
+        // audit_log.actor_user_id тоже NOT NULL + FK к users; consistency.
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("title", title);
+        snapshot.put("bookType", bookType == null ? null : bookType.name());
+        snapshot.put("language", language);
+        snapshot.put("visibility", visibility);
+        auditLogService.logCreate(AuditEntityType.BOOK, book.id(), null, null,
+                currentUserId, snapshot);
+
         return book;
     }
 
@@ -252,9 +269,18 @@ public class BookService {
      */
     @Transactional
     public void deleteBook(UUID bookId, UUID userId, String role) {
-        bookRepository.findById(bookId)
+        Book existing = bookRepository.findById(bookId)
                 .orElseThrow(() -> new BookNotFoundException(bookId));
         permissionService.assertIsBookOwner(bookId, userId, role);
+
+        // ADR-043 Amendment 3 (22.d) - audit DELETE до самого delete
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("title", existing.title());
+        snapshot.put("bookType", existing.bookType() == null ? null : existing.bookType().name());
+        snapshot.put("visibility", existing.visibility());
+        auditLogService.logDelete(AuditEntityType.BOOK, bookId, null, null,
+                userId, snapshot);
+
         bookRepository.deleteById(bookId);
     }
 
@@ -270,10 +296,16 @@ public class BookService {
                     "Невалидное visibility: " + newVisibility
             );
         }
-        bookRepository.findById(bookId)
+        Book existing = bookRepository.findById(bookId)
                 .orElseThrow(() -> new BookNotFoundException(bookId));
         permissionService.assertIsBookOwner(bookId, userId, role);
+        String oldVisibility = existing.visibility();
         bookRepository.updateVisibility(bookId, newVisibility);
+        // ADR-043 Amendment 3 (22.d) - audit только если реально изменилось
+        if (oldVisibility == null || !oldVisibility.equals(newVisibility)) {
+            auditLogService.logVisibilityChange(AuditEntityType.BOOK, bookId,
+                    userId, oldVisibility, newVisibility);
+        }
         return bookRepository.findById(bookId).orElseThrow();
     }
 
@@ -335,9 +367,43 @@ public class BookService {
                                        Integer publishedYearGregorian,
                                        UUID userId, String role) {
         permissionService.assertCanWriteBook(bookId, userId, role);
-        return updateAcademicMetadata(bookId, muhaqqiqName, publisherName,
+        Book before = bookRepository.findById(bookId)
+                .orElseThrow(() -> new BookNotFoundException(bookId));
+        Book after = updateAcademicMetadata(bookId, muhaqqiqName, publisherName,
                 publicationPlaceName, editionNumber, publishedYearHijri,
                 publishedYearGregorian);
+
+        // ADR-043 Amendment 3 (22.d) - audit UPDATE per-field diff
+        Map<String, AuditLogService.FieldDiff> diff = new LinkedHashMap<>();
+        if (!java.util.Objects.equals(before.muhaqqiqId(), after.muhaqqiqId())) {
+            diff.put("muhaqqiqId", new AuditLogService.FieldDiff(
+                    before.muhaqqiqId(), after.muhaqqiqId()));
+        }
+        if (!java.util.Objects.equals(before.publisherId(), after.publisherId())) {
+            diff.put("publisherId", new AuditLogService.FieldDiff(
+                    before.publisherId(), after.publisherId()));
+        }
+        if (!java.util.Objects.equals(before.publicationPlaceId(), after.publicationPlaceId())) {
+            diff.put("publicationPlaceId", new AuditLogService.FieldDiff(
+                    before.publicationPlaceId(), after.publicationPlaceId()));
+        }
+        if (!java.util.Objects.equals(before.editionNumber(), after.editionNumber())) {
+            diff.put("editionNumber", new AuditLogService.FieldDiff(
+                    before.editionNumber(), after.editionNumber()));
+        }
+        if (!java.util.Objects.equals(before.publishedYearHijri(), after.publishedYearHijri())) {
+            diff.put("publishedYearHijri", new AuditLogService.FieldDiff(
+                    before.publishedYearHijri(), after.publishedYearHijri()));
+        }
+        if (!java.util.Objects.equals(before.publishedYearGregorian(), after.publishedYearGregorian())) {
+            diff.put("publishedYearGregorian", new AuditLogService.FieldDiff(
+                    before.publishedYearGregorian(), after.publishedYearGregorian()));
+        }
+        if (!diff.isEmpty()) {
+            auditLogService.logUpdate(AuditEntityType.BOOK, bookId, null, null,
+                    userId, diff);
+        }
+        return after;
     }
 
     private static UUID resolveFk(String name, UUID currentFk,

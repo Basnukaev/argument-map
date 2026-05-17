@@ -8,6 +8,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import ru.basnukaev.argumentmap.domain.AuditEntityType;
 import ru.basnukaev.argumentmap.exception.BookMemberNotFoundException;
 import ru.basnukaev.argumentmap.exception.BookNotFoundException;
 import ru.basnukaev.argumentmap.exception.BookWriteAccessDeniedException;
@@ -15,6 +16,7 @@ import ru.basnukaev.argumentmap.library.domain.BookMember;
 import ru.basnukaev.argumentmap.library.domain.BookMemberRole;
 import ru.basnukaev.argumentmap.library.repository.BookMemberRepository;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
+import ru.basnukaev.argumentmap.service.AuditLogService;
 import ru.basnukaev.argumentmap.service.PermissionService;
 
 /**
@@ -33,13 +35,16 @@ public class BookMemberService {
     private final BookMemberRepository bookMemberRepository;
     private final BookRepository bookRepository;
     private final PermissionService permissionService;
+    private final AuditLogService auditLogService;
 
     public BookMemberService(BookMemberRepository bookMemberRepository,
                              BookRepository bookRepository,
-                             PermissionService permissionService) {
+                             PermissionService permissionService,
+                             AuditLogService auditLogService) {
         this.bookMemberRepository = bookMemberRepository;
         this.bookRepository = bookRepository;
         this.permissionService = permissionService;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -67,7 +72,12 @@ public class BookMemberService {
                 role, Instant.now(), actorUserId
         );
         try {
-            return bookMemberRepository.save(member);
+            BookMember saved = bookMemberRepository.save(member);
+            // ADR-043 Amendment 3 (22.d) - audit MEMBER_ADD
+            auditLogService.logMemberAdd(AuditEntityType.BOOK_MEMBER, saved.id(),
+                    AuditEntityType.BOOK, bookId, actorUserId,
+                    newMemberUserId, role);
+            return saved;
         } catch (DuplicateKeyException ex) {
             throw new IllegalArgumentException(
                     "Пользователь " + newMemberUserId + " уже является членом книги " + bookId
@@ -103,6 +113,11 @@ public class BookMemberService {
             throw new BookWriteAccessDeniedException(bookId, actorUserId);
         }
 
+        // ADR-043 Amendment 3 (22.d) - audit MEMBER_REMOVE до delete
+        auditLogService.logMemberRemove(AuditEntityType.BOOK_MEMBER, memberId,
+                AuditEntityType.BOOK, bookId, actorUserId,
+                member.userId(), member.role());
+
         bookMemberRepository.delete(memberId);
     }
 
@@ -121,7 +136,16 @@ public class BookMemberService {
         }
         permissionService.assertIsBookOwner(bookId, actorUserId, actorRole);
 
+        String oldRole = existing.role();
         bookMemberRepository.updateRole(memberId, newRole);
+
+        // ADR-043 Amendment 3 (22.d) - audit MEMBER_ROLE_CHANGE только если
+        // реально изменилось
+        if (oldRole == null || !oldRole.equals(newRole)) {
+            auditLogService.logMemberRoleChange(AuditEntityType.BOOK_MEMBER, memberId,
+                    AuditEntityType.BOOK, bookId, actorUserId,
+                    existing.userId(), oldRole, newRole);
+        }
         return bookMemberRepository.findById(memberId).orElseThrow();
     }
 }
