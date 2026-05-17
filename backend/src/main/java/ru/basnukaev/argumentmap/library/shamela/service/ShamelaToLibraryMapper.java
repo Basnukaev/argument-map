@@ -152,7 +152,8 @@ public class ShamelaToLibraryMapper {
                 publicationPlaceId,
                 parsedBiblio.editionNumber(),
                 parsedBiblio.publishedYearHijri(),
-                parsedBiblio.publishedYearGregorian()
+                parsedBiblio.publishedYearGregorian(),
+                ru.basnukaev.argumentmap.library.domain.BookVisibility.PUBLIC
         );
         bookRepository.save(book);
 

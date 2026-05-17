@@ -22,7 +22,8 @@ public class BookRepository {
             "id, book_type, title, authority_id, language, description, metadata, "
             + "created_by, created_at, updated_at, "
             + "muhaqqiq_id, publisher_id, publication_place_id, "
-            + "edition_number, published_year_hijri, published_year_gregorian";
+            + "edition_number, published_year_hijri, published_year_gregorian, "
+            + "visibility";
 
     private static final RowMapper<Book> ROW_MAPPER = (rs, rn) -> {
         int edition = rs.getInt("edition_number");
@@ -48,7 +49,8 @@ public class BookRepository {
                 rs.getObject("publication_place_id", UUID.class),
                 editionOrNull,
                 yearHOrNull,
-                yearGOrNull
+                yearGOrNull,
+                rs.getString("visibility")
         );
     };
 
@@ -61,7 +63,7 @@ public class BookRepository {
     public Book save(Book book) {
         jdbcTemplate.update(
                 "INSERT INTO lib_books (" + COLUMNS + ") "
-                        + "VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 book.id(),
                 book.bookType().name(),
                 book.title(),
@@ -77,9 +79,18 @@ public class BookRepository {
                 book.publicationPlaceId(),
                 book.editionNumber(),
                 book.publishedYearHijri(),
-                book.publishedYearGregorian()
+                book.publishedYearGregorian(),
+                book.visibility()
         );
         return book;
+    }
+
+    /**
+     * Меняет visibility книги (ADR-043 Amendment). Проверка прав - в Service.
+     */
+    public void updateVisibility(UUID bookId, String visibility) {
+        jdbcTemplate.update("UPDATE lib_books SET visibility = ?, updated_at = now() WHERE id = ?",
+                visibility, bookId);
     }
 
     public Optional<Book> findById(UUID id) {
@@ -112,6 +123,10 @@ public class BookRepository {
     /**
      * Пагинированный поиск книг с фильтрами.
      * Сортировка: created_at DESC (новые сверху).
+     *
+     * <p>ВНИМАНИЕ: visibility-фильтрация не применяется - метод оставлен
+     * для internal callers (shamela sync, admin). REST endpoint должен
+     * использовать {@link #findVisibleToUserPage}.
      */
     public List<Book> findPage(String query, BookType type,
                                UUID authorityId, UUID publisherId,
@@ -131,6 +146,52 @@ public class BookRepository {
         StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM lib_books WHERE 1=1");
         List<Object> args = new ArrayList<>();
         appendFilters(sql, args, query, type, authorityId, publisherId);
+        Long count = jdbcTemplate.queryForObject(sql.toString(), Long.class, args.toArray());
+        return count == null ? 0L : count;
+    }
+
+    private static final String VISIBLE_TO_USER_WHERE = """
+             AND (visibility = 'PUBLIC'
+                  OR created_by = ?
+                  OR (visibility = 'SHARED' AND EXISTS (
+                       SELECT 1 FROM lib_book_members bm
+                       WHERE bm.book_id = lib_books.id AND bm.user_id = ?
+                  )))
+            """;
+
+    /**
+     * Пагинированный поиск книг видимых пользователю (ADR-043 Amendment).
+     * Visibility-матрица UNION трёх веток:
+     * <ul>
+     *   <li>PUBLIC - видны всем
+     *   <li>created_by = userId - PRIVATE owned
+     *   <li>SHARED где user является членом через lib_book_members
+     * </ul>
+     */
+    public List<Book> findVisibleToUserPage(UUID userId, String query, BookType type,
+                                            UUID authorityId, UUID publisherId,
+                                            int limit, int offset) {
+        StringBuilder sql = new StringBuilder("SELECT ").append(COLUMNS)
+                .append(" FROM lib_books WHERE 1=1");
+        List<Object> args = new ArrayList<>();
+        appendFilters(sql, args, query, type, authorityId, publisherId);
+        sql.append(VISIBLE_TO_USER_WHERE);
+        args.add(userId);
+        args.add(userId);
+        sql.append(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
+        args.add(limit);
+        args.add(offset);
+        return jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray());
+    }
+
+    public long countVisibleToUser(UUID userId, String query, BookType type,
+                                   UUID authorityId, UUID publisherId) {
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM lib_books WHERE 1=1");
+        List<Object> args = new ArrayList<>();
+        appendFilters(sql, args, query, type, authorityId, publisherId);
+        sql.append(VISIBLE_TO_USER_WHERE);
+        args.add(userId);
+        args.add(userId);
         Long count = jdbcTemplate.queryForObject(sql.toString(), Long.class, args.toArray());
         return count == null ? 0L : count;
     }
