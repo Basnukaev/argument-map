@@ -102,6 +102,32 @@ ocr:
     # macOS Homebrew - /opt/homebrew/share/tessdata
     path: ${OCR_TESSDATA_PATH:/usr/share/tesseract-ocr/4.00/tessdata}
 
+# AI editing pass (ADR-042, Этап 17.e). Anthropic Claude как
+# single-provider LLM для преобразования OCR raw text в structured
+# ProseMirror JSON. По умолчанию disabled - endpoint вернёт 503 пока
+# не установлен ANTHROPIC_API_KEY. Установка ключа:
+#   export ANTHROPIC_API_KEY=sk-ant-api-...
+# Получить ключ - https://console.anthropic.com/settings/keys.
+ai:
+  # Сейчас один provider, future: openai / google / local
+  provider: anthropic
+  anthropic:
+    # Sentinel "disabled" = AI editing endpoint вернёт 503.
+    # Real key получить на https://console.anthropic.com/settings/keys
+    api-key: ${ANTHROPIC_API_KEY:disabled}
+    # Anthropic Messages API. Override для тестов / mock server.
+    base-url: ${ANTHROPIC_BASE_URL:https://api.anthropic.com}
+    # Sonnet 4.6 - balance цена/качество для arabic structuring.
+    # Haiku - дешевле но качество хуже на классическом arabic.
+    # Opus - дороже на 5x, качество marginal лучше на тахкике.
+    model: ${ANTHROPIC_MODEL:claude-sonnet-4-6}
+    # ProseMirror JSON может быть длинным (~1000-2000 tokens per page),
+    # 4096 даёт запас. Anthropic billing per output token.
+    max-tokens: ${ANTHROPIC_MAX_TOKENS:4096}
+    # 60s достаточно для cold start + сложной arabic page. Превышение
+    # → IOException → Resilience4j retry либо fail.
+    timeout-seconds: ${ANTHROPIC_TIMEOUT_SECONDS:60}
+
 # Конфиг интеграции с shamela.ws через её desktop-API (ADR-020).
 # Реверс-инжиниринг выполнен в параллельной сессии через mitmproxy на
 # официальном desktop-клиенте shamela 4. Endpoints статические,
@@ -148,6 +174,25 @@ resilience4j:
           - ru.basnukaev.argumentmap.library.shamela.api.ShamelaApiException
           - java.io.IOException
           - java.util.concurrent.TimeoutException
+  # Retry для Anthropic API (ADR-042, Этап 17.e). 3 попытки на
+  # transient failures (429 rate limit, 5xx server error, IOException),
+  # exponential backoff между попытками. После исчерпания - exception
+  # bubble up до AiEditService, page помечается FAILED.
+  retry:
+    instances:
+      anthropicApi:
+        max-attempts: 3
+        wait-duration: 2s
+        # Exponential: 2s, 4s, 8s между попытками. Anthropic 429 rate
+        # limit обычно очищается за <5 секунд.
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        # Какие exceptions считать transient (retry). 4xx 401/403
+        # (invalid key) - не retry, постоянная проблема.
+        retry-exceptions:
+          - ru.basnukaev.argumentmap.library.imports.AnthropicApiException
+          - java.io.IOException
+
   # Metrics через actuator (см. management.endpoints.web ниже).
   metrics:
     enabled: true
