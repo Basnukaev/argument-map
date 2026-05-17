@@ -1,13 +1,26 @@
 import type { paths } from '@/shared/api/types';
 
 /**
- * Базовый URL бэка. Берётся из VITE_API_URL, по умолчанию localhost:9090.
+ * Базовый URL бэка. Логика:
+ *   - test - используем VITE_API_URL (msw слушает абсолютные URLs из
+ *     test-setup, "http://test.local")
+ *   - dev (browser через Vite) - пустой prefix → запросы идут по
+ *     относительному пути через Vite proxy (см. vite.config.ts:
+ *     /api → :9090). Same-origin важен для auth-flow Этапа 21.b:
+ *     SameSite=Strict refresh cookie не шлётся cross-origin
+ *     (с :5173 на :9090), плюс backend CORS allowCredentials=false.
+ *     Через proxy всё одно origin, cookies работают.
+ *   - prod build - VITE_API_URL обычно тоже пустой (фронт и API на
+ *     одном домене через reverse proxy), иначе явно задаётся в env
+ *
  * Экспортируется чтобы прямые fetch-запросы (например react-pdf
- * Document file=...) могли строить absolute URLs - vite dev-server
- * не проксирует /api/* по умолчанию, относительные URLs вернули
- * бы SPA index.html fallback.
+ * Document file=...) могли строить absolute URLs - они тоже идут
+ * через proxy (пустой prefix + относительный путь /api/...)
  */
-export const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:9090';
+export const API_BASE_URL =
+  import.meta.env.MODE === 'test'
+    ? (import.meta.env.VITE_API_URL ?? 'http://test.local')
+    : ''; // browser - всегда через Vite proxy / same-origin для prod
 
 /**
  * UUID текущего пользователя для заголовка X-User-Id (ADR-006).

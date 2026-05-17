@@ -19,6 +19,22 @@ export default defineConfig({
       usePolling: true,
       interval: 300,
     },
+    // Проксируем /api и /actuator на backend - same-origin для cookies.
+    // Auth-flow Этапа 21.b использует httpOnly refresh cookie с
+    // SameSite=Strict, который браузер не пошлёт через cross-origin
+    // даже с credentials: 'include'. Backend CORS allowCredentials=false
+    // тоже блокировал бы. Через proxy фронт и API живут на одном
+    // origin (5173) - cookies работают без специальной конфигурации
+    proxy: {
+      '/api': {
+        target: 'http://localhost:9090',
+        changeOrigin: true,
+      },
+      '/actuator': {
+        target: 'http://localhost:9090',
+        changeOrigin: true,
+      },
+    },
   },
   test: {
     globals: true,
