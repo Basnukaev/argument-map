@@ -1,6 +1,7 @@
 import dagre from 'dagre';
 import type { NodeCardNode } from '@/apps/argument-map/components/graph/NodeCard';
 import type { CustomEdgeEdge } from '@/apps/argument-map/components/graph/CustomEdge';
+import type { LayoutAlgorithm } from '@/shared/stores/layoutAlgorithmStore';
 
 const NODE_WIDTH = 288;
 const NODE_HEIGHT = 140;
@@ -91,6 +92,37 @@ export function layoutGraph(
       },
     };
   });
+}
+
+/**
+ * Async-вариант с переключателем алгоритма. Для `dagre` - синхронно
+ * (см. `layoutGraph`) обёрнуто в Promise. Для `elk` - lazy-import
+ * (bundle splitting: elkjs ~200KB не попадает в initial chunk) и
+ * перезаписывает позиции узлов через ORTHOGONAL edge routing.
+ *
+ * `previousNodes` имеет смысл только для `dagre` mixed-режима;
+ * `elk` пересчитывает весь граф целиком
+ */
+export async function applyLayout(
+  nodes: NodeCardNode[],
+  edges: CustomEdgeEdge[],
+  algorithm: LayoutAlgorithm = 'dagre',
+  direction: 'LR' | 'TB' = 'LR',
+  previousNodes: ReadonlyArray<NodeCardNode> = [],
+): Promise<NodeCardNode[]> {
+  if (nodes.length === 0) return [];
+  if (algorithm === 'elk') {
+    // Lazy import - elkjs ~200KB gzipped; не нагружаем initial bundle
+    // для пользователей которые остаются на dagre (default)
+    const { applyElkLayout } = await import('./elkLayout');
+    const { nodes: laidOut } = await applyElkLayout(nodes, edges, {
+      // RIGHT для LR (наша default direction для tree-of-thought),
+      // DOWN для TB
+      direction: direction === 'LR' ? 'RIGHT' : 'DOWN',
+    });
+    return laidOut;
+  }
+  return layoutGraph(nodes, edges, direction, previousNodes);
 }
 
 function dagreLayout(

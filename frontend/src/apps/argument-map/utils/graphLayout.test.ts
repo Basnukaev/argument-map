@@ -1,5 +1,25 @@
-import { describe, it, expect } from 'vitest';
-import { layoutGraph } from './graphLayout';
+import { describe, it, expect, vi } from 'vitest';
+
+// Mock elkjs до импорта SUT - чтобы applyLayout('elk') в тестах не
+// тянул реальный ~200KB bundle и не падал в jsdom. Возвращает
+// фиксированные позиции по индексу
+vi.mock('elkjs/lib/elk.bundled.js', () => {
+  class MockELK {
+    async layout(graph: { children?: Array<{ id: string }> }) {
+      return {
+        ...graph,
+        children: (graph.children ?? []).map((c, i) => ({
+          ...c,
+          x: 999 + i,
+          y: 888 + i,
+        })),
+      };
+    }
+  }
+  return { default: MockELK };
+});
+
+import { layoutGraph, applyLayout } from './graphLayout';
 import type { NodeCardNode } from '@/apps/argument-map/components/graph/NodeCard';
 import type { CustomEdgeEdge } from '@/apps/argument-map/components/graph/CustomEdge';
 
@@ -106,5 +126,30 @@ describe('layoutGraph', () => {
     const f2Pos = result.find((n) => n.id === 'f2')!.position;
     expect(f1Pos.x).toBe(f2Pos.x); // одна колонка
     expect(f2Pos.y).toBeGreaterThan(f1Pos.y); // f2 ниже f1
+  });
+});
+
+describe('applyLayout (algorithm switch)', () => {
+  it('algorithm=dagre - использует layoutGraph (sync wrap)', async () => {
+    const nodes = [makeNode('a'), makeNode('b')];
+    const edges = [makeEdge('e', 'a', 'b')];
+    const result = await applyLayout(nodes, edges, 'dagre', 'LR');
+    expect(result).toHaveLength(2);
+    // dagre раскладывает узлы по разным позициям (не моки elk)
+    expect(result[0]!.position.x).not.toBe(999);
+  });
+
+  it('algorithm=elk - использует ELK позиции (через моки elkjs)', async () => {
+    const nodes = [makeNode('a'), makeNode('b')];
+    const edges = [makeEdge('e', 'a', 'b')];
+    const result = await applyLayout(nodes, edges, 'elk', 'LR');
+    expect(result).toHaveLength(2);
+    expect(result[0]!.position).toEqual({ x: 999, y: 888 });
+    expect(result[1]!.position).toEqual({ x: 1000, y: 889 });
+  });
+
+  it('пустой граф - возвращает пустой массив (любой алгоритм)', async () => {
+    expect(await applyLayout([], [], 'dagre')).toEqual([]);
+    expect(await applyLayout([], [], 'elk')).toEqual([]);
   });
 });
