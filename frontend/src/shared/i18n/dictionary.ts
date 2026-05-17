@@ -70,6 +70,8 @@ export const DICTIONARY = {
     'reader.download_pdf': 'Скачать PDF целиком',
     'reader.mode.text': 'Текст',
     'reader.mode.pdf': 'PDF',
+    'reader.tashkeel_show': 'С огласовками',
+    'reader.tashkeel_hide': 'Без огласовок',
 
     // topic list page
     'topic.list.eyebrow': 'Аргументация · темы',
@@ -664,6 +666,9 @@ export const DICTIONARY = {
     'admin.page_editor.highlight.yellow': 'Жёлтый',
     'admin.page_editor.highlight.purple': 'Фиолетовый',
 
+    // Этап 17.0.c - Tashkeel (3 финальных extensions, ADR-039)
+    'admin.page_editor.toolbar.tashkeel': 'Огласовки (tashkeel)',
+
     // Auth (Этап 21.b, ADR-040)
     'auth.brand.tagline': 'Аргумент-карта · платформа для научной работы',
     'auth.required_to_view': 'Войдите, чтобы продолжить',
@@ -764,6 +769,8 @@ export const DICTIONARY = {
     'reader.download_pdf': 'تنزيل PDF كاملاً',
     'reader.mode.text': 'نص',
     'reader.mode.pdf': 'PDF',
+    'reader.tashkeel_show': 'مع التشكيل',
+    'reader.tashkeel_hide': 'بدون تشكيل',
 
     'topic.list.eyebrow': 'الحجاج · المواضيع',
     'topic.list.title': 'مواضيع الحجاج',
@@ -1329,6 +1336,9 @@ export const DICTIONARY = {
     'admin.page_editor.highlight.green': 'أخضر',
     'admin.page_editor.highlight.yellow': 'أصفر',
     'admin.page_editor.highlight.purple': 'بنفسجي',
+
+    // Этап 17.0.c - Tashkeel (3 финальных extensions, ADR-039)
+    'admin.page_editor.toolbar.tashkeel': 'التشكيل',
 
     // Auth (Этап 21.b, ADR-040)
     'auth.brand.tagline': 'خريطة الحجج · منصّة للبحث العلمي',

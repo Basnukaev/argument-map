@@ -51,6 +51,7 @@ import {
   HIGHLIGHT_COLORS,
   type HighlightColor,
 } from '@/shared/components/editor/extensions/ColorHighlight';
+import { Tashkeel } from '@/shared/components/editor/extensions/Tashkeel';
 import { apiGetRaw, apiPatchRaw, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useT } from '@/shared/i18n';
@@ -67,7 +68,14 @@ type State =
   | { kind: 'success'; page: PageResponse; content: object | null }
   | { kind: 'error'; message: string };
 
-const EDITOR_EXTENSIONS = [HadithBox, AyahBox, Marginalia, Footnote, ColorHighlight];
+const EDITOR_EXTENSIONS = [
+  HadithBox,
+  AyahBox,
+  Marginalia,
+  Footnote,
+  ColorHighlight,
+  Tashkeel,
+];
 
 // Swatch цвета для highlight dropdown - синхронизированы с CSS
 // в `tiptap.css` (color-highlight-{color})
@@ -301,6 +309,11 @@ function AdminPageEditorPage() {
     editor?.chain().focus().unsetColorHighlight().run();
   };
 
+  // Tashkeel - простой toggle на выделенном тексте (mark без attrs)
+  const toggleTashkeel = () => {
+    editor?.chain().focus().toggleTashkeel().run();
+  };
+
   if (state.kind === 'loading') {
     return (
       <main className="min-h-screen bg-bg">
@@ -511,6 +524,14 @@ function AdminPageEditorPage() {
               label={t('admin.page_editor.toolbar.highlight_remove')}
             />
           )}
+          <ToolbarDivider />
+          {/* Tashkeel */}
+          <ToolbarButton
+            active={isActive('tashkeel')}
+            onClick={toggleTashkeel}
+            icon={<span className="text-xs font-semibold">َِّ</span>}
+            label={t('admin.page_editor.toolbar.tashkeel')}
+          />
         </Card>
 
         {/* Editor area */}

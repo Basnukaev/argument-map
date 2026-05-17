@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, FileImage, Loader2 } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import type { components } from '@/shared/api/types';
@@ -9,18 +9,20 @@ import {
   removeHighlights,
 } from '@/shared/components/reader/textRangeUtils';
 import RichTextRenderer from '@/shared/components/editor/RichTextRenderer';
+import { useT } from '@/shared/i18n';
 import { HadithBox } from '@/shared/components/editor/extensions/HadithBox';
 import { AyahBox } from '@/shared/components/editor/extensions/AyahBox';
 import { Marginalia } from '@/shared/components/editor/extensions/Marginalia';
 import { Footnote } from '@/shared/components/editor/extensions/Footnote';
 import { ColorHighlight } from '@/shared/components/editor/extensions/ColorHighlight';
+import { Tashkeel } from '@/shared/components/editor/extensions/Tashkeel';
 
 // Custom Tiptap extensions для read-only render. Список должен совпадать
 // с extensions в AdminPageEditorPage - иначе пользовательский HadithBox
-// упадёт на «unknown node type». Этап 17.0.b расширил его до 5 custom
-// extensions; следующие 3 (Tashkeel / DecoratedHeading / PageNumber)
-// будут добавлены отдельным этапом
-const READER_EXTENSIONS = [HadithBox, AyahBox, Marginalia, Footnote, ColorHighlight];
+// упадёт на «unknown node type». Этап 17.0.c добавил Tashkeel mark +
+// reader-toggle для огласовок. DecoratedHeading и PageNumber - в
+// следующих коммитах
+const READER_EXTENSIONS = [HadithBox, AyahBox, Marginalia, Footnote, ColorHighlight, Tashkeel];
 
 // Source-first поля (миграция 19, ADR-021) - в runtime есть, но types.ts
 // регенерируется отдельно. Intersection даёт безопасный доступ.
@@ -89,8 +91,14 @@ function PageView({
   onSelectionChange,
   highlightRange = null,
 }: Props) {
+  const t = useT();
   const contentRef = useRef<HTMLElement>(null);
   const pageId = state.kind === 'success' ? state.page.id : null;
+  // toggle для скрытия tashkeel в reader. MVP: класс `.hide-tashkeel`
+  // на article-wrapper, full implementation (regex по text nodes) -
+  // в backlog. См. ADR-039 + gotcha «Tashkeel full removal требует
+  // runtime text manipulation»
+  const [hideTashkeel, setHideTashkeel] = useState(false);
 
   useEffect(() => {
     if (!selectable || !onSelectionChange || !contentRef.current || !pageId) {
@@ -154,19 +162,45 @@ function PageView({
   const text = page.textContent ?? '';
   const isArabic = bookLanguage === 'ar' || isArabicText(text);
 
+  // article-классы: базовая типографика + опционально hide-tashkeel
+  // (CSS из tiptap.css). Toggle актуален только для арабского контента
+  // (других script'ов огласовки не касаются)
+  const articleClass = [
+    isArabic
+      ? 'book-content font-naskh text-md leading-[2] text-ink-900'
+      : 'book-content text-base leading-relaxed text-ink-900',
+    hideTashkeel ? 'hide-tashkeel' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <Card className="relative px-8 pb-8 pt-14">
-      {onOpenPdfPreview && (
-        <button
-          type="button"
-          onClick={onOpenPdfPreview}
-          className="absolute end-4 top-3 inline-flex items-center gap-1.5 rounded-md border border-err-500/40 bg-err-100 px-2.5 py-1 text-xs font-semibold text-err-700 shadow-sm transition-colors hover:border-err-500/40 hover:bg-err-100 hover:text-err-700"
-          title="Открыть PDF оригинала на этой странице"
-        >
-          <FileImage size={14} aria-hidden="true" />
-          <span>PDF</span>
-        </button>
-      )}
+      <div className="absolute end-4 top-3 inline-flex items-center gap-2">
+        {isArabic && (
+          <button
+            type="button"
+            onClick={() => setHideTashkeel((v) => !v)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 py-1 text-xs font-semibold text-ink-700 shadow-sm transition-colors hover:bg-ink-100"
+            title={hideTashkeel ? t('reader.tashkeel_show') : t('reader.tashkeel_hide')}
+            aria-label={hideTashkeel ? t('reader.tashkeel_show') : t('reader.tashkeel_hide')}
+            aria-pressed={hideTashkeel}
+          >
+            <span>{hideTashkeel ? t('reader.tashkeel_show') : t('reader.tashkeel_hide')}</span>
+          </button>
+        )}
+        {onOpenPdfPreview && (
+          <button
+            type="button"
+            onClick={onOpenPdfPreview}
+            className="inline-flex items-center gap-1.5 rounded-md border border-err-500/40 bg-err-100 px-2.5 py-1 text-xs font-semibold text-err-700 shadow-sm transition-colors hover:border-err-500/40 hover:bg-err-100 hover:text-err-700"
+            title="Открыть PDF оригинала на этой странице"
+          >
+            <FileImage size={14} aria-hidden="true" />
+            <span>PDF</span>
+          </button>
+        )}
+      </div>
       {!text && !page.imageUrl && (
         <p className="text-center text-sm text-ink-400">Страница пустая</p>
       )}
@@ -184,15 +218,7 @@ function PageView({
           legacy режиме - перенос на ProseMirror selection API
           отдельным этапом */}
       {page.formattedContent ? (
-        <article
-          ref={contentRef}
-          className={
-            isArabic
-              ? 'book-content font-naskh text-md leading-[2] text-ink-900'
-              : 'book-content text-base leading-relaxed text-ink-900'
-          }
-          dir={isArabic ? 'rtl' : 'ltr'}
-        >
+        <article ref={contentRef} className={articleClass} dir={isArabic ? 'rtl' : 'ltr'}>
           <RichTextRenderer
             content={page.formattedContent}
             extensions={READER_EXTENSIONS}
@@ -202,11 +228,7 @@ function PageView({
         text && (
           <article
             ref={contentRef}
-            className={
-              isArabic
-                ? 'book-content font-naskh text-md leading-[2] text-ink-900'
-                : 'book-content text-base leading-relaxed text-ink-900'
-            }
+            className={articleClass}
             dir={isArabic ? 'rtl' : 'ltr'}
             dangerouslySetInnerHTML={{ __html: sanitizePageHtml(text) }}
           />
