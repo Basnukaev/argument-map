@@ -212,7 +212,7 @@ function AdminShamelaPage() {
     <main className="min-h-screen bg-bg">
       <Header />
 
-      <div className="mx-auto max-w-[1380px] px-6 py-8">
+      <div className="mx-auto max-w-[1380px] px-3 py-6 sm:px-6 sm:py-8">
         {/* === Editorial header: eyebrow + serif h1 + descriptor === */}
         <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0 flex-1">
@@ -396,7 +396,7 @@ function StatusStrip({ status, formatNumber, formatDateTime }: StatusStripProps)
         <Stat label={t('admin.authors')} value={formatNumber(status.authorsCount ?? 0)} />
         <Stat label={t('admin.books_in_staging')} value={formatNumber(total)} />
         <Stat label={t('admin.mapped_count')} value={mappedText} accent />
-        <div className="flex items-center justify-end px-5 py-4">
+        <div className="col-span-2 flex items-center justify-center px-5 py-4 sm:col-span-3 sm:justify-end lg:col-span-1">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-ok-500/30 bg-ok-100 px-2.5 py-0.5 text-[11px] font-medium text-ok-700 whitespace-nowrap">
             <span className="h-1.5 w-1.5 rounded-full bg-ok-500" aria-hidden />
             <span className="font-mono tabular-nums">
@@ -471,35 +471,38 @@ interface ResultsTableProps {
 function ResultsTable({ results, onImport, importingId }: ResultsTableProps) {
   const t = useT();
   // grid template одинаков для header и row - sync через CSS variable не нужен,
-  // inline style гарантирует выравнивание колонок
+  // inline style гарантирует выравнивание колонок. Min 668px - на mobile
+  // <668px скроллируется горизонтально внутри parent overflow-x-auto
   const gridCols = '88px 1fr 220px 80px 200px';
   return (
-    <div className="mb-8 overflow-hidden rounded-lg border border-border bg-elevated">
-      <div
-        className="sticky top-0 z-[1] grid items-center gap-3 border-b border-border bg-sunken px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-500"
-        style={{ gridTemplateColumns: gridCols }}
-      >
-        <span>{t('admin.table.id')}</span>
-        <span>{t('admin.table.name')}</span>
-        <span>{t('admin.table.author')}</span>
-        <span>{t('admin.table.major')}</span>
-        {/* Заголовок СТАТУС намеренно left-aligned (как остальные)
-            хотя кнопки в content прижаты к правому краю. Консистентность
-            всех headers важнее «нависания» header над content - типовой
-            компромисс для action-колонок в data-tables */}
-        <span>{t('admin.table.status')}</span>
+    <div className="mb-8 overflow-x-auto rounded-lg border border-border bg-elevated">
+      <div className="min-w-[668px]">
+        <div
+          className="sticky top-0 z-[1] grid items-center gap-3 border-b border-border bg-sunken px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-500"
+          style={{ gridTemplateColumns: gridCols }}
+        >
+          <span>{t('admin.table.id')}</span>
+          <span>{t('admin.table.name')}</span>
+          <span>{t('admin.table.author')}</span>
+          <span>{t('admin.table.major')}</span>
+          {/* Заголовок СТАТУС намеренно left-aligned (как остальные)
+              хотя кнопки в content прижаты к правому краю. Консистентность
+              всех headers важнее «нависания» header над content - типовой
+              компромисс для action-колонок в data-tables */}
+          <span>{t('admin.table.status')}</span>
+        </div>
+        <ul className="divide-y divide-border">
+          {results.map((r) => (
+            <SearchResultRow
+              key={r.bookId}
+              result={r}
+              onImport={onImport}
+              isImporting={importingId === r.bookId}
+              gridCols={gridCols}
+            />
+          ))}
+        </ul>
       </div>
-      <ul className="divide-y divide-border">
-        {results.map((r) => (
-          <SearchResultRow
-            key={r.bookId}
-            result={r}
-            onImport={onImport}
-            isImporting={importingId === r.bookId}
-            gridCols={gridCols}
-          />
-        ))}
-      </ul>
     </div>
   );
 }
