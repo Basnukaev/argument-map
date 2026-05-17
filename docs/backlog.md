@@ -28,7 +28,7 @@
   AddSourceModal.test.tsx про reliability radio). Полный gotcha с
   reproducer + альтернативами + рисками - в `docs/gotchas.md` секция
   «Node 24 + undici 7 - AbortSignal instanceof check».
-- [ ] Полнотекстовый поиск (когда появится на беке, Этап 6)
+- [ ] Полнотекстовый поиск (НЕ через Postgres tsvector - см. раздел «Архитектурные решения» ниже)
 - [ ] Экспорт графа в PNG / SVG
 - [ ] Тёмная тема
 - [ ] Локализация (i18n) при появлении второй локали
@@ -153,5 +153,110 @@ UI сейчас спроектирован под desktop (viewport 1280+). Пр
       roadmap
 - [ ] Реализация Dung's argumentation framework для продвинутого
       пересчёта статусов
-- [ ] Импорт / экспорт темы в JSON (для бэкапа и обмена)
+- [x] Импорт / экспорт темы в JSON - закрыт в Сессии 39
+      (ADR-037, GET `/topics/{id}/export` + POST `/topics/import`)
 - [ ] Голосование за вес аргументов
+
+---
+
+## Архитектурные решения для будущих этапов
+
+Большие технические решения которые **не делаем сейчас**, но уже
+выбран подход - чтобы при наступлении этапа не передумывать с нуля.
+
+### Полнотекстовый поиск - отдельный сервис Elasticsearch (НЕ Postgres tsvector)
+
+**Решение:** искать через **отдельный Elasticsearch инстанс**, не
+через Postgres `tsvector`/GIN. Sync через outbox / CDC / batch
+indexer (выбор при наступлении этапа).
+
+**Почему не tsvector:**
+- Постгрес не умеет качественно индексировать **арабский** (нет
+  встроенного analyzer для арабской морфологии: рут-based stemming,
+  diacritics-aware lookup, hamza/yaa нормализация). ICU analyzer
+  частично решает - но качество ниже Elasticsearch `arabic`
+  analyzer + ICU фильтры
+- Search-relevance scoring (TF-IDF, BM25) - в Postgres базовый, в
+  Elastic настраиваемый
+- Smart features (typo tolerance, fuzzy, synonyms, аббревиатуры,
+  морфологические варианты) - в ES out-of-box
+- Cross-app search (одновременный поиск по узлам + книгам +
+  ответам Q&A) - удобнее federated через ES indices с правами
+- Шкала: после Этапа 17 OCR база lib_pages начнёт расти в гигабайты,
+  PG GIN index начнёт жрать память shared_buffers
+
+**Что нужно сделать когда дойдём:**
+- ADR на выбор search engine (ES vs OpenSearch vs Meilisearch)
+- Docker compose сервис
+- Outbox pattern или CDC через Debezium для синхронизации
+  PG → ES
+- Indices: `nodes`, `lib_pages`, `answers`, `qa_questions` (или
+  unified `searchable_text` index с типом entity как field)
+- Search service на бэке - REST endpoint с filters
+- Frontend - global search box в Header (уже есть unified search
+  заготовка из Q4 polish design)
+
+### Editor для кастомизации текста книг (перед OCR pipeline Этапа 17)
+
+**Контекст:** перед запуском OCR pipeline (Этап 17 - распознавание
+арабских сканов через Tess4j + AI editing) нужен **редактор страницы
+книги** с богатой типографикой. Цель - наши книги должны выглядеть
+как классические арабские тахкики (научные издания) с:
+
+- хадис/аят в **выделенной рамке** (например розовый/peach background
+  как в Beirut-style академических изданиях)
+- **marginalia** - комментарии на полях (мелкий текст слева)
+- **footnotes** с decorative separator
+- **разные уровни заголовков** с орнаментом (текстовое decoration
+  типа ◆ ◇ ❖ или CSS borders)
+- **красные key terms** или другие color highlights
+- **vocalized text** (с tashkeel/harakat) с возможностью toggle
+- **page numbers** в декоративных вьюшках
+- inline citations + tooltips
+
+**Reference дизайн:** `frontend/design-reference/v2/project/uploads/`
+(добавить туда скрин классического тахкика когда будет дизайн-сессия)
+
+**Рекомендуемая библиотека: Tiptap** (https://tiptap.dev)
+- На ProseMirror (mature, battle-tested)
+- Headless + React 19 совместим
+- **Extension API** позволяет добавить custom типы блоков
+  (HadithBox, AyahBox, Marginalia, Footnote, Decoration) - то что
+  нам надо
+- RTL out-of-box, плюс custom CSS для арабского рендеринга
+- ~70K weekly downloads, активный maintenance
+- MIT license
+
+**Альтернативы:**
+- **Lexical** (Meta) - модерн, performant, но менее зрелый
+  extension ecosystem
+- **Slate.js** - flexible, но требует больше boilerplate для
+  custom блоков
+- **CKEditor 5** / **TinyMCE** - heavy enterprise, overkill для нас
+
+**Что нужно сделать когда дойдём до Этапа 17:**
+
+1. **ADR на Tiptap + список custom extensions** (HadithBox / AyahBox /
+   Marginalia / Footnote / ColorHighlight / Tashkeel toggle / etc)
+2. **Дизайн-сессия:** референсы из tahqiq книг + handoff с
+   `frontend/design-reference/v2/project/` где макеты для:
+   - редактор-режим (admin)
+   - viewer-режим (читатель)
+   - export-режим (PDF/SVG)
+3. **Storage**: контент Page в БД хранить как ProseMirror JSON
+   (`jsonb` колонка `lib_pages.formatted_content`) рядом с plain
+   `text_content` (для search через ES). Backward compat для уже
+   импортированных через PDFBox (просто wrap plain text в paragraph)
+4. **OCR/AI workflow:**
+   - OCR (Tesseract `ara` model) → raw text
+   - AI editing pass (LLM): расставить headings, выделить хадисы,
+     добавить footnotes, нормализовать tashkeel
+   - Manual review через Tiptap editor с custom toolbar
+   - Save formatted JSON + plain text
+5. **Reader улучшения** в `BookReaderPage` - parse Tiptap JSON →
+   красивый HTML/CSS рендер с naskh шрифтами, ornaments через CSS,
+   правильный RTL flow
+
+**Зачем именно сейчас зафиксировать:** если Этап 17 OCR пойдёт без
+этого плана - попадёт в plain text storage и потом переделывать
+больно. Принять архитектуру **до** того как набьём data.

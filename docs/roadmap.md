@@ -159,7 +159,6 @@
 
 ### Этап 6. Улучшения бэкенда (после MVP, не блокирует другие)
 
-- [ ] Полнотекстовый поиск по содержимому узлов (Postgres `tsvector`)
 - [ ] Реализация Dung's argumentation framework для продвинутого пересчёта
 - [x] **Импорт/экспорт темы в JSON** (Сессия 39, ADR-037) - `GET /api/v1/topics/{id}/export`
       + `POST /api/v1/topics/import` (consumes JSON body или multipart),
@@ -170,11 +169,28 @@
       header + hover-icon Download на каждой TopicCard. 19 backend IT (round-trip
       + edge cases) + types регенерированы. 575/575 tests, lint clean
 
-### Этап 17. Library - image-сканы + OCR
+**Полнотекстовый поиск** решено делать **отдельным сервисом
+Elasticsearch** (не через Postgres tsvector). Причины: PG не умеет
+качественно индексировать арабский (нет рут-based stemming,
+diacritics-aware lookup). Подробности и план - в `docs/backlog.md`
+раздел «Архитектурные решения для будущих этапов».
+Активного этапа пока нет
+
+### Этап 17. Library - image-сканы + OCR + rich text editor
 
 **Зачем:** третий способ добавления книг для сканов рукописей или
-редких книг где текст недоступен
+редких книг где текст недоступен. **Перед запуском OCR pipeline**
+требуется решить вопрос с rich text editor для красивого рендера
+арабских тахкиков (хадис-боксы, marginalia, footnotes, decorated
+headings, color highlights). Подробный план - в `docs/backlog.md`
+раздел «Editor для кастомизации текста книг». **Рекомендация: Tiptap**
 
+- [ ] **17.0 (PREREQUISITE):** Дизайн-сессия и ADR на rich text
+      editor (Tiptap recommended) - формат storage (ProseMirror JSON
+      в `lib_pages.formatted_content` jsonb), список custom
+      extensions (HadithBox / AyahBox / Marginalia / Footnote /
+      ColorHighlight / Tashkeel toggle), интеграция в OCR/AI workflow,
+      backward compat с уже импортированными через PDFBox книгами
 - [ ] **17.a:** PageImageService - upload изображений-страниц через
       `POST /api/v1/library/books/{id}/pages` (multipart, по одной)
 - [ ] **17.b:** Tess4j integration - OCR арабского через `ara`
@@ -182,7 +198,9 @@
 - [ ] **17.c:** ImageRegion API - `POST /api/v1/library/pages/{id}/regions`
       для создания выделенного региона
 - [ ] **17.d:** re-OCR endpoint - возможность перезапустить OCR
-- [ ] **17.e:** ADR на OCR pipeline - выбор Tesseract, fallback на
+- [ ] **17.e:** AI editing pass - LLM расставляет headings, хадис-боксы,
+      footnotes, нормализует tashkeel. Manual review через Tiptap editor
+- [ ] **17.f:** ADR на OCR pipeline - выбор Tesseract, fallback на
       ручной ввод, точки расширения
 
 ### Этап 18. Library frontend - оставшиеся подэтапы
