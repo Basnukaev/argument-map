@@ -349,94 +349,104 @@ function PdfViewer({ bookId, initialPart, initialPrintedPage }: PdfViewerProps) 
         </div>
       )}
 
-      {/* Pagination toolbar */}
+      {/* Pagination toolbar.
+          Mobile (<sm): два ряда - prev/page/next сверху, zoom+download снизу.
+          Desktop: всё в одну строку через justify-between. Flex-wrap +
+          явная разбивка через order на mobile через CSS не делает - проще
+          stack groups через `flex-col sm:flex-row` */}
       <div
-        className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-elevated px-4 py-2.5"
+        className="flex flex-col gap-2 border-b border-border bg-elevated px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-4 sm:py-2.5"
         dir={isRtlUi ? 'rtl' : 'ltr'}
       >
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={isRtlUi ? ChevronRight : ChevronLeft}
-          onClick={goPrev}
-          disabled={pageNumber <= 1}
-        >
-          {t('reader.prev')}
-        </Button>
+        {/* Row 1 (mobile) / inline (desktop): navigation + page jump */}
+        <div className="flex items-center justify-between gap-2 sm:contents">
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={isRtlUi ? ChevronRight : ChevronLeft}
+            onClick={goPrev}
+            disabled={pageNumber <= 1}
+          >
+            {t('reader.prev')}
+          </Button>
 
-        {/* Page jump input - как в text mode PageJump, но без source-first markers
-            (в PDF одна страница = одно полотно, нет printedPage/part) */}
-        <div className="flex items-center gap-2 text-sm text-ink-700">
-          <span className="text-ink-500">{t('reader.page_short')}</span>
-          <input
-            type="number"
-            min={1}
-            max={numPages ?? undefined}
-            value={pageInput}
-            onChange={(e) => setPageInput(e.target.value)}
-            // inline form-bound Enter handler на одном input - локальная
-            // form-семантика, не global hotkey. См. frontend/CLAUDE.md
-            // «Hotkeys»
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                submitPageJump();
-              }
-            }}
-            onBlur={submitPageJump}
-            className="h-7 w-16 rounded border border-border-strong px-2 text-center font-mono text-sm outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
-            aria-label={t('reader.page')}
-          />
-          <span className="font-mono text-ink-400">
-            <bdi dir="ltr">/ {numPages ?? '…'}</bdi>
-          </span>
+          {/* Page jump input - как в text mode PageJump, но без source-first markers
+              (в PDF одна страница = одно полотно, нет printedPage/part) */}
+          <div className="flex items-center gap-2 text-sm text-ink-700">
+            <span className="text-ink-500">{t('reader.page_short')}</span>
+            <input
+              type="number"
+              min={1}
+              max={numPages ?? undefined}
+              value={pageInput}
+              onChange={(e) => setPageInput(e.target.value)}
+              // inline form-bound Enter handler на одном input - локальная
+              // form-семантика, не global hotkey. См. frontend/CLAUDE.md
+              // «Hotkeys»
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  submitPageJump();
+                }
+              }}
+              onBlur={submitPageJump}
+              className="h-7 w-14 rounded border border-border-strong px-2 text-center font-mono text-sm outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 sm:w-16"
+              aria-label={t('reader.page')}
+            />
+            <span className="font-mono text-ink-400">
+              <bdi dir="ltr">/ {numPages ?? '…'}</bdi>
+            </span>
+          </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            iconRight={isRtlUi ? ChevronLeft : ChevronRight}
+            onClick={goNext}
+            disabled={!numPages || pageNumber >= numPages}
+          >
+            {t('reader.next')}
+          </Button>
         </div>
 
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={zoomOut}
-            disabled={scale <= 0.5}
-            className="grid h-7 w-7 place-items-center rounded text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30"
-            aria-label={t('reader.zoom_out')}
-          >
-            <ZoomOut size={14} />
-          </button>
-          <span className="w-12 text-center font-mono text-xs text-ink-500 tabular-nums">
-            {Math.round(scale * 100)}%
-          </span>
-          <button
-            type="button"
-            onClick={zoomIn}
-            disabled={scale >= 3}
-            className="grid h-7 w-7 place-items-center rounded text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30"
-            aria-label={t('reader.zoom_in')}
-          >
-            <ZoomIn size={14} />
-          </button>
+        {/* Row 2 (mobile) / inline (desktop): zoom + download */}
+        <div className="flex items-center justify-center gap-1 sm:contents">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={zoomOut}
+              disabled={scale <= 0.5}
+              className="grid h-7 w-7 place-items-center rounded text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30"
+              aria-label={t('reader.zoom_out')}
+            >
+              <ZoomOut size={14} />
+            </button>
+            <span className="w-12 text-center font-mono text-xs text-ink-500 tabular-nums">
+              {Math.round(scale * 100)}%
+            </span>
+            <button
+              type="button"
+              onClick={zoomIn}
+              disabled={scale >= 3}
+              className="grid h-7 w-7 place-items-center rounded text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30"
+              aria-label={t('reader.zoom_in')}
+            >
+              <ZoomIn size={14} />
+            </button>
 
-          {/* Download кнопка - прямая ссылка на streaming endpoint, browser
-              сохранит как файл благодаря attribute `download` */}
-          <a
-            href={fileUrl}
-            download={downloadFilename}
-            className="ms-1 inline-flex h-7 items-center gap-1 rounded px-2 text-xs font-medium text-ink-600 transition-colors hover:bg-ink-100 hover:text-accent-700"
-            title={t('reader.download_pdf')}
-          >
-            <Download size={14} aria-hidden="true" />
-            <span className="hidden sm:inline">PDF</span>
-          </a>
+            {/* Download кнопка - прямая ссылка на streaming endpoint, browser
+                сохранит как файл благодаря attribute `download` */}
+            <a
+              href={fileUrl}
+              download={downloadFilename}
+              className="ms-1 inline-flex h-7 items-center gap-1 rounded px-2 text-xs font-medium text-ink-600 transition-colors hover:bg-ink-100 hover:text-accent-700"
+              title={t('reader.download_pdf')}
+            >
+              <Download size={14} aria-hidden="true" />
+              <span className="hidden sm:inline">PDF</span>
+            </a>
+          </div>
         </div>
-
-        <Button
-          variant="ghost"
-          size="sm"
-          iconRight={isRtlUi ? ChevronLeft : ChevronRight}
-          onClick={goNext}
-          disabled={!numPages || pageNumber >= numPages}
-        >
-          {t('reader.next')}
-        </Button>
       </div>
 
       {/* PDF viewport */}
