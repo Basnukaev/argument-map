@@ -8,6 +8,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
+import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
 import software.amazon.awssdk.services.s3.model.BucketVersioningStatus;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
@@ -32,6 +34,13 @@ import software.amazon.awssdk.services.s3.model.VersioningConfiguration;
  * <p>Идемпотентен: {@code HeadBucket} → {@code CreateBucket} только
  * при 404. Versioning переустанавливается каждый запуск (no-op если
  * уже ENABLED) - дешевле чем GET + conditional PUT.
+ *
+ * <p>Concurrent-safe: при параллельном старте двух pod'ов оба могут
+ * увидеть 404 на одинаковый bucket и оба попробовать
+ * {@code CreateBucket} - второй вызов получит
+ * {@link BucketAlreadyOwnedByYouException} (или
+ * {@link BucketAlreadyExistsException} на разных backends), которые
+ * перехватываются и трактуются как success.
  */
 @Component
 @ConditionalOnProperty(prefix = "storage.bucket-bootstrap", name = "enabled",
@@ -61,8 +70,17 @@ public class BucketBootstrap {
     private void ensureBucket(String bucket, boolean withVersioning) {
         boolean exists = bucketExists(bucket);
         if (!exists) {
-            s3Client.createBucket(CreateBucketRequest.builder().bucket(bucket).build());
-            log.info("создан bucket: {}", bucket);
+            try {
+                s3Client.createBucket(CreateBucketRequest.builder().bucket(bucket).build());
+                log.info("создан bucket: {}", bucket);
+            } catch (BucketAlreadyOwnedByYouException | BucketAlreadyExistsException e) {
+                // Race condition: между нашим headBucket и createBucket
+                // другой pod (или предыдущий шаг этого же запуска)
+                // успел создать bucket. Это success - дальше работаем
+                // как если бы он существовал изначально.
+                log.info("bucket {} уже существует - был создан параллельно ({})",
+                        bucket, e.getClass().getSimpleName());
+            }
         }
         if (withVersioning) {
             s3Client.putBucketVersioning(PutBucketVersioningRequest.builder()
