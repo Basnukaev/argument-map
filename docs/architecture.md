@@ -312,6 +312,23 @@ structured `CitationDetail` (27 raw полей). DTO `CitationResponse`
 publicationPlace/location/pdf/region) - frontend рисует каждый блок
 отдельно с правильным RTL/naskh.
 
+Rich text storage (ADR-039, Этап 17.0): `lib_pages` расширяется
+nullable колонкой `formatted_content jsonb` (миграция 32) для
+хранения **ProseMirror JSON** - результата работы Tiptap editor.
+`text_content` остаётся для full-text search (через будущий
+Elasticsearch, см. backlog) и для backward compat. При чтении: если
+`formatted_content` not null - reader/editor работают с
+ProseMirror-документом который может содержать custom nodes
+(`HadithBox`, `AyahBox`, `Marginalia`, `Footnote`, `DecoratedHeading`,
+`PageNumber`, `Tashkeel` mark, `ColorHighlight` mark); если null -
+frontend оборачивает `text_content` в минимальный paragraph-doc
+прозрачно. Никакой миграции для существующих Shamela ETL / PDFBox
+импортов не требуется. OCR pipeline Этапа 17 заполняет
+`formatted_content` через AI editing pass который размечает raw
+OCR output как структурированный документ для красивого tahqiq-
+рендера. Обоснование выбора Tiptap (vs Lexical / Slate / CKEditor /
+TinyMCE) - в ADR-039.
+
 REST под `/api/v1/library/*`. Cross-domain зависимости только через
 service-фасад (например `BookService` валидирует `authority_id`
 через существующий `AuthorityRepository` из argument-map-домена).

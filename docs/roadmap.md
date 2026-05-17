@@ -234,14 +234,28 @@ diacritics-aware lookup). Подробности и план - в `docs/backlog.
 требуется решить вопрос с rich text editor для красивого рендера
 арабских тахкиков (хадис-боксы, marginalia, footnotes, decorated
 headings, color highlights). Подробный план - в `docs/backlog.md`
-раздел «Editor для кастомизации текста книг». **Рекомендация: Tiptap**
+раздел «Editor для кастомизации текста книг». **Выбран Tiptap** -
+ADR-039
 
-- [ ] **17.0 (PREREQUISITE):** Дизайн-сессия и ADR на rich text
-      editor (Tiptap recommended) - формат storage (ProseMirror JSON
-      в `lib_pages.formatted_content` jsonb), список custom
-      extensions (HadithBox / AyahBox / Marginalia / Footnote /
-      ColorHighlight / Tashkeel toggle), интеграция в OCR/AI workflow,
-      backward compat с уже импортированными через PDFBox книгами
+- [x] **17.0 (PREREQUISITE) - architectural decision:** ADR-039
+      закрыт (`docs/decisions.md`). Выбран Tiptap (ProseMirror)
+      vs Lexical / Slate / CKEditor / TinyMCE. Storage - ProseMirror
+      JSON в новой колонке `lib_pages.formatted_content jsonb NULL`
+      (миграция 32, plan'ируется в Этапе 17.0 implementation).
+      Custom extensions: HadithBox / AyahBox / Marginalia / Footnote
+      / ColorHighlight / Tashkeel mark / DecoratedHeading / PageNumber.
+      Backward compat: NULL formatted_content → fallback wrap
+      text_content в minimal paragraph-doc (никакой data migration
+      для существующих Shamela/PDFBox книг). Подробности и open
+      questions - в ADR-039
+- [ ] **17.0 (PREREQUISITE) - implementation:** Liquibase миграция
+      32 (`ALTER TABLE lib_pages ADD COLUMN formatted_content jsonb
+      NULL` + rollback), backend `PageResponse` / `UpdatePageRequest`
+      расширения, frontend - Tiptap setup (`@tiptap/react` +
+      StarterKit + 8 custom extensions), `BookContentEditor` либо
+      расширение `BookEditModal`, reader fallback для null
+      formatted_content. Дизайн-сессия с Абдулой по toolbar i18n
+      терминам (Хадис vs Бокс хадиса и т.д.)
 - [ ] **17.a:** PageImageService - upload изображений-страниц через
       `POST /api/v1/library/books/{id}/pages` (multipart, по одной)
 - [ ] **17.b:** Tess4j integration - OCR арабского через `ara`

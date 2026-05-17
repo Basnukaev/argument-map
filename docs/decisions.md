@@ -3933,3 +3933,393 @@ Space Grotesk, DM Sans, Crimson Pro были попробованы и отве�
   font-related preferences, theme остаётся - намеренный choice
   (theme это глобальная preference, не часть font preset). Hint
   под кнопкой это поясняет
+
+## ADR-039: Tiptap rich text editor для книг (Этап 17.0 prerequisite)
+
+**Дата:** 2026-05-17
+**Статус:** принято
+**Реализовано:** запланировано в Этап 17.0 (prerequisite перед OCR
+pipeline), код будет в последующей сессии. Этот ADR фиксирует
+направление до того как набьём data
+**Связь:** ADR-018 (platform pivot), ADR-019 (Library MVP), ADR-022
+(frontend reorg `src/apps/`), ADR-026 (lib_books/chapters/pages),
+ADR-028 (academic citation), ADR-035 (PDFBox extraction)
+
+### Контекст
+
+К моменту Этапа 17 платформа имеет два способа набивать `lib_pages`
+содержимым:
+
+1. **Shamela ETL** (Этап 15, ADR-020/021) - готовый text layer из
+   SQLite, кладётся в `lib_pages.text_content` как plain text
+2. **PDF upload** (Этап 16, ADR-035) - PDFBox экстракция per-page →
+   тот же `text_content`
+
+Оба пути кладут **plain text** одним сплошным куском. Frontend
+`BookReaderPage` рендерит его как простой `<p>`-параграф с
+выбранным naskh-шрифтом и базовым leading. Это **не выглядит как
+классический арабский тахкик** - научное издание Beirut-style
+(`Дар аль-Кутуб аль-Ильмия`, `Дар Тайба`, `Дар Ибн Хазм`), на
+которое ориентирована наша платформа исламских учёных.
+
+Реальные тахкики содержат богатую типографику:
+
+- хадис / аят в **выделенной рамке** с розовым/peach background,
+  иногда с decorative border
+- **marginalia** - комментарии мухаккика на полях, мелким кеглем,
+  смещённые вправо/влево от main flow
+- **footnotes** с decorative separator (полоска, орнамент) и
+  auto-numbered markers `(¹)` `(²)` в тексте
+- **разные уровни заголовков** с орнаментом (`◆`, `◇`, `❖`, CSS
+  decorations, sūrah-style панели)
+- **красные key terms** или другие color highlights для названий
+  трудов, имён учёных, ключевых концепций
+- **vocalized text** с tashkeel (harakat) с возможностью toggle - в
+  одних разделах огласовки нужны (Коран, хадис), в других мешают
+- **page numbers** в декоративных вьюшках (рамка, орнамент)
+- inline citations + tooltips
+
+Дальше Этап 17 запускает **OCR pipeline** для image-сканов
+(рукописи, редкие издания без text layer). OCR через Tesseract
+`ara` model даёт raw text per-page. Если пойти тем же путём
+«сохранить plain text → рендерить как `<p>`» - мы:
+
+1. Потеряем структуру которую видит OCR (заголовки больше, хадисы
+   обведены, footnotes отделены)
+2. Не сможем дать AI editing pass возможность размечать структуру
+   (LLM возвращает structured output, но если хранилище плоское -
+   некуда положить)
+3. Создадим долг который будем выгребать после набивки гигабайт
+   plain-text данных через OCR
+
+Consumers будущего editor'а:
+
+- **Admin edit** - ручная правка страницы (исправить OCR-ошибки,
+  добавить хадис-боксы, разметить footnotes)
+- **Reader view** - публичное отображение страницы с правильной
+  типографикой
+- **OCR pipeline** - заполнение структуры на основе raw OCR output
+- **AI editing** - LLM получает raw OCR, возвращает JSON со
+  структурой, manual review через тот же editor
+- **Future PDF export** (через jspdf или серверный chrome-headless) -
+  печатный output должен повторять reader view
+
+### Решение
+
+**Принять Tiptap (на ProseMirror) как rich text editor платформы.**
+Storage - **ProseMirror JSON** в новой колонке `lib_pages.formatted_content jsonb NULL`,
+plain text в `text_content` остаётся для full-text search (через
+будущий Elasticsearch, см. backlog «Архитектурные решения / FTS») и
+для backward compat с уже импортированными через Shamela ETL и
+PDFBox книгами.
+
+Конкретный набор **custom extensions** для нашего use case:
+
+1. `HadithBox` - blockquote-like node, attributes: `source` (citation
+   text), `grade` (`sahih` / `hasan` / `daif` / null), `narrator`
+   (опционально). Рендер - блок с розовым background, тонкая граница,
+   мелкая мета-строка снизу с источником и оценкой
+2. `AyahBox` - аналогично для аятов Корана, attributes: `surah`
+   (номер), `ayah` (номер или диапазон), `reciter` (опционально для
+   рiwayah). Рендер - блок с green background (или конфигурируемой
+   через тему), декоративная рамка
+3. `Marginalia` - boxed inline-block на полях, attributes: `side`
+   (`left` / `right`), `anchor` (опциональный ref на word/phrase в
+   main flow). Рендер - absolute-positioned float с мелким кеглем
+4. `Footnote` - двухпарный extension: inline marker `(¹)` + footer
+   block с auto-numbering через ProseMirror plugin. Attributes на
+   marker: `noteId` (соединяет с footer entry)
+5. `ColorHighlight` - inline mark (не node) с color picker. Defaults:
+   `red` / `blue` / `green` / `gold`. Attribute: `color` (hex или
+   semantic token из tokens.css)
+6. `Tashkeel` - inline mark обёртывающий vocalized сегмент.
+   Не «удаляет» огласовки - просто помечает. Reader через CSS
+   `[data-tashkeel="hidden"]` может скрыть `font-feature-settings`
+   или применить text-transform regex (через CSS counter / pseudo).
+   Toggle на reader-уровне через settings (см. ADR-038 settings
+   pattern)
+7. `DecoratedHeading` - h1-h4 с attributes: `ornament` (`diamond` /
+   `flower` / `bracket` / `none`), `decoration-color`. Рендер -
+   heading с prefix/suffix glyph через CSS pseudo-element
+8. `PageNumber` - inline decorative element для номера логической
+   страницы. Attribute: `value` (string - может быть арабская буква
+   `أ` или римская `ⅳ`). Рендер - круглая/прямоугольная рамка с
+   орнаментом
+
+StarterKit базовые extensions (Document, Paragraph, Text, Bold,
+Italic, Heading, Bullet/OrderedList, Blockquote, HardBreak, History
+для undo/redo) - **включить** as-is.
+
+### Rejected alternatives
+
+#### Lexical (Meta)
+
+- (+) Современная архитектура, immutable state, лучше performance
+  на очень больших документах (Facebook-scale)
+- (+) Active development (Meta backing)
+- (−) **Extension API менее зрелый** - меньше готовых сторонних
+  плагинов, меньше документации custom node creation
+- (−) Меньше community vs Tiptap (Tiptap ~25k stars, Lexical ~20k -
+  comparable, но Tiptap старше и тахкик-подобные use cases уже
+  встречались)
+- (−) React integration через `@lexical/react` менее идиоматична -
+  больше boilerplate чем `@tiptap/react`
+- (−) RTL поддержка есть, но менее tested на арабском use case
+  (Tiptap имеет explicit RTL examples от community)
+
+Lexical хороший выбор если бы платформа была editor-heavy (Notion-
+class), но для нашего use case (per-page rich content, не сложный
+collaborative editor) - Tiptap имеет лучше ROI на extension работу
+
+#### Slate.js
+
+- (+) Максимальная гибкость через plugin system
+- (−) **Требует больше boilerplate** для custom blocks - каждый
+  HadithBox/AyahBox/Marginalia пишется от нуля включая
+  serialization/deserialization
+- (−) Меньше structured API - больше rope-yourself возможностей,
+  больше footguns
+- (−) Less stable - частые breaking changes между minor versions
+- (−) Community fragmentation - Plate (опираясь на Slate)
+  фактически форкнул экосистему
+
+#### CKEditor 5
+
+- (+) Enterprise-grade, batteries-included (collaborative editing,
+  comments, track changes)
+- (−) **Heavy** - ~500KB+ baseline даже с tree-shaking
+- (−) **License** - GPL v2 для core, commercial для proprietary
+  use cases. Платформа open-source-friendly но мы хотим избежать
+  AGPL-like обязательств для будущих integration партнёров
+- (−) Plugin architecture сложнее (Java-style class hierarchies),
+  кривая обучения круче
+- (−) Overkill для нашего use case - не нужны collaborative cursors,
+  comments threads, suggestion mode
+
+#### TinyMCE
+
+- (+) Mature (~20 лет), мощный editor
+- (−) **License** - GPL v2 или commercial. Cloud-based feature set
+  требует API key
+- (−) Архитектура из эры jQuery - менее идиоматично для React 19
+- (−) Custom blocks через `Plugin` API менее структурированы чем
+  Tiptap Node extensions
+- (−) Heavy bundle - ~400KB minified core
+
+#### Sticking with plain text + CSS classes
+
+- (+) Zero new dependencies
+- (−) Не решает проблему: пользователь не может **создавать**
+  богатую разметку, только бэкенд может проставить CSS classes
+  при OCR. Manual edit недоступен
+- (−) Структура hadith-box / footnote невозможна через CSS classes
+  без structured wrappers - нужны nested блоки с attributes
+- (−) AI editing pass возвращает structured output, ему некуда
+  ложиться
+
+### Consequences
+
+#### Positive
+
+- **Extensible**: custom Node API Tiptap позволяет легко добавить
+  будущие блоки (`SanadChain` для иснад-визуализации, `MultiGrading`
+  для multi-grade hadith - см. backlog «исламский контекст»). Каждое
+  расширение - один файл `~/extensions/HadithBox.ts` с
+  attributes / parseHTML / renderHTML / addCommands
+- **RTL out-of-box**: ProseMirror знает про `direction: rtl`,
+  Tiptap extensions respect document direction. Арабский layout
+  работает без хаков
+- **React 19 совместим**: `@tiptap/react` 3.x официально поддерживает
+  React 18/19, использует современный hooks API (`useEditor`)
+- **Headless**: Tiptap не навязывает UI - toolbar / menu / floating
+  panels пишем сами через наш design system (tokens.css, shared/ui).
+  Это match'ит наш ADR-031 (semantic tokens) и ADR-022 (apps/+shared/)
+- **MIT license**: безопасно для open-source платформы, нет AGPL
+  contamination
+- **Battle-tested**: GitLab, Linear, Cal.com, Substack на Tiptap.
+  ~70k weekly downloads, активный maintenance
+- **ProseMirror as substrate** - underlying schema/transaction model
+  один из самых mature rich-text foundations. Документ строго
+  типизирован, transformations atomic, history (undo/redo) free
+- **Static HTML generation**: `generateHTML(json, extensions)` даёт
+  SSR-friendly output для будущего PDF export или Open Graph preview
+- **Backward compat прозрачный**: NULL `formatted_content` →
+  fallback на `text_content` обёрнутый в minimal ProseMirror JSON
+  (`{type: 'doc', content: [{type: 'paragraph', content: [{type:
+  'text', text: '<page text>'}]}]}`). Никакой data migration не
+  нужно - existing Shamela/PDFBox книги рендерятся как раньше,
+  user может позже редактировать конкретные страницы
+
+#### Negative
+
+- **Bundle size**: Tiptap core + StarterKit ~150KB gzipped +
+  prosemirror-view + ~8 custom extensions = ~200-220KB на
+  `BookReaderPage` chunk. Mitigation: lazy-load editor через
+  React.lazy для admin (`BookContentEditor`), reader использует
+  только `generateHTML` (без editor runtime - ~80KB)
+- **Learning curve команды**: ProseMirror schema, node specs,
+  marks vs nodes, plugins, transactions - новая mental model.
+  Митигация: первая custom extension (`HadithBox`) пишется в паре
+  с подробным комментарием как reference для остальных
+- **Vendor lock-in (ProseMirror JSON format)**: если позже захотим
+  мигрировать на Lexical / Slate - migration script нетривиальный
+  (Tiptap-specific extensions требуют ручного маппинга на новые
+  primitives). Mitigation: extensions держим **simple** - один
+  Node = один HTML output. При миграции HTML output становится
+  intermediate format
+- **JSONB column overhead**: ProseMirror JSON для богатой страницы
+  весит 5-20KB (vs 1-3KB plain text). Для 100k страниц
+  библиотеки `formatted_content` добавит ~1-2GB. Postgres jsonb с
+  TOAST handle хорошо, но индексы по содержимому (если понадобятся
+  для FTS) лучше через ES, не через PG GIN на jsonb
+- **No native collaborative editing**: Tiptap имеет Y.js integration
+  как paid feature (Hocuspocus server). Multi-user real-time edit
+  не входит в этот ADR - если понадобится после Этапа 21 (auth) -
+  отдельное решение
+
+### Implementation plan (high-level)
+
+Без кода. Высокоуровневые шаги для Этапа 17.0:
+
+1. **Liquibase миграция 32**: `ALTER TABLE lib_pages ADD COLUMN
+   formatted_content jsonb NULL`. Включить `<rollback>` (DROP
+   COLUMN). Без CHECK constraint на schema формата - ProseMirror
+   JSON валидируется на application level (frontend генерирует
+   валидный JSON через Tiptap, backend lookup без структурной
+   валидации - принимает любой JSON, прозрачно проксирует)
+2. **Backend - расширить DTO**:
+   - `PageResponse` получает `formattedContent: Object` (Jackson
+     `JsonNode` serialized as raw JSON в response)
+   - `UpdatePageRequest` (новый или существующий) принимает
+     `formattedContent: JsonNode`
+   - REST endpoints `PATCH /api/v1/library/pages/{id}` для editor
+     save flow
+3. **Frontend admin editor**:
+   - Установка `@tiptap/react`, `@tiptap/starter-kit`,
+     `@tiptap/pm` (ProseMirror peer dep)
+   - Custom extensions в `src/apps/library/components/editor/extensions/`
+     - один файл на extension
+   - `BookContentEditor` page либо расширение `BookEditModal` (20.d)
+     с full-screen mode для редактирования страницы
+   - Toolbar через наш design system - кнопки для каждого extension
+     (HadithBox / AyahBox / Marginalia / Footnote / Color /
+     DecoratedHeading)
+4. **Frontend reader**:
+   - `BookReaderPage` определяет: если `page.formattedContent` not
+     null → рендер через `EditorContent` с `editable: false` либо
+     `generateHTML(formattedContent, extensions)` (SSR-friendly
+     путь). Если null → fallback wrap `text_content` в minimal doc
+   - CSS для custom nodes в `src/apps/library/styles/tahqiq.css`
+     (или extended `tokens.css`) - hadith-box рамка, marginalia
+     positioning, footnote separator, decorated headings ornament
+5. **OCR/AI workflow integration** (Этап 17.b-17.e):
+   - OCR (Tesseract `ara`) → raw text per page →
+     `lib_pages.text_content`
+   - AI editing pass (LLM, через Anthropic/OpenAI gateway):
+     prompt просит вернуть ProseMirror JSON с разметкой
+     hadith-боксов (regex на `قال رسول الله`, `حدثنا`), headings,
+     footnotes. Output идёт в `formatted_content`
+   - Manual review: admin открывает `BookContentEditor`, правит,
+     сохраняет
+   - Plain `text_content` пересобирается на backend из formatted
+     (через text extraction) для full-text search consistency
+6. **Backward compat / migration plan**:
+   - Existing Shamela ETL и PDFBox книги: NULL `formatted_content`,
+     fallback на text_content wrap. **Никакой data migration**
+   - User может постранично редактировать существующую книгу через
+     `BookContentEditor` - сохранение заполняет `formatted_content`
+   - При редактировании уже редактированной страницы AI editing
+     pass **не trigger'ится повторно** (idempotent flag в
+     metadata: `formatted_content.attrs.aiEdited: true`)
+
+### Open questions
+
+Не решённые сейчас, требуют discussion с user или будущей сессии:
+
+- **HTML SSR vs editor runtime**: оптимальный путь рендера в
+  reader - `generateHTML` (smaller bundle, no React reactivity
+  внутри страницы) или `EditorContent({editable: false})`
+  (consistent с edit mode, поддерживает interactivity типа
+  hadith-tooltip hover). Решение по факту первого UX-теста
+- **i18n меток toolbar**: HadithBox / AyahBox / Marginalia /
+  Footnote / DecoratedHeading - все нуждаются в RU/AR labels
+  (ar.json key `editor.hadithBox` = `حديث`, ru.json =
+  `Хадис`). Конкретные русские термины ещё не утверждены - может
+  быть «Хадис» или «Бокс хадиса». Дизайн-сессия с Абдулой
+- **Permissions**: кто может редактировать страницу - сейчас
+  один пользователь, после Этапа 21 (auth) появятся роли. Editor
+  должен respect permissions на page level (own / public /
+  admin-only). Зафиксировать в ADR на auth
+- **Versioning formatted_content**: revisions system existant
+  для `nodes` (revision per edit). Нужен ли аналог для
+  `lib_pages` - возможно через `lib_page_revisions` таблицу. Не
+  блокирует MVP editor, может прийти отдельным этапом
+- **Performance ProseMirror vs Lexical для очень больших страниц**:
+  если когда-то столкнёмся со страницей > 10K слов (например,
+  большая глава импортирована как одна страница) - надо мерить.
+  ProseMirror известен degradation на > 50K nodes в одном
+  document. Если будет проблема - chunking (разбить большую
+  страницу на несколько `lib_pages` rows)
+- **PDF export через jspdf или server-side Chrome**: будущая
+  фича. `generateHTML` output даст нам HTML который можно
+  рендерить в PDF через серверный headless Chrome (Puppeteer)
+  или клиентский jspdf. Решение в момент когда понадобится
+- **Tashkeel toggle semantics**: hide через CSS regex невозможно
+  (CSS не умеет manipulate text content), значит либо хранить
+  два варианта текста, либо runtime JS-обработчик который
+  применяет regex к DOM. Подход финализируется при implementation
+- **Sanad chains / multi-grading как Tiptap nodes**: будущие
+  isamic-context фичи (см. backlog «исламский контекст») могут
+  быть реализованы как **Tiptap extensions** (`SanadChain`,
+  `MultiGrading`) вместо отдельных компонентов. Это унифицирует
+  rich content - всё внутри ProseMirror document, единый rendering
+  path. Решение - в момент Этапа когда эти фичи дойдут до
+  implementation
+
+### Trigger to revisit
+
+Этот ADR пересматривается если:
+
+- **Tiptap minor/major release breaks API** (v4 release with breaking
+  changes к Node API): оценить migration cost vs hold on v3
+- **Bundle size > 300KB на BookReaderPage**: если 8 extensions
+  раздувают bundle настолько что Lighthouse FCP > 2s на 3G -
+  rethinking subset extensions или lazy-loading
+- **AI editing pass дает консистентно невалидный JSON**: если
+  LLM не справляется с returning valid ProseMirror schema - может
+  понадобиться intermediate format (e.g. markdown с extensions
+  syntax) и parser
+- **Lexical / Slate get killer feature** (например native
+  collaborative editing без Y.js): rethinking стоит ли мигрировать.
+  Cost migration ProseMirror JSON → other - нетривиальный
+- **Реальная multi-user collaboration feature request**: если после
+  auth (Этап 21) появится use case real-time co-editing страницы
+  библиотеки - добавляем Y.js + Hocuspocus, либо мигрируем на
+  editor с native collab
+- **Performance issue на large pages**: см. open question выше
+
+### Связанные решения
+
+- **ADR-019** (Library MVP) - `lib_pages` schema на которой
+  formatted_content добавляется как новая колонка
+- **ADR-022** (Frontend reorg) - editor компоненты в
+  `src/apps/library/components/editor/`, extensions в
+  `editor/extensions/`, следуя app-isolation convention
+- **ADR-026** (Source.bookId) - rich text editor не меняет model,
+  citation flow через NodeCitations / AnswerCitations использует
+  ту же привязку к page через positional refs
+- **ADR-028** (academic citation) - footnote marker в editor
+  может референсить structured citation (Authority/Book/Page) -
+  возможная future integration
+- **ADR-031** (v2 design system) - tokens.css расширяется
+  семантическими токенами для tahqiq палитры (`--color-hadith-bg`,
+  `--color-ayah-bg`, `--color-marginalia-fg`, `--ornament-color`)
+- **ADR-035** (PDFBox extraction) - PDFBox-imported книги
+  остаются `formatted_content NULL`, fallback на text_content
+- **ADR-037** (export/import) - в payload `lib_pages` ref сейчас
+  только id. Если когда-нибудь будем export'ить book content в
+  topic-payload (сейчас нет) - formatted_content должен попасть
+  как jsonb. Не блокирует текущий ADR-037 формат v1.0
+- **ADR-038** (font tweaker + settings) - reader page получит
+  tashkeel toggle через тот же settings pattern (Zustand store
+  + persistEffect + CSS class на html)

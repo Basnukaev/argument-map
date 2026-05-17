@@ -335,6 +335,65 @@ S3 ETag (это MD5 от upload, не для security).
 разбор вопроса с привлечением цитат из Корана, хадиса, мнений учёных.
 Бахс-grade citation требует minimum 8 полей сноски (см. ADR-028).
 
+## Rich text editor (ADR-039, Этап 17.0)
+
+Введено в ADR-039 как фундамент для красивого рендера арабских
+тахкиков и для AI editing pass поверх OCR pipeline (Этап 17).
+
+**Tiptap** — headless rich text editor framework на ProseMirror.
+Выбран как стандарт платформы для редактирования содержимого
+страниц книг (`lib_pages.formatted_content`). React 19 совместим
+через `@tiptap/react`. MIT license. Альтернативы (Lexical / Slate /
+CKEditor / TinyMCE) и обоснование выбора — в ADR-039.
+
+**ProseMirror** — underlying schema/transaction model на котором
+построен Tiptap. Документ - строго типизированное дерево узлов
+(`type: 'doc' → paragraph → text` и custom nodes). Сохраняется в
+БД как jsonb сериализация. Schema валидируется на application
+level (не через PG CHECK).
+
+**ProseMirror JSON** — формат хранения формата страницы. Хранится в
+`lib_pages.formatted_content jsonb NULL`. Nullable — если null,
+frontend оборачивает `text_content` в минимальный
+paragraph-документ прозрачно (backward compat для Shamela ETL и
+PDFBox импортов).
+
+**Tahqiq edition (тахкик-издание)** — academic-grade publication
+исламского классического текста (см. также «Тахкик» в секции
+«Академическая citation»). Цель rich text editor — добиться
+визуального соответствия классическим тахкикам типа изданий
+`Дар аль-Кутуб аль-Ильмия` / `Дар Тайба` / `Дар Ибн Хазм`: рамки
+для хадисов/аятов, marginalia на полях, footnotes с decorative
+separator, decorated headings с орнаментом, vocalized text toggle,
+color highlights для key terms.
+
+**Hadith Box (хадис-бокс)** — custom Tiptap node `HadithBox`.
+Blockquote-like блок с розовым/peach background, рамкой и мета-
+строкой снизу (источник + grade `sahih/hasan/daif`). Используется
+для цитирования хадиса внутри страницы. Attributes: `source`,
+`grade`, `narrator` (опционально). Аналогичный `AyahBox` — для
+аятов Корана с attributes `surah` + `ayah` + опционально `reciter`.
+
+**Marginalia (маргиналии)** — комментарии мухаккика на полях
+страницы, мелким кеглем, смещённые вправо/влево от основного
+flow. В editor реализованы как Tiptap node `Marginalia` с
+attribute `side` (`left` / `right`) и опциональным `anchor`
+(ref на word/phrase в main flow). Рендер — absolute-positioned
+float или CSS Grid column.
+
+**Footnote (сноска)** — двухпарный Tiptap extension: inline
+marker `(¹)` `(²)` в тексте + footer block в конце страницы с
+auto-numbering через ProseMirror plugin. Attributes на marker:
+`noteId` соединяет с footer entry. Сноска в тахкике обычно
+содержит дополнительный комментарий, альтернативный иснад,
+ссылку на другой источник.
+
+**DecoratedHeading (декорированный заголовок)** — heading h1-h4 с
+attributes `ornament` (`diamond` / `flower` / `bracket` / `none`)
+и `decorationColor`. Рендер — heading с prefix/suffix glyph через
+CSS pseudo-element. Имитирует орнаментальные разделители разделов
+в классических тахкиках.
+
 ## Удалённые понятия
 
 **Weight (вес)** — было поле `int 1-10`, "субъективная сила
