@@ -333,52 +333,78 @@ public class TopicImportService {
                 continue;
             }
 
-            // positional refs - find-or-skip. Не пытаемся mapping'ить page_id /
-            // pdf_file_id / image_region_id - это library resources, могут
-            // не существовать на target инстансе. quote/context/location
-            // сохраняются как fallback
-            UUID resolvedPageId = ns.pageId();
-            UUID resolvedPdfFileId = ns.pdfFileId();
-            UUID resolvedImageRegionId = ns.imageRegionId();
-
-            if (resolvedPageId != null || resolvedPdfFileId != null || resolvedImageRegionId != null) {
-                // Не делаем lookup в lib_pages/lib_files/lib_image_regions сейчас -
-                // тяжело и редко полезно (если book уже не найден, то и page тем
-                // более). Сохраняем как есть - если pageId orphan, FK constraint
-                // вылетит. Поэтому проще обнулять positional refs если bookId
-                // source'а не resolved
-                Source src = sourceRepository.findById(newSourceId).orElse(null);
-                if (src == null || src.bookId() == null) {
-                    if (resolvedPageId != null || resolvedPdfFileId != null
-                            || resolvedImageRegionId != null) {
-                        warnings.add("node_source id=" + ns.id()
-                                + " имел positional ссылки на library ресурсы (page/pdf/region) "
-                                + "но source без bookId - positional context сброшен, "
-                                + "сохранены только quote/context/location");
-                    }
-                    resolvedPageId = null;
-                    resolvedPdfFileId = null;
-                    resolvedImageRegionId = null;
-                }
-            }
+            PositionalRefs refs = resolvePositionalRefs(newSourceId, ns, warnings);
 
             UUID newId = UUID.randomUUID();
             NodeSource newNs = new NodeSource(
                     newId, newNodeId, newSourceId,
                     ns.quote(), ns.context(), ns.location(),
-                    resolvedPageId,
-                    resolvedPageId == null ? null : ns.rangeStart(),
-                    resolvedPageId == null ? null : ns.rangeEnd(),
-                    resolvedPdfFileId,
-                    resolvedPdfFileId == null ? null : ns.pdfPageNumber(),
-                    resolvedPdfFileId == null ? null : ns.pdfBbox(),
-                    resolvedImageRegionId,
+                    refs.pageId(),
+                    refs.pageId() == null ? null : ns.rangeStart(),
+                    refs.pageId() == null ? null : ns.rangeEnd(),
+                    refs.pdfFileId(),
+                    refs.pdfFileId() == null ? null : ns.pdfPageNumber(),
+                    refs.pdfFileId() == null ? null : ns.pdfBbox(),
+                    refs.imageRegionId(),
                     Instant.now()
             );
             nodeSourceRepository.save(newNs);
             count++;
         }
         return count;
+    }
+
+    /**
+     * Резолвит positional refs (page / pdf file / image region) для
+     * импортируемого node_source с учётом source.bookId trust heuristic.
+     *
+     * <p><b>Known limitation (ADR-037):</b> если source.bookId успешно
+     * resolved (книга найдена в библиотеке target инстанса), positional
+     * refs из payload (pageId / pdfFileId / imageRegionId) сохраняются
+     * <b>как есть</b> - <b>существование</b> этих ID в lib_pages /
+     * lib_files / lib_image_regions на target инстансе НЕ проверяется.
+     * Trust-by-bookId эвристика: предполагаем что если книга та же
+     * (по UUID) - все её сущности импортированы из того же shamela
+     * snapshot и UUID'ы стабильны (см. gotcha «lib_pages.id стабильность
+     * через mapper skip-if-existing»). Если эвристика нарушена (книга
+     * пере-импортирована с другим snapshot) - FK constraint вылетит при
+     * INSERT с понятной диагностикой; round-trip same-instance import
+     * всегда работает.
+     *
+     * <p>Если source без bookId (книга не найдена при импорте source) -
+     * positional refs обнуляются + warning. quote/context/location
+     * сохраняются как textual fallback - citation остаётся читаемым,
+     * теряется только deep link на reader.
+     */
+    private PositionalRefs resolvePositionalRefs(UUID newSourceId,
+                                                 NodeSourceData ns,
+                                                 List<String> warnings) {
+        UUID pageId = ns.pageId();
+        UUID pdfFileId = ns.pdfFileId();
+        UUID imageRegionId = ns.imageRegionId();
+
+        boolean hasAnyRef = pageId != null || pdfFileId != null || imageRegionId != null;
+        if (!hasAnyRef) {
+            return new PositionalRefs(null, null, null);
+        }
+
+        Source src = sourceRepository.findById(newSourceId).orElse(null);
+        if (src == null || src.bookId() == null) {
+            warnings.add("node_source id=" + ns.id()
+                    + " имел positional ссылки на library ресурсы (page/pdf/region) "
+                    + "но source без bookId - positional context сброшен, "
+                    + "сохранены только quote/context/location");
+            return new PositionalRefs(null, null, null);
+        }
+        return new PositionalRefs(pageId, pdfFileId, imageRegionId);
+    }
+
+    /**
+     * Результат резолва positional refs - чтобы избежать tuple-возврата
+     * через массивы или out-параметры. Все поля могут быть null
+     * (positional refs не были указаны или source без bookId).
+     */
+    private record PositionalRefs(UUID pageId, UUID pdfFileId, UUID imageRegionId) {
     }
 
     private static SourceType parseSourceType(String name) {

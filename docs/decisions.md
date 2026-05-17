@@ -3788,3 +3788,33 @@ layout-independence (`KeyK` не зависит от текущей раскла
 - **ADR-006** (X-User-Id) - import controller использует
   `@CurrentUser` для ownership новой темы (createdBy из payload
   игнорируется)
+
+### Known limitations
+
+- **Positional refs trust-by-bookId эвристика.** При импорте
+  `node_source` с positional refs (pageId / pdfFileId /
+  imageRegionId) - если `source.bookId` успешно resolved (книга
+  найдена в target), positional UUID'ы из payload сохраняются
+  «как есть» без верификации существования в `lib_pages` /
+  `lib_files` / `lib_image_regions`. Эвристика опирается на то,
+  что книги импортируются из одного shamela snapshot и UUID
+  стабильны (см. gotcha «lib_pages.id стабильность через mapper
+  skip-if-existing»). Если эвристика нарушена (target пере-
+  импортировал книгу с другим snapshot - редко, но возможно при
+  shamela major release update) - INSERT упадёт на FK constraint
+  с понятной диагностикой, операция атомарна (whole-topic
+  transaction). Round-trip same-instance import всегда работает,
+  межинстансовый - в подавляющем большинстве случаев. Полная
+  верификация требовала бы N lookup'ов на каждый node_source,
+  что дорого при минимальной практической пользе. Если в будущем
+  shamela изменит naming или пользователи начнут re-import'ить
+  книги интенсивно - перейти на bulk-verify через единый
+  `SELECT ... WHERE id IN (...)` на pageIds/pdfFileIds в начале
+  importNodeSources
+- **Authority duplicate after era-disambiguation.** Find-by-name
+  без сравнения era может склеить разных людей с одинаковым
+  именем. См. секцию «Последствия» (−) выше
+- **Edges-restore не поддерживается в Undo.** При delete через
+  GraphCanvas Undo восстанавливает только nodes (edges теряются),
+  что задокументировано в hint к Undo кнопке. Отдельный известный
+  trade-off, не impact'ит export/import - это про runtime UX
