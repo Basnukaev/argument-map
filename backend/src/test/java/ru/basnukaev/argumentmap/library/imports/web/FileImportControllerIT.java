@@ -170,6 +170,9 @@ class FileImportControllerIT {
 
     @Test
     void POST_missingUserHeader_returns400() throws Exception {
+        // ADR-040 (dev/test profile): permitAll → @CurrentUser требует
+        // principal → MissingUserHeaderException 400. В prod profile
+        // 401 раньше от Spring Security
         byte[] pdfBytes = buildPdf(List.of("page"));
         MockMultipartFile file = new MockMultipartFile(
                 "file", "x.pdf", MediaType.APPLICATION_PDF_VALUE, pdfBytes);

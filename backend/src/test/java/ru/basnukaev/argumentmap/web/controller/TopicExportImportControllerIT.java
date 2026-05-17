@@ -140,6 +140,9 @@ class TopicExportImportControllerIT {
 
     @Test
     void importJson_withoutUserHeader_returns400() throws Exception {
+        // ADR-040 (dev/test profile): permitAll → @CurrentUser требует
+        // principal → MissingUserHeaderException 400. В prod profile
+        // вернётся 401 от Spring Security раньше
         TopicExportDto dto = new TopicExportDto(
                 "1.0", Instant.now(),
                 new TopicData(UUID.randomUUID(), "T", null, null, userId, Instant.now()),

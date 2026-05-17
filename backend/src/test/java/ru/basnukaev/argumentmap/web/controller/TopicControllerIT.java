@@ -71,6 +71,10 @@ class TopicControllerIT {
 
     @Test
     void createTopic_withoutUserHeader_returns400_problemDetail() throws Exception {
+        // ADR-040 (dev/test profile): /api/** permitAll, но @CurrentUser
+        // требует principal в SecurityContext - его нет без X-User-Id
+        // или Bearer JWT → MissingUserHeaderException 400. В prod profile
+        // Spring Security вернёт 401 раньше (без permitAll branch)
         var req = new CreateTopicRequest("T", null, "Q?");
 
         mockMvc.perform(post("/api/v1/topics")
@@ -85,6 +89,9 @@ class TopicControllerIT {
 
     @Test
     void createTopic_withInvalidUserHeader_returns400() throws Exception {
+        // ADR-040: невалидный UUID в X-User-Id → XUserIdFilter молча
+        // пропускает, SecurityContext пуст → @CurrentUser резолвер
+        // бросает MissingUserHeaderException → 400 (см. test выше)
         var req = new CreateTopicRequest("T", null, "Q?");
 
         mockMvc.perform(post("/api/v1/topics")
@@ -92,7 +99,7 @@ class TopicControllerIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail").value(containsString("UUID")));
+                .andExpect(jsonPath("$.type").value(containsString("missing-user-header")));
     }
 
     @Test
