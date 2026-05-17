@@ -1,5 +1,6 @@
 package ru.basnukaev.argumentmap.web.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -360,5 +361,33 @@ class TopicControllerIT {
                 .andReturn().getResponse().getContentAsString();
         String idValue = objectMapper.readTree(json).get("id").asText();
         return UUID.fromString(idValue);
+    }
+
+    /**
+     * ADR-043 Amendment 3 (22.d) - POST /topics должен оставить
+     * audit_log entry. Тест проверяет integration TopicService →
+     * AuditLogService → audit_log таблица.
+     */
+    @Test
+    void createTopic_writesAuditEntry() throws Exception {
+        UUID topicId = createTopicViaApi();
+
+        // 1 row TOPIC create + 1 row root NODE create = 2 entries
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM audit_log "
+                        + "WHERE (entity_type = 'TOPIC' AND entity_id = ?) "
+                        + "OR (parent_entity_type = 'TOPIC' AND parent_entity_id = ?)",
+                Integer.class, topicId, topicId
+        );
+        assertThat(count).isEqualTo(2);
+
+        // действие CREATE с правильным actor
+        Integer topicCreateCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM audit_log "
+                        + "WHERE entity_type = 'TOPIC' AND entity_id = ? "
+                        + "AND action = 'CREATE' AND actor_user_id = ?",
+                Integer.class, topicId, userId
+        );
+        assertThat(topicCreateCount).isEqualTo(1);
     }
 }
