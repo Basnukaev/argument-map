@@ -7,6 +7,9 @@ import Field from '@/shared/components/ui/Field';
 import Header from '@/shared/components/layout/Header';
 import { apiPost, ApiError } from '@/shared/api/client';
 import { useT } from '@/shared/i18n';
+import VisibilityRadioGroup, {
+  type TopicVisibility,
+} from '@/apps/argument-map/components/VisibilityRadioGroup';
 
 type ValidationError = { field: string; message: string };
 
@@ -17,6 +20,7 @@ function CreateTopicPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [rootQuestion, setRootQuestion] = useState('');
+  const [visibility, setVisibility] = useState<TopicVisibility>('PRIVATE');
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -33,6 +37,7 @@ function CreateTopicPage() {
         title: title.trim(),
         description: description.trim() || undefined,
         rootQuestion: rootQuestion.trim(),
+        visibility,
       });
       const newId = created?.id;
       if (newId) {
@@ -132,6 +137,17 @@ function CreateTopicPage() {
                   disabled={submitting}
                 />
                 <Field.Meta left={`${rootQuestion.length} / 1000`} />
+              </Field>
+
+              <Field
+                label={t('topic.create.field_visibility')}
+                hint={t('topic.create.field_visibility_hint')}
+              >
+                <VisibilityRadioGroup
+                  value={visibility}
+                  onChange={setVisibility}
+                  disabled={submitting}
+                />
               </Field>
 
               {formError && (

@@ -58,7 +58,48 @@ describe('CreateTopicPage', () => {
       title: 'Тестовая тема',
       description: 'Описание',
       rootQuestion: 'Это вопрос?',
+      visibility: 'PRIVATE',
     });
+  });
+
+  it('отправляет выбранный visibility вместе с темой', async () => {
+    let receivedBody: unknown = null;
+    server.use(
+      http.post(`${BASE}/api/v1/topics`, async ({ request }) => {
+        receivedBody = await request.json();
+        return HttpResponse.json({
+          id: 'new-topic-id',
+          title: 'X',
+          rootNodeId: 'root-id',
+          createdBy: 'u',
+          createdAt: '2026-05-03T00:00:00Z',
+          visibility: 'PUBLIC',
+        });
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithRouter();
+
+    await user.type(screen.getByLabelText(/^Название/), 'X');
+    await user.type(screen.getByLabelText(/^Корневой вопрос/), 'Q');
+    // Visibility radio: выбрать PUBLIC. radiogroup → 3 опции
+    await user.click(screen.getByText('Публичная'));
+    await user.click(screen.getByRole('button', { name: 'Создать' }));
+
+    await waitForApi(() => {
+      expect(screen.getByTestId('graph-page')).toBeInTheDocument();
+    });
+
+    expect(receivedBody).toMatchObject({ visibility: 'PUBLIC' });
+  });
+
+  it('рендерит три radio-кнопки visibility c подсказками', () => {
+    renderWithRouter();
+    expect(screen.getByText('Приватная')).toBeInTheDocument();
+    expect(screen.getByText('Разделяемая')).toBeInTheDocument();
+    expect(screen.getByText('Публичная')).toBeInTheDocument();
+    expect(screen.getByText('Только вы видите тему')).toBeInTheDocument();
   });
 
   it('показывает field-errors при 400 с errors[]', async () => {
