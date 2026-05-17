@@ -162,13 +162,15 @@ class EdgeControllerIT {
                 .andReturn().getResponse().getContentAsString();
         UUID edgeId = UUID.fromString(objectMapper.readTree(json).get("id").asText());
 
-        mockMvc.perform(delete("/api/v1/edges/{id}", edgeId))
+        mockMvc.perform(delete("/api/v1/edges/{id}", edgeId)
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isNoContent());
     }
 
     @Test
     void deleteEdge_whenNotFound_returns404() throws Exception {
-        mockMvc.perform(delete("/api/v1/edges/{id}", UUID.randomUUID()))
+        mockMvc.perform(delete("/api/v1/edges/{id}", UUID.randomUUID())
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isNotFound());
     }
 

@@ -111,7 +111,8 @@ class NodeControllerIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").value("новый"));
 
-        mockMvc.perform(get("/api/v1/nodes/{id}/revisions", nodeId))
+        mockMvc.perform(get("/api/v1/nodes/{id}/revisions", nodeId)
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].contentBefore").value("старый"))
@@ -144,7 +145,8 @@ class NodeControllerIT {
                 .andExpect(jsonPath("$.posY").value(-42.0));
 
         // позиция не пишет revision - список должен быть пустой
-        mockMvc.perform(get("/api/v1/nodes/{id}/revisions", nodeId))
+        mockMvc.perform(get("/api/v1/nodes/{id}/revisions", nodeId)
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
     }
@@ -165,19 +167,22 @@ class NodeControllerIT {
     void deleteNode_existing_returns204() throws Exception {
         UUID nodeId = createNode("x");
 
-        mockMvc.perform(delete("/api/v1/nodes/{id}", nodeId))
+        mockMvc.perform(delete("/api/v1/nodes/{id}", nodeId)
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isNoContent());
     }
 
     @Test
     void deleteNode_whenNotFound_returns404() throws Exception {
-        mockMvc.perform(delete("/api/v1/nodes/{id}", UUID.randomUUID()))
+        mockMvc.perform(delete("/api/v1/nodes/{id}", UUID.randomUUID())
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void getRevisions_whenNodeMissing_returns404() throws Exception {
-        mockMvc.perform(get("/api/v1/nodes/{id}/revisions", UUID.randomUUID()))
+        mockMvc.perform(get("/api/v1/nodes/{id}/revisions", UUID.randomUUID())
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isNotFound());
     }
 
