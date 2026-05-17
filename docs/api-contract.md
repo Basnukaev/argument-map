@@ -1154,7 +1154,7 @@ Content-Type: `multipart/form-data`. Поля:
 | `file` | binary | yes | PDF файл (`application/pdf`), до 50MB |
 | `title` | string | no | Override title (иначе берётся из PDF metadata, fallback на filename без расширения) |
 | `authorityId` | UUID | no | FK на существующего автора |
-| `language` | string | no | ISO 639-1, default `"ar"` |
+| `language` | string | no | ISO 639-1 из whitelist `ar\|ru\|en` (mirror frontend FileUploadModal), default `"ar"` если blank. 16.h - unsupported значение → 422 `file-import-error` |
 | `description` | string | no | Свободный текст |
 | `muhaqqiqName` | string | no | Имя мухаккика (محقق). 16.g - `findOrCreate` в `lib_muhaqqiqs` |
 | `publisherName` | string | no | Имя издателя. 16.g - `findOrCreate` в `lib_publishers` |
@@ -1198,13 +1198,24 @@ Side-effects:
 - Строка в `library_files` с `source_type=USER_UPLOAD`, `source_url=null`,
   `content_hash` SHA-256
 
+**После upload книга сразу доступна на чтение** (Этап 16.h, post-review
+fix Сессия 38) через существующие PDF endpoints:
+- `GET /api/v1/library/books/{bookId}/pdf/info` - вернёт single-file
+  metadata (`label` = filename без расширения, `pageCount` из
+  `metadata.pdf_page_count`)
+- `GET /api/v1/library/books/{bookId}/pdf?fileIndex=0` - streaming
+  PDF из `library-user-uploads` bucket (Range-aware)
+
+Резолвинг через `UserUploadProvider` (`@Order(50)`, выше приоритет
+чем `PdfLinksSourceProvider` для shamela-книг).
+
 Ошибки:
 - 400 `missing-user-header` - нет `X-User-Id`
 - 413 `payload-too-large` - превышен лимит 50MB (Spring multipart
   enforce'ит до парсинга controller'а)
 - 415 `unsupported-media-type` - content type не `application/pdf`
 - 422 `file-import-error` - corrupted PDF, encrypted PDF, 0-страничный
-  PDF, пустой файл
+  PDF, пустой файл, language вне whitelist `ar|ru|en` (16.h)
 
 ### Что **не** реализовано в Этапе 16
 
@@ -1650,6 +1661,7 @@ URL hierarchy сохраняет `answerId` под будущую авториз
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-17 | v1 | Этап 16.h post-review fix - после `POST /api/v1/library/imports/file` книга **сразу** доступна на чтение через существующие `GET /api/v1/library/books/{bookId}/pdf/info` (single-file metadata) и `GET /pdf?fileIndex=0` (streaming). До фикса возвращали 404 `pdf-not-available`. Параметр `language` получил whitelist `ar\|ru\|en` - вне whitelist → 422 `file-import-error` (mirror frontend FileUploadModal). Новых endpoints нет | Critical issue code review Сессии 37: `PdfLinksSourceProvider.supports` проверял `metadata.pdf_links` который `FileImportService` не пишет. Новый `UserUploadProvider` (@Order=50) опрашивает `library_files` по (book_id, source_type=USER_UPLOAD). Контракт language исправляет drift между frontend whitelist и backend acceptance |
 | 2026-05-17 | v1 | `POST /api/v1/library/imports/file` расширен 6 опциональными academic полями (`muhaqqiqName`/`publisherName`/`publicationPlaceName`/`editionNumber`/`publishedYearHijri`/`publishedYearGregorian`) с теми же диапазонами что в `CreateBookRequest` (edition 1..99, year 1..9999). Если хотя бы одно заполнено - бэк через 13-args `BookService.createBook` делает `findOrCreate` в `lib_muhaqqiqs`/`lib_publishers`/`lib_publication_places`, иначе legacy 7-args путь без FK. Out-of-range диапазон → 422 `file-import-error` (ручная валидация в controller, Bean Validation для `@RequestParam` в проекте не настроена) | Этап 16.g: закрытие MVP-разрыва 16.b/f. Пользователь больше не должен после upload вторым шагом открывать BookEditModal для добавления тахкика. Mirror паттерна AddSourceModal 20.e |
 | 2026-05-17 | v1 | Новый endpoint `POST /api/v1/library/imports/file` (multipart/form-data, до 50MB, только `application/pdf`). Поля: `file` (required), опциональные `title`/`authorityId`/`language`/`description`, header `X-User-Id`. Response 201 - `FileImportResponse{bookId, fileId, pageCount, contentHash, sizeBytes, bucket, storageKey}` + Location header. Создаёт Book (`bookType=BOOK`, `metadata.user_uploaded=true`) + Page[] (по одной на phys-страницу PDF, `pageNumber=pdfPageNumber=i+1`, `textContent` через PDFBox PDFTextStripper) + library_files entry (`sourceType=USER_UPLOAD`). Новые ошибки: 413 `payload-too-large` (Spring multipart limit), 415 `unsupported-media-type`, 422 `file-import-error` | ADR-035: Apache PDFBox 3.0.5 для page-by-page extraction. Этап 16.a-e. Второй способ добавления книг помимо shamela ETL. EPUB отложен - нет UX-кейса |
 | 2026-05-16 | v1 | Answer citation endpoints: `POST /api/v1/answers/{id}/citations` (CitationRequest reused, TEXT/PDF/REGION), `GET /api/v1/answers/{id}/sources` (List<AnswerSourceResponse> с 9 LEFT JOIN), `DELETE /api/v1/answers/{id}/sources/{answerSourceId}`. Новый DTO `AnswerSourceResponse{id, answerId, sourceId, quote, context, mode, citation, createdAt}` - mirror QuestionSourceResponse. Migration 31 `answer_sources` (тот же шаблон что migration 28: surrogate UUID PK сразу, positional fields, CHECK constraint один-из-четырёх, FK на answers ON DELETE CASCADE) | ADR-033 итерация 3: параллельная иерархия `answer_sources` рядом с `question_sources` и `node_sources`. 3-е применение паттерна подтверждает что platform pivot (ADR-018) масштабируется - тот же CitationPicker + SourceCard + 9-LEFT-JOIN structured citation reused для третьей сущности без копирования бизнес-логики |

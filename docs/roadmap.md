@@ -108,7 +108,13 @@
   Backend 543 IT pass. Frontend - collapsible секция через shared
   `<AcademicMetadataFields/>` (тот же что в 20.e), 156 vitest. Mirror
   паттерна AddSourceModal 20.e (2-step flow): пользователь больше не
-  должен после upload вторым шагом открывать BookEditModal
+  должен после upload вторым шагом открывать BookEditModal. **16.h** -
+  post-review critical fix (Сессия 38): `UserUploadProvider` (order=50)
+  - до этого uploaded PDF был в MinIO + library_files, но не читаем
+  через `PdfService` (единственный `PdfLinksSourceProvider` смотрел
+  только metadata.pdf_links). Теперь после upload книга сразу
+  доступна через `/api/v1/library/books/{id}/pdf/info` и `/pdf`.
+  +9 UserUploadProviderIT + 1 E2E в FileImportControllerIT (всего 554)
 
 ---
 

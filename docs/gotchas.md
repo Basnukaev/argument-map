@@ -21,6 +21,49 @@
 
 ---
 
+## Каждый PdfSourceProvider должен явно поддержать новый source type
+**Симптом:** Загруженный через `POST /api/v1/library/imports/file` PDF
+успешно появляется в MinIO + `library_files` (status 201), но при
+открытии reader'а на frontend `/books/{id}` бесконечный спиннер.
+Backend log: `GET /api/v1/library/books/{id}/pdf/info` → 404
+`pdf-not-available`. Это происходит **только** для user-uploaded книг -
+shamela-импорт работает нормально.
+
+**Причина:** `PdfService.findProvider` итерирует все
+`PdfSourceProvider` bean'ы и берёт первого где `supports(book) == true`.
+До Этапа 16.h единственный provider был `PdfLinksSourceProvider`,
+который смотрит только `metadata.pdf_links` - shamela ETL пишет это
+поле, `FileImportService` нет (он пишет `user_uploaded:true` +
+`original_filename` + `pdf_page_count` без pdf_links). Соответственно
+для USER_UPLOAD книги ни один provider не возвращал supports=true.
+
+Тот же класс проблем повторится при добавлении нового способа создания
+Book - direct archive.org by ID, IIIF манифест, OCR-only ввод
+(Этап 17) и т.д.
+
+**Решение (post-fix):** добавлен `UserUploadProvider` (Этап 16.h,
+`@Order(50)`) который опрашивает `library_files.findActiveByBookId-
+AndSourceType(bookId, USER_UPLOAD)`. PdfService теперь имеет два
+зарегистрированных provider'а, supports разделяется по source-type.
+
+**Превентивный паттерн:** при введении нового способа создания Book
+обязательно прогнать **smoke** через full read-flow:
+1. создать книгу через новый путь
+2. `curl GET /api/v1/library/books/{id}/pdf/info` → должен быть 200
+3. `curl GET /api/v1/library/books/{id}/pdf?fileIndex=0` → должен
+   вернуть application/pdf
+
+Если шаг 2 или 3 даёт 404 `pdf-not-available` - нужен новый
+`PdfSourceProvider` (или расширение supports() в существующем).
+E2E test `FileImportControllerIT.POST_upload_thenGET_pdfInfo_...`
+служит регрессионным якорем для этого паттерна - дублировать для
+новых способов.
+
+**Связано с:** ADR-021 source-first нумерация, ADR-024 object storage,
+ADR-035 PDFBox.
+
+---
+
 ## lib_pages.id стабильность через mapper skip-if-existing
 **Симптом:** Можно ожидать что при re-import shamela master metadata
 `lib_pages` пересоздаются с новыми UUID, что сломает citation.page_id refs

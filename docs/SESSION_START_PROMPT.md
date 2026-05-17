@@ -178,10 +178,29 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 > **Этот раздел обновляется каждой сессией**. Всё выше - стабильное
 
-**Сессия 37 - 12+ коммитов, 4 subagents (D/D.f/D.g + A), 2 крупных
-этапа закрыто end-to-end.** Полный лог в `docs/progress.md` записи
-от 2026-05-17 (16.g academic / 16.f frontend / 16 backend / 25.b
-RetryStrategy).
+**Сессия 38 - 4 backend commits, code review fixes Сессии 37 закрыты
+end-to-end** (1 critical + 3 important). Главное - **Этап 16.h
+UserUploadProvider** теперь uploaded PDF читается через `/pdf/info` +
+`/pdf` endpoints (раньше 404). Полный лог в `docs/progress.md` запись
+«2026-05-17 - Сессия 38, post-review fixes Этапа 16».
+
+**Сессия 37 (предыдущая)** - 12+ коммитов, 4 subagents, Этап 16 PDF
+upload end-to-end + 25.b RetryStrategy.
+
+### Закрыто в Сессии 38
+
+- **Этап 16.h UserUploadProvider** (commit `b5d4cc4`) - critical issue
+  code review. Новый PdfSourceProvider (@Order=50) для USER_UPLOAD
+  blob'ов, GET `/pdf/info` и `/pdf` теперь работают для uploaded книг.
+  +11 IT (UserUploadProviderIT + E2E в FileImportControllerIT).
+  Smoke на dev: real upload + curl → 200 со streaming PDF
+- **BucketBootstrap idempotent** (commit `dcfdf24`) - catch
+  `BucketAlreadyOwnedByYouException` + `BucketAlreadyExistsException`
+  при concurrent startup двух pod'ов
+- **language whitelist** (commit `5c5277e`) - `Set.of("ar","ru","en")`
+  в FileImportController, mirror frontend
+- **FileImportService комментарий** (commit `f9519c0`) - уточнено что
+  порядок «save pages → put S3» защищает от blob без pages, не наоборот
 
 ### Закрыто в Сессии 37
 
@@ -204,7 +223,7 @@ RetryStrategy).
 - **F-1 cleanup** - package.json/lock в корне уже в .gitignore с
   Сессии 36, физические файлы нужны ruflo MCP
 
-### Опции для Сессии 38 (по приоритету)
+### Опции для Сессии 39 (по приоритету)
 
 **Опция A - Этап 17 OCR pipeline** (продолжение 16) - для
 scanned-PDF где `text_content=""` (subagent D зафиксировал что
@@ -247,7 +266,7 @@ OCR будет много text content в БД)
 **Опция H - Этап 21 Spring Security + JWT** - реальная
 аутентификация. Большая работа (>2 сессий)
 
-### Инфра на момент Сессии 38 entry
+### Инфра на момент Сессии 39 entry
 
 - Postgres :5432 healthy, миграции **до 31 включительно** applied
   (без новых в Сессии 37)
@@ -260,7 +279,8 @@ OCR будет много text content в БД)
   «bucket bootstrap завершён - все 4 bucket'а доступны»
 - Frontend :5173 - может потребовать `rm -rf node_modules/.vite`
   после массовых изменений (types.ts регенерация после 16.b/16.g)
-- **543 backend tests** (521→537 от Этапа 16 backend +6 от 16.g = 543)
+- **554 backend tests** (543 после Сессии 37 + 11 от Этапа 16.h:
+  9 UserUploadProviderIT + 2 в FileImportControllerIT (E2E + language))
 - **156 frontend tests** (147 baseline + 5 от 16.f + 4 от 16.g = 156)
 - **0 failing** (унрелейтед AddSourceModal reliability fail починен)
 

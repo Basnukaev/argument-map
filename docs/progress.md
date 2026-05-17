@@ -10,6 +10,97 @@
 
 ---
 
+## 2026-05-17 - Сессия 38, post-review fixes Этапа 16
+
+Закрыли critical issue + 3 important issue из code review Сессии 37.
+Критическое - после `POST /imports/file` загруженный PDF был в MinIO +
+`library_files` catalog, но **не читаем** через `PdfService` (единственный
+`PdfLinksSourceProvider` смотрел `metadata.pdf_links` который
+`FileImportService` не пишет). Кнопка «Открыть книгу» в FileUploadModal
+toast вела в reader который не мог получить PDF - critical UX gap
+
+### Backend (5 commits)
+
+- `b5d4cc4` feat **Этап 16.h** - `UserUploadProvider` (`@Order(50)`,
+  выше `PdfLinksSourceProvider` order=100). `supports` - true если
+  есть active blob в `library_files` с `source_type=USER_UPLOAD`.
+  `getMetadata` возвращает single PdfFileInfo (page_count из
+  `book.metadata.pdf_page_count`). `locateFile` резолвит
+  `(bucket, storage_key)` из catalog - никакого upstream download
+- Новый репозиторный метод `findActiveByBookIdAndSourceType` для
+  scoped lookup. `PdfService` javadoc обновлён - перечисляет оба
+  provider'а
+- Тесты +11: 9 кейсов `UserUploadProviderIT` через Testcontainers
+  MinIO+Postgres + 1 E2E `POST_upload_thenGET_pdfInfo_...` в
+  `FileImportControllerIT` (upload → GET /pdf/info → 200 со списком →
+  GET /pdf → 200 PDF). Этот E2E - регрессионный якорь, дублировать
+  для каждого нового способа создания Book
+- `dcfdf24` fix **BucketBootstrap concurrent startup** - catch
+  `BucketAlreadyOwnedByYouException` + `BucketAlreadyExistsException`
+  при race condition между двумя pod'ами на createBucket. Трактуется
+  как success, INFO лог с e.getClass().getSimpleName() для debug
+- `5c5277e` fix **language whitelist** в FileImportController.
+  Whitelist `Set.of("ar","ru","en")` (mirror frontend FileUploadModal).
+  Blank/null - валидно (сервис применит default "ar"), вне whitelist →
+  422 `file-import-error`. Закрывает contract drift
+- `f9519c0` docs - уточнить комментарий в FileImportService про порядок
+  pages/S3. Старый утверждал «защищает от pages без blob'а», на самом
+  деле наоборот - от blob без pages при page-extraction failure.
+  Edge case commit DB failure после S3 put → orphan blob упомянут с
+  отсылкой на OrphanDetectionJanitor 25.b
+
+### Проверки
+
+- `./mvnw verify` - **554/554 pass** (543 до Сессии 38 + 11 новых),
+  BUILD SUCCESS за 1:27
+- Backend dev :9090 рестартован, поднимается с логом «bucket bootstrap
+  завершён - все 4 bucket'а доступны»
+- **Smoke на живом backend:** uploaded test PDF
+  `/tmp/smoke.pdf` (590 bytes, 1 page) через
+  `POST /api/v1/library/imports/file` - получил book_id
+  `b683aaf1-a8a3-453b-b06e-bab4066bd0e7`. Затем
+  `GET /api/v1/library/books/{id}/pdf/info` → 200 с правильным JSON
+  (single-file, label=smoke, pageCount=1). `GET /pdf?fileIndex=0` →
+  200 application/pdf с валидным PDF byte content. **Critical gap
+  подтверждён закрытым на production-like setup**
+- Language whitelist подтверждён на live backend: `language=zzzz` →
+  422 с message `language должен быть одним из [ar, ru, en],
+  получено 'zzzz'`
+
+### Документация
+
+- `docs/roadmap.md` - в записи закрытого Этапа 16 добавлено упоминание
+  **16.h** post-review fix
+- `docs/api-contract.md` - в секции File import API добавлена note
+  что после upload книга **сразу** доступна через `/pdf/info` + `/pdf`
+  endpoints через UserUploadProvider, language whitelist описан в
+  таблице полей. Запись в «История изменений»
+- `docs/gotchas.md` - **новая gotcha** «Каждый PdfSourceProvider должен
+  явно поддержать новый source type» с симптом / причина / решение +
+  превентивный паттерн (3-step smoke после новых способов создания Book)
+- `docs/progress.md` - эта запись
+
+### Известные мелочи (не блокеры)
+
+- Frontend не трогался - фронт URL `/books/{bookId}` уже правильный,
+  reader просто заработал после backend fix. Manual UI verification
+  всё ещё нужна (Опция D - responsive sweep плюс sanity check на
+  live книгу)
+- Smoke book `b683aaf1-a8a3-453b-b06e-bab4066bd0e7` оставлен в
+  production-БД (`smoke.pdf`, 1 страница). Можно удалить через
+  `DELETE /api/v1/library/books/{id}` (если admin endpoint
+  поддерживает USER_UPLOAD) или вручную через mc/psql
+
+### Следующий шаг (для Сессии 39 / далее)
+
+Опции из Сессии 37 остаются актуальными (Этап 17 OCR, Этап 6
+импорт/экспорт JSON, 25.d.5 lazy PDF streaming etc). Опция D
+**responsive sweep** дополнительно становится приоритетной потому что
+PDF reader теперь работает end-to-end (раньше не имело смысла
+полировать UX на сломанном flow)
+
+---
+
 ## 2026-05-17 - Сессия 37, Этап 16.g - academic fields в FileImportController
 
 Закрыли feature gap из Этапов 16.b/f - расширили `POST
