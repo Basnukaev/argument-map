@@ -11,6 +11,151 @@
 
 ---
 
+## 2026-05-17 - Этап 22 RBAC permissions per-entity (topics visibility), ADR-043
+
+Параллельно с AI edit subagent (Этап 17.e). Зоны не пересеклись -
+я только service/ + миграция 36 + ADR-043 + auth/web/security/
+SecurityContextUtils + новый topic_members слой; он library/imports/
++ миграция 35 + ADR-042. Финальный merge в backend/CLAUDE.md
++ GlobalExceptionHandler пересеклись бесконфликтно (разные секции).
+
+**Реализовано (7 атомарных коммитов):**
+
+1. **ADR-043 + миграция 36** (commit `1435e69`) - hybrid visibility-модель:
+   `topics.visibility` (PRIVATE/SHARED/PUBLIC, CHECK constraint + 2
+   индекса) + `topic_members` таблица (id, topic_id FK CASCADE, user_id
+   FK CASCADE, role CHECK MEMBER/EDITOR, added_at, added_by, UNIQUE
+   topic+user). ADMIN bypass в Service-слое. Default PRIVATE для existing
+   тем - backward compat. Rejected: full RBAC (over-engineering),
+   org/team ownership (нет user-base), per-action permissions
+
+2. **Topic domain + TopicMember + repositories** (commit `a2a40e3`) -
+   Topic record расширен полем visibility (7-args). TopicVisibility +
+   TopicMemberRole - final class со static String (тот же подход что
+   UserRole - совпадение с CHECK в БД, не enum). TopicMember record.
+   TopicRepository обновлён (visibility в COLUMNS/save/COUNTS_SQL +
+   updateVisibility + findVisibleToUserWithCounts через UNION query:
+   PRIVATE owned ∪ SHARED member ∪ PUBLIC). Новый
+   TopicMemberRepository (save / find* / exists / delete / updateRole).
+   Existing tests адаптированы под 7-arg Topic constructor
+
+3. **PermissionService + exceptions** (commit `4f96f40`) - canReadTopic
+   / canWriteTopic / isOwner + assert-варианты бросают
+   TopicAccessDeniedException / TopicWriteAccessDeniedException (топики
+   в properties для debugging). assertCanWrite сначала проверяет read
+   (404-like: не leak'ает существование private темы), потом write.
+   GlobalExceptionHandler - 2 handler → 403 Problem Details
+   forbidden-topic-access/write
+
+4. **Service permission checks** (commit `7d19e55`) -
+   TopicService/NodeService/EdgeService получили перегрузки с
+   `(userId, role)` параметрами которые делают assertCan*. Старые
+   сигнатуры оставлены для internal callers (TopicImportService,
+   scheduled jobs, IT). TopicService.listVisibleTopicsWithCounts +
+   updateVisibility + deleteTopic с owner-check. NodeController/
+   EdgeController/TopicController обновлены - читают role через
+   `SecurityContextUtils.currentRole()` helper (не вводим
+   ArgumentResolver - role и так в AuthenticatedUser в SecurityContext).
+   TopicResponse расширен visibility, CreateTopicRequest принимает
+   опциональное visibility (default PRIVATE). PermissionServiceTest -
+   20 unit-тестов с моками покрывают всю visibility matrix
+
+5. **TopicMemberController + REST endpoints** (commit `45306a4`) -
+   TopicMemberService с business logic (only owner может add/remove
+   other; member может удалить только себя; owner не может быть
+   добавлен как member; UNIQUE constraint ловит дубли). 5 новых
+   endpoints: POST/GET/PATCH/DELETE `/api/v1/topics/{id}/members[/...]`
+   + PATCH `/api/v1/topics/{id}/visibility`. TopicMemberNotFoundException
+   → 404 topic-member-not-found. DTO: AddTopicMemberRequest /
+   TopicMemberResponse / UpdateTopicMemberRequest /
+   UpdateTopicVisibilityRequest
+
+6. **IT для PermissionService + TopicMemberController** (commit `fd1a45c`) -
+   PermissionServiceIT (11 IT через Testcontainers) - matrix + UNION
+   query findVisibleToUser. TopicMemberControllerIT (10 IT через
+   MockMvc) - POST/GET/PATCH/DELETE с owner/non-owner/self-leave
+   scenarios. TopicControllerIT расширен 5 тестами visibility
+   (POST_topic_withVisibility_setsCorrectly, GET_topic_PRIVATE_byNonOwner
+   _returns403, GET_topics_returnsOnlyVisible, DELETE_topic_byNonOwner
+   _returns403, invalid visibility 400). Existing topic tests дополнены
+   X-User-Id header (теперь required даже для read)
+
+7. **Fix NodeControllerIT/EdgeControllerIT** (commit `d422be5`) - 7
+   тестов где DELETE/GET без header падали с 400 missing-user-header.
+   Header добавлен (now required для permission check на parent topic)
+
+**Документация (7-й коммит):**
+- ADR-043 - hybrid visibility model + matrix + rejected alternatives
+  (full RBAC / org-based / per-action) + open questions (transitions,
+  transfer ownership, groups)
+- architecture.md - новый раздел «Permissions / Visibility model»
+  с topology diagram + permission matrix + где живут проверки
+- api-contract.md - 5 новых endpoints + breaking semantic change
+  (GET now requires X-User-Id) + история записью в самом верху
+- roadmap.md - Этап 22 ✅, добавлены отложенные подэтапы 22.b
+  (frontend UI), 22.c (RBAC на library/Q&A), 22.d (audit log)
+- backend/CLAUDE.md - новый раздел Permissions (ADR-043) после Security
+
+**Результат `./mvnw verify`:** запуск через ApplicationContext был
+блокирован чужой проблемой `AnthropicClient` (subagent в процессе
+финализации) - локальные мои IT прошли:
+- PermissionServiceIT - 11/11 ✓
+- TopicMemberControllerIT - 10/10 ✓
+- NodeControllerIT + EdgeControllerIT - 24/24 ✓ после fix header
+- TopicControllerIT - 17/17 ✓
+- PermissionServiceTest (unit без Spring) - 20/20 ✓
+
+Итого ~67 новых тестов (включая адаптацию existing). Полный verify
+запустится зеленым когда subagent закончит AnthropicClient @Autowired
+fix - это его коммит, не мой.
+
+**Что отложено:**
+- Frontend UI - radio visibility + members sub-modal (Этап 22.b)
+- RBAC на library books / Q&A questions (Этап 22.c)
+- Audit log (Этап 22.d)
+- Transfer ownership / visibility transitions UX prompts - открытые
+  вопросы в ADR-043
+
+**Что user может проверить руками:**
+
+```bash
+# 1. Smoke - создать PRIVATE тему, увидеть только её
+TOPIC_ID=$(curl -s -X POST http://localhost:9090/api/v1/topics \
+  -H "X-User-Id: 00000000-0000-0000-0000-000000000001" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"My private","rootQuestion":"Test?"}' | jq -r .id)
+
+# Список - своя тема видна
+curl -s http://localhost:9090/api/v1/topics \
+  -H "X-User-Id: 00000000-0000-0000-0000-000000000001" | jq
+
+# Другой user (UUID любой существующий) - PRIVATE темы не видит
+OTHER_USER=$(uuidgen)  # вставить в users либо взять seeded
+
+# 2. Сделать PUBLIC
+curl -X PATCH http://localhost:9090/api/v1/topics/$TOPIC_ID/visibility \
+  -H "X-User-Id: 00000000-0000-0000-0000-000000000001" \
+  -H "Content-Type: application/json" \
+  -d '{"visibility":"PUBLIC"}'
+
+# 3. Добавить member (SHARED режим)
+curl -X PATCH http://localhost:9090/api/v1/topics/$TOPIC_ID/visibility \
+  -H "X-User-Id: 00000000-0000-0000-0000-000000000001" \
+  -H "Content-Type: application/json" \
+  -d '{"visibility":"SHARED"}'
+
+curl -X POST http://localhost:9090/api/v1/topics/$TOPIC_ID/members \
+  -H "X-User-Id: 00000000-0000-0000-0000-000000000001" \
+  -H "Content-Type: application/json" \
+  -d "{\"userId\":\"$OTHER_USER\",\"role\":\"EDITOR\"}"
+
+# 4. Удалить чужой PUBLIC темой как другой user - 403
+curl -i -X DELETE http://localhost:9090/api/v1/topics/$TOPIC_ID \
+  -H "X-User-Id: $OTHER_USER"
+```
+
+---
+
 ## 2026-05-17 - Этап 17.e - AI editing pass backend (Anthropic Claude), ADR-042
 
 Параллельно с RBAC subagent (Этап 22 topic permissions). Зоны не

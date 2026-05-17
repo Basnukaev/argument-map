@@ -55,8 +55,11 @@ class CorsIT {
 
     @Test
     void simpleRequest_allowedOrigin_includesAllowOriginHeader() throws Exception {
+        // ADR-043: GET /api/v1/topics требует @CurrentUser (visibility check).
+        // Тест CORS - нужен валидный principal через X-User-Id (dev/test fallback)
         mockMvc.perform(get("/api/v1/topics")
-                        .header("Origin", ALLOWED_ORIGIN))
+                        .header("Origin", ALLOWED_ORIGIN)
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000001"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Access-Control-Allow-Origin", ALLOWED_ORIGIN));
     }
@@ -64,7 +67,8 @@ class CorsIT {
     @Test
     void simpleRequest_withoutOrigin_worksWithoutCorsHeaders() throws Exception {
         // Same-origin / curl без Origin не получает CORS-заголовков и работает как обычно
-        mockMvc.perform(get("/api/v1/topics"))
+        mockMvc.perform(get("/api/v1/topics")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000001"))
                 .andExpect(status().isOk())
                 .andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
     }

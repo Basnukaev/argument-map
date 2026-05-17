@@ -430,7 +430,81 @@ Package: `ru.basnukaev.argumentmap.auth/`
     - `JwtAuthenticationEntryPoint` - 401 Problem Details
 - `DevUserSeeder` - admin@argumentmap.local / admin12345 для dev
 
-Roles: `USER`/`ADMIN` (CHECK constraint + index). RBAC per-entity - Этап 22.
+Roles: `USER`/`ADMIN` (CHECK constraint + index). RBAC per-entity - см.
+Permissions ниже (ADR-043).
 
 Refresh token rotation - **no** в MVP (см. ADR-040 «Открытые вопросы»).
 Refresh blacklist - **no** в MVP. Multiple sessions per user - допустимо.
+
+## Permissions / Visibility model (Этап 22, ADR-043)
+
+Per-entity authorization для topics. Hybrid model: visibility-enum в
+БД + M:N таблица членов для co-editing. Library books / Q&A questions
+сейчас не permission-controlled (откладывается до явного use-case).
+
+**Топология данных:**
+
+```
+topics                                  topic_members
+┌──────────────────────────────┐        ┌──────────────────────────────┐
+│ id                           │        │ id                           │
+│ created_by  (owner UUID)     │ ←──────│ topic_id (FK CASCADE)        │
+│ visibility  (CHECK 3 values) │        │ user_id  (FK CASCADE)        │
+│ ...                          │        │ role     (CHECK MEMBER|EDITOR│
+└──────────────────────────────┘        │ added_at / added_by          │
+                                        │ UNIQUE (topic_id, user_id)   │
+                                        └──────────────────────────────┘
+```
+
+**Матрица доступа (permission matrix):**
+
+| visibility | role          | can read | can write | can manage members | can delete topic |
+|------------|---------------|----------|-----------|--------------------|------------------|
+| PRIVATE    | owner         | ✓        | ✓         | ✓                  | ✓                |
+| PRIVATE    | other USER    | ✗        | ✗         | ✗                  | ✗                |
+| SHARED     | owner         | ✓        | ✓         | ✓                  | ✓                |
+| SHARED     | EDITOR member | ✓        | ✓         | ✗                  | ✗                |
+| SHARED     | MEMBER member | ✓        | ✗         | ✗                  | ✗                |
+| SHARED     | non-member    | ✗        | ✗         | ✗                  | ✗                |
+| PUBLIC     | owner         | ✓        | ✓         | ✓                  | ✓                |
+| PUBLIC     | EDITOR member | ✓        | ✓         | ✗                  | ✗                |
+| PUBLIC     | other USER    | ✓        | ✗         | ✗                  | ✗                |
+| any        | ADMIN         | ✓        | ✓         | ✓                  | ✓                |
+
+**Где живут проверки:**
+
+- `service/PermissionService` - `canReadTopic` / `canWriteTopic` /
+  `isOwner` + `assertCanRead` / `assertCanWrite` / `assertIsOwner`
+  (бросают `TopicAccessDeniedException` / `TopicWriteAccessDeniedException`)
+- `service/TopicService.getTopic|deleteTopic|updateVisibility` -
+  перегрузки с (userId, role) делают assert
+- `service/NodeService.createNode|update*|deleteNode` - перегрузки с
+  (userId, role) делают assertCanWrite на parent topic
+- `service/EdgeService.createEdge|updateEdge|deleteEdge` - то же
+- `service/TopicMemberService` - бизнес-логика add/list/update/remove
+  членов
+- `web/controller/*` - читают role из SecurityContext через
+  `SecurityContextUtils.currentRole()` (helper - не вводим новый
+  ArgumentResolver), передают в Service-методы
+- `exception/GlobalExceptionHandler` - 403 Problem Details с topicId/
+  userId в properties
+
+**Почему ассерты в Service, а не Controller через @PreAuthorize:**
+
+- логика переиспользуется в future GraphQL / CLI / scheduled jobs - один
+  PermissionService на все каналы
+- @PreAuthorize expressions с custom PermissionEvaluator сложно
+  тестировать
+- легче composability: `assertCanWrite` вызывается из
+  `TopicMemberService.addMember` (тот же ассерт)
+
+**Endpoints управления:**
+
+- `PATCH /api/v1/topics/{id}/visibility` (owner)
+- `POST/GET/PATCH/DELETE /api/v1/topics/{id}/members[/...]`
+
+**Что отложено** (Этап 22.b/c/d):
+
+- frontend UI - radio visibility + members sub-modal
+- RBAC на library books / Q&A questions - повтор паттерна когда понадобится
+- audit log (кто что менял когда + permission changes) - отдельная таблица

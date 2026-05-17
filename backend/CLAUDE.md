@@ -222,7 +222,40 @@ optional enhancement, не блокер.
 - Access token TTL 15 мин, refresh TTL 7 дней (HttpOnly+Secure+
   SameSite=Strict cookie)
 - Roles: `USER` / `ADMIN` (CHECK constraint). RBAC permissions
-  per-entity - Этап 22
+  per-entity - ADR-043 (Этап 22)
+
+### Permissions (ADR-043, Этап 22)
+
+Per-entity authorization для тем. `topics.visibility` - PRIVATE
+(только owner) / SHARED (owner + topic_members) / PUBLIC (read для
+всех authenticated, write только owner + EDITOR member). ADMIN
+bypass всех visibility checks.
+
+- **PermissionService** - `canReadTopic` / `canWriteTopic` / `isOwner`
+  + `assertCan*` (бросают `TopicAccessDeniedException` /
+  `TopicWriteAccessDeniedException` → 403 forbidden-topic-access/write)
+- **Где живут проверки** - Service-слой (не Controller). Сервис
+  принимает `(userId, role)` и сам ассертит. Старые сигнатуры (без
+  role) оставлены для internal callers (TopicImportService, scheduled
+  jobs, IT) - они не делают permission check
+- **Controllers** читают role из SecurityContext через
+  `SecurityContextUtils.currentRole()` helper (не вводим новый
+  ArgumentResolver - principal уже в SecurityContext через
+  AuthenticatedUser, helper его экстрактит)
+- **Topic members** - `TopicMemberService` + REST endpoints
+  `/api/v1/topics/{id}/members[/...]`. Только owner может add/update
+  role/remove (EDITOR не может - privilege escalation). MEMBER может
+  удалить только себя (self-leave)
+- **MVP scope - только topics**. Library books / Q&A questions сейчас
+  не permission-controlled. Когда понадобится - повторяем паттерн
+  (visibility + members) отдельной миграцией
+- **Audit log** (кто что менял когда + permission changes) - **отложен**.
+  Сейчас trace только через `revisions` для контента и стандартный
+  request log
+- **Existing tests с X-User-Id** - продолжают работать т.к. они
+  создавали тему сами и оперировали с тем же userId (default PRIVATE +
+  owner = full access). Кто читал/удалял без header - теперь должен
+  передавать X-User-Id (или 400 missing-user-header в dev/test)
 
 ### Транзакции
 
