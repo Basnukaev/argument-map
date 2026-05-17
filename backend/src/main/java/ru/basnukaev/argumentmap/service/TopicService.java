@@ -7,7 +7,11 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import ru.basnukaev.argumentmap.auth.domain.UserRole;
+import ru.basnukaev.argumentmap.domain.AuditEntityType;
 import ru.basnukaev.argumentmap.domain.Node;
 import ru.basnukaev.argumentmap.domain.NodeStatus;
 import ru.basnukaev.argumentmap.domain.NodeType;
@@ -24,12 +28,15 @@ public class TopicService {
     private final TopicRepository topicRepository;
     private final NodeRepository nodeRepository;
     private final PermissionService permissionService;
+    private final AuditLogService auditLogService;
 
     public TopicService(TopicRepository topicRepository, NodeRepository nodeRepository,
-                        PermissionService permissionService) {
+                        PermissionService permissionService,
+                        AuditLogService auditLogService) {
         this.topicRepository = topicRepository;
         this.nodeRepository = nodeRepository;
         this.permissionService = permissionService;
+        this.auditLogService = auditLogService;
     }
 
     /**
@@ -74,6 +81,20 @@ public class TopicService {
         nodeRepository.save(rootQuestion);
 
         topicRepository.updateRootNodeId(topic.id(), rootQuestion.id());
+
+        // ADR-043 Amendment 3 (22.d): audit CREATE для topic + root node
+        Map<String, Object> topicSnapshot = new LinkedHashMap<>();
+        topicSnapshot.put("title", title);
+        topicSnapshot.put("description", description);
+        topicSnapshot.put("visibility", visibility);
+        auditLogService.logCreate(AuditEntityType.TOPIC, topic.id(), null, null,
+                userId, topicSnapshot);
+        Map<String, Object> nodeSnapshot = new LinkedHashMap<>();
+        nodeSnapshot.put("nodeType", NodeType.QUESTION.name());
+        nodeSnapshot.put("content", rootQuestionContent);
+        nodeSnapshot.put("isRoot", true);
+        auditLogService.logCreate(AuditEntityType.NODE, rootQuestion.id(),
+                AuditEntityType.TOPIC, topic.id(), userId, nodeSnapshot);
 
         return topicRepository.findById(topic.id()).orElseThrow();
     }
@@ -189,9 +210,17 @@ public class TopicService {
         // Проверка существования + permission в одной транзакции.
         // Если темы нет - сначала проверка read (она бросит TopicNotFound),
         // потом assertIsOwner.
-        topicRepository.findById(topicId)
+        Topic existing = topicRepository.findById(topicId)
                 .orElseThrow(() -> new TopicNotFoundException(topicId));
         permissionService.assertIsOwner(topicId, userId, role);
+
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("title", existing.title());
+        snapshot.put("description", existing.description());
+        snapshot.put("visibility", existing.visibility());
+        auditLogService.logDelete(AuditEntityType.TOPIC, topicId, null, null,
+                userId, snapshot);
+
         topicRepository.deleteById(topicId);
     }
 
@@ -208,10 +237,16 @@ public class TopicService {
                     "Невалидное visibility: " + newVisibility
             );
         }
-        topicRepository.findById(topicId)
+        Topic existing = topicRepository.findById(topicId)
                 .orElseThrow(() -> new TopicNotFoundException(topicId));
         permissionService.assertIsOwner(topicId, userId, role);
+        String oldVisibility = existing.visibility();
         topicRepository.updateVisibility(topicId, newVisibility);
+        // audit только если действительно изменилось (избегаем шума)
+        if (oldVisibility == null || !oldVisibility.equals(newVisibility)) {
+            auditLogService.logVisibilityChange(AuditEntityType.TOPIC, topicId,
+                    userId, oldVisibility, newVisibility);
+        }
         return topicRepository.findById(topicId).orElseThrow();
     }
 }

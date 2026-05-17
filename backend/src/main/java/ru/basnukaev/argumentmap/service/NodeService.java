@@ -7,6 +7,10 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+import ru.basnukaev.argumentmap.domain.AuditEntityType;
 import ru.basnukaev.argumentmap.domain.Node;
 import ru.basnukaev.argumentmap.domain.NodeStatus;
 import ru.basnukaev.argumentmap.domain.NodeType;
@@ -27,17 +31,20 @@ public class NodeService {
     private final RevisionRepository revisionRepository;
     private final StatusCalculationService statusCalculationService;
     private final PermissionService permissionService;
+    private final AuditLogService auditLogService;
 
     public NodeService(NodeRepository nodeRepository,
                        TopicRepository topicRepository,
                        RevisionRepository revisionRepository,
                        StatusCalculationService statusCalculationService,
-                       PermissionService permissionService) {
+                       PermissionService permissionService,
+                       AuditLogService auditLogService) {
         this.nodeRepository = nodeRepository;
         this.topicRepository = topicRepository;
         this.revisionRepository = revisionRepository;
         this.statusCalculationService = statusCalculationService;
         this.permissionService = permissionService;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -55,6 +62,14 @@ public class NodeService {
                 userId, now, now
         );
         nodeRepository.save(node);
+
+        // ADR-043 Amendment 3 (22.d) - audit CREATE с topicId как parent
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("nodeType", type.name());
+        snapshot.put("content", content);
+        auditLogService.logCreate(AuditEntityType.NODE, node.id(),
+                AuditEntityType.TOPIC, topicId, userId, snapshot);
+
         return node;
     }
 
@@ -117,6 +132,14 @@ public class NodeService {
                 existing.createdBy(), existing.createdAt(), now
         );
         nodeRepository.update(updated);
+
+        // ADR-043 Amendment 3 (22.d) - audit content UPDATE
+        Map<String, AuditLogService.FieldDiff> diff = new LinkedHashMap<>();
+        diff.put("content", new AuditLogService.FieldDiff(
+                existing.content(), newContent));
+        auditLogService.logUpdate(AuditEntityType.NODE, nodeId,
+                AuditEntityType.TOPIC, existing.topicId(), userId, diff);
+
         return updated;
     }
 
@@ -149,6 +172,15 @@ public class NodeService {
         Node existing = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new NodeNotFoundException(nodeId));
         permissionService.assertCanWrite(existing.topicId(), userId, role);
+
+        // ADR-043 Amendment 3 (22.d) - audit DELETE до самого delete
+        // (после deleteNode existing уже не достаём из БД)
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("nodeType", existing.nodeType().name());
+        snapshot.put("content", existing.content());
+        auditLogService.logDelete(AuditEntityType.NODE, nodeId,
+                AuditEntityType.TOPIC, existing.topicId(), userId, snapshot);
+
         deleteNode(nodeId);
     }
 

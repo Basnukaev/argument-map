@@ -6,6 +6,10 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+import ru.basnukaev.argumentmap.domain.AuditEntityType;
 import ru.basnukaev.argumentmap.domain.Edge;
 import ru.basnukaev.argumentmap.domain.EdgeType;
 import ru.basnukaev.argumentmap.domain.Node;
@@ -22,14 +26,17 @@ public class EdgeService {
     private final NodeRepository nodeRepository;
     private final StatusCalculationService statusCalculationService;
     private final PermissionService permissionService;
+    private final AuditLogService auditLogService;
 
     public EdgeService(EdgeRepository edgeRepository, NodeRepository nodeRepository,
                        StatusCalculationService statusCalculationService,
-                       PermissionService permissionService) {
+                       PermissionService permissionService,
+                       AuditLogService auditLogService) {
         this.edgeRepository = edgeRepository;
         this.nodeRepository = nodeRepository;
         this.statusCalculationService = statusCalculationService;
         this.permissionService = permissionService;
+        this.auditLogService = auditLogService;
     }
 
     /**
@@ -70,6 +77,16 @@ public class EdgeService {
         );
         edgeRepository.save(edge);
         statusCalculationService.recalculateTopic(from.topicId());
+
+        // ADR-043 Amendment 3 (22.d) - audit CREATE
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("fromNodeId", fromNodeId.toString());
+        snapshot.put("toNodeId", toNodeId.toString());
+        snapshot.put("edgeType", type.name());
+        snapshot.put("rationale", rationale);
+        auditLogService.logCreate(AuditEntityType.EDGE, edge.id(),
+                AuditEntityType.TOPIC, from.topicId(), userId, snapshot);
+
         return edge;
     }
 
@@ -107,6 +124,17 @@ public class EdgeService {
                 .orElseThrow(() -> new NodeNotFoundException(existing.fromNodeId()))
                 .topicId();
         permissionService.assertCanWrite(topicId, userId, role);
+
+        // ADR-043 Amendment 3 (22.d) - audit DELETE до удаления (после
+        // deleteEdge мы потеряем existing)
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("fromNodeId", existing.fromNodeId().toString());
+        snapshot.put("toNodeId", existing.toNodeId().toString());
+        snapshot.put("edgeType", existing.edgeType().name());
+        snapshot.put("rationale", existing.rationale());
+        auditLogService.logDelete(AuditEntityType.EDGE, edgeId,
+                AuditEntityType.TOPIC, topicId, userId, snapshot);
+
         deleteEdge(edgeId);
     }
 
@@ -120,8 +148,34 @@ public class EdgeService {
                 .orElseThrow(() -> new NodeNotFoundException(existing.fromNodeId()))
                 .topicId();
         permissionService.assertCanWrite(topicId, userId, role);
-        return updateEdge(edgeId, fromNodeId, toNodeId, edgeType,
+        Edge updated = updateEdge(edgeId, fromNodeId, toNodeId, edgeType,
                 rationale, sourceHandle, targetHandle);
+
+        // ADR-043 Amendment 3 (22.d) - audit UPDATE с per-field diff.
+        // Здесь т.к. знаем actor (userId из request); legacy updateEdge
+        // без role вызывается только из тестов - не пишет audit.
+        Map<String, AuditLogService.FieldDiff> diff = new LinkedHashMap<>();
+        if (!existing.fromNodeId().equals(updated.fromNodeId())) {
+            diff.put("fromNodeId", new AuditLogService.FieldDiff(
+                    existing.fromNodeId().toString(), updated.fromNodeId().toString()));
+        }
+        if (!existing.toNodeId().equals(updated.toNodeId())) {
+            diff.put("toNodeId", new AuditLogService.FieldDiff(
+                    existing.toNodeId().toString(), updated.toNodeId().toString()));
+        }
+        if (existing.edgeType() != updated.edgeType()) {
+            diff.put("edgeType", new AuditLogService.FieldDiff(
+                    existing.edgeType().name(), updated.edgeType().name()));
+        }
+        if (!java.util.Objects.equals(existing.rationale(), updated.rationale())) {
+            diff.put("rationale", new AuditLogService.FieldDiff(
+                    existing.rationale(), updated.rationale()));
+        }
+        if (!diff.isEmpty()) {
+            auditLogService.logUpdate(AuditEntityType.EDGE, edgeId,
+                    AuditEntityType.TOPIC, topicId, userId, diff);
+        }
+        return updated;
     }
 
     /**
