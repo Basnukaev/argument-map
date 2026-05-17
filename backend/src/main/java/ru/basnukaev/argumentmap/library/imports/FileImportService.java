@@ -183,10 +183,16 @@ public class FileImportService {
                 pageRepository.save(page);
             }
 
-            // upload оригинал в bucket + register в library_files catalog.
-            // Делаем после создания pages чтобы при failure (например S3
-            // unreachable) откатилась вся транзакция и pages не остались
-            // без blob'а
+            // S3 put после save pages - порядок защищает от orphan blob'а
+            // в случае page-extraction failure: если PDFTextStripper
+            // упадёт на конкретной странице или CHECK constraint
+            // lib_pages.* отклонит row - бросаем исключение ДО put в
+            // bucket, blob не появляется в storage. При S3 put failure
+            // (network etc) после успешного save pages вся транзакция
+            // откатится через @Transactional - pages удалятся из БД.
+            // Edge case: commit БД упал после успешного S3 put → orphan
+            // blob остаётся в bucket'е, ловится OrphanDetectionJanitor
+            // (см. Этап 25.b).
             String bucket = storageProperties.buckets().userUploads();
             String storageKey = book.id() + "/" + sanitizeFilename(filename);
             LibraryFile registered = objectStorageService.putAndRegister(
