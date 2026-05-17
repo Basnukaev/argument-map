@@ -209,6 +209,12 @@ public class GlobalExceptionHandler {
         return pd;
     }
 
+    @ExceptionHandler(TopicMemberNotFoundException.class)
+    public ProblemDetail handleTopicMemberNotFound(TopicMemberNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND,
+                "Член темы не найден", "topic-member-not-found", ex.getMessage());
+    }
+
     @ExceptionHandler(UnsupportedExportFormatException.class)
     public ProblemDetail handleUnsupportedExportFormat(UnsupportedExportFormatException ex) {
         ProblemDetail pd = problem(HttpStatus.UNPROCESSABLE_ENTITY,

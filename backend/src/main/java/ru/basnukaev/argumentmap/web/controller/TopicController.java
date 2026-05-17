@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,6 +24,7 @@ import ru.basnukaev.argumentmap.web.CurrentUser;
 import ru.basnukaev.argumentmap.web.dto.CreateTopicRequest;
 import ru.basnukaev.argumentmap.web.dto.GraphResponse;
 import ru.basnukaev.argumentmap.web.dto.TopicResponse;
+import ru.basnukaev.argumentmap.web.dto.UpdateTopicVisibilityRequest;
 import ru.basnukaev.argumentmap.web.mapper.DtoMappers;
 
 @RestController
@@ -81,5 +83,14 @@ public class TopicController {
         String role = SecurityContextUtils.currentRole();
         permissionService.assertCanRead(topicId, userId, role);
         return DtoMappers.toResponse(graphService.getGraph(topicId));
+    }
+
+    @PatchMapping("/{topicId}/visibility")
+    public TopicResponse updateVisibility(@PathVariable UUID topicId,
+                                          @Valid @RequestBody UpdateTopicVisibilityRequest request,
+                                          @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRole();
+        Topic updated = topicService.updateVisibility(topicId, request.visibility(), userId, role);
+        return DtoMappers.toResponse(updated);
     }
 }
