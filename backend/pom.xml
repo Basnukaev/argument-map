@@ -101,6 +101,20 @@
 			<artifactId>s3</artifactId>
 		</dependency>
 		<!--
+			Apache PDFBox 3.x (ADR-035) - page-by-page text extraction + PDF
+			metadata. Используется library.imports.FileImportService для Этапа 16
+			(user-uploaded PDF). Альтернатива Apache Tika рассмотрена и отклонена -
+			Tika удобнее для metadata, но не даёт прямого phys-page → text mapping
+			которое нужно нашей доменной модели lib_pages (одна запись на одну
+			физическую страницу PDF). PDFBox 3.x использует новый Loader API
+			вместо deprecated PDDocument.load().
+		-->
+		<dependency>
+			<groupId>org.apache.pdfbox</groupId>
+			<artifactId>pdfbox</artifactId>
+			<version>3.0.5</version>
+		</dependency>
+		<!--
 			URL connection HTTP client - lightweight blocking реализация для
 			синхронного S3 client. AWS SDK v2 default - netty (async/reactive),
 			тяжелее. Для нашего use-case (synchronous put/get с Range) хватает

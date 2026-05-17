@@ -1,0 +1,250 @@
+package ru.basnukaev.argumentmap.library.imports;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.time.Instant;
+import java.util.UUID;
+
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDDocumentInformation;
+import org.apache.pdfbox.text.PDFTextStripper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookType;
+import ru.basnukaev.argumentmap.library.domain.LibraryFile;
+import ru.basnukaev.argumentmap.library.domain.LibraryFileSourceType;
+import ru.basnukaev.argumentmap.library.domain.Page;
+import ru.basnukaev.argumentmap.library.repository.PageRepository;
+import ru.basnukaev.argumentmap.library.service.BookService;
+import ru.basnukaev.argumentmap.library.storage.ObjectStorageProperties;
+import ru.basnukaev.argumentmap.library.storage.ObjectStorageService;
+
+/**
+ * Импорт пользовательского PDF в library как полноценную {@code Book}
+ * с {@code Page[]} (Этап 16.a/16.d, ADR-035). Цепочка:
+ *
+ * <ol>
+ *   <li>InputStream загружается в memory ({@code byte[]}) - PDF в нашем
+ *       limit'е 50MB acceptable, две прохода нужны: PDFBox + S3 upload</li>
+ *   <li>{@code Loader.loadPDF(byte[])} парсит PDF document</li>
+ *   <li>{@code BookService.createBook} создаёт {@code Book} row с
+ *       {@code bookType=BOOK}, title из metadata или filename,
+ *       {@code metadata.user_uploaded=true}</li>
+ *   <li>Для каждой phys-страницы PDF создаётся {@code Page} с
+ *       {@code pageNumber=i+1} (1-based), {@code pdfPageNumber=i+1}
+ *       (та же phys page), {@code textContent} = извлечённый text</li>
+ *   <li>Сам PDF blob через {@link ObjectStorageService#putAndRegister}
+ *       сохраняется в {@code library-user-uploads} bucket, ключ
+ *       {@code {bookId}/{filename}}, запись в {@code library_files}
+ *       с {@code sourceType=USER_UPLOAD}</li>
+ * </ol>
+ *
+ * <p>Транзакционно - вся операция или всё или ничего. Если PDF
+ * парсится но S3 put падает - вся транзакция откатывается (book/pages
+ * deleted, blob может попасть orphan в bucket - детектируется
+ * {@code OrphanDetectionJanitor}).
+ *
+ * <p>EPUB не реализован сейчас (см. ADR-035) - метод {@code importEpub}
+ * добавится отдельным этапом когда появится UX-кейс. Сейчас 100%
+ * пользовательских материалов - PDF (shamela / archive.org).
+ */
+@Service
+public class FileImportService {
+
+    private static final Logger log = LoggerFactory.getLogger(FileImportService.class);
+
+    /**
+     * PDF без extracted text (например полностью scanned-images PDF -
+     * чисто bitmap страницы) возвращает empty string. Сохраняем в
+     * {@code text_content} пустую строку - CHECK constraint
+     * {@code lib_pages_content_present} требует {@code text_content
+     * IS NOT NULL OR image_url IS NOT NULL}, пустая строка не NULL.
+     * В будущем (Этап 17) можно вызывать OCR для таких страниц.
+     */
+    private static final String EMPTY_PAGE_PLACEHOLDER = "";
+
+    private final BookService bookService;
+    private final PageRepository pageRepository;
+    private final ObjectStorageService objectStorageService;
+    private final ObjectStorageProperties storageProperties;
+
+    public FileImportService(BookService bookService,
+                             PageRepository pageRepository,
+                             ObjectStorageService objectStorageService,
+                             ObjectStorageProperties storageProperties) {
+        this.bookService = bookService;
+        this.pageRepository = pageRepository;
+        this.objectStorageService = objectStorageService;
+        this.storageProperties = storageProperties;
+    }
+
+    /**
+     * Импортирует PDF как новую книгу в library. Создаёт Book, Page[]
+     * (по одной на phys-страницу PDF), сохраняет PDF blob в
+     * {@code library-user-uploads} bucket.
+     *
+     * @param pdfBytes полный contents PDF в byte array. Caller
+     *                 ответственен за enforcement size limit (50MB)
+     *                 до вызова - на уровне Spring multipart config
+     * @param filename оригинальное имя файла (без path) - используется
+     *                 для storage key и fallback title
+     * @param metadata опциональные поля от пользователя (title override,
+     *                 authorityId, language, description)
+     * @param currentUserId UUID юзера-загрузчика (из {@code X-User-Id} header)
+     * @return созданная Book
+     * @throws FileImportException при corrupted PDF, encrypted PDF без
+     *                             пароля, или 0-страничном PDF
+     */
+    @Transactional
+    public ImportResult importPdf(byte[] pdfBytes, String filename,
+                                  ImportMetadata metadata, UUID currentUserId) {
+        if (pdfBytes == null || pdfBytes.length == 0) {
+            throw new FileImportException("PDF файл пустой");
+        }
+        ImportMetadata effectiveMeta = metadata != null ? metadata : ImportMetadata.empty();
+
+        try (PDDocument document = Loader.loadPDF(pdfBytes)) {
+            if (document.isEncrypted()) {
+                // PDFBox поддерживает decrypt с password, но для MVP
+                // user-upload запрещаем encrypted - реализуем по запросу
+                throw new FileImportException(
+                        "PDF зашифрован - decrypt не поддерживается на текущем этапе");
+            }
+            int numPages = document.getNumberOfPages();
+            if (numPages == 0) {
+                throw new FileImportException("PDF не содержит страниц");
+            }
+
+            String title = resolveTitle(document, effectiveMeta, filename);
+            String language = effectiveMeta.language() != null
+                    && !effectiveMeta.language().isBlank()
+                    ? effectiveMeta.language() : "ar";
+            String metadataJson = buildBookMetadataJson(filename, numPages);
+
+            Book book = bookService.createBook(
+                    BookType.BOOK, title, effectiveMeta.authorityId(),
+                    language, effectiveMeta.description(),
+                    metadataJson, currentUserId
+            );
+            log.info("PDF импорт: создана книга id={} title='{}' страниц={}",
+                    book.id(), title, numPages);
+
+            // page-by-page extraction. PDFTextStripper'у задаём диапазон
+            // [i+1, i+1] для одной страницы (API 1-based)
+            PDFTextStripper stripper = new PDFTextStripper();
+            for (int i = 0; i < numPages; i++) {
+                stripper.setStartPage(i + 1);
+                stripper.setEndPage(i + 1);
+                String pageText;
+                try {
+                    pageText = stripper.getText(document);
+                } catch (IOException e) {
+                    throw new FileImportException(
+                            "не удалось извлечь текст со страницы " + (i + 1), e);
+                }
+                Instant now = Instant.now();
+                Page page = new Page(
+                        UUID.randomUUID(),
+                        book.id(),
+                        null,                             // chapterId - PDF без chapter outline
+                        i + 1,                            // pageNumber internal
+                        null,                             // printedPage - неизвестен для user-upload
+                        null,                             // part - single-volume
+                        i + 1,                            // pdfPageNumber = phys
+                        pageText != null ? pageText : EMPTY_PAGE_PLACEHOLDER,
+                        null,                             // imageUrl - text-mode
+                        now, now
+                );
+                pageRepository.save(page);
+            }
+
+            // upload оригинал в bucket + register в library_files catalog.
+            // Делаем после создания pages чтобы при failure (например S3
+            // unreachable) откатилась вся транзакция и pages не остались
+            // без blob'а
+            String bucket = storageProperties.buckets().userUploads();
+            String storageKey = book.id() + "/" + sanitizeFilename(filename);
+            LibraryFile registered = objectStorageService.putAndRegister(
+                    bucket, storageKey,
+                    new ByteArrayInputStream(pdfBytes),
+                    "application/pdf",
+                    book.id(), null, LibraryFileSourceType.USER_UPLOAD,
+                    null, null);
+
+            log.info("PDF импорт завершён: book={} pages={} bucket={} key={} sha256={}",
+                    book.id(), numPages, bucket, storageKey, registered.contentHash());
+
+            return new ImportResult(book, numPages, registered);
+        } catch (IOException e) {
+            throw new FileImportException("не удалось разобрать PDF: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Title resolution приоритет: user override > PDF metadata > filename
+     * без расширения. Гарантирует non-blank результат - CHECK constraint
+     * {@code lib_books.title NOT NULL}.
+     */
+    private static String resolveTitle(PDDocument document, ImportMetadata meta, String filename) {
+        if (meta.title() != null && !meta.title().isBlank()) {
+            return meta.title().trim();
+        }
+        PDDocumentInformation info = document.getDocumentInformation();
+        if (info != null) {
+            String pdfTitle = info.getTitle();
+            if (pdfTitle != null && !pdfTitle.isBlank()) {
+                return pdfTitle.trim();
+            }
+        }
+        return stripExtension(filename != null ? filename : "untitled.pdf");
+    }
+
+    /**
+     * JSON metadata для lib_books.metadata - помечаем источник, размер,
+     * чтобы при дальнейшем reindex / debug было видно. Используем
+     * простую string concatenation - JSON минимальный, выносить
+     * Jackson сюда overhead.
+     */
+    private static String buildBookMetadataJson(String filename, int numPages) {
+        String safeFilename = filename != null ? filename.replace("\"", "\\\"") : "unknown";
+        return "{\"user_uploaded\":true,"
+                + "\"original_filename\":\"" + safeFilename + "\","
+                + "\"pdf_page_count\":" + numPages + "}";
+    }
+
+    /**
+     * Storage key safe filename - режем path separators (защита от
+     * наивного path traversal в bucket'е) и пробелы (S3 принимает но
+     * URL-encoded неудобно для debug). Расширение .pdf оставляем.
+     */
+    private static String sanitizeFilename(String filename) {
+        if (filename == null || filename.isBlank()) {
+            return "upload.pdf";
+        }
+        String base = filename;
+        int lastSlash = Math.max(base.lastIndexOf('/'), base.lastIndexOf('\\'));
+        if (lastSlash >= 0) {
+            base = base.substring(lastSlash + 1);
+        }
+        return base.replaceAll("\\s+", "_");
+    }
+
+    private static String stripExtension(String filename) {
+        int lastDot = filename.lastIndexOf('.');
+        return lastDot > 0 ? filename.substring(0, lastDot) : filename;
+    }
+
+    /**
+     * Результат успешного import'а - книга + число созданных страниц +
+     * метаданные blob'а в catalog. Используется controller'ом для
+     * формирования response.
+     */
+    public record ImportResult(Book book, int pageCount, LibraryFile file) {
+    }
+}
