@@ -1113,3 +1113,63 @@ strip (только в test env через VITE_TEST flag), либо обнов�
 когда undici issue зафиксят.
 
 ---
+
+## shamela API из WSL2 требует VPN/прокси - 502 на sync-master
+
+**Симптом:** `POST /api/v1/admin/shamela/sync-master` возвращает
+502 Bad Gateway с Problem Details `type=shamela-api-error`, `detail`
+содержит замаскированный `api_key=***`. Реальный upstream запрос
+к `https://dev.shamela.ws/api/v1/patches/master?api_key=***&version=N`
+получает ConnectTimeout / 503 / 407 (зависит от ситуации).
+
+**Причина:** `dev.shamela.ws` доступен только через определённые
+network egress points. WSL2 с corp прокси (407) либо без VPN не
+может достучаться. Это **не наш баг** - circuit breaker правильно
+бросает `ShamelaApiException`, `GlobalExceptionHandler` мапит в 502.
+
+**Решение:**
+- (a) Включить VPN к shamela-разрешённому network egress
+- (b) Если admin sync не нужен прямо сейчас - продолжать локальную
+  работу, frontend теперь показывает локализованный toast
+  «внешний сервис shamela.ws недоступен. возможно требуется VPN
+  или сервис временно лежит. попробуйте позже» вместо сырого
+  Problem Details (#5 user feedback Сессии 38, Сессия 39 fix)
+- (c) Использовать локальный staging dump shamela (если есть) для
+  dev-режима - не требует выходного интернета
+
+Альтернатива была - DOWN flag в `/actuator/health` после N
+неудачных попыток подряд. Отложено как over-engineering для
+admin-only функциональности
+
+Зафиксировано Сессией 39 после ручного тестирования пользователем.
+
+---
+
+## Google Fonts в WSL2 за corp proxy не загружаются (407)
+
+**Симптом:** все web-fonts из `https://fonts.googleapis.com/...`
+не загружаются - DevTools показывает 407 Proxy Authentication Required.
+В UI текст рендерится system-default serif/sans (Liberation Serif
+на Linux, Times New Roman на Mac). Visual diff между dev и production:
+типографика «другая», иногда сильно (italic / hinting / weight
+fallback).
+
+**Причина:** corp proxy требует Basic auth для HTTPS-CONNECT
+запросов к Google Fonts CDN. Браузер не передаёт креды для font
+загрузки.
+
+**Решение:**
+- (a) Для dev в WSL2 - принять fallback. Все компоненты используют
+  font-stacks с system serif/sans в конце - читаемо
+- (b) Для accurate visual review - проверить в реальном браузере
+  на хост-машине Windows (где proxy либо не активен либо нативно
+  проксирует), не через WSL2 dev preview
+- (c) Если нужен dev preview с правильными шрифтами - подключить
+  `@font-face` локально через файлы в `public/fonts/` минуя CDN
+
+Frontend tests не зависят от этого - vitest+jsdom не рендерит
+шрифты вообще, computed font-family возвращает CSS variable
+строку как есть.
+
+Зафиксировано Сессией 39 при playwright диагностике #6 шрифта
+title книг (пользователь жаловался на «выврвиглазный шрифт»).

@@ -10,6 +10,97 @@
 
 ---
 
+## 2026-05-17 - Сессия 39, user feedback #1 / #3 / #5 / #6
+
+Закрыли 4 из 6 observable замечаний пользователя из конца Сессии 38
+(#2 и #4 - hotkey unification - параллельно ведёт другой subagent).
+Backend +2 IT (NodeServiceIT 9→11), frontend +3 vitest
+(AdminShamelaPage.test новый). Все коммиты атомарные
+
+### Backend (1 commit)
+
+- `9e8e045` feat **#1 root protection** - `NodeIsRootException` 409
+  Conflict. `NodeService.deleteNode` подтягивает `Topic` и сверяет
+  `nodeId == topic.rootNodeId` ДО удаления. Иначе бэк бы отдал 500
+  или каскадно разрушил граф. `GlobalExceptionHandler` мапит в
+  Problem Details `type=node-is-root` + `nodeId` / `topicId` properties.
+  +2 IT: root throws, non-root succeeds (sanity)
+
+### Frontend (3 commits)
+
+- `c6c8188` feat **#5 shamela toast UX** - `AdminShamelaPage`
+  `formatShamelaError` мапит `problem.type` через `ApiError.is(suffix)`:
+  shamela-api-error → «внешний сервис shamela.ws недоступен. возможно
+  требуется VPN или сервис временно лежит. попробуйте позже»; archive
+  → «не удалось распаковать»; reader → «ошибка чтения каталога».
+  Unknown тип фолбэк на title+detail. +3 vitest в новом
+  `AdminShamelaPage.test.tsx` (502 case, archive case, fallback)
+- `4a4002d` feat **#1 + #3 GraphCanvas** - root protection (UI):
+  - `rootNodeId = graph.topic?.rootNodeId` derived
+  - context menu: для root пункт «Удалить» рендерится disabled с
+    подсказкой («корневой вопрос нельзя удалить - удалите тему
+    целиком»), для не-root - обычный danger
+  - bulk-delete из toolbar: фильтрует root, toast.warning после
+    успеха что один узел пропущен
+  - `deleteOneNode` защитный barrier - toast.warning если будущая
+    точка входа попробует удалить root
+  - Del/Backspace handler (#3): `useEffect` с `event.code` (любая
+    раскладка), игнорит фокус в input/textarea/contentEditable +
+    открытый modal + контекстное меню. Триггерит `handleDelete` -
+    root filter уже там. TODO: hotkey subagent мигрирует на единую
+    систему через react-hotkeys-hook
+
+### Docs (1 commit, далее)
+
+- #6 диагностика шрифта через playwright (см. ниже)
+- ADR не нужен - #1 это bug fix, #5 - UX, #6 - диагностика без
+  изменения
+
+### #6 диагностика - результат playwright
+
+`http://localhost:5173/books`:
+- `--font-book-title` CSS var = `'Manrope', 'Source Serif', Georgia, serif`
+  - **уже не EB Garamond** как обещает комментарий в tokens.css
+  (возможно subagent типографии Сессии 36 не докоммитил, либо
+  rollback произошёл)
+- `document.fonts.size = 0` - ноль web-fonts загрузилось вообще
+  (включая Amiri для арабских title)
+- Причина: WSL2 corp proxy 407 блокирует Google Fonts CSS request
+  (HTML preconnect → `fonts.googleapis.com` → 407). Известная gotcha
+- Для всех 5 книг `book.language='ar'`, поэтому Card.Title идёт
+  по `arabic=true` ветке → `font-arabic` class →
+  `'Amiri','Scheherazade New','Noto Naskh Arabic',serif` →
+  все три отвалились через прокси → fallback **system serif**
+  (Liberation Serif на Linux/WSL2)
+- screenshot: `/tmp/book-list-fonts.png`. Выглядит **читаемо** -
+  это нормальный serif. «выврвиглазность» - вероятно из-за
+  отсутствия типографики (italic glyphs, hinting), которая в
+  production browser с интернетом будет другая
+- **Не меняем шрифт** - решение по визуальному дизайну за Абдулой.
+  Можно: (a) в production с реальным интернетом проверить как
+  EB Garamond/Amiri выглядят; (b) если в production тоже плохо -
+  обсудить переход на Lora / PT Serif / Old Standard TT; (c)
+  если в WSL2 хочется хорошего dev preview - подключить fonts
+  через локальные `@font-face` файлы в `public/fonts/` минуя
+  Google CDN
+
+### Что НЕ закрыто в Сессии 39
+
+- **#2 Alt+K layout fix** - параллельно делает hotkey subagent
+- **#4 Cmd+Enter + централизация hotkeys** - там же. Будет
+  отдельный handoff от hotkey subagent
+- **#6 финальное решение по шрифту** - waiting Абдулу
+- Опции A-H из SESSION_START_PROMPT не тронуты (вначале #1-#6)
+
+### Следующий шаг
+
+Если hotkey subagent ещё не закончил - подождать его коммитов,
+проверить что #2/#4 действительно закрыты. Если да - двигаться к
+Опции A (Этап 17 OCR) или B (импорт/экспорт темы JSON) из
+SESSION_START_PROMPT по выбору Абдулы
+
+---
+
 ## 2026-05-17 - Сессия 38, post-review fixes Этапа 16
 
 Закрыли critical issue + 3 important issue из code review Сессии 37.

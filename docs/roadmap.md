@@ -120,6 +120,33 @@
 
 ## Активные этапы
 
+### User feedback Сессии 38 (закрывается в Сессии 39)
+
+- [x] **#1:** root узел темы защищён от удаления - backend
+      `NodeIsRootException` 409 (`NodeService.deleteNode` guard
+      по `topic.root_node_id`), frontend скрывает «Удалить» в
+      context menu для корня + bulk-delete фильтрует root +
+      toast.warning
+- [ ] **#2:** Alt+K не работает на не-английской раскладке -
+      `event.code === 'KeyK'` (параллельный hotkey subagent)
+- [x] **#3:** Del/Backspace handler в `TopicGraphPage` -
+      временный `useEffect` в `GraphCanvas` через `event.code`,
+      re-use `handleDelete` (root filter уже там). TODO: мигрировать
+      на единую hotkey систему после #2/#4
+- [ ] **#4:** ⌘+↵ create + общая централизация hotkeys через
+      `react-hotkeys-hook` + i18n-aware `Cmd`/`Ctrl` отображение
+      (параллельный hotkey subagent)
+- [x] **#5:** shamela 502 → локализованный toast вместо сырого
+      Problem Details с замаскированным api_key. Mapping по
+      `problem.type` (`shamela-api-error` / `-archive-error` /
+      `-reader-error`)
+- [x] **#6:** диагностика шрифта title книг в `BookListPage` -
+      `--font-book-title` в `tokens.css` уже Manrope (не EB Garamond
+      как обещает комментарий), но Google Fonts в WSL2 blocked 407
+      proxy → нулевая загрузка любых web-fonts, всё падает в
+      system serif/sans fallback. Решение по факту font'а - за
+      Абдулой (см. диагностический коммит)
+
 ### Этап 6. Улучшения бэкенда (после MVP, не блокирует другие)
 
 - [ ] Полнотекстовый поиск по содержимому узлов (Postgres `tsvector`)
