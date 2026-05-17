@@ -215,6 +215,56 @@ public class GlobalExceptionHandler {
                 "Член темы не найден", "topic-member-not-found", ex.getMessage());
     }
 
+    // ---- permissions для library books (ADR-043 Amendment, Этап 22.c) ----
+
+    @ExceptionHandler(BookAccessDeniedException.class)
+    public ProblemDetail handleBookAccessDenied(BookAccessDeniedException ex) {
+        ProblemDetail pd = problem(HttpStatus.FORBIDDEN,
+                "Нет доступа к книге", "forbidden-book-access",
+                "У вас нет прав на чтение этой книги");
+        pd.setProperty("bookId", ex.getBookId().toString());
+        pd.setProperty("userId", ex.getUserId().toString());
+        return pd;
+    }
+
+    @ExceptionHandler(BookWriteAccessDeniedException.class)
+    public ProblemDetail handleBookWriteAccessDenied(BookWriteAccessDeniedException ex) {
+        ProblemDetail pd = problem(HttpStatus.FORBIDDEN,
+                "Нет прав на изменение книги", "forbidden-book-write",
+                "У вас нет прав на запись в эту книгу");
+        pd.setProperty("bookId", ex.getBookId().toString());
+        pd.setProperty("userId", ex.getUserId().toString());
+        return pd;
+    }
+
+    @ExceptionHandler(BookMemberNotFoundException.class)
+    public ProblemDetail handleBookMemberNotFound(BookMemberNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND,
+                "Член книги не найден", "book-member-not-found", ex.getMessage());
+    }
+
+    // ---- permissions для Q&A author/admin guards (ADR-043 Amendment) ----
+
+    @ExceptionHandler(AnswerWriteAccessDeniedException.class)
+    public ProblemDetail handleAnswerWriteDenied(AnswerWriteAccessDeniedException ex) {
+        ProblemDetail pd = problem(HttpStatus.FORBIDDEN,
+                "Нет прав на изменение ответа", "forbidden-answer-write",
+                "Только автор ответа или администратор может изменять/удалять его");
+        pd.setProperty("answerId", ex.getAnswerId().toString());
+        pd.setProperty("userId", ex.getUserId().toString());
+        return pd;
+    }
+
+    @ExceptionHandler(QuestionWriteAccessDeniedException.class)
+    public ProblemDetail handleQuestionWriteDenied(QuestionWriteAccessDeniedException ex) {
+        ProblemDetail pd = problem(HttpStatus.FORBIDDEN,
+                "Нет прав на изменение вопроса", "forbidden-question-write",
+                "Только автор вопроса или администратор может изменять/удалять его");
+        pd.setProperty("questionId", ex.getQuestionId().toString());
+        pd.setProperty("userId", ex.getUserId().toString());
+        return pd;
+    }
+
     @ExceptionHandler(UnsupportedExportFormatException.class)
     public ProblemDetail handleUnsupportedExportFormat(UnsupportedExportFormatException ex) {
         ProblemDetail pd = problem(HttpStatus.UNPROCESSABLE_ENTITY,

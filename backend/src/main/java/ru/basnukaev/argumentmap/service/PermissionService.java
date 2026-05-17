@@ -10,14 +10,24 @@ import ru.basnukaev.argumentmap.domain.Topic;
 import ru.basnukaev.argumentmap.domain.TopicMember;
 import ru.basnukaev.argumentmap.domain.TopicMemberRole;
 import ru.basnukaev.argumentmap.domain.TopicVisibility;
+import ru.basnukaev.argumentmap.exception.BookAccessDeniedException;
+import ru.basnukaev.argumentmap.exception.BookNotFoundException;
+import ru.basnukaev.argumentmap.exception.BookWriteAccessDeniedException;
 import ru.basnukaev.argumentmap.exception.TopicAccessDeniedException;
 import ru.basnukaev.argumentmap.exception.TopicNotFoundException;
 import ru.basnukaev.argumentmap.exception.TopicWriteAccessDeniedException;
+import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookMember;
+import ru.basnukaev.argumentmap.library.domain.BookMemberRole;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
+import ru.basnukaev.argumentmap.library.repository.BookMemberRepository;
+import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.repository.TopicMemberRepository;
 import ru.basnukaev.argumentmap.repository.TopicRepository;
 
 /**
- * Permission checks для тем (ADR-043). Vis матрица:
+ * Permission checks для тем и library books (ADR-043 + Amendment Этап 22.c).
+ * Vis матрица:
  * <ul>
  *   <li>PRIVATE: только owner может read/write
  *   <li>SHARED: owner + EDITOR могут write, owner + EDITOR + MEMBER могут read
@@ -28,17 +38,27 @@ import ru.basnukaev.argumentmap.repository.TopicRepository;
  *
  * <p>Делается в Service-слое (не в Controller через @PreAuthorize) для
  * переиспользования в future GraphQL/CLI/scheduled jobs.
+ *
+ * <p>Q&amp;A questions/answers не имеют visibility model (open discussion) -
+ * для author/admin guards на mutating операциях см. QuestionService /
+ * AnswerService напрямую.
  */
 @Service
 public class PermissionService {
 
     private final TopicRepository topicRepository;
     private final TopicMemberRepository topicMemberRepository;
+    private final BookRepository bookRepository;
+    private final BookMemberRepository bookMemberRepository;
 
     public PermissionService(TopicRepository topicRepository,
-                             TopicMemberRepository topicMemberRepository) {
+                             TopicMemberRepository topicMemberRepository,
+                             BookRepository bookRepository,
+                             BookMemberRepository bookMemberRepository) {
         this.topicRepository = topicRepository;
         this.topicMemberRepository = topicMemberRepository;
+        this.bookRepository = bookRepository;
+        this.bookMemberRepository = bookMemberRepository;
     }
 
     @Transactional(readOnly = true)
@@ -136,6 +156,105 @@ public class PermissionService {
     public void assertIsOwner(UUID topicId, UUID userId, String role) {
         if (!isOwner(topicId, userId, role)) {
             throw new TopicWriteAccessDeniedException(topicId, userId);
+        }
+    }
+
+    // ============================================================
+    // Library books (ADR-043 Amendment, Этап 22.c)
+    // ============================================================
+
+    @Transactional(readOnly = true)
+    public boolean canReadBook(UUID bookId, UUID userId, String role) {
+        if (UserRole.ADMIN.equals(role)) {
+            return true;
+        }
+        Book book = bookRepository.findById(bookId)
+                .orElseThrow(() -> new BookNotFoundException(bookId));
+        return canReadBook(book, userId);
+    }
+
+    /**
+     * Перегрузка для случаев когда у вызывающего уже есть Book - избегаем
+     * лишнего SELECT.
+     */
+    @Transactional(readOnly = true)
+    public boolean canReadBook(Book book, UUID userId) {
+        if (book.createdBy() != null && book.createdBy().equals(userId)) {
+            return true;
+        }
+        if (BookVisibility.PUBLIC.equals(book.visibility())) {
+            return true;
+        }
+        if (BookVisibility.SHARED.equals(book.visibility())) {
+            return bookMemberRepository.existsByBookAndUser(book.id(), userId);
+        }
+        // PRIVATE без owner-match
+        return false;
+    }
+
+    @Transactional(readOnly = true)
+    public boolean canWriteBook(UUID bookId, UUID userId, String role) {
+        if (UserRole.ADMIN.equals(role)) {
+            return true;
+        }
+        Book book = bookRepository.findById(bookId)
+                .orElseThrow(() -> new BookNotFoundException(bookId));
+        return canWriteBook(book, userId);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean canWriteBook(Book book, UUID userId) {
+        if (book.createdBy() != null && book.createdBy().equals(userId)) {
+            return true;
+        }
+        // PRIVATE non-owner - запрещено
+        if (BookVisibility.PRIVATE.equals(book.visibility())) {
+            return false;
+        }
+        // SHARED / PUBLIC - write только если EDITOR
+        return bookMemberRepository.findByBookAndUser(book.id(), userId)
+                .map(BookMember::role)
+                .map(BookMemberRole.EDITOR::equals)
+                .orElse(false);
+    }
+
+    /**
+     * Только owner книги может удалять её, менять visibility и управлять
+     * членами. EDITOR этого не может. ADMIN bypass.
+     */
+    @Transactional(readOnly = true)
+    public boolean isBookOwner(UUID bookId, UUID userId, String role) {
+        if (UserRole.ADMIN.equals(role)) {
+            return true;
+        }
+        return bookRepository.findById(bookId)
+                .map(b -> b.createdBy() != null && b.createdBy().equals(userId))
+                .orElse(false);
+    }
+
+    @Transactional(readOnly = true)
+    public void assertCanReadBook(UUID bookId, UUID userId, String role) {
+        if (!canReadBook(bookId, userId, role)) {
+            throw new BookAccessDeniedException(bookId, userId);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public void assertCanWriteBook(UUID bookId, UUID userId, String role) {
+        // Если читать нельзя - access deny на уровне read. Иначе если
+        // писать нельзя - write deny. Тот же подход что для топиков.
+        if (!canReadBook(bookId, userId, role)) {
+            throw new BookAccessDeniedException(bookId, userId);
+        }
+        if (!canWriteBook(bookId, userId, role)) {
+            throw new BookWriteAccessDeniedException(bookId, userId);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public void assertIsBookOwner(UUID bookId, UUID userId, String role) {
+        if (!isBookOwner(bookId, userId, role)) {
+            throw new BookWriteAccessDeniedException(bookId, userId);
         }
     }
 }
