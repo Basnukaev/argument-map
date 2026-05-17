@@ -31,6 +31,8 @@ import ru.basnukaev.argumentmap.library.web.dto.UpdateBookRequest;
 import ru.basnukaev.argumentmap.library.web.dto.UpdateFormattedContentRequest;
 import ru.basnukaev.argumentmap.library.web.mapper.LibraryDtoMappers;
 import ru.basnukaev.argumentmap.web.CurrentUser;
+import ru.basnukaev.argumentmap.web.dto.PageRequest;
+import ru.basnukaev.argumentmap.web.dto.PagedResponse;
 
 @RestController
 @RequestMapping("/api/v1/library")
@@ -61,13 +63,33 @@ public class BookController {
                 .body(LibraryDtoMappers.toResponse(created));
     }
 
+    /**
+     * Пагинированный список книг (Этап pagination).
+     *
+     * <p>Фильтры (опциональные):
+     * <ul>
+     *   <li>{@code q} - подстрока в title (case-insensitive)</li>
+     *   <li>{@code type} - {@link BookType} (BOOK/JURISPRUDENCE/HADITH/...)</li>
+     *   <li>{@code authorityId} - автор книги (UUID)</li>
+     *   <li>{@code publisherId} - издатель (UUID, академический справочник)</li>
+     * </ul>
+     */
     @GetMapping("/books")
-    public List<BookSummaryResponse> list(
+    public PagedResponse<BookSummaryResponse> list(
             @RequestParam(name = "q", required = false) String query,
-            @RequestParam(name = "type", required = false) BookType type) {
-        return bookService.listBooks(query, type).stream()
+            @RequestParam(name = "type", required = false) BookType type,
+            @RequestParam(name = "authorityId", required = false) UUID authorityId,
+            @RequestParam(name = "publisherId", required = false) UUID publisherId,
+            @RequestParam(name = "page", required = false) Integer page,
+            @RequestParam(name = "size", required = false) Integer size) {
+        PageRequest pr = PageRequest.from(page, size);
+        List<Book> items = bookService.listBooksPage(query, type, authorityId, publisherId,
+                pr.size(), pr.offset());
+        long total = bookService.countBooks(query, type, authorityId, publisherId);
+        List<BookSummaryResponse> mapped = items.stream()
                 .map(LibraryDtoMappers::toSummary)
                 .toList();
+        return PagedResponse.of(mapped, pr.page(), pr.size(), total);
     }
 
     @GetMapping("/books/{bookId}")

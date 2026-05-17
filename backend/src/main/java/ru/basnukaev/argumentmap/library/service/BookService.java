@@ -115,6 +115,19 @@ public class BookService {
     }
 
     @Transactional(readOnly = true)
+    public List<Book> listBooksPage(String query, BookType type,
+                                    UUID authorityId, UUID publisherId,
+                                    int limit, int offset) {
+        return bookRepository.findPage(query, type, authorityId, publisherId, limit, offset);
+    }
+
+    @Transactional(readOnly = true)
+    public long countBooks(String query, BookType type,
+                           UUID authorityId, UUID publisherId) {
+        return bookRepository.countFiltered(query, type, authorityId, publisherId);
+    }
+
+    @Transactional(readOnly = true)
     public BookDetail getBookWithChapters(UUID bookId) {
         Book book = bookRepository.findById(bookId)
                 .orElseThrow(() -> new BookNotFoundException(bookId));

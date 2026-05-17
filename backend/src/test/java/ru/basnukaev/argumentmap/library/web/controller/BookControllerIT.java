@@ -172,13 +172,16 @@ class BookControllerIT {
     }
 
     @Test
-    void listBooks_returnsAllSummaries() throws Exception {
+    void listBooks_returnsPagedResponseSummaries() throws Exception {
         saveBook("a", BookType.BOOK);
         saveBook("b", BookType.QURAN);
 
         mockMvc.perform(get("/api/v1/library/books"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2));
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalElements").value(2));
     }
 
     @Test
@@ -188,8 +191,8 @@ class BookControllerIT {
 
         mockMvc.perform(get("/api/v1/library/books").param("q", "сахих"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].title").value("Сахих аль-Бухари"));
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].title").value("Сахих аль-Бухари"));
     }
 
     @Test
@@ -199,8 +202,50 @@ class BookControllerIT {
 
         mockMvc.perform(get("/api/v1/library/books").param("type", "QURAN"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].bookType").value("QURAN"));
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].bookType").value("QURAN"));
+    }
+
+    @Test
+    void listBooks_paginated_returnsCorrectPage() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            saveBook("book-" + i, BookType.BOOK);
+        }
+        mockMvc.perform(get("/api/v1/library/books")
+                        .param("page", "1").param("size", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.totalElements").value(5))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.hasPrev").value(true));
+    }
+
+    @Test
+    void listBooks_filterByAuthorityId_returnsOnlyMatching() throws Exception {
+        UUID authorityId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO authorities (id, name, created_at) VALUES (?, ?, now())",
+                authorityId, "Аль-Бухари"
+        );
+        saveBookWithAuthority("Сахих", BookType.HADITH_COLLECTION, authorityId);
+        saveBookWithAuthority("Other", BookType.BOOK, null);
+
+        mockMvc.perform(get("/api/v1/library/books")
+                        .param("authorityId", authorityId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].title").value("Сахих"));
+    }
+
+    private Book saveBookWithAuthority(String title, BookType type, UUID authorityId) {
+        Instant now = Instant.now();
+        return bookRepository.save(new Book(
+                UUID.randomUUID(), type, title, authorityId, "ar",
+                null, null, userId, now, now,
+                null, null, null, null, null, null
+        ));
     }
 
     @Test

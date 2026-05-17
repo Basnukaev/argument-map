@@ -109,6 +109,53 @@ public class BookRepository {
         return jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray());
     }
 
+    /**
+     * Пагинированный поиск книг с фильтрами.
+     * Сортировка: created_at DESC (новые сверху).
+     */
+    public List<Book> findPage(String query, BookType type,
+                               UUID authorityId, UUID publisherId,
+                               int limit, int offset) {
+        StringBuilder sql = new StringBuilder("SELECT ").append(COLUMNS)
+                .append(" FROM lib_books WHERE 1=1");
+        List<Object> args = new ArrayList<>();
+        appendFilters(sql, args, query, type, authorityId, publisherId);
+        sql.append(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
+        args.add(limit);
+        args.add(offset);
+        return jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray());
+    }
+
+    public long countFiltered(String query, BookType type,
+                              UUID authorityId, UUID publisherId) {
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM lib_books WHERE 1=1");
+        List<Object> args = new ArrayList<>();
+        appendFilters(sql, args, query, type, authorityId, publisherId);
+        Long count = jdbcTemplate.queryForObject(sql.toString(), Long.class, args.toArray());
+        return count == null ? 0L : count;
+    }
+
+    private static void appendFilters(StringBuilder sql, List<Object> args,
+                                      String query, BookType type,
+                                      UUID authorityId, UUID publisherId) {
+        if (query != null && !query.isBlank()) {
+            sql.append(" AND title ILIKE ?");
+            args.add("%" + query + "%");
+        }
+        if (type != null) {
+            sql.append(" AND book_type = ?");
+            args.add(type.name());
+        }
+        if (authorityId != null) {
+            sql.append(" AND authority_id = ?");
+            args.add(authorityId);
+        }
+        if (publisherId != null) {
+            sql.append(" AND publisher_id = ?");
+            args.add(publisherId);
+        }
+    }
+
     public boolean deleteById(UUID id) {
         return jdbcTemplate.update("DELETE FROM lib_books WHERE id = ?", id) > 0;
     }
