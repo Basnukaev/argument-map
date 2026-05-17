@@ -295,11 +295,10 @@ answer_sources в JSON. Endpoints `POST /api/v1/topics/{id}/export`
 Полезно для backup и обмена темами. **Не блокируется ничем
 внешним**. ~1 сессия
 
-**Опция C - 25.d.5 Lazy PDF streaming через backend** - сейчас
-`PdfLinksSourceProvider.downloadFile` качает **весь PDF** на бэк
-перед отдачей frontend. Лучше форвардить Range-request frontend →
-archive.org → отдавать chunks. Performance + memory улучшение.
-Связано с ADR-023. ~1-2 сессии
+**Опция C - 25.d.5 Lazy PDF streaming через backend** - **ЗАКРЫТО
+Сессия 39**. `PdfSourceProvider.openStream` + `RangeSpec` + Range
+forwarding к archive.org. 17 IT (575→592). См. ADR-023 Amendment.
+MinIO tee при cache miss + range отложен - second iteration
 
 **Опция D - Responsive/mobile sweep** - первый pass по существующим
 pages для tablet/mobile (BookReaderPage, AdminShamelaPage с

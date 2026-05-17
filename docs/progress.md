@@ -10,6 +10,89 @@
 
 ---
 
+## 2026-05-17 - Сессия 39 lazy PDF streaming 25.d.5
+
+Закрыл последний открытый пункт Этапа 25.b/d - lazy Range streaming
+для shamela PDF из archive.org через backend. До этого первое
+открытие 135MB книги блокировало юзера на ~30 сек пока бэкенд
+скачивал весь PDF целиком для кеша. Теперь Range request форвардится
+напрямую к archive.org и стримится бэкендом без буферизации в памяти.
+Backend 592 IT (+17 от 575), `mvnw verify` BUILD SUCCESS
+
+### Backend (3 commits)
+
+- `62d14e1` feat - `PdfSourceProvider.openStream(book, fileIndex,
+  RangeSpec)` как primary read path. Domain `RangeSpec(startInclusive,
+  endInclusive?)` (end nullable для open-ended `bytes=N-`) +
+  `PdfStreamingResult(stream, contentLength, start, end, totalSize,
+  isPartial)` AutoCloseable. `UserUploadProvider.openStream` - MinIO
+  native Range через `GetObjectRequest.range()`.
+  `PdfLinksSourceProvider.openStream` - cache hit MinIO Range; cache
+  miss + null range синхронный fill через `locateFile()`; cache miss +
+  range lazy forward к archive.org через `PdfFetcher.openStream`
+  (HTTP Range header добавляется). `HttpClientPdfFetcher.openStream`
+  защищён тем же `@CircuitBreaker(pdfDownload)` что и `fetch()`.
+  `PdfService.openStream` - роутер через provider.
+  `RangeNotSatisfiableException` → 416 Problem Details в
+  `GlobalExceptionHandler` с `start`/`totalSize` properties
+- `854cc69` feat - `PdfController.streamPdf` мигрирован на
+  `PdfService.openStream`. Status / headers / content строятся из
+  `PdfStreamingResult` полей. Default chunk cap 1MB сохранён.
+  `PdfControllerIT` адаптирован под новый API + новый тест
+  `streamPdf_rangeOutsideFile_returns416`
+- `f47b4e2` feat IT - `HttpClientPdfFetcherRangeStreamingIT` (новый,
+  6 тестов) через локальный `com.sun.net.httpserver.HttpServer` на
+  динамическом порту: 200 full, 206 partial, 200 при игнорировании
+  Range (mirror без Range support), 5xx → exception, open-ended
+  `bytes=N-`, 416 от upstream. JDK HttpServer выбран вместо WireMock
+  - нет нового runtime dep, sub-10мс startup. `UserUploadProviderIT`
+  (+5) и `PdfLinksSourceProviderIT` (+5) - cache hit/miss с разными
+  range scenarios + 416 + invalid fileIndex
+
+### Решения
+
+- **MinIO tee при cache miss + range?** Отложено - требует
+  `PipedInputStream` или background executor + careful sync. Сейчас
+  каждый Range request на не-кешированной книге = отдельный upstream
+  HTTP. Trade-off acceptance: latency распределена ровнее, нет
+  30-сек блока в начале. Тригерь tee когда появится production
+  traffic где много юзеров на одну книгу
+- **WireMock vs JDK HttpServer для тестов?** JDK HttpServer - нет
+  нового runtime dep, lightweight, достаточно для контракт-уровня.
+  WireMock дал бы advanced features (recording / fault injection)
+  которые на этом уровне не нужны
+- **Default method в `PdfSourceProvider.openStream`?** Нет -
+  явный signature каждому provider'у заставляет подумать про lazy
+  семантику конкретно для своего источника. Default через `locateFile`
+  + `MinIO.getRange` дал бы regression к старому поведению для
+  PdfLinks (полный download)
+- **Удалить `locateFile` после миграции на `openStream`?** Нет -
+  используется в IT (cache verification, multi-volume), при cache
+  miss + null range (admin smoke / full download path). Не deprecated
+
+### Docs
+
+- ADR-023 **Amendment 2026-05-17** в `decisions.md` про lazy
+  streaming - rejected alternatives (tee, double request, no-cache)
+- `roadmap.md` 25.d.5 → `[x]` с описанием
+- `api-contract.md` PDF API раздел расширен: Range header semantics,
+  Content-Range, lazy streaming описание, 416 ошибка, 503 circuit
+  breaker
+
+### Verify
+
+- Backend: `./mvnw verify` 592/592 BUILD SUCCESS
+- Smoke curl - см. отчёт
+
+### Следующий шаг
+
+Этап 25 PDF Viewer почти закрыт - остаются `25.d.2` (text↔pdf page
+sync, Tier 1 admin flow), `25.d.4` (inline PDF preview redesign),
+`25.e/f` (после Этапа 17). Можно переключаться на любой пункт из
+SESSION_START_PROMPT по выбору Абдулы
+
+---
+
 ## 2026-05-17 - Сессия 39 финал, Этап 6 JSON export/import
 
 Закрыл единственный нетронутый пункт Этапа 6 - JSON-сериализация темы

@@ -366,10 +366,17 @@ headings, color highlights). Подробный план - в `docs/backlog.md`
       PDF на каждой странице text mode, при клике открывается inline
       preview PDF этой страницы внизу. См. `shamela_page_view.png` +
       `after_click_on_pdf_icon_shamela.png` в design-reference
-- [ ] **25.d.5: Lazy streaming через backend** - сейчас
-      `PdfLinksSourceProvider.downloadFile` качает **весь PDF** на бэк.
-      Lazy streaming: форвардить Range-request frontend → archive.org
-      → отдавать chunks по мере получения. Связано с ADR-023
+- [x] **25.d.5: Lazy streaming через backend** (Сессия 39, ADR-023
+      Amendment) - `PdfSourceProvider.openStream(book, fileIndex,
+      RangeSpec)` стал primary read path. UserUpload через MinIO
+      native Range. PdfLinks: cache hit MinIO Range, cache miss + range
+      lazy forward к archive.org (HTTP Range header), cache miss +
+      null range синхронный fill через `locateFile()` (legacy для
+      admin smoke). `RangeNotSatisfiableException` → 416 Problem
+      Details. Первый Range запрос на 135MB книгу теперь 1-2 сек
+      вместо 30 сек. MinIO tee при cache miss + range отложен -
+      второй итерацией если будет реальный production traffic.
+      17 IT (575→592 backend pass)
 - [ ] **25.e:** admin manual page-mapping (Tier 1, опционально)
 - [ ] **25.f:** region selection через react-image-crop +
       `POST /api/v1/library/pages/{id}/regions` (после Этапа 17)

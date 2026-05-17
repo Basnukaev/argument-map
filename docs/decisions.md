@@ -1764,6 +1764,92 @@ E) **Skip миграции и сделать всё через jsonb** - не т
 Эти вопросы решатся когда дойдём до фактической миграции, на основе
 актуальных требований.
 
+### Amendment 2026-05-17 - Lazy PDF streaming через backend (25.d.5)
+
+**Контекст:**
+PDF download был назван первым приоритетом миграции в основном тексте
+ADR. На WSL2 corporate proxy первое открытие книги (135MB тафсир Ибн
+Касира) - юзер ждёт ~30 секунд пока backend качает полный PDF, после
+чего pdf.js делает Range requests которые отдаются мгновенно из MinIO
+кеша. UX неприемлемый: 30 сек blocking на первый клик «Открыть PDF»
+
+**Решение:**
+Не дожидаясь полной микросервисной миграции (broker, workers,
+checkpoints) - реализуем **lazy Range forwarding** в монолите:
+
+1. `PdfSourceProvider` расширен методом `openStream(book, fileIndex,
+   range)` - primary read path для controller
+2. `RangeSpec(startInclusive, endInclusive?)` - end nullable для
+   open-ended `bytes=N-`
+3. `PdfStreamingResult(stream, contentLength, start, end, totalSize,
+   isPartial)` AutoCloseable - controller закрывает после
+   `transferTo(output)`
+4. **PdfLinksSourceProvider** flow:
+   - Cache hit (в `library_files`) → MinIO Range через
+     `GetObjectRequest.range()` - быстро, никакого upstream
+   - Cache miss + `range == null` (полный download) → синхронный
+     fill через `locateFile()` (legacy path для admin smoke)
+   - Cache miss + `range != null` → **lazy forward** к archive.org
+     через `PdfFetcher.openStream` с `Range: bytes=N-M` header.
+     Bytes стримятся upstream → backend → клиент **без буферизации**
+     полного content в памяти. MinIO кеш не пополняется при этом
+     flow (избегаем сложности tee)
+5. **UserUploadProvider** flow: MinIO native Range всегда -
+   blob уже в bucket'е, никакого upstream
+6. `RangeNotSatisfiableException` → HTTP 416 в
+   `GlobalExceptionHandler` с `start`/`totalSize` properties в
+   Problem Details
+
+**Альтернативы (rejected):**
+- **Tee при cache miss + range** - параллельно стримить юзеру и
+  писать в MinIO для будущих cache hits. Отклонено: требует
+  `PipedInputStream` или background executor + careful
+  synchronization, легко поломать stream lifecycle. Реализация tee
+  откладывается как nice-to-have - сейчас под первым Range запросом
+  каждый раз идёт upstream forward (не идеально но рабочее).
+  Триггер для tee - реальный production traffic где много юзеров
+  на одну книгу
+- **Range request к archive.org с автоматическим cache fill через
+  HEAD/full запрос потом** - удвоенный traffic на upstream
+- **Полностью отказаться от MinIO кеша для PdfLinks** - upstream
+  всегда forward'ом. Отклонено: при stable cache hit (после первого
+  full download) MinIO Range на порядок быстрее archive.org через
+  proxy + защищает от deletion на upstream (см. основной ADR-024
+  про permanent storage)
+
+**Последствия:**
+- (+) Первый Range запрос (типично PDF.js bytes=0-65535 для PDF
+  header parse) теперь 1-2 сек вместо 30 сек на 135MB книгу
+- (+) Backend memory footprint стабильно низкий - даже параллельные
+  открытия больших PDF не съедают heap (раньше теоретически могли
+  если N юзеров одновременно)
+- (+) Все existing flows работают как раньше (UserUpload через
+  MinIO, PdfLinks с уже закешированным файлом)
+- (+) `locateFile` остаётся - используется в integration tests + при
+  cache miss + null range. Не deprecated
+- (−) При cache miss каждый Range request - отдельный HTTP к
+  archive.org. Если юзер читает 10 страниц последовательно - 10
+  отдельных upstream вызовов вместо одного full download + 10 кешед
+  range. Trade-off acceptance: latency распределена ровнее, нет
+  30-сек блока в начале. Tee для cache fill - следующая итерация
+- (−) Circuit breaker `pdfDownload` теперь срабатывает в двух местах
+  (`fetch` + `openStream`). Семантика одинаковая - failure любого
+  считается за один circuit hit. Это правильно - оба бьют тот же
+  archive.org endpoint
+
+**Метрики на observability:**
+Существующий `/actuator/circuitbreakers` показывает OPEN/CLOSED
+state. Specific метрик lazy streaming пока не добавляли - можно
+через micrometer добавить `pdf.openStream.requests` /
+`pdf.openStream.fallback` / `pdf.bytes.streamed` если будет нужно
+для production
+
+**Связь:**
+- ADR-024 (object storage) - MinIO Range как cache backend
+- ADR-035 (user-upload PDF) - UserUploadProvider использует тот же
+  openStream API
+- Этап 25.d.5 в roadmap.md - реализация
+
 ## ADR-024: Object storage strategy - permanent S3-compatible storage + Postgres catalog + four-bucket criticality split
 
 **Дата:** 2026-05-12

@@ -1110,28 +1110,45 @@ Query: `fileIndex` (optional, default 0) - индекс файла из info.fil
 
 Headers:
 - `Range: bytes=START-END` (optional) - частичная загрузка
+- `Range: bytes=START-` (optional) - open-ended до конца файла
 
 Response 200 (full) или 206 Partial Content (range):
 - `Accept-Ranges: bytes`
 - `Content-Type: application/pdf`
 - `Content-Length` - размер выдаваемого chunk'а
+- `Content-Range: bytes START-END/TOTAL` (только при 206)
 
 Сервер ограничивает chunk до 1MB (`DEFAULT_CHUNK_SIZE`). Если клиент
 запросит `bytes=0-10000000` (10MB) - вернёт 1MB и `Content-Range`
 покажет реально отданный диапазон. PDF.js делает следующий запрос на
 оставшееся.
 
-Ошибки: 404 `book-not-found`, 404 `pdf-not-available` (книга без
-PDF-источника или fileIndex out of range).
+**Lazy streaming (25.d.5, ADR-023 amendment):** для books из shamela /
+archive.org backend с поддержкой Range проксирует chunks напрямую -
+не качает полный PDF в backend на первом запросе. Cache hit
+(уже скачанная книга) идёт мгновенно из MinIO Range, cache miss с
+Range заголовком форвардится upstream Range request к archive.org с
+streaming bytes через backend без буферизации полного файла. Cache
+miss без Range (admin smoke / full download) синхронно скачивает +
+кеширует.
 
-### Что **не** реализовано в PDF Viewer (Этап 25.a)
+Ошибки:
+- 404 `book-not-found`, `pdf-not-available` (книга без PDF-источника
+  или fileIndex out of range)
+- 416 `range-not-satisfiable` - Range start >= размера файла
+  (properties: `start`, `totalSize`)
+- 503 - circuit breaker `pdfDownload` открыт (archive.org недоступен,
+  fail fast вместо 5-минутного blocking)
 
-- **MinIO cache** (25.b) - сейчас PDF качается в локальный
-  `${library.pdf.temp-dir}` каталог и остаётся (in-process cache).
-  При рестарте контейнера - кеш теряется. MinIO с TTL добавим
-  следующим коммитом
-- **PDF page count** - sizeBytes и pageCount в info.files всегда
-  null. Заполнятся когда добавим HEAD-prefetch или PDF.js page count
+### Что **не** реализовано в PDF Viewer
+
+- **MinIO tee при cache miss + Range** - при первом Range request к
+  не-кешированной книге сейчас идёт upstream forward без записи в
+  MinIO (см. ADR-023 Amendment). Tee для постепенного cache fill -
+  во второй итерации если будет реальный production traffic
+- **PDF page count для shamela books** - sizeBytes и pageCount в
+  `info.files` для PdfLinks книг всегда null. User-upload PDF имеет
+  pageCount (PDFBox extraction в FileImportService)
 - **Region selection** (25.f) - выделение прямоугольников на скане
   для region-based citation. После CitationPicker
 
