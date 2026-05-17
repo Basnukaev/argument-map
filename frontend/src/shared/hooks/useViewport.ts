@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 /**
  * Tailwind v4 default breakpoints (px). Используются для consistency
@@ -16,9 +16,16 @@ export const BREAKPOINTS = {
   xl: 1280,
 } as const;
 
+const SERVER_SNAPSHOT = false;
+
 /**
  * Подписка на медиа-запрос `(max-width: {breakpointPx - 1}px)`.
  * Возвращает `true` если viewport уже мобильный
+ *
+ * Реализация через `useSyncExternalStore` - правильный паттерн для
+ * subscription к browser API без useEffect + setState (eslint правило
+ * react-hooks/set-state-in-effect). Снимок берётся синхронно через
+ * `matchMedia(query).matches`, подписка через `mql.addEventListener`
  *
  * Используй для **conditional logic** (другой компонент, drawer-pattern
  * вместо right-panel, разные хэндлеры) - для **стилей** предпочтительнее
@@ -27,19 +34,19 @@ export const BREAKPOINTS = {
  * Default breakpoint - 768px (md). Ниже = mobile, выше = tablet/desktop
  */
 export function useIsMobile(breakpointPx: number = BREAKPOINTS.md): boolean {
-  const [isMobile, setIsMobile] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return window.matchMedia(`(max-width: ${breakpointPx - 1}px)`).matches;
-  });
+  const query = `(max-width: ${breakpointPx - 1}px)`;
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const mql = window.matchMedia(`(max-width: ${breakpointPx - 1}px)`);
-    setIsMobile(mql.matches);
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mql.addEventListener('change', handler);
-    return () => mql.removeEventListener('change', handler);
-  }, [breakpointPx]);
+  function subscribe(notify: () => void): () => void {
+    if (typeof window === 'undefined') return () => {};
+    const mql = window.matchMedia(query);
+    mql.addEventListener('change', notify);
+    return () => mql.removeEventListener('change', notify);
+  }
 
-  return isMobile;
+  function getSnapshot(): boolean {
+    if (typeof window === 'undefined') return SERVER_SNAPSHOT;
+    return window.matchMedia(query).matches;
+  }
+
+  return useSyncExternalStore(subscribe, getSnapshot, () => SERVER_SNAPSHOT);
 }

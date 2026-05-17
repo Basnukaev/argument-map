@@ -13,9 +13,17 @@ interface MqlMock {
   dispatch: (matches: boolean) => void;
 }
 
-function installMatchMedia(initialWidth: number): { get: () => MqlMock } {
-  let mql: MqlMock | null = null;
+/**
+ * matchMedia mock с singleton-by-query - useSyncExternalStore переcoздаёт
+ * matchMedia call в getSnapshot после каждого notify, и если фабрика
+ * возвращает новый instance с initial matches - тест зафиксируется
+ * на initial значении. Singleton same query → updated matches
+ */
+function installMatchMedia(initialWidth: number): { dispatch: (m: boolean) => void } {
+  const cache = new Map<string, MqlMock>();
   const factory = (query: string): MqlMock => {
+    const cached = cache.get(query);
+    if (cached) return cached;
     const match = /max-width:\s*(\d+)px/.exec(query);
     const max = match ? Number(match[1]) : Infinity;
     const instance: MqlMock = {
@@ -33,20 +41,18 @@ function installMatchMedia(initialWidth: number): { get: () => MqlMock } {
         this.listeners.forEach((l) => l({ matches } as MediaQueryListEvent));
       },
     };
-    mql = instance;
+    cache.set(query, instance);
     return instance;
   };
-  vi.stubGlobal('matchMedia', vi.fn(factory));
-  // window.matchMedia тоже надо подменить - jsdom использует window object
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     configurable: true,
     value: vi.fn(factory),
   });
   return {
-    get: () => {
-      if (!mql) throw new Error('matchMedia ещё не вызван');
-      return mql;
+    dispatch(m: boolean) {
+      // dispatch на любом cached query - в тестах используем один query
+      cache.forEach((mql) => mql.dispatch(m));
     },
   };
 }
@@ -72,9 +78,9 @@ describe('useIsMobile', () => {
     const ctx = installMatchMedia(1024);
     const { result } = renderHook(() => useIsMobile());
     expect(result.current).toBe(false);
-    act(() => ctx.get().dispatch(true));
+    act(() => ctx.dispatch(true));
     expect(result.current).toBe(true);
-    act(() => ctx.get().dispatch(false));
+    act(() => ctx.dispatch(false));
     expect(result.current).toBe(false);
   });
 
