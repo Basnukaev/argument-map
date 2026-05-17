@@ -146,7 +146,7 @@ function Header() {
 
           <div className="hidden md:contents">
             <BellMenu />
-            <AvatarMenu initials="AB" />
+            <AvatarMenu />
           </div>
         </div>
       </header>
