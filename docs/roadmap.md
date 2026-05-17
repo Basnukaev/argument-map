@@ -157,6 +157,57 @@
       расширен опциональным `hint`. ui-guidelines дополнены
       секцией «Destructive actions»
 
+### User feedback Responsive (Сессия 39)
+
+Production-prep работа по адаптации UI под mobile/tablet. До этой
+сессии всё было оптимизировано под desktop 1280+
+
+**Фаза 1 - критические точки для mobile usability:**
+
+- [x] **`useIsMobile` hook** - shared/hooks/useViewport.ts через
+      useSyncExternalStore(matchMedia). Default breakpoint - Tailwind
+      `md` (768px). Тест-setup получил polyfill для window.matchMedia
+      + HTMLDialogElement.showModal/close (jsdom не реализует)
+- [x] **Select adaptive max-height** - заменил condit `max-h-64`
+      (только при опций > maxVisibleItems) на CSS-only
+      `max-h-[min(16rem,50vh)]` - на mobile menu не вылезает за viewport
+- [x] **Modal full-screen на mobile** - fixed inset-0 + h-dvh +
+      w-screen без rounded corners. Header получает back-arrow вместо
+      close-X (стандартный mobile dismiss pattern). Все existing
+      callsites (FormModal, Add*Modal, FileUploadModal,
+      CitationPicker) автоматически наследуют через базовый Modal.
+      Modal.test.tsx новый с 5 тестами desktop + mobile coverage
+- [x] **NodeDetailsPanel fullscreen overlay на mobile** - 400px
+      right-side panel на mobile занимал почти весь viewport и
+      блокировал граф. На <md переключается на fixed inset-0 z-50
+      overlay - чтение/редактирование становится independent task.
+      Через useIsMobile + conditional className
+- [x] **Header compact + hamburger menu** - на <md hamburger
+      кнопка перед logo, inline nav скрыт (hidden md:flex), drawer
+      открывается через Modal. Compact padding (gap-2 px-3 vs gap-6
+      px-6 на desktop). Right cluster компактнее - только Locale +
+      Theme inline, остальное в drawer. Header остаётся h-12 (48px)
+
+**Фаза 2 - важно но не блокирует (вынесено в backlog):**
+
+- [ ] BookReaderPage layout (двухколонник 280px+main) -
+      drawer/bottom-sheet для chapters tree на mobile
+- [ ] Sticky text toolbar (Сессия 27) - mobile browser
+      bottom-bar collapsing → sticky прыгает. position: fixed +
+      padding альтернатива
+- [ ] PdfViewer toolbar (6+ items) - overflow menu или vertical
+      stack на mobile
+- [ ] TopicListPage cards layout - 1 col → 2 → 3+ на md/lg
+- [ ] QuestionListPage cards layout - то же
+- [ ] CreateQuestionPage hint panel - 2-col → 1-col на mobile
+- [ ] AdminShamelaPage - vertical stack из 3 Card блоков, table
+      horizontal scroll
+- [ ] CitationPicker - tab switcher вместо двух колонок books/pages
+- [ ] FileUploadModal - 6 academic полей в 1 col на mobile
+- [ ] BookListPage filter chips - overflow scrollbar или wrap
+
+Полный список Фазы 2 - в `docs/backlog.md` секция Responsive
+
 ### Этап 6. Улучшения бэкенда (после MVP, не блокирует другие)
 
 - [ ] Реализация Dung's argumentation framework для продвинутого пересчёта

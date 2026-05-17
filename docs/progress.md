@@ -10,6 +10,110 @@
 
 ---
 
+## 2026-05-17 - Сессия 39 Responsive Фаза 1
+
+Production-prep работа по адаптации UI под mobile (375+) и tablet
+(768+) viewport. До этой сессии всё было оптимизировано под desktop
+1280+. Закрыта **Фаза 1** - 4 критические точки которые ломали
+mobile usability. Фаза 2 (10 точек) вынесена в backlog с явными
+TODO. Frontend 179/179 tests pass (+9 новых: 4 useViewport + 5
+Modal), lint 0 errors, build SUCCESS
+
+### Frontend (6 commits)
+
+- `58584df` feat - `shared/hooks/useViewport.ts` с `useIsMobile()`
+  hook и `BREAKPOINTS` constant. Foundation для conditional logic
+  где нужна другая структура компонента (не просто стили).
+  `test-setup.ts` получил polyfill для `window.matchMedia` и
+  `HTMLDialogElement.showModal/close` - jsdom не реализует, без
+  них любой компонент использующий `useIsMobile` или `<dialog>`
+  падал в тестах. Default polyfill = desktop viewport
+- `9580317` feat - `Select` adaptive `max-h`. Заменил condit
+  `max-h-64` (только при опций > maxVisibleItems) на CSS-only
+  `max-h-[min(16rem,50vh)]` - на mobile menu не вылезает за viewport,
+  на desktop ведёт себя как раньше (16rem ≈ 12 опций)
+- `9f14528` feat - `Modal` full-screen overlay на mobile. На <md
+  (768px): `fixed inset-0 h-dvh w-screen` без rounded corners,
+  header с `<ArrowLeft>` back-button вместо close-X (стандартный
+  mobile dismiss). На md+ - centered с rounded и max-w. Через
+  `useIsMobile()` conditional class. Все existing call sites
+  (FormModal, AddNodeModal, AddEdgeModal, AddSourceModal,
+  FileUploadModal, CitationPicker) автоматически получают mobile
+  mode без правок. `Modal.test.tsx` новый: 5 тестов desktop + mobile
+- `f8a10f5` feat - `NodeDetailsPanel` fullscreen overlay на mobile.
+  400px right-side panel на mobile занимал почти весь viewport и
+  блокировал граф. На <md теперь `fixed inset-0 z-50` - чтение и
+  редактирование узла становится independent task, закрытие через
+  back-arrow возвращает в граф. Desktop без изменений (absolute end-0
+  + 400px). Замена `X` → `ArrowLeft` icon в close button на mobile
+- `6839b27` feat - `Header` compact + hamburger menu drawer на
+  mobile. Inline nav (4 пункта) + 6 right actions переполняли 375px.
+  На <md: `<Menu>` кнопка перед logo, inline nav `hidden md:flex`,
+  drawer открывается через `Modal` (fullscreen из Фазы 1) с nav
+  links + Search + Settings actions. Compact padding (gap-2 px-3
+  vs gap-6 px-6 desktop). Right cluster - только Locale + Theme
+  inline (часто переключаемые узкие affordance), остальное в
+  drawer. Header остаётся h-12 (48px) ≤60px требования
+- `92b4156` refactor - `useIsMobile` переведён с `useEffect+setState`
+  на `useSyncExternalStore` (React 18+ API). eslint правило
+  `react-hooks/set-state-in-effect` (default error в проекте)
+  поймало старый паттерн. Behavior идентичный
+
+### Решения
+
+- **Conditional render vs CSS-only для responsive?** Для стилей
+  и visibility - Tailwind breakpoint prefix (`hidden md:flex`).
+  Для **смены структуры компонента** (другой layout, другой
+  handler, drawer vs panel) - `useIsMobile()`. Не использовать
+  hook когда CSS prefix достаточен - runtime overhead +
+  SSR-incompatibility hazard
+- **Bottom-sheet vs fullscreen для NodeDetailsPanel?** Выбран
+  fullscreen overlay - проще, переиспользует тот же inset-0
+  pattern что Modal, не плодит компоненты. Bottom-sheet требовал
+  бы drag-handle, swipe-to-dismiss UX, отдельный animation flow.
+  Если в Фазе 2 появятся узлы с большим objectom (10+ сущностей)
+  - можно вернуться к bottom-sheet
+- **useEffect + setState vs useSyncExternalStore?** Изначально
+  написал старый pattern, eslint поймал. Перешёл на правильный
+  React 18+ API - чище и без warning. Mock в тесте singleton-by-query
+  потому что useSyncExternalStore re-reads getSnapshot после notify
+- **Stash + restore dictionary?** В working tree были uncommitted
+  parallel polish изменения (Settings/* keys для Settings page).
+  Я случайно stash'нул их вместе с Header, потом restore через
+  `git apply --3way` - сохранил оба набора (мои nav.menu_* +
+  parallel polish settings.*). Гигиена commits сохранена -
+  parallel polish осталось untracked в working tree
+
+### Docs
+
+- `roadmap.md` - новая активная секция «User feedback Responsive»
+  с Фазой 1 `[x]` + Фазой 2 `[ ]` (10 точек)
+- `backlog.md` - раздел «Responsive» переписан под Фазу 2 с
+  acceptance criteria
+- `frontend/docs/coding-standards.md` - новая секция «Responsive»
+  с правилами mobile-first, когда CSS, когда JS, Modal pattern,
+  `dvh` vs `vh`, testing
+
+### Verify
+
+- Frontend: `npm run lint` 0 errors, `npx tsc --noEmit` 0 errors,
+  `npm test -- --run` 179/179 pass, `npm run build` SUCCESS
+- Playwright @ 375px (iPhone SE): TopicListPage с visible hamburger
+  + bismillah logo + locale/theme в compact header, hamburger menu
+  drawer fullscreen с back-arrow, BookListPage 1-column cards (filter
+  chips - известная Фаза 2 issue), desktop @ 1280 не сломан -
+  скрины в `/tmp/responsive-sweep-*.png`
+
+### Следующий шаг
+
+Фаза 2 - 10 точек в backlog. Самые важные: BookReaderPage layout
+(chapters drawer), PdfViewer toolbar overflow, TopicListPage /
+QuestionListPage cards grid responsive. Можно делать
+инкрементально в любой следующей сессии когда придёт user
+feedback с конкретного экрана
+
+---
+
 ## 2026-05-17 - Сессия 39 lazy PDF streaming 25.d.5
 
 Закрыл последний открытый пункт Этапа 25.b/d - lazy Range streaming

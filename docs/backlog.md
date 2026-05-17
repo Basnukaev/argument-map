@@ -41,27 +41,53 @@
 
 ## Responsive / mobile-планшетная адаптация
 
-UI сейчас спроектирован под desktop (viewport 1280+). При работе
-над mobile/tablet нужно пересмотреть:
+Фаза 1 (критические точки) закрыта в Сессии 39 - см. roadmap
+секцию «User feedback Responsive». Здесь - **Фаза 2** для
+следующих сессий
 
-- **Select.maxVisibleItems** в `shared/components/ui/Select.tsx` -
-  сейчас default 12 (без scrollbar при ≤12 опций). На мелком
-  viewport или с большим zoom 12 опций могут не уместиться
-  вертикально - получим overflow без scrollbar. Сделать adaptive:
-  либо count меньше для small screens (через breakpoint hook), либо
-  CSS-based max-height через `min(64rem, 50vh)` чтобы scrollbar
-  appearance зависел от реальной высоты viewport, не от count
-- **BookReaderPage layout** - двухколонник 280px sidebar + main
-  сейчас. На mobile нужно либо drawer/sheet для chapters tree, либо
+**Foundation готов** - `useIsMobile` hook (shared/hooks/useViewport),
+Modal/Header/NodeDetailsPanel умеют responsive, Select adaptive
+max-height. Любая работа Фазы 2 может опираться на эти примитивы
+
+### Фаза 2 - чек-лист (приоритет от важности к удобству)
+
+- [ ] **BookReaderPage layout** - двухколонник 280px sidebar + main
+  на mobile нужно либо drawer/sheet для chapters tree, либо
   bottom-tabs. PdfViewer внутри bottom-sheet (h-65vh) на mobile
-  занимает весь экран - нужна другая UX flow
-- **Sticky text toolbar** (Сессия 27) - sticky top-2 z-30 работает
-  на desktop. Mobile: нужно учесть browser bottom address-bar
-  collapsing, sticky может прыгать. Возможно `position: sticky`
-  заменить на `position: fixed top-0` с padding на main
-- **PdfViewer toolbar** - 6+ items в одну строку (prev/next + page
-  input + zoom + download + PDF tab). На mobile нужно либо вынести
-  в overflow menu, либо переключить на вертикальный stack
+  занимает весь экран - нужна другая UX flow. Возможно chapters
+  drawer открывается слева через тот же Modal full-screen pattern
+- [ ] **Sticky text toolbar** (Сессия 27) - sticky top-2 z-30
+  работает на desktop. Mobile: browser bottom address-bar collapsing
+  → sticky прыгает. Заменить на `position: fixed top-0` с padding
+  на main, либо использовать `--vh-stable` token через CSS
+  `100dvh` уже доступен (см. Modal)
+- [ ] **PdfViewer toolbar** - 6+ items в одну строку (prev/next +
+  page input + zoom + download + PDF tab). На mobile вынести в
+  overflow menu (3-dots) или переключить на вертикальный stack
+- [ ] **TopicListPage cards layout** - сейчас фиксированная сетка,
+  на mobile должна быть 1 col → 2 (md) → 3+ (lg/xl)
+- [ ] **QuestionListPage cards layout** - то же что TopicListPage
+- [ ] **CreateQuestionPage hint panel** - 2-column form + hint на
+  mobile стек 1-column. Hint можно убрать в collapsible accordion
+- [ ] **AdminShamelaPage** - 3 Card блока (sync / file upload /
+  search). Mobile - вертикальный стек, search таблица скроллится
+  горизонтально или columns hide
+- [ ] **CitationPicker модалка** - книги слева + страницы справа
+  на mobile превратить в tab switcher вместо двух колонок (Modal
+  уже full-screen на mobile из Фазы 1)
+- [ ] **FileUploadModal** - 6 academic полей в 1 column на mobile
+  (collapsible academic section 16.g уже есть, нужен grid
+  responsive)
+- [ ] **BookListPage filter chips** - overflow horizontal scrollbar
+  (стандарт mobile pattern для категорий) либо wrap в multiple
+  lines с `flex-wrap`
+
+### Acceptance criteria для Фазы 2
+
+- 0 horizontal scroll на 375px для каждого тронутого экрана
+- Hover-only взаимодействия имеют tap-альтернативу
+- Тесты компонентов не сломались (наследуют через breakpoint
+  prefix, не заменяют desktop styles)
 
 ## Будущие фичи (исламский контекст и расширения из дизайн-референса)
 

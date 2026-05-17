@@ -475,6 +475,86 @@ Unicode Bidi Algorithm может склеить цифры с соседним�
 запрещены. `isArabicText` в `shared/components/reader/utils`
 сохраняется как алиас для читаемости reader-кода.
 
+## Responsive
+
+UI должен работать на mobile (375px+) и tablet (768px+) viewport.
+Фаза 1 (Modal, Header, NodeDetailsPanel, Select) закрыта в Сессии
+39 - см. `docs/roadmap.md` секция «User feedback Responsive»
+
+### Mobile-first + breakpoint prefixes
+
+Базовые стили - **для mobile**, breakpoint prefix добавляет desktop:
+
+```tsx
+// правильно: mobile base + md: override
+<div className="flex flex-col gap-2 md:flex-row md:gap-4">
+
+// неправильно: desktop base + max-md: override
+<div className="flex flex-row gap-4 max-md:flex-col max-md:gap-2">
+```
+
+Tailwind v4 default breakpoints:
+- `sm:` 640px
+- `md:` 768px (mobile/tablet boundary)
+- `lg:` 1024px
+- `xl:` 1280px
+
+### Когда CSS, когда JS
+
+**CSS-only (предпочтительно)** - стили / визуальный layout:
+
+```tsx
+// показать/скрыть, поменять direction, gap, padding
+<nav className="hidden md:flex" />
+<div className="flex flex-col md:flex-row" />
+```
+
+**`useIsMobile()` hook** из `@/shared/hooks/useViewport` - когда
+нужна **другая структура компонента** или conditional event handler:
+
+```tsx
+// модалка fullscreen на mobile vs centered на desktop
+const isMobile = useIsMobile();
+const dialogClass = isMobile
+  ? 'm-0 h-dvh w-screen'
+  : 'm-auto max-w-lg rounded-lg';
+
+// hamburger menu vs inline nav
+{isMobile && <IconButton icon={Menu} onClick={openDrawer} />}
+<nav className="hidden md:flex">{links}</nav>
+```
+
+Не использовать `useIsMobile()` там, где breakpoint prefix достаточен -
+это runtime overhead + SSR-incompatibility hazard
+
+### Modal / overlay pattern на mobile
+
+Базовый `Modal` (shared/components/ui/Modal) автоматически
+переключается:
+- mobile: full-screen (`inset-0`, `h-dvh`, `w-screen`), back-arrow
+  в header вместо close-X
+- desktop: centered (`m-auto`), max-w, rounded
+
+Все custom overlay (NodeDetailsPanel, EdgeDetailsPanel, бизнес-
+панели) - **должны** делать тот же switch через `useIsMobile()`:
+right-side panel на mobile блокирует основной content. Либо
+fullscreen overlay (как NodeDetailsPanel), либо bottom-sheet
+(`fixed bottom-0 inset-x-0 max-h-[80vh] rounded-t-2xl`)
+
+### `dvh` вместо `vh`
+
+Mobile browser address-bar collapsing - на iOS Safari / Chrome
+`100vh` шире viewport когда bar развёрнут. Использовать `h-dvh`
+(dynamic viewport height) - корректное значение в обоих состояниях.
+Modal Фазы 1 уже использует
+
+### Testing
+
+`window.matchMedia` polyfill добавлен в `src/test-setup.ts` -
+default `matches=false` (desktop). Тесты которым нужно эмулировать
+mobile - переопределяют через свой `beforeEach` (см.
+`Modal.test.tsx::stubMatchMedia`)
+
 ## Код-ревью
 
 При ревью кода проверять в порядке:
