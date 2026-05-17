@@ -1,0 +1,72 @@
+/*
+ * Tiptap custom extensions styling (Этап 17.0, ADR-039).
+ *
+ * Базовая типографика классических арабских тахкиков. Каждое
+ * правило соответствует одному custom node из shared/components/editor/
+ * extensions/. Первый extension - HadithBox; следующие добавляются
+ * по мере implementation (см. ADR-039 список 8 extensions).
+ *
+ * Цвета через rgb() с CSS opacity а не Tailwind toolkit - этот файл
+ * не идёт через Tailwind compiler. После того как extensions
+ * стабилизируются - перевести на tokens.css custom properties.
+ */
+
+/* HadithBox (Этап 17.0) - блочный node для цитаты хадиса с
+   peach/розовым background, dashed border, "«" ornament в углу.
+   Имитирует classical tahqiq стиль (Дар аль-Кутуб аль-Ильмия). */
+.hadith-box {
+  background: rgb(254 226 226 / 0.5);
+  border: 1px dashed rgb(252 165 165);
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+  margin: 1rem 0;
+  position: relative;
+}
+
+/* "«" в углу - визуальный indicator quote-блока. По умолчанию слева
+   сверху (LTR), для RTL - справа. Используем left/right в этом
+   pseudo-element CSS, поскольку ::before внутри Tailwind logical
+   classes не поддерживается напрямую - dir-aware override ниже */
+.hadith-box::before {
+  content: '«';
+  position: absolute;
+  top: -0.5rem;
+  left: 0.5rem;
+  font-size: 2rem;
+  color: rgb(252 165 165);
+  background: rgb(255 255 255);
+  padding: 0 0.25rem;
+  line-height: 1;
+}
+
+/* RTL mirror - "«" перемещается справа налево */
+[dir='rtl'] .hadith-box::before {
+  left: auto;
+  right: 0.5rem;
+  content: '»';
+}
+
+/* Dark mode adjustments - peach контрастнее на тёмном фоне */
+@media (prefers-color-scheme: dark) {
+  .hadith-box {
+    background: rgb(127 29 29 / 0.2);
+    border-color: rgb(185 28 28);
+  }
+  .hadith-box::before {
+    background: rgb(31 41 55); /* gray-800 как elevated dark */
+    color: rgb(252 165 165);
+  }
+}
+
+/* Tiptap ProseMirror focus / cursor стили - минимальный override
+   чтобы кастомный focus ring был не блокирующий, а ненавязчивый */
+.ProseMirror:focus {
+  outline: none;
+}
+
+/* Editing UX hint - если HadithBox пустой, показываем placeholder
+   "Текст хадиса..." через CSS (Tiptap Placeholder extension стоит
+   отложить до AddSourceModal-style UX) */
+.hadith-box .ProseMirror-trailingBreak {
+  display: none;
+}
