@@ -148,6 +148,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/library/imports/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["uploadFile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/library/books": {
         parameters: {
             query?: never;
@@ -936,6 +952,19 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
         };
+        FileImportResponse: {
+            /** Format: uuid */
+            bookId?: string;
+            /** Format: uuid */
+            fileId?: string;
+            /** Format: int32 */
+            pageCount?: number;
+            contentHash?: string;
+            /** Format: int64 */
+            sizeBytes?: number;
+            bucket?: string;
+            storageKey?: string;
+        };
         CreateBookRequest: {
             /** @enum {string} */
             bookType: "QURAN" | "HADITH_COLLECTION" | "BOOK" | "ARTICLE" | "MANUSCRIPT";
@@ -1649,6 +1678,43 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["NodeSourceResponse"];
+                };
+            };
+        };
+    };
+    uploadFile: {
+        parameters: {
+            query?: {
+                title?: string;
+                authorityId?: string;
+                language?: string;
+                description?: string;
+            };
+            header: {
+                /** @description UUID текущего пользователя (ADR-006, временно до Spring Security в Этапе 6) */
+                "X-User-Id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                    /** Format: uuid */
+                    currentUserId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileImportResponse"];
                 };
             };
         };

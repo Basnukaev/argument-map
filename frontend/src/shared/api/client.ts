@@ -75,29 +75,43 @@ const MUTATING_METHODS: ReadonlySet<Method> = new Set(['POST', 'PATCH', 'PUT', '
 interface RequestOptions {
   method?: Method;
   body?: unknown;
+  /**
+   * Тело уже как FormData - не json-сериализуется, Content-Type не
+   * выставляется вручную (браузер сам добавит multipart boundary).
+   * Игнорируется если method=GET.
+   */
+  formData?: FormData;
   signal?: AbortSignal;
 }
 
 /**
  * Низкоуровневый запрос к API. Сам не используется - через типизированные
- * хелперы apiGet / apiPost / apiPatch / apiDelete.
+ * хелперы apiGet / apiPost / apiPatch / apiDelete / apiPostMultipart.
  */
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method ?? 'GET';
   const headers: Record<string, string> = {
     Accept: 'application/json',
   };
-  if (options.body !== undefined) {
+  if (options.body !== undefined && options.formData === undefined) {
     headers['Content-Type'] = 'application/json';
   }
   if (MUTATING_METHODS.has(method) && DEV_USER_ID) {
     headers['X-User-Id'] = DEV_USER_ID;
   }
 
+  // Тело: FormData (multipart) vs JSON. Для FormData Content-Type
+  // ставит сам браузер с правильным boundary
+  const fetchBody: BodyInit | undefined = options.formData
+    ? options.formData
+    : options.body !== undefined
+      ? JSON.stringify(options.body)
+      : undefined;
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method,
     headers,
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    body: fetchBody,
     signal: options.signal,
   });
 
@@ -205,6 +219,24 @@ export async function apiPostRaw<T>(
   options?: { signal?: AbortSignal },
 ): Promise<T> {
   return request<T>(path, { method: 'POST', body, signal: options?.signal });
+}
+
+/**
+ * POST с multipart/form-data телом - для file uploads и т.п. Content-Type
+ * не задаётся вручную: браузер сам формирует с правильным boundary
+ * (`multipart/form-data; boundary=----WebKitFormBoundaryXyz`). Если выставить
+ * руками - boundary не подставится и Spring multipart parser отвергнет
+ * запрос как malformed.
+ *
+ * Тип ответа подставляется руками:
+ * `apiPostMultipart<FileImportResponse>('/api/v1/library/imports/file', formData)`.
+ */
+export async function apiPostMultipart<T>(
+  path: string,
+  formData: FormData,
+  options?: { signal?: AbortSignal },
+): Promise<T> {
+  return request<T>(path, { method: 'POST', formData, signal: options?.signal });
 }
 
 // === Helper-типы для извлечения тела запроса/ответа из openapi-typescript ===
