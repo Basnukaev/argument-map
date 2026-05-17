@@ -58,25 +58,31 @@ function TopicListPage() {
       <Header />
 
       <div className="mx-auto max-w-[1380px] px-6 py-6">
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-ink-900">
+        <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
+              {t('topic.list.eyebrow')}
+            </div>
+            <h1 className="font-serif text-[28px] font-semibold leading-tight tracking-tight text-ink-900">
               {t('topic.list.title')}
             </h1>
-            {state.kind === 'success' && (
-              <p className="mt-1 text-sm text-ink-500">
-                {t('topic.list.subtitle_active')} ·{' '}
-                <span className="font-mono font-semibold text-ink-700">
-                  <bdi dir="ltr">{state.data.length}</bdi>{' '}
-                  {t('topic.list.aria_topic_count')}
-                </span>
-              </p>
-            )}
+            <p className="mt-1.5 max-w-[680px] text-sm text-ink-500">
+              {t('topic.list.subtitle_active')}
+              {state.kind === 'success' && (
+                <>
+                  {' '}·{' '}
+                  <span className="font-medium text-ink-700">
+                    <bdi dir="ltr">{state.data.length}</bdi>{' '}
+                    {t('topic.list.aria_topic_count')}
+                  </span>
+                </>
+              )}
+            </p>
           </div>
           <Link to="/topics/new">
             <Button icon={Plus}>{t('topic.list.create_button')}</Button>
           </Link>
-        </div>
+        </header>
 
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-9 max-w-md flex-1 items-center rounded-sm border border-ink-200 bg-elevated transition-colors focus-within:border-accent-500">

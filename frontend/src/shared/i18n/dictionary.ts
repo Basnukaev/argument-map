@@ -70,6 +70,7 @@ export const DICTIONARY = {
     'reader.mode.pdf': 'PDF',
 
     // topic list page
+    'topic.list.eyebrow': 'Аргументация · темы',
     'topic.list.title': 'Темы аргументации',
     'topic.list.subtitle_active': 'Структурированные дискуссии в виде графа',
     'topic.list.create_button': 'Создать тему',
@@ -567,6 +568,7 @@ export const DICTIONARY = {
     'reader.mode.text': 'نص',
     'reader.mode.pdf': 'PDF',
 
+    'topic.list.eyebrow': 'الحجاج · المواضيع',
     'topic.list.title': 'مواضيع الحجاج',
     'topic.list.subtitle_active': 'نقاشات منظمة على هيئة رسم بياني',
     'topic.list.create_button': 'إنشاء موضوع',
