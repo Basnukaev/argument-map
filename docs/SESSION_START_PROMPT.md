@@ -223,75 +223,63 @@ upload end-to-end + 25.b RetryStrategy.
 - **F-1 cleanup** - package.json/lock в корне уже в .gitignore с
   Сессии 36, физические файлы нужны ruflo MCP
 
-### Замечания пользователя (приоритет №1 для Сессии 39)
+### Закрытые замечания пользователя (Сессия 38, 8 коммитов в 2 параллельных subagent)
 
-Получено в конце Сессии 38 после manual testing. **Сделать ПЕРЕД
-опциями A-H ниже** - реальные observable баги/UX issues которые
-пользователь поймал руками:
+5 из 6 заметок пользователя закрыты end-to-end:
 
-1. **Удаление корневого вопроса в графе разрешено** - в `TopicGraphPage`
-   через NodeDetailsPanel или контекстное меню можно удалить корневой
-   `QUESTION` node. Это разрушает topic. Backend NodeService.delete
-   должен бросать 409 если `node.is_root=true` (либо колонка
-   `topics.root_node_id` FK с CHECK `ON DELETE RESTRICT`). Frontend -
-   спрятать кнопку «Удалить» для корня + дополнительная подсказка
-   в i18n hint
+- **#1 root question delete protection** (`9e8e045` backend +
+  `4a4002d` frontend) - `NodeService.deleteNode` бросает
+  `NodeIsRootException` → 409 `node-is-root` если узел корневой.
+  Frontend GraphCanvas скрывает / disables пункт «Удалить» в context
+  menu для корня + bulk filter в toolbar delete + warning toast
+  «корневой узел не был удалён». +2 backend IT (`deleteNode_whenRoot*`)
+- **#2 Alt+K на не-английской раскладке** (`1ba8faa`/`e4b5938`/`b2517c3`)
+  - после миграции на `useHotkey` через react-hotkeys-hook раскладка
+  больше не affects (library использует event.code для буквенных)
+- **#3 Del/Backspace handler в графе** (`4a4002d` quick fix + `e4b5938`
+  миграция на useHotkey) - выделенные не-root узлы удаляются по Del
+  и Backspace, не срабатывает в input/textarea
+- **#4 ⌘+↵ создать + единообразие hotkeys** - **ADR-036**
+  react-hotkeys-hook принят, `useHotkey` wrapper в
+  `frontend/src/shared/hooks/`, `ShortcutHint` UI helper в
+  `frontend/src/shared/components/ui/` (platform-aware ⌘/Ctrl
+  по navigator.platform). **17+ keyboard handler точек мигрированы**:
+  App, CommandPalette, CitationPicker, ContextMenu, AvatarMenu,
+  BellMenu, Select, NodeSelect, useGraphEscape, GraphCanvas,
+  FormModal, AddNodeModal, AddEdgeModal, PageJump, PdfViewer.
+  0 хардкодных `⌘`/`Ctrl` glyph в JSX. `frontend/CLAUDE.md` новая
+  секция «Hotkeys» с правилами
+- **#5 shamela 502 better UX** (`c6c8188`) - frontend toast для
+  `shamela-api-error` type показывает локализованное «внешний сервис
+  shamela.ws недоступен, попробуйте позже» вместо сырого Problem
+  Details. +3 vitest для AdminShamelaPage
 
-2. **Alt+K не работает при не-английской раскладке** - hotkey handler
-   слушает `event.key === 'k'` который возвращает `'л'` в русской
-   раскладке. Нужно `event.code === 'KeyK'` (raw physical key)
+**Tests:** backend 554 → **556** (+2), frontend 156 → **167** (+11)
+**Новые ADR:** ADR-036 (react-hotkeys-hook)
+**Новые gotcha:** «event.key vs event.code в keyboard handlers»,
+«shamela API из WSL2 требует VPN/прокси», «WSL2 corp proxy блокирует
+Google Fonts»
 
-3. **Del key не работает в графе** - keyboard handler не зарегистрирован
-   на `Delete`/`Backspace` для выбранного узла. В существующих
-   handlers (поиск через grep `useKeydown\|onKeyDown` в
-   `apps/argument-map/`) добавить обработку
+### Открыто из замечаний - #6 шрифт title книг (ждёт решения)
 
-4. **«⌘+↵ создать» не работает + просьба единообразия hotkeys** - в
-   проекте смесь хардкодных handlers (`addEventListener('keydown')`,
-   inline `onKeyDown` в Modal/Form) разбросанных по компонентам.
-   Пользователь просит **одну централизованную библиотеку**.
-   Рекомендация: **`react-hotkeys-hook`** (~500K weekly downloads,
-   автоматически работает с raskладкой через `event.code`, scopes
-   для контекста modal/canvas, поддержка modifier'ов cross-platform
-   `meta+enter` универсально). Альтернативы: `hotkeys-js` (vanilla,
-   без React-интеграции), `tinykeys` (~1KB, минимальный).
-   План: создать `frontend/src/shared/hooks/useHotkey.ts` обёртку
-   над `react-hotkeys-hook` + миграция всех существующих
-   `onKeyDown`/`addEventListener` точек на неё. Также - **i18n-aware
-   отображение shortcuts** в UI: на Mac показывать `⌘`, на Windows/Linux
-   `Ctrl`. Сейчас хардкод `⌘ ↵` на всех платформах что некрасиво
+Subagent диагностировал через playwright headless WSL2:
+- `--font-book-title` CSS var = `'Manrope', 'Source Serif', Georgia, serif`
+  - **НЕ EB Garamond** как утверждает backlog запись от Сессии 36.
+  Похоже стиль был объявлен но не доехал до tokens.css, либо был
+  откачен. Drift между документацией и кодом
+- `document.fonts.size = 0` - **НИ ОДИН web font не загрузился** в
+  WSL2 (corp proxy 407 блокирует Google Fonts CDN, см. новый gotcha)
+- Все 5 книг в БД с `language='ar'` → `Card.Title arabic={true}` →
+  `font-arabic` → fallback в system serif (Liberation Serif на WSL2)
+- Скриншот `/tmp/book-list-fonts.png`
 
-5. **Кнопка sync на /admin/shamela возвращает 502** - `POST
-   /api/v1/admin/shamela/sync-master` упирается в
-   `https://dev.shamela.ws/api/v1/patches/master?api_key=***&version=1261`
-   который **внешне недоступен** (либо нужен VPN, либо сервис лежит).
-   Это не наш баг - circuit breaker правильно бросает
-   `ShamelaApiException`. **Но UX плохой** - юзер видит сырой
-   `instance: /api/v1/admin/shamela/sync-master` и `detail` с api_key
-   замаскированным. Сделать: (a) Frontend ToastError для 502 от
-   shamela endpoints показывать понятное «внешний сервис shamela.ws
-   недоступен, попробуйте позже» (mapping по error type
-   `shamela-api-error`); (b) Опционально - DOWN flag в
-   `/actuator/health` если shamela API не отвечает >5 минут, чтобы
-   admin видел сразу
+**Решение за пользователем:** в реальном browser (не WSL2 dev preview)
+картина может быть другой - corp proxy там не блокирует. Если и в
+production «выврвиглазно» - обсудить какой шрифт хочется
+(EB Garamond restored, Lora, PT Serif, Old Standard TT для арабского).
+До обсуждения - subagent шрифт не менял.
 
-6. **«Выврвиглазный» шрифт title книг в BookListPage** - в Сессии 36
-   subagent typography поменял на **EB Garamond** через token
-   `--font-book-title` (см. `frontend/src/styles/tokens.css` +
-   `index.html` Google Fonts preconnect). Возможные причины
-   «выврвиглазности»:
-   - EB Garamond **не загружается** в WSL2 через corp proxy 407
-     (gotchas про Google Fonts) → fallback на serif
-   - EB Garamond в принципе **не подходит** для смешанных RU/AR
-     заголовков
-   - Размер `text-md` (18px) + `tracking-normal` неудачный
-   План: (a) Проверить в DevTools реально ли применяется
-   EB Garamond или fallback; (b) если применяется - попробовать
-   другие serif (Lora, PT Serif, Old Standard TT для арабского);
-   (c) обсудить с пользователем - какой именно эстетики хочет
-   («академический том», «современный sans», «editorial magazine»)
-
-### Опции для Сессии 39 (по приоритету) - после замечаний выше
+### Опции для Сессии 39 (по приоритету)
 
 **Опция A - Этап 17 OCR pipeline** (продолжение 16) - для
 scanned-PDF где `text_content=""` (subagent D зафиксировал что
