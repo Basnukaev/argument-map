@@ -21,12 +21,15 @@ public class EdgeService {
     private final EdgeRepository edgeRepository;
     private final NodeRepository nodeRepository;
     private final StatusCalculationService statusCalculationService;
+    private final PermissionService permissionService;
 
     public EdgeService(EdgeRepository edgeRepository, NodeRepository nodeRepository,
-                       StatusCalculationService statusCalculationService) {
+                       StatusCalculationService statusCalculationService,
+                       PermissionService permissionService) {
         this.edgeRepository = edgeRepository;
         this.nodeRepository = nodeRepository;
         this.statusCalculationService = statusCalculationService;
+        this.permissionService = permissionService;
     }
 
     /**
@@ -79,6 +82,46 @@ public class EdgeService {
                 .topicId();
         edgeRepository.deleteById(edgeId);
         statusCalculationService.recalculateTopic(topicId);
+    }
+
+    /**
+     * ADR-043: write требует canWriteTopic для темы к которой принадлежит ребро.
+     */
+    @Transactional
+    public Edge createEdge(UUID fromNodeId, UUID toNodeId, EdgeType type,
+                           String rationale, String sourceHandle, String targetHandle,
+                           UUID userId, String role) {
+        // Проверяем существование from-node чтобы достать topic_id
+        Node from = nodeRepository.findById(fromNodeId)
+                .orElseThrow(() -> new NodeNotFoundException(fromNodeId));
+        permissionService.assertCanWrite(from.topicId(), userId, role);
+        return createEdge(fromNodeId, toNodeId, type, rationale,
+                sourceHandle, targetHandle, userId);
+    }
+
+    @Transactional
+    public void deleteEdge(UUID edgeId, UUID userId, String role) {
+        Edge existing = edgeRepository.findById(edgeId)
+                .orElseThrow(() -> new EdgeNotFoundException(edgeId));
+        UUID topicId = nodeRepository.findById(existing.fromNodeId())
+                .orElseThrow(() -> new NodeNotFoundException(existing.fromNodeId()))
+                .topicId();
+        permissionService.assertCanWrite(topicId, userId, role);
+        deleteEdge(edgeId);
+    }
+
+    @Transactional
+    public Edge updateEdge(UUID edgeId, UUID fromNodeId, UUID toNodeId, EdgeType edgeType,
+                           String rationale, String sourceHandle, String targetHandle,
+                           UUID userId, String role) {
+        Edge existing = edgeRepository.findById(edgeId)
+                .orElseThrow(() -> new EdgeNotFoundException(edgeId));
+        UUID topicId = nodeRepository.findById(existing.fromNodeId())
+                .orElseThrow(() -> new NodeNotFoundException(existing.fromNodeId()))
+                .topicId();
+        permissionService.assertCanWrite(topicId, userId, role);
+        return updateEdge(edgeId, fromNodeId, toNodeId, edgeType,
+                rationale, sourceHandle, targetHandle);
     }
 
     /**

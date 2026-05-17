@@ -26,19 +26,25 @@ public class NodeService {
     private final TopicRepository topicRepository;
     private final RevisionRepository revisionRepository;
     private final StatusCalculationService statusCalculationService;
+    private final PermissionService permissionService;
 
     public NodeService(NodeRepository nodeRepository,
                        TopicRepository topicRepository,
                        RevisionRepository revisionRepository,
-                       StatusCalculationService statusCalculationService) {
+                       StatusCalculationService statusCalculationService,
+                       PermissionService permissionService) {
         this.nodeRepository = nodeRepository;
         this.topicRepository = topicRepository;
         this.revisionRepository = revisionRepository;
         this.statusCalculationService = statusCalculationService;
+        this.permissionService = permissionService;
     }
 
     @Transactional
     public Node createNode(UUID topicId, NodeType type, String content, UUID userId) {
+        // legacy перегрузка - без permission check (для тестов и
+        // batch importers). REST endpoint должен использовать перегрузку
+        // с role.
         if (topicRepository.findById(topicId).isEmpty()) {
             throw new TopicNotFoundException(topicId);
         }
@@ -50,6 +56,14 @@ public class NodeService {
         );
         nodeRepository.save(node);
         return node;
+    }
+
+    @Transactional
+    public Node createNode(UUID topicId, NodeType type, String content,
+                           UUID userId, String role) {
+        // ADR-043: write требует canWriteTopic
+        permissionService.assertCanWrite(topicId, userId, role);
+        return createNode(topicId, type, content, userId);
     }
 
     /**
@@ -68,6 +82,15 @@ public class NodeService {
                 posX, posY,
                 existing.createdBy(), existing.createdAt(), existing.updatedAt()
         );
+    }
+
+    @Transactional
+    public Node updatePosition(UUID nodeId, Double posX, Double posY,
+                               UUID userId, String role) {
+        Node existing = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new NodeNotFoundException(nodeId));
+        permissionService.assertCanWrite(existing.topicId(), userId, role);
+        return updatePosition(nodeId, posX, posY);
     }
 
     /**
@@ -98,6 +121,14 @@ public class NodeService {
     }
 
     @Transactional
+    public Node updateContent(UUID nodeId, String newContent, UUID userId, String role) {
+        Node existing = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new NodeNotFoundException(nodeId));
+        permissionService.assertCanWrite(existing.topicId(), userId, role);
+        return updateContent(nodeId, newContent, userId);
+    }
+
+    @Transactional
     public void deleteNode(UUID nodeId) {
         Node existing = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new NodeNotFoundException(nodeId));
@@ -113,11 +144,27 @@ public class NodeService {
         statusCalculationService.recalculateTopic(existing.topicId());
     }
 
+    @Transactional
+    public void deleteNode(UUID nodeId, UUID userId, String role) {
+        Node existing = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new NodeNotFoundException(nodeId));
+        permissionService.assertCanWrite(existing.topicId(), userId, role);
+        deleteNode(nodeId);
+    }
+
     @Transactional(readOnly = true)
     public List<Revision> getRevisions(UUID nodeId) {
         if (nodeRepository.findById(nodeId).isEmpty()) {
             throw new NodeNotFoundException(nodeId);
         }
+        return revisionRepository.findByNodeId(nodeId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Revision> getRevisions(UUID nodeId, UUID userId, String role) {
+        Node existing = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new NodeNotFoundException(nodeId));
+        permissionService.assertCanRead(existing.topicId(), userId, role);
         return revisionRepository.findByNodeId(nodeId);
     }
 }

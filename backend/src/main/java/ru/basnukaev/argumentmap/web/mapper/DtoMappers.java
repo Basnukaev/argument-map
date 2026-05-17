@@ -55,6 +55,7 @@ public final class DtoMappers {
         return new TopicResponse(
                 topic.id(), topic.title(), topic.description(),
                 topic.rootNodeId(), topic.createdBy(), topic.createdAt(),
+                topic.visibility(),
                 nodeCount, edgeCount
         );
     }

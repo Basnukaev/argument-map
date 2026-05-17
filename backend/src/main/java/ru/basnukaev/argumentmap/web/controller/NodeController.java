@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.domain.Node;
 import ru.basnukaev.argumentmap.service.NodeService;
 import ru.basnukaev.argumentmap.web.CurrentUser;
@@ -37,8 +38,9 @@ public class NodeController {
     @PostMapping
     public ResponseEntity<NodeResponse> create(@Valid @RequestBody CreateNodeRequest request,
                                                @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRole();
         Node created = nodeService.createNode(
-                request.topicId(), request.nodeType(), request.content(), userId
+                request.topicId(), request.nodeType(), request.content(), userId, role
         );
         return ResponseEntity.created(URI.create("/api/v1/nodes/" + created.id()))
                 .body(DtoMappers.toResponse(created));
@@ -63,24 +65,29 @@ public class NodeController {
             );
         }
 
+        String role = SecurityContextUtils.currentRole();
         Node node = null;
         if (hasContent) {
-            node = nodeService.updateContent(nodeId, request.content(), userId);
+            node = nodeService.updateContent(nodeId, request.content(), userId, role);
         }
         if (hasPosition) {
-            node = nodeService.updatePosition(nodeId, request.posX(), request.posY());
+            node = nodeService.updatePosition(nodeId, request.posX(), request.posY(), userId, role);
         }
         return DtoMappers.toResponse(node);
     }
 
     @DeleteMapping("/{nodeId}")
-    public ResponseEntity<Void> delete(@PathVariable UUID nodeId) {
-        nodeService.deleteNode(nodeId);
+    public ResponseEntity<Void> delete(@PathVariable UUID nodeId, @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRole();
+        nodeService.deleteNode(nodeId, userId, role);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{nodeId}/revisions")
-    public List<RevisionResponse> getRevisions(@PathVariable UUID nodeId) {
-        return nodeService.getRevisions(nodeId).stream().map(DtoMappers::toResponse).toList();
+    public List<RevisionResponse> getRevisions(@PathVariable UUID nodeId,
+                                               @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRole();
+        return nodeService.getRevisions(nodeId, userId, role).stream()
+                .map(DtoMappers::toResponse).toList();
     }
 }

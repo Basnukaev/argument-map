@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.domain.Node;
 import ru.basnukaev.argumentmap.domain.NodeStatus;
 import ru.basnukaev.argumentmap.domain.NodeType;
@@ -22,10 +23,13 @@ public class TopicService {
 
     private final TopicRepository topicRepository;
     private final NodeRepository nodeRepository;
+    private final PermissionService permissionService;
 
-    public TopicService(TopicRepository topicRepository, NodeRepository nodeRepository) {
+    public TopicService(TopicRepository topicRepository, NodeRepository nodeRepository,
+                        PermissionService permissionService) {
         this.topicRepository = topicRepository;
         this.nodeRepository = nodeRepository;
+        this.permissionService = permissionService;
     }
 
     /**
@@ -74,6 +78,12 @@ public class TopicService {
         return topicRepository.findById(topic.id()).orElseThrow();
     }
 
+    /**
+     * Перегрузка без role/userId - сохраняется для backward compat с
+     * internal callers (TopicImportService, тесты которым не нужен
+     * permission check). REST-controller должен использовать
+     * {@link #getTopic(UUID, UUID, String)} c явной проверкой ADR-043.
+     */
     @Transactional(readOnly = true)
     public Topic getTopic(UUID topicId) {
         return topicRepository.findById(topicId)
@@ -81,13 +91,37 @@ public class TopicService {
     }
 
     @Transactional(readOnly = true)
+    public Topic getTopic(UUID topicId, UUID userId, String role) {
+        permissionService.assertCanRead(topicId, userId, role);
+        return getTopic(topicId);
+    }
+
+    @Transactional(readOnly = true)
     public List<Topic> listTopics() {
         return topicRepository.findAll();
     }
 
+    /**
+     * Полный список всех тем без visibility-фильтра. Используется только
+     * во внутренних janitors/migrations - REST endpoint /api/v1/topics
+     * берёт {@link #listVisibleTopicsWithCounts(UUID, String)}.
+     */
     @Transactional(readOnly = true)
     public List<TopicWithCounts> listTopicsWithCounts() {
         return topicRepository.findAllWithCounts();
+    }
+
+    /**
+     * Список тем видимых пользователю (ADR-043). ADMIN получает все
+     * темы без фильтра, USER - только PRIVATE owned + SHARED member +
+     * PUBLIC.
+     */
+    @Transactional(readOnly = true)
+    public List<TopicWithCounts> listVisibleTopicsWithCounts(UUID userId, String role) {
+        if (UserRole.ADMIN.equals(role)) {
+            return topicRepository.findAllWithCounts();
+        }
+        return topicRepository.findVisibleToUserWithCounts(userId);
     }
 
     @Transactional(readOnly = true)
@@ -96,11 +130,52 @@ public class TopicService {
                 .orElseThrow(() -> new TopicNotFoundException(topicId));
     }
 
+    @Transactional(readOnly = true)
+    public TopicWithCounts getTopicWithCounts(UUID topicId, UUID userId, String role) {
+        permissionService.assertCanRead(topicId, userId, role);
+        return getTopicWithCounts(topicId);
+    }
+
     @Transactional
     public void deleteTopic(UUID topicId) {
         boolean removed = topicRepository.deleteById(topicId);
         if (!removed) {
             throw new TopicNotFoundException(topicId);
         }
+    }
+
+    /**
+     * Удаление темы - только owner (или ADMIN). EDITOR этого не может,
+     * даже на SHARED. См. ADR-043 матрицу.
+     */
+    @Transactional
+    public void deleteTopic(UUID topicId, UUID userId, String role) {
+        // Проверка существования + permission в одной транзакции.
+        // Если темы нет - сначала проверка read (она бросит TopicNotFound),
+        // потом assertIsOwner.
+        topicRepository.findById(topicId)
+                .orElseThrow(() -> new TopicNotFoundException(topicId));
+        permissionService.assertIsOwner(topicId, userId, role);
+        topicRepository.deleteById(topicId);
+    }
+
+    /**
+     * Меняет visibility темы (ADR-043) - только owner. EDITOR не может
+     * (это privilege-escalation если бы мог - SHARED EDITOR сделал бы
+     * себя owner через PUBLIC и обратно).
+     */
+    @Transactional
+    public Topic updateVisibility(UUID topicId, String newVisibility,
+                                  UUID userId, String role) {
+        if (!TopicVisibility.isValid(newVisibility)) {
+            throw new IllegalArgumentException(
+                    "Невалидное visibility: " + newVisibility
+            );
+        }
+        topicRepository.findById(topicId)
+                .orElseThrow(() -> new TopicNotFoundException(topicId));
+        permissionService.assertIsOwner(topicId, userId, role);
+        topicRepository.updateVisibility(topicId, newVisibility);
+        return topicRepository.findById(topicId).orElseThrow();
     }
 }

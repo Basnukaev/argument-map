@@ -14,8 +14,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.domain.Topic;
 import ru.basnukaev.argumentmap.service.GraphService;
+import ru.basnukaev.argumentmap.service.PermissionService;
 import ru.basnukaev.argumentmap.service.TopicService;
 import ru.basnukaev.argumentmap.web.CurrentUser;
 import ru.basnukaev.argumentmap.web.dto.CreateTopicRequest;
@@ -29,10 +31,13 @@ public class TopicController {
 
     private final TopicService topicService;
     private final GraphService graphService;
+    private final PermissionService permissionService;
 
-    public TopicController(TopicService topicService, GraphService graphService) {
+    public TopicController(TopicService topicService, GraphService graphService,
+                           PermissionService permissionService) {
         this.topicService = topicService;
         this.graphService = graphService;
+        this.permissionService = permissionService;
     }
 
     @PostMapping
@@ -40,7 +45,7 @@ public class TopicController {
                                                 @CurrentUser UUID userId) {
         Topic created = topicService.createTopic(
                 request.title(), request.description(),
-                request.rootQuestion(), userId
+                request.rootQuestion(), request.visibility(), userId
         );
         // Дополнительный SQL за актуальными nodeCount/edgeCount после create -
         // ответ должен честно отражать состояние темы (rootQuestion = 1 узел)
@@ -49,25 +54,32 @@ public class TopicController {
     }
 
     @GetMapping
-    public List<TopicResponse> list() {
-        // listTopicsWithCounts: один SQL с агрегатами nodes/edges. На карточках
-        // тем во фронте показываются счётчики - см. ADR-016
-        return topicService.listTopicsWithCounts().stream().map(DtoMappers::toResponse).toList();
+    public List<TopicResponse> list(@CurrentUser UUID userId) {
+        // ADR-043: только видимые user'у темы (PRIVATE owned + SHARED member + PUBLIC).
+        // ADMIN получает все темы - bypass в TopicService.
+        String role = SecurityContextUtils.currentRole();
+        return topicService.listVisibleTopicsWithCounts(userId, role).stream()
+                .map(DtoMappers::toResponse).toList();
     }
 
     @GetMapping("/{topicId}")
-    public TopicResponse getOne(@PathVariable UUID topicId) {
+    public TopicResponse getOne(@PathVariable UUID topicId, @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRole();
+        permissionService.assertCanRead(topicId, userId, role);
         return DtoMappers.toResponse(topicService.getTopicWithCounts(topicId));
     }
 
     @DeleteMapping("/{topicId}")
-    public ResponseEntity<Void> delete(@PathVariable UUID topicId) {
-        topicService.deleteTopic(topicId);
+    public ResponseEntity<Void> delete(@PathVariable UUID topicId, @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRole();
+        topicService.deleteTopic(topicId, userId, role);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{topicId}/graph")
-    public GraphResponse getGraph(@PathVariable UUID topicId) {
+    public GraphResponse getGraph(@PathVariable UUID topicId, @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRole();
+        permissionService.assertCanRead(topicId, userId, role);
         return DtoMappers.toResponse(graphService.getGraph(topicId));
     }
 }

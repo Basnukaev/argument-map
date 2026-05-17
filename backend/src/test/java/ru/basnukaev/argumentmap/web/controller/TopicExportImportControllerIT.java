@@ -157,7 +157,7 @@ class TopicExportImportControllerIT {
     }
 
     private UUID createTopicViaApi() throws Exception {
-        var req = new CreateTopicRequest("T", null, "Q?");
+        var req = new CreateTopicRequest("T", null, "Q?", null);
         String json = mockMvc.perform(post("/api/v1/topics")
                         .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)

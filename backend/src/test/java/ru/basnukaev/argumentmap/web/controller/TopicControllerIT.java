@@ -55,7 +55,7 @@ class TopicControllerIT {
 
     @Test
     void createTopic_returns201_withLocationAndBody() throws Exception {
-        var req = new CreateTopicRequest("Мавлид это бид'а?", "разбор", "Допустимо ли?");
+        var req = new CreateTopicRequest("Мавлид это бид'а?", "разбор", "Допустимо ли?", null);
 
         mockMvc.perform(post("/api/v1/topics")
                         .header("X-User-Id", userId.toString())
@@ -75,7 +75,7 @@ class TopicControllerIT {
         // требует principal в SecurityContext - его нет без X-User-Id
         // или Bearer JWT → MissingUserHeaderException 400. В prod profile
         // Spring Security вернёт 401 раньше (без permitAll branch)
-        var req = new CreateTopicRequest("T", null, "Q?");
+        var req = new CreateTopicRequest("T", null, "Q?", null);
 
         mockMvc.perform(post("/api/v1/topics")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -92,7 +92,7 @@ class TopicControllerIT {
         // ADR-040: невалидный UUID в X-User-Id → XUserIdFilter молча
         // пропускает, SecurityContext пуст → @CurrentUser резолвер
         // бросает MissingUserHeaderException → 400 (см. test выше)
-        var req = new CreateTopicRequest("T", null, "Q?");
+        var req = new CreateTopicRequest("T", null, "Q?", null);
 
         mockMvc.perform(post("/api/v1/topics")
                         .header("X-User-Id", "not-a-uuid")
@@ -104,7 +104,7 @@ class TopicControllerIT {
 
     @Test
     void createTopic_withBlankTitle_returns400_validationError() throws Exception {
-        var req = new CreateTopicRequest("", null, "Q?");
+        var req = new CreateTopicRequest("", null, "Q?", null);
 
         mockMvc.perform(post("/api/v1/topics")
                         .header("X-User-Id", userId.toString())
@@ -199,7 +199,7 @@ class TopicControllerIT {
     }
 
     private UUID createTopicViaApi() throws Exception {
-        var req = new CreateTopicRequest("T", null, "Q?");
+        var req = new CreateTopicRequest("T", null, "Q?", null);
         String json = mockMvc.perform(post("/api/v1/topics")
                         .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)

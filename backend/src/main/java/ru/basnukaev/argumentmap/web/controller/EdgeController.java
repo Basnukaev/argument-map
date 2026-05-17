@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.domain.Edge;
 import ru.basnukaev.argumentmap.service.EdgeService;
 import ru.basnukaev.argumentmap.web.CurrentUser;
@@ -34,11 +35,12 @@ public class EdgeController {
     @PostMapping
     public ResponseEntity<EdgeResponse> create(@Valid @RequestBody CreateEdgeRequest request,
                                                @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRole();
         Edge created = edgeService.createEdge(
                 request.fromNodeId(), request.toNodeId(),
                 request.edgeType(), request.rationale(),
                 request.sourceHandle(), request.targetHandle(),
-                userId
+                userId, role
         );
         return ResponseEntity.created(URI.create("/api/v1/edges/" + created.id()))
                 .body(DtoMappers.toResponse(created));
@@ -54,7 +56,8 @@ public class EdgeController {
      */
     @PatchMapping("/{edgeId}")
     public EdgeResponse update(@PathVariable UUID edgeId,
-                               @Valid @RequestBody UpdateEdgeRequest request) {
+                               @Valid @RequestBody UpdateEdgeRequest request,
+                               @CurrentUser UUID userId) {
         if (request.fromNodeId() == null && request.toNodeId() == null
                 && request.edgeType() == null && request.rationale() == null
                 && request.sourceHandle() == null && request.targetHandle() == null) {
@@ -62,17 +65,20 @@ public class EdgeController {
                     "Хотя бы одно поле должно быть указано для PATCH"
             );
         }
+        String role = SecurityContextUtils.currentRole();
         Edge updated = edgeService.updateEdge(
                 edgeId,
                 request.fromNodeId(), request.toNodeId(), request.edgeType(),
-                request.rationale(), request.sourceHandle(), request.targetHandle()
+                request.rationale(), request.sourceHandle(), request.targetHandle(),
+                userId, role
         );
         return DtoMappers.toResponse(updated);
     }
 
     @DeleteMapping("/{edgeId}")
-    public ResponseEntity<Void> delete(@PathVariable UUID edgeId) {
-        edgeService.deleteEdge(edgeId);
+    public ResponseEntity<Void> delete(@PathVariable UUID edgeId, @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRole();
+        edgeService.deleteEdge(edgeId, userId, role);
         return ResponseEntity.noContent().build();
     }
 }
