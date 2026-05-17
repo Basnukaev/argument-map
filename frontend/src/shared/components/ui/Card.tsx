@@ -99,15 +99,16 @@ function CardTitle({
   arabic?: boolean;
 }) {
   // Non-arabic title использует --font-book-title (EB Garamond) - классический
-  // Garamond revival с тёплым книжным характером, отличается от UI
-  // Source Serif 4. См. tokens.css комментарий к --font-book-title.
-  // tracking-normal вместо tracking-tight т.к. Garamond уже плотный
-  // по-своему - дополнительное сжатие портит читаемость на base size.
+  // Garamond revival с тёплым книжным характером. Для cyrillic (например
+  // «Священный Коран») EB Garamond не имеет subset → fallback на
+  // Source Serif 4 (тёплый serif с cyrillic). font-weight 500 (medium)
+  // вместо 600 чтобы не был «острым жирным» - book titles на корешках
+  // обычно набираются в нормальном весе, не bold
   const fontClass = arabic
-    ? 'font-arabic text-md'
-    : 'font-book-title text-md tracking-normal';
+    ? 'font-arabic text-md font-semibold'
+    : 'font-book-title text-md font-medium tracking-normal';
   return (
-    <h3 dir="auto" className={`font-semibold text-ink-900 leading-tight m-0 ${fontClass}`}>
+    <h3 dir="auto" className={`text-ink-900 leading-tight m-0 ${fontClass}`}>
       {children}
     </h3>
   );
