@@ -4603,6 +4603,174 @@ text layer недоступен. Без OCR scan'ы остаются неинд�
   `text_content`. AI editing pass (17.e) превратит его в structured
   ProseMirror JSON для `formatted_content`
 
+## ADR-042: LLM provider для AI editing pass (Anthropic Claude, single-provider MVP)
+**Дата:** 2026-05-17
+**Статус:** принято
+**Реализовано:** Сессия 43, миграция 35 + library.imports.AiEditService/
+AnthropicClient + REST endpoint POST/GET /pages/{id}/ai-edit
+
+### Контекст
+
+К моменту Этапа 17.e платформа имеет три способа получить page content:
+
+1. **Shamela ETL** (ADR-020/021) - plain text из SQLite
+2. **PDFBox import** (ADR-035) - plain text из PDF text layer
+3. **Tesseract OCR** (ADR-041) - plain text из image-сканов
+
+Во всех трёх случаях `lib_pages.text_content` - **плоский plain text**.
+Структура (хадис-боксы, ayah-боксы, decorated headings, footnotes,
+color highlights) - есть в исходных книгах (как визуальная разметка
+тахкика), но не в нашем хранилище. ADR-039 зафиксировал что rich text
+editor через Tiptap + custom extensions поддерживает все эти структуры
+через `formatted_content jsonb` (ProseMirror JSON). Этап 17.0 закрыл
+frontend сторону - но **заполнять JSON вручную для каждой страницы**
+масштабируется плохо (50 000 страниц в типичной 30-томной книге).
+
+Нужен **автоматический pre-fill**: на вход OCR raw text, на выход
+structured ProseMirror JSON со всеми custom nodes расставленными по
+правилам распознавания (хадис начинается с «عن», аят -
+«قال تعالى ﴿ ... ﴾», заголовок - «باب», «فصل», и т.д.). LLM с arabic
+understanding и structured output - очевидный fit.
+
+Требования к LLM provider:
+
+- **arabic** (>85% контента) - сильное понимание классического и
+  literary арабского, ranges по тахкик-стилю
+- **structured output** - JSON по нашей схеме (ProseMirror) без
+  «хвостов» в виде markdown fence либо preface
+- **доступность сейчас** - не «зайдёт во второй половине года»
+- **разумная цена** - $$$ on page acceptable если кэшируем
+  (формируется один раз per page)
+- **Java-friendly REST API** - минимизировать сторонние SDK
+
+### Решение
+
+**Anthropic Claude (claude-sonnet-4-6) через REST API.** Интеграция
+через raw `java.net.http.HttpClient` без SDK - ~100 LOC client.
+
+- **API endpoint** `https://api.anthropic.com/v1/messages`
+- **Headers** `x-api-key: ${ANTHROPIC_API_KEY}` + `anthropic-version:
+  2023-06-01` + `content-type: application/json`
+- **Body** `{model, max_tokens, messages}` - тонкий JSON, ObjectMapper
+  для serialization
+- **Retry** через Resilience4j Retry (уже в classpath из ADR-024) -
+  max 3 попытки на 429/500, exponential backoff
+- **Timeout** 60s (LLM генерация длительная, особенно для arabic)
+- **Async** через `@Async("aiEditTaskExecutor")` - reuse паттерн из
+  ADR-041 OCR. Core=2/max=4/queue=50 - LLM API throughput, не CPU
+- **State machine** в `lib_pages.ai_edit_status`: PENDING → PROCESSING
+  → DONE/FAILED. Миграция 35 добавляет 3 nullable колонки (status +
+  started_at + completed_at). DONE - результат в `formatted_content`
+  (уже есть из ADR-039 миграции 33)
+- **Prompt template** - вынесен в `resources/prompts/ai-edit-tahqiq.txt`
+  (few-shot examples + правила распознавания). Не хардкод в Java
+- **Validation** - parse response через Jackson, базовая структурная
+  валидация `{type:"doc", content:[...]}` перед save. Невалидный JSON
+  → FAILED
+- **Graceful degradation** - если `ANTHROPIC_API_KEY=disabled` (default)
+  - endpoint возвращает 503 Service Unavailable с понятным detail «AI
+  editing не настроен - установите ANTHROPIC_API_KEY env var». Backend
+  стартует нормально без ключа
+
+REST API:
+
+- `POST /api/v1/library/pages/{id}/ai-edit` - триггер async, 202 Accepted
+- `GET /api/v1/library/pages/{id}/ai-edit` - polling status
+
+### Rejected alternatives
+
+- **OpenAI GPT-4** - тоже хороший choice, но arabic understanding чуть
+  слабее чем Claude по нашим pre-experiments. Mixed-script arabic +
+  russian text classic тахкика - Anthropic выдаёт чище partition между
+  нодами. Можем revisit если Anthropic будет unavailable / cost станет
+  блокером
+- **Google Gemini** - меньше control над structured output (без
+  гарантии валидного JSON в ответе), vendor lock-in в GCP экосистему,
+  arabic качество comparable но не лучше
+- **Local LLM (llama.cpp с arabic finetune)** - heavy dependency (≥7B
+  model в RAM), требует GPU для приемлемой latency (CPU inference -
+  >60 секунд per page, неприемлемо). Откладываем до момента когда
+  privacy concerns customer'ов перевесят convenience
+- **Hugging Face inference API** - rate limits на free tier (~10 req/min),
+  unstable model availability. Paid tier comparable с Anthropic по
+  cost - нет преимущества
+- **Anthropic SDK для Java** - добавит heavy dep в classpath ради
+  тонкой обёртки над HTTP. Raw HttpClient достаточен (~100 LOC)
+- **Multi-provider routing с fallback** - over-engineering на MVP.
+  Single provider покрывает 100% use case, не блокируется ничем.
+  Triggered revisit - см. ниже
+
+### Последствия
+
+- **(+)** Strong arabic support (Anthropic известен своим коренным
+  multilingual пониманием), мы не строим этот capability сами
+- **(+)** Structured ProseMirror JSON output → готовый к сохранению в
+  `formatted_content` без post-processing pipeline
+- **(+)** Async pipeline (см. AiEditConfig) - HTTP-thread не блокируется
+  на 15 секунд LLM call. Frontend получает 202 + polling
+- **(+)** Resilience4j retry автоматически перезапускает на transient
+  errors (429 rate limit, 500 service error) - manual handling не
+  требуется в caller-code
+- **(−)** **Cost** - claude-sonnet-4-6 ~$3-15 per million tokens
+  in/out. Типичная страница арабского тахкика ~500 input tokens +
+  ~1000 output tokens ProseMirror JSON = ~$0.02 per page. 50 000
+  страниц книги = ~$1000. **Mitigation:** cache в `formatted_content` -
+  один раз per page, повторный API call не нужен. Manual trigger (not
+  auto после OCR) - пользователь решает когда применить
+- **(−)** **Latency** 5-15 sec per page - acceptable для background
+  job, неприемлемо для interactive. Async pipeline решает
+- **(−)** **Internet dependency** - не работает offline. Для air-gapped
+  prod environments - блокер. Triggered revisit (local LLM)
+- **(−)** **Vendor lock-in уровень medium** - prompt template и JSON
+  schema portable, но HTTP client замешан на Anthropic API формат
+  (msgs API + content blocks). При смене провайдера нужно переписать
+  AnthropicClient, остальное (AiEditService, REST, миграция) reusable
+- **(−)** **Privacy** - текст рукописей отправляется в Anthropic. Для
+  publicly available книг (наш основной use case на MVP) - не проблема.
+  Для commercial customers с copyright concerns - блокер. Triggered
+  revisit
+- **(−)** **JSON validation surface** - LLM может вернуть невалидный
+  ProseMirror JSON (unknown node type, missing required attr). Базовая
+  валидация в AiEditService ловит структурные проблемы; deep schema
+  validation отложена (frontend Tiptap при render просто игнорирует
+  unknown nodes, не падает - acceptable degradation)
+
+### Triggers to revisit
+
+- **Cost** - если ежемесячный bill превысит budget → consider: (a)
+  более дешёвая модель (haiku) для simple pages, (b) local LLM для
+  bulk pre-processing, (c) selective triggering (только для страниц
+  где OCR confidence низкий)
+- **Quality** - если AI structuring даёт <70% useful output на
+  real-world tahqiq fixtures → re-evaluate prompt template, попробовать
+  OpenAI GPT-4 / Gemini для сравнения. Hold tests за реальных
+  пользователей перед switch
+- **Privacy** - если customer'ы с copyright concerns появятся → local
+  LLM (llama 3.1 405B с arabic finetune через ollama microservice).
+  Latency wins при batch processing на GPU host
+- **Provider availability** - если Anthropic become unavailable >24
+  часов → emergency fallback на OpenAI (минимальный engineering effort
+  - заменить AnthropicClient на OpenAIClient, prompt template reusable
+  почти как есть)
+- **Multi-provider** - если 2+ provider'а станут required (cost
+  optimization, fallback, A/B testing) → introduce abstract `LlmClient`
+  interface + factory based on `ai.provider` config. Сейчас YAGNI
+
+### Связанные решения
+
+- **ADR-039** (Tiptap editor) - output AI edit складывается в
+  `formatted_content` колонку, оттуда читается Tiptap reader / editor.
+  Custom extensions (HadithBox, AyahBox, DecoratedHeading и т.д.)
+  определены в ADR-039
+- **ADR-041** (OCR через Tess4j) - upstream pipeline. OCR пишет в
+  `text_content`, AI edit читает оттуда → пишет в `formatted_content`.
+  Цепочка: image upload → OCR → AI edit → ready to read. Каждый шаг
+  manual trigger (не auto cascade) - пользователь контролирует cost
+- **ADR-024** (object storage) - не пересекается. AI edit работает с
+  text, не с blob'ами. Resilience4j retry pool shared между PDF
+  download (ADR-024) и AI edit (ADR-042) - не конкурируют, разные CB
+  instance names
+
 ---
 
 ## ADR-043: RBAC permissions per-entity для topics (Этап 22)

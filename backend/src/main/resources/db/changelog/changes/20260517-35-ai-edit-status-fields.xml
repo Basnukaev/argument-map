@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260517-35-ai-edit-status-fields" author="Abdula Basnukaev">
+        <comment>
+            Этап 17.e - AI editing pass через Anthropic Claude (ADR-042).
+
+            Дополняем lib_pages 3 nullable колонками для state machine
+            фоновой задачи преобразования OCR raw text в structured
+            ProseMirror JSON через LLM:
+
+              ai_edit_status - PENDING/PROCESSING/DONE/FAILED. Аналогично
+                ocr_status. NULL = AI edit не запускался для этой страницы.
+                CHECK constraint enforces валидные значения.
+
+              ai_edit_started_at / ai_edit_completed_at - timestamps для
+                observability (latency analysis + future cron retry для
+                зависших PROCESSING).
+
+            Результат успешного AI edit пишется в `formatted_content`
+            (уже существует из миграции 33, ADR-039). Существующий
+            `text_content` (OCR raw output либо shamela plain text)
+            остаётся как fallback - если AI вернул невалидный JSON либо
+            пользователь хочет вернуться к исходному.
+
+            Никакой data migration для existing страниц - все колонки
+            nullable, старые page rows получают NULL без изменений.
+        </comment>
+        <sql>
+            ALTER TABLE lib_pages
+                ADD COLUMN ai_edit_status        VARCHAR(20)  NULL
+                    CHECK (ai_edit_status IN ('PENDING', 'PROCESSING', 'DONE', 'FAILED')),
+                ADD COLUMN ai_edit_started_at    TIMESTAMPTZ NULL,
+                ADD COLUMN ai_edit_completed_at  TIMESTAMPTZ NULL;
+
+            CREATE INDEX idx_lib_pages_ai_edit_status ON lib_pages(ai_edit_status)
+                WHERE ai_edit_status IS NOT NULL;
+        </sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_lib_pages_ai_edit_status;
+                ALTER TABLE lib_pages
+                    DROP COLUMN ai_edit_completed_at,
+                    DROP COLUMN ai_edit_started_at,
+                    DROP COLUMN ai_edit_status;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

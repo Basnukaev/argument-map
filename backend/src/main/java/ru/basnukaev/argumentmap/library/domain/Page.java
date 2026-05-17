@@ -31,6 +31,13 @@ import java.util.UUID;
  * {@code DONE} (text_content заполнен через Tesseract) или {@code FAILED}
  * (ошибка, см. лог). NULL = OCR не применим (PDF-imported, нет скана).
  * Timestamps {@code ocrStartedAt}/{@code ocrCompletedAt} для observability.
+ *
+ * <p>{@code aiEditStatus} - state machine для AI editing pass (ADR-042,
+ * Этап 17.e). Та же 4-state машина что и OCR: {@code PENDING} →
+ * {@code PROCESSING} → {@code DONE}/{@code FAILED}. NULL = AI edit
+ * не запускался. При {@code DONE} результат лежит в {@code formattedContent}
+ * (ProseMirror JSON). Timestamps {@code aiEditStartedAt}/{@code aiEditCompletedAt}
+ * для observability.
  */
 public record Page(
         UUID id,
@@ -49,19 +56,20 @@ public record Page(
         String ocrStatus,
         Instant ocrStartedAt,
         Instant ocrCompletedAt,
+        String aiEditStatus,
+        Instant aiEditStartedAt,
+        Instant aiEditCompletedAt,
         Instant createdAt,
         Instant updatedAt
 ) {
     /**
      * Совместимостный конструктор - до миграции 34 (Этап 17.a) Page
-     * имела 12 полей без image/OCR. Существующие callers (shamela mapper,
-     * IT-тесты) пользуются этим overload - 6 новых полей заполняются
+     * имела 12 полей без image/OCR/AI. Существующие callers (shamela mapper,
+     * IT-тесты) пользуются этим overload - 9 новых полей заполняются
      * null'ами автоматически.
      *
-     * <p>Новый код для image-сканов должен использовать canonical
-     * 18-args constructor либо builder-стиль через
-     * {@code withImagePointer}/{@code withOcrStatus} helper'ы (см.
-     * {@code PageImageService}/{@code OcrService}).
+     * <p>Новый код для image-сканов / AI editing должен использовать
+     * canonical 21-args constructor.
      */
     public Page(UUID id, UUID bookId, UUID chapterId, int pageNumber,
                 String printedPage, String part, Integer pdfPageNumber,
@@ -70,6 +78,27 @@ public record Page(
         this(id, bookId, chapterId, pageNumber, printedPage, part, pdfPageNumber,
                 textContent, imageUrl, formattedContent,
                 null, null, null, null, null, null,
+                null, null, null,
+                createdAt, updatedAt);
+    }
+
+    /**
+     * Backward-compat 18-args конструктор - до миграции 35 (Этап 17.e)
+     * Page имела OCR-поля но без AI-edit полей. Использовался
+     * {@code OcrServiceIT}, {@code PageImageService} и др. Новые callers
+     * AI edit pipeline должны использовать 21-args canonical конструктор.
+     */
+    public Page(UUID id, UUID bookId, UUID chapterId, int pageNumber,
+                String printedPage, String part, Integer pdfPageNumber,
+                String textContent, String imageUrl, String formattedContent,
+                String imageBucket, String imageStorageKey, Instant imageUploadedAt,
+                String ocrStatus, Instant ocrStartedAt, Instant ocrCompletedAt,
+                Instant createdAt, Instant updatedAt) {
+        this(id, bookId, chapterId, pageNumber, printedPage, part, pdfPageNumber,
+                textContent, imageUrl, formattedContent,
+                imageBucket, imageStorageKey, imageUploadedAt,
+                ocrStatus, ocrStartedAt, ocrCompletedAt,
+                null, null, null,
                 createdAt, updatedAt);
     }
 }

@@ -21,6 +21,7 @@ public class PageRepository {
             + "text_content, image_url, formatted_content, "
             + "image_bucket, image_storage_key, image_uploaded_at, "
             + "ocr_status, ocr_started_at, ocr_completed_at, "
+            + "ai_edit_status, ai_edit_started_at, ai_edit_completed_at, "
             + "created_at, updated_at";
 
     private static final RowMapper<Page> ROW_MAPPER = (rs, rn) -> {
@@ -43,6 +44,9 @@ public class PageRepository {
                 rs.getString("ocr_status"),
                 instant(rs, "ocr_started_at"),
                 instant(rs, "ocr_completed_at"),
+                rs.getString("ai_edit_status"),
+                instant(rs, "ai_edit_started_at"),
+                instant(rs, "ai_edit_completed_at"),
                 instant(rs, "created_at"),
                 instant(rs, "updated_at")
         );
@@ -62,7 +66,7 @@ public class PageRepository {
         jdbcTemplate.update(
                 "INSERT INTO lib_pages (" + COLUMNS + ") "
                         + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, "
-                        + "?, ?, ?, ?, ?, ?, ?, ?)",
+                        + "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 page.id(),
                 page.bookId(),
                 page.chapterId(),
@@ -79,6 +83,9 @@ public class PageRepository {
                 page.ocrStatus(),
                 odt(page.ocrStartedAt()),
                 odt(page.ocrCompletedAt()),
+                page.aiEditStatus(),
+                odt(page.aiEditStartedAt()),
+                odt(page.aiEditCompletedAt()),
                 odt(page.createdAt()),
                 odt(page.updatedAt())
         );
@@ -221,6 +228,57 @@ public class PageRepository {
                         + "ocr_completed_at = ?, updated_at = now() "
                         + "WHERE id = ?",
                 textContent,
+                odt(completedAt),
+                id
+        );
+        return rows > 0;
+    }
+
+    /**
+     * Обновить AI edit state machine (миграция 35, ADR-042) - текущий
+     * status + opt timestamps. Используется {@code AiEditService} для
+     * перевода page между состояниями pipeline.
+     *
+     * <p>{@code COALESCE} логика: при PROCESSING передаём started_at,
+     * completed_at=null - existing completed_at не затирается. При
+     * DONE/FAILED передаём completed_at, started_at=null - existing
+     * started_at не затирается.
+     *
+     * @return true если row updated, false если page id не найден
+     */
+    public boolean updateAiEditStatus(UUID id, String aiEditStatus,
+                                       java.time.Instant aiEditStartedAt,
+                                       java.time.Instant aiEditCompletedAt) {
+        int rows = jdbcTemplate.update(
+                "UPDATE lib_pages SET ai_edit_status = ?, "
+                        + "ai_edit_started_at = COALESCE(?, ai_edit_started_at), "
+                        + "ai_edit_completed_at = COALESCE(?, ai_edit_completed_at), "
+                        + "updated_at = now() "
+                        + "WHERE id = ?",
+                aiEditStatus,
+                odt(aiEditStartedAt),
+                odt(aiEditCompletedAt),
+                id
+        );
+        return rows > 0;
+    }
+
+    /**
+     * Атомарно записать AI-сгенерированный ProseMirror JSON в
+     * {@code formatted_content} + установить {@code ai_edit_status=DONE}
+     * + {@code ai_edit_completed_at=now} (миграция 35, ADR-042).
+     * Используется {@code AiEditService} при успешном LLM response.
+     *
+     * @return true если row updated, false если page id не найден
+     */
+    public boolean updateFormattedContentAndMarkAiEditDone(UUID id, String formattedContent,
+                                                             java.time.Instant completedAt) {
+        int rows = jdbcTemplate.update(
+                "UPDATE lib_pages SET formatted_content = ?::jsonb, "
+                        + "ai_edit_status = 'DONE', ai_edit_completed_at = ?, "
+                        + "updated_at = now() "
+                        + "WHERE id = ?",
+                formattedContent,
                 odt(completedAt),
                 id
         );
