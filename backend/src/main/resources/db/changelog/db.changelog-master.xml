@@ -41,5 +41,6 @@
     <include file="db/changelog/changes/20260517-34-image-scans-fields.xml"/>
     <include file="db/changelog/changes/20260517-35-ai-edit-status-fields.xml"/>
     <include file="db/changelog/changes/20260517-36-topic-rbac.xml"/>
+    <include file="db/changelog/changes/20260518-37-library-rbac.xml"/>
 
 </databaseChangeLog>

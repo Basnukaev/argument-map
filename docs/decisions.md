@@ -4897,3 +4897,99 @@ Hybrid visibility model:
 - **ADR-018** (platform pivot) - паттерн visibility/members может
   быть переиспользован для books/questions когда понадобится
 
+### Amendment: Extension to Library books + Q&A (Этап 22.c)
+**Дата:** 2026-05-18
+**Реализовано:** Сессия 37, миграция 37 + PermissionService extension +
+lib_book_members + AnswerService/QuestionService author guards
+
+Распространяем модель из основного ADR-043 на library books и Q&A с
+важными отличиями по семантике.
+
+**Library books** - тот же hybrid model как topics:
+- `lib_books.visibility` колонка (`PRIVATE` / `SHARED` / `PUBLIC`) с
+  CHECK constraint, миграция 37
+- Default **PUBLIC** для existing books (в отличие от topics где PRIVATE)
+  - shamela ETL и старый user-upload контент - open library; новые
+  user-uploads через `FileImportService.importPdf` получают **PRIVATE**
+  (черновики/конспекты приватны по умолчанию)
+- `lib_book_members` таблица - M:N (`book_id`, `user_id`, `role`,
+  `added_at`, `added_by`). Те же роли `MEMBER` / `EDITOR`
+- `created_by` колонка уже существовала в `lib_books` (миграция 16),
+  NOT NULL - shamela ETL заполняет её userId админа. Используется как
+  owner для permission checks
+- `PermissionService.canReadBook` / `canWriteBook` / `isBookOwner` +
+  `assertCanReadBook` / `assertCanWriteBook` / `assertIsBookOwner` -
+  параллельные topic-методам. Реализация: PRIVATE → owner-only;
+  SHARED → owner + members read, owner + EDITOR write; PUBLIC →
+  all-read + owner + EDITOR write
+- `BookMemberService` + `BookMemberController` - mirror'ят TopicMember
+  pattern (только owner может add/update/remove, member может self-leave)
+- `BookRepository.findVisibleToUserPage` + `countVisibleToUser` -
+  visibility filter в SQL (`PUBLIC OR created_by=? OR (SHARED AND
+  EXISTS lib_book_members)`)
+- `403 Forbidden` exceptions: `BookAccessDeniedException` →
+  `forbidden-book-access`, `BookWriteAccessDeniedException` →
+  `forbidden-book-write`, `BookMemberNotFoundException` →
+  `book-member-not-found` (404)
+
+**Q&A questions/answers** - **НЕ добавляем visibility model**:
+- Семантика open discussion - questions/answers видны всем
+  authenticated. Visibility colummn не добавляется, нет
+  question_members / answer_members таблиц
+- Защищаем только mutating операции на уровне Service guards:
+  только **автор** (asked_by / author_id) или **ADMIN** могут
+  update/delete свой контент. Иначе 403
+- Новые exceptions: `QuestionWriteAccessDeniedException` →
+  `forbidden-question-write`, `AnswerWriteAccessDeniedException` →
+  `forbidden-answer-write`
+- `QuestionService.updateQuestion(id, ..., actorUserId, actorRole)` +
+  `deleteQuestion(id, actorUserId, actorRole)` - новые перегрузки с
+  guard. Старые без actor сохранены для internal callers (тесты,
+  scheduled jobs)
+- `AnswerService.updateAnswer(id, body, actorUserId, actorRole)` +
+  `deleteAnswer(id, actorUserId, actorRole)` - аналогично
+- Если когда-нибудь понадобится private Q&A (закрытые группы учёных) -
+  расширим отдельно в 22.d/22.e через тот же visibility-model
+  pattern. Сейчас YAGNI
+
+**Rejected alternatives для Library books:**
+
+- **Default PRIVATE для books** (зеркально topics) - не подходит:
+  shamela ETL загружает книги в massive batch и пользователи
+  ожидают увидеть их сразу. PUBLIC default = sensible UX
+- **Использовать ту же `topic_members` таблицу для books** - нарушает
+  separation of concerns + FK не factor'ит (book_id != topic_id)
+- **Изменить `lib_books.created_by` на NULL для shamela** - нарушит
+  существующий контракт, лишает possibility track'нуть кто запускал
+  mapBook. Оставляем NOT NULL
+
+**Rejected alternatives для Q&A:**
+
+- **Полный visibility model для questions** - over-engineering сейчас.
+  Use-case Q&A - публичная дискуссия, защита от vandalism решается
+  author guards
+- **Allow anyone delete spam questions** - moderation отдельная фича,
+  использовать ADMIN role. ADMIN bypass работает через actorRole=ADMIN
+  в guard methods
+
+**Последствия Amendment:**
+
+- **(+)** Параллельная архитектура с topics - легко онбордить новых
+  разработчиков (если знаешь topic permissions - знаешь book permissions)
+- **(+)** PUBLIC default для books не ломает existing shamela imports -
+  они автоматически видны всем по умолчанию через migration default
+- **(+)** Q&A guards consistent с REST patterns - тот же
+  Problem Details, тот же 403 status
+- **(−)** Дублирование между TopicMember / BookMember (Service,
+  Repository, Controller, DTO) - принимаем как цену clean separation.
+  Generic membership rework возможен в будущем если появится 3-й
+  entity-type с members
+- **(−)** REST endpoint signatures для existing BookController
+  changed (`@CurrentUser` теперь обязательный на `GET /books`,
+  `GET /books/{id}`, `DELETE /books/{id}`, `PATCH /books/{id}`).
+  Существующие IT тесты обновлены (добавлен X-User-Id header).
+  Frontend уже отправляет JWT/X-User-Id по умолчанию через
+  authenticated fetch interceptor
+- **(−)** Audit log для permission changes (кто стал EDITOR / был
+  удалён из members / сменил visibility) всё ещё **отложен** - 22.d
+

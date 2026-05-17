@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        ADR-043 Amendment (Этап 22.c): RBAC permissions per-entity для
+        library books. Семантика та же что у topics (миграция 36):
+        PRIVATE / SHARED / PUBLIC + M:N таблица lib_book_members.
+
+        Default visibility=PUBLIC для existing rows - в отличие от topics,
+        где default PRIVATE сохранил приватность по умолчанию: книги
+        пришли из shamela ETL и должны быть видимы всем (open library).
+        Новые user-uploads получают PRIVATE по умолчанию в
+        BookService.createBook.
+
+        Колонка created_by уже существует в lib_books (миграция 16),
+        NOT NULL FK на users. Shamela ETL заполняет её userId админа
+        запустившего mapBook. Не дублируем эту колонку - используем
+        существующую как owner для permission checks.
+
+        Q&amp;A questions/answers: visibility model НЕ добавляется -
+        семантика open discussion (все могут читать). Защищаем только
+        author/admin на mutating операциях в Service-слое.
+    -->
+    <changeSet id="20260518-37-library-rbac" author="Abdula Basnukaev">
+        <comment>ADR-043 Amendment: visibility в lib_books + таблица lib_book_members</comment>
+        <sql>
+            ALTER TABLE lib_books
+                ADD COLUMN visibility VARCHAR(20) NOT NULL DEFAULT 'PUBLIC';
+
+            ALTER TABLE lib_books
+                ADD CONSTRAINT lib_books_visibility_check
+                CHECK (visibility IN ('PRIVATE', 'SHARED', 'PUBLIC'));
+
+            CREATE INDEX idx_lib_books_visibility ON lib_books(visibility);
+            CREATE INDEX idx_lib_books_created_by_visibility
+                ON lib_books(created_by, visibility);
+
+            CREATE TABLE lib_book_members (
+                id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                book_id    UUID NOT NULL REFERENCES lib_books(id) ON DELETE CASCADE,
+                user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                role       VARCHAR(20) NOT NULL,
+                added_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                added_by   UUID NOT NULL REFERENCES users(id),
+                CONSTRAINT lib_book_members_role_check
+                    CHECK (role IN ('MEMBER', 'EDITOR')),
+                CONSTRAINT lib_book_members_unique
+                    UNIQUE (book_id, user_id)
+            );
+
+            CREATE INDEX idx_lib_book_members_user ON lib_book_members(user_id);
+            CREATE INDEX idx_lib_book_members_book ON lib_book_members(book_id);
+        </sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_lib_book_members_book;
+                DROP INDEX IF EXISTS idx_lib_book_members_user;
+                DROP TABLE IF EXISTS lib_book_members;
+
+                DROP INDEX IF EXISTS idx_lib_books_created_by_visibility;
+                DROP INDEX IF EXISTS idx_lib_books_visibility;
+                ALTER TABLE lib_books DROP CONSTRAINT IF EXISTS lib_books_visibility_check;
+                ALTER TABLE lib_books DROP COLUMN visibility;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
