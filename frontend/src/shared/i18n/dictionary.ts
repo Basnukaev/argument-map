@@ -97,6 +97,8 @@ export const DICTIONARY = {
 
     // Q&A (Этап 19.a, ADR-032)
     'qa.list.eyebrow': 'Q&A · обсуждения',
+    'qa.list.card.has_accepted': 'есть принятый ответ',
+    'qa.list.card.updated_prefix': 'обновлён',
     'qa.list.title': 'Вопросы и ответы',
     'topic.create.eyebrow': 'Аргументация · новая тема',
     'topic.create.title': 'Создание темы',
@@ -606,6 +608,8 @@ export const DICTIONARY = {
     'book.list.sort_type': 'حسب النوع',
 
     'qa.list.eyebrow': 'Q&A · المناقشات',
+    'qa.list.card.has_accepted': 'يوجد إجابة مقبولة',
+    'qa.list.card.updated_prefix': 'حُدّث',
     'qa.list.title': 'الأسئلة والأجوبة',
     'topic.create.eyebrow': 'الحجاج · موضوع جديد',
     'topic.create.title': 'إنشاء موضوع',

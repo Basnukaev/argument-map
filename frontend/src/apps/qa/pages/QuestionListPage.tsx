@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import {
+  AlertCircle,
+  CheckCircle2,
   HelpCircle,
+  Loader2,
   Plus,
   Search,
-  AlertCircle,
-  Loader2,
 } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
@@ -200,11 +201,29 @@ function QuestionListPage() {
                                 {qn.body}
                               </p>
                             )}
-                            <p className="mt-2 text-xs text-ink-400">
+                            {/* Meta line: дата + признаки. updatedAt вместо
+                                createdAt - last activity более полезный сигнал
+                                для скана списка обсуждений. acceptedAnswerId
+                                marker даёт быстрый visual indicator закрытых
+                                по существу обсуждений */}
+                            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-400">
                               <bdi dir="ltr">
-                                {qn.createdAt ? formatDate(qn.createdAt, 'short') : ''}
+                                {qn.updatedAt
+                                  ? `${t('qa.list.card.updated_prefix')} ${formatDate(qn.updatedAt, 'short')}`
+                                  : qn.createdAt
+                                    ? formatDate(qn.createdAt, 'short')
+                                    : ''}
                               </bdi>
-                            </p>
+                              {qn.acceptedAnswerId && (
+                                <>
+                                  <span aria-hidden>·</span>
+                                  <span className="inline-flex items-center gap-1 text-ok-700">
+                                    <CheckCircle2 size={11} aria-hidden />
+                                    {t('qa.list.card.has_accepted')}
+                                  </span>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </Card>
