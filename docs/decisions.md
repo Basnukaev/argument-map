@@ -4602,3 +4602,130 @@ text layer недоступен. Без OCR scan'ы остаются неинд�
 - **ADR-039** (Tiptap editor) - OCR raw output попадает в
   `text_content`. AI editing pass (17.e) превратит его в structured
   ProseMirror JSON для `formatted_content`
+
+---
+
+## ADR-043: RBAC permissions per-entity для topics (Этап 22)
+**Дата:** 2026-05-17
+**Статус:** принято
+**Реализовано:** Сессия 42, миграция 36 + PermissionService + topic_members
+
+**Контекст:** ADR-040 (Этап 21) ввёл JWT-аутентификацию и роли USER/ADMIN
+на уровне всего приложения. Но per-entity ownership остался открытым:
+после auth любой залогиненный user мог читать/менять любую тему, потому
+что `@CurrentUser UUID userId` использовался только для `created_by`
+при создании, не для проверки доступа.
+
+Нужно решить:
+- Как ограничить чтение/запись по теме (только owner? group? все?)
+- Нужно ли co-editing (несколько user'ов работают над одной темой)?
+- Где жить permission check (controller, service, repository)?
+- Нужны ли permissions для library books / Q&A questions сейчас?
+- Что с ADMIN ролью - bypass всего или scoped?
+
+**Решение:**
+
+Hybrid visibility model:
+
+- **`topics.visibility`** колонка (`PRIVATE` / `SHARED` / `PUBLIC`)
+  - PRIVATE: только owner (created_by) может read/write
+  - SHARED: owner + members могут read; членство через `topic_members`
+    с ролью MEMBER (read-only) или EDITOR (read+write)
+  - PUBLIC: все аутентифицированные могут read, только owner и EDITOR
+    могут write
+- **`topic_members`** таблица - M:N (`topic_id`, `user_id`, `role`,
+  `added_at`, `added_by`). Уникальный ключ (`topic_id`, `user_id`)
+- **ADMIN** role (из ADR-040) - bypass всех visibility checks
+  (модерация, удаление спама, debugging). Логируется через стандартный
+  request log - audit log отдельно (отложено)
+- **Permission checks** живут в Service layer (`PermissionService` +
+  ассерты в TopicService/NodeService/EdgeService), не в Controller -
+  чтобы reused across REST API + future GraphQL/CLI/scheduled jobs.
+  Controller знает только @CurrentUser, ничего о visibility
+- **HTTP 403 Forbidden** с Problem Details `type: forbidden-topic-access`
+  / `forbidden-topic-write` при unauthorized. `topicId` и `userId`
+  включаются в properties для debugging
+- **MVP scope - только topics**. Library books / Q&A questions сейчас
+  не permission-controlled (видны всем). Если потребуется - добавим
+  отдельной миграцией с переиспользованием паттерна (visibility +
+  members)
+- **Default `visibility=PRIVATE`** для всех existing topics -
+  существующие пользователи продолжают видеть свои темы, но никто
+  чужой не может прочитать пока owner явно не shared
+
+**Rejected alternatives:**
+
+- **Полный RBAC (roles + permissions + resources matrix)** - over-engineering
+  для 2 типов сущности (topics) и 2 ролей (USER/ADMIN). Spring Security
+  ACL / Casbin / OPA - доступны если в будущем понадобится, но сейчас
+  visibility-enum достаточно
+- **Owner-only без sharing** - не масштабируется. Use-case «учёный
+  работает с учеником/коллегой над одной темой» реальный (исламский
+  use-case - совместный разбор фатвы)
+- **Org/team-based ownership** - предполагает структуру organizations
+  + team membership, чего сейчас нет. Платформа single-tenant с
+  individual users. Если будет нужно - добавим `organizations` таблицу
+  и заменим `topic.created_by` → `topic.org_id`. Откладывается до
+  явного use-case
+- **Permission check в Controller** через @PreAuthorize Spring Security
+  expressions - вязко по 2 причинам: (1) выражения с custom
+  PermissionEvaluator требуют bean registration и сложно тестировать;
+  (2) логика дублируется когда тот же сервис вызывается из non-REST
+  (scheduled jobs, CLI, integration tests). Сервис-уровневые ассерты
+  переиспользуются везде
+- **Per-user-per-node permissions** (граф permissions внутри темы) -
+  избыточная гранулярность для MVP. Узел не имеет смысла без темы,
+  поэтому permission уровня темы достаточно
+
+**Последствия:**
+
+- **(+)** Чёткая модель - 3 visibility-уровня покрывают типичные
+  use-cases (приватный draft / совместная работа / публичный share)
+- **(+)** Backward compat для existing data - default PRIVATE
+  сохраняет ownership без явной миграции
+- **(+)** Service-layer ассерты переиспользуются (REST, future GraphQL,
+  scheduled jobs, batch importers)
+- **(+)** Существующие IT тесты для TopicService продолжают работать -
+  они и так создавали тему и оперировали с тем же userId
+- **(−)** Дополнительный JOIN на topic_members при `findVisibleToUser`
+  - выбран UNION pattern (PRIVATE owned + SHARED member + PUBLIC) для
+  читаемости. Performance не блокер при ~100 топиков/user
+- **(−)** Frontend нужно обновить чтобы передавать visibility при
+  create + UI управления членами (отложено в Этап 22.b). Backend
+  работает с default PRIVATE если visibility не передан
+- **(−)** Не покрывает library books / Q&A questions - они пока
+  публичные (видны всем authenticated). Когда понадобится - повторим
+  паттерн отдельно для каждой entity. Документирую в backlog
+- **(−)** Audit log (кто что менял когда + кто получил/потерял доступ)
+  - отложено. Сейчас trace только через standard request log + revisions
+  таблица для контента. Audit RBAC - отдельная задача когда потребуется
+  compliance / forensic
+
+### Открытые вопросы (отложены)
+
+- **Visibility transitions** - что происходит с topic_members при
+  смене PUBLIC → PRIVATE? Сейчас просто перестают применяться
+  (логика - только PRIVATE/SHARED visibility учитывает members), но
+  delete не делаем - вернуться SHARED восстановит список. Возможно
+  стоит явный prompt в UI
+- **Transfer ownership** (передать owner другому user) - не входит
+  в MVP. Использовать workflow: owner делает нового user EDITOR, потом
+  manually админ меняет `created_by`. Если станет частым - REST
+  endpoint `POST /api/v1/topics/{id}/transfer`
+- **Group / team membership** - текущая модель только individual users.
+  При появлении orgs - добавляем `topic_members.group_id` (вместо/
+  параллельно `user_id`)
+- **Per-action permissions** (canMove, canDelete, canExport отдельно) -
+  не нужно. Текущие EDITOR / MEMBER / Owner покрывают use-cases:
+  owner может всё, EDITOR может всё кроме delete темы, MEMBER только
+  read
+
+### Связанные решения
+
+- **ADR-006** / **ADR-040** - принципал из SecurityContext, basis для
+  permission checks
+- **ADR-003** (nodes/edges в двух таблицах) - permissions применяются
+  на уровне темы, узлы/рёбра наследуют через `node.topic_id`
+- **ADR-018** (platform pivot) - паттерн visibility/members может
+  быть переиспользован для books/questions когда понадобится
+

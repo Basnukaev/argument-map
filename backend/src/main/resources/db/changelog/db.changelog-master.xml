@@ -39,5 +39,7 @@
     <include file="db/changelog/changes/20260517-32-extend-users-for-auth.xml"/>
     <include file="db/changelog/changes/20260517-33-page-formatted-content.xml"/>
     <include file="db/changelog/changes/20260517-34-image-scans-fields.xml"/>
+    <include file="db/changelog/changes/20260517-35-ai-edit-status-fields.xml"/>
+    <include file="db/changelog/changes/20260517-36-topic-rbac.xml"/>
 
 </databaseChangeLog>

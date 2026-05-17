@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        ADR-043: RBAC permissions per-entity для topics.
+
+        Добавляем колонку visibility (PRIVATE / SHARED / PUBLIC) и таблицу
+        topic_members для M:N связки SHARED-тем с со-редакторами. Owner темы -
+        существующее поле created_by. ADMIN bypass всех visibility checks
+        делается в Service layer (не БД).
+
+        Default value PRIVATE для existing topics - совместимость:
+        пользователи продолжают видеть и редактировать свои темы, но никто
+        чужой не может прочитать пока owner явно не поделится через SHARED
+        + topic_members.
+    -->
+    <changeSet id="20260517-36-topic-rbac" author="Abdula Basnukaev">
+        <comment>ADR-043: добавляем visibility в topics + таблицу topic_members</comment>
+        <sql>
+            ALTER TABLE topics
+                ADD COLUMN visibility VARCHAR(20) NOT NULL DEFAULT 'PRIVATE';
+
+            ALTER TABLE topics
+                ADD CONSTRAINT topics_visibility_check
+                CHECK (visibility IN ('PRIVATE', 'SHARED', 'PUBLIC'));
+
+            CREATE INDEX idx_topics_visibility ON topics(visibility);
+            CREATE INDEX idx_topics_created_by_visibility ON topics(created_by, visibility);
+
+            CREATE TABLE topic_members (
+                id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                topic_id   UUID NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+                user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                role       VARCHAR(20) NOT NULL,
+                added_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                added_by   UUID NOT NULL REFERENCES users(id),
+                CONSTRAINT topic_members_role_check
+                    CHECK (role IN ('MEMBER', 'EDITOR')),
+                CONSTRAINT topic_members_unique
+                    UNIQUE (topic_id, user_id)
+            );
+
+            CREATE INDEX idx_topic_members_user ON topic_members(user_id);
+            CREATE INDEX idx_topic_members_topic ON topic_members(topic_id);
+        </sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_topic_members_topic;
+                DROP INDEX IF EXISTS idx_topic_members_user;
+                DROP TABLE IF EXISTS topic_members;
+
+                DROP INDEX IF EXISTS idx_topics_created_by_visibility;
+                DROP INDEX IF EXISTS idx_topics_visibility;
+                ALTER TABLE topics DROP CONSTRAINT IF EXISTS topics_visibility_check;
+                ALTER TABLE topics DROP COLUMN visibility;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
