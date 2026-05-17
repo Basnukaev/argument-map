@@ -8,13 +8,24 @@ import {
   computeRangeOffsets,
   removeHighlights,
 } from '@/shared/components/reader/textRangeUtils';
+import RichTextRenderer from '@/shared/components/editor/RichTextRenderer';
+import { HadithBox } from '@/shared/components/editor/extensions/HadithBox';
+
+// Custom Tiptap extensions для read-only render. Список должен совпадать
+// с extensions в AdminPageEditorPage - иначе пользовательский HadithBox
+// упадёт на «unknown node type». По мере добавления новых extensions
+// (AyahBox / Marginalia / Footnote / etc) - расширять этот массив
+const READER_EXTENSIONS = [HadithBox];
 
 // Source-first поля (миграция 19, ADR-021) - в runtime есть, но types.ts
 // регенерируется отдельно. Intersection даёт безопасный доступ.
+// formattedContent (миграция 33, ADR-039) тоже appended до regenerate-api -
+// ProseMirror JSON либо null для legacy страниц
 export type PageDetail = components['schemas']['PageResponse'] & {
   printedPage?: string | null;
   part?: string | null;
   pdfPageNumber?: number | null;
+  formattedContent?: object | null;
 };
 
 export type PageContentState =
@@ -161,7 +172,13 @@ function PageView({
           className="mx-auto mb-4 max-h-[800px] w-auto rounded-md border border-border"
         />
       )}
-      {text && (
+      {/* ADR-039: если есть formatted_content - рендерим через
+          RichTextRenderer (HadithBox + другие custom nodes).
+          Иначе fallback на старый sanitized HTML путь.
+          Highlight ranges + ЛКМ-selection пока работают только в
+          legacy режиме - перенос на ProseMirror selection API
+          отдельным этапом */}
+      {page.formattedContent ? (
         <article
           ref={contentRef}
           className={
@@ -170,8 +187,25 @@ function PageView({
               : 'book-content text-base leading-relaxed text-ink-900'
           }
           dir={isArabic ? 'rtl' : 'ltr'}
-          dangerouslySetInnerHTML={{ __html: sanitizePageHtml(text) }}
-        />
+        >
+          <RichTextRenderer
+            content={page.formattedContent}
+            extensions={READER_EXTENSIONS}
+          />
+        </article>
+      ) : (
+        text && (
+          <article
+            ref={contentRef}
+            className={
+              isArabic
+                ? 'book-content font-naskh text-md leading-[2] text-ink-900'
+                : 'book-content text-base leading-relaxed text-ink-900'
+            }
+            dir={isArabic ? 'rtl' : 'ltr'}
+            dangerouslySetInnerHTML={{ __html: sanitizePageHtml(text) }}
+          />
+        )
       )}
     </Card>
   );
