@@ -11,6 +11,8 @@ import ru.basnukaev.argumentmap.domain.Node;
 import ru.basnukaev.argumentmap.domain.NodeStatus;
 import ru.basnukaev.argumentmap.domain.NodeType;
 import ru.basnukaev.argumentmap.domain.Revision;
+import ru.basnukaev.argumentmap.domain.Topic;
+import ru.basnukaev.argumentmap.exception.NodeIsRootException;
 import ru.basnukaev.argumentmap.exception.NodeNotFoundException;
 import ru.basnukaev.argumentmap.exception.TopicNotFoundException;
 import ru.basnukaev.argumentmap.repository.NodeRepository;
@@ -99,6 +101,14 @@ public class NodeService {
     public void deleteNode(UUID nodeId) {
         Node existing = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new NodeNotFoundException(nodeId));
+        // защита от удаления корневого вопроса темы - разрушит граф
+        // (orphan edges + status calculation сломан). Чтобы убрать
+        // корень - удалять тему целиком
+        Topic topic = topicRepository.findById(existing.topicId())
+                .orElseThrow(() -> new TopicNotFoundException(existing.topicId()));
+        if (nodeId.equals(topic.rootNodeId())) {
+            throw new NodeIsRootException(nodeId, topic.id());
+        }
         nodeRepository.deleteById(nodeId);
         statusCalculationService.recalculateTopic(existing.topicId());
     }

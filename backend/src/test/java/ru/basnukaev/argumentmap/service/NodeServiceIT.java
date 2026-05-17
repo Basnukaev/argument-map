@@ -19,9 +19,11 @@ import ru.basnukaev.argumentmap.domain.Node;
 import ru.basnukaev.argumentmap.domain.NodeStatus;
 import ru.basnukaev.argumentmap.domain.NodeType;
 import ru.basnukaev.argumentmap.domain.Revision;
+import ru.basnukaev.argumentmap.exception.NodeIsRootException;
 import ru.basnukaev.argumentmap.exception.NodeNotFoundException;
 import ru.basnukaev.argumentmap.exception.TopicNotFoundException;
 import ru.basnukaev.argumentmap.repository.NodeRepository;
+import ru.basnukaev.argumentmap.repository.TopicRepository;
 
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
@@ -33,6 +35,9 @@ class NodeServiceIT {
 
     @Autowired
     private NodeRepository nodeRepository;
+
+    @Autowired
+    private TopicRepository topicRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -130,6 +135,33 @@ class NodeServiceIT {
     void deleteNode_whenNotFound_throws() {
         assertThatThrownBy(() -> nodeService.deleteNode(UUID.randomUUID()))
                 .isInstanceOf(NodeNotFoundException.class);
+    }
+
+    @Test
+    void deleteNode_whenRootQuestion_throwsNodeIsRoot() {
+        // создаём корневой узел и привязываем его к topic.root_node_id
+        Node root = nodeService.createNode(topicId, NodeType.QUESTION, "Корневой вопрос?", userId);
+        topicRepository.updateRootNodeId(topicId, root.id());
+
+        assertThatThrownBy(() -> nodeService.deleteNode(root.id()))
+                .isInstanceOf(NodeIsRootException.class);
+
+        // узел остался в БД - удаление действительно не произошло
+        assertThat(nodeRepository.findById(root.id())).isPresent();
+    }
+
+    @Test
+    void deleteNode_whenNonRootInTopicWithRoot_succeeds() {
+        // sanity: root установлен, удаляем другой (не корневой) узел -
+        // должно работать как раньше
+        Node root = nodeService.createNode(topicId, NodeType.QUESTION, "Корень?", userId);
+        topicRepository.updateRootNodeId(topicId, root.id());
+        Node child = nodeService.createNode(topicId, NodeType.CLAIM, "Тезис", userId);
+
+        nodeService.deleteNode(child.id());
+
+        assertThat(nodeRepository.findById(child.id())).isEmpty();
+        assertThat(nodeRepository.findById(root.id())).isPresent();
     }
 
     @Test

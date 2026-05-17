@@ -42,6 +42,18 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.NOT_FOUND, "Узел не найден", "node-not-found", ex.getMessage());
     }
 
+    @ExceptionHandler(NodeIsRootException.class)
+    public ProblemDetail handleNodeIsRoot(NodeIsRootException ex) {
+        ProblemDetail pd = problem(HttpStatus.CONFLICT,
+                "Корневой узел нельзя удалить",
+                "node-is-root",
+                "Корневой вопрос темы нельзя удалить отдельно - "
+                        + "удалите тему целиком, чтобы убрать корень");
+        pd.setProperty("nodeId", ex.getNodeId().toString());
+        pd.setProperty("topicId", ex.getTopicId().toString());
+        return pd;
+    }
+
     @ExceptionHandler(EdgeNotFoundException.class)
     public ProblemDetail handleEdgeNotFound(EdgeNotFoundException ex) {
         return problem(HttpStatus.NOT_FOUND, "Ребро не найдено", "edge-not-found", ex.getMessage());
