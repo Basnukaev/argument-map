@@ -210,17 +210,31 @@ ADR-039
       diamond/flower/star/crescent, levels 1-4), PageNumber (inline
       atom `⟦N⟧`). 43 schema-теста, ~58 i18n keys RU/AR, READER_EXTENSIONS
       синхронизирован с EDITOR_EXTENSIONS. 284/284 frontend tests pass
-- [ ] **17.a:** PageImageService - upload изображений-страниц через
-      `POST /api/v1/library/books/{id}/pages` (multipart, по одной)
-- [ ] **17.b:** Tess4j integration - OCR арабского через `ara`
-      training data. Async через `@Async` + фоновый таск-runner
-- [ ] **17.c:** ImageRegion API - `POST /api/v1/library/pages/{id}/regions`
-      для создания выделенного региона
-- [ ] **17.d:** re-OCR endpoint - возможность перезапустить OCR
+- [x] **17.a:** PageImageService + `POST /api/v1/library/books/{id}/pages`
+      multipart (Сессия 42, ADR-041). MIME whitelist image/jpeg|png|webp|tiff,
+      bucket `library-page-images` (уже сконфигурирован в ObjectStorageProperties),
+      key `{bookId}/page-{N}.{ext}`. Создаёт placeholder Page либо обновляет
+      existing (idempotent re-upload). Migration 34 ALTER lib_pages добавила
+      image_bucket/storage_key/uploaded_at + ocr_status state machine
+- [x] **17.b:** Tess4j 5.13.0 + OcrService (Сессия 42, ADR-041). @Async с
+      dedicated ocrTaskExecutor (core=2/max=4), language=ara+rus+eng,
+      tessdata.path конфигурируется. State machine PENDING/PROCESSING/DONE/
+      FAILED. POST /api/v1/library/pages/{id}/ocr (триггер, 202 Accepted) +
+      GET /pages/{id}/ocr (polling). Tesseract сам - system dependency,
+      установка задокументирована в backend/CLAUDE.md
+- [x] **17.c:** ImageRegion API (Сессия 42, ADR-041). 3 endpoint:
+      POST /api/v1/library/pages/{pageId}/regions (CreateImageRegionRequest
+      normalized 0..1 + Bean Validation), GET list sorted by created_at,
+      DELETE /pages/regions/{regionId}. Update намеренно нет - immutable
+- [ ] **17.d:** re-OCR endpoint - возможность перезапустить OCR.
+      Реализовано неявно через existing POST /pages/{id}/ocr (idempotent
+      на state machine). Отдельный resource path не нужен на MVP
 - [ ] **17.e:** AI editing pass - LLM расставляет headings, хадис-боксы,
       footnotes, нормализует tashkeel. Manual review через Tiptap editor
-- [ ] **17.f:** ADR на OCR pipeline - выбор Tesseract, fallback на
-      ручной ввод, точки расширения
+- [x] **17.f:** ADR на OCR pipeline - **ADR-041 принят в Сессии 42**.
+      Tess4j (Tesseract wrapper) + system dep на хосте, ara/rus/eng,
+      async @Async pool, state machine PENDING/PROCESSING/DONE/FAILED,
+      graceful degradation при отсутствии Tesseract
 
 ### Этап 18. Library frontend - оставшиеся подэтапы
 

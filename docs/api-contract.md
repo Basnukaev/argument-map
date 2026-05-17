@@ -1047,12 +1047,148 @@ fallback render. `updated_at` bump.
 - 404 `page-not-found` - id не найден
 - 400 - syntactically invalid JSON в body
 
+### POST /api/v1/library/books/{bookId}/pages - upload page image (Этап 17.a)
+
+ADR-041 (OCR pipeline). Третий способ внести страницу в библиотеку
+после shamela ETL и file import PDF. Image-сканы для рукописей и
+редких книг где text layer отсутствует. Один файл - одна страница.
+
+Multipart/form-data:
+- `file` (required) - image binary. Content-type whitelist:
+  `image/jpeg`, `image/png`, `image/webp`, `image/tiff`. Размер до
+  20MB (Spring multipart limit)
+- `pageNumber` (required, query param) - internal номер страницы
+  (1-based). Если page с таким номером уже существует - upload
+  обновляет pointer на новый scan (S3 versioning сохранит историю
+  previous). Иначе создаётся placeholder Page с `text_content=""`
+  (CHECK constraint satisfied)
+
+Header: `X-User-Id` (или Bearer JWT в prod) - mutating endpoint.
+
+`200 OK` - `PageResponse` (расширен 6 image/OCR полями - см. ниже):
+```json
+{
+  "id": "uuid",
+  "bookId": "uuid",
+  "pageNumber": 1,
+  "imageBucket": "library-page-images",
+  "imageStorageKey": "{bookId}/page-1.jpg",
+  "imageUploadedAt": "2026-05-17T22:00:00Z",
+  "ocrStatus": "PENDING",
+  ...
+}
+```
+
+После upload OCR **не** запускается автоматически - триггер отдельный
+endpoint (см. ниже). Это позволяет batch-uploader залить все страницы
+рукописи + затем триггерить OCR пачкой.
+
+Ошибки:
+- 404 `book-not-found` - bookId не существует
+- 413 `payload-too-large` - >20MB
+- 415 `unsupported-media-type` - MIME вне whitelist
+- 422 `page-image-error` - pageNumber<=0, пустой файл, чтение из stream
+
+### POST /api/v1/library/pages/{pageId}/ocr - триггер async OCR (Этап 17.b)
+
+ADR-041. Запускает Tesseract OCR через `OcrService.recognizeAsync` -
+работа уходит в bounded `ocrTaskExecutor` (core=2, max=4). Frontend
+получает 202 Accepted сразу, опрашивает GET endpoint для статуса.
+
+Тело: пустое.
+
+`202 Accepted` - `OcrJobResponse`:
+```json
+{
+  "pageId": "uuid",
+  "status": "PENDING",
+  "startedAt": null,
+  "completedAt": null,
+  "hasImage": true
+}
+```
+
+`status` на момент response - текущее значение `lib_pages.ocr_status`.
+Реальное PROCESSING может быть выставлено async через миллисекунду.
+Polling endpoint показывает актуальное значение. Re-trigger допустим
+(полезно для зависших PROCESSING при рестарте backend'а).
+
+Ошибки:
+- 404 `page-not-found` - pageId не существует
+
+### GET /api/v1/library/pages/{pageId}/ocr - статус OCR (Этап 17.b)
+
+ADR-041. Polling endpoint для статуса. Frontend опрашивает каждые
+2-3 сек пока `status=PROCESSING`, переключается на DONE/FAILED →
+стопает polling.
+
+`200 OK` - `OcrJobResponse` (см. выше). `hasImage=false` означает что
+у страницы нет scan upload - precondition OCR не выполнен. Frontend
+может скрыть кнопку «Запустить OCR».
+
+Ошибки:
+- 404 `page-not-found`
+
+### POST /api/v1/library/pages/{pageId}/regions - создать ImageRegion (Этап 17.c)
+
+ADR-041. Выделенный прямоугольник на странице-скане - связь между
+physical area и semantic content (хадис-бокс, marginalia, footnote).
+Используется ImagePageRenderer (18.e) для overlay визуализации.
+
+Body - `CreateImageRegionRequest`:
+```json
+{
+  "x": 0.1,
+  "y": 0.2,
+  "width": 0.3,
+  "height": 0.4,
+  "extractedText": "хадис текст или null"
+}
+```
+
+Координаты нормализованные (0..1) - не пиксельные. Bean Validation
+проверяет каждое поле (0..1, width/height > 0). DB CHECK constraint
+дополнительно гарантирует `x+width <= 1 AND y+height <= 1`.
+
+`201 Created` + Location `/api/v1/library/pages/regions/{id}` +
+`ImageRegionResponse{id, x, y, width, height, extractedText}`.
+
+Ошибки:
+- 404 `page-not-found`
+- 400 - Bean Validation (out of range single field)
+- 422 `data-integrity-violation` - sum out of bounds
+
+### GET /api/v1/library/pages/{pageId}/regions - список регионов (Этап 17.c)
+
+`200 OK` - `List<ImageRegionResponse>` отсортированные по `created_at`.
+
+Ошибки:
+- 404 `page-not-found`
+
+### DELETE /api/v1/library/pages/regions/{regionId} - удалить регион (Этап 17.c)
+
+`204 No Content`. Update/PATCH намеренно не реализован - regions
+immutable. Изменить координаты = удалить + создать новый.
+
+Ошибки:
+- 404 `image-region-not-found`
+
+### Что **не** реализовано в Этапе 17
+
+- re-OCR endpoint (17.d) - перезапустить OCR на DONE/FAILED странице
+  через тот же `POST /pages/{id}/ocr` (idempotent на уровне state
+  machine), отдельный resource path не нужен
+- AI editing pass (17.e) - LLM расставляет structure через Tiptap
+  custom nodes на OCR raw text. Отдельный этап
+- Cron retry hung PROCESSING (>10 минут) - manual через polling +
+  re-trigger пока что
+
 ### Что **не** реализовано в Этапе 14
 
 - POST для chapters/pages/imageRegions - страницы и главы создаются
   только в составе книги через будущие import endpoints (Этапы 15-17)
 - PATCH/PUT для books/chapters/pages - вернёмся когда понадобится
-- multipart upload для image-сканов - Этап 17
+- ~~multipart upload для image-сканов~~ - **реализовано в 17.a** (см. выше)
 
 ## Shamela Admin API (ADR-020, Этапы 15.6 + 15.7)
 
@@ -1964,6 +2100,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-17 | v1 | Этап 17.a-c - OCR pipeline backend (ADR-041). Миграция 34 ALTER `lib_pages` добавляет 6 nullable колонок: `image_bucket`/`image_storage_key`/`image_uploaded_at` (pointer на скан в MinIO bucket `library-page-images`) + `ocr_status` (CHECK constraint PENDING/PROCESSING/DONE/FAILED) + `ocr_started_at`/`ocr_completed_at`. **3 новых endpoint'a**: `POST /api/v1/library/books/{bookId}/pages` multipart (file image/jpeg|png|webp|tiff + pageNumber query, до 20MB, возвращает PageResponse 200, либо создаёт placeholder Page либо обновляет existing); `POST /api/v1/library/pages/{pageId}/ocr` (триггер async Tesseract OCR, returns 202 OcrJobResponse{pageId, status, startedAt, completedAt, hasImage}); `GET /api/v1/library/pages/{pageId}/ocr` (polling status). **3 endpoint'a для ImageRegion** (17.c): `POST /api/v1/library/pages/{pageId}/regions` (body CreateImageRegionRequest{x,y,width,height,extractedText?} normalized 0..1, 201 + Location), `GET /api/v1/library/pages/{pageId}/regions` (list sorted by created_at), `DELETE /api/v1/library/pages/regions/{regionId}` (204, update намеренно нет - regions immutable). `PageResponse` расширен 6 image/OCR полями (`imageBucket`/`imageStorageKey`/`imageUploadedAt`/`ocrStatus`/`ocrStartedAt`/`ocrCompletedAt`). Новые ошибки: 422 `page-image-error` (empty file / wrong MIME / zero pageNumber), 415 `unsupported-media-type` (для page image). OcrService через Tess4j 5.13.0 + @Async с dedicated `ocrTaskExecutor` (core=2, max=4). Tesseract сам - system dependency (`apt install tesseract-ocr tesseract-ocr-ara`), docs в backend/CLAUDE.md | ADR-041: Tess4j (Tesseract Java wrapper) выбран как OCR engine - free, offline, supports ara/rus/eng, минимальная Java integration. Rejected: GCV (paid + cloud), PaddleOCR (Python-only), Tika (тонкая обёртка над Tess4j). Triggers revisit: PaddleOCR microservice если quality arabic < 70% на manuscripts |
 | 2026-05-17 | v1 | Этап 17.0 - Tiptap rich text editor MVP (ADR-039). Новый endpoint `PATCH /api/v1/library/pages/{id}/formatted-content` принимает `UpdateFormattedContentRequest{formattedContent: JsonNode}` и сохраняет ProseMirror JSON в новой `lib_pages.formatted_content jsonb NULL` колонке (миграция 33). Backend не валидирует ProseMirror schema - принимает любой валидный JSON (валидация на фронте через Tiptap extensions). `PageResponse` расширен полем `formattedContent: JsonNode \| null`. Backward compat: NULL для legacy Shamela/PDFBox страниц → фронт оборачивает `textContent` в minimal paragraph-doc через `wrapPlainTextAsDoc`. `text_content` не трогается (FTS + fallback). Требует X-User-Id/JWT auth | ADR-039: Tiptap (на ProseMirror) выбран как rich text editor платформы. Первый custom extension - HadithBox с source/grade attrs. Подготовка к Этапу 17 OCR pipeline (структурированное хранение AI editing output) |
 | 2026-05-17 | v1 | Этап 21.a Spring Security + JWT (ADR-040). Новый namespace `/api/v1/auth/*` с 5 endpoints: `POST /register` (RegisterRequest{email/username/password}, validation: email/3..50 ASCII username/8..100 password), `POST /login` (LoginRequest{email/password}), `POST /refresh` (CookieValue refresh_token, no-rotation MVP), `POST /logout` (clear cookie), `GET /me` (требует Bearer). Response DTO `AuthResponse{accessToken, accessTokenExpiresAt, user{id,username,email,role}}` + Set-Cookie refresh_token (HttpOnly+Secure+SameSite=Strict+Path=/+Max-Age=604800). Access TTL 15мин, refresh TTL 7д, HS256 signature через `auth.jwt.secret` (env AUTH_JWT_SECRET в prod). Новые error types: `401 invalid-credentials` (login fail или disabled), `401 invalid-token` (JWT тампер/expired/невалидный), `401 unauthorized` (no auth on protected endpoint), `409 email-already-taken`, `409 username-already-taken`, `404 user-not-found`. **Breaking semantic change**: ВСЕ mutating endpoints теперь требуют либо `Authorization: Bearer <jwt>`, либо (в dev/local/test profile) X-User-Id fallback. Запрос без обоих → 401 (раньше 400 `missing-user-header`). Existing IT обновлены: 4 теста с `missing-user-header` → 401. `GET /api/**` в dev/local/test profile остаётся permitAll (transitional до Этапа 21.b). Migration 32 `users` ALTER + password_hash/role/enabled/updated_at. OpenAPI X-User-Id header теперь required=false (Bearer JWT - основной путь) | ADR-040 JWT-based auth. Этап 21.a backend foundation, Этап 21.b frontend login UI следующей сессией |
 | 2026-05-17 | v1 | Новый error type `node-is-root` (409 Conflict). Возвращается из `DELETE /api/v1/nodes/{id}` когда `id` совпадает с `topics.root_node_id` соответствующей темы. Дополнительные properties `nodeId` и `topicId`. До фикса корневой узел удалялся успешно - разрушал граф (orphan edges + сломанный status recalc). Чтобы удалить корень - удалить тему целиком через `DELETE /api/v1/topics/{topicId}` | User feedback #1 Сессии 38: пользователь поймал руками что в `TopicGraphPage` можно через NodeDetailsPanel / context menu удалить корневой QUESTION узел. Backend guard + frontend hide-button симметрично |

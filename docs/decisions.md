@@ -4480,3 +4480,125 @@ collaborative editor) - Tiptap имеет лучше ROI на extension рабо
   Principal, одни roles
 - **ADR-022** (frontend reorg) - login/register page будет в
   `frontend/src/shared/auth/` (не привязан к конкретному app)
+
+---
+
+## ADR-041: OCR через Tess4j (Tesseract Java wrapper) для image-сканов
+**Дата:** 2026-05-17
+**Статус:** принято
+**Реализовано:** Сессия 42, миграция 34 + library.imports.OcrService/PageImageService
+
+**Контекст:** Этап 17 - третий способ внести страницы в библиотеку
+после shamela ETL (text-only) и file import PDF (text extraction
+через PDFBox). Image-сканы нужны для рукописей и редких книг где
+text layer недоступен. Без OCR scan'ы остаются неиндексируемой
+картинкой - не работает full-text search, цитирование, AI editing.
+
+Требования к OCR engine:
+- арабский (~85% контента платформы)
+- русский (переводы)
+- английский (academic comments / footnotes)
+- offline / self-hosted (приватные рукописи не отправляем в облачные сервисы)
+- бесплатно (или fixed self-hosted cost)
+- Java integration (минимизировать microservice-overhead на MVP)
+
+**Решение:**
+
+- **Tess4j 5.13.0** - Java JNA-обёртка над **Tesseract** (C++ OCR
+  engine, де-факто стандарт open-source OCR с 2006)
+- **system Tesseract** ставится отдельно как host-dep (не через Maven)
+  - на Debian/WSL2: `sudo apt install tesseract-ocr tesseract-ocr-ara
+    tesseract-ocr-rus tesseract-ocr-eng`
+  - на macOS: `brew install tesseract tesseract-lang`
+  - в Docker prod образе: добавить в Dockerfile RUN apt-get install
+- **path к tessdata** через `ocr.tessdata.path` property, default
+  `/usr/share/tesseract-ocr/4.00/tessdata` (Debian standard)
+- **language combo** `ara+rus+eng` в `OcrService` - Tesseract LSTM
+  identifier сам решает per-block какой язык применить
+- **async через @Async** + dedicated `ocrTaskExecutor` (core=2, max=4)
+  - heavy CPU work, не блокируем HTTP-thread
+  - небольшой pool потому что Tesseract уже multi-threaded на одну
+    страницу - N parallel вреднее sequential queue
+- **state machine** в `lib_pages.ocr_status`: `PENDING` (uploaded, ждёт) →
+  `PROCESSING` (в работе) → `DONE` / `FAILED`. Перезапуск из любого
+  состояния допустим (re-OCR endpoint 17.d либо retry для hung
+  PROCESSING)
+- **REST API**:
+  - `POST /api/v1/library/books/{id}/pages` (multipart image) -
+    upload, page получает `ocr_status=PENDING`
+  - `POST /api/v1/library/pages/{id}/ocr` - триггер async OCR
+  - `GET /api/v1/library/pages/{id}/ocr` - polling status
+- **graceful degradation**: если system Tesseract не установлен на
+  хосте, backend стартует нормально, первый OCR-вызов помечает page
+  как FAILED + log.error. Не блокирует прочую функциональность
+
+**Rejected alternatives:**
+
+- **Google Cloud Vision API** - cost paid per request ($1.5/1000 images),
+  требует internet, vendor lock-in. Private manuscripts → privacy
+  concern. Качество arabic очень хорошее, но не free
+- **PaddleOCR** - state-of-the-art для arabic (>95% character accuracy),
+  но **Python-only** library. Нужно serv'ить через microservice
+  (Flask/FastAPI + REST), дополнительная инфраструктура. Откладываем
+  до момента когда Tesseract quality станет блокером
+- **EasyOCR** - тоже Python-only, та же причина отказа
+- **Apache Tika OCR** - под капотом использует Tesseract через JNI
+  (tika-parsers + tess4j). Тонкая обёртка - проще подключить tess4j
+  напрямую, контроля больше
+- **AWS Textract / Azure Computer Vision** - paid + cloud lock-in,
+  аналогично GCV
+- **Synchronous OCR в HTTP-handler** - блокирует Tomcat thread на
+  ~10 секунд на страницу, при batch 500 страниц - polling timeout
+  у frontend. Async обязателен
+
+**Последствия:**
+
+- **(+)** Free, offline, поддержка нужных языков (ara/rus/eng),
+  Java integration минимальна (один dep + EnableAsync)
+- **(+)** Tesseract `~5-10 сек` на страницу A4 - acceptable latency
+  для батч-загрузки рукописи (500 страниц ~1.5 часа в фоне)
+- **(+)** State machine в БД позволяет resume после рестарта
+  backend'а / OOM / OS reboot. Hung PROCESSING ловится cron retry
+  (17.d, отложен)
+- **(−)** **System dependency** - Tesseract не Maven artifact. Dev
+  должен установить вручную. Документировано в `backend/CLAUDE.md`
+  раздел OCR. В CI/CD prod Dockerfile - apt-get install в build stage
+- **(−)** Качество arabic на handwritten manuscript ~70-85% character
+  accuracy (typed printed text ~95%). Для рукописей нужен manual
+  review через ImageRegion (17.c) + AI editing pass (17.e)
+- **(−)** Native JNA binding - macOS требует `--add-opens` JVM args
+  если падает с access errors (известная gotcha JNA + JDK 17+).
+  Сейчас не ловили, реагируем если поймаем
+- **(−)** OcrServiceIT через Tess4j требует system Tesseract в test
+  environment. На CI без Tesseract тест skip'нется через
+  `@EnabledIf("isTesseractAvailable")` resolver. Не блокирует BUILD
+  SUCCESS, но coverage OCR pipeline зависит от dev/CI окружения
+
+### Triggers to revisit
+
+- **Quality** - если arabic OCR на manuscript scans даёт <70%
+  character accuracy на real-world fixtures → попробовать **PaddleOCR
+  microservice** (Python FastAPI + REST proxy через OcrService)
+- **Throughput** - если bottleneck станет CPU на single-host backend →
+  вынести OCR workers в отдельный k8s deployment с autoscale
+- **Privacy** - если будут commercial customers с manuscript copyright
+  concerns → Tesseract уже offline, ничего не меняем (это плюс
+  выбранного решения изначально)
+
+### Связанные решения
+
+- **ADR-019** (library MVP) - lib_pages + lib_image_regions созданы
+  миграцией 16. OCR pipeline 17.a/b/c расширяет lib_pages 6 image/OCR
+  колонками (миграция 34), не меняет существующую модель
+- **ADR-024** (object storage) - изображения хранятся в bucket
+  `library-page-images` (versioning ON, critical-tier). Versioning
+  сохраняет историю scan-uploads, OcrService при re-recognize читает
+  latest version
+- **ADR-035** (PDFBox) - PDF text extraction path не пересекается с
+  OCR. PDF-imported страницы получают `ocr_status=NULL` (не применимо).
+  Если у пользователя нет PDF text layer (scanned PDF) - в будущем
+  можно extract'нуть PDF→images через PDFBox + прогнать через OCR
+  pipeline (отложено как backlog)
+- **ADR-039** (Tiptap editor) - OCR raw output попадает в
+  `text_content`. AI editing pass (17.e) превратит его в structured
+  ProseMirror JSON для `formatted_content`

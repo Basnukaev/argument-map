@@ -11,6 +11,138 @@
 
 ---
 
+## 2026-05-17 - Этап 17.a-c - OCR backend (PageImageService + Tess4j + ImageRegion API), ADR-041
+
+Параллельная задача с frontend dark theme - зоны не пересеклись (backend
+только library + миграция 34 + 7 коммитов в backend/, frontend трогает
+shared/components/ui)
+
+**Реализовано (3 подэтапа):**
+
+1. **17.a PageImageService** (POST /api/v1/library/books/{id}/pages)
+   - migration 34 ALTER lib_pages: 6 nullable колонок image_bucket/
+     storage_key/uploaded_at + ocr_status (CHECK PENDING/PROCESSING/
+     DONE/FAILED) + ocr_started_at/completed_at + partial index по
+     ocr_status WHERE NOT NULL
+   - Page record расширен 6 полями + backwards-compat 12-args
+     конструктор для shamela mapper / file import (не ломает callers)
+   - OcrStatus константы вместо enum (простота добавления статусов
+     без code-gen round-trip с фронтом)
+   - PageRepository обновлён + 4 новых метода (findByBookAndPageNumber,
+     updateImagePointer, updateOcrStatus, updateTextContentAndMarkDone)
+   - Whitelist MIME: image/jpeg, image/png, image/webp, image/tiff
+   - bucket `library-page-images` уже сконфигурирован в
+     ObjectStorageProperties (ADR-024) - дополнительной инфры не нужно
+   - Создаёт placeholder Page с text_content="" если pageNumber
+     новый, либо обновляет existing (idempotent re-upload, S3 versioning)
+
+2. **17.b Tess4j + OcrService** (POST/GET /api/v1/library/pages/{id}/ocr)
+   - Tess4j 5.13.0 Maven dep (Java JNA wrapper над Tesseract C++)
+     + exclusion slf4j-simple
+   - Tesseract сам = system dependency (НЕ pom), нужно установить
+     отдельно. Документировано в backend/CLAUDE.md OCR section
+   - OcrConfig - @EnableAsync + bounded ThreadPoolTaskExecutor
+     "ocrTaskExecutor" (core=2/max=4/queue=100, CallerRunsPolicy
+     backpressure). Small pool потому что Tesseract уже multi-threaded
+     на одну страницу
+   - OcrService.recognize / recognizeAsync(@Async("ocrTaskExecutor")):
+     state transition PENDING/FAILED/DONE → PROCESSING → download
+     MinIO image в temp file → Tesseract.doOCR(file) с
+     language="ara+rus+eng" → update text_content + DONE, либо
+     FAILED на любую exception
+   - Graceful degradation: native Tess4j binding lazy load на первом
+     вызове, если Tesseract нет - backend стартует нормально, OCR
+     помечает FAILED
+   - REST: POST /pages/{id}/ocr (202 Accepted + текущий status),
+     GET /pages/{id}/ocr (polling). OcrJobResponse{pageId, status,
+     startedAt, completedAt, hasImage}
+
+3. **17.c ImageRegion API** (3 endpoint)
+   - ImageRegionService + CRUD: create/getOne/listByPage/delete
+   - CreateImageRegionRequest{x, y, width, height, extractedText?}
+     с Bean Validation @DecimalMin/@DecimalMax 0..1. DB CHECK
+     constraint (миграция 16) обеспечивает x+width<=1 AND y+height<=1
+   - POST /api/v1/library/pages/{pageId}/regions → 201 + Location
+   - GET /api/v1/library/pages/{pageId}/regions - list sorted by created_at
+   - DELETE /api/v1/library/pages/regions/{regionId} → 204
+   - Update/PATCH намеренно нет - regions immutable. Изменить =
+     удалить + draw new
+
+**ADR-041 «OCR через Tess4j»** принят. Rejected: Google Cloud Vision
+(paid + cloud), PaddleOCR (Python-only), Apache Tika (тонкая обёртка),
+sync OCR (блокирует HTTP-thread). Triggers revisit: если quality
+arabic OCR <70% на real manuscripts → PaddleOCR microservice
+
+**Документация:**
+
+- `docs/decisions.md` - ADR-041 (контекст / решение / rejected /
+  consequences / triggers / связанные ADR)
+- `docs/api-contract.md` - 6 новых endpoints + history entry
+- `docs/roadmap.md` - 17.a/b/c/f `[x]`; 17.d помечен «реализовано
+  неявно через idempotent POST /ocr»
+- `backend/CLAUDE.md` - новая секция OCR (ADR-041) с правилом про
+  установку tesseract-ocr на хост
+
+**Коммиты (7):**
+
+1. `feat(backend): Этап 17 - миграция 34 image scans fields + Page domain expansion`
+2. `feat(backend): Этап 17.a - PageImageService + POST /library/books/{id}/pages multipart`
+3. `feat(backend): Этап 17.b - Tess4j integration + OcrService async`
+4. `feat(backend): Этап 17.b - OCR REST endpoints (POST trigger + GET status)`
+5. `feat(backend): Этап 17.c - ImageRegion API (POST/GET/DELETE regions)`
+6. `feat(backend): Этап 17 - IT для PageImageService/OcrService/ImageRegion`
+7. `docs: Этап 17.a-c OCR backend - ADR-041 + api-contract + roadmap + progress + backend/CLAUDE.md` (этот коммит)
+
+**Verify:** `./mvnw clean verify` BUILD SUCCESS, **646 tests pass**
+(+24 от 622 baseline), 0 failures, 0 errors, **2 skipped** -
+OcrServiceIT через @EnabledIf пропускается так как на dev WSL2
+tesseract-ocr НЕ установлен (graceful degradation работает,
+проверено)
+
+**Что user может проверить руками:**
+
+1. backend dev сервер на :9090 поднялся - проверка через
+   `curl http://localhost:9090/actuator/health`
+2. Upload page image:
+   ```bash
+   # bookId возьми из существующей книги в админке
+   curl -X POST "http://localhost:9090/api/v1/library/books/{bookId}/pages?pageNumber=1" \
+     -H "X-User-Id: $YOUR_USER_ID" \
+     -F "file=@/path/to/scan.jpg"
+   ```
+   Получишь PageResponse с `imageBucket=library-page-images`,
+   `imageStorageKey={bookId}/page-1.jpg`, `ocrStatus=PENDING`
+3. Триггер OCR (нужен tesseract на host, см. backend/CLAUDE.md):
+   ```bash
+   curl -X POST "http://localhost:9090/api/v1/library/pages/{pageId}/ocr" \
+     -H "X-User-Id: $YOUR_USER_ID"
+   ```
+4. Polling status:
+   ```bash
+   watch -n 2 'curl "http://localhost:9090/api/v1/library/pages/{pageId}/ocr"'
+   ```
+   Status переходит PENDING → PROCESSING → DONE (или FAILED если
+   tesseract не установлен)
+5. После DONE: `GET /api/v1/library/pages/{pageId}` - text_content
+   заполнен распознанным текстом
+6. ImageRegion: POST/GET/DELETE на `/library/pages/{id}/regions`
+
+**Отложено:**
+
+- 17.d отдельный re-OCR resource (есть idempotent через POST /ocr)
+- 17.e AI editing pass (LLM расставляет structure через Tiptap nodes)
+- Cron retry hung PROCESSING - manual через re-trigger пока
+- Frontend ImagePageRenderer (18.e) - отдельный mode для image-сканов
+  с overlay regions через react-image-crop
+- Real-world arabic OCR quality benchmark - дождаться когда реальные
+  manuscript scans появятся для тестового batch
+
+**Handoff:** при следующей сессии можно либо начинать 17.e (AI editing
+после получения tesseract output), либо 18.e ImagePageRenderer чтобы
+визуализировать regions поверх scan'ов
+
+---
+
 ## 2026-05-17 - Тёмная тема (полная) - backlog cleared
 
 Закрыт пункт «Тёмная тема» из `docs/backlog.md` раздел «Фронт - общие
