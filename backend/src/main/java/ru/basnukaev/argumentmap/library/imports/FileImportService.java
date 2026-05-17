@@ -178,6 +178,7 @@ public class FileImportService {
                         i + 1,                            // pdfPageNumber = phys
                         pageText != null ? pageText : EMPTY_PAGE_PLACEHOLDER,
                         null,                             // imageUrl - text-mode
+                        null,                             // formattedContent - не редактировалось (ADR-039)
                         now, now
                 );
                 pageRepository.save(page);

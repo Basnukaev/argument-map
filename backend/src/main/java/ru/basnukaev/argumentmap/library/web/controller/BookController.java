@@ -28,6 +28,7 @@ import ru.basnukaev.argumentmap.library.web.dto.CreateBookRequest;
 import ru.basnukaev.argumentmap.library.web.dto.PageResponse;
 import ru.basnukaev.argumentmap.library.web.dto.PageSummaryResponse;
 import ru.basnukaev.argumentmap.library.web.dto.UpdateBookRequest;
+import ru.basnukaev.argumentmap.library.web.dto.UpdateFormattedContentRequest;
 import ru.basnukaev.argumentmap.library.web.mapper.LibraryDtoMappers;
 import ru.basnukaev.argumentmap.web.CurrentUser;
 
@@ -116,6 +117,28 @@ public class BookController {
     @GetMapping("/pages/{pageId}")
     public PageResponse getPage(@PathVariable UUID pageId) {
         PageDetail detail = bookService.getPage(pageId);
+        return LibraryDtoMappers.toResponse(detail);
+    }
+
+    /**
+     * Сохранение ProseMirror JSON для страницы (Этап 17.0, ADR-039).
+     * Tiptap admin editor вызывает этот endpoint после save. Backend
+     * принимает любой синтаксически валидный JSON - schema validation
+     * (типы node'ов, content model) делается на фронте через Tiptap-
+     * extensions, не на backend (см. ADR-039).
+     *
+     * <p>Возвращает {@link PageResponse} с обновлённым
+     * {@code formattedContent} для consistency - фронт может сразу
+     * перерендерить страницу без дополнительного GET.
+     */
+    @PatchMapping("/pages/{pageId}/formatted-content")
+    public PageResponse updateFormattedContent(
+            @PathVariable UUID pageId,
+            @Valid @RequestBody UpdateFormattedContentRequest request) {
+        PageDetail detail = bookService.updateFormattedContent(
+                pageId,
+                request.formattedContent().toString()
+        );
         return LibraryDtoMappers.toResponse(detail);
     }
 }

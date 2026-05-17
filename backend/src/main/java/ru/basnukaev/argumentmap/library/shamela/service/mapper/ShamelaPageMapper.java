@@ -81,6 +81,7 @@ public class ShamelaPageMapper {
                     null,
                     cleanedContent,
                     null,
+                    null,
                     now,
                     now
             );

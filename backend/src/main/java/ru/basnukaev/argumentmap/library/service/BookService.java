@@ -229,6 +229,27 @@ public class BookService {
     }
 
     /**
+     * Сохранение ProseMirror JSON для страницы (Этап 17.0, ADR-039).
+     * Trust frontend Tiptap-сериализатор - schema validation на
+     * application level не делаем (см. ADR-039 «backend lookup без
+     * структурной валидации - принимает любой JSON»).
+     *
+     * <p>Updates только {@code formatted_content} + {@code updated_at};
+     * остальные поля страницы не трогаются. Возвращает обновлённую
+     * страницу с image regions для consistency с {@code getPage}.
+     *
+     * @throws PageNotFoundException если page id не найден
+     */
+    @Transactional
+    public PageDetail updateFormattedContent(UUID pageId, String formattedContentJson) {
+        boolean updated = pageRepository.updateFormattedContent(pageId, formattedContentJson);
+        if (!updated) {
+            throw new PageNotFoundException(pageId);
+        }
+        return getPage(pageId);
+    }
+
+    /**
      * Собирает плоский список глав в дерево по parent_chapter_id.
      * Корневые главы — те, у которых parentChapterId == null.
      * Сортировка по orderIndex обеспечивается порядком из репозитория

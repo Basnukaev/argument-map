@@ -127,6 +127,7 @@ public final class LibraryDtoMappers {
                 page.pageNumber(),
                 page.printedPage(), page.part(), page.pdfPageNumber(),
                 page.textContent(), page.imageUrl(),
+                jsonFromString(page.formattedContent()),
                 regions, page.createdAt(), page.updatedAt()
         );
     }
@@ -142,7 +143,7 @@ public final class LibraryDtoMappers {
         return node == null ? null : node.toString();
     }
 
-    private static JsonNode jsonFromString(String raw) {
+    static JsonNode jsonFromString(String raw) {
         if (raw == null) {
             return null;
         }

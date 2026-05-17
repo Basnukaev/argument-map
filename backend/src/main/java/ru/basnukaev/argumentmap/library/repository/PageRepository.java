@@ -18,7 +18,7 @@ public class PageRepository {
 
     private static final String COLUMNS =
             "id, book_id, chapter_id, page_number, printed_page, part, pdf_page_number, "
-            + "text_content, image_url, created_at, updated_at";
+            + "text_content, image_url, formatted_content, created_at, updated_at";
 
     private static final RowMapper<Page> ROW_MAPPER = (rs, rn) -> {
         int pdfPage = rs.getInt("pdf_page_number");
@@ -33,6 +33,7 @@ public class PageRepository {
                 pdfPageOrNull,
                 rs.getString("text_content"),
                 rs.getString("image_url"),
+                rs.getString("formatted_content"),
                 instant(rs, "created_at"),
                 instant(rs, "updated_at")
         );
@@ -45,8 +46,13 @@ public class PageRepository {
     }
 
     public Page save(Page page) {
+        // formatted_content идёт через ::jsonb cast - JdbcTemplate
+        // передаёт String, Postgres парсит. Это проще чем
+        // PGobject + Types.OTHER и единообразно с тем как мы
+        // храним другие jsonb колонки (metadata в lib_books)
         jdbcTemplate.update(
-                "INSERT INTO lib_pages (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO lib_pages (" + COLUMNS + ") "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?)",
                 page.id(),
                 page.bookId(),
                 page.chapterId(),
@@ -56,6 +62,7 @@ public class PageRepository {
                 page.pdfPageNumber(),
                 page.textContent(),
                 page.imageUrl(),
+                page.formattedContent(),
                 odt(page.createdAt()),
                 odt(page.updatedAt())
         );
@@ -96,6 +103,28 @@ public class PageRepository {
                 String.class,
                 bookId
         );
+    }
+
+    /**
+     * Partial update только колонки {@code formatted_content}
+     * (миграция 33, ADR-039). Используется admin editor flow когда
+     * пользователь сохраняет ProseMirror JSON через PATCH endpoint.
+     * Прочие поля (text_content, image_url, printed_page) не трогаются -
+     * editor не меняет structural metadata страницы.
+     *
+     * <p>Также bump {@code updated_at} для отслеживания «когда страница
+     * последний раз редактировалась».
+     *
+     * @return true если row updated, false если page id не найден
+     */
+    public boolean updateFormattedContent(UUID id, String formattedContent) {
+        int rows = jdbcTemplate.update(
+                "UPDATE lib_pages SET formatted_content = ?::jsonb, updated_at = now() "
+                        + "WHERE id = ?",
+                formattedContent,
+                id
+        );
+        return rows > 0;
     }
 
     public boolean deleteById(UUID id) {
