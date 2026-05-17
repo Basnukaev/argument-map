@@ -489,3 +489,45 @@ Inline script в `index.html` читает `localStorage` `app.theme` и
 Иконки lucide-react наследуют `color: currentColor` - переключаются
 автоматически если родительский элемент имеет правильный
 `text-ink-*` токен. Никаких dark-вариантов вручную ставить не нужно
+
+## Layout algorithm (граф аргументации)
+
+Раскладка узлов в `TopicGraphPage` поддерживает два алгоритма через
+переключатель в GraphPanels toolbar (Network icon под edge-labels
+toggle). Persist в `argmap.layoutAlgorithm` localStorage
+
+### `dagre` (default)
+
+- Sync, ~30KB gzipped (в initial bundle)
+- Хорош для небольших и средних графов с прямой иерархией
+- Использует `LR` direction (корень слева, цепочки вправо)
+- Рёбра - bezier curves через handles `CustomEdge`
+- При смешанном режиме (часть узлов с posX/posY, часть без) -
+  сохранённые остаются, fresh идут в столбец справа от saved-кластера
+  (см. `layoutGraph` `noneSaved`/`allSaved`/mixed ветки)
+
+### `elk` (опциональный enhancement)
+
+- Async, ~440KB gzipped в **lazy chunk** `elkLayout-*.js` (не нагружает
+  initial bundle)
+- Eclipse Layout Kernel port - `layered` algorithm + `ORTHOGONAL` edge
+  routing
+- Лучше для сложных графов с many edges - разводит рёбра вокруг узлов,
+  меньше crossings
+- One-shot trigger при выборе ELK в menu - применяет позиции, PATCH'ит
+  posX/posY на бэк, дальше работает как обычные сохранённые позиции
+- Loading state - spinner на иконке `Network` пока пересчитывается
+
+### Правила для новых layout-фич
+
+1. **Default остаётся dagre** - для большинства графов читаемее и
+   быстрее. ELK - для пользователей которые явно его включили
+2. **Lazy import elkjs** - всегда через `await import('./elkLayout')`,
+   не eager. Bundle elkjs не должен попадать в initial chunk
+3. **Mock elkjs в тестах** - bundled.js весит 1.4MB raw, в jsdom
+   тестах подменять через `vi.mock('elkjs/lib/elk.bundled.js', ...)`
+4. **Edges остаются на `CustomEdge`** - ELK даёт только позиции узлов.
+   `edge.sections[].bendPoints` пока не рендерим (см. backlog «Edge
+   bend points rendering» если понадобится)
+5. **i18n** - все layout-строки через ключи `layout.*` (algorithm_label
+   / dagre / elk / hint / applying / applied / failed). Не хардкодить

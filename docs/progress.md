@@ -11,6 +11,69 @@
 
 ---
 
+## 2026-05-18 - Smart edge routing (frontend, backlog → закрыто)
+
+Backlog-задача из «Фронт - общие улучшения» закрыта. Параллельно
+работал backend subagent над audit log 22.d - не пересекались
+(он `backend/`, я `frontend/`)
+
+**Реализовано (4 атомарных коммита):**
+
+1. **`elkLayout.ts` + `applyLayout()` switch** - `elkjs ^0.11.1` (200KB
+   gzipped в lazy chunk - не нагружает initial bundle для тех кто
+   остаётся на dagre). `layered` algorithm + `elk.edgeRouting=ORTHOGONAL`
+   - 90-градусные изломы вокруг узлов, меньше crossings чем dagre
+   bezier curves. Возвращает только позиции узлов; рёбра остаются на
+   `CustomEdge` с 4-handles (никакой замены edge component'а).
+   `layoutAlgorithmStore` - Zustand persist в `argmap.layoutAlgorithm`
+2. **`GraphPanels` layout dropdown** - новая кнопка `Network` в toolbar
+   (под edge-labels toggle) с radio выбором `dagre`/`elkjs`. Loading
+   spinner на иконке пока ELK пересчитывает. `GraphCanvas.triggerElkRelayout`
+   - one-shot при выборе ELK: применяет позиции + PATCH каждый узел +
+   `fitView`. После - работает как обычные сохранённые posX/posY,
+   следующие refetch'и их уважают
+3. **Tests +16** - elkLayout (5: empty / updates positions / count /
+   data preserved / edges unchanged) + graphLayout switch (3: dagre /
+   elk / empty) + layoutAlgorithmStore (4: default / setAlgorithm /
+   localStorage / unknown fallback) + GraphPanels menu (4: open / default
+   checked / pick ELK calls callback / no-op same algorithm). Mock
+   elkjs в всех тестах - bundled.js 1.4MB не должен попадать в jsdom
+4. **Docs:** ui-guidelines дополнен разделом «Layout algorithm»
+   (default dagre, ELK для сложных графов через settings, lazy bundle
+   chunk), backlog отмечен закрытым. gotcha не написан - elkjs работает
+   по доке без сюрпризов
+
+**Bundle impact:** elkjs выделен в отдельный chunk `elkLayout-*.js`
+(1440KB raw, 438KB gzipped) загружаемый dynamic import только при
+первом выборе ELK. Initial bundle не вырос. TopicGraphPage chunk остался
+385KB raw / 123KB gzipped
+
+**Playwright smoke** (manual, не CI): топик с 19 nodes / 18 edges
+(`123test`). Скриншоты до/после в `/tmp/elk_before_dagre.png` +
+`/tmp/elk_after_elk.png` - ORTHOGONAL routing визуально разводит
+рёбра вокруг узлов вместо bezier-кривых через них
+
+**Acceptance criteria выполнены:**
+- npm run test:run: 357 / 357 (341 baseline + 16 новых)
+- npm run lint: 0 errors (7 pre-existing warnings без отношения к ELK)
+- npx tsc --noEmit: 0 errors
+- npm run build: успешен, elkjs в lazy chunk, initial bundle не вырос
+
+**Что отложено:**
+- **Suspense UI** - сейчас lazy через dynamic import внутри `applyLayout`,
+  но без Suspense overlay. Loading state через `layoutPending` + spinner
+  на кнопке. Полный overlay над canvas - upgrade когда ELK станет default
+  для больших графов
+- **Edge bend points rendering** - ELK возвращает bend points в
+  edge.sections[].bendPoints. Сейчас рёбра остаются на CustomEdge с
+  bezier через handles. Полный orthogonal pipeline с edge polylines -
+  upgrade когда попросят visual parity с ELK preview
+- **Auto-suggestion** - сейчас выбор ручной через toggle. Auto-switch
+  на ELK при `nodeCount > 30 || edgeCount > 50` - upgrade когда наберём
+  данные по UX
+
+---
+
 ## 2026-05-18 - Голосование за вес аргументов (backend + frontend)
 
 Backlog-задача из раздела «Бэк - бэклог» закрыта. Параллельно с

@@ -51,8 +51,17 @@
   (themeStore 9, ThemeSwitch 6). UI-guidelines секция «Dark mode»
   с правилами для новых компонентов
 - [ ] Локализация (i18n) при появлении второй локали
-- [ ] **Smart edge routing** (опционально, если 4-handles + dagre
-      мало) - elkjs или custom edge с pathfinding
+- [x] **Smart edge routing** - закрыто 2026-05-18 через `elkjs ^0.11.1`.
+      Lazy chunk ~440KB gzipped, default остаётся `dagre`. Toggle в
+      GraphPanels toolbar (Network icon) переключает между `dagre`
+      (sync, лёгкий) и `elk` (async, ORTHOGONAL edge routing вокруг
+      узлов). ELK = one-shot re-layout при выборе - после применения
+      PATCH'ит posX/posY на бэк, дальше работает как обычные сохранённые
+      позиции. Persist в `argmap.layoutAlgorithm` localStorage. i18n
+      ключи `layout.*` (ru/ar). Tests +16 (elkLayout 5 + graphLayout
+      switch 3 + store 4 + GraphPanels menu 4). Полный отчёт в
+      `docs/progress.md` + UI-guidelines дополнен разделом «Layout
+      algorithm»
 - [ ] **Z-index full-stack persistence** для узлов и рёбер
       (миграция + поле + DTO + фронт). Сейчас локально, при
       refetch теряется. Делать только если станет критично -
