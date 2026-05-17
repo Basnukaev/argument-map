@@ -16,12 +16,24 @@ function renderPage() {
   );
 }
 
+// helper - mocks возвращают PagedResponse, page/size игнорируются (msw
+// при handlers без query matching возвращает ответ на любой ?page=&size=)
+const pagedEmpty = {
+  items: [],
+  page: 0,
+  size: 20,
+  totalElements: 0,
+  totalPages: 1,
+  hasNext: false,
+  hasPrev: false,
+};
+
 describe('TopicListPage', () => {
   it('показывает "Загрузка" пока запрос идёт', () => {
     server.use(
       http.get(`${BASE}/api/v1/topics`, async () => {
         await new Promise((r) => setTimeout(r, 1000));
-        return HttpResponse.json([]);
+        return HttpResponse.json(pagedEmpty);
       }),
     );
     renderPage();
@@ -29,7 +41,7 @@ describe('TopicListPage', () => {
   });
 
   it('показывает empty-state на пустом списке', async () => {
-    server.use(http.get(`${BASE}/api/v1/topics`, () => HttpResponse.json([])));
+    server.use(http.get(`${BASE}/api/v1/topics`, () => HttpResponse.json(pagedEmpty)));
     renderPage();
     await waitForApi(() => {
       expect(screen.getByText(/Пока нет тем/i)).toBeInTheDocument();
@@ -39,19 +51,27 @@ describe('TopicListPage', () => {
   it('рендерит карточки тем со ссылкой на граф', async () => {
     server.use(
       http.get(`${BASE}/api/v1/topics`, () =>
-        HttpResponse.json([
-          {
-            id: 't1',
-            title: 'Дозволенность мавлида',
-            description: 'Разбор позиций',
-            createdAt: '2026-05-01T10:00:00Z',
-          },
-          {
-            id: 't2',
-            title: 'Виды бид',
-            createdAt: '2026-05-02T11:00:00Z',
-          },
-        ]),
+        HttpResponse.json({
+          items: [
+            {
+              id: 't1',
+              title: 'Дозволенность мавлида',
+              description: 'Разбор позиций',
+              createdAt: '2026-05-01T10:00:00Z',
+            },
+            {
+              id: 't2',
+              title: 'Виды бид',
+              createdAt: '2026-05-02T11:00:00Z',
+            },
+          ],
+          page: 0,
+          size: 20,
+          totalElements: 2,
+          totalPages: 1,
+          hasNext: false,
+          hasPrev: false,
+        }),
       ),
     );
     renderPage();

@@ -1696,10 +1696,49 @@ export interface components {
         UpdateAnswerRequest: {
             body: string;
         };
+        PagedResponseTopicResponse: {
+            items?: components["schemas"]["TopicResponse"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            totalElements?: number;
+            /** Format: int32 */
+            totalPages?: number;
+            hasNext?: boolean;
+            hasPrev?: boolean;
+        };
         GraphResponse: {
             topic?: components["schemas"]["TopicResponse"];
             nodes?: components["schemas"]["NodeResponse"][];
             edges?: components["schemas"]["EdgeResponse"][];
+        };
+        PagedResponseSourceResponse: {
+            items?: components["schemas"]["SourceResponse"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            totalElements?: number;
+            /** Format: int32 */
+            totalPages?: number;
+            hasNext?: boolean;
+            hasPrev?: boolean;
+        };
+        PagedResponseQuestionResponse: {
+            items?: components["schemas"]["QuestionResponse"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            totalElements?: number;
+            /** Format: int32 */
+            totalPages?: number;
+            hasNext?: boolean;
+            hasPrev?: boolean;
         };
         RevisionResponse: {
             /** Format: uuid */
@@ -1741,6 +1780,19 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
         };
+        PagedResponseBookSummaryResponse: {
+            items?: components["schemas"]["BookSummaryResponse"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            totalElements?: number;
+            /** Format: int32 */
+            totalPages?: number;
+            hasNext?: boolean;
+            hasPrev?: boolean;
+        };
         StreamingResponseBody: Record<string, never>;
         PdfFileInfoResponse: {
             /** Format: int32 */
@@ -1769,6 +1821,19 @@ export interface components {
             chapterId?: string;
             hasText?: boolean;
             hasImage?: boolean;
+        };
+        PagedResponseAuthorityResponse: {
+            items?: components["schemas"]["AuthorityResponse"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            totalElements?: number;
+            /** Format: int32 */
+            totalPages?: number;
+            hasNext?: boolean;
+            hasPrev?: boolean;
         };
         MeResponse: {
             /** Format: uuid */
@@ -1811,7 +1876,11 @@ export type $defs = Record<string, never>;
 export interface operations {
     list: {
         parameters: {
-            query?: never;
+            query?: {
+                visibility?: string;
+                page?: number;
+                size?: number;
+            };
             header?: {
                 /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
                 "X-User-Id"?: string;
@@ -1827,7 +1896,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["TopicResponse"][];
+                    "*/*": components["schemas"]["PagedResponseTopicResponse"];
                 };
             };
         };
@@ -1952,6 +2021,10 @@ export interface operations {
         parameters: {
             query?: {
                 q?: string;
+                type?: "QURAN" | "HADITH" | "BOOK" | "ARTICLE" | "URL";
+                reliability?: "SAHIH" | "HASAN" | "DAIF";
+                page?: number;
+                size?: number;
             };
             header?: never;
             path?: never;
@@ -1965,7 +2038,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SourceResponse"][];
+                    "*/*": components["schemas"]["PagedResponseSourceResponse"];
                 };
             };
         };
@@ -1999,6 +2072,8 @@ export interface operations {
             query?: {
                 status?: "OPEN" | "ANSWERED" | "CLOSED";
                 q?: string;
+                page?: number;
+                size?: number;
             };
             header?: never;
             path?: never;
@@ -2012,7 +2087,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["QuestionResponse"][];
+                    "*/*": components["schemas"]["PagedResponseQuestionResponse"];
                 };
             };
         };
@@ -2443,6 +2518,10 @@ export interface operations {
             query?: {
                 q?: string;
                 type?: "QURAN" | "HADITH_COLLECTION" | "BOOK" | "ARTICLE" | "MANUSCRIPT";
+                authorityId?: string;
+                publisherId?: string;
+                page?: number;
+                size?: number;
             };
             header?: never;
             path?: never;
@@ -2456,7 +2535,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["BookSummaryResponse"][];
+                    "*/*": components["schemas"]["PagedResponseBookSummaryResponse"];
                 };
             };
         };
@@ -2582,6 +2661,9 @@ export interface operations {
         parameters: {
             query?: {
                 q?: string;
+                era?: string;
+                page?: number;
+                size?: number;
             };
             header?: never;
             path?: never;
@@ -2595,7 +2677,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["AuthorityResponse"][];
+                    "*/*": components["schemas"]["PagedResponseAuthorityResponse"];
                 };
             };
         };

@@ -236,6 +236,7 @@ export const DICTIONARY = {
     'common.saving': 'Сохраняем',
     'common.search': 'Поиск',
     'common.notifications': 'Уведомления',
+    'common.load_more': 'Показать ещё',
 
     // command palette
     'palette.aria': 'Командная палитра',
@@ -1008,6 +1009,7 @@ export const DICTIONARY = {
     'common.saving': 'جاري الحفظ',
     'common.search': 'بحث',
     'common.notifications': 'الإشعارات',
+    'common.load_more': 'عرض المزيد',
 
     'palette.aria': 'لوحة الأوامر',
     'palette.placeholder': 'بحث في الأوامر والصفحات',

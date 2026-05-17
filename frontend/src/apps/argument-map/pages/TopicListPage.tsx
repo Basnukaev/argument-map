@@ -14,7 +14,6 @@ import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import {
-  apiGet,
   apiGetRaw,
   apiPostMultipart,
   API_BASE_URL,
@@ -29,20 +28,43 @@ import VisibilityBadge from '@/apps/argument-map/components/VisibilityBadge';
 
 type Topic = components['schemas']['TopicResponse'];
 type TopicImportResponse = components['schemas']['TopicImportResponse'];
+type PagedTopics = components['schemas']['PagedResponseTopicResponse'];
+
+const PAGE_SIZE = 20;
+
+interface TopicsAccum {
+  topics: Topic[];
+  page: number;
+  hasNext: boolean;
+  totalElements: number;
+}
 
 function TopicListPage() {
   const t = useT();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [state, setState] = useState<AsyncState<Topic[]>>({ kind: 'loading' });
+  const [state, setState] = useState<AsyncState<TopicsAccum>>({ kind: 'loading' });
   const [search, setSearch] = useState('');
   const [importBusy, setImportBusy] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
-    apiGet('/api/v1/topics', { signal: controller.signal })
-      .then((topics) => {
-        setState({ kind: 'success', data: (topics ?? []) as Topic[] });
+    // apiGetRaw используется т.к. query-params не входят в keyof paths
+    // из openapi-typescript
+    apiGetRaw<PagedTopics>(`/api/v1/topics?page=0&size=${PAGE_SIZE}`, {
+      signal: controller.signal,
+    })
+      .then((paged) => {
+        setState({
+          kind: 'success',
+          data: {
+            topics: (paged.items ?? []) as Topic[],
+            page: paged.page ?? 0,
+            hasNext: paged.hasNext ?? false,
+            totalElements: paged.totalElements ?? 0,
+          },
+        });
       })
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;
@@ -56,6 +78,36 @@ function TopicListPage() {
       });
     return () => controller.abort();
   }, []);
+
+  /**
+   * Load More - подгружает следующую страницу, аппендит к existing list.
+   * Page+1 берётся из текущего state, hasNext контролирует видимость кнопки.
+   * Ошибка - toast, не разрушаем existing list.
+   */
+  const handleLoadMore = async () => {
+    if (state.kind !== 'success' || !state.data.hasNext || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = state.data.page + 1;
+      const resp = await apiGetRaw<PagedTopics>(
+        `/api/v1/topics?page=${nextPage}&size=${PAGE_SIZE}`,
+      );
+      const nextItems = (resp.items ?? []) as Topic[];
+      setState({
+        kind: 'success',
+        data: {
+          topics: [...state.data.topics, ...nextItems],
+          page: resp.page ?? nextPage,
+          hasNext: resp.hasNext ?? false,
+          totalElements: resp.totalElements ?? state.data.totalElements,
+        },
+      });
+    } catch (e: unknown) {
+      toast.error(formatApiError(e, t('topic.list.subtitle_active')));
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   /**
    * Trigger native file picker. `<input type="file">` стилизуется плохо -
@@ -93,8 +145,18 @@ function TopicListPage() {
         onClick: () => navigate(`/topics/${response.topicId}`),
       });
       // refetch topic list - новая тема должна появиться в каталоге
-      const topics = (await apiGet('/api/v1/topics')) as Topic[];
-      setState({ kind: 'success', data: topics ?? [] });
+      const refetched = await apiGetRaw<PagedTopics>(
+        `/api/v1/topics?page=0&size=${PAGE_SIZE}`,
+      );
+      setState({
+        kind: 'success',
+        data: {
+          topics: (refetched.items ?? []) as Topic[],
+          page: refetched.page ?? 0,
+          hasNext: refetched.hasNext ?? false,
+          totalElements: refetched.totalElements ?? 0,
+        },
+      });
     } catch (err: unknown) {
       if (err instanceof ApiError && err.is('unsupported-format-version')) {
         toast.error(t('topic.import.error_format'));
@@ -108,9 +170,9 @@ function TopicListPage() {
 
   const filteredTopics = useMemo(() => {
     if (state.kind !== 'success') return [];
-    if (!search.trim()) return state.data;
+    if (!search.trim()) return state.data.topics;
     const q = search.trim().toLowerCase();
-    return state.data.filter(
+    return state.data.topics.filter(
       (t) =>
         (t.title ?? '').toLowerCase().includes(q) ||
         (t.description ?? '').toLowerCase().includes(q),
@@ -136,7 +198,7 @@ function TopicListPage() {
                 <>
                   {' '}·{' '}
                   <span className="font-medium text-ink-700">
-                    <bdi dir="ltr">{state.data.length}</bdi>{' '}
+                    <bdi dir="ltr">{state.data.totalElements}</bdi>{' '}
                     {t('topic.list.aria_topic_count')}
                   </span>
                 </>
@@ -203,7 +265,7 @@ function TopicListPage() {
           </Card>
         )}
 
-        {state.kind === 'success' && state.data.length === 0 && (
+        {state.kind === 'success' && state.data.topics.length === 0 && (
           <Card className="mx-auto max-w-2xl p-12 text-center">
             <p className="text-base text-ink-700">{t('topic.list.empty')}</p>
             <Link to="/topics/new" className="mt-4 inline-block">
@@ -213,7 +275,7 @@ function TopicListPage() {
         )}
 
         {state.kind === 'success' &&
-          state.data.length > 0 &&
+          state.data.topics.length > 0 &&
           filteredTopics.length === 0 && (
             <p className="text-center text-sm text-ink-500">
               {t('topic.list.not_found')}
@@ -221,15 +283,38 @@ function TopicListPage() {
           )}
 
         {state.kind === 'success' && filteredTopics.length > 0 && (
-          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredTopics
-              .filter((t): t is Topic & { id: string } => Boolean(t.id))
-              .map((topic) => (
-                <li key={topic.id}>
-                  <TopicCard topic={topic} />
-                </li>
-              ))}
-          </ul>
+          <>
+            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredTopics
+                .filter((t): t is Topic & { id: string } => Boolean(t.id))
+                .map((topic) => (
+                  <li key={topic.id}>
+                    <TopicCard topic={topic} />
+                  </li>
+                ))}
+            </ul>
+
+            {/*
+              Load More - подгружает следующую страницу. Кнопка только если
+              на бэке ещё есть hasNext И мы не в режиме client-side search
+              (фильтрация по текущей загруженной выборке - не имеет смысла
+              грузить ещё страницы пока выборка отфильтрована, всё равно
+              skip'нем не подходящие). Реальная server-side фильтрация по
+              search через ?q= - upgrade для backlog
+            */}
+            {state.data.hasNext && !search.trim() && (
+              <div className="mt-6 flex justify-center">
+                <Button
+                  variant="ghost"
+                  onClick={handleLoadMore}
+                  disabled={loadingMore}
+                  icon={loadingMore ? Loader2 : undefined}
+                >
+                  {loadingMore ? t('common.loading') : t('common.load_more')}
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </main>
