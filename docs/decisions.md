@@ -3575,3 +3575,130 @@ layout-independence (`KeyK` не зависит от текущей раскла
 - **ADR-030** (i18n) - glyph'и `⌘`/`Ctrl`/`↵` нейтральные относительно
   локали (Mac/Win convention одинаковый в ru/ar), но названия клавиш
   типа `Esc`/`Del`/`Tab` могут потребовать локализации позже
+
+---
+
+## ADR-037: JSON export/import формат для тем
+
+**Дата:** 2026-05-17
+**Статус:** принято
+**Реализовано:** Сессия 39, Этап 6 - commits `733842c` + `dd97246`
++ `ee99efe` (backend) + `bb0417d` (frontend)
+
+**Контекст:** Этап 6 требует обмен темами между инстансами + backup.
+Несколько решений на стыке:
+
+1. Что включать в payload - тему + её содержимое или ещё и зависимости
+   (books / authorities / page metadata)
+2. Как обрабатывать UUID при импорте - reuse imported или re-mapping
+3. Что делать с external references (lib_books, lib_authorities,
+   lib_pages, lib_pdf_files, lib_image_regions) если они есть на
+   source инстансе но отсутствуют на target
+
+**Решение:**
+
+1. **Payload include scope**: topic + nodes + edges + node_sources +
+   unique sources + unique authorities + book hints (id + title +
+   authorityId). Revisions намеренно исключены. Q&A отдельный domain.
+2. **UUID remapping** при импорте через `Map<oldUUID, newUUID>` для
+   каждой entity. Все FK references (edges.fromNodeId/toNodeId,
+   node_sources.nodeId/sourceId) проходят через map. createdBy
+   перезаписывается на импортирующего пользователя (security).
+3. **External refs find-or-skip**:
+   - **Authorities** - find-by-name (без era), reuse при совпадении.
+     Дубликатов не плодим
+   - **Books** - find-or-skip по импортированному UUID. Если не
+     найден на target инстансе - source создаётся без bookId +
+     warning. Citation/title source'а сохраняется
+   - **Pages / PDF files / image regions** - не lookup'аем сейчас,
+     positional refs null'ифицируются если source без bookId.
+     quote/context/location сохраняются как fallback
+4. **formatVersion** в payload (`"1.0"`) с whitelist в
+   `TopicImportService.SUPPORTED_FORMAT_VERSIONS`. Расширяется при
+   breaking changes - старые версии должны продолжать импортироваться
+   (или прозрачно мигрироваться).
+
+**Причины:**
+
+- **Включать revisions?** Нет - история не нужна для обмена темами.
+  Топик с 50 узлами и 200 правками - 10x размер при минимальной
+  ценности. backup-сценарии цель = «востановить актуальное состояние»,
+  не «востановить весь journal»
+- **Включать Books полностью?** Нет - книги это shared library
+  resource (ADR-019). Они могут весить мегабайты (PDF + chapters +
+  pages + text content). Импорт темы не должен подменять book import
+  flow. Hint в payload (id + title) - достаточно чтобы пользователь
+  понял какие книги ему нужно отдельно импортировать
+- **Reuse imported UUIDs?** Нет - PK violations при self-import (тот
+  же инстанс). UUID remapping также защищает от accidental ownership
+  override / dangling FK к чужим nodes
+- **Find-or-create authorities VS skip?** Create - имена авторитетов
+  относительно стабильны (Имам Малик / Имам Шафии), вероятность
+  ложного match'а низкая. Если кто-то импортирует тему с «Имам
+  Малик» и у нас уже есть запись с тем именем но иной era - reuse
+  (era это уточнение для disambiguation, не invariant). Дубликаты
+  избегаются
+- **Find-or-skip books VS create stubs?** Skip - книги это
+  identity-stable resources (хешируемый PDF, точное title +
+  authorityId). Создание заглушки с тем же UUID но без content
+  привело бы к broken citations в reader. Лучше source без bookId
+  и явный warning, чем фантомная книга
+- **formatVersion** - все приличные форматы экспорта (Roam, Notion,
+  Anki .apkg) versioned. Дёшево добавить сейчас, дорого ретроактивно
+  если меняется DTO
+
+**Последствия:**
+
+- (+) Round-trip stability - export → import → equivalent tree
+  (структурно), без id collision
+- (+) Книги остаются shared resource, не дублируются при каждом
+  обмене темой
+- (+) Warning-аппарат даёт пользователю diagnostics без crash'а -
+  тема импортируется в degraded виде (с пустыми bookId / null
+  positional refs), а не отказывается
+- (+) formatVersion дешёво открывает миграции "1.0" → "2.0" без
+  breaking change для существующих файлов
+- (−) Authority find-by-name может склеить разных людей с одинаковым
+  именем (например два разных «Имам Ахмад» в разные эпохи). Цена -
+  occasional false-match. Альтернатива (match by (name + era))
+  потребовала бы era нормализации и парадоксально может пропустить
+  совпадения когда era в одной записи `"ранний период"` а в другой
+  `"3 в.х."`
+- (−) Импорт темы где originally были structured citations с
+  positional refs (page/pdf bbox) - после переноса на инстанс без
+  тех же книг сохраняется только textual quote, теряется deep link
+  на reader. Это explicit warning в response
+
+**Rejected alternatives:**
+
+- **Inline books в JSON**: книга может весить 50MB (PDF + text +
+  metadata). Размер файла экспорта получается непредсказуемым -
+  пользователь не понимает «почему экспорт темы 100MB». Отдельная
+  миграция книг через shamela admin / file upload - чистый
+  separation of concerns
+- **Reuse imported UUIDs (без remapping)**: round-trip self-import
+  падал бы с PK violation. Требовалось бы либо detection
+  "тот же инстанс? skip" (хрупко), либо force-delete existing
+  (опасно), либо ON CONFLICT UPDATE (теряем concurrent изменения)
+- **Auto-create books при импорте**: подмена. Источник книги -
+  shamela / user upload. Если book не найден, пользователь должен
+  явно её добавить через основной flow. Inline creation размыло бы
+  source provenance
+- **Multipart-only endpoint (без JSON body)**: усложняет
+  programmatic flow (curl / agent-to-agent). Два пути (JSON body
+  для machines, multipart для UI) - стандартный Spring pattern
+  через `consumes` routing на одном path
+
+### Связанные решения
+
+- **ADR-017** (Source как точка привязки) - sources в payload
+  - не вложены в node_sources, top-level массив с FK
+- **ADR-019** (library foundation) - книги это shared resource,
+  не часть темы → не сериализуем полностью
+- **ADR-027/028/029** (positional citation + academic metadata +
+  surrogate node_source PK) - positional refs find-or-skip
+  стратегия следует duck-typing семантике "ссылка валидна на
+  target инстансе или нет"
+- **ADR-006** (X-User-Id) - import controller использует
+  `@CurrentUser` для ownership новой темы (createdBy из payload
+  игнорируется)

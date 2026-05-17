@@ -10,6 +10,115 @@
 
 ---
 
+## 2026-05-17 - Сессия 39 финал, Этап 6 JSON export/import
+
+Закрыл единственный нетронутый пункт Этапа 6 - JSON-сериализация темы
+целиком для backup и обмена между инстансами. Backend 575 IT (+21
+от 554), frontend 170 vitest без регрессий, lint clean, build ok
+
+### Backend (3 commits)
+
+- `733842c` feat - `TopicExportDto` + 7 nested records
+  (TopicData/NodeData/EdgeData/NodeSourceData/SourceData/AuthorityData/
+  BookRef) + `TopicImportResponse{topicId, importedNodes, ...,
+  warnings[]}`. `TopicExportService.exportTopic` собирает unique
+  sources через LinkedHashSet (стабильный порядок по first-seen).
+  `TopicImportService.importTopic` с UUID remapping через
+  `Map<oldUUID, newUUID>` для каждой entity, FK references
+  (edges.fromNodeId, node_sources.nodeId/sourceId) пере-mapping
+  по словарю. createdBy перезаписан на импортирующего user'а
+  (security). Authorities find-or-create по name (без era - dup
+  избегаем), books find-or-skip с warning. Positional refs
+  null'ифицируются если source без bookId.
+  `UnsupportedExportFormatException` → 422 unsupported-format-version
+  с receivedVersion/supportedVersions properties
+- `dd97246` feat - `TopicExportImportController` с двумя endpoints:
+  `GET /api/v1/topics/{id}/export` (Content-Disposition: attachment;
+  filename="topic-{shortId}.json"), `POST /api/v1/topics/import`
+  routed по consumes (application/json для programmatic flow,
+  multipart/form-data для UI file upload)
+- `ee99efe` feat IT - 19 тестов через Testcontainers:
+  - `TopicExportServiceIT` (5): empty topic, full tree с дедупликацией
+    sources, revisions exclusion, source without authority/book, 404
+  - `TopicImportServiceIT` (8): invalid format version, null topic,
+    empty payload, fresh instance remapping, missing book → warning,
+    existing authority by name reused, existing book preserved, round-trip
+  - `TopicExportImportControllerIT` (6): export 200 + filename header,
+    export 404, importJson 201, importMultipart 201, invalid version
+    422, missing X-User-Id 400
+
+### Frontend (1 commit)
+
+- `bb0417d` feat - в TopicListPage header кнопка «Импортировать тему»
+  (ghost Upload icon) триггерит hidden `<input type="file">`
+  программно. handleFileSelected → apiPostMultipart → toast.success
+  с action «Открыть» → navigate на новую тему. Warnings показываются
+  отдельным toast.warning. 422 unsupported-format-version → специальный
+  toast.error.
+  На каждой TopicCard в углу `<Download>` icon button (opacity-0,
+  fade-in на group-hover) - apiGetRaw `/export` → Blob +
+  URL.createObjectURL + programmatic `<a download>` click +
+  setTimeout(0) revoke. stopPropagation чтобы не сработал обёрточный
+  `<Link>`. 8 новых i18n keys ru/ar (topic.export.*, topic.import.*).
+  Types регенерированы (TopicImportResponse + TopicExportDto + TopicData
+  доступны в components.schemas)
+
+### Решения
+
+- **Включать revisions?** Нет - история не нужна для обмена/backup,
+  10x размер при минимальной ценности
+- **Включать Books полностью?** Нет - shared library resource (ADR-019),
+  hint (id+title+authorityId) достаточен для пользователя
+- **Reuse imported UUIDs?** Нет - PK violations при self-import.
+  UUID remapping + защита от ownership override
+- **Authority match by name VS (name+era)?** name - era это
+  disambiguation, не invariant. Дубликаты избегаются, occasional
+  false-match приемлем
+- **Книги auto-create при импорте?** Нет - подмена source provenance.
+  Find-or-skip с warning - пользователь явно импортирует книги
+  через основной flow если нужно
+- **Один endpoint /import vs два?** Один с content-type routing.
+  Spring routes на одном path по `consumes` (JSON body для curl,
+  multipart для UI)
+
+### Docs
+
+- ADR-037 в `decisions.md` с rejected alternatives (inline books,
+  imported UUIDs reuse, auto-create books, multipart-only)
+- `api-contract.md` новая секция «Topic export/import API» с описанием
+  обоих endpoints + DTO + warnings semantics. History entry добавлен
+- `roadmap.md` Этап 6 → `[x]` JSON export/import
+
+### Verify
+
+- Backend: `./mvnw verify` 575/575 BUILD SUCCESS
+- Frontend: `npx tsc --noEmit -p tsconfig.app.json` clean,
+  `npm run lint` 0 errors (4 pre-existing warnings),
+  `npm run build` 2.55s ok,
+  `npm run test:run` 170/170 pass
+- Smoke (curl):
+  ```
+  curl -s http://localhost:9090/v3/api-docs | grep -o "topics/import\|topics/.*export" | sort -u
+  /api/v1/topics/import
+  /api/v1/topics/{topicId}/export
+  ```
+  endpoints зарегистрированы
+
+### Что осталось в Этапе 6
+
+- Полнотекстовый поиск по содержимому узлов (Postgres `tsvector`) -
+  низкий приоритет, ждёт когда базы наполнятся
+- Реализация Dung's argumentation framework - research-grade фича,
+  не блокирует основной MVP
+
+### Следующий шаг
+
+Этап 6 закрыт по приоритетной части. Можно двигаться к
+Этапу 17 OCR / другим Опциям A-H из SESSION_START_PROMPT по выбору
+Абдулы
+
+---
+
 ## 2026-05-17 - Сессия 39 продолжение, delete UX unification (#7)
 
 После hotkey unification Абдула заметил разнобой: context menu

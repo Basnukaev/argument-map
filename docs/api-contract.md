@@ -1654,17 +1654,135 @@ URL hierarchy сохраняет `answerId` под будущую авториз
 ответа (зеркало QuestionCitationController). Response `204 No Content`.
 Ошибка `404 source-not-found` если link не найден.
 
-### Что **не** реализовано в Этапе 19.d
+### Что **не** реализовано в Этапе 19.d (перенесено сюда)
 
 - Freeform LEGACY citation для answers (нет
   `POST /api/v1/answers/{id}/sources` legacy endpoint). Schema
   поддерживает - добавим если появится UX-кейс
 - Soft delete + audit (после auth)
 
+## Topic export/import API (ADR-037, Этап 6)
+
+JSON-сериализация темы целиком для backup и обмена между инстансами.
+Формат - см. ADR-037.
+
+### GET /api/v1/topics/{topicId}/export - выгрузить тему как JSON
+
+**Заголовки:** не требуется `X-User-Id` (read-only)
+
+**Ответ (200 OK):**
+- `Content-Type: application/json`
+- `Content-Disposition: attachment; filename="topic-{shortId}.json"`
+  (первые 8 символов UUID)
+- Тело: `TopicExportDto`:
+```json
+{
+  "formatVersion": "1.0",
+  "exportedAt": "2026-05-17T10:00:00Z",
+  "topic": {
+    "id": "550e8400-...",
+    "title": "...",
+    "description": "...",
+    "rootNodeId": "550e8400-...",
+    "createdBy": "...",
+    "createdAt": "..."
+  },
+  "nodes": [
+    { "id": "...", "topicId": "...", "nodeType": "QUESTION",
+      "content": "...", "status": "UNVERIFIED",
+      "posX": 100.0, "posY": 200.0,
+      "createdBy": "...", "createdAt": "...", "updatedAt": "..." }
+  ],
+  "edges": [
+    { "id": "...", "fromNodeId": "...", "toNodeId": "...",
+      "edgeType": "SUPPORTS", "rationale": "...",
+      "sourceHandle": "right", "targetHandle": "left",
+      "createdBy": "...", "createdAt": "..." }
+  ],
+  "nodeSources": [
+    { "id": "...", "nodeId": "...", "sourceId": "...",
+      "quote": "...", "context": "...", "location": "...",
+      "pageId": null, "rangeStart": null, "rangeEnd": null,
+      "pdfFileId": null, "pdfPageNumber": null, "pdfBbox": null,
+      "imageRegionId": null,
+      "createdAt": "..." }
+  ],
+  "sources": [
+    { "id": "...", "sourceType": "BOOK", "title": "...",
+      "citation": "...", "reliability": null,
+      "authorityId": "...", "bookId": "...", "metadata": null,
+      "createdAt": "..." }
+  ],
+  "authorities": [
+    { "id": "...", "name": "Имам Малик", "bio": null,
+      "era": "ранний", "madhab": "малики", "metadata": null,
+      "createdAt": "...", "fullName": "Малик ибн Анас",
+      "deathYearHijri": 179 }
+  ],
+  "books": [
+    { "id": "...", "title": "...", "authorityId": "..." }
+  ]
+}
+```
+
+Дедупликация: sources/authorities/books собираются как unique по
+id (один source привязан к N узлам → в DTO один раз). Books - hint
+only (id+title+authorityId), полная сериализация исключена (книги
+это shared library resource, ADR-019). Revisions намеренно
+исключены - история не нужна для обмена/backup.
+
+**Ошибки:** 404 `topic-not-found`
+
+### POST /api/v1/topics/import - импортировать тему из JSON
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+**Content-Type:** один из двух вариантов
+- `application/json` - тело это сразу `TopicExportDto` (для curl /
+  programmatic flow)
+- `multipart/form-data` - поле `file` содержит JSON (для UI
+  `<input type="file">`)
+
+**Ответ (201 Created):**
+```json
+{
+  "topicId": "новый-uuid",
+  "importedNodes": 5,
+  "importedEdges": 4,
+  "importedNodeSources": 3,
+  "importedSources": 2,
+  "importedAuthorities": 1,
+  "warnings": [
+    "source 'Книга X' ссылается на книгу id=... которая отсутствует в библиотеке этого инстанса - импортирован без bookId (deep link на reader работать не будет)"
+  ]
+}
+```
+
+Семантика:
+- **UUID remapping** - все импортируемые id пере-генерируются. Old→New
+  mapping применяется к FK references (edges.fromNodeId/toNodeId,
+  node_sources.nodeId/sourceId)
+- **createdBy** новой темы и всех её сущностей - всегда импортирующий
+  `X-User-Id`, не значение из payload (security)
+- **Authorities** - find-or-create по name. Дубликатов не плодим
+- **Books** - find-or-skip по UUID. Если книги нет на target инстансе -
+  source создаётся без bookId + warning. quote/title сохраняются
+- **Positional refs** (pageId/pdfFileId/imageRegionId) - null'ифицируются
+  если source без bookId (warning). quote/context/location остаются как
+  fallback
+- `formatVersion` whitelist: `{"1.0"}`. Иной → 422
+  `unsupported-format-version` с `receivedVersion` + `supportedVersions`
+  properties в Problem Details
+
+**Ошибки:**
+- 400 - missing X-User-Id / невалидный JSON / topic=null
+- 422 `unsupported-format-version` - formatVersion не в whitelist
+
 ## История изменений контракта
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-17 | v1 | Этап 6 - новые endpoints `GET /api/v1/topics/{id}/export` (Content-Disposition attachment, returns `TopicExportDto` с unique sources/authorities/books refs) и `POST /api/v1/topics/import` (consumes JSON body или multipart file). DTO: `TopicExportDto{formatVersion, exportedAt, topic, nodes[], edges[], nodeSources[], sources[], authorities[], books[]}` + nested records, `TopicImportResponse{topicId, importedNodes, importedEdges, importedNodeSources, importedSources, importedAuthorities, warnings[]}`. Новый error type `422 unsupported-format-version` с `receivedVersion`+`supportedVersions` properties в Problem Details. UUID remapping при импорте (Map oldUUID→newUUID), authorities find-or-create по name, books find-or-skip с warning. createdBy перезаписан на импортирующего (security). Revisions намеренно не в payload | ADR-037 формат экспорта темы. Этап 6 backup + обмен темами между инстансами. Q&A не привязан к topic - не включается в payload (standalone domain) |
 | 2026-05-17 | v1 | Новый error type `node-is-root` (409 Conflict). Возвращается из `DELETE /api/v1/nodes/{id}` когда `id` совпадает с `topics.root_node_id` соответствующей темы. Дополнительные properties `nodeId` и `topicId`. До фикса корневой узел удалялся успешно - разрушал граф (orphan edges + сломанный status recalc). Чтобы удалить корень - удалить тему целиком через `DELETE /api/v1/topics/{topicId}` | User feedback #1 Сессии 38: пользователь поймал руками что в `TopicGraphPage` можно через NodeDetailsPanel / context menu удалить корневой QUESTION узел. Backend guard + frontend hide-button симметрично |
 | 2026-05-17 | v1 | Этап 16.h post-review fix - после `POST /api/v1/library/imports/file` книга **сразу** доступна на чтение через существующие `GET /api/v1/library/books/{bookId}/pdf/info` (single-file metadata) и `GET /pdf?fileIndex=0` (streaming). До фикса возвращали 404 `pdf-not-available`. Параметр `language` получил whitelist `ar\|ru\|en` - вне whitelist → 422 `file-import-error` (mirror frontend FileUploadModal). Новых endpoints нет | Critical issue code review Сессии 37: `PdfLinksSourceProvider.supports` проверял `metadata.pdf_links` который `FileImportService` не пишет. Новый `UserUploadProvider` (@Order=50) опрашивает `library_files` по (book_id, source_type=USER_UPLOAD). Контракт language исправляет drift между frontend whitelist и backend acceptance |
 | 2026-05-17 | v1 | `POST /api/v1/library/imports/file` расширен 6 опциональными academic полями (`muhaqqiqName`/`publisherName`/`publicationPlaceName`/`editionNumber`/`publishedYearHijri`/`publishedYearGregorian`) с теми же диапазонами что в `CreateBookRequest` (edition 1..99, year 1..9999). Если хотя бы одно заполнено - бэк через 13-args `BookService.createBook` делает `findOrCreate` в `lib_muhaqqiqs`/`lib_publishers`/`lib_publication_places`, иначе legacy 7-args путь без FK. Out-of-range диапазон → 422 `file-import-error` (ручная валидация в controller, Bean Validation для `@RequestParam` в проекте не настроена) | Этап 16.g: закрытие MVP-разрыва 16.b/f. Пользователь больше не должен после upload вторым шагом открывать BookEditModal для добавления тахкика. Mirror паттерна AddSourceModal 20.e |

@@ -161,7 +161,14 @@
 
 - [ ] Полнотекстовый поиск по содержимому узлов (Postgres `tsvector`)
 - [ ] Реализация Dung's argumentation framework для продвинутого пересчёта
-- [ ] Импорт/экспорт темы в JSON
+- [x] **Импорт/экспорт темы в JSON** (Сессия 39, ADR-037) - `GET /api/v1/topics/{id}/export`
+      + `POST /api/v1/topics/import` (consumes JSON body или multipart),
+      DTO `TopicExportDto` с unique sources/authorities/books refs (формат
+      v1.0). UUID remapping при импорте, authorities find-or-create по name,
+      books find-or-skip с warning. Revisions намеренно не в payload (10x size,
+      не нужны для обмена). Frontend - кнопка «Импортировать тему» в TopicListPage
+      header + hover-icon Download на каждой TopicCard. 19 backend IT (round-trip
+      + edge cases) + types регенерированы. 575/575 tests, lint clean
 
 ### Этап 17. Library - image-сканы + OCR
 
