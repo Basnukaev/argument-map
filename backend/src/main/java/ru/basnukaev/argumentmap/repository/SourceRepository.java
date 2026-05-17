@@ -3,6 +3,7 @@ package ru.basnukaev.argumentmap.repository;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.instant;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.odt;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -87,6 +88,56 @@ public class SourceRepository {
                 ROW_MAPPER,
                 "%" + query + "%"
         );
+    }
+
+    /**
+     * Пагинированный поиск с фильтрами. Все аргументы кроме limit/offset
+     * опциональные ({@code null} = не фильтровать). Сортировка: created_at DESC
+     * (новые источники сверху).
+     *
+     * <p>Combination правила: см. {@link #countFiltered(SourceType, Reliability, String)}
+     * - комбинация type≠HADITH + reliability!=null отбрасывается на уровне
+     * service (бросает {@code InvalidSourceException}), не на SQL-уровне.
+     */
+    public List<Source> findPage(SourceType type, Reliability reliability, String query,
+                                 int limit, int offset) {
+        StringBuilder sql = new StringBuilder("SELECT ").append(COLUMNS).append(" FROM sources WHERE 1=1");
+        List<Object> args = new ArrayList<>();
+        appendFilters(sql, args, type, reliability, query);
+        sql.append(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
+        args.add(limit);
+        args.add(offset);
+        return jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray());
+    }
+
+    /**
+     * Total count для фильтров. Использует тот же WHERE clause что и
+     * {@link #findPage} - параллельно держим в одной точке (helper
+     * {@link #appendFilters}). Возвращает long т.к. в теории справочник
+     * может разрастись больше Integer.MAX_VALUE.
+     */
+    public long countFiltered(SourceType type, Reliability reliability, String query) {
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM sources WHERE 1=1");
+        List<Object> args = new ArrayList<>();
+        appendFilters(sql, args, type, reliability, query);
+        Long count = jdbcTemplate.queryForObject(sql.toString(), Long.class, args.toArray());
+        return count == null ? 0L : count;
+    }
+
+    private static void appendFilters(StringBuilder sql, List<Object> args,
+                                      SourceType type, Reliability reliability, String query) {
+        if (type != null) {
+            sql.append(" AND source_type = ?");
+            args.add(type.name());
+        }
+        if (reliability != null) {
+            sql.append(" AND reliability = ?");
+            args.add(reliability.name());
+        }
+        if (query != null && !query.isBlank()) {
+            sql.append(" AND title ILIKE ?");
+            args.add("%" + query + "%");
+        }
     }
 
     public boolean deleteById(UUID id) {

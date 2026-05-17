@@ -15,9 +15,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import ru.basnukaev.argumentmap.domain.Reliability;
 import ru.basnukaev.argumentmap.domain.Source;
+import ru.basnukaev.argumentmap.domain.SourceType;
 import ru.basnukaev.argumentmap.service.SourceService;
 import ru.basnukaev.argumentmap.web.dto.CreateSourceRequest;
+import ru.basnukaev.argumentmap.web.dto.PageRequest;
+import ru.basnukaev.argumentmap.web.dto.PagedResponse;
 import ru.basnukaev.argumentmap.web.dto.SourceResponse;
 import ru.basnukaev.argumentmap.web.mapper.DtoMappers;
 
@@ -42,12 +46,30 @@ public class SourceController {
                 .body(DtoMappers.toResponse(created));
     }
 
+    /**
+     * Пагинированный список источников с фильтрами (Этап pagination).
+     * Default page=0, size=20. Max size=100.
+     *
+     * <p>Фильтры (все опциональные, комбинируются через AND):
+     * <ul>
+     *   <li>{@code q} - подстрока в title (case-insensitive)</li>
+     *   <li>{@code type} - whitelist {@link SourceType} (QURAN/HADITH/BOOK/ARTICLE/URL)</li>
+     *   <li>{@code reliability} - whitelist {@link Reliability} (SAHIH/HASAN/DAIF).
+     *       Допустим только когда {@code type=HADITH}; иначе 400 invalid-source</li>
+     * </ul>
+     */
     @GetMapping
-    public List<SourceResponse> list(@RequestParam(name = "q", required = false) String query) {
-        List<Source> found = (query == null || query.isBlank())
-                ? sourceService.listSources()
-                : sourceService.searchByTitle(query);
-        return found.stream().map(DtoMappers::toResponse).toList();
+    public PagedResponse<SourceResponse> list(
+            @RequestParam(name = "q", required = false) String query,
+            @RequestParam(name = "type", required = false) SourceType type,
+            @RequestParam(name = "reliability", required = false) Reliability reliability,
+            @RequestParam(name = "page", required = false) Integer page,
+            @RequestParam(name = "size", required = false) Integer size) {
+        PageRequest pr = PageRequest.from(page, size);
+        List<Source> items = sourceService.listPage(type, reliability, query, pr.size(), pr.offset());
+        long total = sourceService.countFiltered(type, reliability, query);
+        List<SourceResponse> mapped = items.stream().map(DtoMappers::toResponse).toList();
+        return PagedResponse.of(mapped, pr.page(), pr.size(), total);
     }
 
     @GetMapping("/{sourceId}")

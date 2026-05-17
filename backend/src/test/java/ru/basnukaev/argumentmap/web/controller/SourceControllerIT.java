@@ -134,13 +134,19 @@ class SourceControllerIT {
     }
 
     @Test
-    void listSources_returnsAll() throws Exception {
+    void listSources_returnsAllAsPagedResponse() throws Exception {
         createSource("a");
         createSource("b");
 
         mockMvc.perform(get("/api/v1/sources"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2));
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.hasPrev").value(false));
     }
 
     @Test
@@ -150,8 +156,78 @@ class SourceControllerIT {
 
         mockMvc.perform(get("/api/v1/sources").param("q", "сахих"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].title").value("Сахих аль-Бухари"));
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].title").value("Сахих аль-Бухари"))
+                .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void listSources_paginated_returnsCorrectPage() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            createSource("src-" + i);
+        }
+
+        mockMvc.perform(get("/api/v1/sources").param("page", "1").param("size", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.size").value(2))
+                .andExpect(jsonPath("$.totalElements").value(5))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.hasPrev").value(true));
+    }
+
+    @Test
+    void listSources_sizeOverMax_clampsTo100() throws Exception {
+        mockMvc.perform(get("/api/v1/sources").param("size", "500"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size").value(100));
+    }
+
+    @Test
+    void listSources_filterByTypeHadith_returnsOnlyHadiths() throws Exception {
+        createSourceFull("Сахих 1", SourceType.HADITH, Reliability.SAHIH);
+        createSourceFull("Сахих 2", SourceType.HADITH, Reliability.HASAN);
+        createSource("Книга");
+
+        mockMvc.perform(get("/api/v1/sources").param("type", "HADITH"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    @Test
+    void listSources_filterByReliabilitySahih_returnsOnlySahih() throws Exception {
+        createSourceFull("h1", SourceType.HADITH, Reliability.SAHIH);
+        createSourceFull("h2", SourceType.HADITH, Reliability.HASAN);
+
+        mockMvc.perform(get("/api/v1/sources")
+                        .param("type", "HADITH")
+                        .param("reliability", "SAHIH"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].title").value("h1"));
+    }
+
+    @Test
+    void listSources_invalidFilterCombo_returns400() throws Exception {
+        // type=BOOK + reliability=SAHIH - бессмысленно (reliability только для HADITH)
+        mockMvc.perform(get("/api/v1/sources")
+                        .param("type", "BOOK")
+                        .param("reliability", "SAHIH"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value(containsString("illegal-argument")));
+    }
+
+    private UUID createSourceFull(String title, SourceType type, Reliability reliability) throws Exception {
+        var req = new CreateSourceRequest(type, title, null, reliability, null, null, null);
+        String json = mockMvc.perform(post("/api/v1/sources")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return UUID.fromString(objectMapper.readTree(json).get("id").asText());
     }
 
     @Test

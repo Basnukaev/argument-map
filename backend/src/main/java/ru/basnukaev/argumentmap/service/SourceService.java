@@ -73,6 +73,36 @@ public class SourceService {
         return sourceRepository.searchByTitle(query);
     }
 
+    /**
+     * Пагинированный список с фильтрами (Этап pagination). Combination
+     * type≠HADITH + reliability!=null → {@link InvalidSourceException}
+     * (400, не 422) - это ошибка клиента в построении query, не нарушение
+     * бизнес-инварианта в payload. Бросается до SQL-запроса.
+     */
+    @Transactional(readOnly = true)
+    public List<Source> listPage(SourceType type, Reliability reliability, String query,
+                                 int limit, int offset) {
+        validateFilters(type, reliability);
+        return sourceRepository.findPage(type, reliability, query, limit, offset);
+    }
+
+    @Transactional(readOnly = true)
+    public long countFiltered(SourceType type, Reliability reliability, String query) {
+        validateFilters(type, reliability);
+        return sourceRepository.countFiltered(type, reliability, query);
+    }
+
+    private static void validateFilters(SourceType type, Reliability reliability) {
+        if (reliability != null && type != null && type != SourceType.HADITH) {
+            // IllegalArgumentException → 400 (handler). Это ошибка query-params,
+            // не нарушение бизнес-инварианта payload (которое было бы 422
+            // через InvalidSourceException).
+            throw new IllegalArgumentException(
+                    "фильтр reliability допустим только при type=HADITH, получен type=" + type
+            );
+        }
+    }
+
     @Transactional
     public void deleteSource(UUID id) {
         boolean removed = sourceRepository.deleteById(id);
