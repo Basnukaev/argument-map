@@ -128,9 +128,13 @@ public class FileImportService {
             String metadataJson = buildBookMetadataJson(filename, numPages);
 
             Book book;
+            // ADR-043 Amendment (Этап 22.c): user-uploads через PDF
+            // import получают visibility=PRIVATE по умолчанию. Не PUBLIC -
+            // user может загружать свои конспекты/черновики, которые
+            // не должны быть видны другим без явного sharing
             if (effectiveMeta.hasAcademicData()) {
                 // 16.g: пользователь заполнил academic-метаданные в upload
-                // форме - используем 13-args overload который сделает
+                // форме - используем overload который сделает
                 // findOrCreate в lib_muhaqqiqs/publishers/places
                 book = bookService.createBook(
                         BookType.BOOK, title, effectiveMeta.authorityId(),
@@ -141,14 +145,18 @@ public class FileImportService {
                         effectiveMeta.publicationPlaceName(),
                         effectiveMeta.editionNumber(),
                         effectiveMeta.publishedYearHijri(),
-                        effectiveMeta.publishedYearGregorian()
+                        effectiveMeta.publishedYearGregorian(),
+                        ru.basnukaev.argumentmap.library.domain.BookVisibility.PRIVATE
                 );
             } else {
-                // Старый путь (shamela-совместимый): academic FK = null
+                // Старый путь (shamela-совместимый): academic FK = null,
+                // но visibility=PRIVATE для user-uploads
                 book = bookService.createBook(
                         BookType.BOOK, title, effectiveMeta.authorityId(),
                         language, effectiveMeta.description(),
-                        metadataJson, currentUserId
+                        metadataJson, currentUserId,
+                        null, null, null, null, null, null,
+                        ru.basnukaev.argumentmap.library.domain.BookVisibility.PRIVATE
                 );
             }
             log.info("PDF импорт: создана книга id={} title='{}' страниц={} academic={}",

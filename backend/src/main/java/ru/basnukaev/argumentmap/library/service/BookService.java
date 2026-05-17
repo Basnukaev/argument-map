@@ -16,6 +16,7 @@ import ru.basnukaev.argumentmap.exception.PageNotFoundException;
 import ru.basnukaev.argumentmap.domain.Authority;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookType;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.Chapter;
 import ru.basnukaev.argumentmap.library.domain.Muhaqqiq;
 import ru.basnukaev.argumentmap.library.domain.Page;
@@ -29,6 +30,7 @@ import ru.basnukaev.argumentmap.library.repository.PageRepository;
 import ru.basnukaev.argumentmap.library.repository.PublicationPlaceRepository;
 import ru.basnukaev.argumentmap.library.repository.PublisherRepository;
 import ru.basnukaev.argumentmap.repository.AuthorityRepository;
+import ru.basnukaev.argumentmap.service.PermissionService;
 
 @Service
 public class BookService {
@@ -43,6 +45,7 @@ public class BookService {
     private final MuhaqqiqRepository muhaqqiqRepository;
     private final PublisherRepository publisherRepository;
     private final PublicationPlaceRepository publicationPlaceRepository;
+    private final PermissionService permissionService;
 
     public BookService(BookRepository bookRepository,
                        ChapterRepository chapterRepository,
@@ -51,7 +54,8 @@ public class BookService {
                        AuthorityRepository authorityRepository,
                        MuhaqqiqRepository muhaqqiqRepository,
                        PublisherRepository publisherRepository,
-                       PublicationPlaceRepository publicationPlaceRepository) {
+                       PublicationPlaceRepository publicationPlaceRepository,
+                       PermissionService permissionService) {
         this.bookRepository = bookRepository;
         this.chapterRepository = chapterRepository;
         this.pageRepository = pageRepository;
@@ -60,15 +64,20 @@ public class BookService {
         this.muhaqqiqRepository = muhaqqiqRepository;
         this.publisherRepository = publisherRepository;
         this.publicationPlaceRepository = publicationPlaceRepository;
+        this.permissionService = permissionService;
     }
 
     @Transactional
     public Book createBook(BookType bookType, String title, UUID authorityId,
                            String language, String description, String metadataJson,
                            UUID currentUserId) {
+        // Default PUBLIC - сохраняем поведение shamela ETL (книги
+        // импортируются как open library). User-uploads через REST API
+        // передают visibility явно (см. 13-args перегрузка) либо
+        // приходят в PRIVATE через FileImportService.
         return createBook(bookType, title, authorityId, language, description,
                 metadataJson, currentUserId,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, BookVisibility.PUBLIC);
     }
 
     /**
@@ -80,6 +89,8 @@ public class BookService {
      * <p>Используется AddSourceModal-flow когда пользователь руками
      * заводит книгу с минимальной academic-метадатой; обычный shamela
      * ETL вызывает старую перегрузку без academic.
+     *
+     * <p>Backward-compat перегрузка без visibility - default PUBLIC.
      */
     @Transactional
     public Book createBook(BookType bookType, String title, UUID authorityId,
@@ -90,8 +101,38 @@ public class BookService {
                            Integer editionNumber,
                            Integer publishedYearHijri,
                            Integer publishedYearGregorian) {
+        return createBook(bookType, title, authorityId, language, description,
+                metadataJson, currentUserId, muhaqqiqName, publisherName,
+                publicationPlaceName, editionNumber, publishedYearHijri,
+                publishedYearGregorian, BookVisibility.PUBLIC);
+    }
+
+    /**
+     * Создание книги с visibility (ADR-043 Amendment, Этап 22.c).
+     * Используется REST endpoint POST /api/v1/library/books и
+     * FileImportService.importPdf (PRIVATE по умолчанию для user-uploads).
+     */
+    @Transactional
+    public Book createBook(BookType bookType, String title, UUID authorityId,
+                           String language, String description, String metadataJson,
+                           UUID currentUserId,
+                           String muhaqqiqName, String publisherName,
+                           String publicationPlaceName,
+                           Integer editionNumber,
+                           Integer publishedYearHijri,
+                           Integer publishedYearGregorian,
+                           String visibility) {
         if (authorityId != null && authorityRepository.findById(authorityId).isEmpty()) {
             throw new AuthorityNotFoundException(authorityId);
+        }
+        if (visibility == null) {
+            visibility = BookVisibility.PUBLIC;
+        }
+        if (!BookVisibility.isValid(visibility)) {
+            throw new IllegalArgumentException(
+                    "Невалидное visibility: " + visibility
+                            + " (ожидается PRIVATE/SHARED/PUBLIC)"
+            );
         }
         UUID muhaqqiqId = resolveFk(muhaqqiqName, null, muhaqqiqRepository::findOrCreate);
         UUID publisherId = resolveFk(publisherName, null, publisherRepository::findOrCreate);
@@ -103,7 +144,8 @@ public class BookService {
                 language, description, metadataJson, currentUserId,
                 now, now,
                 muhaqqiqId, publisherId, placeId,
-                editionNumber, publishedYearHijri, publishedYearGregorian
+                editionNumber, publishedYearHijri, publishedYearGregorian,
+                visibility
         );
         bookRepository.save(book);
         return book;
@@ -114,6 +156,11 @@ public class BookService {
         return bookRepository.findAll(query, type);
     }
 
+    /**
+     * Старая пагинация - БЕЗ visibility-фильтрации. Сохраняется для
+     * internal callers / admin сценариев. REST endpoint должен
+     * использовать {@link #listVisibleBooksPage}.
+     */
     @Transactional(readOnly = true)
     public List<Book> listBooksPage(String query, BookType type,
                                     UUID authorityId, UUID publisherId,
@@ -127,6 +174,37 @@ public class BookService {
         return bookRepository.countFiltered(query, type, authorityId, publisherId);
     }
 
+    /**
+     * Пагинированный список книг видимых пользователю (ADR-043 Amendment).
+     * ADMIN получает все книги без visibility-фильтра.
+     */
+    @Transactional(readOnly = true)
+    public List<Book> listVisibleBooksPage(UUID userId, String role,
+                                           String query, BookType type,
+                                           UUID authorityId, UUID publisherId,
+                                           int limit, int offset) {
+        if (ru.basnukaev.argumentmap.auth.domain.UserRole.ADMIN.equals(role)) {
+            return bookRepository.findPage(query, type, authorityId, publisherId, limit, offset);
+        }
+        return bookRepository.findVisibleToUserPage(userId, query, type, authorityId, publisherId,
+                limit, offset);
+    }
+
+    @Transactional(readOnly = true)
+    public long countVisibleBooks(UUID userId, String role,
+                                  String query, BookType type,
+                                  UUID authorityId, UUID publisherId) {
+        if (ru.basnukaev.argumentmap.auth.domain.UserRole.ADMIN.equals(role)) {
+            return bookRepository.countFiltered(query, type, authorityId, publisherId);
+        }
+        return bookRepository.countVisibleToUser(userId, query, type, authorityId, publisherId);
+    }
+
+    /**
+     * Backward-compat для internal callers без permission check
+     * (admin tooling, scheduled jobs). REST endpoint должен использовать
+     * {@link #getBookWithChapters(UUID, UUID, String)}.
+     */
     @Transactional(readOnly = true)
     public BookDetail getBookWithChapters(UUID bookId) {
         Book book = bookRepository.findById(bookId)
@@ -148,12 +226,55 @@ public class BookService {
         return new BookDetail(book, tree, authority, muhaqqiq, publisher, place);
     }
 
+    /**
+     * Версия с permission check (ADR-043 Amendment). Используется REST.
+     */
+    @Transactional(readOnly = true)
+    public BookDetail getBookWithChapters(UUID bookId, UUID userId, String role) {
+        permissionService.assertCanReadBook(bookId, userId, role);
+        return getBookWithChapters(bookId);
+    }
+
+    /**
+     * Backward-compat без permission check.
+     */
     @Transactional
     public void deleteBook(UUID bookId) {
         boolean removed = bookRepository.deleteById(bookId);
         if (!removed) {
             throw new BookNotFoundException(bookId);
         }
+    }
+
+    /**
+     * Удаление книги - только owner (или ADMIN). EDITOR этого не может,
+     * даже на SHARED. См. ADR-043 Amendment матрицу.
+     */
+    @Transactional
+    public void deleteBook(UUID bookId, UUID userId, String role) {
+        bookRepository.findById(bookId)
+                .orElseThrow(() -> new BookNotFoundException(bookId));
+        permissionService.assertIsBookOwner(bookId, userId, role);
+        bookRepository.deleteById(bookId);
+    }
+
+    /**
+     * Меняет visibility книги (ADR-043 Amendment) - только owner.
+     * EDITOR не может (privilege-escalation).
+     */
+    @Transactional
+    public Book updateVisibility(UUID bookId, String newVisibility,
+                                 UUID userId, String role) {
+        if (!BookVisibility.isValid(newVisibility)) {
+            throw new IllegalArgumentException(
+                    "Невалидное visibility: " + newVisibility
+            );
+        }
+        bookRepository.findById(bookId)
+                .orElseThrow(() -> new BookNotFoundException(bookId));
+        permissionService.assertIsBookOwner(bookId, userId, role);
+        bookRepository.updateVisibility(bookId, newVisibility);
+        return bookRepository.findById(bookId).orElseThrow();
     }
 
     /**
@@ -198,6 +319,25 @@ public class BookService {
                 newEdition, newHijri, newGregorian
         );
         return bookRepository.findById(bookId).orElseThrow();
+    }
+
+    /**
+     * Версия updateAcademicMetadata с permission check (ADR-043 Amendment).
+     * Owner и EDITOR могут update; MEMBER нет. PRIVATE - только owner.
+     */
+    @Transactional
+    public Book updateAcademicMetadata(UUID bookId,
+                                       String muhaqqiqName,
+                                       String publisherName,
+                                       String publicationPlaceName,
+                                       Integer editionNumber,
+                                       Integer publishedYearHijri,
+                                       Integer publishedYearGregorian,
+                                       UUID userId, String role) {
+        permissionService.assertCanWriteBook(bookId, userId, role);
+        return updateAcademicMetadata(bookId, muhaqqiqName, publisherName,
+                publicationPlaceName, editionNumber, publishedYearHijri,
+                publishedYearGregorian);
     }
 
     private static UUID resolveFk(String name, UUID currentFk,
