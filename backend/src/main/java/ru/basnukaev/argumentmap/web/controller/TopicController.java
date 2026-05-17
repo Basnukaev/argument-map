@@ -17,10 +17,14 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.domain.Topic;
+import ru.basnukaev.argumentmap.domain.VoteStats;
+import ru.basnukaev.argumentmap.repository.NodeVoteRepository;
 import ru.basnukaev.argumentmap.repository.TopicWithCounts;
 import ru.basnukaev.argumentmap.service.GraphService;
+import ru.basnukaev.argumentmap.service.GraphView;
 import ru.basnukaev.argumentmap.service.PermissionService;
 import ru.basnukaev.argumentmap.service.TopicService;
+import java.util.Map;
 import ru.basnukaev.argumentmap.web.CurrentUser;
 import ru.basnukaev.argumentmap.web.dto.CreateTopicRequest;
 import ru.basnukaev.argumentmap.web.dto.GraphResponse;
@@ -38,12 +42,15 @@ public class TopicController {
     private final TopicService topicService;
     private final GraphService graphService;
     private final PermissionService permissionService;
+    private final NodeVoteRepository nodeVoteRepository;
 
     public TopicController(TopicService topicService, GraphService graphService,
-                           PermissionService permissionService) {
+                           PermissionService permissionService,
+                           NodeVoteRepository nodeVoteRepository) {
         this.topicService = topicService;
         this.graphService = graphService;
         this.permissionService = permissionService;
+        this.nodeVoteRepository = nodeVoteRepository;
     }
 
     @PostMapping
@@ -103,7 +110,13 @@ public class TopicController {
     public GraphResponse getGraph(@PathVariable UUID topicId, @CurrentUser UUID userId) {
         String role = SecurityContextUtils.currentRole();
         permissionService.assertCanRead(topicId, userId, role);
-        return DtoMappers.toResponse(graphService.getGraph(topicId));
+        GraphView graph = graphService.getGraph(topicId);
+        // Bulk-load vote агрегатов + персональных голосов за один SQL каждый,
+        // чтобы не делать N+1 при больших графах. NodeResponse получает vote-поля
+        List<UUID> nodeIds = graph.nodes().stream().map(n -> n.id()).toList();
+        Map<UUID, VoteStats> stats = nodeVoteRepository.getStatsForNodes(nodeIds);
+        Map<UUID, Integer> userVotes = nodeVoteRepository.getUserVotesForNodes(nodeIds, userId);
+        return DtoMappers.toResponse(graph, stats, userVotes);
     }
 
     @PatchMapping("/{topicId}/visibility")

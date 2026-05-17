@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.domain.Node;
+import ru.basnukaev.argumentmap.domain.VoteStats;
+import ru.basnukaev.argumentmap.repository.NodeVoteRepository;
 import ru.basnukaev.argumentmap.service.NodeService;
 import ru.basnukaev.argumentmap.web.CurrentUser;
 import ru.basnukaev.argumentmap.web.dto.CreateNodeRequest;
@@ -30,9 +32,11 @@ import ru.basnukaev.argumentmap.web.mapper.DtoMappers;
 public class NodeController {
 
     private final NodeService nodeService;
+    private final NodeVoteRepository nodeVoteRepository;
 
-    public NodeController(NodeService nodeService) {
+    public NodeController(NodeService nodeService, NodeVoteRepository nodeVoteRepository) {
         this.nodeService = nodeService;
+        this.nodeVoteRepository = nodeVoteRepository;
     }
 
     @PostMapping
@@ -42,8 +46,9 @@ public class NodeController {
         Node created = nodeService.createNode(
                 request.topicId(), request.nodeType(), request.content(), userId, role
         );
+        // Только что созданный узел не имеет голосов - VoteStats.EMPTY, userVote=null
         return ResponseEntity.created(URI.create("/api/v1/nodes/" + created.id()))
-                .body(DtoMappers.toResponse(created));
+                .body(DtoMappers.toResponse(created, VoteStats.EMPTY, null));
     }
 
     /**
@@ -73,7 +78,12 @@ public class NodeController {
         if (hasPosition) {
             node = nodeService.updatePosition(nodeId, request.posX(), request.posY(), userId, role);
         }
-        return DtoMappers.toResponse(node);
+        // Vote статистика подгружается отдельно - PATCH не меняет голоса, но
+        // фронту удобно получить актуальное состояние карточки в одном ответе
+        VoteStats stats = nodeVoteRepository.getStatsForNode(nodeId);
+        Integer userVote = nodeVoteRepository.findByNodeAndUser(nodeId, userId)
+                .map(v -> v.weight()).orElse(null);
+        return DtoMappers.toResponse(node, stats, userVote);
     }
 
     @DeleteMapping("/{nodeId}")

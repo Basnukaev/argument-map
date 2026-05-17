@@ -1,6 +1,8 @@
 package ru.basnukaev.argumentmap.web.mapper;
 
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -15,6 +17,7 @@ import ru.basnukaev.argumentmap.domain.Revision;
 import ru.basnukaev.argumentmap.domain.Source;
 import ru.basnukaev.argumentmap.domain.Topic;
 import ru.basnukaev.argumentmap.domain.TopicMember;
+import ru.basnukaev.argumentmap.domain.VoteStats;
 import ru.basnukaev.argumentmap.repository.NodeSourceRepository;
 import ru.basnukaev.argumentmap.repository.TopicWithCounts;
 import ru.basnukaev.argumentmap.service.GraphView;
@@ -73,13 +76,26 @@ public final class DtoMappers {
         );
     }
 
+    /**
+     * Mapper для одного узла без vote-данных. Используется когда vote-агрегация
+     * не нужна (например пара legacy IT-кейсов через прямую реконструкцию).
+     * Vote-поля заполняются нулями, userVote = null. Если важна актуальная
+     * статистика - использовать перегрузку с VoteStats/userVote.
+     */
     public static NodeResponse toResponse(Node node) {
+        return toResponse(node, VoteStats.EMPTY, null);
+    }
+
+    public static NodeResponse toResponse(Node node, VoteStats stats, Integer userVote) {
+        VoteStats s = stats == null ? VoteStats.EMPTY : stats;
         return new NodeResponse(
                 node.id(), node.topicId(), node.nodeType(), node.content(),
                 node.status(),
                 node.posX(), node.posY(),
                 node.createdBy(),
-                node.createdAt(), node.updatedAt()
+                node.createdAt(), node.updatedAt(),
+                s.upvotes(), s.downvotes(), s.score(),
+                userVote
         );
     }
 
@@ -101,7 +117,23 @@ public final class DtoMappers {
     }
 
     public static GraphResponse toResponse(GraphView graph) {
-        List<NodeResponse> nodes = graph.nodes().stream().map(DtoMappers::toResponse).toList();
+        return toResponse(graph, Map.of(), Map.of());
+    }
+
+    /**
+     * Перегрузка для GraphView с vote-данными. statsByNode/userVotesByNode -
+     * bulk-загруженные maps из {@link ru.basnukaev.argumentmap.repository.NodeVoteRepository}.
+     * Отсутствующий nodeId в map трактуется как {@link VoteStats#EMPTY} /
+     * userVote=null. Один SQL на весь граф - не N+1.
+     */
+    public static GraphResponse toResponse(GraphView graph,
+                                           Map<UUID, VoteStats> statsByNode,
+                                           Map<UUID, Integer> userVotesByNode) {
+        Map<UUID, VoteStats> stats = statsByNode == null ? Map.of() : statsByNode;
+        Map<UUID, Integer> userVotes = userVotesByNode == null ? Map.of() : userVotesByNode;
+        List<NodeResponse> nodes = graph.nodes().stream()
+                .map(n -> toResponse(n, stats.getOrDefault(n.id(), VoteStats.EMPTY), userVotes.get(n.id())))
+                .toList();
         List<EdgeResponse> edges = graph.edges().stream().map(DtoMappers::toResponse).toList();
         return new GraphResponse(toResponse(graph.topic()), nodes, edges);
     }
