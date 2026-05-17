@@ -481,6 +481,12 @@ export const DICTIONARY = {
     'graph.node.deleted_undo': 'Отменить',
     'graph.node.undo_failed': 'Не удалось восстановить узел',
     'graph.node.undo_no_edges_hint': 'связи не восстанавливаются - привяжите вручную',
+    'graph.export.button': 'Экспорт',
+    'graph.export.hint': 'Сохранить текущий граф как файл',
+    'graph.export.png': 'PNG (изображение)',
+    'graph.export.svg': 'SVG (векторное)',
+    'graph.export.success': 'Граф экспортирован: {filename}',
+    'graph.export.error': 'Не удалось экспортировать граф',
 
     // form labels (AddEdgeModal)
     'edge.field.from': 'Откуда',
@@ -1148,6 +1154,12 @@ export const DICTIONARY = {
     'graph.node.deleted_undo': 'تراجع',
     'graph.node.undo_failed': 'تعذّر استعادة العقدة',
     'graph.node.undo_no_edges_hint': 'لا تُستعاد العلاقات - أعد ربطها يدويًا',
+    'graph.export.button': 'تصدير',
+    'graph.export.hint': 'حفظ الرسم الحالي كملف',
+    'graph.export.png': 'PNG (صورة)',
+    'graph.export.svg': 'SVG (متجه)',
+    'graph.export.success': 'تم تصدير الرسم: {filename}',
+    'graph.export.error': 'تعذّر تصدير الرسم',
 
     'edge.field.from': 'من',
     'edge.field.to': 'إلى',

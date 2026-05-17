@@ -760,6 +760,7 @@ function GraphCanvas({ graph, topicId, onRefetch }: Props) {
             deleting={deleting}
             onDelete={handleDelete}
             rfInstance={rfInstance as ReactFlowInstance<never, never> | null}
+            topicTitle={graph.topic?.title}
           />
         </ReactFlow>
       )}
