@@ -50,8 +50,8 @@ function CreateQuestionPage() {
   return (
     <main className="min-h-screen bg-bg">
       <Header />
-      <div className="mx-auto max-w-2xl px-6 py-6">
-        <div className="mb-6">
+      <div className="mx-auto max-w-2xl px-6 py-8">
+        <header className="mb-6">
           <Link
             to="/qa"
             className="inline-flex items-center gap-1 text-xs text-ink-500 hover:text-ink-700"
@@ -59,13 +59,16 @@ function CreateQuestionPage() {
             <ArrowLeft size={14} aria-hidden />
             {t('qa.create.back')}
           </Link>
-          <h1 className="mt-2 text-xl font-bold tracking-tight text-ink-900">
+          <div className="mb-1 mt-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
+            {t('qa.create.eyebrow')}
+          </div>
+          <h1 className="font-serif text-[28px] font-semibold leading-tight tracking-tight text-ink-900">
             {t('qa.create.title')}
           </h1>
-          <p className="mt-1 text-sm text-ink-500">
+          <p className="mt-1.5 max-w-[680px] text-sm text-ink-500">
             {t('qa.create.subtitle')}
           </p>
-        </div>
+        </header>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <Field

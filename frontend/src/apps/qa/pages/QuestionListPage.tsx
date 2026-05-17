@@ -77,14 +77,17 @@ function QuestionListPage() {
     <main className="min-h-screen bg-bg">
       <Header />
       <div className="mx-auto max-w-[1380px] px-6 py-6">
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-ink-900">
+        <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
+              {t('qa.list.eyebrow')}
+            </div>
+            <h1 className="font-serif text-[28px] font-semibold leading-tight tracking-tight text-ink-900">
               {t('qa.list.title')}
             </h1>
             {state.kind === 'success' && (
-              <p className="mt-1 text-sm text-ink-500">
-                <span className="font-mono font-semibold text-ink-700">
+              <p className="mt-1.5 max-w-[680px] text-sm text-ink-500">
+                <span className="font-medium text-ink-700">
                   <bdi dir="ltr">{state.data.length}</bdi>
                 </span>{' '}
                 {t('qa.list.subtitle')}
@@ -94,7 +97,7 @@ function QuestionListPage() {
           <Link to="/qa/new">
             <Button icon={Plus}>{t('qa.list.create_button')}</Button>
           </Link>
-        </div>
+        </header>
 
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <div className="flex h-9 max-w-md flex-1 items-center rounded-md border border-border-strong bg-elevated transition-colors focus-within:border-accent-500 focus-within:ring-2 focus-within:ring-accent-500/20">

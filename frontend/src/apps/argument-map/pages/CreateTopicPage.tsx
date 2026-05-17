@@ -6,10 +6,12 @@ import Button from '@/shared/components/ui/Button';
 import Field from '@/shared/components/ui/Field';
 import Header from '@/shared/components/layout/Header';
 import { apiPost, ApiError } from '@/shared/api/client';
+import { useT } from '@/shared/i18n';
 
 type ValidationError = { field: string; message: string };
 
 function CreateTopicPage() {
+  const t = useT();
   const navigate = useNavigate();
 
   const [title, setTitle] = useState('');
@@ -63,15 +65,18 @@ function CreateTopicPage() {
     <main className="min-h-screen bg-bg">
       <Header />
 
-      <div className="mx-auto max-w-[1100px] px-6 py-6">
-        <div className="mb-6">
-          <h1 className="text-xl font-bold tracking-tight text-ink-900">
-            Создание темы
+      <div className="mx-auto max-w-[1100px] px-6 py-8">
+        <header className="mb-6">
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
+            {t('topic.create.eyebrow')}
+          </div>
+          <h1 className="font-serif text-[28px] font-semibold leading-tight tracking-tight text-ink-900">
+            {t('topic.create.title')}
           </h1>
-          <p className="mt-1 text-sm text-ink-500">
-            Корневой вопрос становится отправной точкой графа
+          <p className="mt-1.5 max-w-[680px] text-sm text-ink-500">
+            {t('topic.create.subtitle')}
           </p>
-        </div>
+        </header>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
           <form

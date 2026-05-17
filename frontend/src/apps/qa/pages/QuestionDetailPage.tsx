@@ -165,7 +165,10 @@ function Detail({ question, updating, onStatusChange, onDelete, onRefetchQuestio
 
   return (
     <article>
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
+        {t('qa.detail.eyebrow')}
+      </div>
+      <div className="mb-2 flex items-center gap-2">
         <span
           className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider ${STATUS_BADGE[status]}`}
         >
@@ -178,8 +181,10 @@ function Detail({ question, updating, onStatusChange, onDelete, onRefetchQuestio
         </span>
       </div>
 
+      {/* font-serif для latin, font-arabic для arabic - не миксовать
+          editorial latin serif с арабской вязью (плохо смотрится) */}
       <h1
-        className={`mb-3 text-2xl font-bold tracking-tight text-ink-900 ${isTitleArabic ? 'font-arabic' : ''}`}
+        className={`mb-3 text-[28px] font-semibold leading-tight tracking-tight text-ink-900 ${isTitleArabic ? 'font-arabic' : 'font-serif'}`}
         dir="auto"
       >
         {question.title}

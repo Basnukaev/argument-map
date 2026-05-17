@@ -138,31 +138,38 @@ function BookListPage() {
       <Header />
 
       <div className="mx-auto max-w-[1380px] px-6 py-6">
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-ink-900">
+        <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
+              {t('book.list.eyebrow')}
+            </div>
+            <h1 className="font-serif text-[28px] font-semibold leading-tight tracking-tight text-ink-900">
               {t('book.list.title')}
             </h1>
-            {state.kind === 'success' && (
-              <p className="mt-1 text-sm text-ink-500">
-                {t('book.list.subtitle')} ·{' '}
-                <span className="font-mono font-semibold text-ink-700">
-                  <bdi dir="ltr">{state.data.length}</bdi>{' '}
-                  {t('book.list.books_suffix')}
-                </span>
-              </p>
-            )}
+            <p className="mt-1.5 max-w-[680px] text-sm text-ink-500">
+              {t('book.list.subtitle')}
+              {state.kind === 'success' && (
+                <>
+                  {' '}·{' '}
+                  <span className="font-medium text-ink-700">
+                    <bdi dir="ltr">{state.data.length}</bdi>{' '}
+                    {t('book.list.books_suffix')}
+                  </span>
+                </>
+              )}
+            </p>
           </div>
-          {/* "Импорт из Shamela" - переход на admin страницу. Per референс
-              библиотеки эта кнопка живёт в правом верхнем углу заголовка,
-              а не где-то в админке - чтобы пользователь, который смотрит
-              библиотеку, мог быстро запустить пополнение */}
+          {/* «Импорт из Shamela» намеренно secondary - на странице
+              библиотеки главная активность это «смотреть/искать», импорт
+              редкая admin-операция. По design-system правилу «один primary
+              на экране» - тут primary нет, библиотека преимущественно
+              read-only поверхность */}
           <Link to="/admin/shamela">
             <Button variant="secondary" icon={Download}>
               {t('book.list.import_from_shamela')}
             </Button>
           </Link>
-        </div>
+        </header>
 
         <div className="mb-6 flex flex-wrap items-center gap-3">
           <div className="flex h-9 max-w-md flex-1 items-center rounded-sm border border-ink-200 bg-elevated transition-colors focus-within:border-accent-500">

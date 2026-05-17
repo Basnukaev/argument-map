@@ -80,6 +80,7 @@ export const DICTIONARY = {
     'topic.list.aria_topic_count': 'активных',
 
     // book list page
+    'book.list.eyebrow': 'Библиотека · каталог',
     'book.list.title': 'Библиотека',
     'book.list.subtitle': 'Импортированные классические труды и источники',
     'book.list.books_suffix': 'книг',
@@ -92,7 +93,13 @@ export const DICTIONARY = {
     'book.list.sort_type': 'По типу',
 
     // Q&A (Этап 19.a, ADR-032)
+    'qa.list.eyebrow': 'Q&A · обсуждения',
     'qa.list.title': 'Вопросы и ответы',
+    'topic.create.eyebrow': 'Аргументация · новая тема',
+    'topic.create.title': 'Создание темы',
+    'topic.create.subtitle': 'Корневой вопрос становится отправной точкой графа',
+    'qa.create.eyebrow': 'Q&A · новый вопрос',
+    'qa.detail.eyebrow': 'Q&A · вопрос',
     'qa.list.subtitle': 'вопросов в обсуждении',
     'qa.list.empty': 'Пока ни одного вопроса. Создайте первый.',
     'qa.list.create_button': 'Задать вопрос',
@@ -577,6 +584,7 @@ export const DICTIONARY = {
     'topic.list.not_found': 'لا توجد نتائج',
     'topic.list.aria_topic_count': 'نشط',
 
+    'book.list.eyebrow': 'المكتبة · الفهرس',
     'book.list.title': 'المكتبة',
     'book.list.subtitle': 'كتب وأمهات مستوردة',
     'book.list.books_suffix': 'كتاب',
@@ -588,7 +596,13 @@ export const DICTIONARY = {
     'book.list.sort_title': 'حسب العنوان',
     'book.list.sort_type': 'حسب النوع',
 
+    'qa.list.eyebrow': 'Q&A · المناقشات',
     'qa.list.title': 'الأسئلة والأجوبة',
+    'topic.create.eyebrow': 'الحجاج · موضوع جديد',
+    'topic.create.title': 'إنشاء موضوع',
+    'topic.create.subtitle': 'السؤال الجذري يصبح نقطة انطلاق الرسم البياني',
+    'qa.create.eyebrow': 'Q&A · سؤال جديد',
+    'qa.detail.eyebrow': 'Q&A · سؤال',
     'qa.list.subtitle': 'سؤال في النقاش',
     'qa.list.empty': 'لا توجد أسئلة بعد. أنشئ السؤال الأول.',
     'qa.list.create_button': 'طرح سؤال',
