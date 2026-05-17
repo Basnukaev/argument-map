@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router';
 import TopicListPage from '@/apps/argument-map/pages/TopicListPage';
 import CreateTopicPage from '@/apps/argument-map/pages/CreateTopicPage';
@@ -10,10 +10,14 @@ import QuestionListPage from '@/apps/qa/pages/QuestionListPage';
 import CreateQuestionPage from '@/apps/qa/pages/CreateQuestionPage';
 import QuestionDetailPage from '@/apps/qa/pages/QuestionDetailPage';
 import SettingsPage from '@/apps/settings/pages/SettingsPage';
+import LoginPage from '@/apps/auth/pages/LoginPage';
+import RegisterPage from '@/apps/auth/pages/RegisterPage';
+import ProtectedRoute from '@/shared/components/auth/ProtectedRoute';
 import Toaster from '@/shared/components/ui/Toaster';
 import CommandPalette from '@/shared/components/layout/CommandPalette';
 import { usePaletteStore } from '@/shared/stores/paletteStore';
 import { useHotkey } from '@/shared/hooks/useHotkey';
+import { useAuthStore } from '@/shared/stores/authStore';
 
 // TopicGraphPage тянет тяжёлые зависимости (React Flow, dagre, lucide-icons,
 // все компоненты графа). Loading через React.lazy выкидывает их из initial
@@ -48,28 +52,118 @@ function App() {
 
   useHotkey('alt+k', togglePalette, { enableOnFormTags: true });
 
+  // На mount - bootstrap auth (попытка refresh + /me). Запускается один раз
+  // даже в StrictMode dev double-render (initialized флаг защищает от
+  // повторного запроса). После завершения - либо user в store, либо null,
+  // ProtectedRoute дальше решает редирект на /login. Без этого initial
+  // request - protected routes флешат на /login на refresh страницы
+  const loadCurrentUser = useAuthStore((s) => s.loadCurrentUser);
+  const initialized = useAuthStore((s) => s.initialized);
+  useEffect(() => {
+    if (!initialized) {
+      void loadCurrentUser();
+    }
+  }, [initialized, loadCurrentUser]);
+
   return (
     <>
       <Routes>
+        {/* Public routes - login/register не за ProtectedRoute,
+            доступны всегда */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+
         <Route path="/" element={<Navigate to="/topics" replace />} />
-        <Route path="/topics" element={<TopicListPage />} />
-        <Route path="/topics/new" element={<CreateTopicPage />} />
+        <Route
+          path="/topics"
+          element={
+            <ProtectedRoute>
+              <TopicListPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/topics/new"
+          element={
+            <ProtectedRoute>
+              <CreateTopicPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/topics/:topicId"
           element={
-            <Suspense fallback={<GraphFallback />}>
-              <TopicGraphPage />
-            </Suspense>
+            <ProtectedRoute>
+              <Suspense fallback={<GraphFallback />}>
+                <TopicGraphPage />
+              </Suspense>
+            </ProtectedRoute>
           }
         />
-        <Route path="/books" element={<BookListPage />} />
-        <Route path="/books/:bookId" element={<BookReaderPage />} />
-        <Route path="/qa" element={<QuestionListPage />} />
-        <Route path="/qa/new" element={<CreateQuestionPage />} />
-        <Route path="/qa/:questionId" element={<QuestionDetailPage />} />
-        <Route path="/admin/shamela" element={<AdminShamelaPage />} />
-        <Route path="/admin/library/pages/:pageId/edit" element={<AdminPageEditorPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
+        <Route
+          path="/books"
+          element={
+            <ProtectedRoute>
+              <BookListPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/books/:bookId"
+          element={
+            <ProtectedRoute>
+              <BookReaderPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/qa"
+          element={
+            <ProtectedRoute>
+              <QuestionListPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/qa/new"
+          element={
+            <ProtectedRoute>
+              <CreateQuestionPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/qa/:questionId"
+          element={
+            <ProtectedRoute>
+              <QuestionDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/shamela"
+          element={
+            <ProtectedRoute requireRole="ADMIN">
+              <AdminShamelaPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/library/pages/:pageId/edit"
+          element={
+            <ProtectedRoute requireRole="ADMIN">
+              <AdminPageEditorPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <SettingsPage />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
       <CommandPalette open={paletteOpen} onClose={closePalette} />
       <Toaster />
