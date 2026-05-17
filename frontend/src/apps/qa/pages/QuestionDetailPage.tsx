@@ -191,7 +191,7 @@ function Detail({ question, updating, onStatusChange, onDelete, onRefetchQuestio
       </h1>
 
       {question.body && (
-        <Card className="mb-4 p-4">
+        <Card className="mb-6 p-4">
           <p
             className={`whitespace-pre-wrap text-sm leading-relaxed text-ink-800 ${isBodyArabic ? 'font-arabic' : ''}`}
             dir="auto"
@@ -201,7 +201,9 @@ function Detail({ question, updating, onStatusChange, onDelete, onRefetchQuestio
         </Card>
       )}
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      {/* status switcher → mb-8 для отделения от section'ов ниже
+          (design-system: major section gap 32px) */}
+      <div className="mb-8 flex flex-wrap items-center gap-2">
         <span className="text-xs text-ink-500">{t('qa.detail.change_status')}:</span>
         {(['OPEN', 'ANSWERED', 'CLOSED'] as const).map((s) => (
           <button
@@ -236,7 +238,9 @@ function Detail({ question, updating, onStatusChange, onDelete, onRefetchQuestio
         />
       )}
 
-      <div className="mt-6 flex justify-end border-t border-ink-100 pt-4">
+      {/* destructive action отделён mt-10 + border-top - визуальный
+          «забор» против случайных кликов рядом с answer-form'ом */}
+      <div className="mt-10 flex justify-end border-t border-ink-100 pt-4">
         <Button
           variant="ghost"
           icon={Trash2}

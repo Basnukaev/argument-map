@@ -101,8 +101,8 @@ function QuestionListPage() {
         </header>
 
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <div className="flex h-9 max-w-md flex-1 items-center rounded-md border border-border-strong bg-elevated transition-colors focus-within:border-accent-500 focus-within:ring-2 focus-within:ring-accent-500/20">
-            <Search size={16} className="ms-3 text-ink-400" aria-hidden />
+          <div className="flex h-9 max-w-md flex-1 items-center rounded-md border border-border-strong bg-elevated transition-all focus-within:border-accent-500 focus-within:ring-2 focus-within:ring-accent-500/20">
+            <Search size={15} className="ms-3 text-ink-400" aria-hidden />
             <input
               type="search"
               value={search}

@@ -6,7 +6,7 @@ import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import GraphCanvas from '@/apps/argument-map/components/graph/GraphCanvas';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
-import { useT } from '@/shared/i18n';
+import { hasArabicScript, useT } from '@/shared/i18n';
 import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
 
@@ -82,15 +82,21 @@ function TopicGraphPage() {
           {t('graph.back_to_list')}
         </Link>
         <span className="text-ink-300">/</span>
+        {/* font-arabic для arabic titles - top bar compact, font-serif
+            тут не подходит (смешает functional/editorial registers).
+            hasArabicScript detect по unicode range вместо локали интерфейса */}
         <h1
           dir="auto"
-          className="truncate text-sm font-semibold text-ink-900"
+          className={`truncate text-sm font-semibold text-ink-900 ${hasArabicScript(topicTitle) ? 'font-arabic' : ''}`}
           title={topicDescription || topicTitle}
         >
           {topicTitle}
         </h1>
         {topicDescription && (
-          <p dir="auto" className="hidden truncate text-xs text-ink-500 md:block">
+          <p
+            dir="auto"
+            className={`hidden truncate text-xs text-ink-500 md:block ${hasArabicScript(topicDescription) ? 'font-arabic' : ''}`}
+          >
             {topicDescription}
           </p>
         )}
