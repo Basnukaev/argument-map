@@ -115,6 +115,27 @@
   только metadata.pdf_links). Теперь после upload книга сразу
   доступна через `/api/v1/library/books/{id}/pdf/info` и `/pdf`.
   +9 UserUploadProviderIT + 1 E2E в FileImportControllerIT (всего 554)
+- **Этап 17. Library - image-сканы + OCR + rich text editor + AI editing**
+  (закрыт Сессии 41-43, ADR-039/041/042) - **17.0** Tiptap 3.23
+  + 8 custom extensions (HadithBox/AyahBox/Marginalia/Footnote/
+  ColorHighlight/Tashkeel/DecoratedHeading/PageNumber), миграция 33
+  formatted_content jsonb, AdminPageEditorPage с toolbar, 43 schema
+  tests. **17.a** PageImageService + POST `/library/books/{id}/pages`
+  multipart, MinIO `library-page-images` bucket, миграция 34 6 nullable
+  колонок. **17.b** Tess4j 5.13.0 + OcrService через @Async
+  ocrTaskExecutor (core=2/max=4), state machine PENDING/PROCESSING/
+  DONE/FAILED, POST `/pages/{id}/ocr` + GET polling. Tesseract -
+  system dependency (apt install tesseract-ocr-ara). **17.c**
+  ImageRegion API (3 endpoints, normalized 0..1 + Bean Validation).
+  **17.d** re-OCR через existing endpoint (idempotent на state machine).
+  **17.e** AI editing pass через Anthropic Claude (claude-sonnet-4-6)
+  - миграция 35 ai_edit_status fields, POST `/pages/{id}/ai-edit` +
+  GET polling, 503 если ANTHROPIC_API_KEY не настроен, prompt template
+  в resources/prompts/ai-edit-tahqiq.txt, AiEditConfig dedicated pool,
+  20+ tests (validation + stub HttpServer + service IT + controller IT
+  + опциональный live). Frontend AI edit UI отложен в backlog.
+  **17.f** ADR-041 + ADR-042. ImagePageRenderer (18.e) - отдельный
+  пункт в Этапе 18
 - **Responsive Фаза 1+2** (закрыто Сессии 39+40) - mobile/tablet
   адаптация UI. Фаза 1: `useIsMobile` hook, Modal full-screen,
   NodeDetailsPanel overlay, Header drawer, Select adaptive max-height.
@@ -184,57 +205,6 @@ Elasticsearch** (не через Postgres tsvector). Причины: PG не у�
 diacritics-aware lookup). Подробности и план - в `docs/backlog.md`
 раздел «Архитектурные решения для будущих этапов».
 Активного этапа пока нет
-
-### Этап 17. Library - image-сканы + OCR + rich text editor
-
-**Зачем:** третий способ добавления книг для сканов рукописей или
-редких книг где текст недоступен. **Перед запуском OCR pipeline**
-требуется решить вопрос с rich text editor для красивого рендера
-арабских тахкиков (хадис-боксы, marginalia, footnotes, decorated
-headings, color highlights). Подробный план - в `docs/backlog.md`
-раздел «Editor для кастомизации текста книг». **Выбран Tiptap** -
-ADR-039
-
-- [x] **17.0 - Tiptap editor + 8 custom extensions (ADR-039 закрыт целиком).**
-      ADR-039 (Tiptap vs Lexical/Slate/CKEditor/TinyMCE, storage =
-      ProseMirror JSON в `lib_pages.formatted_content jsonb`), migration 33,
-      backend `PATCH /pages/{id}/formatted-content`, frontend Tiptap 3.23
-      + RichTextEditor/RichTextRenderer wrappers, AdminPageEditorPage
-      `/admin/library/pages/:pageId/edit` с toolbar (Bold/Italic/H1-3/
-      Blockquote + 8 custom). 8 custom extensions: HadithBox (peach +
-      `«»` ornament), AyahBox (gold + `﴿ ﴾`), Marginalia (RTL-aware
-      `data-side`, desktop float / mobile inline), Footnote (`<sup>` +
-      CSS counter), ColorHighlight (5-color whitelist + toggle),
-      Tashkeel mark (reader toggle «С/Без огласовок», MVP placeholder
-      CSS - full removal в backlog), DecoratedHeading (4 ornament:
-      diamond/flower/star/crescent, levels 1-4), PageNumber (inline
-      atom `⟦N⟧`). 43 schema-теста, ~58 i18n keys RU/AR, READER_EXTENSIONS
-      синхронизирован с EDITOR_EXTENSIONS. 284/284 frontend tests pass
-- [x] **17.a:** PageImageService + `POST /api/v1/library/books/{id}/pages`
-      multipart (Сессия 42, ADR-041). MIME whitelist image/jpeg|png|webp|tiff,
-      bucket `library-page-images` (уже сконфигурирован в ObjectStorageProperties),
-      key `{bookId}/page-{N}.{ext}`. Создаёт placeholder Page либо обновляет
-      existing (idempotent re-upload). Migration 34 ALTER lib_pages добавила
-      image_bucket/storage_key/uploaded_at + ocr_status state machine
-- [x] **17.b:** Tess4j 5.13.0 + OcrService (Сессия 42, ADR-041). @Async с
-      dedicated ocrTaskExecutor (core=2/max=4), language=ara+rus+eng,
-      tessdata.path конфигурируется. State machine PENDING/PROCESSING/DONE/
-      FAILED. POST /api/v1/library/pages/{id}/ocr (триггер, 202 Accepted) +
-      GET /pages/{id}/ocr (polling). Tesseract сам - system dependency,
-      установка задокументирована в backend/CLAUDE.md
-- [x] **17.c:** ImageRegion API (Сессия 42, ADR-041). 3 endpoint:
-      POST /api/v1/library/pages/{pageId}/regions (CreateImageRegionRequest
-      normalized 0..1 + Bean Validation), GET list sorted by created_at,
-      DELETE /pages/regions/{regionId}. Update намеренно нет - immutable
-- [ ] **17.d:** re-OCR endpoint - возможность перезапустить OCR.
-      Реализовано неявно через existing POST /pages/{id}/ocr (idempotent
-      на state machine). Отдельный resource path не нужен на MVP
-- [ ] **17.e:** AI editing pass - LLM расставляет headings, хадис-боксы,
-      footnotes, нормализует tashkeel. Manual review через Tiptap editor
-- [x] **17.f:** ADR на OCR pipeline - **ADR-041 принят в Сессии 42**.
-      Tess4j (Tesseract wrapper) + system dep на хосте, ara/rus/eng,
-      async @Async pool, state machine PENDING/PROCESSING/DONE/FAILED,
-      graceful degradation при отсутствии Tesseract
 
 ### Этап 18. Library frontend - оставшиеся подэтапы
 
@@ -429,8 +399,28 @@ ADR-039
       30+ backend IT (246 frontend + 605 backend total). Transitional в
       dev/test: GET /api/** остаётся permitAll - покрывает 60+ existing IT
       без переписывания. В prod profile GET тоже authenticated()
-- [ ] **22:** Многопользовательский режим - private/shared/public
-      visibility для тем, books, ответов
+- [x] **Этап 22 (Сессия 42, ADR-043) - RBAC permissions per-entity:**
+      backend topics.visibility (PRIVATE/SHARED/PUBLIC) + topic_members
+      M:N (MEMBER/EDITOR) + миграция 36 + PermissionService с матрицей
+      ADR-043 + TopicAccessDeniedException/TopicWriteAccessDeniedException
+      (403 forbidden-topic-access/write) + ADMIN bypass. Service-layer
+      ассерты (TopicService/NodeService/EdgeService) + новые перегрузки с
+      (userId, role) + SecurityContextUtils.currentRole() helper.
+      Новые REST: POST/GET/PATCH/DELETE /api/v1/topics/{id}/members +
+      PATCH /api/v1/topics/{id}/visibility. ~43 новых backend test
+      (20 unit + 11 IT PermissionService + 10 IT TopicMemberController
+      + 4-5 расширение TopicControllerIT). Frontend UI (radio
+      visibility + members modal) - **Этап 22.b** (отложен)
+- [ ] **22.b:** Frontend UI для visibility/members - TopicEditModal
+      radio (PRIVATE/SHARED/PUBLIC) + sub-modal управления членами,
+      i18n keys `topic.visibility.*` / `topic.members.*`
+- [ ] **22.c:** RBAC расширение на library books и Q&A questions -
+      повтор паттерна visibility/members когда понадобится
+      multi-tenant книги или приватные ответы
+- [ ] **22.d:** Audit log per-entity - кто что менял когда + кто
+      получил/потерял access (отдельная таблица + endpoint history).
+      Сейчас trace только через revisions для контента и стандартный
+      request log
 - [ ] **23+:** Open list - sanad explorer, multi-grading, RTL UI,
       экспорт PDF/SVG, mobile, advanced search. См. `docs/backlog.md`
       раздел «Будущие фичи»

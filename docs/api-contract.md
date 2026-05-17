@@ -187,12 +187,15 @@ password 8..100 символов.
 {
   "title": "Мавлид это бид'а?",
   "description": "Разбор аргументов сторон",
-  "rootQuestion": "Является ли празднование мавлида нововведением?"
+  "rootQuestion": "Является ли празднование мавлида нововведением?",
+  "visibility": "PRIVATE"
 }
 ```
 - `title`: string, 1-200 символов, обязательно
 - `description`: string, 0-2000 символов, опционально (`null` допустимо)
 - `rootQuestion`: string, 1-10000 символов, обязательно
+- `visibility`: enum `PRIVATE` / `SHARED` / `PUBLIC`, опционально
+  (default `PRIVATE` если не передан, ADR-043)
 
 **Ответ (201 Created):**
 - Заголовок `Location: /api/v1/topics/{id}`
@@ -204,7 +207,10 @@ password 8..100 символов.
   "description": "Разбор аргументов сторон",
   "rootNodeId": "550e8400-e29b-41d4-a716-446655440001",
   "createdBy": "550e8400-e29b-41d4-a716-446655440002",
-  "createdAt": "2026-05-03T10:00:00Z"
+  "createdAt": "2026-05-03T10:00:00Z",
+  "visibility": "PRIVATE",
+  "nodeCount": 1,
+  "edgeCount": 0
 }
 ```
 
@@ -214,7 +220,14 @@ password 8..100 символов.
 
 #### GET /api/v1/topics
 
-Список всех тем.
+Список тем **видимых текущему user'у** (ADR-043). USER видит:
+- свои темы (любого visibility)
+- SHARED где он member
+- все PUBLIC
+
+ADMIN видит все темы без фильтра.
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно для visibility-фильтра)
 
 **Ответ (200 OK):** массив `TopicResponse` (см. POST).
 
@@ -222,24 +235,54 @@ password 8..100 символов.
 
 Одна тема по id.
 
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
 **Ответ (200 OK):** `TopicResponse`.
 
 **Ошибки:**
+- `403 forbidden-topic-access` - нет прав на чтение (PRIVATE не owner,
+  SHARED не member)
+- `404` - тема не найдена
+
+#### PATCH /api/v1/topics/{topicId}/visibility
+
+Сменить visibility темы. **Только owner или ADMIN** (ADR-043).
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+**Запрос:**
+```json
+{ "visibility": "PUBLIC" }
+```
+- `visibility`: `PRIVATE` / `SHARED` / `PUBLIC`, обязательно
+
+**Ответ (200 OK):** `TopicResponse` с обновлённым visibility.
+
+**Ошибки:**
+- `400` - невалидное значение
+- `403 forbidden-topic-write` - не owner и не ADMIN
 - `404` - тема не найдена
 
 #### DELETE /api/v1/topics/{topicId}
 
-Удалить тему. Каскадно удаляет узлы, рёбра, ревизии, привязки.
+Удалить тему. **Только owner или ADMIN** (ADR-043). EDITOR не может
+удалять, даже на SHARED. Каскадно удаляет узлы, рёбра, ревизии, привязки,
+topic_members.
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
 
 **Ответ (204 No Content):** без тела.
 
 **Ошибки:**
+- `403 forbidden-topic-write` - не owner и не ADMIN
 - `404` - тема не найдена
 
 #### GET /api/v1/topics/{topicId}/graph
 
 Получить весь граф темы (узлы + рёбра) в плоской форме - так, как
 потребляют graph-библиотеки (React Flow, Cytoscape).
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
 
 **Ответ (200 OK):**
 ```json
@@ -251,7 +294,85 @@ password 8..100 символов.
 ```
 
 **Ошибки:**
+- `403 forbidden-topic-access` - нет прав на чтение темы
 - `404` - тема не найдена
+
+### Topic members (ADR-043, Этап 22)
+
+Управление со-редакторами SHARED-тем. Поле `role`: `MEMBER` (read-only)
+или `EDITOR` (read+write).
+
+#### POST /api/v1/topics/{topicId}/members
+
+Добавить user как member темы. **Только owner или ADMIN**.
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+**Запрос:**
+```json
+{
+  "userId": "...",
+  "role": "EDITOR"
+}
+```
+
+**Ответ (201 Created):** `TopicMemberResponse`
+```json
+{
+  "id": "...",
+  "topicId": "...",
+  "userId": "...",
+  "role": "EDITOR",
+  "addedAt": "2026-05-17T10:00:00Z",
+  "addedBy": "..."
+}
+```
+
+**Ошибки:**
+- `400` - невалидная роль / owner добавляется как member / user уже member
+- `403 forbidden-topic-write` - не owner и не ADMIN
+- `404` - тема не найдена
+
+#### GET /api/v1/topics/{topicId}/members
+
+Список членов темы. Доступно всем кто имеет read access к теме (см.
+правила ADR-043).
+
+**Ответ (200 OK):** массив `TopicMemberResponse`.
+
+**Ошибки:**
+- `403 forbidden-topic-access` - нет read доступа
+- `404` - тема не найдена
+
+#### PATCH /api/v1/topics/{topicId}/members/{memberId}
+
+Сменить роль члена темы. **Только owner или ADMIN**.
+
+**Запрос:**
+```json
+{ "role": "EDITOR" }
+```
+
+**Ответ (200 OK):** обновлённый `TopicMemberResponse`.
+
+**Ошибки:**
+- `400` - невалидная роль
+- `403 forbidden-topic-write` - не owner и не ADMIN
+- `404 topic-member-not-found` - запись не существует или относится к
+  другой теме
+
+#### DELETE /api/v1/topics/{topicId}/members/{memberId}
+
+Удалить члена. **Owner или ADMIN** удаляет любого, **member может
+удалить только себя** (self-leave). EDITOR не может удалить других
+EDITOR'ов.
+
+**Ответ (204 No Content):** без тела.
+
+**Ошибки:**
+- `403 forbidden-topic-write` - не owner и не self-leave
+- `404 topic-member-not-found` - запись не существует или относится к
+  другой теме
 
 ### Узлы (Nodes)
 
@@ -1173,15 +1294,76 @@ immutable. Изменить координаты = удалить + создат
 Ошибки:
 - 404 `image-region-not-found`
 
+### POST /api/v1/library/pages/{pageId}/ai-edit - триггер AI edit (Этап 17.e)
+
+ADR-042. Запускает Anthropic Claude через `AiEditService.enhanceAsync` -
+работа уходит в bounded `aiEditTaskExecutor` (core=2, max=4, queue=50).
+Frontend получает 202 Accepted сразу, опрашивает GET endpoint для
+статуса. Преобразует OCR raw text (`text_content`) в ProseMirror
+JSON (`formatted_content`).
+
+Тело: пустое.
+
+`202 Accepted` - `AiEditJobResponse`:
+```json
+{
+  "pageId": "uuid",
+  "status": "PENDING",
+  "startedAt": null,
+  "completedAt": null,
+  "hasTextContent": true
+}
+```
+
+`status` на момент response - текущее значение `lib_pages.ai_edit_status`.
+Реальное PROCESSING/DONE выставляются background async. Polling
+endpoint показывает актуальное значение.
+
+Re-trigger допустим - после DONE если результат не понравился, либо
+после FAILED для retry. `AiEditService.enhance` idempotent на state
+machine.
+
+Ошибки:
+- 404 `page-not-found` - pageId не существует
+- 503 `ai-edit-not-configured` - `ANTHROPIC_API_KEY=disabled`.
+  Detail: «AI editing не настроен - установите ANTHROPIC_API_KEY
+  env var»
+- 502 `anthropic-api-error` - Anthropic API вернул не-2xx (после 3
+  retry попыток через Resilience4j). Property `upstreamStatus` -
+  HTTP-код от Anthropic
+- 503 `anthropic-api-error` - IOException/timeout при connection к
+  Anthropic (statusCode=0 в Exception)
+
+### GET /api/v1/library/pages/{pageId}/ai-edit - статус AI edit (Этап 17.e)
+
+ADR-042. Polling endpoint. Frontend опрашивает каждые 2-3 сек пока
+`status=PROCESSING`, переключается на DONE/FAILED → стопает polling.
+
+`200 OK` - `AiEditJobResponse` (см. выше). `hasTextContent=false`
+означает что у страницы нет text_content - precondition AI edit не
+выполнен (например image-page без OCR пока). Frontend может скрыть
+кнопку.
+
+При `status="DONE"` - `formatted_content` страницы заполнен валидным
+ProseMirror JSON. Чтение через `GET /pages/{id}` либо
+`/library/books/{bookId}/pages?from=X&to=Y` (см. выше).
+
+Ошибки:
+- 404 `page-not-found`
+
 ### Что **не** реализовано в Этапе 17
 
 - re-OCR endpoint (17.d) - перезапустить OCR на DONE/FAILED странице
   через тот же `POST /pages/{id}/ocr` (idempotent на уровне state
   machine), отдельный resource path не нужен
-- AI editing pass (17.e) - LLM расставляет structure через Tiptap
-  custom nodes на OCR raw text. Отдельный этап
+- ~~AI editing pass (17.e)~~ - **реализовано в Сессии 43**: ADR-042
+  Anthropic Claude single-provider + миграция 35 + POST/GET
+  `/pages/{id}/ai-edit` (см. выше)
 - Cron retry hung PROCESSING (>10 минут) - manual через polling +
   re-trigger пока что
+- Frontend UI кнопка для AI edit - отдельный подэтап в будущем (sub
+  17.e.f). Сейчас только REST endpoint + curl example в
+  `backend/CLAUDE.md`
 
 ### Что **не** реализовано в Этапе 14
 
@@ -2100,6 +2282,8 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-17 | v1 | Этап 22 - RBAC permissions per-entity (ADR-043). Миграция 36 ALTER `topics` добавляет колонку `visibility VARCHAR(20) NOT NULL DEFAULT 'PRIVATE'` (CHECK PRIVATE/SHARED/PUBLIC) + 2 индекса; новая таблица `topic_members` (id, topic_id FK CASCADE, user_id FK CASCADE, role CHECK MEMBER/EDITOR, added_at, added_by, UNIQUE topic+user). **Breaking semantic change**: GET endpoints у topics теперь требуют X-User-Id даже на read - visibility check возвращает 403 `forbidden-topic-access` для приватных тем чужого user'а; список `GET /api/v1/topics` фильтруется по UNION (own + shared-member + public). DELETE темы возвращает 403 `forbidden-topic-write` если не owner/ADMIN (раньше любой мог удалять). `TopicResponse` расширен полем `visibility: PRIVATE|SHARED|PUBLIC`. `CreateTopicRequest` принимает опциональное `visibility` (default PRIVATE). 5 новых endpoint: `PATCH /api/v1/topics/{id}/visibility` (UpdateTopicVisibilityRequest, owner only); `POST /api/v1/topics/{id}/members` (AddTopicMemberRequest{userId, role}, owner only, 201); `GET /api/v1/topics/{id}/members` (TopicMemberResponse[], requires read access); `PATCH /api/v1/topics/{id}/members/{memberId}` (UpdateTopicMemberRequest{role}, owner only); `DELETE /api/v1/topics/{id}/members/{memberId}` (owner или self-leave). Новые ошибки: `403 forbidden-topic-access`, `403 forbidden-topic-write` (с topicId/userId в properties), `404 topic-member-not-found`. ADMIN role (из ADR-040) bypass всех visibility checks. NodeController/EdgeController endpoints DELETE/PATCH/GET тоже требуют @CurrentUser для permission check на parent topic | ADR-043: hybrid visibility-модель (3 уровня) + topic_members M:N для co-editing. Rejected: полный RBAC (over-engineering), org/team ownership (нет user-base), per-action permissions (избыточная гранулярность). MVP scope - только topics; library books / Q&A questions добавятся отдельной миграцией если понадобится. Audit log отложен |
+| 2026-05-17 | v1 | Этап 17.e - AI editing pass backend (ADR-042). Миграция 35 ALTER `lib_pages` добавляет 3 nullable колонки: `ai_edit_status` (CHECK PENDING/PROCESSING/DONE/FAILED) + `ai_edit_started_at`/`ai_edit_completed_at` + partial index по status WHERE NOT NULL. **2 новых endpoint'a**: `POST /api/v1/library/pages/{pageId}/ai-edit` (триггер async через Anthropic Claude, returns 202 `AiEditJobResponse{pageId, status, startedAt, completedAt, hasTextContent}`); `GET /api/v1/library/pages/{pageId}/ai-edit` (polling). Pre-flight check `AnthropicClient.isEnabled()` - если `ANTHROPIC_API_KEY=disabled` (default) → 503 `ai-edit-not-configured` синхронно вместо background FAILED. Успешный AI edit пишет ProseMirror JSON в существующую `lib_pages.formatted_content` (миграция 33). Новые ошибки: 503 `ai-edit-not-configured` (config), 502/503 `anthropic-api-error` (upstream Anthropic non-2xx либо IO). AiEditService через `@Async("aiEditTaskExecutor")` (core=2, max=4, queue=50). Resilience4j Retry instance `anthropicApi` (3 attempts, exponential backoff). Prompt template в `resources/prompts/ai-edit-tahqiq.txt` - few-shot examples + правила распознавания (hadith/ayah/heading/footnote/colorHighlight). Frontend UI кнопка отложена | ADR-042: Anthropic Claude single-provider MVP. Rejected: OpenAI (слабее arabic), Gemini (no JSON guarantee + lock-in), local LLM (heavy GPU), HF API (rate limits), Anthropic Java SDK (heavy dep). Triggers revisit: cost/quality/privacy/availability |
 | 2026-05-17 | v1 | Этап 17.a-c - OCR pipeline backend (ADR-041). Миграция 34 ALTER `lib_pages` добавляет 6 nullable колонок: `image_bucket`/`image_storage_key`/`image_uploaded_at` (pointer на скан в MinIO bucket `library-page-images`) + `ocr_status` (CHECK constraint PENDING/PROCESSING/DONE/FAILED) + `ocr_started_at`/`ocr_completed_at`. **3 новых endpoint'a**: `POST /api/v1/library/books/{bookId}/pages` multipart (file image/jpeg|png|webp|tiff + pageNumber query, до 20MB, возвращает PageResponse 200, либо создаёт placeholder Page либо обновляет existing); `POST /api/v1/library/pages/{pageId}/ocr` (триггер async Tesseract OCR, returns 202 OcrJobResponse{pageId, status, startedAt, completedAt, hasImage}); `GET /api/v1/library/pages/{pageId}/ocr` (polling status). **3 endpoint'a для ImageRegion** (17.c): `POST /api/v1/library/pages/{pageId}/regions` (body CreateImageRegionRequest{x,y,width,height,extractedText?} normalized 0..1, 201 + Location), `GET /api/v1/library/pages/{pageId}/regions` (list sorted by created_at), `DELETE /api/v1/library/pages/regions/{regionId}` (204, update намеренно нет - regions immutable). `PageResponse` расширен 6 image/OCR полями (`imageBucket`/`imageStorageKey`/`imageUploadedAt`/`ocrStatus`/`ocrStartedAt`/`ocrCompletedAt`). Новые ошибки: 422 `page-image-error` (empty file / wrong MIME / zero pageNumber), 415 `unsupported-media-type` (для page image). OcrService через Tess4j 5.13.0 + @Async с dedicated `ocrTaskExecutor` (core=2, max=4). Tesseract сам - system dependency (`apt install tesseract-ocr tesseract-ocr-ara`), docs в backend/CLAUDE.md | ADR-041: Tess4j (Tesseract Java wrapper) выбран как OCR engine - free, offline, supports ara/rus/eng, минимальная Java integration. Rejected: GCV (paid + cloud), PaddleOCR (Python-only), Tika (тонкая обёртка над Tess4j). Triggers revisit: PaddleOCR microservice если quality arabic < 70% на manuscripts |
 | 2026-05-17 | v1 | Этап 17.0 - Tiptap rich text editor MVP (ADR-039). Новый endpoint `PATCH /api/v1/library/pages/{id}/formatted-content` принимает `UpdateFormattedContentRequest{formattedContent: JsonNode}` и сохраняет ProseMirror JSON в новой `lib_pages.formatted_content jsonb NULL` колонке (миграция 33). Backend не валидирует ProseMirror schema - принимает любой валидный JSON (валидация на фронте через Tiptap extensions). `PageResponse` расширен полем `formattedContent: JsonNode \| null`. Backward compat: NULL для legacy Shamela/PDFBox страниц → фронт оборачивает `textContent` в minimal paragraph-doc через `wrapPlainTextAsDoc`. `text_content` не трогается (FTS + fallback). Требует X-User-Id/JWT auth | ADR-039: Tiptap (на ProseMirror) выбран как rich text editor платформы. Первый custom extension - HadithBox с source/grade attrs. Подготовка к Этапу 17 OCR pipeline (структурированное хранение AI editing output) |
 | 2026-05-17 | v1 | Этап 21.a Spring Security + JWT (ADR-040). Новый namespace `/api/v1/auth/*` с 5 endpoints: `POST /register` (RegisterRequest{email/username/password}, validation: email/3..50 ASCII username/8..100 password), `POST /login` (LoginRequest{email/password}), `POST /refresh` (CookieValue refresh_token, no-rotation MVP), `POST /logout` (clear cookie), `GET /me` (требует Bearer). Response DTO `AuthResponse{accessToken, accessTokenExpiresAt, user{id,username,email,role}}` + Set-Cookie refresh_token (HttpOnly+Secure+SameSite=Strict+Path=/+Max-Age=604800). Access TTL 15мин, refresh TTL 7д, HS256 signature через `auth.jwt.secret` (env AUTH_JWT_SECRET в prod). Новые error types: `401 invalid-credentials` (login fail или disabled), `401 invalid-token` (JWT тампер/expired/невалидный), `401 unauthorized` (no auth on protected endpoint), `409 email-already-taken`, `409 username-already-taken`, `404 user-not-found`. **Breaking semantic change**: ВСЕ mutating endpoints теперь требуют либо `Authorization: Bearer <jwt>`, либо (в dev/local/test profile) X-User-Id fallback. Запрос без обоих → 401 (раньше 400 `missing-user-header`). Existing IT обновлены: 4 теста с `missing-user-header` → 401. `GET /api/**` в dev/local/test profile остаётся permitAll (transitional до Этапа 21.b). Migration 32 `users` ALTER + password_hash/role/enabled/updated_at. OpenAPI X-User-Id header теперь required=false (Bearer JWT - основной путь) | ADR-040 JWT-based auth. Этап 21.a backend foundation, Этап 21.b frontend login UI следующей сессией |

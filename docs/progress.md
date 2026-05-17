@@ -11,6 +11,151 @@
 
 ---
 
+## 2026-05-17 - Этап 17.e - AI editing pass backend (Anthropic Claude), ADR-042
+
+Параллельно с RBAC subagent (Этап 22 topic permissions). Зоны не
+пересеклись - я только library/imports/ + миграция 35 + ADR-042, они
+trogали service/ + миграцию 36 + ADR-043.
+
+**Реализовано (6 атомарных коммитов):**
+
+1. **Миграция 35 + Page domain expansion + ADR-042**
+   (commit `357cb1b`) - ALTER lib_pages добавляет 3 nullable колонки:
+   `ai_edit_status` (CHECK PENDING/PROCESSING/DONE/FAILED) +
+   `ai_edit_started_at`/`ai_edit_completed_at` + partial index по
+   status WHERE NOT NULL. Page record расширен 3 полями + 21-args
+   canonical конструктор + backward-compat 18-args (для existing OCR
+   callers) + сохранён 12-args (shamela mapper). PageRepository
+   COLUMNS + RowMapper + save() обновлены. Новые методы
+   `updateAiEditStatus` и `updateFormattedContentAndMarkAiEditDone` -
+   зеркало OCR-методам. AiEditStatus константный класс (mirror
+   OcrStatus). **ADR-042** описывает выбор Anthropic Claude
+   (claude-sonnet-4-6) как single-provider LLM. Rejected: OpenAI
+   (слабее arabic), Gemini (no JSON guarantee), local LLM (GPU dep),
+   HF API (rate limits), Anthropic Java SDK (heavy ради тонкой
+   обёртки). Triggers revisit для cost/quality/privacy/availability
+
+2. **AnthropicClient HTTP wrapper** (commit `0ebafe0`) - тонкий
+   клиент ~200 LOC поверх java.net.http.HttpClient. Headers
+   x-api-key + anthropic-version 2023-06-01, body {model, max_tokens,
+   messages} серилизуется ObjectMapper. Защищён `@Retry("anthropicApi")`
+   - 3 attempts, exponential backoff (2s/4s/8s). `isEnabled()` -
+   sentinel "disabled" для config. `AnthropicApiException` -
+   RuntimeException с HTTP status code. Application.yml расширен
+   секциями `ai.anthropic.*` (api-key/base-url/model/max-tokens/
+   timeout) и `resilience4j.retry.instances.anthropicApi`
+
+3. **AiEditService + prompt template** (commit `88c71db`) - async
+   pipeline для преобразования OCR raw text в ProseMirror JSON через
+   Claude. @Async через новый `aiEditTaskExecutor` (core=2/max=4/
+   queue=50). State machine PENDING → PROCESSING → DONE/FAILED.
+   `validateProseMirrorJson` - базовая структурная валидация
+   (type=doc + content array). `stripMarkdownFence` - чинит common
+   LLM ошибку (```json ... ``` wrapper). Prompt template вынесен в
+   `resources/prompts/ai-edit-tahqiq.txt` (не хардкод): few-shot
+   example + правила распознавания (hadithBox/ayahBox/decoratedHeading/
+   footnote/colorHighlight). 9 unit-тестов `AiEditServiceValidationTest`
+   без БД и HTTP
+
+4. **REST endpoints + GlobalExceptionHandler** (commit `03a7b8b`) -
+   POST `/api/v1/library/pages/{id}/ai-edit` триггер с pre-flight
+   `anthropicClient.isEnabled()` check - синхронный 503
+   `ai-edit-not-configured` вместо background FAILED. GET endpoint
+   для polling. `AiEditJobResponse{pageId, status, startedAt,
+   completedAt, hasTextContent}`. GlobalExceptionHandler расширен 2
+   новыми handler: `AiEditNotConfiguredException` → 503,
+   `AnthropicApiException` → 502 (если upstream non-2xx) либо 503
+   (если IO/timeout, statusCode=0)
+
+5. **IT с HttpServer stub + опциональный live test** (commit `ddaf232`)
+   - `AiEditServiceIT` (6 tests) через @MockBean AnthropicClient -
+   end-to-end state machine + JSON validation + БД updates.
+   `AnthropicClientStubIT` (5 tests) через JDK HttpServer (без
+   WireMock dep) - HTTP-протокол contract, headers, response parsing.
+   `AiEditControllerIT` (5 tests) через MockMvc - REST + Problem
+   Details mapping. `AiEditServiceLiveIT` - опциональный live test
+   через ANTHROPIC_API_KEY env var (`@Tag("live")` - skip из verify).
+   AnthropicClient получил `@Autowired` на main конструктор - Spring
+   не мог решить какой из двух использовать. **25 новых тестов**
+
+6. **Docs финал** (этот коммит) - api-contract POST/GET ai-edit
+   endpoints + history entry, roadmap 17.e/d отмечены `[x]` + весь
+   Этап 17 сжат в строку «Закрытые этапы», progress (эта запись),
+   backend/CLAUDE.md новая секция «AI editing (ADR-042)» с curl
+   examples
+
+**Дизайн-решения:**
+
+- **Single-provider MVP** - не `AbstractLlmClient` + factory. YAGNI до
+  момента когда 2+ provider'а станут required. Triggers revisit в
+  ADR-042
+- **Manual trigger** (не auto после OCR) - пользователь контролирует
+  cost. OCR DONE не автоматически запускает AI edit. Трейд-офф между
+  UX (one-click) и cost protection - выбрали cost
+- **Prompt в resource file, не хардкод** - легче iterate на quality
+  без recompile. Live test проверяет регрессию
+- **Markdown fence stripping** - страховка на случай если LLM
+  проигнорирует «без fence» instruction. Better defensive чем strict
+- **Базовая валидация только** (type=doc + content array, не deep
+  schema validation) - Tiptap reader игнорирует unknown nodes без
+  crash, acceptable degradation на MVP
+
+**Тесты:** baseline 554 → **579** (+25). Регрессий нет в моих файлах.
+**Новые ADR:** ADR-042 (Anthropic Claude для AI editing)
+**Новые gotcha:** нет
+
+**Полный `./mvnw verify` не прогонялся в конце** - RBAC subagent
+работает параллельно с uncommitted breaks в `TopicControllerIT`
+(`patch()` без import). Когда RBAC subagent закроет свои коммиты,
+полный verify будет прогоняться. Все мои файлы compile + все мои
+новые тесты pass изолированно (5 stub + 9 validation + 6 service IT
++ 5 controller IT).
+
+**Не делалось / отложено:**
+
+- Frontend UI кнопка «AI редактирование» в admin UI - отдельный
+  подэтап 17.e.f в будущем. Сейчас только REST endpoint + curl
+  example в `backend/CLAUDE.md`
+- Multi-provider routing (OpenAI fallback) - YAGNI до triggered
+  revisit
+- Streaming responses - Anthropic API поддерживает SSE, но для
+  background async задачи нет необходимости
+- Cost monitoring / quota - admin сам мониторит через Anthropic
+  console
+- OCR → AI edit auto cascade - manual trigger контролирует cost
+
+**User может проверить руками** (с настроенным ANTHROPIC_API_KEY):
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-api-...
+# рестарт backend
+cd backend && ./mvnw spring-boot:run \
+  -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005" \
+  > /tmp/backend.log 2>&1 &
+
+# Найти page с OCR'ed контентом
+PAGE_ID=$(psql -h localhost -U argmap argumentmap -tA \
+  -c "select id from lib_pages where text_content is not null and length(text_content) > 50 limit 1")
+echo "page: $PAGE_ID"
+
+# Триггер AI edit (202 Accepted)
+curl -X POST "http://localhost:9090/api/v1/library/pages/${PAGE_ID}/ai-edit" \
+  -H "X-User-Id: 00000000-0000-0000-0000-000000000001" | jq
+
+# Polling статуса (опросить через ~10 секунд)
+sleep 10
+curl "http://localhost:9090/api/v1/library/pages/${PAGE_ID}/ai-edit" \
+  -H "X-User-Id: 00000000-0000-0000-0000-000000000001" | jq
+
+# Когда status=DONE - проверить formatted_content
+curl "http://localhost:9090/api/v1/library/pages/${PAGE_ID}" \
+  -H "X-User-Id: 00000000-0000-0000-0000-000000000001" | jq '.formattedContent'
+```
+
+Без `ANTHROPIC_API_KEY` - POST вернёт 503 с понятным detail.
+
+---
+
 ## 2026-05-17 - Этап 17.a-c - OCR backend (PageImageService + Tess4j + ImageRegion API), ADR-041
 
 Параллельная задача с frontend dark theme - зоны не пересеклись (backend
