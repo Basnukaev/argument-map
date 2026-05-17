@@ -325,6 +325,63 @@ Layout:
 - `NodeDetailsPanel` / `EdgeDetailsPanel` - боковые панели
 - `CompactMiniMap` - мини-карта в правом нижнем углу
 
+## Destructive actions
+
+Удаление и другие необратимые / опасные операции - **никогда** через
+native `window.confirm`, `window.alert`, `window.prompt`. Они
+уродские, не локализуются, блокируют UI, выглядят чуждо относительно
+дизайн-системы
+
+### Reversible destructive (delete c возможностью восстановления)
+
+Паттерн Gmail / Slack / macOS Finder: silent action + toast.success
+с действующей кнопкой действия на 3-5 секунд
+
+```ts
+toast.success(t('graph.node.deleted_toast'), {
+  label: t('graph.node.deleted_undo'),
+  hint: t('graph.node.undo_no_edges_hint'), // optional title-tooltip
+  onClick: () => restoreFromSnapshot(snapshot),
+});
+```
+
+Параметры:
+- snapshot для restore **сохранять до** DELETE (после узла нет в
+  state, восстанавливать не из чего)
+- success-toast TTL по defaults `3000ms` (см. `toastStore`) -
+  достаточно успеть нажать Undo, не назойливо
+- если restore имеет ограничения (например edges теряются при
+  re-create нового id) - предупреждать через `hint` на action кнопке
+  (HTML title tooltip)
+- ApiError при restore - `toast.error` с message о неудаче
+
+Кейс в коде: `GraphCanvas.runDelete()` - единая точка для context
+menu, hotkey Del/Backspace, toolbar bulk-delete
+
+### Irreversible destructive (без возможности undo)
+
+Если undo невозможен или дорог (удаление темы целиком, удаление
+аккаунта) - использовать **`Modal`-based confirm с явным текстом
+последствий**, не `window.confirm`. Дизайн:
+- header с предупреждающей иконкой `AlertTriangle`
+- body с конкретикой: «удалить тему "X"? Это удалит N узлов и M
+  связей. Действие необратимо»
+- две кнопки: secondary «Отмена» (default focus) + danger «Удалить»
+- `Esc` закрывает (через native dialog), клик вне модалки тоже
+- (опционально) подтверждение через ввод имени темы для критичных
+  операций
+
+Кандидаты на миграцию (TODO в отдельной сессии):
+`apps/qa/components/AnswersSection` delete answer,
+`apps/qa/pages/QuestionDetailPage` delete question - оба ещё
+используют `window.confirm`
+
+### Не использовать
+
+- `window.confirm(...)` - блокирует UI, нет дизайн-консистентности
+- `window.alert(...)` - то же. Для ошибок - `toast.error`
+- `window.prompt(...)` - то же. Для ввода - модалка с формой
+
 ## Responsive
 
 - **Desktop-first:** граф плохо работает на мобилках (drag-and-drop,

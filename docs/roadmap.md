@@ -148,6 +148,14 @@
       proxy → нулевая загрузка любых web-fonts, всё падает в
       system serif/sans fallback. Решение по факту font'а - за
       Абдулой (см. диагностический коммит)
+- [x] **#7 (Сессия 39):** UX unification удаления узлов - context
+      menu и Del/Backspace теперь идентичны: silent delete +
+      `toast.success` с действующей кнопкой «Отменить» на 3 сек
+      (паттерн Gmail/Slack). `window.confirm()` убран полностью.
+      Undo восстанавливает узел через POST `/api/v1/nodes` (новый
+      id, без edges - tooltip-hint предупреждает). Toast action API
+      расширен опциональным `hint`. ui-guidelines дополнены
+      секцией «Destructive actions»
 
 ### Этап 6. Улучшения бэкенда (после MVP, не блокирует другие)
 

@@ -10,6 +10,74 @@
 
 ---
 
+## 2026-05-17 - Сессия 39 продолжение, delete UX unification (#7)
+
+После hotkey unification Абдула заметил разнобой: context menu
+«Удалить» удалял silent, а Del/Backspace (только что добавленный
+subagent'ом коммитом `4a4002d`) показывал native `window.confirm()` -
+уродский, не локализованный, блокирующий. Унифицировали через
+паттерн Gmail/Slack: оба пути теперь silent delete + toast.success
+с действующей кнопкой «Отменить» (5 сек TTL по defaults success
+toast)
+
+### Frontend (1 commit + docs)
+
+- `XXX` fix(frontend) - убрали `window.confirm()` целиком из
+  `GraphCanvas.handleDelete`. Единая точка `runDelete(nodeIds, edgeIds)` -
+  используется из context menu (`deleteOneNode`/`deleteOneEdge`),
+  hotkey Del/Backspace (`handleDelete`) и toolbar bulk-delete.
+  Snapshot узлов до DELETE → toast.success с action «Отменить» →
+  при клике `restoreNodeFromSnapshot` через POST `/api/v1/nodes`
+  + PATCH posX/posY. Edges НЕ восстанавливаются (новый id у
+  re-created узла) - предупреждение через tooltip-hint у Undo кнопки
+- `ToastAction.hint?: string` - расширили API toast action button
+  опциональным title-tooltip. Используется для
+  «связи не восстанавливаются - привяжите вручную»
+- 4 новых i18n ключа: `graph.node.deleted_toast`,
+  `graph.node.deleted_undo`, `graph.node.undo_failed`,
+  `graph.node.undo_no_edges_hint` + `graph.edge.deleted_toast` +
+  `graph.node.deleted_toast_multi` (ru/ar)
+- 3 новых vitest в `GraphCanvas.test.tsx`: confirm spy assertions +
+  toast appearance + undo flow с POST mock
+
+### Решение про undo
+
+Прагматичный путь: **re-create без edges**. Альтернативы:
+1. Backend soft-delete + revive endpoint - сохраняет id + edges,
+   но требует миграцию (`deleted_at`) + новый endpoint + изменение
+   запросов исключающих soft-deleted. Overkill для случая «упс,
+   нажал не туда»
+2. Frontend re-create с edges - проблема: после DELETE backend каскадно
+   удаляет edges, restore'ить их нужно отдельной серией POST'ов с
+   риском rule violations (ADR-010 матрица). И всё равно новый id
+
+Выбран (3): undo восстанавливает только узел через POST. Цена -
+edges теряются - честно сообщается через tooltip. Большинство
+случайных удалений - leaf узлы где edges и так минимальны
+
+### Docs
+
+- `roadmap.md` - #7 в «User feedback Сессии 38»
+- `frontend/docs/ui-guidelines.md` - **новая секция «Destructive
+  actions»** с правилом «не использовать native confirm/alert/prompt»
+
+### Verify
+
+- `npx tsc --noEmit -p tsconfig.app.json` clean
+- `npm run lint` 0 errors (4 pre-existing warnings)
+- `npm run build` 2.55s ok
+- `npm run test:run` 170/170 pass (167 baseline + 3 GraphCanvas
+  delete UX)
+- Playwright headless smoke - все 12 шагов pass:
+  - 0 native confirm на любом пути удаления (Del + context menu)
+  - toast.success появляется с Undo кнопкой
+  - tooltip-hint у Undo показывает предупреждение про edges
+  - клик Undo восстанавливает узел (count возвращается)
+  - context menu Удалить тоже silent + toast undo
+  - скриншоты `/tmp/delete-ux-{1-6}-*.png`
+
+---
+
 ## 2026-05-17 - Сессия 39, hotkey unification (#2 / #4)
 
 Параллельно с bug-fix subagent'ом закрыли последние два observable
