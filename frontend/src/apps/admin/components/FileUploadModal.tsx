@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { Upload, FileText } from 'lucide-react';
+import { Upload, FileText, ChevronDown, ChevronRight } from 'lucide-react';
 import FormModal from '@/shared/components/ui/FormModal';
 import Field from '@/shared/components/ui/Field';
 import Select from '@/shared/components/ui/Select';
@@ -9,6 +9,11 @@ import type { components } from '@/shared/api/types';
 import { toast } from '@/shared/stores/toastStore';
 import { useT, useNumberFormat, hasArabicScript } from '@/shared/i18n';
 import type { DictKey } from '@/shared/i18n';
+import AcademicMetadataFields, {
+  EMPTY_ACADEMIC_METADATA,
+  parseIntOrNull,
+  type AcademicMetadataValues,
+} from '@/shared/components/citation/AcademicMetadataFields';
 
 type FileImportResponse = components['schemas']['FileImportResponse'];
 type Language = 'ar' | 'ru' | 'en';
@@ -28,15 +33,17 @@ interface Props {
 }
 
 /**
- * Минимальный admin upload модалка для PDF файлов в library
- * (Этап 16.f, endpoint POST /api/v1/library/imports/file).
+ * Admin upload модалка для PDF файлов в library (Этап 16.f).
+ * С Этапа 16.g - collapsible секция «Академические данные» (мухаккик /
+ * издатель / место / номер издания / годы хиджра/григориан). Если хотя
+ * бы одно academic поле заполнено - backend через 13-args
+ * BookService.createBook создаёт книгу с FK на справочники (mirror
+ * паттерна 2-step flow в AddSourceModal 20.e). Иначе - default путь
+ * без academic FK (как раньше в 16.b/f).
  *
- * Поля контракта: file (PDF, ≤50MB) + опциональные title, language, description.
- * При успехе - toast с action "Открыть книгу" + onUploaded callback.
- *
- * Дизайн временный - extension существующего admin tooling до появления
- * полноценного UX-референса для user-facing upload (см. ADR-035 и
- * commit 16.f).
+ * Поля контракта: file (PDF, ≤50MB) + опциональные title, language,
+ * description + 6 academic. При успехе - toast с action «Открыть книгу» +
+ * onUploaded callback.
  */
 function FileUploadModal({ open, onClose, onUploaded }: Props) {
   const t = useT();
@@ -48,6 +55,10 @@ function FileUploadModal({ open, onClose, onUploaded }: Props) {
   const [title, setTitle] = useState('');
   const [language, setLanguage] = useState<Language>('ar');
   const [description, setDescription] = useState('');
+  const [academic, setAcademic] = useState<AcademicMetadataValues>(
+    EMPTY_ACADEMIC_METADATA,
+  );
+  const [academicOpen, setAcademicOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,6 +67,8 @@ function FileUploadModal({ open, onClose, onUploaded }: Props) {
     setTitle('');
     setLanguage('ar');
     setDescription('');
+    setAcademic(EMPTY_ACADEMIC_METADATA);
+    setAcademicOpen(false);
     setError(null);
     setSubmitting(false);
     // input.value сбросить чтобы повторный выбор того же файла сработал
@@ -86,6 +99,30 @@ function FileUploadModal({ open, onClose, onUploaded }: Props) {
     if (title.trim()) formData.append('title', title.trim());
     formData.append('language', language);
     if (description.trim()) formData.append('description', description.trim());
+    // 16.g: добавляем только non-empty academic поля. Backend различает
+    // отсутствие param vs пустое значение - для optional строк отсутствие
+    // оставляет FK null, для integer-полей отсутствие = null
+    if (academic.muhaqqiq.trim()) {
+      formData.append('muhaqqiqName', academic.muhaqqiq.trim());
+    }
+    if (academic.publisher.trim()) {
+      formData.append('publisherName', academic.publisher.trim());
+    }
+    if (academic.place.trim()) {
+      formData.append('publicationPlaceName', academic.place.trim());
+    }
+    const edition = parseIntOrNull(academic.edition);
+    if (edition != null) {
+      formData.append('editionNumber', String(edition));
+    }
+    const yearHijri = parseIntOrNull(academic.yearHijri);
+    if (yearHijri != null) {
+      formData.append('publishedYearHijri', String(yearHijri));
+    }
+    const yearGregorian = parseIntOrNull(academic.yearGregorian);
+    if (yearGregorian != null) {
+      formData.append('publishedYearGregorian', String(yearGregorian));
+    }
 
     try {
       const response = await apiPostMultipart<FileImportResponse>(
@@ -185,7 +222,70 @@ function FileUploadModal({ open, onClose, onUploaded }: Props) {
           className={hasArabicScript(description) ? 'font-naskh' : ''}
         />
       </Field>
+
+      <AcademicSection
+        open={academicOpen}
+        onToggle={() => setAcademicOpen((v) => !v)}
+        values={academic}
+        onChange={setAcademic}
+        disabled={submitting}
+      />
     </FormModal>
+  );
+}
+
+interface AcademicSectionProps {
+  open: boolean;
+  onToggle: () => void;
+  values: AcademicMetadataValues;
+  onChange: (next: AcademicMetadataValues) => void;
+  disabled: boolean;
+}
+
+/**
+ * Сворачиваемая секция academic полей (16.g). По умолчанию свёрнута -
+ * базовый сценарий upload не требует ввода тахкика. Toggle через
+ * `<button aria-expanded>` для accessibility, иконка ChevronRight/Down
+ * визуально + i18n текст toggle меняется по состоянию.
+ *
+ * Использует shared <AcademicMetadataFields/> - тот же что в
+ * BookEditModal и SourceCreateForm (Этап 20.e). Не дублирует.
+ */
+function AcademicSection({
+  open,
+  onToggle,
+  values,
+  onChange,
+  disabled,
+}: AcademicSectionProps) {
+  const t = useT();
+  const Icon = open ? ChevronDown : ChevronRight;
+  return (
+    <div className="rounded-md border border-border bg-ink-50/40 p-3">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 text-start text-xs font-semibold text-ink-800 outline-none focus-visible:ring-2 focus-visible:ring-accent-500/30"
+      >
+        <Icon size={14} className="text-ink-500 shrink-0" aria-hidden />
+        <span>
+          {open
+            ? t('admin.file_upload.academic.hide_section')
+            : t('admin.file_upload.academic.show_section')}
+        </span>
+      </button>
+      {open && (
+        <div className="mt-3 space-y-2">
+          <p className="text-xs text-ink-500">{t('admin.file_upload.academic.help')}</p>
+          <AcademicMetadataFields
+            values={values}
+            onChange={onChange}
+            disabled={disabled}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 

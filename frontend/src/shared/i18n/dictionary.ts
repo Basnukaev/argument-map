@@ -406,6 +406,10 @@ export const DICTIONARY = {
     'admin.file_upload.error_corrupt_pdf': 'Не удалось прочитать PDF - возможно файл повреждён или защищён паролем',
     'admin.file_upload.error_network': 'Сбой сети при загрузке',
     'admin.file_upload.error_generic': 'Не удалось загрузить файл',
+    'admin.file_upload.academic.show_section': 'Добавить академические данные',
+    'admin.file_upload.academic.hide_section': 'Скрыть академические данные',
+    'admin.file_upload.academic.help':
+      'Мухаккик, издатель, место и год издания. Заполнено хотя бы одно поле - книга создаётся со structured citation, иначе минимальная карточка',
 
     // graph context menu / toasts / confirms
     'graph.ctx.canvas': 'Холст',
@@ -856,6 +860,10 @@ export const DICTIONARY = {
     'admin.file_upload.error_corrupt_pdf': 'تعذّر قراءة PDF - ربما الملف تالف أو محمي بكلمة مرور',
     'admin.file_upload.error_network': 'فشل الاتصال أثناء الرفع',
     'admin.file_upload.error_generic': 'فشل رفع الملف',
+    'admin.file_upload.academic.show_section': 'إضافة البيانات الأكاديمية',
+    'admin.file_upload.academic.hide_section': 'إخفاء البيانات الأكاديمية',
+    'admin.file_upload.academic.help':
+      'المحقق والناشر ومكان وسنة النشر. إذا تم تعبئة حقل واحد على الأقل - يُنشأ الكتاب باستشهاد منظم، وإلا - بطاقة الحد الأدنى',
 
     'graph.ctx.canvas': 'الفضاء',
     'graph.ctx.create_here': 'إنشاء عقدة هنا',

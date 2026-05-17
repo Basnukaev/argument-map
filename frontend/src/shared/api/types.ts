@@ -1689,6 +1689,12 @@ export interface operations {
                 authorityId?: string;
                 language?: string;
                 description?: string;
+                muhaqqiqName?: string;
+                publisherName?: string;
+                publicationPlaceName?: string;
+                editionNumber?: number;
+                publishedYearHijri?: number;
+                publishedYearGregorian?: number;
             };
             header: {
                 /** @description UUID текущего пользователя (ADR-006, временно до Spring Security в Этапе 6) */
