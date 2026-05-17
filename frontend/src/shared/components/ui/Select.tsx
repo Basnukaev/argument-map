@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
+import { useHotkey } from '@/shared/hooks/useHotkey';
 
 export interface SelectOption {
   value: string;
@@ -60,7 +61,7 @@ function Select({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLUListElement>(null);
 
-  // Dismiss on outside click + Escape
+  // Dismiss on outside click - Escape мигрирован на useHotkey ниже
   useEffect(() => {
     if (!open) return;
     const onMouseDown = (e: MouseEvent) => {
@@ -68,16 +69,13 @@ function Select({
         setOpen(false);
       }
     };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
     document.addEventListener('mousedown', onMouseDown);
-    document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('mousedown', onMouseDown);
-      document.removeEventListener('keydown', onKey);
     };
   }, [open]);
+
+  useHotkey('escape', () => setOpen(false), { enabled: open });
 
   // Auto-scroll selected option в view при open
   useEffect(() => {

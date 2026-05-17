@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { ComponentType, ReactNode } from 'react';
+import { useHotkey } from '@/shared/hooks/useHotkey';
 
 export interface ContextMenuItem {
   /** уникальный id - используется как key */
@@ -38,16 +39,13 @@ function ContextMenu({ x, y, items, onClose, header }: Props) {
         onClose();
       }
     }
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
-    }
     document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKey);
     };
   }, [onClose]);
+
+  useHotkey('escape', onClose, { enableOnFormTags: true });
 
   return (
     <div

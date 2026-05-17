@@ -100,6 +100,10 @@ function PageJump({
           max={totalPages > 0 ? totalPages : undefined}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
+          // inline-handler оставлен сознательно: Enter-to-submit на ОДНОМ
+          // конкретном input - локальная form-bound семантика, не глобальный
+          // hotkey. useHotkey тут только усложнил бы (scope, enabled). См.
+          // frontend/CLAUDE.md «Hotkeys»
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
@@ -156,6 +160,7 @@ function PageJump({
                 type="text"
                 value={printedDraft}
                 onChange={(e) => setPrintedDraft(e.target.value)}
+                // inline form-bound Enter handler - см. комментарий выше
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();

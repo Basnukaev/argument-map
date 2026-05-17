@@ -2,7 +2,6 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Plus } from 'lucide-react';
 import FormModal from '@/shared/components/ui/FormModal';
-import Kbd from '@/shared/components/ui/Kbd';
 import { apiPost, apiPatchRaw, formatApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { NODE_TYPE_TOKENS, type NodeType } from '@/shared/utils/designTokens';
@@ -129,12 +128,6 @@ function AddNodeModal({
       submittingLabel={t('common.saving')}
       submitIcon={Plus}
       error={error}
-      hotkeyHint={
-        <>
-          <Kbd>⌘</Kbd>
-          <Kbd>↵</Kbd> создать
-        </>
-      }
     >
       <fieldset disabled={submitting || lockNodeType} className="space-y-2">
           <legend className="text-xs font-medium text-ink-700">

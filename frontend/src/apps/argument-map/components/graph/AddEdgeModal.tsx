@@ -2,7 +2,6 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link as LinkIcon, AlertCircle } from 'lucide-react';
 import FormModal from '@/shared/components/ui/FormModal';
-import Kbd from '@/shared/components/ui/Kbd';
 import NodeSelect from '@/apps/argument-map/components/graph/NodeSelect';
 import { apiPost, formatApiError } from '@/shared/api/client';
 import type { components } from '@/shared/api/types';
@@ -140,12 +139,7 @@ function AddEdgeModal({
           <span className="inline-flex items-center gap-1 text-err-700">
             <AlertCircle size={12} aria-hidden="true" /> запрещённая пара
           </span>
-        ) : (
-          <>
-            <Kbd>⌘</Kbd>
-            <Kbd>↵</Kbd> {t('common.create')}
-          </>
-        )
+        ) : undefined
       }
     >
       <fieldset disabled={submitting} className="space-y-3">

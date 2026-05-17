@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bell } from 'lucide-react';
 import { useT } from '@/shared/i18n';
+import { useHotkey } from '@/shared/hooks/useHotkey';
 
 /**
  * Bell-кнопка с dropdown списком уведомлений. Backend пока нет - показывает
@@ -21,16 +22,13 @@ function BellMenu() {
         setOpen(false);
       }
     };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
     document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKey);
     };
   }, [open]);
+
+  useHotkey('escape', () => setOpen(false), { enabled: open });
 
   return (
     <div ref={wrapperRef} className="relative">

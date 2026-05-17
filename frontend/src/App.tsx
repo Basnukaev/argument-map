@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router';
 import TopicListPage from '@/apps/argument-map/pages/TopicListPage';
 import CreateTopicPage from '@/apps/argument-map/pages/CreateTopicPage';
@@ -11,6 +11,7 @@ import QuestionDetailPage from '@/apps/qa/pages/QuestionDetailPage';
 import Toaster from '@/shared/components/ui/Toaster';
 import CommandPalette from '@/shared/components/layout/CommandPalette';
 import { usePaletteStore } from '@/shared/stores/paletteStore';
+import { useHotkey } from '@/shared/hooks/useHotkey';
 
 // TopicGraphPage тянет тяжёлые зависимости (React Flow, dagre, lucide-icons,
 // все компоненты графа). Loading через React.lazy выкидывает их из initial
@@ -27,30 +28,23 @@ function GraphFallback() {
 }
 
 function App() {
-  // Глобальный Cmd+K / Ctrl+K - открыть Command Palette. Listener живёт в
+  // Глобальный Alt+K - открыть Command Palette. Listener живёт в
   // App (а не в Header), чтобы работать на любом route, включая
   // TopicGraphPage у которого свой top-bar без AppHeader.
+  //
+  // Был Cmd/Ctrl+K, но Chrome на Win/Linux перехватывает Ctrl+K как
+  // native accelerator (search via default engine) - даже capture +
+  // preventDefault не освобождают. Alt+K чистый, не конфликтует с
+  // menubar accelerators и не зарезервирован браузерами.
+  //
+  // `useKey: true` (default в useHotkey) использует event.code → KeyK,
+  // что делает hotkey layout-independent: работает на ru/ar/en
+  // раскладках одинаково (баг #2)
   const togglePalette = usePaletteStore((s) => s.toggle);
   const paletteOpen = usePaletteStore((s) => s.open);
   const closePalette = usePaletteStore((s) => s.hide);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.altKey && e.key.toLowerCase() === 'k') {
-        // Alt+K - на Mac это Option+K, e.altKey ловит оба.
-        // Был Cmd/Ctrl+K, но Chrome на Win/Linux перехватывает Ctrl+K
-        // как native accelerator (search via default engine) - даже
-        // capture phase + preventDefault не освобождают комбинацию.
-        // Alt+K чистый, не конфликтует с menubar accelerators (Alt+F,
-        // Alt+E и т.д.) и не зарезервирован браузерами.
-        e.preventDefault();
-        e.stopPropagation();
-        togglePalette();
-      }
-    };
-    window.addEventListener('keydown', onKey, { capture: true });
-    return () => window.removeEventListener('keydown', onKey, { capture: true });
-  }, [togglePalette]);
+  useHotkey('alt+k', togglePalette, { enableOnFormTags: true });
 
   return (
     <>

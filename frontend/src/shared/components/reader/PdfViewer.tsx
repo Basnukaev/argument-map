@@ -374,6 +374,9 @@ function PdfViewer({ bookId, initialPart, initialPrintedPage }: PdfViewerProps) 
             max={numPages ?? undefined}
             value={pageInput}
             onChange={(e) => setPageInput(e.target.value)}
+            // inline form-bound Enter handler на одном input - локальная
+            // form-семантика, не global hotkey. См. frontend/CLAUDE.md
+            // «Hotkeys»
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();

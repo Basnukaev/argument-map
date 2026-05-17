@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useHotkey } from '@/shared/hooks/useHotkey';
 
 interface Params {
   hasSelection: boolean;
@@ -25,10 +25,9 @@ export function useGraphEscape({
   onClearSelection,
   onCloseDetail,
 }: Params) {
-  useEffect(() => {
-    function onEsc(e: KeyboardEvent) {
-      if (e.key !== 'Escape') return;
-
+  useHotkey(
+    'escape',
+    () => {
       // нативный <dialog open> закроется сам (showModal API)
       if (document.querySelector('dialog[open]')) return;
       // ContextMenu имеет свой Esc-обработчик
@@ -40,20 +39,17 @@ export function useGraphEscape({
 
       if (inSidebar && hasDetail) {
         onCloseDetail();
-        e.preventDefault();
         return;
       }
       if (hasSelection) {
         onClearSelection();
-        e.preventDefault();
         return;
       }
       if (hasDetail) {
         onCloseDetail();
-        e.preventDefault();
       }
-    }
-    document.addEventListener('keydown', onEsc);
-    return () => document.removeEventListener('keydown', onEsc);
-  }, [hasSelection, hasDetail, hasContextMenu, onClearSelection, onCloseDetail]);
+    },
+    { enableOnFormTags: true },
+    [hasSelection, hasDetail, hasContextMenu, onClearSelection, onCloseDetail],
+  );
 }

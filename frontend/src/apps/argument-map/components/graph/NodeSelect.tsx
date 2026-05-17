@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { NODE_TYPE_META, type NodeType } from '@/apps/argument-map/utils/edgeRules';
 import { useT, type DictKey } from '@/shared/i18n';
+import { useHotkey } from '@/shared/hooks/useHotkey';
 import type { components } from '@/shared/api/types';
 
 type NodeDto = components['schemas']['NodeResponse'];
@@ -73,16 +74,13 @@ function NodeSelect({ value, onChange, options, excludeId, placeholder, disabled
         setOpen(false);
       }
     }
-    function onEsc(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false);
-    }
     document.addEventListener('mousedown', onClickOutside);
-    document.addEventListener('keydown', onEsc);
     return () => {
       document.removeEventListener('mousedown', onClickOutside);
-      document.removeEventListener('keydown', onEsc);
     };
   }, [open]);
+
+  useHotkey('escape', () => setOpen(false), { enabled: open });
 
   function pick(nodeId: string) {
     onChange(nodeId);

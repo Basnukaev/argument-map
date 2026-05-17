@@ -4,7 +4,7 @@ import LocaleSwitch from '@/shared/components/layout/LocaleSwitch';
 import ThemeSwitch from '@/shared/components/layout/ThemeSwitch';
 import BellMenu from '@/shared/components/layout/BellMenu';
 import AvatarMenu from '@/shared/components/layout/AvatarMenu';
-import Kbd from '@/shared/components/ui/Kbd';
+import ShortcutHint from '@/shared/components/ui/ShortcutHint';
 import { useT, type DictKey } from '@/shared/i18n';
 import { usePaletteStore } from '@/shared/stores/paletteStore';
 
@@ -31,7 +31,7 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
  * - brand: ﷽ logo + "Argument Map"
  * - nav: Темы / Библиотека / Q&A (disabled) / Админ
  * - right side:
- *   - кнопка поиск ⌘K, открывает CommandPalette (тот же по Cmd/Ctrl+K)
+ *   - кнопка поиск Alt+K, открывает CommandPalette (тот же hotkey)
  *   - LocaleSwitch (RU/AR), ThemeSwitch (Sun/Moon)
  *   - Bell - dropdown уведомлений (placeholder, нет бэка)
  *   - Avatar - dropdown профиля (placeholder, нет auth)
@@ -41,7 +41,7 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
  */
 function Header() {
   const t = useT();
-  // Cmd+K listener живёт в App.tsx (см. paletteStore docstring) -
+  // Alt+K listener живёт в App.tsx (см. paletteStore docstring) -
   // Header только триггерит открытие через store.show().
   const showPalette = usePaletteStore((s) => s.show);
 
@@ -100,8 +100,7 @@ function Header() {
             title={t('common.search')}
           >
             <Search size={13} aria-hidden />
-            <Kbd>Alt</Kbd>
-            <Kbd>K</Kbd>
+            <ShortcutHint keys="alt+k" />
           </button>
 
           <LocaleSwitch />

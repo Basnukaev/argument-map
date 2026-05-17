@@ -1,8 +1,11 @@
+import { useRef } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import Modal from '@/shared/components/ui/Modal';
 import Button from '@/shared/components/ui/Button';
 import Kbd from '@/shared/components/ui/Kbd';
+import ShortcutHint from '@/shared/components/ui/ShortcutHint';
+import { useHotkey } from '@/shared/hooks/useHotkey';
 import { useT } from '@/shared/i18n';
 
 interface Props {
@@ -45,9 +48,25 @@ function FormModal({
   children,
 }: Props) {
   const t = useT();
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // ⌘/Ctrl+↵ - submit формы. enableOnFormTags=true чтобы работать пока
+  // фокус в textarea/input. enabled=open чтобы фоновые FormModal в
+  // ленивом рендере не перехватывали event. Use requestSubmit для
+  // native form-validation (required/maxLength) и onSubmit lifecycle
+  useHotkey(
+    'mod+enter',
+    () => {
+      if (submitting || submitDisabled) return;
+      formRef.current?.requestSubmit();
+    },
+    { enableOnFormTags: true, enabled: open },
+    [submitting, submitDisabled, open],
+  );
+
   return (
     <Modal open={open} onClose={onClose} title={title} maxWidth={maxWidth}>
-      <form onSubmit={onSubmit} className="space-y-5">
+      <form ref={formRef} onSubmit={onSubmit} className="space-y-5">
         {children}
 
         {error && (
@@ -62,7 +81,9 @@ function FormModal({
               {hotkeyHint}
             </span>
           ) : (
-            <span />
+            <span className="hidden items-center gap-1 text-xs text-ink-500 sm:inline-flex">
+              <ShortcutHint keys="mod+enter" /> {submitLabel.toLowerCase()}
+            </span>
           )}
           <div className="ms-auto flex items-center gap-2">
             <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>

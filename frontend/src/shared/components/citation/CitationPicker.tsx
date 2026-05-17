@@ -11,6 +11,7 @@ import PageView, {
 import { apiGetRaw, apiPostRaw, formatApiError, ApiError } from '@/shared/api/client';
 import type { components } from '@/shared/api/types';
 import { hasArabicScript, useT } from '@/shared/i18n';
+import { useHotkey } from '@/shared/hooks/useHotkey';
 
 type Book = components['schemas']['BookSummaryResponse'];
 type BookDetailDto = components['schemas']['BookDetailResponse'];
@@ -122,16 +123,16 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
     return () => ctl.abort();
   }, [bookState, pageNumber, t]);
 
-  // Esc закрывает (если не submitting)
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !submitting) {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [submitting, onClose]);
+  // Esc закрывает (если не submitting). enableOnFormTags=true потому что
+  // в picker'е есть search input и textarea для комментария.
+  useHotkey(
+    'escape',
+    () => {
+      if (!submitting) onClose();
+    },
+    { enableOnFormTags: true },
+    [submitting, onClose],
+  );
 
   const filteredBooks = useMemo(() => {
     if (booksState.kind !== 'success') return [];

@@ -14,6 +14,7 @@ import type { LucideIcon } from 'lucide-react';
 import { useT } from '@/shared/i18n';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import Kbd from '@/shared/components/ui/Kbd';
+import { useHotkey } from '@/shared/hooks/useHotkey';
 
 interface Props {
   open: boolean;
@@ -103,34 +104,32 @@ function CommandPaletteBody({ onClose }: { onClose: () => void }) {
     return () => cancelAnimationFrame(id);
   }, []);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+  // Hotkeys работают пока активен palette - фокус всегда в search input,
+  // поэтому enableOnFormTags=true обязательно.
+  useHotkey('escape', onClose, { enableOnFormTags: true });
+  useHotkey(
+    'arrowdown',
+    () => setActiveIdx((i) => Math.min(commands.length - 1, i + 1)),
+    { enableOnFormTags: true },
+    [commands.length],
+  );
+  useHotkey(
+    'arrowup',
+    () => setActiveIdx((i) => Math.max(0, i - 1)),
+    { enableOnFormTags: true },
+  );
+  useHotkey(
+    'enter',
+    () => {
+      const cmd = commands[activeIdx];
+      if (cmd) {
+        cmd.run();
         onClose();
-        return;
       }
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setActiveIdx((i) => Math.min(commands.length - 1, i + 1));
-        return;
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setActiveIdx((i) => Math.max(0, i - 1));
-        return;
-      }
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const cmd = commands[activeIdx];
-        if (cmd) {
-          cmd.run();
-          onClose();
-        }
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [commands, activeIdx, onClose]);
+    },
+    { enableOnFormTags: true },
+    [commands, activeIdx, onClose],
+  );
 
   // При смене query - активный пункт всегда первый. Не setState из эффекта:
   // фильтрация и activeIdx считаются через derived activeIdx = Math.min(...)
