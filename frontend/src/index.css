@@ -115,6 +115,18 @@
   .lucide-icon:not([stroke-width]) {
     stroke-width: 1.5;
   }
+
+  /*
+   * scrollbar-gutter: stable - резервирует место для vertical scrollbar
+   * даже когда контент короче viewport'а. Без этого при переключении
+   * между «длинной» страницей (есть скролл, body уже на 15px) и
+   * «короткой» (нет скролла, body шире) контент центрируется на разной
+   * x-координате - визуально «прыгает» влево-вправо при навигации.
+   * Поддерживается Chrome 94+, Firefox 97+, Safari 18+
+   */
+  html {
+    scrollbar-gutter: stable;
+  }
 }
 
 /*
