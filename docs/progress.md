@@ -11,6 +11,96 @@
 
 ---
 
+## 2026-05-17 - Тёмная тема (полная) - backlog cleared
+
+Закрыт пункт «Тёмная тема» из `docs/backlog.md` раздел «Фронт - общие
+улучшения». Не новый этап - расширение существующей dark-инфраструктуры
+которая уже была в проекте (tokens.css, ThemeEffect, ThemeStore 2-state)
+до полноценной 3-option модели с system detection.
+
+**Что было до:**
+- ThemeStore 2-state (light/dark), persist в `app.theme`
+- ThemeEffect ставит `data-theme="dark"` на html
+- FOUC inline script в index.html
+- Все семантические токены (`--c-bg`, `--c-ink-*`) с dark vars
+- ThemeSwitch в Header - простой toggle Sun/Moon
+- FontSettings секция темы с 2 кнопками
+
+**Что добавлено в этой сессии:**
+
+1. **ThemeStore → 3-option** (`shared/stores/themeStore.ts`)
+   - `mode`: `'system' | 'light' | 'dark'` (user preference)
+   - `effectiveTheme`: computed `'light' | 'dark'` после resolution
+   - Subscribe на `matchMedia('prefers-color-scheme: dark')` change -
+     при `mode='system'` смена темы ОС переключает effective без
+     перезагрузки страницы
+   - Legacy 2-state API (`toggle`, `theme`, `setTheme`) сохранён для
+     CommandPalette и backward-compat
+
+2. **ThemeSwitch → dropdown** (`shared/components/layout/ThemeSwitch.tsx`)
+   - Trigger - icon-кнопка (Monitor / Sun / Moon в зависимости от mode)
+   - Popover с 3 menuitemradio: «Системная» / «Светлая» / «Тёмная»
+   - Активная отмечена `aria-checked + Check icon`
+   - ESC / outside click закрывают, focus-ring через accent token
+   - i18n keys `theme.{system|light|dark}`, `theme.aria_label`,
+     `theme.menu_label` для RU + AR
+
+3. **FontSettings 3-кнопка** - добавлена кнопка «Системная» рядом с
+   Светлая/Тёмная, переключение через `setMode`
+
+4. **FOUC script расширен** (`index.html`) - понимает 3 опции:
+   `null|system` → читать `prefers-color-scheme`, `light|dark` → явный
+   override. Single source of truth с themeStore.ts
+
+5. **Tiptap dark synced с manual override** (`src/styles/tiptap.css`) -
+   все 8 extensions использовали `@media (prefers-color-scheme: dark)`,
+   что игнорировало manual mode из themeStore (user light на dark
+   системе видел dark extensions). Заменено на nested
+   `[data-theme='dark'] { .extension {...} }` через CSS native nesting
+
+6. **Hardcoded shadows** - `shadow-[0_1px_2px_rgba(15,23,42,0.06)]` в
+   CustomEdge + ReaderModeSwitch заменено на токен `shadow-sh2`
+   (--sh-2 имеет dark variant)
+
+7. **graphExport theme-aware** - `backgroundColor` default читает
+   `--c-bg` из computed styles вместо хардкода `#ffffff`. Dark theme
+   узлы больше не экспортируются на белом фоне
+
+8. **ReactFlow colorMode** - в GraphCanvas передаётся
+   `colorMode={effectiveTheme}` - controls/dots/attribution темы
+   адаптируются
+
+**Тесты:** +15 новых (themeStore 9, ThemeSwitch 6). Всего 299 frontend
+tests, 0 регрессий.
+
+**Документация:**
+- `frontend/docs/ui-guidelines.md` - новая секция «Dark mode» с
+  правилами: использовать токены, запрет `@media prefers-color-scheme`
+  внутри приложения (только в bootstrap inline script), CSS-override
+  для 3rd-party библиотек, FOUC sync с themeStore key, lucide
+  иконки наследуют currentColor
+- `docs/backlog.md` - пункт «Тёмная тема» отмечен `[x]` с резюме
+
+**Playwright verification (WSL2 headless):**
+- login (light + dark)
+- topics (light + dark)
+- books (light + dark) - адаптация цветов карточек книг через токены
+- qa (light + dark)
+- settings (light + dark) - 3-option кнопки видны
+- theme dropdown работает: System / Light / Dark переключают
+  `data-theme` атрибут и localStorage синхронно
+
+**Что НЕ сделано / отложено:**
+- Tiptap extensions используют CSS native nesting (`[data-theme='dark']
+  { .hadith-box {...} }`) - современная фича, поддержка Chrome 112+,
+  Firefox 117+, Safari 16.5+. В нашем target browser matrix это OK;
+  если придётся поддержать старее - PostCSS plugin развернёт nesting
+- Не проверены вручную: TopicGraphPage (граф React Flow), BookReaderPage
+  (Tiptap rendering) - playwright покрыл list-pages, граф/reader
+  требуют ручной check от Абдулы для визуального качества
+
+Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
+
 ## 2026-05-17 - Этап 17.0.c - 3 финальных Tiptap extensions, ADR-039 закрыт
 
 Закрыт ADR-039 целиком - 8 из 8 custom extensions реализованы.

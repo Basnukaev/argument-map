@@ -21,6 +21,55 @@
 
 ---
 
+## Tiptap CSS темизация - `prefers-color-scheme` ≠ manual override
+
+**Симптом:** user выбрал в Header «Светлая» тема на dark системе ОС.
+Все семантические компоненты (Modal, Card, Header) показывают light
+правильно, но HadithBox / AyahBox / Marginalia / Footnote и др.
+Tiptap extensions рендерятся в **dark variant** (peach текст на тёмном
+фоне на белой странице - выглядит сломанно)
+
+**Причина:** `src/styles/tiptap.css` использовал
+`@media (prefers-color-scheme: dark) { .hadith-box {...} }`. Это media
+query из браузера, читает системное предпочтение ОС - **не знает про
+наш themeStore manual override** (`data-theme="dark"` на html).
+
+ThemeStore с режимом `system` - читает то же `prefers-color-scheme` и
+синхронизируется. Но при `mode: 'light' | 'dark'` (explicit override)
+у нас рассинхронизация: themeStore показывает что user хочет light,
+а CSS из браузерного media query всё равно применяет dark variant
+extensions.
+
+**Решение:** заменить `@media (prefers-color-scheme: dark)` на
+`[data-theme='dark'] { ... }` (single source of truth с themeStore +
+ThemeEffect). Использовать CSS native nesting (Chrome 112+, Firefox
+117+, Safari 16.5+):
+
+```css
+/* было */
+@media (prefers-color-scheme: dark) {
+  .hadith-box { background: rgb(127 29 29 / 0.2); }
+}
+
+/* стало */
+[data-theme='dark'] {
+  .hadith-box { background: rgb(127 29 29 / 0.2); }
+}
+```
+
+**Update 2026-05-17 (Сессия 41):** все 7 dark-блоков в tiptap.css
+переведены на `[data-theme='dark']`. ThemeEffect ставит data-theme
+на `<html>` по effectiveTheme - extensions теперь синхронизированы
+с user preference.
+
+**Правило для будущего:** в CSS приложения - **никогда**
+`prefers-color-scheme`. Только в bootstrap inline script
+(`index.html` FOUC prevention). Все component-level dark styles -
+через `[data-theme='dark']` ИЛИ через семантические CSS variables
+(`var(--c-bg)` / `var(--c-text)` etc - они уже переключаются).
+
+---
+
 ## Tashkeel full removal требует runtime text manipulation
 
 **Симптом:** Reader имеет кнопку «С огласовками / Без огласовок» которая

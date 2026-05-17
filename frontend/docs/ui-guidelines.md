@@ -434,3 +434,58 @@ menu, hotkey Del/Backspace, toolbar bulk-delete
 - Эмодзи как тип-индикаторы запрещены - в шрифтах ОС они выглядят
   по-разному и плохо контрастируют (`📢` vs `💬` сложно различить
   на типичном системном шрифте)
+
+## Dark mode
+
+Тёмная тема - 3-option model (`system`/`light`/`dark`). Сессия 41 -
+переход с 2-state toggle на dropdown с system detection через
+`prefers-color-scheme`. ThemeStore (`shared/stores/themeStore.ts`)
+держит `mode` (user preference) и computed `effectiveTheme`, который
+ThemeEffect синхронизирует с `<html data-theme="dark">`.
+
+### Правила для новых компонентов
+
+1. **Использовать семантические токены** - `bg-bg` / `bg-elevated` /
+   `bg-sunken` / `text-ink-900` / `text-ink-500` / `border-border` /
+   `shadow-sh2`. Они автоматически переключаются через CSS variables
+   на `<html data-theme="dark">`. Не нужно ничего делать дополнительно
+2. **Hardcoded цвета (rgb/hex/Tailwind palette)** запрещены без явной
+   причины. Если необходимы (например status-цвета `bg-red-500`) -
+   проверить как смотрится в обоих режимах, при необходимости
+   добавить токен в `tokens.css` (`--c-err-*` уже есть)
+3. **Inline styles с hex** (например в exported SVG, в кастомных
+   shadow) - переписать на токены либо читать из computed style
+   `getPropertyValue('--c-bg')`. Пример - `graphExport.ts`
+   `readThemeBackground()`
+4. **CSS @media (prefers-color-scheme: dark)** - запрещено для
+   контента приложения. Использовать `[data-theme='dark']` (single
+   source of truth с themeStore). prefers-color-scheme игнорирует
+   manual user override
+5. **3rd-party библиотеки с темой** - смотреть есть ли `colorMode`
+   prop (как у React Flow). Передавать `useThemeStore(s =>
+   s.effectiveTheme)`. Если нет встроенной поддержки - CSS-override
+   через `[data-theme='dark'] .library-class { ... }`
+
+### Тестирование
+
+- Компонент-тесты dark mode не нужны - токены работают через CSS,
+  не через JS-логику. Тестировать механику через `themeStore.test.ts`
+  и `ThemeSwitch.test.tsx`
+- **Перед коммитом** новый UI прогнать визуально в обоих режимах:
+  toggle через Header или DevTools `localStorage.setItem('app.theme',
+  'dark')` + reload
+- Snapshot тесты dark mode не делать - color-only diff не пойман JSDOM
+
+### FOUC prevention
+
+Inline script в `index.html` читает `localStorage` `app.theme` и
+устанавливает `<html data-theme="dark">` ДО первого React render.
+Без этого dark-юзер видит вспышку light-темы при hard reload.
+**Если меняешь `STORAGE_KEY` в themeStore - синхронизировать с index.html
+скриптом** (single source of truth).
+
+### lucide иконки
+
+Иконки lucide-react наследуют `color: currentColor` - переключаются
+автоматически если родительский элемент имеет правильный
+`text-ink-*` токен. Никаких dark-вариантов вручную ставить не нужно

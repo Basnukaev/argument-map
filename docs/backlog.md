@@ -37,7 +37,19 @@
   backlog отдельным пунктом при necessity. Подробно в `docs/progress.md`
 - [ ] **PDF export графа** - отдельная задача (jspdf или native
   print-to-PDF), приоритет low - PNG/SVG покрывает основной use case
-- [ ] Тёмная тема
+- [x] **Тёмная тема** - закрыто 2026-05-17. ThemeStore расширен на
+  3-option mode (`system`/`light`/`dark`) с computed `effectiveTheme`,
+  подписан на `matchMedia('prefers-color-scheme: dark')` для live
+  системных смен. ThemeSwitch в Header заменён на dropdown
+  Monitor/Sun/Moon, FontSettings synced. Tiptap extensions переключены
+  с `@media (prefers-color-scheme: dark)` на `[data-theme='dark']`
+  (синхронно с manual override). Hardcoded shadows `rgba(15,23,42,...)`
+  в CustomEdge + ReaderModeSwitch заменены на токен `shadow-sh2`.
+  graphExport читает `--c-bg` для backgroundColor вместо хардкода
+  '#ffffff'. ReactFlow получил `colorMode` prop. FOUC inline script
+  в index.html синхронизирован с 3-option логикой. Tests +15
+  (themeStore 9, ThemeSwitch 6). UI-guidelines секция «Dark mode»
+  с правилами для новых компонентов
 - [ ] Локализация (i18n) при появлении второй локали
 - [ ] **Smart edge routing** (опционально, если 4-handles + dagre
       мало) - elkjs или custom edge с pathfinding
