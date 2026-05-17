@@ -223,7 +223,75 @@ upload end-to-end + 25.b RetryStrategy.
 - **F-1 cleanup** - package.json/lock в корне уже в .gitignore с
   Сессии 36, физические файлы нужны ruflo MCP
 
-### Опции для Сессии 39 (по приоритету)
+### Замечания пользователя (приоритет №1 для Сессии 39)
+
+Получено в конце Сессии 38 после manual testing. **Сделать ПЕРЕД
+опциями A-H ниже** - реальные observable баги/UX issues которые
+пользователь поймал руками:
+
+1. **Удаление корневого вопроса в графе разрешено** - в `TopicGraphPage`
+   через NodeDetailsPanel или контекстное меню можно удалить корневой
+   `QUESTION` node. Это разрушает topic. Backend NodeService.delete
+   должен бросать 409 если `node.is_root=true` (либо колонка
+   `topics.root_node_id` FK с CHECK `ON DELETE RESTRICT`). Frontend -
+   спрятать кнопку «Удалить» для корня + дополнительная подсказка
+   в i18n hint
+
+2. **Alt+K не работает при не-английской раскладке** - hotkey handler
+   слушает `event.key === 'k'` который возвращает `'л'` в русской
+   раскладке. Нужно `event.code === 'KeyK'` (raw physical key)
+
+3. **Del key не работает в графе** - keyboard handler не зарегистрирован
+   на `Delete`/`Backspace` для выбранного узла. В существующих
+   handlers (поиск через grep `useKeydown\|onKeyDown` в
+   `apps/argument-map/`) добавить обработку
+
+4. **«⌘+↵ создать» не работает + просьба единообразия hotkeys** - в
+   проекте смесь хардкодных handlers (`addEventListener('keydown')`,
+   inline `onKeyDown` в Modal/Form) разбросанных по компонентам.
+   Пользователь просит **одну централизованную библиотеку**.
+   Рекомендация: **`react-hotkeys-hook`** (~500K weekly downloads,
+   автоматически работает с raskладкой через `event.code`, scopes
+   для контекста modal/canvas, поддержка modifier'ов cross-platform
+   `meta+enter` универсально). Альтернативы: `hotkeys-js` (vanilla,
+   без React-интеграции), `tinykeys` (~1KB, минимальный).
+   План: создать `frontend/src/shared/hooks/useHotkey.ts` обёртку
+   над `react-hotkeys-hook` + миграция всех существующих
+   `onKeyDown`/`addEventListener` точек на неё. Также - **i18n-aware
+   отображение shortcuts** в UI: на Mac показывать `⌘`, на Windows/Linux
+   `Ctrl`. Сейчас хардкод `⌘ ↵` на всех платформах что некрасиво
+
+5. **Кнопка sync на /admin/shamela возвращает 502** - `POST
+   /api/v1/admin/shamela/sync-master` упирается в
+   `https://dev.shamela.ws/api/v1/patches/master?api_key=***&version=1261`
+   который **внешне недоступен** (либо нужен VPN, либо сервис лежит).
+   Это не наш баг - circuit breaker правильно бросает
+   `ShamelaApiException`. **Но UX плохой** - юзер видит сырой
+   `instance: /api/v1/admin/shamela/sync-master` и `detail` с api_key
+   замаскированным. Сделать: (a) Frontend ToastError для 502 от
+   shamela endpoints показывать понятное «внешний сервис shamela.ws
+   недоступен, попробуйте позже» (mapping по error type
+   `shamela-api-error`); (b) Опционально - DOWN flag в
+   `/actuator/health` если shamela API не отвечает >5 минут, чтобы
+   admin видел сразу
+
+6. **«Выврвиглазный» шрифт title книг в BookListPage** - в Сессии 36
+   subagent typography поменял на **EB Garamond** через token
+   `--font-book-title` (см. `frontend/src/styles/tokens.css` +
+   `index.html` Google Fonts preconnect). Возможные причины
+   «выврвиглазности»:
+   - EB Garamond **не загружается** в WSL2 через corp proxy 407
+     (gotchas про Google Fonts) → fallback на serif
+   - EB Garamond в принципе **не подходит** для смешанных RU/AR
+     заголовков
+   - Размер `text-md` (18px) + `tracking-normal` неудачный
+   План: (a) Проверить в DevTools реально ли применяется
+   EB Garamond или fallback; (b) если применяется - попробовать
+   другие serif (Lora, PT Serif, Old Standard TT для арабского);
+   (c) обсудить с пользователем - какой именно эстетики хочет
+   («академический том», «современный sans», «editorial magazine»)
+
+### Опции для Сессии 39 (по приоритету) - после замечаний выше
 
 **Опция A - Этап 17 OCR pipeline** (продолжение 16) - для
 scanned-PDF где `text_content=""` (subagent D зафиксировал что
