@@ -5,6 +5,9 @@ export type ToastKind = 'error' | 'warning' | 'info' | 'success';
 export interface ToastAction {
   label: string;
   onClick: () => void;
+  /** Опциональный tooltip (HTML title) для action кнопки. Используется
+   *  например для предупреждения "связи не восстанавливаются" в undo */
+  hint?: string;
 }
 
 export interface Toast {

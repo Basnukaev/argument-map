@@ -54,6 +54,7 @@ function ToastItem({ toast }: { toast: Toast }) {
               toast.action?.onClick();
               dismiss(toast.id);
             }}
+            title={toast.action.hint}
             className="mt-1 text-xs font-medium text-accent-700 hover:text-accent-600"
           >
             {toast.action.label}
