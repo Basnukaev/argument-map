@@ -48,6 +48,8 @@ export const DICTIONARY = {
     'nav.qa': 'Q&A',
     'nav.admin': 'Админ',
     'nav.disabled_hint': 'Будет в одном из следующих этапов',
+    'nav.menu_open_aria': 'Открыть меню',
+    'nav.menu_title': 'Меню',
 
     // reader (chapters sidebar + pagination toolbar)
     'reader.chapters': 'Содержание',
@@ -571,6 +573,8 @@ export const DICTIONARY = {
     'nav.qa': 'الأسئلة والأجوبة',
     'nav.admin': 'الإدارة',
     'nav.disabled_hint': 'سيُتاح في إحدى المراحل القادمة',
+    'nav.menu_open_aria': 'فتح القائمة',
+    'nav.menu_title': 'القائمة',
 
     'reader.chapters': 'الفهرس',
     'reader.chapters_empty': 'لا توجد فصول بعد',

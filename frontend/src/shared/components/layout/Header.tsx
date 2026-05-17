@@ -1,11 +1,16 @@
+import { useState } from 'react';
 import { Link, NavLink } from 'react-router';
-import { Search } from 'lucide-react';
+import { Menu, Search } from 'lucide-react';
 import LocaleSwitch from '@/shared/components/layout/LocaleSwitch';
 import ThemeSwitch from '@/shared/components/layout/ThemeSwitch';
+import SettingsLink from '@/shared/components/layout/SettingsLink';
 import BellMenu from '@/shared/components/layout/BellMenu';
 import AvatarMenu from '@/shared/components/layout/AvatarMenu';
 import ShortcutHint from '@/shared/components/ui/ShortcutHint';
+import IconButton from '@/shared/components/ui/IconButton';
+import Modal from '@/shared/components/ui/Modal';
 import { useT, type DictKey } from '@/shared/i18n';
+import { useIsMobile } from '@/shared/hooks/useViewport';
 import { usePaletteStore } from '@/shared/stores/paletteStore';
 
 interface NavItem {
@@ -28,7 +33,8 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
  * токены, единый стиль кнопок и pillов.
  *
  * Состав:
- * - brand: ﷽ logo + "Argument Map"
+ * - brand: ﷽ logo (текст "Argument Map" убран в Сессии 38 - bismillah
+ *   служит symbol-identity, текстовая надпись была redundancy)
  * - nav: Темы / Библиотека / Q&A (disabled) / Админ
  * - right side:
  *   - кнопка поиск Alt+K, открывает CommandPalette (тот же hotkey)
@@ -44,10 +50,26 @@ function Header() {
   // Alt+K listener живёт в App.tsx (см. paletteStore docstring) -
   // Header только триггерит открытие через store.show().
   const showPalette = usePaletteStore((s) => s.show);
+  const isMobile = useIsMobile();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <>
-      <header className="flex-none h-12 flex items-center gap-6 px-6 bg-elevated border-b border-border">
+      {/* На mobile - compact (gap-2, px-3) чтобы logo + hamburger + search
+          + locale поместились в 375px viewport. Desktop сохраняет старые
+          gap-6/px-6 */}
+      <header className="flex-none h-12 flex items-center gap-2 px-3 md:gap-6 md:px-6 bg-elevated border-b border-border">
+        {/* На mobile - hamburger перед logo (стандарт для drawer-pattern).
+            Desktop - hamburger не нужен, nav inline */}
+        {isMobile && (
+          <IconButton
+            icon={Menu}
+            label={t('nav.menu_open_aria')}
+            size="sm"
+            onClick={() => setMenuOpen(true)}
+          />
+        )}
+
         {/* Brand - не зеркалится при rtl. Используем 6-step scale (gap-2 = 8px) */}
         <Link
           to="/topics"
@@ -66,13 +88,11 @@ function Header() {
           <span className="inline-flex h-7 w-auto min-w-7 items-center justify-center rounded-md bg-accent-600 px-1.5 font-arabic text-sm font-semibold leading-none text-ink-0">
             ﷽
           </span>
-          <span className="text-sm font-semibold text-ink-900 tracking-tight">
-            Argument Map
-          </span>
         </Link>
 
-        {/* Navigation. gap-1 = 4px (s-1), достаточно между nav-pills */}
-        <nav className="flex gap-1 flex-1">
+        {/* Inline navigation - только desktop (≥md). На mobile скрыт,
+            доступен через hamburger Modal */}
+        <nav className="hidden md:flex gap-1 flex-1">
           {NAV_ITEMS.map((item) =>
             item.disabled ? (
               <span
@@ -99,12 +119,17 @@ function Header() {
           )}
         </nav>
 
-        {/* Right cluster. gap-2 = 8px (s-2) - стандарт между chip-elements */}
+        {/* На mobile - spacer чтобы right cluster прижался к концу */}
+        <div className="md:hidden flex-1" />
+
+        {/* Right cluster. Search/Settings/Bell/Avatar скрываются на mobile -
+            доступ через menu Modal. Locale + Theme оставлены (часто
+            переключаемое + узкое affordance) */}
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={showPalette}
-            className="inline-flex h-7 items-center gap-2 px-2 rounded-sm text-xs text-ink-600 hover:bg-ink-100 hover:text-ink-900 transition-colors"
+            className="hidden md:inline-flex h-7 items-center gap-2 px-2 rounded-sm text-xs text-ink-600 hover:bg-ink-100 hover:text-ink-900 transition-colors"
             title={t('common.search')}
           >
             <Search size={13} aria-hidden />
@@ -113,13 +138,77 @@ function Header() {
 
           <LocaleSwitch />
 
+          <div className="hidden md:contents">
+            <SettingsLink />
+          </div>
+
           <ThemeSwitch />
 
-          <BellMenu />
-
-          <AvatarMenu initials="AB" />
+          <div className="hidden md:contents">
+            <BellMenu />
+            <AvatarMenu initials="AB" />
+          </div>
         </div>
       </header>
+
+      {/* Mobile menu drawer - render в Modal (fullscreen на mobile уже из
+          Modal Фазы 1). Содержит nav + быстрые actions которые на mobile
+          скрыты из top bar */}
+      {menuOpen && (
+        <Modal
+          open
+          onClose={() => setMenuOpen(false)}
+          title={t('nav.menu_title')}
+        >
+          <nav className="flex flex-col gap-1">
+            {NAV_ITEMS.map((item) =>
+              item.disabled ? (
+                <span
+                  key={item.to}
+                  className="inline-flex h-10 cursor-not-allowed items-center rounded-sm px-3 text-sm font-medium text-ink-400"
+                  title={t('nav.disabled_hint')}
+                >
+                  {t(item.labelKey)}
+                </span>
+              ) : (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.to === '/topics'}
+                  onClick={() => setMenuOpen(false)}
+                  className={({ isActive }) =>
+                    isActive
+                      ? 'inline-flex h-10 items-center rounded-sm bg-accent-50 px-3 text-sm font-medium text-accent-700'
+                      : 'inline-flex h-10 items-center rounded-sm px-3 text-sm font-medium text-ink-700 hover:bg-ink-100 hover:text-ink-900 transition-colors'
+                  }
+                >
+                  {t(item.labelKey)}
+                </NavLink>
+              ),
+            )}
+            <div className="mt-4 border-t border-border pt-4 flex flex-col gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  showPalette();
+                }}
+                className="inline-flex h-10 items-center gap-2 px-3 rounded-sm text-sm text-ink-700 hover:bg-ink-100 hover:text-ink-900 transition-colors"
+              >
+                <Search size={15} aria-hidden />
+                <span>{t('common.search')}</span>
+              </button>
+              <Link
+                to="/settings"
+                onClick={() => setMenuOpen(false)}
+                className="inline-flex h-10 items-center gap-2 px-3 rounded-sm text-sm text-ink-700 hover:bg-ink-100 hover:text-ink-900 transition-colors"
+              >
+                <span>{t('settings.link.title')}</span>
+              </Link>
+            </div>
+          </nav>
+        </Modal>
+      )}
     </>
   );
 }
