@@ -178,63 +178,91 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 > **Этот раздел обновляется каждой сессией**. Всё выше - стабильное
 
-**Сессия 36 epic - 32+ коммита, 9 ruflo agents, 5 этапов закрыто.**
-Полный summary в ruflo memory: `mcp__ruflo__memory_retrieve
-namespace=argument-map key=session-36-final-snapshot` + детальный
-лог в `docs/progress.md` запись от 16.05.
+**Сессия 37 - 12+ коммитов, 4 subagents (D/D.f/D.g + A), 2 крупных
+этапа закрыто end-to-end.** Полный лог в `docs/progress.md` записи
+от 2026-05-17 (16.g academic / 16.f frontend / 16 backend / 25.b
+RetryStrategy).
 
-### Опции для Сессии 37 (по приоритету)
+### Закрыто в Сессии 37
 
-**Опция A - RetryStrategy migration (последний 25.b пункт)** -
-AWS SDK v2 legacy `RetryPolicy.defaultRetryPolicy().toBuilder()` →
-новый `RetryStrategy` API в `S3ClientConfig`. Крупный refactor с
-blast radius (затрагивает all S3 calls). ~1-2 часа
+- **Этап 16 PDF upload end-to-end** (commits `37edb5d`/`da0da7a`/
+  `e224650`/`72a3f3e` backend + `a696c51`/`3e94d84`/`863de6b`
+  frontend + `945d4b9`/`9dbfac4`/`85a9093` academic extension 16.g):
+  PDFBox 3.x page-by-page extraction, `POST /api/v1/library/imports/file`
+  multipart до 50MB, MinIO `library-user-uploads` bucket с
+  BucketBootstrap, admin FileUploadModal на `/admin/shamela`,
+  collapsible academic секция через shared AcademicMetadataFields
+  из 20.e. **ADR-035** PDFBox vs Tika. EPUB отложен (нет UX-кейса)
+- **25.b operational hardening полностью закрыт** (последний пункт)
+  - commit `096f119` - RetryStrategy API вместо deprecated
+  RetryPolicy в S3ClientConfig. `AwsRetryStrategy.standardRetryStrategy()`,
+  `maxAttempts = numRetries + 1` (новый API считает initial attempt).
+  ADR-024 Amendment
+- **F-2 cleanup** (commit `1d8d361`) - unrelated AddSourceModal
+  reliability radio test починен (искал английский label
+  "/reliability/", после i18n стал "Степень достоверности")
+- **F-1 cleanup** - package.json/lock в корне уже в .gitignore с
+  Сессии 36, физические файлы нужны ruflo MCP
 
-**Опция B - Source picker для Корана** (исламский backlog) - таб
-«Коран» в CitationPicker с навигацией по сурам, выбор аята, inline
-вставка с цитатой и переводом. Backend: integration с quran.com API
-или локальный mushaf-датасет. Frontend: новый таб в CitationPicker
-рядом с «Library». **Зависит от внешнего источника данных** - может
-блокироваться
+### Опции для Сессии 38 (по приоритету)
 
-**Опция C - Source picker для Хадисов** - таб «Хадисы» с 9
-сборниками, фильтр по grade (sahih/hasan/daif), показ иснада.
-Интеграция с sunnah.com. Аналогично Опции B - **зависит от внешнего
-API**
+**Опция A - Этап 17 OCR pipeline** (продолжение 16) - для
+scanned-PDF где `text_content=""` (subagent D зафиксировал что
+check constraint `lib_pages_content_present` проверяет только NULL,
+не emptiness). Tess4j + arabic `ara` training data + async через
+`@Async` + admin re-OCR endpoint. Релевантно сейчас потому что
+свежее знание про PDF processing. ~2 сессии backend+frontend
 
-**Опция D - Этап 16 PDF/EPUB upload** - второй способ добавления
-книг (помимо Shamela). Apache Tika dependency + FileImportService +
-`POST /library/imports/file` multipart. MinIO storage уже готов
+**Опция B - Импорт/экспорт темы в JSON** (Этап 6 backend) - serializer
+Topic + nodes + edges + node_sources + question_sources +
+answer_sources в JSON. Endpoints `POST /api/v1/topics/{id}/export`
++ `POST /api/v1/topics/import`. Frontend кнопки в TopicListPage.
+Полезно для backup и обмена темами. **Не блокируется ничем
+внешним**. ~1 сессия
 
-**Опция E - 18.h.A1 NodeCard footer chips** - раздельный count
-library vs freeform на самой карточке узла в графе. Backend
-NodeResponse расширить + aggregate JOIN. ~30 мин
+**Опция C - 25.d.5 Lazy PDF streaming через backend** - сейчас
+`PdfLinksSourceProvider.downloadFile` качает **весь PDF** на бэк
+перед отдачей frontend. Лучше форвардить Range-request frontend →
+archive.org → отдавать chunks. Performance + memory улучшение.
+Связано с ADR-023. ~1-2 сессии
 
-**Опция F - cleanup**:
-- 1 unrelated pre-existing fail в `AddSourceModal.test.tsx` про
-  reliability radio (existed до Сессии 36)
-- `package.json` + `package-lock.json` в корне репы (ruflo
-  artefacts от agentic-flow npm) - решить gitignore vs commit
-- Manual review layout AnswerCard когда длинный body + раскрытая
-  секция «Источники» (19.d agent отметил что playwright headless
-  не на 100% это покажет)
+**Опция D - Responsive/mobile sweep** - первый pass по существующим
+pages для tablet/mobile (BookReaderPage, AdminShamelaPage с
+FileUploadModal, CitationPicker, NodeDetailsPanel). Подготовка к
+production. ~1 сессия. См. `docs/backlog.md` раздел Responsive
 
-### Инфра на момент Сессии 37 entry
+**Опция E - Полнотекстовый поиск Postgres tsvector** (Этап 6) -
+GIN индекс на `nodes.body` + `lib_pages.text_content` + REST
+endpoint. Актуально когда контента станет много (после Этапа 17
+OCR будет много text content в БД)
+
+**Опция F - Source picker для Корана / Хадисов** (B/C из Сессии 37
+опций) - таб «Коран» / «Хадисы» в CitationPicker. **Зависит от
+внешнего API** (quran.com / sunnah.com) - может блокироваться
+
+**Опция G - NodeCard footer chips (18.h.A1)** - deferred low value
+«duplicate данные с header meta-row». 30 мин closeout. Решить -
+закрыть в roadmap или вообще удалить пункт
+
+**Опция H - Этап 21 Spring Security + JWT** - реальная
+аутентификация. Большая работа (>2 сессий)
+
+### Инфра на момент Сессии 38 entry
 
 - Postgres :5432 healthy, миграции **до 31 включительно** applied
-  (28 question_sources, 29 answers, 30 accepted_answer_id, 31
-  answer_sources)
-- MinIO :9000 healthy
-- Backend :9090 + JDWP :5005 - перезапущен в Сессии 36 с новым
-  classpath (resilience4j + healthIndicator + AsyncWebConfig +
-  19.c/19.d + 25.b). Стартует с логом
-  «S3 timeouts: attempt=30s total=135s connect=5s» +
-  «MVC async executor configured: core=10, max=50, queue=100»
+  (без новых в Сессии 37)
+- MinIO :9000 healthy + 4 bucket'а инициализированы через
+  BucketBootstrap (включая новый `library-user-uploads` для PDF
+  upload). Versioning enabled
+- Backend :9090 + JDWP :5005 - перезапущен с новым classpath
+  (PDFBox 3.0.5 + FileImportService + RetryStrategy API +
+  BucketBootstrap). Стартует с логом
+  «bucket bootstrap завершён - все 4 bucket'а доступны»
 - Frontend :5173 - может потребовать `rm -rf node_modules/.vite`
-  после массовых изменений (CitationPicker, types.ts регенерация)
-- **521 backend tests** (484 до Сессии 36, +37)
-- **146/147 frontend tests** (1 unrelated pre-existing
-  AddSourceModal radio test)
+  после массовых изменений (types.ts регенерация после 16.b/16.g)
+- **543 backend tests** (521→537 от Этапа 16 backend +6 от 16.g = 543)
+- **156 frontend tests** (147 baseline + 5 от 16.f + 4 от 16.g = 156)
+- **0 failing** (унрелейтед AddSourceModal reliability fail починен)
 
 ### Реальные artefacts в production-БД для smoke
 
@@ -242,12 +270,15 @@ NodeResponse расширить + aggregate JOIN. ~30 мин
   attached citation (19.b validation)
 - Test answer `8872e584-ca2e-4b33-95ce-f3e545df55bb` со status
   ANSWERED + attached citation (19.c + 19.d validation)
-- Source `132d75cc-cf4e-4d24-beb3-a4859ba0b776` (тафсир Ибн
-  Касира) **reused между 3 entity types**: node_sources +
-  question_sources + answer_sources - физический proof ADR-018
-  platform pivot
+- Source `132d75cc-cf4e-4d24-beb3-a4859ba0b776` (тафсир Ибн Касира)
+  reused между 3 entity types (физический proof ADR-018)
+- **Книги загруженные через FileImportController** - проверить
+  через `psql ... -c "SELECT id, title, page_count FROM lib_books
+  WHERE bucket = 'library-user-uploads' ORDER BY created_at DESC
+  LIMIT 5"` либо `mc ls local/library-user-uploads/` (если пользовался
+  upload UI вживую)
 
-### Ruflo memory keys (Сессия 36) для load в новой сессии
+### Ruflo memory keys (Сессия 36-37) для load в новой сессии
 
 ```
 mcp__ruflo__memory_retrieve namespace=argument-map key=...
@@ -256,26 +287,49 @@ mcp__ruflo__memory_retrieve namespace=argument-map key=...
 Priority (читать в порядке):
 1. `autonomy-mode` - правила автономии (ruflo-first v2)
 2. `ruflo-max-utilization-rule` - всегда использовать ruflo на максимум
-3. `ruflo-execution-pattern` - lessons: ruflo координирует, Claude
-   Code executes
-4. `strategic-direction-ruflo-migration` - long-term goal
-5. `session-36-final-snapshot` - снэпшот середины Сессии 36
-6. `e2e-platform-validation-3-entities` - production E2E proof
-7. `stage-19d-implementation-result`, `stage-20e-implementation-result`,
-   `stage-25b-orphan-janitor-result`, `stage-25b-integrity-cron-result`
-   - completion reports от subagents
-8. `test-regression-fix-plan` - Node 24 undici bug verdict
+3. `strategic-direction-ruflo-migration` - long-term goal
+4. `session-36-final-snapshot` - снэпшот Сессии 36
+5. `e2e-platform-validation-3-entities` - production E2E proof
+6. `test-regression-fix-plan` - Node 24 undici bug verdict
 
 Architectural patterns в agentdb_pattern-store:
 - `mcp__ruflo__agentdb_pattern-search query="параллельная иерархия"`
   → ADR-033 pattern с confidence=0.95 (validated 3 times)
+- `mcp__ruflo__agentdb_pattern-search query="academic metadata 2-step"`
+  → ADR-028 + 20.e + 16.g pattern (BookEditModal / AddSourceModal /
+  FileUploadModal все используют shared AcademicMetadataFields,
+  validated 3 times)
 
-### Известные мелочи (не блокеры)
+### Auto memory путь
 
+Memory **перенесена** в новый путь
+`~/.claude/projects/-home-basnukaev-projects-argument-map/memory/`
+(было `-mnt-c-my-folders-projects-argument-map`). 20 файлов
+скопированы, старый путь оставлен как backup. Auto memory harness
+в новой сессии должен подхватить новый путь автоматически (CWD
+hash совпадает с `/home/basnukaev/projects/argument-map/`).
+
+Если в Сессии 38 убедимся что новая память работает -
+`rm -rf ~/.claude/projects/-mnt-c-my-folders-projects-argument-map/`
+можно удалить старый (включая `.jsonl` transcript'ы старых сессий)
+
+### Известные мелочи (не блокеры) для Сессии 38
+
+- **progress.md = 1552 строки** - превышает 1500 порог из
+  `doc-hygiene.md` Принцип 5. Стоит архивировать Сессии 30-36 в
+  `docs/archive/progress-sessions-30-36.md` в начале Сессии 38
+  (Сессии 22-29 уже в архиве). ~10 минут работы
+- **jsdom + node 24 не парсит multipart FormData** - известная
+  гочa, в FileUploadModal.test тесты для multipart используют
+  mock `globalThis.fetch` напрямую (зафиксировано в комменте теста)
+- **PDFBox text_content="" для scanned-PDF** проходит через
+  CHECK constraint `lib_pages_content_present` (проверяет NULL не
+  emptiness) - это потенциальная гочa для Этапа 17 OCR pipeline,
+  фиксируем что OCR будет seed'ить эти пустые text_content
+- **Bean Validation для @RequestParam не настроена** - subagent
+  D.g обошёл через ручную range-валидацию в controller. Если в
+  будущем добавится много multipart endpoints - стоит настроить
+  глобально через `@Validated` + handler `HandlerMethodValidationException`
 - **playwright WSL2 не загружает Google Fonts** через corp proxy 407
   - визуальная проверка шрифтов только в реальном браузере
-- **RetryStrategy migration отложен** - AWS SDK v2 API refactor с
-  большим blast radius, требует careful migration
-- **NodeCard footer chips** (18.h.A1) deferred - duplicate данные с
-  header meta-row, low value
 
