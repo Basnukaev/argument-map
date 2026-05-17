@@ -24,11 +24,15 @@
       (function () {
         try {
           var saved = localStorage.getItem('app.theme');
+          // Совместимо с 3-option mode (system/light/dark). null = no
+          // saved preference, default `system`. Single source of truth с
+          // themeStore.ts - если меняешь логику, синхронизируй обе стороны.
+          var systemDark =
+            window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches;
           var dark =
             saved === 'dark' ||
-            (saved == null &&
-              window.matchMedia &&
-              window.matchMedia('(prefers-color-scheme: dark)').matches);
+            ((saved === 'system' || saved == null) && systemDark);
           if (dark) document.documentElement.setAttribute('data-theme', 'dark');
         } catch (e) {
           /* localStorage может быть отключен - тогда default theme = light */

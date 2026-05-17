@@ -565,9 +565,17 @@ export const DICTIONARY = {
       'Изменения применяются мгновенно и сохраняются между сессиями',
     'settings.section.theme': 'Тема',
     'settings.section.theme.hint':
-      'Светлая или тёмная палитра. Семантические токены переключаются автоматически',
+      'Светлая, тёмная или по системе. Семантические токены переключаются автоматически',
+    'settings.theme.system': 'Системная',
     'settings.theme.light': 'Светлая',
     'settings.theme.dark': 'Тёмная',
+
+    // theme switch in header
+    'theme.system': 'Системная',
+    'theme.light': 'Светлая',
+    'theme.dark': 'Тёмная',
+    'theme.aria_label': 'Переключить тему',
+    'theme.menu_label': 'Выбор темы',
     'settings.section.fontPair': 'Пара шрифтов',
     'settings.section.fontPair.hint':
       'Sans-serif для UI и serif для книжных заголовков. Применяется к латинице и кириллице',
@@ -1255,9 +1263,17 @@ export const DICTIONARY = {
     'settings.subtitle': 'التغييرات تُطبَّق فورًا وتُحفَظ بين الجلسات',
     'settings.section.theme': 'المظهر',
     'settings.section.theme.hint':
-      'لوحة فاتحة أو داكنة. تتبدل العلامات الدلالية تلقائيًا',
+      'فاتح أو داكن أو حسب النظام. تتبدل العلامات الدلالية تلقائيًا',
+    'settings.theme.system': 'حسب النظام',
     'settings.theme.light': 'فاتح',
     'settings.theme.dark': 'داكن',
+
+    // theme switch in header
+    'theme.system': 'حسب النظام',
+    'theme.light': 'فاتح',
+    'theme.dark': 'داكن',
+    'theme.aria_label': 'تبديل المظهر',
+    'theme.menu_label': 'اختيار المظهر',
     'settings.section.fontPair': 'زوج الخطوط',
     'settings.section.fontPair.hint':
       'خط sans-serif للواجهة وخط serif لعناوين الكتب. يُطبَّق على اللاتينية والسيريلية',

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Moon, RotateCcw, Sun } from 'lucide-react';
+import { Monitor, Moon, RotateCcw, Sun } from 'lucide-react';
 import { useT } from '@/shared/i18n';
 import Modal from '@/shared/components/ui/Modal';
 import Button from '@/shared/components/ui/Button';
@@ -46,8 +46,8 @@ function FontSettings() {
   const setArabicFont = useFontPairStore((s) => s.setArabicFont);
   const resetAll = useFontPairStore((s) => s.resetAll);
 
-  const theme = useThemeStore((s) => s.theme);
-  const setTheme = useThemeStore((s) => s.setTheme);
+  const mode = useThemeStore((s) => s.mode);
+  const setMode = useThemeStore((s) => s.setMode);
 
   const activePair = findPair(pairId);
   const activeArabic = findArabicFont(arabicFontId);
@@ -62,12 +62,23 @@ function FontSettings() {
         <p className="mb-3 text-xs text-ink-500">
           {t('settings.section.theme.hint')}
         </p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => setTheme('light')}
+            onClick={() => setMode('system')}
             className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition-colors ${
-              theme === 'light'
+              mode === 'system'
+                ? 'border-accent-600 bg-accent-50 text-accent-700'
+                : 'border-border bg-elevated text-ink-800 hover:border-border-strong'
+            }`}
+          >
+            <Monitor size={14} aria-hidden /> {t('settings.theme.system')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('light')}
+            className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition-colors ${
+              mode === 'light'
                 ? 'border-accent-600 bg-accent-50 text-accent-700'
                 : 'border-border bg-elevated text-ink-800 hover:border-border-strong'
             }`}
@@ -76,9 +87,9 @@ function FontSettings() {
           </button>
           <button
             type="button"
-            onClick={() => setTheme('dark')}
+            onClick={() => setMode('dark')}
             className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition-colors ${
-              theme === 'dark'
+              mode === 'dark'
                 ? 'border-accent-600 bg-accent-50 text-accent-700'
                 : 'border-border bg-elevated text-ink-800 hover:border-border-strong'
             }`}
