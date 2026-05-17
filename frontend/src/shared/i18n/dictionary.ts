@@ -209,6 +209,11 @@ export const DICTIONARY = {
     'palette.theme_hint': 'Тема',
     'palette.nav_hint': 'навигация',
     'palette.run_hint': 'выполнить',
+    'palette.font_prefix': 'Шрифт: ',
+    'palette.font_hint': 'шрифт',
+    'palette.arabic_prefix': 'Арабский шрифт: ',
+    'palette.arabic_hint': 'арабский',
+    'palette.open_settings': 'Открыть настройки',
 
     // notifications dropdown
     'notifications.empty': 'Пока нет новых уведомлений',
@@ -772,6 +777,11 @@ export const DICTIONARY = {
     'palette.theme_hint': 'السمة',
     'palette.nav_hint': 'تنقّل',
     'palette.run_hint': 'تنفيذ',
+    'palette.font_prefix': 'الخط: ',
+    'palette.font_hint': 'خط',
+    'palette.arabic_prefix': 'الخط العربي: ',
+    'palette.arabic_hint': 'عربي',
+    'palette.open_settings': 'فتح الإعدادات',
 
     'notifications.empty': 'لا توجد إشعارات جديدة',
 

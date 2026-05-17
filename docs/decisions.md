@@ -3924,6 +3924,33 @@ Space Grotesk, DM Sans, Crimson Pro были попробованы и отве�
 - **i18n правило** (CLAUDE.md) - все строки в FontSettings через
   `useT()` + dictionary keys `settings.*` (ru + ar)
 
+### Extension: Command Palette font commands (Сессия 39)
+
+Добавлена интеграция с Command Palette (Alt+K) для переключения
+шрифта **без потери контекста**. Раньше user'у приходилось идти
+в `/settings`, что теряло scroll-позицию, состояние графа,
+открытые модалки. Теперь:
+
+- Alt+K → набираешь «шрифт inter» → Enter - CSS variable
+  обновляется немедленно, palette закрывается, ты остаёшься на
+  той же странице с тем же состоянием
+- Команды генерируются динамически из `FONT_PAIRS` и
+  `ARABIC_FONTS` массивов, добавление нового шрифта в store
+  автоматически даёт команду в palette
+- Не нужно дизайнить новый floating UI - переиспользуем
+  существующий pattern, который пользователь уже знает (Alt+K
+  для навигации/команд)
+
+Также добавлены 4 арабских шрифта (El Messiri, Markazi Text,
+Mada, Aref Ruqaa) - закрывают категории balanced naskh, book-
+optimized arabic serif, modern arabic sans, calligraphic ruqʿah.
+Итого 10 арабских шрифтов в `ARABIC_FONTS`
+
+Single-family пресеты переименованы: «Manrope (single family)» →
+«Только Manrope», hint поясняет «UI и заголовки в одном sans» -
+до этого подпись «один шрифт везде» была неинформативной (
+reviewer'у тоже не нравилась)
+
 ### Known limitations
 
 - **Density label misleading**: «Плотность чтения» (бывш. «Плотность
@@ -4323,3 +4350,133 @@ collaborative editor) - Tiptap имеет лучше ROI на extension рабо
 - **ADR-038** (font tweaker + settings) - reader page получит
   tashkeel toggle через тот же settings pattern (Zustand store
   + persistEffect + CSS class на html)
+
+---
+
+## ADR-040: JWT-based authentication с transitional X-User-Id support (Этап 21)
+**Дата:** 2026-05-17
+**Статус:** принято
+**Реализовано:** Сессия 41, миграция 32 + auth package
+
+**Контекст:** ADR-006 ввёл заглушку `X-User-Id` как способ
+прокинуть UUID автора в сервисы до появления реальной авторизации.
+Этап 21 - реализация заявленной Spring Security + JWT
+аутентификации. Нужно решить целый набор вопросов:
+
+- Session-based vs stateless JWT
+- Где хранить refresh token (cookie vs body)
+- HS256 vs RS256 signature
+- OAuth2 / external IdP vs самописная auth
+- Что делать с existing `X-User-Id` flow (frontend пока без login UI,
+  integration tests все на header)
+- Какая roles-структура для MVP (USER/ADMIN vs RBAC permissions)
+
+**Решение:**
+
+- **JWT (stateless)** вместо session - stateless подход совместим с
+  multi-instance scale, multiple frontend clients (web + future mobile),
+  CDN edge кэширование auth header
+- **Access token 15 минут** (короткоживущий, передаётся в каждом
+  request) + **refresh token 7 дней** (длинноживущий, обмен на новый
+  access). Access идёт через `Authorization: Bearer <token>` header,
+  refresh - через **HttpOnly Secure SameSite=Strict cookie** (XSS-защита:
+  JS не имеет доступа к refresh)
+- **HS256 (HMAC-SHA256)** для signature - симметричный ключ, simpler
+  key management для single backend instance. RS256 over-engineering
+  при отсутствии множественных issuers / verifiers
+- **Spring Security 6.x** (стандартный starter, версия из Boot 3.5 BOM)
+  + **jjwt 0.12.x** (`io.jsonwebtoken:jjwt-api/impl/jackson`) для JWT
+- **BCrypt** для password hashing (cost=10, дефолт `BCryptPasswordEncoder`)
+- **Roles: `USER`, `ADMIN`** - две простые роли для start, единая
+  колонка `role VARCHAR(20)` в `users`. RBAC permissions per-entity
+  откладываются до Этапа 22 (multi-user permissions)
+- **Transitional X-User-Id** - оставлен работающим **в dev/local/test
+  profile** через `XUserIdAuthenticationFilter` (только если
+  `SecurityContext` пуст). Это **не** backward compat hack, а
+  developer convenience до появления frontend login UI (Этап 21.b).
+  В prod profile фильтр не активируется через `@Profile("!prod")`.
+  После Этапа 21.b удаляется полностью
+
+**Rejected alternatives:**
+
+- **Session-based (HttpSession + Spring Security default)** - не
+  подходит для stateless multi-instance scale (sticky sessions или
+  Redis session store - лишняя инфраструктура). Не работает с
+  будущими mobile clients
+- **OAuth2 / Keycloak / Auth0** - over-engineering для нашего scale
+  (~100 пользователей в обозримом будущем). Добавляет ops dependency
+  (deployment Keycloak / external account на Auth0), сложнее на dev
+- **Cookie-only (refresh+access оба в cookies)** - CSRF complexity
+  (нужны state-changing tokens или SameSite=Lax). Не подходит для
+  multi-domain (frontend и backend на разных origin) - SameSite=None
+  потребует Secure + публичный HTTPS даже в dev. Bearer header проще
+- **RS256 (RSA asymmetric)** - over-engineering при single backend
+  instance. Key rotation сложнее (нужно держать пары JWKS endpoint).
+  При появлении нескольких сервисов или OAuth2 - переключим
+- **Без refresh token (только long-lived access)** - либо принимаем
+  риск compromised token на 7 дней без revocation, либо требуем re-login
+  каждые 15 минут (плохой UX). Refresh - стандартный compromise
+- **Refresh token blacklist для logout** (Redis / DB) - отложено в
+  backlog. Access короткоживущий (15 мин), естественно истечёт после
+  logout. Полная revocation - когда появится конкретный security
+  requirement (compromised account ручной reset). MVP без blacklist
+
+**Последствия:**
+
+- **(+)** Все existing REST endpoints за исключением `/api/v1/auth/*`,
+  `/actuator/health`, OpenAPI docs - требуют authenticated principal
+- **(+)** При создании ресурса `created_by` берётся из
+  `SecurityContext`, не из header - клиент не может писать от чужого
+  имени (закрывает security caveat ADR-006)
+- **(+)** Стандартный Bearer flow совместим с любым frontend (React,
+  mobile, CLI tooling, Postman). OpenAPI security scheme автоматически
+  поднимает «Authorize» кнопку в Swagger UI
+- **(+)** Existing integration tests продолжают работать через
+  X-User-Id (test profile активен в IT). Не нужно переписывать 50+
+  тестов под Bearer flow до завершения Этапа 21.b
+- **(−)** Дополнительные dependency на jjwt + spring-security-starter
+  (~5MB к fat-jar). Принимаем
+- **(−)** Frontend (Этап 21.b следующая сессия) должен реализовать:
+  login/register page, token storage (localStorage для access,
+  httpOnly cookie для refresh автоматически через `credentials: include`),
+  auth interceptor в `apiClient` (refresh on 401, retry original
+  request), logout flow. Это содержательный фронтенд этап
+- **(−)** В dev профиле два пути аутентификации (Bearer + X-User-Id)
+  - небольшая complexity в SecurityFilterChain ordering. Mitigation:
+  XUserIdAuthenticationFilter проверяет `SecurityContext.empty()`
+  before set
+- **(−)** JWT secret в `application.yml` - dev-only placeholder. В
+  prod **обязательно** через env var `AUTH_JWT_SECRET` минимум 256
+  бит. Документировано в `backend/CLAUDE.md` (раздел Security)
+- **(−)** Clock skew между JVM (jjwt validation) и downstream clients
+  - возможны spurious 401 ±1 sec на границе expiration. jjwt
+  default `allowedClockSkewSeconds=0`. Mitigation: можно поставить
+  30s через `Jwts.parser().clockSkewSeconds(30)` если поймаем
+  flaky тесты - пока не требуется
+
+### Открытые вопросы (отложены)
+
+- **Refresh token rotation на каждый refresh** vs reuse same. Сейчас
+  reuse - сохраняет статичный refresh в cookie без overwrite. Rotation
+  лучше security (compromised refresh после rotation бесполезен), но
+  требует blacklist для предыдущих rotations. Решим в Этапе 21.b или
+  при первом security audit
+- **Multiple devices / sessions** - сейчас один user может иметь
+  множественные одновременные refresh tokens (нет device fingerprint).
+  Логично для UX (web + mobile одновременно), но затрудняет «logout
+  with everywhere» feature. Откладывается до конкретного user feedback
+- **OAuth2 social login** (Google / GitHub) - нет в текущем scope, не
+  входит в исламский use-case (users шейхи/студенты не login через
+  Google). Если будет нужно - добавляем `spring-boot-starter-oauth2-client`
+  параллельно к JWT, не вместо
+
+### Связанные решения
+
+- **ADR-006** (X-User-Id заглушка) - заменяется этим ADR, но
+  X-User-Id остаётся в dev/test profile до завершения Этапа 21.b
+  (frontend login UI). После - удаляется полностью
+- **ADR-018** (platform pivot) - auth работает на platform-уровне,
+  одинаково для argument-map/library/Q&A. Один SecurityContext, один
+  Principal, одни roles
+- **ADR-022** (frontend reorg) - login/register page будет в
+  `frontend/src/shared/auth/` (не привязан к конкретному app)

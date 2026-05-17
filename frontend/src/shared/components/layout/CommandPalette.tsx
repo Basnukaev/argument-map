@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Book,
+  Languages,
   Network,
   Plus,
   Search,
@@ -9,10 +10,16 @@ import {
   Sparkles,
   Sun,
   Moon,
+  Type,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useT } from '@/shared/i18n';
 import { useThemeStore } from '@/shared/stores/themeStore';
+import {
+  ARABIC_FONTS,
+  FONT_PAIRS,
+  useFontPairStore,
+} from '@/shared/stores/fontPairStore';
 import Kbd from '@/shared/components/ui/Kbd';
 import { useHotkey } from '@/shared/hooks/useHotkey';
 
@@ -50,9 +57,30 @@ function CommandPaletteBody({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const toggleTheme = useThemeStore((s) => s.toggle);
   const theme = useThemeStore((s) => s.theme);
+  const setPair = useFontPairStore((s) => s.setPair);
+  const setArabicFont = useFontPairStore((s) => s.setArabicFont);
   const [query, setQuery] = useState('');
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Font commands - сгенерированы из FONT_PAIRS/ARABIC_FONTS. Позволяют
+  // переключать шрифт через Alt+K → "шрифт inter" без потери контекста
+  // (текущей страницы, scroll-position, состояния графа, открытых модалок).
+  // CSS variable меняется немедленно, palette закрывается, UI обновляется.
+  const fontPairCommands: Command[] = FONT_PAIRS.map((p) => ({
+    id: `font-pair-${p.id}`,
+    label: t('palette.font_prefix') + p.name,
+    hint: t('palette.font_hint'),
+    Icon: Type,
+    run: () => setPair(p.id),
+  }));
+  const arabicFontCommands: Command[] = ARABIC_FONTS.map((f) => ({
+    id: `arabic-${f.id}`,
+    label: t('palette.arabic_prefix') + f.name,
+    hint: t('palette.arabic_hint'),
+    Icon: Languages,
+    run: () => setArabicFont(f.id),
+  }));
 
   const allCommands: Command[] = [
     {
@@ -84,12 +112,21 @@ function CommandPaletteBody({ onClose }: { onClose: () => void }) {
       run: () => navigate('/admin/shamela'),
     },
     {
+      id: 'goto-settings',
+      label: t('palette.open_settings'),
+      hint: '/settings',
+      Icon: Settings,
+      run: () => navigate('/settings'),
+    },
+    {
       id: 'toggle-theme',
       label: theme === 'dark' ? t('palette.theme_light') : t('palette.theme_dark'),
       hint: t('palette.theme_hint'),
       Icon: theme === 'dark' ? Sun : Moon,
       run: toggleTheme,
     },
+    ...fontPairCommands,
+    ...arabicFontCommands,
   ];
 
   const q = query.trim().toLowerCase();
