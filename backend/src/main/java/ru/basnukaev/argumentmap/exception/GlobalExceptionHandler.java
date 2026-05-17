@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import ru.basnukaev.argumentmap.library.imports.FileImportException;
+import ru.basnukaev.argumentmap.library.imports.PageImageException;
 import ru.basnukaev.argumentmap.library.imports.web.UnsupportedMediaTypeException;
 import ru.basnukaev.argumentmap.library.pdf.service.PdfNotAvailableException;
 import ru.basnukaev.argumentmap.library.pdf.service.RangeNotSatisfiableException;
@@ -272,6 +273,14 @@ public class GlobalExceptionHandler {
         log.warn("file import error: {}", ex.getMessage());
         return problem(HttpStatus.UNPROCESSABLE_ENTITY,
                 "Ошибка импорта файла", "file-import-error", ex.getMessage());
+    }
+
+    @ExceptionHandler(PageImageException.class)
+    public ProblemDetail handlePageImage(PageImageException ex) {
+        log.warn("page image upload error: {}", ex.getMessage());
+        return problem(HttpStatus.UNPROCESSABLE_ENTITY,
+                "Ошибка загрузки изображения страницы",
+                "page-image-error", ex.getMessage());
     }
 
     @ExceptionHandler(UnsupportedMediaTypeException.class)

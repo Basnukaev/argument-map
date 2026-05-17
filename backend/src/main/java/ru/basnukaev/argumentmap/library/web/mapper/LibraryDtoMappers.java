@@ -128,6 +128,8 @@ public final class LibraryDtoMappers {
                 page.printedPage(), page.part(), page.pdfPageNumber(),
                 page.textContent(), page.imageUrl(),
                 jsonFromString(page.formattedContent()),
+                page.imageBucket(), page.imageStorageKey(), page.imageUploadedAt(),
+                page.ocrStatus(), page.ocrStartedAt(), page.ocrCompletedAt(),
                 regions, page.createdAt(), page.updatedAt()
         );
     }
