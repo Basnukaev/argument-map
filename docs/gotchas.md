@@ -1220,6 +1220,49 @@ window.addEventListener('keydown', (e) => {
 Alt+K не работал на ru-раскладке у пользователя).
 
 
+## react-hotkeys-hook + native HTML `<dialog>` - `preventDefault` блокирует cancel event
+
+**Симптом:** `useHotkey('escape', onClose)` в компоненте который **внутри**
+native `<dialog>` (или другого браузерного modal) не закрывает диалог
+через ESC. Native `<dialog>` имеет встроенный cancel event который должен
+срабатывать на ESC, но preventDefault от react-hotkeys-hook его блокирует.
+
+**Причина:** `react-hotkeys-hook` по умолчанию вызывает
+`event.preventDefault()` после handler'а. Если в DOM tree есть native
+`<dialog>`, его cancel event не успевает fire - prevented. То же
+применимо к другим браузерным top-layer modal'ам (попап позже).
+
+**Решение:** для ESC в графе и модалках использовать `{ preventDefault:
+false }` опцию, а preventDefault звать вручную только когда реально
+обработали event:
+
+```typescript
+useHotkey(
+  'escape',
+  (e) => {
+    if (document.querySelector('dialog[open]')) return; // dialog сам закроется
+    if (hasSelection) {
+      e.preventDefault();
+      onClearSelection();
+    }
+  },
+  { enableOnFormTags: true, preventDefault: false },
+  [hasSelection, onClearSelection],
+);
+```
+
+**Reproducer:** см. `frontend/src/apps/argument-map/hooks/useGraphEscape.ts:55-58`
+и комментарий внутри. Inline комментарий там подробно фиксирует ту же
+самую логику; gotcha здесь - чтобы её можно было найти при поиске по
+docs/, а не только при чтении кода.
+
+**Узнано:** Сессия 38, при миграции с inline `onKeyDown` на единую
+`useHotkey` систему (ADR-036). Inline handlers до этого не вызывали
+preventDefault явно, поэтому проблема была невидима - regression
+проявилась только после унификации.
+
+---
+
 ## Scrollbar shift при навигации между route'ами
 
 **Симптом:** при переключении между `/topics` (много карточек) и `/qa`

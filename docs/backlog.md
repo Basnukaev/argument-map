@@ -183,6 +183,25 @@ max-height. Любая работа Фазы 2 может опираться н�
       (ADR-037, GET `/topics/{id}/export` + POST `/topics/import`)
 - [ ] Голосование за вес аргументов
 
+## Tech debt / performance optimization
+
+- [ ] **Shared MinIO Testcontainer для IT suite** - сейчас 7+ IT
+      классов (`ObjectStorageServiceIT`, `BucketBootstrap*IT`,
+      `OrphanDetection*`, `IntegrityVerification*`, `FileImportServiceIT`,
+      `FileImportControllerIT`, `UserUploadProviderIT`,
+      `HttpClientPdfFetcherRangeStreamingIT`, `PdfLinksSourceProviderIT`)
+      каждый поднимает свой `@Container static MinIOContainer`. Cost:
+      ~5-10 сек startup × 9 ITs = 45-90 сек overhead на каждый
+      `./mvnw verify` (текущий ~80 сек). Решение: singleton container
+      pattern через static init block в общем base class либо
+      `withReuse(true)` через Testcontainers reuse mode (требует
+      `testcontainers.reuse.enable=true` в `~/.testcontainers.properties`).
+      Низкий приоритет - CI не блокирует, локальная разработка
+      acceptable. Станет неприятно когда IT'ов вырастет до 20+.
+      Reviewer Сессии 37 + 40 дважды flag'нул это как Important
+      tech-debt, пока решение «зафиксировать в backlog и не делать
+      сейчас» - явное (no scope creep в текущем этапе)
+
 ---
 
 ## Архитектурные решения для будущих этапов
