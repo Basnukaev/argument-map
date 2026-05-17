@@ -231,11 +231,11 @@ describe('AddSourceModal', () => {
       renderModal();
       await screen.findByText(/Справочник пуст/);
       await userEvent.click(screen.getByRole('button', { name: /Создать новый источник/ }));
-      // Дефолтный тип BOOK - reliability скрыт
-      expect(screen.queryByText(/reliability/)).not.toBeInTheDocument();
+      // Дефолтный тип BOOK - блок reliability скрыт
+      expect(screen.queryByText(/Степень достоверности/)).not.toBeInTheDocument();
       // Переключаем на HADITH
       await userEvent.click(screen.getByRole('radio', { name: /хадис/ }));
-      expect(screen.getByText(/reliability/)).toBeInTheDocument();
+      expect(screen.getByText(/Степень достоверности/)).toBeInTheDocument();
       expect(screen.getByRole('radio', { name: /SAHIH/ })).toBeInTheDocument();
     });
 
