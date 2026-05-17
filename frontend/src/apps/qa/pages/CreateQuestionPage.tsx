@@ -50,7 +50,7 @@ function CreateQuestionPage() {
   return (
     <main className="min-h-screen bg-bg">
       <Header />
-      <div className="mx-auto max-w-[1100px] px-6 py-8">
+      <div className="mx-auto max-w-[1100px] px-3 py-6 sm:px-6 sm:py-8">
         <header className="mb-6">
           <Link
             to="/qa"
