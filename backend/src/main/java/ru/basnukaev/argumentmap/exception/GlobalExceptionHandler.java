@@ -46,6 +46,12 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.NOT_FOUND, "Узел не найден", "node-not-found", ex.getMessage());
     }
 
+    @ExceptionHandler(InvalidVoteException.class)
+    public ProblemDetail handleInvalidVote(InvalidVoteException ex) {
+        return problem(HttpStatus.BAD_REQUEST,
+                "Невалидный голос", "invalid-vote", ex.getMessage());
+    }
+
     @ExceptionHandler(NodeIsRootException.class)
     public ProblemDetail handleNodeIsRoot(NodeIsRootException ex) {
         ProblemDetail pd = problem(HttpStatus.CONFLICT,
