@@ -9,6 +9,7 @@ import {
   removeHighlights,
 } from '@/shared/components/reader/textRangeUtils';
 import RichTextRenderer from '@/shared/components/editor/RichTextRenderer';
+import { stripTashkeelText } from '@/shared/components/editor/utils/stripTashkeel';
 import { useT } from '@/shared/i18n';
 import { HadithBox } from '@/shared/components/editor/extensions/HadithBox';
 import { AyahBox } from '@/shared/components/editor/extensions/AyahBox';
@@ -105,10 +106,13 @@ function PageView({
   const t = useT();
   const contentRef = useRef<HTMLElement>(null);
   const pageId = state.kind === 'success' ? state.page.id : null;
-  // toggle для скрытия tashkeel в reader. MVP: класс `.hide-tashkeel`
-  // на article-wrapper, full implementation (regex по text nodes) -
-  // в backlog. См. ADR-039 + gotcha «Tashkeel full removal требует
-  // runtime text manipulation»
+  // toggle для скрытия tashkeel (огласовок) в reader. Реализация -
+  // functional transform ProseMirror JSON через `stripTashkeelFromDoc`
+  // в RichTextRenderer + raw text через `stripTashkeelText` в legacy
+  // path. Класс `.hide-tashkeel` оставлен на wrapper'е для CSS hook'ов
+  // (визуальные индикаторы / контекстные стили) - сам text меняется
+  // через JSON transform. См. ADR-039 + closed gotcha «Tashkeel full
+  // removal требует runtime text manipulation»
   const [hideTashkeel, setHideTashkeel] = useState(false);
 
   useEffect(() => {
@@ -233,6 +237,7 @@ function PageView({
           <RichTextRenderer
             content={page.formattedContent}
             extensions={READER_EXTENSIONS}
+            hideTashkeel={hideTashkeel}
           />
         </article>
       ) : (
@@ -241,7 +246,12 @@ function PageView({
             ref={contentRef}
             className={articleClass}
             dir={isArabic ? 'rtl' : 'ltr'}
-            dangerouslySetInnerHTML={{ __html: sanitizePageHtml(text) }}
+            // Legacy path (NULL formatted_content): tashkeel убирается из
+            // raw text до sanitize. Sanitize чистит script/style теги,
+            // диакритики - text-level, regex отрабатывает корректно
+            dangerouslySetInnerHTML={{
+              __html: sanitizePageHtml(hideTashkeel ? stripTashkeelText(text) : text),
+            }}
           />
         )
       )}

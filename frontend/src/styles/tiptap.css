@@ -220,21 +220,19 @@
 /* Tashkeel (Этап 17.0.c) - inline mark помечающий текст с
    диакритическими знаками (огласовками / harakat). В editor mode
    показываем lightly dotted underline чтобы admin видел что mark
-   применён. Reader при `hideTashkeel=true` получает класс
-   `.hide-tashkeel` на root - используем его как placeholder для
-   future-full implementation. Сейчас визуально текст не меняется
-   (см. gotcha «Tashkeel full removal требует runtime text
-   manipulation»). Backlog: true removal через regex DOM walk */
+   применён. В reader при `hideTashkeel=true` реальное удаление
+   диакритик выполняется на уровне ProseMirror JSON через
+   `stripTashkeelFromDoc` (см. shared/components/editor/utils/) -
+   CSS-hook'и здесь оставлены для опциональной стилизации */
 .ProseMirror .tashkeel {
   border-bottom: 1px dotted rgb(148 163 184); /* slate-400 */
 }
 
-/* Placeholder для будущего hide: сейчас контент рендерится как есть.
-   Класс .hide-tashkeel должен ставиться на root reader-элемент.
-   TODO: при реализации full removal заменить через ::before content
-   на text без диакритиков, либо через JS regex по text nodes */
+/* В reader при hide режиме mark больше не нужен визуально - текст
+   уже без диакритик, dotted underline на оставшихся consonants
+   только отвлекает */
 .hide-tashkeel .tashkeel {
-  /* пока no-op - см. backlog */
+  border-bottom: none;
 }
 
 /* DecoratedHeading (Этап 17.0.c) - заголовки с ornament glyph по

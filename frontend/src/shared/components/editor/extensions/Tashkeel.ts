@@ -11,13 +11,14 @@
  * **семантически пометить** participle с огласовками, чтобы reader
  * мог toggle их видимость.
  *
- * **MVP (этот PR):** Mark существует и сериализуется. В reader root
- * элемент при `hideTashkeel=true` получает класс `.hide-tashkeel` -
- * см. {@code tiptap.css}. Полноценное **удаление диакритики из
- * глифов** (regex по text nodes для замены `[ً-ْٰ]+`
- * на `""`) - не делается в MVP, требует DOM-walk через React-managed
- * subtree. Записан в backlog «True tashkeel removal через runtime
- * regex DOM walk» и в `gotchas.md`
+ * **Реализация (закрыто после Этапа 17.0.c):** Mark существует и
+ * сериализуется как data layer (admin может семантически пометить
+ * фрагмент с огласовками). **Реальное удаление диакритик** при
+ * `hideTashkeel=true` в reader выполняет {@code stripTashkeelFromDoc}
+ * в `RichTextRenderer` - functional transform ProseMirror JSON
+ * **перед** рендером (не DOM-walk, не CSS-trick). Mark при этом
+ * сохраняется на нодах - просто text-content приходит без огласовок.
+ * Подход документирован в обновлённой gotcha «Tashkeel full removal»
  *
  * **Schema:**
  * - Mark, не Node - применяется inline к выделенному фрагменту с

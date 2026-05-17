@@ -82,4 +82,35 @@ describe('RichTextRenderer', () => {
     const wrapper = container.firstChild as HTMLElement;
     expect(wrapper.getAttribute('dir')).toBe('rtl');
   });
+
+  test('hideTashkeel=true удаляет диакритики из rendered text', () => {
+    const content = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'بِسْمِ اللَّهِ' }],
+        },
+      ],
+    };
+    const { container } = render(
+      <RichTextRenderer content={content} hideTashkeel={true} />,
+    );
+    expect(container.textContent).toContain('بسم الله');
+    expect(container.textContent).not.toContain('بِسْمِ');
+  });
+
+  test('hideTashkeel=false (default) рендерит оригинал с огласовками', () => {
+    const content = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'بِسْمِ اللَّهِ' }],
+        },
+      ],
+    };
+    const { container } = render(<RichTextRenderer content={content} />);
+    expect(container.textContent).toContain('بِسْمِ اللَّهِ');
+  });
 });
