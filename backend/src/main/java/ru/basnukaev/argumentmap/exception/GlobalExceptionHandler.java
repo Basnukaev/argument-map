@@ -138,6 +138,17 @@ public class GlobalExceptionHandler {
                 "missing-user-header", ex.getMessage());
     }
 
+    @ExceptionHandler(UnsupportedExportFormatException.class)
+    public ProblemDetail handleUnsupportedExportFormat(UnsupportedExportFormatException ex) {
+        ProblemDetail pd = problem(HttpStatus.UNPROCESSABLE_ENTITY,
+                "Неподдерживаемая версия формата экспорта",
+                "unsupported-format-version",
+                ex.getMessage());
+        pd.setProperty("receivedVersion", ex.getReceivedVersion());
+        pd.setProperty("supportedVersions", ex.getSupportedVersions());
+        return pd;
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ProblemDetail handleDataIntegrity(DataIntegrityViolationException ex) {
         log.warn("Нарушение целостности данных: {}", ex.getMessage());
