@@ -85,7 +85,7 @@ function AcademicMetadataFields({ values, onChange, disabled }: Props) {
         onChange={(v) => update({ place: v })}
         fetchSuggestions={fetchPlaceSuggestions}
       />
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Field label={t('admin.edit_book.edition')}>
           <Field.Input
             type="number"
