@@ -124,9 +124,49 @@
 			<groupId>software.amazon.awssdk</groupId>
 			<artifactId>url-connection-client</artifactId>
 		</dependency>
+		<!--
+			Spring Security 6.x (ADR-040). Версия managed Spring Boot 3.5 BOM.
+			Дёргает за собой spring-security-config / -core / -web.
+		-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+		<!--
+			jjwt 0.12.x (ADR-040) - современный JWT API, разделён на три
+			артефакта: api (compile-time), impl и jackson (runtime). Так
+			библиотека позволяет swap implementation без затрагивания кода.
+		-->
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-api</artifactId>
+			<version>0.12.6</version>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-impl</artifactId>
+			<version>0.12.6</version>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-jackson</artifactId>
+			<version>0.12.6</version>
+			<scope>runtime</scope>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!--
+			Spring Security test helpers (with(jwt()), with(user())) для
+			MockMvc интеграционных тестов AuthControllerIT + других IT
+			которым нужен SecurityContext без реального JWT-flow.
+		-->
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
