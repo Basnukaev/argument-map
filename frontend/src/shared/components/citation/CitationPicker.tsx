@@ -16,10 +16,17 @@ import { useIsMobile } from '@/shared/hooks/useViewport';
 
 type Book = components['schemas']['BookSummaryResponse'];
 type BookDetailDto = components['schemas']['BookDetailResponse'];
+type PagedBooks = components['schemas']['PagedResponseBookSummaryResponse'];
 type PageSummaryDto = components['schemas']['PageSummaryResponse'] & {
   printedPage?: string | null;
   part?: string | null;
 };
+
+// Picker - модалка ограниченной высоты, Load More UX некомфортный.
+// Стабильно грузим бóльшую первую страницу (size=100 max). Когда в
+// библиотеке окажется >100 книг - добавить search-by-title или
+// pagination control внутри picker'а (backlog)
+const PICKER_PAGE_SIZE = 100;
 
 interface Props {
   /** Тип сущности к которой привязывается citation - влияет на URL */
@@ -77,11 +84,18 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
   // Не используется на desktop (3 колонки видны одновременно)
   const [mobileTab, setMobileTab] = useState<MobileTab>('books');
 
-  // Загрузка списка книг при первом рендере
+  // Загрузка списка книг при первом рендере. Backend pagination
+  // breaking change (см. api-contract): GET /library/books →
+  // PagedResponse<BookSummaryResponse>. Без Load More - см. константу
   useEffect(() => {
     const ctl = new AbortController();
-    apiGetRaw<Book[]>('/api/v1/library/books', { signal: ctl.signal })
-      .then((books) => setBooksState({ kind: 'success', books: books ?? [] }))
+    apiGetRaw<PagedBooks>(
+      `/api/v1/library/books?page=0&size=${PICKER_PAGE_SIZE}`,
+      { signal: ctl.signal },
+    )
+      .then((paged) =>
+        setBooksState({ kind: 'success', books: (paged.items ?? []) as Book[] }),
+      )
       .catch((e: unknown) => {
         if (ctl.signal.aborted) return;
         setBooksState({ kind: 'error', message: formatApiError(e, t('citation_picker.books_load_failed')) });
