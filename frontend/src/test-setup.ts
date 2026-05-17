@@ -13,6 +13,41 @@ class ResizeObserverMock {
 }
 vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 
+// jsdom не реализует window.matchMedia. useIsMobile (shared/hooks/useViewport)
+// и любые компоненты использующие его (Modal, NodeDetailsPanel) фейлятся
+// в тестах без polyfill. По умолчанию - desktop viewport (matches=false для
+// max-width media query). Тесты которым нужно эмулировать mobile -
+// переопределяют через свой beforeEach с custom factory
+if (typeof window !== 'undefined' && !window.matchMedia) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string): MediaQueryList =>
+      ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+      }) as unknown as MediaQueryList,
+  });
+}
+
+// HTMLDialogElement.showModal / .close в jsdom (≤24) не реализованы.
+// Polyfill через open attribute - достаточно для Modal smoke-tests
+if (typeof HTMLDialogElement !== 'undefined' && !HTMLDialogElement.prototype.showModal) {
+  HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
+    this.setAttribute('open', '');
+  };
+  HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
+    this.removeAttribute('open');
+    this.dispatchEvent(new Event('close'));
+  };
+}
+
 // Node 24 + undici 7 регрессия: undici (встроенная в Node 24 как
 // node:internal/deps/undici/undici) валидирует `signal instanceof AbortSignal`
 // против СВОЕГО internal prototype, который недоступен из user-space - ни через
