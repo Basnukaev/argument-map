@@ -107,6 +107,11 @@ export function buildFlow(
       id: n.id,
       type: 'argumentNode' as const,
       position: { x: 0, y: 0 },
+      // zIndex из бэка - persisted stacking order (миграция 40).
+      // 0 - default для узлов которые ни разу не trogали bring-to-front /
+      // send-to-back. ReactFlow поддерживает положительные и отрицательные
+      // значения, выше = ближе к viewer
+      zIndex: n.zIndex ?? 0,
       data: n,
     }));
 

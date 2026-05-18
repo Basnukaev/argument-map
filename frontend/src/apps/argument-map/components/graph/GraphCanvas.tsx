@@ -32,7 +32,7 @@ import {
   NODE_TYPE_META,
 } from '@/apps/argument-map/utils/edgeRules';
 import { buildFlow, findFreePosition, sameIds } from '@/apps/argument-map/utils/graphPlacement';
-import { apiDeleteRaw, apiPatchRaw, apiPost, ApiError } from '@/shared/api/client';
+import { apiDeleteRaw, apiPatchRaw, apiPost, apiPostRaw, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useT } from '@/shared/i18n';
 import { useThemeStore } from '@/shared/stores/themeStore';
@@ -217,28 +217,49 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
   const [editTargetNodeId, setEditTargetNodeId] = useState<string | null>(null);
   const [editTargetEdgeId, setEditTargetEdgeId] = useState<string | null>(null);
 
-  // счётчики z-index для "на передний/задний план". Локально пока открыт
-  // граф - при refetch сбрасываются на дефолт RF
-  const zRef = useRef({ max: 10, min: 0 });
+  // edges пока локальный z-order (не персистится на бэк, отдельный пункт
+  // backlog). Узлы - persistent через POST /z-order/{bring-to-front|send-to-back}
+  const edgeZRef = useRef({ max: 10, min: 0 });
 
+  // Node z-order: optimistic local update + POST на бэк, после success refetch.
+  // Сервер возвращает новый zIndex (max+1 либо min-1 от всех узлов темы),
+  // refetch синхронизирует значение - но optimistic дает мгновенный visual feedback
   function bringNodeToFront(id: string) {
-    zRef.current.max += 1;
-    const z = zRef.current.max;
-    setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, zIndex: z } : n)));
+    const optimisticZ = (lastNodesRef.current.reduce(
+      (acc, n) => Math.max(acc, n.zIndex ?? 0), 0,
+    )) + 1;
+    setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, zIndex: optimisticZ } : n)));
+    // apiPostRaw - параметризованный URL не совпадает с openapi paths типами
+    // (RF использует {id} как path-параметр в строке)
+    apiPostRaw(`/api/v1/nodes/${id}/z-order/bring-to-front`, {})
+      .then(() => onRefetch())
+      .catch((e: unknown) => {
+        const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
+        toast.error(`${t('graph.toast.update_failed')}: ${msg}`);
+        onRefetch();
+      });
   }
   function sendNodeToBack(id: string) {
-    zRef.current.min -= 1;
-    const z = zRef.current.min;
-    setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, zIndex: z } : n)));
+    const optimisticZ = (lastNodesRef.current.reduce(
+      (acc, n) => Math.min(acc, n.zIndex ?? 0), 0,
+    )) - 1;
+    setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, zIndex: optimisticZ } : n)));
+    apiPostRaw(`/api/v1/nodes/${id}/z-order/send-to-back`, {})
+      .then(() => onRefetch())
+      .catch((e: unknown) => {
+        const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
+        toast.error(`${t('graph.toast.update_failed')}: ${msg}`);
+        onRefetch();
+      });
   }
   function bringEdgeToFront(id: string) {
-    zRef.current.max += 1;
-    const z = zRef.current.max;
+    edgeZRef.current.max += 1;
+    const z = edgeZRef.current.max;
     setEdges((eds) => eds.map((e) => (e.id === id ? { ...e, zIndex: z } : e)));
   }
   function sendEdgeToBack(id: string) {
-    zRef.current.min -= 1;
-    const z = zRef.current.min;
+    edgeZRef.current.min -= 1;
+    const z = edgeZRef.current.min;
     setEdges((eds) => eds.map((e) => (e.id === id ? { ...e, zIndex: z } : e)));
   }
 
@@ -577,31 +598,35 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
       if (relatedItems.length > 0) {
         items.push({ id: 'sep-related', label: '', separator: true });
       }
-      items.push(
-        {
-          id: 'edit-node',
-          label: t('common.edit'),
-          icon: Pencil,
-          onClick: () => {
-            setDetailNodeId(node.id);
-            setDetailEdgeId(null);
-            setEditTargetNodeId(node.id);
-            setEditTargetEdgeId(null);
+      items.push({
+        id: 'edit-node',
+        label: t('common.edit'),
+        icon: Pencil,
+        onClick: () => {
+          setDetailNodeId(node.id);
+          setDetailEdgeId(null);
+          setEditTargetNodeId(node.id);
+          setEditTargetEdgeId(null);
+        },
+      });
+      // bring-to-front / send-to-back теперь персистится на бэк (миграция 40)
+      // и требует write permission - скрываем для read-only
+      if (canWrite) {
+        items.push(
+          {
+            id: 'bring-front',
+            label: t('graph.ctx.bring_front'),
+            icon: ArrowUp,
+            onClick: () => bringNodeToFront(node.id),
           },
-        },
-        {
-          id: 'bring-front',
-          label: t('graph.ctx.bring_front'),
-          icon: ArrowUp,
-          onClick: () => bringNodeToFront(node.id),
-        },
-        {
-          id: 'send-back',
-          label: t('graph.ctx.send_back'),
-          icon: ArrowDown,
-          onClick: () => sendNodeToBack(node.id),
-        },
-      );
+          {
+            id: 'send-back',
+            label: t('graph.ctx.send_back'),
+            icon: ArrowDown,
+            onClick: () => sendNodeToBack(node.id),
+          },
+        );
+      }
       // удаление недоступно для корневого узла темы (бэк бы вернул 409
       // NodeIsRootException, но UX лучше скрыть пункт + показать hint).
       // А также скрываем для read-only пользователей

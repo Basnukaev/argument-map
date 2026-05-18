@@ -198,3 +198,79 @@ describe('GraphCanvas - delete UX unification', () => {
     });
   });
 });
+
+describe('GraphCanvas - z-order persistence', () => {
+  beforeEach(() => {
+    useToastStore.getState().clear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('context menu "На передний план" вызывает POST /z-order/bring-to-front', async () => {
+    let bringToFrontHit = false;
+    server.use(
+      http.post(`${BASE}/api/v1/nodes/${CLAIM_ID}/z-order/bring-to-front`, () => {
+        bringToFrontHit = true;
+        return HttpResponse.json({
+          id: CLAIM_ID,
+          topicId: TOPIC_ID,
+          zIndex: 5,
+        });
+      }),
+    );
+
+    renderCanvas();
+
+    const nodeEl = document.querySelector(`[data-id="${CLAIM_ID}"]`);
+    if (!nodeEl) {
+      console.warn('RF node DOM не найден в jsdom - skip z-order interaction');
+      return;
+    }
+
+    nodeEl.dispatchEvent(
+      new MouseEvent('contextmenu', { bubbles: true, clientX: 100, clientY: 100 }),
+    );
+
+    const item = await screen.findByRole('menuitem', { name: /На передний план/i });
+    await userEvent.click(item);
+
+    await waitForApi(() => {
+      expect(bringToFrontHit).toBe(true);
+    });
+  });
+
+  it('context menu "На задний план" вызывает POST /z-order/send-to-back', async () => {
+    let sendToBackHit = false;
+    server.use(
+      http.post(`${BASE}/api/v1/nodes/${CLAIM_ID}/z-order/send-to-back`, () => {
+        sendToBackHit = true;
+        return HttpResponse.json({
+          id: CLAIM_ID,
+          topicId: TOPIC_ID,
+          zIndex: -3,
+        });
+      }),
+    );
+
+    renderCanvas();
+
+    const nodeEl = document.querySelector(`[data-id="${CLAIM_ID}"]`);
+    if (!nodeEl) {
+      console.warn('RF node DOM не найден в jsdom - skip z-order interaction');
+      return;
+    }
+
+    nodeEl.dispatchEvent(
+      new MouseEvent('contextmenu', { bubbles: true, clientX: 100, clientY: 100 }),
+    );
+
+    const item = await screen.findByRole('menuitem', { name: /На задний план/i });
+    await userEvent.click(item);
+
+    await waitForApi(() => {
+      expect(sendToBackHit).toBe(true);
+    });
+  });
+});
