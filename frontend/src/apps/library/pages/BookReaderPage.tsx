@@ -566,7 +566,6 @@ function BookReaderPage() {
                     <PdfViewer
                 key={`${currentPart ?? ''}-${currentPrintedPage ?? ''}`}
                 bookId={bookId}
-                isArabic={state.book.language === 'ar'}
                 initialPart={currentPart}
                 initialPrintedPage={currentPrintedPage}
               />
@@ -645,7 +644,6 @@ function BookReaderPage() {
               <PdfViewer
                 key={`${currentPart ?? ''}-${currentPrintedPage ?? ''}`}
                 bookId={bookId}
-                isArabic={state.book.language === 'ar'}
                 initialPart={currentPart}
                 initialPrintedPage={currentPrintedPage}
               />

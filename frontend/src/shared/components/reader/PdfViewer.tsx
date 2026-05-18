@@ -46,12 +46,6 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 interface PdfViewerProps {
   bookId: string;
   /**
-   * @deprecated больше не используется - direction/icons теперь от локали.
-   * Оставлен для обратной совместимости с местами вызова, при следующей
-   * правке этих мест можно удалить prop полностью
-   */
-  isArabic?: boolean;
-  /**
    * Том/часть из shamela mapping (`lib_pages.part`). Используется для
    * выбора правильного fileIndex - "Том 3" в shamela соответствует
    * PDF-файлу 03_*.pdf. Numeric → matching через `Том N` label;
