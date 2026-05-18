@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookType;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.LibraryFile;
 import ru.basnukaev.argumentmap.library.domain.LibraryFileSourceType;
 import ru.basnukaev.argumentmap.library.domain.Page;
@@ -146,7 +147,7 @@ public class FileImportService {
                         effectiveMeta.editionNumber(),
                         effectiveMeta.publishedYearHijri(),
                         effectiveMeta.publishedYearGregorian(),
-                        ru.basnukaev.argumentmap.library.domain.BookVisibility.PRIVATE
+                        BookVisibility.PRIVATE
                 );
             } else {
                 // Старый путь (shamela-совместимый): academic FK = null,
@@ -156,7 +157,7 @@ public class FileImportService {
                         language, effectiveMeta.description(),
                         metadataJson, currentUserId,
                         null, null, null, null, null, null,
-                        ru.basnukaev.argumentmap.library.domain.BookVisibility.PRIVATE
+                        BookVisibility.PRIVATE
                 );
             }
             log.info("PDF импорт: создана книга id={} title='{}' страниц={} academic={}",

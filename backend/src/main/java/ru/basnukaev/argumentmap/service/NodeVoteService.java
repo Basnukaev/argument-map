@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.domain.Node;
 import ru.basnukaev.argumentmap.domain.NodeVote;
 import ru.basnukaev.argumentmap.domain.VoteStats;
@@ -60,7 +61,7 @@ public class NodeVoteService {
         // read-permission check через topic'овский canRead - голос требует
         // только видимости узла. ADMIN bypass работает автоматически
         permissionService.assertCanRead(node.topicId(), userId,
-                ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils.currentRole());
+                SecurityContextUtils.currentRole());
 
         NodeVote vote = new NodeVote(
                 UUID.randomUUID(), nodeId, userId, weight, Instant.now()
@@ -77,7 +78,7 @@ public class NodeVoteService {
         Node node = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new NodeNotFoundException(nodeId));
         permissionService.assertCanRead(node.topicId(), userId,
-                ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils.currentRole());
+                SecurityContextUtils.currentRole());
         return nodeVoteRepository.deleteByNodeAndUser(nodeId, userId);
     }
 

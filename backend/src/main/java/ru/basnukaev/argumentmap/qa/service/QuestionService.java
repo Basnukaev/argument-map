@@ -1,14 +1,14 @@
 package ru.basnukaev.argumentmap.qa.service;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.domain.AuditEntityType;
@@ -146,13 +146,13 @@ public class QuestionService {
 
         // ADR-043 Amendment 3 (22.d) - audit UPDATE с per-field diff
         Map<String, AuditLogService.FieldDiff> diff = new LinkedHashMap<>();
-        if (!java.util.Objects.equals(before.title(), after.title())) {
+        if (!Objects.equals(before.title(), after.title())) {
             diff.put("title", new AuditLogService.FieldDiff(before.title(), after.title()));
         }
-        if (!java.util.Objects.equals(before.body(), after.body())) {
+        if (!Objects.equals(before.body(), after.body())) {
             diff.put("body", new AuditLogService.FieldDiff(before.body(), after.body()));
         }
-        if (!java.util.Objects.equals(before.status(), after.status())) {
+        if (!Objects.equals(before.status(), after.status())) {
             diff.put("status", new AuditLogService.FieldDiff(
                     before.status() == null ? null : before.status().name(),
                     after.status() == null ? null : after.status().name()));

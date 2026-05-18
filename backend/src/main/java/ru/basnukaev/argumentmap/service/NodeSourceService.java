@@ -12,6 +12,7 @@ import ru.basnukaev.argumentmap.exception.NodeNotFoundException;
 import ru.basnukaev.argumentmap.exception.SourceNotFoundException;
 import ru.basnukaev.argumentmap.repository.NodeRepository;
 import ru.basnukaev.argumentmap.repository.NodeSourceRepository;
+import ru.basnukaev.argumentmap.repository.NodeSourceRepository.NodeSourceWithLocation;
 import ru.basnukaev.argumentmap.repository.SourceRepository;
 
 @Service
@@ -56,8 +57,7 @@ public class NodeSourceService {
      * citation через 9 LEFT JOIN. Используется во всех clients
      */
     @Transactional(readOnly = true)
-    public List<ru.basnukaev.argumentmap.repository.NodeSourceRepository.NodeSourceWithLocation>
-            getNodeSourcesWithLocation(UUID nodeId) {
+    public List<NodeSourceWithLocation> getNodeSourcesWithLocation(UUID nodeId) {
         if (nodeRepository.findById(nodeId).isEmpty()) {
             throw new NodeNotFoundException(nodeId);
         }

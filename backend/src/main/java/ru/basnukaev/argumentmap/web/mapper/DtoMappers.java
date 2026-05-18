@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import ru.basnukaev.argumentmap.domain.Authority;
 import ru.basnukaev.argumentmap.domain.CitationDetail;
+import ru.basnukaev.argumentmap.domain.CitationMode;
 import ru.basnukaev.argumentmap.domain.Edge;
 import ru.basnukaev.argumentmap.domain.Node;
 import ru.basnukaev.argumentmap.domain.NodeSource;
@@ -232,7 +233,7 @@ public final class DtoMappers {
         // legacySnapshot - заполняется только для LEGACY mode (freeform citation
         // через AddSourceModal). Для TEXT/PDF/REGION snapshot хранится в БД для
         // forensic трейса, но не отдаётся клиенту - там есть structured citation
-        String legacySnapshot = link.mode() == ru.basnukaev.argumentmap.domain.CitationMode.LEGACY
+        String legacySnapshot = link.mode() == CitationMode.LEGACY
                 ? link.location()
                 : null;
         return new NodeSourceResponse(

@@ -23,7 +23,9 @@ import ru.basnukaev.argumentmap.domain.NodeType;
 import ru.basnukaev.argumentmap.domain.Reliability;
 import ru.basnukaev.argumentmap.domain.Source;
 import ru.basnukaev.argumentmap.domain.SourceType;
+import ru.basnukaev.argumentmap.domain.StatusAlgorithm;
 import ru.basnukaev.argumentmap.domain.Topic;
+import ru.basnukaev.argumentmap.domain.TopicVisibility;
 import ru.basnukaev.argumentmap.exception.UnsupportedExportFormatException;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.repository.AuthorityRepository;
@@ -129,8 +131,8 @@ public class TopicImportService {
                 null,
                 currentUserId,
                 now,
-                ru.basnukaev.argumentmap.domain.TopicVisibility.PRIVATE,
-                ru.basnukaev.argumentmap.domain.StatusAlgorithm.MVP
+                TopicVisibility.PRIVATE,
+                StatusAlgorithm.MVP
         );
         topicRepository.save(newTopic);
 

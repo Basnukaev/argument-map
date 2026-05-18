@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookType;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.repository.MuhaqqiqRepository;
 import ru.basnukaev.argumentmap.library.repository.PublicationPlaceRepository;
@@ -153,7 +154,7 @@ public class ShamelaToLibraryMapper {
                 parsedBiblio.editionNumber(),
                 parsedBiblio.publishedYearHijri(),
                 parsedBiblio.publishedYearGregorian(),
-                ru.basnukaev.argumentmap.library.domain.BookVisibility.PUBLIC
+                BookVisibility.PUBLIC
         );
         bookRepository.save(book);
 

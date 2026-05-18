@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -150,11 +151,11 @@ public class NodeTranslationService {
 
         // audit UPDATE - per-field diff для translator_name и body
         Map<String, AuditLogService.FieldDiff> diff = new LinkedHashMap<>();
-        if (!java.util.Objects.equals(existing.translatorName(), resolvedTranslator)) {
+        if (!Objects.equals(existing.translatorName(), resolvedTranslator)) {
             diff.put("translatorName", new AuditLogService.FieldDiff(
                     existing.translatorName(), resolvedTranslator));
         }
-        if (!java.util.Objects.equals(existing.body(), resolvedBody)) {
+        if (!Objects.equals(existing.body(), resolvedBody)) {
             diff.put("body", new AuditLogService.FieldDiff(
                     existing.body(), resolvedBody));
         }

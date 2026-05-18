@@ -1,14 +1,14 @@
 package ru.basnukaev.argumentmap.qa.service;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.domain.AuditEntityType;
@@ -107,7 +107,7 @@ public class AnswerService {
         Answer after = updateAnswer(answerId, body);
 
         // ADR-043 Amendment 3 (22.d) - audit UPDATE body diff
-        if (!java.util.Objects.equals(before.body(), after.body())) {
+        if (!Objects.equals(before.body(), after.body())) {
             Map<String, AuditLogService.FieldDiff> diff = new LinkedHashMap<>();
             diff.put("body", new AuditLogService.FieldDiff(before.body(), after.body()));
             auditLogService.logUpdate(AuditEntityType.ANSWER, answerId,

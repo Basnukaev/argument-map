@@ -1,15 +1,15 @@
 package ru.basnukaev.argumentmap.service;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 import ru.basnukaev.argumentmap.domain.AuditEntityType;
 import ru.basnukaev.argumentmap.domain.Node;
@@ -173,7 +173,7 @@ public class NodeService {
         validateOriginalLang(resolvedOriginalLang);
 
         Instant now = Instant.now();
-        boolean contentChanged = !java.util.Objects.equals(existing.content(), resolvedContent);
+        boolean contentChanged = !Objects.equals(existing.content(), resolvedContent);
         if (contentChanged) {
             Revision revision = new Revision(
                     UUID.randomUUID(), nodeId,
@@ -198,7 +198,7 @@ public class NodeService {
             diff.put("content", new AuditLogService.FieldDiff(
                     existing.content(), resolvedContent));
         }
-        if (!java.util.Objects.equals(existing.originalLang(), resolvedOriginalLang)) {
+        if (!Objects.equals(existing.originalLang(), resolvedOriginalLang)) {
             diff.put("originalLang", new AuditLogService.FieldDiff(
                     existing.originalLang(), resolvedOriginalLang));
         }

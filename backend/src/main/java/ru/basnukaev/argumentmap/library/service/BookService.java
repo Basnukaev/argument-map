@@ -5,11 +5,14 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.exception.AuthorityNotFoundException;
 import ru.basnukaev.argumentmap.exception.BookNotFoundException;
 import ru.basnukaev.argumentmap.exception.PageNotFoundException;
@@ -200,7 +203,7 @@ public class BookService {
                                            String query, BookType type,
                                            UUID authorityId, UUID publisherId,
                                            int limit, int offset) {
-        if (ru.basnukaev.argumentmap.auth.domain.UserRole.ADMIN.equals(role)) {
+        if (UserRole.ADMIN.equals(role)) {
             return bookRepository.findPage(query, type, authorityId, publisherId, limit, offset);
         }
         return bookRepository.findVisibleToUserPage(userId, query, type, authorityId, publisherId,
@@ -211,7 +214,7 @@ public class BookService {
     public long countVisibleBooks(UUID userId, String role,
                                   String query, BookType type,
                                   UUID authorityId, UUID publisherId) {
-        if (ru.basnukaev.argumentmap.auth.domain.UserRole.ADMIN.equals(role)) {
+        if (UserRole.ADMIN.equals(role)) {
             return bookRepository.countFiltered(query, type, authorityId, publisherId);
         }
         return bookRepository.countVisibleToUser(userId, query, type, authorityId, publisherId);
@@ -375,27 +378,27 @@ public class BookService {
 
         // ADR-043 Amendment 3 (22.d) - audit UPDATE per-field diff
         Map<String, AuditLogService.FieldDiff> diff = new LinkedHashMap<>();
-        if (!java.util.Objects.equals(before.muhaqqiqId(), after.muhaqqiqId())) {
+        if (!Objects.equals(before.muhaqqiqId(), after.muhaqqiqId())) {
             diff.put("muhaqqiqId", new AuditLogService.FieldDiff(
                     before.muhaqqiqId(), after.muhaqqiqId()));
         }
-        if (!java.util.Objects.equals(before.publisherId(), after.publisherId())) {
+        if (!Objects.equals(before.publisherId(), after.publisherId())) {
             diff.put("publisherId", new AuditLogService.FieldDiff(
                     before.publisherId(), after.publisherId()));
         }
-        if (!java.util.Objects.equals(before.publicationPlaceId(), after.publicationPlaceId())) {
+        if (!Objects.equals(before.publicationPlaceId(), after.publicationPlaceId())) {
             diff.put("publicationPlaceId", new AuditLogService.FieldDiff(
                     before.publicationPlaceId(), after.publicationPlaceId()));
         }
-        if (!java.util.Objects.equals(before.editionNumber(), after.editionNumber())) {
+        if (!Objects.equals(before.editionNumber(), after.editionNumber())) {
             diff.put("editionNumber", new AuditLogService.FieldDiff(
                     before.editionNumber(), after.editionNumber()));
         }
-        if (!java.util.Objects.equals(before.publishedYearHijri(), after.publishedYearHijri())) {
+        if (!Objects.equals(before.publishedYearHijri(), after.publishedYearHijri())) {
             diff.put("publishedYearHijri", new AuditLogService.FieldDiff(
                     before.publishedYearHijri(), after.publishedYearHijri()));
         }
-        if (!java.util.Objects.equals(before.publishedYearGregorian(), after.publishedYearGregorian())) {
+        if (!Objects.equals(before.publishedYearGregorian(), after.publishedYearGregorian())) {
             diff.put("publishedYearGregorian", new AuditLogService.FieldDiff(
                     before.publishedYearGregorian(), after.publishedYearGregorian()));
         }
@@ -407,7 +410,7 @@ public class BookService {
     }
 
     private static UUID resolveFk(String name, UUID currentFk,
-                                  java.util.function.Function<String, UUID> findOrCreate) {
+                                  Function<String, UUID> findOrCreate) {
         if (name == null) {
             return currentFk;
         }

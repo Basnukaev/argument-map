@@ -1,13 +1,13 @@
 package ru.basnukaev.argumentmap.service;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 import ru.basnukaev.argumentmap.domain.AuditEntityType;
 import ru.basnukaev.argumentmap.domain.Edge;
@@ -167,7 +167,7 @@ public class EdgeService {
             diff.put("edgeType", new AuditLogService.FieldDiff(
                     existing.edgeType().name(), updated.edgeType().name()));
         }
-        if (!java.util.Objects.equals(existing.rationale(), updated.rationale())) {
+        if (!Objects.equals(existing.rationale(), updated.rationale())) {
             diff.put("rationale", new AuditLogService.FieldDiff(
                     existing.rationale(), updated.rationale()));
         }
