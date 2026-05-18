@@ -34,6 +34,7 @@ import {
 import { buildFlow, findFreePosition, sameIds } from '@/apps/argument-map/utils/graphPlacement';
 import { apiDeleteRaw, apiPatchRaw, apiPost, apiPostRaw, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
+import { useGraphSelectionStore } from '@/shared/stores/graphSelectionStore';
 import { useT } from '@/shared/i18n';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { applyLayout } from '@/apps/argument-map/utils/graphLayout';
@@ -450,6 +451,7 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
       }
       setSelectedNodeIds([]);
       setSelectedEdgeIds([]);
+      useGraphSelectionStore.getState().clearSelection();
       onRefetch();
 
       // undo - только если удалили хотя бы один узел (рёбра restoring не
@@ -712,13 +714,16 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
 
   // RF onSelectionChange срабатывает при каждом setNodes даже если selection
   // не изменилась. Inline-callback создавал новые [] - infinite loop. Решение:
-  // stable callback + функциональный update со сравнением содержимого
+  // stable callback + функциональный update со сравнением содержимого.
+  // Параллельно зеркалим в graphSelectionStore чтобы FloatingActionBar и
+  // bulk-операции могли подписаться без проп-drilling
   const handleSelectionChange = useCallback(
     ({ nodes: ns, edges: es }: { nodes: Node[]; edges: { id: string }[] }) => {
       const nextNodeIds = ns.map((n) => n.id);
       const nextEdgeIds = es.map((e) => e.id);
       setSelectedNodeIds((prev) => (sameIds(prev, nextNodeIds) ? prev : nextNodeIds));
       setSelectedEdgeIds((prev) => (sameIds(prev, nextEdgeIds) ? prev : nextEdgeIds));
+      useGraphSelectionStore.getState().setSelection(nextNodeIds, nextEdgeIds);
     },
     [],
   );
@@ -756,6 +761,7 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
     setSelectedEdgeIds([]);
     setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
     setEdges((eds) => eds.map((edge) => ({ ...edge, selected: false })));
+    useGraphSelectionStore.getState().clearSelection();
   }, [setNodes, setEdges]);
 
   useGraphEscape({
@@ -837,6 +843,9 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
           onNodeDoubleClick={handleNodeDoubleClick}
           onEdgeDoubleClick={handleEdgeDoubleClick}
           connectionMode={ConnectionMode.Loose}
+          // Shift на Linux/Win, Meta (⌘) на Mac - стандартная multi-select комба
+          // для добавления узла к существующему выделению через клик
+          multiSelectionKeyCode={['Shift', 'Meta']}
           onSelectionChange={handleSelectionChange}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
