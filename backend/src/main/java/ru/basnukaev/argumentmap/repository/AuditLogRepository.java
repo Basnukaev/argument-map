@@ -171,6 +171,18 @@ public class AuditLogRepository {
     }
 
     /**
+     * Удаляет записи audit_log с {@code created_at < cutoff}. Используется
+     * {@code AuditLogRetentionJanitor} для periodic cleanup (compliance
+     * retention policy). Возвращает количество удалённых строк.
+     */
+    public int deleteOlderThan(Instant cutoff) {
+        return jdbcTemplate.update(
+                "DELETE FROM audit_log WHERE created_at < ?",
+                Timestamp.from(cutoff)
+        );
+    }
+
+    /**
      * Helper - один источник истины для WHERE-фильтров admin endpoint.
      * Гарантирует что count не разойдётся с list.
      */

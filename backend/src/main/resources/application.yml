@@ -92,6 +92,19 @@ storage:
     # 0 для тестов / маленьких объёмов. 100ms = ~10 files/sec cap
     delay-millis: ${STORAGE_INTEGRITY_DELAY_MILLIS:100}
 
+# Audit log retention (Code review round 3 #5). AuditLogRetentionJanitor
+# периодически удаляет audit_log записи старше N дней. Compliance retention -
+# по умолчанию выключен (на dev/test/staging не нужен, audit log там
+# некритичен). В prod включается через AUDIT_RETENTION_ENABLED=true.
+# Минимум retentionDays = 7 (валидация в AuditRetentionProperties).
+audit:
+  retention:
+    enabled: ${AUDIT_RETENTION_ENABLED:false}
+    # 1 год default - разумный compliance window для большинства regimes
+    retention-days: ${AUDIT_RETENTION_DAYS:365}
+    # 02:00 ежедневно - после ночных backup'ов, до orphan janitor (03:00)
+    cron: ${AUDIT_RETENTION_CRON:0 0 2 * * *}
+
 # OCR pipeline (ADR-041, Этап 17.b). Tess4j wrapper над system Tesseract.
 # Tesseract сам - НЕ Maven dependency, нужно установить на host:
 #   sudo apt install tesseract-ocr tesseract-ocr-ara tesseract-ocr-rus
