@@ -5259,3 +5259,82 @@ MVP - partial
   (privileged change, влияет на семантику темы)
 - **Этап 22.d audit log** - смена algorithm пишет UPDATE row в
   audit_log с {algorithm: {old, new}}
+
+## ADR-045: Route-level lazy loading для frontend chunks
+
+**Дата:** 2026-05-18
+
+**Контекст:** До этого решения только `TopicGraphPage` грузился через
+`React.lazy()`. Все остальные страницы (включая `AdminPageEditorPage` с
+Tiptap + 8 extensions, `AdminShamelaPage`, `AdminAuditPage`,
+`BookListPage`, `BookReaderPage`, QA pages, `SettingsPage`) статически
+импортировались в `App.tsx`. Это означало что USER заходящий на
+стартовый `/topics` тащил admin + library + QA + tiptap в initial
+JavaScript bundle.
+
+Measurements (5d 18.05.2026):
+- `index.js`: 1,051.80 kB / 306.77 kB gzip
+- USER никогда не открывающий /admin или /books вынужден парсить и
+  загружать весь этот код в каждом cold load
+
+**Решение:** перевести **все pages кроме start flow** на `React.lazy()`:
+
+```tsx
+const TopicGraphPage = lazy(() => import('@/apps/argument-map/pages/TopicGraphPage'));
+const BookListPage = lazy(() => import('@/apps/library/pages/BookListPage'));
+const AdminPageEditorPage = lazy(() => import('@/apps/admin/pages/AdminPageEditorPage'));
+// ... etc
+```
+
+Eager pages (остаются в initial chunk):
+- `LoginPage`, `RegisterPage` - public routes, нужны до auth check
+- `TopicListPage` - landing после login (redirect from `/`)
+- `CreateTopicPage` - часть start flow (новые users почти сразу
+  создают тему)
+
+Lazy pages: все admin, library, QA, settings, graph, reader.
+
+Один общий `<Suspense fallback={<PageFallback>}>` оборачивает `<Routes>`
+- generic «Загрузка» fallback, без skeleton. Skeleton-per-page - polish
+для отдельного sprint'а.
+
+**Альтернативы рассмотрены:**
+
+- **Manual chunks через vite rollupOptions.output.manualChunks** -
+  более fine-grained control, но overhead на конфигурацию + риск
+  неправильной разбивки. React.lazy + Suspense - идиоматичный React
+  подход, vite автоматически создаёт chunk per dynamic import
+- **Component-level lazy (модалки, тяжёлые секции)** - можно сделать
+  потом для конкретных hot spots (например `PdfViewer` уже lazy
+  внутри BookReaderPage). На уровне route - первый и крупнейший win
+- **Preload on hover** - link prefetch до клика. Future polish, не в
+  scope
+
+**Trade-offs:**
+
+- **Плюс:** initial bundle 1,051 kB → 475 kB (gzip 306 → 138 kB) -
+  **минус 55%**. Tiptap chunk (380 kB) грузится только при заходе на
+  `/admin/library/pages/X/edit`. Mobile / slow 3G пользователи
+  получают значительно более быстрый first paint
+- **Плюс:** logical separation по domain - admin chunk не загрязняет
+  user chunk; в будущем admin code можно совсем cut при USER-only
+  deployment
+- **Минус:** при первом переходе на каждую lazy page - extra HTTP
+  request за chunk + parse. Fallback UI «Загрузка» виден ~50-200 ms
+  на быстром Wi-Fi, до секунды на медленном
+- **Минус:** SSR/SSG несовместимо (но у нас CSR SPA - не применимо)
+
+**Trigger to revisit:**
+
+- Если user feedback покажет что переключение route с lazy фалбэком
+  ощущается «лагающим» - добавить link prefetch on hover (`<Link
+  prefetch>` либо vite preload hints)
+- Если admin section стабилизируется и USER никогда не заходит туда -
+  можно build-time skip admin chunks полностью (отдельный entry point)
+
+**Связанные решения:**
+
+- **ADR-018** (platform pivot) - 3 приложения в одной SPA; lazy loading
+  per-app reduces cross-domain cost
+- **ADR-022** (frontend reorg) - apps/admin/library/argument-map
+  boundary - lazy chunks natural соответствуют этому boundary

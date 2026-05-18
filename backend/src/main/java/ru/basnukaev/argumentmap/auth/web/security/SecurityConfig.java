@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -12,6 +13,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 
 import java.util.Arrays;
 
@@ -74,6 +76,51 @@ public class SecurityConfig {
                 .cors(cors -> {})
                 // Stateless - никаких HttpSession
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // HTTP security headers (cross-cutting audit #2). Spring Security
+                // 6 default ставит X-Content-Type-Options + X-Frame-Options +
+                // Cache-Control - оставляем дефолт. Добавляем поверх:
+                //  - HSTS только в prod (HTTPS-only deploy) - в dev mixed-content
+                //    с :9090 без TLS, header игнорируется браузером но spam'ит
+                //    DevTools console
+                //  - Referrer-Policy `strict-origin-when-cross-origin` - safer
+                //    дефолт чем full Referer leak (browser default различается)
+                //  - Permissions-Policy ограничивает доступ к sensor API
+                //    которые SPA не использует
+                //  - CSP - opt-in для prod, в dev Vite HMR требует unsafe-inline
+                //    для inline style + ws://localhost для HMR socket. В prod
+                //    более жёсткие правила (наш SPA не использует eval; inline
+                //    style из Tailwind ОК, из user content - sanitiz'ируется в DOMPurify)
+                .headers(headers -> {
+                    headers.referrerPolicy(rp -> rp.policy(
+                            ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN));
+                    headers.permissionsPolicyHeader(pp -> pp.policy(
+                            "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"));
+                    if (!devOrTestProfile) {
+                        // HSTS включаем только в non-dev profile - browser игнорирует
+                        // HSTS на http:// origin'ах но header добавляет шум в DevTools
+                        headers.httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .preload(false)
+                                .maxAgeInSeconds(31_536_000L)); // 1 год
+                        // CSP минимальный strict policy для prod. SPA не использует
+                        // eval (Vite production bundle - static), inline-style
+                        // нужен Tailwind v4 (CSS variables), connect-src - наш
+                        // backend. img-src data: для PDF page previews.
+                        headers.contentSecurityPolicy(csp -> csp.policyDirectives(
+                                "default-src 'self'; "
+                                        + "script-src 'self'; "
+                                        + "style-src 'self' 'unsafe-inline'; "
+                                        + "img-src 'self' data: blob:; "
+                                        + "font-src 'self' data:; "
+                                        + "connect-src 'self'; "
+                                        + "frame-ancestors 'none'; "
+                                        + "base-uri 'self'; "
+                                        + "form-action 'self'"));
+                    }
+                    // X-Frame-Options=DENY (Spring default) и X-Content-Type-Options=nosniff
+                    // - оставлены как есть. Customizer.withDefaults() для Cache-Control
+                    Customizer.withDefaults();
+                })
                 .authorizeHttpRequests(auth -> {
                     // /api/v1/auth/me - всегда требует Bearer (даже в
                     // dev/test profile) - это endpoint про current user,
