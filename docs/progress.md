@@ -11,6 +11,65 @@
 
 ---
 
+## 2026-05-18 - Settings screen + user preferences (backlog item)
+
+Закрыт backlog «Settings screen». Полноценные user-preferences с
+persistance на бэке + FOUC-prevention через localStorage cache.
+
+**Backend (3 коммита):**
+- миграция 42 `user_preferences (id, user_id FK CASCADE, key, value jsonb,
+  updated_at, UNIQUE(user_id, key))` + индекс по user_id
+- `UserPreference` record (id/userId/key/value as JSON string/updatedAt)
+- `UserPreferenceRepository` JDBC: findByUserId / findByUserAndKey /
+  upsert (INSERT ON CONFLICT (user_id, key) DO UPDATE) / delete. Cast
+  `CAST(? AS jsonb)` для jsonb колонки
+- `UserPreferenceService` - whitelist валидация в коде (Map ALLOWED_VALUES):
+  - enum-string keys: locale (ru/ar/en), arabicFont (naskh/kufi/tahoma),
+    textSize (small/medium/large/xl), theme (system/light/dark)
+  - boolean keys: hideTashkeelByDefault, transliteration
+  - getAll / set / setAll (bulk) / delete. Невалидное значение/ключ →
+    IllegalArgumentException → 400 через GlobalExceptionHandler
+- `PreferencesController` - 4 endpoint: GET /preferences, PUT (bulk),
+  PUT /{key} (конверт {value: ...}), DELETE /{key}
+- IT: 11 service tests + 6 controller tests (17 новых, все pass)
+
+**Frontend (3 коммита):**
+- `apiPutRaw` helper в `shared/api/client.ts` (отсутствовал, добавлен
+  по аналогии с apiPatchRaw)
+- regenerated `types.ts` (новые endpoints)
+- `usePreferencesStore` Zustand с pre-paint cache в localStorage
+  ('app.preferences') + backend sync. Методы: loadFromBackend
+  (mergeWithDefaults на ответ + persist), set (optimistic local + PUT
+  + revert на error), resetAll (Promise.allSettled DELETE всех ключей),
+  resetLocal (для logout). 5 unit тестов pass
+- `UserPreferencesSection` - новая секция в SettingsPage: язык, размер
+  текста (с preview), упрощённый арабский шрифт (3 опции вместо 10),
+  toggle tashkeel/транслит, reset all с confirm modal. Toast на каждое
+  save/error
+- расширены i18n RU+AR (~30 новых ключей: language/textSize/tashkeel/
+  transliteration/saved_toast/reset_defaults/etc)
+- `PreferencesEffect` side-effect компонент в main.tsx:
+  - login → loadFromBackend, logout → resetLocal
+  - locale → useLocaleStore.setLocale (LocaleEffect ставит html lang dir)
+  - theme → useThemeStore.setMode
+  - textSize → CSS var --text-size-scale, arabicFont → --font-arabic-pref
+  - hideTashkeel/transliteration → data-attributes на <html>
+- 3 vitest для SettingsPage (render секций, click AR → PUT, toggle
+  транслитерации)
+
+**Не сделано (отложено):**
+- EN словарь - сейчас locale=en фолбэк на ru, отдельная итерация
+  перевода ~1000 ключей в backlog
+- Drag-приоритет источников из old backlog formulation - отдельная
+  работа, никак не связана с preferences
+- ADR не пишется - решение очевидное (key-value table + whitelist),
+  без alternatives to compare
+
+**Verify статус:** UserPreferenceServiceIT + PreferencesControllerIT
+17/17 pass. preferencesStore.test.ts + SettingsPage.test.tsx 8/8 pass.
+
+---
+
 ## 2026-05-18 - Inline citations [N] в тексте узлов (backlog item)
 
 Закрыт пункт backlog «Inline citations - формат `[1]` в тексте с

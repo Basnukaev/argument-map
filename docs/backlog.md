@@ -174,9 +174,11 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
 - [ ] **Language switcher (RU / EN / AR)** - в header или
       settings. Идёт в комплекте с i18n и RTL
       _(LanguageSwitcher)_
-- [ ] **Settings screen** - язык, выбор арабского шрифта, размер
-      текста, тогглы tashkeel / транслит, drag-приоритет
-      источников _(SettingsScreen)_
+- [x] **Settings screen** - язык (RU/AR/EN), выбор арабского шрифта
+      (Naskh/Kufi/Tahoma), размер текста (small/medium/large/xl),
+      тогглы tashkeel/транслит, theme. Persist на бэке через
+      `user_preferences` (миграция 42) + localStorage cache для FOUC.
+      Drag-приоритет источников остался в backlog (отдельная work)
 - [ ] **Onboarding** - 4-шаговый чеклист для новой темы
       («создай корневой вопрос», «добавь тезис-ответ» и т.д.) +
       hint-указатели на canvas _(OnboardingChecklist,

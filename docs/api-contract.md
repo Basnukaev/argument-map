@@ -219,6 +219,82 @@ password 8..100 символов.
 **Ошибки:**
 - 401 - не аутентифицирован
 
+### User preferences (Settings screen)
+
+Хранение пользовательских настроек интерфейса. Каждое поле -
+независимый key/value под текущим user_id.
+
+**Whitelisted keys** (валидация в `UserPreferenceService`):
+
+| Ключ | Тип | Допустимые значения |
+|------|-----|---------------------|
+| `locale` | string | `ru` \| `ar` \| `en` |
+| `arabicFont` | string | `naskh` \| `kufi` \| `tahoma` |
+| `textSize` | string | `small` \| `medium` \| `large` \| `xl` |
+| `theme` | string | `system` \| `light` \| `dark` |
+| `hideTashkeelByDefault` | boolean | `true` \| `false` |
+| `transliteration` | boolean | `true` \| `false` |
+
+Все endpoints требуют authenticated user. Изоляция read/write только
+свои prefs (фильтр по `user_id` в репозитории).
+
+#### GET /api/v1/preferences
+
+Возвращает все текущие preferences user'а как `Map<String, Object>`.
+Если ключ не установлен - в ответе отсутствует (фронт применяет дефолт).
+
+**Ответ:** `200 OK`
+```json
+{
+  "locale": "ar",
+  "textSize": "large",
+  "transliteration": true
+}
+```
+
+#### PUT /api/v1/preferences
+
+Bulk update. Тело - `Map<String, Object>` с одним или несколькими ключами.
+Все ключи валидируются до записи (атомарно через `@Transactional`:
+ошибка → rollback всех upsert'ов).
+
+**Запрос:**
+```json
+{
+  "locale": "ar",
+  "textSize": "large"
+}
+```
+
+**Ответ:** `200 OK` - обновлённая map.
+
+**Ошибки:**
+- 400 `illegal-argument` - неизвестный ключ или невалидное значение
+- 401 - не аутентифицирован
+
+#### PUT /api/v1/preferences/{key}
+
+Обновить один ключ. Тело - конверт `{value: ...}` для типизации
+(boolean/string/number).
+
+**Запрос:**
+```json
+{ "value": "ar" }
+```
+
+**Ответ:** `200 OK` - вся map после изменения.
+
+#### DELETE /api/v1/preferences/{key}
+
+Удалить ключ - revert на default (фронт читает getAll и не находит
+ключа, применяет дефолтное значение).
+
+**Ответ:** `204 No Content`.
+
+**Ошибки:**
+- 400 `illegal-argument` - неизвестный ключ
+- 401 - не аутентифицирован
+
 ### Темы (Topics)
 
 #### POST /api/v1/topics
@@ -2836,6 +2912,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-18 | v1 | Settings screen - user preferences API. Миграция 42 - новая таблица `user_preferences (id UUID PK, user_id FK CASCADE, key VARCHAR(100), value jsonb, updated_at, UNIQUE(user_id, key))` + индекс. 4 новых endpoint под `/api/v1/preferences`: `GET` возвращает `Map<String, Object>` всех текущих prefs user'а (десериализация jsonb через ObjectMapper); `PUT` принимает Map для bulk update (валидация всех ключей до записи, @Transactional rollback на ошибку); `PUT /{key}` принимает конверт `{value: ...}` для одного ключа (boolean/string/number); `DELETE /{key}` удаляет ключ - revert на дефолт. Whitelisted keys валидируются в `UserPreferenceService.ALLOWED_VALUES`: `locale` (ru/ar/en), `arabicFont` (naskh/kufi/tahoma), `textSize` (small/medium/large/xl), `theme` (system/light/dark) - enum string; `hideTashkeelByDefault`, `transliteration` - boolean. Невалидный ключ или значение → 400 `illegal-argument`. Все endpoints под current user через `@CurrentUser UUID userId` - изоляция читает/пишет только свои prefs. Upsert через `INSERT ON CONFLICT (user_id, key) DO UPDATE` - повторная запись обновляет value + updated_at | Backlog «Settings screen» закрыт. JSONB store для гибкости (расширение whitelist - только правка кода сервиса, новая миграция не нужна). LocalStorage cache на фронте для FOUC prevention, backend wins на login. ADR не пишем - решение очевидное (key-value table + whitelist), без alternatives to compare |
 | 2026-05-18 | v1 | Inline citations `[N]` в тексте узла. `NodeResponse` расширен полем `inlineCitations: InlineCitationRef[]` (после `userVote`). Новый schema `InlineCitationRef{ordinal: int 1-based, nodeSourceId, sourceId, sourceType, title, citation, quote, reliability}`. Bulk-load в GET `/topics/{id}/graph` через `NodeSourceRepository.findInlineCitationsForNodes(nodeIds)` - один SQL на весь граф (JOIN sources + lib_books, ORDER BY node_id, created_at ASC). Mutating endpoints на узлах (POST `/nodes`, PATCH `/nodes/{id}`, z-order) подгружают через `findInlineCitationsForNode(nodeId)` точечно. Title fallback chain: `book.title → source.title`. `reliability` отдаётся только для HADITH. Подход A (implicit ordinal): фронт парсит `[1]`, `[2]` в `content` и резолвит по `ordinal` совпадающему с порядком node_sources.created_at ASC. Без миграции БД - feature чисто на запросном уровне. Backward-compat: для узлов без node_sources массив пустой | Backlog «Inline citations - формат [1] в тексте с popover» закрыт. Подход implicit ordinal выбран как MVP (простой, достаточно для начала); если возникнут reorder issues - переход на mixed `[#sourceId]` без breaking change |
 | 2026-05-18 | v1 | Dung's argumentation framework opt-in (ADR-044, Этап 6). Миграция 41 ALTER `topics` добавляет колонку `status_algorithm VARCHAR(20) NOT NULL DEFAULT 'MVP'` + CHECK constraint `IN ('MVP','DUNG_GROUNDED')`. `TopicResponse` расширен полем `statusAlgorithm: MVP\|DUNG_GROUNDED`. Новый endpoint `PATCH /api/v1/topics/{id}/status-algorithm` (`UpdateTopicStatusAlgorithmRequest{algorithm}`, owner only, 200 OK + recalc side effect) - триггерит пересчёт всех узлов под новым алгоритмом в той же транзакции. No-op для same value (не пишет audit, не recalc). 400 для невалидного enum через Pattern в DTO; 403 `forbidden-topic-write` для не-owner / не-ADMIN; 404 для unknown topic. Audit как UPDATE action с FieldDiff statusAlgorithm {old, new}. DUNG_GROUNDED игнорирует SUPPORTS/QUALIFIES/RESPONDS_TO (только attack-edges REFUTES + INVALIDATES), mapping IN→STANDING/OUT→REFUTED/UNDEC→DISPUTED. UNVERIFIED не используется в Dung'е. **Frontend UI toggle отложен в backlog** - сейчас доступен только через curl. Дефолт MVP сохраняет existing behavior, нет breaking change | ADR-044: opt-in переключение через колонку. Rejected: replace MVP полностью (breaking), preferred/stable semantics (multiple extensions, сложнее mapping), bipolar argumentation (over-engineering MVP). Backlog Этап 6 «Реализация Dung's framework» закрыт |
 | 2026-05-18 | v1 | Audit log per-entity (Этап 22.d, ADR-043 Amendment 3). Миграция 39 - новая таблица `audit_log (id, entity_type, entity_id, parent_entity_type, parent_entity_id, action, actor_user_id REFERENCES users, changes jsonb, metadata jsonb, created_at)` + 4 индекса. 4 новых REST endpoint под `/api/v1/audit/*`: `GET /topics/{id}` (owner+EDITOR через assertCanWrite), `GET /books/{id}` (owner+EDITOR через assertCanWriteBook), `GET /me` (любой authenticated, свои actions), `GET /admin?entityType=&actorId=&dateFrom=&dateTo=` (ADMIN только). Все возвращают `PagedResponse<AuditLogResponse>` сортировка `created_at DESC`. Новый DTO `AuditLogResponse{id, entityType, entityId, parentEntityType, parentEntityId, action, actorUserId, actorUsername, changes (raw json string), createdAt}` - username bulk-load JOIN (не N+1). Audit пишется synchronous в той же транзакции что и mutation через `AuditLogService.logCreate/Update/Delete/VisibilityChange/MemberAdd/MemberRemove/MemberRoleChange` из integration в TopicService/NodeService/EdgeService/BookService/QuestionService/AnswerService/TopicMemberService/BookMemberService. Format `changes` зависит от action: CREATE/DELETE `{created\|deleted: snapshot}`, UPDATE `{field: {old, new}}`, VISIBILITY_CHANGE `{visibility: {old, new}}`, MEMBER_* `{userId, role: scalar или {old, new}}`. Новые ошибки: `403 forbidden-admin-only` (AdminOnlyException) - не ADMIN | ADR-043 Amendment 3: закрытие долга «audit log отложен» из Amendment 2. Event-sourcing lite - 1 row на каждую mutation для compliance + debugging. Synchronous в той же transaction - rollback main flow откатит audit. Manual logging (не Spring AOP) - явный контроль snapshot/diff'а. Admin UI отложен до 22.e/backlog |
