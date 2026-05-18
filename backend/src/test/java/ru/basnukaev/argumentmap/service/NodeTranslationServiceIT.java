@@ -285,6 +285,72 @@ class NodeTranslationServiceIT {
                 .isInstanceOf(TopicAccessDeniedException.class);
     }
 
+    /**
+     * ADR-043 Amendment 3 (22.d) - add/update/setDefault/remove должны
+     * писать в audit_log. Verifies каждый mutation проходит через
+     * AuditLogService (Code review round 4 #1).
+     */
+    @Test
+    void mutations_writeAuditLogEntries() {
+        // ADD
+        NodeTranslation t = translationService.addTranslation(
+                node.id(), "Кулиев", "ru", "текст", true,
+                ownerId, UserRole.USER
+        );
+
+        Integer createCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM audit_log "
+                        + "WHERE entity_type = 'NODE_TRANSLATION' AND entity_id = ? "
+                        + "AND action = 'CREATE' AND actor_user_id = ?",
+                Integer.class, t.id(), ownerId
+        );
+        assertThat(createCount).isEqualTo(1);
+
+        // UPDATE
+        translationService.updateTranslation(t.id(), "Османов", "новый текст",
+                ownerId, UserRole.USER);
+        Integer updateCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM audit_log "
+                        + "WHERE entity_type = 'NODE_TRANSLATION' AND entity_id = ? "
+                        + "AND action = 'UPDATE'",
+                Integer.class, t.id()
+        );
+        assertThat(updateCount).isEqualTo(1);
+
+        // SET_DEFAULT (через добавление второго и promote'a)
+        NodeTranslation second = translationService.addTranslation(
+                node.id(), "B", "en", "second", false, ownerId, UserRole.USER
+        );
+        translationService.setDefault(second.id(), ownerId, UserRole.USER);
+
+        Integer setDefaultUpdateCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM audit_log "
+                        + "WHERE entity_type = 'NODE_TRANSLATION' AND entity_id = ? "
+                        + "AND action = 'UPDATE'",
+                Integer.class, second.id()
+        );
+        assertThat(setDefaultUpdateCount).isEqualTo(1);
+
+        // DELETE
+        translationService.removeTranslation(t.id(), ownerId, UserRole.USER);
+        Integer deleteCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM audit_log "
+                        + "WHERE entity_type = 'NODE_TRANSLATION' AND entity_id = ? "
+                        + "AND action = 'DELETE'",
+                Integer.class, t.id()
+        );
+        assertThat(deleteCount).isEqualTo(1);
+
+        // parent_entity для всех NODE_TRANSLATION entries должен быть NODE
+        Integer wrongParent = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM audit_log "
+                        + "WHERE entity_type = 'NODE_TRANSLATION' "
+                        + "AND (parent_entity_type != 'NODE' OR parent_entity_id != ?)",
+                Integer.class, node.id()
+        );
+        assertThat(wrongParent).isZero();
+    }
+
     @Test
     void getForNode_returnsSortedDefaultFirst() {
         // explicitly first=non-default (но он станет default автоматически)

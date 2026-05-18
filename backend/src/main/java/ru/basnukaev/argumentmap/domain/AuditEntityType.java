@@ -18,6 +18,7 @@ public final class AuditEntityType {
     public static final String NODE_SOURCE = "NODE_SOURCE";
     public static final String QUESTION_SOURCE = "QUESTION_SOURCE";
     public static final String ANSWER_SOURCE = "ANSWER_SOURCE";
+    public static final String NODE_TRANSLATION = "NODE_TRANSLATION";
 
     private AuditEntityType() {
     }
@@ -27,6 +28,7 @@ public final class AuditEntityType {
                 || BOOK.equals(type) || QUESTION.equals(type) || ANSWER.equals(type)
                 || TOPIC_MEMBER.equals(type) || BOOK_MEMBER.equals(type)
                 || NODE_SOURCE.equals(type) || QUESTION_SOURCE.equals(type)
-                || ANSWER_SOURCE.equals(type);
+                || ANSWER_SOURCE.equals(type)
+                || NODE_TRANSLATION.equals(type);
     }
 }
