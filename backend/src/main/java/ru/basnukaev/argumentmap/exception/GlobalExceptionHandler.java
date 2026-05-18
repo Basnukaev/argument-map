@@ -385,23 +385,30 @@ public class GlobalExceptionHandler {
                 "Запись shamela не найдена", "shamela-not-found", ex.getMessage());
     }
 
+    // shamela handlers - ERROR-level (failed operation для admin endpoint),
+    // ex как 2-й параметр SLF4J = full stack trace в логах. Иначе при
+    // wrapped exception (`new ShamelaImportException(msg, cause)`) причина
+    // теряется: getMessage() показывает только наш wrapper-message, cause
+    // не упоминается. Без stack trace отладка failed sync становится
+    // догадками - что именно упало внутри download/extract/upsert pipeline
+
     @ExceptionHandler(ShamelaImportException.class)
     public ProblemDetail handleShamelaImport(ShamelaImportException ex) {
-        log.warn("shamela import error: {}", ex.getMessage());
+        log.error("shamela import error", ex);
         return problem(HttpStatus.INTERNAL_SERVER_ERROR,
                 "Ошибка импорта shamela", "shamela-import-error", ex.getMessage());
     }
 
     @ExceptionHandler(ShamelaApiException.class)
     public ProblemDetail handleShamelaApi(ShamelaApiException ex) {
-        log.warn("shamela API error: {}", ex.getMessage());
+        log.error("shamela API error", ex);
         return problem(HttpStatus.BAD_GATEWAY,
                 "shamela API недоступна", "shamela-api-error", ex.getMessage());
     }
 
     @ExceptionHandler(ShamelaArchiveException.class)
     public ProblemDetail handleShamelaArchive(ShamelaArchiveException ex) {
-        log.warn("shamela archive error: {}", ex.getMessage());
+        log.error("shamela archive error", ex);
         return problem(HttpStatus.INTERNAL_SERVER_ERROR,
                 "Ошибка распаковки архива shamela", "shamela-archive-error",
                 ex.getMessage());
@@ -409,7 +416,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ShamelaReaderException.class)
     public ProblemDetail handleShamelaReader(ShamelaReaderException ex) {
-        log.warn("shamela reader error: {}", ex.getMessage());
+        log.error("shamela reader error", ex);
         return problem(HttpStatus.INTERNAL_SERVER_ERROR,
                 "Ошибка чтения SQLite shamela", "shamela-reader-error",
                 ex.getMessage());

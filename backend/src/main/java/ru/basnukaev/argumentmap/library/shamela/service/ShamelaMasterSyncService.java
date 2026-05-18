@@ -72,6 +72,7 @@ public class ShamelaMasterSyncService {
 
     public MasterSyncResult syncMaster() {
         int currentVersion = syncStateDao.getMasterVersion();
+        log.info("shamela master sync starting: currentVersion={}", currentVersion);
         MasterMetadata meta = apiClient.fetchMasterMetadata(currentVersion);
         if (meta.version() == currentVersion) {
             log.info("shamela master uptodate: version={}", currentVersion);
