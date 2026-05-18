@@ -1,8 +1,11 @@
 package ru.basnukaev.argumentmap.auth.web.security;
 
+import java.util.Optional;
+
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import ru.basnukaev.argumentmap.auth.domain.Actor;
 import ru.basnukaev.argumentmap.auth.domain.AuthenticatedUser;
 import ru.basnukaev.argumentmap.auth.domain.UserRole;
 
@@ -33,5 +36,26 @@ public final class SecurityContextUtils {
             return user.role();
         }
         return UserRole.USER;
+    }
+
+    /**
+     * Возвращает {@link Actor} из SecurityContext - объединённый принципал
+     * (userId + role). Empty если SecurityContext пустой или principal
+     * anonymous (например, истёкший token в dev-profile с permitAll).
+     *
+     * <p>Введён backend architecture audit 2026-05-18 finding 2 - заменяет
+     * pattern «@CurrentUser UUID userId + SecurityContextUtils.currentRole()»
+     * в каждом controller endpoint'е одним вызовом.
+     */
+    public static Optional<Actor> currentActor() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return Optional.empty();
+        }
+        Object principal = auth.getPrincipal();
+        if (principal instanceof AuthenticatedUser user) {
+            return Optional.of(Actor.from(user));
+        }
+        return Optional.empty();
     }
 }
