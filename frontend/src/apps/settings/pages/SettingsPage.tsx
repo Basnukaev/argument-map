@@ -1,17 +1,16 @@
 import Header from '@/shared/components/layout/Header';
 import FontSettings from '@/apps/settings/components/FontSettings';
+import UserPreferencesSection from '@/apps/settings/components/UserPreferencesSection';
 import { useT } from '@/shared/i18n';
 
 /**
  * Страница настроек приложения. Текущие секции:
- *   - Тема (light/dark)
- *   - Шрифты (пара UI/serif, вес заголовка, вес UI, плотность, арабский)
+ *   - Тема (light/dark) + шрифты - FontSettings, persist localStorage
+ *   - User preferences - UserPreferencesSection (язык, размер текста,
+ *     арабский шрифт упрощённый, tashkeel, транслит), persist backend
  *
- * Все настройки сохраняются в localStorage через соответствующие
- * Zustand-сторы (см. shared/stores/). Будущие секции:
- *   - Hotkeys overrides
- *   - Default локаль интерфейса
- *   - Radius scale
+ * Все настройки применяются мгновенно через PreferencesEffect /
+ * FontPairEffect / ThemeEffect.
  */
 function SettingsPage() {
   const t = useT();
@@ -28,6 +27,7 @@ function SettingsPage() {
         <p className="mb-8 text-sm text-ink-600">{t('settings.subtitle')}</p>
         <div className="rounded-lg border border-border bg-elevated p-6">
           <FontSettings />
+          <UserPreferencesSection />
         </div>
       </main>
     </div>

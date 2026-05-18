@@ -33,6 +33,22 @@ export const DICTIONARY = {
     'cite.year.gregorian_suffix': 'г.',
     'cite.edition.suffix': '-е изд.',
 
+    // source detail panel (800px параллельная боковая панель)
+    'source_detail.title': 'Источник',
+    'source_detail.close': 'Закрыть панель',
+    'source_detail.section_metadata': 'Метаданные',
+    'source_detail.section_quote': 'Цитата',
+    'source_detail.section_context': 'Контекст',
+    'source_detail.section_full_reading': 'Полное чтение',
+    'source_detail.field_type': 'Тип',
+    'source_detail.field_title': 'Название',
+    'source_detail.field_authority': 'Автор',
+    'source_detail.field_citation': 'Ссылка',
+    'source_detail.field_reliability': 'Достоверность',
+    'source_detail.button_open_full': 'Открыть полностью',
+    'source_detail.loading': 'Загружаем источник',
+    'source_detail.error_load': 'Не удалось загрузить источник',
+
     // book metadata page (header sigtype label)
     'book.pages_count_suffix': 'стр.',
     'book.type.BOOK': 'Книга',
@@ -754,6 +770,44 @@ export const DICTIONARY = {
       'Будут удалены пара шрифтов, веса заголовка/UI, плотность и выбор арабского шрифта. Восстановятся значения по умолчанию. Тема остаётся без изменений',
     'settings.reset.confirm.ok': 'Сбросить',
     'settings.reset.confirm.cancel': 'Отмена',
+
+    // Settings - user preferences (Сессия Settings screen)
+    'settings.section.language': 'Язык интерфейса',
+    'settings.section.language.hint':
+      'Язык всех меню, кнопок и подсказок. Контент (тексты книг, цитаты) остаётся на оригинальном языке',
+    'settings.language.ru': 'Русский',
+    'settings.language.ar': 'العربية',
+    'settings.language.en': 'English',
+    'settings.section.textSize': 'Размер текста',
+    'settings.section.textSize.hint':
+      'Базовый размер шрифта во всём UI. Влияет на узлы графа и тексты в reader',
+    'settings.textSize.small': 'Мелкий',
+    'settings.textSize.medium': 'Средний',
+    'settings.textSize.large': 'Крупный',
+    'settings.textSize.xl': 'Огромный',
+    'settings.textSize.preview': 'Образец текста для проверки размера',
+    'settings.section.arabicFont.pref': 'Арабский шрифт (упрощённый выбор)',
+    'settings.section.arabicFont.pref.hint':
+      'Naskh - классический наскх, Kufi - геометрический, Tahoma - системный',
+    'settings.arabicFont.naskh': 'Naskh',
+    'settings.arabicFont.kufi': 'Kufi',
+    'settings.arabicFont.tahoma': 'Tahoma',
+    'settings.section.tashkeel': 'Огласовки (Tashkeel)',
+    'settings.section.tashkeel.hint':
+      'Если включено - харакāт (фатха, кясра, дамма) скрываются по умолчанию в reader. Можно показать кнопкой на странице',
+    'settings.tashkeel.hide_default': 'Скрывать огласовки по умолчанию',
+    'settings.section.transliteration': 'Транслитерация',
+    'settings.section.transliteration.hint':
+      'Показывать латинскую транслитерацию рядом с арабскими словами',
+    'settings.transliteration.enable': 'Показывать транслит для арабского',
+    'settings.saved_toast': 'Настройка сохранена',
+    'settings.save_error_toast': 'Не удалось сохранить настройку',
+    'settings.reset_defaults': 'Сбросить все настройки',
+    'settings.reset_defaults.hint':
+      'Удалит все user-preferences с сервера и вернёт значения по умолчанию',
+    'settings.reset_confirm': 'Сбросить все настройки?',
+    'settings.reset_confirm.body':
+      'Язык, тема, шрифты, размер текста, огласовки, транслитерация - всё вернётся к дефолтам',
 
     // Admin page editor (Этап 17.0, ADR-039 - Tiptap rich text editor)
     'admin.page_editor.title': 'Редактор страницы',
@@ -1618,6 +1672,44 @@ export const DICTIONARY = {
       'سيُحذَف زوج الخطوط، أوزان العنوان والواجهة، الكثافة واختيار الخطّ العربي. ستُستعاد القيم الافتراضية. يبقى المظهر بدون تغيير',
     'settings.reset.confirm.ok': 'إعادة الضبط',
     'settings.reset.confirm.cancel': 'إلغاء',
+
+    // Settings - user preferences (Settings screen)
+    'settings.section.language': 'لغة الواجهة',
+    'settings.section.language.hint':
+      'لغة جميع القوائم والأزرار. أمّا المحتوى (نصوص الكتب والاقتباسات) فيبقى بلغته الأصلية',
+    'settings.language.ru': 'Русский',
+    'settings.language.ar': 'العربية',
+    'settings.language.en': 'English',
+    'settings.section.textSize': 'حجم النص',
+    'settings.section.textSize.hint':
+      'الحجم الأساسي للخط في الواجهة. يؤثّر على عقد الرسم البياني ونصوص القارئ',
+    'settings.textSize.small': 'صغير',
+    'settings.textSize.medium': 'متوسّط',
+    'settings.textSize.large': 'كبير',
+    'settings.textSize.xl': 'كبير جدًّا',
+    'settings.textSize.preview': 'نموذج نصّ للتحقّق من الحجم',
+    'settings.section.arabicFont.pref': 'الخط العربي (اختيار مبسّط)',
+    'settings.section.arabicFont.pref.hint':
+      'النسخ كلاسيكيّ، الكوفي هندسيّ، تاهوما خطّ النظام',
+    'settings.arabicFont.naskh': 'نسخ',
+    'settings.arabicFont.kufi': 'كوفي',
+    'settings.arabicFont.tahoma': 'تاهوما',
+    'settings.section.tashkeel': 'الحركات (التشكيل)',
+    'settings.section.tashkeel.hint':
+      'عند التفعيل، تُخفى الحركات (فتحة، كسرة، ضمّة) افتراضيًّا في القارئ. يمكن إظهارها بزر في الصفحة',
+    'settings.tashkeel.hide_default': 'إخفاء الحركات افتراضيًّا',
+    'settings.section.transliteration': 'الكتابة اللاتينية',
+    'settings.section.transliteration.hint':
+      'إظهار النقحرة اللاتينية بجوار الكلمات العربية',
+    'settings.transliteration.enable': 'إظهار النقحرة للعربية',
+    'settings.saved_toast': 'تم حفظ الإعداد',
+    'settings.save_error_toast': 'تعذّر حفظ الإعداد',
+    'settings.reset_defaults': 'إعادة ضبط جميع الإعدادات',
+    'settings.reset_defaults.hint':
+      'سيُحذف جميع الإعدادات من الخادم وتُستعاد القيم الافتراضية',
+    'settings.reset_confirm': 'إعادة ضبط جميع الإعدادات؟',
+    'settings.reset_confirm.body':
+      'اللغة والمظهر والخطوط وحجم النص والحركات والنقحرة - كلّها ستعود للقيم الافتراضية',
 
     // Admin page editor (Этап 17.0, ADR-039)
     'admin.page_editor.title': 'محرّر الصفحة',
