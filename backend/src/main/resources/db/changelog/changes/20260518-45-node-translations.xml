@@ -25,6 +25,17 @@
         оригинала, не перевода).
     -->
     <changeSet id="20260518-45-node-translations" author="Abdula Basnukaev">
+        <!--
+            preCondition защищает от ситуации deployment somehow skipped с 43
+            на 45 (миграция 44 не применилась). Без translation/translation_lang
+            на nodes - SELECT внутри INSERT упадёт с column-does-not-exist.
+            MARK_RAN: если column отсутствует, считаем changeset выполненным,
+            не блокируя startup (Code review round 4 #5).
+        -->
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="nodes" columnName="translation"/>
+            <columnExists tableName="nodes" columnName="translation_lang"/>
+        </preConditions>
         <comment>node_translations 1:N + миграция существующих 1:1 данных</comment>
         <sql>
             CREATE TABLE node_translations (

@@ -6,6 +6,14 @@
                             https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
 
     <!--
+        SUPERSEDED by 20260518-45-node-translations: single-translation
+        колонки (translation / translation_lang) перенесены в отдельную
+        таблицу node_translations с поддержкой multi-translation (один
+        узел - несколько переводов от разных переводчиков). Миграция 44
+        оставлена для history continuity (changeset id уже применён в
+        существующих БД), миграция 45 дропает translation/translation_lang.
+        Колонка original_lang остаётся на nodes - это атрибут оригинала.
+
         Bilingual карточки узлов. Узел может иметь оригинал (content) +
         перевод (translation) с явным указанием языков:
 
