@@ -42,8 +42,10 @@ class ShamelaApiClientLiveIT {
 
     @Test
     void fetchMasterMetadata_full_snapshot_returns_real_url() {
-        // version=0 - запрос полного snapshot (не дельты)
-        MasterMetadata meta = client.fetchMasterMetadata(0);
+        // version=0 - запрос полного snapshot (не дельты).
+        // На version=0 shamela всегда возвращает непустое тело
+        // (либо latest snapshot, либо delta - но никогда не пусто)
+        MasterMetadata meta = client.fetchMasterMetadata(0).orElseThrow();
 
         assertThat(meta.version()).isPositive();
         assertThat(meta.patchUrl()).isNotBlank();
@@ -59,7 +61,7 @@ class ShamelaApiClientLiveIT {
     void downloadArchive_master_zip_actually_downloads(@TempDir Path tmp) throws Exception {
         // получаем URL и сразу качаем - проверяем что весь pipeline
         // (DNS, TCP, прокси, CDN) работает end-to-end
-        MasterMetadata meta = client.fetchMasterMetadata(0);
+        MasterMetadata meta = client.fetchMasterMetadata(0).orElseThrow();
 
         Path archive = client.downloadArchive(URI.create(meta.patchUrl()), tmp);
 

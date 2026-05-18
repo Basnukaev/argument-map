@@ -1621,7 +1621,7 @@ public class ArgumentMapApplication {
 
 Static-блок выполняется при загрузке класса JVM'ом - **до** `SpringApplication.run()`, до создания любого bean, до первого auth challenge. Гарантированный pre-Spring entry point.
 
-**Альтернатива через JVM flag** (если main-класс трогать нельзя): `-Djdk.http.auth.tunneling.disabledSchemes=""` в `spring-boot.run.jvmArguments` или `JAVA_OPTS`. Менее предпочтительно потому что зависит от того что user не забывает передать flag.
+**Историческая справка** (не делать - выбран static-блок выше): в JVM есть альтернатива через flag `-Djdk.http.auth.tunneling.disabledSchemes=""`. Эквивалентен static-блоку на уровне JDK, но требует чтобы ops помнил передать flag - не воспроизводимо в новых окружениях. После static-блока эта альтернатива не нужна.
 
 **Узнано:** Сессия 39 при отладке SHAMELA_PROXY с HostKey self-hosted прокси.
 

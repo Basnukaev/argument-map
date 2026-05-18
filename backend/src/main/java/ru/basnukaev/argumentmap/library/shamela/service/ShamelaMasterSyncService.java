@@ -2,6 +2,7 @@ package ru.basnukaev.argumentmap.library.shamela.service;
 
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,11 +74,14 @@ public class ShamelaMasterSyncService {
     public MasterSyncResult syncMaster() {
         int currentVersion = syncStateDao.getMasterVersion();
         log.info("shamela master sync starting: currentVersion={}", currentVersion);
-        MasterMetadata meta = apiClient.fetchMasterMetadata(currentVersion);
-        if (meta.version() == currentVersion) {
+        Optional<MasterMetadata> metaOpt = apiClient.fetchMasterMetadata(currentVersion);
+        // Пустой Optional = shamela вернула 2xx с empty body = uptodate.
+        // Тот же исход и при non-empty JSON с version == currentVersion
+        if (metaOpt.isEmpty() || metaOpt.get().version() == currentVersion) {
             log.info("shamela master uptodate: version={}", currentVersion);
             return MasterSyncResult.unchanged(currentVersion);
         }
+        MasterMetadata meta = metaOpt.get();
         if (meta.patchUrl() == null || meta.patchUrl().isBlank()) {
             throw new ShamelaImportException(
                     "shamela master metadata вернула version=" + meta.version()

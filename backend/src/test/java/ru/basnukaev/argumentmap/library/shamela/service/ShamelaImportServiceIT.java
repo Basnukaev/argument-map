@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
+import java.util.Optional;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
@@ -131,7 +132,8 @@ class ShamelaImportServiceIT {
 
     @Test
     void syncMaster_skips_download_when_version_unchanged() {
-        when(apiClient.fetchMasterMetadata(0)).thenReturn(new MasterMetadata(null, 0));
+        when(apiClient.fetchMasterMetadata(0))
+                .thenReturn(Optional.of(new MasterMetadata(null, 0)));
 
         MasterSyncResult result = masterSyncService.syncMaster();
 
@@ -146,10 +148,27 @@ class ShamelaImportServiceIT {
     }
 
     @Test
+    void syncMaster_skips_download_when_empty_body_signals_uptodate() {
+        // Регрессия Сессии 39: shamela возвращает 2xx + пустое body как
+        // сигнал "uptodate". ShamelaApiClient.getJson() конвертирует в
+        // Optional.empty(), ShamelaMasterSyncService должен принять
+        // это за no-op (без exception, без download)
+        when(apiClient.fetchMasterMetadata(0)).thenReturn(Optional.empty());
+
+        MasterSyncResult result = masterSyncService.syncMaster();
+
+        assertThat(result.changed()).isFalse();
+        assertThat(result.previousVersion()).isZero();
+        assertThat(result.currentVersion()).isZero();
+        verify(apiClient, never()).downloadArchive(any(), any());
+        assertThat(syncStateDao.getMasterVersion()).isZero();
+    }
+
+    @Test
     void syncMaster_runs_full_pipeline_and_updates_state() throws IOException, SQLException {
         Path masterZip = createMasterFixtureZip(workspace.resolve("fixtures"));
         when(apiClient.fetchMasterMetadata(0))
-                .thenReturn(new MasterMetadata("https://example.invalid/master.zip", 1261));
+                .thenReturn(Optional.of(new MasterMetadata("https://example.invalid/master.zip", 1261)));
         when(apiClient.downloadArchive(any(), any()))
                 .thenAnswer(inv -> Files.copy(masterZip, ((Path) inv.getArgument(1)).resolve("master.zip")));
 
@@ -172,7 +191,8 @@ class ShamelaImportServiceIT {
 
     @Test
     void syncMaster_throws_when_patch_url_is_blank() {
-        when(apiClient.fetchMasterMetadata(0)).thenReturn(new MasterMetadata("", 1261));
+        when(apiClient.fetchMasterMetadata(0))
+                .thenReturn(Optional.of(new MasterMetadata("", 1261)));
 
         assertThatThrownBy(() -> masterSyncService.syncMaster())
                 .isInstanceOf(ShamelaImportException.class)
@@ -186,7 +206,7 @@ class ShamelaImportServiceIT {
         Path corrupt = workspace.resolve("corrupt.zip");
         Files.writeString(corrupt, "not-a-zip");
         when(apiClient.fetchMasterMetadata(0))
-                .thenReturn(new MasterMetadata("https://example.invalid/x.zip", 99));
+                .thenReturn(Optional.of(new MasterMetadata("https://example.invalid/x.zip", 99)));
         when(apiClient.downloadArchive(any(), any()))
                 .thenAnswer(inv -> Files.copy(corrupt, ((Path) inv.getArgument(1)).resolve("master.zip")));
 

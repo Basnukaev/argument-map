@@ -55,19 +55,20 @@ public class ShamelaApiClient {
         this.objectMapper = objectMapper;
     }
 
-    public MasterMetadata fetchMasterMetadata(int currentVersion) {
+    /**
+     * Запрашивает метаданные master-патча. shamela API возвращает 2xx с
+     * пустым body когда клиент уже на актуальной версии (conditional
+     * polling pattern - "ничего нового"). В этом случае возвращается
+     * {@link Optional#empty()}, и caller интерпретирует это как
+     * "uptodate, ничего не делать". Когда есть updates - возвращается
+     * {@link Optional#of(Object)} с непустым {@code patchUrl}.
+     */
+    public Optional<MasterMetadata> fetchMasterMetadata(int currentVersion) {
         URI uri = URI.create(String.format(
                 "https://%s/api/v1/patches/master?api_key=%s&version=%d",
                 props.metadataHost(), props.apiKey(), currentVersion));
         log.info("shamela master metadata: version={}", currentVersion);
-        // shamela API возвращает 2xx с пустым body когда version up-to-date
-        // (типичный contract для conditional polling - "ничего нового"
-        // означает пустой ответ, не отдельный 304 и не explicit JSON).
-        // Подделываем MasterMetadata с той же версией - вышестоящий код
-        // (ShamelaMasterSyncService) сравнивает meta.version() == currentVersion
-        // и принимает решение "uptodate, ничего не делать"
-        return getJson(uri, MasterMetadata.class)
-                .orElseGet(() -> new MasterMetadata(null, currentVersion));
+        return getJson(uri, MasterMetadata.class);
     }
 
     public BookMetadata fetchBookMetadata(long bookId, int majorRelease, int minorRelease) {
@@ -137,7 +138,9 @@ public class ShamelaApiClient {
                 throw new ShamelaApiException(
                         "shamela API вернула HTTP " + resp.statusCode() + " на " + maskApiKey(uri));
             }
-            if (resp.body() == null || resp.body().length == 0) {
+            // HttpResponse.BodyHandlers.ofByteArray() гарантирует non-null
+            // byte[] (на пустом body отдаёт new byte[0]) - спека JDK
+            if (resp.body().length == 0) {
                 return Optional.empty();
             }
             return Optional.of(objectMapper.readValue(resp.body(), type));
