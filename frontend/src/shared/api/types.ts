@@ -4,6 +4,38 @@
  */
 
 export interface paths {
+    "/api/v1/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAll"];
+        put: operations["putAll"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/preferences/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["putOne"];
+        post?: never;
+        delete: operations["delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/topics": {
         parameters: {
             query?: never;
@@ -558,7 +590,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete"];
+        delete: operations["delete_1"];
         options?: never;
         head?: never;
         patch: operations["update"];
@@ -574,7 +606,7 @@ export interface paths {
         get: operations["getOne"];
         put?: never;
         post?: never;
-        delete: operations["delete_1"];
+        delete: operations["delete_2"];
         options?: never;
         head?: never;
         patch: operations["update_1"];
@@ -590,7 +622,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_2"];
+        delete: operations["delete_3"];
         options?: never;
         head?: never;
         patch: operations["update_2"];
@@ -622,7 +654,7 @@ export interface paths {
         get: operations["getOne_1"];
         put?: never;
         post?: never;
-        delete: operations["delete_3"];
+        delete: operations["delete_4"];
         options?: never;
         head?: never;
         patch: operations["update_3"];
@@ -654,7 +686,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_4"];
+        delete: operations["delete_5"];
         options?: never;
         head?: never;
         patch: operations["update_4"];
@@ -670,7 +702,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_5"];
+        delete: operations["delete_6"];
         options?: never;
         head?: never;
         patch: operations["update_5"];
@@ -686,7 +718,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_6"];
+        delete: operations["delete_7"];
         options?: never;
         head?: never;
         patch: operations["update_6"];
@@ -702,7 +734,7 @@ export interface paths {
         get: operations["getOne_2"];
         put?: never;
         post?: never;
-        delete: operations["delete_7"];
+        delete: operations["delete_8"];
         options?: never;
         head?: never;
         patch?: never;
@@ -750,7 +782,7 @@ export interface paths {
         get: operations["getOne_3"];
         put?: never;
         post?: never;
-        delete: operations["delete_8"];
+        delete: operations["delete_9"];
         options?: never;
         head?: never;
         patch?: never;
@@ -910,7 +942,7 @@ export interface paths {
         get: operations["getOne_4"];
         put?: never;
         post?: never;
-        delete: operations["delete_9"];
+        delete: operations["delete_10"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1102,7 +1134,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_10"];
+        delete: operations["delete_11"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1128,6 +1160,9 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        SingleValueRequest: {
+            value?: unknown;
+        };
         CreateTopicRequest: {
             title: string;
             description?: string;
@@ -2169,6 +2204,116 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getAll: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    putAll: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    putOne: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SingleValueRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     list: {
         parameters: {
             query?: {
@@ -3422,7 +3567,7 @@ export interface operations {
             };
         };
     };
-    delete: {
+    delete_1: {
         parameters: {
             query?: never;
             header?: {
@@ -3498,7 +3643,7 @@ export interface operations {
             };
         };
     };
-    delete_1: {
+    delete_2: {
         parameters: {
             query: {
                 currentUserId: string;
@@ -3554,7 +3699,7 @@ export interface operations {
             };
         };
     };
-    delete_2: {
+    delete_3: {
         parameters: {
             query?: never;
             header?: {
@@ -3659,7 +3804,7 @@ export interface operations {
             };
         };
     };
-    delete_3: {
+    delete_4: {
         parameters: {
             query: {
                 currentUserId: string;
@@ -3746,7 +3891,7 @@ export interface operations {
             };
         };
     };
-    delete_4: {
+    delete_5: {
         parameters: {
             query?: never;
             header?: {
@@ -3800,7 +3945,7 @@ export interface operations {
             };
         };
     };
-    delete_5: {
+    delete_6: {
         parameters: {
             query?: never;
             header?: {
@@ -3852,7 +3997,7 @@ export interface operations {
             };
         };
     };
-    delete_6: {
+    delete_7: {
         parameters: {
             query: {
                 currentUserId: string;
@@ -3933,7 +4078,7 @@ export interface operations {
             };
         };
     };
-    delete_7: {
+    delete_8: {
         parameters: {
             query?: never;
             header?: {
@@ -4025,7 +4170,7 @@ export interface operations {
             };
         };
     };
-    delete_8: {
+    delete_9: {
         parameters: {
             query?: never;
             header?: never;
@@ -4278,7 +4423,7 @@ export interface operations {
             };
         };
     };
-    delete_9: {
+    delete_10: {
         parameters: {
             query?: never;
             header?: never;
@@ -4563,7 +4708,7 @@ export interface operations {
             };
         };
     };
-    delete_10: {
+    delete_11: {
         parameters: {
             query?: never;
             header?: never;

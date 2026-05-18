@@ -313,6 +313,19 @@ export async function apiPatchRaw<T>(
 }
 
 /**
+ * Сырой PUT для динамических путей. Тип ответа подставляется руками.
+ * Используется для user-preferences endpoints где payload содержит
+ * Map произвольных ключей либо конверт `{value: any}`.
+ */
+export async function apiPutRaw<T>(
+  path: string,
+  body: unknown,
+  options?: { signal?: AbortSignal },
+): Promise<T> {
+  return request<T>(path, { method: 'PUT', body, signal: options?.signal });
+}
+
+/**
  * Сырой POST для динамических путей (`/api/v1/nodes/${id}/sources` и т.п.).
  * Тип ответа подставляется руками: `apiPostRaw<NodeSourceResponse>(...)`.
  */
