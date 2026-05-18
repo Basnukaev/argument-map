@@ -429,6 +429,11 @@ export const DICTIONARY = {
     'node.citation_add_library': 'Привести источник',
     'node.citation_add_free': 'Свободный',
 
+    // inline citation [N] markers в body узла
+    'node.inline_citation.dead_marker_tooltip': 'Источник не найден',
+    'node.inline_citation.view_source': 'Открыть источник',
+    'node.inline_citation.reliability_label': 'Степень достоверности',
+
     // CitationPicker модалка
     'citation_picker.title_for': 'Привести источник для',
     'citation_picker.subtitle': 'Выберите книгу, найдите фрагмент, выделите курсором и нажмите «Привести»',
@@ -1301,6 +1306,10 @@ export const DICTIONARY = {
     'node.citation_detach_aria': 'فصل الاستناد',
     'node.citation_add_library': 'إرفاق مصدر',
     'node.citation_add_free': 'حر',
+
+    'node.inline_citation.dead_marker_tooltip': 'المصدر غير موجود',
+    'node.inline_citation.view_source': 'فتح المصدر',
+    'node.inline_citation.reliability_label': 'درجة الصحة',
 
     'citation_picker.title_for': 'إرفاق مصدر للعقدة',
     'citation_picker.subtitle': 'اختر الكتاب، ابحث عن المقطع، حدِّده بالمؤشر واضغط «إرفاق»',
