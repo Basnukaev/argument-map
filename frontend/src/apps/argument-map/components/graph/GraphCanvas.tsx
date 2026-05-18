@@ -26,6 +26,7 @@ import GraphPanels from '@/apps/argument-map/components/graph/GraphPanels';
 import FloatingActionBar from '@/apps/argument-map/components/graph/FloatingActionBar';
 import type { NodeStatus } from '@/shared/utils/designTokens';
 import { useGraphEscape } from '@/apps/argument-map/hooks/useGraphEscape';
+import { useGraphZOrder } from '@/apps/argument-map/hooks/useGraphZOrder';
 import { useHotkey } from '@/shared/hooks/useHotkey';
 import {
   getAllowedEdgeTypes,
@@ -34,7 +35,7 @@ import {
   NODE_TYPE_META,
 } from '@/apps/argument-map/utils/edgeRules';
 import { buildFlow, findFreePosition, sameIds } from '@/apps/argument-map/utils/graphPlacement';
-import { apiDeleteRaw, apiPatchRaw, apiPost, apiPostRaw, ApiError } from '@/shared/api/client';
+import { apiDeleteRaw, apiPatchRaw, apiPost, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useGraphSelectionStore } from '@/shared/stores/graphSelectionStore';
 import { useT } from '@/shared/i18n';
@@ -220,51 +221,20 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
   const [editTargetNodeId, setEditTargetNodeId] = useState<string | null>(null);
   const [editTargetEdgeId, setEditTargetEdgeId] = useState<string | null>(null);
 
-  // edges пока локальный z-order (не персистится на бэк, отдельный пункт
-  // backlog). Узлы - persistent через POST /z-order/{bring-to-front|send-to-back}
-  const edgeZRef = useRef({ max: 10, min: 0 });
-
-  // Node z-order: optimistic local update + POST на бэк, после success refetch.
-  // Сервер возвращает новый zIndex (max+1 либо min-1 от всех узлов темы),
-  // refetch синхронизирует значение - но optimistic дает мгновенный visual feedback
-  function bringNodeToFront(id: string) {
-    const optimisticZ = (lastNodesRef.current.reduce(
-      (acc, n) => Math.max(acc, n.zIndex ?? 0), 0,
-    )) + 1;
-    setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, zIndex: optimisticZ } : n)));
-    // apiPostRaw - параметризованный URL не совпадает с openapi paths типами
-    // (RF использует {id} как path-параметр в строке)
-    apiPostRaw(`/api/v1/nodes/${id}/z-order/bring-to-front`, {})
-      .then(() => onRefetch())
-      .catch((e: unknown) => {
-        const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
-        toast.error(`${t('graph.toast.update_failed')}: ${msg}`);
-        onRefetch();
-      });
-  }
-  function sendNodeToBack(id: string) {
-    const optimisticZ = (lastNodesRef.current.reduce(
-      (acc, n) => Math.min(acc, n.zIndex ?? 0), 0,
-    )) - 1;
-    setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, zIndex: optimisticZ } : n)));
-    apiPostRaw(`/api/v1/nodes/${id}/z-order/send-to-back`, {})
-      .then(() => onRefetch())
-      .catch((e: unknown) => {
-        const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
-        toast.error(`${t('graph.toast.update_failed')}: ${msg}`);
-        onRefetch();
-      });
-  }
-  function bringEdgeToFront(id: string) {
-    edgeZRef.current.max += 1;
-    const z = edgeZRef.current.max;
-    setEdges((eds) => eds.map((e) => (e.id === id ? { ...e, zIndex: z } : e)));
-  }
-  function sendEdgeToBack(id: string) {
-    edgeZRef.current.min -= 1;
-    const z = edgeZRef.current.min;
-    setEdges((eds) => eds.map((e) => (e.id === id ? { ...e, zIndex: z } : e)));
-  }
+  // Z-order операции вынесены в useGraphZOrder hook - persistent node z-order
+  // через POST /api/v1/nodes/{id}/z-order/..., локальный edge z-order через
+  // edgeZRef в hook'е. Optimistic update + refetch
+  const {
+    bringNodeToFront,
+    sendNodeToBack,
+    bringEdgeToFront,
+    sendEdgeToBack,
+  } = useGraphZOrder({
+    nodesRef: lastNodesRef,
+    setNodes,
+    setEdges,
+    onRefetch,
+  });
 
   const rawNodeDtos = useMemo(() => graph.nodes ?? [], [graph.nodes]);
 
