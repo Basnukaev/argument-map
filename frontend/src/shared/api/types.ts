@@ -100,6 +100,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sources/{sourceId}/grades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listGrades"];
+        put?: never;
+        post: operations["addGrade"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/questions": {
         parameters: {
             query?: never;
@@ -594,6 +610,22 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["update"];
+        trace?: never;
+    };
+    "/api/v1/sources/grades/{gradeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteGrade"];
+        options?: never;
+        head?: never;
+        patch: operations["updateGrade"];
         trace?: never;
     };
     "/api/v1/questions/{questionId}": {
@@ -1372,6 +1404,34 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
         };
+        CreateHadithGradeRequest: {
+            /** Format: uuid */
+            scholarId: string;
+            /** @enum {string} */
+            grade: "SAHIH" | "HASAN" | "DAIF" | "MAUDU";
+            gradeCitation?: string;
+            comment?: string;
+        };
+        HadithGradeResponse: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            sourceId?: string;
+            /** Format: uuid */
+            scholarId?: string;
+            scholarName?: string;
+            scholarFullName?: string;
+            /** Format: int32 */
+            scholarDeathYearHijri?: number;
+            /** @enum {string} */
+            grade?: "SAHIH" | "HASAN" | "DAIF" | "MAUDU";
+            gradeCitation?: string;
+            comment?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: uuid */
+            createdBy?: string;
+        };
         CreateQuestionRequest: {
             title: string;
             body?: string;
@@ -1900,6 +1960,12 @@ export interface components {
         };
         UpdateTopicMemberRequest: {
             role: string;
+        };
+        UpdateHadithGradeRequest: {
+            /** @enum {string} */
+            grade: "SAHIH" | "HASAN" | "DAIF" | "MAUDU";
+            gradeCitation?: string;
+            comment?: string;
         };
         UpdateQuestionRequest: {
             title?: string;
@@ -2503,6 +2569,57 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["SourceResponse"];
+                };
+            };
+        };
+    };
+    listGrades: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["HadithGradeResponse"][];
+                };
+            };
+        };
+    };
+    addGrade: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateHadithGradeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["HadithGradeResponse"];
                 };
             };
         };
@@ -3617,6 +3734,58 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["TopicMemberResponse"];
+                };
+            };
+        };
+    };
+    deleteGrade: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                gradeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateGrade: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                gradeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateHadithGradeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["HadithGradeResponse"];
                 };
             };
         };

@@ -2,6 +2,7 @@ export { Bdi } from './Bdi';
 export { CARD_SHELL } from './cardShell';
 export { Chip } from './Chip';
 export { Collapsible } from './Collapsible';
+export { HadithGradesSection } from './HadithGradesSection';
 export { FlexValue } from './FlexValue';
 export { HijriYear } from './HijriYear';
 export { Label } from './Label';
