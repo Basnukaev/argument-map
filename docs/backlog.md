@@ -452,6 +452,56 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       candidateId)` - один вход для default-switching. Reviewer round
       4 recommendation #2
 
+## Security backlog
+
+Cross-cutting security improvements flagged code review round 5. Не
+делаем в текущем этапе (scope-creep на handoff) - закрываем отдельным
+security-focused этапом
+
+- [ ] **Rate limiting на /auth/login + /auth/register** (Crit
+      Cross-cutting #1) - brute force защита. Сейчас оба endpoint'а
+      без лимита, attacker может попробовать миллион login attempts
+      без штрафа. Fix: bucket4j либо resilience4j-ratelimiter, 5
+      attempts/min per IP, lockout 15 min при exceedance. Configurable
+      через ConfigurationProperties (`auth.ratelimit.login.attempts-per-min`,
+      `auth.ratelimit.register.attempts-per-min`, `auth.ratelimit.lockout-minutes`).
+      IP read из X-Forwarded-For при наличии proxy (load balancer / CDN)
+      иначе RemoteAddr. Логирование при lockout для security audit.
+      Reviewer round 5 Crit Cross-cutting #1
+- [ ] **Actuator endpoints behind auth в prod** (Crit Cross-cutting #7) -
+      сейчас `/actuator/**` permitAll во всех profiles. Эндпоинты
+      circuit breakers / health details / info содержат версию backend,
+      DB connection state, registered beans - reconnaissance leak для
+      attacker. Liveness/readiness probes (`/actuator/health`,
+      `/actuator/info`) остаются public для load balancer. Fix: в prod
+      profile - basic auth (`spring.security.user.name/password` env),
+      либо restrict через network layer / API gateway (LB allows только
+      internal cidrs для actuator routes). Reviewer round 5 Crit
+      Cross-cutting #7
+- [ ] **Refresh token rotation** (Important Cross-cutting #4) - сейчас
+      refresh token reusable до expire (7 дней). Stolen refresh =
+      access на 7 дней без detection. Fix: single-use refresh - при
+      `/auth/refresh` выдавать новый refresh + invalidate старый. При
+      попытке использовать invalidated refresh - 401 + log security
+      event (signal что refresh утёк, force-logout user). Storage
+      выбор: `refresh_tokens` table с FK на users (cleanup expired
+      janitor) либо JWT blacklist (Redis с TTL=refreshTtl). Table
+      проще для нашего стэка (нет Redis). Migration `refresh_tokens(id
+      UUID PK, user_id FK, token_hash, issued_at, expires_at,
+      revoked_at)`. JwtService при validate сверяет с table. Reviewer
+      round 5 Important Cross-cutting #4
+
+- [ ] **Edge z-order persistence** - mirror Node.zIndex (миграция 40,
+      NodeContextMenu bringToFront/sendToBack). Сейчас edge z-order
+      ephemeral (`zRef` counter в GraphCanvas), теряется на refetch.
+      Pattern уже есть - apply к edges: миграция `edges.z_index INT
+      NOT NULL DEFAULT 0`, EdgeRepository.updateZIndex /
+      findMax/findMin, EdgeService.bringToFront/sendToBack с
+      assertCanWrite, REST endpoints `POST /edges/{id}/z-order/{bring-to-front,
+      send-to-back}`. Frontend buildFlow читает edge.zIndex, optimistic
+      update в context menu. Low priority - z-order на edges редко
+      важен пользователю. Reviewer round 5 Bonus #7
+
 ---
 
 ## Архитектурные решения для будущих этапов
