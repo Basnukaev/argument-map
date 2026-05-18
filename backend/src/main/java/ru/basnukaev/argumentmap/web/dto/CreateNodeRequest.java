@@ -9,17 +9,14 @@ import jakarta.validation.constraints.Size;
 import ru.basnukaev.argumentmap.domain.NodeType;
 
 /**
- * POST /api/v1/nodes. Bilingual поля (translation/translationLang/originalLang)
- * - опциональны. Если задан translation, translationLang обязателен
- * (валидация в NodeService).
+ * POST /api/v1/nodes. {@code originalLang} опционален - язык оригинала
+ * ('ar' | 'ru' | 'en'). Переводы добавляются отдельно через
+ * POST /api/v1/nodes/{id}/translations (миграция 45).
  */
 public record CreateNodeRequest(
         @NotNull UUID topicId,
         @NotNull NodeType nodeType,
         @NotBlank @Size(max = 10000) String content,
-        @Size(max = 10000) String translation,
-        @Pattern(regexp = "ru|en", message = "translationLang должен быть 'ru' либо 'en'")
-        String translationLang,
         @Pattern(regexp = "ar|ru|en", message = "originalLang должен быть 'ar', 'ru' либо 'en'")
         String originalLang
 ) {

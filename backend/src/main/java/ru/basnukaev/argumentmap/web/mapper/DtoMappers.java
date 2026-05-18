@@ -13,6 +13,7 @@ import ru.basnukaev.argumentmap.domain.CitationDetail;
 import ru.basnukaev.argumentmap.domain.Edge;
 import ru.basnukaev.argumentmap.domain.Node;
 import ru.basnukaev.argumentmap.domain.NodeSource;
+import ru.basnukaev.argumentmap.domain.NodeTranslation;
 import ru.basnukaev.argumentmap.domain.Revision;
 import ru.basnukaev.argumentmap.domain.Source;
 import ru.basnukaev.argumentmap.domain.Topic;
@@ -32,6 +33,7 @@ import ru.basnukaev.argumentmap.web.dto.LocationRef;
 import ru.basnukaev.argumentmap.web.dto.MuhaqqiqRef;
 import ru.basnukaev.argumentmap.web.dto.NodeResponse;
 import ru.basnukaev.argumentmap.web.dto.NodeSourceResponse;
+import ru.basnukaev.argumentmap.web.dto.NodeTranslationRef;
 import ru.basnukaev.argumentmap.web.dto.PdfRef;
 import ru.basnukaev.argumentmap.web.dto.PublicationPlaceRef;
 import ru.basnukaev.argumentmap.web.dto.PublisherRef;
@@ -81,22 +83,31 @@ public final class DtoMappers {
     /**
      * Mapper для одного узла без vote-данных. Используется когда vote-агрегация
      * не нужна (например пара legacy IT-кейсов через прямую реконструкцию).
-     * Vote-поля заполняются нулями, userVote = null, inlineCitations - пустой
-     * список. Если важна актуальная статистика - использовать перегрузку с
-     * VoteStats/userVote/inlineCitations.
+     * Vote-поля заполняются нулями, userVote = null, inlineCitations и
+     * translations - пустые списки. Если важна актуальная статистика -
+     * использовать перегрузку с VoteStats/userVote/citations/translations.
      */
     public static NodeResponse toResponse(Node node) {
-        return toResponse(node, VoteStats.EMPTY, null, List.of());
+        return toResponse(node, VoteStats.EMPTY, null, List.of(), List.of());
     }
 
     public static NodeResponse toResponse(Node node, VoteStats stats, Integer userVote) {
-        return toResponse(node, stats, userVote, List.of());
+        return toResponse(node, stats, userVote, List.of(), List.of());
     }
 
     public static NodeResponse toResponse(Node node, VoteStats stats, Integer userVote,
                                           List<InlineCitationRef> inlineCitations) {
+        return toResponse(node, stats, userVote, inlineCitations, List.of());
+    }
+
+    public static NodeResponse toResponse(Node node, VoteStats stats, Integer userVote,
+                                          List<InlineCitationRef> inlineCitations,
+                                          List<NodeTranslation> translations) {
         VoteStats s = stats == null ? VoteStats.EMPTY : stats;
         List<InlineCitationRef> citations = inlineCitations == null ? List.of() : inlineCitations;
+        List<NodeTranslationRef> translationRefs = translations == null
+                ? List.of()
+                : translations.stream().map(DtoMappers::toRef).toList();
         return new NodeResponse(
                 node.id(), node.topicId(), node.nodeType(), node.content(),
                 node.status(),
@@ -106,7 +117,14 @@ public final class DtoMappers {
                 s.upvotes(), s.downvotes(), s.score(),
                 userVote,
                 citations,
-                node.translation(), node.translationLang(), node.originalLang()
+                node.originalLang(),
+                translationRefs
+        );
+    }
+
+    public static NodeTranslationRef toRef(NodeTranslation t) {
+        return new NodeTranslationRef(
+                t.id(), t.translatorName(), t.language(), t.body(), t.isDefault()
         );
     }
 
@@ -128,7 +146,7 @@ public final class DtoMappers {
     }
 
     public static GraphResponse toResponse(GraphView graph) {
-        return toResponse(graph, Map.of(), Map.of(), Map.of());
+        return toResponse(graph, Map.of(), Map.of(), Map.of(), Map.of());
     }
 
     /**
@@ -140,7 +158,7 @@ public final class DtoMappers {
     public static GraphResponse toResponse(GraphView graph,
                                            Map<UUID, VoteStats> statsByNode,
                                            Map<UUID, Integer> userVotesByNode) {
-        return toResponse(graph, statsByNode, userVotesByNode, Map.of());
+        return toResponse(graph, statsByNode, userVotesByNode, Map.of(), Map.of());
     }
 
     /**
@@ -152,15 +170,30 @@ public final class DtoMappers {
                                            Map<UUID, VoteStats> statsByNode,
                                            Map<UUID, Integer> userVotesByNode,
                                            Map<UUID, List<InlineCitationRef>> citationsByNode) {
+        return toResponse(graph, statsByNode, userVotesByNode, citationsByNode, Map.of());
+    }
+
+    /**
+     * Полная перегрузка с translations. translationsByNode - bulk-загруженная
+     * map из {@link ru.basnukaev.argumentmap.repository.NodeTranslationRepository#findByNodeIds}.
+     * Узлы без переводов получают пустой список. Один SQL на весь граф - не N+1
+     */
+    public static GraphResponse toResponse(GraphView graph,
+                                           Map<UUID, VoteStats> statsByNode,
+                                           Map<UUID, Integer> userVotesByNode,
+                                           Map<UUID, List<InlineCitationRef>> citationsByNode,
+                                           Map<UUID, List<NodeTranslation>> translationsByNode) {
         Map<UUID, VoteStats> stats = statsByNode == null ? Map.of() : statsByNode;
         Map<UUID, Integer> userVotes = userVotesByNode == null ? Map.of() : userVotesByNode;
         Map<UUID, List<InlineCitationRef>> citations = citationsByNode == null ? Map.of() : citationsByNode;
+        Map<UUID, List<NodeTranslation>> translations = translationsByNode == null ? Map.of() : translationsByNode;
         List<NodeResponse> nodes = graph.nodes().stream()
                 .map(n -> toResponse(
                         n,
                         stats.getOrDefault(n.id(), VoteStats.EMPTY),
                         userVotes.get(n.id()),
-                        citations.getOrDefault(n.id(), List.of())
+                        citations.getOrDefault(n.id(), List.of()),
+                        translations.getOrDefault(n.id(), List.of())
                 ))
                 .toList();
         List<EdgeResponse> edges = graph.edges().stream().map(DtoMappers::toResponse).toList();

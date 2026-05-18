@@ -24,14 +24,13 @@ import ru.basnukaev.argumentmap.domain.NodeType;
  * граф). Mutating endpoints (POST /nodes, PATCH /nodes/{id}) - точечная
  * подгрузка для одного узла. Пустой список если у узла нет node_sources
  *
- * <p>Bilingual поля (миграция 44, backlog Bilingual карточки):
- * <ul>
- *   <li>{@code translation} - перевод (nullable). null = перевода нет</li>
- *   <li>{@code translationLang} - язык перевода: 'ru' | 'en' (null если
- *       translation null)</li>
- *   <li>{@code originalLang} - язык оригинала: 'ar' | 'ru' | 'en' (null =
- *       фронт определит сам через hasArabicScript)</li>
- * </ul>
+ * <p>{@code originalLang} (миграция 44) - язык оригинала: 'ar' | 'ru' | 'en'
+ * (null = фронт определит сам через hasArabicScript).
+ *
+ * <p>{@code translations} (миграция 45) - список переводов узла с attribution
+ * переводчика (Кулиев, Sahih International, Османов и т.д.). Bulk-loaded
+ * один SQL на весь граф на GET /topics/{id}/graph. Default-перевод первым,
+ * затем по created_at ASC. Пустой список если переводов нет.
  */
 public record NodeResponse(
         UUID id,
@@ -50,8 +49,7 @@ public record NodeResponse(
         int voteScore,
         Integer userVote,
         List<InlineCitationRef> inlineCitations,
-        String translation,
-        String translationLang,
-        String originalLang
+        String originalLang,
+        List<NodeTranslationRef> translations
 ) {
 }

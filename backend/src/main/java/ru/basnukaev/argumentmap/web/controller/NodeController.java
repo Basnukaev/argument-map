@@ -17,8 +17,10 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.domain.Node;
+import ru.basnukaev.argumentmap.domain.NodeTranslation;
 import ru.basnukaev.argumentmap.domain.VoteStats;
 import ru.basnukaev.argumentmap.repository.NodeSourceRepository;
+import ru.basnukaev.argumentmap.repository.NodeTranslationRepository;
 import ru.basnukaev.argumentmap.repository.NodeVoteRepository;
 import ru.basnukaev.argumentmap.service.NodeService;
 import ru.basnukaev.argumentmap.web.CurrentUser;
@@ -36,43 +38,39 @@ public class NodeController {
     private final NodeService nodeService;
     private final NodeVoteRepository nodeVoteRepository;
     private final NodeSourceRepository nodeSourceRepository;
+    private final NodeTranslationRepository nodeTranslationRepository;
 
     public NodeController(NodeService nodeService, NodeVoteRepository nodeVoteRepository,
-                          NodeSourceRepository nodeSourceRepository) {
+                          NodeSourceRepository nodeSourceRepository,
+                          NodeTranslationRepository nodeTranslationRepository) {
         this.nodeService = nodeService;
         this.nodeVoteRepository = nodeVoteRepository;
         this.nodeSourceRepository = nodeSourceRepository;
+        this.nodeTranslationRepository = nodeTranslationRepository;
     }
 
     @PostMapping
     public ResponseEntity<NodeResponse> create(@Valid @RequestBody CreateNodeRequest request,
                                                @CurrentUser UUID userId) {
         String role = SecurityContextUtils.currentRole();
-        // Пустая строка translation - трактуем как «нет перевода». Бэк
-        // упрощает: либо translation NOT NULL и не пустой, либо null.
-        String translation = isBlank(request.translation()) ? null : request.translation();
-        String translationLang = translation == null ? null : nullIfBlank(request.translationLang());
         String originalLang = nullIfBlank(request.originalLang());
 
         Node created = nodeService.createNode(
                 request.topicId(), request.nodeType(), request.content(),
-                translation, translationLang, originalLang,
-                userId, role
+                originalLang, userId, role
         );
-        // Только что созданный узел не имеет ни голосов ни node_sources -
-        // VoteStats.EMPTY, userVote=null, inlineCitations=[]
+        // Только что созданный узел не имеет ни голосов ни node_sources ни
+        // переводов - VoteStats.EMPTY, userVote=null, citations/translations=[]
         return ResponseEntity.created(URI.create("/api/v1/nodes/" + created.id()))
-                .body(DtoMappers.toResponse(created, VoteStats.EMPTY, null, List.of()));
+                .body(DtoMappers.toResponse(created, VoteStats.EMPTY, null, List.of(), List.of()));
     }
 
     /**
-     * PATCH принимает opt content и/или opt posX+posY и/или opt bilingual
-     * (translation/translationLang/originalLang). Если есть content -
-     * пишется revision. Если есть pos - меняются координаты без revision.
-     * Bilingual поля - в одном transaction'е с content, без revision (это
-     * metadata). Пустая строка translation = очистить (translationLang
-     * тоже очищается). Можно несколько действий сразу - применятся
-     * последовательно. Пустой запрос (без полей) - 400 validation.
+     * PATCH принимает opt content и/или opt posX+posY и/или opt originalLang.
+     * Если есть content - пишется revision. Если есть pos - меняются
+     * координаты без revision. originalLang - в одном transaction'е с
+     * content, без revision (это metadata). Можно несколько действий сразу.
+     * Пустой запрос (без полей) - 400 validation.
      */
     @PatchMapping("/{nodeId}")
     public NodeResponse update(@PathVariable UUID nodeId,
@@ -80,49 +78,34 @@ public class NodeController {
                                @CurrentUser UUID userId) {
         boolean hasContent = request.content() != null;
         boolean hasPosition = request.posX() != null && request.posY() != null;
-        boolean hasTranslation = request.translation() != null;
-        boolean hasTranslationLang = request.translationLang() != null;
         boolean hasOriginalLang = request.originalLang() != null;
-        if (!hasContent && !hasPosition && !hasTranslation && !hasTranslationLang && !hasOriginalLang) {
+        if (!hasContent && !hasPosition && !hasOriginalLang) {
             throw new IllegalArgumentException(
-                    "Хотя бы одно из полей (content, posX+posY, translation, translationLang, originalLang) должно быть указано"
+                    "Хотя бы одно из полей (content, posX+posY, originalLang) должно быть указано"
             );
         }
 
         String role = SecurityContextUtils.currentRole();
         Node node = null;
-        // Объединяем content + bilingual в один updateContent (записывает
-        // revision только для content, audit покрывает оба)
-        if (hasContent || hasTranslation || hasTranslationLang || hasOriginalLang) {
+        if (hasContent || hasOriginalLang) {
             Object contentBox = hasContent ? request.content() : NodeService.NoChange.INSTANCE;
-            Object translationBox = hasTranslation
-                    ? (request.translation().isEmpty() ? null : request.translation())
-                    : NodeService.NoChange.INSTANCE;
-            Object translationLangBox = hasTranslationLang
-                    ? (request.translationLang().isEmpty() ? null : request.translationLang())
-                    : NodeService.NoChange.INSTANCE;
-            // если translation очищается - lang тоже очищаем для консистентности
-            if (translationBox == null && translationLangBox instanceof NodeService.NoChange) {
-                translationLangBox = null;
-            }
             Object originalLangBox = hasOriginalLang
                     ? (request.originalLang().isEmpty() ? null : request.originalLang())
                     : NodeService.NoChange.INSTANCE;
-            node = nodeService.updateContent(nodeId, contentBox,
-                    translationBox, translationLangBox, originalLangBox,
-                    userId, role);
+            node = nodeService.updateContent(nodeId, contentBox, originalLangBox, userId, role);
         }
         if (hasPosition) {
             node = nodeService.updatePosition(nodeId, request.posX(), request.posY(), userId, role);
         }
-        // Vote статистика и inline citations подгружаются отдельно - PATCH не
-        // меняет ни голоса ни источники, но фронту удобно получить актуальное
-        // состояние карточки в одном ответе
+        // Vote статистика, inline citations и translations подгружаются отдельно
+        // - PATCH не меняет ни голоса ни источники ни переводы, но фронту удобно
+        // получить актуальное состояние карточки в одном ответе
         VoteStats stats = nodeVoteRepository.getStatsForNode(nodeId);
         Integer userVote = nodeVoteRepository.findByNodeAndUser(nodeId, userId)
                 .map(v -> v.weight()).orElse(null);
         List<InlineCitationRef> citations = nodeSourceRepository.findInlineCitationsForNode(nodeId);
-        return DtoMappers.toResponse(node, stats, userVote, citations);
+        List<NodeTranslation> translations = nodeTranslationRepository.findByNodeId(nodeId);
+        return DtoMappers.toResponse(node, stats, userVote, citations, translations);
     }
 
     /**
@@ -139,7 +122,8 @@ public class NodeController {
         Integer userVote = nodeVoteRepository.findByNodeAndUser(nodeId, userId)
                 .map(v -> v.weight()).orElse(null);
         List<InlineCitationRef> citations = nodeSourceRepository.findInlineCitationsForNode(nodeId);
-        return DtoMappers.toResponse(node, stats, userVote, citations);
+        List<NodeTranslation> translations = nodeTranslationRepository.findByNodeId(nodeId);
+        return DtoMappers.toResponse(node, stats, userVote, citations, translations);
     }
 
     /**
@@ -155,7 +139,8 @@ public class NodeController {
         Integer userVote = nodeVoteRepository.findByNodeAndUser(nodeId, userId)
                 .map(v -> v.weight()).orElse(null);
         List<InlineCitationRef> citations = nodeSourceRepository.findInlineCitationsForNode(nodeId);
-        return DtoMappers.toResponse(node, stats, userVote, citations);
+        List<NodeTranslation> translations = nodeTranslationRepository.findByNodeId(nodeId);
+        return DtoMappers.toResponse(node, stats, userVote, citations, translations);
     }
 
     @DeleteMapping("/{nodeId}")

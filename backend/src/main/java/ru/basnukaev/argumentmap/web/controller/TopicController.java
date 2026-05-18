@@ -16,9 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
+import ru.basnukaev.argumentmap.domain.NodeTranslation;
 import ru.basnukaev.argumentmap.domain.Topic;
 import ru.basnukaev.argumentmap.domain.VoteStats;
 import ru.basnukaev.argumentmap.repository.NodeSourceRepository;
+import ru.basnukaev.argumentmap.repository.NodeTranslationRepository;
 import ru.basnukaev.argumentmap.repository.NodeVoteRepository;
 import ru.basnukaev.argumentmap.repository.TopicWithCounts;
 import ru.basnukaev.argumentmap.service.GraphService;
@@ -47,16 +49,19 @@ public class TopicController {
     private final PermissionService permissionService;
     private final NodeVoteRepository nodeVoteRepository;
     private final NodeSourceRepository nodeSourceRepository;
+    private final NodeTranslationRepository nodeTranslationRepository;
 
     public TopicController(TopicService topicService, GraphService graphService,
                            PermissionService permissionService,
                            NodeVoteRepository nodeVoteRepository,
-                           NodeSourceRepository nodeSourceRepository) {
+                           NodeSourceRepository nodeSourceRepository,
+                           NodeTranslationRepository nodeTranslationRepository) {
         this.topicService = topicService;
         this.graphService = graphService;
         this.permissionService = permissionService;
         this.nodeVoteRepository = nodeVoteRepository;
         this.nodeSourceRepository = nodeSourceRepository;
+        this.nodeTranslationRepository = nodeTranslationRepository;
     }
 
     @PostMapping
@@ -125,7 +130,9 @@ public class TopicController {
         Map<UUID, Integer> userVotes = nodeVoteRepository.getUserVotesForNodes(nodeIds, userId);
         Map<UUID, List<InlineCitationRef>> citations =
                 nodeSourceRepository.findInlineCitationsForNodes(nodeIds);
-        return DtoMappers.toResponse(graph, stats, userVotes, citations);
+        Map<UUID, List<NodeTranslation>> translations =
+                nodeTranslationRepository.findByNodeIds(nodeIds);
+        return DtoMappers.toResponse(graph, stats, userVotes, citations, translations);
     }
 
     @PatchMapping("/{topicId}/visibility")
