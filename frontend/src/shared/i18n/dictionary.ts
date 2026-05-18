@@ -123,6 +123,34 @@ export const DICTIONARY = {
     'book.list.sort_title': 'По названию',
     'book.list.sort_type': 'По типу',
 
+    // library overview page (extends BookListPage с богатым обзором: hero,
+    // debounced search, visibility-чипы, authority-фильтр, sort, empty-state)
+    'library.overview.title': 'Библиотека',
+    'library.overview.description':
+      'Классические труды и пользовательские книги. Найдите источник, читайте PDF, ссылайтесь в аргументах',
+    'library.overview.total_books': '{count} книг доступно',
+    'library.overview.search_placeholder': 'Поиск по названию книги',
+    'library.overview.search_clear': 'Очистить поиск',
+    'library.overview.filter.all': 'Все',
+    'library.overview.filter.my': 'Мои',
+    'library.overview.filter.shared': 'Разделяемые',
+    'library.overview.filter.public': 'Публичные',
+    'library.overview.filter.authority': 'Автор',
+    'library.overview.filter.authority_placeholder': 'Все авторы',
+    'library.overview.filter.authority_clear': 'Сбросить автора',
+    'library.overview.sort.label': 'Сортировка',
+    'library.overview.sort.latest': 'Сначала новые',
+    'library.overview.sort.alphabetical': 'По алфавиту',
+    'library.overview.empty_state.title': 'Библиотека пуста',
+    'library.overview.empty_state.description':
+      'Импортируйте классические труды из Shamela или загрузите свой PDF чтобы начать ссылаться на источники в аргументах',
+    'library.overview.empty_state.cta': 'Импорт из Shamela',
+    'library.overview.card.pages_count': '{count} стр.',
+    'library.overview.card.visibility.private': 'Приватная',
+    'library.overview.card.visibility.shared': 'Разделяемая',
+    'library.overview.card.visibility.public': 'Публичная',
+    'library.overview.load_more': 'Показать ещё',
+
     // book visibility / members / permissions (22.c.f, ADR-043 Amendment).
     // Зеркало topic.visibility/members/permission - тот же RBAC паттерн
     // (PRIVATE/SHARED/PUBLIC + MEMBER/EDITOR роли), но другая семантика
@@ -1092,6 +1120,32 @@ export const DICTIONARY = {
     'book.list.sort_added': 'حسب الإضافة',
     'book.list.sort_title': 'حسب العنوان',
     'book.list.sort_type': 'حسب النوع',
+
+    'library.overview.title': 'المكتبة',
+    'library.overview.description':
+      'كتب كلاسيكية وكتب المستخدمين. ابحث عن مصدر، اقرأ PDF، استشهد به في الحجاج',
+    'library.overview.total_books': '{count} كتاب متاح',
+    'library.overview.search_placeholder': 'بحث بعنوان الكتاب',
+    'library.overview.search_clear': 'مسح البحث',
+    'library.overview.filter.all': 'الكل',
+    'library.overview.filter.my': 'كتبي',
+    'library.overview.filter.shared': 'المشتركة',
+    'library.overview.filter.public': 'العامة',
+    'library.overview.filter.authority': 'المؤلف',
+    'library.overview.filter.authority_placeholder': 'كل المؤلفين',
+    'library.overview.filter.authority_clear': 'إعادة تعيين المؤلف',
+    'library.overview.sort.label': 'الترتيب',
+    'library.overview.sort.latest': 'الأحدث أولاً',
+    'library.overview.sort.alphabetical': 'حسب الأبجدية',
+    'library.overview.empty_state.title': 'المكتبة فارغة',
+    'library.overview.empty_state.description':
+      'استورد كتبًا كلاسيكية من الشاملة أو حمّل PDF خاص بك لتبدأ بالاستشهاد بالمصادر في الحجج',
+    'library.overview.empty_state.cta': 'استيراد من الشاملة',
+    'library.overview.card.pages_count': '{count} صفحة',
+    'library.overview.card.visibility.private': 'خاصة',
+    'library.overview.card.visibility.shared': 'مشتركة',
+    'library.overview.card.visibility.public': 'عامة',
+    'library.overview.load_more': 'عرض المزيد',
 
     'book.visibility.private_label': 'خاص',
     'book.visibility.private_hint': 'أنت فقط ترى الكتاب',

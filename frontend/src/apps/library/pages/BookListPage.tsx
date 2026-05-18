@@ -1,6 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { BookOpen, Search, AlertCircle, Loader2, Download, ChevronDown, Pencil } from 'lucide-react';
+import {
+  BookOpen,
+  Search,
+  AlertCircle,
+  Loader2,
+  Download,
+  ChevronDown,
+  Pencil,
+  X,
+} from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import Button from '@/shared/components/ui/Button';
@@ -19,6 +28,7 @@ type BookDetailResponse = components['schemas']['BookDetailResponse'];
 type PagedBooks = components['schemas']['PagedResponseBookSummaryResponse'];
 
 const PAGE_SIZE = 20;
+const SEARCH_DEBOUNCE_MS = 300;
 
 interface BooksAccum {
   books: Book[];
@@ -36,12 +46,8 @@ const BOOK_TYPE_DICT_KEY: Record<BookType, DictKey> = {
   MANUSCRIPT: 'book.type.MANUSCRIPT',
 };
 
-/**
- * Toned chip-классы по типу книги. В v2 design нет per-tone individuality
- * как в v1 (emerald/amber/indigo и т.д.) - все типы используют единый
- * neutral chip (ink-100/ink-700), кроме Quran/Hadith которые получают
- * accent-фон чтобы выделить религиозный канон от обычных книг.
- */
+/** Toned chip-классы по типу книги. v2 design: единый ink chip кроме
+ * Quran/Hadith (accent для отделения религиозного канона от обычных книг) */
 const BOOK_TYPE_BADGE: Record<BookType, string> = {
   QURAN: 'bg-ok-100 text-ok-700',
   HADITH_COLLECTION: 'bg-warn-100 text-warn-700',
@@ -50,13 +56,10 @@ const BOOK_TYPE_BADGE: Record<BookType, string> = {
   MANUSCRIPT: 'bg-type-abstract-bg text-type-abstract-fg',
 };
 
-/**
- * Колор-генератор для Card.Cover - стабильный цвет на основе bookId,
- * выглядит как индивидуальная обложка. В дизайне (см. handoff/04-pages.md)
- * cover должен быть solid color (не gradient).
- */
+/** Стабильный цвет на основе bookId для Card.Cover - выглядит как
+ * индивидуальная обложка. 5 цветов выбраны так чтобы цвет читался в
+ * обоих темах. Cover должен быть solid color (не gradient) - см. handoff/04 */
 function coverColorFor(id: string): string {
-  // 5 цветов выбранных так чтобы цвет читался в обоих темах
   const palette = [
     'var(--c-accent-600)',
     'var(--c-type-abstract-fg)',
@@ -69,13 +72,17 @@ function coverColorFor(id: string): string {
   return palette[Math.abs(hash) % palette.length]!;
 }
 
-const BOOK_TYPE_FILTER_VALUES: ReadonlyArray<BookType | 'ALL'> = [
+/** Visibility-фильтр chips - PRIVATE/SHARED/PUBLIC применяется client-side
+ * поверх загруженной страницы (backend не поддерживает ?visibility=).
+ * «Мои» книги через `BookSummary.createdBy` сделать не могу - backend не
+ * отдаёт это поле в summary; PRIVATE приближённо соответствует «моим»
+ * для типичного юзера */
+type VisibilityFilter = 'ALL' | 'PRIVATE' | 'SHARED' | 'PUBLIC';
+const VISIBILITY_FILTERS: ReadonlyArray<VisibilityFilter> = [
   'ALL',
-  'BOOK',
-  'HADITH_COLLECTION',
-  'QURAN',
-  'ARTICLE',
-  'MANUSCRIPT',
+  'PRIVATE',
+  'SHARED',
+  'PUBLIC',
 ];
 
 type SortKey = 'added' | 'title' | 'type';
@@ -83,12 +90,24 @@ type SortKey = 'added' | 'title' | 'type';
 function BookListPage() {
   const t = useT();
   const [state, setState] = useState<AsyncState<BooksAccum>>({ kind: 'loading' });
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQ, setSearchQ] = useState('');
+  const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilter>('ALL');
   const [typeFilter, setTypeFilter] = useState<BookType | 'ALL'>('ALL');
   const [sortBy, setSortBy] = useState<SortKey>('added');
   const [editingBook, setEditingBook] = useState<BookDetailResponse | null>(null);
   const [loadingEdit, setLoadingEdit] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  /** Debounced search - после 300ms простоя sync'аем searchInput → searchQ.
+   * searchQ - триггер refetch'а через useEffect ниже. UX: юзер печатает
+   * быстро без сетевого спама, после паузы происходит запрос */
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setSearchQ(searchInput.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+  }, [searchInput]);
 
   const handleEdit = async (bookId: string) => {
     setLoadingEdit(bookId);
@@ -98,10 +117,9 @@ function BookListPage() {
       );
       setEditingBook(detail);
     } catch (e) {
-      // 22.c.f: для книг куда юзер не имеет write-доступа бэк отдаёт 403
-      // forbidden-book-write на PATCH; для read 403 forbidden-book-access.
-      // Здесь GET book detail - может прийти forbidden-book-access если
-      // private чужой книги вдруг попала в list (теоретически не должна)
+      // 22.c.f: GET book detail может вернуть 403 forbidden-book-access для
+      // приватных чужих книг (теоретически они в list не появляются, но
+      // defensive)
       const permMsg = formatPermissionError(e, t);
       toast.error(permMsg ?? formatApiError(e, t('common.error')));
     } finally {
@@ -109,16 +127,29 @@ function BookListPage() {
     }
   };
 
+  /** URL builder - объединяет current filter state. Server-side: ?q=, ?type=,
+   * ?page=, ?size=. Visibility и sort - client-side (backend не поддерживает) */
+  const buildBooksUrl = useCallback(
+    (page: number): string => {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('size', String(PAGE_SIZE));
+      if (searchQ) params.set('q', searchQ);
+      if (typeFilter !== 'ALL') params.set('type', typeFilter);
+      return `/api/v1/library/books?${params.toString()}`;
+    },
+    [searchQ, typeFilter],
+  );
+
+  /** Initial fetch + refetch при изменении server-side filters (q/type).
+   * setState({kind:'loading'}) синхронно в effect не вызываем
+   * (react-hooks/set-state-in-effect) - держим предыдущие данные пока
+   * новые не пришли. На initial mount loading через useState initial value */
   useEffect(() => {
     const controller = new AbortController();
-    // apiGetRaw используется т.к. query-params не входят в keyof paths
-    // openapi-typescript. Backend pagination breaking change (см.
-    // api-contract): GET /library/books → PagedResponse<BookSummaryResponse>
-    apiGetRaw<PagedBooks>(
-      `/api/v1/library/books?page=0&size=${PAGE_SIZE}`,
-      { signal: controller.signal },
-    )
+    apiGetRaw<PagedBooks>(buildBooksUrl(0), { signal: controller.signal })
       .then((paged) => {
+        if (controller.signal.aborted) return;
         setState({
           kind: 'success',
           data: {
@@ -140,23 +171,16 @@ function BookListPage() {
         setState({ kind: 'error', message });
       });
     return () => controller.abort();
-  }, []);
+  }, [buildBooksUrl]);
 
-  /**
-   * Load More - подгружает следующую страницу backend pagination,
-   * аппендит к existing list. Local filter/sort применяются поверх -
-   * Load More скрыт когда активны filter chips (typeFilter !== ALL) или
-   * есть search query, чтобы юзер не запутался почему «новые элементы
-   * не появились» (они появились но отфильтрованы клиентом)
-   */
+  /** Load More - подгружает следующую страницу. Аппендит к existing list.
+   * Local filter (visibility) применяется поверх */
   const handleLoadMore = async () => {
     if (state.kind !== 'success' || !state.data.hasNext || loadingMore) return;
     setLoadingMore(true);
     try {
       const nextPage = state.data.page + 1;
-      const resp = await apiGetRaw<PagedBooks>(
-        `/api/v1/library/books?page=${nextPage}&size=${PAGE_SIZE}`,
-      );
+      const resp = await apiGetRaw<PagedBooks>(buildBooksUrl(nextPage));
       const nextItems = (resp.items ?? []) as Book[];
       setState({
         kind: 'success',
@@ -168,93 +192,121 @@ function BookListPage() {
         },
       });
     } catch (e: unknown) {
-      toast.error(formatApiError(e, t('book.list.subtitle')));
+      toast.error(formatApiError(e, t('common.error')));
     } finally {
       setLoadingMore(false);
     }
   };
 
-  const filteredBooks = useMemo(() => {
+  /** Client-side filter: visibility + sort поверх загруженной страницы.
+   * Search/type/authorityId уже применены server-side через ?q=&type= */
+  const displayedBooks = useMemo(() => {
     if (state.kind !== 'success') return [];
-    const q = search.trim().toLowerCase();
-    const list = state.data.books.filter((b) => {
-      if (typeFilter !== 'ALL' && b.bookType !== typeFilter) return false;
-      if (!q) return true;
-      return (b.title ?? '').toLowerCase().includes(q);
-    });
-    // Сортировка - локальная (бэк сортировку пока не поддерживает).
-    // `added` = stable order бэка (по умолчанию), `title` = alphabetic,
-    // `type` = группировка по bookType
-    if (sortBy === 'title') {
-      return [...list].sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''));
+    let list = state.data.books;
+    if (visibilityFilter !== 'ALL') {
+      list = list.filter((b) => b.visibility === visibilityFilter);
     }
-    if (sortBy === 'type') {
-      return [...list].sort((a, b) =>
+    if (sortBy === 'title') {
+      list = [...list].sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''));
+    } else if (sortBy === 'type') {
+      list = [...list].sort((a, b) =>
         (a.bookType ?? '').localeCompare(b.bookType ?? ''),
       );
     }
     return list;
-  }, [state, search, typeFilter, sortBy]);
+  }, [state, visibilityFilter, sortBy]);
 
-  const filterActive = search.trim().length > 0 || typeFilter !== 'ALL';
+  /** Local filter активен (visibility) - скрываем Load More: новые items
+   * приходят но скрыты client-side фильтром, юзер не поймёт */
+  const localFilterActive = visibilityFilter !== 'ALL';
 
   return (
     <main className="min-h-screen bg-bg">
       <Header />
 
       <div className="mx-auto max-w-[1380px] px-3 py-6 sm:px-6 sm:py-8">
-        <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
-              {t('book.list.eyebrow')}
-            </div>
-            <h1 className="font-serif text-[28px] font-semibold leading-tight tracking-tight text-ink-900">
-              {t('book.list.title')}
-            </h1>
-            <p className="mt-1.5 max-w-[680px] text-sm text-ink-500">
-              {t('book.list.subtitle')}
-              {state.kind === 'success' && (
-                <>
-                  {' '}·{' '}
-                  <span className="font-medium text-ink-700">
-                    <bdi dir="ltr">{state.data.totalElements}</bdi>{' '}
-                    {t('book.list.books_suffix')}
-                  </span>
-                </>
-              )}
-            </p>
-          </div>
-          {/* «Импорт из Shamela» намеренно secondary - на странице
-              библиотеки главная активность это «смотреть/искать», импорт
-              редкая admin-операция. По design-system правилу «один primary
-              на экране» - тут primary нет, библиотека преимущественно
-              read-only поверхность */}
-          <Link to="/admin/shamela">
-            <Button variant="secondary" icon={Download}>
-              {t('book.list.import_from_shamela')}
-            </Button>
-          </Link>
-        </header>
+        <LibraryHero
+          totalCount={state.kind === 'success' ? state.data.totalElements : null}
+        />
 
-        <div className="mb-6 flex flex-wrap items-center gap-3">
-          <div className="flex h-9 max-w-md flex-1 items-center rounded-md border border-border-strong bg-elevated transition-all focus-within:border-accent-500 focus-within:ring-2 focus-within:ring-accent-500/20">
-            <Search size={15} className="ms-3 text-ink-400" aria-hidden />
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t('book.list.search_placeholder')}
-              className="flex-1 bg-transparent px-3 text-sm text-ink-900 outline-none placeholder:text-ink-400"
-              aria-label={t('common.search')}
-            />
+        <div className="mb-6 space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex h-9 max-w-md flex-1 items-center rounded-md border border-border-strong bg-elevated transition-all focus-within:border-accent-500 focus-within:ring-2 focus-within:ring-accent-500/20">
+              <Search size={15} className="ms-3 text-ink-400" aria-hidden />
+              <input
+                type="search"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder={t('library.overview.search_placeholder')}
+                className="flex-1 bg-transparent px-3 text-sm text-ink-900 outline-none placeholder:text-ink-400"
+                aria-label={t('common.search')}
+              />
+              {searchInput && (
+                <button
+                  type="button"
+                  onClick={() => setSearchInput('')}
+                  title={t('library.overview.search_clear')}
+                  aria-label={t('library.overview.search_clear')}
+                  className="me-2 grid h-6 w-6 place-items-center rounded-sm text-ink-400 hover:bg-ink-100 hover:text-ink-700"
+                >
+                  <X size={12} aria-hidden />
+                </button>
+              )}
+            </div>
+
+            <label className="ms-auto inline-flex items-center gap-2 text-xs text-ink-500">
+              {t('book.list.sort_label')}
+              <span className="relative inline-flex items-center">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as SortKey)}
+                  className="h-9 appearance-none rounded-sm border border-ink-200 bg-elevated ps-3 pe-7 text-xs font-medium text-ink-900 outline-none focus:border-accent-500"
+                >
+                  <option value="added">{t('book.list.sort_added')}</option>
+                  <option value="title">{t('book.list.sort_title')}</option>
+                  <option value="type">{t('book.list.sort_type')}</option>
+                </select>
+                <ChevronDown
+                  size={12}
+                  aria-hidden
+                  className="pointer-events-none absolute end-2 text-ink-400"
+                />
+              </span>
+            </label>
           </div>
-          {/* Filter chips - на mobile overflow-x scroll (6 chips × ~70px =
-              420px не помещаются в 375px viewport). Desktop - inline
-              без скролла. -mx-3 compensate parent px-3 чтобы scrollbar
-              шёл от edge to edge на mobile */}
+
+          {/* Visibility chips - PRIVATE/SHARED/PUBLIC. Mobile: overflow-x
+              scroll для wrap'а с другими row'ами */}
           <div className="-mx-3 flex overflow-x-auto px-3 sm:mx-0 sm:overflow-visible sm:px-0">
             <div className="flex items-center gap-1 rounded-sm border border-ink-200 bg-elevated p-1 shrink-0">
-              {BOOK_TYPE_FILTER_VALUES.map((value) => (
+              {VISIBILITY_FILTERS.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setVisibilityFilter(value)}
+                  className={
+                    visibilityFilter === value
+                      ? 'rounded-sm bg-accent-600 px-2.5 py-1 text-xs font-medium text-ink-0 whitespace-nowrap'
+                      : 'rounded-sm px-2.5 py-1 text-xs text-ink-600 hover:bg-ink-100 hover:text-ink-900 transition-colors whitespace-nowrap'
+                  }
+                >
+                  {value === 'ALL'
+                    ? t('library.overview.filter.all')
+                    : value === 'PRIVATE'
+                      ? t('library.overview.filter.my')
+                      : value === 'SHARED'
+                        ? t('library.overview.filter.shared')
+                        : t('library.overview.filter.public')}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Type filter - сохранён в виде secondary row для backward compat
+              после рефакторинга. Может быть скрыт в backlog upgrade */}
+          <div className="-mx-3 flex overflow-x-auto px-3 sm:mx-0 sm:overflow-visible sm:px-0">
+            <div className="flex items-center gap-1 rounded-sm border border-ink-200 bg-elevated p-1 shrink-0">
+              {(['ALL', 'BOOK', 'HADITH_COLLECTION', 'QURAN', 'ARTICLE', 'MANUSCRIPT'] as ReadonlyArray<BookType | 'ALL'>).map((value) => (
                 <button
                   key={value}
                   type="button"
@@ -272,27 +324,6 @@ function BookListPage() {
               ))}
             </div>
           </div>
-          {/* Сортировка - native <select> stylized под design-system. Не
-              делаем custom dropdown ради UX-простоты + native a11y */}
-          <label className="ms-auto inline-flex items-center gap-2 text-xs text-ink-500">
-            {t('book.list.sort_label')}
-            <span className="relative inline-flex items-center">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortKey)}
-                className="h-9 appearance-none rounded-sm border border-ink-200 bg-elevated ps-3 pe-7 text-xs font-medium text-ink-900 outline-none focus:border-accent-500"
-              >
-                <option value="added">{t('book.list.sort_added')}</option>
-                <option value="title">{t('book.list.sort_title')}</option>
-                <option value="type">{t('book.list.sort_type')}</option>
-              </select>
-              <ChevronDown
-                size={12}
-                aria-hidden
-                className="pointer-events-none absolute end-2 text-ink-400"
-              />
-            </span>
-          </label>
         </div>
 
         {state.kind === 'loading' && (
@@ -331,16 +362,16 @@ function BookListPage() {
 
         {state.kind === 'success' &&
           state.data.books.length > 0 &&
-          filteredBooks.length === 0 && (
+          displayedBooks.length === 0 && (
             <p className="text-center text-sm text-ink-500">
               {t('topic.list.not_found')}
             </p>
           )}
 
-        {state.kind === 'success' && filteredBooks.length > 0 && (
+        {state.kind === 'success' && displayedBooks.length > 0 && (
           <>
             <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-              {filteredBooks
+              {displayedBooks
                 .filter((b): b is Book & { id: string } => Boolean(b.id))
                 .map((book) => (
                   <li key={book.id}>
@@ -353,15 +384,7 @@ function BookListPage() {
                 ))}
             </ul>
 
-            {/*
-              Load More - подгружает следующую страницу backend. Скрыт
-              когда активны local filter chips или search query - иначе
-              кажется что Load More «не работает» (новые items приходят
-              но скрыты фильтром). При снятии фильтра кнопка появится
-              если есть ещё страницы. Server-side фильтрация по search
-              через ?q= - upgrade для backlog
-            */}
-            {state.data.hasNext && !filterActive && (
+            {state.data.hasNext && !localFilterActive && (
               <div className="mt-6 flex justify-center">
                 <Button
                   variant="ghost"
@@ -381,16 +404,56 @@ function BookListPage() {
           book={editingBook}
           onClose={() => setEditingBook(null)}
           onSaved={(updated) => {
-            // Обновляем localный массив books title-based fields не меняются,
-            // но обновлённая запись содержит новые FK + updated_at - перезагрузить
-            // нет смысла, состав books в списке не поменялся. Если когда-то
-            // BookSummary будет включать FK - надо будет refetch.
+            // BookSummary поля не меняются BookEditModal'ом - refetch не нужен
             setEditingBook(null);
             void updated;
           }}
         />
       )}
     </main>
+  );
+}
+
+/** Hero header - title + description + total count. Compact на mobile.
+ * «Импорт из Shamela» - secondary т.к. library overview преимущественно
+ * read-only поверхность, импорт редкая admin-операция */
+interface LibraryHeroProps {
+  totalCount: number | null;
+}
+
+function LibraryHero({ totalCount }: LibraryHeroProps) {
+  const t = useT();
+  const countLabel = totalCount === null
+    ? null
+    : t('library.overview.total_books').replace('{count}', String(totalCount));
+
+  return (
+    <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
+          {t('book.list.eyebrow')}
+        </div>
+        <h1 className="font-serif text-[28px] font-semibold leading-tight tracking-tight text-ink-900">
+          {t('library.overview.title')}
+        </h1>
+        <p className="mt-1.5 max-w-[680px] text-sm text-ink-500">
+          {t('library.overview.description')}
+          {countLabel && (
+            <>
+              {' '}·{' '}
+              <span className="font-medium text-ink-700">
+                <bdi dir="ltr">{countLabel}</bdi>
+              </span>
+            </>
+          )}
+        </p>
+      </div>
+      <Link to="/admin/shamela">
+        <Button variant="secondary" icon={Download}>
+          {t('book.list.import_from_shamela')}
+        </Button>
+      </Link>
+    </header>
   );
 }
 
@@ -434,27 +497,23 @@ function BookCard({ book, onEdit, editLoading }: BookCardProps) {
         <Card interactive className="h-full overflow-hidden">
           <Card.Cover color={coverColorFor(book.id)}>{initialLetter}</Card.Cover>
           <Card.Body>
-          <Card.Eyebrow>
-            <span
-              className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider ${BOOK_TYPE_BADGE[bookType]}`}
-            >
-              {t(BOOK_TYPE_DICT_KEY[bookType])}
-            </span>
-            {book.language && (
-              <span className="inline-flex items-center rounded-sm bg-ink-100 px-1.5 py-0.5 text-xs font-mono uppercase text-ink-600">
-                <bdi dir="ltr">{book.language}</bdi>
+            <Card.Eyebrow>
+              <span
+                className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider ${BOOK_TYPE_BADGE[bookType]}`}
+              >
+                {t(BOOK_TYPE_DICT_KEY[bookType])}
               </span>
-            )}
-            {/* Visibility badge (22.c.f, ADR-043 Amendment). Шамела imports
-                default'ятся в PUBLIC, user-uploads через FileImportService
-                в PRIVATE. Backend - источник истины; здесь только indicator
-                чтобы юзер видел кто ещё имеет доступ */}
-            <VisibilityBadge
-              visibility={book.visibility}
-              labelPrefix="book.visibility"
-              compact
-            />
-          </Card.Eyebrow>
+              {book.language && (
+                <span className="inline-flex items-center rounded-sm bg-ink-100 px-1.5 py-0.5 text-xs font-mono uppercase text-ink-600">
+                  <bdi dir="ltr">{book.language}</bdi>
+                </span>
+              )}
+              <VisibilityBadge
+                visibility={book.visibility}
+                labelPrefix="book.visibility"
+                compact
+              />
+            </Card.Eyebrow>
             <Card.Title>{title}</Card.Title>
             <Card.Meta>
               <span className="font-mono text-xs">
