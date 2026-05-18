@@ -26,6 +26,22 @@ auth:
     secret: ${AUTH_JWT_SECRET:dev-only-do-not-use-in-prod-at-least-256-bits-required-for-hs256-min-32-chars}
     access-token-ttl-minutes: ${AUTH_ACCESS_TTL_MINUTES:15}
     refresh-token-ttl-days: ${AUTH_REFRESH_TTL_DAYS:7}
+  # Rate limit для auth endpoints (ADR-046, Security backlog Crit #1).
+  # Sliding-window 1 минута per IP, lockout при превышении. По умолчанию
+  # выключен - dev / test / local нормально работают без настройки. В
+  # prod включается через AUTH_RATE_LIMIT_ENABLED=true. Whitelist
+  # localhost для CI/smoke.
+  rate-limit:
+    enabled: ${AUTH_RATE_LIMIT_ENABLED:false}
+    # login дороже (bcrypt ~100ms) но всё ещё brute-force-able
+    login-attempts-per-minute: ${AUTH_RATE_LIMIT_LOGIN:5}
+    # register создаёт row в users - агрессивнее лимит против spam
+    register-attempts-per-minute: ${AUTH_RATE_LIMIT_REGISTER:3}
+    # OWASP baseline для brute-force advisory
+    lockout-duration: ${AUTH_RATE_LIMIT_LOCKOUT:PT15M}
+    whitelisted-ips:
+      - 127.0.0.1
+      - "::1"
 
 app:
   cors:
