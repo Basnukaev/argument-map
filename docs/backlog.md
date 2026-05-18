@@ -190,10 +190,17 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       тогглы tashkeel/транслит, theme. Persist на бэке через
       `user_preferences` (миграция 42) + localStorage cache для FOUC.
       Drag-приоритет источников остался в backlog (отдельная work)
-- [ ] **Onboarding** - 4-шаговый чеклист для новой темы
-      («создай корневой вопрос», «добавь тезис-ответ» и т.д.) +
-      hint-указатели на canvas _(OnboardingChecklist,
-      OnboardingHint)_
+- [x] **Onboarding** - закрыто 2026-05-18. Floating widget bottom-end
+      (320px) с 4-шаговым чеклистом: `create_topic`, `add_root_question`,
+      `add_claim_node`, `attach_source`. Detection через single fetch
+      (GET /topics + GET /topics/{id}/graph для первой owned темы).
+      Steps clickable - navigate на relevant page. Collapsible mini
+      state, dismiss X с persist в localStorage `onboarding_dismissed`.
+      Auto-dismiss + celebration toast при completed=4. 18 i18n keys
+      `onboarding.*` (RU+AR). Tests +11 (7 hook + 4 component).
+      Отложено: hint-указатели на canvas (`OnboardingHint`) с
+      bouncing arrow icon для active step - сложность low value,
+      MVP без них
 - [ ] **Topic settings drawer** - 480px drawer над затемнённым
       canvas: title / desc, корневой вопрос (lock), радио
       Private / Shared / Public, метаданные, danger zone

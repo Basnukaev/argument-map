@@ -11,6 +11,81 @@
 
 ---
 
+## 2026-05-18 - Onboarding checklist (backlog item)
+
+Закрыт backlog «Onboarding» - 4-шаговый floating widget для новых
+users. Per-device persist через localStorage без бэка
+(`onboarding_dismissed`) - backend whitelist preference keys не
+расширяем в MVP
+
+**Frontend (3 коммита):**
+- `useOnboardingProgress` hook (`shared/hooks/`) - state computation
+  через single fetch на mount: GET `/topics?page=0&size=20` + filter
+  по `createdBy === user.id` для первой owned темы, потом GET
+  `/topics/{id}/graph` чтобы посмотреть nodes (CLAIM detection) +
+  `inlineCitations` (source attached detection). 4 step ids:
+  `create_topic`, `add_root_question`, `add_claim_node`, `attach_source`.
+  Возвращает `{ steps, completed, total, isVisible, firstTopicId, dismiss }`.
+  Tests +7 (anonymous, no topics, all done, partial, foreign topic,
+  dismiss, persisted dismissed)
+- `OnboardingChecklist.tsx` (`shared/components/onboarding/`) -
+  floating card 320px `bottom-4 end-4` (RTL logical), header + 4
+  steps list + progress bar. Step row clickable navigate на
+  `/topics/new` (create_topic) либо `/topics/{firstTopicId}` (claim/
+  source). `add_root_question` - non-clickable hint, появляется
+  автоматически при topic create. Collapsible mini-state (counter
+  «3/4» + expand chevron). Auto-dismiss при completed=4 с celebration
+  toast + 3 sec delay. Tests +4 (anonymous render, user без тем,
+  dismiss action + localStorage, all 4 done + progressbar a11y)
+- App.tsx mount - render один раз рядом с CommandPalette/
+  SourceDetailPanel/Toaster (НЕ внутри Routes - widget переживает
+  навигацию между страницами)
+- i18n RU+AR: 18 ключей `onboarding.*` (title, subtitle, dismiss/
+  minimize/expand, progress placeholder `{completed} из {total}`,
+  4×label + 3×action + 1×hint, completed_toast, aria_widget)
+
+**Verify:**
+- `npm run lint` - 0 errors (3 warnings - unrelated pre-existing
+  react-refresh про co-exports)
+- `npx tsc --noEmit -p tsconfig.app.json` - clean
+- `npm run test:run` - 422 passing (411 baseline + 11 новых)
+- `npm run build` - 6.84s clean
+- Playwright smoke (headless WSL2): login fresh user → widget
+  visible bottom-end с «0 из 4» → click step 1 → navigate /topics/new
+  → dismiss X → widget скрыт, localStorage `onboarding_dismissed=1`
+
+**Что не сделано (отложено в backlog):**
+- `OnboardingHint` - bouncing arrow pointer на canvas «+» button
+  для active `add_claim_node` step. Сложность low value, MVP без
+  hints - сами labels достаточно clear
+- Per-step events refresh - сейчас widget обновляется только при
+  re-mount (route change). Добавить broadcast event listener для
+  refetch при mutation (create_topic, add_node, attach_source) -
+  upgrade для следующей сессии если станет UX critical
+- Backend persistence - сейчас per-device через localStorage.
+  Если user пользуется multiple devices - dismissed на одном не
+  sync на другой. Можно расширить preference whitelist на
+  `onboardingDismissed` если станет важно
+
+**Что user может проверить руками:**
+
+1. Открыть `/login`, залогиниться как fresh user (нет тем)
+2. Видеть floating widget в правом-нижнем углу `bottom-4 end-4`
+   с header «Начни работу» + 4 шагами, первый highlighted
+3. Кликнуть «Создай первую тему» - перейти на `/topics/new`
+4. Создать тему - вернуться на `/topics` - widget показывает
+   2 из 4 (steps 1+2 completed, strikethrough)
+5. Открыть тему - добавить CLAIM узел - вернуться на `/topics` -
+   step 3 done
+6. Добавить inline citation `[1]` к node + привязать source -
+   step 4 done, появляется toast «Отлично! Все шаги пройдены»,
+   через 3 сек widget исчезает
+7. Свернуть widget через chevron ↓ - остаётся mini-counter
+8. Dismiss X - widget пропадает permanently
+   (`localStorage.onboarding_dismissed=1`)
+
+---
+
 ## 2026-05-18 - SourceDetailPanel (backlog item)
 
 Закрыт backlog «Source detail panel» - параллельная боковая панель
