@@ -19,8 +19,11 @@ import ru.basnukaev.argumentmap.domain.NodeType;
 @Repository
 public class NodeRepository {
 
+    // translation / translation_lang / original_lang добавлены миграцией 44
+    // (bilingual карточки). Все три nullable - см. Node JavaDoc.
     private static final String COLUMNS =
-            "id, topic_id, node_type, content, status, pos_x, pos_y, z_index, created_by, created_at, updated_at";
+            "id, topic_id, node_type, content, status, pos_x, pos_y, z_index, created_by, "
+                    + "created_at, updated_at, translation, translation_lang, original_lang";
 
     private static final RowMapper<Node> ROW_MAPPER = (rs, rn) -> new Node(
             rs.getObject("id", UUID.class),
@@ -33,7 +36,10 @@ public class NodeRepository {
             rs.getInt("z_index"),
             rs.getObject("created_by", UUID.class),
             instant(rs, "created_at"),
-            instant(rs, "updated_at")
+            instant(rs, "updated_at"),
+            rs.getString("translation"),
+            rs.getString("translation_lang"),
+            rs.getString("original_lang")
     );
 
     private final JdbcTemplate jdbcTemplate;
@@ -44,7 +50,7 @@ public class NodeRepository {
 
     public Node save(Node node) {
         jdbcTemplate.update(
-                "INSERT INTO nodes (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO nodes (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 node.id(),
                 node.topicId(),
                 node.nodeType().name(),
@@ -55,7 +61,10 @@ public class NodeRepository {
                 node.zIndex(),
                 node.createdBy(),
                 odt(node.createdAt()),
-                odt(node.updatedAt())
+                odt(node.updatedAt()),
+                node.translation(),
+                node.translationLang(),
+                node.originalLang()
         );
         return node;
     }
@@ -78,10 +87,15 @@ public class NodeRepository {
 
     public void update(Node node) {
         jdbcTemplate.update(
-                "UPDATE nodes SET content = ?, status = ?, updated_at = ? WHERE id = ?",
+                "UPDATE nodes SET content = ?, status = ?, updated_at = ?, "
+                        + "translation = ?, translation_lang = ?, original_lang = ? "
+                        + "WHERE id = ?",
                 node.content(),
                 node.status().name(),
                 odt(node.updatedAt()),
+                node.translation(),
+                node.translationLang(),
+                node.originalLang(),
                 node.id()
         );
     }

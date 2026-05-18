@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Bilingual карточки узлов. Узел может иметь оригинал (content) +
+        перевод (translation) с явным указанием языков:
+
+          - translation: текст перевода (nullable). null = перевода нет
+          - translation_lang: 'ru' | 'en' (язык перевода). NOT NULL когда
+            translation NOT NULL - валидируется в NodeService
+          - original_lang: 'ar' | 'ru' | 'en' (язык оригинала). nullable
+            (если null - фронт авто-определяет по hasArabicScript). Чтобы
+            редактор мог явно сказать "это арабский" даже для текста
+            который не distinguishable алгоритмически
+
+        MVP: один перевод на узел. Multi-translation (M:N table) - в
+        backlog, если возникнет use-case разных переводов одного аята.
+    -->
+    <changeSet id="20260518-44-node-translation" author="Abdula Basnukaev">
+        <comment>Добавляем translation / translation_lang / original_lang в nodes</comment>
+        <sql>
+            ALTER TABLE nodes ADD COLUMN translation text NULL;
+            ALTER TABLE nodes ADD COLUMN translation_lang varchar(5) NULL
+                CHECK (translation_lang IN ('ru', 'en'));
+            ALTER TABLE nodes ADD COLUMN original_lang varchar(5) NULL
+                CHECK (original_lang IN ('ar', 'ru', 'en'));
+        </sql>
+        <rollback>
+            <sql>
+                ALTER TABLE nodes DROP COLUMN original_lang;
+                ALTER TABLE nodes DROP COLUMN translation_lang;
+                ALTER TABLE nodes DROP COLUMN translation;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

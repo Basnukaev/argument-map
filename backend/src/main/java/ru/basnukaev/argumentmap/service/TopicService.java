@@ -80,7 +80,8 @@ public class TopicService {
                 UUID.randomUUID(), topic.id(), NodeType.QUESTION,
                 rootQuestionContent, NodeStatus.UNVERIFIED,
                 null, null, 0,
-                userId, now, now
+                userId, now, now,
+                null, null, null
         );
         nodeRepository.save(rootQuestion);
 

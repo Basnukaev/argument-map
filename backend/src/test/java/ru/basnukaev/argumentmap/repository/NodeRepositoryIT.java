@@ -58,7 +58,8 @@ class NodeRepositoryIT {
                 UUID.randomUUID(), topicId, NodeType.CLAIM,
                 "Мавлид допустим", NodeStatus.STANDING,
                 null, null, 0,
-                userId, now, now
+                userId, now, now,
+                null, null, null
         );
 
         nodeRepository.save(node);
@@ -123,7 +124,8 @@ class NodeRepositoryIT {
                 nodeId, topicId, NodeType.QUESTION,
                 "new content", NodeStatus.DISPUTED,
                 null, null, 0,
-                userId, created, updatedAt
+                userId, created, updatedAt,
+                null, null, null
         );
         nodeRepository.update(updated);
 
