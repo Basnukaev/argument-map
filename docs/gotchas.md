@@ -1592,3 +1592,35 @@ useEffect ради ловли побочных эффектов
 видит initialized=true и пропускает. Двух запросов нет
 
 См. `frontend/src/shared/stores/authStore.ts` + `App.tsx`
+
+---
+
+## Java HttpClient + SHAMELA_PROXY: 407 при правильных credentials
+
+**Симптом:** `SHAMELA_PROXY=http://user:pass@host:port` задан, в логах backend на старте `shamela HTTP-клиент: прокси HOST:PORT (auth=true)` - значит Authenticator зарегистрирован. Но запросы всё равно валятся с 407 Proxy Authentication Required. При этом `curl -x http://user:pass@host:port https://shamela.ws -v` через те же creds работает - получает `HTTP/1.1 200 Connection established` через CONNECT-tunnel.
+
+**Причина:** JDK по умолчанию **блокирует Basic auth для HTTPS CONNECT-tunnel** через системное свойство `jdk.http.auth.tunneling.disabledSchemes=Basic`. Это защита от MITM-прокси - CONNECT-запрос идёт plaintext **до** TLS handshake, и если прокси скомпрометирован, он увидит base64-encoded password.
+
+JDK читает это property **один раз при первом auth challenge на JVM** и кеширует. Если `System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "")` ставится внутри `@Bean` метода (как было до Сессии 39) - может быть уже поздно: любой другой `HttpClient` (например healthcheck какого-то Spring starter'а) мог сделать auth challenge раньше. После этого setProperty уже не действует.
+
+Симптом легко спутать с «неправильные credentials» - но curl с теми же кредами работает, что отметает гипотезу.
+
+**Reproducer:** обнаружено через `curl -x http://USER:PASS@host:port https://shamela.ws -v` дающий 200, при том что backend получает 407 от того же прокси с теми же credentials.
+
+**Решение:** установить property в `static {}` блоке main-класса `ArgumentMapApplication`:
+
+```java
+@SpringBootApplication
+public class ArgumentMapApplication {
+    static {
+        System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "");
+    }
+    public static void main(String[] args) { ... }
+}
+```
+
+Static-блок выполняется при загрузке класса JVM'ом - **до** `SpringApplication.run()`, до создания любого bean, до первого auth challenge. Гарантированный pre-Spring entry point.
+
+**Альтернатива через JVM flag** (если main-класс трогать нельзя): `-Djdk.http.auth.tunneling.disabledSchemes=""` в `spring-boot.run.jvmArguments` или `JAVA_OPTS`. Менее предпочтительно потому что зависит от того что user не забывает передать flag.
+
+**Узнано:** Сессия 39 при отладке SHAMELA_PROXY с HostKey self-hosted прокси.
