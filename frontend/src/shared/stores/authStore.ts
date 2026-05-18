@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { API_BASE_URL, ApiError } from '@/shared/api/client';
+import { clearUserStorage } from '@/shared/utils/clearUserStorage';
 
 /**
  * Auth-роли как union literal (ADR-040, без TS enum по правилам проекта).
@@ -156,6 +157,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // даже если бэк не ответил - всё равно чистим клиентскую сессию
     }
     persistUser(null);
+    // Очищаем user-scoped кеши (preferences + onboarding) - чтобы на
+    // shared машине следующий user не унаследовал чужие настройки.
+    // Источник истины - бэк, на следующем login данные будут получены
+    // через loadFromBackend()
+    clearUserStorage();
     set({ user: null, accessToken: null, initialized: true });
   },
 
@@ -174,8 +180,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return data.accessToken;
     } catch (e) {
       // 401 = refresh cookie невалидный либо истёк - clear local session
+      // включая user-scoped кеши (preferences + onboarding) чтобы на
+      // следующем login другого user'а они не унаследовались
       if (e instanceof ApiError && e.status === 401) {
         persistUser(null);
+        clearUserStorage();
         set({ user: null, accessToken: null, initialized: true });
       }
       return null;
@@ -192,8 +201,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // persisted user и редиректим на /login через ProtectedRoute
       const newToken = await get().refreshAccessToken();
       if (newToken == null) {
-        // refresh упал - clear любого persisted user
+        // refresh упал - clear любого persisted user + user-scoped кешей
         persistUser(null);
+        clearUserStorage();
         set({ user: null, accessToken: null });
       }
     } finally {

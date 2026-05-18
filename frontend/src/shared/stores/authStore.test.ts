@@ -22,6 +22,8 @@ function resetStore() {
   // Чистый initial state для каждого теста + localStorage
   if (typeof window !== 'undefined') {
     window.localStorage.removeItem('auth.user');
+    window.localStorage.removeItem('app.preferences');
+    window.localStorage.removeItem('onboarding_dismissed');
   }
   useAuthStore.setState({
     user: null,
@@ -103,6 +105,59 @@ describe('authStore', () => {
     expect(useAuthStore.getState().user).toBeNull();
     expect(useAuthStore.getState().accessToken).toBeNull();
     expect(window.localStorage.getItem('auth.user')).toBeNull();
+  });
+
+  it('logout - чистит user-scoped кеши (app.preferences + onboarding_dismissed)', async () => {
+    // setup: shared машина - user A выставил prefs + закрыл onboarding
+    useAuthStore.getState()._setSession(ADMIN_USER, 'tok');
+    window.localStorage.setItem(
+      'app.preferences',
+      JSON.stringify({ arabicFont: 'kufi', textSize: 'xl' }),
+    );
+    window.localStorage.setItem('onboarding_dismissed', '1');
+
+    server.use(
+      http.post(`${API}/api/v1/auth/logout`, () => new HttpResponse(null, { status: 204 })),
+    );
+
+    await useAuthStore.getState().logout();
+
+    // user-scoped кеши очищены - следующий user не унаследует
+    expect(window.localStorage.getItem('app.preferences')).toBeNull();
+    expect(window.localStorage.getItem('onboarding_dismissed')).toBeNull();
+  });
+
+  it('logout backend упал - всё равно чистит user-scoped кеши', async () => {
+    useAuthStore.getState()._setSession(ADMIN_USER, 'tok');
+    window.localStorage.setItem('app.preferences', '{"arabicFont":"kufi"}');
+    window.localStorage.setItem('onboarding_dismissed', '1');
+
+    server.use(http.post(`${API}/api/v1/auth/logout`, () => HttpResponse.error()));
+
+    await useAuthStore.getState().logout();
+
+    expect(window.localStorage.getItem('app.preferences')).toBeNull();
+    expect(window.localStorage.getItem('onboarding_dismissed')).toBeNull();
+  });
+
+  it('refreshAccessToken 401 (session expired) - чистит user-scoped кеши', async () => {
+    useAuthStore.getState()._setSession(ADMIN_USER, 'stale.token');
+    window.localStorage.setItem('app.preferences', '{"arabicFont":"kufi"}');
+    window.localStorage.setItem('onboarding_dismissed', '1');
+
+    server.use(
+      http.post(`${API}/api/v1/auth/refresh`, () =>
+        HttpResponse.json(
+          { type: 'about:blank', title: 'expired', status: 401 },
+          { status: 401 },
+        ),
+      ),
+    );
+
+    await useAuthStore.getState().refreshAccessToken();
+
+    expect(window.localStorage.getItem('app.preferences')).toBeNull();
+    expect(window.localStorage.getItem('onboarding_dismissed')).toBeNull();
   });
 
   it('logout - работает даже если backend упал (network error)', async () => {
