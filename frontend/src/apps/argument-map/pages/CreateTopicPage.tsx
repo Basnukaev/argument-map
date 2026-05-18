@@ -55,7 +55,7 @@ function CreateTopicPage() {
       } else if (e instanceof Error) {
         setFormError(e.message);
       } else {
-        setFormError('Не удалось создать тему');
+        setFormError(t('topic.create.error_generic'));
       }
     } finally {
       setSubmitting(false);
@@ -91,8 +91,8 @@ function CreateTopicPage() {
           >
             <div className="flex flex-col gap-5">
               <Field
-                label="Название"
-                hint="Краткая формулировка темы дискуссии"
+                label={t('topic.create.field_title')}
+                hint={t('topic.create.field_title_hint')}
                 required
                 error={fieldError('title')}
               >
@@ -108,8 +108,8 @@ function CreateTopicPage() {
               </Field>
 
               <Field
-                label="Описание"
-                hint="Необязательно. Поможет другим понять контекст"
+                label={t('topic.create.field_description')}
+                hint={t('topic.create.field_description_hint')}
                 error={fieldError('description')}
               >
                 <Field.Textarea
@@ -123,8 +123,8 @@ function CreateTopicPage() {
               </Field>
 
               <Field
-                label="Корневой вопрос"
-                hint="Это станет корневым QUESTION-узлом графа"
+                label={t('topic.create.field_root_question')}
+                hint={t('topic.create.field_root_question_hint')}
                 required
                 error={fieldError('rootQuestion')}
               >
@@ -162,11 +162,11 @@ function CreateTopicPage() {
                   icon={Sparkles}
                   disabled={submitting || !title.trim() || !rootQuestion.trim()}
                 >
-                  {submitting ? 'Создаём' : 'Создать'}
+                  {submitting ? t('topic.create.submit_busy') : t('topic.create.submit')}
                 </Button>
                 <Link to="/topics">
                   <Button type="button" variant="ghost" disabled={submitting}>
-                    Отмена
+                    {t('common.cancel')}
                   </Button>
                 </Link>
               </div>
@@ -178,17 +178,14 @@ function CreateTopicPage() {
               <div className="mb-3 flex items-center gap-2 text-ink-700">
                 <Lightbulb size={16} className="text-accent-600" aria-hidden />
                 <span className="text-xs font-semibold uppercase tracking-wider">
-                  Совет
+                  {t('topic.create.aside_tip_label')}
                 </span>
               </div>
               <p className="text-sm leading-relaxed text-ink-700">
-                Хороший корневой вопрос - <strong>предметный</strong>,{' '}
-                <strong>конкретный</strong> и оставляет место для разных
-                ответов
+                {t('topic.create.aside_tip_body')}
               </p>
               <p className="mt-3 text-xs italic text-ink-500">
-                Например: «Допустимо ли совершать аль-маулид?» Не «Что такое
-                маулид?»
+                {t('topic.create.aside_tip_example')}
               </p>
             </div>
           </aside>

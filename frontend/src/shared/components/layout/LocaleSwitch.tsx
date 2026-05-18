@@ -1,5 +1,5 @@
 import { Languages } from 'lucide-react';
-import { useLocaleStore } from '@/shared/i18n';
+import { useLocaleStore, useT } from '@/shared/i18n';
 import type { Locale } from '@/shared/i18n';
 
 /**
@@ -11,6 +11,7 @@ import type { Locale } from '@/shared/i18n';
  * автоматически переключается в dark theme.
  */
 function LocaleSwitch() {
+  const t = useT();
   const locale = useLocaleStore((s) => s.locale);
   const setLocale = useLocaleStore((s) => s.setLocale);
 
@@ -23,7 +24,7 @@ function LocaleSwitch() {
     <div
       className="inline-flex items-center gap-1 rounded-sm border border-ink-200 bg-elevated px-1.5 py-1 text-xs font-semibold"
       role="group"
-      aria-label="Локаль интерфейса"
+      aria-label={t('common.locale_switch')}
       dir="ltr"
     >
       <Languages size={12} className="text-ink-400" aria-hidden />
