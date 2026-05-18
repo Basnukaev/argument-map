@@ -532,6 +532,22 @@ export interface paths {
         patch: operations["updateVisibility"];
         trace?: never;
     };
+    "/api/v1/topics/{topicId}/status-algorithm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateStatusAlgorithm"];
+        trace?: never;
+    };
     "/api/v1/topics/{topicId}/members/{memberId}": {
         parameters: {
             query?: never;
@@ -1130,6 +1146,7 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
             visibility?: string;
+            statusAlgorithm?: string;
             /** Format: int32 */
             nodeCount?: number;
             /** Format: int32 */
@@ -1480,6 +1497,21 @@ export interface components {
             nodeType: "QUESTION" | "CLAIM" | "ARGUMENT" | "EVIDENCE";
             content: string;
         };
+        InlineCitationRef: {
+            /** Format: int32 */
+            ordinal?: number;
+            /** Format: uuid */
+            nodeSourceId?: string;
+            /** Format: uuid */
+            sourceId?: string;
+            /** @enum {string} */
+            sourceType?: "QURAN" | "HADITH" | "BOOK" | "ARTICLE" | "URL";
+            title?: string;
+            citation?: string;
+            quote?: string;
+            /** @enum {string} */
+            reliability?: "SAHIH" | "HASAN" | "DAIF";
+        };
         NodeResponse: {
             /** Format: uuid */
             id?: string;
@@ -1510,6 +1542,7 @@ export interface components {
             voteScore?: number;
             /** Format: int32 */
             userVote?: number;
+            inlineCitations?: components["schemas"]["InlineCitationRef"][];
         };
         CreateNodeVoteRequest: {
             /** Format: int32 */
@@ -1826,6 +1859,9 @@ export interface components {
         };
         UpdateTopicVisibilityRequest: {
             visibility: string;
+        };
+        UpdateTopicStatusAlgorithmRequest: {
+            algorithm: string;
         };
         UpdateTopicMemberRequest: {
             role: string;
@@ -3343,6 +3379,35 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UpdateTopicVisibilityRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TopicResponse"];
+                };
+            };
+        };
+    };
+    updateStatusAlgorithm: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                topicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTopicStatusAlgorithmRequest"];
             };
         };
         responses: {
