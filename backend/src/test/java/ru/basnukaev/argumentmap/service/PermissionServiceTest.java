@@ -56,7 +56,8 @@ class PermissionServiceTest {
     }
 
     private Topic topic(String visibility) {
-        return new Topic(topicId, "T", null, null, ownerId, Instant.now(), visibility);
+        return new Topic(topicId, "T", null, null, ownerId, Instant.now(), visibility,
+                ru.basnukaev.argumentmap.domain.StatusAlgorithm.MVP);
     }
 
     private TopicMember member(String role) {

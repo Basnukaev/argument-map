@@ -15,6 +15,7 @@ import ru.basnukaev.argumentmap.domain.AuditEntityType;
 import ru.basnukaev.argumentmap.domain.Node;
 import ru.basnukaev.argumentmap.domain.NodeStatus;
 import ru.basnukaev.argumentmap.domain.NodeType;
+import ru.basnukaev.argumentmap.domain.StatusAlgorithm;
 import ru.basnukaev.argumentmap.domain.Topic;
 import ru.basnukaev.argumentmap.domain.TopicVisibility;
 import ru.basnukaev.argumentmap.exception.TopicNotFoundException;
@@ -68,7 +69,7 @@ public class TopicService {
 
         Topic topic = new Topic(
                 UUID.randomUUID(), title, description,
-                null, userId, now, visibility
+                null, userId, now, visibility, StatusAlgorithm.MVP
         );
         topicRepository.save(topic);
 

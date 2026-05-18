@@ -12,6 +12,8 @@ public record TopicResponse(
         Instant createdAt,
         // ADR-043: visibility per-entity. PRIVATE / SHARED / PUBLIC.
         String visibility,
+        // ADR-044: алгоритм пересчёта статусов узлов. MVP / DUNG_GROUNDED.
+        String statusAlgorithm,
         // агрегаты графа темы. На list-эндпоинте всегда заполнены, на остальных
         // могут быть нулём (метод toResponse(Topic) без счётчиков). См. ADR-016
         int nodeCount,

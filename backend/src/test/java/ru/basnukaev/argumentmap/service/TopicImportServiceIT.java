@@ -250,7 +250,8 @@ class TopicImportServiceIT {
         UUID origTopicId = UUID.randomUUID();
         Topic origTopic = new Topic(origTopicId, "Round trip тема",
                 "описание", null, userId, Instant.now(),
-                ru.basnukaev.argumentmap.domain.TopicVisibility.PRIVATE);
+                ru.basnukaev.argumentmap.domain.TopicVisibility.PRIVATE,
+                ru.basnukaev.argumentmap.domain.StatusAlgorithm.MVP);
         topicRepository.save(origTopic);
 
         UUID rootId = UUID.randomUUID();

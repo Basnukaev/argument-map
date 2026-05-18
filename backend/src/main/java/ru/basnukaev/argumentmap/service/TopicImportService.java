@@ -129,7 +129,8 @@ public class TopicImportService {
                 null,
                 currentUserId,
                 now,
-                ru.basnukaev.argumentmap.domain.TopicVisibility.PRIVATE
+                ru.basnukaev.argumentmap.domain.TopicVisibility.PRIVATE,
+                ru.basnukaev.argumentmap.domain.StatusAlgorithm.MVP
         );
         topicRepository.save(newTopic);
 

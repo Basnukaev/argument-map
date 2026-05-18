@@ -45,5 +45,6 @@
     <include file="db/changelog/changes/20260518-38-node-votes.xml"/>
     <include file="db/changelog/changes/20260518-39-audit-log.xml"/>
     <include file="db/changelog/changes/20260518-40-node-z-index.xml"/>
+    <include file="db/changelog/changes/20260518-41-topic-status-algorithm.xml"/>
 
 </databaseChangeLog>

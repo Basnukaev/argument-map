@@ -27,6 +27,7 @@ import ru.basnukaev.argumentmap.web.dto.BookCitationRef;
 import ru.basnukaev.argumentmap.web.dto.CitationResponse;
 import ru.basnukaev.argumentmap.web.dto.EdgeResponse;
 import ru.basnukaev.argumentmap.web.dto.GraphResponse;
+import ru.basnukaev.argumentmap.web.dto.InlineCitationRef;
 import ru.basnukaev.argumentmap.web.dto.LocationRef;
 import ru.basnukaev.argumentmap.web.dto.MuhaqqiqRef;
 import ru.basnukaev.argumentmap.web.dto.NodeResponse;
@@ -61,6 +62,7 @@ public final class DtoMappers {
                 topic.id(), topic.title(), topic.description(),
                 topic.rootNodeId(), topic.createdBy(), topic.createdAt(),
                 topic.visibility(),
+                topic.statusAlgorithm(),
                 nodeCount, edgeCount
         );
     }

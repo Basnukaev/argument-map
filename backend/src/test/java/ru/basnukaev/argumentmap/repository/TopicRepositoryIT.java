@@ -20,6 +20,7 @@ import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.domain.EdgeType;
 import ru.basnukaev.argumentmap.domain.NodeStatus;
 import ru.basnukaev.argumentmap.domain.NodeType;
+import ru.basnukaev.argumentmap.domain.StatusAlgorithm;
 import ru.basnukaev.argumentmap.domain.Topic;
 import ru.basnukaev.argumentmap.domain.TopicVisibility;
 
@@ -56,7 +57,8 @@ class TopicRepositoryIT {
                 null,
                 userId,
                 Instant.now().truncatedTo(ChronoUnit.MICROS),
-                TopicVisibility.PRIVATE
+                TopicVisibility.PRIVATE,
+                StatusAlgorithm.MVP
         );
 
         topicRepository.save(topic);
@@ -78,8 +80,8 @@ class TopicRepositoryIT {
     @Test
     void findAll_returnsAllTopicsOrderedByCreatedAt() {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
-        Topic older = new Topic(UUID.randomUUID(), "Older", null, null, userId, now.minusSeconds(60), TopicVisibility.PRIVATE);
-        Topic newer = new Topic(UUID.randomUUID(), "Newer", null, null, userId, now, TopicVisibility.PRIVATE);
+        Topic older = new Topic(UUID.randomUUID(), "Older", null, null, userId, now.minusSeconds(60), TopicVisibility.PRIVATE, StatusAlgorithm.MVP);
+        Topic newer = new Topic(UUID.randomUUID(), "Newer", null, null, userId, now, TopicVisibility.PRIVATE, StatusAlgorithm.MVP);
         topicRepository.save(newer);
         topicRepository.save(older);
 
@@ -90,7 +92,7 @@ class TopicRepositoryIT {
 
     @Test
     void updateRootNodeId_setsFkToNode() {
-        Topic topic = new Topic(UUID.randomUUID(), "T", null, null, userId, Instant.now(), TopicVisibility.PRIVATE);
+        Topic topic = new Topic(UUID.randomUUID(), "T", null, null, userId, Instant.now(), TopicVisibility.PRIVATE, StatusAlgorithm.MVP);
         topicRepository.save(topic);
         UUID nodeId = insertNode(topic.id());
 
@@ -102,7 +104,7 @@ class TopicRepositoryIT {
 
     @Test
     void deleteById_removesTopic_andCascadesNodes() {
-        Topic topic = new Topic(UUID.randomUUID(), "T", null, null, userId, Instant.now(), TopicVisibility.PRIVATE);
+        Topic topic = new Topic(UUID.randomUUID(), "T", null, null, userId, Instant.now(), TopicVisibility.PRIVATE, StatusAlgorithm.MVP);
         topicRepository.save(topic);
         UUID nodeId = insertNode(topic.id());
 
@@ -124,8 +126,8 @@ class TopicRepositoryIT {
     @Test
     void findAllWithCounts_returnsTopicsWithNodeAndEdgeAggregates() {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
-        Topic topicA = new Topic(UUID.randomUUID(), "A", null, null, userId, now.minusSeconds(60), TopicVisibility.PRIVATE);
-        Topic topicB = new Topic(UUID.randomUUID(), "B", null, null, userId, now, TopicVisibility.PRIVATE);
+        Topic topicA = new Topic(UUID.randomUUID(), "A", null, null, userId, now.minusSeconds(60), TopicVisibility.PRIVATE, StatusAlgorithm.MVP);
+        Topic topicB = new Topic(UUID.randomUUID(), "B", null, null, userId, now, TopicVisibility.PRIVATE, StatusAlgorithm.MVP);
         topicRepository.save(topicA);
         topicRepository.save(topicB);
 
@@ -151,7 +153,7 @@ class TopicRepositoryIT {
 
     @Test
     void findAllWithCounts_topicWithoutNodesReturnsZeroCounts() {
-        Topic empty = new Topic(UUID.randomUUID(), "Пустая", null, null, userId, Instant.now(), TopicVisibility.PRIVATE);
+        Topic empty = new Topic(UUID.randomUUID(), "Пустая", null, null, userId, Instant.now(), TopicVisibility.PRIVATE, StatusAlgorithm.MVP);
         topicRepository.save(empty);
 
         List<TopicWithCounts> result = topicRepository.findAllWithCounts();
@@ -166,7 +168,7 @@ class TopicRepositoryIT {
 
     @Test
     void findByIdWithCounts_returnsAggregatesForOneTopic() {
-        Topic topic = new Topic(UUID.randomUUID(), "T", null, null, userId, Instant.now(), TopicVisibility.PRIVATE);
+        Topic topic = new Topic(UUID.randomUUID(), "T", null, null, userId, Instant.now(), TopicVisibility.PRIVATE, StatusAlgorithm.MVP);
         topicRepository.save(topic);
         UUID n1 = insertNode(topic.id());
         UUID n2 = insertNode(topic.id());

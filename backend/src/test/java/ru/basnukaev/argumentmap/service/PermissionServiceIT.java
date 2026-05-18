@@ -68,7 +68,8 @@ class PermissionServiceIT {
 
     private UUID insertTopic(UUID createdBy, String visibility) {
         UUID id = UUID.randomUUID();
-        Topic t = new Topic(id, "T", null, null, createdBy, Instant.now(), visibility);
+        Topic t = new Topic(id, "T", null, null, createdBy, Instant.now(), visibility,
+                ru.basnukaev.argumentmap.domain.StatusAlgorithm.MVP);
         topicRepository.save(t);
         return id;
     }

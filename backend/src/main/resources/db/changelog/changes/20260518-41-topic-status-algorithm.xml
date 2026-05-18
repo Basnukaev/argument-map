@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        ADR-044: opt-in переключение алгоритма пересчёта статусов узлов на
+        Dung's grounded semantics. Default 'MVP' сохраняет существующее
+        поведение (fixpoint-итерация в StatusCalculationService); 'DUNG_GROUNDED'
+        запускает DungFrameworkService с grounded labelling. CHECK constraint
+        whitelist'ит ровно 2 значения - расширение (preferred/stable) делается
+        новой миграцией.
+
+        NOT NULL DEFAULT 'MVP' - existing темы продолжают работать без вмешательства,
+        новые тоже создаются на MVP пока user явно не переключит через
+        PATCH /api/v1/topics/{id}/status-algorithm.
+    -->
+    <changeSet id="20260518-41-topic-status-algorithm" author="Abdula Basnukaev">
+        <comment>Добавляем topics.status_algorithm для opt-in Dung's framework (ADR-044)</comment>
+        <addColumn tableName="topics">
+            <column name="status_algorithm" type="VARCHAR(20)" defaultValue="MVP">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <sql>
+            ALTER TABLE topics ADD CONSTRAINT topics_status_algorithm_check
+                CHECK (status_algorithm IN ('MVP', 'DUNG_GROUNDED'))
+        </sql>
+        <rollback>
+            <sql>ALTER TABLE topics DROP CONSTRAINT IF EXISTS topics_status_algorithm_check</sql>
+            <dropColumn tableName="topics" columnName="status_algorithm"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

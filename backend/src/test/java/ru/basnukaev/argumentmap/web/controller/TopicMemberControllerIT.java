@@ -67,7 +67,8 @@ class TopicMemberControllerIT {
         topicId = UUID.randomUUID();
         topicRepository.save(new Topic(
                 topicId, "T", null, null, ownerId, Instant.now(),
-                TopicVisibility.SHARED
+                TopicVisibility.SHARED,
+                ru.basnukaev.argumentmap.domain.StatusAlgorithm.MVP
         ));
     }
 

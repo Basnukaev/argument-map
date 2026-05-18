@@ -74,7 +74,8 @@ class AuditLogControllerIT {
     private UUID insertTopic(UUID createdBy, String visibility) {
         UUID id = UUID.randomUUID();
         topicRepository.save(new Topic(
-                id, "T", null, null, createdBy, Instant.now(), visibility
+                id, "T", null, null, createdBy, Instant.now(), visibility,
+                ru.basnukaev.argumentmap.domain.StatusAlgorithm.MVP
         ));
         return id;
     }

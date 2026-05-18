@@ -18,7 +18,7 @@ import ru.basnukaev.argumentmap.domain.Topic;
 public class TopicRepository {
 
     private static final String COLUMNS =
-            "id, title, description, root_node_id, created_by, created_at, visibility";
+            "id, title, description, root_node_id, created_by, created_at, visibility, status_algorithm";
 
     private static final RowMapper<Topic> ROW_MAPPER = (rs, rn) -> new Topic(
             rs.getObject("id", UUID.class),
@@ -27,7 +27,8 @@ public class TopicRepository {
             rs.getObject("root_node_id", UUID.class),
             rs.getObject("created_by", UUID.class),
             instant(rs, "created_at"),
-            rs.getString("visibility")
+            rs.getString("visibility"),
+            rs.getString("status_algorithm")
     );
 
     /**
@@ -38,7 +39,7 @@ public class TopicRepository {
      * хранят его напрямую - см. ADR-003 о двух таблицах nodes+edges)
      */
     private static final String COUNTS_SQL_BASE = """
-            SELECT t.id, t.title, t.description, t.root_node_id, t.created_by, t.created_at, t.visibility,
+            SELECT t.id, t.title, t.description, t.root_node_id, t.created_by, t.created_at, t.visibility, t.status_algorithm,
                    COALESCE(nc.cnt, 0) AS node_count,
                    COALESCE(ec.cnt, 0) AS edge_count
             FROM topics t
@@ -67,14 +68,15 @@ public class TopicRepository {
 
     public Topic save(Topic topic) {
         jdbcTemplate.update(
-                "INSERT INTO topics (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO topics (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 topic.id(),
                 topic.title(),
                 topic.description(),
                 topic.rootNodeId(),
                 topic.createdBy(),
                 odt(topic.createdAt()),
-                topic.visibility()
+                topic.visibility(),
+                topic.statusAlgorithm()
         );
         return topic;
     }
@@ -115,6 +117,14 @@ public class TopicRepository {
      */
     public void updateVisibility(UUID topicId, String visibility) {
         jdbcTemplate.update("UPDATE topics SET visibility = ? WHERE id = ?", visibility, topicId);
+    }
+
+    /**
+     * Меняет алгоритм пересчёта статусов (ADR-044). Проверка прав и
+     * валидация значения - в Service.
+     */
+    public void updateStatusAlgorithm(UUID topicId, String algorithm) {
+        jdbcTemplate.update("UPDATE topics SET status_algorithm = ? WHERE id = ?", algorithm, topicId);
     }
 
     public boolean deleteById(UUID id) {

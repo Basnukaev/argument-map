@@ -5105,3 +5105,157 @@ audit_log). Сейчас YAGNI.
   GB размер за месяцы. План: cron janitor + retention >
   6 месяцев когда понадобится
 
+
+## ADR-044: Opt-in Dung's grounded semantics для пересчёта статусов (Этап 6)
+
+**Дата:** 2026-05-18
+**Статус:** принято
+**Реализовано:** Сессия 38, Этап 6 - закрытие пункта backlog «Реализация
+Dung's argumentation framework для продвинутого пересчёта»
+
+**Контекст:** существующий `StatusCalculationService` (ADR-007) - простой
+fixpoint-итератор: считает SUPPORTS/REFUTES/INVALIDATES, выставляет
+STANDING/DISPUTED/REFUTED/UNVERIFIED. Алгоритм работает на small graphs,
+но семантически отличается от классического подхода к abstract
+argumentation - Dung's framework. Backlog хотел добавить «продвинутый
+пересчёт» как опцию
+
+Dung's framework (Phan Minh Dung, 1995) формализует argumentation как
+пару `(A, R)`: A - аргументы (наши nodes), R ⊆ A × A - attack relation
+(наши edges `REFUTES`/`INVALIDATES`). Из набора attacks выводятся
+«extensions» - множества co-acceptable аргументов. Самая прагматичная
+семантика - **grounded extension** (skeptical, минимальный complete
+extension). Labelling: каждому аргументу - IN (accepted), OUT (rejected
+attacker'ом из IN) или UNDEC (undecided)
+
+**Решение:** реализовать Dung's grounded semantics как **опциональный**
+алгоритм через колонку `topics.status_algorithm` (миграция 41, CHECK
+`MVP|DUNG_GROUNDED`). Default остаётся `MVP` - existing темы и новые
+создаются на старом алгоритме. Переключение через `PATCH
+/api/v1/topics/{id}/status-algorithm` (owner only), сразу triggers
+recalculate
+
+`DungFrameworkService.computeGroundedLabelling(nodes, edges)`:
+
+1. Фильтруем attack edges (`REFUTES` + `INVALIDATES`) - SUPPORTS/QUALIFIES/
+   RESPONDS_TO в Dung не входят, ignored
+2. Строим adjacency map `attackersOf[nodeId] -> Set<attackerNodeId>`
+3. Iterative labelling:
+   - nodes без attackers → IN
+   - nodes у которых **все** attackers OUT → IN
+   - nodes у которых **есть** attacker IN → OUT
+4. Повторять до сходимости (нет новых labels)
+5. Remaining → UNDEC (cycle of attacks, no defender)
+
+Mapping label → `NodeStatus`:
+- IN → STANDING
+- OUT → REFUTED
+- UNDEC → DISPUTED
+
+`StatusCalculationService.recalculateTopic(topicId)` диспатчит в
+зависимости от `topic.statusAlgorithm`: `MVP` идёт в existing
+`recalculateUsingMvp` (private), `DUNG_GROUNDED` - в новый
+`recalculateUsingDung`. Public API метода не меняется - вызывающий код
+(EdgeService/NodeService) этого не видит
+
+**Почему opt-in:**
+
+- MVP алгоритм продолжает работать для existing тем без сюрпризов.
+  Backward compat без миграции данных
+- Grounded labelling **строже** MVP: если граф содержит attack-cycle
+  (a attacks b, b attacks a), оба остаются UNDEC (→ DISPUTED). MVP в той
+  же ситуации мог бы дать определённый результат через convergence.
+  Пользователь должен явно выбрать «я хочу Dung-style strict semantics»
+- Бенефит Dung'а - теоретическая solidity (formal argumentation
+  literature). Для простых линейных argument trees MVP даёт схожий
+  результат за меньшую сложность
+
+**Mapping каноничных labels:**
+
+- IN ≡ "accepted" в Dung paper. У нас STANDING - семантически
+  совпадает: аргумент принят как valid
+- OUT ≡ "rejected" - есть attacker который сам accepted. REFUTED
+  передаёт это значение (наш существующий статус для атакованных
+  аргументов из MVP)
+- UNDEC ≡ "undecided" - неразрешимый цикл или incomplete grounded
+  defense. DISPUTED - наиболее близкий существующий статус, передаёт
+  "argument в спорной зоне"
+
+UNVERIFIED **не используется** в Dung'е - в нашем существующем
+семантическом пространстве это «node ещё не оценён вообще» (новый
+node без attackers и supporters в MVP). В Dung'е такая нода имеет
+явный label IN (no attackers → accepted). После переключения на
+DUNG_GROUNDED все nodes получают определённый label, UNVERIFIED
+исчезает из графа. Это **intentional**: Dung даёт total labelling,
+MVP - partial
+
+**Сложность и производительность:**
+
+- Worst case O(V × E) - каждая итерация O(V+E), число итераций ≤ V
+  (каждая нода может изменить label максимум 2 раза: undef→IN/OUT)
+- Практически: convergence обычно за 3-5 итераций даже на больших
+  графах с цепочками
+- Для наших размеров (50-200 nodes) - <50ms на пересчёт. Для будущих
+  тысяч nodes возможна оптимизация (incremental relabelling вместо
+  full pass), но YAGNI на MVP scale
+
+**Rejected alternatives:**
+
+- **Preferred extension** (максимальный admissible set) - даёт
+  multiple extensions для одного графа (credulous reasoning),
+  пришлось бы выбирать как aggregate'ить. Скептический grounded - ровно
+  одно решение, simple mapping на наши статусы
+- **Stable extension** (extension которое attacks все не входящие) -
+  не всегда существует (если граф имеет odd-length attack cycle).
+  Need fallback semantics anyway. Grounded существует всегда
+- **Complete extensions enumeration** - O(2^n) worst case, не
+  scalable
+- **Bipolar argumentation** (с support edges + attack edges) - есть
+  формализация (Cayrol & Lagasquie-Schiex 2005), но семантика
+  controversial в literature и сильно усложняет реализацию. Наши
+  SUPPORTS edges продолжают учитываться только в MVP алгоритме - в
+  DUNG_GROUNDED они игнорируются (по дизайну, Dung pure attack-based)
+- **Replace MVP полностью** - breaking change для existing тем. Опция
+  через колонку даёт plain А/Б тестирование per-topic
+- **Weighted argumentation** (учёт votes из ADR backlog) - отложено.
+  Vote сейчас орт ortogonal сигнал силы, не модифицирует label
+- **Run both algorithms и merge** - размывает семантику. Один алгоритм
+  на тему - чище
+
+**Последствия:**
+
+- **(+)** Закрыт backlog пункт «Реализация Dung's framework»
+- **(+)** Опциональность означает zero risk для existing usage -
+  default MVP сохраняет старое поведение
+- **(+)** Теоретическая solidity для пользователей которые хотят
+  strict argumentation semantics (academic use case)
+- **(+)** Чистая extension point для preferred/stable/bipolar - если
+  понадобятся, добавляются как новые значения CHECK constraint без
+  ломания existing
+- **(−)** SUPPORTS edges не учитываются в DUNG_GROUNDED - может
+  стать сюрпризом для пользователя который ожидает что positive
+  evidence усиливает argument. Документировано в api-contract +
+  endpoint description
+- **(−)** Switching algorithm = full graph recalculation. На малых
+  графах незаметно, на больших - блокирующий request на ~100ms
+- **(−)** Frontend UI для переключения **отложен** в backlog -
+  сейчас доступно только через curl PATCH. Не блокирует исследовать
+  semantics в admin / power-user flow
+
+**Trigger to revisit:**
+
+- Если user feedback покажет что UNDEC (DISPUTED) слишком часто
+  появляется на realistic темах - возможно перейти на preferred
+  semantics либо weighted argumentation
+- Если performance деградирует на больших темах (>500 nodes) -
+  добавить incremental recalculation вместо full pass
+- Если станет популярно - добавить frontend toggle (separate task)
+
+**Связанные решения:**
+
+- **ADR-007** (MVP status calculation) - default алгоритм продолжает
+  работать; Dung добавляется как opt-in
+- **ADR-043** (RBAC) - переключение algorithm = owner only mutation
+  (privileged change, влияет на семантику темы)
+- **Этап 22.d audit log** - смена algorithm пишет UPDATE row в
+  audit_log с {algorithm: {old, new}}
