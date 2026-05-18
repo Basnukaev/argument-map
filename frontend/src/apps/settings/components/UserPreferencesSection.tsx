@@ -6,6 +6,7 @@ import Button from '@/shared/components/ui/Button';
 import {
   usePreferencesStore,
   type ArabicFontPref,
+  type BilingualModePref,
   type LocalePref,
   type TextSizePref,
 } from '@/shared/stores/preferencesStore';
@@ -32,6 +33,7 @@ function UserPreferencesSection() {
   const textSize = usePreferencesStore((s) => s.textSize);
   const hideTashkeel = usePreferencesStore((s) => s.hideTashkeelByDefault);
   const transliteration = usePreferencesStore((s) => s.transliteration);
+  const bilingualMode = usePreferencesStore((s) => s.bilingualMode);
   const setPref = usePreferencesStore((s) => s.set);
   const resetAll = usePreferencesStore((s) => s.resetAll);
 
@@ -53,6 +55,8 @@ function UserPreferencesSection() {
     tryPersist(() => setPref('hideTashkeelByDefault', v));
   const setTransliteration = (v: boolean) =>
     tryPersist(() => setPref('transliteration', v));
+  const setBilingualMode = (v: BilingualModePref) =>
+    tryPersist(() => setPref('bilingualMode', v));
 
   const textSizeScaleMap: Record<TextSizePref, string> = {
     small: '0.875rem',
@@ -189,6 +193,32 @@ function UserPreferencesSection() {
             {t('settings.transliteration.enable')}
           </span>
         </label>
+      </section>
+
+      {/* === Bilingual mode === */}
+      <section>
+        <div className="mb-2 text-sm font-semibold text-ink-900">
+          {t('settings.section.bilingual')}
+        </div>
+        <p className="mb-3 text-xs text-ink-500">
+          {t('settings.section.bilingual.hint')}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {(['original', 'translation', 'both'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => void setBilingualMode(m)}
+              className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition-colors ${
+                bilingualMode === m
+                  ? 'border-accent-600 bg-accent-50 text-accent-700'
+                  : 'border-border bg-elevated text-ink-800 hover:border-border-strong'
+              }`}
+            >
+              {t(`settings.bilingual.${m}` as const)}
+            </button>
+          ))}
+        </div>
       </section>
 
       {/* === Reset all === */}
