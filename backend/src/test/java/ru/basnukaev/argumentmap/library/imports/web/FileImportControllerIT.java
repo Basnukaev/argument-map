@@ -169,18 +169,18 @@ class FileImportControllerIT {
     }
 
     @Test
-    void POST_missingUserHeader_returns400() throws Exception {
-        // ADR-040 (dev/test profile): permitAll → @CurrentUser требует
-        // principal → MissingUserHeaderException 400. В prod profile
-        // 401 раньше от Spring Security
+    void POST_missingUserHeader_returns401() throws Exception {
+        // ADR-040 + b9da308: permitAll в dev/test, но @CurrentUser резолвер
+        // при anonymous principal бросает InvalidTokenException → 401
+        // invalid-token (frontend refresh-on-401 interceptor trigger)
         byte[] pdfBytes = buildPdf(List.of("page"));
         MockMultipartFile file = new MockMultipartFile(
                 "file", "x.pdf", MediaType.APPLICATION_PDF_VALUE, pdfBytes);
 
         mockMvc.perform(multipart("/api/v1/library/imports/file").file(file))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.type")
-                        .value("https://argumentmap.example/errors/missing-user-header"));
+                        .value("https://argumentmap.example/errors/invalid-token"));
     }
 
     @Test

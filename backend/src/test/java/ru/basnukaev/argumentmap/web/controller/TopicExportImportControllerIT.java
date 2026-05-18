@@ -139,10 +139,10 @@ class TopicExportImportControllerIT {
     }
 
     @Test
-    void importJson_withoutUserHeader_returns400() throws Exception {
-        // ADR-040 (dev/test profile): permitAll → @CurrentUser требует
-        // principal → MissingUserHeaderException 400. В prod profile
-        // вернётся 401 от Spring Security раньше
+    void importJson_withoutUserHeader_returns401() throws Exception {
+        // ADR-040 + b9da308: permitAll в dev/test, но @CurrentUser резолвер
+        // при anonymous principal бросает InvalidTokenException → 401
+        // invalid-token (frontend refresh-on-401 interceptor trigger)
         TopicExportDto dto = new TopicExportDto(
                 "1.0", Instant.now(),
                 new TopicData(UUID.randomUUID(), "T", null, null, userId, Instant.now()),
@@ -152,8 +152,8 @@ class TopicExportImportControllerIT {
         mockMvc.perform(post("/api/v1/topics/import")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.type").value(containsString("missing-user-header")));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.type").value(containsString("invalid-token")));
     }
 
     private UUID createTopicViaApi() throws Exception {

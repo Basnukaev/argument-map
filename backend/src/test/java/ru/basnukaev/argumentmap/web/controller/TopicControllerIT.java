@@ -72,36 +72,36 @@ class TopicControllerIT {
     }
 
     @Test
-    void createTopic_withoutUserHeader_returns400_problemDetail() throws Exception {
-        // ADR-040 (dev/test profile): /api/** permitAll, но @CurrentUser
-        // требует principal в SecurityContext - его нет без X-User-Id
-        // или Bearer JWT → MissingUserHeaderException 400. В prod profile
-        // Spring Security вернёт 401 раньше (без permitAll branch)
+    void createTopic_withoutUserHeader_returns401_problemDetail() throws Exception {
+        // ADR-040 + b9da308: /api/** permitAll в dev/test, но @CurrentUser
+        // резолвер при anonymous principal бросает InvalidTokenException →
+        // 401 invalid-token. Это correct behavior для frontend refresh-on-401
+        // interceptor - прозрачный refresh цикла
         var req = new CreateTopicRequest("T", null, "Q?", null);
 
         mockMvc.perform(post("/api/v1/topics")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isUnauthorized())
                 .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
-                .andExpect(jsonPath("$.type").value(containsString("missing-user-header")))
+                .andExpect(jsonPath("$.type").value(containsString("invalid-token")))
                 .andExpect(jsonPath("$.title").exists())
-                .andExpect(jsonPath("$.status").value(400));
+                .andExpect(jsonPath("$.status").value(401));
     }
 
     @Test
-    void createTopic_withInvalidUserHeader_returns400() throws Exception {
-        // ADR-040: невалидный UUID в X-User-Id → XUserIdFilter молча
-        // пропускает, SecurityContext пуст → @CurrentUser резолвер
-        // бросает MissingUserHeaderException → 400 (см. test выше)
+    void createTopic_withInvalidUserHeader_returns401() throws Exception {
+        // ADR-040 + b9da308: невалидный UUID в X-User-Id → XUserIdFilter молча
+        // пропускает, SecurityContext пуст → @CurrentUser резолвер бросает
+        // InvalidTokenException → 401 invalid-token (см. test выше)
         var req = new CreateTopicRequest("T", null, "Q?", null);
 
         mockMvc.perform(post("/api/v1/topics")
                         .header("X-User-Id", "not-a-uuid")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.type").value(containsString("missing-user-header")));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.type").value(containsString("invalid-token")));
     }
 
     @Test

@@ -233,11 +233,14 @@ class ShamelaAdminControllerIT {
     }
 
     @Test
-    void mapBook_returns_400_when_x_user_id_header_missing() throws Exception {
+    void mapBook_returns_401_when_x_user_id_header_missing() throws Exception {
+        // ADR-040 + b9da308: anonymous principal → @CurrentUser резолвер
+        // бросает InvalidTokenException → 401 invalid-token (frontend
+        // refresh-on-401 interceptor trigger)
         mockMvc.perform(post("/api/v1/admin/shamela/map-book/41557"))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.title").value(
-                        "Отсутствует или невалидный заголовок X-User-Id"));
+                        "Невалидный или истёкший токен"));
 
         verifyNoInteractions(mapper);
     }

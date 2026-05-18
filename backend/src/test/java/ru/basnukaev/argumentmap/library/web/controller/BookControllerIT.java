@@ -158,18 +158,18 @@ class BookControllerIT {
     }
 
     @Test
-    void createBook_withoutUserHeader_returns400() throws Exception {
-        // ADR-040 (dev/test profile): permitAll → @CurrentUser требует
-        // principal → MissingUserHeaderException 400. В prod profile
-        // вернётся 401 раньше от Spring Security
+    void createBook_withoutUserHeader_returns401() throws Exception {
+        // ADR-040 + b9da308: permitAll в dev/test, но @CurrentUser резолвер
+        // при anonymous principal бросает InvalidTokenException → 401
+        // invalid-token (frontend refresh-on-401 interceptor trigger)
         var req = new CreateBookRequest(BookType.BOOK, "T", null, "ar", null, null,
                 null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/library/books")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.type").value(containsString("missing-user-header")));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.type").value(containsString("invalid-token")));
     }
 
     @Test

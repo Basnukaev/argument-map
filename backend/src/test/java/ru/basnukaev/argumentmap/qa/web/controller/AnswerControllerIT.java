@@ -113,9 +113,12 @@ class AnswerControllerIT {
     }
 
     @Test
-    void DELETE_answer_missingUserHeader_returns400() throws Exception {
+    void DELETE_answer_missingUserHeader_returns401() throws Exception {
+        // ADR-040 + b9da308: anonymous principal → @CurrentUser резолвер
+        // бросает InvalidTokenException → 401 invalid-token (frontend
+        // refresh-on-401 interceptor trigger)
         mockMvc.perform(delete("/api/v1/answers/{aid}", answerId))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isUnauthorized());
     }
 
     // ---- PATCH permissions ----

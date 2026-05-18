@@ -95,13 +95,16 @@ class QuestionControllerIT {
     }
 
     @Test
-    void createQuestion_missingUserHeader_returns400() throws Exception {
+    void createQuestion_missingUserHeader_returns401() throws Exception {
+        // ADR-040 + b9da308: anonymous principal → @CurrentUser резолвер
+        // бросает InvalidTokenException → 401 invalid-token (frontend
+        // refresh-on-401 interceptor trigger)
         var req = new CreateQuestionRequest("Title", null);
 
         mockMvc.perform(post("/api/v1/questions")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
