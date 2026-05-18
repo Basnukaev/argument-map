@@ -2,17 +2,22 @@ import { useState } from 'react';
 import { Pencil, MessageSquareQuote } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import PanelSection from '@/apps/argument-map/components/graph/PanelSection';
+import InlineCitationBody from '@/apps/argument-map/components/citation/InlineCitationBody';
 import { apiPatchRaw, formatApiError } from '@/shared/api/client';
 import { useT } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
 
 type NodeDto = components['schemas']['NodeResponse'];
+type InlineCitationRef = components['schemas']['InlineCitationRef'];
 
 interface Props {
   nodeId: string | undefined;
   content: string;
   initialEditing: boolean;
   onSaved: () => void;
+  /** inline citation refs из node.inlineCitations - для рендера [N]-маркеров
+   *  в view-режиме. В edit-режиме textarea показывает raw `[1]` (без рендера) */
+  inlineCitations?: InlineCitationRef[];
 }
 
 /**
@@ -21,7 +26,7 @@ interface Props {
  * - edit: textarea + Save/Cancel
  * Хранит свой draft/saving/saveError state - не загрязняет orchestrator.
  */
-function NodeContentEditor({ nodeId, content, initialEditing, onSaved }: Props) {
+function NodeContentEditor({ nodeId, content, initialEditing, onSaved, inlineCitations }: Props) {
   const t = useT();
   const [editing, setEditing] = useState(initialEditing);
   const [draft, setDraft] = useState(content);
@@ -65,9 +70,12 @@ function NodeContentEditor({ nodeId, content, initialEditing, onSaved }: Props) 
       {!editing ? (
         <div>
           {content ? (
-            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-ink-800 text-pretty">
-              {content}
-            </p>
+            <InlineCitationBody
+              body={content}
+              citations={inlineCitations}
+              dir="auto"
+              className="block break-words text-sm leading-relaxed text-ink-800 text-pretty"
+            />
           ) : (
             <p className="text-sm italic text-ink-400">{t('node.empty_content_short')}</p>
           )}

@@ -115,6 +115,7 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
           content={content}
           initialEditing={initialEditing}
           onSaved={onUpdated}
+          inlineCitations={node.inlineCitations}
         />
         <NodeMetadataSection node={node} />
         {nodeType !== 'QUESTION' && (

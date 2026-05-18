@@ -3,6 +3,7 @@ import type { NodeProps, Node } from '@xyflow/react';
 import { MoreHorizontal } from 'lucide-react';
 import StatusBadge from '@/shared/components/ui/StatusBadge';
 import TypeChip from '@/shared/components/ui/TypeChip';
+import InlineCitationBody from '@/apps/argument-map/components/citation/InlineCitationBody';
 import { STATUS_TOKENS, type NodeStatus, type NodeType } from '@/shared/utils/designTokens';
 import { hasArabicScript } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
@@ -92,9 +93,12 @@ function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
         )}
 
         {truncatedBody && (
-          <p dir="auto" className={bodyClass}>
-            {truncatedBody}
-          </p>
+          <InlineCitationBody
+            body={truncatedBody}
+            citations={data.inlineCitations}
+            dir="auto"
+            className={`block ${bodyClass}`}
+          />
         )}
 
         {(nodeType === 'ARGUMENT' || nodeType === 'EVIDENCE') && (
