@@ -36,6 +36,7 @@ import java.util.Arrays;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final RateLimitFilter rateLimitFilter;
     private final JwtAuthenticationEntryPoint authenticationEntryPoint;
     /**
      * Optional - bean регистрируется только в profile local/dev/test.
@@ -45,10 +46,12 @@ public class SecurityConfig {
     private final boolean devOrTestProfile;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+                          RateLimitFilter rateLimitFilter,
                           JwtAuthenticationEntryPoint authenticationEntryPoint,
                           ObjectProvider<XUserIdAuthenticationFilter> xUserIdFilterProvider,
                           Environment environment) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.rateLimitFilter = rateLimitFilter;
         this.authenticationEntryPoint = authenticationEntryPoint;
         this.xUserIdFilterProvider = xUserIdFilterProvider;
         this.devOrTestProfile = Arrays.stream(environment.getActiveProfiles())
@@ -166,6 +169,10 @@ public class SecurityConfig {
                     auth.anyRequest().authenticated();
                 })
                 .exceptionHandling(eh -> eh.authenticationEntryPoint(authenticationEntryPoint))
+                // Rate limit ПЕРЕД JWT (ADR-046) - блокируем brute-force
+                // до bcrypt / DB lookup. Применяется только к /auth/login и
+                // /auth/register; для остальных endpoints filter no-op.
+                .addFilterBefore(rateLimitFilter, JwtAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         // X-User-Id fallback фильтр - только если bean есть (dev/test profile).
