@@ -15,11 +15,15 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
+
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.domain.NodeSource;
 import ru.basnukaev.argumentmap.domain.NodeStatus;
 import ru.basnukaev.argumentmap.domain.NodeType;
+import ru.basnukaev.argumentmap.domain.Reliability;
 import ru.basnukaev.argumentmap.domain.SourceType;
+import ru.basnukaev.argumentmap.web.dto.InlineCitationRef;
 
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
@@ -346,5 +350,129 @@ class NodeSourceRepositoryIT {
         assertThat(c.regionPrintedPage()).isEqualTo("13");
         assertThat(c.regionPageNumber()).isEqualTo(7);
         assertThat(c.pageId()).isNull();
+    }
+
+    // ===== InlineCitationRef bulk-load (inline citations [N] feature) =====
+
+    @Test
+    void findInlineCitationsForNodes_returnsOrdinalsByCreatedAt() {
+        // Узел с тремя источниками: ordinal расставляется по created_at ASC
+        UUID src1 = insertSource();
+        UUID src2 = insertSource();
+        UUID src3 = insertSource();
+        Instant t0 = Instant.parse("2026-05-18T10:00:00Z");
+        nodeSourceRepository.save(NodeSource.legacyMode(nodeId, src1, "q1", null, "loc1", t0));
+        nodeSourceRepository.save(NodeSource.legacyMode(nodeId, src2, "q2", null, "loc2", t0.plusSeconds(10)));
+        nodeSourceRepository.save(NodeSource.legacyMode(nodeId, src3, "q3", null, "loc3", t0.plusSeconds(20)));
+
+        Map<UUID, List<InlineCitationRef>> result =
+                nodeSourceRepository.findInlineCitationsForNodes(List.of(nodeId));
+
+        assertThat(result).containsKey(nodeId);
+        List<InlineCitationRef> refs = result.get(nodeId);
+        assertThat(refs).hasSize(3);
+        assertThat(refs.get(0).ordinal()).isEqualTo(1);
+        assertThat(refs.get(0).sourceId()).isEqualTo(src1);
+        assertThat(refs.get(0).quote()).isEqualTo("q1");
+        assertThat(refs.get(1).ordinal()).isEqualTo(2);
+        assertThat(refs.get(1).sourceId()).isEqualTo(src2);
+        assertThat(refs.get(2).ordinal()).isEqualTo(3);
+        assertThat(refs.get(2).sourceId()).isEqualTo(src3);
+    }
+
+    @Test
+    void findInlineCitationsForNodes_emptyForNodeWithoutSources() {
+        // Узел без node_sources записей - не попадает в map (caller использует empty list)
+        Map<UUID, List<InlineCitationRef>> result =
+                nodeSourceRepository.findInlineCitationsForNodes(List.of(nodeId));
+
+        assertThat(result).doesNotContainKey(nodeId);
+        assertThat(nodeSourceRepository.findInlineCitationsForNode(nodeId)).isEmpty();
+    }
+
+    @Test
+    void findInlineCitationsForNodes_populatesHadithReliability() {
+        // Hadith source с reliability (DB constraint: book_id только для BOOK type,
+        // поэтому HADITH source без book - title из source.title)
+        UUID hadithSourceId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO sources (id, source_type, title, citation, reliability) "
+                        + "VALUES (?, 'HADITH', ?, ?, ?)",
+                hadithSourceId, "Сахих аль-Бухари, № 1", "Бухари, 1234",
+                Reliability.SAHIH.name()
+        );
+        nodeSourceRepository.save(NodeSource.legacyMode(
+                nodeId, hadithSourceId, "кто чем будет воскрешён",
+                null, "loc", Instant.now()));
+
+        List<InlineCitationRef> refs = nodeSourceRepository.findInlineCitationsForNode(nodeId);
+
+        assertThat(refs).hasSize(1);
+        InlineCitationRef r = refs.get(0);
+        assertThat(r.ordinal()).isEqualTo(1);
+        assertThat(r.sourceType()).isEqualTo(SourceType.HADITH);
+        assertThat(r.reliability()).isEqualTo(Reliability.SAHIH);
+        // title fallback: book_id null - source.title используется
+        assertThat(r.title()).isEqualTo("Сахих аль-Бухари, № 1");
+        assertThat(r.citation()).isEqualTo("Бухари, 1234");
+        assertThat(r.quote()).isEqualTo("кто чем будет воскрешён");
+    }
+
+    @Test
+    void findInlineCitationsForNodes_bookTitleTakesPrecedence_overSourceTitle() {
+        // BOOK source с book - title fallback chain: book.title > source.title
+        UUID bookId = UUID.randomUUID();
+        UUID authorityId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO authorities (id, name, created_at) VALUES (?, ?, now())",
+                authorityId, "Ибн Касир"
+        );
+        jdbcTemplate.update(
+                "INSERT INTO lib_books (id, book_type, title, authority_id, language, created_by) "
+                        + "VALUES (?, 'BOOK', ?, ?, 'ar', ?)",
+                bookId, "Тафсир аль-Куран аль-Азим", authorityId, userId
+        );
+        UUID bookSourceId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO sources (id, source_type, title, citation, book_id) "
+                        + "VALUES (?, 'BOOK', ?, ?, ?)",
+                bookSourceId, "источник для цитирования", "Тафсир, т. 1", bookId
+        );
+        nodeSourceRepository.save(NodeSource.legacyMode(
+                nodeId, bookSourceId, "цитата", null, "loc", Instant.now()));
+
+        List<InlineCitationRef> refs = nodeSourceRepository.findInlineCitationsForNode(nodeId);
+
+        assertThat(refs).hasSize(1);
+        // title из book берёт верх над source.title
+        assertThat(refs.get(0).title()).isEqualTo("Тафсир аль-Куран аль-Азим");
+        assertThat(refs.get(0).sourceType()).isEqualTo(SourceType.BOOK);
+    }
+
+    @Test
+    void findInlineCitationsForNodes_bulkLoadMultipleNodes_independentOrdinals() {
+        // Bulk load двух узлов - ordinal counter сбрасывается per-node
+        UUID node2 = insertNode(topicId, userId);
+        UUID s1 = insertSource();
+        UUID s2 = insertSource();
+        Instant t0 = Instant.parse("2026-05-18T10:00:00Z");
+        nodeSourceRepository.save(NodeSource.legacyMode(nodeId, s1, "node1.q1", null, null, t0));
+        nodeSourceRepository.save(NodeSource.legacyMode(nodeId, s2, "node1.q2", null, null, t0.plusSeconds(10)));
+        nodeSourceRepository.save(NodeSource.legacyMode(node2, s1, "node2.q1", null, null, t0));
+
+        Map<UUID, List<InlineCitationRef>> result =
+                nodeSourceRepository.findInlineCitationsForNodes(List.of(nodeId, node2));
+
+        assertThat(result.get(nodeId)).extracting(InlineCitationRef::ordinal)
+                .containsExactly(1, 2);
+        assertThat(result.get(node2)).extracting(InlineCitationRef::ordinal)
+                .containsExactly(1);
+    }
+
+    @Test
+    void findInlineCitationsForNodes_emptyInput_returnsEmptyMap() {
+        // Защита от пустого input - не SQL-инъекция в IN (), не падение
+        assertThat(nodeSourceRepository.findInlineCitationsForNodes(List.of())).isEmpty();
+        assertThat(nodeSourceRepository.findInlineCitationsForNodes(null)).isEmpty();
     }
 }

@@ -5,7 +5,11 @@ import static ru.basnukaev.argumentmap.repository.JdbcTimes.odt;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -15,6 +19,9 @@ import org.springframework.stereotype.Repository;
 
 import ru.basnukaev.argumentmap.domain.CitationDetail;
 import ru.basnukaev.argumentmap.domain.NodeSource;
+import ru.basnukaev.argumentmap.domain.Reliability;
+import ru.basnukaev.argumentmap.domain.SourceType;
+import ru.basnukaev.argumentmap.web.dto.InlineCitationRef;
 
 @Repository
 public class NodeSourceRepository {
@@ -268,5 +275,79 @@ public class NodeSourceRepository {
                 ),
                 id
         ).stream().findFirst();
+    }
+
+    /**
+     * Bulk-load inline citation refs для группы узлов. Один SQL на весь граф -
+     * не N+1. Возвращает map nodeId → List отсортированный по created_at ASC
+     * (для stable ordinal-based mapping `[N]` → source). Узлы без node_sources
+     * - не попадают в map (caller использует empty list по умолчанию)
+     *
+     * <p>Title fallback chain: book.title → source.title (нужен потому что
+     * для freeform-источников book_id может быть null)
+     */
+    public Map<UUID, List<InlineCitationRef>> findInlineCitationsForNodes(List<UUID> nodeIds) {
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            return Map.of();
+        }
+        String placeholders = String.join(",", java.util.Collections.nCopies(nodeIds.size(), "?"));
+        String sql = """
+                SELECT ns.id AS ns_id, ns.node_id, ns.source_id, ns.quote, ns.created_at,
+                       s.source_type, s.title AS source_title, s.citation AS source_citation,
+                       s.reliability,
+                       b.title AS book_title
+                FROM node_sources ns
+                LEFT JOIN sources s   ON s.id = ns.source_id
+                LEFT JOIN lib_books b ON b.id = s.book_id
+                WHERE ns.node_id IN (%s)
+                ORDER BY ns.node_id, ns.created_at ASC
+                """.formatted(placeholders);
+
+        Map<UUID, List<InlineCitationRef>> result = new HashMap<>();
+        Map<UUID, Integer> ordinalCounter = new HashMap<>();
+        jdbcTemplate.query(sql, rs -> {
+            UUID nodeId = rs.getObject("node_id", UUID.class);
+            int ordinal = ordinalCounter.merge(nodeId, 1, Integer::sum);
+
+            String sourceTypeRaw = rs.getString("source_type");
+            SourceType sourceType = sourceTypeRaw == null ? null : SourceType.valueOf(sourceTypeRaw);
+            String reliabilityRaw = rs.getString("reliability");
+            Reliability reliability = reliabilityRaw == null ? null : Reliability.valueOf(reliabilityRaw);
+
+            String bookTitle = rs.getString("book_title");
+            String sourceTitle = rs.getString("source_title");
+            String title = bookTitle != null ? bookTitle : sourceTitle;
+
+            InlineCitationRef ref = new InlineCitationRef(
+                    ordinal,
+                    rs.getObject("ns_id", UUID.class),
+                    rs.getObject("source_id", UUID.class),
+                    sourceType,
+                    title,
+                    rs.getString("source_citation"),
+                    rs.getString("quote"),
+                    reliability
+            );
+            result.computeIfAbsent(nodeId, k -> new ArrayList<>()).add(ref);
+        }, nodeIds.toArray());
+
+        // LinkedHashMap чтобы порядок предсказуем для тестов
+        Map<UUID, List<InlineCitationRef>> ordered = new LinkedHashMap<>();
+        for (UUID id : nodeIds) {
+            if (result.containsKey(id)) {
+                ordered.put(id, result.get(id));
+            }
+        }
+        return ordered;
+    }
+
+    /**
+     * Inline citation refs для одного узла. Удобство-обёртка над bulk-методом
+     * для controller-mutating endpoints (создать/обновить узел - подгрузить
+     * citations одной строкой)
+     */
+    public List<InlineCitationRef> findInlineCitationsForNode(UUID nodeId) {
+        return findInlineCitationsForNodes(List.of(nodeId))
+                .getOrDefault(nodeId, List.of());
     }
 }

@@ -1,6 +1,7 @@
 package ru.basnukaev.argumentmap.web.dto;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import ru.basnukaev.argumentmap.domain.NodeStatus;
@@ -16,6 +17,12 @@ import ru.basnukaev.argumentmap.domain.NodeType;
  *
  * <p>zIndex - stacking order на канвасе. Default 0. Управляется через
  * POST /api/v1/nodes/{id}/z-order/bring-to-front и /send-to-back.
+ *
+ * <p>inlineCitations - список лёгких ссылок для inline-маркеров [N] в тексте.
+ * Подход A (implicit ordinal) - frontend парсит `[1]`, `[2]` и находит ref
+ * по 1-based ordinal. Bulk-load в GET /topics/{id}/graph (один SQL на весь
+ * граф). Mutating endpoints (POST /nodes, PATCH /nodes/{id}) - точечная
+ * подгрузка для одного узла. Пустой список если у узла нет node_sources
  */
 public record NodeResponse(
         UUID id,
@@ -32,6 +39,7 @@ public record NodeResponse(
         int voteUpvotes,
         int voteDownvotes,
         int voteScore,
-        Integer userVote
+        Integer userVote,
+        List<InlineCitationRef> inlineCitations
 ) {
 }

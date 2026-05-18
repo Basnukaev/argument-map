@@ -18,10 +18,12 @@ import jakarta.validation.Valid;
 import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.domain.Node;
 import ru.basnukaev.argumentmap.domain.VoteStats;
+import ru.basnukaev.argumentmap.repository.NodeSourceRepository;
 import ru.basnukaev.argumentmap.repository.NodeVoteRepository;
 import ru.basnukaev.argumentmap.service.NodeService;
 import ru.basnukaev.argumentmap.web.CurrentUser;
 import ru.basnukaev.argumentmap.web.dto.CreateNodeRequest;
+import ru.basnukaev.argumentmap.web.dto.InlineCitationRef;
 import ru.basnukaev.argumentmap.web.dto.NodeResponse;
 import ru.basnukaev.argumentmap.web.dto.RevisionResponse;
 import ru.basnukaev.argumentmap.web.dto.UpdateNodeRequest;
@@ -33,10 +35,13 @@ public class NodeController {
 
     private final NodeService nodeService;
     private final NodeVoteRepository nodeVoteRepository;
+    private final NodeSourceRepository nodeSourceRepository;
 
-    public NodeController(NodeService nodeService, NodeVoteRepository nodeVoteRepository) {
+    public NodeController(NodeService nodeService, NodeVoteRepository nodeVoteRepository,
+                          NodeSourceRepository nodeSourceRepository) {
         this.nodeService = nodeService;
         this.nodeVoteRepository = nodeVoteRepository;
+        this.nodeSourceRepository = nodeSourceRepository;
     }
 
     @PostMapping
@@ -46,9 +51,10 @@ public class NodeController {
         Node created = nodeService.createNode(
                 request.topicId(), request.nodeType(), request.content(), userId, role
         );
-        // Только что созданный узел не имеет голосов - VoteStats.EMPTY, userVote=null
+        // Только что созданный узел не имеет ни голосов ни node_sources -
+        // VoteStats.EMPTY, userVote=null, inlineCitations=[]
         return ResponseEntity.created(URI.create("/api/v1/nodes/" + created.id()))
-                .body(DtoMappers.toResponse(created, VoteStats.EMPTY, null));
+                .body(DtoMappers.toResponse(created, VoteStats.EMPTY, null, List.of()));
     }
 
     /**
@@ -78,12 +84,14 @@ public class NodeController {
         if (hasPosition) {
             node = nodeService.updatePosition(nodeId, request.posX(), request.posY(), userId, role);
         }
-        // Vote статистика подгружается отдельно - PATCH не меняет голоса, но
-        // фронту удобно получить актуальное состояние карточки в одном ответе
+        // Vote статистика и inline citations подгружаются отдельно - PATCH не
+        // меняет ни голоса ни источники, но фронту удобно получить актуальное
+        // состояние карточки в одном ответе
         VoteStats stats = nodeVoteRepository.getStatsForNode(nodeId);
         Integer userVote = nodeVoteRepository.findByNodeAndUser(nodeId, userId)
                 .map(v -> v.weight()).orElse(null);
-        return DtoMappers.toResponse(node, stats, userVote);
+        List<InlineCitationRef> citations = nodeSourceRepository.findInlineCitationsForNode(nodeId);
+        return DtoMappers.toResponse(node, stats, userVote, citations);
     }
 
     /**
@@ -99,7 +107,8 @@ public class NodeController {
         VoteStats stats = nodeVoteRepository.getStatsForNode(nodeId);
         Integer userVote = nodeVoteRepository.findByNodeAndUser(nodeId, userId)
                 .map(v -> v.weight()).orElse(null);
-        return DtoMappers.toResponse(node, stats, userVote);
+        List<InlineCitationRef> citations = nodeSourceRepository.findInlineCitationsForNode(nodeId);
+        return DtoMappers.toResponse(node, stats, userVote, citations);
     }
 
     /**
@@ -114,7 +123,8 @@ public class NodeController {
         VoteStats stats = nodeVoteRepository.getStatsForNode(nodeId);
         Integer userVote = nodeVoteRepository.findByNodeAndUser(nodeId, userId)
                 .map(v -> v.weight()).orElse(null);
-        return DtoMappers.toResponse(node, stats, userVote);
+        List<InlineCitationRef> citations = nodeSourceRepository.findInlineCitationsForNode(nodeId);
+        return DtoMappers.toResponse(node, stats, userVote, citations);
     }
 
     @DeleteMapping("/{nodeId}")
