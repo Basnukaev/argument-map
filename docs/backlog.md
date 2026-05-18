@@ -210,11 +210,32 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       (Languages icon). PreferencesStore ключ `bilingualMode`,
       Settings секция «Двуязычный режим узлов». Один перевод на узел -
       multi-translation см. Translator attribution
-- [ ] **Translator attribution** - при показе перевода аята /
-      хадиса - указание переводчика (Кулиев, Sahih International,
-      Османов и т.д.). Dropdown переключения переводов. Требует M:N
-      таблицу node_translations (node × translator × language) поверх
-      single-translation MVP из миграции 44 _(TranslatorSection)_
+- [x] **Translator attribution** - закрыто 2026-05-18. Миграция 45 -
+      новая таблица `node_translations` (node × translator × language)
+      заменяет single-translation 1:1 модель миграции 44. Backend:
+      NodeTranslation domain + repository (bulk findByNodeIds для GET
+      /topics/{id}/graph - один SQL на весь граф), NodeTranslationService
+      с canWriteTopic guards + atomic default-swap + auto-promote oldest
+      при удалении default. 5 endpoint под /api/v1/nodes: POST/GET
+      /{id}/translations, PATCH/DELETE /translations/{id}, отдельный
+      POST .../default для atomic switch. NodeResponse breaking change -
+      убраны translation/translationLang, добавлено translations[].
+      Permission: canWriteTopic. Unique constraint через partial indexes
+      (NULL и not-NULL translator_name). Спецсемантика: первый перевод
+      узла всегда default. 19 service IT + 10 controller IT (всё в
+      pass). Frontend: NodeCard читает data.translations[], dropdown
+      показывается при >1 переводов (translator name + language +
+      ★ default badge), single translation - label под секцией перевода.
+      Type regen + 7 vitest pass. i18n node.translations.* (RU+AR).
+      Backlog «Translation editor UI» (admin add/edit modal) отложен в
+      backlog ниже как low-value MVP - power-users могут через curl,
+      обычный flow добавит позже _(TranslatorSection)_
+- [ ] **Translation editor UI** - admin add/edit modal для добавления
+      переводов через UI (сейчас только curl). Modal с polish (translator
+      name autocomplete по past entries, language radio, body textarea,
+      isDefault checkbox с warning «текущий default потеряет флаг»),
+      кнопки + Edit/Delete по carret-menu рядом с dropdown items в
+      NodeCard. Low priority - power-users могут через curl до тех пор
 - [ ] **Tashkeel toggle** - на canvas карточки можно отключить
       огласовки (`harakat`) для краткости. Side-by-side
       сравнение с / без _(TashkeelSection)_

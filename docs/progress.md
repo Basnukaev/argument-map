@@ -11,6 +11,121 @@
 
 ---
 
+## 2026-05-18 - Translator attribution / multi-translation 1:N (backlog item)
+
+Закрыт backlog «Translator attribution». Расширение Bilingual cards
+(закрытых ранее этой же сессией) с 1:1 на 1:N - узел может иметь
+несколько переводов от разных переводчиков (Кулиев, Sahih International,
+Османов и т.д.) с attribution и atomic default-switch.
+
+**Backend:**
+
+- **Миграция 45** - новая таблица `node_translations (id, node_id FK
+  CASCADE, translator_name varchar(200) NULL, language varchar(5) CHECK
+  ru|en, body text, is_default boolean, created_at, created_by FK
+  users)` + 2 индекса (`node_id`, partial по `is_default=true`) + 2
+  partial unique indexes для (NULL и not-NULL translator_name). Перенос
+  existing 1:1 переводов из миграции 44 в первую строку (`translator_name=NULL`,
+  `is_default=true`). Drop `nodes.translation`/`translation_lang` (теперь
+  child entity). `original_lang` остаётся на nodes
+- **Domain**: `NodeTranslation` record, `Node` упрощён (12 args вместо
+  14), `NodeTranslationRepository` с `findByNodeIds(Collection)` -
+  bulk-load (один SQL на весь граф для GET /topics/{id}/graph)
+- **Service** `NodeTranslationService`:
+  - `addTranslation` - permission canWriteTopic + duplicate check
+    через partial unique indexes (через `existsForNodeTranslatorLanguage`
+    handles NULL semantics) + auto-default для первого перевода узла +
+    atomic snapshot снимает `is_default` с других при `isDefault=true`
+  - `setDefault` - atomic action: UPDATE all SET is_default=false WHERE
+    node=X AND id!=target + UPDATE target SET is_default=true. Одна
+    транзакция, либо оба либо ни одного
+  - `removeTranslation` - после delete default'а promote oldest
+    оставшийся через `findOldestByNodeId` (узел не остаётся без
+    default-перевода пока есть хоть один)
+- **REST** 5 endpoint под /api/v1/nodes:
+  - POST /{nodeId}/translations - добавить (201 + Location)
+  - GET /{nodeId}/translations - список (sorted default first)
+  - PATCH /translations/{id} - update body/translator (isDefault не
+    меняется здесь, отдельный action)
+  - POST /translations/{id}/default - atomic switch default
+  - DELETE /translations/{id} - 204
+- **Breaking change для NodeResponse**: убраны translation/translationLang,
+  добавлено `translations: NodeTranslationRef[]` (id, translatorName,
+  language, body, isDefault). Bulk-load через
+  `NodeTranslationRepository.findByNodeIds` (один SQL на весь граф, не
+  N+1)
+- **GlobalExceptionHandler**: 404 `node-translation-not-found`, 409
+  `node-translation-duplicate` (с nodeId/translatorName/language в
+  properties)
+- **Tests**: 19 service IT + 10 controller IT. Все existing IT
+  обновлены под new Node ctor (12 args) и CreateNodeRequest/
+  UpdateNodeRequest (4 args без translation*). Backend 839 → 867 tests
+  (+28), все pass
+
+**Frontend:**
+
+- `NodeCard.tsx` - читает `data.translations[]` вместо `data.translation`.
+  `selectedTranslation` через `useMemo` (preferredTranslationId state +
+  fallback на default - чистый computed value без useEffect/cascading
+  renders). Dropdown показывается при >1 переводов (translator name +
+  language uppercase + ★ для default). Single translation - просто
+  label с именем переводчика. Empty translations - режим original
+  (toggle скрыт)
+- `types.ts` регенерирован через `npm run generate-api` - получает
+  NodeTranslationRef + новые REST endpoints
+- `NodeCard.test.tsx` - 7 тестов pokrывают: empty/single/multi/
+  anonymous translator, toggle cycling, dropdown switch. Все pass
+- i18n `node.translations.*` (2 keys RU+AR)
+- Frontend baseline: 463 → 465 (заменён предыдущий single-translation
+  test set на 7 новых)
+
+**Архитектурные решения:**
+
+- Partial unique indexes для NULL `translator_name` - Postgres default
+  UNIQUE считает все NULL разными, поэтому два индекса: с WHERE
+  translator_name IS NOT NULL и с WHERE translator_name IS NULL
+- `setDefault` через отдельный POST action а не PATCH с
+  `isDefault=true` потому что меняет state других переводов узла - не
+  партиальный update одной записи, а domain action
+- Без backward compat (memory `feedback_no_prod_no_backward_compat`) -
+  миграция переносит existing 1:1 данные и frontend регенерирует
+  types. Никакого legacy 1:1 path
+
+**Verify:**
+
+- `./mvnw verify` - 867/867 pass (skipped 2)
+- `npm run lint && npm run build && npm test -- --run` - clean
+
+**Что user может проверить руками:**
+
+1. Open `/topics/{id}` где есть узел с переводом (миграция 45 перенесла
+   existing) - бэйлингвальный режим работает как раньше
+2. Через curl добавить второй перевод узлу:
+   ```
+   curl -X POST http://localhost:9090/api/v1/nodes/{id}/translations \
+     -H "X-User-Id: 00000000-0000-0000-0000-000000000001" \
+     -H "Content-Type: application/json" \
+     -d '{"translatorName":"Sahih International","language":"en","body":"Actions are by intentions","isDefault":false}'
+   ```
+3. Refresh граф - в NodeCard появится dropdown «Анонимный переводчик ▾»
+   (existing 1:1 миграция = anonymous), клик → выбрать Sahih International
+4. Dropdown показывает language uppercase + ★ для default. Single
+   translation - просто label, нет dropdown
+
+**Коммиты:** 5 backend + 1 frontend + 1 docs (этот)
+
+```
+feat(backend): миграция 45 node_translations table + domain + repository
+feat(backend): NodeTranslationService + REST endpoints
+feat(backend): NodeResponse - убрать translation полей + добавить translations[]
+fix(backend): обновить IT под удаление Node.translation/translationLang
+feat(backend): IT для NodeTranslationService + Controller
+feat(frontend): NodeCard translator dropdown + types regen
+docs: translator attribution - api-contract + backlog cleared + progress
+```
+
+---
+
 ## 2026-05-18 - Multi-select + FloatingActionBar (backlog item)
 
 Закрыт backlog «Multi-select с floating action bar». Пользователь

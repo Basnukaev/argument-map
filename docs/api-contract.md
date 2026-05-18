@@ -644,6 +644,95 @@ EDITOR'ов.
 Парный endpoint. `z_index = MIN(z_index по теме) - 1`. Контракт
 идентичный `bring-to-front` - заголовки, запрос, ответ, ошибки.
 
+### Multi-translation узлов (миграция 45, translator attribution)
+
+Один узел может иметь несколько переводов от разных переводчиков
+(Кулиев, Sahih International, Османов и т.д.) на разных языках. Каждый
+перевод имеет attribution (имя переводчика, опциональное - анонимный
+допустим) и `isDefault` флаг (какой показывать по умолчанию).
+
+**Permission:** все mutating - canWriteTopic (та же permission что и
+узел сам). GET - canReadTopic.
+
+**Уникальность:** один переводчик (либо `null` translator) - один перевод
+для узла на язык. Дубль → 409 `node-translation-duplicate`. Внутри одного
+узла одновременно только один `isDefault=true`.
+
+#### POST /api/v1/nodes/{nodeId}/translations
+
+Добавить новый перевод.
+
+**Тело:**
+```json
+{
+  "translatorName": "Кулиев",
+  "language": "ru",
+  "body": "Деяния оцениваются по намерениям",
+  "isDefault": false
+}
+```
+`translatorName` - nullable / пустая = анонимный. `language` ∈
+`{ru, en}`. `body` non-blank. `isDefault` - optional, default false.
+
+**Спецсемантика:** первый перевод узла всегда `isDefault=true` независимо
+от поля в payload (узел не может быть без default-перевода пока есть
+хоть один). Если клиент явно передал `isDefault=true` и в узле уже был
+default - фон-перевод теряет флаг atomically.
+
+**Ответ:** 201 + `NodeTranslationRef`.
+
+**Ошибки:**
+- `400 invalid language` - language ∉ {ru, en}
+- `400 illegal-argument` - blank body
+- `403 forbidden-topic-access`/`forbidden-topic-write` - не owner/EDITOR
+- `404 node-not-found`
+- `409 node-translation-duplicate` - translator+language уже есть
+
+#### GET /api/v1/nodes/{nodeId}/translations
+
+Список переводов узла. Сортировка: default первым, далее по
+`created_at ASC`. Возвращает `NodeTranslationRef[]`.
+
+#### PATCH /api/v1/nodes/translations/{translationId}
+
+Обновить body и/или translatorName. `isDefault` НЕ меняется через PATCH -
+для смены default используйте отдельный action `POST .../default`.
+
+**Тело:**
+```json
+{
+  "translatorName": "Османов",
+  "body": "Деяния по намерениям"
+}
+```
+- `translatorName` null / пустая = переводчик становится анонимным
+- `body` null / пустая / blank = body остаётся прежним (не очищается)
+
+**Ответ:** 200 + `NodeTranslationRef`.
+
+**Ошибки:** 403, 404 `node-translation-not-found`.
+
+#### POST /api/v1/nodes/translations/{translationId}/default
+
+Atomic action: пометить перевод как default, снять флаг с остальных
+переводов того же узла. Отдельный POST action а не PATCH с `isDefault=true`
+потому что меняет state других переводов узла (не партиальный update).
+Запрос без тела.
+
+**Ответ:** 200 + `NodeTranslationRef` (с `isDefault=true`).
+
+**Ошибки:** 403, 404 `node-translation-not-found`.
+
+#### DELETE /api/v1/nodes/translations/{translationId}
+
+Удалить перевод. Если удалённый был default - oldest из оставшихся
+переводов автоматически становится новым default (узел не остаётся без
+default-перевода пока есть хоть один).
+
+**Ответ:** 204.
+
+**Ошибки:** 403, 404 `node-translation-not-found`.
+
 ### Голосование за вес аргументов (миграция 38)
 
 Пользователи могут голосовать за/против узлов (`EVIDENCE`/`ARGUMENT`)
@@ -1059,9 +1148,16 @@ algorithm` (owner only)
       "reliability": "SAHIH|HASAN|DAIF|null"
     }
   ],
-  "translation": "string|null",
-  "translationLang": "ru|en|null",
-  "originalLang": "ar|ru|en|null"
+  "originalLang": "ar|ru|en|null",
+  "translations": [
+    {
+      "id": "uuid",
+      "translatorName": "string|null",
+      "language": "ru|en",
+      "body": "string",
+      "isDefault": true
+    }
+  ]
 }
 ```
 `posX`/`posY` - координаты узла на канвасе графа. `null` для
@@ -1089,19 +1185,25 @@ inline-маркеров `[N]` в `content`. Подход A (implicit ordinal): �
 SAHIH/HASAN/DAIF в popover. `title` fallback chain: `book.title →
 source.title`.
 
-`translation` / `translationLang` / `originalLang` (миграция 44, bilingual
-карточки). Узел может иметь оригинал (`content`) + перевод (`translation`)
-с явным указанием языков:
-- `translation` - текст перевода (nullable). null = перевода нет
-- `translationLang` ∈ `{ru, en}` - язык перевода. NOT NULL когда
-  translation NOT NULL (валидация в NodeService → 400 IllegalArgumentException)
-- `originalLang` ∈ `{ar, ru, en}` - язык оригинала (nullable). null означает
-  что frontend авто-определит по `hasArabicScript(content)` (MVP - только
-  AR vs RU; для EN-оригинала задавать явно). На POST/PATCH принимаются
-  через `CreateNodeRequest` / `UpdateNodeRequest`. В UpdateNodeRequest
-  пустая строка означает «очистить» поле, отсутствие в payload - «не
-  менять». Whitelist enum валидируется через @Pattern в DTO + дубль в
-  сервисе для чистого 400 error
+`originalLang` (миграция 44) - язык оригинала (nullable). null означает
+что frontend авто-определит по `hasArabicScript(content)` (MVP - только
+AR vs RU; для EN-оригинала задавать явно). На POST/PATCH принимаются
+через `CreateNodeRequest` / `UpdateNodeRequest`. В UpdateNodeRequest
+пустая строка означает «очистить» поле, отсутствие в payload - «не
+менять».
+
+`translations` (миграция 45, multi-translation 1:N) - список переводов
+узла с attribution переводчика. Один узел может иметь несколько переводов
+от разных переводчиков (Кулиев, Sahih International, Османов и т.д.) на
+разных языках. Bulk-load на GET `/topics/{id}/graph` (один SQL на весь
+граф, не N+1). На POST/PATCH `/api/v1/nodes` подгружаются точечно для
+одного узла. Сортировка: default-перевод первым, далее по created_at ASC.
+- `translatorName` - имя переводчика. nullable (анонимный переводчик)
+- `language` ∈ `{ru, en}` - язык перевода
+- `body` - текст перевода (NOT NULL)
+- `isDefault` - какой перевод показывать по умолчанию (один на узел)
+
+CRUD - см. секцию «Multi-translation узлов» ниже.
 
 ### NodeVoteStatsResponse
 ```json
@@ -3028,6 +3130,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-18 | v1 | Multi-translation 1:N узлов (translator attribution). Миграция 45 - новая таблица `node_translations (id UUID PK, node_id FK CASCADE, translator_name varchar(200) NULL, language varchar(5) CHECK ru\|en, body text NOT NULL, is_default boolean DEFAULT false, created_at, created_by FK users)` + 2 индекса (`node_id`, partial по `is_default=true`) + 2 partial unique indexes для `(node_id, translator_name, language)` когда NULL и not-NULL (Postgres UNIQUE считает все NULL разными). **Breaking change**: миграция 45 удаляет колонки `nodes.translation`/`nodes.translation_lang` (теперь в child-таблице), переносит existing 1:1 переводы как первую строку с `translator_name=NULL` и `is_default=true`. `originalLang` остаётся на nodes - это свойство оригинала. `NodeResponse` потерял поля `translation`/`translationLang`, получил `translations: NodeTranslationRef[]` (id, translatorName, language, body, isDefault). Default-перевод первым, затем по created_at ASC. Bulk-load в `GET /topics/{id}/graph` через `NodeTranslationRepository.findByNodeIds` (один SQL на весь граф, не N+1). `CreateNodeRequest`/`UpdateNodeRequest` потеряли translation/translationLang (переводы добавляются после создания узла через child endpoints). 5 новых endpoint под `/api/v1/nodes`: `POST /{nodeId}/translations` (CreateNodeTranslationRequest{translatorName?, language, body, isDefault?}, 201 + Location), `GET /{nodeId}/translations` (NodeTranslationRef[]), `PATCH /translations/{id}` (UpdateNodeTranslationRequest{translatorName?, body?}), `POST /translations/{id}/default` (atomic switch default), `DELETE /translations/{id}` (204, auto-promote oldest при удалении default). Permission: canWriteTopic на mutating, canReadTopic на GET. Спецсемантика: первый перевод узла всегда `isDefault=true` независимо от payload (узел не может быть без default-перевода). Новые ошибки: 404 `node-translation-not-found`, 409 `node-translation-duplicate` (translator+language существует, properties nodeId/translatorName/language). 19 IT для service + 10 IT для controller. Frontend: NodeCard читает `data.translations[]`, dropdown показывается только при >1 переводов, single - просто label с именем переводчика | Backlog «Translator attribution» закрыт. Учёные часто переводят аяты/хадисы по-разному (Кулиев vs Sahih International vs Османов) - один MVP перевод (миграция 44) не покрывал реальный use-case. Memory `feedback_no_prod_no_backward_compat` - ломаем single-translation 1:1 contract без backward compat: миграция переносит existing данные и frontend регенерирует types. Без ADR - чистое расширение domain (1:1 → 1:N) без architectural alternatives |
 | 2026-05-18 | v1 | Bilingual карточки узлов. Миграция 44 ALTER `nodes` добавляет 3 nullable колонки: `translation` (text), `translation_lang` varchar(5) CHECK IN ('ru','en'), `original_lang` varchar(5) CHECK IN ('ar','ru','en'). `NodeResponse` расширен полями `translation` / `translationLang` / `originalLang` (все nullable). `CreateNodeRequest` принимает их как optional с @Pattern whitelist валидацией. `UpdateNodeRequest`: те же поля + семантика "пустая строка = очистить, null/отсутствие = не менять". Двойная валидация: @Pattern в DTO (быстрый 400) + NodeService.validateBilingual (защита от прямого вызова сервиса). Правило: translation NOT NULL → translationLang обязателен. NodeService updateContent получил перегрузку с boxed-семантикой через sentinel `NodeService.NoChange.INSTANCE` чтобы отличить "не пришло в PATCH" от "пришло null (очистить)". Revision НЕ пишется для translation/lang (это metadata, не version-controlled содержимое). Whitelist `UserPreferenceService.ALLOWED_VALUES` расширен ключом `bilingualMode` ('original'\|'translation'\|'both') - frontend persist'ит режим отображения через тот же `/api/v1/preferences/bilingualMode`. originalLang null → frontend auto-detect через hasArabicScript(content) | Backlog «Bilingual карточки - двуязычный режим узла» закрыт. MVP - один перевод на узел. Multi-translation (M:N table с разными переводчиками одного аята: Кулиев, Sahih International, Османов) - в backlog Translator attribution. Без ADR - чистое расширение domain без architectural alternatives |
 | 2026-05-18 | v1 | Multi-grading хадисов. Миграция 43 - новая таблица `hadith_grades (id UUID PK, source_id FK CASCADE, scholar_id FK RESTRICT на authorities, grade VARCHAR(20) CHECK SAHIH/HASAN/DAIF/MAUDU, grade_citation VARCHAR(500), comment text, created_at, created_by FK users, UNIQUE(source_id, scholar_id))` + 2 индекса. 4 новых REST endpoint под `/api/v1/sources`: `POST /{sourceId}/grades` (CreateHadithGradeRequest{scholarId, grade, gradeCitation?, comment?} → 201 HadithGradeResponse + Location), `GET /{sourceId}/grades` (HadithGradeResponse[] с denormalized scholar info через JOIN на authorities - один SQL без N+1), `PATCH /grades/{gradeId}` (UpdateHadithGradeRequest, author либо ADMIN), `DELETE /grades/{gradeId}` (204, author либо ADMIN). Новый enum `HadithGradeValue` отдельно от legacy `Reliability` - добавлен `MAUDU` («выдуманный») как четвёртая категория для multi-grading. Существующее `sources.reliability` single-value не трогаем (legacy primary). Новые ошибки: 400 `invalid-hadith-grade` (source не HADITH либо grade null), 404 `hadith-grade-not-found`, 409 `hadith-grade-duplicate` (тот же scholar уже оценил, properties sourceId/scholarId), 403 `forbidden-hadith-grade-write` (не автор/не ADMIN, properties gradeId/userId) | Backlog «Multi-grading хадисов» закрыт. Учёные часто расходятся в оценке - один хадис может быть SAHIH по Бухари, HASAN по Тирмизи. M:N модель source × scholar с unique constraint защищает от дублей. Без ADR - чистое расширение domain без architectural alternatives |
 | 2026-05-18 | v1 | Settings screen - user preferences API. Миграция 42 - новая таблица `user_preferences (id UUID PK, user_id FK CASCADE, key VARCHAR(100), value jsonb, updated_at, UNIQUE(user_id, key))` + индекс. 4 новых endpoint под `/api/v1/preferences`: `GET` возвращает `Map<String, Object>` всех текущих prefs user'а (десериализация jsonb через ObjectMapper); `PUT` принимает Map для bulk update (валидация всех ключей до записи, @Transactional rollback на ошибку); `PUT /{key}` принимает конверт `{value: ...}` для одного ключа (boolean/string/number); `DELETE /{key}` удаляет ключ - revert на дефолт. Whitelisted keys валидируются в `UserPreferenceService.ALLOWED_VALUES`: `locale` (ru/ar/en), `arabicFont` (naskh/kufi/tahoma), `textSize` (small/medium/large/xl), `theme` (system/light/dark) - enum string; `hideTashkeelByDefault`, `transliteration` - boolean. Невалидный ключ или значение → 400 `illegal-argument`. Все endpoints под current user через `@CurrentUser UUID userId` - изоляция читает/пишет только свои prefs. Upsert через `INSERT ON CONFLICT (user_id, key) DO UPDATE` - повторная запись обновляет value + updated_at | Backlog «Settings screen» закрыт. JSONB store для гибкости (расширение whitelist - только правка кода сервиса, новая миграция не нужна). LocalStorage cache на фронте для FOUC prevention, backend wins на login. ADR не пишем - решение очевидное (key-value table + whitelist), без alternatives to compare |
