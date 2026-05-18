@@ -14,7 +14,6 @@ type SourceDto = components['schemas']['SourceResponse'];
 type AuthorityDto = components['schemas']['AuthorityResponse'];
 
 type FetchState =
-  | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'loaded'; source: SourceDto; authority: AuthorityDto | null }
   | { kind: 'error'; message: string };
@@ -39,31 +38,45 @@ type FetchState =
  * - используем absolute positioning + own backdrop потому что нужен
  *  slide-in справа а не центр)
  */
+/**
+ * Public компонент - thin wrapper над `SourceDetailPanelContent`. Используем
+ * conditional render идиому `{isOpen && <Content/>}` (см. gotchas + memory
+ * `feedback_react_key_remount`) - чтобы state внутри content сбрасывался
+ * на каждое открытие, без useEffect-сброса и react-hooks/set-state-in-effect
+ * warning'ов. `current.sourceId` как key - re-mount при смене источника
+ */
 function SourceDetailPanel() {
+  const isOpen = useSourceDetailPanelStore((s) => s.isOpen);
+  const current = useSourceDetailPanelStore((s) => s.current);
+  if (!isOpen || !current) return null;
+  return <SourceDetailPanelContent key={current.sourceId} citation={current} />;
+}
+
+interface ContentProps {
+  citation: SourceDetailCitation;
+}
+
+function SourceDetailPanelContent({ citation }: ContentProps) {
   const t = useT();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const isOpen = useSourceDetailPanelStore((s) => s.isOpen);
-  const current = useSourceDetailPanelStore((s) => s.current);
   const close = useSourceDetailPanelStore((s) => s.close);
 
-  const [state, setState] = useState<FetchState>({ kind: 'idle' });
+  // Initial state - 'loading' (fetch стартует в effect). Re-mount на смене
+  // sourceId через key - state автоматически в loading при новом источнике
+  const [state, setState] = useState<FetchState>({ kind: 'loading' });
 
-  // Fetch source + (опционально) authority при открытии. AbortController -
-  // если user быстро переключает источники, отменяем in-flight запрос
+  // Fetch source + (опционально) authority. AbortController отменяет
+  // in-flight запросы на unmount (close panel или re-mount на новый
+  // sourceId через key). Все setState вызовы внутри `.then` / `.catch` -
+  // async после suspension, eslint `set-state-in-effect` не warning'ит
   useEffect(() => {
-    if (!isOpen || !current) {
-      setState({ kind: 'idle' });
-      return;
-    }
-    setState({ kind: 'loading' });
     const controller = new AbortController();
-    apiGetRaw<SourceDto>(`/api/v1/sources/${current.sourceId}`, {
+    apiGetRaw<SourceDto>(`/api/v1/sources/${citation.sourceId}`, {
       signal: controller.signal,
     })
       .then(async (source) => {
         if (controller.signal.aborted) return;
-        // Если есть authorityId - подгружаем биографию автора
         if (source.authorityId) {
           try {
             const authority = await apiGetRaw<AuthorityDto>(
@@ -86,38 +99,29 @@ function SourceDetailPanel() {
         setState({ kind: 'error', message: formatApiError(e, t('source_detail.error_load')) });
       });
     return () => controller.abort();
-  }, [isOpen, current, t]);
+  }, [citation.sourceId, t]);
 
-  // Escape - close. Listener только когда panel открыт чтобы не висеть
-  // постоянно во всех страницах
+  // Escape - close
   useEffect(() => {
-    if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [isOpen, close]);
+  }, [close]);
 
-  if (!isOpen) return null;
-
-  // Panel ширина: desktop 800px, mobile - full viewport. Tailwind
-  // logical end-0 чтобы корректно работать в RTL (панель справа в LTR,
-  // слева в RTL). Анимация через `data-state` атрибут + transition
+  // Panel ширина: desktop 800px, mobile - full viewport. Tailwind logical
+  // end-0 - RTL-friendly (панель справа в LTR, слева в RTL)
   const panelWidthClass = isMobile ? 'w-screen' : 'w-[800px] max-w-[90vw]';
 
   return (
     <>
-      {/* Backdrop - dimmed overlay, click → close. На mobile прозрачный
-          т.к. panel занимает весь screen */}
       <div
         className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px]"
         onClick={close}
         data-testid="source-detail-backdrop"
         aria-hidden="true"
       />
-
-      {/* Panel - absolute, slides in from end (right in LTR, left in RTL) */}
       <aside
         role="dialog"
         aria-modal="true"
@@ -127,7 +131,7 @@ function SourceDetailPanel() {
       >
         <PanelHeader onClose={close} />
         <div className="flex-1 overflow-y-auto px-6 py-5">
-          <PanelBody state={state} citation={current!} onNavigate={navigate} />
+          <PanelBody state={state} citation={citation} onNavigate={navigate} />
         </div>
       </aside>
     </>
@@ -169,7 +173,7 @@ interface BodyProps {
 function PanelBody({ state, citation, onNavigate }: BodyProps) {
   const t = useT();
 
-  if (state.kind === 'loading' || state.kind === 'idle') {
+  if (state.kind === 'loading') {
     return <p className="text-sm text-ink-500">{t('source_detail.loading')}</p>;
   }
   if (state.kind === 'error') {

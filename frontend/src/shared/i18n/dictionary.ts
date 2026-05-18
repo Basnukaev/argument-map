@@ -449,6 +449,7 @@ export const DICTIONARY = {
     'node.inline_citation.dead_marker_tooltip': 'Источник не найден',
     'node.inline_citation.view_source': 'Открыть источник',
     'node.inline_citation.reliability_label': 'Степень достоверности',
+    'node.inline_citation.open_detail': 'Открыть подробнее',
 
     // CitationPicker модалка
     'citation_picker.title_for': 'Привести источник для',
@@ -1380,6 +1381,7 @@ export const DICTIONARY = {
     'node.inline_citation.dead_marker_tooltip': 'المصدر غير موجود',
     'node.inline_citation.view_source': 'فتح المصدر',
     'node.inline_citation.reliability_label': 'درجة الصحة',
+    'node.inline_citation.open_detail': 'عرض التفاصيل',
 
     'citation_picker.title_for': 'إرفاق مصدر للعقدة',
     'citation_picker.subtitle': 'اختر الكتاب، ابحث عن المقطع، حدِّده بالمؤشر واضغط «إرفاق»',

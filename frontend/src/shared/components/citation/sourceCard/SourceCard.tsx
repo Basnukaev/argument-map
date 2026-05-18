@@ -29,6 +29,9 @@ type Props = {
   onDelete?: () => void;
   onPrimaryAction?: () => void;
   primaryActionLabel?: string;
+  /** Если передан - title в header'е становится button, click открывает
+   *  `SourceDetailPanel`. Caller отвечает за вызов `useSourceDetailPanelStore.openWith` */
+  onTitleClick?: () => void;
 };
 
 const SEP = (
@@ -53,6 +56,7 @@ export function SourceCard({
   onDelete,
   onPrimaryAction,
   primaryActionLabel,
+  onTitleClick,
 }: Props) {
   const t = useT();
   const c = link.citation ?? {};
@@ -62,7 +66,7 @@ export function SourceCard({
 
   return (
     <div className={CARD_SHELL}>
-      <SourceCardHeader title={headerTitle} onDelete={onDelete} />
+      <SourceCardHeader title={headerTitle} onDelete={onDelete} onTitleClick={onTitleClick} />
 
       <QuoteBlock
         part={location?.part ?? null}

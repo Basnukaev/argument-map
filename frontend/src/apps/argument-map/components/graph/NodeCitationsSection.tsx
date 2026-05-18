@@ -17,6 +17,7 @@ import CitationPicker from '@/shared/components/citation/CitationPicker';
 import { SourceCard } from '@/shared/components/citation/sourceCard';
 import { apiGetRaw, apiDeleteRaw, formatApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
+import { useSourceDetailPanelStore } from '@/shared/stores/sourceDetailPanelStore';
 import { SOURCE_TYPE_LABEL } from '@/apps/argument-map/utils/attachmentTokens';
 import { hasArabicScript, useT } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
@@ -243,6 +244,7 @@ function pickLatinTitle(source: SourceDto | undefined, bookTitle?: string | null
 function CitationsList({ state, onDetach }: CitationsListProps) {
   const t = useT();
   const navigate = useNavigate();
+  const openSourceDetail = useSourceDetailPanelStore((s) => s.openWith);
   if (state.kind === 'not-loaded' || state.kind === 'loading') {
     return <p className="text-xs text-ink-500">{t('common.loading')}</p>;
   }
@@ -266,6 +268,15 @@ function CitationsList({ state, onDetach }: CitationsListProps) {
         if (isLibraryMode(link.mode)) {
           const deepLink = buildDeepLink(link);
           const titleLatin = pickLatinTitle(source, link.citation?.book?.title);
+          const openPanel = link.sourceId
+            ? () =>
+                openSourceDetail({
+                  sourceId: link.sourceId!,
+                  nodeSourceId: link.id,
+                  quote: link.quote ?? undefined,
+                  context: link.context ?? undefined,
+                })
+            : undefined;
           return (
             <SourceCard
               key={key}
@@ -273,6 +284,7 @@ function CitationsList({ state, onDetach }: CitationsListProps) {
               titleLatin={titleLatin}
               onDelete={link.id ? () => onDetach(link.id!) : undefined}
               onPrimaryAction={deepLink ? () => navigate(deepLink) : undefined}
+              onTitleClick={openPanel}
             />
           );
         }

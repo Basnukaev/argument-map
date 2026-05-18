@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { ExternalLink } from 'lucide-react';
 import type { components } from '@/shared/api/types';
 import { useT } from '@/shared/i18n';
+import { useSourceDetailPanelStore } from '@/shared/stores/sourceDetailPanelStore';
 
 type InlineCitationRef = components['schemas']['InlineCitationRef'];
 
@@ -98,9 +100,22 @@ interface PopoverProps {
 /**
  * Popover-карточка citation. Открывается на click на маркере, абсолютно
  * позиционирована относительно wrapper'а. Содержит title, quote (если есть),
- * citation (academic string), reliability (для HADITH)
+ * citation (academic string), reliability (для HADITH) и кнопку
+ * «Открыть подробнее» которая открывает full `SourceDetailPanel` (если у
+ * citation есть sourceId)
  */
 function CitationPopover({ citation, t, onClose }: PopoverProps) {
+  const openSourceDetail = useSourceDetailPanelStore((s) => s.openWith);
+  const handleOpenDetail = () => {
+    if (!citation.sourceId) return;
+    openSourceDetail({
+      sourceId: citation.sourceId,
+      nodeSourceId: citation.nodeSourceId,
+      quote: citation.quote ?? undefined,
+    });
+    onClose();
+  };
+
   return (
     <div
       role="dialog"
@@ -135,6 +150,20 @@ function CitationPopover({ citation, t, onClose }: PopoverProps) {
           <span className="rounded bg-ink-100 px-1.5 py-0.5 font-mono font-medium uppercase text-ink-700 dark:bg-ink-800 dark:text-ink-200">
             {citation.reliability}
           </span>
+        </div>
+      )}
+
+      {citation.sourceId && (
+        <div className="mt-2 border-t border-border pt-2">
+          <button
+            type="button"
+            onClick={handleOpenDetail}
+            data-testid="inline-citation-open-detail"
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-accent-600 hover:text-accent-700 hover:underline dark:text-accent-300 dark:hover:text-accent-200"
+          >
+            {t('node.inline_citation.open_detail')}
+            <ExternalLink size={10} aria-hidden="true" />
+          </button>
         </div>
       )}
 

@@ -7,6 +7,7 @@ import CitationPicker from '@/shared/components/citation/CitationPicker';
 import { SourceCard } from '@/shared/components/citation/sourceCard';
 import { apiGetRaw, apiDeleteRaw, formatApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
+import { useSourceDetailPanelStore } from '@/shared/stores/sourceDetailPanelStore';
 import { hasArabicScript, useT } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
 
@@ -36,6 +37,7 @@ type State =
 function QuestionCitationsSection({ questionId, questionTitle }: Props) {
   const t = useT();
   const navigate = useNavigate();
+  const openSourceDetail = useSourceDetailPanelStore((s) => s.openWith);
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -163,6 +165,15 @@ function QuestionCitationsSection({ questionId, questionTitle }: Props) {
             const source = link.sourceId ? state.sourceLookup.get(link.sourceId) : undefined;
             const titleLatin = pickLatinTitle(source, link.citation?.book?.title);
             const deepLink = buildDeepLink(link);
+            const openPanel = link.sourceId
+              ? () =>
+                  openSourceDetail({
+                    sourceId: link.sourceId!,
+                    nodeSourceId: link.id,
+                    quote: link.quote ?? undefined,
+                    context: link.context ?? undefined,
+                  })
+              : undefined;
             return (
               <SourceCard
                 key={link.id}
@@ -170,6 +181,7 @@ function QuestionCitationsSection({ questionId, questionTitle }: Props) {
                 titleLatin={titleLatin}
                 onDelete={link.id ? () => detachCitation(link.id!) : undefined}
                 onPrimaryAction={deepLink ? () => navigate(deepLink) : undefined}
+                onTitleClick={openPanel}
               />
             );
           })}
