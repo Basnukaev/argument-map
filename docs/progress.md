@@ -11,6 +11,103 @@
 
 ---
 
+## 2026-05-18 - Library overview (backlog item)
+
+Закрыт backlog «Library overview» - extend `BookListPage` (route /books)
+до polished обзорной страницы каталога. Не создавал отдельный
+`LibraryOverviewPage` - per task MVP «extend BookListPage, ничего нового
+не создавать». Routing остался `/books` (per ADR-022 frontend reorg);
+«/library» в спеке - conceptual
+
+**Что добавлено в `frontend/src/apps/library/pages/BookListPage.tsx`:**
+
+- **LibraryHero** компонент с eyebrow «БИБЛИОТЕКА · КАТАЛОГ», h1
+  «Библиотека», description (длинная читабельная строка про назначение)
+  + total count «N книг доступно» (bdi для number в RTL)
+- **Debounced search** (300ms через useEffect + setTimeout sync
+  searchInput → searchQ → useEffect refetch). Server-side `?q=` -
+  меньше client-side фильтрации, точные total counts. Search input
+  c X-clear button + Search-иконкой
+- **VisibilityFilter chips** (Все / Мои / Разделяемые / Публичные) -
+  client-side filter поверх загруженной страницы. backend не
+  поддерживает `?visibility=`. «Мои» приближённо = PRIVATE
+  (точный owner-filter требует `BookSummary.createdBy` которого
+  backend не отдаёт - оставлено в backlog)
+- **AuthorityFilter** компонент - text input + dropdown autocomplete
+  по `/api/v1/authorities?q=` (debounce 300ms, size=10). Click select
+  → server-side фильтрация `?authorityId=`. Era-suffix в результатах,
+  outside-click close, X-clear когда выбран
+- **Sort dropdown** переключён `added/title/type` → `latest/alphabetical`
+  (более natural для read-mode библиотеки). Default `latest` =
+  backend createdAt DESC (стабильный)
+- **EmptyState** компонент - круговая ink-100 иконка `BookOpen`, h2 в
+  serif, descriptive paragraph, primary CTA button «Импорт из Shamela»
+  на /admin/shamela (вместо minimal `book.list.title` fallback)
+- **Load More** label поменян на `library.overview.load_more` (раньше
+  common.load_more, теперь специфичный ключ для possible override)
+
+**Tests** (`BookListPage.test.tsx` - новый, 5 tests):
+
+- empty state иллюстрированный + CTA проверки
+- рендер карточек с visibility badge + href /books/{id}
+- debounced search триггерит refetch с `?q=Бухари` (через msw query
+  inspection + 400ms timeout для wait debounce)
+- visibility filter chips переключают видимость client-side (toggle
+  ALL → PRIVATE → ALL)
+- Load More кнопка появляется когда hasNext, click аппендит следующую
+  страницу
+
+**i18n** - 28 ключей `library.overview.*` (RU + AR): title, description,
+total_books, search_placeholder, search_clear, filter.{all,my,shared,
+public,authority,authority_placeholder,authority_clear}, sort.{label,
+latest,alphabetical}, empty_state.{title,description,cta}, card.
+{pages_count,visibility.{private,shared,public}}, load_more
+
+**Pre-existing code style notes:**
+
+- `setLoading(true)` синхронно в useEffect нельзя
+  (react-hooks/set-state-in-effect) - в AuthorityFilter через
+  `Promise.resolve().then(() => setLoading(true))` microtask trick.
+  Pattern полезен для других мест где нужен loading indicator в effect
+- act() wrap для setTimeout-debounce теста чтобы избежать act warning
+  про необёрнутый state update внутри setTimeout
+
+**Commits** (Сессия 38):
+- `84c8100` feat(frontend): library overview - hero + search debounced + filter chips
+- `cee313a` feat(frontend): library overview - authority filter + sort dropdown + cards layout
+- `4d60337` feat(frontend): library overview - empty state illustrated + Load More + tests
+- `<this>` docs: library overview - backlog cleared + progress
+
+**Результаты verify:**
+
+- 435 frontend tests pass (430 baseline + 5 новых для overview)
+- npm run lint - 0 errors (7 pre-existing react-refresh warnings)
+- npm run build - 8.9s clean
+- Playwright smoke @ 375px mobile (`/tmp/library_smoke.mjs`):
+  - hero title visible, search input visible, visibility chips visible
+  - search «Бухари» отправляется, filter chip «Мои» переключается
+  - grid grid-cols-1 confirmed на mobile
+  - screenshots в /tmp/library_0{1,2,3}_mobile_*.png
+
+**Что пользователь может проверить руками:**
+
+1. Открой `/books` (или conceptual «/library») на mobile (375px) или
+   desktop
+2. Должен увидеть:
+   - hero header с total count из бэка
+   - search input с placeholder
+   - visibility chips горизонтальный ряд (overflow-x scroll на mobile)
+   - Authority filter (text + dropdown по focus)
+   - Sort dropdown справа
+   - Type chips (BOOK/HADITH/QURAN и т.д. - вторая строка)
+3. Печатай в search «Бухари» - после 300ms должен fetch с `?q=Бухари`
+4. Click «Мои» - локально фильтрует PRIVATE
+5. Если библиотека пустая - illustrated EmptyState с CTA
+6. RTL switch (AR locale) - проверь что chips и dropdown ms/me/ps/pe
+   логические работают
+
+---
+
 ## 2026-05-18 - Multi-grading UI frontend (backlog item)
 
 Закрыт backlog «Multi-grading UI» - frontend для `hadith_grades` бэка

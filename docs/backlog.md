@@ -136,8 +136,26 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       popover добавил «Открыть подробнее» ссылку для full panel.
       i18n: 14 ключей `source_detail.*` + 1 `inline_citation.open_detail`
       (RU+AR). 411 frontend tests pass _(SourceDetailPanel)_
-- [ ] **Library overview** - страница `/library` с обзором
-      источников темы _(LibraryOverview)_
+- [x] **Library overview** - закрыто 2026-05-18. Extend BookListPage
+      (/books) до polished overview. Hero (eyebrow + title + description +
+      total count), debounced search 300ms через server-side `?q=`,
+      visibility filter chips (Все / Мои / Разделяемые / Публичные) -
+      client-side поверх загруженной страницы (backend не поддерживает
+      ?visibility=). AuthorityFilter component - autocomplete dropdown
+      по `/api/v1/authorities?q=` с debounced search + click-to-select +
+      era-suffix + outside-click close. Sort переключён на
+      latest/alphabetical (более natural для read-mode). EmptyState
+      illustrated с круговой иконкой + описательный текст + CTA на
+      /admin/shamela. Cards layout оставлен existing (Card.Cover с
+      stable color по bookId + Card.Body с type/lang/visibility badges).
+      Routing - оставлен `/books` (per ADR-022 frontend reorg);
+      «/library» в спеке - conceptual. i18n: 28 ключей
+      `library.overview.*` (RU + AR). 5 новых tests
+      (BookListPage.test.tsx: empty state, cards, search debounce, filter
+      chips toggle, Load More append). 430 → 435 frontend tests pass.
+      Отложено: «Мои» через BookSummary.createdBy (backend не отдаёт);
+      server-side sort через ?sort=field,DESC; PDF-only filter
+      _(LibraryOverview)_
 - [x] **Inline citations** - закрыто 2026-05-18. Подход A (implicit
       ordinal) - `[N]` маркеры в `node.content` mapping'ятся по 1-based
       ordinal на `node_sources` (порядок `created_at ASC`). Backend:
