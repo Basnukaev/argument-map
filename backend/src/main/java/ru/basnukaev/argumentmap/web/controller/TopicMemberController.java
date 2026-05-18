@@ -47,7 +47,7 @@ public class TopicMemberController {
     public ResponseEntity<TopicMemberResponse> add(@PathVariable UUID topicId,
                                                    @Valid @RequestBody AddTopicMemberRequest request,
                                                    @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         TopicMember added = topicMemberService.addMember(
                 topicId, request.userId(), request.role(), userId, role
         );
@@ -59,7 +59,7 @@ public class TopicMemberController {
     @GetMapping
     public List<TopicMemberResponse> list(@PathVariable UUID topicId,
                                           @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         return topicMemberService.listMembers(topicId, userId, role).stream()
                 .map(DtoMappers::toResponse).toList();
     }
@@ -69,7 +69,7 @@ public class TopicMemberController {
                                       @PathVariable UUID memberId,
                                       @Valid @RequestBody UpdateTopicMemberRequest request,
                                       @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         TopicMember updated = topicMemberService.updateMemberRole(
                 topicId, memberId, request.role(), userId, role
         );
@@ -80,7 +80,7 @@ public class TopicMemberController {
     public ResponseEntity<Void> delete(@PathVariable UUID topicId,
                                        @PathVariable UUID memberId,
                                        @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         topicMemberService.removeMember(topicId, memberId, userId, role);
         return ResponseEntity.noContent().build();
     }

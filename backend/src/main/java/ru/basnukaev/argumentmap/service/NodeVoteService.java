@@ -61,7 +61,7 @@ public class NodeVoteService {
         // read-permission check через topic'овский canRead - голос требует
         // только видимости узла. ADMIN bypass работает автоматически
         permissionService.assertCanRead(node.topicId(), userId,
-                SecurityContextUtils.currentRole());
+                SecurityContextUtils.currentRoleOrAnonymous());
 
         NodeVote vote = new NodeVote(
                 UUID.randomUUID(), nodeId, userId, weight, Instant.now()
@@ -78,7 +78,7 @@ public class NodeVoteService {
         Node node = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new NodeNotFoundException(nodeId));
         permissionService.assertCanRead(node.topicId(), userId,
-                SecurityContextUtils.currentRole());
+                SecurityContextUtils.currentRoleOrAnonymous());
         return nodeVoteRepository.deleteByNodeAndUser(nodeId, userId);
     }
 

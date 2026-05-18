@@ -76,7 +76,7 @@ public class AuditLogController {
         // Только owner + EDITOR могут видеть audit темы. Используем
         // assertCanWrite (а не canRead) - чтение audit это privileged
         // действие даже на SHARED/PUBLIC темах
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         permissionService.assertCanWrite(topicId, currentUserId, role);
         PageRequest pr = PageRequest.from(page, size);
         List<AuditLog> items = auditLogService.findByParentOrSelfPage(
@@ -91,7 +91,7 @@ public class AuditLogController {
             @CurrentUser UUID currentUserId,
             @RequestParam(name = "page", required = false) Integer page,
             @RequestParam(name = "size", required = false) Integer size) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         permissionService.assertCanWriteBook(bookId, currentUserId, role);
         PageRequest pr = PageRequest.from(page, size);
         List<AuditLog> items = auditLogService.findByParentOrSelfPage(
@@ -131,7 +131,7 @@ public class AuditLogController {
             @RequestParam(name = "dateTo", required = false) String dateToIso,
             @RequestParam(name = "page", required = false) Integer page,
             @RequestParam(name = "size", required = false) Integer size) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         if (!UserRole.ADMIN.equals(role)) {
             throw new AdminOnlyException(currentUserId);
         }

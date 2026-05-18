@@ -35,7 +35,7 @@ public class EdgeController {
     @PostMapping
     public ResponseEntity<EdgeResponse> create(@Valid @RequestBody CreateEdgeRequest request,
                                                @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         Edge created = edgeService.createEdge(
                 request.fromNodeId(), request.toNodeId(),
                 request.edgeType(), request.rationale(),
@@ -65,7 +65,7 @@ public class EdgeController {
                     "Хотя бы одно поле должно быть указано для PATCH"
             );
         }
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         Edge updated = edgeService.updateEdge(
                 edgeId,
                 request.fromNodeId(), request.toNodeId(), request.edgeType(),
@@ -77,7 +77,7 @@ public class EdgeController {
 
     @DeleteMapping("/{edgeId}")
     public ResponseEntity<Void> delete(@PathVariable UUID edgeId, @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         edgeService.deleteEdge(edgeId, userId, role);
         return ResponseEntity.noContent().build();
     }

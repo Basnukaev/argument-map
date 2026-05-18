@@ -83,7 +83,7 @@ public class TopicController {
             @RequestParam(name = "visibility", required = false) String visibility,
             @RequestParam(name = "page", required = false) Integer page,
             @RequestParam(name = "size", required = false) Integer size) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         PageRequest pr = PageRequest.from(page, size);
         List<TopicWithCounts> items = topicService.listVisibleTopicsPage(
                 userId, role, visibility, pr.size(), pr.offset());
@@ -94,21 +94,21 @@ public class TopicController {
 
     @GetMapping("/{topicId}")
     public TopicResponse getOne(@PathVariable UUID topicId, @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         permissionService.assertCanRead(topicId, userId, role);
         return DtoMappers.toResponse(topicService.getTopicWithCounts(topicId));
     }
 
     @DeleteMapping("/{topicId}")
     public ResponseEntity<Void> delete(@PathVariable UUID topicId, @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         topicService.deleteTopic(topicId, userId, role);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{topicId}/graph")
     public GraphResponse getGraph(@PathVariable UUID topicId, @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         permissionService.assertCanRead(topicId, userId, role);
         GraphView graph = graphService.getGraph(topicId);
         // Bulk-load через NodeProjectionService: 4 SQL на весь граф, не N+1 на
@@ -125,7 +125,7 @@ public class TopicController {
     public TopicResponse updateVisibility(@PathVariable UUID topicId,
                                           @Valid @RequestBody UpdateTopicVisibilityRequest request,
                                           @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         Topic updated = topicService.updateVisibility(topicId, request.visibility(), userId, role);
         return DtoMappers.toResponse(updated);
     }
@@ -139,7 +139,7 @@ public class TopicController {
     public TopicResponse updateStatusAlgorithm(@PathVariable UUID topicId,
                                                @Valid @RequestBody UpdateTopicStatusAlgorithmRequest request,
                                                @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         Topic updated = topicService.updateStatusAlgorithm(topicId, request.algorithm(), userId, role);
         return DtoMappers.toResponse(updated);
     }

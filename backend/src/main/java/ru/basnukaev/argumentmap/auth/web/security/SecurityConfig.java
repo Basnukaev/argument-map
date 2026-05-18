@@ -5,7 +5,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -118,8 +117,8 @@ public class SecurityConfig {
                                         + "form-action 'self'"));
                     }
                     // X-Frame-Options=DENY (Spring default) и X-Content-Type-Options=nosniff
-                    // - оставлены как есть. Customizer.withDefaults() для Cache-Control
-                    Customizer.withDefaults();
+                    // - оставлены как есть, применяются автоматически через
+                    // headers() builder defaults (без необходимости явного opt-in).
                 })
                 .authorizeHttpRequests(auth -> {
                     // /api/v1/auth/me - всегда требует Bearer (даже в

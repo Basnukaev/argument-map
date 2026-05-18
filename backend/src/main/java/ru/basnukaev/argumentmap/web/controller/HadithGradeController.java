@@ -78,7 +78,7 @@ public class HadithGradeController {
                                            @CurrentUser UUID userId) {
         HadithGrade updated = hadithGradeService.updateGrade(
                 gradeId, request.grade(), request.gradeCitation(), request.comment(),
-                userId, SecurityContextUtils.currentRole()
+                userId, SecurityContextUtils.currentRoleOrAnonymous()
         );
         return new HadithGradeResponse(
                 updated.id(), updated.sourceId(), updated.scholarId(),
@@ -91,7 +91,7 @@ public class HadithGradeController {
     @DeleteMapping("/grades/{gradeId}")
     public ResponseEntity<Void> deleteGrade(@PathVariable UUID gradeId,
                                             @CurrentUser UUID userId) {
-        hadithGradeService.removeGrade(gradeId, userId, SecurityContextUtils.currentRole());
+        hadithGradeService.removeGrade(gradeId, userId, SecurityContextUtils.currentRoleOrAnonymous());
         return ResponseEntity.noContent().build();
     }
 

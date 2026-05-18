@@ -51,7 +51,7 @@ public class NodeTranslationController {
     public ResponseEntity<NodeTranslationRef> addTranslation(@PathVariable UUID nodeId,
                                                              @Valid @RequestBody CreateNodeTranslationRequest request,
                                                              @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         boolean isDefault = request.isDefault() != null && request.isDefault();
         NodeTranslation created = translationService.addTranslation(
                 nodeId, request.translatorName(), request.language(),
@@ -65,7 +65,7 @@ public class NodeTranslationController {
     @GetMapping("/{nodeId}/translations")
     public List<NodeTranslationRef> listTranslations(@PathVariable UUID nodeId,
                                                      @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         return translationService.getForNode(nodeId, userId, role).stream()
                 .map(NodeTranslationController::toRef).toList();
     }
@@ -74,7 +74,7 @@ public class NodeTranslationController {
     public NodeTranslationRef updateTranslation(@PathVariable UUID translationId,
                                                 @Valid @RequestBody UpdateNodeTranslationRequest request,
                                                 @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         NodeTranslation updated = translationService.updateTranslation(
                 translationId, request.translatorName(), request.body(),
                 userId, role
@@ -91,7 +91,7 @@ public class NodeTranslationController {
     @PostMapping("/translations/{translationId}/default")
     public NodeTranslationRef setDefault(@PathVariable UUID translationId,
                                          @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         NodeTranslation updated = translationService.setDefault(translationId, userId, role);
         return toRef(updated);
     }
@@ -99,7 +99,7 @@ public class NodeTranslationController {
     @DeleteMapping("/translations/{translationId}")
     public ResponseEntity<Void> deleteTranslation(@PathVariable UUID translationId,
                                                   @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         translationService.removeTranslation(translationId, userId, role);
         return ResponseEntity.noContent().build();
     }

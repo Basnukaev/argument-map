@@ -94,7 +94,7 @@ public class BookController {
         // ADR-043 Amendment: visibility filter применяется на repository
         // уровне через listVisibleBooksPage. PRIVATE owned + SHARED member
         // + PUBLIC видны user'у. ADMIN видит всё.
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         PageRequest pr = PageRequest.from(page, size);
         List<Book> items = bookService.listVisibleBooksPage(currentUserId, role,
                 query, type, authorityId, publisherId,
@@ -110,7 +110,7 @@ public class BookController {
     @GetMapping("/books/{bookId}")
     public BookDetailResponse getOne(@PathVariable UUID bookId,
                                      @CurrentUser UUID currentUserId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         BookDetail detail = bookService.getBookWithChapters(bookId, currentUserId, role);
         return LibraryDtoMappers.toDetailResponse(detail);
     }
@@ -125,7 +125,7 @@ public class BookController {
     public BookDetailResponse update(@PathVariable UUID bookId,
                                      @Valid @RequestBody UpdateBookRequest request,
                                      @CurrentUser UUID currentUserId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         bookService.updateAcademicMetadata(
                 bookId,
                 request.muhaqqiqName(),
@@ -147,7 +147,7 @@ public class BookController {
     public BookResponse updateVisibility(@PathVariable UUID bookId,
                                          @Valid @RequestBody UpdateBookVisibilityRequest request,
                                          @CurrentUser UUID currentUserId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         Book updated = bookService.updateVisibility(bookId, request.visibility(),
                 currentUserId, role);
         return LibraryDtoMappers.toResponse(updated);
@@ -156,7 +156,7 @@ public class BookController {
     @DeleteMapping("/books/{bookId}")
     public ResponseEntity<Void> delete(@PathVariable UUID bookId,
                                        @CurrentUser UUID currentUserId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         bookService.deleteBook(bookId, currentUserId, role);
         return ResponseEntity.noContent().build();
     }

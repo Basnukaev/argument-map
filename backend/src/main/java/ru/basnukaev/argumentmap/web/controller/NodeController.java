@@ -44,7 +44,7 @@ public class NodeController {
     @PostMapping
     public ResponseEntity<NodeResponse> create(@Valid @RequestBody CreateNodeRequest request,
                                                @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         String originalLang = nullIfBlank(request.originalLang());
 
         Node created = nodeService.createNode(
@@ -77,7 +77,7 @@ public class NodeController {
             );
         }
 
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         Node node = null;
         if (hasContent || hasOriginalLang) {
             Object contentBox = hasContent ? request.content() : NodeService.NoChange.INSTANCE;
@@ -100,7 +100,7 @@ public class NodeController {
     @PostMapping("/{nodeId}/z-order/bring-to-front")
     public NodeResponse bringToFront(@PathVariable UUID nodeId,
                                      @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         Node node = nodeService.bringToFront(nodeId, userId, role);
         return enrichResponse(node, userId);
     }
@@ -112,14 +112,14 @@ public class NodeController {
     @PostMapping("/{nodeId}/z-order/send-to-back")
     public NodeResponse sendToBack(@PathVariable UUID nodeId,
                                    @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         Node node = nodeService.sendToBack(nodeId, userId, role);
         return enrichResponse(node, userId);
     }
 
     @DeleteMapping("/{nodeId}")
     public ResponseEntity<Void> delete(@PathVariable UUID nodeId, @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         nodeService.deleteNode(nodeId, userId, role);
         return ResponseEntity.noContent().build();
     }
@@ -127,7 +127,7 @@ public class NodeController {
     @GetMapping("/{nodeId}/revisions")
     public List<RevisionResponse> getRevisions(@PathVariable UUID nodeId,
                                                @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         return nodeService.getRevisions(nodeId, userId, role).stream()
                 .map(DtoMappers::toResponse).toList();
     }

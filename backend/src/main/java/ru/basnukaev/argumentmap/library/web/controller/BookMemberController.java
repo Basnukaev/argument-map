@@ -49,7 +49,7 @@ public class BookMemberController {
     public ResponseEntity<BookMemberResponse> add(@PathVariable UUID bookId,
                                                   @Valid @RequestBody AddBookMemberRequest request,
                                                   @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         BookMember added = bookMemberService.addMember(
                 bookId, request.userId(), request.role(), userId, role
         );
@@ -61,7 +61,7 @@ public class BookMemberController {
     @GetMapping
     public List<BookMemberResponse> list(@PathVariable UUID bookId,
                                          @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         return bookMemberService.listMembers(bookId, userId, role).stream()
                 .map(LibraryDtoMappers::toResponse).toList();
     }
@@ -71,7 +71,7 @@ public class BookMemberController {
                                      @PathVariable UUID memberId,
                                      @Valid @RequestBody UpdateBookMemberRequest request,
                                      @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         BookMember updated = bookMemberService.updateMemberRole(
                 bookId, memberId, request.role(), userId, role
         );
@@ -82,7 +82,7 @@ public class BookMemberController {
     public ResponseEntity<Void> delete(@PathVariable UUID bookId,
                                        @PathVariable UUID memberId,
                                        @CurrentUser UUID userId) {
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         bookMemberService.removeMember(bookId, memberId, userId, role);
         return ResponseEntity.noContent().build();
     }

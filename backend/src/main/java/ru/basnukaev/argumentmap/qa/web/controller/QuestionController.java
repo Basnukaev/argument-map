@@ -84,7 +84,7 @@ public class QuestionController {
             @Valid @RequestBody UpdateQuestionRequest request,
             @CurrentUser UUID currentUserId) {
         // ADR-043 Amendment (Этап 22.c): only author or admin
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         Question updated = service.updateQuestion(
                 questionId, request.title(), request.body(), request.status(),
                 currentUserId, role);
@@ -95,7 +95,7 @@ public class QuestionController {
     public ResponseEntity<Void> delete(@PathVariable UUID questionId,
                                        @CurrentUser UUID currentUserId) {
         // ADR-043 Amendment (Этап 22.c): only author or admin
-        String role = SecurityContextUtils.currentRole();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         service.deleteQuestion(questionId, currentUserId, role);
         return ResponseEntity.noContent().build();
     }

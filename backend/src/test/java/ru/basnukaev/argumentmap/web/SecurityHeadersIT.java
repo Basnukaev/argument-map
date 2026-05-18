@@ -4,7 +4,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -41,13 +40,15 @@ class SecurityHeadersIT {
 
     @Test
     void anyEndpoint_setsPermissionsPolicyHeader() throws Exception {
+        // Code review round 5 #10 - exact match вместо containsString.
+        // Если кто-то расширит SecurityConfig.permissionsPolicyHeader
+        // другим набором sensor API - тест явно покажет diff. Список
+        // здесь - canonical, синхронизирован с SecurityConfig:96-97.
         mockMvc.perform(get("/actuator/health"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Permissions-Policy",
-                        Matchers.allOf(
-                                Matchers.containsString("camera=()"),
-                                Matchers.containsString("microphone=()"),
-                                Matchers.containsString("geolocation=()"))));
+                        "accelerometer=(), camera=(), geolocation=(), gyroscope=(),"
+                                + " magnetometer=(), microphone=(), payment=(), usb=()"));
     }
 
     @Test
