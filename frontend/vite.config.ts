@@ -41,5 +41,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
     css: true,
+    // E2E tests (Playwright) живут в /e2e и используют расширение
+    // *.spec.ts. Не пускаем vitest туда - там другой runtime (browser),
+    // другой API (@playwright/test), tsc/jsdom не справятся
+    exclude: ['node_modules', 'dist', 'e2e/**'],
   },
 });

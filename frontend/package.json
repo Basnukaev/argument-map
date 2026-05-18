@@ -13,7 +13,11 @@
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json,md}\"",
-    "generate-api": "openapi-typescript http://localhost:9090/v3/api-docs -o src/shared/api/types.ts"
+    "generate-api": "openapi-typescript http://localhost:9090/v3/api-docs -o src/shared/api/types.ts",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
+    "e2e:debug": "playwright test --debug",
+    "e2e:report": "playwright show-report e2e-report"
   },
   "author": "Abdula Basnukaev",
   "license": "UNLICENSED",
@@ -63,6 +67,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/oxide-linux-x64-gnu": "^4.2.4",
     "@tailwindcss/vite": "^4.2.4",
     "@testing-library/jest-dom": "^6.9.1",

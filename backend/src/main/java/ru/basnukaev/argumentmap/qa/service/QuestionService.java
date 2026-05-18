@@ -98,9 +98,8 @@ public class QuestionService {
      *       строка = clear (body становится {@code null}). Body optional
      *       в Create, поэтому "сбрасывать в null" - валидный сценарий</li>
      * </ul>
-     */
-    /**
-     * Backward-compat без author/admin guard - используется internal
+     *
+     * <p>Backward-compat без author/admin guard - используется internal
      * callers (тесты, миграционные сценарии). REST endpoint должен
      * использовать {@link #updateQuestion(UUID, String, String, QuestionStatus, UUID, String)}.
      */

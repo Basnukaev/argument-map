@@ -54,6 +54,11 @@ postgres-data/
 /*.jpeg
 /*.webp
 
+# Playwright E2E artifacts (отчёты, screenshots, traces, videos)
+frontend/e2e-report/
+frontend/test-results/
+frontend/playwright-report/
+
 # Ruflo local state
 .claude-flow/
 .agents/

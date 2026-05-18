@@ -39,8 +39,6 @@ import ru.basnukaev.argumentmap.service.PermissionService;
 @Service
 public class BookService {
 
-    public static final int DEFAULT_PAGE_RANGE = 50;
-
     private final BookRepository bookRepository;
     private final ChapterRepository chapterRepository;
     private final PageRepository pageRepository;
