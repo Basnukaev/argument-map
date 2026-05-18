@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        User preferences (Settings screen). Key-value store с jsonb для
+        гибкости (boolean, string, number). UNIQUE (user_id, key) - один
+        ключ на пользователя; upsert через ON CONFLICT.
+
+        Whitelisted keys (валидируется в UserPreferenceService):
+          - locale: 'ru' | 'ar' | 'en'
+          - arabicFont: 'naskh' | 'kufi' | 'tahoma'
+          - textSize: 'small' | 'medium' | 'large' | 'xl'
+          - hideTashkeelByDefault: boolean
+          - transliteration: boolean
+          - theme: 'system' | 'light' | 'dark'
+
+        Расширение whitelist - правка кода сервиса, миграция новой схемы
+        не нужна (jsonb принимает любое валидное значение).
+    -->
+    <changeSet id="20260518-42-user-preferences" author="Abdula Basnukaev">
+        <comment>Создаём user_preferences для Settings screen</comment>
+        <sql>
+            CREATE TABLE user_preferences (
+                id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                key varchar(100) NOT NULL,
+                value jsonb NOT NULL,
+                updated_at timestamptz NOT NULL DEFAULT now(),
+                UNIQUE (user_id, key)
+            );
+            CREATE INDEX idx_user_preferences_user ON user_preferences(user_id);
+        </sql>
+        <rollback>
+            <sql>DROP TABLE user_preferences</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
