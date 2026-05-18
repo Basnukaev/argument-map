@@ -90,6 +90,8 @@ public class AuthController {
         if (refreshToken == null || refreshToken.isBlank()) {
             throw new InvalidTokenException("Refresh-cookie отсутствует");
         }
+        // ADR-047: single-use rotation - старый refresh revoked, выдаётся
+        // новый. Set-Cookie с новым значением заменяет cookie в browser
         AuthTokens tokens = authService.refresh(refreshToken);
         AuthenticatedUser principal = jwtService.validateToken(tokens.accessToken());
         AuthResponse body = new AuthResponse(
@@ -99,15 +101,17 @@ public class AuthController {
                         principal.email(), principal.role())
         );
         return ResponseEntity.ok()
-                // reuse того же refresh (no-rotation, см. ADR-040 «Открытые вопросы»),
-                // но всё равно отдаём Set-Cookie - продлевает Max-Age и Browser
-                // не теряет cookie если она была близка к expiry
                 .header("Set-Cookie", buildRefreshCookie(tokens.refreshToken()).toString())
                 .body(body);
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout() {
+    public ResponseEntity<Void> logout(
+            @CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken
+    ) {
+        // ADR-047: revoke refresh в БД при logout. Идемпотентно - даже если
+        // токена нет или уже revoked
+        authService.logout(refreshToken);
         ResponseCookie cleared = ResponseCookie.from(REFRESH_COOKIE, "")
                 .httpOnly(true)
                 .secure(true)

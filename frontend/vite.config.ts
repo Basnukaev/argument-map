@@ -45,5 +45,31 @@ export default defineConfig({
     // *.spec.ts. Не пускаем vitest туда - там другой runtime (browser),
     // другой API (@playwright/test), tsc/jsdom не справятся
     exclude: ['node_modules', 'dist', 'e2e/**'],
+    coverage: {
+      // v8 provider - официально supported для vitest 3.x. Альтернатива
+      // istanbul вытаскивает heavy babel deps, v8 опирается на Node V8
+      // встроенный профайлер. Использование: `npm run test:coverage`
+      // генерит отчёт в frontend/coverage/index.html
+      provider: 'v8',
+      reporter: ['text', 'html', 'json-summary'],
+      exclude: [
+        'node_modules',
+        'dist',
+        'e2e/**',
+        // Артефакты openapi-typescript - не наш код
+        'src/shared/api/types.ts',
+        // Дизайн-референсы (vendored)
+        'design-reference/**',
+        // Test setup и helpers сами по себе coverage не нуждаются
+        'src/test-setup.ts',
+        'src/test/**',
+        // Точки входа без логики
+        'src/main.tsx',
+        'src/vite-env.d.ts',
+        // Style-only / config файлы
+        '**/*.d.ts',
+        '**/*.config.{ts,js}',
+      ],
+    },
   },
 });

@@ -252,6 +252,40 @@
 					</execution>
 				</executions>
 			</plugin>
+			<!--
+				JaCoCo - line/branch coverage report. Подключается агентом
+				к surefire/failsafe (prepare-agent + prepare-agent-integration),
+				объединяет результаты unit + IT в один отчёт через `report`
+				цель на фазе verify. Отчёт - target/site/jacoco/index.html.
+				Без enforcement (build не падает на низком coverage) - audit-only
+				инструмент.
+			-->
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>0.8.12</version>
+				<executions>
+					<execution>
+						<id>prepare-agent</id>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>prepare-agent-integration</id>
+						<goals>
+							<goal>prepare-agent-integration</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>report</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
 		</plugins>
 	</build>
 
