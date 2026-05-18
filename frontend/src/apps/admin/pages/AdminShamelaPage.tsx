@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Search,
   Settings,
+  ShieldCheck,
 } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import IconButton from '@/shared/components/ui/IconButton';
@@ -333,6 +334,18 @@ function AdminShamelaPage() {
           y={menuPos.y}
           onClose={() => setMenuPos(null)}
           items={[
+            {
+              id: 'audit',
+              label: t('admin.audit.nav_link'),
+              icon: ShieldCheck,
+              onClick: () => {
+                setMenuPos(null);
+                // window.location ради простоты в shamela-странице - переход
+                // редкий, лишний useNavigate не оправдан. Альтернатива - <Link>
+                // wrap, но ContextMenu items это `onClick`, не node-renderer
+                window.location.assign('/admin/audit');
+              },
+            },
             {
               id: 'backfill',
               label: t('admin.backfill_action'),
