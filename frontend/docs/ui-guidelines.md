@@ -531,3 +531,74 @@ toggle). Persist в `argmap.layoutAlgorithm` localStorage
    bend points rendering» если понадобится)
 5. **i18n** - все layout-строки через ключи `layout.*` (algorithm_label
    / dagre / elk / hint / applying / applied / failed). Не хардкодить
+
+## Inline citation markers `[N]` (apps/argument-map/components/citation/)
+
+Inline citations - формат `[1]` в `node.content` с popover, связанные с
+node_sources записями (см. backlog item «Inline citations» закрыт
+2026-05-18, api-contract NodeResponse.inlineCitations)
+
+### Концепция
+
+User пишет `[1]`, `[2]` в content узла. Frontend парсит маркеры через
+regex `\[(\d+)\]` и резолвит каждый по 1-based ordinal к
+`node.inlineCitations[N-1]`. Если ordinal не найден - рендерится
+**dead-marker** (grey, не clickable)
+
+### Компоненты
+
+- **`parseInlineCitations(body)`** (utils/inlineCitations.ts) - чистая
+  функция, возвращает `ParsedSegment[]` (text | citation). Используется
+  внутри `InlineCitationBody`, не напрямую в feature-коде
+- **`<InlineCitationMarker ordinal citation? />`** - один маркер,
+  `<sup>[N]</sup>` с click-popover. Click open/close, click outside
+  закрывает, Escape закрывает. Native HTML popover attribute НЕ
+  используется - jsdom не поддерживает, тесты ломаются
+- **`<InlineCitationBody body citations? className? dir? />`** -
+  wrapper. Принимает plain-text body и citations[] из NodeResponse,
+  рендерит segments. Если body без маркеров - performance-cost ~ноль
+  (один text-сегмент)
+
+### Когда использовать
+
+- В любом месте где рендерится `node.content` (full body, не
+  truncated title)
+- Аналогично - в `answer.content`, `question.content` когда появится
+  bulk-load citations для них (backlog «inline citations для Q&A»)
+
+### Стили markers
+
+- **Live marker** (citation есть): `bg-accent-500/10 text-accent-600`
+  + hover `accent-500/20` (indigo tint). Dark mode `accent-400/15`
+- **Dead marker** (ordinal не найден): `bg-ink-100 text-ink-400` +
+  `cursor-not-allowed` + tooltip «Источник не найден»
+- `<sup>` semantic - superscript для inline в тексте
+- `font-size: 0.7em` - меньше чем основной текст
+- `rounded px-1` - skinny pill
+
+### Popover content
+
+- title (heading, 2-line max, `dir="auto"` для arabic)
+- quote (если есть) - blockquote с `border-s-2 accent-500/40`,
+  `italic`, `dir="auto"`
+- citation (academic short string)
+- reliability badge - **только для `sourceType=HADITH`**. UPPERCASE
+  monospace в pill (`bg-ink-100`)
+- Close-button (×) в углу
+
+### Mapping strategy (ADR-pending)
+
+Подход A (implicit ordinal). Простой и достаточный для MVP. Если
+user'ы начнут реордерить sources и `[N]` будут разъезжаться - move to
+Подход C mixed (`[#sourceId]` для explicit + `[N]` для shorthand) без
+breaking change
+
+### Не делать
+
+- НЕ парсить inline citations в title (первая строка content) -
+  только в body (после первого `\n`). Title в `NodeCard` это
+  заголовок, маркеры там читаются плохо
+- НЕ показывать popover в edit-режиме `NodeContentEditor` - user
+  должен видеть raw `[1]` чтобы редактировать
+- НЕ парсить в `text-pretty` или `line-clamp-N` контейнере без
+  тестирования - clipping может обрезать `[N]` пополам

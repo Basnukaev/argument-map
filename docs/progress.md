@@ -11,6 +11,79 @@
 
 ---
 
+## 2026-05-18 - Inline citations [N] в тексте узлов (backlog item)
+
+Закрыт пункт backlog «Inline citations - формат `[1]` в тексте с
+popover, привязанные к node-source records». Реализация без миграции
+БД - чисто на уровне DTO + frontend парсер
+
+**Стратегия mapping markers → sources:** Подход A (implicit ordinal).
+`[N]` → N-й source в `node.inlineCitations[]` (1-based). Простой и
+достаточный для MVP. Если возникнут reorder issues - move to mixed
+(`[#sourceId]` для explicit) без breaking change
+
+**Backend (1 коммит):**
+- new `InlineCitationRef` record DTO - lightweight ref для popover
+- `NodeResponse` расширен полем `inlineCitations:
+  List<InlineCitationRef>` (после `userVote`)
+- `NodeSourceRepository.findInlineCitationsForNodes(List<UUID>)` -
+  bulk-load JOIN sources + lib_books, ORDER BY node_id, created_at ASC.
+  Один SQL на весь граф - не N+1
+- `findInlineCitationsForNode(nodeId)` - one-node wrapper
+- `DtoMappers.toResponse(node, stats, userVote, citations)` +
+  graph-перегрузка с `citationsByNode` map
+- `TopicController.getGraph` подключает bulk-load citations к нынешним
+  vote bulk-load (теперь 3 SQL на весь граф: stats / userVotes /
+  citations)
+- `NodeController` create/update/z-order endpoints - точечная
+  подгрузка через findInlineCitationsForNode
+- 5 IT в NodeSourceRepositoryIT: ordinals по created_at, empty input
+  → empty map, HADITH reliability, book.title > source.title fallback,
+  bulk multi-node (ordinal counter сбрасывается per-node)
+
+**Frontend (3 коммита):**
+- `inlineCitations.ts` utility: `parseInlineCitations(body):
+  ParsedSegment[]` regex `\[(\d+)\]` splits body на text+citation
+  сегменты; `hasInlineCitations(body)` fast-path
+- `InlineCitationMarker.tsx`: `<sup>[N]</sup>` clickable, popover с
+  title / quote / citation / reliability (HADITH only). Dead-marker
+  (grey, `cursor-not-allowed`) если citation undefined. Native popover
+  attribute не используется (jsdom не поддерживает) - простой
+  absolute-positioned dialog с click-outside + Escape close
+- `InlineCitationBody.tsx`: wrapper принимает body + citations,
+  парсит и рендерит segments. Используется в `NodeCard` body section
+  и `NodeContentEditor` view-режим (edit-textarea оставлен как есть -
+  user видит raw `[1]`)
+- i18n: 3 ключа `node.inline_citation.*` (ru + ar)
+- Tests +29 (15 parser unit, 8 marker render+interaction, 6 body
+  integration)
+
+**Что отложено:**
+- Tiptap `formatted_content` integration - сейчас только plain
+  `node.content`. Когда editor для книг будет на Tiptap (ADR-039),
+  расширим парсинг на ProseMirror JSON
+- Deep-link `/library/books/{sourceBookId}?highlight=...` на click -
+  сейчас popover только показывает данные
+- Explicit `[#sourceId]` syntax (Подход C mixed) - на случай если
+  user'ы начнут реордерить sources
+- Source picker integration - сейчас `[N]` пишут вручную в textarea
+
+**Что user может проверить руками:**
+1. Создать узел с body `Доказательство [1] и хадис [2]`
+2. Привести 2 source через секцию «Опора» (любые)
+3. Открыть граф - на NodeCard в body section должны быть видны
+   `[1]` `[2]` маркеры (indigo chip)
+4. Click на `[1]` - popover с title книги / quote / citation
+5. Написать `[99]` - dead-marker (grey, не clickable), tooltip
+   «Источник не найден»
+
+Acceptance:
+- Backend: 18/18 в `NodeSourceRepositoryIT` + 21/21 `TopicControllerIT`
+  + 10/10 `NodeControllerIT` + 9/9 `NodeVoteControllerIT` (58 проверены)
+- Frontend: 393/393 (29 новых, остальные не сломаны)
+
+---
+
 ## 2026-05-18 - Dung's argumentation framework (backlog item, Этап 6)
 
 Закрыт пункт backlog «Реализация Dung's argumentation framework для

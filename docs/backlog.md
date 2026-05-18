@@ -127,8 +127,23 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       контекстом и метаданными _(SourceDetailPanel)_
 - [ ] **Library overview** - страница `/library` с обзором
       источников темы _(LibraryOverview)_
-- [ ] **Inline citations** - формат `[1]` в тексте с popover,
-      привязанные к node-source records _(InlineCitations)_
+- [x] **Inline citations** - закрыто 2026-05-18. Подход A (implicit
+      ordinal) - `[N]` маркеры в `node.content` mapping'ятся по 1-based
+      ordinal на `node_sources` (порядок `created_at ASC`). Backend:
+      `NodeResponse` расширен `inlineCitations: InlineCitationRef[]`,
+      bulk-load один SQL на весь граф через
+      `NodeSourceRepository.findInlineCitationsForNodes` (JOIN sources
+      + lib_books). Frontend: `parseInlineCitations` utility + 2
+      компонента (`InlineCitationMarker` с click-popover,
+      `InlineCitationBody` wrapper) интегрированы в `NodeCard` body
+      section и `NodeContentEditor` view-режим. Popover показывает
+      title / quote / citation / reliability (HADITH only). Dead-маркеры
+      для unknown ordinal'а - grey стиль, tooltip «Источник не найден».
+      Без миграции БД - чисто request-level. Tests +29 (15 parser, 8
+      marker, 6 body, 5 backend IT). Отложено: Tiptap
+      `formatted_content` integration, deep-link на book page,
+      explicit `[#sourceId]` для robustness при reorder source'ов
+      _(InlineCitations)_
 - [ ] **Sanad explorer** - визуализация цепочки передатчиков
       хадиса (8-звенная от Пророка ﷺ до составителя). Каждое
       звено - карточка передатчика (имя / поколение / tier).

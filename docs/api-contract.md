@@ -970,7 +970,19 @@ algorithm` (owner only)
   "voteUpvotes": 0,
   "voteDownvotes": 0,
   "voteScore": 0,
-  "userVote": null
+  "userVote": null,
+  "inlineCitations": [
+    {
+      "ordinal": 1,
+      "nodeSourceId": "uuid",
+      "sourceId": "uuid",
+      "sourceType": "QURAN|HADITH|BOOK|ARTICLE|URL",
+      "title": "string|null",
+      "citation": "string|null",
+      "quote": "string|null",
+      "reliability": "SAHIH|HASAN|DAIF|null"
+    }
+  ]
 }
 ```
 `posX`/`posY` - координаты узла на канвасе графа. `null` для
@@ -986,6 +998,17 @@ algorithm` (owner only)
 на весь граф) и mutating endpoints на узлах. `userVote` ∈ `{-1, +1, null}`
 - голос вызывающего user'а, `null` если не голосовал. На POST `/api/v1/nodes`
 для нового узла поля заполняются нулями (голосов ещё нет).
+
+`inlineCitations` (array) - лёгкие ссылки на node_sources для рендеринга
+inline-маркеров `[N]` в `content`. Подход A (implicit ordinal): фронт
+парсит `[1]`, `[2]` в content и находит ref по `ordinal` (1-based,
+совпадает с порядком `node_sources.created_at ASC`). Bulk-load на GET
+`/topics/{id}/graph` (один SQL на весь граф, не N+1). Mutating endpoints
+(POST/PATCH `/api/v1/nodes`) подгружают citations точечно для одного
+узла. Если у узла нет node_sources - пустой массив. `reliability`
+заполняется только для `sourceType=HADITH` - frontend показывает
+SAHIH/HASAN/DAIF в popover. `title` fallback chain: `book.title →
+source.title`.
 
 ### NodeVoteStatsResponse
 ```json
@@ -2813,6 +2836,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-18 | v1 | Inline citations `[N]` в тексте узла. `NodeResponse` расширен полем `inlineCitations: InlineCitationRef[]` (после `userVote`). Новый schema `InlineCitationRef{ordinal: int 1-based, nodeSourceId, sourceId, sourceType, title, citation, quote, reliability}`. Bulk-load в GET `/topics/{id}/graph` через `NodeSourceRepository.findInlineCitationsForNodes(nodeIds)` - один SQL на весь граф (JOIN sources + lib_books, ORDER BY node_id, created_at ASC). Mutating endpoints на узлах (POST `/nodes`, PATCH `/nodes/{id}`, z-order) подгружают через `findInlineCitationsForNode(nodeId)` точечно. Title fallback chain: `book.title → source.title`. `reliability` отдаётся только для HADITH. Подход A (implicit ordinal): фронт парсит `[1]`, `[2]` в `content` и резолвит по `ordinal` совпадающему с порядком node_sources.created_at ASC. Без миграции БД - feature чисто на запросном уровне. Backward-compat: для узлов без node_sources массив пустой | Backlog «Inline citations - формат [1] в тексте с popover» закрыт. Подход implicit ordinal выбран как MVP (простой, достаточно для начала); если возникнут reorder issues - переход на mixed `[#sourceId]` без breaking change |
 | 2026-05-18 | v1 | Dung's argumentation framework opt-in (ADR-044, Этап 6). Миграция 41 ALTER `topics` добавляет колонку `status_algorithm VARCHAR(20) NOT NULL DEFAULT 'MVP'` + CHECK constraint `IN ('MVP','DUNG_GROUNDED')`. `TopicResponse` расширен полем `statusAlgorithm: MVP\|DUNG_GROUNDED`. Новый endpoint `PATCH /api/v1/topics/{id}/status-algorithm` (`UpdateTopicStatusAlgorithmRequest{algorithm}`, owner only, 200 OK + recalc side effect) - триггерит пересчёт всех узлов под новым алгоритмом в той же транзакции. No-op для same value (не пишет audit, не recalc). 400 для невалидного enum через Pattern в DTO; 403 `forbidden-topic-write` для не-owner / не-ADMIN; 404 для unknown topic. Audit как UPDATE action с FieldDiff statusAlgorithm {old, new}. DUNG_GROUNDED игнорирует SUPPORTS/QUALIFIES/RESPONDS_TO (только attack-edges REFUTES + INVALIDATES), mapping IN→STANDING/OUT→REFUTED/UNDEC→DISPUTED. UNVERIFIED не используется в Dung'е. **Frontend UI toggle отложен в backlog** - сейчас доступен только через curl. Дефолт MVP сохраняет existing behavior, нет breaking change | ADR-044: opt-in переключение через колонку. Rejected: replace MVP полностью (breaking), preferred/stable semantics (multiple extensions, сложнее mapping), bipolar argumentation (over-engineering MVP). Backlog Этап 6 «Реализация Dung's framework» закрыт |
 | 2026-05-18 | v1 | Audit log per-entity (Этап 22.d, ADR-043 Amendment 3). Миграция 39 - новая таблица `audit_log (id, entity_type, entity_id, parent_entity_type, parent_entity_id, action, actor_user_id REFERENCES users, changes jsonb, metadata jsonb, created_at)` + 4 индекса. 4 новых REST endpoint под `/api/v1/audit/*`: `GET /topics/{id}` (owner+EDITOR через assertCanWrite), `GET /books/{id}` (owner+EDITOR через assertCanWriteBook), `GET /me` (любой authenticated, свои actions), `GET /admin?entityType=&actorId=&dateFrom=&dateTo=` (ADMIN только). Все возвращают `PagedResponse<AuditLogResponse>` сортировка `created_at DESC`. Новый DTO `AuditLogResponse{id, entityType, entityId, parentEntityType, parentEntityId, action, actorUserId, actorUsername, changes (raw json string), createdAt}` - username bulk-load JOIN (не N+1). Audit пишется synchronous в той же транзакции что и mutation через `AuditLogService.logCreate/Update/Delete/VisibilityChange/MemberAdd/MemberRemove/MemberRoleChange` из integration в TopicService/NodeService/EdgeService/BookService/QuestionService/AnswerService/TopicMemberService/BookMemberService. Format `changes` зависит от action: CREATE/DELETE `{created\|deleted: snapshot}`, UPDATE `{field: {old, new}}`, VISIBILITY_CHANGE `{visibility: {old, new}}`, MEMBER_* `{userId, role: scalar или {old, new}}`. Новые ошибки: `403 forbidden-admin-only` (AdminOnlyException) - не ADMIN | ADR-043 Amendment 3: закрытие долга «audit log отложен» из Amendment 2. Event-sourcing lite - 1 row на каждую mutation для compliance + debugging. Synchronous в той же transaction - rollback main flow откатит audit. Manual logging (не Spring AOP) - явный контроль snapshot/diff'а. Admin UI отложен до 22.e/backlog |
 | 2026-05-18 | v1 | Голосование за вес аргументов. Миграция 38 - новая таблица `node_votes (id UUID PK, node_id FK CASCADE, user_id FK CASCADE, weight SMALLINT CHECK IN (-1,1), voted_at TIMESTAMPTZ, UNIQUE(node_id, user_id))` + 2 индекса. 3 новых REST endpoint под `/api/v1/nodes/{id}`: `POST /vote` (CreateNodeVoteRequest{weight: -1\|+1} → 201 NodeVoteStatsResponse{nodeId, upvotes, downvotes, score, userVote}, upsert через ON CONFLICT), `DELETE /vote` (204, идемпотентен), `GET /votes` (NodeVoteStatsResponse). `NodeResponse` расширен 4 полями: `voteUpvotes`/`voteDownvotes`/`voteScore` (int), `userVote` (Integer nullable - голос вызывающего user'а). В `GET /api/v1/topics/{id}/graph` поля заполняются bulk-load из NodeVoteRepository (2 SQL на весь граф - не N+1). Новая ошибка `400 invalid-vote` (weight ∉ {-1,+1}). Permission: vote требует canReadTopic (видишь узел - можешь vote, не write-access, голос это reaction). Голоса НЕ влияют на StatusCalculation - сигнал силы аргумента ортогональный Dung-style status. MVP 3-point scale; 5-point {-2..+2} в backlog | Backlog «Голосование за вес аргументов» закрыт. Пользователи могут усиливать или ослаблять `EVIDENCE`/`ARGUMENT` узлы. Frontend - компактный VoteWidget в NodeCard footer (только для ARGUMENT/EVIDENCE - QUESTION/CLAIM не голосуются), upvote/downvote toggle с optimistic UI |
