@@ -282,7 +282,7 @@ public class TopicImportService {
                     n.posX(), n.posY(), 0,
                     currentUserId,
                     now, now,
-                    null, null, null
+                    null
             );
             nodeRepository.save(newNode);
             idMap.put(n.id(), newId);

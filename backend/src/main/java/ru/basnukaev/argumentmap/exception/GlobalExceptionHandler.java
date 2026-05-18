@@ -314,6 +314,26 @@ public class GlobalExceptionHandler {
         return pd;
     }
 
+    // ---- node translations (миграция 45, translator attribution) ----
+
+    @ExceptionHandler(NodeTranslationNotFoundException.class)
+    public ProblemDetail handleNodeTranslationNotFound(NodeTranslationNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND,
+                "Перевод узла не найден", "node-translation-not-found", ex.getMessage());
+    }
+
+    @ExceptionHandler(NodeTranslationDuplicateException.class)
+    public ProblemDetail handleNodeTranslationDuplicate(NodeTranslationDuplicateException ex) {
+        ProblemDetail pd = problem(HttpStatus.CONFLICT,
+                "Перевод от того же переводчика на тот же язык уже существует",
+                "node-translation-duplicate",
+                ex.getMessage());
+        pd.setProperty("nodeId", ex.getNodeId().toString());
+        pd.setProperty("translatorName", ex.getTranslatorName());
+        pd.setProperty("language", ex.getLanguage());
+        return pd;
+    }
+
     @ExceptionHandler(UnsupportedExportFormatException.class)
     public ProblemDetail handleUnsupportedExportFormat(UnsupportedExportFormatException ex) {
         ProblemDetail pd = problem(HttpStatus.UNPROCESSABLE_ENTITY,

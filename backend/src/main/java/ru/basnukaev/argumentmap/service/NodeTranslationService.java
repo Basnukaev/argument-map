@@ -1,0 +1,186 @@
+package ru.basnukaev.argumentmap.service;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import ru.basnukaev.argumentmap.domain.Node;
+import ru.basnukaev.argumentmap.domain.NodeTranslation;
+import ru.basnukaev.argumentmap.exception.NodeNotFoundException;
+import ru.basnukaev.argumentmap.exception.NodeTranslationDuplicateException;
+import ru.basnukaev.argumentmap.exception.NodeTranslationNotFoundException;
+import ru.basnukaev.argumentmap.repository.NodeRepository;
+import ru.basnukaev.argumentmap.repository.NodeTranslationRepository;
+
+/**
+ * Бизнес-логика multi-translation узлов (миграция 45).
+ *
+ * <p>Контракт permission:
+ * <ul>
+ *   <li>add / update / setDefault / remove - требуют canWriteTopic
+ *       (та же логика что и узел сам). Translation - часть содержания темы</li>
+ * </ul>
+ *
+ * <p>Бизнес-правила:
+ * <ul>
+ *   <li>{@code language} ∈ {ru, en}. Невалидное → 400 illegal-argument.</li>
+ *   <li>{@code body} обязательно non-blank.</li>
+ *   <li>Один переводчик - один перевод на узел на язык. Дубликат → 409
+ *       node-translation-duplicate. Анонимный переводчик
+ *       (translatorName=null) тоже unique per language.</li>
+ *   <li>{@code isDefault=true} при add: автоматически снимаем флаг с
+ *       остальных переводов узла. Atomic в одной транзакции.</li>
+ *   <li>Первый добавляемый перевод узла - всегда default (даже если
+ *       клиент передал isDefault=false). Узел не может быть без default'а
+ *       пока есть хоть один перевод.</li>
+ *   <li>При delete default'а: автоматически promoted'им oldest оставшийся
+ *       перевод в новый default. Если переводов больше нет - всё ок.</li>
+ * </ul>
+ */
+@Service
+public class NodeTranslationService {
+
+    private static final Set<String> ALLOWED_LANGUAGES = Set.of("ru", "en");
+
+    private final NodeTranslationRepository translationRepository;
+    private final NodeRepository nodeRepository;
+    private final PermissionService permissionService;
+
+    public NodeTranslationService(NodeTranslationRepository translationRepository,
+                                  NodeRepository nodeRepository,
+                                  PermissionService permissionService) {
+        this.translationRepository = translationRepository;
+        this.nodeRepository = nodeRepository;
+        this.permissionService = permissionService;
+    }
+
+    @Transactional
+    public NodeTranslation addTranslation(UUID nodeId,
+                                          String translatorName,
+                                          String language,
+                                          String body,
+                                          boolean isDefault,
+                                          UUID userId, String role) {
+        Node node = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new NodeNotFoundException(nodeId));
+        permissionService.assertCanWrite(node.topicId(), userId, role);
+
+        validateLanguage(language);
+        if (body == null || body.isBlank()) {
+            throw new IllegalArgumentException("Поле body обязательно (текст перевода)");
+        }
+        // нормализуем translator_name: blank → null (анонимный)
+        String normalizedTranslator = (translatorName == null || translatorName.isBlank())
+                ? null
+                : translatorName.trim();
+
+        if (translationRepository.existsForNodeTranslatorLanguage(nodeId, normalizedTranslator, language)) {
+            throw new NodeTranslationDuplicateException(nodeId, normalizedTranslator, language);
+        }
+
+        // первый перевод узла - всегда default, иначе по флагу клиента
+        boolean existingCount = !translationRepository.findByNodeId(nodeId).isEmpty();
+        boolean effectiveDefault = !existingCount || isDefault;
+
+        if (effectiveDefault && existingCount) {
+            // снимаем флаг с других перед добавлением нового default'а
+            translationRepository.findByNodeId(nodeId).forEach(t -> {
+                if (t.isDefault()) {
+                    translationRepository.clearDefault(t.id());
+                }
+            });
+        }
+
+        NodeTranslation entity = new NodeTranslation(
+                UUID.randomUUID(), nodeId, normalizedTranslator, language, body,
+                effectiveDefault, Instant.now(), userId
+        );
+        try {
+            return translationRepository.save(entity);
+        } catch (DuplicateKeyException dup) {
+            throw new NodeTranslationDuplicateException(nodeId, normalizedTranslator, language);
+        }
+    }
+
+    @Transactional
+    public NodeTranslation updateTranslation(UUID translationId,
+                                             String translatorName,
+                                             String body,
+                                             UUID userId, String role) {
+        NodeTranslation existing = translationRepository.findById(translationId)
+                .orElseThrow(() -> new NodeTranslationNotFoundException(translationId));
+        Node node = nodeRepository.findById(existing.nodeId())
+                .orElseThrow(() -> new NodeNotFoundException(existing.nodeId()));
+        permissionService.assertCanWrite(node.topicId(), userId, role);
+
+        String resolvedTranslator = (translatorName == null || translatorName.isBlank())
+                ? null
+                : translatorName.trim();
+        String resolvedBody = (body == null || body.isBlank()) ? existing.body() : body;
+
+        boolean updated = translationRepository.update(translationId, resolvedTranslator, resolvedBody);
+        if (!updated) {
+            throw new NodeTranslationNotFoundException(translationId);
+        }
+        return new NodeTranslation(
+                existing.id(), existing.nodeId(), resolvedTranslator,
+                existing.language(), resolvedBody, existing.isDefault(),
+                existing.createdAt(), existing.createdBy()
+        );
+    }
+
+    @Transactional
+    public NodeTranslation setDefault(UUID translationId, UUID userId, String role) {
+        NodeTranslation existing = translationRepository.findById(translationId)
+                .orElseThrow(() -> new NodeTranslationNotFoundException(translationId));
+        Node node = nodeRepository.findById(existing.nodeId())
+                .orElseThrow(() -> new NodeNotFoundException(existing.nodeId()));
+        permissionService.assertCanWrite(node.topicId(), userId, role);
+
+        translationRepository.setDefault(translationId, existing.nodeId());
+        return new NodeTranslation(
+                existing.id(), existing.nodeId(), existing.translatorName(),
+                existing.language(), existing.body(), true,
+                existing.createdAt(), existing.createdBy()
+        );
+    }
+
+    @Transactional
+    public void removeTranslation(UUID translationId, UUID userId, String role) {
+        NodeTranslation existing = translationRepository.findById(translationId)
+                .orElseThrow(() -> new NodeTranslationNotFoundException(translationId));
+        Node node = nodeRepository.findById(existing.nodeId())
+                .orElseThrow(() -> new NodeNotFoundException(existing.nodeId()));
+        permissionService.assertCanWrite(node.topicId(), userId, role);
+
+        translationRepository.deleteById(translationId);
+
+        // promote oldest оставшийся перевод в default если удалили default
+        if (existing.isDefault()) {
+            Optional<NodeTranslation> oldest = translationRepository.findOldestByNodeId(existing.nodeId());
+            oldest.ifPresent(t -> translationRepository.setDefault(t.id(), existing.nodeId()));
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<NodeTranslation> getForNode(UUID nodeId, UUID userId, String role) {
+        Node node = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new NodeNotFoundException(nodeId));
+        permissionService.assertCanRead(node.topicId(), userId, role);
+        return translationRepository.findByNodeId(nodeId);
+    }
+
+    private void validateLanguage(String language) {
+        if (language == null || !ALLOWED_LANGUAGES.contains(language)) {
+            throw new IllegalArgumentException(
+                    "Недопустимое значение language: '" + language
+                            + "'. Допустимые: " + ALLOWED_LANGUAGES);
+        }
+    }
+}

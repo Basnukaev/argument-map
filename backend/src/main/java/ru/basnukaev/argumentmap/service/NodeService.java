@@ -27,10 +27,9 @@ import ru.basnukaev.argumentmap.repository.TopicRepository;
 @Service
 public class NodeService {
 
-    // Whitelist для bilingual полей (миграция 44). Должны совпадать с
-    // CHECK constraints в БД. Валидация на уровне сервиса даёт чистый
-    // 400 IllegalArgumentException вместо 500 DataIntegrityViolation.
-    private static final Set<String> ALLOWED_TRANSLATION_LANGS = Set.of("ru", "en");
+    // Whitelist для originalLang (миграция 44). Должны совпадать с CHECK
+    // constraint в БД. translation_lang валидируется в NodeTranslationService
+    // т.к. translation теперь в child-таблице
     private static final Set<String> ALLOWED_ORIGINAL_LANGS = Set.of("ar", "ru", "en");
 
     private final NodeRepository nodeRepository;
@@ -56,39 +55,31 @@ public class NodeService {
 
     @Transactional
     public Node createNode(UUID topicId, NodeType type, String content, UUID userId) {
-        return createNode(topicId, type, content, null, null, null, userId);
+        return createNode(topicId, type, content, null, userId);
     }
 
     /**
-     * Создание узла с bilingual-полями. translation/translationLang/originalLang
-     * опциональны (null = поле не задано). Валидация:
-     * <ul>
-     *   <li>translation NOT NULL → translationLang обязателен и ∈ {ru, en}</li>
-     *   <li>originalLang (если задан) ∈ {ar, ru, en}</li>
-     * </ul>
+     * Создание узла с опциональным originalLang. originalLang ∈ {ar, ru, en}
+     * либо null (frontend auto-detect через hasArabicScript). Переводы
+     * добавляются отдельно через {@code NodeTranslationService.addTranslation}.
      *
-     * <p>Legacy перегрузка без bilingual (createNode без translation*) идёт
-     * сюда с null'ами - backward-compat для существующих callers (TopicService
-     * createTopic root question, TopicImportService и т.д.).
+     * <p>Legacy перегрузка без originalLang идёт сюда с null - backward-compat
+     * для существующих callers (TopicImportService и т.д.).
      */
     @Transactional
     public Node createNode(UUID topicId, NodeType type, String content,
-                           String translation, String translationLang, String originalLang,
-                           UUID userId) {
-        // legacy перегрузка - без permission check (для тестов и
-        // batch importers). REST endpoint должен использовать перегрузку
-        // с role.
+                           String originalLang, UUID userId) {
         if (topicRepository.findById(topicId).isEmpty()) {
             throw new TopicNotFoundException(topicId);
         }
-        validateBilingual(translation, translationLang, originalLang);
+        validateOriginalLang(originalLang);
 
         Instant now = Instant.now();
         Node node = new Node(
                 UUID.randomUUID(), topicId, type, content,
                 NodeStatus.UNVERIFIED, null, null, 0,
                 userId, now, now,
-                translation, translationLang, originalLang
+                originalLang
         );
         nodeRepository.save(node);
 
@@ -96,10 +87,6 @@ public class NodeService {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("nodeType", type.name());
         snapshot.put("content", content);
-        if (translation != null) {
-            snapshot.put("translation", translation);
-            snapshot.put("translationLang", translationLang);
-        }
         if (originalLang != null) {
             snapshot.put("originalLang", originalLang);
         }
@@ -119,10 +106,9 @@ public class NodeService {
 
     @Transactional
     public Node createNode(UUID topicId, NodeType type, String content,
-                           String translation, String translationLang, String originalLang,
-                           UUID userId, String role) {
+                           String originalLang, UUID userId, String role) {
         permissionService.assertCanWrite(topicId, userId, role);
-        return createNode(topicId, type, content, translation, translationLang, originalLang, userId);
+        return createNode(topicId, type, content, originalLang, userId);
     }
 
     /**
@@ -140,7 +126,7 @@ public class NodeService {
                 existing.content(), existing.status(),
                 posX, posY, existing.zIndex(),
                 existing.createdBy(), existing.createdAt(), existing.updatedAt(),
-                existing.translation(), existing.translationLang(), existing.originalLang()
+                existing.originalLang()
         );
     }
 
@@ -159,42 +145,32 @@ public class NodeService {
      */
     @Transactional
     public Node updateContent(UUID nodeId, String newContent, UUID userId) {
-        return updateContent(nodeId, newContent, NoChange.INSTANCE, NoChange.INSTANCE, NoChange.INSTANCE, userId);
+        return updateContent(nodeId, newContent, NoChange.INSTANCE, userId);
     }
 
     /**
      * Расширенный update - помимо content может опционально обновить
-     * translation / translationLang / originalLang. Если параметр - {@link NoChange#INSTANCE},
-     * соответствующее поле в БД остаётся прежним. Если параметр явно null
-     * (через перегрузку без NoChange либо через REST DTO с явным null) -
-     * поле очищается.
+     * originalLang. Если параметр - {@link NoChange#INSTANCE}, поле в БД
+     * остаётся прежним. Если параметр явно null (через REST DTO с явным
+     * null или пустой строкой) - поле очищается.
      *
-     * <p>Revision записывается только для изменения content - translation/lang
-     * не входят в историю содержательных изменений (это metadata). Решение
-     * можно пересмотреть когда станет важно отслеживать перевод как версионный
-     * артефакт.
+     * <p>Revision записывается только для изменения content. originalLang -
+     * metadata, не version-controlled.
      */
     @Transactional
     public Node updateContent(UUID nodeId, Object newContentBox,
-                              Object newTranslation, Object newTranslationLang, Object newOriginalLang,
-                              UUID userId) {
+                              Object newOriginalLang, UUID userId) {
         Node existing = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new NodeNotFoundException(nodeId));
 
         String resolvedContent = (newContentBox instanceof NoChange)
                 ? existing.content()
                 : (String) newContentBox;
-        String resolvedTranslation = (newTranslation instanceof NoChange)
-                ? existing.translation()
-                : (String) newTranslation;
-        String resolvedTranslationLang = (newTranslationLang instanceof NoChange)
-                ? existing.translationLang()
-                : (String) newTranslationLang;
         String resolvedOriginalLang = (newOriginalLang instanceof NoChange)
                 ? existing.originalLang()
                 : (String) newOriginalLang;
 
-        validateBilingual(resolvedTranslation, resolvedTranslationLang, resolvedOriginalLang);
+        validateOriginalLang(resolvedOriginalLang);
 
         Instant now = Instant.now();
         boolean contentChanged = !java.util.Objects.equals(existing.content(), resolvedContent);
@@ -212,7 +188,7 @@ public class NodeService {
                 resolvedContent, existing.status(),
                 existing.posX(), existing.posY(), existing.zIndex(),
                 existing.createdBy(), existing.createdAt(), now,
-                resolvedTranslation, resolvedTranslationLang, resolvedOriginalLang
+                resolvedOriginalLang
         );
         nodeRepository.update(updated);
 
@@ -221,14 +197,6 @@ public class NodeService {
         if (contentChanged) {
             diff.put("content", new AuditLogService.FieldDiff(
                     existing.content(), resolvedContent));
-        }
-        if (!java.util.Objects.equals(existing.translation(), resolvedTranslation)) {
-            diff.put("translation", new AuditLogService.FieldDiff(
-                    existing.translation(), resolvedTranslation));
-        }
-        if (!java.util.Objects.equals(existing.translationLang(), resolvedTranslationLang)) {
-            diff.put("translationLang", new AuditLogService.FieldDiff(
-                    existing.translationLang(), resolvedTranslationLang));
         }
         if (!java.util.Objects.equals(existing.originalLang(), resolvedOriginalLang)) {
             diff.put("originalLang", new AuditLogService.FieldDiff(
@@ -251,20 +219,17 @@ public class NodeService {
     }
 
     /**
-     * Расширенная перегрузка с bilingual-полями. Каждый параметр-box -
-     * либо {@link NoChange#INSTANCE} (не трогаем), либо строка (новое
-     * значение), либо null (очистить). Для контроллера: используем когда
-     * REST request явно передал поле (даже null) либо не передал вообще.
+     * Расширенная перегрузка с originalLang. Каждый параметр-box - либо
+     * {@link NoChange#INSTANCE} (не трогаем), либо строка (новое значение),
+     * либо null (очистить).
      */
     @Transactional
     public Node updateContent(UUID nodeId, Object newContentBox,
-                              Object newTranslation, Object newTranslationLang, Object newOriginalLang,
-                              UUID userId, String role) {
+                              Object newOriginalLang, UUID userId, String role) {
         Node existing = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new NodeNotFoundException(nodeId));
         permissionService.assertCanWrite(existing.topicId(), userId, role);
-        return updateContent(nodeId, newContentBox,
-                newTranslation, newTranslationLang, newOriginalLang, userId);
+        return updateContent(nodeId, newContentBox, newOriginalLang, userId);
     }
 
     @Transactional
@@ -320,7 +285,7 @@ public class NodeService {
                 existing.content(), existing.status(),
                 existing.posX(), existing.posY(), newZ,
                 existing.createdBy(), existing.createdAt(), existing.updatedAt(),
-                existing.translation(), existing.translationLang(), existing.originalLang()
+                existing.originalLang()
         );
     }
 
@@ -341,7 +306,7 @@ public class NodeService {
                 existing.content(), existing.status(),
                 existing.posX(), existing.posY(), newZ,
                 existing.createdBy(), existing.createdAt(), existing.updatedAt(),
-                existing.translation(), existing.translationLang(), existing.originalLang()
+                existing.originalLang()
         );
     }
 
@@ -362,23 +327,9 @@ public class NodeService {
     }
 
     /**
-     * Валидация bilingual-полей.
-     * <ul>
-     *   <li>translation NOT NULL → translationLang обязателен</li>
-     *   <li>translationLang (если задан) ∈ {ru, en}</li>
-     *   <li>originalLang (если задан) ∈ {ar, ru, en}</li>
-     * </ul>
+     * Валидация originalLang: nullable, при заданном значении ∈ {ar, ru, en}.
      */
-    private void validateBilingual(String translation, String translationLang, String originalLang) {
-        if (translation != null && !translation.isEmpty() && (translationLang == null || translationLang.isBlank())) {
-            throw new IllegalArgumentException(
-                    "translationLang обязателен когда translation задан");
-        }
-        if (translationLang != null && !ALLOWED_TRANSLATION_LANGS.contains(translationLang)) {
-            throw new IllegalArgumentException(
-                    "Недопустимое значение translationLang: '" + translationLang
-                            + "'. Допустимые: " + ALLOWED_TRANSLATION_LANGS);
-        }
+    private void validateOriginalLang(String originalLang) {
         if (originalLang != null && !ALLOWED_ORIGINAL_LANGS.contains(originalLang)) {
             throw new IllegalArgumentException(
                     "Недопустимое значение originalLang: '" + originalLang

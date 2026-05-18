@@ -81,7 +81,7 @@ public class TopicService {
                 rootQuestionContent, NodeStatus.UNVERIFIED,
                 null, null, 0,
                 userId, now, now,
-                null, null, null
+                null
         );
         nodeRepository.save(rootQuestion);
 
