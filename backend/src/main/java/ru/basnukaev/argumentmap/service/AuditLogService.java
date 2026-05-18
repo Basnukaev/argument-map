@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -74,10 +75,15 @@ public class AuditLogService {
         if (fieldChanges != null && !fieldChanges.isEmpty()) {
             changes = new LinkedHashMap<>();
             for (Map.Entry<String, FieldDiff> e : fieldChanges.entrySet()) {
-                changes.put(e.getKey(), Map.of(
-                        "old", nullSafe(e.getValue().oldValue()),
-                        "new", nullSafe(e.getValue().newValue())
-                ));
+                // HashMap (а не Map.of) - чтобы null-значения сохранялись в
+                // jsonb как JSON null, а не как "" (см. M-1 audit 2026-05-18).
+                // Семантика: null = поле было/стало absent, "" = поле было
+                // пустой строкой. Map.of отвергает null'ы, заставляя писать
+                // "" на нашей стороне - и теряется отличие
+                Map<String, Object> oldNew = new LinkedHashMap<>();
+                oldNew.put("old", e.getValue().oldValue());
+                oldNew.put("new", e.getValue().newValue());
+                changes.put(e.getKey(), oldNew);
             }
         }
         return save(entityType, entityId, parentEntityType, parentEntityId,
@@ -99,12 +105,12 @@ public class AuditLogService {
     public AuditLog logVisibilityChange(String entityType, UUID entityId,
                                         UUID actorUserId,
                                         String oldVisibility, String newVisibility) {
-        Map<String, Object> changes = Map.of(
-                "visibility", Map.of(
-                        "old", nullSafe(oldVisibility),
-                        "new", nullSafe(newVisibility)
-                )
-        );
+        // null-safe map: HashMap чтобы null-значения сериализовались как
+        // JSON null, а не как "" (см. logUpdate комментарий)
+        Map<String, Object> oldNew = new LinkedHashMap<>();
+        oldNew.put("old", oldVisibility);
+        oldNew.put("new", newVisibility);
+        Map<String, Object> changes = Map.of("visibility", oldNew);
         return save(entityType, entityId, null, null,
                 AuditAction.VISIBILITY_CHANGE, actorUserId, changes);
     }
@@ -141,12 +147,13 @@ public class AuditLogService {
                                         UUID actorUserId,
                                         UUID memberUserId,
                                         String oldRole, String newRole) {
+        // HashMap для role.old/new чтобы null сохранился как JSON null
+        Map<String, Object> oldNewRole = new LinkedHashMap<>();
+        oldNewRole.put("old", oldRole);
+        oldNewRole.put("new", newRole);
         Map<String, Object> changes = Map.of(
                 "userId", memberUserId.toString(),
-                "role", Map.of(
-                        "old", nullSafe(oldRole),
-                        "new", nullSafe(newRole)
-                )
+                "role", oldNewRole
         );
         return save(memberEntityType, memberId, parentEntityType, parentEntityId,
                 AuditAction.MEMBER_ROLE_CHANGE, actorUserId, changes);
@@ -239,10 +246,6 @@ public class AuditLogService {
         }
     }
 
-    private static Object nullSafe(Object v) {
-        return v == null ? "" : v;
-    }
-
     /**
      * Пара значений до/после для конкретного field в UPDATE-событии.
      */
@@ -292,8 +295,8 @@ public class AuditLogService {
 
     /**
      * Builder для per-field diff в UPDATE-событиях. Сравнивает before/after
-     * через {@link java.util.Objects#equals} и добавляет {@link FieldDiff}
-     * только если значения отличаются. Заменяет boilerplate из
+     * через {@link Objects#equals} и добавляет {@link FieldDiff} только
+     * если значения отличаются. Заменяет boilerplate из
      * {@code !Objects.equals(...) + diff.put(...)} которая повторяется в
      * 5+ сервисах.
      *
@@ -319,7 +322,7 @@ public class AuditLogService {
         }
 
         public DiffBuilder compare(String fieldName, Object before, Object after) {
-            if (!java.util.Objects.equals(before, after)) {
+            if (!Objects.equals(before, after)) {
                 map.put(fieldName, new FieldDiff(before, after));
             }
             return this;
