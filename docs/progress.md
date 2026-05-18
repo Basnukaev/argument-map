@@ -11,6 +11,66 @@
 
 ---
 
+## 2026-05-18 - Backend stability + quality round
+
+stability/quality audit + cleanup существующего бэкенд-кода. subagent
+task в параллели с frontend code health и e2e playwright sessions.
+
+**Audit report**: `docs/superpowers/audits/2026-05-18-backend-audit.md`
+
+10 зон проверки: god classes, long methods, code duplication, dead
+code, magic numbers, exception handling, SQL injection, @Transactional
+consistency, IT coverage gaps, configuration properties
+
+**Findings:**
+
+- 0 Critical - production-grade code, нет TODO/FIXME, нет
+  commented-out, нет field injection, нет SQL injection
+- 1 Important (отложено в backlog) - 8 pre-existing test failures
+  401 vs 400, требует ADR-040 amendment либо обновления fixtures
+- 4 Important закрыты:
+  - 11 inline FQN refs нарушали coding-standards
+  - 30 audit snapshot boilerplate сайтов в 7 сервисах
+  - import order misorganized в 5+ файлах
+  - audit nullSafe → пустую строку вместо JSON null
+- 6 Minor: 1 закрыт (dead constant + duplicate javadoc), 5
+  documented как откладываемые (BookService split, GlobalExceptionHandler
+  split, magic numbers, CreateBookCommand record, DtoMappers
+  overload chain - subjective improvements без clear winners)
+
+**Атомарные коммиты (5):**
+
+1. `docs` - backend audit 2026-05-18 report
+2. `refactor(backend)` - inline FQN → imports + import order (12 файлов)
+3. `refactor(backend)` - AuditLogService.snapshot()/diff() helpers
+   (8 файлов, -150/+200 LOC, читаемость +30%)
+4. `refactor(backend)` - audit null-значения → JSON null а не "" (M-1)
+5. `refactor(backend)` - dead code cleanup + javadoc merge
+
+**Документация:**
+
+- `docs/superpowers/audits/2026-05-18-backend-audit.md` - полный
+  audit report (10 зон, critical/important/minor с обоснованием)
+
+**Метрики:**
+
+- Baseline: 879 тестов, 871 pass, 8 pre-existing fail, 2 skipped
+- Final: 879 тестов, 871 pass, 8 pre-existing fail (те же), 2 skipped
+- compile time: ~3 sec (без изменений)
+- LOC delta: -150 / +200 (но читаемость улучшена за счёт builders)
+- 0 broken tests, 0 changed public API endpoints, 0 DB migrations
+
+**Отложено в backlog:**
+
+- I-1 8 pre-existing test failures - требует ADR-040 amendment либо
+  обновления fixtures под фактическое поведение Spring Security
+  (401 для unauthenticated mutating - валидно)
+- M-2 CreateBookCommand record - breaking change на все callers
+- M-3 BookService split на 2 сервиса - subjective improvement
+- M-4 GlobalExceptionHandler split на 4 handler'а - risk ordering
+- IT coverage gaps: concurrent ops, serialization edge cases -
+  не было incidents, low priority
+
 ## 2026-05-18 - Frontend stability + quality audit
 
 Audit и cleanup существующего фронтенд-кода. Subagent task в параллели

@@ -186,6 +186,50 @@ NodeStatus recalculateStatus(UUID nodeId);
   чтение файлов, долгие вычисления
 - Избегать вложенных транзакций, если не понимаешь точно, что делаешь
 
+## Audit logging (ADR-043 Amendment 3)
+
+Mutation сервисы пишут в `audit_log` синхронно в той же транзакции что
+и main flow. Использовать builder-helpers из `AuditLogService` -
+**не** строить `Map<String, Object>` вручную через `LinkedHashMap` +
+`put`.
+
+### Snapshot для CREATE/DELETE
+
+```java
+Map<String, Object> snapshot = AuditLogService.snapshot()
+    .put("title", book.title())
+    .put("visibility", book.visibility())
+    .build();
+auditLogService.logCreate(BOOK, book.id(), null, null, userId, snapshot);
+```
+
+`put` принимает null - сохраняет ключ с null-value (важно для full
+snapshot чтобы видеть какие поля были null до удаления). Для enum
+вызывать `.name()` явно на caller-стороне.
+
+### Diff для UPDATE
+
+```java
+Map<String, FieldDiff> diff = AuditLogService.diff()
+    .compare("title", before.title(), after.title())
+    .compare("body", before.body(), after.body())
+    .build();
+if (!diff.isEmpty()) {
+    auditLogService.logUpdate(...);
+}
+```
+
+`compare()` сам пропускает поля где before == after через
+`Objects.equals` - **не** писать `if (!Objects.equals(...)) diff.put(...)`
+руками.
+
+### null vs ""
+
+null значения в snapshot/diff сериализуются как JSON null (не "")
+для отличия absent от empty-string. Это семантически важно при
+чтении audit log: `field.old == null` = поле было absent,
+`field.old == ""` = поле было пустой строкой.
+
 ## Тесты
 
 ### Именование тестов
