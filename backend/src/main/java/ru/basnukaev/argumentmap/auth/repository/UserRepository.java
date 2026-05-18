@@ -3,11 +3,18 @@ package ru.basnukaev.argumentmap.auth.repository;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.instant;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.odt;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import ru.basnukaev.argumentmap.auth.domain.User;
@@ -34,9 +41,11 @@ public class UserRepository {
     );
 
     private final JdbcTemplate jdbcTemplate;
+    private final NamedParameterJdbcTemplate namedJdbcTemplate;
 
     public UserRepository(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
+        this.namedJdbcTemplate = new NamedParameterJdbcTemplate(jdbcTemplate);
     }
 
     public User save(User user) {
@@ -60,6 +69,25 @@ public class UserRepository {
                 ROW_MAPPER,
                 id
         ).stream().findFirst();
+    }
+
+    /**
+     * Bulk lookup users по списку id - один SQL вместо N+1 (см.
+     * {@code AuditLogController#toResponses} для enrichment страницы
+     * audit-log username'ами). Пустой input → empty map без запроса.
+     * Missing id'ы просто отсутствуют в результате - caller сам решает
+     * как обрабатывать (fallback на null/"unknown").
+     */
+    public Map<UUID, User> findByIds(Collection<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        MapSqlParameterSource params = new MapSqlParameterSource("ids", ids);
+        return namedJdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM users WHERE id IN (:ids)",
+                params,
+                ROW_MAPPER
+        ).stream().collect(Collectors.toMap(User::id, Function.identity()));
     }
 
     public Optional<User> findByEmail(String email) {

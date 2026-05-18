@@ -2,9 +2,10 @@ package ru.basnukaev.argumentmap.web.controller;
 
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.web.bind.annotation.GetMapping;
@@ -162,35 +163,38 @@ public class AuditLogController {
 
     /**
      * Маппит {@link AuditLog} → {@link AuditLogResponse} + bulk JOIN
-     * с users для actorUsername. Bulk вместо N+1 select - один SQL
-     * на всю страницу.
+     * с users для actorUsername. Один SQL на всю страницу через
+     * {@code UserRepository.findByIds(Set)} - не N+1.
      */
     private List<AuditLogResponse> toResponses(List<AuditLog> items) {
         if (items.isEmpty()) {
             return List.of();
         }
-        Map<UUID, String> usernameByActor = new HashMap<>();
+        Set<UUID> actorIds = new HashSet<>();
         for (AuditLog log : items) {
-            usernameByActor.putIfAbsent(log.actorUserId(), null);
+            if (log.actorUserId() != null) {
+                actorIds.add(log.actorUserId());
+            }
         }
-        // bulk fetch usernames одним проходом (Map уже unique)
-        for (UUID actorId : usernameByActor.keySet()) {
-            usernameByActor.put(actorId,
-                    userRepository.findById(actorId).map(User::username).orElse(null));
-        }
+        Map<UUID, User> usersById = userRepository.findByIds(actorIds);
         return items.stream()
-                .map(log -> new AuditLogResponse(
-                        log.id(),
-                        log.entityType(),
-                        log.entityId(),
-                        log.parentEntityType(),
-                        log.parentEntityId(),
-                        log.action(),
-                        log.actorUserId(),
-                        usernameByActor.get(log.actorUserId()),
-                        log.changes(),
-                        log.createdAt()
-                ))
+                .map(log -> {
+                    User actor = log.actorUserId() == null
+                            ? null
+                            : usersById.get(log.actorUserId());
+                    return new AuditLogResponse(
+                            log.id(),
+                            log.entityType(),
+                            log.entityId(),
+                            log.parentEntityType(),
+                            log.parentEntityId(),
+                            log.action(),
+                            log.actorUserId(),
+                            actor == null ? null : actor.username(),
+                            log.changes(),
+                            log.createdAt()
+                    );
+                })
                 .toList();
     }
 }
