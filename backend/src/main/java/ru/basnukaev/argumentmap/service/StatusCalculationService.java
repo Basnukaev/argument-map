@@ -15,19 +15,23 @@ import ru.basnukaev.argumentmap.domain.Edge;
 import ru.basnukaev.argumentmap.domain.EdgeType;
 import ru.basnukaev.argumentmap.domain.Node;
 import ru.basnukaev.argumentmap.domain.NodeStatus;
+import ru.basnukaev.argumentmap.domain.StatusAlgorithm;
+import ru.basnukaev.argumentmap.domain.Topic;
 import ru.basnukaev.argumentmap.repository.EdgeRepository;
 import ru.basnukaev.argumentmap.repository.NodeRepository;
+import ru.basnukaev.argumentmap.repository.TopicRepository;
 
 /**
  * Пересчёт статусов узлов темы.
  *
- * Алгоритм — фикспоинт-итерация в памяти. Каждая итерация перебирает все
- * узлы и пересчитывает статус по входящим рёбрам и текущему состоянию
- * соседей. Итерации продолжаются до сходимости или достижения лимита.
- * В БД обновляются только узлы с изменившимся статусом.
- *
- * INVALIDATES от STANDING-источника — жёсткий kill: цель → REFUTED
- * безусловно. QUALIFIES и RESPONDS_TO в алгоритм не входят (см. ADR-007).
+ * Делегирует один из двух алгоритмов в зависимости от
+ * {@code topic.statusAlgorithm} (ADR-044):
+ * <ul>
+ *   <li>{@link StatusAlgorithm#MVP} - existing fixpoint-итерация
+ *       (учитывает SUPPORTS/REFUTES/INVALIDATES, см. ADR-007)
+ *   <li>{@link StatusAlgorithm#DUNG_GROUNDED} - grounded labelling через
+ *       {@link DungFrameworkService} (только attack-edges)
+ * </ul>
  *
  * Метод НЕ помечен @Transactional — присоединяется к транзакции
  * вызывающего сервиса (EdgeService, NodeService).
@@ -39,10 +43,17 @@ public class StatusCalculationService {
 
     private final NodeRepository nodeRepository;
     private final EdgeRepository edgeRepository;
+    private final TopicRepository topicRepository;
+    private final DungFrameworkService dungFrameworkService;
 
-    public StatusCalculationService(NodeRepository nodeRepository, EdgeRepository edgeRepository) {
+    public StatusCalculationService(NodeRepository nodeRepository,
+                                    EdgeRepository edgeRepository,
+                                    TopicRepository topicRepository,
+                                    DungFrameworkService dungFrameworkService) {
         this.nodeRepository = nodeRepository;
         this.edgeRepository = edgeRepository;
+        this.topicRepository = topicRepository;
+        this.dungFrameworkService = dungFrameworkService;
     }
 
     public void recalculateTopic(UUID topicId) {
@@ -51,6 +62,16 @@ public class StatusCalculationService {
             return;
         }
         List<Edge> edges = edgeRepository.findByTopicId(topicId);
+        Topic topic = topicRepository.findById(topicId).orElse(null);
+        String algorithm = topic == null ? StatusAlgorithm.MVP : topic.statusAlgorithm();
+        if (StatusAlgorithm.DUNG_GROUNDED.equals(algorithm)) {
+            recalculateUsingDung(nodes, edges);
+        } else {
+            recalculateUsingMvp(nodes, edges);
+        }
+    }
+
+    private void recalculateUsingMvp(List<Node> nodes, List<Edge> edges) {
         Map<UUID, List<Edge>> edgesByTo = edges.stream()
                 .collect(Collectors.groupingBy(Edge::toNodeId));
 
@@ -76,7 +97,8 @@ public class StatusCalculationService {
             iter++;
         }
         if (iter == maxIterations && changed) {
-            log.warn("Пересчёт не сошёлся за {} итераций для темы {}", iter, topicId);
+            UUID topicId = nodes.get(0).topicId();
+            log.warn("MVP пересчёт не сошёлся за {} итераций для темы {}", iter, topicId);
         }
 
         Instant now = Instant.now();
@@ -86,6 +108,33 @@ public class StatusCalculationService {
                 nodeRepository.updateStatus(node.id(), newStatus, now);
             }
         }
+    }
+
+    /**
+     * Пересчёт через Dung's grounded labelling (ADR-044). Mapping:
+     * IN → STANDING, OUT → REFUTED, UNDEC → DISPUTED. UNVERIFIED не
+     * используется в Dung'е - каждый node получает определённый label
+     */
+    private void recalculateUsingDung(List<Node> nodes, List<Edge> edges) {
+        Map<UUID, String> labels = dungFrameworkService.computeGroundedLabelling(nodes, edges);
+        Instant now = Instant.now();
+        for (Node node : nodes) {
+            NodeStatus newStatus = mapLabelToStatus(labels.get(node.id()));
+            if (newStatus != node.status()) {
+                nodeRepository.updateStatus(node.id(), newStatus, now);
+            }
+        }
+    }
+
+    private static NodeStatus mapLabelToStatus(String label) {
+        if (DungFrameworkService.IN.equals(label)) {
+            return NodeStatus.STANDING;
+        }
+        if (DungFrameworkService.OUT.equals(label)) {
+            return NodeStatus.REFUTED;
+        }
+        // UNDEC либо null - DISPUTED как наиболее близкий по семантике
+        return NodeStatus.DISPUTED;
     }
 
     private NodeStatus computeStatus(NodeStatus current, List<Edge> incoming,

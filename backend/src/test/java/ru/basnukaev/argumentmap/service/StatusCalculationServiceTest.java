@@ -19,13 +19,19 @@ import ru.basnukaev.argumentmap.domain.EdgeType;
 import ru.basnukaev.argumentmap.domain.Node;
 import ru.basnukaev.argumentmap.domain.NodeStatus;
 import ru.basnukaev.argumentmap.domain.NodeType;
+import ru.basnukaev.argumentmap.domain.StatusAlgorithm;
+import ru.basnukaev.argumentmap.domain.Topic;
+import ru.basnukaev.argumentmap.domain.TopicVisibility;
 import ru.basnukaev.argumentmap.repository.EdgeRepository;
 import ru.basnukaev.argumentmap.repository.NodeRepository;
+import ru.basnukaev.argumentmap.repository.TopicRepository;
 
 class StatusCalculationServiceTest {
 
     private NodeRepository nodeRepo;
     private EdgeRepository edgeRepo;
+    private TopicRepository topicRepo;
+    private DungFrameworkService dungService;
     private StatusCalculationService service;
     private UUID topicId;
     private UUID userId;
@@ -34,9 +40,16 @@ class StatusCalculationServiceTest {
     void setUp() {
         nodeRepo = Mockito.mock(NodeRepository.class);
         edgeRepo = Mockito.mock(EdgeRepository.class);
-        service = new StatusCalculationService(nodeRepo, edgeRepo);
+        topicRepo = Mockito.mock(TopicRepository.class);
+        dungService = new DungFrameworkService();
+        service = new StatusCalculationService(nodeRepo, edgeRepo, topicRepo, dungService);
         topicId = UUID.randomUUID();
         userId = UUID.randomUUID();
+        // По умолчанию все тесты этого класса покрывают MVP-алгоритм
+        when(topicRepo.findById(topicId)).thenReturn(java.util.Optional.of(
+                new Topic(topicId, "T", null, null, userId, java.time.Instant.now(),
+                        TopicVisibility.PRIVATE, StatusAlgorithm.MVP)
+        ));
     }
 
     @Test
@@ -246,6 +259,72 @@ class StatusCalculationServiceTest {
         service.recalculateTopic(topicId);
 
         verify(nodeRepo).updateStatus(eq(claim), eq(NodeStatus.REFUTED), any());
+    }
+
+    @Test
+    void dungAlgorithm_attackChain_mapsLabelsToStatuses() {
+        // Переключаем topic на DUNG_GROUNDED. Цепочка a→b→c (REFUTES):
+        // a IN→STANDING, b OUT→REFUTED, c IN→STANDING
+        when(topicRepo.findById(topicId)).thenReturn(java.util.Optional.of(
+                new Topic(topicId, "T", null, null, userId, java.time.Instant.now(),
+                        TopicVisibility.PRIVATE, StatusAlgorithm.DUNG_GROUNDED)
+        ));
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        UUID c = UUID.randomUUID();
+        givenGraph(
+                List.of(node(a, NodeStatus.UNVERIFIED),
+                        node(b, NodeStatus.UNVERIFIED),
+                        node(c, NodeStatus.UNVERIFIED)),
+                List.of(edge(a, b, EdgeType.REFUTES),
+                        edge(b, c, EdgeType.REFUTES))
+        );
+
+        service.recalculateTopic(topicId);
+
+        verify(nodeRepo).updateStatus(eq(a), eq(NodeStatus.STANDING), any());
+        verify(nodeRepo).updateStatus(eq(b), eq(NodeStatus.REFUTED), any());
+        verify(nodeRepo).updateStatus(eq(c), eq(NodeStatus.STANDING), any());
+    }
+
+    @Test
+    void dungAlgorithm_mutualCycle_bothBecomeDisputed() {
+        when(topicRepo.findById(topicId)).thenReturn(java.util.Optional.of(
+                new Topic(topicId, "T", null, null, userId, java.time.Instant.now(),
+                        TopicVisibility.PRIVATE, StatusAlgorithm.DUNG_GROUNDED)
+        ));
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        givenGraph(
+                List.of(node(a, NodeStatus.UNVERIFIED), node(b, NodeStatus.UNVERIFIED)),
+                List.of(edge(a, b, EdgeType.REFUTES), edge(b, a, EdgeType.REFUTES))
+        );
+
+        service.recalculateTopic(topicId);
+
+        // UNDEC mapping → DISPUTED для обоих
+        verify(nodeRepo).updateStatus(eq(a), eq(NodeStatus.DISPUTED), any());
+        verify(nodeRepo).updateStatus(eq(b), eq(NodeStatus.DISPUTED), any());
+    }
+
+    @Test
+    void dungAlgorithm_supportsEdgesIgnored_singletonRemainsStanding() {
+        // a SUPPORTS b - в Dung'е игнорируется. Оба IN → STANDING
+        when(topicRepo.findById(topicId)).thenReturn(java.util.Optional.of(
+                new Topic(topicId, "T", null, null, userId, java.time.Instant.now(),
+                        TopicVisibility.PRIVATE, StatusAlgorithm.DUNG_GROUNDED)
+        ));
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        givenGraph(
+                List.of(node(a, NodeStatus.UNVERIFIED), node(b, NodeStatus.UNVERIFIED)),
+                List.of(edge(a, b, EdgeType.SUPPORTS))
+        );
+
+        service.recalculateTopic(topicId);
+
+        verify(nodeRepo).updateStatus(eq(a), eq(NodeStatus.STANDING), any());
+        verify(nodeRepo).updateStatus(eq(b), eq(NodeStatus.STANDING), any());
     }
 
     private void givenGraph(List<Node> nodes, List<Edge> edges) {
