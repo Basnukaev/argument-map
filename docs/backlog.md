@@ -203,14 +203,18 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       ошибки 400 invalid-hadith-grade / 409 hadith-grade-duplicate /
       403 forbidden-hadith-grade-write. i18n hadith.grades.* (34 ключа
       RU + AR). 5 vitest + manual smoke - 430 tests pass
-- [ ] **Bilingual карточки** - двуязычный режим узла
-      (EVIDENCE / ARGUMENT с арабским оригиналом + русским
-      переводом). Toggle режима оригинал / перевод / оба.
-      Требует RTL-поддержки и naskh-шрифтов _(BilingualNodeCard)_
+- [x] **Bilingual карточки** - двуязычный режим узла. Закрыто
+      2026-05-18. Миграция 44 + поля Node.translation /
+      translationLang / originalLang. NodeCard рендерит в 3 режимах
+      (original / translation / both) с toggle в card header
+      (Languages icon). PreferencesStore ключ `bilingualMode`,
+      Settings секция «Двуязычный режим узлов». Один перевод на узел -
+      multi-translation см. Translator attribution
 - [ ] **Translator attribution** - при показе перевода аята /
       хадиса - указание переводчика (Кулиев, Sahih International,
-      Османов и т.д.). Dropdown переключения переводов
-      _(TranslatorSection)_
+      Османов и т.д.). Dropdown переключения переводов. Требует M:N
+      таблицу node_translations (node × translator × language) поверх
+      single-translation MVP из миграции 44 _(TranslatorSection)_
 - [ ] **Tashkeel toggle** - на canvas карточки можно отключить
       огласовки (`harakat`) для краткости. Side-by-side
       сравнение с / без _(TashkeelSection)_

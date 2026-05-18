@@ -11,6 +11,94 @@
 
 ---
 
+## 2026-05-18 - Bilingual карточки узлов (backlog item)
+
+Закрыт backlog «Bilingual карточки - двуязычный режим узла». Узел
+может иметь арабский оригинал и перевод (RU / EN). Карточка
+рендерится в одном из трёх режимов: только оригинал, только
+перевод, оба друг под другом
+
+**Backend:**
+
+- миграция 44 - ALTER `nodes` добавляет 3 nullable колонки:
+  `translation` (text), `translation_lang` varchar(5) CHECK IN
+  ('ru', 'en'), `original_lang` varchar(5) CHECK IN ('ar', 'ru', 'en')
+- `Node` domain расширен 3 новыми полями. RowMapper / save /
+  update в NodeRepository учитывают новые колонки
+- `NodeService` получил перегрузки с bilingual-полями:
+  - `createNode(..., translation, translationLang, originalLang, userId[, role])`
+  - `updateContent(nodeId, contentBox, translationBox, langBox,
+    originalLangBox, userId[, role])` - boxed-семантика через
+    sentinel `NoChange.INSTANCE` отличает «не пришло в PATCH» от
+    «пришло null (очистить)»
+- Валидация: translation NOT NULL → translationLang обязателен;
+  whitelist enum. Двойная - @Pattern в DTO (быстрый 400) + сервис
+  (защита от прямого вызова)
+- Revision НЕ пишется для translation / lang - это metadata, не
+  version-controlled
+- `UserPreferenceService.ALLOWED_VALUES` расширен ключом
+  `bilingualMode` (original / translation / both)
+
+**Frontend:**
+
+- `preferencesStore` ключ `bilingualMode: BilingualModePref`,
+  default `'both'`. Включён в mergeWithDefaults / resetAll /
+  readCurrentPrefs
+- `NodeCard` ключевая логика:
+  - эффективный язык оригинала - explicit originalLang приоритетнее,
+    fallback на `hasArabicScript(content)`
+  - toggle (Languages icon) в card header виден ТОЛЬКО когда
+    узел имеет translation. Cyclic - текущий → next по кругу.
+    Local override приоритетнее глобального preferencesStore
+  - 3 режима: original / translation / both. В both между блоками
+    разделитель + label «перевод»
+  - Original получает `font-naskh` + `leading-[1.8]` если isArabic;
+    translation - regular sans-serif. `dir="auto"` для обоих
+- `UserPreferencesSection` (Settings) - новая секция «Двуязычный
+  режим узлов» с radio-style выбором 3 опций. Persist через
+  preferencesStore → backend
+- i18n keys (RU + AR, ~25 ключей): `node.bilingual.*` для контролов,
+  `settings.section.bilingual.*` для Settings секции
+
+**Tests:**
+
+- Backend `NodeServiceIT` +5: createNode_withTranslation_persists,
+  createNode_withTranslationButNoLang_throws,
+  createNode_invalidOriginalLang_throws,
+  updateContent_clearTranslation_setsToNull,
+  updateContent_addTranslationToExistingNode - 834 → 839 backend tests
+- Frontend `NodeCard.test.tsx` (новый, 5 tests): без translation
+  toggle скрыт + рендерится только оригинал; режим both - оба блока +
+  label; режимы original / translation скрывают одну из сторон;
+  toggle cycling меняет local override - 440 → 447 frontend tests
+
+**Что отложено в backlog:**
+
+- Multi-translation (Translator attribution) - M:N таблица если
+  возникнет use-case разных переводчиков одного аята. Текущий MVP -
+  один перевод на узел
+- Inline NodeContentEditor / NodeDetailsPanel редактирование
+  translation - сейчас translation создаётся только через REST
+  (POST/PATCH /nodes). UI редактор - в отдельный backlog item
+  (BilingualNodeEditor)
+- AddNodeModal расширение - сейчас принимает только content.
+  Translation добавляется отдельным PATCH либо через future
+  BilingualNodeEditor
+
+**Коммиты:** 5
+
+1. `feat(backend): миграция 44 + Node.translation/translationLang/originalLang`
+2. `feat(backend): NodeService + DTO + IT для translation полей`
+3. `fix(backend): обновить CreateNodeRequest/UpdateNodeRequest usages в IT тестах`
+4. `feat(frontend): bilingualMode в preferencesStore + i18n keys + types`
+5. `feat(frontend): NodeCard bilingual rendering + Settings секция`
+
+**Verify:** backend `./mvnw verify` clean (839 tests), frontend
+`tsc + lint + build + test:run` clean (447 tests, 0 errors,
+7 baseline warnings)
+
+---
+
 ## 2026-05-18 - Topic settings drawer (backlog item)
 
 Закрыт backlog «Topic settings drawer - 480px drawer над затемнённым
