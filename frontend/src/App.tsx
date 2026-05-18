@@ -6,6 +6,7 @@ import BookListPage from '@/apps/library/pages/BookListPage';
 import BookReaderPage from '@/apps/library/pages/BookReaderPage';
 import AdminShamelaPage from '@/apps/admin/pages/AdminShamelaPage';
 import AdminPageEditorPage from '@/apps/admin/pages/AdminPageEditorPage';
+import AdminAuditPage from '@/apps/admin/pages/AdminAuditPage';
 import QuestionListPage from '@/apps/qa/pages/QuestionListPage';
 import CreateQuestionPage from '@/apps/qa/pages/CreateQuestionPage';
 import QuestionDetailPage from '@/apps/qa/pages/QuestionDetailPage';
@@ -153,6 +154,14 @@ function App() {
           element={
             <ProtectedRoute requireRole="ADMIN">
               <AdminPageEditorPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/audit"
+          element={
+            <ProtectedRoute requireRole="ADMIN">
+              <AdminAuditPage />
             </ProtectedRoute>
           }
         />
