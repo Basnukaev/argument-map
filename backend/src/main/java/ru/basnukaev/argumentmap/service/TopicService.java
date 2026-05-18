@@ -30,14 +30,17 @@ public class TopicService {
     private final NodeRepository nodeRepository;
     private final PermissionService permissionService;
     private final AuditLogService auditLogService;
+    private final StatusCalculationService statusCalculationService;
 
     public TopicService(TopicRepository topicRepository, NodeRepository nodeRepository,
                         PermissionService permissionService,
-                        AuditLogService auditLogService) {
+                        AuditLogService auditLogService,
+                        StatusCalculationService statusCalculationService) {
         this.topicRepository = topicRepository;
         this.nodeRepository = nodeRepository;
         this.permissionService = permissionService;
         this.auditLogService = auditLogService;
+        this.statusCalculationService = statusCalculationService;
     }
 
     /**
@@ -248,6 +251,45 @@ public class TopicService {
             auditLogService.logVisibilityChange(AuditEntityType.TOPIC, topicId,
                     userId, oldVisibility, newVisibility);
         }
+        return topicRepository.findById(topicId).orElseThrow();
+    }
+
+    /**
+     * Меняет алгоритм пересчёта статусов узлов (ADR-044) - только owner.
+     * Side effect: после смены сразу запускается пересчёт всех узлов под
+     * новым алгоритмом. Это intentional - переключение значит «применить
+     * новую семантику сейчас», иначе topic был бы в inconsistent состоянии
+     * (статусы посчитаны старым алгоритмом, метка - на новом)
+     */
+    @Transactional
+    public Topic updateStatusAlgorithm(UUID topicId, String newAlgorithm,
+                                       UUID userId, String role) {
+        if (!StatusAlgorithm.isValid(newAlgorithm)) {
+            throw new IllegalArgumentException(
+                    "Невалидный statusAlgorithm: " + newAlgorithm
+                            + " (ожидается MVP или DUNG_GROUNDED)"
+            );
+        }
+        Topic existing = topicRepository.findById(topicId)
+                .orElseThrow(() -> new TopicNotFoundException(topicId));
+        permissionService.assertIsOwner(topicId, userId, role);
+        String oldAlgorithm = existing.statusAlgorithm();
+        if (oldAlgorithm != null && oldAlgorithm.equals(newAlgorithm)) {
+            // no-op: возвращаем existing без пересчёта и audit-шума
+            return existing;
+        }
+        topicRepository.updateStatusAlgorithm(topicId, newAlgorithm);
+        // Audit изменения - field-level diff через UPDATE action (дешевле
+        // чем плодить новый event type)
+        Map<String, AuditLogService.FieldDiff> fieldChanges = new LinkedHashMap<>();
+        fieldChanges.put("statusAlgorithm",
+                new AuditLogService.FieldDiff(oldAlgorithm, newAlgorithm));
+        auditLogService.logUpdate(AuditEntityType.TOPIC, topicId, null, null,
+                userId, fieldChanges);
+        // Side effect - сразу применяем новый алгоритм. Текущая транзакция
+        // продолжается, recalculate тоже в ней (см. javadoc StatusCalculation
+        // Service - не имеет своего @Transactional, наследует caller'а)
+        statusCalculationService.recalculateTopic(topicId);
         return topicRepository.findById(topicId).orElseThrow();
     }
 }

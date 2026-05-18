@@ -18,6 +18,7 @@ import jakarta.validation.Valid;
 import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.domain.Topic;
 import ru.basnukaev.argumentmap.domain.VoteStats;
+import ru.basnukaev.argumentmap.repository.NodeSourceRepository;
 import ru.basnukaev.argumentmap.repository.NodeVoteRepository;
 import ru.basnukaev.argumentmap.repository.TopicWithCounts;
 import ru.basnukaev.argumentmap.service.GraphService;
@@ -28,9 +29,11 @@ import java.util.Map;
 import ru.basnukaev.argumentmap.web.CurrentUser;
 import ru.basnukaev.argumentmap.web.dto.CreateTopicRequest;
 import ru.basnukaev.argumentmap.web.dto.GraphResponse;
+import ru.basnukaev.argumentmap.web.dto.InlineCitationRef;
 import ru.basnukaev.argumentmap.web.dto.PageRequest;
 import ru.basnukaev.argumentmap.web.dto.PagedResponse;
 import ru.basnukaev.argumentmap.web.dto.TopicResponse;
+import ru.basnukaev.argumentmap.web.dto.UpdateTopicStatusAlgorithmRequest;
 import ru.basnukaev.argumentmap.web.dto.UpdateTopicVisibilityRequest;
 import ru.basnukaev.argumentmap.web.mapper.DtoMappers;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -43,14 +46,17 @@ public class TopicController {
     private final GraphService graphService;
     private final PermissionService permissionService;
     private final NodeVoteRepository nodeVoteRepository;
+    private final NodeSourceRepository nodeSourceRepository;
 
     public TopicController(TopicService topicService, GraphService graphService,
                            PermissionService permissionService,
-                           NodeVoteRepository nodeVoteRepository) {
+                           NodeVoteRepository nodeVoteRepository,
+                           NodeSourceRepository nodeSourceRepository) {
         this.topicService = topicService;
         this.graphService = graphService;
         this.permissionService = permissionService;
         this.nodeVoteRepository = nodeVoteRepository;
+        this.nodeSourceRepository = nodeSourceRepository;
     }
 
     @PostMapping
@@ -111,12 +117,15 @@ public class TopicController {
         String role = SecurityContextUtils.currentRole();
         permissionService.assertCanRead(topicId, userId, role);
         GraphView graph = graphService.getGraph(topicId);
-        // Bulk-load vote агрегатов + персональных голосов за один SQL каждый,
-        // чтобы не делать N+1 при больших графах. NodeResponse получает vote-поля
+        // Bulk-load vote агрегатов + персональных голосов + inline citations -
+        // три SQL на весь граф, не N+1 на каждый узел. NodeResponse получает
+        // vote-поля и inlineCitations для рендеринга [N]-маркеров на фронте
         List<UUID> nodeIds = graph.nodes().stream().map(n -> n.id()).toList();
         Map<UUID, VoteStats> stats = nodeVoteRepository.getStatsForNodes(nodeIds);
         Map<UUID, Integer> userVotes = nodeVoteRepository.getUserVotesForNodes(nodeIds, userId);
-        return DtoMappers.toResponse(graph, stats, userVotes);
+        Map<UUID, List<InlineCitationRef>> citations =
+                nodeSourceRepository.findInlineCitationsForNodes(nodeIds);
+        return DtoMappers.toResponse(graph, stats, userVotes, citations);
     }
 
     @PatchMapping("/{topicId}/visibility")
@@ -125,6 +134,20 @@ public class TopicController {
                                           @CurrentUser UUID userId) {
         String role = SecurityContextUtils.currentRole();
         Topic updated = topicService.updateVisibility(topicId, request.visibility(), userId, role);
+        return DtoMappers.toResponse(updated);
+    }
+
+    /**
+     * Сменить алгоритм пересчёта статусов узлов (ADR-044). Только owner.
+     * Тригерит пересчёт всего графа под новым алгоритмом - тема не
+     * остаётся в inconsistent state
+     */
+    @PatchMapping("/{topicId}/status-algorithm")
+    public TopicResponse updateStatusAlgorithm(@PathVariable UUID topicId,
+                                               @Valid @RequestBody UpdateTopicStatusAlgorithmRequest request,
+                                               @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRole();
+        Topic updated = topicService.updateStatusAlgorithm(topicId, request.algorithm(), userId, role);
         return DtoMappers.toResponse(updated);
     }
 }
