@@ -1,10 +1,8 @@
 package ru.basnukaev.argumentmap.qa.service;
 
 import java.time.Instant;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -58,8 +56,9 @@ public class AnswerService {
         answerRepository.save(a);
 
         // ADR-043 Amendment 3 (22.d) - audit CREATE с parent=QUESTION
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("body", a.body());
+        Map<String, Object> snapshot = AuditLogService.snapshot()
+                .put("body", a.body())
+                .build();
         auditLogService.logCreate(AuditEntityType.ANSWER, a.id(),
                 AuditEntityType.QUESTION, questionId, authorId, snapshot);
 
@@ -107,9 +106,10 @@ public class AnswerService {
         Answer after = updateAnswer(answerId, body);
 
         // ADR-043 Amendment 3 (22.d) - audit UPDATE body diff
-        if (!Objects.equals(before.body(), after.body())) {
-            Map<String, AuditLogService.FieldDiff> diff = new LinkedHashMap<>();
-            diff.put("body", new AuditLogService.FieldDiff(before.body(), after.body()));
+        Map<String, AuditLogService.FieldDiff> diff = AuditLogService.diff()
+                .compare("body", before.body(), after.body())
+                .build();
+        if (!diff.isEmpty()) {
             auditLogService.logUpdate(AuditEntityType.ANSWER, answerId,
                     AuditEntityType.QUESTION, before.questionId(),
                     actorUserId, diff);
@@ -137,8 +137,9 @@ public class AnswerService {
         Answer existing = answerRepository.findById(answerId).orElseThrow();
 
         // ADR-043 Amendment 3 (22.d) - audit DELETE с parent=QUESTION
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("body", existing.body());
+        Map<String, Object> snapshot = AuditLogService.snapshot()
+                .put("body", existing.body())
+                .build();
         auditLogService.logDelete(AuditEntityType.ANSWER, answerId,
                 AuditEntityType.QUESTION, existing.questionId(),
                 actorUserId, snapshot);

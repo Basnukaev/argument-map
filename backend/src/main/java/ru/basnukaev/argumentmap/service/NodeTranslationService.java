@@ -1,10 +1,8 @@
 package ru.basnukaev.argumentmap.service;
 
 import java.time.Instant;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -118,10 +116,11 @@ public class NodeTranslationService {
         }
 
         // audit CREATE - parent = NODE (родительский узел)
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("translatorName", normalizedTranslator);
-        snapshot.put("language", language);
-        snapshot.put("isDefault", effectiveDefault);
+        Map<String, Object> snapshot = AuditLogService.snapshot()
+                .put("translatorName", normalizedTranslator)
+                .put("language", language)
+                .put("isDefault", effectiveDefault)
+                .build();
         auditLogService.logCreate(AuditEntityType.NODE_TRANSLATION, saved.id(),
                 AuditEntityType.NODE, nodeId, userId, snapshot);
 
@@ -150,15 +149,10 @@ public class NodeTranslationService {
         }
 
         // audit UPDATE - per-field diff для translator_name и body
-        Map<String, AuditLogService.FieldDiff> diff = new LinkedHashMap<>();
-        if (!Objects.equals(existing.translatorName(), resolvedTranslator)) {
-            diff.put("translatorName", new AuditLogService.FieldDiff(
-                    existing.translatorName(), resolvedTranslator));
-        }
-        if (!Objects.equals(existing.body(), resolvedBody)) {
-            diff.put("body", new AuditLogService.FieldDiff(
-                    existing.body(), resolvedBody));
-        }
+        Map<String, AuditLogService.FieldDiff> diff = AuditLogService.diff()
+                .compare("translatorName", existing.translatorName(), resolvedTranslator)
+                .compare("body", existing.body(), resolvedBody)
+                .build();
         if (!diff.isEmpty()) {
             auditLogService.logUpdate(AuditEntityType.NODE_TRANSLATION, translationId,
                     AuditEntityType.NODE, existing.nodeId(), userId, diff);
@@ -208,10 +202,11 @@ public class NodeTranslationService {
         permissionService.assertCanWrite(node.topicId(), userId, role);
 
         // audit DELETE - до самого delete (после existing уже не достать)
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("translatorName", existing.translatorName());
-        snapshot.put("language", existing.language());
-        snapshot.put("isDefault", existing.isDefault());
+        Map<String, Object> snapshot = AuditLogService.snapshot()
+                .put("translatorName", existing.translatorName())
+                .put("language", existing.language())
+                .put("isDefault", existing.isDefault())
+                .build();
         auditLogService.logDelete(AuditEntityType.NODE_TRANSLATION, translationId,
                 AuditEntityType.NODE, existing.nodeId(), userId, snapshot);
 

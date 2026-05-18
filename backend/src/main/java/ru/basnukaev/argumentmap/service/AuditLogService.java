@@ -248,4 +248,89 @@ public class AuditLogService {
      */
     public record FieldDiff(Object oldValue, Object newValue) {
     }
+
+    // ---- helpers для snapshot building ----
+
+    /**
+     * Builder для snapshot Map с предсказуемым порядком вставки. Заменяет
+     * boilerplate {@code new LinkedHashMap<>() + put + put + ...} который
+     * повторяется в каждом mutation site (Book/Node/Edge/Topic/Question/Answer
+     * services).
+     *
+     * <p>Использование:
+     * <pre>{@code
+     * Map<String, Object> snapshot = AuditLogService.snapshot()
+     *     .put("title", book.title())
+     *     .put("visibility", book.visibility())
+     *     .build();
+     * auditLogService.logDelete(BOOK, id, null, null, userId, snapshot);
+     * }</pre>
+     *
+     * <p>{@code put} безопасно принимает null - сохраняет ключ с null-value
+     * (важно для full snapshot чтобы видеть какие поля были null до удаления).
+     * Для enum {@code .name()} вызывает caller - helper нейтрален к типу.
+     */
+    public static SnapshotBuilder snapshot() {
+        return new SnapshotBuilder();
+    }
+
+    public static final class SnapshotBuilder {
+        private final Map<String, Object> map = new LinkedHashMap<>();
+
+        private SnapshotBuilder() {
+        }
+
+        public SnapshotBuilder put(String key, Object value) {
+            map.put(key, value);
+            return this;
+        }
+
+        public Map<String, Object> build() {
+            return map;
+        }
+    }
+
+    /**
+     * Builder для per-field diff в UPDATE-событиях. Сравнивает before/after
+     * через {@link java.util.Objects#equals} и добавляет {@link FieldDiff}
+     * только если значения отличаются. Заменяет boilerplate из
+     * {@code !Objects.equals(...) + diff.put(...)} которая повторяется в
+     * 5+ сервисах.
+     *
+     * <p>Использование:
+     * <pre>{@code
+     * Map<String, FieldDiff> diff = AuditLogService.diff()
+     *     .compare("title", before.title(), after.title())
+     *     .compare("body", before.body(), after.body())
+     *     .build();
+     * if (!diff.isEmpty()) {
+     *     auditLogService.logUpdate(...);
+     * }
+     * }</pre>
+     */
+    public static DiffBuilder diff() {
+        return new DiffBuilder();
+    }
+
+    public static final class DiffBuilder {
+        private final Map<String, FieldDiff> map = new LinkedHashMap<>();
+
+        private DiffBuilder() {
+        }
+
+        public DiffBuilder compare(String fieldName, Object before, Object after) {
+            if (!java.util.Objects.equals(before, after)) {
+                map.put(fieldName, new FieldDiff(before, after));
+            }
+            return this;
+        }
+
+        public Map<String, FieldDiff> build() {
+            return map;
+        }
+
+        public boolean isEmpty() {
+            return map.isEmpty();
+        }
+    }
 }

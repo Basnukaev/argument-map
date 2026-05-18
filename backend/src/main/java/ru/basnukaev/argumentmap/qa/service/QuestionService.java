@@ -1,10 +1,8 @@
 package ru.basnukaev.argumentmap.qa.service;
 
 import java.time.Instant;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -52,10 +50,11 @@ public class QuestionService {
         repository.save(q);
 
         // ADR-043 Amendment 3 (22.d) - audit CREATE
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("title", q.title());
-        snapshot.put("body", q.body());
-        snapshot.put("status", QuestionStatus.OPEN.name());
+        Map<String, Object> snapshot = AuditLogService.snapshot()
+                .put("title", q.title())
+                .put("body", q.body())
+                .put("status", QuestionStatus.OPEN.name())
+                .build();
         auditLogService.logCreate(AuditEntityType.QUESTION, q.id(), null, null,
                 askedBy, snapshot);
 
@@ -145,18 +144,13 @@ public class QuestionService {
         Question after = updateQuestion(id, title, body, status);
 
         // ADR-043 Amendment 3 (22.d) - audit UPDATE с per-field diff
-        Map<String, AuditLogService.FieldDiff> diff = new LinkedHashMap<>();
-        if (!Objects.equals(before.title(), after.title())) {
-            diff.put("title", new AuditLogService.FieldDiff(before.title(), after.title()));
-        }
-        if (!Objects.equals(before.body(), after.body())) {
-            diff.put("body", new AuditLogService.FieldDiff(before.body(), after.body()));
-        }
-        if (!Objects.equals(before.status(), after.status())) {
-            diff.put("status", new AuditLogService.FieldDiff(
-                    before.status() == null ? null : before.status().name(),
-                    after.status() == null ? null : after.status().name()));
-        }
+        Map<String, AuditLogService.FieldDiff> diff = AuditLogService.diff()
+                .compare("title", before.title(), after.title())
+                .compare("body", before.body(), after.body())
+                .compare("status",
+                        before.status() == null ? null : before.status().name(),
+                        after.status() == null ? null : after.status().name())
+                .build();
         if (!diff.isEmpty()) {
             auditLogService.logUpdate(AuditEntityType.QUESTION, id, null, null,
                     actorUserId, diff);
@@ -184,10 +178,11 @@ public class QuestionService {
         Question existing = repository.findById(id).orElseThrow();
 
         // ADR-043 Amendment 3 (22.d) - audit DELETE до самого delete
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("title", existing.title());
-        snapshot.put("body", existing.body());
-        snapshot.put("status", existing.status() == null ? null : existing.status().name());
+        Map<String, Object> snapshot = AuditLogService.snapshot()
+                .put("title", existing.title())
+                .put("body", existing.body())
+                .put("status", existing.status() == null ? null : existing.status().name())
+                .build();
         auditLogService.logDelete(AuditEntityType.QUESTION, id, null, null,
                 actorUserId, snapshot);
 

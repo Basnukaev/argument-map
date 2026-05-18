@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
 
@@ -160,11 +159,12 @@ public class BookService {
         // ADR-043 Amendment 3 (22.d) - audit CREATE.
         // currentUserId NOT NULL constraint в lib_books, FK к users -
         // audit_log.actor_user_id тоже NOT NULL + FK к users; consistency.
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("title", title);
-        snapshot.put("bookType", bookType == null ? null : bookType.name());
-        snapshot.put("language", language);
-        snapshot.put("visibility", visibility);
+        Map<String, Object> snapshot = AuditLogService.snapshot()
+                .put("title", title)
+                .put("bookType", bookType == null ? null : bookType.name())
+                .put("language", language)
+                .put("visibility", visibility)
+                .build();
         auditLogService.logCreate(AuditEntityType.BOOK, book.id(), null, null,
                 currentUserId, snapshot);
 
@@ -277,10 +277,11 @@ public class BookService {
         permissionService.assertIsBookOwner(bookId, userId, role);
 
         // ADR-043 Amendment 3 (22.d) - audit DELETE до самого delete
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("title", existing.title());
-        snapshot.put("bookType", existing.bookType() == null ? null : existing.bookType().name());
-        snapshot.put("visibility", existing.visibility());
+        Map<String, Object> snapshot = AuditLogService.snapshot()
+                .put("title", existing.title())
+                .put("bookType", existing.bookType() == null ? null : existing.bookType().name())
+                .put("visibility", existing.visibility())
+                .build();
         auditLogService.logDelete(AuditEntityType.BOOK, bookId, null, null,
                 userId, snapshot);
 
@@ -377,31 +378,14 @@ public class BookService {
                 publishedYearGregorian);
 
         // ADR-043 Amendment 3 (22.d) - audit UPDATE per-field diff
-        Map<String, AuditLogService.FieldDiff> diff = new LinkedHashMap<>();
-        if (!Objects.equals(before.muhaqqiqId(), after.muhaqqiqId())) {
-            diff.put("muhaqqiqId", new AuditLogService.FieldDiff(
-                    before.muhaqqiqId(), after.muhaqqiqId()));
-        }
-        if (!Objects.equals(before.publisherId(), after.publisherId())) {
-            diff.put("publisherId", new AuditLogService.FieldDiff(
-                    before.publisherId(), after.publisherId()));
-        }
-        if (!Objects.equals(before.publicationPlaceId(), after.publicationPlaceId())) {
-            diff.put("publicationPlaceId", new AuditLogService.FieldDiff(
-                    before.publicationPlaceId(), after.publicationPlaceId()));
-        }
-        if (!Objects.equals(before.editionNumber(), after.editionNumber())) {
-            diff.put("editionNumber", new AuditLogService.FieldDiff(
-                    before.editionNumber(), after.editionNumber()));
-        }
-        if (!Objects.equals(before.publishedYearHijri(), after.publishedYearHijri())) {
-            diff.put("publishedYearHijri", new AuditLogService.FieldDiff(
-                    before.publishedYearHijri(), after.publishedYearHijri()));
-        }
-        if (!Objects.equals(before.publishedYearGregorian(), after.publishedYearGregorian())) {
-            diff.put("publishedYearGregorian", new AuditLogService.FieldDiff(
-                    before.publishedYearGregorian(), after.publishedYearGregorian()));
-        }
+        Map<String, AuditLogService.FieldDiff> diff = AuditLogService.diff()
+                .compare("muhaqqiqId", before.muhaqqiqId(), after.muhaqqiqId())
+                .compare("publisherId", before.publisherId(), after.publisherId())
+                .compare("publicationPlaceId", before.publicationPlaceId(), after.publicationPlaceId())
+                .compare("editionNumber", before.editionNumber(), after.editionNumber())
+                .compare("publishedYearHijri", before.publishedYearHijri(), after.publishedYearHijri())
+                .compare("publishedYearGregorian", before.publishedYearGregorian(), after.publishedYearGregorian())
+                .build();
         if (!diff.isEmpty()) {
             auditLogService.logUpdate(AuditEntityType.BOOK, bookId, null, null,
                     userId, diff);

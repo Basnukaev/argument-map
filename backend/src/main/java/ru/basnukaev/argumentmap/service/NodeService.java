@@ -1,7 +1,6 @@
 package ru.basnukaev.argumentmap.service;
 
 import java.time.Instant;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -84,14 +83,14 @@ public class NodeService {
         nodeRepository.save(node);
 
         // ADR-043 Amendment 3 (22.d) - audit CREATE с topicId как parent
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("nodeType", type.name());
-        snapshot.put("content", content);
+        AuditLogService.SnapshotBuilder builder = AuditLogService.snapshot()
+                .put("nodeType", type.name())
+                .put("content", content);
         if (originalLang != null) {
-            snapshot.put("originalLang", originalLang);
+            builder.put("originalLang", originalLang);
         }
         auditLogService.logCreate(AuditEntityType.NODE, node.id(),
-                AuditEntityType.TOPIC, topicId, userId, snapshot);
+                AuditEntityType.TOPIC, topicId, userId, builder.build());
 
         return node;
     }
@@ -193,15 +192,10 @@ public class NodeService {
         nodeRepository.update(updated);
 
         // ADR-043 Amendment 3 (22.d) - audit UPDATE с FieldDiff для изменившихся полей
-        Map<String, AuditLogService.FieldDiff> diff = new LinkedHashMap<>();
-        if (contentChanged) {
-            diff.put("content", new AuditLogService.FieldDiff(
-                    existing.content(), resolvedContent));
-        }
-        if (!Objects.equals(existing.originalLang(), resolvedOriginalLang)) {
-            diff.put("originalLang", new AuditLogService.FieldDiff(
-                    existing.originalLang(), resolvedOriginalLang));
-        }
+        Map<String, AuditLogService.FieldDiff> diff = AuditLogService.diff()
+                .compare("content", existing.content(), resolvedContent)
+                .compare("originalLang", existing.originalLang(), resolvedOriginalLang)
+                .build();
         if (!diff.isEmpty()) {
             auditLogService.logUpdate(AuditEntityType.NODE, nodeId,
                     AuditEntityType.TOPIC, existing.topicId(), userId, diff);
@@ -256,9 +250,10 @@ public class NodeService {
 
         // ADR-043 Amendment 3 (22.d) - audit DELETE до самого delete
         // (после deleteNode existing уже не достаём из БД)
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("nodeType", existing.nodeType().name());
-        snapshot.put("content", existing.content());
+        Map<String, Object> snapshot = AuditLogService.snapshot()
+                .put("nodeType", existing.nodeType().name())
+                .put("content", existing.content())
+                .build();
         auditLogService.logDelete(AuditEntityType.NODE, nodeId,
                 AuditEntityType.TOPIC, existing.topicId(), userId, snapshot);
 

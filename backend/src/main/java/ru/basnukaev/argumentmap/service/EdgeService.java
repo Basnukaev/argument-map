@@ -1,9 +1,7 @@
 package ru.basnukaev.argumentmap.service;
 
 import java.time.Instant;
-import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -79,11 +77,12 @@ public class EdgeService {
         statusCalculationService.recalculateTopic(from.topicId());
 
         // ADR-043 Amendment 3 (22.d) - audit CREATE
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("fromNodeId", fromNodeId.toString());
-        snapshot.put("toNodeId", toNodeId.toString());
-        snapshot.put("edgeType", type.name());
-        snapshot.put("rationale", rationale);
+        Map<String, Object> snapshot = AuditLogService.snapshot()
+                .put("fromNodeId", fromNodeId.toString())
+                .put("toNodeId", toNodeId.toString())
+                .put("edgeType", type.name())
+                .put("rationale", rationale)
+                .build();
         auditLogService.logCreate(AuditEntityType.EDGE, edge.id(),
                 AuditEntityType.TOPIC, from.topicId(), userId, snapshot);
 
@@ -127,11 +126,12 @@ public class EdgeService {
 
         // ADR-043 Amendment 3 (22.d) - audit DELETE до удаления (после
         // deleteEdge мы потеряем existing)
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("fromNodeId", existing.fromNodeId().toString());
-        snapshot.put("toNodeId", existing.toNodeId().toString());
-        snapshot.put("edgeType", existing.edgeType().name());
-        snapshot.put("rationale", existing.rationale());
+        Map<String, Object> snapshot = AuditLogService.snapshot()
+                .put("fromNodeId", existing.fromNodeId().toString())
+                .put("toNodeId", existing.toNodeId().toString())
+                .put("edgeType", existing.edgeType().name())
+                .put("rationale", existing.rationale())
+                .build();
         auditLogService.logDelete(AuditEntityType.EDGE, edgeId,
                 AuditEntityType.TOPIC, topicId, userId, snapshot);
 
@@ -154,23 +154,20 @@ public class EdgeService {
         // ADR-043 Amendment 3 (22.d) - audit UPDATE с per-field diff.
         // Здесь т.к. знаем actor (userId из request); legacy updateEdge
         // без role вызывается только из тестов - не пишет audit.
-        Map<String, AuditLogService.FieldDiff> diff = new LinkedHashMap<>();
-        if (!existing.fromNodeId().equals(updated.fromNodeId())) {
-            diff.put("fromNodeId", new AuditLogService.FieldDiff(
-                    existing.fromNodeId().toString(), updated.fromNodeId().toString()));
-        }
-        if (!existing.toNodeId().equals(updated.toNodeId())) {
-            diff.put("toNodeId", new AuditLogService.FieldDiff(
-                    existing.toNodeId().toString(), updated.toNodeId().toString()));
-        }
-        if (existing.edgeType() != updated.edgeType()) {
-            diff.put("edgeType", new AuditLogService.FieldDiff(
-                    existing.edgeType().name(), updated.edgeType().name()));
-        }
-        if (!Objects.equals(existing.rationale(), updated.rationale())) {
-            diff.put("rationale", new AuditLogService.FieldDiff(
-                    existing.rationale(), updated.rationale()));
-        }
+        // UUID/enum поля сравниваем как строки для consistency со
+        // snapshot blob - JSON-сериализация UUID в jsonb даёт string
+        Map<String, AuditLogService.FieldDiff> diff = AuditLogService.diff()
+                .compare("fromNodeId",
+                        existing.fromNodeId().toString(),
+                        updated.fromNodeId().toString())
+                .compare("toNodeId",
+                        existing.toNodeId().toString(),
+                        updated.toNodeId().toString())
+                .compare("edgeType",
+                        existing.edgeType().name(),
+                        updated.edgeType().name())
+                .compare("rationale", existing.rationale(), updated.rationale())
+                .build();
         if (!diff.isEmpty()) {
             auditLogService.logUpdate(AuditEntityType.EDGE, edgeId,
                     AuditEntityType.TOPIC, topicId, userId, diff);

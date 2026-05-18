@@ -2,13 +2,11 @@ package ru.basnukaev.argumentmap.service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.domain.AuditEntityType;
@@ -88,16 +86,18 @@ public class TopicService {
         topicRepository.updateRootNodeId(topic.id(), rootQuestion.id());
 
         // ADR-043 Amendment 3 (22.d): audit CREATE для topic + root node
-        Map<String, Object> topicSnapshot = new LinkedHashMap<>();
-        topicSnapshot.put("title", title);
-        topicSnapshot.put("description", description);
-        topicSnapshot.put("visibility", visibility);
+        Map<String, Object> topicSnapshot = AuditLogService.snapshot()
+                .put("title", title)
+                .put("description", description)
+                .put("visibility", visibility)
+                .build();
         auditLogService.logCreate(AuditEntityType.TOPIC, topic.id(), null, null,
                 userId, topicSnapshot);
-        Map<String, Object> nodeSnapshot = new LinkedHashMap<>();
-        nodeSnapshot.put("nodeType", NodeType.QUESTION.name());
-        nodeSnapshot.put("content", rootQuestionContent);
-        nodeSnapshot.put("isRoot", true);
+        Map<String, Object> nodeSnapshot = AuditLogService.snapshot()
+                .put("nodeType", NodeType.QUESTION.name())
+                .put("content", rootQuestionContent)
+                .put("isRoot", true)
+                .build();
         auditLogService.logCreate(AuditEntityType.NODE, rootQuestion.id(),
                 AuditEntityType.TOPIC, topic.id(), userId, nodeSnapshot);
 
@@ -219,10 +219,11 @@ public class TopicService {
                 .orElseThrow(() -> new TopicNotFoundException(topicId));
         permissionService.assertIsOwner(topicId, userId, role);
 
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("title", existing.title());
-        snapshot.put("description", existing.description());
-        snapshot.put("visibility", existing.visibility());
+        Map<String, Object> snapshot = AuditLogService.snapshot()
+                .put("title", existing.title())
+                .put("description", existing.description())
+                .put("visibility", existing.visibility())
+                .build();
         auditLogService.logDelete(AuditEntityType.TOPIC, topicId, null, null,
                 userId, snapshot);
 
@@ -282,9 +283,9 @@ public class TopicService {
         topicRepository.updateStatusAlgorithm(topicId, newAlgorithm);
         // Audit изменения - field-level diff через UPDATE action (дешевле
         // чем плодить новый event type)
-        Map<String, AuditLogService.FieldDiff> fieldChanges = new LinkedHashMap<>();
-        fieldChanges.put("statusAlgorithm",
-                new AuditLogService.FieldDiff(oldAlgorithm, newAlgorithm));
+        Map<String, AuditLogService.FieldDiff> fieldChanges = AuditLogService.diff()
+                .compare("statusAlgorithm", oldAlgorithm, newAlgorithm)
+                .build();
         auditLogService.logUpdate(AuditEntityType.TOPIC, topicId, null, null,
                 userId, fieldChanges);
         // Side effect - сразу применяем новый алгоритм. Текущая транзакция
