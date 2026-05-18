@@ -123,7 +123,11 @@ export function useOnboardingProgress(): OnboardingProgress {
 
   useEffect(() => {
     // Не fetch'имся пока user не залогинен. На logout - reset state локально.
+    // Lint react-hooks/set-state-in-effect отключён точечно: reset case
+    // синхронный (deliberate sync с external auth-store), остальные set
+    // в then-callback'ах - за scope effect-body
     if (!user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setComputed(
         buildSteps({
           hasTopic: false,

@@ -33,7 +33,10 @@ function OnboardingChecklist() {
 
   // Auto-dismiss after all 4 completed: показываем toast и через 3 сек -
   // dismiss. Защита от повторного срабатывания через celebrating флаг.
-  // useEffect deps - `progress.completed`, dismiss и t - стабильны
+  // setState в effect-body - intentional: синхронно ставим флаг "уже
+  // отпраздновали" чтобы не зацикливаться. Сам toast + setTimeout -
+  // external side effects (toast store, browser timer) - корректное
+  // использование useEffect (sync с external)
   useEffect(() => {
     if (
       !progress.isVisible ||
@@ -42,6 +45,7 @@ function OnboardingChecklist() {
     ) {
       return;
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCelebrating(true);
     toast.success(t('onboarding.completed_toast'));
     const timer = setTimeout(() => {
