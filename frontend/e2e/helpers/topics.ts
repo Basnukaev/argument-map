@@ -36,8 +36,11 @@ export async function createTestTopic(
   await textareas.nth(count - 1).fill(rootQuestion);
 
   if (options.visibility && options.visibility !== 'PRIVATE') {
-    // VisibilityRadioGroup рендерит radios с value=PRIVATE/SHARED/PUBLIC
-    await page.locator(`input[type="radio"][value="${options.visibility}"]`).check();
+    // VisibilityRadioGroup рендерит radios с sr-only - кликаем через
+    // dispatchEvent чтобы обойти overlay-иконку которая перехватывает pointer
+    await page
+      .locator(`input[type="radio"][value="${options.visibility}"]`)
+      .dispatchEvent('click');
   }
 
   await page.locator('button[type="submit"]').click();
