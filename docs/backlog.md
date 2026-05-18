@@ -250,10 +250,18 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       DELETE. Mobile fullscreen overlay. Заменили inline visibility/
       members controls на единый gear IconButton в crumb-bar.
       41 i18n key `topic.settings.*` (RU + AR). 7 тестов
-- [ ] **Multi-select с floating action bar** - лассо или
-      Shift+click несколько узлов, всплывающая action-bar для
-      массовых операций (изменить статус, переместить, удалить,
-      экспорт) _(MultiSelectScreen)_
+- [x] **Multi-select с floating action bar** - Shift+click либо
+      Meta (⌘) добавляет узел к выделению, lasso через drag по pane.
+      FloatingActionBar (bottom-center pill, dark slate-900 с indigo-
+      акцентным счётчиком) появляется при >0 выделенных. Actions:
+      Удалить (переиспользует existing runDelete с root-filter +
+      Undo toast) / Изменить статус (popup STANDING/DISPUTED/REFUTED,
+      Promise.allSettled c partial-failure handling) / Снять (=Esc).
+      Bulk delete и единичный Del работают через единый runDelete
+      handler. graphSelectionStore (Zustand Set<string>) - источник
+      истины для bar и handlers. 13 i18n keys `bulk_actions.*`
+      (RU + AR). 16 тестов (store 7 + bar 9). Backlog: bulk-move +
+      bulk-export отложены как low-value extensions
 - [ ] **Cross-references drawer** - 600px drawer «узел использован
       в N темах»: группировка по темам, прыжок в граф. Cross-topic
       graph-навигация. Требует backend аггрегата по cross-topic

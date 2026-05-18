@@ -11,6 +11,72 @@
 
 ---
 
+## 2026-05-18 - Multi-select + FloatingActionBar (backlog item)
+
+Закрыт backlog «Multi-select с floating action bar». Пользователь
+выделяет несколько узлов и применяет массовые операции через
+bottom-center pill - delete + change status
+
+**Frontend:**
+
+- `graphSelectionStore` (Zustand, `shared/stores/`) - источник
+  истины для bar и handlers. `selectedNodeIds`/`selectedEdgeIds`
+  как `Set<string>` (O(1) `has()`), identity-preserving updates
+  чтобы Zustand не дёргал лишние рендеры когда RF репортит то же
+  выделение
+- `GraphCanvas`:
+  - `multiSelectionKeyCode={['Shift', 'Meta']}` - Shift на Linux/Win,
+    ⌘ на Mac добавляет узел к выделению через click. Lasso работает
+    через RF default (drag по pane)
+  - `handleSelectionChange` зеркалит RF state в store параллельно с
+    локальным `selectedNodeIds` state (последний остался для
+    backward-compat с тестами)
+  - `runBulkStatusChange` - `Promise.allSettled` на параллельные
+    PATCH `/api/v1/nodes/{id}` с `{status}`, partial-failure aware
+    (separate toasts для all_failed / partial / success)
+  - bulk delete переиспользует existing `runDelete` - root-узлы
+    автоматически фильтруются + Undo toast (5s TTL) уже работает
+    для multi-selection
+- `FloatingActionBar` - тёмный slate-900 pill (см. design-reference
+  v1 `MultiSelectScreen`) с indigo-акцентным счётчиком,
+  conditional render по `selectedNodeIds.size + selectedEdgeIds.size`.
+  3 actions: Удалить (триггерит `handleDelete`) / Изменить статус
+  (popup STANDING/DISPUTED/REFUTED через STATUS_TOKENS) / Снять
+  (=Esc). `canWrite=false` → бар скрывается. Mobile - safe-area-aware
+  через `pb-[max(0.375rem,env(safe-area-inset-bottom))]`
+
+**Keyboard:**
+
+- Esc - clearSelection (existing `useGraphEscape`, работает для
+  multi и single)
+- Del / Backspace - bulk delete (existing useHotkey - работало для
+  single, без изменений работает для multi благодаря runDelete)
+
+**i18n:** 13 keys `bulk_actions.*` (RU + AR) - bar counter с/без
+рёбер, action labels, success/partial/error toasts, warn-сообщения
+
+**Тесты:** 16 новых (store 7 + bar 9). Frontend baseline: 447 → 463
+
+**Playwright smoke:** успех - login admin → topic с 10 узлов →
+Shift+click выделяет 2/3 узла → bar появляется с counter →
+Esc снимает → re-select → popup «Изменить статус» → кнопка «Снять»
+
+**Backlog:** bulk-move + bulk-export отложены как low-value
+extensions; bulk-status работает на root-узлы (бэк это разрешает,
+в отличие от delete)
+
+**Коммиты:** 5
+
+```
+feat(frontend): graphSelectionStore Zustand для multi-select state
+feat(frontend): GraphCanvas onSelectionChange зеркалит в store + multiSelectionKeyCode
+feat(frontend): FloatingActionBar bottom-center pill с counter + actions
+feat(frontend): bulk delete + bulk status change handlers + Bar в GraphCanvas
+docs: multi-select + floating action bar - backlog cleared + progress
+```
+
+---
+
 ## 2026-05-18 - Bilingual карточки узлов (backlog item)
 
 Закрыт backlog «Bilingual карточки - двуязычный режим узла». Узел
