@@ -11,6 +11,67 @@
 
 ---
 
+## 2026-05-18 - Frontend stability + quality audit
+
+Audit и cleanup существующего фронтенд-кода. Subagent task в параллели
+с backend code health и e2e playwright sessions.
+
+**Audit report**: `docs/superpowers/audits/2026-05-18-frontend-audit.md`
+
+Зон проверки 12: large components, any usage, enum, physical Tailwind,
+useMemo/useCallback, hardcoded strings, console.log/debugger, accessibility,
+index keys, test coverage, custom hooks duplication, component composition.
+
+**Findings:**
+
+- 0 Critical - проект в очень хорошем состоянии после Cleanup Marathon
+  2026-05-11
+- 0 `any` / TS `enum` / physical Tailwind / console.log / debugger в
+  production
+- 4 Important: 3 закрыты (hardcoded i18n strings в 3 местах + 1
+  cleanup dead prop), 1 отложен в backlog (9 components >500 LOC -
+  out of scope cleanup-only audit)
+- 5 Minor: 3 documented exceptions (index keys в parser segments,
+  test as any с rationale, eslint-disable с обоснованием), 2 закрыты
+  (tests для shared UI primitives)
+
+**Атомарные коммиты (5):**
+
+1. `refactor(frontend)` - i18n CreateTopicPage + LocaleSwitch (8
+   hardcoded строк + aria-label локали → dictionary.ts ru/ar)
+2. `docs` - audit report
+3. `test(frontend)` - Field/IconButton/StatusBadge unit-тесты (21
+   новый тест)
+4. `refactor(frontend)` - i18n AttachFields (7 строк → attach.*)
+5. `refactor(frontend)` - i18n PageView (3 строки → reader.*)
+6. `refactor(frontend)` - removed deprecated isArabic prop из PdfViewer
+
+**Документация:**
+
+- `frontend/docs/coding-standards.md` - расширен раздел про index
+  keys: добавлены допустимые исключения (parser segments, static
+  visualizations) с требованием комментариев-обоснований
+- `docs/superpowers/audits/2026-05-18-frontend-audit.md` - полный
+  audit report (12 зон, метрики, recommendations)
+- 23 новых i18n ключа добавлено в `shared/i18n/dictionary.ts` ru+ar
+
+**Метрики:**
+
+- Vitest baseline: 468 passed → finish: 489 passed (+21 тест)
+- Lint: 0 errors, 7 warnings (все preexisting)
+- TypeScript: 0 errors
+- 0 broken tests, 0 changed public APIs
+
+**Отложено в backlog:**
+
+- Splitting больших компонентов (>500 LOC: AdminPageEditorPage 1077,
+  GraphCanvas 1010, BookReaderPage 742, AdminShamelaPage 733,
+  BookListPage 699, TopicSettingsDrawer 636, HadithGradesSection 600,
+  AdminAuditPage 589, CitationPicker 536) - out of scope cleanup
+  audit, требует отдельной сессии с тщательным test coverage
+- useMemo/useCallback optimization (88 occurrences) - спекулятивно
+  без profiler measurements
+
 ## 2026-05-18 - Translator attribution / multi-translation 1:N (backlog item)
 
 Закрыт backlog «Translator attribution». Расширение Bilingual cards

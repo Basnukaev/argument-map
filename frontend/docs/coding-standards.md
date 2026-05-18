@@ -188,6 +188,18 @@ function NodeCard(props: NodeCardProps) {
 
 Индекс ломается при reorder / insert / delete посередине списка.
 
+**Допустимые исключения** (index keys корректны):
+
+- **Парсер-сегменты** — `key={i}` для результатов string parsing
+  (`InlineCitationBody`, `FloatingActionBar` split). Список
+  перегенерируется целиком когда меняется input, reorder невозможен
+- **Статические visualizations** — фиксированные SVG элементы
+  (`TopicListPage` dots/lines), placeholder log items
+  (`AdminShamelaPage` activity log) - список immutable константа
+
+Если используешь index key - **обязательно** комментарий "почему" и
+почему reorder невозможен.
+
 ### Условный рендеринг
 - `{condition && <X />}` — для простых случаев
 - Тернарник для двух вариантов: `{loading ? <Spinner /> : <Content />}`
