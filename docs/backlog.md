@@ -299,6 +299,44 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
 
 ## Tech debt / performance optimization
 
+- [ ] **AuditEntityType / UserRole single source of truth** - сейчас BE
+  константы String + FE whitelist в `dictionary/types.ts`. Расхождение
+  возможно при добавлении новых типов (BE добавит, FE не узнает пока
+  не запустит против реального API). Fix: BE enum (Java) + OpenAPI
+  generation выдаёт union literal в `types.ts` автоматически. Альтернатива -
+  явный shared enum в api-contract spec. Low priority пока number
+  entity types <15 (сейчас 7: TOPIC/NODE/EDGE/BOOK/QUESTION/ANSWER/
+  TOPIC_MEMBER). Reviewer flag round 3 #2
+- [ ] **Authority.type column для HadithGrade scholar validation** -
+  сейчас `HadithGradeService.addGrade` принимает любой UUID authority
+  как scholar, даже если это PUBLISHER или MUHAQQIQ. Семантически
+  неверно: оценивать хадис как «sahih» может только muhaddith, не
+  издательство. Fix: добавить `authorities.type` column (whitelist
+  SCHOLAR / MUHAQQIQ / PUBLISHER / AUTHOR / другие) + валидация в
+  HadithGradeService.addGrade при resolve scholar. Альтернатива - принять
+  flat namespace authorities и записать как explicit design decision
+  в ADR (правда тогда нужны соглашения типа suffix в name «Bukhari
+  (muhaddith)» для разрешения disambiguation в UI). Reviewer flag
+  round 3 #4
+- [ ] **Audit log для удалённых тем недоступен через /audit/topics/{id}** -
+  `permissionService.assertCanWrite(topicId)` бросает 404
+  topic-not-found если тема удалена (CASCADE на topics → удалены и
+  все child audit). Для compliance scenario (кто/когда удалил тему)
+  admin может использовать `GET /audit/admin?entityType=TOPIC&entityId=`,
+  но usability так себе: нужно знать UUID удалённой темы. Fix: special
+  case в AuditLogController - если topic deleted, всё равно вернуть
+  audit history (без assertCanWrite). Либо explicit
+  `TopicAlreadyDeletedException` → 410 Gone с link на admin endpoint.
+  Reviewer flag round 3 #6
+- [ ] **Z-index renormalization для long-running тем** - max+1 / min-1
+  pattern на 32-bit int даёт практически безграничное space (2.1B
+  операций bring-to-front пока не уйдёт в overflow), но теоретически
+  уплывёт на edge cases (бот-driven автоматизация, многолетние
+  collaborative темы). Renormalize (compact all z_index в continuous
+  integer sequence 1, 2, 3, ...) при достижении большого spread
+  (e.g. abs(max) > 1_000_000). Pattern из CAD/diagramming tools.
+  Low priority - real-world spread <100 у большинства тем
+
 - [ ] **Shared MinIO Testcontainer для IT suite** - сейчас 7+ IT
       классов (`ObjectStorageServiceIT`, `BucketBootstrap*IT`,
       `OrphanDetection*`, `IntegrityVerification*`, `FileImportServiceIT`,

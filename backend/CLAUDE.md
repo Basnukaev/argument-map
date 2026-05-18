@@ -399,9 +399,16 @@ AOP) - каждый mutation-сайт явно вызывает `auditLogService
     actor=current
   - `GET /api/v1/audit/admin?entityType=&actorId=&dateFrom=&dateTo=` -
     ADMIN only через `AdminOnlyException` → 403 forbidden-admin-only
+- **Retention policy** (Code review round 3 #5) - `AuditLogRetentionJanitor`
+  в `service/`, `@ConditionalOnProperty(audit.retention.enabled=true)`,
+  cron 02:00 ежедневно (override через AUDIT_RETENTION_CRON). По
+  умолчанию выключен (compliance retention prod-only). Retention
+  `audit.retention.retention-days` (default 365, минимум 7 - валидация
+  в AuditRetentionProperties). В prod включается:
+  `AUDIT_RETENTION_ENABLED=true`. AuditLogRepository.deleteOlderThan
+  один DELETE statement, без soft-delete
 - **Не покрыто:** admin UI (отложен 22.e/backlog), async logging
-  (через outbox если performance overhead станет ощутимым), retention
-  policy janitor (cron когда audit_log >GB)
+  (через outbox если performance overhead станет ощутимым)
 
 ### Транзакции
 

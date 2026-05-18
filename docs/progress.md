@@ -11,6 +11,62 @@
 
 ---
 
+## 2026-05-18 - Code review round 3 fixes (3 important closed, 4 в backlog)
+
+Закрыты все 3 Important issues из третьего code review цикла (0 Critical).
+6 issues всего, 3 из них (#1, #3, #5) реализованы, 3 (#2, #4, #6) +
+Z-index renormalization зафиксированы в backlog с обоснованием.
+
+**Implemented (3 атомарных коммита):**
+
+- `fix(backend) #1` - **UserRepository.findByIds bulk** устраняет N+1
+  в `AuditLogController.toResponses`. Комментарий обещал bulk JOIN,
+  реально был цикл `userRepository.findById(actorId)` по каждому
+  actor'у страницы. Новый метод через `NamedParameterJdbcTemplate`
+  `WHERE id IN (:ids)`. Контроллер собирает `Set<UUID>` уникальных
+  actorId'ов и резолвит одним SQL. Null-safe для system-инициированных
+  событий (actorUserId=null). +5 IT (`UserRepositoryIT`)
+
+- `fix(frontend) #3` - **authStore.logout cleanup user-scoped кешей**.
+  На shared машине user A → set arabicFont=kufi + dismiss onboarding →
+  logout → user B login получал чужие prefs и без onboarding widget.
+  Новый helper `shared/utils/clearUserStorage.ts` чистит
+  `app.preferences` + `onboarding_dismissed`. Вызывается из logout(),
+  refreshAccessToken() при 401, loadCurrentUser() при refresh fail.
+  Device-level prefs (theme/layoutAlgorithm/showEdgeLabels) намеренно
+  не трогаем - ambient device settings. +4 теста (authStore.test.ts)
+
+- `feat(backend) #5` - **AuditLogRetentionJanitor + ConditionalOnProperty +
+  IT**. ADR-043 Amendment 3 (Этап 22.d) оставил retention janitor
+  «отложен» в backlog. Закрываем по reviewer round 3 - audit_log будет
+  расти неограниченно без cleanup'а. Cron 02:00 ежедневно, retention
+  default 365 дней, минимум 7 (валидация в `AuditRetentionProperties`).
+  По умолчанию выключен, активация в prod через `AUDIT_RETENTION_ENABLED=true`.
+  Pattern полностью повторяет `OrphanDetectionJanitor` /
+  `IntegrityVerificationJob`. +4 IT (`AuditLogRetentionJanitorIT`)
+
+**Зафиксировано в backlog (4 issue):**
+
+- #2 AuditEntityType / UserRole single source of truth (BE constants
+  String + FE whitelist разъезжаются)
+- #4 Authority.type column для HadithGrade scholar validation
+  (сейчас принимает PUBLISHER как scholar)
+- #6 Audit log для удалённых тем недоступен через `/audit/topics/{id}`
+  (permission check throws 404 если тема удалена)
+- Z-index renormalization (max+1 / min-1 unbounded growth - low pri)
+
+**Verify:**
+- backend `./mvnw verify` - 834/834 pass / 2 skipped (live tests) /
+  0 failures. Время ~1:52
+- frontend `npm test --run authStore.test.ts` - 13/13 pass
+- TypeScript `npx tsc --noEmit -p tsconfig.app.json` - clean
+
+**Документация:**
+- `docs/backlog.md` - 4 новых entry в Tech debt секции
+- `backend/CLAUDE.md` - audit log раздел дополнен Retention policy bullet
+
+---
+
 ## 2026-05-18 - Multi-grading хадисов backend (backlog item)
 
 Закрыт backlog «Multi-grading хадисов» (бэк часть). Один и тот же
