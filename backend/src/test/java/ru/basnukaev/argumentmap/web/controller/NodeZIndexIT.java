@@ -153,7 +153,7 @@ class NodeZIndexIT {
     }
 
     private UUID createNode(String content) throws Exception {
-        var req = new CreateNodeRequest(topicId, NodeType.CLAIM, content);
+        var req = new CreateNodeRequest(topicId, NodeType.CLAIM, content, null, null, null);
         String json = mockMvc.perform(post("/api/v1/nodes")
                         .header("X-User-Id", ownerId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
