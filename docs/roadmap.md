@@ -431,10 +431,22 @@ diacritics-aware lookup). Подробности и план - в `docs/backlog.
       entityType/actorId/dateFrom/dateTo фильтрами). `PagedResponse<
       AuditLogResponse>` с username bulk-JOIN. Backend 770 tests +16.
       Private Q&A visibility model и admin UI - отложены в 22.e/backlog
-- [ ] **22.e:** Admin UI для audit log (frontend) + private Q&A model
-      (visibility + members для questions/answers) если понадобится
-      для закрытых учёных групп + audit retention policy janitor
-      (cron cleanup >6 месяцев когда хранилище подскочит)
+- [x] **22.e (Сессия 37, frontend) - admin audit UI:** AdminAuditPage
+      `/admin/audit` под ProtectedRoute requireRole="ADMIN". Table
+      с timestamp / entity_type / entity_id / action badge (color-coded
+      emerald/blue/rose/purple/amber) / actor_username / parent / view-
+      details. FilterBar (native <select>): entityType / action /
+      actorId / dateFrom / dateTo - Apply копирует draft→applied state,
+      триггерит refetch с query params (action client-side т.к. бэк не
+      принимает). DetailsModal - pretty-printed JSON changes через
+      JSON.stringify(JSON.parse,null,2), parse error fallback. Load More
+      pagination как в TopicListPage. Nav-link в AdminShamelaPage
+      overflow menu (••• → "Audit log"). ~40 i18n keys RU/AR. Tests +5
+      (362 total). Этап 22 полностью закрыт (a/b/c/c.f/d/e)
+- [ ] **22.f (backlog):** Private Q&A visibility model (visibility +
+      members для questions/answers) если понадобится для закрытых
+      учёных групп + audit retention policy janitor (cron cleanup
+      >6 месяцев когда хранилище подскочит)
 - [ ] **23+:** Open list - sanad explorer, multi-grading, RTL UI,
       экспорт PDF/SVG, mobile, advanced search. См. `docs/backlog.md`
       раздел «Будущие фичи»

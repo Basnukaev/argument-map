@@ -11,6 +11,60 @@
 
 ---
 
+## 2026-05-18 - Admin audit UI (Этап 22.e, frontend, ADR-043 Amendment 3)
+
+Закрыт Этап 22.e - frontend для audit log endpoint'а готового в 22.d.
+Параллельно работал другой subagent над z-index persistence (backend +
+NodeContextMenu) - не пересекались (я только frontend `apps/admin/` +
+`shared/i18n/`)
+
+**Реализовано (3 атомарных коммита):**
+
+1. **AdminAuditPage.tsx + types + i18n + tests** - main page с
+   header / FilterBar (native <select>, draft→applied state pattern) /
+   AuditTable (CSS grid 7 columns, color-coded action badges
+   emerald/blue/rose/purple/amber) / DetailsModal (pretty-printed JSON
+   через JSON.parse + stringify(2), parse error fallback) / Load More
+   pagination. Filter по action client-side - бэк его не принимает.
+   `regenerate-api` подтянул AuditLogResponse + 4 endpoint signatures.
+   ~40 i18n keys `admin.audit.*` в RU/AR. Tests +5 (render таблицы,
+   Apply фильтра, View Details modal, empty state, Load More append).
+   Total 362 frontend tests (357 baseline +5)
+2. **Routing** - `/admin/audit` под ProtectedRoute requireRole="ADMIN"
+   в App.tsx. USER → silent redirect /topics
+3. **Nav link** - в AdminShamelaPage overflow menu (••• → "Audit log"
+   с ShieldCheck иконкой). window.location.assign т.к. ContextMenu
+   items - onClick callbacks, не Link node renderers. Видимость не
+   гейтится по role: страница уже под ProtectedRoute ADMIN
+
+**Документация:**
+
+- roadmap.md - 22.e отмечен [x] с описанием + 22.f создан в backlog
+  для private Q&A model + audit retention janitor (откладываем)
+- progress.md - эта запись
+
+**Verify:**
+
+- `npm run lint` - 0 errors (7 pre-existing warnings)
+- `npm run build` - clean (981kB main bundle, ожидаемо)
+- `npm run test:run` - 362/362 pass
+- `npx tsc --noEmit -p tsconfig.app.json` - clean
+
+**Что user может проверить руками:**
+
+1. Открой `/admin/shamela` от admin@argumentmap.local
+2. Кликни ••• кнопку (overflow) → "Audit log"
+3. Должна открыться таблица записей аудита
+4. Apply фильтра entityType=TOPIC - таблица фильтруется
+5. Кликни "Подробнее" - modal с pretty-printed JSON changes
+6. Reset - фильтры очищаются, таблица возвращается ко всем записям
+
+**Этап 22 полностью закрыт** (22.a + 22.b + 22.c + 22.c.f + 22.d +
+22.e). Откладываются в 22.f backlog: private Q&A visibility model
+(если понадобится) + audit retention janitor (cron cleanup >6 мес.)
+
+---
+
 ## 2026-05-18 - Audit log per-entity (Этап 22.d, backend, ADR-043 Amendment 3)
 
 Закрыт долг из 22-го этапа Amendment 2 «audit log отложен в 22.d».
