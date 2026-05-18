@@ -989,6 +989,22 @@ export const DICTIONARY = {
     'cite.year.gregorian_suffix': 'م.',
     'cite.edition.suffix': ' (طبعة)',
 
+    // source detail panel (لوحة جانبية)
+    'source_detail.title': 'المصدر',
+    'source_detail.close': 'إغلاق اللوحة',
+    'source_detail.section_metadata': 'البيانات الوصفية',
+    'source_detail.section_quote': 'الاقتباس',
+    'source_detail.section_context': 'السياق',
+    'source_detail.section_full_reading': 'القراءة الكاملة',
+    'source_detail.field_type': 'النوع',
+    'source_detail.field_title': 'العنوان',
+    'source_detail.field_authority': 'المؤلف',
+    'source_detail.field_citation': 'المرجع',
+    'source_detail.field_reliability': 'درجة الصحة',
+    'source_detail.button_open_full': 'فتح كاملاً',
+    'source_detail.loading': 'جارٍ تحميل المصدر',
+    'source_detail.error_load': 'تعذّر تحميل المصدر',
+
     'book.pages_count_suffix': 'صفحة',
     'book.type.BOOK': 'كتاب',
     'book.type.QURAN': 'القرآن',

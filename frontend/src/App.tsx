@@ -15,6 +15,7 @@ import LoginPage from '@/apps/auth/pages/LoginPage';
 import RegisterPage from '@/apps/auth/pages/RegisterPage';
 import ProtectedRoute from '@/shared/components/auth/ProtectedRoute';
 import Toaster from '@/shared/components/ui/Toaster';
+import SourceDetailPanel from '@/shared/components/citation/SourceDetailPanel';
 import CommandPalette from '@/shared/components/layout/CommandPalette';
 import { usePaletteStore } from '@/shared/stores/paletteStore';
 import { useHotkey } from '@/shared/hooks/useHotkey';
@@ -175,6 +176,7 @@ function App() {
         />
       </Routes>
       <CommandPalette open={paletteOpen} onClose={closePalette} />
+      <SourceDetailPanel />
       <Toaster />
     </>
   );
