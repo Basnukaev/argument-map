@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.mock.env.MockEnvironment;
 
 import io.jsonwebtoken.security.Keys;
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
@@ -104,9 +105,47 @@ class JwtServiceIT {
     @Test
     void shortSecret_failsAtStartup() {
         // Конструктор должен бросить - проверяем напрямую
-        assertThatThrownBy(() -> new JwtService("too-short", 15, 7))
+        MockEnvironment env = new MockEnvironment();
+        assertThatThrownBy(() -> new JwtService("too-short", 15, 7, env))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("минимум 256 бит");
+    }
+
+    @Test
+    void devPlaceholderSecret_inProdProfile_failsAtStartup() {
+        // Cross-cutting audit fix #6: deploy в prod без AUTH_JWT_SECRET
+        // получает default placeholder из application.yml. Если placeholder
+        // содержит "dev-only" - fail-fast в constructor (не молча работаем
+        // с известным ключом)
+        MockEnvironment prod = new MockEnvironment();
+        prod.setActiveProfiles("prod");
+        String devSecret = "dev-only-do-not-use-in-prod-at-least-256-bits-required-for-hs256-min-32-chars";
+        assertThatThrownBy(() -> new JwtService(devSecret, 15, 7, prod))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("dev-placeholder")
+                .hasMessageContaining("AUTH_JWT_SECRET");
+    }
+
+    @Test
+    void devPlaceholderSecret_inDevProfile_doesNotFail() {
+        // Контр-кейс - в local/test profile placeholder допустим
+        MockEnvironment dev = new MockEnvironment();
+        dev.setActiveProfiles("local");
+        String devSecret = "dev-only-do-not-use-in-prod-at-least-256-bits-required-for-hs256-min-32-chars";
+        // не бросает - конструктор работает
+        JwtService js = new JwtService(devSecret, 15, 7, dev);
+        assertThat(js).isNotNull();
+    }
+
+    @Test
+    void productionSecretInProdProfile_doesNotFail() {
+        // Реальный prod-deploy с AUTH_JWT_SECRET генерированным через
+        // openssl rand -hex 32 - не должен fail'ить
+        MockEnvironment prod = new MockEnvironment();
+        prod.setActiveProfiles("prod");
+        String realSecret = "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90";
+        JwtService js = new JwtService(realSecret, 15, 7, prod);
+        assertThat(js).isNotNull();
     }
 
     /**

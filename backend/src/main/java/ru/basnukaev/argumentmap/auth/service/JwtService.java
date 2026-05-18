@@ -12,6 +12,7 @@ import javax.crypto.SecretKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 import io.jsonwebtoken.Claims;
@@ -48,16 +49,41 @@ public class JwtService {
     private final long accessTtlMinutes;
     private final long refreshTtlDays;
 
+    /**
+     * Sentinel-фрагмент в default placeholder в application.yml. Если
+     * deploy в prod забыл выставить env AUTH_JWT_SECRET - secret будет
+     * содержать эту подстроку, fail-fast в constructor (cross-cutting
+     * audit finding #6).
+     */
+    private static final String DEV_PLACEHOLDER_MARKER = "dev-only";
+
     public JwtService(
             @Value("${auth.jwt.secret}") String secret,
             @Value("${auth.jwt.access-token-ttl-minutes:15}") long accessTtlMinutes,
-            @Value("${auth.jwt.refresh-token-ttl-days:7}") long refreshTtlDays
+            @Value("${auth.jwt.refresh-token-ttl-days:7}") long refreshTtlDays,
+            Environment environment
     ) {
         byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
         if (secretBytes.length < 32) {
             throw new IllegalStateException(
                     "auth.jwt.secret должен быть минимум 256 бит (32 байта UTF-8), получено "
                             + secretBytes.length + ". В prod использовать env AUTH_JWT_SECRET."
+            );
+        }
+        // Fail-fast если в prod profile активен default dev placeholder.
+        // Защита от deploy-mistake (забыли AUTH_JWT_SECRET env-var).
+        boolean isProd = false;
+        for (String profile : environment.getActiveProfiles()) {
+            if (profile.equalsIgnoreCase("prod") || profile.equalsIgnoreCase("production")) {
+                isProd = true;
+                break;
+            }
+        }
+        if (isProd && secret.contains(DEV_PLACEHOLDER_MARKER)) {
+            throw new IllegalStateException(
+                    "auth.jwt.secret содержит dev-placeholder '" + DEV_PLACEHOLDER_MARKER
+                            + "' в prod profile. Установить AUTH_JWT_SECRET env-var "
+                            + "сгенерированный через `openssl rand -hex 32`."
             );
         }
         this.signingKey = Keys.hmacShaKeyFor(secretBytes);
