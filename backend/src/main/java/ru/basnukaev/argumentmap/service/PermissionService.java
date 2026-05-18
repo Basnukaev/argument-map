@@ -9,7 +9,6 @@ import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.domain.Topic;
 import ru.basnukaev.argumentmap.domain.TopicMember;
 import ru.basnukaev.argumentmap.domain.TopicMemberRole;
-import ru.basnukaev.argumentmap.domain.TopicVisibility;
 import ru.basnukaev.argumentmap.exception.BookAccessDeniedException;
 import ru.basnukaev.argumentmap.exception.BookNotFoundException;
 import ru.basnukaev.argumentmap.exception.BookWriteAccessDeniedException;
@@ -19,7 +18,6 @@ import ru.basnukaev.argumentmap.exception.TopicWriteAccessDeniedException;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookMember;
 import ru.basnukaev.argumentmap.library.domain.BookMemberRole;
-import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.repository.BookMemberRepository;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.repository.TopicMemberRepository;
@@ -77,17 +75,10 @@ public class PermissionService {
      */
     @Transactional(readOnly = true)
     public boolean canReadTopic(Topic topic, UUID userId) {
-        if (topic.createdBy().equals(userId)) {
-            return true;
-        }
-        if (TopicVisibility.PUBLIC.equals(topic.visibility())) {
-            return true;
-        }
-        if (TopicVisibility.SHARED.equals(topic.visibility())) {
-            return topicMemberRepository.existsByTopicAndUser(topic.id(), userId);
-        }
-        // PRIVATE без owner-match
-        return false;
+        return VisibilityPolicy.canRead(
+                topic.visibility(), topic.createdBy(), userId,
+                actorId -> topicMemberRepository.existsByTopicAndUser(topic.id(), actorId)
+        );
     }
 
     @Transactional(readOnly = true)
@@ -102,18 +93,13 @@ public class PermissionService {
 
     @Transactional(readOnly = true)
     public boolean canWriteTopic(Topic topic, UUID userId) {
-        if (topic.createdBy().equals(userId)) {
-            return true;
-        }
-        // PRIVATE non-owner - запрещено
-        if (TopicVisibility.PRIVATE.equals(topic.visibility())) {
-            return false;
-        }
-        // SHARED / PUBLIC - write только если EDITOR
-        return topicMemberRepository.findByTopicAndUser(topic.id(), userId)
-                .map(TopicMember::role)
-                .map(TopicMemberRole.EDITOR::equals)
-                .orElse(false);
+        return VisibilityPolicy.canWrite(
+                topic.visibility(), topic.createdBy(), userId,
+                actorId -> topicMemberRepository.findByTopicAndUser(topic.id(), actorId)
+                        .map(TopicMember::role)
+                        .map(TopicMemberRole.EDITOR::equals)
+                        .orElse(false)
+        );
     }
 
     /**
@@ -179,17 +165,10 @@ public class PermissionService {
      */
     @Transactional(readOnly = true)
     public boolean canReadBook(Book book, UUID userId) {
-        if (book.createdBy() != null && book.createdBy().equals(userId)) {
-            return true;
-        }
-        if (BookVisibility.PUBLIC.equals(book.visibility())) {
-            return true;
-        }
-        if (BookVisibility.SHARED.equals(book.visibility())) {
-            return bookMemberRepository.existsByBookAndUser(book.id(), userId);
-        }
-        // PRIVATE без owner-match
-        return false;
+        return VisibilityPolicy.canRead(
+                book.visibility(), book.createdBy(), userId,
+                actorId -> bookMemberRepository.existsByBookAndUser(book.id(), actorId)
+        );
     }
 
     @Transactional(readOnly = true)
@@ -204,18 +183,13 @@ public class PermissionService {
 
     @Transactional(readOnly = true)
     public boolean canWriteBook(Book book, UUID userId) {
-        if (book.createdBy() != null && book.createdBy().equals(userId)) {
-            return true;
-        }
-        // PRIVATE non-owner - запрещено
-        if (BookVisibility.PRIVATE.equals(book.visibility())) {
-            return false;
-        }
-        // SHARED / PUBLIC - write только если EDITOR
-        return bookMemberRepository.findByBookAndUser(book.id(), userId)
-                .map(BookMember::role)
-                .map(BookMemberRole.EDITOR::equals)
-                .orElse(false);
+        return VisibilityPolicy.canWrite(
+                book.visibility(), book.createdBy(), userId,
+                actorId -> bookMemberRepository.findByBookAndUser(book.id(), actorId)
+                        .map(BookMember::role)
+                        .map(BookMemberRole.EDITOR::equals)
+                        .orElse(false)
+        );
     }
 
     /**
