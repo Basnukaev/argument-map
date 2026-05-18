@@ -186,6 +186,8 @@ function AnswerCitationsSection({ answerId, answerBodyPreview }: Props) {
                 onDelete={link.id ? () => detachCitation(link.id!) : undefined}
                 onPrimaryAction={deepLink ? () => navigate(deepLink) : undefined}
                 onTitleClick={openPanel}
+                sourceId={source?.id ?? link.sourceId}
+                sourceType={source?.sourceType}
               />
             );
           })}

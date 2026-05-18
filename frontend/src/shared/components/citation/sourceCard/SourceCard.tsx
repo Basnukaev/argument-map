@@ -4,6 +4,7 @@ import { Bdi } from './Bdi';
 import { CARD_SHELL } from './cardShell';
 import { Collapsible } from './Collapsible';
 import { FlexValue } from './FlexValue';
+import { HadithGradesSection } from './HadithGradesSection';
 import { HijriYear } from './HijriYear';
 import { PrimaryButton } from './PrimaryButton';
 import { QuoteBlock } from './QuoteBlock';
@@ -32,6 +33,10 @@ type Props = {
   /** Если передан - title в header'е становится button, click открывает
    *  `SourceDetailPanel`. Caller отвечает за вызов `useSourceDetailPanelStore.openWith` */
   onTitleClick?: () => void;
+  /** Опционально - id и тип source. Если sourceType === 'HADITH' - под
+   *  метаданными показывается секция multi-grading оценок учёных */
+  sourceId?: string | null;
+  sourceType?: string | null;
 };
 
 const SEP = (
@@ -57,6 +62,8 @@ export function SourceCard({
   onPrimaryAction,
   primaryActionLabel,
   onTitleClick,
+  sourceId,
+  sourceType,
 }: Props) {
   const t = useT();
   const c = link.citation ?? {};
@@ -129,6 +136,10 @@ export function SourceCard({
           </RtlRow>
         )}
       </Collapsible>
+
+      {sourceId && sourceType === 'HADITH' && (
+        <HadithGradesSection sourceId={sourceId} sourceType={sourceType} />
+      )}
 
       {onPrimaryAction && (
         <div className="mt-3" dir="ltr">

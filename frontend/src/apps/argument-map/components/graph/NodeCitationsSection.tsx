@@ -285,6 +285,8 @@ function CitationsList({ state, onDetach }: CitationsListProps) {
               onDelete={link.id ? () => onDetach(link.id!) : undefined}
               onPrimaryAction={deepLink ? () => navigate(deepLink) : undefined}
               onTitleClick={openPanel}
+              sourceId={source?.id ?? link.sourceId}
+              sourceType={source?.sourceType}
             />
           );
         }

@@ -9,6 +9,7 @@ import {
   type SourceDetailCitation,
 } from '@/shared/stores/sourceDetailPanelStore';
 import type { components } from '@/shared/api/types';
+import { HadithGradesSection } from '@/shared/components/citation/sourceCard/HadithGradesSection';
 
 type SourceDto = components['schemas']['SourceResponse'];
 type AuthorityDto = components['schemas']['AuthorityResponse'];
@@ -192,6 +193,18 @@ function PanelBody({ state, citation, onNavigate }: BodyProps) {
       {citation.quote && <QuoteSection quote={citation.quote} title={sourceTitle} />}
 
       {citation.context && <ContextSection context={citation.context} />}
+
+      {sourceType === 'HADITH' && source.id && (
+        <section aria-labelledby="hg-heading">
+          <h3
+            id="hg-heading"
+            className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500"
+          >
+            {t('hadith.grades.title')}
+          </h3>
+          <HadithGradesSection sourceId={source.id} sourceType={sourceType} />
+        </section>
+      )}
 
       {bookId && (sourceType === 'BOOK' || sourceType === 'QURAN' || sourceType === 'HADITH') && (
         <FullReadingSection bookId={bookId} onNavigate={onNavigate} />
