@@ -6,17 +6,13 @@ import java.util.UUID;
 /**
  * Узел графа аргументации.
  *
- * <p>Bilingual поля (миграция 44):
- * <ul>
- *   <li>{@code translation} - текст перевода (nullable). null = перевода нет</li>
- *   <li>{@code translationLang} - язык перевода: 'ru' | 'en'. Должен быть
- *       NOT NULL когда translation NOT NULL (валидация в NodeService)</li>
- *   <li>{@code originalLang} - язык оригинала: 'ar' | 'ru' | 'en'. nullable.
- *       null означает auto-detect на фронте через hasArabicScript(content)</li>
- * </ul>
+ * <p>{@code originalLang} (миграция 44, оставшаяся после миграции 45) -
+ * язык оригинала: 'ar' | 'ru' | 'en'. nullable. null означает auto-detect
+ * на фронте через {@code hasArabicScript(content)}.
  *
- * <p>MVP: один перевод на узел. Multi-translation (разные переводчики одного
- * аята) - в backlog.
+ * <p>Переводы вынесены в child-сущность {@link NodeTranslation} (миграция
+ * 45 - multi-translation 1:N). Один узел может иметь несколько переводов
+ * от разных переводчиков (Кулиев, Sahih International, Османов и т.д.).
  */
 public record Node(
         UUID id,
@@ -30,8 +26,6 @@ public record Node(
         UUID createdBy,
         Instant createdAt,
         Instant updatedAt,
-        String translation,
-        String translationLang,
         String originalLang
 ) {
 }

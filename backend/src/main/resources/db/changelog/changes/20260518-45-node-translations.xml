@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Multi-translation: узел может иметь несколько переводов от разных
+        переводчиков (Кулиев, Sahih International, Османов и т.д.). Заменяет
+        single-translation модель из миграции 44.
+
+        Структура:
+          - translator_name nullable (анонимный переводчик допустим)
+          - language ∈ {ru, en} - язык перевода
+          - body - текст перевода
+          - is_default - какой перевод показывать по умолчанию
+          - UNIQUE (node_id, translator_name, language) - один переводчик
+            не может иметь два перевода на одном языке для одного узла
+
+        Миграция данных: существующие 1:1 переводы из nodes.translation
+        копируются в первую строку node_translations с is_default=true и
+        translator_name=NULL (анонимный). После - drop nodes.translation /
+        translation_lang. original_lang остаётся на nodes (это атрибут
+        оригинала, не перевода).
+    -->
+    <changeSet id="20260518-45-node-translations" author="Abdula Basnukaev">
+        <comment>node_translations 1:N + миграция существующих 1:1 данных</comment>
+        <sql>
+            CREATE TABLE node_translations (
+                id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                node_id uuid NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+                translator_name varchar(200) NULL,
+                language varchar(5) NOT NULL CHECK (language IN ('ru', 'en')),
+                body text NOT NULL,
+                is_default boolean NOT NULL DEFAULT false,
+                created_at timestamptz NOT NULL DEFAULT now(),
+                created_by uuid NOT NULL REFERENCES users(id)
+            );
+
+            CREATE INDEX idx_node_translations_node ON node_translations(node_id);
+            CREATE INDEX idx_node_translations_default ON node_translations(node_id)
+                WHERE is_default = true;
+
+            -- UNIQUE через partial index чтобы NULL translator_name работал
+            -- (Postgres default UNIQUE считает все NULL разными, поэтому
+            -- явный partial index для NULL-кейса дополняет основной)
+            CREATE UNIQUE INDEX uq_node_translations_named
+                ON node_translations(node_id, translator_name, language)
+                WHERE translator_name IS NOT NULL;
+            CREATE UNIQUE INDEX uq_node_translations_anonymous
+                ON node_translations(node_id, language)
+                WHERE translator_name IS NULL;
+
+            -- Перенос существующих 1:1 переводов в новую таблицу.
+            -- NULL translator_name = анонимный. is_default=true т.к. это
+            -- единственный перевод для узла
+            INSERT INTO node_translations
+                (node_id, translator_name, language, body, is_default, created_by)
+            SELECT id, NULL, translation_lang, translation, true, created_by
+            FROM nodes
+            WHERE translation IS NOT NULL AND translation_lang IS NOT NULL;
+
+            -- Drop legacy 1:1 колонок. original_lang НЕ трогаем - он на nodes,
+            -- это свойство оригинала (content), не перевода
+            ALTER TABLE nodes DROP COLUMN translation;
+            ALTER TABLE nodes DROP COLUMN translation_lang;
+        </sql>
+        <rollback>
+            <sql>
+                -- Восстанавливаем колонки на nodes
+                ALTER TABLE nodes ADD COLUMN translation text NULL;
+                ALTER TABLE nodes ADD COLUMN translation_lang varchar(5) NULL
+                    CHECK (translation_lang IN ('ru', 'en'));
+
+                -- NB: rollback теряет multi-translations - возможно сохранить
+                -- только default-перевод первого по created_at. Безопасно
+                -- т.к. нет prod данных
+                UPDATE nodes SET
+                    translation = nt.body,
+                    translation_lang = nt.language
+                FROM (
+                    SELECT DISTINCT ON (node_id) node_id, body, language
+                    FROM node_translations
+                    WHERE is_default = true
+                    ORDER BY node_id, created_at
+                ) nt
+                WHERE nodes.id = nt.node_id;
+
+                DROP INDEX IF EXISTS uq_node_translations_anonymous;
+                DROP INDEX IF EXISTS uq_node_translations_named;
+                DROP INDEX IF EXISTS idx_node_translations_default;
+                DROP INDEX IF EXISTS idx_node_translations_node;
+                DROP TABLE node_translations;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
