@@ -86,6 +86,37 @@ public class NodeController {
         return DtoMappers.toResponse(node, stats, userVote);
     }
 
+    /**
+     * Bring to front: ставит узел на передний план через присваивание
+     * нового z_index = max(z_index узлов темы) + 1. Endpoint dedicated -
+     * клиенту не нужно знать max, сервер сам вычисляет. Запрос без тела.
+     */
+    @PostMapping("/{nodeId}/z-order/bring-to-front")
+    public NodeResponse bringToFront(@PathVariable UUID nodeId,
+                                     @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRole();
+        Node node = nodeService.bringToFront(nodeId, userId, role);
+        VoteStats stats = nodeVoteRepository.getStatsForNode(nodeId);
+        Integer userVote = nodeVoteRepository.findByNodeAndUser(nodeId, userId)
+                .map(v -> v.weight()).orElse(null);
+        return DtoMappers.toResponse(node, stats, userVote);
+    }
+
+    /**
+     * Send to back: ставит узел на задний план через присваивание z_index
+     * = min(z_index узлов темы) - 1. Парный bring-to-front.
+     */
+    @PostMapping("/{nodeId}/z-order/send-to-back")
+    public NodeResponse sendToBack(@PathVariable UUID nodeId,
+                                   @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRole();
+        Node node = nodeService.sendToBack(nodeId, userId, role);
+        VoteStats stats = nodeVoteRepository.getStatsForNode(nodeId);
+        Integer userVote = nodeVoteRepository.findByNodeAndUser(nodeId, userId)
+                .map(v -> v.weight()).orElse(null);
+        return DtoMappers.toResponse(node, stats, userVote);
+    }
+
     @DeleteMapping("/{nodeId}")
     public ResponseEntity<Void> delete(@PathVariable UUID nodeId, @CurrentUser UUID userId) {
         String role = SecurityContextUtils.currentRole();

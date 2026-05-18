@@ -184,6 +184,49 @@ public class NodeService {
         deleteNode(nodeId);
     }
 
+    /**
+     * Stacking order: ставит узел на передний план относительно других
+     * узлов темы. z_index = max(z_index темы) + 1. Если узел уже сверху -
+     * всё равно поднимает, чтобы операция была идемпотентной семантически
+     * (повторный вызов = всё ещё сверху). Не пишет revision, не меняет
+     * updatedAt (см. NodeRepository.updateZIndex).
+     */
+    @Transactional
+    public Node bringToFront(UUID nodeId, UUID userId, String role) {
+        Node existing = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new NodeNotFoundException(nodeId));
+        permissionService.assertCanWrite(existing.topicId(), userId, role);
+
+        int newZ = nodeRepository.findMaxZIndex(existing.topicId()) + 1;
+        nodeRepository.updateZIndex(nodeId, newZ);
+        return new Node(
+                existing.id(), existing.topicId(), existing.nodeType(),
+                existing.content(), existing.status(),
+                existing.posX(), existing.posY(), newZ,
+                existing.createdBy(), existing.createdAt(), existing.updatedAt()
+        );
+    }
+
+    /**
+     * Stacking order: ставит узел на задний план. z_index = min(z_index
+     * темы) - 1. См. bringToFront для деталей семантики.
+     */
+    @Transactional
+    public Node sendToBack(UUID nodeId, UUID userId, String role) {
+        Node existing = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new NodeNotFoundException(nodeId));
+        permissionService.assertCanWrite(existing.topicId(), userId, role);
+
+        int newZ = nodeRepository.findMinZIndex(existing.topicId()) - 1;
+        nodeRepository.updateZIndex(nodeId, newZ);
+        return new Node(
+                existing.id(), existing.topicId(), existing.nodeType(),
+                existing.content(), existing.status(),
+                existing.posX(), existing.posY(), newZ,
+                existing.createdBy(), existing.createdAt(), existing.updatedAt()
+        );
+    }
+
     @Transactional(readOnly = true)
     public List<Revision> getRevisions(UUID nodeId) {
         if (nodeRepository.findById(nodeId).isEmpty()) {
