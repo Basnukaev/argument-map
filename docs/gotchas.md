@@ -1624,3 +1624,39 @@ Static-блок выполняется при загрузке класса JVM'
 **Альтернатива через JVM flag** (если main-класс трогать нельзя): `-Djdk.http.auth.tunneling.disabledSchemes=""` в `spring-boot.run.jvmArguments` или `JAVA_OPTS`. Менее предпочтительно потому что зависит от того что user не забывает передать flag.
 
 **Узнано:** Сессия 39 при отладке SHAMELA_PROXY с HostKey self-hosted прокси.
+
+---
+
+## shamela API: 2xx с пустым body = "up-to-date"
+
+**Симптом:** при повторном вызове `POST /api/v1/library/shamela/sync-master` (когда master уже на актуальной версии) запрос валится с:
+
+```
+Caused by: com.fasterxml.jackson.databind.exc.MismatchedInputException:
+  No content to map due to end-of-input
+  at ShamelaApiClient.getJson(ShamelaApiClient.java:121)
+```
+
+В стеке стоит `objectMapper.readValue(resp.body(), type)` - Jackson получил пустой `byte[]`.
+
+**Причина:** shamela desktop-API использует convention для conditional polling - если клиент уже на актуальной версии (`?version=N` совпадает с server's latest), сервер отдаёт **2xx статус с пустым response body**, а не отдельный 304 Not Modified или explicit JSON типа `{"changed": false}`. Это сэкономило им роутинг, но непривычно для обычного REST клиента.
+
+Backend наш всегда передавал body в Jackson, что валилось на end-of-input.
+
+**Reproducer:** вызвать sync-master дважды подряд - первый раз пройдёт (full snapshot скачается), второй вернёт 500 `shamela-api-error`.
+
+**Решение:** в `ShamelaApiClient.getJson()` обнаруживать `body.length == 0` и возвращать `Optional.empty()`. Callers решают семантику:
+
+```java
+// fetchMasterMetadata: пустое = uptodate, синтезируем metadata с той же версией
+return getJson(uri, MasterMetadata.class)
+    .orElseGet(() -> new MasterMetadata(null, currentVersion));
+
+// fetchBookMetadata: пустое = аномалия (book metadata должна быть содержательной)
+return getJson(uri, BookMetadata.class)
+    .orElseThrow(() -> new ShamelaApiException("пустое тело"));
+```
+
+Вышестоящий `ShamelaMasterSyncService.syncMaster()` сравнивает `meta.version() == currentVersion` и идёт в ветку `MasterSyncResult.unchanged(currentVersion)` - естественный no-op.
+
+**Узнано:** Сессия 39 после первого успешного sync (proxy + auth tunneling уже починены), при повторном POST sync-master.

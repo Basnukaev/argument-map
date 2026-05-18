@@ -8,6 +8,7 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,7 +60,14 @@ public class ShamelaApiClient {
                 "https://%s/api/v1/patches/master?api_key=%s&version=%d",
                 props.metadataHost(), props.apiKey(), currentVersion));
         log.info("shamela master metadata: version={}", currentVersion);
-        return getJson(uri, MasterMetadata.class);
+        // shamela API возвращает 2xx с пустым body когда version up-to-date
+        // (типичный contract для conditional polling - "ничего нового"
+        // означает пустой ответ, не отдельный 304 и не explicit JSON).
+        // Подделываем MasterMetadata с той же версией - вышестоящий код
+        // (ShamelaMasterSyncService) сравнивает meta.version() == currentVersion
+        // и принимает решение "uptodate, ничего не делать"
+        return getJson(uri, MasterMetadata.class)
+                .orElseGet(() -> new MasterMetadata(null, currentVersion));
     }
 
     public BookMetadata fetchBookMetadata(long bookId, int majorRelease, int minorRelease) {
@@ -67,7 +75,11 @@ public class ShamelaApiClient {
                 "https://%s/api/v1/patches/book-updates/%d?api_key=%s&major_release=%d&minor_release=%d",
                 props.metadataHost(), bookId, props.apiKey(), majorRelease, minorRelease));
         log.info("shamela book metadata: bookId={} major={} minor={}", bookId, majorRelease, minorRelease);
-        return getJson(uri, BookMetadata.class);
+        // Для book metadata пустое body это аномалия (book metadata всегда
+        // должна иметь содержательный ответ), бросаем явный exception
+        return getJson(uri, BookMetadata.class)
+                .orElseThrow(() -> new ShamelaApiException(
+                        "shamela book metadata вернула пустое тело для bookId=" + bookId));
     }
 
     /**
@@ -106,7 +118,14 @@ public class ShamelaApiClient {
         return downloadTo(url, target);
     }
 
-    private <T> T getJson(URI uri, Class<T> type) {
+    /**
+     * Возвращает {@link Optional#empty()} если сервер ответил 2xx с
+     * пустым body (shamela использует это как сигнал "no updates"). Это
+     * валидный сценарий для polling endpoints - каждый caller сам решает
+     * как интерпретировать (uptodate для master / аномалия для book).
+     * Не-2xx статусы по-прежнему бросают {@link ShamelaApiException}.
+     */
+    private <T> Optional<T> getJson(URI uri, Class<T> type) {
         HttpRequest req = HttpRequest.newBuilder(uri)
                 .timeout(Duration.ofSeconds(props.requestTimeoutSeconds()))
                 .header("Accept", "application/json")
@@ -118,7 +137,10 @@ public class ShamelaApiClient {
                 throw new ShamelaApiException(
                         "shamela API вернула HTTP " + resp.statusCode() + " на " + maskApiKey(uri));
             }
-            return objectMapper.readValue(resp.body(), type);
+            if (resp.body() == null || resp.body().length == 0) {
+                return Optional.empty();
+            }
+            return Optional.of(objectMapper.readValue(resp.body(), type));
         } catch (IOException e) {
             throw new ShamelaApiException("ошибка вызова shamela API: " + maskApiKey(uri), e);
         } catch (InterruptedException e) {
