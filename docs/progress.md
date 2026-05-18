@@ -11,6 +11,90 @@
 
 ---
 
+## 2026-05-18 - Topic settings drawer (backlog item)
+
+Закрыт backlog «Topic settings drawer - 480px drawer над затемнённым
+canvas». Polished UX consolidation existing visibility + members
+controls + новые status algorithm picker + audit link для admin +
+danger zone delete
+
+**Новый компонент** -
+`frontend/src/apps/argument-map/components/TopicSettingsDrawer.tsx`:
+
+- 480px end-side drawer (desktop) / fullscreen (mobile) над dimmed
+  canvas. Own backdrop + `<aside>` slide-in справа (паттерн
+  `SourceDetailPanel`, не нативный `<dialog>` - нужен start/end-side
+  slide а не центр)
+- Sections:
+  - **Корневой вопрос** - read-only title + description с
+    Lock-иконкой + hint «нельзя изменить - граф вырастает из него»
+    (бэк не имеет PATCH /topics/{id} для title/description -
+    осознанно read-only, в backend нет endpoint'а)
+  - **Видимость** - переиспользуем `VisibilityRadioGroup`. Save
+    autosave (PATCH /visibility on radio change, не explicit save
+    button)
+  - **Участники** - compact preview top-3 members + counter, expand
+    link в `TopicMembersModal` для full management. Section visible
+    только при `visibility=SHARED`
+  - **Алгоритм статусов** - radio MVP vs DUNG_GROUNDED с hint'ами.
+    PATCH /status-algorithm autosave on radio change
+  - **Журнал изменений** - admin-only, ссылка на `/admin/audit?
+    entityType=TOPIC&entityId={id}`
+  - **Опасная зона** - delete button → modal с typing topic name
+    защита (paттерн GitHub/GitLab). Confirm button disabled пока
+    `typed.trim() === title.trim()`. DELETE /topics/{id} → toast +
+    navigate /topics
+- Permission gates - `canManage` (owner/admin) hides
+  visibility/members/status/danger sections для read-only viewer.
+  `isAdmin` separates audit section
+- Conditional render `{open && <Drawer/>}` - идиома проекта,
+  избегает effect-driven state reset между переоткрытиями (см.
+  frontend/CLAUDE.md)
+
+**Integration в `TopicGraphPage.tsx`:**
+
+- Заменили inline visibility badge click + members button на единый
+  `Settings` IconButton (gear) в crumb-bar для `canManage`. Badge
+  остаётся read-only для всех
+- Удалили inline `VisibilityChangeForm` (33 строки) и `Modal` +
+  `TopicMembersModal` mount - drawer сам управляет всем
+- TopicGraphPage shrunk on 88 строк (-118 +30 net)
+
+**41 i18n key `topic.settings.*` (RU + AR)** - title / close /
+section.* / field.* / root_question.locked_hint / members.* /
+status_algorithm.{mvp,dung}{,_hint,change_*} / audit.* / danger.*
+
+**Tests** (`TopicSettingsDrawer.test.tsx` - 7 tests):
+
+- render sections respecting `canManage` / `isAdmin` permissions
+- audit-section только для ADMIN
+- members section появляется при rerender с visibility=SHARED
+- PATCH /visibility → onChanged callback + toast
+- PATCH /status-algorithm → onChanged
+- delete flow: typing topic name unlocks confirm → DELETE → navigate
+- read-only viewer не видит destructive sections
+
+**Verify:** lint 0 errors, build 8.87s, 442 tests pass (baseline 435+).
+
+**Что НЕ сделано осознанно:**
+
+- Title/description editing - нет PATCH /topics/{id} endpoint'а на
+  backend. Если потом понадобится - добавить endpoint + поля
+  редактируемыми в drawer (read-only сейчас, lock + hint)
+- Context menu canvas «Настройки темы» - пропустил, gear icon в
+  crumb-bar достаточен для discoverability. Context-menu integration
+  потребовала бы изменения GraphCanvas (большой компонент) -
+  непропорционально к value
+
+**Атомарные commits:**
+
+- `feat(frontend): TopicSettingsDrawer 480px desktop / fullscreen mobile`
+- `feat(frontend): integration TopicSettingsDrawer в TopicGraphPage toolbar`
+- `feat(frontend): danger zone delete topic с confirmation type-name flow`
+- `docs: TopicSettingsDrawer - backlog cleared + progress`
+
+---
+
 ## 2026-05-18 - Library overview (backlog item)
 
 Закрыт backlog «Library overview» - extend `BookListPage` (route /books)

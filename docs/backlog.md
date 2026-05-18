@@ -236,11 +236,16 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       Отложено: hint-указатели на canvas (`OnboardingHint`) с
       bouncing arrow icon для active step - сложность low value,
       MVP без них
-- [ ] **Topic settings drawer** - 480px drawer над затемнённым
-      canvas: title / desc, корневой вопрос (lock), радио
-      Private / Shared / Public, метаданные, danger zone
-      _(TopicSettingsDrawer)_. Требует расширения Topic на
-      бэке полем `visibility` (после auth)
+- [x] **Topic settings drawer** - 480px end-side drawer над dimmed
+      canvas с consolidated settings (Сессия 37). Sections: root
+      question (read-only, lock + hint) / visibility radio
+      (PRIVATE/SHARED/PUBLIC) / members compact preview top-3 +
+      expand link в TopicMembersModal (только SHARED) / status
+      algorithm radio (MVP vs DUNG_GROUNDED) / audit log link для
+      ADMIN / danger zone с typing topic name confirmation для
+      DELETE. Mobile fullscreen overlay. Заменили inline visibility/
+      members controls на единый gear IconButton в crumb-bar.
+      41 i18n key `topic.settings.*` (RU + AR). 7 тестов
 - [ ] **Multi-select с floating action bar** - лассо или
       Shift+click несколько узлов, всплывающая action-bar для
       массовых операций (изменить статус, переместить, удалить,
