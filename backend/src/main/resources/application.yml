@@ -149,6 +149,7 @@ ai:
 shamela:
   api-key: ${SHAMELA_API_KEY:7b9524-8fc30c-e6241o-a0167e-a6d013}
   metadata-host: dev.shamela.ws
+  metadata-scheme: https
   files-host: ready.shamela.ws
   # Каталог для временных zip + распакованных SQLite. После ETL
   # содержимое удаляется (опционально кешируется на диск для отладки).

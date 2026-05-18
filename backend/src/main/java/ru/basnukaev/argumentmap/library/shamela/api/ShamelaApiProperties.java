@@ -18,6 +18,10 @@ public record ShamelaApiProperties(
         String filesHost,
         String downloadDir,
         int requestTimeoutSeconds,
-        int connectTimeoutSeconds
+        int connectTimeoutSeconds,
+        /** Default https - prod scheme для shamela API. Override на http
+         * нужен только в IT-stub тестах с локальным HttpServer (Сессия 39
+         * code review fix). */
+        String metadataScheme
 ) {
 }

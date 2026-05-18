@@ -4,10 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.net.InetSocketAddress;
-import java.net.URI;
 import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
@@ -29,25 +26,20 @@ import ru.basnukaev.argumentmap.library.shamela.api.dto.MasterMetadata;
  *
  * <p>Тот же подход что и в {@code AnthropicClientStubIT} - inline
  * server на динамическом порту, без WireMock dep. Не Spring test:
- * инстанцируем {@link ShamelaApiClient} напрямую с raw HttpClient
- * (нам не нужен ни прокси ни Authenticator для тестов).
- *
- * <p>Использую расширение {@code .properties} для свойства
- * {@code metadataHost} - подменяет {@code dev.shamela.ws} на
- * {@code localhost:PORT} stub-сервера. {@code https://} в URL
- * подменяется на {@code http://} перехватом в {@link OverridingApiClient}.
+ * инстанцируем production {@link ShamelaApiClient} напрямую с
+ * properties где {@code metadataScheme=http} и {@code metadataHost}
+ * указывает на stub-сервер. Тестируется боевой класс, не override.
  */
 class ShamelaApiClientStubIT {
 
     private HttpServer server;
     private HttpClient httpClient;
-    private OverridingApiClient client;
-    private int port;
+    private ShamelaApiClient client;
 
     @BeforeEach
     void setUp() throws Exception {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        port = server.getAddress().getPort();
+        int port = server.getAddress().getPort();
         httpClient = HttpClient.newHttpClient();
         ShamelaApiProperties props = new ShamelaApiProperties(
                 "test-api-key",
@@ -55,9 +47,10 @@ class ShamelaApiClientStubIT {
                 "files.test",
                 "/tmp/shamela-test",
                 30,
-                10
+                10,
+                "http"
         );
-        client = new OverridingApiClient(httpClient, props, new ObjectMapper());
+        client = new ShamelaApiClient(httpClient, props, new ObjectMapper());
         server.start();
     }
 
@@ -69,8 +62,8 @@ class ShamelaApiClientStubIT {
         if (httpClient != null) {
             try {
                 httpClient.close();
-            } catch (Throwable ignored) {
-                // best-effort cleanup
+            } catch (Exception ignored) {
+                // best-effort cleanup, HttpClient.close может бросить unchecked
             }
         }
     }
@@ -147,69 +140,5 @@ class ShamelaApiClientStubIT {
         assertThatThrownBy(() -> client.fetchMasterMetadata(1261))
                 .isInstanceOf(ShamelaApiException.class)
                 .hasMessageContaining("HTTP 500");
-    }
-
-    /**
-     * Тестовый wrapper над {@link ShamelaApiClient}, который переопределяет
-     * URL-схему с https на http (для stub HttpServer'а). Production-код
-     * фиксирует https в URI.create - переопределяем через override URL
-     * builder. Только {@code fetchMasterMetadata} и {@code fetchBookMetadata}
-     * пробрасываются - другие методы (downloadArchive/Pdf) не нужны для
-     * этих тестов.
-     */
-    static class OverridingApiClient extends ShamelaApiClient {
-        private final HttpClient http;
-        private final ShamelaApiProperties props;
-        private final ObjectMapper mapper;
-
-        OverridingApiClient(HttpClient http, ShamelaApiProperties props, ObjectMapper mapper) {
-            super(http, props, mapper);
-            this.http = http;
-            this.props = props;
-            this.mapper = mapper;
-        }
-
-        @Override
-        public Optional<MasterMetadata> fetchMasterMetadata(int currentVersion) {
-            URI uri = URI.create(String.format(
-                    "http://%s/api/v1/patches/master?api_key=%s&version=%d",
-                    props.metadataHost(), props.apiKey(), currentVersion));
-            return doGet(uri, MasterMetadata.class);
-        }
-
-        @Override
-        public ru.basnukaev.argumentmap.library.shamela.api.dto.BookMetadata fetchBookMetadata(
-                long bookId, int majorRelease, int minorRelease) {
-            URI uri = URI.create(String.format(
-                    "http://%s/api/v1/patches/book-updates/%d?api_key=%s&major_release=%d&minor_release=%d",
-                    props.metadataHost(), bookId, props.apiKey(), majorRelease, minorRelease));
-            return doGet(uri, ru.basnukaev.argumentmap.library.shamela.api.dto.BookMetadata.class)
-                    .orElseThrow(() -> new ShamelaApiException(
-                            "shamela book metadata вернула пустое тело для bookId=" + bookId));
-        }
-
-        // Та же логика что в private getJson() production-класса.
-        // Вынесена отдельно потому что URI строится с http:// scheme.
-        private <T> Optional<T> doGet(URI uri, Class<T> type) {
-            HttpRequest req = HttpRequest.newBuilder(uri)
-                    .header("Accept", "application/json")
-                    .GET()
-                    .build();
-            try {
-                HttpResponse<byte[]> resp = http.send(req, HttpResponse.BodyHandlers.ofByteArray());
-                if (resp.statusCode() / 100 != 2) {
-                    throw new ShamelaApiException("shamela API вернула HTTP " + resp.statusCode());
-                }
-                if (resp.body().length == 0) {
-                    return Optional.empty();
-                }
-                return Optional.of(mapper.readValue(resp.body(), type));
-            } catch (java.io.IOException e) {
-                throw new ShamelaApiException("ошибка stub", e);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new ShamelaApiException("прерван stub", e);
-            }
-        }
     }
 }

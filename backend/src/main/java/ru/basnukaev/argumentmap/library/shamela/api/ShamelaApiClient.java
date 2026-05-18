@@ -65,16 +65,16 @@ public class ShamelaApiClient {
      */
     public Optional<MasterMetadata> fetchMasterMetadata(int currentVersion) {
         URI uri = URI.create(String.format(
-                "https://%s/api/v1/patches/master?api_key=%s&version=%d",
-                props.metadataHost(), props.apiKey(), currentVersion));
+                "%s://%s/api/v1/patches/master?api_key=%s&version=%d",
+                props.metadataScheme(), props.metadataHost(), props.apiKey(), currentVersion));
         log.info("shamela master metadata: version={}", currentVersion);
         return getJson(uri, MasterMetadata.class);
     }
 
     public BookMetadata fetchBookMetadata(long bookId, int majorRelease, int minorRelease) {
         URI uri = URI.create(String.format(
-                "https://%s/api/v1/patches/book-updates/%d?api_key=%s&major_release=%d&minor_release=%d",
-                props.metadataHost(), bookId, props.apiKey(), majorRelease, minorRelease));
+                "%s://%s/api/v1/patches/book-updates/%d?api_key=%s&major_release=%d&minor_release=%d",
+                props.metadataScheme(), props.metadataHost(), bookId, props.apiKey(), majorRelease, minorRelease));
         log.info("shamela book metadata: bookId={} major={} minor={}", bookId, majorRelease, minorRelease);
         // Для book metadata пустое body это аномалия (book metadata всегда
         // должна иметь содержательный ответ), бросаем явный exception
@@ -143,7 +143,10 @@ public class ShamelaApiClient {
             if (resp.body().length == 0) {
                 return Optional.empty();
             }
-            return Optional.of(objectMapper.readValue(resp.body(), type));
+            // ofNullable защищает от валидного JSON-литерала "null" - Jackson
+            // вернёт Java null, Optional.of(null) бросил бы NPE. shamela такого
+            // не отдаёт, но защита copy-paste стоимости
+            return Optional.ofNullable(objectMapper.readValue(resp.body(), type));
         } catch (IOException e) {
             throw new ShamelaApiException("ошибка вызова shamela API: " + maskApiKey(uri), e);
         } catch (InterruptedException e) {
