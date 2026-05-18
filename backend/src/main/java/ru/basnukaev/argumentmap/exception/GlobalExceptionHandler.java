@@ -280,6 +280,40 @@ public class GlobalExceptionHandler {
         return pd;
     }
 
+    // ---- multi-grading хадисов (Этап hadith-grades) ----
+
+    @ExceptionHandler(HadithGradeNotFoundException.class)
+    public ProblemDetail handleHadithGradeNotFound(HadithGradeNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND,
+                "Оценка хадиса не найдена", "hadith-grade-not-found", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidHadithGradeException.class)
+    public ProblemDetail handleInvalidHadithGrade(InvalidHadithGradeException ex) {
+        return problem(HttpStatus.BAD_REQUEST,
+                "Невалидная оценка хадиса", "invalid-hadith-grade", ex.getMessage());
+    }
+
+    @ExceptionHandler(HadithGradeDuplicateException.class)
+    public ProblemDetail handleHadithGradeDuplicate(HadithGradeDuplicateException ex) {
+        ProblemDetail pd = problem(HttpStatus.CONFLICT,
+                "Учёный уже оценил этот хадис", "hadith-grade-duplicate",
+                ex.getMessage());
+        pd.setProperty("sourceId", ex.getSourceId().toString());
+        pd.setProperty("scholarId", ex.getScholarId().toString());
+        return pd;
+    }
+
+    @ExceptionHandler(HadithGradeAccessDeniedException.class)
+    public ProblemDetail handleHadithGradeAccessDenied(HadithGradeAccessDeniedException ex) {
+        ProblemDetail pd = problem(HttpStatus.FORBIDDEN,
+                "Нет прав на изменение оценки", "forbidden-hadith-grade-write",
+                "Только автор оценки или администратор может изменять/удалять её");
+        pd.setProperty("gradeId", ex.getGradeId().toString());
+        pd.setProperty("userId", ex.getUserId().toString());
+        return pd;
+    }
+
     @ExceptionHandler(UnsupportedExportFormatException.class)
     public ProblemDetail handleUnsupportedExportFormat(UnsupportedExportFormatException ex) {
         ProblemDetail pd = problem(HttpStatus.UNPROCESSABLE_ENTITY,
