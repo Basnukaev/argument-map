@@ -59,7 +59,7 @@ class NodeRepositoryIT {
                 "Мавлид допустим", NodeStatus.STANDING,
                 null, null, 0,
                 userId, now, now,
-                null, null, null
+                null
         );
 
         nodeRepository.save(node);
@@ -125,7 +125,7 @@ class NodeRepositoryIT {
                 "new content", NodeStatus.DISPUTED,
                 null, null, 0,
                 userId, created, updatedAt,
-                null, null, null
+                null
         );
         nodeRepository.update(updated);
 

@@ -171,85 +171,59 @@ class NodeServiceIT {
     }
 
     @Test
-    void createNode_withTranslation_persistsAllBilingualFields() {
+    void createNode_withOriginalLang_persists() {
+        // После миграции 45 translations - в child-таблице node_translations.
+        // На Node остался только originalLang (свойство оригинала)
         Node node = nodeService.createNode(
                 topicId, NodeType.EVIDENCE,
                 "إنما الأعمال بالنيات",
-                "Деяния оцениваются по намерениям", "ru", "ar",
-                userId
+                "ar", userId
         );
 
         Node persisted = nodeRepository.findById(node.id()).orElseThrow();
         assertThat(persisted.content()).isEqualTo("إنما الأعمال بالنيات");
-        assertThat(persisted.translation()).isEqualTo("Деяния оцениваются по намерениям");
-        assertThat(persisted.translationLang()).isEqualTo("ru");
         assertThat(persisted.originalLang()).isEqualTo("ar");
-    }
-
-    @Test
-    void createNode_withTranslationButNoLang_throws() {
-        assertThatThrownBy(() -> nodeService.createNode(
-                topicId, NodeType.EVIDENCE, "أصل",
-                "Перевод", null, "ar",
-                userId
-        )).isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("translationLang");
     }
 
     @Test
     void createNode_invalidOriginalLang_throws() {
         assertThatThrownBy(() -> nodeService.createNode(
-                topicId, NodeType.EVIDENCE, "x",
-                null, null, "fr",
-                userId
+                topicId, NodeType.EVIDENCE, "x", "fr", userId
         )).isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("originalLang");
     }
 
     @Test
-    void updateContent_clearTranslation_setsToNull() {
-        // создаём узел с переводом
+    void updateContent_clearOriginalLang_setsToNull() {
         Node initial = nodeService.createNode(
-                topicId, NodeType.EVIDENCE, "إنما الأعمال",
-                "Деяния", "ru", "ar", userId
+                topicId, NodeType.EVIDENCE, "إنما الأعمال", "ar", userId
         );
-        // очищаем translation через update (пустая строка → null в boxed-семантике
-        // сервиса; здесь напрямую передаём null чтобы протестировать поведение
-        // update)
+        // очищаем originalLang через явный null - content не меняем
         nodeService.updateContent(
                 initial.id(),
                 NodeService.NoChange.INSTANCE,  // content не меняем
-                null,                            // translation: очистить
-                null,                            // translationLang: очистить
-                NodeService.NoChange.INSTANCE,   // originalLang: не трогаем
+                null,                            // originalLang: очистить
                 userId
         );
 
         Node reloaded = nodeRepository.findById(initial.id()).orElseThrow();
-        assertThat(reloaded.translation()).isNull();
-        assertThat(reloaded.translationLang()).isNull();
-        // originalLang остался прежним
-        assertThat(reloaded.originalLang()).isEqualTo("ar");
+        assertThat(reloaded.originalLang()).isNull();
         // content не менялся - revision НЕ должен быть записан
         assertThat(nodeService.getRevisions(initial.id())).isEmpty();
     }
 
     @Test
-    void updateContent_addTranslationToExistingNode_persists() {
+    void updateContent_setOriginalLangOnExistingNode_persists() {
         Node initial = nodeService.createNode(topicId, NodeType.CLAIM, "оригинал", userId);
 
         nodeService.updateContent(
                 initial.id(),
                 NodeService.NoChange.INSTANCE,
-                "translation text",
-                "en",
                 "ru",
                 userId
         );
 
         Node reloaded = nodeRepository.findById(initial.id()).orElseThrow();
-        assertThat(reloaded.translation()).isEqualTo("translation text");
-        assertThat(reloaded.translationLang()).isEqualTo("en");
         assertThat(reloaded.originalLang()).isEqualTo("ru");
     }
 

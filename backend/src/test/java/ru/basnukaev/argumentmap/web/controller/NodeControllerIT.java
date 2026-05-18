@@ -62,7 +62,7 @@ class NodeControllerIT {
 
     @Test
     void createNode_returns201() throws Exception {
-        var req = new CreateNodeRequest(topicId, NodeType.CLAIM, "Тезис", null, null, null);
+        var req = new CreateNodeRequest(topicId, NodeType.CLAIM, "Тезис", null);
 
         mockMvc.perform(post("/api/v1/nodes")
                         .header("X-User-Id", userId.toString())
@@ -77,7 +77,7 @@ class NodeControllerIT {
 
     @Test
     void createNode_whenTopicMissing_returns404() throws Exception {
-        var req = new CreateNodeRequest(UUID.randomUUID(), NodeType.CLAIM, "x", null, null, null);
+        var req = new CreateNodeRequest(UUID.randomUUID(), NodeType.CLAIM, "x", null);
 
         mockMvc.perform(post("/api/v1/nodes")
                         .header("X-User-Id", userId.toString())
@@ -89,7 +89,7 @@ class NodeControllerIT {
 
     @Test
     void createNode_blankContent_returns400() throws Exception {
-        var req = new CreateNodeRequest(topicId, NodeType.CLAIM, "   ", null, null, null);
+        var req = new CreateNodeRequest(topicId, NodeType.CLAIM, "   ", null);
 
         mockMvc.perform(post("/api/v1/nodes")
                         .header("X-User-Id", userId.toString())
@@ -102,7 +102,7 @@ class NodeControllerIT {
     @Test
     void updateContent_returns200_andWritesRevision() throws Exception {
         UUID nodeId = createNode("старый");
-        var req = new UpdateNodeRequest("новый", null, null, null, null, null);
+        var req = new UpdateNodeRequest("новый", null, null, null);
 
         mockMvc.perform(patch("/api/v1/nodes/{id}", nodeId)
                         .header("X-User-Id", userId.toString())
@@ -121,7 +121,7 @@ class NodeControllerIT {
 
     @Test
     void updateContent_whenNodeMissing_returns404() throws Exception {
-        var req = new UpdateNodeRequest("x", null, null, null, null, null);
+        var req = new UpdateNodeRequest("x", null, null, null);
 
         mockMvc.perform(patch("/api/v1/nodes/{id}", UUID.randomUUID())
                         .header("X-User-Id", userId.toString())
@@ -134,7 +134,7 @@ class NodeControllerIT {
     @Test
     void updatePosition_returns200_andPersists_andDoesNotWriteRevision() throws Exception {
         UUID nodeId = createNode("x");
-        var req = new UpdateNodeRequest(null, 100.5, -42.0, null, null, null);
+        var req = new UpdateNodeRequest(null, 100.5, -42.0, null);
 
         mockMvc.perform(patch("/api/v1/nodes/{id}", nodeId)
                         .header("X-User-Id", userId.toString())
@@ -154,7 +154,7 @@ class NodeControllerIT {
     @Test
     void updateNode_emptyBody_returns400() throws Exception {
         UUID nodeId = createNode("x");
-        var req = new UpdateNodeRequest(null, null, null, null, null, null);
+        var req = new UpdateNodeRequest(null, null, null, null);
 
         mockMvc.perform(patch("/api/v1/nodes/{id}", nodeId)
                         .header("X-User-Id", userId.toString())
@@ -187,7 +187,7 @@ class NodeControllerIT {
     }
 
     private UUID createNode(String content) throws Exception {
-        var req = new CreateNodeRequest(topicId, NodeType.CLAIM, content, null, null, null);
+        var req = new CreateNodeRequest(topicId, NodeType.CLAIM, content, null);
         String json = mockMvc.perform(post("/api/v1/nodes")
                         .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)

@@ -189,7 +189,7 @@ class TopicExportServiceIT {
         UUID nodeId = UUID.randomUUID();
         Node root = new Node(nodeId, topicId, NodeType.QUESTION, rootQuestion,
                 NodeStatus.UNVERIFIED, null, null, 0, userId, now, now,
-                null, null, null);
+                null);
         nodeRepository.save(root);
         topicRepository.updateRootNodeId(topicId, nodeId);
         return topicRepository.findById(topicId).orElseThrow();
@@ -200,7 +200,7 @@ class TopicExportServiceIT {
         UUID id = UUID.randomUUID();
         Node n = new Node(id, topicId, type, content, NodeStatus.UNVERIFIED,
                 100.0, 200.0, 0, userId, now, now,
-                null, null, null);
+                null);
         nodeRepository.save(n);
         return n;
     }

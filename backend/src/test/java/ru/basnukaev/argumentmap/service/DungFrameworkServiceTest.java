@@ -261,7 +261,7 @@ class DungFrameworkServiceTest {
         Instant now = Instant.now();
         return new Node(UUID.randomUUID(), topicId, NodeType.CLAIM, "c",
                 NodeStatus.UNVERIFIED, null, null, 0, userId, now, now,
-                null, null, null);
+                null);
     }
 
     private Edge edge(UUID from, UUID to, EdgeType type) {
