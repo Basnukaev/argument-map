@@ -239,7 +239,10 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
                     : path;
             return basename.isBlank() ? filename : basename;
         }
-        return filename;
+        // Strip leading slash для relative filename: иначе storage key
+        // получает двойной слеш `bookId//01.pdf` который S3/MinIO
+        // отвергают как "unsupported characters"
+        return filename.startsWith("/") ? filename.substring(1) : filename;
     }
 
     /**
@@ -268,12 +271,24 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
                     "pdf_links.root отсутствует для книги " + book.id()
                             + " (filename '" + filename + "' относительный)");
         }
-        return URI.create(meta.root() + filename);
+        // Защита от двойного слеша: если root заканчивается на '/' и
+        // filename начинается с '/', склейка дала бы `//`. URI.create
+        // не валится, но archive.org/CDN мирор может redirect'ить или
+        // вернуть 404. Strip leading slash у filename - оба варианта
+        // shamela ("01.pdf" и "/01.pdf") дают канонический URL
+        String tail = filename.startsWith("/") ? filename.substring(1) : filename;
+        return URI.create(meta.root() + tail);
     }
 
     private static boolean isAbsoluteUrl(String filename) {
-        return filename != null
-                && (filename.startsWith("http://") || filename.startsWith("https://"));
+        if (filename == null) {
+            return false;
+        }
+        // case-insensitive prefix: RFC 3986 говорит схема case-insensitive,
+        // shamela теоретически может отдать "HTTPS://..." (наблюдалось в
+        // других ETL-источниках, для shamela пока не было, но защищаемся)
+        String lower = filename.toLowerCase(java.util.Locale.ROOT);
+        return lower.startsWith("http://") || lower.startsWith("https://");
     }
 
     private PdfStreamingResult streamFromMinIO(

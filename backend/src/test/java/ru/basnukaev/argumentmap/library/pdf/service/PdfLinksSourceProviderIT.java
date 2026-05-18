@@ -359,6 +359,43 @@ class PdfLinksSourceProviderIT {
                 .isInstanceOf(ShamelaApiException.class)
                 .hasMessageContaining("pdf_links.root отсутствует")
                 .hasMessageContaining("01_book.pdf");
+        // upstream НЕ позвался - exception до fetch. Защита от того
+        // что мы бы пытались GET'нуть невалидный URL вроде "null01_book.pdf"
+        verify(pdfFetcher, never()).fetch(any(URI.class), any(Path.class));
+    }
+
+    @Test
+    void isAbsoluteUrl_caseInsensitive_acceptsUppercaseScheme() {
+        // RFC 3986: schemes are case-insensitive. Защита от "HTTPS://..."
+        // которые встречаются в некоторых ETL-источниках
+        Book book = saveBookWithAbsoluteUrlPdf(
+                "HTTPS://archive.org/download/foo/bar.pdf");
+
+        PdfLocation loc = provider.locateFile(book, 0);
+
+        // storage key из basename - URL-схема не leaked
+        assertThat(loc.storageKey()).isEqualTo(book.id() + "/bar.pdf");
+    }
+
+    @Test
+    void locateFile_rootWithTrailingSlashAndFilenameWithLeadingSlash_normalizesToSingleSlash() {
+        // защита от двойного слеша когда shamela metadata содержит
+        // root="https://.../foo/" + filename="/01.pdf" - наивная склейка
+        // дала бы "https://.../foo//01.pdf". archive.org/CDN могут
+        // redirect или 404 на двойной слеш
+        Book book = saveBookWithMetadata(
+                "{\"pdf_links\":{" +
+                        "\"root\":\"https://archive.org/download/test/\"," +
+                        "\"size\":2048," +
+                        "\"files\":[\"/01_book.pdf\"]" +
+                        "}}");
+
+        provider.locateFile(book, 0);
+
+        ArgumentCaptor<URI> urlCaptor = ArgumentCaptor.forClass(URI.class);
+        verify(pdfFetcher).fetch(urlCaptor.capture(), any(Path.class));
+        assertThat(urlCaptor.getValue().toString())
+                .isEqualTo("https://archive.org/download/test/01_book.pdf");
     }
 
     @Test
