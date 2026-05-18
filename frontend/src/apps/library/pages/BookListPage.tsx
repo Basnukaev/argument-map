@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import {
   BookOpen,
@@ -26,6 +26,8 @@ type Book = components['schemas']['BookSummaryResponse'];
 type BookType = NonNullable<Book['bookType']>;
 type BookDetailResponse = components['schemas']['BookDetailResponse'];
 type PagedBooks = components['schemas']['PagedResponseBookSummaryResponse'];
+type AuthorityResponse = components['schemas']['AuthorityResponse'];
+type PagedAuthorities = components['schemas']['PagedResponseAuthorityResponse'];
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -85,7 +87,10 @@ const VISIBILITY_FILTERS: ReadonlyArray<VisibilityFilter> = [
   'PUBLIC',
 ];
 
-type SortKey = 'added' | 'title' | 'type';
+/** Sort - client-side поверх загруженного. Backend default = createdAt DESC
+ * (стабильный порядок) = `latest`. `alphabetical` сортирует по title через
+ * localeCompare. Server-side sort через ?sort=field,DESC - в backlog */
+type SortKey = 'latest' | 'alphabetical';
 
 function BookListPage() {
   const t = useT();
@@ -94,7 +99,8 @@ function BookListPage() {
   const [searchQ, setSearchQ] = useState('');
   const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilter>('ALL');
   const [typeFilter, setTypeFilter] = useState<BookType | 'ALL'>('ALL');
-  const [sortBy, setSortBy] = useState<SortKey>('added');
+  const [authorityFilter, setAuthorityFilter] = useState<AuthorityResponse | null>(null);
+  const [sortBy, setSortBy] = useState<SortKey>('latest');
   const [editingBook, setEditingBook] = useState<BookDetailResponse | null>(null);
   const [loadingEdit, setLoadingEdit] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -127,8 +133,9 @@ function BookListPage() {
     }
   };
 
-  /** URL builder - объединяет current filter state. Server-side: ?q=, ?type=,
-   * ?page=, ?size=. Visibility и sort - client-side (backend не поддерживает) */
+  /** URL builder - объединяет current filter state. Server-side: ?q=,
+   * ?type=, ?authorityId=, ?page=, ?size=. Visibility и sort -
+   * client-side (backend не поддерживает) */
   const buildBooksUrl = useCallback(
     (page: number): string => {
       const params = new URLSearchParams();
@@ -136,9 +143,10 @@ function BookListPage() {
       params.set('size', String(PAGE_SIZE));
       if (searchQ) params.set('q', searchQ);
       if (typeFilter !== 'ALL') params.set('type', typeFilter);
+      if (authorityFilter?.id) params.set('authorityId', authorityFilter.id);
       return `/api/v1/library/books?${params.toString()}`;
     },
-    [searchQ, typeFilter],
+    [searchQ, typeFilter, authorityFilter],
   );
 
   /** Initial fetch + refetch при изменении server-side filters (q/type).
@@ -199,20 +207,18 @@ function BookListPage() {
   };
 
   /** Client-side filter: visibility + sort поверх загруженной страницы.
-   * Search/type/authorityId уже применены server-side через ?q=&type= */
+   * Search/type/authorityId уже применены server-side через ?q=&type=&
+   * authorityId= */
   const displayedBooks = useMemo(() => {
     if (state.kind !== 'success') return [];
     let list = state.data.books;
     if (visibilityFilter !== 'ALL') {
       list = list.filter((b) => b.visibility === visibilityFilter);
     }
-    if (sortBy === 'title') {
+    if (sortBy === 'alphabetical') {
       list = [...list].sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''));
-    } else if (sortBy === 'type') {
-      list = [...list].sort((a, b) =>
-        (a.bookType ?? '').localeCompare(b.bookType ?? ''),
-      );
     }
+    // 'latest' - backend default order (createdAt DESC, стабильный)
     return list;
   }, [state, visibilityFilter, sortBy]);
 
@@ -254,17 +260,23 @@ function BookListPage() {
               )}
             </div>
 
+            <AuthorityFilter
+              selected={authorityFilter}
+              onChange={setAuthorityFilter}
+            />
+
             <label className="ms-auto inline-flex items-center gap-2 text-xs text-ink-500">
-              {t('book.list.sort_label')}
+              {t('library.overview.sort.label')}
               <span className="relative inline-flex items-center">
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as SortKey)}
                   className="h-9 appearance-none rounded-sm border border-ink-200 bg-elevated ps-3 pe-7 text-xs font-medium text-ink-900 outline-none focus:border-accent-500"
                 >
-                  <option value="added">{t('book.list.sort_added')}</option>
-                  <option value="title">{t('book.list.sort_title')}</option>
-                  <option value="type">{t('book.list.sort_type')}</option>
+                  <option value="latest">{t('library.overview.sort.latest')}</option>
+                  <option value="alphabetical">
+                    {t('library.overview.sort.alphabetical')}
+                  </option>
                 </select>
                 <ChevronDown
                   size={12}
@@ -454,6 +466,143 @@ function LibraryHero({ totalCount }: LibraryHeroProps) {
         </Button>
       </Link>
     </header>
+  );
+}
+
+/** Authority dropdown - text input + debounced search через
+ * /api/v1/authorities?q=. Dropdown показывает до 10 results,
+ * click select. Без virtualization (MVP размер списка) */
+interface AuthorityFilterProps {
+  selected: AuthorityResponse | null;
+  onChange: (v: AuthorityResponse | null) => void;
+}
+
+function AuthorityFilter({ selected, onChange }: AuthorityFilterProps) {
+  const t = useT();
+  const [query, setQuery] = useState('');
+  const [debouncedQ, setDebouncedQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const [results, setResults] = useState<AuthorityResponse[]>([]);
+  const [loading, setLoading] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedQ(query.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+  }, [query]);
+
+  /** Fetch authorities когда dropdown открыт и query поменялся.
+   * setLoading(true) синхронно в effect не вызываем (eslint
+   * react-hooks/set-state-in-effect) - через microtask Promise.resolve
+   * правило допускает (async callback) */
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    void Promise.resolve().then(() => {
+      if (controller.signal.aborted) return;
+      setLoading(true);
+    });
+    const params = new URLSearchParams();
+    if (debouncedQ) params.set('q', debouncedQ);
+    params.set('size', '10');
+    apiGetRaw<PagedAuthorities>(`/api/v1/authorities?${params.toString()}`, {
+      signal: controller.signal,
+    })
+      .then((paged) => {
+        if (controller.signal.aborted) return;
+        setResults((paged.items ?? []) as AuthorityResponse[]);
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        // тихо игнорим - dropdown покажет empty state
+        setResults([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [debouncedQ, open]);
+
+  // close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  const displayValue = selected?.name ?? selected?.fullName ?? '';
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <div className="flex h-9 min-w-[180px] items-center rounded-md border border-ink-200 bg-elevated transition-all focus-within:border-accent-500 focus-within:ring-2 focus-within:ring-accent-500/20">
+        <input
+          type="search"
+          value={open ? query : displayValue}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            if (!open) setOpen(true);
+          }}
+          onFocus={() => {
+            setOpen(true);
+            setQuery('');
+          }}
+          placeholder={t('library.overview.filter.authority_placeholder')}
+          className="flex-1 bg-transparent px-3 text-xs text-ink-900 outline-none placeholder:text-ink-400"
+          aria-label={t('library.overview.filter.authority')}
+        />
+        {selected && (
+          <button
+            type="button"
+            onClick={() => {
+              onChange(null);
+              setQuery('');
+            }}
+            title={t('library.overview.filter.authority_clear')}
+            aria-label={t('library.overview.filter.authority_clear')}
+            className="me-2 grid h-6 w-6 place-items-center rounded-sm text-ink-400 hover:bg-ink-100 hover:text-ink-700"
+          >
+            <X size={12} aria-hidden />
+          </button>
+        )}
+      </div>
+      {open && (
+        <div className="absolute z-20 mt-1 max-h-72 w-full min-w-[240px] overflow-y-auto rounded-md border border-border bg-elevated shadow-sh2">
+          {loading && (
+            <div className="px-3 py-2 text-xs text-ink-500">
+              {t('common.loading')}
+            </div>
+          )}
+          {!loading && results.length === 0 && (
+            <div className="px-3 py-2 text-xs text-ink-500">
+              {t('topic.list.not_found')}
+            </div>
+          )}
+          {!loading &&
+            results.map((auth) => (
+              <button
+                key={auth.id}
+                type="button"
+                onClick={() => {
+                  onChange(auth);
+                  setOpen(false);
+                  setQuery('');
+                }}
+                className="block w-full px-3 py-2 text-start text-xs text-ink-700 hover:bg-ink-100"
+              >
+                <span dir="auto">{auth.name ?? auth.fullName ?? '—'}</span>
+                {auth.era && (
+                  <span className="ms-2 text-ink-400">· {auth.era}</span>
+                )}
+              </button>
+            ))}
+        </div>
+      )}
+    </div>
   );
 }
 
