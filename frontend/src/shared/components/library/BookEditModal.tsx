@@ -6,7 +6,7 @@ import Field from '@/shared/components/ui/Field';
 import VisibilityRadioGroup, {
   type Visibility,
 } from '@/shared/components/visibility/VisibilityRadioGroup';
-import BookMembersModal from '@/apps/library/components/BookMembersModal';
+import BookMembersModal from '@/shared/components/library/BookMembersModal';
 import AcademicMetadataFields, {
   parseIntOrNull,
   type AcademicMetadataValues,

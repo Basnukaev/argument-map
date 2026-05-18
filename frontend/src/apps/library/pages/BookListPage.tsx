@@ -13,7 +13,7 @@ import {
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import Button from '@/shared/components/ui/Button';
-import BookEditModal from '@/apps/admin/components/BookEditModal';
+import BookEditModal from '@/shared/components/library/BookEditModal';
 import VisibilityBadge from '@/shared/components/visibility/VisibilityBadge';
 import { apiGetRaw, ApiError, formatApiError } from '@/shared/api/client';
 import { formatPermissionError } from '@/shared/api/permissionErrors';

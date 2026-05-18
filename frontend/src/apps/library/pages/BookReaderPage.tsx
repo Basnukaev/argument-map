@@ -15,7 +15,7 @@ import VisibilityBadge from '@/shared/components/visibility/VisibilityBadge';
 import VisibilityRadioGroup, {
   type Visibility,
 } from '@/shared/components/visibility/VisibilityRadioGroup';
-import BookMembersModal from '@/apps/library/components/BookMembersModal';
+import BookMembersModal from '@/shared/components/library/BookMembersModal';
 import { apiGetRaw, apiPatchRaw, ApiError, formatApiError } from '@/shared/api/client';
 import { formatPermissionError } from '@/shared/api/permissionErrors';
 import { toast } from '@/shared/stores/toastStore';
