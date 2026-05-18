@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -20,6 +21,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import ru.basnukaev.argumentmap.auth.domain.AuthenticatedUser;
 import ru.basnukaev.argumentmap.auth.domain.User;
 import ru.basnukaev.argumentmap.auth.repository.UserRepository;
+import ru.basnukaev.argumentmap.web.RequestContextLogFilter;
 
 /**
  * Transitional dev/test fallback (ADR-040): если SecurityContext empty
@@ -83,6 +85,11 @@ public class XUserIdAuthenticationFilter extends OncePerRequestFilter {
                 List.of(new SimpleGrantedAuthority("ROLE_" + role))
         );
         SecurityContextHolder.getContext().setAuthentication(auth);
+        // populate MDC userId для логов downstream filter/controller'ов.
+        // Cleanup в RequestContextLogFilter finally
+        if (principal.id() != null) {
+            MDC.put(RequestContextLogFilter.MDC_USER_ID, principal.id().toString());
+        }
         log.debug("X-User-Id fallback: principal={} (dev/test profile, dbHit={})",
                 principal.id(), user != null);
         chain.doFilter(request, response);

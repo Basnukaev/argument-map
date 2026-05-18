@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -18,6 +19,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import ru.basnukaev.argumentmap.auth.domain.AuthenticatedUser;
 import ru.basnukaev.argumentmap.auth.service.JwtService;
 import ru.basnukaev.argumentmap.exception.InvalidTokenException;
+import ru.basnukaev.argumentmap.web.RequestContextLogFilter;
 
 /**
  * Чтение Authorization: Bearer &lt;token&gt; и установка principal в
@@ -71,6 +73,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     List.of(new SimpleGrantedAuthority("ROLE_" + principal.role()))
             );
             SecurityContextHolder.getContext().setAuthentication(auth);
+            // populate MDC userId для нижестоящих log statement'ов в
+            // этом запросе. RequestContextLogFilter сам не знает про
+            // JWT - он бежит перед auth-цепочкой. Cleanup MDC происходит
+            // в RequestContextLogFilter finally
+            if (principal.id() != null) {
+                MDC.put(RequestContextLogFilter.MDC_USER_ID, principal.id().toString());
+            }
         } catch (InvalidTokenException ex) {
             // Не падаем здесь - SecurityFilterChain решит 401 / permit
             log.debug("JWT validation failed: {}", ex.getMessage());

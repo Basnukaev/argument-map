@@ -222,6 +222,17 @@ management:
     circuitbreakers:
       enabled: true
 
+# Logging - вставляем MDC requestId и userId в default Spring Boot
+# pattern через расширение pattern.level. RequestContextLogFilter
+# ставит эти поля на каждый HTTP запрос (см. web/RequestContextLogFilter).
+# %X{requestId:-} - пустая строка если MDC поле не выставлено (startup
+# логи, фоновые задачи). Spring Boot сам подставит этот блок в дефолтный
+# %5p pattern - не переписываем весь pattern (color codes specifc для
+# console и file)
+logging:
+  pattern:
+    level: "%5p [%X{requestId:-}] [%X{userId:-}]"
+
 ---
 spring:
   config:
