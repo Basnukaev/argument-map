@@ -144,7 +144,7 @@ public class TopicRepository {
      */
     public List<TopicWithCounts> findVisibleToUserWithCounts(UUID userId) {
         String sql = """
-                SELECT t.id, t.title, t.description, t.root_node_id, t.created_by, t.created_at, t.visibility,
+                SELECT t.id, t.title, t.description, t.root_node_id, t.created_by, t.created_at, t.visibility, t.status_algorithm,
                        COALESCE(nc.cnt, 0) AS node_count,
                        COALESCE(ec.cnt, 0) AS edge_count
                 FROM topics t
