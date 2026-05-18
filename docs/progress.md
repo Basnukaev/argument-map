@@ -11,6 +11,54 @@
 
 ---
 
+## 2026-05-18 - Multi-grading хадисов backend (backlog item)
+
+Закрыт backlog «Multi-grading хадисов» (бэк часть). Один и тот же
+хадис может быть оценён разными учёными по-разному (Бухари: SAHIH,
+Тирмизи: HASAN, Албани: SAHIH). Существующее single-value
+`Source.reliability` не трогаем - остаётся primary/legacy для backward
+compatibility. Расширение - параллельная M:N таблица `hadith_grades`
+
+**Backend (3 коммита):**
+- Миграция 43 `hadith_grades` (UUID PK, source_id FK CASCADE на
+  sources, scholar_id FK RESTRICT на authorities, grade VARCHAR(20)
+  CHECK SAHIH/HASAN/DAIF/MAUDU, grade_citation VARCHAR(500), comment
+  text, created_at, created_by FK users, UNIQUE source+scholar) + 2
+  индекса. Domain: `HadithGrade` record + `HadithGradeValue` enum
+  (отдельно от legacy `Reliability` - добавлен `MAUDU` «выдуманный»
+  для полноты классической классификации) + `HadithGradeWithScholar`
+  (denormalized read-model). Repository: CRUD + `findBySourceIdWithScholar`
+  с JOIN на authorities (один SQL для GET endpoint - не N+1)
+- `HadithGradeService` - addGrade валидирует source.type=HADITH (400 - нельзя
+  grade'нуть BOOK/QURAN/ARTICLE), scholar exists (404), uniqueness
+  scholar-for-source (409). updateGrade/removeGrade - permission через
+  createdBy либо ADMIN (403 `forbidden-hadith-grade-write`). REST под
+  `/api/v1/sources`: POST/GET `{sourceId}/grades`, PATCH/DELETE
+  `grades/{gradeId}`. 4 новых exception type'а + handler'ы в
+  `GlobalExceptionHandler` (hadith-grade-not-found, invalid-hadith-grade,
+  hadith-grade-duplicate, forbidden-hadith-grade-write)
+- 23 IT (14 service + 9 controller) - все сценарии edge cases
+
+**Verify:**
+- `./mvnw verify` - 825 tests pass / 2 skipped (live tests, ожидаемо)
+  / 0 failures / 0 errors. Время полного билда ~1:46
+
+**Что НЕ сделано (отложено в backlog):**
+- Frontend UI (`HadithGradesSection` в `SourceCard` + `AddHadithGradeModal`) -
+  бэк endpoint'ы готовы, можно поднять curl'ом. UI требует своей
+  дизайн-сессии (color-coded grade badges, scholar autocomplete,
+  edit/delete actions). Параллельно работал frontend subagent над
+  Onboarding - не сталкивались по файлам, но в одну сессию два
+  больших фронт-таска - перегрузка
+- `findConsensusGrade(sourceId)` helper для majority-grade - не нужен
+  пока UI не покажет «итоговую оценку» рядом с individual
+
+**Параллельная работа:** frontend subagent в той же сессии закрыл
+Onboarding (запись выше). Зоны не пересекались - backend hadith_grades
++ frontend onboarding/. Один merge без конфликтов
+
+---
+
 ## 2026-05-18 - Onboarding checklist (backlog item)
 
 Закрыт backlog «Onboarding» - 4-шаговый floating widget для новых

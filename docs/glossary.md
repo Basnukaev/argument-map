@@ -150,15 +150,28 @@ weight-сигнале).
 надёжности от ас-сахабий до условного-надёжного).
 
 **Hadith grade (степень хадиса)** — оценка достоверности хадиса
-учёным. Базовые значения (поле `Reliability`):
+учёным. Базовые значения (legacy domain `Reliability`):
 - `sahih` — достоверный
 - `hasan` — хороший
 - `daif` — слабый
 
-Multi-grade означает что один и тот же хадис мог быть оценён
-разными учёными (Бухари, Тирмизи, Навави) - в дизайне
-`MultiGradingSection` показывает чипы с отдельными оценками
-от каждого. Поле `Reliability` сейчас на бэке — single-value.
+Multi-grading реализовано на бэке (2026-05-18, миграция 43 +
+таблица `hadith_grades`). Один и тот же хадис может быть оценён
+разными учёными: Бухари: `SAHIH`, Тирмизи: `HASAN`, Албани:
+`SAHIH`. UNIQUE (source_id, scholar_id) - один scholar даёт одну
+оценку конкретному источнику. Whitelist оценок -
+`HadithGradeValue { SAHIH, HASAN, DAIF, MAUDU }` (см.
+**Maudu** ниже). Legacy single-value `Source.reliability` не
+трогаем - primary/быстрая ссылка остаётся, multi-grading -
+расширение. Фронт UI (`HadithGradesSection` в `SourceCard`) -
+в backlog. REST: см. `api-contract.md` секция «Hadith grades API».
+
+**Maudu (выдуманный)** — четвёртая категория оценки хадиса, не
+входящая в legacy `Reliability` enum (там только SAHIH/HASAN/
+DAIF). Означает что хадис фабрикован - приписан Пророку ﷺ
+ложно. Введена в multi-grading (`HadithGradeValue.MAUDU`) для
+полноты классической классификации. Учёный (например ибн
+аль-Джаузи в «Маудуат») явно отмечает хадис как выдуманный.
 
 **Tashkeel (огласовки)** — диакритические знаки в арабском тексте
 (`harakat`: фатха, кясра, дамма, шадда, сукун). Toggle "с/без

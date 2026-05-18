@@ -163,11 +163,23 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       потребует расширения доменной модели (новые сущности
       `Rawi`, `Sanad`, `SanadLink`) _(SanadExplorer, SANAD demo
       data)_
-- [ ] **Multi-grading хадисов** - один хадис может быть оценён
-      несколькими учёными по-разному (Бухари: sahih, Тирмизи:
-      hasan). Сейчас `Reliability` - single-value. Расширение на
-      M:N таблицу `hadith_grades` (rawi / scholar / grade / source)
-      _(MultiGradingSection, SCHOLAR_GRADES demo)_
+- [x] **Multi-grading хадисов** - закрыто 2026-05-18 (backend). Миграция 43
+      `hadith_grades` (source × scholar × grade с UNIQUE constraint),
+      whitelist `SAHIH/HASAN/DAIF/MAUDU` (добавлен `MAUDU` отдельно от
+      legacy `Reliability` enum - не трогаем `Source.reliability`
+      single-value). 4 REST endpoint под `/api/v1/sources` (POST/GET
+      `{sourceId}/grades`, PATCH/DELETE `grades/{gradeId}`). Permission:
+      author либо ADMIN на mutating. GET возвращает denormalized scholar
+      info через JOIN на authorities (один SQL без N+1). 23 IT (14 service
+      + 9 controller). Frontend UI - отдельная задача ниже
+- [ ] **Multi-grading UI** - бэк готов (`GET /sources/{id}/grades`),
+      нужен `HadithGradesSection` в `SourceCard` (виден только при
+      `sourceType=HADITH`), collapsible с list grades (scholar name /
+      grade badge color-coded SAHIH=green/HASAN=yellow/DAIF=red/
+      MAUDU=dark red / gradeCitation small text / comment expandable),
+      кнопка «Добавить оценку» → modal с scholar autocomplete + grade
+      radio + citation + comment, edit/delete actions для author/admin.
+      i18n keys `hadith.grades.*` _(MultiGradingSection, SCHOLAR_GRADES demo)_
 - [ ] **Bilingual карточки** - двуязычный режим узла
       (EVIDENCE / ARGUMENT с арабским оригиналом + русским
       переводом). Toggle режима оригинал / перевод / оба.

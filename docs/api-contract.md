@@ -2686,6 +2686,105 @@ URL hierarchy сохраняет `answerId` под будущую авториз
   поддерживает - добавим если появится UX-кейс
 - Soft delete + audit (после auth)
 
+## Hadith grades API (multi-grading)
+
+Один и тот же хадис (source с `sourceType=HADITH`) может быть оценён
+разными учёными по-разному. Существующее single-value поле
+`sources.reliability` остаётся как primary/legacy. Расширение - таблица
+`hadith_grades` с whitelist оценок `SAHIH/HASAN/DAIF/MAUDU` и unique
+constraint `(source_id, scholar_id)` - один scholar даёт одну оценку
+конкретному источнику.
+
+`MAUDU` («выдуманный») - четвёртая категория, отсутствует в legacy enum
+`Reliability` (используется только в multi-grading через
+`HadithGradeValue`).
+
+**Permission rules:**
+
+- `POST` / `GET` - любой authenticated user
+- `PATCH` / `DELETE` - только автор оценки (`createdBy`) либо `ADMIN`
+
+### POST /api/v1/sources/{sourceId}/grades
+
+**Body** `CreateHadithGradeRequest`:
+
+```json
+{
+  "scholarId": "uuid",
+  "grade": "SAHIH | HASAN | DAIF | MAUDU",
+  "gradeCitation": "string (max 500, optional)",
+  "comment": "string (max 5000, optional)"
+}
+```
+
+**Response 201 Created** + `Location: /api/v1/sources/grades/{gradeId}`,
+тело `HadithGradeResponse` (без denormalized scholar полей - фронт
+получит их через `GET /sources/{id}/grades`).
+
+**Ошибки:**
+
+- 400 `invalid-hadith-grade` - source не HADITH (нельзя grade'нуть
+  BOOK / QURAN / ARTICLE) либо `grade` null
+- 400 validation - missing `scholarId` / `grade`
+- 404 `source-not-found` / `authority-not-found`
+- 409 `hadith-grade-duplicate` - тот же scholar уже оценил
+  (properties `sourceId`, `scholarId`)
+
+### GET /api/v1/sources/{sourceId}/grades
+
+**Response 200** - `HadithGradeResponse[]` (массив, не paged - реалистичный
+N для одного хадиса <50, pagination избыточна). Сортировка `created_at ASC`.
+Содержит denormalized scholar info (`scholarName`, `scholarFullName`,
+`scholarDeathYearHijri`) через JOIN с `authorities` - один SQL без N+1.
+
+**Ошибки:** 404 `source-not-found`.
+
+### PATCH /api/v1/sources/grades/{gradeId}
+
+**Body** `UpdateHadithGradeRequest`:
+
+```json
+{
+  "grade": "SAHIH | HASAN | DAIF | MAUDU",
+  "gradeCitation": "string (max 500, optional)",
+  "comment": "string (max 5000, optional)"
+}
+```
+
+`grade` обязателен. `gradeCitation` / `comment` - replace-semantics
+(передать `null` чтобы очистить).
+
+**Response 200** - `HadithGradeResponse`.
+
+**Ошибки:**
+
+- 400 validation - missing `grade`
+- 403 `forbidden-hadith-grade-write` - не автор и не ADMIN
+  (properties `gradeId`, `userId`)
+- 404 `hadith-grade-not-found`
+
+### DELETE /api/v1/sources/grades/{gradeId}
+
+**Response 204 No Content**.
+
+**Ошибки:** 403 `forbidden-hadith-grade-write` / 404 `hadith-grade-not-found`.
+
+### HadithGradeResponse
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `id` | UUID | id записи |
+| `sourceId` | UUID | FK на `sources` |
+| `scholarId` | UUID | FK на `authorities` |
+| `scholarName` | string \| null | denormalized, заполняется только в GET list |
+| `scholarFullName` | string \| null | полное имя учёного из `authorities.full_name` |
+| `scholarDeathYearHijri` | integer \| null | год смерти по хиджре |
+| `grade` | string | `SAHIH` / `HASAN` / `DAIF` / `MAUDU` |
+| `gradeCitation` | string \| null | где scholar дал эту оценку (книга/страница) |
+| `comment` | string \| null | комментарий учёного |
+| `createdAt` | timestamp | UTC |
+| `createdBy` | UUID | автор записи в системе |
+
 ## Audit log API (ADR-043 Amendment 3, Этап 22.d)
 
 Просмотр аудит-трейла мутаций per-entity. Все mutations
@@ -2912,6 +3011,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-18 | v1 | Multi-grading хадисов. Миграция 43 - новая таблица `hadith_grades (id UUID PK, source_id FK CASCADE, scholar_id FK RESTRICT на authorities, grade VARCHAR(20) CHECK SAHIH/HASAN/DAIF/MAUDU, grade_citation VARCHAR(500), comment text, created_at, created_by FK users, UNIQUE(source_id, scholar_id))` + 2 индекса. 4 новых REST endpoint под `/api/v1/sources`: `POST /{sourceId}/grades` (CreateHadithGradeRequest{scholarId, grade, gradeCitation?, comment?} → 201 HadithGradeResponse + Location), `GET /{sourceId}/grades` (HadithGradeResponse[] с denormalized scholar info через JOIN на authorities - один SQL без N+1), `PATCH /grades/{gradeId}` (UpdateHadithGradeRequest, author либо ADMIN), `DELETE /grades/{gradeId}` (204, author либо ADMIN). Новый enum `HadithGradeValue` отдельно от legacy `Reliability` - добавлен `MAUDU` («выдуманный») как четвёртая категория для multi-grading. Существующее `sources.reliability` single-value не трогаем (legacy primary). Новые ошибки: 400 `invalid-hadith-grade` (source не HADITH либо grade null), 404 `hadith-grade-not-found`, 409 `hadith-grade-duplicate` (тот же scholar уже оценил, properties sourceId/scholarId), 403 `forbidden-hadith-grade-write` (не автор/не ADMIN, properties gradeId/userId) | Backlog «Multi-grading хадисов» закрыт. Учёные часто расходятся в оценке - один хадис может быть SAHIH по Бухари, HASAN по Тирмизи. M:N модель source × scholar с unique constraint защищает от дублей. Без ADR - чистое расширение domain без architectural alternatives |
 | 2026-05-18 | v1 | Settings screen - user preferences API. Миграция 42 - новая таблица `user_preferences (id UUID PK, user_id FK CASCADE, key VARCHAR(100), value jsonb, updated_at, UNIQUE(user_id, key))` + индекс. 4 новых endpoint под `/api/v1/preferences`: `GET` возвращает `Map<String, Object>` всех текущих prefs user'а (десериализация jsonb через ObjectMapper); `PUT` принимает Map для bulk update (валидация всех ключей до записи, @Transactional rollback на ошибку); `PUT /{key}` принимает конверт `{value: ...}` для одного ключа (boolean/string/number); `DELETE /{key}` удаляет ключ - revert на дефолт. Whitelisted keys валидируются в `UserPreferenceService.ALLOWED_VALUES`: `locale` (ru/ar/en), `arabicFont` (naskh/kufi/tahoma), `textSize` (small/medium/large/xl), `theme` (system/light/dark) - enum string; `hideTashkeelByDefault`, `transliteration` - boolean. Невалидный ключ или значение → 400 `illegal-argument`. Все endpoints под current user через `@CurrentUser UUID userId` - изоляция читает/пишет только свои prefs. Upsert через `INSERT ON CONFLICT (user_id, key) DO UPDATE` - повторная запись обновляет value + updated_at | Backlog «Settings screen» закрыт. JSONB store для гибкости (расширение whitelist - только правка кода сервиса, новая миграция не нужна). LocalStorage cache на фронте для FOUC prevention, backend wins на login. ADR не пишем - решение очевидное (key-value table + whitelist), без alternatives to compare |
 | 2026-05-18 | v1 | Inline citations `[N]` в тексте узла. `NodeResponse` расширен полем `inlineCitations: InlineCitationRef[]` (после `userVote`). Новый schema `InlineCitationRef{ordinal: int 1-based, nodeSourceId, sourceId, sourceType, title, citation, quote, reliability}`. Bulk-load в GET `/topics/{id}/graph` через `NodeSourceRepository.findInlineCitationsForNodes(nodeIds)` - один SQL на весь граф (JOIN sources + lib_books, ORDER BY node_id, created_at ASC). Mutating endpoints на узлах (POST `/nodes`, PATCH `/nodes/{id}`, z-order) подгружают через `findInlineCitationsForNode(nodeId)` точечно. Title fallback chain: `book.title → source.title`. `reliability` отдаётся только для HADITH. Подход A (implicit ordinal): фронт парсит `[1]`, `[2]` в `content` и резолвит по `ordinal` совпадающему с порядком node_sources.created_at ASC. Без миграции БД - feature чисто на запросном уровне. Backward-compat: для узлов без node_sources массив пустой | Backlog «Inline citations - формат [1] в тексте с popover» закрыт. Подход implicit ordinal выбран как MVP (простой, достаточно для начала); если возникнут reorder issues - переход на mixed `[#sourceId]` без breaking change |
 | 2026-05-18 | v1 | Dung's argumentation framework opt-in (ADR-044, Этап 6). Миграция 41 ALTER `topics` добавляет колонку `status_algorithm VARCHAR(20) NOT NULL DEFAULT 'MVP'` + CHECK constraint `IN ('MVP','DUNG_GROUNDED')`. `TopicResponse` расширен полем `statusAlgorithm: MVP\|DUNG_GROUNDED`. Новый endpoint `PATCH /api/v1/topics/{id}/status-algorithm` (`UpdateTopicStatusAlgorithmRequest{algorithm}`, owner only, 200 OK + recalc side effect) - триггерит пересчёт всех узлов под новым алгоритмом в той же транзакции. No-op для same value (не пишет audit, не recalc). 400 для невалидного enum через Pattern в DTO; 403 `forbidden-topic-write` для не-owner / не-ADMIN; 404 для unknown topic. Audit как UPDATE action с FieldDiff statusAlgorithm {old, new}. DUNG_GROUNDED игнорирует SUPPORTS/QUALIFIES/RESPONDS_TO (только attack-edges REFUTES + INVALIDATES), mapping IN→STANDING/OUT→REFUTED/UNDEC→DISPUTED. UNVERIFIED не используется в Dung'е. **Frontend UI toggle отложен в backlog** - сейчас доступен только через curl. Дефолт MVP сохраняет existing behavior, нет breaking change | ADR-044: opt-in переключение через колонку. Rejected: replace MVP полностью (breaking), preferred/stable semantics (multiple extensions, сложнее mapping), bipolar argumentation (over-engineering MVP). Backlog Этап 6 «Реализация Dung's framework» закрыт |
