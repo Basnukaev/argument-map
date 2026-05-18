@@ -85,6 +85,39 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 Не должно быть так что фикс делается, gotcha не записан, через
 две недели наступаем на тех же граблях
 
+## Code review после крупных этапов (mandatory)
+
+После каждого крупного этапа (закрытие Этапа N целиком либо
+закрытие N подэтапов одной темы) **обязательно** вызвать
+`/superpowers:requesting-code-review`:
+
+- После закрытия Этапа целиком (миграция + domain + service + REST + IT)
+- После каждых 5-7 атомарных commit'ов на одну тему
+- Перед обновлением roadmap записи в «Закрытые этапы»
+- Перед финальным handoff коммитом сессии
+
+**Зачем:** reviewer ловит issues которые subagent мог пропустить -
+subtle SQL bugs, missing permission checks, integer overflow,
+inaccurate комментарии, race conditions, dead code, отложенные
+issues не зафиксированные в backlog.
+
+**Workflow:**
+1. Закрылся этап → коммит-handoff `feat(backend): этап N closed`
+2. Вызвать `/superpowers:requesting-code-review` с BASE/HEAD SHA
+3. Прочитать reviewer's report - Critical/Important/Minor
+4. Закрыть **все Critical** и **все Important** в отдельных fix-коммитах
+5. **Только после этого** обновлять `roadmap.md` запись в «Закрытые»
+   и делать handoff `docs: handoff Сессии N`
+
+Если reviewer flag'нул Issue которое **намеренно** не делаем -
+зафиксировать в `docs/backlog.md` либо в комментарии в коде с
+обоснованием. Иначе reviewer flag'нет тот же Issue снова на
+следующем цикле (см. как было с shared MinIO Testcontainer).
+
+См. memory `feedback_no_self_context_tracking.md` - я не должен
+сам решать когда останавливаться, но code review между крупными
+этапами - часть workflow, не stopping point.
+
 ## Соглашения по Java/Spring
 
 ### Общие
