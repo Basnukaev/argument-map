@@ -486,8 +486,15 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
       if (rootSkipped) toast.warning(t('graph.root.delete_skipped_toast'));
       return true;
     } catch (e: unknown) {
-      const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
-      toast.error(`${t('graph.toast.delete_failed')}: ${msg}`);
+      // permission-aware: при отзыве прав в момент удаления показываем
+      // explicit "нет прав", иначе generic delete_failed с titlemessage.
+      // Mirror runBulkStatusChange behavior (Code review round 4 #4)
+      if (e instanceof ApiError && e.is('forbidden-topic-write')) {
+        toast.error(t('bulk_actions.error.permission_denied'));
+      } else {
+        const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
+        toast.error(`${t('graph.toast.delete_failed')}: ${msg}`);
+      }
       return false;
     } finally {
       setDeleting(false);
@@ -527,7 +534,19 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
       const failures = results.length - successes;
 
       if (successes === 0) {
-        toast.error(t('bulk_actions.error.all_failed'));
+        // permission-aware error: если все 403 (отозвали права во время
+        // выделения - типичный сценарий: owner SHARED-темы убрал EDITOR
+        // membership пока пользователь делал bulk action) - показываем
+        // explicit "нет прав" вместо generic "не удалось"
+        const firstFailure = results.find(
+          (r): r is PromiseRejectedResult => r.status === 'rejected',
+        );
+        const reason = firstFailure?.reason;
+        if (reason instanceof ApiError && reason.is('forbidden-topic-write')) {
+          toast.error(t('bulk_actions.error.permission_denied'));
+        } else {
+          toast.error(t('bulk_actions.error.all_failed'));
+        }
       } else if (failures > 0) {
         toast.warning(
           t('bulk_actions.success.status_updated_partial')

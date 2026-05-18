@@ -721,6 +721,7 @@ export const DICTIONARY = {
     'bulk_actions.success.status_updated_partial': 'Статус обновлён у {success} из {total}',
     'bulk_actions.error.partial_failed': 'Не удалось обработать {failed}',
     'bulk_actions.error.all_failed': 'Не удалось обновить ни один узел',
+    'bulk_actions.error.permission_denied': 'Нет прав на изменение этих узлов',
     'bulk_actions.warn.no_writable_nodes': 'Среди выделения нет узлов которые можно изменить',
 
     // layout algorithm switch
@@ -1803,6 +1804,7 @@ export const DICTIONARY = {
     'bulk_actions.success.status_updated_partial': 'تم تحديث الحالة لـ {success} من {total}',
     'bulk_actions.error.partial_failed': 'تعذّر معالجة {failed}',
     'bulk_actions.error.all_failed': 'تعذّر تحديث أي عقدة',
+    'bulk_actions.error.permission_denied': 'لا تملك صلاحية تعديل هذه العقد',
     'bulk_actions.warn.no_writable_nodes': 'لا توجد عقد قابلة للتعديل في التحديد',
 
     'layout.menu_label': 'خوارزمية التخطيط',
