@@ -35,23 +35,24 @@ function UserPreferencesSection() {
   const setPref = usePreferencesStore((s) => s.set);
   const resetAll = usePreferencesStore((s) => s.resetAll);
 
-  async function update<K extends 'locale' | 'arabicFont' | 'textSize' | 'hideTashkeelByDefault' | 'transliteration'>(
-    key: K,
-    value: K extends 'locale'
-      ? LocalePref
-      : K extends 'arabicFont'
-        ? ArabicFontPref
-        : K extends 'textSize'
-          ? TextSizePref
-          : boolean,
-  ) {
+  async function tryPersist(action: () => Promise<void>) {
     try {
-      await setPref(key, value);
+      await action();
       showToast({ kind: 'success', message: t('settings.saved_toast') });
     } catch {
       showToast({ kind: 'error', message: t('settings.save_error_toast') });
     }
   }
+
+  const setLocale = (v: LocalePref) => tryPersist(() => setPref('locale', v));
+  const setArabicFont = (v: ArabicFontPref) =>
+    tryPersist(() => setPref('arabicFont', v));
+  const setTextSize = (v: TextSizePref) =>
+    tryPersist(() => setPref('textSize', v));
+  const setHideTashkeel = (v: boolean) =>
+    tryPersist(() => setPref('hideTashkeelByDefault', v));
+  const setTransliteration = (v: boolean) =>
+    tryPersist(() => setPref('transliteration', v));
 
   const textSizeScaleMap: Record<TextSizePref, string> = {
     small: '0.875rem',
@@ -75,7 +76,7 @@ function UserPreferencesSection() {
             <button
               key={l}
               type="button"
-              onClick={() => void update('locale', l)}
+              onClick={() => void setLocale(l)}
               className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition-colors ${
                 locale === l
                   ? 'border-accent-600 bg-accent-50 text-accent-700'
@@ -101,7 +102,7 @@ function UserPreferencesSection() {
             <button
               key={sz}
               type="button"
-              onClick={() => void update('textSize', sz)}
+              onClick={() => void setTextSize(sz)}
               className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition-colors ${
                 textSize === sz
                   ? 'border-accent-600 bg-accent-50 text-accent-700'
@@ -133,7 +134,7 @@ function UserPreferencesSection() {
             <button
               key={f}
               type="button"
-              onClick={() => void update('arabicFont', f)}
+              onClick={() => void setArabicFont(f)}
               className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition-colors ${
                 arabicFont === f
                   ? 'border-accent-600 bg-accent-50 text-accent-700'
@@ -159,7 +160,7 @@ function UserPreferencesSection() {
             type="checkbox"
             checked={hideTashkeel}
             onChange={(e) =>
-              void update('hideTashkeelByDefault', e.target.checked)
+              void setHideTashkeel(e.target.checked)
             }
             className="h-4 w-4 accent-accent-600"
           />
@@ -181,7 +182,7 @@ function UserPreferencesSection() {
           <input
             type="checkbox"
             checked={transliteration}
-            onChange={(e) => void update('transliteration', e.target.checked)}
+            onChange={(e) => void setTransliteration(e.target.checked)}
             className="h-4 w-4 accent-accent-600"
           />
           <span className="text-sm text-ink-800">

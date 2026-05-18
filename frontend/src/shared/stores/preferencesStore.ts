@@ -151,14 +151,14 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     const current = readCurrentPrefs(get());
     const next = { ...current, [key]: value };
     persistCache(next);
-    set({ [key]: value } as Pick<Preferences, typeof key>);
+    set({ [key]: value } as unknown as Partial<PreferencesState>);
     try {
       await apiPutRaw(`/api/v1/preferences/${key}`, { value });
     } catch (e) {
       // revert при ошибке
       const reverted = { ...next, [key]: prev };
       persistCache(reverted);
-      set({ [key]: prev } as Pick<Preferences, typeof key>);
+      set({ [key]: prev } as unknown as Partial<PreferencesState>);
       throw e;
     }
   },
