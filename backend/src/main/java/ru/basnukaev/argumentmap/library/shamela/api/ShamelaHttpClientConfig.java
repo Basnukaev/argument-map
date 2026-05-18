@@ -17,20 +17,27 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Конфигурация HTTP-клиента для shamela API. Подхватывает прокси
- * из env-переменных {@code HTTPS_PROXY} / {@code SHAMELA_PROXY}
- * автоматически - стандартный {@link ProxySelector#getDefault()} в Java
- * читает только {@code -Dhttps.proxyHost} JVM-property, env-переменные
- * сам игнорирует. Для удобства разработчика (особенно за корпоративным
- * прокси) разворачиваем {@code HTTPS_PROXY} вручную.
+ * Конфигурация HTTP-клиента для shamela API.
  *
- * <p>Приоритет: {@code SHAMELA_PROXY} (точечный override для shamela)
- * &gt; {@code HTTPS_PROXY} (общий env-прокси) &gt; direct connection.
+ * <p><b>По умолчанию - прямое соединение</b>. HTTPS_PROXY env var,
+ * JVM-property {@code -Dhttps.proxyHost} и {@link ProxySelector#getDefault()}
+ * системные настройки <b>игнорируются</b> через явный
+ * {@code .proxy(ProxySelector.of(null))}. Причина: shamela.ws - внешний
+ * домен, не за corporate firewall, прокси для него обычно не нужен.
+ * Если корпоративный/paid прокси перехватывает запрос - получаем 407
+ * Proxy Authentication Required (даже если HTTPS_PROXY содержит
+ * credentials - они могут быть stale либо прокси не whitelist'ит
+ * shamela). См. gotcha «shamela API из WSL2 требует VPN/прокси».
  *
- * <p>Поддерживается формат {@code http://user:pass@host:port}
- * (HTTPS-прокси с basic auth). Креды извлекаются из URI и подаются
- * через {@link Authenticator}, потому что Chromium-style передача
- * {@code user:pass@} в URL прокси Java HttpClient не поддерживает.
+ * <p><b>Override через {@code SHAMELA_PROXY} env var</b> - если
+ * действительно нужно проксировать shamela трафик (network egress
+ * restriction). Формат {@code http://user:pass@host:port}, креды
+ * извлекаются и подаются через {@link Authenticator} (Java HttpClient
+ * не поддерживает {@code user:pass@} в URL прокси напрямую).
+ *
+ * <p>Sentinel values для no-op: {@code SHAMELA_PROXY=direct} или
+ * {@code SHAMELA_PROXY=none} - явный direct connect (полезно для
+ * отладки если непонятно почему прокси активен).
  */
 @Configuration
 @EnableConfigurationProperties(ShamelaApiProperties.class)
@@ -44,11 +51,25 @@ public class ShamelaHttpClientConfig {
                 .connectTimeout(Duration.ofSeconds(props.connectTimeoutSeconds()))
                 .followRedirects(HttpClient.Redirect.NORMAL);
 
-        String proxyEnv = firstNonBlank(System.getenv("SHAMELA_PROXY"), System.getenv("HTTPS_PROXY"));
-        if (proxyEnv != null) {
+        // SHAMELA_PROXY - точечный override ТОЛЬКО для shamela трафика.
+        // HTTPS_PROXY НЕ читается - это глобальный corp/paid прокси, который
+        // для shamela.ws обычно не нужен (домен внешний, доступен напрямую).
+        // Если задан HTTPS_PROXY с credentials - мы получали бы 407 потому что
+        // proxy server либо не разрешает shamela, либо креды stale.
+        // Чтобы принудительно проксировать shamela - SHAMELA_PROXY=http://...
+        String proxyEnv = System.getenv("SHAMELA_PROXY");
+        boolean useProxy = proxyEnv != null && !proxyEnv.isBlank()
+                && !"direct".equalsIgnoreCase(proxyEnv)
+                && !"none".equalsIgnoreCase(proxyEnv);
+        if (useProxy) {
             applyProxy(builder, proxyEnv);
         } else {
-            log.info("shamela HTTP-клиент: прямое соединение (HTTPS_PROXY не задан)");
+            // ProxySelector.of(null) форсит прямое подключение - игнорирует
+            // ProxySelector.getDefault() (читает JVM -Dhttps.proxyHost и
+            // системные настройки), а также игнорирует HTTPS_PROXY env var
+            builder.proxy(ProxySelector.of(null));
+            log.info("shamela HTTP-клиент: прямое соединение (SHAMELA_PROXY={}, HTTPS_PROXY игнорируется)",
+                    proxyEnv == null ? "не задан" : proxyEnv);
         }
         return builder.build();
     }

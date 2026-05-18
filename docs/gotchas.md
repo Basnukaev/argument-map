@@ -1244,6 +1244,32 @@ admin-only функциональности
 
 Зафиксировано Сессией 39 после ручного тестирования пользователем.
 
+**Update Сессия 43:** найдена ещё одна причина 407 - **JVM-property
+`-Dhttps.proxyHost` из IntelliJ Run Config**. IntelliJ может
+автоматически прокидывать Windows system proxy через JVM properties
+когда backend стартует из IDE. Это перебивает env vars (HTTPS_PROXY)
+потому что `ProxySelector.getDefault()` читает JVM properties first.
+
+Fix в `ShamelaHttpClientConfig` Сессии 43 - **по умолчанию форсим
+прямое соединение** через `.proxy(ProxySelector.of(null))` когда
+HTTPS_PROXY env var не задан. Это игнорирует system proxy и JVM
+properties полностью. Если же `HTTPS_PROXY` задан - используется
+с credentials как раньше.
+
+Также `ShamelaApiClient` теперь явно говорит про corp proxy при
+407 - сообщение «407 Proxy Authentication Required - corporate
+proxy блокирует. Очистите JVM-property -Dhttps.proxyHost из Run
+Config либо задайте HTTPS_PROXY env var с credentials» вместо
+generic «HTTP 407».
+
+**Если 407 всё ещё приходит после fix:**
+1. IntelliJ → Run Config → VM options - убрать любые `-Dhttp*proxy*`
+2. Settings → Appearance & Behavior → System Settings → HTTP Proxy
+   → No proxy либо disable «Auto-detect proxy settings»
+3. В .env / shell - `unset HTTPS_PROXY HTTP_PROXY` перед `./mvnw spring-boot:run`
+4. Verify в логах startup: «shamela HTTP-клиент: прямое соединение
+   (HTTPS_PROXY не задан, system proxy bypassed)»
+
 ---
 
 ## Google Fonts в WSL2 за corp proxy не загружаются (407)
