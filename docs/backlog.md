@@ -415,6 +415,43 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       tech-debt, пока решение «зафиксировать в backlog и не делать
       сейчас» - явное (no scope creep в текущем этапе)
 
+- [ ] **BookSummaryResponse.createdBy для accurate «Мои» filter в
+      Library overview** - сейчас фильтрация книг текущего user'а в
+      Library overview через approximation `visibility === 'PRIVATE'`
+      (works in practice т.к. RBAC: privata = owner-only). Hrupkij:
+      если кто-то расширит visibility model или owner поделится своей
+      книгой как SHARED - approximation сломается. Fix: добавить
+      `createdBy: UUID` в `BookSummaryResponse` (full sync с
+      `BookResponse`) + frontend фильтрует строго `book.createdBy ===
+      currentUser.id`. Reviewer round 4 #8
+
+- [ ] **PATCH /api/v1/topics/{id} для title/description editing** -
+      сейчас readonly в `TopicSettingsDrawer`. Нет REST endpoint для
+      переименования темы (visibility patch есть, но title нет).
+      User'у приходится создавать новую тему вместо переименования.
+      Fix: PATCH endpoint + form в settings drawer + IT тесты на
+      audit log для UPDATE с FieldDiff(title, description). Reviewer
+      round 4 #10
+
+- [ ] **Bulk audit log consolidation - single BULK_DELETE / BULK_STATUS
+      action с entityIds[]** - сейчас каждый bulk delete/status change
+      создаёт N rows в audit_log (один per entity). При bulk operation
+      на 50 узлах - 50 audit rows. Сложно прочитать в admin UI:
+      «удалил 50 узлов» воспринимается как 50 не связанных событий.
+      Fix: новый action `BULK_DELETE` / `BULK_UPDATE` с массивом
+      `entityIds` в changes JSON. Сейчас acceptable т.к. audit
+      admin UI отложен. Reviewer round 4 recommendation
+
+- [ ] **NodeTranslationService DRY: extract `promoteToDefault` helper** -
+      сейчас в `addTranslation` (через `setDefault`) и
+      `removeTranslation` (через oldest + setDefault) логика «сменить
+      default-перевод узла» дублируется. После rounds 4 fix #2 уже
+      используется setDefault как atomic helper, но оставшийся
+      duplicate - выбор кого promote'ить (новый перевод vs oldest
+      remaining). Fix: private helper `promoteToDefault(nodeId,
+      candidateId)` - один вход для default-switching. Reviewer round
+      4 recommendation #2
+
 ---
 
 ## Архитектурные решения для будущих этапов
