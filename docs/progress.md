@@ -11,6 +11,87 @@
 
 ---
 
+## 2026-05-18 - Multi-grading UI frontend (backlog item)
+
+Закрыт backlog «Multi-grading UI» - frontend для `hadith_grades` бэка
+(который закрыт чуть раньше в этой же дате, commits e5be185..30e0483).
+HADITH source теперь имеет в `SourceCard` и `SourceDetailPanel`
+секцию с оценками учёных (`HadithGradesSection`), conditional по
+`sourceType === 'HADITH'`. Без HADITH source - компонент возвращает
+`null` и не делает запросов, поэтому добавление безопасно для всех
+вариантов
+
+**Компонент `frontend/src/shared/components/citation/sourceCard/HadithGradesSection.tsx`:**
+
+- collapsible header «Оценки учёных (N)» с count badge, default closed
+- при раскрытии - fetch `GET /api/v1/sources/{sourceId}/grades`,
+  loading spinner / error / empty state с CTA «Добавить первую оценку»
+- list grades (denormalized scholar info из бэка - один SQL без N+1):
+  scholarFullName / deathYearHijri (hijri в `<bdi>`), color-coded
+  badge (SAHIH emerald / HASAN blue / DAIF orange / MAUDU rose darker),
+  gradeCitation italic, comment expandable (truncate 80 chars + click)
+- edit/delete actions visible только если
+  `createdBy === user.id || user.role === ADMIN` - frontend hide,
+  backend - source of truth через 403 forbidden-hadith-grade-write
+- кнопка «Добавить оценку» снизу для не-пустого списка
+- Modal с scholar autocomplete по `/api/v1/authorities?q=...&size=10`
+  (debounce 250ms, paged response items), 4-state grade radio с
+  colored label, citation/comment optional fields. Edit-режим
+  не позволяет менять scholar (immutable по бэку)
+- error mapping: 400 `invalid-hadith-grade` (не-HADITH source) /
+  409 `hadith-grade-duplicate` / 403 `forbidden-hadith-grade-write` -
+  локализованные form-error в modal, остальное через formatApiError
+
+**Integration:**
+
+- `SourceCard` - новые опциональные `sourceId` + `sourceType` props,
+  при HADITH рендерится секция под Collapsible-metadata. Backward
+  compat: для существующих caller'ов без передачи props - ничего
+  не меняется
+- `NodeCitationsSection`, `QuestionCitationsSection`,
+  `AnswerCitationsSection` - пробрасывают `source.id` + `source.sourceType`
+  из локального `sourceLookup` Map в `<SourceCard>`
+- `SourceDetailPanel` - в `PanelBody` между Context и FullReading
+  новый section с заголовком + HadithGradesSection, conditional по
+  `sourceType === 'HADITH'`. Здесь у нас уже есть полный
+  `SourceDto` из бэк-fetch'а
+
+**i18n hadith.grades.* (34 ключа × 2 локали = 68 entries):**
+
+- title / loading / empty_state / add_first / add_button / add_title /
+  edit_title
+- scholar / scholar_placeholder / scholar_hint / scholar_required
+- grade.label / grade.SAHIH (Сахих / صحيح) / HASAN / DAIF / MAUDU
+- citation_label / citation_hint / comment_label
+- submit / submitting / cancel / edit / delete
+- add_success / update_success / delete_success / confirm_delete
+- error_load / error_save / error_delete / error_invalid_hadith /
+  error_duplicate / error_forbidden
+
+**Тесты:** 5 vitest (HadithGradesSection.test.tsx)
+
+- не рендерит ничего для не-HADITH source (smoke null-render)
+- empty list → empty state + кнопка «Добавить первую оценку»
+- list grades с badge SAHIH/DAIF + edit/delete только для своих
+- ADMIN видит edit/delete на чужих оценках
+- delete grade с confirm → DELETE + refresh
+
+Total: 430 vitest passing (425 baseline + 5 new). Lint clean
+(2 errors про set-state-in-effect fixed - fetchGrades через
+Promise.resolve().then() chain, autocomplete suggestions через
+computed `showList` flag без sync setState в effect)
+
+**3 коммита:**
+
+- `7885b7c feat(frontend): HadithGradesSection компонент с list + add modal`
+- `6e47ed0 feat(frontend): integration HadithGradesSection в SourceCard и SourceDetailPanel`
+- next: `docs: multi-grading UI frontend - backlog cleared + progress`
+
+**Backlog:** «Multi-grading UI» закрыт. api-contract.md уже
+содержал секцию Hadith grades (backend сессия), туда менять
+нечего. Без ADR - чистое расширение existing card UI без
+architectural alternatives
+
 ## 2026-05-18 - Code review round 3 fixes (3 important closed, 4 в backlog)
 
 Закрыты все 3 Important issues из третьего code review цикла (0 Critical).

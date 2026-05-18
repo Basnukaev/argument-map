@@ -172,14 +172,19 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       author либо ADMIN на mutating. GET возвращает denormalized scholar
       info через JOIN на authorities (один SQL без N+1). 23 IT (14 service
       + 9 controller). Frontend UI - отдельная задача ниже
-- [ ] **Multi-grading UI** - бэк готов (`GET /sources/{id}/grades`),
-      нужен `HadithGradesSection` в `SourceCard` (виден только при
-      `sourceType=HADITH`), collapsible с list grades (scholar name /
-      grade badge color-coded SAHIH=green/HASAN=yellow/DAIF=red/
-      MAUDU=dark red / gradeCitation small text / comment expandable),
-      кнопка «Добавить оценку» → modal с scholar autocomplete + grade
-      radio + citation + comment, edit/delete actions для author/admin.
-      i18n keys `hadith.grades.*` _(MultiGradingSection, SCHOLAR_GRADES demo)_
+- [x] **Multi-grading UI** - закрыто 2026-05-18 (frontend). Новый
+      `HadithGradesSection` в `frontend/src/shared/components/citation/
+      sourceCard/` - collapsible под Collapsible-metadata в `SourceCard`
+      (виден только при `sourceType=HADITH`), плюс отдельной секцией в
+      `SourceDetailPanel` между Context и FullReading. List grades с
+      scholar name + deathYearHijri + color-coded badge (SAHIH emerald
+      / HASAN blue / DAIF orange / MAUDU rose), gradeCitation italic,
+      comment expandable truncate. Edit/Delete только для createdBy
+      или ADMIN. Modal с scholar autocomplete по `/api/v1/authorities?q=...`,
+      4-state grade radio, citation/comment fields. Локализованные
+      ошибки 400 invalid-hadith-grade / 409 hadith-grade-duplicate /
+      403 forbidden-hadith-grade-write. i18n hadith.grades.* (34 ключа
+      RU + AR). 5 vitest + manual smoke - 430 tests pass
 - [ ] **Bilingual карточки** - двуязычный режим узла
       (EVIDENCE / ARGUMENT с арабским оригиналом + русским
       переводом). Toggle режима оригинал / перевод / оба.
