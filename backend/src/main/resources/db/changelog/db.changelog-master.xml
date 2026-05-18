@@ -50,5 +50,6 @@
     <include file="db/changelog/changes/20260518-43-hadith-grades.xml"/>
     <include file="db/changelog/changes/20260518-44-node-translation.xml"/>
     <include file="db/changelog/changes/20260518-45-node-translations.xml"/>
+    <include file="db/changelog/changes/20260519-46-refresh-tokens.xml"/>
 
 </databaseChangeLog>

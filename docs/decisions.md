@@ -5338,3 +5338,120 @@ Lazy pages: все admin, library, QA, settings, graph, reader.
   per-app reduces cross-domain cost
 - **ADR-022** (frontend reorg) - apps/admin/library/argument-map
   boundary - lazy chunks natural соответствуют этому boundary
+
+## ADR-046: Rate limiting на auth endpoints через custom in-memory sliding-window filter
+
+**Дата:** 2026-05-19
+
+**Контекст:** `/auth/login` и `/auth/register` без лимита (Security
+backlog Crit Cross-cutting #1 от reviewer round 5). Attacker может
+сделать миллион попыток login или зарегистрировать тысячи аккаунтов
+без штрафа. Bcrypt hashing на login создаёт CPU floor ~100ms per
+attempt, но это всё ещё ~10 attempts/sec на одном core - неприемлемо
+против brute-force. Регистрация дешевле сервером, но spam-аккаунты
+загрязняют БД.
+
+**Решение:** custom **in-memory sliding-window** filter перед JWT в
+SecurityFilterChain. 30-50 LOC, без новых dependencies. Sliding window
+1 минута, отдельные счётчики per IP для login (default 5/min) и
+register (default 3/min). При превышении - lockout 15 минут (OWASP
+brute-force advisory baseline). Возврат `429 Too Many Requests` +
+`Retry-After: <seconds>` header. Whitelist для localhost / CI / health
+probe.
+
+**Архитектура:**
+
+- `RateLimitProperties` (`@ConfigurationProperties("auth.rate-limit")`) -
+  enabled / limits per endpoint / lockoutDuration / whitelistedIps.
+  Validation в compact constructor (1..100, lockout 1s..24h)
+- `RateLimitFilter extends OncePerRequestFilter` - применяется только
+  к двум path: `/api/v1/auth/login` и `/api/v1/auth/register`. Skip
+  если disabled либо IP в whitelist. `ConcurrentHashMap<String,
+  ClientState>` где ClientState = `Deque<Instant> attempts` + `Instant
+  lockoutUntil`. Per-state lock на mutating операции - чтобы concurrent
+  request от того же IP не race'или счётчик. Idle cleanup: lazy при
+  каждом filter call evict entries без активности >1 hour
+- IP extraction: `X-Forwarded-For` (first value, обрезанный) > `X-Real-IP`
+  > `request.getRemoteAddr()`. Sanitize whitespace, IPv6 oblique
+  `[::1]:port` → `::1`
+- `Clock` injected (Spring bean `Clock.systemUTC()` default) - тесты
+  подменяют на `MutableClock` чтобы fast-forward через lockout без
+  `Thread.sleep`
+- Direct response write при limit exceeded - без exception (saves
+  unwinding cost на hot path при reckless attacker). Problem Details
+  format `application/problem+json` mit `type=...too-many-requests`,
+  `detail=Превышен лимит N попыток/мин. Повторите через X сек.`
+- Position в chain: `addFilterBefore(rateLimitFilter,
+  JwtAuthenticationFilter.class)` - блокируем до bcrypt / DB lookup
+- Default `enabled=false` - dev/test/local нормально работают без
+  настройки, prod явно opt-in через `AUTH_RATE_LIMIT_ENABLED=true`
+
+**Альтернативы рассмотрены:**
+
+- **Bucket4j** - mature, production-tested, distributed mode (Hazelcast/
+  Redis backend). Но heavy dep (~500KB), single-instance MVP не нужно.
+  При scale-out (k8s replicas) - переписать. Custom-50LOC даёт
+  одинаковый MVP без external deps
+- **Resilience4j RateLimiter** - есть в проекте (используется для
+  Anthropic). Но Resilience4j-rate-limiter rate API не per-key (per
+  IP) - надо вручную создавать instance per IP, что эквивалентно
+  custom Map. Overhead Resilience4j metrics infrastructure тут не
+  оправдан
+- **Spring Cloud Gateway rate limit** - правильное решение если
+  gateway уже в архитектуре, но у нас monolith без gateway, добавлять
+  отдельный сервис ради лимита auth - overkill
+- **API Gateway (Nginx / Cloudflare) уровень** - production-correct
+  long-term, но требует deploy infrastructure (load balancer / WAF).
+  Сейчас deployment простой (один backend), gateway-level откладываем
+  до scale-out. Application-level filter работает как defence-in-depth
+  даже после внедрения gateway-level
+- **Failed login persisted в БД (account-level lockout)** - блокирует
+  per-username вместо per-IP. Атакующий просто переключает username,
+  legit user блокирован через credential stuffing. Per-IP проще +
+  эффективнее против brute-force (атакующий не может быстро менять IP)
+
+**Trade-offs:**
+
+- **Плюс:** zero new dependencies, простая отладка (Map в heap), быстрое
+  применение (~10 μs per check), не блокирует legit users из-за низких
+  лимитов
+- **Плюс:** Clock injection делает тесты deterministic - без sleep'ов
+  на lockout expiry. Time-based behavior легко проверяется
+- **Минус:** **single-instance only**. K8s scale-out через 2+ replicas
+  - каждый instance считает попытки отдельно (5 limit фактически
+  превращается в 5×N replicas). Acceptable пока live в single-instance
+  deploy; scale-out triggers migration на Redis/Hazelcast backend либо
+  gateway-level
+- **Минус:** memory leak risk на random IP attacks (миллион IP →
+  миллион Map entries × ~200 bytes = 200MB). Mitigation: lazy cleanup
+  при filter call (evict entries idle >1h). При sustained attack -
+  manual restart либо upgrade на TTL-Map
+- **Минус:** in-memory state теряется при backend restart - attacker
+  получает window of opportunity сразу после deploy. Acceptable для
+  MVP (deploys редкие, attacker не координируется с deploy schedule)
+
+**Trigger to revisit:**
+
+- **K8s scale-out / multi-region** - переписать на Redis (atomic
+  INCR + EXPIRE per `ratelimit:{ip}:{endpoint}`) либо Hazelcast.
+  Bucket4j JCache integration делает это в одну строку
+- **Persistent attack consume RAM** - если monitoring покажет Map
+  size >100K entries устойчиво, добавить TTL bounded cache (Caffeine
+  с `expireAfterAccess(1h)` + `maximumSize(10_000)`)
+- **Расширение на другие endpoints** - сейчас только 2 path
+  hardcoded. Если понадобится защита на /search или /upload - вынести
+  path-config в properties: `endpoints: [{path: ..., limit: ...}]`
+- **Distributed tracing для security audit** - сейчас log.warn при
+  lockout. При compliance требованиях добавить event в audit_log
+  (но осторожно: миллион lockout events засрут таблицу - log-only
+  адекватнее)
+
+**Связанные решения:**
+
+- **ADR-040** (JWT auth) - auth endpoints публичные, rate limit -
+  единственная защита от brute force
+- **Security backlog #7** (Actuator behind auth в prod) - параллельная
+  тема reconnaissance leak, тоже требует gateway-level либо basic
+  auth. Отложен отдельным backlog item
+- **Security backlog #4** (Refresh token rotation) - параллельная
+  работа другого subagent'а, не конфликтует

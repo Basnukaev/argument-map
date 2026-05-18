@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        ADR-047: refresh token rotation (single-use refresh).
+
+        До этой миграции refresh-токен был чисто JWT - reusable до expiry
+        (7 дней). Stolen refresh = доступ на 7 дней без detection.
+
+        Refresh-токены теперь tracked в таблице:
+          - token_hash (SHA-256 hex от raw JWT value) - НЕ raw value,
+            БД-leak не даёт attacker'у живые токены
+          - revoked_at + revocation_reason - rotation/stolen-detected/logout/expired
+          - replaced_by - chain identification (token A заменён token B при rotation)
+
+        Steal detection: если приходит refresh, который уже revoked - это
+        signal что attacker украл старый refresh + использует. AuthService
+        revoke'нет ВСЮ chain user'а (force re-login).
+
+        SHA-256 hex выбран намеренно вместо bcrypt:
+          - bcrypt медленный (~100ms на validate), refresh приходит каждые
+            ~15 мин (cycle access TTL) - суммарная нагрузка ощутима
+          - raw JWT signature - high-entropy (~256 бит), rainbow tables
+            непрактичны. SHA-256 даёт достаточно protection от случайного
+            БД-дампа
+    -->
+    <changeSet id="20260519-46-refresh-tokens" author="Abdula Basnukaev">
+        <comment>refresh_tokens для single-use rotation + steal detection</comment>
+        <sql>
+            CREATE TABLE refresh_tokens (
+                id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                token_hash varchar(64) NOT NULL UNIQUE,
+                issued_at timestamptz NOT NULL DEFAULT now(),
+                expires_at timestamptz NOT NULL,
+                revoked_at timestamptz NULL,
+                replaced_by uuid NULL REFERENCES refresh_tokens(id),
+                revocation_reason varchar(50) NULL
+            );
+
+            -- Active токены для конкретного user'а (вход в bulk revoke)
+            CREATE INDEX idx_refresh_tokens_user
+                ON refresh_tokens(user_id)
+                WHERE revoked_at IS NULL;
+
+            -- Lookup по hash на каждый /auth/refresh - hot path
+            CREATE INDEX idx_refresh_tokens_hash
+                ON refresh_tokens(token_hash);
+
+            -- Future RefreshTokenCleanupJanitor scan по expired
+            CREATE INDEX idx_refresh_tokens_expires
+                ON refresh_tokens(expires_at)
+                WHERE revoked_at IS NULL;
+        </sql>
+        <rollback>
+            <sql>
+                DROP TABLE IF EXISTS refresh_tokens;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
