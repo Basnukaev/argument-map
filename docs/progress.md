@@ -11,6 +11,70 @@
 
 ---
 
+## 2026-05-18 - E2E Playwright suite
+
+Полная E2E-suite для critical user journeys. subagent task в параллели
+с backend stability и frontend code health.
+
+**Установка:**
+
+- `@playwright/test` 1.60 как dev dependency в `frontend/package.json`
+- `chromium` browser binary в `~/.cache/ms-playwright/`
+- `frontend/playwright.config.ts` - workers=1, headless, baseURL :5173
+
+**44 теста, 7 suites:**
+
+- `auth.spec.ts` (7) - login / register / protected / logout / refresh
+- `topics.spec.ts` (7) - CRUD + visibility + export/import
+- `graph.spec.ts` (7) - nodes / multi-select / z-order / palette
+- `library.spec.ts` (6) - browse / search / filter / upload modal
+- `qa.spec.ts` (5) - question / answer / list / search
+- `settings.spec.ts` (7) - language / theme / fonts / persistence
+- `admin.spec.ts` (5) - ADMIN access / non-admin redirect
+
+**Helpers** (`frontend/e2e/helpers/`):
+
+- `auth.ts` - login / loginAsAdmin / registerNewUser / logout /
+  clearAuth + expectLoggedIn/Out
+- `topics.ts` - createTestTopic / deleteTopic
+- `fixtures.ts` - buildMinimalPdfBuffer
+
+**npm scripts:**
+
+- `npm run e2e` - все тесты (~1 минута)
+- `npm run e2e:headed` / `e2e:debug` / `e2e:report`
+
+**Прогон:** 44/44 passed, ~55s
+
+**Известные ограничения** (документировано в `frontend/e2e/README.md`):
+
+- AnswersSection.isAsker завязан на VITE_DEV_USER_ID (не authStore) -
+  accept-кнопка не показывается, тест на accept не делаем
+- EN locale - в DICTIONARY только ru/ar, EN-кнопка fallback на ru
+- react-flow drag-drop edge creation - в headless нестабильно
+  (pixel-точные handles), backend coverage на API уровне покрывает
+
+**Документация:**
+
+- `frontend/e2e/README.md` - setup, запуск, структура, helpers
+- `frontend/docs/coding-standards.md` - раздел «E2E testing» добавлен
+
+**Атомарные коммиты (5):**
+
+1. `feat(e2e)` - playwright setup + auth suite (7 tests + helpers)
+2. `feat(e2e)` - topics suite (7 tests: CRUD + visibility + import/export)
+3. `feat(e2e)` - graph suite (7 tests: context menu + multi-select + palette)
+4. `feat(e2e)` - library suite (6 tests: browse + filter + upload modal)
+5. `feat(e2e)` - qa + settings + admin suites (17 tests)
+
+**Что user может проверить руками:**
+
+- `cd frontend && npm run e2e` - локально весь прогон
+- `npm run e2e:report` - открыть HTML отчёт после прогона
+- Reading `frontend/e2e/README.md` для setup details
+
+---
+
 ## 2026-05-18 - Backend stability + quality round
 
 stability/quality audit + cleanup существующего бэкенд-кода. subagent

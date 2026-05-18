@@ -686,6 +686,32 @@ default `matches=false` (desktop). Тесты которым нужно эмул
 mobile - переопределяют через свой `beforeEach` (см.
 `Modal.test.tsx::stubMatchMedia`)
 
+### E2E testing (Playwright)
+
+Полный гайд - `frontend/e2e/README.md`. Кратко:
+
+- Playwright suites в `frontend/e2e/*.spec.ts` против запущенных
+  dev-серверов (backend :9090 + frontend :5173). НЕ моки, а реальные
+  HTTP requests
+- Запуск - `npm run e2e` из `frontend/` (44 теста, ~1 минута)
+- Workers=1, sequential - тесты делят БД, параллелить нельзя без
+  per-worker schema (backlog)
+- Helpers - `e2e/helpers/auth.ts` + `topics.ts`. Каждый тест в beforeEach
+  делает `clearAuth(page)` + `loginAsAdmin(page)` (либо `registerNewUser`
+  для RBAC тестов)
+- Selectors - сначала `getByRole`, потом `getByLabelText`. Tailwind
+  classes часто меняются - не используй CSS-classes как primary selector
+- `dialog[open]` вместо `getByRole('dialog')` - в DOM несколько
+  `<dialog>` рендерятся параллельно (AddNode/AddEdge/Settings/Members),
+  атрибут `open` даёт активный
+- sr-only checkboxes/radios - используй `dispatchEvent('click')` или
+  `.check({force: true})` чтобы обойти visual overlay
+- Когда запускать - перед merge'м feature-ветки, перед release. Не
+  на каждый коммит (тяжёлый прогон)
+- НЕ дублируй unit-test coverage - e2e для journeys (login →
+  topic create → delete), unit для component behavior (button disabled
+  пока content пустой)
+
 ## Код-ревью
 
 При ревью кода проверять в порядке:

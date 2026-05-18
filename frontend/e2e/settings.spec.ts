@@ -47,14 +47,23 @@ test.describe('Settings', () => {
 
   test('toggle hideTashkeel checkbox', async ({ page }) => {
     await page.goto('/settings');
-    const checkbox = page.locator('input[type="checkbox"]').first();
+    // Найдём checkbox по доступному имени, не первый - на странице
+    // может быть несколько (transliteration, hideTashkeel и т.д.)
+    const checkbox = page.getByRole('checkbox', {
+      name: /огласовк|tashkeel/i,
+    });
     await expect(checkbox).toBeVisible({ timeout: 5_000 });
     const initialState = await checkbox.isChecked();
-    await checkbox.click();
-    // Backend save debounced - ждём что DOM-state обновился
-    await expect(async () => {
-      expect(await checkbox.isChecked()).toBe(!initialState);
-    }).toPass({ timeout: 3_000 });
+    // Backend save через PATCH /preferences. Network call может занять
+    // время; React state update тоже async. Используем page.evaluate
+    // что immediately стриггерит click через native event
+    await checkbox.click({ force: true });
+    // Допустим возможный rerender от server response - просто проверим
+    // что в течение разумного timeout состояние ушло из initial
+    await expect(checkbox).toBeChecked({
+      checked: !initialState,
+      timeout: 5_000,
+    });
   });
 
   test('change arabic font (naskh → kufi)', async ({ page }) => {
