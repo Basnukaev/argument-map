@@ -365,6 +365,15 @@ export const DICTIONARY = {
     'source_form.academic_hint':
       'Если заполнено - создаётся карточка книги в библиотеке, что даёт structured citation',
 
+    // attach fields (AttachFields component - привязка источника к узлу)
+    'attach.fieldset_legend': 'Поля привязки (опционально)',
+    'attach.quote_label': 'Цитата',
+    'attach.quote_placeholder': 'Конкретный фрагмент источника, который относится к этому узлу',
+    'attach.location_label': 'Место в источнике',
+    'attach.location_placeholder': 'Например: т.13 с.137, №1162, 2:256',
+    'attach.context_label': 'Контекст',
+    'attach.context_placeholder': 'В какой главе, при каком обсуждении и т.п.',
+
     // common
     'common.loading': 'Загрузка',
     'common.error': 'Ошибка',
@@ -1479,6 +1488,15 @@ export const DICTIONARY = {
     'source_form.academic_section': 'البيانات الأكاديمية للكتاب (اختياري)',
     'source_form.academic_hint':
       'إذا تم التعبئة - يتم إنشاء بطاقة الكتاب في المكتبة لاستشهاد منظم',
+
+    // attach fields (مكون AttachFields - ربط المصدر بالعقدة)
+    'attach.fieldset_legend': 'حقول الربط (اختياري)',
+    'attach.quote_label': 'الاقتباس',
+    'attach.quote_placeholder': 'الجزء المحدد من المصدر المتعلق بهذه العقدة',
+    'attach.location_label': 'الموقع في المصدر',
+    'attach.location_placeholder': 'مثال: ج.13 ص.137، رقم 1162، 2:256',
+    'attach.context_label': 'السياق',
+    'attach.context_placeholder': 'في أي باب وفي أي نقاش وما إلى ذلك',
 
     'common.loading': 'جارٍ التحميل',
     'common.error': 'خطأ',
