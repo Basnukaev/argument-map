@@ -149,18 +149,6 @@ public class NodeTranslationRepository {
         return set > 0;
     }
 
-    /**
-     * Снять флаг default у конкретного перевода (для DELETE flow). Используется
-     * когда удаляем default-перевод и нужно promoted'ить какой-то другой
-     * в новый default. См. {@code NodeTranslationService.removeTranslation}.
-     */
-    public void clearDefault(UUID translationId) {
-        jdbcTemplate.update(
-                "UPDATE node_translations SET is_default = false WHERE id = ?",
-                translationId
-        );
-    }
-
     public boolean deleteById(UUID id) {
         return jdbcTemplate.update("DELETE FROM node_translations WHERE id = ?", id) > 0;
     }
