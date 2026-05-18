@@ -2,6 +2,7 @@ package ru.basnukaev.argumentmap.service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -26,6 +27,12 @@ import ru.basnukaev.argumentmap.repository.TopicRepository;
 @Service
 public class NodeService {
 
+    // Whitelist для bilingual полей (миграция 44). Должны совпадать с
+    // CHECK constraints в БД. Валидация на уровне сервиса даёт чистый
+    // 400 IllegalArgumentException вместо 500 DataIntegrityViolation.
+    private static final Set<String> ALLOWED_TRANSLATION_LANGS = Set.of("ru", "en");
+    private static final Set<String> ALLOWED_ORIGINAL_LANGS = Set.of("ar", "ru", "en");
+
     private final NodeRepository nodeRepository;
     private final TopicRepository topicRepository;
     private final RevisionRepository revisionRepository;
@@ -49,17 +56,39 @@ public class NodeService {
 
     @Transactional
     public Node createNode(UUID topicId, NodeType type, String content, UUID userId) {
+        return createNode(topicId, type, content, null, null, null, userId);
+    }
+
+    /**
+     * Создание узла с bilingual-полями. translation/translationLang/originalLang
+     * опциональны (null = поле не задано). Валидация:
+     * <ul>
+     *   <li>translation NOT NULL → translationLang обязателен и ∈ {ru, en}</li>
+     *   <li>originalLang (если задан) ∈ {ar, ru, en}</li>
+     * </ul>
+     *
+     * <p>Legacy перегрузка без bilingual (createNode без translation*) идёт
+     * сюда с null'ами - backward-compat для существующих callers (TopicService
+     * createTopic root question, TopicImportService и т.д.).
+     */
+    @Transactional
+    public Node createNode(UUID topicId, NodeType type, String content,
+                           String translation, String translationLang, String originalLang,
+                           UUID userId) {
         // legacy перегрузка - без permission check (для тестов и
         // batch importers). REST endpoint должен использовать перегрузку
         // с role.
         if (topicRepository.findById(topicId).isEmpty()) {
             throw new TopicNotFoundException(topicId);
         }
+        validateBilingual(translation, translationLang, originalLang);
+
         Instant now = Instant.now();
         Node node = new Node(
                 UUID.randomUUID(), topicId, type, content,
                 NodeStatus.UNVERIFIED, null, null, 0,
-                userId, now, now
+                userId, now, now,
+                translation, translationLang, originalLang
         );
         nodeRepository.save(node);
 
@@ -67,6 +96,13 @@ public class NodeService {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("nodeType", type.name());
         snapshot.put("content", content);
+        if (translation != null) {
+            snapshot.put("translation", translation);
+            snapshot.put("translationLang", translationLang);
+        }
+        if (originalLang != null) {
+            snapshot.put("originalLang", originalLang);
+        }
         auditLogService.logCreate(AuditEntityType.NODE, node.id(),
                 AuditEntityType.TOPIC, topicId, userId, snapshot);
 
@@ -79,6 +115,14 @@ public class NodeService {
         // ADR-043: write требует canWriteTopic
         permissionService.assertCanWrite(topicId, userId, role);
         return createNode(topicId, type, content, userId);
+    }
+
+    @Transactional
+    public Node createNode(UUID topicId, NodeType type, String content,
+                           String translation, String translationLang, String originalLang,
+                           UUID userId, String role) {
+        permissionService.assertCanWrite(topicId, userId, role);
+        return createNode(topicId, type, content, translation, translationLang, originalLang, userId);
     }
 
     /**
@@ -95,7 +139,8 @@ public class NodeService {
                 existing.id(), existing.topicId(), existing.nodeType(),
                 existing.content(), existing.status(),
                 posX, posY, existing.zIndex(),
-                existing.createdBy(), existing.createdAt(), existing.updatedAt()
+                existing.createdBy(), existing.createdAt(), existing.updatedAt(),
+                existing.translation(), existing.translationLang(), existing.originalLang()
         );
     }
 
@@ -114,31 +159,85 @@ public class NodeService {
      */
     @Transactional
     public Node updateContent(UUID nodeId, String newContent, UUID userId) {
+        return updateContent(nodeId, newContent, NoChange.INSTANCE, NoChange.INSTANCE, NoChange.INSTANCE, userId);
+    }
+
+    /**
+     * Расширенный update - помимо content может опционально обновить
+     * translation / translationLang / originalLang. Если параметр - {@link NoChange#INSTANCE},
+     * соответствующее поле в БД остаётся прежним. Если параметр явно null
+     * (через перегрузку без NoChange либо через REST DTO с явным null) -
+     * поле очищается.
+     *
+     * <p>Revision записывается только для изменения content - translation/lang
+     * не входят в историю содержательных изменений (это metadata). Решение
+     * можно пересмотреть когда станет важно отслеживать перевод как версионный
+     * артефакт.
+     */
+    @Transactional
+    public Node updateContent(UUID nodeId, Object newContentBox,
+                              Object newTranslation, Object newTranslationLang, Object newOriginalLang,
+                              UUID userId) {
         Node existing = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new NodeNotFoundException(nodeId));
 
+        String resolvedContent = (newContentBox instanceof NoChange)
+                ? existing.content()
+                : (String) newContentBox;
+        String resolvedTranslation = (newTranslation instanceof NoChange)
+                ? existing.translation()
+                : (String) newTranslation;
+        String resolvedTranslationLang = (newTranslationLang instanceof NoChange)
+                ? existing.translationLang()
+                : (String) newTranslationLang;
+        String resolvedOriginalLang = (newOriginalLang instanceof NoChange)
+                ? existing.originalLang()
+                : (String) newOriginalLang;
+
+        validateBilingual(resolvedTranslation, resolvedTranslationLang, resolvedOriginalLang);
+
         Instant now = Instant.now();
-        Revision revision = new Revision(
-                UUID.randomUUID(), nodeId,
-                existing.content(), newContent,
-                userId, now
-        );
-        revisionRepository.save(revision);
+        boolean contentChanged = !java.util.Objects.equals(existing.content(), resolvedContent);
+        if (contentChanged) {
+            Revision revision = new Revision(
+                    UUID.randomUUID(), nodeId,
+                    existing.content(), resolvedContent,
+                    userId, now
+            );
+            revisionRepository.save(revision);
+        }
 
         Node updated = new Node(
                 existing.id(), existing.topicId(), existing.nodeType(),
-                newContent, existing.status(),
+                resolvedContent, existing.status(),
                 existing.posX(), existing.posY(), existing.zIndex(),
-                existing.createdBy(), existing.createdAt(), now
+                existing.createdBy(), existing.createdAt(), now,
+                resolvedTranslation, resolvedTranslationLang, resolvedOriginalLang
         );
         nodeRepository.update(updated);
 
-        // ADR-043 Amendment 3 (22.d) - audit content UPDATE
+        // ADR-043 Amendment 3 (22.d) - audit UPDATE с FieldDiff для изменившихся полей
         Map<String, AuditLogService.FieldDiff> diff = new LinkedHashMap<>();
-        diff.put("content", new AuditLogService.FieldDiff(
-                existing.content(), newContent));
-        auditLogService.logUpdate(AuditEntityType.NODE, nodeId,
-                AuditEntityType.TOPIC, existing.topicId(), userId, diff);
+        if (contentChanged) {
+            diff.put("content", new AuditLogService.FieldDiff(
+                    existing.content(), resolvedContent));
+        }
+        if (!java.util.Objects.equals(existing.translation(), resolvedTranslation)) {
+            diff.put("translation", new AuditLogService.FieldDiff(
+                    existing.translation(), resolvedTranslation));
+        }
+        if (!java.util.Objects.equals(existing.translationLang(), resolvedTranslationLang)) {
+            diff.put("translationLang", new AuditLogService.FieldDiff(
+                    existing.translationLang(), resolvedTranslationLang));
+        }
+        if (!java.util.Objects.equals(existing.originalLang(), resolvedOriginalLang)) {
+            diff.put("originalLang", new AuditLogService.FieldDiff(
+                    existing.originalLang(), resolvedOriginalLang));
+        }
+        if (!diff.isEmpty()) {
+            auditLogService.logUpdate(AuditEntityType.NODE, nodeId,
+                    AuditEntityType.TOPIC, existing.topicId(), userId, diff);
+        }
 
         return updated;
     }
@@ -149,6 +248,23 @@ public class NodeService {
                 .orElseThrow(() -> new NodeNotFoundException(nodeId));
         permissionService.assertCanWrite(existing.topicId(), userId, role);
         return updateContent(nodeId, newContent, userId);
+    }
+
+    /**
+     * Расширенная перегрузка с bilingual-полями. Каждый параметр-box -
+     * либо {@link NoChange#INSTANCE} (не трогаем), либо строка (новое
+     * значение), либо null (очистить). Для контроллера: используем когда
+     * REST request явно передал поле (даже null) либо не передал вообще.
+     */
+    @Transactional
+    public Node updateContent(UUID nodeId, Object newContentBox,
+                              Object newTranslation, Object newTranslationLang, Object newOriginalLang,
+                              UUID userId, String role) {
+        Node existing = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new NodeNotFoundException(nodeId));
+        permissionService.assertCanWrite(existing.topicId(), userId, role);
+        return updateContent(nodeId, newContentBox,
+                newTranslation, newTranslationLang, newOriginalLang, userId);
     }
 
     @Transactional
@@ -203,7 +319,8 @@ public class NodeService {
                 existing.id(), existing.topicId(), existing.nodeType(),
                 existing.content(), existing.status(),
                 existing.posX(), existing.posY(), newZ,
-                existing.createdBy(), existing.createdAt(), existing.updatedAt()
+                existing.createdBy(), existing.createdAt(), existing.updatedAt(),
+                existing.translation(), existing.translationLang(), existing.originalLang()
         );
     }
 
@@ -223,7 +340,8 @@ public class NodeService {
                 existing.id(), existing.topicId(), existing.nodeType(),
                 existing.content(), existing.status(),
                 existing.posX(), existing.posY(), newZ,
-                existing.createdBy(), existing.createdAt(), existing.updatedAt()
+                existing.createdBy(), existing.createdAt(), existing.updatedAt(),
+                existing.translation(), existing.translationLang(), existing.originalLang()
         );
     }
 
@@ -241,5 +359,40 @@ public class NodeService {
                 .orElseThrow(() -> new NodeNotFoundException(nodeId));
         permissionService.assertCanRead(existing.topicId(), userId, role);
         return revisionRepository.findByNodeId(nodeId);
+    }
+
+    /**
+     * Валидация bilingual-полей.
+     * <ul>
+     *   <li>translation NOT NULL → translationLang обязателен</li>
+     *   <li>translationLang (если задан) ∈ {ru, en}</li>
+     *   <li>originalLang (если задан) ∈ {ar, ru, en}</li>
+     * </ul>
+     */
+    private void validateBilingual(String translation, String translationLang, String originalLang) {
+        if (translation != null && !translation.isEmpty() && (translationLang == null || translationLang.isBlank())) {
+            throw new IllegalArgumentException(
+                    "translationLang обязателен когда translation задан");
+        }
+        if (translationLang != null && !ALLOWED_TRANSLATION_LANGS.contains(translationLang)) {
+            throw new IllegalArgumentException(
+                    "Недопустимое значение translationLang: '" + translationLang
+                            + "'. Допустимые: " + ALLOWED_TRANSLATION_LANGS);
+        }
+        if (originalLang != null && !ALLOWED_ORIGINAL_LANGS.contains(originalLang)) {
+            throw new IllegalArgumentException(
+                    "Недопустимое значение originalLang: '" + originalLang
+                            + "'. Допустимые: " + ALLOWED_ORIGINAL_LANGS);
+        }
+    }
+
+    /**
+     * Sentinel "field not changed in this PATCH" для перегрузок update -
+     * отличить «не пришло в payload» от «пришло как null (очистить)».
+     * Не enum, не singleton-Holder - простой sentinel object.
+     */
+    public static final class NoChange {
+        public static final NoChange INSTANCE = new NoChange();
+        private NoChange() {}
     }
 }

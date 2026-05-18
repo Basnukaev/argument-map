@@ -35,7 +35,12 @@ public class UserPreferenceService {
             "textSize", Set.of("small", "medium", "large", "xl"),
             "theme", Set.of("system", "light", "dark"),
             "hideTashkeelByDefault", Set.of(),
-            "transliteration", Set.of()
+            "transliteration", Set.of(),
+            // bilingualMode - режим отображения карточек узлов (миграция 44)
+            // 'original' (только оригинал), 'translation' (только перевод,
+            // fallback на оригинал если перевода нет), 'both' (оригинал +
+            // перевод друг под другом с разделителем)
+            "bilingualMode", Set.of("original", "translation", "both")
     );
 
     /** Ключи с boolean значением (whitelist enum пуст). */

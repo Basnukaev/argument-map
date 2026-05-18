@@ -48,8 +48,16 @@ public class NodeController {
     public ResponseEntity<NodeResponse> create(@Valid @RequestBody CreateNodeRequest request,
                                                @CurrentUser UUID userId) {
         String role = SecurityContextUtils.currentRole();
+        // Пустая строка translation - трактуем как «нет перевода». Бэк
+        // упрощает: либо translation NOT NULL и не пустой, либо null.
+        String translation = isBlank(request.translation()) ? null : request.translation();
+        String translationLang = translation == null ? null : nullIfBlank(request.translationLang());
+        String originalLang = nullIfBlank(request.originalLang());
+
         Node created = nodeService.createNode(
-                request.topicId(), request.nodeType(), request.content(), userId, role
+                request.topicId(), request.nodeType(), request.content(),
+                translation, translationLang, originalLang,
+                userId, role
         );
         // Только что созданный узел не имеет ни голосов ни node_sources -
         // VoteStats.EMPTY, userVote=null, inlineCitations=[]
@@ -58,11 +66,13 @@ public class NodeController {
     }
 
     /**
-     * PATCH принимает opt content и/или opt posX+posY. Если есть content -
-     * пишется revision (обновляется содержимое). Если есть pos - меняются
-     * координаты на канвасе (без revision, без updatedAt). Можно оба сразу -
-     * выполнятся последовательно, ответ содержит финальное состояние узла.
-     * Пустой запрос (без полей) - 400 validation.
+     * PATCH принимает opt content и/или opt posX+posY и/или opt bilingual
+     * (translation/translationLang/originalLang). Если есть content -
+     * пишется revision. Если есть pos - меняются координаты без revision.
+     * Bilingual поля - в одном transaction'е с content, без revision (это
+     * metadata). Пустая строка translation = очистить (translationLang
+     * тоже очищается). Можно несколько действий сразу - применятся
+     * последовательно. Пустой запрос (без полей) - 400 validation.
      */
     @PatchMapping("/{nodeId}")
     public NodeResponse update(@PathVariable UUID nodeId,
@@ -70,16 +80,37 @@ public class NodeController {
                                @CurrentUser UUID userId) {
         boolean hasContent = request.content() != null;
         boolean hasPosition = request.posX() != null && request.posY() != null;
-        if (!hasContent && !hasPosition) {
+        boolean hasTranslation = request.translation() != null;
+        boolean hasTranslationLang = request.translationLang() != null;
+        boolean hasOriginalLang = request.originalLang() != null;
+        if (!hasContent && !hasPosition && !hasTranslation && !hasTranslationLang && !hasOriginalLang) {
             throw new IllegalArgumentException(
-                    "Хотя бы одно из полей (content или posX+posY) должно быть указано"
+                    "Хотя бы одно из полей (content, posX+posY, translation, translationLang, originalLang) должно быть указано"
             );
         }
 
         String role = SecurityContextUtils.currentRole();
         Node node = null;
-        if (hasContent) {
-            node = nodeService.updateContent(nodeId, request.content(), userId, role);
+        // Объединяем content + bilingual в один updateContent (записывает
+        // revision только для content, audit покрывает оба)
+        if (hasContent || hasTranslation || hasTranslationLang || hasOriginalLang) {
+            Object contentBox = hasContent ? request.content() : NodeService.NoChange.INSTANCE;
+            Object translationBox = hasTranslation
+                    ? (request.translation().isEmpty() ? null : request.translation())
+                    : NodeService.NoChange.INSTANCE;
+            Object translationLangBox = hasTranslationLang
+                    ? (request.translationLang().isEmpty() ? null : request.translationLang())
+                    : NodeService.NoChange.INSTANCE;
+            // если translation очищается - lang тоже очищаем для консистентности
+            if (translationBox == null && translationLangBox instanceof NodeService.NoChange) {
+                translationLangBox = null;
+            }
+            Object originalLangBox = hasOriginalLang
+                    ? (request.originalLang().isEmpty() ? null : request.originalLang())
+                    : NodeService.NoChange.INSTANCE;
+            node = nodeService.updateContent(nodeId, contentBox,
+                    translationBox, translationLangBox, originalLangBox,
+                    userId, role);
         }
         if (hasPosition) {
             node = nodeService.updatePosition(nodeId, request.posX(), request.posY(), userId, role);
@@ -140,5 +171,13 @@ public class NodeController {
         String role = SecurityContextUtils.currentRole();
         return nodeService.getRevisions(nodeId, userId, role).stream()
                 .map(DtoMappers::toResponse).toList();
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
+    }
+
+    private static String nullIfBlank(String s) {
+        return isBlank(s) ? null : s;
     }
 }

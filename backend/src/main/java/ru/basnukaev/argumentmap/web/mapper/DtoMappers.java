@@ -105,7 +105,8 @@ public final class DtoMappers {
                 node.createdAt(), node.updatedAt(),
                 s.upvotes(), s.downvotes(), s.score(),
                 userVote,
-                citations
+                citations,
+                node.translation(), node.translationLang(), node.originalLang()
         );
     }
 

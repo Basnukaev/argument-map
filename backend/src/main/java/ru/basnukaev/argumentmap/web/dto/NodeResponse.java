@@ -23,6 +23,15 @@ import ru.basnukaev.argumentmap.domain.NodeType;
  * по 1-based ordinal. Bulk-load в GET /topics/{id}/graph (один SQL на весь
  * граф). Mutating endpoints (POST /nodes, PATCH /nodes/{id}) - точечная
  * подгрузка для одного узла. Пустой список если у узла нет node_sources
+ *
+ * <p>Bilingual поля (миграция 44, backlog Bilingual карточки):
+ * <ul>
+ *   <li>{@code translation} - перевод (nullable). null = перевода нет</li>
+ *   <li>{@code translationLang} - язык перевода: 'ru' | 'en' (null если
+ *       translation null)</li>
+ *   <li>{@code originalLang} - язык оригинала: 'ar' | 'ru' | 'en' (null =
+ *       фронт определит сам через hasArabicScript)</li>
+ * </ul>
  */
 public record NodeResponse(
         UUID id,
@@ -40,6 +49,9 @@ public record NodeResponse(
         int voteDownvotes,
         int voteScore,
         Integer userVote,
-        List<InlineCitationRef> inlineCitations
+        List<InlineCitationRef> inlineCitations,
+        String translation,
+        String translationLang,
+        String originalLang
 ) {
 }
