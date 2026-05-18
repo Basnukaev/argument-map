@@ -2,15 +2,6 @@ import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router';
 import TopicListPage from '@/apps/argument-map/pages/TopicListPage';
 import CreateTopicPage from '@/apps/argument-map/pages/CreateTopicPage';
-import BookListPage from '@/apps/library/pages/BookListPage';
-import BookReaderPage from '@/apps/library/pages/BookReaderPage';
-import AdminShamelaPage from '@/apps/admin/pages/AdminShamelaPage';
-import AdminPageEditorPage from '@/apps/admin/pages/AdminPageEditorPage';
-import AdminAuditPage from '@/apps/admin/pages/AdminAuditPage';
-import QuestionListPage from '@/apps/qa/pages/QuestionListPage';
-import CreateQuestionPage from '@/apps/qa/pages/CreateQuestionPage';
-import QuestionDetailPage from '@/apps/qa/pages/QuestionDetailPage';
-import SettingsPage from '@/apps/settings/pages/SettingsPage';
 import LoginPage from '@/apps/auth/pages/LoginPage';
 import RegisterPage from '@/apps/auth/pages/RegisterPage';
 import ProtectedRoute from '@/shared/components/auth/ProtectedRoute';
@@ -23,16 +14,32 @@ import { useHotkey } from '@/shared/hooks/useHotkey';
 import { useAuthStore } from '@/shared/stores/authStore';
 import ErrorBoundary from '@/shared/components/ErrorBoundary';
 
-// TopicGraphPage тянет тяжёлые зависимости (React Flow, dagre, lucide-icons,
-// все компоненты графа). Loading через React.lazy выкидывает их из initial
-// bundle - страницы списка/создания темы загружаются быстрее, граф
-// подгружается только при переходе на /topics/{id}
+// Route-level code splitting (ADR-045). Heavy pages вынесены в отдельные
+// chunks через React.lazy:
+//   - TopicGraphPage  - React Flow + dagre + lucide
+//   - BookListPage / BookReaderPage - react-pdf
+//   - AdminPageEditorPage - Tiptap + extensions (heaviest)
+//   - AdminShamelaPage / AdminAuditPage - admin-only
+//   - QuestionListPage / QuestionDetailPage / CreateQuestionPage - QA app
+//   - SettingsPage - settings-only
+// USER на /topics не тянет admin/library/QA/reader chunks в initial bundle.
+// Pages оставленные eager: TopicListPage (landing после login),
+// CreateTopicPage (тоже из start flow), LoginPage / RegisterPage (public).
 const TopicGraphPage = lazy(() => import('@/apps/argument-map/pages/TopicGraphPage'));
+const BookListPage = lazy(() => import('@/apps/library/pages/BookListPage'));
+const BookReaderPage = lazy(() => import('@/apps/library/pages/BookReaderPage'));
+const AdminShamelaPage = lazy(() => import('@/apps/admin/pages/AdminShamelaPage'));
+const AdminPageEditorPage = lazy(() => import('@/apps/admin/pages/AdminPageEditorPage'));
+const AdminAuditPage = lazy(() => import('@/apps/admin/pages/AdminAuditPage'));
+const QuestionListPage = lazy(() => import('@/apps/qa/pages/QuestionListPage'));
+const CreateQuestionPage = lazy(() => import('@/apps/qa/pages/CreateQuestionPage'));
+const QuestionDetailPage = lazy(() => import('@/apps/qa/pages/QuestionDetailPage'));
+const SettingsPage = lazy(() => import('@/apps/settings/pages/SettingsPage'));
 
-function GraphFallback() {
+function PageFallback({ label = 'Загрузка' }: { label?: string }) {
   return (
     <div className="flex h-screen items-center justify-center text-ink-500">
-      Загрузка графа
+      {label}
     </div>
   );
 }
@@ -71,112 +78,112 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <Routes>
-        {/* Public routes - login/register не за ProtectedRoute,
-            доступны всегда */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+      <Suspense fallback={<PageFallback />}>
+        <Routes>
+          {/* Public routes - login/register не за ProtectedRoute,
+              доступны всегда */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
 
-        <Route path="/" element={<Navigate to="/topics" replace />} />
-        <Route
-          path="/topics"
-          element={
-            <ProtectedRoute>
-              <TopicListPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/topics/new"
-          element={
-            <ProtectedRoute>
-              <CreateTopicPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/topics/:topicId"
-          element={
-            <ProtectedRoute>
-              <Suspense fallback={<GraphFallback />}>
+          <Route path="/" element={<Navigate to="/topics" replace />} />
+          <Route
+            path="/topics"
+            element={
+              <ProtectedRoute>
+                <TopicListPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/topics/new"
+            element={
+              <ProtectedRoute>
+                <CreateTopicPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/topics/:topicId"
+            element={
+              <ProtectedRoute>
                 <TopicGraphPage />
-              </Suspense>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/books"
-          element={
-            <ProtectedRoute>
-              <BookListPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/books/:bookId"
-          element={
-            <ProtectedRoute>
-              <BookReaderPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/qa"
-          element={
-            <ProtectedRoute>
-              <QuestionListPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/qa/new"
-          element={
-            <ProtectedRoute>
-              <CreateQuestionPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/qa/:questionId"
-          element={
-            <ProtectedRoute>
-              <QuestionDetailPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/shamela"
-          element={
-            <ProtectedRoute requireRole="ADMIN">
-              <AdminShamelaPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/library/pages/:pageId/edit"
-          element={
-            <ProtectedRoute requireRole="ADMIN">
-              <AdminPageEditorPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/audit"
-          element={
-            <ProtectedRoute requireRole="ADMIN">
-              <AdminAuditPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <ProtectedRoute>
-              <SettingsPage />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/books"
+            element={
+              <ProtectedRoute>
+                <BookListPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/books/:bookId"
+            element={
+              <ProtectedRoute>
+                <BookReaderPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/qa"
+            element={
+              <ProtectedRoute>
+                <QuestionListPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/qa/new"
+            element={
+              <ProtectedRoute>
+                <CreateQuestionPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/qa/:questionId"
+            element={
+              <ProtectedRoute>
+                <QuestionDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/shamela"
+            element={
+              <ProtectedRoute requireRole="ADMIN">
+                <AdminShamelaPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/library/pages/:pageId/edit"
+            element={
+              <ProtectedRoute requireRole="ADMIN">
+                <AdminPageEditorPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/audit"
+            element={
+              <ProtectedRoute requireRole="ADMIN">
+                <AdminAuditPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <SettingsPage />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </Suspense>
       <CommandPalette open={paletteOpen} onClose={closePalette} />
       <SourceDetailPanel />
       <OnboardingChecklist />
