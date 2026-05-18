@@ -12,6 +12,7 @@ import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
 import ru.basnukaev.argumentmap.auth.domain.AuthenticatedUser;
+import ru.basnukaev.argumentmap.exception.InvalidTokenException;
 import ru.basnukaev.argumentmap.exception.MissingUserHeaderException;
 
 /**
@@ -56,8 +57,16 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
         if (principal instanceof AuthenticatedUser user) {
             return user.id();
         }
-        throw new MissingUserHeaderException(
-                "SecurityContext содержит неизвестный тип principal: " + principal.getClass()
+        // Anonymous principal (String "anonymousUser") - в dev profile
+        // `/api/**` permitAll пускает запрос до controller'а даже когда
+        // JwtFilter молча skip'нул истёкший token. Это не «отсутствующий
+        // заголовок» (400), а «истёкший/невалидный токен» - 401 чтобы
+        // frontend interceptor поймал и сделал refresh+retry, а не 400
+        // missing-user-header (frontend на 400 не реагирует). В prod
+        // profile без permitAll Spring сам вернёт 401 раньше - resolver
+        // не вызывается
+        throw new InvalidTokenException(
+                "Access token отсутствует либо истёк - требуется refresh либо повторный login"
         );
     }
 }
