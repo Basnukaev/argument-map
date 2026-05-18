@@ -505,6 +505,35 @@ EDITOR'ов.
 **Ошибки:**
 - `404` - узел не найден
 
+#### POST /api/v1/nodes/{nodeId}/z-order/bring-to-front
+
+Ставит узел на передний план относительно других узлов темы.
+Сервер вычисляет `z_index = MAX(z_index по теме) + 1` и присваивает
+узлу. Клиенту не нужно знать текущий max - один POST без подсчёта.
+
+Семантически идемпотентный: повторный вызов всё ещё ставит узел
+выше других (max+1 относительно новых max), даже если узел уже
+был сверху.
+
+Не пишет revision и не меняет `updatedAt` - z-order это UI affordance,
+не доменное изменение содержимого (по аналогии с `updatePosition`).
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно). Требуется `canWriteTopic`.
+
+**Запрос:** пустое тело (можно `{}`).
+
+**Ответ (200 OK):** обновлённый `NodeResponse` с новым `zIndex`.
+
+**Ошибки:**
+- `403` - `forbidden-topic-access` (нет доступа к private теме) или
+  `forbidden-topic-write` (есть read но нет write)
+- `404` - `node-not-found`
+
+#### POST /api/v1/nodes/{nodeId}/z-order/send-to-back
+
+Парный endpoint. `z_index = MIN(z_index по теме) - 1`. Контракт
+идентичный `bring-to-front` - заголовки, запрос, ответ, ошибки.
+
 ### Голосование за вес аргументов (миграция 38)
 
 Пользователи могут голосовать за/против узлов (`EVIDENCE`/`ARGUMENT`)
@@ -893,6 +922,7 @@ variability (ханбалитский / Hanbali / حنبلي) делают фи�
   "status": "STANDING|DISPUTED|REFUTED|UNVERIFIED",
   "posX": 123.45,
   "posY": -67.89,
+  "zIndex": 0,
   "createdBy": "uuid",
   "createdAt": "iso8601",
   "updatedAt": "iso8601",
@@ -904,6 +934,10 @@ variability (ханбалитский / Hanbali / حنبلي) делают фи�
 ```
 `posX`/`posY` - координаты узла на канвасе графа. `null` для
 узлов, которые ещё не перетаскивались (фронт применит автолейаут).
+
+`zIndex` - stacking order (миграция 40). Default 0 для всех узлов
+до первого `bring-to-front` / `send-to-back`. Управляется через
+два dedicated endpoint - см. секцию ниже.
 
 `voteUpvotes`/`voteDownvotes`/`voteScore` - агрегаты голосов
 (миграция 38, см. секцию «Голосование за вес аргументов»).
@@ -2748,6 +2782,7 @@ only (id+title+authorityId), полная сериализация исключ�
 | 2026-05-17 | v1 | Этап 17.0 - Tiptap rich text editor MVP (ADR-039). Новый endpoint `PATCH /api/v1/library/pages/{id}/formatted-content` принимает `UpdateFormattedContentRequest{formattedContent: JsonNode}` и сохраняет ProseMirror JSON в новой `lib_pages.formatted_content jsonb NULL` колонке (миграция 33). Backend не валидирует ProseMirror schema - принимает любой валидный JSON (валидация на фронте через Tiptap extensions). `PageResponse` расширен полем `formattedContent: JsonNode \| null`. Backward compat: NULL для legacy Shamela/PDFBox страниц → фронт оборачивает `textContent` в minimal paragraph-doc через `wrapPlainTextAsDoc`. `text_content` не трогается (FTS + fallback). Требует X-User-Id/JWT auth | ADR-039: Tiptap (на ProseMirror) выбран как rich text editor платформы. Первый custom extension - HadithBox с source/grade attrs. Подготовка к Этапу 17 OCR pipeline (структурированное хранение AI editing output) |
 | 2026-05-17 | v1 | Этап 21.a Spring Security + JWT (ADR-040). Новый namespace `/api/v1/auth/*` с 5 endpoints: `POST /register` (RegisterRequest{email/username/password}, validation: email/3..50 ASCII username/8..100 password), `POST /login` (LoginRequest{email/password}), `POST /refresh` (CookieValue refresh_token, no-rotation MVP), `POST /logout` (clear cookie), `GET /me` (требует Bearer). Response DTO `AuthResponse{accessToken, accessTokenExpiresAt, user{id,username,email,role}}` + Set-Cookie refresh_token (HttpOnly+Secure+SameSite=Strict+Path=/+Max-Age=604800). Access TTL 15мин, refresh TTL 7д, HS256 signature через `auth.jwt.secret` (env AUTH_JWT_SECRET в prod). Новые error types: `401 invalid-credentials` (login fail или disabled), `401 invalid-token` (JWT тампер/expired/невалидный), `401 unauthorized` (no auth on protected endpoint), `409 email-already-taken`, `409 username-already-taken`, `404 user-not-found`. **Breaking semantic change**: ВСЕ mutating endpoints теперь требуют либо `Authorization: Bearer <jwt>`, либо (в dev/local/test profile) X-User-Id fallback. Запрос без обоих → 401 (раньше 400 `missing-user-header`). Existing IT обновлены: 4 теста с `missing-user-header` → 401. `GET /api/**` в dev/local/test profile остаётся permitAll (transitional до Этапа 21.b). Migration 32 `users` ALTER + password_hash/role/enabled/updated_at. OpenAPI X-User-Id header теперь required=false (Bearer JWT - основной путь) | ADR-040 JWT-based auth. Этап 21.a backend foundation, Этап 21.b frontend login UI следующей сессией |
 | 2026-05-17 | v1 | Новый error type `node-is-root` (409 Conflict). Возвращается из `DELETE /api/v1/nodes/{id}` когда `id` совпадает с `topics.root_node_id` соответствующей темы. Дополнительные properties `nodeId` и `topicId`. До фикса корневой узел удалялся успешно - разрушал граф (orphan edges + сломанный status recalc). Чтобы удалить корень - удалить тему целиком через `DELETE /api/v1/topics/{topicId}` | User feedback #1 Сессии 38: пользователь поймал руками что в `TopicGraphPage` можно через NodeDetailsPanel / context menu удалить корневой QUESTION узел. Backend guard + frontend hide-button симметрично |
+| 2026-05-18 | v1 | `NodeResponse` получил поле `zIndex` (int, default 0). Добавлены 2 endpoint: `POST /api/v1/nodes/{id}/z-order/bring-to-front` (z_index = MAX темы + 1) и `POST /api/v1/nodes/{id}/z-order/send-to-back` (MIN - 1). Запросы без тела, ответ - обновлённый NodeResponse. Permission: `assertCanWrite` (forbidden-topic-access если нет read, forbidden-topic-write если нет write). 404 `node-not-found`. Не пишет revision и не меняет `updatedAt` | Backlog item «Z-index full-stack persistence для узлов». До этого z-order сбрасывался при refetch. Edges остаются с локальным zRef counter - отдельный backlog item, редко критично |
 | 2026-05-17 | v1 | Этап 16.h post-review fix - после `POST /api/v1/library/imports/file` книга **сразу** доступна на чтение через существующие `GET /api/v1/library/books/{bookId}/pdf/info` (single-file metadata) и `GET /pdf?fileIndex=0` (streaming). До фикса возвращали 404 `pdf-not-available`. Параметр `language` получил whitelist `ar\|ru\|en` - вне whitelist → 422 `file-import-error` (mirror frontend FileUploadModal). Новых endpoints нет | Critical issue code review Сессии 37: `PdfLinksSourceProvider.supports` проверял `metadata.pdf_links` который `FileImportService` не пишет. Новый `UserUploadProvider` (@Order=50) опрашивает `library_files` по (book_id, source_type=USER_UPLOAD). Контракт language исправляет drift между frontend whitelist и backend acceptance |
 | 2026-05-17 | v1 | `POST /api/v1/library/imports/file` расширен 6 опциональными academic полями (`muhaqqiqName`/`publisherName`/`publicationPlaceName`/`editionNumber`/`publishedYearHijri`/`publishedYearGregorian`) с теми же диапазонами что в `CreateBookRequest` (edition 1..99, year 1..9999). Если хотя бы одно заполнено - бэк через 13-args `BookService.createBook` делает `findOrCreate` в `lib_muhaqqiqs`/`lib_publishers`/`lib_publication_places`, иначе legacy 7-args путь без FK. Out-of-range диапазон → 422 `file-import-error` (ручная валидация в controller, Bean Validation для `@RequestParam` в проекте не настроена) | Этап 16.g: закрытие MVP-разрыва 16.b/f. Пользователь больше не должен после upload вторым шагом открывать BookEditModal для добавления тахкика. Mirror паттерна AddSourceModal 20.e |
 | 2026-05-17 | v1 | Новый endpoint `POST /api/v1/library/imports/file` (multipart/form-data, до 50MB, только `application/pdf`). Поля: `file` (required), опциональные `title`/`authorityId`/`language`/`description`, header `X-User-Id`. Response 201 - `FileImportResponse{bookId, fileId, pageCount, contentHash, sizeBytes, bucket, storageKey}` + Location header. Создаёт Book (`bookType=BOOK`, `metadata.user_uploaded=true`) + Page[] (по одной на phys-страницу PDF, `pageNumber=pdfPageNumber=i+1`, `textContent` через PDFBox PDFTextStripper) + library_files entry (`sourceType=USER_UPLOAD`). Новые ошибки: 413 `payload-too-large` (Spring multipart limit), 415 `unsupported-media-type`, 422 `file-import-error` | ADR-035: Apache PDFBox 3.0.5 для page-by-page extraction. Этап 16.a-e. Второй способ добавления книг помимо shamela ETL. EPUB отложен - нет UX-кейса |

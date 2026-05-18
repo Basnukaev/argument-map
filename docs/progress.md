@@ -11,6 +11,90 @@
 
 ---
 
+## 2026-05-18 - Z-index full-stack persistence для узлов (backlog item)
+
+Закрыт пункт backlog «Z-index full-stack persistence для узлов и рёбер»
+(в части узлов - edges отдельным пунктом). До этого `bring to front` /
+`send to back` работали только в локальном RF-state и сбрасывались при
+любом refetch графа
+
+**Реализовано (5 атомарных коммитов):**
+
+1. **Backend - миграция 40 + Node domain + repository** -
+   `nodes.z_index INTEGER NOT NULL DEFAULT 0` + composite index
+   `(topic_id, z_index)`. Node record получает `int zIndex`,
+   NodeRepository - `updateZIndex`/`findMaxZIndex(topicId)`/
+   `findMinZIndex(topicId)`. NodeResponse + DtoMappers + все Node
+   constructor сайты (TopicService/TopicImportService/NodeService и
+   4 теста) обновлены под новый record arg
+2. **Backend - NodeService + REST endpoints** -
+   `bringToFront(nodeId, userId, role)` с assertCanWrite, считает
+   `findMaxZIndex(topicId) + 1`, обновляет, возвращает новый Node.
+   `sendToBack` симметрично с min - 1. Семантическая идемпотентность:
+   повторный bringToFront всё ещё ставит выше (max+1 от нового max).
+   `POST /api/v1/nodes/{id}/z-order/bring-to-front` и `/send-to-back` -
+   dedicated endpoints вместо расширения PATCH /nodes/{id} (проще API
+   surface, нет race condition)
+3. **Backend - IT NodeZIndexIT** - 5 кейсов: bringToFront_setsToMaxPlus1
+   (последовательные z=1, z=2, z=3 идемпотентность), sendToBack_
+   setsToMinMinus1 (z=-1, z=-2), bringToFront_nonOwner_returns403
+   (PRIVATE тема + stranger = forbidden-topic-access не -write, так как
+   `assertCanWrite` сначала проверяет canRead чтобы не leak'нуть
+   existence), sendToBack_nonOwner_returns403, bringToFront_
+   nonExistentNode_returns404
+4. **Frontend - GraphCanvas + buildFlow** - `buildFlow` читает
+   `n.zIndex` из DTO и кладёт в ReactFlow node `zIndex` prop.
+   `bringNodeToFront`/`sendNodeToBack` теперь делают optimistic local
+   update (на основе текущих node zIndex на канве) + `apiPostRaw` +
+   `onRefetch`. Edges остаются с локальным zRef (отдельный пункт
+   backlog). Гейтинг по `canWrite`: для read-only context menu пункты
+   «На передний план» / «На задний план» скрыты (write op). Tests +2
+   через MSW (POST hits правильный URL для обоих action)
+5. **Docs** - этот entry + backlog «Z-index для узлов»  → [x] + новый
+   подпункт edges, api-contract NodeResponse + 2 endpoint section +
+   history row
+
+**Тесты:**
+- Backend: 771 (766 baseline + 5 NodeZIndexIT). Все pass.
+  `./mvnw verify` clean
+- Frontend: 364 (357 baseline + 5 admin audit subagent + 2 z-order).
+  `npm run lint && npm run build && npm run test:run` clean
+
+**Документация (включая api-contract):**
+- `docs/api-contract.md` - NodeResponse `zIndex` поле + 2 endpoint
+  section + история row
+- `docs/backlog.md` - «Z-index для узлов» закрыто, оставлен подпункт
+  «Z-index для edges» как отдельный
+- `docs/progress.md` - эта запись
+
+**ADR не понадобился:** изменение чисто incremental по существующей
+паттерну (`updatePosition` без revision/updatedAt - копируем для
+`updateZIndex`). Альтернативы (`PATCH /nodes/{id}` расширение vs
+dedicated endpoints) - dedicated выбран как проще API surface
+без race condition; обоснование зафиксировано в commit message
+
+**Не сделано (намеренно отложено):**
+- Z-index для edges - редко критично (edges обычно стабильно поверх
+  или под nodes). Если возникнет use-case - тот же шаблон, миграция
+  41 + EdgeService + 2 endpoint
+- Renormalization z_index в диапазон `[0..N-1]` - 32-bit int даёт
+  ±2млрд, на сотни тысяч toggles в одной теме не уплывёт. Compress -
+  отдельный backlog item если станет нужно
+
+**Что user может проверить руками:**
+
+1. Открой граф темы с 2+ узлами
+2. Правый клик на узел → «На передний план» / «На задний план»
+3. Перезагрузи страницу (F5)
+4. Должен увидеть: stacking order сохранился после refetch (раньше
+   сбрасывался)
+5. Обрати внимание:
+   - У read-only пользователя (SHARED MEMBER, не EDITOR) пункты
+     «На передний/задний план» в context menu НЕ показываются
+   - Edge context menu z-order пункты работают как раньше (локально)
+
+---
+
 ## 2026-05-18 - Admin audit UI (Этап 22.e, frontend, ADR-043 Amendment 3)
 
 Закрыт Этап 22.e - frontend для audit log endpoint'а готового в 22.d.

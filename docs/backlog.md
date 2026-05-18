@@ -62,10 +62,24 @@
       switch 3 + store 4 + GraphPanels menu 4). Полный отчёт в
       `docs/progress.md` + UI-guidelines дополнен разделом «Layout
       algorithm»
-- [ ] **Z-index full-stack persistence** для узлов и рёбер
-      (миграция + поле + DTO + фронт). Сейчас локально, при
-      refetch теряется. Делать только если станет критично -
-      z-order между сессиями редко важен
+- [x] **Z-index full-stack persistence для узлов** - закрыто 2026-05-18.
+      Backend: миграция 40 (`nodes.z_index INTEGER NOT NULL DEFAULT 0` +
+      composite index `(topic_id, z_index)`), Node domain получил `int
+      zIndex`, NodeRepository - updateZIndex/findMaxZIndex/findMinZIndex,
+      NodeService - bringToFront/sendToBack с assertCanWrite,
+      2 dedicated endpoint'а `POST /api/v1/nodes/{id}/z-order/bring-to-
+      front` и `/send-to-back` (вместо расширения PATCH /nodes/{id} -
+      проще API surface). Frontend: buildFlow читает zIndex из DTO,
+      bringNodeToFront/sendNodeToBack делают optimistic local update +
+      apiPostRaw + refetch, context menu пункты «На передний план» /
+      «На задний план» под `canWrite`. Tests: 5 IT (NodeZIndexIT - max+1,
+      min-1, 403 nonOwner для обоих action, 404 missing) + 2 frontend
+      (MSW). Edges - отдельный пункт ниже, отложен (z-order на edges
+      редко важен, локального достаточно)
+- [ ] **Z-index persistence для edges** - на узлах закрыто, на edges
+      остаётся локальный zRef counter в GraphCanvas. Делать если станет
+      критично. Структура аналогичная - миграция, repo.updateZIndex,
+      service.bringToFront/sendToBack, REST endpoints
 
 ## Responsive / mobile-планшетная адаптация
 
