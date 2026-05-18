@@ -159,7 +159,7 @@ function PageView({
     return (
       <Card className="p-12 text-center">
         <Loader2 size={20} className="mx-auto animate-spin text-ink-400" aria-hidden="true" />
-        <p className="mt-2 text-xs text-ink-500">Загрузка страницы</p>
+        <p className="mt-2 text-xs text-ink-500">{t('reader.page_loading')}</p>
       </Card>
     );
   }
@@ -209,7 +209,7 @@ function PageView({
             type="button"
             onClick={onOpenPdfPreview}
             className="inline-flex items-center gap-1.5 rounded-md border border-err-500/40 bg-err-100 px-2.5 py-1 text-xs font-semibold text-err-700 shadow-sm transition-colors hover:border-err-500/40 hover:bg-err-100 hover:text-err-700"
-            title="Открыть PDF оригинала на этой странице"
+            title={t('reader.open_pdf_page_title')}
           >
             <FileImage size={14} aria-hidden="true" />
             <span>PDF</span>
@@ -217,7 +217,7 @@ function PageView({
         )}
       </div>
       {!text && !page.imageUrl && (
-        <p className="text-center text-sm text-ink-400">Страница пустая</p>
+        <p className="text-center text-sm text-ink-400">{t('reader.page_empty')}</p>
       )}
       {page.imageUrl && (
         <img

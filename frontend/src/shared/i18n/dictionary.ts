@@ -88,6 +88,9 @@ export const DICTIONARY = {
     'reader.mode.pdf': 'PDF',
     'reader.tashkeel_show': 'С огласовками',
     'reader.tashkeel_hide': 'Без огласовок',
+    'reader.page_loading': 'Загрузка страницы',
+    'reader.page_empty': 'Страница пустая',
+    'reader.open_pdf_page_title': 'Открыть PDF оригинала на этой странице',
 
     // topic list page
     'topic.list.eyebrow': 'Аргументация · темы',
@@ -1223,6 +1226,9 @@ export const DICTIONARY = {
     'reader.mode.pdf': 'PDF',
     'reader.tashkeel_show': 'مع التشكيل',
     'reader.tashkeel_hide': 'بدون تشكيل',
+    'reader.page_loading': 'جارٍ تحميل الصفحة',
+    'reader.page_empty': 'الصفحة فارغة',
+    'reader.open_pdf_page_title': 'افتح PDF الأصلي في هذه الصفحة',
 
     'topic.list.eyebrow': 'الحجاج · المواضيع',
     'topic.list.title': 'مواضيع الحجاج',
