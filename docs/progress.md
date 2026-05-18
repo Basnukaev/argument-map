@@ -11,6 +11,71 @@
 
 ---
 
+## 2026-05-18 - SourceDetailPanel (backlog item)
+
+Закрыт backlog «Source detail panel» - параллельная боковая панель
+800px desktop / fullscreen mobile с полным содержанием цитируемого
+источника. Открывается из всех 4-х точек citation UI: NodeCitations,
+QuestionCitations, AnswerCitations (через SourceCard title click) +
+InlineCitationMarker popover (через «Открыть подробнее» action)
+
+**Frontend (3 коммита):**
+- `sourceDetailPanelStore` Zustand store - минимальный контракт
+  (current: SourceDetailCitation | null, isOpen, openWith, close).
+  Множественные компоненты открывают одну mount'нутую панель в App.tsx
+  без prop drilling. 4 unit теста pass
+- `SourceDetailPanel.tsx` - public wrapper + content компонент.
+  Conditional render идиома `{isOpen && <Content key={sourceId} />}`
+  - re-mount на смене source, state без useEffect-сброса (обходит
+  react-hooks/set-state-in-effect, см. memory `feedback_react_key_remount`).
+  Sections: Metadata (type/title/authority с deathYearHijri/citation/
+  reliability HADITH), Quote (выделенный blockquote accent-500 с
+  dir="auto" + naskh для arabic), Context (dashed border), Full Reading
+  (кнопка → /books/{bookId} для BOOK/QURAN/HADITH с bookId).
+  Tailwind logical `end-0` + `w-[800px]` (desktop) / `w-screen` (mobile),
+  backdrop click-to-close + Escape listener. 6 vitest pass
+- Integration в 3 SourceCard consumer + InlineCitationMarker:
+  - SourceCardHeader: title опционально clickable (`onTitleClick`)
+  - прокинуто через SourceCard в NodeCitations/Question/AnswerCitations
+  - InlineCitationMarker popover - добавлена «Открыть подробнее» ссылка
+- mounted в App.tsx один раз, рядом с CommandPalette/Toaster
+- i18n RU+AR: 14 ключей `source_detail.*` + 1 `inline_citation.open_detail`
+  (29 строк добавлено в dictionary.ts)
+
+**Verify:**
+- `npm run lint` - 0 errors
+- `npx tsc --noEmit -p tsconfig.app.json` - clean
+- `npm run test:run` - 411 passing (было 393 baseline + 10 новых +
+  unrelated рост от другой работы)
+- `npm run build` - 7.32s clean
+- Playwright smoke (headless WSL2): login flow + topic page + graph
+  render OK, 0 console errors
+
+**Что не сделано (отложено в backlog):**
+- Hover-preview popover для inline citation marker - сейчас click,
+  можно сделать hover для quick preview. MVP: click оставлен
+- «Attached to» section в panel (список других nodes использующих
+  этот source) - нужен новый endpoint `GET /sources/{id}/usages`
+- Slide-in animation - сейчас просто появляется. CSS transition с
+  `translate-x-full` → `translate-x-0` отложен (motion preferences)
+
+**Архитектура decision (без ADR):**
+- Глобальный Zustand store вместо prop drilling - множественные точки
+  открытия, panel mount'ится глобально, не tied к конкретной странице
+- Conditional render `{isOpen && <Content/>}` вместо постоянного mount
+  + style toggle - state в Content всегда fresh, не нужен useEffect
+  для reset
+- `key={sourceId}` форсирует re-mount на смене источника - чистое
+  состояние, не нужно вручную обнулять FetchState в setState
+
+**Коммиты:**
+- `ef92612` feat(frontend): sourceDetailPanelStore Zustand для управления panel state
+- `8a99113` feat(frontend): SourceDetailPanel компонент 800px desktop / fullscreen mobile
+- `0339644` feat(frontend): integration SourceCard + InlineCitationMarker - открывают panel
+- (this commit) docs: SourceDetailPanel - backlog cleared + progress
+
+---
+
 ## 2026-05-18 - Settings screen + user preferences (backlog item)
 
 Закрыт backlog «Settings screen». Полноценные user-preferences с

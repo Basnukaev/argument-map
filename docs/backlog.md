@@ -122,9 +122,20 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
 - [ ] **Source picker для книг** - таб «Книги» с навигацией том /
       страница, интеграция с shamela.ws. Самая большая работа
       из source pickers _(SourcePickerBooks)_
-- [ ] **Source detail panel** - параллельная боковая панель
-      (800px) с полным содержанием цитируемого источника,
-      контекстом и метаданными _(SourceDetailPanel)_
+- [x] **Source detail panel** - закрыто 2026-05-18. 800px параллельная
+      боковая панель (fullscreen на mobile) с полным содержанием
+      цитируемого источника. Архитектура: `useSourceDetailPanelStore`
+      Zustand (current + isOpen, openWith/close), `SourceDetailPanel`
+      mount'ится один раз в App.tsx, открывается из любой точки через
+      store. Sections: Metadata (type/title/authority с deathYearHijri/
+      citation/reliability), Quote (выделенный blockquote accent-500),
+      Context (dashed border), Full Reading (кнопка → /books/{bookId}).
+      Integration: SourceCardHeader title опционально clickable
+      (`onTitleClick`), прокинуто через SourceCard в NodeCitations/
+      QuestionCitations/AnswerCitationsSection. InlineCitationMarker
+      popover добавил «Открыть подробнее» ссылку для full panel.
+      i18n: 14 ключей `source_detail.*` + 1 `inline_citation.open_detail`
+      (RU+AR). 411 frontend tests pass _(SourceDetailPanel)_
 - [ ] **Library overview** - страница `/library` с обзором
       источников темы _(LibraryOverview)_
 - [x] **Inline citations** - закрыто 2026-05-18. Подход A (implicit
