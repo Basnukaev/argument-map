@@ -47,19 +47,16 @@ test.describe('Settings', () => {
 
   test('toggle hideTashkeel checkbox', async ({ page }) => {
     await page.goto('/settings');
-    // Найдём checkbox по доступному имени, не первый - на странице
-    // может быть несколько (transliteration, hideTashkeel и т.д.)
     const checkbox = page.getByRole('checkbox', {
       name: /огласовк|tashkeel/i,
     });
     await expect(checkbox).toBeVisible({ timeout: 5_000 });
+    // Settings page при первом mount грузит preferences GET /preferences.
+    // Если читаем checked state до завершения GET - получаем initial
+    // false вместо актуального. Ждём networkidle перед reading state.
+    await page.waitForLoadState('networkidle');
     const initialState = await checkbox.isChecked();
-    // Backend save через PATCH /preferences. Network call может занять
-    // время; React state update тоже async. Используем page.evaluate
-    // что immediately стриггерит click через native event
     await checkbox.click({ force: true });
-    // Допустим возможный rerender от server response - просто проверим
-    // что в течение разумного timeout состояние ушло из initial
     await expect(checkbox).toBeChecked({
       checked: !initialState,
       timeout: 5_000,
