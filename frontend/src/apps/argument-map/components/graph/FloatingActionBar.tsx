@@ -60,11 +60,6 @@ function FloatingActionBar({
     return () => document.removeEventListener('pointerdown', onPointerDown);
   }, [statusMenuOpen]);
 
-  // если selection обновился (например узел удалён) - закрываем меню
-  useEffect(() => {
-    setStatusMenuOpen(false);
-  }, [nodeCount, edgeCount]);
-
   if (!canWrite) return null;
   if (nodeCount === 0 && edgeCount === 0) return null;
 

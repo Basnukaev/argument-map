@@ -23,6 +23,8 @@ import NodeDetailsPanel from '@/apps/argument-map/components/graph/NodeDetailsPa
 import EdgeDetailsPanel from '@/apps/argument-map/components/graph/EdgeDetailsPanel';
 import CompactMiniMap from '@/apps/argument-map/components/graph/CompactMiniMap';
 import GraphPanels from '@/apps/argument-map/components/graph/GraphPanels';
+import FloatingActionBar from '@/apps/argument-map/components/graph/FloatingActionBar';
+import type { NodeStatus } from '@/shared/utils/designTokens';
 import { useGraphEscape } from '@/apps/argument-map/hooks/useGraphEscape';
 import { useHotkey } from '@/shared/hooks/useHotkey';
 import {
@@ -507,6 +509,42 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
     await runDelete([], [edgeId]);
   }
 
+  // Bulk-status: parallel PATCH /api/v1/nodes/{id} с {status}. Partial-failure
+  // aware - используем Promise.allSettled, считаем успехи/провалы, выдаём
+  // комбинированный toast. После - onRefetch синхронизирует UI
+  const [bulkBusy, setBulkBusy] = useState(false);
+  async function runBulkStatusChange(targetIds: string[], status: NodeStatus) {
+    if (targetIds.length === 0) {
+      toast.warning(t('bulk_actions.warn.no_writable_nodes'));
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      const results = await Promise.allSettled(
+        targetIds.map((id) => apiPatchRaw(`/api/v1/nodes/${id}`, { status })),
+      );
+      const successes = results.filter((r) => r.status === 'fulfilled').length;
+      const failures = results.length - successes;
+
+      if (successes === 0) {
+        toast.error(t('bulk_actions.error.all_failed'));
+      } else if (failures > 0) {
+        toast.warning(
+          t('bulk_actions.success.status_updated_partial')
+            .replace('{success}', String(successes))
+            .replace('{total}', String(results.length)),
+        );
+      } else {
+        toast.success(
+          t('bulk_actions.success.status_updated').replace('{count}', String(successes)),
+        );
+      }
+      onRefetch();
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   // правый клик на pane - "Создать узел здесь" с координатами курсора.
   // Для read-only режима меню не показываем (single mutating action - create)
   const handlePaneContextMenu = useCallback(
@@ -932,6 +970,20 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
           onClose={closeContextMenu}
         />
       )}
+
+      {/* FloatingActionBar - bottom-center pill, появляется когда выделение
+         >0. runBulkStatusChange фильтрует ids перед PATCH'ем (root тоже
+         можно менять статусом - в отличие от delete). canWrite пропагируется
+         внутрь и бар скрывается для read-only пользователей */}
+      <FloatingActionBar
+        nodeCount={selectedNodeIds.length}
+        edgeCount={selectedEdgeIds.length}
+        canWrite={canWrite}
+        busy={deleting || bulkBusy}
+        onDelete={() => void handleDelete()}
+        onChangeStatus={(status) => void runBulkStatusChange(selectedNodeIds, status)}
+        onClear={clearSelection}
+      />
     </>
   );
 }
