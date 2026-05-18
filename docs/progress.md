@@ -11,6 +11,114 @@
 
 ---
 
+## 2026-05-18 - Dung's argumentation framework (backlog item, Этап 6)
+
+Закрыт пункт backlog «Реализация Dung's argumentation framework для
+продвинутого пересчёта». Opt-in переключатель алгоритма пересчёта
+статусов через колонку `topics.status_algorithm` - default остаётся
+MVP (см. ADR-007), новые темы и existing продолжают работать без
+вмешательства
+
+**Реализовано (5 атомарных feat-коммитов + 1 docs):**
+
+1. **Backend - ADR-044 + миграция 41 + Topic domain** -
+   `topics.status_algorithm VARCHAR(20) NOT NULL DEFAULT 'MVP'` +
+   CHECK constraint `IN ('MVP','DUNG_GROUNDED')`. Topic record получает
+   `String statusAlgorithm`, TopicRepository - `updateStatusAlgorithm`
+   + расширение COLUMNS/ROW_MAPPER + duplicate SQL в
+   `findVisibleToUserWithCounts`. `domain.StatusAlgorithm` константы
+   (string-литералы, не enum - тот же подход что `TopicVisibility`).
+   TopicResponse + DtoMappers расширены. TopicService/TopicImportService -
+   MVP по умолчанию. IT тесты получили дополнительный аргумент
+   конструктора Topic в 7 файлах
+2. **Backend - `DungFrameworkService` с grounded labelling** -
+   iterative attack-based algorithm. Фильтрует attack edges (REFUTES +
+   INVALIDATES), строит `attackersOf` adjacency map, до convergence
+   присваивает IN/OUT, remaining → UNDEC. 15 unit-тестов на records
+   напрямую (singleNoAttack, mutual cycle, defender chain, support
+   игнорируются, orphan edges, self-attack, 3-cycle, complex chain
+   a→b→c→d, double attacker)
+3. **Backend - `StatusCalculationService` переключение MVP /
+   DUNG_GROUNDED** - public `recalculateTopic(topicId)` диспатчит по
+   `topic.statusAlgorithm`. Existing логика - в private
+   `recalculateUsingMvp`, новая `recalculateUsingDung` делегирует
+   `DungFrameworkService` + mapping IN→STANDING/OUT→REFUTED/UNDEC→
+   DISPUTED. EdgeService/NodeService callers не меняются. +3 unit
+   теста в StatusCalculationServiceTest для DUNG cases
+4. **Backend - `PATCH /api/v1/topics/{id}/status-algorithm` endpoint** -
+   `UpdateTopicStatusAlgorithmRequest{algorithm}` с Pattern validation
+   (`MVP|DUNG_GROUNDED`), `TopicService.updateStatusAlgorithm(topicId,
+   algorithm, userId, role)` - assertIsOwner + audit UPDATE с FieldDiff
+   statusAlgorithm + **side effect** `recalculateTopic` в той же
+   транзакции. No-op для same value (без audit + без recalc).
+   Controller endpoint mirror'ит `PATCH /visibility` pattern
+5. **Backend - IT для TopicStatusAlgorithm endpoint** - 8 MockMvc
+   тестов: setDung returns 200 + recalc цепочки a→b (REFUTES) даёт
+   STANDING/REFUTED; setMvp recalculatesBack; invalidAlgorithm и
+   null → 400; byNonOwner → 403 forbidden-topic-write даже на PUBLIC
+   теме; unknownTopic → 404; sameValue noOp не пишет audit;
+   writesAuditEntry проверяет UPDATE row в audit_log
+
+**Семантика:**
+
+- MVP учитывает SUPPORTS/REFUTES/INVALIDATES, статусы STANDING/
+  DISPUTED/REFUTED/UNVERIFIED, поддерживает «свежий узел» через
+  UNVERIFIED
+- DUNG_GROUNDED учитывает только attack-edges (REFUTES +
+  INVALIDATES), SUPPORTS/QUALIFIES/RESPONDS_TO игнорируются по
+  дизайну Dung'а. Mapping IN→STANDING/OUT→REFUTED/UNDEC→DISPUTED.
+  UNVERIFIED не используется в Dung'е - все ноды получают
+  определённый label
+
+**Тесты:** 785/785 IT pass, 300+ unit pass (+18 от Dung'а). Подробнее
+по покрытию - в commits 6d288f5 (Dung unit) + 6e4d7ce (IT)
+
+**Что отложено:**
+
+- **Frontend UI toggle** алгоритма - сейчас доступен только через
+  curl PATCH. Backend готов, фронту нужен toggle в `TopicMetaPanel`
+  либо `TopicSettingsModal`. Power user'ы могут переключать сейчас,
+  обычные - после frontend implementation
+- **Preferred / stable extensions** - rejected в ADR-044 (multiple
+  extensions = сложнее mapping на наш status enum, stable может не
+  существовать). Если возникнет academic use case - расширяемо через
+  новые значения CHECK constraint без breaking
+- **Bipolar argumentation** (с support edges + attack edges,
+  Cayrol & Lagasquie-Schiex 2005) - rejected как over-engineering для
+  MVP. Наши SUPPORTS продолжают работать в MVP-алгоритме
+
+**Что можно проверить руками:**
+
+```bash
+# создать тему (default MVP)
+TOPIC_ID=$(curl -X POST http://localhost:9090/api/v1/topics \
+  -H "X-User-Id: 00000000-0000-0000-0000-000000000001" \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Dung test","rootQuestion":"А?"}' \
+  | jq -r .id)
+
+# переключить на DUNG_GROUNDED
+curl -X PATCH "http://localhost:9090/api/v1/topics/${TOPIC_ID}/status-algorithm" \
+  -H "X-User-Id: 00000000-0000-0000-0000-000000000001" \
+  -H 'Content-Type: application/json' \
+  -d '{"algorithm":"DUNG_GROUNDED"}'
+
+# проверить что вернулся 200 + statusAlgorithm:DUNG_GROUNDED
+# создать узлы + attack-edges (REFUTES) - и убедиться через GET /graph
+# что statuses посчитаны по Dung'у. Возврат на MVP - тем же endpoint
+```
+
+**Закрыто:**
+
+- backlog «Реализация Dung's argumentation framework» → checked +
+  reference на ADR-044
+- roadmap «Этап 6. Улучшения бэкенда» свёрнут в строку - JSON
+  export/import (Сессия 39) и Dung framework (эта сессия) закрыты,
+  full-text search отложен через отдельный Elasticsearch (см.
+  `docs/backlog.md` «Архитектурные решения»)
+
+---
+
 ## 2026-05-18 - Z-index full-stack persistence для узлов (backlog item)
 
 Закрыт пункт backlog «Z-index full-stack persistence для узлов и рёбер»

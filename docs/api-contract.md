@@ -319,6 +319,40 @@ findVisibleToUserWithCounts остался с ASC для обратной сов
 - `403 forbidden-topic-write` - не owner и не ADMIN
 - `404` - тема не найдена
 
+#### PATCH /api/v1/topics/{topicId}/status-algorithm
+
+Сменить алгоритм пересчёта статусов узлов темы (ADR-044). **Только owner
+или ADMIN**. Side effect - сразу запускает пересчёт всех узлов под новым
+алгоритмом в той же транзакции
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+**Запрос:**
+```json
+{ "algorithm": "DUNG_GROUNDED" }
+```
+- `algorithm`: `MVP` (default fixpoint, см. ADR-007) либо `DUNG_GROUNDED`
+  (grounded labelling Dung's framework, см. ADR-044), обязательно
+
+**Ответ (200 OK):** `TopicResponse` с обновлённым `statusAlgorithm`. Если
+значение совпадает с текущим - no-op (audit не пишется, recalculate не
+запускается)
+
+**Ошибки:**
+- `400` - невалидное значение (не MVP / DUNG_GROUNDED)
+- `403 forbidden-topic-write` - не owner и не ADMIN
+- `404` - тема не найдена
+
+**Семантические заметки:**
+
+- `MVP` учитывает SUPPORTS/REFUTES/INVALIDATES, выставляет STANDING/
+  DISPUTED/REFUTED/UNVERIFIED. Поддерживает пометку «свежий узел»
+  через UNVERIFIED
+- `DUNG_GROUNDED` учитывает только attack-edges (REFUTES + INVALIDATES),
+  игнорирует SUPPORTS/QUALIFIES/RESPONDS_TO. Mapping label → status:
+  IN → STANDING, OUT → REFUTED, UNDEC → DISPUTED. UNVERIFIED не
+  используется - все ноды получают определённый label
+
 #### DELETE /api/v1/topics/{topicId}
 
 Удалить тему. **Только owner или ADMIN** (ADR-043). EDITOR не может
@@ -896,6 +930,8 @@ variability (ханбалитский / Hanbali / حنبلي) делают фи�
   "rootNodeId": "uuid|null",
   "createdBy": "uuid",
   "createdAt": "iso8601",
+  "visibility": "PRIVATE|SHARED|PUBLIC",
+  "statusAlgorithm": "MVP|DUNG_GROUNDED",
   "nodeCount": 12,
   "edgeCount": 18
 }
@@ -911,6 +947,11 @@ variability (ханбалитский / Hanbali / حنبلي) делают фи�
   (1 узел = корневой вопрос, 0 рёбер). Через TopicService.getTopicWithCounts
 
 См. ADR-016. Для отображения карточки темы с мини-графом во фронте.
+
+`statusAlgorithm` (string) - алгоритм пересчёта статусов узлов темы
+(ADR-044). Default `MVP` (см. ADR-007), `DUNG_GROUNDED` для grounded
+labelling Dung's framework. Меняется через `PATCH /topics/{id}/status-
+algorithm` (owner only)
 
 ### NodeResponse
 ```json
@@ -2772,6 +2813,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-18 | v1 | Dung's argumentation framework opt-in (ADR-044, Этап 6). Миграция 41 ALTER `topics` добавляет колонку `status_algorithm VARCHAR(20) NOT NULL DEFAULT 'MVP'` + CHECK constraint `IN ('MVP','DUNG_GROUNDED')`. `TopicResponse` расширен полем `statusAlgorithm: MVP\|DUNG_GROUNDED`. Новый endpoint `PATCH /api/v1/topics/{id}/status-algorithm` (`UpdateTopicStatusAlgorithmRequest{algorithm}`, owner only, 200 OK + recalc side effect) - триггерит пересчёт всех узлов под новым алгоритмом в той же транзакции. No-op для same value (не пишет audit, не recalc). 400 для невалидного enum через Pattern в DTO; 403 `forbidden-topic-write` для не-owner / не-ADMIN; 404 для unknown topic. Audit как UPDATE action с FieldDiff statusAlgorithm {old, new}. DUNG_GROUNDED игнорирует SUPPORTS/QUALIFIES/RESPONDS_TO (только attack-edges REFUTES + INVALIDATES), mapping IN→STANDING/OUT→REFUTED/UNDEC→DISPUTED. UNVERIFIED не используется в Dung'е. **Frontend UI toggle отложен в backlog** - сейчас доступен только через curl. Дефолт MVP сохраняет existing behavior, нет breaking change | ADR-044: opt-in переключение через колонку. Rejected: replace MVP полностью (breaking), preferred/stable semantics (multiple extensions, сложнее mapping), bipolar argumentation (over-engineering MVP). Backlog Этап 6 «Реализация Dung's framework» закрыт |
 | 2026-05-18 | v1 | Audit log per-entity (Этап 22.d, ADR-043 Amendment 3). Миграция 39 - новая таблица `audit_log (id, entity_type, entity_id, parent_entity_type, parent_entity_id, action, actor_user_id REFERENCES users, changes jsonb, metadata jsonb, created_at)` + 4 индекса. 4 новых REST endpoint под `/api/v1/audit/*`: `GET /topics/{id}` (owner+EDITOR через assertCanWrite), `GET /books/{id}` (owner+EDITOR через assertCanWriteBook), `GET /me` (любой authenticated, свои actions), `GET /admin?entityType=&actorId=&dateFrom=&dateTo=` (ADMIN только). Все возвращают `PagedResponse<AuditLogResponse>` сортировка `created_at DESC`. Новый DTO `AuditLogResponse{id, entityType, entityId, parentEntityType, parentEntityId, action, actorUserId, actorUsername, changes (raw json string), createdAt}` - username bulk-load JOIN (не N+1). Audit пишется synchronous в той же транзакции что и mutation через `AuditLogService.logCreate/Update/Delete/VisibilityChange/MemberAdd/MemberRemove/MemberRoleChange` из integration в TopicService/NodeService/EdgeService/BookService/QuestionService/AnswerService/TopicMemberService/BookMemberService. Format `changes` зависит от action: CREATE/DELETE `{created\|deleted: snapshot}`, UPDATE `{field: {old, new}}`, VISIBILITY_CHANGE `{visibility: {old, new}}`, MEMBER_* `{userId, role: scalar или {old, new}}`. Новые ошибки: `403 forbidden-admin-only` (AdminOnlyException) - не ADMIN | ADR-043 Amendment 3: закрытие долга «audit log отложен» из Amendment 2. Event-sourcing lite - 1 row на каждую mutation для compliance + debugging. Synchronous в той же transaction - rollback main flow откатит audit. Manual logging (не Spring AOP) - явный контроль snapshot/diff'а. Admin UI отложен до 22.e/backlog |
 | 2026-05-18 | v1 | Голосование за вес аргументов. Миграция 38 - новая таблица `node_votes (id UUID PK, node_id FK CASCADE, user_id FK CASCADE, weight SMALLINT CHECK IN (-1,1), voted_at TIMESTAMPTZ, UNIQUE(node_id, user_id))` + 2 индекса. 3 новых REST endpoint под `/api/v1/nodes/{id}`: `POST /vote` (CreateNodeVoteRequest{weight: -1\|+1} → 201 NodeVoteStatsResponse{nodeId, upvotes, downvotes, score, userVote}, upsert через ON CONFLICT), `DELETE /vote` (204, идемпотентен), `GET /votes` (NodeVoteStatsResponse). `NodeResponse` расширен 4 полями: `voteUpvotes`/`voteDownvotes`/`voteScore` (int), `userVote` (Integer nullable - голос вызывающего user'а). В `GET /api/v1/topics/{id}/graph` поля заполняются bulk-load из NodeVoteRepository (2 SQL на весь граф - не N+1). Новая ошибка `400 invalid-vote` (weight ∉ {-1,+1}). Permission: vote требует canReadTopic (видишь узел - можешь vote, не write-access, голос это reaction). Голоса НЕ влияют на StatusCalculation - сигнал силы аргумента ортогональный Dung-style status. MVP 3-point scale; 5-point {-2..+2} в backlog | Backlog «Голосование за вес аргументов» закрыт. Пользователи могут усиливать или ослаблять `EVIDENCE`/`ARGUMENT` узлы. Frontend - компактный VoteWidget в NodeCard footer (только для ARGUMENT/EVIDENCE - QUESTION/CLAIM не голосуются), upvote/downvote toggle с optimistic UI |
 | 2026-05-18 | v1 | Этап 22.c - RBAC permissions per-entity для library books + Q&A guards (ADR-043 Amendment). Миграция 37 ALTER `lib_books` добавляет колонку `visibility VARCHAR(20) NOT NULL DEFAULT 'PUBLIC'` (CHECK PRIVATE/SHARED/PUBLIC, в отличие от topics с default PRIVATE - books default PUBLIC для open library); 2 индекса (`visibility`, `created_by+visibility`); новая таблица `lib_book_members` (структура mirror `topic_members`: id, book_id FK CASCADE, user_id FK CASCADE, role CHECK MEMBER/EDITOR, added_at, added_by, UNIQUE book+user). **Breaking semantic change для library books**: GET endpoints у `/library/books` теперь требуют X-User-Id (visibility-фильтр в SQL: PUBLIC OR created_by=? OR (SHARED AND EXISTS lib_book_members)); GET `/library/books/{id}` возвращает 403 `forbidden-book-access` для PRIVATE чужого user'а; DELETE/PATCH книги возвращает 403 `forbidden-book-write` если не owner/EDITOR/ADMIN. `BookResponse`/`BookSummaryResponse`/`BookDetailResponse` расширены полем `visibility: PRIVATE\|SHARED\|PUBLIC`. **POST `/library/books` (REST) устанавливает visibility=PUBLIC по умолчанию**, **POST `/library/imports/file` (PDF upload) устанавливает PRIVATE** (user-uploads приватны). 5 новых book endpoint: `PATCH /api/v1/library/books/{id}/visibility` (UpdateBookVisibilityRequest, owner only); `POST /api/v1/library/books/{id}/members` (AddBookMemberRequest{userId, role}, owner only, 201); `GET /api/v1/library/books/{id}/members` (BookMemberResponse[], requires read access); `PATCH /api/v1/library/books/{id}/members/{memberId}` (UpdateBookMemberRequest{role}, owner only); `DELETE /api/v1/library/books/{id}/members/{memberId}` (owner или self-leave). **Q&A guards**: PATCH/DELETE `/api/v1/questions/{id}` и PATCH/DELETE `/api/v1/answers/{id}` теперь требуют X-User-Id (author check) и возвращают 403 `forbidden-question-write` / `forbidden-answer-write` если actor не автор и не ADMIN. Visibility-модель для questions/answers НЕ добавляется (open discussion semantics). Новые ошибки: `403 forbidden-book-access`/`forbidden-book-write` (с bookId/userId в properties), `404 book-member-not-found`, `403 forbidden-question-write`/`forbidden-answer-write` | ADR-043 Amendment: extend visibility/members pattern на books (тот же 3-уровневый model с PUBLIC-default), Q&A через author guards без visibility model. Rejected: default PRIVATE для books (shamela ETL ожидает massive batch видимым сразу), shared `topic_members` для books (нарушает separation), полный visibility для questions (over-engineering для public discussion). Audit log отложен в 22.d |

@@ -201,8 +201,21 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       обновлён smoke; остальные frontend pages - см. ниже
 - [ ] Аутентификация (Spring Security + JWT) - см. Этап 21 в
       roadmap
-- [ ] Реализация Dung's argumentation framework для продвинутого
-      пересчёта статусов
+- [x] **Реализация Dung's argumentation framework** - закрыто
+      2026-05-18 (Сессия 38, ADR-044). Миграция 41 + `topics.status_algorithm
+      VARCHAR(20) CHECK MVP|DUNG_GROUNDED` (default MVP), `DungFrameworkService.
+      computeGroundedLabelling(nodes, edges)` - iterative grounded labelling
+      по attack-edges (REFUTES + INVALIDATES). Mapping IN→STANDING/OUT→REFUTED/
+      UNDEC→DISPUTED. `StatusCalculationService` диспатчит MVP / DUNG_GROUNDED
+      по `topic.statusAlgorithm`. Новый endpoint `PATCH /api/v1/topics/{id}/
+      status-algorithm` (owner only, side-effect recalc). 15 unit + 8 IT.
+      **Frontend toggle** оставлен в backlog отдельным пунктом ниже -
+      пока доступно только через curl. Preferred/stable extensions и
+      bipolar argumentation отвергнуты в ADR-044
+- [ ] **Frontend UI для переключения status-algorithm** - бэкенд готов
+      (PATCH endpoint работает), фронту нужен toggle в TopicMetaPanel /
+      TopicSettingsModal для owner'а. Сейчас power-user'ы могут через curl,
+      но обычным пользователям нужен GUI
 - [x] Импорт / экспорт темы в JSON - закрыт в Сессии 39
       (ADR-037, GET `/topics/{id}/export` + POST `/topics/import`)
 - [x] **Голосование за вес аргументов** - закрыто 2026-05-18.

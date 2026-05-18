@@ -195,22 +195,12 @@
 
 ### Этап 6. Улучшения бэкенда (после MVP, не блокирует другие)
 
-- [ ] Реализация Dung's argumentation framework для продвинутого пересчёта
-- [x] **Импорт/экспорт темы в JSON** (Сессия 39, ADR-037) - `GET /api/v1/topics/{id}/export`
-      + `POST /api/v1/topics/import` (consumes JSON body или multipart),
-      DTO `TopicExportDto` с unique sources/authorities/books refs (формат
-      v1.0). UUID remapping при импорте, authorities find-or-create по name,
-      books find-or-skip с warning. Revisions намеренно не в payload (10x size,
-      не нужны для обмена). Frontend - кнопка «Импортировать тему» в TopicListPage
-      header + hover-icon Download на каждой TopicCard. 19 backend IT (round-trip
-      + edge cases) + types регенерированы. 575/575 tests, lint clean
-
-**Полнотекстовый поиск** решено делать **отдельным сервисом
-Elasticsearch** (не через Postgres tsvector). Причины: PG не умеет
-качественно индексировать арабский (нет рут-based stemming,
-diacritics-aware lookup). Подробности и план - в `docs/backlog.md`
-раздел «Архитектурные решения для будущих этапов».
-Активного этапа пока нет
+- [x] **Этап 6 закрыт** - JSON export/import (Сессия 39, ADR-037), Dung's
+  framework (Сессия 38, ADR-044, миграция 41 + `topics.status_algorithm`
+  + `DungFrameworkService` grounded labelling + `PATCH /api/v1/topics/{id}
+  /status-algorithm`). Полнотекстовый поиск отложен через отдельный
+  Elasticsearch сервис (см. `docs/backlog.md` «Архитектурные решения»).
+  Frontend UI toggle алгоритма - в backlog
 
 ### Этап 18. Library frontend - оставшиеся подэтапы
 

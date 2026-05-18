@@ -444,6 +444,60 @@ parent_entity_id, created_at DESC) WHERE parent_entity_id NOT NULL`.
 
 Frontend парсит по action - schema не валидируется backend'ом.
 
+## Dung's argumentation framework (ADR-044, Этап 6)
+
+**Argumentation Framework (AF)** - формальная модель из работы Phan Minh
+Dung'а (1995) для абстрактного аргументирования. Пара `(A, R)`: `A` -
+множество аргументов (у нас `Node` записи), `R ⊆ A × A` - **attack
+relation** (у нас `Edge` типа `REFUTES` либо `INVALIDATES`).
+Аргумент `(a, b) ∈ R` читается как «a атакует b»
+
+**Attack relation** - бинарное отношение нападения между аргументами.
+В нашей схеме отображается через edges типа `REFUTES` / `INVALIDATES`.
+SUPPORTS/QUALIFIES/RESPONDS_TO в Dung's framework не входят (фреймворк
+**attack-based** по дизайну)
+
+**Conflict-free** - множество аргументов `S ⊆ A` где нет attack
+внутри: если `a, b ∈ S`, то `(a, b) ∉ R`. Базовое свойство любого
+extension'а
+
+**Admissible** - conflict-free множество `S` которое **защищает себя**:
+для любого `c` атакующего какой-то `a ∈ S` существует `b ∈ S`
+атакующий `c`. Защита от внешних attacks через counter-attacks
+
+**Extension** - множество аргументов удовлетворяющее некоторой
+semantics. Главные:
+- **Grounded extension** - минимальный complete extension. **Skeptical**
+  reasoning - что accepted во всех complete extensions. Ровно одно
+  решение для любого AF, всегда существует. Используется у нас
+- **Preferred extension** - максимальный admissible. Может быть
+  несколько на один AF (**credulous** reasoning). Не реализован
+- **Stable extension** - extension которое attacks все не-входящие
+  аргументы. Может не существовать (граф с odd-length attack cycle).
+  Не реализован
+
+**Grounded labelling** - функция `L: A → {IN, OUT, UNDEC}` которая
+характеризует grounded extension:
+- `IN` (accepted) - аргумент defended ото всех своих attackers (либо
+  не имеет attackers)
+- `OUT` (rejected) - есть attacker с label IN
+- `UNDEC` (undecided) - не получил определённого label через iterative
+  derivation (typically attack-cycle без defender'а)
+
+У нас IN → `STANDING`, OUT → `REFUTED`, UNDEC → `DISPUTED`.
+`UNVERIFIED` в Dung'е не используется - каждый node получает
+определённый label при complete labelling
+
+**MVP algorithm** - наш дефолтный fixpoint-итератор для пересчёта
+статусов (см. ADR-007), реализован в `StatusCalculationService.
+recalculateUsingMvp`. Учитывает все edge типы кроме QUALIFIES/
+RESPONDS_TO
+
+**DUNG_GROUNDED algorithm** - opt-in (ADR-044) grounded labelling
+через `DungFrameworkService.computeGroundedLabelling`. Переключается
+через `PATCH /api/v1/topics/{id}/status-algorithm` (owner only).
+Хранится в `topics.status_algorithm` (CHECK MVP|DUNG_GROUNDED)
+
 ## Удалённые понятия
 
 **Weight (вес)** — было поле `int 1-10`, "субъективная сила
