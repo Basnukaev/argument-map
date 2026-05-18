@@ -154,7 +154,7 @@ public class SourceRepository {
      * другие комбинации идут через обычный {@link #save(Source)}.
      */
     public Source upsertByBookId(Source source) {
-        if (source.bookId() == null || source.sourceType() != SourceType.BOOK) {
+        if (!source.isBook() || source.bookId() == null) {
             throw new IllegalArgumentException(
                 "upsertByBookId требует sourceType=BOOK и не-null bookId, получено: "
                     + source.sourceType() + " / " + source.bookId());

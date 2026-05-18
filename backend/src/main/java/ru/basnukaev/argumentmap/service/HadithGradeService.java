@@ -66,7 +66,11 @@ public class HadithGradeService {
                                 UUID actorUserId) {
         Source source = sourceRepository.findById(sourceId)
                 .orElseThrow(() -> new SourceNotFoundException(sourceId));
-        if (source.sourceType() != SourceType.HADITH) {
+        // user-facing валидация: оценку можно поставить только хадису
+        // (см. ADR-43 / hadith-grades). Не используем Source.requireType
+        // - тот бросает IllegalStateException (programming error), а
+        // тут пользовательская ошибка → InvalidHadithGradeException → 400
+        if (!source.isHadith()) {
             throw new InvalidHadithGradeException(
                     "Оценку можно добавить только на хадис (sourceType=HADITH), получено: "
                             + source.sourceType()
