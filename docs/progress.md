@@ -11,6 +11,74 @@
 
 ---
 
+## 2026-05-19 - Refresh token rotation single-use (ADR-047)
+
+backlog Security Important Cross-cutting #4 закрыт. До этого refresh
+token был reusable до expiry (7 дней) - stolen refresh = доступ на
+неделю без detection. Теперь single-use rotation + steal detection.
+
+**Что сделано:**
+
+- миграция 46 `refresh_tokens(id, user_id FK CASCADE, token_hash UNIQUE,
+  issued_at, expires_at, revoked_at, replaced_by FK self, revocation_reason)`
+  + 3 partial индекса
+- `RefreshToken` domain record + constants reasons (rotation /
+  stolen-detected / logout / expired)
+- `RefreshTokenRepository` - save / findByHash / findActiveByHash /
+  revoke / markReplaced / revokeAllByUserId / revokeExpired
+  (последний для будущего janitor'а)
+- `AuthService` переписан: `login` теперь @Transactional + сохраняет
+  refresh запись. `refresh` делает rotation - revoke старый
+  + mark replaced_by, выдаёт новый. При reuse rotated → revoke всей
+  chain user'а + log.warn. `logout(value)` - revoke incoming
+  идемпотентно
+- `JwtService.buildToken` добавляет `jti` claim (UUID) - без этого
+  два токена выпущенные в одну миллисекунду имеют идентичную подпись
+  и ломают UNIQUE(token_hash)
+- `AuthController.logout` теперь читает refresh cookie и передаёт в
+  service
+- SHA-256 hex hashing (не bcrypt) - refresh validated на каждом
+  request, bcrypt медленный + JWT signature high-entropy
+
+**Тесты:**
+
+- `AuthServiceRotationIT` - 8 IT покрывающих rotation / steal / logout /
+  chain / garbage / null
+- `AuthControllerIT` - 3 новых HTTP-level: cookie diff после rotation,
+  reuse → 401, logout revoke в БД
+
+**Документация:**
+
+- ADR-047 в `docs/decisions.md` с rejected alternatives (Redis
+  blacklist / no-rotation / sliding TTL / bcrypt)
+- gotcha «Refresh token reuse = force-logout всех сессий» -
+  предупреждение про concurrent tabs + BroadcastChannel solution
+- `docs/api-contract.md` - changelog entry + обновление описаний
+  /auth/refresh, /auth/logout, JWT claims
+- `docs/architecture.md` - rotation **yes** (заменил ADR-040 «open
+  question»)
+- `docs/backlog.md` - mark [x] + новая запись «RefreshTokenCleanupJanitor»
+  (cron daily DELETE revoked старше 30 дней + expired)
+
+**Отложено:**
+
+- `RefreshTokenCleanupJanitor` - в backlog отдельным item. Pattern
+  есть в `AuditLogRetentionJanitor` (cron + `@ConditionalOnProperty` +
+  retention property), replicate. Без janitor таблица растёт линейно
+  - acceptable для MVP, mandatory до prod
+
+**Известная проблема параллельных subagents:**
+
+В рамках задачи параллельно работали rate-limit и test-coverage
+subagents. Из-за race-condition в shared shell мои файлы (RefreshToken
++ Repository + миграция 46 + AuthService rotation) попали в коммиты
+других subagent'ов (`6480202 feat(backend): RateLimitProperties` и
+`a471c44 feat: JaCoCo`). Финальные atomic коммиты только за rotation
+IT (`c7fc9db`) и adapt existing IT (`86a1a06`). Содержимое верное -
+просто distributed по чужим коммитам, чем планировалось.
+
+---
+
 ## 2026-05-18 - E2E Playwright suite
 
 Полная E2E-suite для critical user journeys. subagent task в параллели

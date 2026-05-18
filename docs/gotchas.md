@@ -1700,3 +1700,44 @@ return getJson(uri, BookMetadata.class)
 - `locateFile_relativeFilenameWithoutRoot_throwsShamelaApiException` (защита от случая когда оба пустые - это уже bug shamela metadata)
 
 **Узнано:** Сессия 39, real-prod failure при первой попытке открыть PDF из библиотеки.
+
+---
+
+## Refresh token reuse = force-logout всех сессий user'а (ADR-047)
+
+**Симптом:** пользователь работает в двух tabs/devices одновременно,
+один из них вдруг возвращает 401 на /auth/refresh и backend сообщение
+«Подозрительная активность - все сессии завершены, требуется повторный
+вход». Все остальные tabs/devices тоже потеряют сессии при следующем
+refresh попытке.
+
+**Причина:** ADR-047 single-use refresh rotation. Refresh-токен валиден
+ровно один раз - после `/auth/refresh` старая запись в `refresh_tokens`
+помечается revoked, выдаётся новый. Если две сессии параллельно
+попытаются использовать один тот же refresh (например legitimate tab A
+и attacker / tab B), вторая попытка обнаружит revoked_at != null и
+trigger'нет **steal detection**: AuthService revoke'нет ВСЕ active
+refresh user'а (`revokeAllByUserId`) и бросит 401. Это by-design - мы
+не можем отличить legitimate concurrent usage от stolen-token attack,
+поэтому safer default - force re-login.
+
+**Решение:**
+- **На frontend:** синхронизировать refresh через `BroadcastChannel`
+  либо `SharedWorker` чтобы только один tab выполнял rotation. Когда
+  одно окно делает refresh, остальные получают новый access из shared
+  state и не делают свой /auth/refresh
+- **На backend:** в логах ищется `SECURITY: refresh token reuse
+  detected userId=<id>`. Это первая зацепка при tickete «у меня
+  все слетают» - проверить timestamp + IP, либо реальный steal либо
+  baseline frontend race condition
+- **Не fix'ать** через relaxing rotation (например allow reuse в окне
+  N секунд) - это разрушает security model. BroadcastChannel на front -
+  правильное решение
+
+**Покрыто тестами:**
+- `AuthServiceRotationIT#refresh_reusedRefresh_revokesAllChain`
+- `AuthControllerIT#POST_refresh_reusedRefresh_returns401_stealDetected`
+
+**Узнано:** реализация ADR-047 (2026-05-19), backlog Cross-cutting #4.
+Поведение by-design, но contra-intuitive для unsuspecting frontend
+developer - попробует открыть две tabs и удивится.

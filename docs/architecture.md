@@ -468,8 +468,13 @@ Package: `ru.basnukaev.argumentmap.auth/`
 Roles: `USER`/`ADMIN` (CHECK constraint + index). RBAC per-entity - см.
 Permissions ниже (ADR-043).
 
-Refresh token rotation - **no** в MVP (см. ADR-040 «Открытые вопросы»).
-Refresh blacklist - **no** в MVP. Multiple sessions per user - допустимо.
+Refresh token rotation - **yes**, single-use с steal detection (ADR-047,
+2026-05-19). Refresh-токены tracked в таблице `refresh_tokens` (миграция
+46) с SHA-256 hex hashing. Каждый `/auth/refresh` revoke'нет старый
+токен и выдаёт новый. Reuse rotated refresh = steal detection +
+revoke всех сессий user'а. Multiple sessions per user допустимо
+(один user может иметь несколько active refresh - например на разных
+устройствах), каждая ротируется независимо.
 
 ## Permissions / Visibility model (Этап 22 + 22.c, ADR-043 + Amendment)
 

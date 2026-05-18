@@ -5455,3 +5455,138 @@ probe.
   auth. Отложен отдельным backlog item
 - **Security backlog #4** (Refresh token rotation) - параллельная
   работа другого subagent'а, не конфликтует
+
+## ADR-047: Refresh token rotation single-use с steal detection
+
+**Дата:** 2026-05-19
+
+**Контекст:** до этого решения refresh-токен был чистым JWT - reusable
+до своего expiry (7 дней). Если refresh утёк (XSS, malware, leaked
+backup) - attacker имеет персистентный доступ к refresh endpoint и
+может бесконечно регенерировать access токены до истечения refresh.
+Невозможно отличить legitimate user от attacker, оба предъявляют
+валидную подпись. ADR-040 flag'нул rotation как «открытый вопрос».
+Reviewer round 5 Important Cross-cutting #4 поднял до критичного.
+
+**Решение:** single-use refresh-токен + steal detection.
+
+На каждом `POST /auth/refresh`:
+
+1. SHA-256(incoming raw refresh) → lookup в `refresh_tokens` по
+   token_hash
+2. Если запись revoked - **STEAL DETECTED**: revoke всю chain user'а
+   (`revokeAllByUserId(reason="stolen-detected")`) + log.warn + 401
+3. Если expired - revoke + 401
+4. Иначе - выпуск новой пары access+refresh, save новой записи в БД
+   с UNIQUE token_hash, mark старой `replaced_by={new.id},
+   reason="rotation"`
+
+**Архитектура:**
+
+- Миграция 46 `refresh_tokens(id uuid PK, user_id FK CASCADE,
+  token_hash varchar(64) UNIQUE, issued_at, expires_at, revoked_at,
+  replaced_by uuid FK, revocation_reason varchar(50))`. Индексы:
+  partial на user_id где `revoked_at IS NULL`, на token_hash (hot
+  path lookup), partial на expires_at для будущего janitor cleanup
+- `RefreshToken` domain record (immutable). Constants для reasons -
+  rotation / stolen-detected / logout / expired
+- `RefreshTokenRepository` - save / findByHash / findActiveByHash /
+  revoke / markReplaced / revokeAllByUserId / revokeExpired. JDBC
+  Template + RowMapper по проектной конвенции (без JPA)
+- `AuthService.login` теперь @Transactional (вместо readOnly) -
+  пишет refresh запись. `refresh` делает rotation. `logout(value)` -
+  новый метод, revoke incoming refresh идемпотентно
+- AuthController.logout читает refresh_token cookie и передаёт в
+  service - revoke в БД дополняет очистку cookie
+- JwtService.buildToken теперь добавляет `jti` (UUID) - без этого
+  два токена выпущенные в одну миллисекунду имеют идентичную
+  подпись и ломают UNIQUE(token_hash) при быстром login → refresh
+
+**Hashing - SHA-256 hex, не bcrypt:**
+
+- Refresh validated на каждом `/auth/refresh` (каждые ~15 минут при
+  активной сессии = TTL access). Bcrypt cost factor 10 = ~100ms per
+  check - суммарная нагрузка ощутима + блокирует thread pool
+- Raw JWT - high-entropy (256+ bits подпись). Rainbow tables
+  непрактичны. SHA-256 даёт защиту от случайного БД-дампа достаточно
+  - attacker который получил `token_hash` не сможет по нему
+  восстановить raw JWT. Полная reverse-engineering требует
+  pre-computed rainbow от full JWT space, что бессмысленно
+- bcrypt оправдан для пользовательских паролей (low-entropy human
+  input, реально перебираемые) - для high-entropy machine-generated
+  токенов SHA-256 достаточно
+
+**Альтернативы рассмотрены:**
+
+- **JWT blacklist в Redis** - revoke = добавить JWT id в Redis с
+  TTL=refreshTtl. Без новой таблицы, но требует Redis - которого в
+  стэке нет. Добавить Redis ради одной фичи - overhead. Table-based
+  работает в существующей Postgres
+- **Refresh rotation без БД (только подпись)** - в новый JWT
+  добавить parent-jti claim, при refresh проверять «не использовался
+  ли parent уже». Не работает без state - stateless JWT не помнит
+  истории. Сводимо к blacklist в БД
+- **No rotation - принять risk** - acceptable для read-only sites
+  без user data. Нам неприемлемо - argument-map имеет user-generated
+  content + admin actions + library уплоad
+- **Per-session token + sliding TTL** - rotation каждые N минут с
+  предупреждением через 5 минут до expire. Сложнее реализовать +
+  не закрывает stolen-token vector. Rotation single-use закрывает
+- **Bcrypt вместо SHA-256** - см. выше, performance unacceptable
+
+**Trade-offs:**
+
+- **Плюс:** stolen refresh обнаруживается через ~one rotation cycle
+  (≤ access TTL = 15 минут). User вынужден заново login, attacker
+  тоже теряет доступ
+- **Плюс:** atomic rotation + revoke в одной транзакции - race
+  conditions невозможны (если два concurrent refresh поступят
+  одновременно с тем же hash, второй обнаружит revoked_at и
+  trigger'нет steal detection)
+- **Плюс:** SHA-256 hex быстрее bcrypt в ~100× раз - hot path
+  remains fast
+- **Минус:** false-positive steal detection если legitimate user
+  открывает приложение в двух tabs/devices одновременно - tab A
+  делает rotation, tab B попытается тоже rotate с уже rotated
+  refresh, получит 401 + force-logout всех сессий. Mitigation:
+  frontend должен синхронизировать refresh через BroadcastChannel
+  либо использовать один shared worker. В практике редко но
+  возможно. Acceptable trade-off (security > convenience)
+- **Минус:** logout не gracefully handles если cookie протух -
+  silent no-op, но frontend всё равно получает 401 на следующем
+  request. Acceptable - logout всё равно очищает cookie
+- **Минус:** БД растёт linearly от количества refresh выдач. После
+  года активного использования таблица может содержать миллионы
+  revoked rows. **Trigger:** RefreshTokenCleanupJanitor в backlog -
+  daily DELETE WHERE revoked_at < now() - INTERVAL '30 days' AND
+  expires_at < now()
+
+**Trigger to revisit:**
+
+- **RefreshTokenCleanupJanitor** - cron 02:00 daily, удалять
+  revoked старше 30 дней + expired никогда не использованные.
+  Запускать после Этапа 25.c (audit retention pattern есть)
+- **Distributed sessions** (multi-instance backend) - SHA-256 +
+  таблица уже state-shared через Postgres, scale-out не требует
+  переписать. Acceptable
+- **OAuth2/OIDC integration** - если перейдём на внешнего IDP
+  (Keycloak, Auth0), rotation станет проблемой провайдера. Текущая
+  схема legacy-compatible через `replaced_by` chain - migration
+  data не требуется
+- **Sliding refresh TTL** - вместо фиксированных 7 дней продлевать
+  expiry при каждом rotation (`new.expires_at = now() + 7d`). Сейчас
+  fresh refresh имеет тот же expiry что initial login. Triggers:
+  user feedback на "приходится re-login каждые 7 дней даже при
+  активной работе"
+
+**Связанные решения:**
+
+- **ADR-040** (JWT auth) - заменяет «открытый вопрос» о rotation
+- **ADR-046** (Rate limiting) - rate-limit `/auth/refresh` тоже
+  закрывает brute-force на угадывание refresh hashes (хотя
+  high-entropy практически невозможный)
+- **ADR-043** (Audit log) - logSecurityIncident на steal-detection
+  записывается через slf4j log.warn, не через AuditLogService
+  (audit там для CRUD-операций сущностей, не security events).
+  Future: добавить SECURITY_EVENT entityType в AuditLog с PII-safe
+  payload

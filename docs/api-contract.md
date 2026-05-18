@@ -58,8 +58,11 @@ OpenAPI-спецификация: `/v3/api-docs` (JSON), Swagger UI: `/swagger-u
 Authorization: Bearer <jwt>
 ```
 
-Token содержит UUID пользователя в `sub` claim + username/email/role.
-Срок жизни access - 15 минут, refresh - 7 дней.
+Token содержит UUID пользователя в `sub` claim + username/email/role +
+`jti` (UUID, уникальный per-token, требуется для refresh rotation).
+Срок жизни access - 15 минут, refresh - 7 дней. Refresh - single-use
+(ADR-047), при каждом `/auth/refresh` выдаётся новый refresh, старый
+revoked в БД.
 
 - Header отсутствует - `401 Unauthorized`
 - Token истёк - `401 Unauthorized` (тип `unauthorized`)
@@ -182,21 +185,29 @@ password 8..100 символов.
 
 #### POST /api/v1/auth/refresh
 
-Обновление access token через refresh cookie. Refresh переиспользуется
-(no-rotation MVP, см. ADR-040).
+Обновление пары access+refresh через refresh cookie. **Single-use
+rotation** (ADR-047) - каждый refresh используется один раз, на
+выходе возвращается **новый** refresh в Set-Cookie. Попытка повторно
+использовать уже rotated refresh = security incident, revoke всех
+сессий user'а.
 
 **Запрос:** body пустой, `Cookie: refresh_token=<jwt>` обязателен.
 
-**Ответ:** `200 OK` тот же формат что login.
+**Ответ:** `200 OK` тот же формат что login + новый
+`Set-Cookie: refresh_token=...` (заменяет старый в browser).
 
 **Ошибки:**
-- 401 `invalid-token` - cookie отсутствует / невалидный / expired
+- 401 `invalid-token` - cookie отсутствует / невалидный / expired /
+  reuse рottated токена (steal detected) / БД-запись revoked
 
 #### POST /api/v1/auth/logout
 
-Очистка refresh cookie. Access token не invalidates (короткоживущий,
-истечёт сам). Полная revocation - после ADR-040 «Открытые вопросы»
-будущая работа.
+Revoke incoming refresh в БД + очистка refresh cookie (ADR-047).
+Идемпотентно - если cookie отсутствует или токен уже revoked,
+просто очищает cookie без ошибки. Access token не invalidates
+(короткоживущий, истечёт сам).
+
+**Запрос:** body пустой, `Cookie: refresh_token=<jwt>` optional.
 
 **Ответ:** `204 No Content` + `Set-Cookie: refresh_token=; Max-Age=0`
 
@@ -3130,6 +3141,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-19 | v1 | Refresh token rotation single-use (ADR-047). Миграция 46 - новая таблица `refresh_tokens(id UUID PK, user_id FK CASCADE, token_hash VARCHAR(64) UNIQUE, issued_at, expires_at, revoked_at, replaced_by FK self, revocation_reason VARCHAR(50))` + 3 индекса (partial по user/expires где revoked_at NULL, hash hot path). **Breaking semantic change**: `POST /api/v1/auth/refresh` теперь возвращает Set-Cookie с **новым** refresh-value (raw JWT) - старый помечен revoked в БД. Reuse уже rotated refresh = 401 + revoke всей chain user'а (steal detection через log.warn). `POST /api/v1/auth/logout` теперь читает refresh cookie и revoke'нет токен в БД (идемпотентно, no-op если cookie отсутствует). JWT structure расширен `jti` claim (UUID) - предотвращает collision двух токенов выпущенных в одну миллисекунду. SHA-256 hex hashing (не bcrypt) - refresh validated каждые ~15min, bcrypt медленный + JWT signature уже high-entropy. **Existing browser cookies с refresh от пред версии не валидны** после deploy - user просто re-login. Без новых error types (только семантика invalid-token расширена на reuse/revoked cases) | Reviewer round 5 Cross-cutting Important #4 закрыт. ADR-040 «открытый вопрос rotation» решён. Rejected: JWT blacklist в Redis (нет Redis в стэке), no-rotation (accept risk - unacceptable для user content + admin actions), sliding TTL без single-use (не закрывает stolen-vector), bcrypt вместо SHA-256 (performance). Memory `feedback_no_prod_no_backward_compat` - breaking change без backward compat |
 | 2026-05-18 | v1 | Multi-translation 1:N узлов (translator attribution). Миграция 45 - новая таблица `node_translations (id UUID PK, node_id FK CASCADE, translator_name varchar(200) NULL, language varchar(5) CHECK ru\|en, body text NOT NULL, is_default boolean DEFAULT false, created_at, created_by FK users)` + 2 индекса (`node_id`, partial по `is_default=true`) + 2 partial unique indexes для `(node_id, translator_name, language)` когда NULL и not-NULL (Postgres UNIQUE считает все NULL разными). **Breaking change**: миграция 45 удаляет колонки `nodes.translation`/`nodes.translation_lang` (теперь в child-таблице), переносит existing 1:1 переводы как первую строку с `translator_name=NULL` и `is_default=true`. `originalLang` остаётся на nodes - это свойство оригинала. `NodeResponse` потерял поля `translation`/`translationLang`, получил `translations: NodeTranslationRef[]` (id, translatorName, language, body, isDefault). Default-перевод первым, затем по created_at ASC. Bulk-load в `GET /topics/{id}/graph` через `NodeTranslationRepository.findByNodeIds` (один SQL на весь граф, не N+1). `CreateNodeRequest`/`UpdateNodeRequest` потеряли translation/translationLang (переводы добавляются после создания узла через child endpoints). 5 новых endpoint под `/api/v1/nodes`: `POST /{nodeId}/translations` (CreateNodeTranslationRequest{translatorName?, language, body, isDefault?}, 201 + Location), `GET /{nodeId}/translations` (NodeTranslationRef[]), `PATCH /translations/{id}` (UpdateNodeTranslationRequest{translatorName?, body?}), `POST /translations/{id}/default` (atomic switch default), `DELETE /translations/{id}` (204, auto-promote oldest при удалении default). Permission: canWriteTopic на mutating, canReadTopic на GET. Спецсемантика: первый перевод узла всегда `isDefault=true` независимо от payload (узел не может быть без default-перевода). Новые ошибки: 404 `node-translation-not-found`, 409 `node-translation-duplicate` (translator+language существует, properties nodeId/translatorName/language). 19 IT для service + 10 IT для controller. Frontend: NodeCard читает `data.translations[]`, dropdown показывается только при >1 переводов, single - просто label с именем переводчика | Backlog «Translator attribution» закрыт. Учёные часто переводят аяты/хадисы по-разному (Кулиев vs Sahih International vs Османов) - один MVP перевод (миграция 44) не покрывал реальный use-case. Memory `feedback_no_prod_no_backward_compat` - ломаем single-translation 1:1 contract без backward compat: миграция переносит existing данные и frontend регенерирует types. Без ADR - чистое расширение domain (1:1 → 1:N) без architectural alternatives |
 | 2026-05-18 | v1 | Bilingual карточки узлов. Миграция 44 ALTER `nodes` добавляет 3 nullable колонки: `translation` (text), `translation_lang` varchar(5) CHECK IN ('ru','en'), `original_lang` varchar(5) CHECK IN ('ar','ru','en'). `NodeResponse` расширен полями `translation` / `translationLang` / `originalLang` (все nullable). `CreateNodeRequest` принимает их как optional с @Pattern whitelist валидацией. `UpdateNodeRequest`: те же поля + семантика "пустая строка = очистить, null/отсутствие = не менять". Двойная валидация: @Pattern в DTO (быстрый 400) + NodeService.validateBilingual (защита от прямого вызова сервиса). Правило: translation NOT NULL → translationLang обязателен. NodeService updateContent получил перегрузку с boxed-семантикой через sentinel `NodeService.NoChange.INSTANCE` чтобы отличить "не пришло в PATCH" от "пришло null (очистить)". Revision НЕ пишется для translation/lang (это metadata, не version-controlled содержимое). Whitelist `UserPreferenceService.ALLOWED_VALUES` расширен ключом `bilingualMode` ('original'\|'translation'\|'both') - frontend persist'ит режим отображения через тот же `/api/v1/preferences/bilingualMode`. originalLang null → frontend auto-detect через hasArabicScript(content) | Backlog «Bilingual карточки - двуязычный режим узла» закрыт. MVP - один перевод на узел. Multi-translation (M:N table с разными переводчиками одного аята: Кулиев, Sahih International, Османов) - в backlog Translator attribution. Без ADR - чистое расширение domain без architectural alternatives |
 | 2026-05-18 | v1 | Multi-grading хадисов. Миграция 43 - новая таблица `hadith_grades (id UUID PK, source_id FK CASCADE, scholar_id FK RESTRICT на authorities, grade VARCHAR(20) CHECK SAHIH/HASAN/DAIF/MAUDU, grade_citation VARCHAR(500), comment text, created_at, created_by FK users, UNIQUE(source_id, scholar_id))` + 2 индекса. 4 новых REST endpoint под `/api/v1/sources`: `POST /{sourceId}/grades` (CreateHadithGradeRequest{scholarId, grade, gradeCitation?, comment?} → 201 HadithGradeResponse + Location), `GET /{sourceId}/grades` (HadithGradeResponse[] с denormalized scholar info через JOIN на authorities - один SQL без N+1), `PATCH /grades/{gradeId}` (UpdateHadithGradeRequest, author либо ADMIN), `DELETE /grades/{gradeId}` (204, author либо ADMIN). Новый enum `HadithGradeValue` отдельно от legacy `Reliability` - добавлен `MAUDU` («выдуманный») как четвёртая категория для multi-grading. Существующее `sources.reliability` single-value не трогаем (legacy primary). Новые ошибки: 400 `invalid-hadith-grade` (source не HADITH либо grade null), 404 `hadith-grade-not-found`, 409 `hadith-grade-duplicate` (тот же scholar уже оценил, properties sourceId/scholarId), 403 `forbidden-hadith-grade-write` (не автор/не ADMIN, properties gradeId/userId) | Backlog «Multi-grading хадисов» закрыт. Учёные часто расходятся в оценке - один хадис может быть SAHIH по Бухари, HASAN по Тирмизи. M:N модель source × scholar с unique constraint защищает от дублей. Без ADR - чистое расширение domain без architectural alternatives |

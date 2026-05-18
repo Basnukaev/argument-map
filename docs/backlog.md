@@ -478,18 +478,22 @@ security-focused этапом
       либо restrict через network layer / API gateway (LB allows только
       internal cidrs для actuator routes). Reviewer round 5 Crit
       Cross-cutting #7
-- [ ] **Refresh token rotation** (Important Cross-cutting #4) - сейчас
-      refresh token reusable до expire (7 дней). Stolen refresh =
-      access на 7 дней без detection. Fix: single-use refresh - при
-      `/auth/refresh` выдавать новый refresh + invalidate старый. При
-      попытке использовать invalidated refresh - 401 + log security
-      event (signal что refresh утёк, force-logout user). Storage
-      выбор: `refresh_tokens` table с FK на users (cleanup expired
-      janitor) либо JWT blacklist (Redis с TTL=refreshTtl). Table
-      проще для нашего стэка (нет Redis). Migration `refresh_tokens(id
-      UUID PK, user_id FK, token_hash, issued_at, expires_at,
-      revoked_at)`. JwtService при validate сверяет с table. Reviewer
-      round 5 Important Cross-cutting #4
+- [x] **Refresh token rotation** (Important Cross-cutting #4) -
+      реализован 2026-05-19 (ADR-047). Single-use refresh с tracking в
+      `refresh_tokens` таблице, SHA-256 hex hashing, steal detection
+      через revoke-all-by-user при reuse. Миграция 46 + RefreshToken
+      domain + RefreshTokenRepository + AuthService rotation logic +
+      AuthServiceRotationIT (8 IT) + adapt существующих AuthControllerIT.
+
+- [ ] **RefreshTokenCleanupJanitor** - daily cron DELETE revoked старше
+      30 дней + expired never used. Pattern уже есть в
+      `AuditLogRetentionJanitor` (`@ConditionalOnProperty` +
+      `@Scheduled`, retention property, AuditLogRepository.deleteOlderThan).
+      Replicate как `RefreshTokenCleanupJanitor` с config
+      `refresh-token.cleanup.{enabled,retention-days,cron}`,
+      `RefreshTokenRepository.deleteOlderThan(cutoff)`. Без это
+      таблица растёт линейно от login activity (миллионы revoked rows
+      через год). ADR-047 рекомендует запускать после Этапа 25.c
 
 - [ ] **Edge z-order persistence** - mirror Node.zIndex (миграция 40,
       NodeContextMenu bringToFront/sendToBack). Сейчас edge z-order
