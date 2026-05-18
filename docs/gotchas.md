@@ -1660,3 +1660,43 @@ return getJson(uri, BookMetadata.class)
 Вышестоящий `ShamelaMasterSyncService.syncMaster()` сравнивает `meta.version() == currentVersion` и идёт в ветку `MasterSyncResult.unchanged(currentVersion)` - естественный no-op.
 
 **Узнано:** Сессия 39 после первого успешного sync (proxy + auth tunneling уже починены), при повторном POST sync-master.
+
+---
+
+## shamela pdf_links: absolute URL в files без root
+
+**Симптом:** при попытке посмотреть PDF книги падает `ShamelaApiException: pdf_links.root отсутствует для книги {uuid}`. Stack идёт из `PdfLinksSourceProvider.openStream` либо `locateFile`. shamela импорт прошёл успешно (pages, titles, mapping в lib_books OK), но PDF не открывается.
+
+**Причина:** shamela использует **два разных формата** в `pdf_links`:
+
+```jsonc
+// shamela CDN style - "root + filename" pattern
+{
+  "root": "https://archive.org/download/foo_bar/",
+  "files": ["01_113015.pdf", "02_113015.pdf|الجزء الثاني"]
+}
+
+// direct absolute URL style - "filename = full URL", root отсутствует
+{
+  "size": 4804321,
+  "cover": 1,
+  "files": ["https://archive.org/download/lmkhbry/thmkqwd.pdf|#2"]
+}
+```
+
+Второй формат используется когда shamela не хостит книгу на своём CDN, а просто указывает на archive.org напрямую. До Сессии 39 backend знал только первый формат - `URI.create(meta.root() + file.filename())` падал когда root=null.
+
+**Reproducer:** обнаружено в проде на книге `ddcb68d4-5ca0-4b84-9915-31a708a3dd57` (shamela bookId=1232) - 333 страницы импортировались успешно, но PDF файл shamela записала как `https://archive.org/download/lmkhbry/thmkqwd.pdf|#2` без root.
+
+**Решение:** `PdfLinksSourceProvider.resolveUpstreamUrl(meta, file, book)` - проверяет filename:
+- начинается с `http://` или `https://` → `URI.create(filename)` напрямую
+- иначе → требует root, `URI.create(root + filename)`
+
+`storageKey` тоже адаптирован - для абсолютного URL берёт basename (последний path segment), чтобы MinIO key не содержал URL-схему.
+
+Покрыто тестами `PdfLinksSourceProviderIT`:
+- `locateFile_absoluteUrlFilename_skipsRoot_usesBasenameAsStorageKey`
+- `openStream_absoluteUrlFilename_rangeRequest_lazyForwardsToAbsoluteUrl`
+- `locateFile_relativeFilenameWithoutRoot_throwsShamelaApiException` (защита от случая когда оба пустые - это уже bug shamela metadata)
+
+**Узнано:** Сессия 39, real-prod failure при первой попытке открыть PDF из библиотеки.

@@ -141,10 +141,6 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
         if (fileIndex < 0 || fileIndex >= meta.files().size()) {
             throw new PdfNotAvailableException(book.id(), fileIndex, meta.files().size());
         }
-        if (meta.root() == null || meta.root().isBlank()) {
-            throw new ShamelaApiException(
-                    "pdf_links.root отсутствует для книги " + book.id());
-        }
         PdfFileInfo file = meta.files().get(fileIndex);
         String bucket = storageProperties.buckets().importedBooks();
         String storageKey = storageKey(book, file);
@@ -159,8 +155,11 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
             return new PdfLocation(bucket, storageKey, row.sizeBytes(), CONTENT_TYPE);
         }
 
-        // Cache miss - download upstream + register в catalog/MinIO
-        URI url = URI.create(meta.root() + file.filename());
+        // Cache miss - download upstream + register в catalog/MinIO.
+        // resolveUpstreamUrl бросит ShamelaApiException если root нужен и
+        // отсутствует - проверка перенесена внутрь helper, чтобы absolute
+        // URL в filename мог обойтись без root (archive.org-style books)
+        URI url = resolveUpstreamUrl(meta, file, book);
         log.info("pdf download from upstream: book={} file={} from {}",
                 book.id(), file.filename(), url);
         LibraryFile registered = downloadAndRegister(book, url, bucket, storageKey);
@@ -193,10 +192,6 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
         if (fileIndex < 0 || fileIndex >= meta.files().size()) {
             throw new PdfNotAvailableException(book.id(), fileIndex, meta.files().size());
         }
-        if (meta.root() == null || meta.root().isBlank()) {
-            throw new ShamelaApiException(
-                    "pdf_links.root отсутствует для книги " + book.id());
-        }
         PdfFileInfo file = meta.files().get(fileIndex);
         String bucket = storageProperties.buckets().importedBooks();
         String storageKey = storageKey(book, file);
@@ -215,7 +210,7 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
             return streamFromMinIO(loc.bucket(), loc.storageKey(), loc.sizeBytes(), null);
         }
 
-        URI url = URI.create(meta.root() + file.filename());
+        URI url = resolveUpstreamUrl(meta, file, book);
         log.info("pdf cache miss + range request: lazy forward к {} range=bytes={}-{}",
                 url, range.startInclusive(),
                 range.endInclusive() != null ? range.endInclusive() : "");
@@ -223,12 +218,62 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
     }
 
     /**
-     * Storage key для объекта в bucket'е. Format
-     * {@code {book_id}/{filename}} - читаем в {@code mc ls bucket/<bookId>/}
-     * увидим все pdf-файлы книги.
+     * Storage key для объекта в bucket'е. Format {@code {book_id}/{name}}
+     * где {@code name} - либо filename как есть (shamela CDN style:
+     * {@code root + filename}), либо basename абсолютного URL для
+     * archive.org-style записей. Цель - чтобы MinIO key не содержал
+     * URL-схемы и slashes из абсолютного URL.
      */
     private static String storageKey(Book book, PdfFileInfo file) {
-        return book.id() + "/" + file.filename();
+        return book.id() + "/" + storageName(file.filename());
+    }
+
+    private static String storageName(String filename) {
+        if (isAbsoluteUrl(filename)) {
+            // Basename из URL: last path segment до '?'/'#' (URI.getPath
+            // уже отбрасывает query/fragment, дальше split по '/')
+            String path = URI.create(filename).getPath();
+            int last = path.lastIndexOf('/');
+            String basename = (last >= 0 && last < path.length() - 1)
+                    ? path.substring(last + 1)
+                    : path;
+            return basename.isBlank() ? filename : basename;
+        }
+        return filename;
+    }
+
+    /**
+     * Resolves upstream URL для скачивания файла. Поддерживает два формата
+     * shamela {@code pdf_links}:
+     * <ul>
+     *   <li><b>shamela CDN style</b> - {@code root + filename}: например
+     *       {@code root="https://archive.org/download/foo/"} +
+     *       {@code filename="01_113015.pdf"} → один URL</li>
+     *   <li><b>direct absolute URL style</b> - {@code filename} уже
+     *       полный URL (типичный case когда shamela ссылается на
+     *       archive.org напрямую без CDN-mirror'а). {@code root} пустой
+     *       или отсутствует</li>
+     * </ul>
+     * Различаются по prefix {@code http://}/{@code https://} в filename.
+     * Если filename относительный, а root отсутствует - бросаем
+     * {@link ShamelaApiException} с диагностикой.
+     */
+    private static URI resolveUpstreamUrl(PdfMetadata meta, PdfFileInfo file, Book book) {
+        String filename = file.filename();
+        if (isAbsoluteUrl(filename)) {
+            return URI.create(filename);
+        }
+        if (meta.root() == null || meta.root().isBlank()) {
+            throw new ShamelaApiException(
+                    "pdf_links.root отсутствует для книги " + book.id()
+                            + " (filename '" + filename + "' относительный)");
+        }
+        return URI.create(meta.root() + filename);
+    }
+
+    private static boolean isAbsoluteUrl(String filename) {
+        return filename != null
+                && (filename.startsWith("http://") || filename.startsWith("https://"));
     }
 
     private PdfStreamingResult streamFromMinIO(

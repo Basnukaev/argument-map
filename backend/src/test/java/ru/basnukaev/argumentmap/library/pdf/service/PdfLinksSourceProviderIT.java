@@ -18,6 +18,8 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import ru.basnukaev.argumentmap.library.shamela.api.ShamelaApiException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -309,6 +311,56 @@ class PdfLinksSourceProviderIT {
                 .isInstanceOf(RangeNotSatisfiableException.class);
     }
 
+    // ---- absolute-URL filename support (Сессия 39 fix) ----
+    // shamela иногда отдаёт pdf_links без root и с абсолютным URL в files
+    // (типично когда книга на archive.org, а не shamela CDN). Code должен
+    // обрабатывать оба формата
+
+    @Test
+    void locateFile_absoluteUrlFilename_skipsRoot_usesBasenameAsStorageKey() {
+        Book book = saveBookWithAbsoluteUrlPdf(
+                "https://archive.org/download/lmkhbry/thmkqwd.pdf");
+
+        PdfLocation loc = provider.locateFile(book, 0);
+
+        // basename URL'а в storage key, не полный URL
+        assertThat(loc.storageKey()).isEqualTo(book.id() + "/thmkqwd.pdf");
+        // upstream call случился (cache miss), значит resolveUpstreamUrl
+        // отработал и не бросил ShamelaApiException
+        verify(pdfFetcher, times(1)).fetch(any(URI.class), any(Path.class));
+    }
+
+    @Test
+    void openStream_absoluteUrlFilename_rangeRequest_lazyForwardsToAbsoluteUrl() {
+        Book book = saveBookWithAbsoluteUrlPdf(
+                "https://archive.org/download/lmkhbry/thmkqwd.pdf");
+
+        when(pdfFetcher.openStream(any(URI.class), any(RangeSpec.class)))
+                .thenAnswer(inv -> new PdfStreamingResult(
+                        new ByteArrayInputStream(new byte[100]), 100L, 0L, 99L, 100L, true));
+
+        provider.openStream(book, 0, new RangeSpec(0L, 99L));
+
+        ArgumentCaptor<URI> urlCaptor = ArgumentCaptor.forClass(URI.class);
+        verify(pdfFetcher).openStream(urlCaptor.capture(), any(RangeSpec.class));
+        // URL передан в fetcher без обёртки root - exact match с filename
+        assertThat(urlCaptor.getValue().toString())
+                .isEqualTo("https://archive.org/download/lmkhbry/thmkqwd.pdf");
+    }
+
+    @Test
+    void locateFile_relativeFilenameWithoutRoot_throwsShamelaApiException() {
+        // защита: filename относительный, root отсутствует - bug в shamela
+        // metadata, бросаем явный exception вместо null+filename URI
+        Book book = saveBookWithMetadata(
+                "{\"pdf_links\":{\"size\":2048,\"files\":[\"01_book.pdf\"]}}");
+
+        assertThatThrownBy(() -> provider.locateFile(book, 0))
+                .isInstanceOf(ShamelaApiException.class)
+                .hasMessageContaining("pdf_links.root отсутствует")
+                .hasMessageContaining("01_book.pdf");
+    }
+
     @Test
     void locateFile_multiVolume_separateStorageKeys_separateCatalogRows() {
         Book book = saveShamelaBookMultiVolume(6, "01_book.pdf", "02_book.pdf");
@@ -352,6 +404,29 @@ class PdfLinksSourceProviderIT {
                         "}}", majorRelease, files);
         return bookRepository.save(new Book(
                 UUID.randomUUID(), BookType.BOOK, "Multi-volume book",
+                null, "ar", null, metadataJson, userId,
+                Instant.now(), Instant.now(),
+                null, null, null, null, null, null, BookVisibility.PUBLIC));
+    }
+
+    /**
+     * Сохраняет книгу с pdf_links БЕЗ root, files = абсолютный URL.
+     * Это archive.org-style формат - shamela использует когда не хостит
+     * файл на своём CDN. См. Сессия 39 fix - real-prod case bookId=1232.
+     */
+    private Book saveBookWithAbsoluteUrlPdf(String absoluteUrl) {
+        String metadataJson = String.format(
+                "{\"pdf_links\":{" +
+                        "\"size\":2048," +
+                        "\"cover\":1," +
+                        "\"files\":[\"%s|#2\"]" +
+                        "}}", absoluteUrl);
+        return saveBookWithMetadata(metadataJson);
+    }
+
+    private Book saveBookWithMetadata(String metadataJson) {
+        return bookRepository.save(new Book(
+                UUID.randomUUID(), BookType.BOOK, "Book with custom metadata",
                 null, "ar", null, metadataJson, userId,
                 Instant.now(), Instant.now(),
                 null, null, null, null, null, null, BookVisibility.PUBLIC));
