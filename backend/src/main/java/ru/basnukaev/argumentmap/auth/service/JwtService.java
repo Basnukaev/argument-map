@@ -148,7 +148,13 @@ public class JwtService {
     }
 
     private String buildToken(User user, String type, Instant issuedAt, Instant expiresAt) {
+        // jti (JWT ID) - уникальный per-token UUID. Без него два token'а
+        // выпущенных в одну миллисекунду (login → refresh подряд) дают
+        // одинаковую подпись и одинаковый string. Для refresh rotation
+        // (ADR-047) каждый раз ожидается новый hash в refresh_tokens -
+        // без jti таблица падает на UNIQUE constraint
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .issuer(ISSUER)
                 .subject(user.id().toString())
                 .issuedAt(Date.from(issuedAt))
