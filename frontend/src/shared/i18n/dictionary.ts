@@ -910,6 +910,10 @@ export const DICTIONARY = {
     'node.bilingual.lang.auto': 'Авто-определение',
     'node.bilingual.toggle_aria': 'Переключить режим отображения перевода',
 
+    // Node - translator attribution (миграция 45, multi-translation 1:N)
+    'node.translations.dropdown_label': 'Выбрать переводчика',
+    'node.translations.dropdown_anonymous': 'Анонимный переводчик',
+
     // Admin page editor (Этап 17.0, ADR-039 - Tiptap rich text editor)
     'admin.page_editor.title': 'Редактор страницы',
     'admin.page_editor.subtitle': 'Редактирование форматированного содержимого через Tiptap',
@@ -1979,6 +1983,10 @@ export const DICTIONARY = {
     'node.bilingual.lang.en': 'الإنجليزية',
     'node.bilingual.lang.auto': 'تحديد تلقائي',
     'node.bilingual.toggle_aria': 'تبديل وضع عرض الترجمة',
+
+    // Node - translator attribution (миграция 45)
+    'node.translations.dropdown_label': 'اختيار المترجم',
+    'node.translations.dropdown_anonymous': 'مترجم مجهول',
 
     // Admin page editor (Этап 17.0, ADR-039)
     'admin.page_editor.title': 'محرّر الصفحة',

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps, Node } from '@xyflow/react';
 import { Languages, MoreHorizontal } from 'lucide-react';
@@ -15,6 +15,7 @@ import type { components } from '@/shared/api/types';
 import VoteWidget from './VoteWidget';
 
 type NodeDto = components['schemas']['NodeResponse'];
+type TranslationRef = components['schemas']['NodeTranslationRef'];
 
 export type NodeCardData = NodeDto;
 export type NodeCardNode = Node<NodeCardData, 'argumentNode'>;
@@ -38,6 +39,15 @@ function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
+/**
+ * Default-перевод первый, далее по created_at ASC (backend сортирует).
+ * Helper извлекает default либо первый (если default не помечен явно).
+ */
+function pickInitialTranslation(translations: TranslationRef[]): TranslationRef | null {
+  if (translations.length === 0) return null;
+  return translations.find((t) => t.isDefault) ?? translations[0] ?? null;
+}
+
 function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
   const t = useT();
   const status: NodeStatus = data.status ?? 'UNVERIFIED';
@@ -45,9 +55,31 @@ function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
   const statusToken = STATUS_TOKENS[status];
 
   const fullContent = data.content ?? '';
-  const translation = data.translation ?? '';
-  const hasTranslation = translation.trim().length > 0;
+  // wrap translations через useMemo чтобы стабильная ref для зависимых
+  // useMemo/useEffect, иначе каждый render новый array даже для одних
+  // и тех же данных - cascading renders
+  const translations: TranslationRef[] = useMemo(() => data.translations ?? [], [data.translations]);
+  const hasTranslations = translations.length > 0;
   const originalLang = resolveOriginalLang(fullContent, data.originalLang);
+
+  // Выбранный перевод - либо default, либо первый. Может переключаться
+  // через dropdown (если переводов >1). Храним только preferred id;
+  // resolved-перевод вычисляем через find чтобы автоматически fallback
+  // на default если предыдущий id больше не присутствует (после refetch
+  // graph data). Никакого useEffect для sync нет - resolve чистый
+  // computed value, нет race condition
+  const initial = useMemo(() => pickInitialTranslation(translations), [translations]);
+  const [preferredTranslationId, setPreferredTranslationId] = useState<string | null>(null);
+
+  const selectedTranslation = useMemo(() => {
+    if (preferredTranslationId) {
+      const match = translations.find((t) => t.id === preferredTranslationId);
+      if (match) return match;
+    }
+    return initial;
+  }, [preferredTranslationId, translations, initial]);
+  const selectedTranslationId = selectedTranslation?.id ?? null;
+  const translation = selectedTranslation?.body ?? '';
 
   // Глобальный режим из preferencesStore - 'original' | 'translation' | 'both'.
   // Local override (через toggle в карточке) позволяет временно посмотреть
@@ -56,14 +88,16 @@ function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
   const [localOverride, setLocalOverride] = useState<BilingualModePref | null>(null);
   const effectiveMode: BilingualModePref = localOverride ?? globalMode;
 
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
   // Toggle показываем только если узел реально имеет перевод - иначе
   // переключать нечего. Если перевода нет, всегда рендерим original
-  const showToggle = hasTranslation;
-  const renderMode: BilingualModePref = hasTranslation ? effectiveMode : 'original';
+  const showToggle = hasTranslations;
+  const renderMode: BilingualModePref = hasTranslations ? effectiveMode : 'original';
 
   // Определяем какие блоки рендерить
   const showOriginal = renderMode === 'original' || renderMode === 'both';
-  const showTranslation = (renderMode === 'translation' || renderMode === 'both') && hasTranslation;
+  const showTranslation = (renderMode === 'translation' || renderMode === 'both') && hasTranslations;
 
   // первая строка трактуется как заголовок, остаток - как body. Если перенос
   // отсутствует - всё считается заголовком (короткие узлы выглядят чище)
@@ -204,6 +238,67 @@ function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
                 {t('node.bilingual.translation_label_in_card')}
               </div>
             )}
+
+            {/* Translator dropdown - показываем только при >1 переводе.
+                При одном переводе - просто label с именем переводчика */}
+            {translations.length > 1 ? (
+              <div className="relative mb-1.5">
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  className="flex items-center gap-1 text-[10px] text-ink-500 hover:text-accent-600 transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDropdownOpen((v) => !v);
+                  }}
+                  aria-label={t('node.translations.dropdown_label')}
+                >
+                  <span>
+                    {selectedTranslation?.translatorName
+                      ? selectedTranslation.translatorName
+                      : t('node.translations.dropdown_anonymous')}
+                  </span>
+                  <span className="text-ink-400">▾</span>
+                </button>
+                {dropdownOpen && (
+                  <div
+                    className="absolute z-10 top-full mt-1 right-0 min-w-[160px] rounded-md border border-border bg-elevated shadow-sh2 py-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {translations.map((tr) => (
+                      <button
+                        key={tr.id}
+                        type="button"
+                        tabIndex={-1}
+                        className={`w-full text-start px-2 py-1 text-xs hover:bg-surface ${
+                          tr.id === selectedTranslationId ? 'bg-accent-50 text-accent-700' : 'text-ink-700'
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (tr.id) {
+                            setPreferredTranslationId(tr.id);
+                          }
+                          setDropdownOpen(false);
+                        }}
+                      >
+                        <span>
+                          {tr.translatorName ?? t('node.translations.dropdown_anonymous')}
+                        </span>
+                        <span className="ms-1 text-ink-400 uppercase">{tr.language}</span>
+                        {tr.isDefault && <span className="ms-1 text-accent-500">★</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              selectedTranslation?.translatorName && (
+                <div className="mb-1 text-[10px] text-ink-400">
+                  {selectedTranslation.translatorName}
+                </div>
+              )
+            )}
+
             {translationTitle && (
               <p dir="auto" className={translationTitleClass}>
                 {translationTitle}

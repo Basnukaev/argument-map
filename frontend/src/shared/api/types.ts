@@ -244,6 +244,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/nodes/{nodeId}/translations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listTranslations"];
+        put?: never;
+        post: operations["addTranslation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/nodes/{nodeId}/sources": {
         parameters: {
             query?: never;
@@ -270,6 +286,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["create_6"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/translations/{translationId}/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["setDefault"];
         delete?: never;
         options?: never;
         head?: never;
@@ -658,6 +690,22 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["update_2"];
+        trace?: never;
+    };
+    "/api/v1/nodes/translations/{translationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteTranslation"];
+        options?: never;
+        head?: never;
+        patch: operations["updateTranslation"];
         trace?: never;
     };
     "/api/v1/library/pages/{pageId}/formatted-content": {
@@ -1591,11 +1639,7 @@ export interface components {
             /** @enum {string} */
             nodeType: "QUESTION" | "CLAIM" | "ARGUMENT" | "EVIDENCE";
             content: string;
-            translation?: string;
-            /** @enum {string} */
-            translationLang?: "ru" | "en";
-            /** @enum {string} */
-            originalLang?: "ar" | "ru" | "en";
+            originalLang?: string;
         };
         InlineCitationRef: {
             /** Format: int32 */
@@ -1643,11 +1687,16 @@ export interface components {
             /** Format: int32 */
             userVote?: number;
             inlineCitations?: components["schemas"]["InlineCitationRef"][];
-            translation?: string;
-            /** @enum {string} */
-            translationLang?: "ru" | "en";
-            /** @enum {string} */
-            originalLang?: "ar" | "ru" | "en";
+            originalLang?: string;
+            translations?: components["schemas"]["NodeTranslationRef"][];
+        };
+        NodeTranslationRef: {
+            /** Format: uuid */
+            id?: string;
+            translatorName?: string;
+            language?: string;
+            body?: string;
+            isDefault?: boolean;
         };
         CreateNodeVoteRequest: {
             /** Format: int32 */
@@ -1664,6 +1713,12 @@ export interface components {
             score?: number;
             /** Format: int32 */
             userVote?: number;
+        };
+        CreateNodeTranslationRequest: {
+            translatorName?: string;
+            language: string;
+            body: string;
+            isDefault?: boolean;
         };
         AttachSourceRequest: {
             /** Format: uuid */
@@ -1989,9 +2044,11 @@ export interface components {
             posX?: number;
             /** Format: double */
             posY?: number;
-            translation?: string;
-            translationLang?: string;
             originalLang?: string;
+        };
+        UpdateNodeTranslationRequest: {
+            translatorName?: string;
+            body?: string;
         };
         UpdateFormattedContentRequest: {
             formattedContent: components["schemas"]["JsonNode"];
@@ -2922,6 +2979,60 @@ export interface operations {
             };
         };
     };
+    listTranslations: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                nodeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["NodeTranslationRef"][];
+                };
+            };
+        };
+    };
+    addTranslation: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                nodeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateNodeTranslationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["NodeTranslationRef"];
+                };
+            };
+        };
+    };
     list_5: {
         parameters: {
             query?: never;
@@ -2992,6 +3103,31 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["NodeSourceResponse"];
+                };
+            };
+        };
+    };
+    setDefault: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                translationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["NodeTranslationRef"];
                 };
             };
         };
@@ -3929,6 +4065,58 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["NodeResponse"];
+                };
+            };
+        };
+    };
+    deleteTranslation: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                translationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateTranslation: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                translationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateNodeTranslationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["NodeTranslationRef"];
                 };
             };
         };
