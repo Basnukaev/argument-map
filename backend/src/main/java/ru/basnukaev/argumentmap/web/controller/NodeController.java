@@ -17,15 +17,12 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.domain.Node;
-import ru.basnukaev.argumentmap.domain.NodeTranslation;
 import ru.basnukaev.argumentmap.domain.VoteStats;
-import ru.basnukaev.argumentmap.repository.NodeSourceRepository;
-import ru.basnukaev.argumentmap.repository.NodeTranslationRepository;
-import ru.basnukaev.argumentmap.repository.NodeVoteRepository;
+import ru.basnukaev.argumentmap.service.NodeProjectionService;
+import ru.basnukaev.argumentmap.service.NodeProjectionService.NodeProjection;
 import ru.basnukaev.argumentmap.service.NodeService;
 import ru.basnukaev.argumentmap.web.CurrentUser;
 import ru.basnukaev.argumentmap.web.dto.CreateNodeRequest;
-import ru.basnukaev.argumentmap.web.dto.InlineCitationRef;
 import ru.basnukaev.argumentmap.web.dto.NodeResponse;
 import ru.basnukaev.argumentmap.web.dto.RevisionResponse;
 import ru.basnukaev.argumentmap.web.dto.UpdateNodeRequest;
@@ -36,17 +33,12 @@ import ru.basnukaev.argumentmap.web.mapper.DtoMappers;
 public class NodeController {
 
     private final NodeService nodeService;
-    private final NodeVoteRepository nodeVoteRepository;
-    private final NodeSourceRepository nodeSourceRepository;
-    private final NodeTranslationRepository nodeTranslationRepository;
+    private final NodeProjectionService nodeProjectionService;
 
-    public NodeController(NodeService nodeService, NodeVoteRepository nodeVoteRepository,
-                          NodeSourceRepository nodeSourceRepository,
-                          NodeTranslationRepository nodeTranslationRepository) {
+    public NodeController(NodeService nodeService,
+                          NodeProjectionService nodeProjectionService) {
         this.nodeService = nodeService;
-        this.nodeVoteRepository = nodeVoteRepository;
-        this.nodeSourceRepository = nodeSourceRepository;
-        this.nodeTranslationRepository = nodeTranslationRepository;
+        this.nodeProjectionService = nodeProjectionService;
     }
 
     @PostMapping
@@ -97,15 +89,7 @@ public class NodeController {
         if (hasPosition) {
             node = nodeService.updatePosition(nodeId, request.posX(), request.posY(), userId, role);
         }
-        // Vote статистика, inline citations и translations подгружаются отдельно
-        // - PATCH не меняет ни голоса ни источники ни переводы, но фронту удобно
-        // получить актуальное состояние карточки в одном ответе
-        VoteStats stats = nodeVoteRepository.getStatsForNode(nodeId);
-        Integer userVote = nodeVoteRepository.findByNodeAndUser(nodeId, userId)
-                .map(v -> v.weight()).orElse(null);
-        List<InlineCitationRef> citations = nodeSourceRepository.findInlineCitationsForNode(nodeId);
-        List<NodeTranslation> translations = nodeTranslationRepository.findByNodeId(nodeId);
-        return DtoMappers.toResponse(node, stats, userVote, citations, translations);
+        return enrichResponse(node, userId);
     }
 
     /**
@@ -118,12 +102,7 @@ public class NodeController {
                                      @CurrentUser UUID userId) {
         String role = SecurityContextUtils.currentRole();
         Node node = nodeService.bringToFront(nodeId, userId, role);
-        VoteStats stats = nodeVoteRepository.getStatsForNode(nodeId);
-        Integer userVote = nodeVoteRepository.findByNodeAndUser(nodeId, userId)
-                .map(v -> v.weight()).orElse(null);
-        List<InlineCitationRef> citations = nodeSourceRepository.findInlineCitationsForNode(nodeId);
-        List<NodeTranslation> translations = nodeTranslationRepository.findByNodeId(nodeId);
-        return DtoMappers.toResponse(node, stats, userVote, citations, translations);
+        return enrichResponse(node, userId);
     }
 
     /**
@@ -135,12 +114,7 @@ public class NodeController {
                                    @CurrentUser UUID userId) {
         String role = SecurityContextUtils.currentRole();
         Node node = nodeService.sendToBack(nodeId, userId, role);
-        VoteStats stats = nodeVoteRepository.getStatsForNode(nodeId);
-        Integer userVote = nodeVoteRepository.findByNodeAndUser(nodeId, userId)
-                .map(v -> v.weight()).orElse(null);
-        List<InlineCitationRef> citations = nodeSourceRepository.findInlineCitationsForNode(nodeId);
-        List<NodeTranslation> translations = nodeTranslationRepository.findByNodeId(nodeId);
-        return DtoMappers.toResponse(node, stats, userVote, citations, translations);
+        return enrichResponse(node, userId);
     }
 
     @DeleteMapping("/{nodeId}")
@@ -156,6 +130,18 @@ public class NodeController {
         String role = SecurityContextUtils.currentRole();
         return nodeService.getRevisions(nodeId, userId, role).stream()
                 .map(DtoMappers::toResponse).toList();
+    }
+
+    /**
+     * Обогащает Node проекцией (votes / citations / translations) и мэппит в
+     * NodeResponse. Заменяет 4-строчный inline fragment который дублировался
+     * в трёх методах (PATCH / bringToFront / sendToBack).
+     */
+    private NodeResponse enrichResponse(Node node, UUID userId) {
+        NodeProjection projection = nodeProjectionService.single(node.id(), userId);
+        return DtoMappers.toResponse(node,
+                projection.stats(), projection.userVote(),
+                projection.citations(), projection.translations());
     }
 
     private static boolean isBlank(String s) {

@@ -16,22 +16,17 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
-import ru.basnukaev.argumentmap.domain.NodeTranslation;
 import ru.basnukaev.argumentmap.domain.Topic;
-import ru.basnukaev.argumentmap.domain.VoteStats;
-import ru.basnukaev.argumentmap.repository.NodeSourceRepository;
-import ru.basnukaev.argumentmap.repository.NodeTranslationRepository;
-import ru.basnukaev.argumentmap.repository.NodeVoteRepository;
 import ru.basnukaev.argumentmap.repository.TopicWithCounts;
 import ru.basnukaev.argumentmap.service.GraphService;
 import ru.basnukaev.argumentmap.service.GraphView;
+import ru.basnukaev.argumentmap.service.NodeProjectionService;
+import ru.basnukaev.argumentmap.service.NodeProjectionService.NodeProjectionBatch;
 import ru.basnukaev.argumentmap.service.PermissionService;
 import ru.basnukaev.argumentmap.service.TopicService;
-import java.util.Map;
 import ru.basnukaev.argumentmap.web.CurrentUser;
 import ru.basnukaev.argumentmap.web.dto.CreateTopicRequest;
 import ru.basnukaev.argumentmap.web.dto.GraphResponse;
-import ru.basnukaev.argumentmap.web.dto.InlineCitationRef;
 import ru.basnukaev.argumentmap.web.dto.PageRequest;
 import ru.basnukaev.argumentmap.web.dto.PagedResponse;
 import ru.basnukaev.argumentmap.web.dto.TopicResponse;
@@ -47,21 +42,15 @@ public class TopicController {
     private final TopicService topicService;
     private final GraphService graphService;
     private final PermissionService permissionService;
-    private final NodeVoteRepository nodeVoteRepository;
-    private final NodeSourceRepository nodeSourceRepository;
-    private final NodeTranslationRepository nodeTranslationRepository;
+    private final NodeProjectionService nodeProjectionService;
 
     public TopicController(TopicService topicService, GraphService graphService,
                            PermissionService permissionService,
-                           NodeVoteRepository nodeVoteRepository,
-                           NodeSourceRepository nodeSourceRepository,
-                           NodeTranslationRepository nodeTranslationRepository) {
+                           NodeProjectionService nodeProjectionService) {
         this.topicService = topicService;
         this.graphService = graphService;
         this.permissionService = permissionService;
-        this.nodeVoteRepository = nodeVoteRepository;
-        this.nodeSourceRepository = nodeSourceRepository;
-        this.nodeTranslationRepository = nodeTranslationRepository;
+        this.nodeProjectionService = nodeProjectionService;
     }
 
     @PostMapping
@@ -122,17 +111,14 @@ public class TopicController {
         String role = SecurityContextUtils.currentRole();
         permissionService.assertCanRead(topicId, userId, role);
         GraphView graph = graphService.getGraph(topicId);
-        // Bulk-load vote агрегатов + персональных голосов + inline citations -
-        // три SQL на весь граф, не N+1 на каждый узел. NodeResponse получает
-        // vote-поля и inlineCitations для рендеринга [N]-маркеров на фронте
+        // Bulk-load через NodeProjectionService: 4 SQL на весь граф, не N+1 на
+        // каждый узел. NodeResponse получает vote-поля + inlineCitations +
+        // translations для рендеринга [N]-маркеров и переключателя языков
         List<UUID> nodeIds = graph.nodes().stream().map(n -> n.id()).toList();
-        Map<UUID, VoteStats> stats = nodeVoteRepository.getStatsForNodes(nodeIds);
-        Map<UUID, Integer> userVotes = nodeVoteRepository.getUserVotesForNodes(nodeIds, userId);
-        Map<UUID, List<InlineCitationRef>> citations =
-                nodeSourceRepository.findInlineCitationsForNodes(nodeIds);
-        Map<UUID, List<NodeTranslation>> translations =
-                nodeTranslationRepository.findByNodeIds(nodeIds);
-        return DtoMappers.toResponse(graph, stats, userVotes, citations, translations);
+        NodeProjectionBatch batch = nodeProjectionService.batch(nodeIds, userId);
+        return DtoMappers.toResponse(graph,
+                batch.stats(), batch.userVotes(),
+                batch.citations(), batch.translations());
     }
 
     @PatchMapping("/{topicId}/visibility")
