@@ -148,15 +148,43 @@ class AuthControllerIT {
     }
 
     @Test
-    void POST_refresh_validCookie_returnsNewAccessToken() throws Exception {
+    void POST_refresh_validCookie_returnsNewAccessToken_andNewRefresh() throws Exception {
+        // ADR-047: single-use rotation. Set-Cookie должна содержать
+        // новое значение refresh, не то же самое что input
         registerUser("refresh@example.com", "refreshuser", "password1");
-        String refreshToken = loginAndGetRefreshCookie("refresh@example.com", "password1");
+        String oldRefresh = loginAndGetRefreshCookie("refresh@example.com", "password1");
 
-        mockMvc.perform(post("/api/v1/auth/refresh")
-                        .cookie(new Cookie("refresh_token", refreshToken)))
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/refresh")
+                        .cookie(new Cookie("refresh_token", oldRefresh)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").isNotEmpty())
-                .andExpect(jsonPath("$.user.email").value("refresh@example.com"));
+                .andExpect(jsonPath("$.user.email").value("refresh@example.com"))
+                .andExpect(cookie().exists("refresh_token"))
+                .andReturn();
+
+        Cookie newCookie = result.getResponse().getCookie("refresh_token");
+        org.junit.jupiter.api.Assertions.assertNotNull(newCookie);
+        org.junit.jupiter.api.Assertions.assertNotEquals(oldRefresh, newCookie.getValue(),
+                "ADR-047: новый refresh должен отличаться от старого");
+    }
+
+    @Test
+    void POST_refresh_reusedRefresh_returns401_stealDetected() throws Exception {
+        // ADR-047 steal detection: после успешного rotation попытка
+        // использовать старый refresh приводит к 401 + revoke chain
+        registerUser("steal@example.com", "stealuser", "password1");
+        String oldRefresh = loginAndGetRefreshCookie("steal@example.com", "password1");
+
+        // Первый rotation - успех
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .cookie(new Cookie("refresh_token", oldRefresh)))
+                .andExpect(status().isOk());
+
+        // Повторное использование старого = steal detected
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .cookie(new Cookie("refresh_token", oldRefresh)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.type").value(containsString("invalid-token")));
     }
 
     @Test
@@ -171,6 +199,22 @@ class AuthControllerIT {
         mockMvc.perform(post("/api/v1/auth/logout"))
                 .andExpect(status().isNoContent())
                 .andExpect(cookie().maxAge("refresh_token", 0));
+    }
+
+    @Test
+    void POST_logout_withRefreshCookie_revokesInDb() throws Exception {
+        // ADR-047: logout revoke'нет refresh - последующая попытка
+        // refresh уже не пройдёт
+        registerUser("logout@example.com", "logoutuser", "password1");
+        String refreshToken = loginAndGetRefreshCookie("logout@example.com", "password1");
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .cookie(new Cookie("refresh_token", refreshToken)))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .cookie(new Cookie("refresh_token", refreshToken)))
+                .andExpect(status().isUnauthorized());
     }
 
     // ---- helpers ----
