@@ -1591,6 +1591,11 @@ export interface components {
             /** @enum {string} */
             nodeType: "QUESTION" | "CLAIM" | "ARGUMENT" | "EVIDENCE";
             content: string;
+            translation?: string;
+            /** @enum {string} */
+            translationLang?: "ru" | "en";
+            /** @enum {string} */
+            originalLang?: "ar" | "ru" | "en";
         };
         InlineCitationRef: {
             /** Format: int32 */
@@ -1638,6 +1643,11 @@ export interface components {
             /** Format: int32 */
             userVote?: number;
             inlineCitations?: components["schemas"]["InlineCitationRef"][];
+            translation?: string;
+            /** @enum {string} */
+            translationLang?: "ru" | "en";
+            /** @enum {string} */
+            originalLang?: "ar" | "ru" | "en";
         };
         CreateNodeVoteRequest: {
             /** Format: int32 */
@@ -1979,6 +1989,9 @@ export interface components {
             posX?: number;
             /** Format: double */
             posY?: number;
+            translation?: string;
+            translationLang?: string;
+            originalLang?: string;
         };
         UpdateFormattedContentRequest: {
             formattedContent: components["schemas"]["JsonNode"];

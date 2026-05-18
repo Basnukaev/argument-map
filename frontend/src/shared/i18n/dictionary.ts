@@ -872,6 +872,29 @@ export const DICTIONARY = {
     'settings.reset_confirm.body':
       'Язык, тема, шрифты, размер текста, огласовки, транслитерация - всё вернётся к дефолтам',
 
+    // Settings - bilingual node cards (миграция 44)
+    'settings.section.bilingual': 'Двуязычный режим узлов',
+    'settings.section.bilingual.hint':
+      'Узлы могут иметь арабский оригинал и русский перевод. Выберите как показывать карточку. Переключатель доступен и из самой карточки',
+    'settings.bilingual.original': 'Оригинал',
+    'settings.bilingual.translation': 'Перевод',
+    'settings.bilingual.both': 'Оба',
+
+    // Node - bilingual controls (на самой карточке + в редакторе узла)
+    'node.bilingual.mode_label': 'Режим отображения',
+    'node.bilingual.mode.original': 'Только оригинал',
+    'node.bilingual.mode.translation': 'Только перевод',
+    'node.bilingual.mode.both': 'Оригинал и перевод',
+    'node.bilingual.translation_label_in_card': 'перевод',
+    'node.bilingual.field.translation': 'Перевод (необязательно)',
+    'node.bilingual.field.translation_lang': 'Язык перевода',
+    'node.bilingual.field.original_lang': 'Язык оригинала',
+    'node.bilingual.lang.ar': 'Арабский',
+    'node.bilingual.lang.ru': 'Русский',
+    'node.bilingual.lang.en': 'Английский',
+    'node.bilingual.lang.auto': 'Авто-определение',
+    'node.bilingual.toggle_aria': 'Переключить режим отображения перевода',
+
     // Admin page editor (Этап 17.0, ADR-039 - Tiptap rich text editor)
     'admin.page_editor.title': 'Редактор страницы',
     'admin.page_editor.subtitle': 'Редактирование форматированного содержимого через Tiptap',
@@ -1904,6 +1927,29 @@ export const DICTIONARY = {
     'settings.reset_confirm': 'إعادة ضبط جميع الإعدادات؟',
     'settings.reset_confirm.body':
       'اللغة والمظهر والخطوط وحجم النص والحركات والنقحرة - كلّها ستعود للقيم الافتراضية',
+
+    // Settings - bilingual node cards (миграция 44)
+    'settings.section.bilingual': 'الوضع ثنائي اللغة للعقد',
+    'settings.section.bilingual.hint':
+      'يمكن للعقد أن تحتوي على نصّ عربي أصلي وترجمة. اختر طريقة عرض البطاقة. المبدّل متاح أيضًا من نفس البطاقة',
+    'settings.bilingual.original': 'الأصل',
+    'settings.bilingual.translation': 'الترجمة',
+    'settings.bilingual.both': 'الاثنان',
+
+    // Node - bilingual controls
+    'node.bilingual.mode_label': 'وضع العرض',
+    'node.bilingual.mode.original': 'الأصل فقط',
+    'node.bilingual.mode.translation': 'الترجمة فقط',
+    'node.bilingual.mode.both': 'الأصل والترجمة',
+    'node.bilingual.translation_label_in_card': 'الترجمة',
+    'node.bilingual.field.translation': 'الترجمة (اختياري)',
+    'node.bilingual.field.translation_lang': 'لغة الترجمة',
+    'node.bilingual.field.original_lang': 'لغة الأصل',
+    'node.bilingual.lang.ar': 'العربية',
+    'node.bilingual.lang.ru': 'الروسية',
+    'node.bilingual.lang.en': 'الإنجليزية',
+    'node.bilingual.lang.auto': 'تحديد تلقائي',
+    'node.bilingual.toggle_aria': 'تبديل وضع عرض الترجمة',
 
     // Admin page editor (Этап 17.0, ADR-039)
     'admin.page_editor.title': 'محرّر الصفحة',

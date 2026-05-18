@@ -32,6 +32,14 @@ export type LocalePref = 'ru' | 'ar' | 'en';
 export type ArabicFontPref = 'naskh' | 'kufi' | 'tahoma';
 export type TextSizePref = 'small' | 'medium' | 'large' | 'xl';
 export type ThemePref = 'system' | 'light' | 'dark';
+/**
+ * Режим отображения карточек узлов с переводом:
+ *   - 'original' - показывать только оригинал (поле content)
+ *   - 'translation' - показывать только translation, fallback на content
+ *     если перевода нет
+ *   - 'both' - оригинал + перевод друг под другом с разделителем
+ */
+export type BilingualModePref = 'original' | 'translation' | 'both';
 
 export interface Preferences {
   locale: LocalePref;
@@ -40,6 +48,7 @@ export interface Preferences {
   hideTashkeelByDefault: boolean;
   transliteration: boolean;
   theme: ThemePref;
+  bilingualMode: BilingualModePref;
 }
 
 const DEFAULT_PREFERENCES: Preferences = {
@@ -49,6 +58,7 @@ const DEFAULT_PREFERENCES: Preferences = {
   hideTashkeelByDefault: false,
   transliteration: false,
   theme: 'system',
+  bilingualMode: 'both',
 };
 
 const STORAGE_KEY = 'app.preferences';
@@ -92,6 +102,9 @@ function mergeWithDefaults(partial: Partial<Preferences>): Preferences {
         ? partial.transliteration
         : DEFAULT_PREFERENCES.transliteration,
     theme: isTheme(partial.theme) ? partial.theme : DEFAULT_PREFERENCES.theme,
+    bilingualMode: isBilingualMode(partial.bilingualMode)
+      ? partial.bilingualMode
+      : DEFAULT_PREFERENCES.bilingualMode,
   };
 }
 
@@ -106,6 +119,9 @@ function isTextSize(v: unknown): v is TextSizePref {
 }
 function isTheme(v: unknown): v is ThemePref {
   return v === 'system' || v === 'light' || v === 'dark';
+}
+function isBilingualMode(v: unknown): v is BilingualModePref {
+  return v === 'original' || v === 'translation' || v === 'both';
 }
 
 interface PreferencesState extends Preferences {
@@ -171,6 +187,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
       'hideTashkeelByDefault',
       'transliteration',
       'theme',
+      'bilingualMode',
     ];
     // параллельно удаляем все - если что-то упадёт, defaults всё равно
     // подставятся локально через mergeWithDefaults
@@ -198,5 +215,6 @@ function readCurrentPrefs(s: PreferencesState): Preferences {
     hideTashkeelByDefault: s.hideTashkeelByDefault,
     transliteration: s.transliteration,
     theme: s.theme,
+    bilingualMode: s.bilingualMode,
   };
 }

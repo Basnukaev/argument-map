@@ -16,6 +16,7 @@ function resetStore() {
     hideTashkeelByDefault: false,
     transliteration: false,
     theme: 'system',
+    bilingualMode: 'both',
     isLoading: false,
     loaded: false,
   });
