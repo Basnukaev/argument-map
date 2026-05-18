@@ -362,14 +362,7 @@ function BookListPage() {
         )}
 
         {state.kind === 'success' && state.data.books.length === 0 && (
-          <Card className="mx-auto max-w-2xl p-12 text-center">
-            <BookOpen
-              size={32}
-              className="mx-auto mb-3 text-ink-400"
-              aria-hidden
-            />
-            <p className="text-base text-ink-700">{t('book.list.title')}</p>
-          </Card>
+          <EmptyState />
         )}
 
         {state.kind === 'success' &&
@@ -404,7 +397,9 @@ function BookListPage() {
                   disabled={loadingMore}
                   icon={loadingMore ? Loader2 : undefined}
                 >
-                  {loadingMore ? t('common.loading') : t('common.load_more')}
+                  {loadingMore
+                    ? t('common.loading')
+                    : t('library.overview.load_more')}
                 </Button>
               </div>
             )}
@@ -603,6 +598,31 @@ function AuthorityFilter({ selected, onChange }: AuthorityFilterProps) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Illustrated empty state с CTA на shamela import. Иконка крупная в
+ * круге, описательный текст (не «список пуст»), call-to-action - явная
+ * кнопка primary т.к. это единственный action на странице если пусто */
+function EmptyState() {
+  const t = useT();
+  return (
+    <Card className="mx-auto max-w-2xl p-12 text-center">
+      <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-ink-100">
+        <BookOpen size={28} className="text-ink-400" aria-hidden />
+      </div>
+      <h2 className="font-serif text-xl font-semibold text-ink-900">
+        {t('library.overview.empty_state.title')}
+      </h2>
+      <p className="mt-2 text-sm text-ink-500">
+        {t('library.overview.empty_state.description')}
+      </p>
+      <Link to="/admin/shamela" className="mt-5 inline-block">
+        <Button icon={Download}>
+          {t('library.overview.empty_state.cta')}
+        </Button>
+      </Link>
+    </Card>
   );
 }
 
