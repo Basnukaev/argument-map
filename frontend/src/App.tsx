@@ -21,6 +21,7 @@ import CommandPalette from '@/shared/components/layout/CommandPalette';
 import { usePaletteStore } from '@/shared/stores/paletteStore';
 import { useHotkey } from '@/shared/hooks/useHotkey';
 import { useAuthStore } from '@/shared/stores/authStore';
+import ErrorBoundary from '@/shared/components/ErrorBoundary';
 
 // TopicGraphPage тянет тяжёлые зависимости (React Flow, dagre, lucide-icons,
 // все компоненты графа). Loading через React.lazy выкидывает их из initial
@@ -69,7 +70,7 @@ function App() {
   }, [initialized, loadCurrentUser]);
 
   return (
-    <>
+    <ErrorBoundary>
       <Routes>
         {/* Public routes - login/register не за ProtectedRoute,
             доступны всегда */}
@@ -180,7 +181,7 @@ function App() {
       <SourceDetailPanel />
       <OnboardingChecklist />
       <Toaster />
-    </>
+    </ErrorBoundary>
   );
 }
 
