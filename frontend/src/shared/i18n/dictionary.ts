@@ -708,6 +708,21 @@ export const DICTIONARY = {
     'graph.export.success': 'Граф экспортирован: {filename}',
     'graph.export.error': 'Не удалось экспортировать граф',
 
+    // bulk multi-select floating action bar
+    'bulk_actions.bar.counter': 'Выбрано {count}',
+    'bulk_actions.bar.counter_with_edges': 'Выбрано {nodes} · связей {edges}',
+    'bulk_actions.bar.delete': 'Удалить',
+    'bulk_actions.bar.change_status': 'Изменить статус',
+    'bulk_actions.bar.clear': 'Снять',
+    'bulk_actions.bar.apply_to_all': 'Применить ко всем {count}',
+    'bulk_actions.success.deleted_count': 'Удалено узлов: {count}',
+    'bulk_actions.success.deleted_partial': 'Удалено {success} из {total}',
+    'bulk_actions.success.status_updated': 'Статус обновлён у {count} узлов',
+    'bulk_actions.success.status_updated_partial': 'Статус обновлён у {success} из {total}',
+    'bulk_actions.error.partial_failed': 'Не удалось обработать {failed}',
+    'bulk_actions.error.all_failed': 'Не удалось обновить ни один узел',
+    'bulk_actions.warn.no_writable_nodes': 'Среди выделения нет узлов которые можно изменить',
+
     // layout algorithm switch
     'layout.menu_label': 'Алгоритм раскладки',
     'layout.algorithm_label': 'Алгоритм раскладки',
@@ -1771,6 +1786,20 @@ export const DICTIONARY = {
     'graph.export.svg': 'SVG (متجه)',
     'graph.export.success': 'تم تصدير الرسم: {filename}',
     'graph.export.error': 'تعذّر تصدير الرسم',
+
+    'bulk_actions.bar.counter': 'محدد {count}',
+    'bulk_actions.bar.counter_with_edges': 'محدد {nodes} · علاقات {edges}',
+    'bulk_actions.bar.delete': 'حذف',
+    'bulk_actions.bar.change_status': 'تغيير الحالة',
+    'bulk_actions.bar.clear': 'إلغاء التحديد',
+    'bulk_actions.bar.apply_to_all': 'تطبيق على الكل ({count})',
+    'bulk_actions.success.deleted_count': 'تم حذف العقد: {count}',
+    'bulk_actions.success.deleted_partial': 'تم حذف {success} من {total}',
+    'bulk_actions.success.status_updated': 'تم تحديث الحالة لـ {count} عقد',
+    'bulk_actions.success.status_updated_partial': 'تم تحديث الحالة لـ {success} من {total}',
+    'bulk_actions.error.partial_failed': 'تعذّر معالجة {failed}',
+    'bulk_actions.error.all_failed': 'تعذّر تحديث أي عقدة',
+    'bulk_actions.warn.no_writable_nodes': 'لا توجد عقد قابلة للتعديل في التحديد',
 
     'layout.menu_label': 'خوارزمية التخطيط',
     'layout.algorithm_label': 'خوارزمية التخطيط',
