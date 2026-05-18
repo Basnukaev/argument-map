@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Z-index persistence для узлов (backlog: «Z-index full-stack
+        persistence»). До этой миграции "bring to front" / "send to back"
+        работали только в локальном RF-state и сбрасывались при refetch.
+
+        Семантика: z_index 0 - default, positive - выше, negative - ниже.
+        "На передний план" = max(z_index среди узлов темы) + 1, "на задний"
+        = min - 1. Diapazon int может уплыть в краях при долгом использовании,
+        но 32-bit int даёт ±2млрд - в реальной теме <100 узлов хватит на
+        сотни тысяч toggles. Renormalization (compress в [0..N-1]) - отложен
+        в backlog, делать когда станет необходимо.
+
+        Edges пока локально (отдельный пункт backlog) - там z-order реже
+        важен, нет приоритета.
+    -->
+    <changeSet id="20260518-40-node-z-index" author="Abdula Basnukaev">
+        <comment>Добавляем nodes.z_index для stacking order в графе</comment>
+        <addColumn tableName="nodes">
+            <column name="z_index" type="INTEGER" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <createIndex tableName="nodes" indexName="idx_nodes_topic_z_index">
+            <column name="topic_id"/>
+            <column name="z_index"/>
+        </createIndex>
+        <rollback>
+            <dropIndex tableName="nodes" indexName="idx_nodes_topic_z_index"/>
+            <dropColumn tableName="nodes" columnName="z_index"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

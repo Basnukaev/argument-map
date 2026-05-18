@@ -75,7 +75,7 @@ public class TopicService {
         Node rootQuestion = new Node(
                 UUID.randomUUID(), topic.id(), NodeType.QUESTION,
                 rootQuestionContent, NodeStatus.UNVERIFIED,
-                null, null,
+                null, null, 0,
                 userId, now, now
         );
         nodeRepository.save(rootQuestion);

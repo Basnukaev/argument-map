@@ -11,6 +11,7 @@ public record Node(
         NodeStatus status,
         Double posX,
         Double posY,
+        int zIndex,
         UUID createdBy,
         Instant createdAt,
         Instant updatedAt

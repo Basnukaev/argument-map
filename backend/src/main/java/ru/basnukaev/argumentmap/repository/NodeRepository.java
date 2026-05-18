@@ -20,7 +20,7 @@ import ru.basnukaev.argumentmap.domain.NodeType;
 public class NodeRepository {
 
     private static final String COLUMNS =
-            "id, topic_id, node_type, content, status, pos_x, pos_y, created_by, created_at, updated_at";
+            "id, topic_id, node_type, content, status, pos_x, pos_y, z_index, created_by, created_at, updated_at";
 
     private static final RowMapper<Node> ROW_MAPPER = (rs, rn) -> new Node(
             rs.getObject("id", UUID.class),
@@ -30,6 +30,7 @@ public class NodeRepository {
             NodeStatus.valueOf(rs.getString("status")),
             (Double) rs.getObject("pos_x"),
             (Double) rs.getObject("pos_y"),
+            rs.getInt("z_index"),
             rs.getObject("created_by", UUID.class),
             instant(rs, "created_at"),
             instant(rs, "updated_at")
@@ -43,7 +44,7 @@ public class NodeRepository {
 
     public Node save(Node node) {
         jdbcTemplate.update(
-                "INSERT INTO nodes (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO nodes (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 node.id(),
                 node.topicId(),
                 node.nodeType().name(),
@@ -51,6 +52,7 @@ public class NodeRepository {
                 node.status().name(),
                 node.posX(),
                 node.posY(),
+                node.zIndex(),
                 node.createdBy(),
                 odt(node.createdAt()),
                 odt(node.updatedAt())
@@ -105,6 +107,48 @@ public class NodeRepository {
                 posY,
                 nodeId
         ) > 0;
+    }
+
+    /**
+     * Обновление stacking order (z_index) узла на канвасе. По аналогии с
+     * updatePosition - не пишет revision, не меняет updatedAt: z-order это
+     * UI affordance, не доменное изменение содержимого. Возвращает true
+     * если запись существовала и была обновлена.
+     */
+    public boolean updateZIndex(UUID nodeId, int zIndex) {
+        return jdbcTemplate.update(
+                "UPDATE nodes SET z_index = ? WHERE id = ?",
+                zIndex,
+                nodeId
+        ) > 0;
+    }
+
+    /**
+     * Возвращает максимальный z_index среди узлов темы. Если тема пуста -
+     * 0 (default из DDL). Используется для «На передний план»: новый
+     * z_index = findMaxZIndex(topicId) + 1.
+     */
+    public int findMaxZIndex(UUID topicId) {
+        Integer max = jdbcTemplate.queryForObject(
+                "SELECT COALESCE(MAX(z_index), 0) FROM nodes WHERE topic_id = ?",
+                Integer.class,
+                topicId
+        );
+        return max == null ? 0 : max;
+    }
+
+    /**
+     * Возвращает минимальный z_index среди узлов темы. Если тема пуста -
+     * 0. Используется для «На задний план»: новый z_index = findMinZIndex
+     * (topicId) - 1.
+     */
+    public int findMinZIndex(UUID topicId) {
+        Integer min = jdbcTemplate.queryForObject(
+                "SELECT COALESCE(MIN(z_index), 0) FROM nodes WHERE topic_id = ?",
+                Integer.class,
+                topicId
+        );
+        return min == null ? 0 : min;
     }
 
     public boolean deleteById(UUID id) {

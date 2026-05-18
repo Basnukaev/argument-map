@@ -57,7 +57,7 @@ class NodeRepositoryIT {
         Node node = new Node(
                 UUID.randomUUID(), topicId, NodeType.CLAIM,
                 "Мавлид допустим", NodeStatus.STANDING,
-                null, null,
+                null, null, 0,
                 userId, now, now
         );
 
@@ -122,7 +122,7 @@ class NodeRepositoryIT {
         Node updated = new Node(
                 nodeId, topicId, NodeType.QUESTION,
                 "new content", NodeStatus.DISPUTED,
-                null, null,
+                null, null, 0,
                 userId, created, updatedAt
         );
         nodeRepository.update(updated);

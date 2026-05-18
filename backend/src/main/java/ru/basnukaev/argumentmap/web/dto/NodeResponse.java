@@ -13,6 +13,9 @@ import ru.basnukaev.argumentmap.domain.NodeType;
  * один SQL на весь граф.
  *
  * <p>userVote ∈ {-1, +1, null}. null - вызывающий пользователь не голосовал.
+ *
+ * <p>zIndex - stacking order на канвасе. Default 0. Управляется через
+ * POST /api/v1/nodes/{id}/z-order/bring-to-front и /send-to-back.
  */
 public record NodeResponse(
         UUID id,
@@ -22,6 +25,7 @@ public record NodeResponse(
         NodeStatus status,
         Double posX,
         Double posY,
+        int zIndex,
         UUID createdBy,
         Instant createdAt,
         Instant updatedAt,

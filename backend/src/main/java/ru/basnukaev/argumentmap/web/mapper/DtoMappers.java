@@ -91,7 +91,7 @@ public final class DtoMappers {
         return new NodeResponse(
                 node.id(), node.topicId(), node.nodeType(), node.content(),
                 node.status(),
-                node.posX(), node.posY(),
+                node.posX(), node.posY(), node.zIndex(),
                 node.createdBy(),
                 node.createdAt(), node.updatedAt(),
                 s.upvotes(), s.downvotes(), s.score(),

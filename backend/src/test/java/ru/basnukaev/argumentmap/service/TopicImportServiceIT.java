@@ -255,13 +255,13 @@ class TopicImportServiceIT {
 
         UUID rootId = UUID.randomUUID();
         Node root = new Node(rootId, origTopicId, NodeType.QUESTION, "Root question?",
-                NodeStatus.UNVERIFIED, null, null, userId, Instant.now(), Instant.now());
+                NodeStatus.UNVERIFIED, null, null, 0, userId, Instant.now(), Instant.now());
         nodeRepository.save(root);
         topicRepository.updateRootNodeId(origTopicId, rootId);
 
         UUID claimId = UUID.randomUUID();
         Node claim = new Node(claimId, origTopicId, NodeType.CLAIM, "Утверждение",
-                NodeStatus.STANDING, 50.0, 75.0, userId, Instant.now(), Instant.now());
+                NodeStatus.STANDING, 50.0, 75.0, 0, userId, Instant.now(), Instant.now());
         nodeRepository.save(claim);
 
         UUID edgeId = UUID.randomUUID();

@@ -58,7 +58,7 @@ public class NodeService {
         Instant now = Instant.now();
         Node node = new Node(
                 UUID.randomUUID(), topicId, type, content,
-                NodeStatus.UNVERIFIED, null, null,
+                NodeStatus.UNVERIFIED, null, null, 0,
                 userId, now, now
         );
         nodeRepository.save(node);
@@ -94,7 +94,7 @@ public class NodeService {
         return new Node(
                 existing.id(), existing.topicId(), existing.nodeType(),
                 existing.content(), existing.status(),
-                posX, posY,
+                posX, posY, existing.zIndex(),
                 existing.createdBy(), existing.createdAt(), existing.updatedAt()
         );
     }
@@ -128,7 +128,7 @@ public class NodeService {
         Node updated = new Node(
                 existing.id(), existing.topicId(), existing.nodeType(),
                 newContent, existing.status(),
-                existing.posX(), existing.posY(),
+                existing.posX(), existing.posY(), existing.zIndex(),
                 existing.createdBy(), existing.createdAt(), now
         );
         nodeRepository.update(updated);

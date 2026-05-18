@@ -278,7 +278,7 @@ public class TopicImportService {
                     NodeType.valueOf(n.nodeType()),
                     n.content(),
                     NodeStatus.valueOf(n.status()),
-                    n.posX(), n.posY(),
+                    n.posX(), n.posY(), 0,
                     currentUserId,
                     now, now
             );
