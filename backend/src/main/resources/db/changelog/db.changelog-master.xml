@@ -47,5 +47,6 @@
     <include file="db/changelog/changes/20260518-40-node-z-index.xml"/>
     <include file="db/changelog/changes/20260518-41-topic-status-algorithm.xml"/>
     <include file="db/changelog/changes/20260518-42-user-preferences.xml"/>
+    <include file="db/changelog/changes/20260518-43-hadith-grades.xml"/>
 
 </databaseChangeLog>

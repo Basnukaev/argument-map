@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Multi-grading хадисов. Один и тот же хадис (source с sourceType=HADITH)
+        может быть оценён разными учёными по-разному (Бухари: SAHIH,
+        Тирмизи: HASAN, Албани: SAHIH, и т.д.). Существующее поле
+        sources.reliability (single-value) **не удаляем** - оставляем как
+        primary/legacy оценку, используется в Source create/update.
+
+        Новая таблица hadith_grades - M:N между источником и учёным
+        (authorities). UNIQUE (source_id, scholar_id): один scholar - одна
+        оценка для конкретного хадиса. Permission: создатель grade (или
+        ADMIN) может update/delete.
+
+        Whitelist оценок: SAHIH, HASAN, DAIF, MAUDU. MAUDU («выдуманный»)
+        - дополнительная категория для multi-grading которой нет в
+        Reliability enum (Source.reliability single-value не трогаем,
+        domain Reliability используется legacy code). Поле grade varchar
+        + CHECK constraint в БД.
+    -->
+    <changeSet id="20260518-43-hadith-grades" author="Abdula Basnukaev">
+        <comment>Создаём hadith_grades для multi-grading хадисов разными учёными</comment>
+        <sql>
+            CREATE TABLE hadith_grades (
+                id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                source_id       uuid NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+                scholar_id      uuid NOT NULL REFERENCES authorities(id) ON DELETE RESTRICT,
+                grade           varchar(20) NOT NULL,
+                grade_citation  varchar(500),
+                comment         text,
+                created_at      timestamptz NOT NULL DEFAULT now(),
+                created_by      uuid NOT NULL REFERENCES users(id),
+                CONSTRAINT hadith_grades_grade_check
+                    CHECK (grade IN ('SAHIH', 'HASAN', 'DAIF', 'MAUDU')),
+                CONSTRAINT hadith_grades_unique UNIQUE (source_id, scholar_id)
+            );
+
+            CREATE INDEX idx_hadith_grades_source ON hadith_grades(source_id);
+            CREATE INDEX idx_hadith_grades_scholar ON hadith_grades(scholar_id);
+        </sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_hadith_grades_scholar;
+                DROP INDEX IF EXISTS idx_hadith_grades_source;
+                DROP TABLE IF EXISTS hadith_grades;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
