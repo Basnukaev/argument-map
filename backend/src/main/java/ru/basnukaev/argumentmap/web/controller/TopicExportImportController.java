@@ -19,6 +19,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import jakarta.validation.Valid;
+
 import ru.basnukaev.argumentmap.service.TopicExportService;
 import ru.basnukaev.argumentmap.service.TopicImportService;
 import ru.basnukaev.argumentmap.web.CurrentUser;
@@ -83,7 +85,7 @@ public class TopicExportImportController {
      * createdBy из payload (security).
      */
     @PostMapping(path = "/import", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<TopicImportResponse> importJson(@RequestBody TopicExportDto dto,
+    public ResponseEntity<TopicImportResponse> importJson(@Valid @RequestBody TopicExportDto dto,
                                                           @CurrentUser UUID currentUserId) {
         log.info("Topic import via JSON: formatVersion={} title='{}' user={}",
                 dto.formatVersion(),
