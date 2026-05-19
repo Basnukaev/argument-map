@@ -3,8 +3,6 @@ package ru.basnukaev.argumentmap.qa.repository;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.instant;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.odt;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,6 +13,7 @@ import org.springframework.stereotype.Repository;
 
 import ru.basnukaev.argumentmap.domain.CitationDetail;
 import ru.basnukaev.argumentmap.qa.domain.AnswerSource;
+import ru.basnukaev.argumentmap.repository.CitationDetailRowMapper;
 
 /**
  * JDBC repository для answer_sources (Этап 19.d, ADR-033 итерация 3).
@@ -156,71 +155,12 @@ public class AnswerSourceRepository {
         return sb.toString();
     }
 
-    private static CitationDetail citationFromRow(ResultSet rs) throws SQLException {
-        int edition = rs.getInt("edition_number");
-        Integer editionOrNull = rs.wasNull() ? null : edition;
-        int yearH = rs.getInt("published_year_hijri");
-        Integer yearHOrNull = rs.wasNull() ? null : yearH;
-        int yearG = rs.getInt("published_year_gregorian");
-        Integer yearGOrNull = rs.wasNull() ? null : yearG;
-        int deathY = rs.getInt("author_death_year_hijri");
-        Integer deathYOrNull = rs.wasNull() ? null : deathY;
-        int pageNum = rs.getInt("page_page_number");
-        Integer pageNumOrNull = rs.wasNull() ? null : pageNum;
-        int rangeStart = rs.getInt("range_start");
-        Integer rangeStartOrNull = rs.wasNull() ? null : rangeStart;
-        int rangeEnd = rs.getInt("range_end");
-        Integer rangeEndOrNull = rs.wasNull() ? null : rangeEnd;
-        int pdfPage = rs.getInt("pdf_page_number");
-        Integer pdfPageOrNull = rs.wasNull() ? null : pdfPage;
-        int regPage = rs.getInt("region_page_number");
-        Integer regPageOrNull = rs.wasNull() ? null : regPage;
-
-        return new CitationDetail(
-                rs.getObject("authority_id", UUID.class),
-                rs.getString("authority_name"),
-                rs.getString("author_full_name"),
-                deathYOrNull,
-
-                rs.getObject("src_book_id", UUID.class),
-                rs.getString("book_title"),
-                rs.getString("book_language"),
-
-                rs.getObject("muhaqqiq_id", UUID.class),
-                rs.getString("muhaqqiq_name"),
-                rs.getString("muhaqqiq_full_name"),
-
-                rs.getObject("publisher_id", UUID.class),
-                rs.getString("publisher_name"),
-                rs.getObject("publication_place_id", UUID.class),
-                rs.getString("publication_place_name"),
-                editionOrNull,
-                yearHOrNull,
-                yearGOrNull,
-
-                rs.getObject("page_id", UUID.class),
-                rs.getString("page_part"),
-                rs.getString("page_printed_page"),
-                pageNumOrNull,
-                rangeStartOrNull,
-                rangeEndOrNull,
-
-                rs.getObject("pdf_file_id", UUID.class),
-                pdfPageOrNull,
-                rs.getString("pdf_bbox"),
-
-                rs.getObject("image_region_id", UUID.class),
-                rs.getString("region_printed_page"),
-                regPageOrNull
-        );
-    }
-
     public List<AnswerSourceWithLocation> findByAnswerIdWithLocation(UUID answerId) {
         return jdbcTemplate.query(
                 JOIN_LOCATION_SQL + " WHERE ansrc.answer_id = ? ORDER BY ansrc.created_at",
                 (rs, rn) -> new AnswerSourceWithLocation(
                         ROW_MAPPER.mapRow(rs, rn),
-                        citationFromRow(rs)
+                        CitationDetailRowMapper.fromRow(rs)
                 ),
                 answerId
         );
@@ -231,7 +171,7 @@ public class AnswerSourceRepository {
                 JOIN_LOCATION_SQL + " WHERE ansrc.id = ?",
                 (rs, rn) -> new AnswerSourceWithLocation(
                         ROW_MAPPER.mapRow(rs, rn),
-                        citationFromRow(rs)
+                        CitationDetailRowMapper.fromRow(rs)
                 ),
                 id
         ).stream().findFirst();
