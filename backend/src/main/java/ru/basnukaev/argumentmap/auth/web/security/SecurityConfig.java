@@ -169,10 +169,18 @@ public class SecurityConfig {
                     auth.anyRequest().authenticated();
                 })
                 .exceptionHandling(eh -> eh.authenticationEntryPoint(authenticationEntryPoint))
-                // Rate limit ПЕРЕД JWT (ADR-046) - блокируем brute-force
-                // до bcrypt / DB lookup. Применяется только к /auth/login и
-                // /auth/register; для остальных endpoints filter no-op.
-                .addFilterBefore(rateLimitFilter, JwtAuthenticationFilter.class)
+                // Order: Rate limit (ADR-046) → JWT → UsernamePasswordAuthenticationFilter.
+                // Rate limit ПЕРЕД JWT - блокируем brute-force до bcrypt /
+                // DB lookup; применяется только к /auth/login и /auth/register;
+                // для остальных endpoints filter no-op.
+                //
+                // Anchor для обоих - стандартный UsernamePasswordAuthenticationFilter.
+                // Spring Security не знает order у custom JwtAuthenticationFilter -
+                // нельзя использовать его как anchor. Two consecutive
+                // addFilterBefore(filter, UsernamePasswordAuthenticationFilter) -
+                // последний вставленный встаёт ближе к anchor, то есть выполнится
+                // ПОСЛЕ rateLimit при request processing.
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         // X-User-Id fallback фильтр - только если bean есть (dev/test profile).
