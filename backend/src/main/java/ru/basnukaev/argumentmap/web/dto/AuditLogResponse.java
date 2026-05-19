@@ -3,6 +3,8 @@ package ru.basnukaev.argumentmap.web.dto;
 import java.time.Instant;
 import java.util.UUID;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 /**
  * Response DTO для audit_log (Этап 22.d, ADR-043 Amendment 3).
  *
@@ -25,10 +27,26 @@ import java.util.UUID;
  */
 public record AuditLogResponse(
         UUID id,
+        @Schema(allowableValues = {
+                "TOPIC", "NODE", "EDGE", "BOOK", "QUESTION", "ANSWER",
+                "TOPIC_MEMBER", "BOOK_MEMBER",
+                "NODE_SOURCE", "QUESTION_SOURCE", "ANSWER_SOURCE",
+                "NODE_TRANSLATION"
+        })
         String entityType,
         UUID entityId,
+        @Schema(allowableValues = {
+                "TOPIC", "NODE", "EDGE", "BOOK", "QUESTION", "ANSWER",
+                "TOPIC_MEMBER", "BOOK_MEMBER",
+                "NODE_SOURCE", "QUESTION_SOURCE", "ANSWER_SOURCE",
+                "NODE_TRANSLATION"
+        }, nullable = true)
         String parentEntityType,
         UUID parentEntityId,
+        @Schema(allowableValues = {
+                "CREATE", "UPDATE", "DELETE", "VISIBILITY_CHANGE",
+                "MEMBER_ADD", "MEMBER_REMOVE", "MEMBER_ROLE_CHANGE"
+        })
         String action,
         UUID actorUserId,
         String actorUsername,
