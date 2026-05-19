@@ -84,7 +84,7 @@ public class AuthService {
             throw new InvalidCredentialsException("Аккаунт деактивирован");
         }
 
-        return issueTokenPair(user);
+        return issueTokenPair(user).tokens();
     }
 
     /**
@@ -135,16 +135,19 @@ public class AuthService {
 
         // Выпуск новой пары - сохраняем new в БД ДО mark replaced,
         // чтобы не было промежуточного состояния "старый revoked + новый
-        // ещё не записан"
-        AuthTokens newTokens = issueTokenPair(user);
+        // ещё не записан". issueTokenPair возвращает (tokens, id) -
+        // используем id напрямую для linkage без дополнительного SELECT
+        // по token_hash (lookup был лишним, мы только что сами назначили
+        // UUID при save)
+        IssuedTokens issued = issueTokenPair(user);
 
         // Mark старого как replaced - rotation
         refreshTokenRepository.markReplaced(
                 existing.id(),
-                findIdByHash(sha256(newTokens.refreshToken())),
+                issued.refreshTokenId(),
                 RefreshToken.REASON_ROTATION);
 
-        return newTokens;
+        return issued.tokens();
     }
 
     /**
@@ -168,15 +171,20 @@ public class AuthService {
      * hash, raw value возвращается caller'у для cookie). Expiry приходят
      * уже truncated к MICROS из {@link JwtService} (PG TIMESTAMPTZ
      * precision контракт).
+     *
+     * <p>Возвращает {@link IssuedTokens} - tokens + id новой refresh-записи.
+     * Id нужен caller'у для linkage (chain rotation в {@link #refresh}) -
+     * избавляет от лишнего SELECT по token_hash после save.
      */
-    private AuthTokens issueTokenPair(User user) {
+    private IssuedTokens issueTokenPair(User user) {
         String access = jwtService.generateAccessToken(user);
         String refresh = jwtService.generateRefreshToken(user);
         Instant accessExpiry = jwtService.accessTokenExpiry();
         Instant refreshExpiry = jwtService.refreshTokenExpiry();
 
+        UUID refreshId = UUID.randomUUID();
         RefreshToken record = new RefreshToken(
-                UUID.randomUUID(),
+                refreshId,
                 user.id(),
                 sha256(refresh),
                 Instant.now().truncatedTo(ChronoUnit.MICROS),
@@ -185,21 +193,17 @@ public class AuthService {
         );
         refreshTokenRepository.save(record);
 
-        return new AuthTokens(access, accessExpiry, refresh, refreshExpiry);
+        return new IssuedTokens(
+                new AuthTokens(access, accessExpiry, refresh, refreshExpiry),
+                refreshId);
     }
 
     /**
-     * Lookup id только-что сохранённого токена для simple chain linking.
-     * Альтернатива - возвращать id из {@code save()}, но record-immutability
-     * требовала бы более сложного API. SHA-256 уникален по UNIQUE
-     * constraint на token_hash, single lookup гарантирован.
+     * Внутренний holder для возврата tokens + id новой refresh-записи из
+     * {@link #issueTokenPair}. Public AuthTokens API не меняется - id
+     * (внутренний идентификатор БД) не должен утекать клиенту.
      */
-    private UUID findIdByHash(String hash) {
-        return refreshTokenRepository.findByHash(hash)
-                .map(RefreshToken::id)
-                .orElseThrow(() -> new IllegalStateException(
-                        "Только что сохранённый refresh не найден по hash"));
-    }
+    private record IssuedTokens(AuthTokens tokens, UUID refreshTokenId) {}
 
     /**
      * SHA-256 hex от UTF-8 представления. Используется для хранения
