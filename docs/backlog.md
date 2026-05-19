@@ -458,16 +458,24 @@ Cross-cutting security improvements flagged code review round 5. Не
 делаем в текущем этапе (scope-creep на handoff) - закрываем отдельным
 security-focused этапом
 
-- [ ] **Rate limiting на /auth/login + /auth/register** (Crit
-      Cross-cutting #1) - brute force защита. Сейчас оба endpoint'а
-      без лимита, attacker может попробовать миллион login attempts
-      без штрафа. Fix: bucket4j либо resilience4j-ratelimiter, 5
-      attempts/min per IP, lockout 15 min при exceedance. Configurable
-      через ConfigurationProperties (`auth.ratelimit.login.attempts-per-min`,
-      `auth.ratelimit.register.attempts-per-min`, `auth.ratelimit.lockout-minutes`).
-      IP read из X-Forwarded-For при наличии proxy (load balancer / CDN)
-      иначе RemoteAddr. Логирование при lockout для security audit.
-      Reviewer round 5 Crit Cross-cutting #1
+- [x] **Rate limiting на /auth/login + /auth/register** - закрыто
+      2026-05-19 (ADR-046). Custom in-memory sliding-window filter
+      перед JWT в SecurityFilterChain, применяется только к 2 path.
+      ConcurrentHashMap per (IP, endpoint), sliding window 1 минута,
+      lockout 15 мин при превышении. Default limits 5/min login,
+      3/min register. Property `auth.rate-limit.enabled=false` по
+      умолчанию, prod opt-in через `AUTH_RATE_LIMIT_ENABLED=true`.
+      Whitelist `127.0.0.1` + `::1` для CI/smoke. IP extraction:
+      X-Forwarded-For (first) > X-Real-IP > remoteAddr с
+      port-stripping (защита от обхода `127.0.0.1:9999`). Clock
+      injected (AuthClockConfig) - тесты deterministic без
+      Thread.sleep. Lazy cleanup stale entries каждые 256 calls -
+      защита от memory leak при random-IP atак. Direct 429 + Retry-After
+      + ProblemDetails JSON без exception unwinding (economy CPU на
+      hot path). 20 новых тестов (8 IT + 9 unit + 3 misc).
+      Migration to Redis/Hazelcast - при scale-out (см. ADR-046
+      trigger to revisit). Bucket4j / Resilience4j / gateway-level
+      отвергнуты как overkill для single-instance MVP
 - [ ] **Actuator endpoints behind auth в prod** (Crit Cross-cutting #7) -
       сейчас `/actuator/**` permitAll во всех profiles. Эндпоинты
       circuit breakers / health details / info содержат версию backend,

@@ -133,6 +133,33 @@ backward compat не поддерживается (нет prod).
 аутентификации). Возвращают `Set-Cookie: refresh_token=...` где
 применимо (HttpOnly + Secure + SameSite=Strict).
 
+**Rate limiting** (ADR-046): `/auth/login` и `/auth/register` защищены
+custom in-memory sliding-window filter. Default disabled (dev/test/local
+работают без настройки), в prod включается через
+`AUTH_RATE_LIMIT_ENABLED=true`. При превышении лимита:
+
+- HTTP `429 Too Many Requests`
+- Header `Retry-After: <seconds>` (целое число секунд до снятия
+  lockout)
+- Body Problem Details:
+  ```json
+  {
+    "type": "https://argumentmap.example/errors/too-many-requests",
+    "title": "Слишком много попыток",
+    "status": 429,
+    "detail": "Превышен лимит N попыток в минуту. Повторите через X сек.",
+    "retryAfterSeconds": 900
+  }
+  ```
+
+Configurable через env: `AUTH_RATE_LIMIT_LOGIN` (default 5/min),
+`AUTH_RATE_LIMIT_REGISTER` (default 3/min), `AUTH_RATE_LIMIT_LOCKOUT`
+(default `PT15M`). IP resolution: `X-Forwarded-For` (first) >
+`X-Real-IP` > raw `remoteAddr` с port-stripping. Whitelist
+`127.0.0.1` + `::1` для CI/smoke. Фронтенд должен обработать 429:
+показать пользователю текст из `detail` + отключить форму на
+`retryAfterSeconds` секунд (либо до user reload).
+
 #### POST /api/v1/auth/register
 
 Регистрация нового пользователя. Сразу выдаёт access + refresh.
@@ -168,6 +195,7 @@ password 8..100 символов.
 - 400 `validation` - невалидные поля
 - 409 `email-already-taken` - email уже зарегистрирован
 - 409 `username-already-taken` - username занят
+- 429 `too-many-requests` - превышен rate limit (если enabled)
 
 #### POST /api/v1/auth/login
 
@@ -182,6 +210,7 @@ password 8..100 символов.
 
 **Ошибки:**
 - 401 `invalid-credentials` - неверный email или пароль, либо disabled
+- 429 `too-many-requests` - превышен rate limit (если enabled)
 
 #### POST /api/v1/auth/refresh
 

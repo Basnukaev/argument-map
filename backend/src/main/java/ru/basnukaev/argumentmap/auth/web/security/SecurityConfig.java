@@ -184,11 +184,19 @@ public class SecurityConfig {
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         // X-User-Id fallback фильтр - только если bean есть (dev/test profile).
-        // Ставим после JWT - JWT приоритетнее, X-User-Id срабатывает только
-        // когда SecurityContext empty
+        // Anchor - тот же UsernamePasswordAuthenticationFilter что у rateLimit
+        // и jwt. Spring не знает order у custom JwtAuthenticationFilter.class -
+        // нельзя использовать его как anchor (получим IllegalArgumentException
+        // "filter does not have a registered order").
+        //
+        // Порядок execution: last addFilterBefore встаёт ближе к anchor, значит
+        // выполняется ПОЗЖЕ всех предыдущих с тем же anchor. Registration order:
+        // 1. rateLimit (first) - executes first (block brute force перед JWT)
+        // 2. jwt (second) - executes after rateLimit, ставит principal если Bearer
+        // 3. xUserId (third) - executes after jwt, fallback если SecurityContext пуст
         XUserIdAuthenticationFilter xUserIdFilter = xUserIdFilterProvider.getIfAvailable();
         if (xUserIdFilter != null) {
-            http.addFilterAfter(xUserIdFilter, JwtAuthenticationFilter.class);
+            http.addFilterBefore(xUserIdFilter, UsernamePasswordAuthenticationFilter.class);
         }
 
         return http.build();
