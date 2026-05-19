@@ -495,15 +495,19 @@ security-focused этапом
       domain + RefreshTokenRepository + AuthService rotation logic +
       AuthServiceRotationIT (8 IT) + adapt существующих AuthControllerIT.
 
-- [ ] **RefreshTokenCleanupJanitor** - daily cron DELETE revoked старше
-      30 дней + expired never used. Pattern уже есть в
-      `AuditLogRetentionJanitor` (`@ConditionalOnProperty` +
-      `@Scheduled`, retention property, AuditLogRepository.deleteOlderThan).
-      Replicate как `RefreshTokenCleanupJanitor` с config
-      `refresh-token.cleanup.{enabled,retention-days,cron}`,
-      `RefreshTokenRepository.deleteOlderThan(cutoff)`. Без это
-      таблица растёт линейно от login activity (миллионы revoked rows
-      через год). ADR-047 рекомендует запускать после Этапа 25.c
+- [x] **RefreshTokenCleanupJanitor** - закрыто 2026-05-19.
+      `@Component @ConditionalOnProperty(refresh-token.cleanup.enabled=true)`
+      + `@Scheduled` cron daily 02:30 (после AuditLogRetention 02:00 и
+      до orphan janitor 03:00). `RefreshTokenRepository.deleteOlderThan(cutoff)`
+      DELETE'ит revoked где `revoked_at < cutoff` И expired активные
+      `expires_at < cutoff` (hard DELETE без soft-delete - history
+      редко нужна, backup-based recovery). `RefreshTokenCleanupProperties`
+      с validation retentionDays >= 7. Default `enabled=false` (dev/test
+      работают без janitor'а), в prod через `REFRESH_TOKEN_CLEANUP_ENABLED=true`.
+      Default retention 30 дней - balance forensics window (refresh TTL
+      7 дней + 3x запас) и table hygiene. 5 IT
+      (RefreshTokenCleanupJanitorIT через Testcontainers): revoked старше/
+      внутри retention, expired never-used, active valid, count returned
 
 - [ ] **Edge z-order persistence** - mirror Node.zIndex (миграция 40,
       NodeContextMenu bringToFront/sendToBack). Сейчас edge z-order

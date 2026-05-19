@@ -152,4 +152,27 @@ public class RefreshTokenRepository {
                 RefreshToken.REASON_EXPIRED, odt(cutoff)
         );
     }
+
+    /**
+     * Hard DELETE refresh-токенов старше {@code cutoff}. Удаляет:
+     * <ul>
+     *   <li>revoked токены где {@code revoked_at < cutoff} (history больше
+     *       не нужна для steal-detection после retention window)
+     *   <li>expired активные токены {@code expires_at < cutoff} - они
+     *       никогда не будут validated (expired) и нет смысла хранить
+     * </ul>
+     *
+     * <p>Используется {@code RefreshTokenCleanupJanitor} (ADR-047
+     * follow-up). Без soft-delete - refresh-история редко нужна для
+     * forensics, blob-storage backup-based recovery достаточно.
+     * Возвращает количество удалённых строк.
+     */
+    public int deleteOlderThan(Instant cutoff) {
+        return jdbcTemplate.update(
+                "DELETE FROM refresh_tokens "
+                        + "WHERE (revoked_at IS NOT NULL AND revoked_at < ?) "
+                        + "   OR (revoked_at IS NULL AND expires_at < ?)",
+                odt(cutoff), odt(cutoff)
+        );
+    }
 }

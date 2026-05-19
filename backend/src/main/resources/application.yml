@@ -119,6 +119,23 @@ storage:
     # 0 для тестов / маленьких объёмов. 100ms = ~10 files/sec cap
     delay-millis: ${STORAGE_INTEGRITY_DELAY_MILLIS:100}
 
+# Refresh token cleanup (ADR-047 follow-up). RefreshTokenCleanupJanitor
+# периодически удаляет refresh-записи старше N дней: revoked токены и
+# expired never-used. Mandatory до prod - без cleanup'а refresh_tokens
+# растёт линейно от login activity. По умолчанию выключен (dev/test/
+# staging не требуют). В prod включается через
+# REFRESH_TOKEN_CLEANUP_ENABLED=true.
+refresh-token:
+  cleanup:
+    enabled: ${REFRESH_TOKEN_CLEANUP_ENABLED:false}
+    # 30 дней - balance между forensics window для stolen detection
+    # (refresh TTL 7 дней + 3x запас = 30) и табличной hygiene.
+    # Минимум 7 (валидация в RefreshTokenCleanupProperties)
+    retention-days: ${REFRESH_TOKEN_CLEANUP_RETENTION_DAYS:30}
+    # 02:30 ежедневно - после AuditLogRetentionJanitor (02:00) и до
+    # orphan janitor (03:00). Stagger чтобы не competition за DB
+    cron: ${REFRESH_TOKEN_CLEANUP_CRON:0 30 2 * * *}
+
 # Audit log retention (Code review round 3 #5). AuditLogRetentionJanitor
 # периодически удаляет audit_log записи старше N дней. Compliance retention -
 # по умолчанию выключен (на dev/test/staging не нужен, audit log там
