@@ -266,6 +266,6 @@ class DungFrameworkServiceTest {
 
     private Edge edge(UUID from, UUID to, EdgeType type) {
         return new Edge(UUID.randomUUID(), from, to, type, null, null, null,
-                userId, Instant.now());
+                userId, Instant.now(), 0);
     }
 }

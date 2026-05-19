@@ -63,7 +63,7 @@ class EdgeRepositoryIT {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
         Edge edge = new Edge(
                 UUID.randomUUID(), nodeA, nodeB, EdgeType.SUPPORTS,
-                "потому что хадис", null, null, userId, now
+                "потому что хадис", null, null, userId, now, 0
         );
 
         edgeRepository.save(edge);
@@ -84,7 +84,7 @@ class EdgeRepositoryIT {
     void save_withNullRationale_worksFine() {
         Edge edge = new Edge(
                 UUID.randomUUID(), nodeA, nodeB, EdgeType.REFUTES,
-                null, null, null, userId, Instant.now()
+                null, null, null, userId, Instant.now(), 0
         );
         edgeRepository.save(edge);
 
@@ -96,7 +96,7 @@ class EdgeRepositoryIT {
     void save_persistsSourceAndTargetHandle() {
         Edge edge = new Edge(
                 UUID.randomUUID(), nodeA, nodeB, EdgeType.SUPPORTS,
-                null, "right", "left", userId, Instant.now()
+                null, "right", "left", userId, Instant.now(), 0
         );
         edgeRepository.save(edge);
 
@@ -150,13 +150,13 @@ class EdgeRepositoryIT {
         UUID edgeId = UUID.randomUUID();
         Edge original = new Edge(
                 edgeId, nodeA, nodeB, EdgeType.SUPPORTS,
-                "первое обоснование", "right", "left", userId, Instant.now()
+                "первое обоснование", "right", "left", userId, Instant.now(), 0
         );
         edgeRepository.save(original);
 
         Edge updated = new Edge(
                 edgeId, nodeA, nodeC, EdgeType.REFUTES,
-                "новое обоснование", "bottom", "top", userId, original.createdAt()
+                "новое обоснование", "bottom", "top", userId, original.createdAt(), 0
         );
         boolean ok = edgeRepository.update(updated);
 
@@ -174,7 +174,7 @@ class EdgeRepositoryIT {
     void update_whenEdgeMissing_returnsFalse() {
         Edge ghost = new Edge(
                 UUID.randomUUID(), nodeA, nodeB, EdgeType.SUPPORTS,
-                null, null, null, userId, Instant.now()
+                null, null, null, userId, Instant.now(), 0
         );
 
         assertThat(edgeRepository.update(ghost)).isFalse();

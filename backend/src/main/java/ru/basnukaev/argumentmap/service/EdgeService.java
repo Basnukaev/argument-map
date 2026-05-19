@@ -71,7 +71,7 @@ public class EdgeService {
 
         Edge edge = new Edge(
                 UUID.randomUUID(), fromNodeId, toNodeId, type,
-                rationale, sourceHandle, targetHandle, userId, Instant.now()
+                rationale, sourceHandle, targetHandle, userId, Instant.now(), 0
         );
         edgeRepository.save(edge);
         statusCalculationService.recalculateTopic(from.topicId());
@@ -222,7 +222,7 @@ public class EdgeService {
         Edge updated = new Edge(
                 existing.id(), newFromId, newToId, newType,
                 newRationale, newSourceHandle, newTargetHandle,
-                existing.createdBy(), existing.createdAt()
+                existing.createdBy(), existing.createdAt(), existing.zIndex()
         );
         edgeRepository.update(updated);
 

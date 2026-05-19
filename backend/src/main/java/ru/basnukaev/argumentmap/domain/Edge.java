@@ -12,6 +12,7 @@ public record Edge(
         String sourceHandle,
         String targetHandle,
         UUID createdBy,
-        Instant createdAt
+        Instant createdAt,
+        int zIndex
 ) {
 }

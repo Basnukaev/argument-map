@@ -209,7 +209,7 @@ class TopicExportServiceIT {
         Instant now = Instant.now();
         UUID id = UUID.randomUUID();
         Edge e = new Edge(id, from, to, type, "rationale",
-                "right", "left", userId, now);
+                "right", "left", userId, now, 0);
         edgeRepository.save(e);
         return e;
     }

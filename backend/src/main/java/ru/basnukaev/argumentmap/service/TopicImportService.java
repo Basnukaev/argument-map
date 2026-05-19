@@ -316,7 +316,7 @@ public class TopicImportService {
                     e.rationale(),
                     e.sourceHandle(), e.targetHandle(),
                     currentUserId,
-                    Instant.now()
+                    Instant.now(), 0
             );
             edgeRepository.save(newEdge);
             count++;

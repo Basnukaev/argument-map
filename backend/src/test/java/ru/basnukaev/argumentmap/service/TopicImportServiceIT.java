@@ -269,7 +269,7 @@ class TopicImportServiceIT {
 
         UUID edgeId = UUID.randomUUID();
         Edge edge = new Edge(edgeId, claimId, rootId, EdgeType.RESPONDS_TO,
-                "потому что", "right", "left", userId, Instant.now());
+                "потому что", "right", "left", userId, Instant.now(), 0);
         edgeRepository.save(edge);
 
         // Authority + source + node_source
