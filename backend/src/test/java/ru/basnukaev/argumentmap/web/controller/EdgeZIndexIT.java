@@ -152,6 +152,14 @@ class EdgeZIndexIT {
                 .andExpect(jsonPath("$.type").value(containsString("edge-not-found")));
     }
 
+    @Test
+    void sendToBack_nonExistentEdge_returns404() throws Exception {
+        mockMvc.perform(post("/api/v1/edges/{id}/z-order/send-to-back", UUID.randomUUID())
+                        .header("X-User-Id", ownerId.toString()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value(containsString("edge-not-found")));
+    }
+
     private UUID insertNode(UUID topic) {
         UUID id = UUID.randomUUID();
         Instant now = Instant.now();
