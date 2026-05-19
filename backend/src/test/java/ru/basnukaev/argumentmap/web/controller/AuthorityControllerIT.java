@@ -3,6 +3,7 @@ package ru.basnukaev.argumentmap.web.controller;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -22,6 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.web.dto.CreateAuthorityRequest;
+import ru.basnukaev.argumentmap.web.dto.UpdateAuthorityRequest;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -140,6 +142,51 @@ class AuthorityControllerIT {
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return UUID.fromString(objectMapper.readTree(json).get("id").asText());
+    }
+
+    // ─── PATCH /{authorityId} ─────────────────────────────────────────────────
+
+    @Test
+    void update_validRequest_returns200() throws Exception {
+        UUID id = createAuthority("До-обновления");
+        var req = new UpdateAuthorityRequest(
+                "После-обновления", "Новая биография", "X-XI век",
+                "маликитский", null, "MUHAQQIQ"
+        );
+
+        mockMvc.perform(patch("/api/v1/authorities/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id.toString()))
+                .andExpect(jsonPath("$.name").value("После-обновления"))
+                .andExpect(jsonPath("$.bio").value("Новая биография"))
+                .andExpect(jsonPath("$.era").value("X-XI век"))
+                .andExpect(jsonPath("$.madhab").value("маликитский"))
+                .andExpect(jsonPath("$.type").value("MUHAQQIQ"));
+    }
+
+    @Test
+    void update_invalidType_returns400() throws Exception {
+        UUID id = createAuthority("Авторитет");
+        String body = "{\"type\":\"BOGUS\"}";
+
+        mockMvc.perform(patch("/api/v1/authorities/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value(containsString("invalid-authority-type")));
+    }
+
+    @Test
+    void update_notFound_returns404() throws Exception {
+        String body = "{\"name\":\"Кто-то\"}";
+
+        mockMvc.perform(patch("/api/v1/authorities/{id}", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value(containsString("authority-not-found")));
     }
 
     @Test

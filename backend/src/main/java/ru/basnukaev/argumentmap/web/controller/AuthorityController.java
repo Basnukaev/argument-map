@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,6 +22,7 @@ import ru.basnukaev.argumentmap.web.dto.AuthorityResponse;
 import ru.basnukaev.argumentmap.web.dto.CreateAuthorityRequest;
 import ru.basnukaev.argumentmap.web.dto.PageRequest;
 import ru.basnukaev.argumentmap.web.dto.PagedResponse;
+import ru.basnukaev.argumentmap.web.dto.UpdateAuthorityRequest;
 import ru.basnukaev.argumentmap.web.mapper.DtoMappers;
 
 @RestController
@@ -75,6 +77,22 @@ public class AuthorityController {
     @GetMapping("/{authorityId}")
     public AuthorityResponse getOne(@PathVariable UUID authorityId) {
         return DtoMappers.toResponse(authorityService.getAuthority(authorityId));
+    }
+
+    @PatchMapping("/{authorityId}")
+    public ResponseEntity<AuthorityResponse> update(
+            @PathVariable UUID authorityId,
+            @Valid @RequestBody UpdateAuthorityRequest request) {
+        Authority updated = authorityService.updateAuthority(
+                authorityId,
+                request.name(),
+                request.bio(),
+                request.era(),
+                request.madhab(),
+                request.type(),
+                DtoMappers.jsonToString(request.metadata())
+        );
+        return ResponseEntity.ok(DtoMappers.toResponse(updated));
     }
 
     @DeleteMapping("/{authorityId}")
