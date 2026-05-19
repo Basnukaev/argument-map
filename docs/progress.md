@@ -12,9 +12,54 @@
 
 ---
 
-## 2026-05-19 - Сессия 47 - Claude Code harness Sub-projects A + B (Foundation cleanup + Hooks setup)
+## 2026-05-19 - Сессия 47 - Claude Code harness Sub-projects A + B + Tech debt sweep (#7, #3, #1)
+
+### Tech debt sweep (после Sub-projects A+B closure) — closed
+
+После завершения harness Sub-projects A+B продолжили tech debt backlog
+по `feedback_continue_earlier_scope` (MAX autonomy). Закрыты 3 items +
+batch cleanup stale items в SESSION_START_PROMPT.
+
+#### Task #7: AuthorityService.updateAuthority + PATCH endpoint
+
+- `b79f850` `feat(backend): AuthorityRepository.update для partial update` — COALESCE-based SQL для optional fields
+- `7e95080` `feat(backend): UpdateAuthorityRequest DTO` — partial-update record без @NotBlank
+- `4a56c18` `feat(backend): AuthorityService.updateAuthority с type validation + IT` — reuse `validateType()` whitelist, 5 IT (allFields, partialName, invalidType, typeChange, notFound)
+- `7c3011b` `feat(backend): PATCH /api/v1/authorities/{id} + IT` — endpoint + 3 IT (200/400/404)
+
+**Тестов:** AuthorityServiceIT 7→12, AuthorityControllerIT 10→13. Точечный verify pass.
+
+#### Task #3: AuditEntityType single source of truth
+
+- `8611385` `feat(frontend): регенерация types.ts - literal union для entityType/action/role` — autosync via `@Schema(allowableValues)` (annotations уже были в `9ca073a` Сессии 46, не хватало только regen)
+- `8245b77` `fix(frontend): AdminAuditPage использует generated EntityType/Action, добавлен NODE_TRANSLATION` — `satisfies` compile-time check предотвращает future drift
+
+**Drift resolved:** frontend AdminAuditPage `ENTITY_TYPES` whitelist пропускал `NODE_TRANSLATION` (added в backend `50e8fd4`). Теперь types.ts содержит literal union из 12 values + frontend uses generated type. Аналогично action (7 values) и role (USER/ADMIN/MEMBER/EDITOR).
+
+#### Task #1: Z-index persistence для edges
+
+Mirror Node.zIndex pattern (миграция 40) for edges. Frontend `useGraphZOrder` уже имел `bringEdgeToFront/sendEdgeToBack` как **local-only** — теперь persisted via API.
+
+- `3c389bb` `feat(backend): миграция 48 - z_index column в edges` — ALTER TABLE + index
+- `9b236f2` `feat(backend): Edge.zIndex domain field + Repository.updateZIndex/findMaxZIndex/findMinZIndex` — record field (position 10, last) + 3 new repo methods (findMax/Min через JOIN nodes для topicId path)
+- `9d9853e` `feat(backend): EdgeService.bringToFront/sendToBack для z-order persistence + IT` — permission check через `assertCanWrite(topicId, ...)`, 5 new IT
+- `81e764d` `feat(backend): POST /api/v1/edges/{id}/z-order/{bring-to-front,send-to-back} + IT` — endpoints + `EdgeResponse.zIndex` field + `EdgeZIndexIT` (5 tests)
+- `19a50fe` `feat(frontend): regenerate types.ts - edge zIndex + z-order endpoints`
+- `107e77e` `feat(frontend): edge z-order persistence через API (mirror node pattern)` — `useGraphZOrder` switches от ephemeral counter к API call с optimistic update + onRefetch sync
+
+**Тестов:** EdgeRepositoryIT 10 (existing pass post-record change), EdgeServiceIT 20→25, EdgeZIndexIT 5 (new). Frontend 571/571 pass + lint clean + build 7.64s.
+
+#### Backlog cleanup
+
+- `1fe0baf` `docs: cleanup Сессия 47 backlog - resolved/stale items struck out` — отмечены done #3 #5 #7 #8, removed #6 (wrong assumption — AddAuthorityForm не существует, был бы new feature)
+
+Остаются (lower priority): #2 Bulk audit consolidation (premature пока admin audit UI deferred), #4 Cursor pagination (future).
+
+---
 
 ### Sub-project B (Hooks setup) — closed
+
+Spec + plan + 7 атомарных execution коммитов:
 
 Spec + plan + 7 атомарных execution коммитов:
 
