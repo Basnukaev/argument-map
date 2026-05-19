@@ -176,21 +176,6 @@ public class EdgeService {
     }
 
     /**
-     * Partial update ребра. Все поля null в аргументах сохраняют текущее
-     * значение, не-null - применяются. Финальное состояние валидируется
-     * целиком (selfloop, граница темы, матрица ADR-010). При нарушении
-     * валидации выбрасывается InvalidEdgeException и в БД ничего не
-     * меняется - @Transactional откатит транзакцию.
-     *
-     * Ограничение: через этот метод нельзя "очистить" rationale или
-     * handle'ы (выставить в null). Для MVP не нужно - reconnect всегда
-     * передаёт конкретные значения. Если потребуется - отдельный feature
-     * с явным sentinel или JsonNullable.
-     *
-     * Если изменился fromNode/toNode/edgeType - пересчитываем статусы темы.
-     * Если только rationale/handle'ы - пересчёт не нужен (на алгоритм не влияют).
-     */
-    /**
      * Stacking order: ставит ребро на передний план относительно других
      * рёбер темы. z_index = max(z_index рёбер темы) + 1. Тема определяется
      * через from-узел ребра (инвариант EdgeService). Не пишет revision, не
@@ -239,6 +224,21 @@ public class EdgeService {
         );
     }
 
+    /**
+     * Partial update ребра. Все поля null в аргументах сохраняют текущее
+     * значение, не-null - применяются. Финальное состояние валидируется
+     * целиком (selfloop, граница темы, матрица ADR-010). При нарушении
+     * валидации выбрасывается InvalidEdgeException и в БД ничего не
+     * меняется - @Transactional откатит транзакцию.
+     *
+     * Ограничение: через этот метод нельзя "очистить" rationale или
+     * handle'ы (выставить в null). Для MVP не нужно - reconnect всегда
+     * передаёт конкретные значения. Если потребуется - отдельный feature
+     * с явным sentinel или JsonNullable.
+     *
+     * Если изменился fromNode/toNode/edgeType - пересчитываем статусы темы.
+     * Если только rationale/handle'ы - пересчёт не нужен (на алгоритм не влияют).
+     */
     @Transactional
     public Edge updateEdge(UUID edgeId, UUID fromNodeId, UUID toNodeId, EdgeType edgeType,
                            String rationale, String sourceHandle, String targetHandle) {
