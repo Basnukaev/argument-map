@@ -236,61 +236,15 @@ live IT тест).
 - Roles: `USER` / `ADMIN` (CHECK constraint). RBAC permissions
   per-entity - ADR-043 (Этап 22)
 
-#### Rate limiting (ADR-046)
+### Rate limit + Actuator security (ADR-046 + ADR-048)
 
-`/auth/login` и `/auth/register` защищены custom in-memory
-sliding-window filter (`RateLimitFilter`). Применяется ПЕРЕД JWT в
-SecurityFilterChain (`addFilterBefore(rateLimitFilter,
-UsernamePasswordAuthenticationFilter.class)`) - блокирует brute force
-до bcrypt / DB lookup.
+Дополнительные security слои: rate limit на `/auth/login` и
+`/auth/register` (in-memory sliding window, ADR-046), и actuator
+basic auth в prod profile (ADR-048).
 
-- **Property `auth.rate-limit.enabled=false`** по умолчанию -
-  dev/test/local работают без настройки. В prod opt-in через env
-  `AUTH_RATE_LIMIT_ENABLED=true`. Конфиг limits/lockout/whitelist
-  через `auth.rate-limit.*` (см. `application.yml`)
-- **Sliding window 1 минута** per (IP, endpoint). При превышении
-  лимита - lockout `auth.rate-limit.lockout-duration` (default
-  `PT15M`). Lockout expiry → reset attempts → unblock
-- **IP extraction**: `X-Forwarded-For` (first) > `X-Real-IP` >
-  `remoteAddr` с port-stripping (защита от bypass через
-  `1.2.3.4:9999`)
-- **Clock injection** (`AuthClockConfig.systemClock`) - тесты
-  override через `@TestConfiguration` + `MutableClock` для
-  fast-forward через lockout без `Thread.sleep`
-- **Когда расширять на другие endpoints**: сейчас 2 path hardcoded
-  в filter. При защите `/search`, `/upload` (или `/auth/refresh`
-  при злоупотреблении) - либо вынести path-конфигу в properties,
-  либо ввести annotation-based marking. До того - не делать
-  preemptively
-- **НЕ применять к `/auth/refresh`** - frontend может legit ретрать
-  при просрочке access token, легко достичь 5 attempts/min при
-  нескольких открытых tabs
-
-#### Actuator security (ADR-048)
-
-`/actuator/**` обрабатывается **отдельным `SecurityFilterChain`**
-(`ActuatorSecurityConfig`, `@Order(1)`, `securityMatcher("/actuator/**")`).
-Главный `SecurityConfig` actuator-правил больше не содержит.
-
-- **В prod profile**: basic auth для всех actuator endpoints кроме
-  `/actuator/health` + `/actuator/health/**` + `/actuator/info`.
-  Credentials через env `ACTUATOR_USERNAME` / `ACTUATOR_PASSWORD`,
-  in-memory user с ролью `ACTUATOR`. Fail-fast при пустых
-  значениях в prod
-- **В dev/test/local profile**: chain `permitAll` на всё actuator -
-  curl без креденшалов работает как раньше
-- **HTTP security headers** (HSTS / CSP / Referrer / Permissions) -
-  mirror'ятся из main chain в actuator chain, чтобы /actuator/health
-  отдавал тот же набор header'ов что и API
-- **Локальный AuthenticationManager** через `ProviderManager` +
-  `DaoAuthenticationProvider` с `DelegatingPasswordEncoder` (понимает
-  `{noop}` prefix для plain text из env). Не конфликтует с
-  глобальным `BCryptPasswordEncoder` (используется для основной
-  JWT auth)
-- **Тесты для prod profile** требуют `@TestPropertySource` с
-  `actuator.security.username` + `password` - иначе fail-fast при
-  loading ApplicationContext (ловится в `SecurityHeadersProdProfileIT`,
-  `ActuatorSecurityProdProfileIT`)
+**Детали:** `backend/docs/auth-security.md` (RateLimitFilter,
+`auth.rate-limit.*` properties, IP extraction; ActuatorSecurityConfig,
+prod/dev profile difference, ACTUATOR_USERNAME/PASSWORD env vars).
 
 ### Permissions (ADR-043, Этап 22)
 
