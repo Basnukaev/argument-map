@@ -82,7 +82,7 @@ class SourceRepositoryIT {
         Authority author = authorityRepository.save(new Authority(
                 UUID.randomUUID(), "Ибн Таймийя",
                 null, "VIII в.х.", "hanbali", null, Instant.now(),
-                null, null
+                null, null, null
         ));
         Source source = new Source(
                 UUID.randomUUID(), SourceType.BOOK, "Иктида ас-сырат аль-мустакым",
@@ -99,7 +99,7 @@ class SourceRepositoryIT {
     void deleteAuthority_setsSourceAuthorityIdToNull() {
         Authority author = authorityRepository.save(new Authority(
                 UUID.randomUUID(), "Ас-Суюти", null, null, null, null, Instant.now(),
-                null, null
+                null, null, null
         ));
         Source source = sourceRepository.save(new Source(
                 UUID.randomUUID(), SourceType.BOOK, "Хусн аль-максыд",

@@ -218,7 +218,7 @@ class TopicExportServiceIT {
         Instant now = Instant.now();
         UUID id = UUID.randomUUID();
         Authority a = new Authority(id, name, null, "ранний период",
-                null, null, now, name + " ал-Куфи", 774);
+                null, null, now, name + " ал-Куфи", 774, null);
         authorityRepository.save(a);
         return a;
     }

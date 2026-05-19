@@ -38,7 +38,7 @@ class AuthorityRepositoryIT {
                 "ханбалитский",
                 "{\"birth_year\":1263}",
                 now,
-                null, null
+                null, null, null
         );
 
         authorityRepository.save(authority);
@@ -58,7 +58,7 @@ class AuthorityRepositoryIT {
         Authority authority = new Authority(
                 UUID.randomUUID(), "Неизвестный",
                 null, null, null, null, Instant.now(),
-                null, null
+                null, null, null
         );
 
         authorityRepository.save(authority);
@@ -74,9 +74,9 @@ class AuthorityRepositoryIT {
 
     @Test
     void searchByName_caseInsensitive_partialMatch() {
-        authorityRepository.save(new Authority(UUID.randomUUID(), "Имам Малик", null, null, "маликитский", null, Instant.now(), null, null));
-        authorityRepository.save(new Authority(UUID.randomUUID(), "Имам Шафии", null, null, "шафиитский", null, Instant.now(), null, null));
-        authorityRepository.save(new Authority(UUID.randomUUID(), "Ибн Хазм", null, null, null, null, Instant.now(), null, null));
+        authorityRepository.save(new Authority(UUID.randomUUID(), "Имам Малик", null, null, "маликитский", null, Instant.now(), null, null, null));
+        authorityRepository.save(new Authority(UUID.randomUUID(), "Имам Шафии", null, null, "шафиитский", null, Instant.now(), null, null, null));
+        authorityRepository.save(new Authority(UUID.randomUUID(), "Ибн Хазм", null, null, null, null, Instant.now(), null, null, null));
 
         List<Authority> found = authorityRepository.searchByName("имам");
 
@@ -86,8 +86,8 @@ class AuthorityRepositoryIT {
 
     @Test
     void findAll_returnsAllOrderedByName() {
-        Authority a = new Authority(UUID.randomUUID(), "Zzz", null, null, null, null, Instant.now(), null, null);
-        Authority b = new Authority(UUID.randomUUID(), "Aaa", null, null, null, null, Instant.now(), null, null);
+        Authority a = new Authority(UUID.randomUUID(), "Zzz", null, null, null, null, Instant.now(), null, null, null);
+        Authority b = new Authority(UUID.randomUUID(), "Aaa", null, null, null, null, Instant.now(), null, null, null);
         authorityRepository.save(a);
         authorityRepository.save(b);
 
@@ -97,7 +97,7 @@ class AuthorityRepositoryIT {
 
     @Test
     void deleteById_removesAuthority() {
-        Authority a = new Authority(UUID.randomUUID(), "x", null, null, null, null, Instant.now(), null, null);
+        Authority a = new Authority(UUID.randomUUID(), "x", null, null, null, null, Instant.now(), null, null, null);
         authorityRepository.save(a);
 
         boolean deleted = authorityRepository.deleteById(a.id());
@@ -115,7 +115,7 @@ class AuthorityRepositoryIT {
                 "ابن كثير",
                 null, "VIII в.х.", "shafii", null, Instant.now(),
                 "إسماعيل بن عمر بن كثير الدمشقي",
-                774
+                774, null
         );
 
         authorityRepository.save(authority);
@@ -130,7 +130,7 @@ class AuthorityRepositoryIT {
         Authority bad = new Authority(
                 UUID.randomUUID(), "Bad death year",
                 null, null, null, null, Instant.now(),
-                null, 0
+                null, 0, null
         );
 
         assertThatThrownBy(() -> authorityRepository.save(bad))
@@ -142,7 +142,7 @@ class AuthorityRepositoryIT {
         Authority bad = new Authority(
                 UUID.randomUUID(), "Future scholar",
                 null, null, null, null, Instant.now(),
-                null, 2500
+                null, 2500, null
         );
 
         assertThatThrownBy(() -> authorityRepository.save(bad))

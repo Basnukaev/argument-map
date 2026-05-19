@@ -221,7 +221,7 @@ class TopicImportServiceIT {
         UUID preAuthId = UUID.randomUUID();
         authorityRepository.save(new Authority(preAuthId, "Имам Шафии",
                 null, "ранний", "шафии", null, Instant.now(),
-                "Мухаммад ибн Идрис аш-Шафии", 204));
+                "Мухаммад ибн Идрис аш-Шафии", 204, null));
 
         UUID origAuthId = UUID.randomUUID();
         Instant t = Instant.now();
@@ -275,7 +275,7 @@ class TopicImportServiceIT {
         // Authority + source + node_source
         UUID authId = UUID.randomUUID();
         Authority auth = new Authority(authId, "Round-trip автор", null, "эпоха",
-                "школа", null, Instant.now(), null, null);
+                "школа", null, Instant.now(), null, null, null);
         authorityRepository.save(auth);
 
         UUID srcId = UUID.randomUUID();

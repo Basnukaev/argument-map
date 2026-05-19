@@ -78,7 +78,7 @@ class HadithGradeControllerIT {
 
         Authority scholar = new Authority(UUID.randomUUID(), "Аль-Бухари",
                 "Имам-мухаддис", "III век хиджры", null, null, Instant.now(),
-                "Мухаммад ибн Исмаил аль-Бухари", 256);
+                "Мухаммад ибн Исмаил аль-Бухари", 256, null);
         authorityRepository.save(scholar);
         scholarId = scholar.id();
 

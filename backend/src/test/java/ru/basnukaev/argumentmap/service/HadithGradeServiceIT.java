@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.domain.Authority;
+import ru.basnukaev.argumentmap.domain.AuthorityType;
 import ru.basnukaev.argumentmap.domain.HadithGrade;
 import ru.basnukaev.argumentmap.domain.HadithGradeValue;
 import ru.basnukaev.argumentmap.domain.HadithGradeWithScholar;
@@ -29,6 +30,7 @@ import ru.basnukaev.argumentmap.exception.HadithGradeAccessDeniedException;
 import ru.basnukaev.argumentmap.exception.HadithGradeDuplicateException;
 import ru.basnukaev.argumentmap.exception.HadithGradeNotFoundException;
 import ru.basnukaev.argumentmap.exception.InvalidHadithGradeException;
+import ru.basnukaev.argumentmap.exception.InvalidScholarAuthorityException;
 import ru.basnukaev.argumentmap.exception.SourceNotFoundException;
 import ru.basnukaev.argumentmap.repository.AuthorityRepository;
 import ru.basnukaev.argumentmap.repository.SourceRepository;
@@ -56,6 +58,8 @@ class HadithGradeServiceIT {
     private UUID bookSourceId;
     private UUID scholarId;
     private UUID scholar2Id;
+    private UUID publisherId;
+    private UUID muhaqqiqId;
 
     @BeforeEach
     void setUp() {
@@ -72,15 +76,32 @@ class HadithGradeServiceIT {
 
         Authority bukhari = new Authority(UUID.randomUUID(),
                 "Аль-Бухари", "Имам-мухаддис", "III век хиджры",
-                null, null, Instant.now(), "Мухаммад ибн Исмаил аль-Бухари", 256);
+                null, null, Instant.now(), "Мухаммад ибн Исмаил аль-Бухари", 256,
+                AuthorityType.SCHOLAR);
         authorityRepository.save(bukhari);
         scholarId = bukhari.id();
 
         Authority tirmizi = new Authority(UUID.randomUUID(),
                 "Ат-Тирмизи", "Имам", "III век хиджры",
-                null, null, Instant.now(), "Мухаммад ибн Иса ат-Тирмизи", 279);
+                null, null, Instant.now(), "Мухаммад ибн Иса ат-Тирмизи", 279,
+                AuthorityType.SCHOLAR);
         authorityRepository.save(tirmizi);
         scholar2Id = tirmizi.id();
+
+        // фикстуры для negative-кейсов «PUBLISHER/MUHAQQIQ как scholar»
+        Authority darTayba = new Authority(UUID.randomUUID(),
+                "Дар Тайба", "Издательство", null,
+                null, null, Instant.now(), null, null,
+                AuthorityType.PUBLISHER);
+        authorityRepository.save(darTayba);
+        publisherId = darTayba.id();
+
+        Authority muhaqqiq = new Authority(UUID.randomUUID(),
+                "Мухаммад Фуад Абдуль-Баки", "Тахкик", null,
+                null, null, Instant.now(), null, null,
+                AuthorityType.MUHAQQIQ);
+        authorityRepository.save(muhaqqiq);
+        muhaqqiqId = muhaqqiq.id();
 
         Source hadith = new Source(UUID.randomUUID(), SourceType.HADITH,
                 "Хадис о намерениях", "Бухари 1", Reliability.SAHIH,
@@ -256,5 +277,27 @@ class HadithGradeServiceIT {
         assertThatThrownBy(() -> hadithGradeService.removeGrade(
                 created.id(), otherUserId, UserRole.USER
         )).isInstanceOf(HadithGradeAccessDeniedException.class);
+    }
+
+    // ---- миграция 47: type-валидация scholar ----
+
+    @Test
+    void addGrade_publisherAsScholar_throws400() {
+        // оценка хадиса от имени издательства - семантическая ошибка
+        assertThatThrownBy(() -> hadithGradeService.addGrade(
+                hadithSourceId, publisherId, HadithGradeValue.SAHIH,
+                null, null, ownerId
+        )).isInstanceOf(InvalidScholarAuthorityException.class)
+                .hasMessageContaining("PUBLISHER");
+    }
+
+    @Test
+    void addGrade_muhaqqiqAsScholar_throws400() {
+        // тахкик не оценивает хадисы, только редактирует издания
+        assertThatThrownBy(() -> hadithGradeService.addGrade(
+                hadithSourceId, muhaqqiqId, HadithGradeValue.HASAN,
+                null, null, ownerId
+        )).isInstanceOf(InvalidScholarAuthorityException.class)
+                .hasMessageContaining("MUHAQQIQ");
     }
 }

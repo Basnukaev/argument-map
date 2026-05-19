@@ -90,7 +90,7 @@ class BookRepositoryIT {
         Authority author = authorityRepository.save(new Authority(
                 UUID.randomUUID(), "Ибн Таймийя",
                 null, "VIII в.х.", "hanbali", null, Instant.now(),
-                null, null
+                null, null, null
         ));
         Book book = bookRepository.save(new Book(
                 UUID.randomUUID(), BookType.BOOK,

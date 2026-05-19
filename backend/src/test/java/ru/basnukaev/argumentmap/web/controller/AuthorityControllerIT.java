@@ -39,7 +39,7 @@ class AuthorityControllerIT {
     void createAuthority_returns201() throws Exception {
         var metadata = objectMapper.readTree("{\"birth_year\":1263}");
         var req = new CreateAuthorityRequest(
-                "Ибн Таймия", "Известный учёный", "XIII-XIV век", "ханбалитский", metadata
+                "Ибн Таймия", "Известный учёный", "XIII-XIV век", "ханбалитский", metadata, null
         );
 
         mockMvc.perform(post("/api/v1/authorities")
@@ -54,7 +54,7 @@ class AuthorityControllerIT {
 
     @Test
     void createAuthority_blankName_returns400() throws Exception {
-        var req = new CreateAuthorityRequest("  ", null, null, null, null);
+        var req = new CreateAuthorityRequest("  ", null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/authorities")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -133,7 +133,7 @@ class AuthorityControllerIT {
     }
 
     private UUID createAuthorityWithEra(String name, String era) throws Exception {
-        var req = new CreateAuthorityRequest(name, null, era, null, null);
+        var req = new CreateAuthorityRequest(name, null, era, null, null, null);
         String json = mockMvc.perform(post("/api/v1/authorities")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -157,7 +157,7 @@ class AuthorityControllerIT {
     }
 
     private UUID createAuthority(String name) throws Exception {
-        var req = new CreateAuthorityRequest(name, null, null, null, null);
+        var req = new CreateAuthorityRequest(name, null, null, null, null, null);
         String json = mockMvc.perform(post("/api/v1/authorities")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))

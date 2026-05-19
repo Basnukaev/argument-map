@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.auth.domain.UserRole;
+import ru.basnukaev.argumentmap.domain.Authority;
+import ru.basnukaev.argumentmap.domain.AuthorityType;
 import ru.basnukaev.argumentmap.domain.HadithGrade;
 import ru.basnukaev.argumentmap.domain.HadithGradeValue;
 import ru.basnukaev.argumentmap.domain.HadithGradeWithScholar;
@@ -19,6 +21,7 @@ import ru.basnukaev.argumentmap.exception.HadithGradeAccessDeniedException;
 import ru.basnukaev.argumentmap.exception.HadithGradeDuplicateException;
 import ru.basnukaev.argumentmap.exception.HadithGradeNotFoundException;
 import ru.basnukaev.argumentmap.exception.InvalidHadithGradeException;
+import ru.basnukaev.argumentmap.exception.InvalidScholarAuthorityException;
 import ru.basnukaev.argumentmap.exception.SourceNotFoundException;
 import ru.basnukaev.argumentmap.repository.AuthorityRepository;
 import ru.basnukaev.argumentmap.repository.HadithGradeRepository;
@@ -79,8 +82,13 @@ public class HadithGradeService {
         if (grade == null) {
             throw new InvalidHadithGradeException("Поле grade обязательно");
         }
-        if (authorityRepository.findById(scholarId).isEmpty()) {
-            throw new AuthorityNotFoundException(scholarId);
+        Authority scholar = authorityRepository.findById(scholarId)
+                .orElseThrow(() -> new AuthorityNotFoundException(scholarId));
+        // Семантическая валидация: оценивать хадис может только учёный
+        // (muhaddith), не издательство, не тахкик и не «прочие». До
+        // миграции 47 authorities был flat namespace, валидации не было
+        if (!AuthorityType.SCHOLAR.equals(scholar.type())) {
+            throw new InvalidScholarAuthorityException(scholarId, scholar.type());
         }
         if (hadithGradeRepository.existsForSourceAndScholar(sourceId, scholarId)) {
             throw new HadithGradeDuplicateException(sourceId, scholarId);

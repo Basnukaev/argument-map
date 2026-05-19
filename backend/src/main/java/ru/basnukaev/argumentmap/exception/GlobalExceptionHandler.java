@@ -280,6 +280,28 @@ public class GlobalExceptionHandler {
         return pd;
     }
 
+    @ExceptionHandler(DeletedTopicAuditAccessDeniedException.class)
+    public ProblemDetail handleDeletedTopicAuditDenied(DeletedTopicAuditAccessDeniedException ex) {
+        ProblemDetail pd = problem(HttpStatus.FORBIDDEN,
+                "Нет прав на audit удалённой темы", "forbidden-deleted-topic-audit",
+                "Audit удалённой темы доступен только администратору "
+                        + "(compliance forensics). Бывший владелец не видит историю.");
+        pd.setProperty("topicId", ex.getTopicId().toString());
+        pd.setProperty("userId", ex.getUserId().toString());
+        return pd;
+    }
+
+    @ExceptionHandler(DeletedBookAuditAccessDeniedException.class)
+    public ProblemDetail handleDeletedBookAuditDenied(DeletedBookAuditAccessDeniedException ex) {
+        ProblemDetail pd = problem(HttpStatus.FORBIDDEN,
+                "Нет прав на audit удалённой книги", "forbidden-deleted-book-audit",
+                "Audit удалённой книги доступен только администратору "
+                        + "(compliance forensics). Бывший владелец не видит историю.");
+        pd.setProperty("bookId", ex.getBookId().toString());
+        pd.setProperty("userId", ex.getUserId().toString());
+        return pd;
+    }
+
     // ---- multi-grading хадисов (Этап hadith-grades) ----
 
     @ExceptionHandler(HadithGradeNotFoundException.class)
@@ -311,6 +333,26 @@ public class GlobalExceptionHandler {
                 "Только автор оценки или администратор может изменять/удалять её");
         pd.setProperty("gradeId", ex.getGradeId().toString());
         pd.setProperty("userId", ex.getUserId().toString());
+        return pd;
+    }
+
+    @ExceptionHandler(InvalidScholarAuthorityException.class)
+    public ProblemDetail handleInvalidScholarAuthority(InvalidScholarAuthorityException ex) {
+        ProblemDetail pd = problem(HttpStatus.BAD_REQUEST,
+                "Неподходящий тип авторитета для оценки хадиса",
+                "invalid-scholar-authority", ex.getMessage());
+        pd.setProperty("authorityId", ex.getAuthorityId().toString());
+        pd.setProperty("actualType", ex.getActualType());
+        pd.setProperty("expectedType", "SCHOLAR");
+        return pd;
+    }
+
+    @ExceptionHandler(InvalidAuthorityTypeException.class)
+    public ProblemDetail handleInvalidAuthorityType(InvalidAuthorityTypeException ex) {
+        ProblemDetail pd = problem(HttpStatus.BAD_REQUEST,
+                "Невалидный тип authority", "invalid-authority-type",
+                ex.getMessage());
+        pd.setProperty("invalidType", ex.getInvalidType());
         return pd;
     }
 

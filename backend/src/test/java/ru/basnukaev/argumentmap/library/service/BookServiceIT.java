@@ -331,7 +331,7 @@ class BookServiceIT {
     private Authority saveAuthor(String name) {
         return authorityRepository.save(new Authority(
                 UUID.randomUUID(), name, null, null, null, null, Instant.now(),
-                null, null
+                null, null, null
         ));
     }
 }

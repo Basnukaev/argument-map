@@ -1068,7 +1068,8 @@ curl 'http://localhost:9090/api/v1/sources?type=HADITH&reliability=SAHIH&size=10
   "bio": "Известный учёный...",
   "era": "XIII-XIV век",
   "madhab": "ханбалитский",
-  "metadata": { "birth_year": 1263 }
+  "metadata": { "birth_year": 1263 },
+  "type": "SCHOLAR"
 }
 ```
 - `name`: 1-500 символов, обязательно
@@ -1076,12 +1077,19 @@ curl 'http://localhost:9090/api/v1/sources?type=HADITH&reliability=SAHIH&size=10
 - `era`: до 100 символов, опционально
 - `madhab`: до 100 символов, опционально
 - `metadata`: произвольный JSON, опционально
+- `type`: whitelist `SCHOLAR / MUHAQQIQ / PUBLISHER / AUTHOR / OTHER`,
+  опционально (default `SCHOLAR`). Семантическая роль авторитета -
+  определяет, можно ли использовать его как scholar в оценке хадиса
+  (`HadithGrade.addGrade` принимает только `SCHOLAR`)
 
 **Ответ (201 Created):**
 - Заголовок `Location: /api/v1/authorities/{id}`
-- Тело: `AuthorityResponse`
+- Тело: `AuthorityResponse` (включая поле `type`)
 
-**Ошибки:** `400` - невалидные поля.
+**Ошибки:**
+- `400` - невалидные поля
+- `400 invalid-authority-type` (property `invalidType`) - `type` не в
+  whitelist
 
 #### GET /api/v1/authorities
 
@@ -1358,9 +1366,16 @@ CRUD - см. секцию «Multi-translation узлов» ниже.
   "era": "string|null",
   "madhab": "string|null",
   "metadata": { ... } | null,
-  "createdAt": "iso8601"
+  "createdAt": "iso8601",
+  "fullName": "string|null",
+  "deathYearHijri": "integer|null",
+  "type": "SCHOLAR | MUHAQQIQ | PUBLISHER | AUTHOR | OTHER"
 }
 ```
+
+`type` (миграция 47) - семантическая роль authority. До этой миграции
+был flat namespace. `HadithGradeService.addGrade` принимает только
+authorities с `type=SCHOLAR` (см. ошибку `invalid-scholar-authority`).
 
 ### NodeSourceResponse
 ```json
@@ -2930,6 +2945,10 @@ constraint `(source_id, scholar_id)` - один scholar даёт одну оце
 
 - 400 `invalid-hadith-grade` - source не HADITH (нельзя grade'нуть
   BOOK / QURAN / ARTICLE) либо `grade` null
+- 400 `invalid-scholar-authority` - resolved authority имеет
+  `type != SCHOLAR` (например PUBLISHER, MUHAQQIQ). properties
+  `authorityId`, `actualType`, `expectedType=SCHOLAR`. Оценивать
+  хадис может только учёный, не издательство и не тахкик
 - 400 validation - missing `scholarId` / `grade`
 - 404 `source-not-found` / `authority-not-found`
 - 409 `hadith-grade-duplicate` - тот же scholar уже оценил
@@ -3039,13 +3058,18 @@ Query: `?page=&size=` (default 0/20, max size=100).
   тема не для вас)
 - 403 forbidden-topic-write - можете читать, но не писать (member
   без EDITOR)
-- 404 topic-not-found
+- 403 forbidden-deleted-topic-audit - тема удалена, но preserved
+  audit_log rows видны только ADMIN (compliance forensics). Бывший
+  owner получает 403, не 404 - чтобы не leak'ать существование
+  удалённого ресурса бывшему доступу. Properties: `topicId`, `userId`
+- 404 topic-not-found - тема не существует И audit пустой
 
 ### GET /api/v1/audit/books/{bookId}
 
 Mirror /audit/topics для книг. Permission: `assertCanWriteBook`.
-Ошибки: 403 forbidden-book-access / forbidden-book-write / 404
-book-not-found.
+Ошибки: 403 forbidden-book-access / forbidden-book-write /
+403 forbidden-deleted-book-audit (удалённая книга, не-ADMIN) /
+404 book-not-found.
 
 ### GET /api/v1/audit/me
 
@@ -3216,6 +3240,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-05-19 | v1 | `Authority.type` whitelist для семантической роли (review round 3 #4). Миграция 47 ALTER `authorities` ADD COLUMN `type VARCHAR(20) NOT NULL DEFAULT 'SCHOLAR'` + CHECK `IN ('SCHOLAR','MUHAQQIQ','PUBLISHER','AUTHOR','OTHER')` + индекс. Backfill: все existing rows получают `SCHOLAR` (publishers и muhaqqiqs живут в отдельных таблицах `lib_publishers`/`lib_muhaqqiqs` с ADR-028, дублей нет). `AuthorityResponse` расширен полем `type`. `CreateAuthorityRequest` принимает optional `type` (default SCHOLAR). `HadithGradeService.addGrade` валидирует resolved scholar.type==SCHOLAR - попытка использовать `PUBLISHER`/`MUHAQQIQ`/`AUTHOR`/`OTHER` как scholar → 400 `invalid-scholar-authority` (properties `authorityId`, `actualType`, `expectedType=SCHOLAR`). Новая ошибка 400 `invalid-authority-type` (property `invalidType`) при создании authority с не-whitelist `type`. Total backend tests 998/998 pass | Backlog «Authority.type column для HadithGrade scholar validation» закрыт. Семантика: `sahih` от имени издательства - неверно. БД-уровень + сервисная валидация enforce constraint, не оставляя UI. Memory `feedback_no_prod_no_backward_compat` - сразу NOT NULL без NULL-fallback. ShamelaAuthorityResolver теперь явно ставит `AUTHOR` (книжный контекст), TopicImportService оставляет `null` → DB default SCHOLAR (старые экспорты не несут type-семантику) |
 | 2026-05-19 | v1 | Refresh token rotation single-use (ADR-047). Миграция 46 - новая таблица `refresh_tokens(id UUID PK, user_id FK CASCADE, token_hash VARCHAR(64) UNIQUE, issued_at, expires_at, revoked_at, replaced_by FK self, revocation_reason VARCHAR(50))` + 3 индекса (partial по user/expires где revoked_at NULL, hash hot path). **Breaking semantic change**: `POST /api/v1/auth/refresh` теперь возвращает Set-Cookie с **новым** refresh-value (raw JWT) - старый помечен revoked в БД. Reuse уже rotated refresh = 401 + revoke всей chain user'а (steal detection через log.warn). `POST /api/v1/auth/logout` теперь читает refresh cookie и revoke'нет токен в БД (идемпотентно, no-op если cookie отсутствует). JWT structure расширен `jti` claim (UUID) - предотвращает collision двух токенов выпущенных в одну миллисекунду. SHA-256 hex hashing (не bcrypt) - refresh validated каждые ~15min, bcrypt медленный + JWT signature уже high-entropy. **Existing browser cookies с refresh от пред версии не валидны** после deploy - user просто re-login. Без новых error types (только семантика invalid-token расширена на reuse/revoked cases) | Reviewer round 5 Cross-cutting Important #4 закрыт. ADR-040 «открытый вопрос rotation» решён. Rejected: JWT blacklist в Redis (нет Redis в стэке), no-rotation (accept risk - unacceptable для user content + admin actions), sliding TTL без single-use (не закрывает stolen-vector), bcrypt вместо SHA-256 (performance). Memory `feedback_no_prod_no_backward_compat` - breaking change без backward compat |
 | 2026-05-18 | v1 | Multi-translation 1:N узлов (translator attribution). Миграция 45 - новая таблица `node_translations (id UUID PK, node_id FK CASCADE, translator_name varchar(200) NULL, language varchar(5) CHECK ru\|en, body text NOT NULL, is_default boolean DEFAULT false, created_at, created_by FK users)` + 2 индекса (`node_id`, partial по `is_default=true`) + 2 partial unique indexes для `(node_id, translator_name, language)` когда NULL и not-NULL (Postgres UNIQUE считает все NULL разными). **Breaking change**: миграция 45 удаляет колонки `nodes.translation`/`nodes.translation_lang` (теперь в child-таблице), переносит existing 1:1 переводы как первую строку с `translator_name=NULL` и `is_default=true`. `originalLang` остаётся на nodes - это свойство оригинала. `NodeResponse` потерял поля `translation`/`translationLang`, получил `translations: NodeTranslationRef[]` (id, translatorName, language, body, isDefault). Default-перевод первым, затем по created_at ASC. Bulk-load в `GET /topics/{id}/graph` через `NodeTranslationRepository.findByNodeIds` (один SQL на весь граф, не N+1). `CreateNodeRequest`/`UpdateNodeRequest` потеряли translation/translationLang (переводы добавляются после создания узла через child endpoints). 5 новых endpoint под `/api/v1/nodes`: `POST /{nodeId}/translations` (CreateNodeTranslationRequest{translatorName?, language, body, isDefault?}, 201 + Location), `GET /{nodeId}/translations` (NodeTranslationRef[]), `PATCH /translations/{id}` (UpdateNodeTranslationRequest{translatorName?, body?}), `POST /translations/{id}/default` (atomic switch default), `DELETE /translations/{id}` (204, auto-promote oldest при удалении default). Permission: canWriteTopic на mutating, canReadTopic на GET. Спецсемантика: первый перевод узла всегда `isDefault=true` независимо от payload (узел не может быть без default-перевода). Новые ошибки: 404 `node-translation-not-found`, 409 `node-translation-duplicate` (translator+language существует, properties nodeId/translatorName/language). 19 IT для service + 10 IT для controller. Frontend: NodeCard читает `data.translations[]`, dropdown показывается только при >1 переводов, single - просто label с именем переводчика | Backlog «Translator attribution» закрыт. Учёные часто переводят аяты/хадисы по-разному (Кулиев vs Sahih International vs Османов) - один MVP перевод (миграция 44) не покрывал реальный use-case. Memory `feedback_no_prod_no_backward_compat` - ломаем single-translation 1:1 contract без backward compat: миграция переносит existing данные и frontend регенерирует types. Без ADR - чистое расширение domain (1:1 → 1:N) без architectural alternatives |
 | 2026-05-18 | v1 | Bilingual карточки узлов. Миграция 44 ALTER `nodes` добавляет 3 nullable колонки: `translation` (text), `translation_lang` varchar(5) CHECK IN ('ru','en'), `original_lang` varchar(5) CHECK IN ('ar','ru','en'). `NodeResponse` расширен полями `translation` / `translationLang` / `originalLang` (все nullable). `CreateNodeRequest` принимает их как optional с @Pattern whitelist валидацией. `UpdateNodeRequest`: те же поля + семантика "пустая строка = очистить, null/отсутствие = не менять". Двойная валидация: @Pattern в DTO (быстрый 400) + NodeService.validateBilingual (защита от прямого вызова сервиса). Правило: translation NOT NULL → translationLang обязателен. NodeService updateContent получил перегрузку с boxed-семантикой через sentinel `NodeService.NoChange.INSTANCE` чтобы отличить "не пришло в PATCH" от "пришло null (очистить)". Revision НЕ пишется для translation/lang (это metadata, не version-controlled содержимое). Whitelist `UserPreferenceService.ALLOWED_VALUES` расширен ключом `bilingualMode` ('original'\|'translation'\|'both') - frontend persist'ит режим отображения через тот же `/api/v1/preferences/bilingualMode`. originalLang null → frontend auto-detect через hasArabicScript(content) | Backlog «Bilingual карточки - двуязычный режим узла» закрыт. MVP - один перевод на узел. Multi-translation (M:N table с разными переводчиками одного аята: Кулиев, Sahih International, Османов) - в backlog Translator attribution. Без ADR - чистое расширение domain без architectural alternatives |

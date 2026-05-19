@@ -368,27 +368,30 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
   явный shared enum в api-contract spec. Low priority пока number
   entity types <15 (сейчас 7: TOPIC/NODE/EDGE/BOOK/QUESTION/ANSWER/
   TOPIC_MEMBER). Reviewer flag round 3 #2
-- [ ] **Authority.type column для HadithGrade scholar validation** -
-  сейчас `HadithGradeService.addGrade` принимает любой UUID authority
-  как scholar, даже если это PUBLISHER или MUHAQQIQ. Семантически
-  неверно: оценивать хадис как «sahih» может только muhaddith, не
-  издательство. Fix: добавить `authorities.type` column (whitelist
-  SCHOLAR / MUHAQQIQ / PUBLISHER / AUTHOR / другие) + валидация в
-  HadithGradeService.addGrade при resolve scholar. Альтернатива - принять
-  flat namespace authorities и записать как explicit design decision
-  в ADR (правда тогда нужны соглашения типа suffix в name «Bukhari
-  (muhaddith)» для разрешения disambiguation в UI). Reviewer flag
-  round 3 #4
-- [ ] **Audit log для удалённых тем недоступен через /audit/topics/{id}** -
-  `permissionService.assertCanWrite(topicId)` бросает 404
-  topic-not-found если тема удалена (CASCADE на topics → удалены и
-  все child audit). Для compliance scenario (кто/когда удалил тему)
-  admin может использовать `GET /audit/admin?entityType=TOPIC&entityId=`,
-  но usability так себе: нужно знать UUID удалённой темы. Fix: special
-  case в AuditLogController - если topic deleted, всё равно вернуть
-  audit history (без assertCanWrite). Либо explicit
-  `TopicAlreadyDeletedException` → 410 Gone с link на admin endpoint.
-  Reviewer flag round 3 #6
+- [x] **Authority.type column для HadithGrade scholar validation** -
+  закрыто 2026-05-19. Реализовано Вариант A: миграция 47 добавила
+  `authorities.type VARCHAR(20) NOT NULL DEFAULT 'SCHOLAR'` с CHECK
+  whitelist `SCHOLAR/MUHAQQIQ/PUBLISHER/AUTHOR/OTHER` + индекс.
+  Backfill всех existing rows как SCHOLAR (publishers и muhaqqiqs
+  живут в отдельных таблицах ADR-028, дублей нет). `Authority` record
+  расширен полем `type`, `AuthorityType` constants class для
+  whitelist + `isValid()`. `HadithGradeService.addGrade` теперь
+  валидирует resolved scholar.type==SCHOLAR - попытка с PUBLISHER/
+  MUHAQQIQ/AUTHOR/OTHER → 400 `invalid-scholar-authority`. Новая
+  ошибка 400 `invalid-authority-type` при создании. `ShamelaAuthorityResolver`
+  явно ставит `AUTHOR` (книжный контекст), `TopicImportService`
+  оставляет null (default SCHOLAR через БД, старые экспорты не
+  несут type-семантику). Total backend tests 998/998 pass
+- [x] **Audit log для удалённых тем через /audit/topics/{id}** -
+  закрыто 2026-05-19. Проверка факта: `audit_log` НЕ имеет FK на
+  `entity_id` (миграция 39 - только plain UUID), поэтому при удалении
+  темы CASCADE затирает nodes/edges/topic_members, но audit_log rows
+  preserved. Реализовано: special case в `AuditLogController` -
+  если topic deleted, count audit rows: 0 → 404 topic-not-found
+  (тема никогда не существовала), >0 + не-ADMIN → 403
+  `forbidden-deleted-topic-audit`, >0 + ADMIN → возвращаем preserved
+  audit (compliance forensics). Симметрично для книг
+  (`forbidden-deleted-book-audit`). Reviewer flag round 3 #6
 - [ ] **Z-index renormalization для long-running тем** - max+1 / min-1
   pattern на 32-bit int даёт практически безграничное space (2.1B
   операций bring-to-front пока не уйдёт в overflow), но теоретически
