@@ -804,6 +804,22 @@ export interface paths {
         patch: operations["update_5"];
         trace?: never;
     };
+    "/api/v1/authorities/{authorityId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getOne_3"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_8"];
+        options?: never;
+        head?: never;
+        patch: operations["update_6"];
+        trace?: never;
+    };
     "/api/v1/answers/{answerId}": {
         parameters: {
             query?: never;
@@ -814,10 +830,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_8"];
+        delete: operations["delete_9"];
         options?: never;
         head?: never;
-        patch: operations["update_6"];
+        patch: operations["update_7"];
         trace?: never;
     };
     "/api/v1/topics/{topicId}/graph": {
@@ -859,10 +875,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["getOne_3"];
+        get: operations["getOne_4"];
         put?: never;
         post?: never;
-        delete: operations["delete_9"];
+        delete: operations["delete_10"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1007,22 +1023,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/authorities/{authorityId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["getOne_4"];
-        put?: never;
-        post?: never;
-        delete: operations["delete_10"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1204,6 +1204,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/nodes/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["bulkDelete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/library/pages/regions/{regionId}": {
         parameters: {
             query?: never;
@@ -1279,7 +1295,8 @@ export interface components {
             topicId?: string;
             /** Format: uuid */
             userId?: string;
-            role?: string;
+            /** @enum {string} */
+            role?: "MEMBER" | "EDITOR";
             /** Format: date-time */
             addedAt?: string;
             /** Format: uuid */
@@ -1881,7 +1898,8 @@ export interface components {
             bookId?: string;
             /** Format: uuid */
             userId?: string;
-            role?: string;
+            /** @enum {string} */
+            role?: "MEMBER" | "EDITOR";
             /** Format: date-time */
             addedAt?: string;
             /** Format: uuid */
@@ -1954,7 +1972,8 @@ export interface components {
             id?: string;
             username?: string;
             email?: string;
-            role?: string;
+            /** @enum {string} */
+            role?: "USER" | "ADMIN";
         };
         LoginRequest: {
             email: string;
@@ -2134,6 +2153,14 @@ export interface components {
             sourceHandle?: string;
             targetHandle?: string;
         };
+        UpdateAuthorityRequest: {
+            name?: string;
+            bio?: string;
+            era?: string;
+            madhab?: string;
+            metadata?: components["schemas"]["JsonNode"];
+            type?: string;
+        };
         UpdateAnswerRequest: {
             body: string;
         };
@@ -2284,18 +2311,22 @@ export interface components {
             id?: string;
             username?: string;
             email?: string;
-            role?: string;
+            /** @enum {string} */
+            role?: "USER" | "ADMIN";
         };
         AuditLogResponse: {
             /** Format: uuid */
             id?: string;
-            entityType?: string;
+            /** @enum {string} */
+            entityType?: "TOPIC" | "NODE" | "EDGE" | "BOOK" | "QUESTION" | "ANSWER" | "TOPIC_MEMBER" | "BOOK_MEMBER" | "NODE_SOURCE" | "QUESTION_SOURCE" | "ANSWER_SOURCE" | "NODE_TRANSLATION";
             /** Format: uuid */
             entityId?: string;
-            parentEntityType?: string;
+            /** @enum {string} */
+            parentEntityType?: "TOPIC" | "NODE" | "EDGE" | "BOOK" | "QUESTION" | "ANSWER" | "TOPIC_MEMBER" | "BOOK_MEMBER" | "NODE_SOURCE" | "QUESTION_SOURCE" | "ANSWER_SOURCE" | "NODE_TRANSLATION";
             /** Format: uuid */
             parentEntityId?: string;
-            action?: string;
+            /** @enum {string} */
+            action?: "CREATE" | "UPDATE" | "DELETE" | "VISIBILITY_CHANGE" | "MEMBER_ADD" | "MEMBER_REMOVE" | "MEMBER_ROLE_CHANGE";
             /** Format: uuid */
             actorUserId?: string;
             actorUsername?: string;
@@ -2338,6 +2369,13 @@ export interface components {
             /** Format: int32 */
             majorRelease?: number;
             isMapped?: boolean;
+        };
+        BulkDeleteNodesRequest: {
+            nodeIds: string[];
+        };
+        BulkDeleteResponse: {
+            deletedIds?: string[];
+            skippedRootIds?: string[];
         };
     };
     responses: never;
@@ -4454,7 +4492,75 @@ export interface operations {
             };
         };
     };
+    getOne_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                authorityId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AuthorityResponse"];
+                };
+            };
+        };
+    };
     delete_8: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                authorityId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_6: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                authorityId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAuthorityRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AuthorityResponse"];
+                };
+            };
+        };
+    };
+    delete_9: {
         parameters: {
             query: {
                 currentUserId: string;
@@ -4479,7 +4585,7 @@ export interface operations {
             };
         };
     };
-    update_6: {
+    update_7: {
         parameters: {
             query: {
                 currentUserId: string;
@@ -4557,7 +4663,7 @@ export interface operations {
             };
         };
     };
-    getOne_3: {
+    getOne_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -4579,7 +4685,7 @@ export interface operations {
             };
         };
     };
-    delete_9: {
+    delete_10: {
         parameters: {
             query?: never;
             header?: never;
@@ -4807,48 +4913,6 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["PdfInfoResponse"];
                 };
-            };
-        };
-    };
-    getOne_4: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                authorityId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["AuthorityResponse"];
-                };
-            };
-        };
-    };
-    delete_10: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                authorityId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
@@ -5114,6 +5178,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    bulkDelete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkDeleteNodesRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BulkDeleteResponse"];
+                };
             };
         };
     };
