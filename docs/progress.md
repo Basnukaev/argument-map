@@ -12,12 +12,12 @@
 
 ---
 
-## 2026-05-19 - Сессия 48 - Sub-project C partial: spec + plan + liquibase-migration + new-rest-endpoint + library-page-rendering skills
+## 2026-05-19 - Сессия 48 - Sub-project C FULLY CLOSED: spec + plan + все 4 skills
 
-### Sub-project C (Project-specific skills) — 3 из 4 done
+### Sub-project C (Project-specific skills) — 4 из 4 done ✓
 
-Реализованы три skill из 4 запланированных. Spec + plan written,
-skills `liquibase-migration`, `new-rest-endpoint` и `library-page-rendering` созданы.
+Реализованы все 4 skill. Spec + plan written, skills `liquibase-migration`,
+`new-rest-endpoint`, `library-page-rendering` и `shamela-parser-debug` созданы.
 
 #### Коммиты
 
@@ -41,11 +41,17 @@ skills `liquibase-migration`, `new-rest-endpoint` и `library-page-rendering` с
   pagination pattern, audit log integration, pre-commit checklist,
   common errors table, 3 реальных примера (TopicController.getOne,
   AuditLogController.auditAdmin, EdgeController.bringToFront)
-- *(этот коммит)* `feat(.claude): library-page-rendering skill` —
+- `4953efd` `feat(.claude): library-page-rendering skill` —
   `.claude/skills/library-page-rendering/SKILL.md` (429 строк): overview 4 режимов
   (PDF/OCR/AI-edited/Image), state machine `lib_pages` с transitions cheatsheet,
   4 workflow (add mode, debug OCR, debug AI edit, debug PDF), frontend rendering switch,
   files cheat sheet, 8-строчная errors table, 3 примера, pre-implementation checklist
+- *(этот коммит)* `feat(.claude): shamela-parser-debug skill - Sub-project C closed` —
+  `.claude/skills/shamela-parser-debug/SKILL.md` (589 строк): overview 6-step pipeline,
+  diagnostic decision tree, fetch/extract/parse/map/persist troubleshooting sections,
+  re-run safely procedure (с SQL snippets), bulk import policy (escalation rules),
+  live test mode guide, files cheat sheet (19 entries), 7-строчная errors table,
+  3 реальных примера (mapping failure, bulk escalation, schema drift)
 
 #### Что создано
 
@@ -79,13 +85,25 @@ skills `liquibase-migration`, `new-rest-endpoint` и `library-page-rendering` с
   - 3 примера: Image mode scaffold, OCR stuck workflow, text_content="" gotcha
   - Pre-implementation checklist 8 пунктов
 
+- **`.claude/skills/shamela-parser-debug/SKILL.md`** — проектный skill:
+  - Frontmatter `name: shamela-parser-debug` + `description:` для автоактивации
+    по ключевым словам (shamela, ETL, import book, ShamelaApiClient, и пр.)
+  - Overview: 6-step pipeline (Fetch → Extract → Parse → Map → Persist → Cleanup)
+  - Diagnostic decision tree: 6 ветвей по симптому + первичный grep лога
+  - Troubleshooting sections: Fetch (DNS/rate limit/404), Extract (disk/corrupt),
+    Parse (schema drift/SqliteValueParser quirks), Map (TextCleaner/Bibliography/Authority),
+    Persist (UNIQUE constraint/CHECK constraint/FK/transactional rollback)
+  - Re-run safely: DELETE + verify + re-trigger (3 варианта)
+  - Bulk import policy: эскалация, причины, правильный workflow
+  - Live test mode (@Tag("live"), когда запускать)
+  - Files cheat sheet (19 entries) + errors table (7 строк)
+  - Pre-diagnosis checklist (7 пунктов)
+  - 3 примера: mapping failure walk-through, bulk escalation, schema drift detection + fix
+
 **Storage location:** `.claude/skills/` зеркалит структуру плагинов
 Superpowers. Skills обнаруживаются по frontmatter `name:` + `description:`.
 
-#### Что НЕ сделано (backlog для следующих сессий)
-
-1 remaining skill:
-1. **shamela-parser-debug** — ETL diagnostic playbook
+**Sub-project C: FULLY CLOSED** — все 4 skills созданы.
 
 ---
 
