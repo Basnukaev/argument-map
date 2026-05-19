@@ -12,12 +12,12 @@
 
 ---
 
-## 2026-05-19 - Сессия 48 - Sub-project C partial: spec + plan + liquibase-migration + new-rest-endpoint skills
+## 2026-05-19 - Сессия 48 - Sub-project C partial: spec + plan + liquibase-migration + new-rest-endpoint + library-page-rendering skills
 
-### Sub-project C (Project-specific skills) — partial closure
+### Sub-project C (Project-specific skills) — 3 из 4 done
 
-Реализованы первые два skill из 4 запланированных. Spec + plan written,
-skills `liquibase-migration` и `new-rest-endpoint` созданы.
+Реализованы три skill из 4 запланированных. Spec + plan written,
+skills `liquibase-migration`, `new-rest-endpoint` и `library-page-rendering` созданы.
 
 #### Коммиты
 
@@ -41,6 +41,11 @@ skills `liquibase-migration` и `new-rest-endpoint` созданы.
   pagination pattern, audit log integration, pre-commit checklist,
   common errors table, 3 реальных примера (TopicController.getOne,
   AuditLogController.auditAdmin, EdgeController.bringToFront)
+- *(этот коммит)* `feat(.claude): library-page-rendering skill` —
+  `.claude/skills/library-page-rendering/SKILL.md` (429 строк): overview 4 режимов
+  (PDF/OCR/AI-edited/Image), state machine `lib_pages` с transitions cheatsheet,
+  4 workflow (add mode, debug OCR, debug AI edit, debug PDF), frontend rendering switch,
+  files cheat sheet, 8-строчная errors table, 3 примера, pre-implementation checklist
 
 #### Что создано
 
@@ -63,14 +68,24 @@ skills `liquibase-migration` и `new-rest-endpoint` созданы.
   - Error handling reference: маппинг exceptions → HTTP codes
   - 3 примера из проекта: GET single, GET list+filters+pagination, action endpoint
 
+- **`.claude/skills/library-page-rendering/SKILL.md`** — проектный skill:
+  - Frontmatter `name: library-page-rendering` + `description:` для автоактивации
+    по ключевым словам (lib_pages, OCR, PDF viewer, AI edit, page rendering, и пр.)
+  - Overview: 4 режима (PDF passthrough / OCR text / AI-edited formatted / Image planned)
+  - State machine `lib_pages`: ocr_status + ai_edit_status, все transitions
+  - 4 workflow: add render mode scaffold, debug OCR stuck, debug AI edit broken, debug PDF streaming
+  - Frontend rendering switch: BookReaderPage readerMode + PageView priority chain
+  - Files cheat sheet (14 entries) + errors table (8 строк)
+  - 3 примера: Image mode scaffold, OCR stuck workflow, text_content="" gotcha
+  - Pre-implementation checklist 8 пунктов
+
 **Storage location:** `.claude/skills/` зеркалит структуру плагинов
 Superpowers. Skills обнаруживаются по frontmatter `name:` + `description:`.
 
 #### Что НЕ сделано (backlog для следующих сессий)
 
-2 remaining skills в порядке приоритета:
-1. **library-page-rendering** — PDF/OCR/Image modes, lib_pages state machine
-2. **shamela-parser-debug** — ETL diagnostic playbook
+1 remaining skill:
+1. **shamela-parser-debug** — ETL diagnostic playbook
 
 ---
 
