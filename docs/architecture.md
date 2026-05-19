@@ -476,6 +476,24 @@ revoke всех сессий user'а. Multiple sessions per user допусти�
 (один user может иметь несколько active refresh - например на разных
 устройствах), каждая ротируется независимо.
 
+**Rate limiting** на `/auth/login` + `/auth/register` (ADR-046,
+2026-05-19). Custom in-memory sliding-window filter перед JWT в
+`SecurityFilterChain`. Default disabled (dev/test/local работают без
+настройки), в prod opt-in через `AUTH_RATE_LIMIT_ENABLED=true`. При
+превышении - 429 + Retry-After. Не применяется к `/auth/refresh`
+(frontend может legit retry'ить).
+
+**Actuator endpoints** в prod profile (ADR-048, 2026-05-19) - отдельный
+`SecurityFilterChain` (@Order(1), `securityMatcher("/actuator/**")`).
+`/actuator/health` + `/actuator/info` остаются public для LB
+liveness/readiness probes; всё остальное требует HTTP Basic auth с
+in-memory ACTUATOR user из env `ACTUATOR_USERNAME` /
+`ACTUATOR_PASSWORD`. В dev/test/local actuator открыт.
+
+**Refresh token cleanup janitor** (ADR-047 follow-up): `@Scheduled` cron
+ежедневно 02:30 удаляет revoked refresh старше N дней + expired
+never-used. Default disabled, в prod через `REFRESH_TOKEN_CLEANUP_ENABLED=true`.
+
 ## Permissions / Visibility model (Этап 22 + 22.c, ADR-043 + Amendment)
 
 Per-entity authorization для topics и library books. Hybrid model:
@@ -544,13 +562,23 @@ topics                                  topic_members
 - `PATCH /api/v1/topics/{id}/visibility` (owner)
 - `POST/GET/PATCH/DELETE /api/v1/topics/{id}/members[/...]`
 
-**Что отложено** (Этап 22.d):
+**Закрыто в 22.d** (ADR-043 Amendment 3, 2026-05-18):
 
-- frontend UI для book members + visibility (зеркало 22.b
-  TopicMembersModal/VisibilityRadioGroup для books)
+- **Audit log per-entity** - миграция 39 + `AuditLogService` (synchronous
+  в той же транзакции). REST `GET /api/v1/audit/{topics|books}/{id}`
+  (owner+EDITOR), `/audit/me`, `/audit/admin` (ADMIN only). 8 действий:
+  CREATE/UPDATE/DELETE/VISIBILITY_CHANGE/MEMBER_*. CASCADE на entity
+  preserve audit history (entity_id без FK)
+- **Audit для удалённых entities** (Сессия 46) - ADMIN видит forensics
+  через тот же endpoint, бывший owner → 403 forbidden-deleted-*-audit
+- **Audit retention** (ADR-043 Amendment) - `AuditLogRetentionJanitor`
+  cron, конфиг `audit.retention.*`, default disabled
+
+**Что отложено:**
+
 - private Q&A (visibility model для questions/answers если возникнет
-  use-case закрытых учёных групп)
-- audit log (кто что менял когда + permission changes) - отдельная таблица
+  use-case закрытых учёных групп) - mirror topic/book паттерна
+- frontend UI для управления Authority.type (SCHOLAR/MUHAQQIQ/PUBLISHER/AUTHOR)
 
 ### Library books (ADR-043 Amendment, Этап 22.c)
 
@@ -588,4 +616,5 @@ guards в Service-слое:
   автор и не ADMIN
 
 Когда понадобится private Q&A (закрытые группы учёных) - расширим
-отдельной миграцией по тому же visibility/members паттерну (22.d).
+отдельной миграцией по тому же visibility/members паттерну (как
+topics+books).

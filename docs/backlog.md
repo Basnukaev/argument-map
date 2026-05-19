@@ -307,8 +307,6 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       общим `appendFilters`. Breaking change для frontend
       (raw-array → PagedResponse). 1 page (TopicListPage)
       обновлён smoke; остальные frontend pages - см. ниже
-- [ ] Аутентификация (Spring Security + JWT) - см. Этап 21 в
-      roadmap
 - [x] **Реализация Dung's argumentation framework** - закрыто
       2026-05-18 (Сессия 38, ADR-044). Миграция 41 + `topics.status_algorithm
       VARCHAR(20) CHECK MVP|DUNG_GROUNDED` (default MVP), `DungFrameworkService.
@@ -401,22 +399,17 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
   (e.g. abs(max) > 1_000_000). Pattern из CAD/diagramming tools.
   Low priority - real-world spread <100 у большинства тем
 
-- [ ] **Shared MinIO Testcontainer для IT suite** - сейчас 7+ IT
-      классов (`ObjectStorageServiceIT`, `BucketBootstrap*IT`,
-      `OrphanDetection*`, `IntegrityVerification*`, `FileImportServiceIT`,
-      `FileImportControllerIT`, `UserUploadProviderIT`,
-      `HttpClientPdfFetcherRangeStreamingIT`, `PdfLinksSourceProviderIT`)
-      каждый поднимает свой `@Container static MinIOContainer`. Cost:
-      ~5-10 сек startup × 9 ITs = 45-90 сек overhead на каждый
-      `./mvnw verify` (текущий ~80 сек). Решение: singleton container
-      pattern через static init block в общем base class либо
-      `withReuse(true)` через Testcontainers reuse mode (требует
-      `testcontainers.reuse.enable=true` в `~/.testcontainers.properties`).
-      Низкий приоритет - CI не блокирует, локальная разработка
-      acceptable. Станет неприятно когда IT'ов вырастет до 20+.
-      Reviewer Сессии 37 + 40 дважды flag'нул это как Important
-      tech-debt, пока решение «зафиксировать в backlog и не делать
-      сейчас» - явное (no scope creep в текущем этапе)
+- [x] **Shared MinIO Testcontainer для IT suite** - закрыто 2026-05-19
+      (Сессия 46). `SharedMinioContainer` singleton с static `INSTANCE`
+      создаётся один раз на JVM fork, 9 IT мигрированы (ObjectStorageServiceIT,
+      ObjectStorageHealthIndicatorIT, IntegrityVerificationJobIT,
+      OrphanDetectionJanitorIT, UserUploadProviderIT, PdfLinksSourceProviderIT,
+      FileImportServiceIT, PageImageServiceIT, OcrServiceIT,
+      FileImportControllerIT). Экономия 45-90 сек на verify-прогоне.
+      Test isolation - явный empty bucket'а перед delete в
+      ObjectStorageHealthIndicatorIT (shared container накапливает
+      versions от других IT с versioning). Reviewer round 5+6 flag
+      закрыт
 
 - [x] **BookSummaryResponse.createdBy для accurate «Мои» filter в
       Library overview** - сейчас фильтрация книг текущего user'а в
@@ -526,16 +519,10 @@ security-focused этапом
       (RefreshTokenCleanupJanitorIT через Testcontainers): revoked старше/
       внутри retention, expired never-used, active valid, count returned
 
-- [ ] **Edge z-order persistence** - mirror Node.zIndex (миграция 40,
-      NodeContextMenu bringToFront/sendToBack). Сейчас edge z-order
-      ephemeral (`zRef` counter в GraphCanvas), теряется на refetch.
-      Pattern уже есть - apply к edges: миграция `edges.z_index INT
-      NOT NULL DEFAULT 0`, EdgeRepository.updateZIndex /
-      findMax/findMin, EdgeService.bringToFront/sendToBack с
-      assertCanWrite, REST endpoints `POST /edges/{id}/z-order/{bring-to-front,
-      send-to-back}`. Frontend buildFlow читает edge.zIndex, optimistic
-      update в context menu. Low priority - z-order на edges редко
-      важен пользователю. Reviewer round 5 Bonus #7
+- [ ] **Edge z-order persistence** - см. дубликат выше «Z-index
+      persistence для edges». Pattern идентичен Node.zIndex (миграция 40).
+      Не делать пока z-order на edges не станет реальным UX-вопросом.
+      Reviewer round 5 Bonus #7
 
 ---
 

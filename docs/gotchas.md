@@ -7,9 +7,22 @@
 > **Статус gotcha:** если внутри блока есть запись `Update YYYY-MM-DD
 > (сессия N): ...` подтверждающая что фикс применён - это **resolved**.
 > Решённые gotcha **не удаляются** - служат retrospective контекстом
-> при разборе похожих проблем. Сейчас resolved: `@CurrentUser` (Сессия 16).
-> При накоплении 3+ resolved - вынести в отдельный архивный файл
-> (D-06 audit, defer).
+> при разборе похожих проблем + часто содержат active rules «не делать X
+> в новом коде» которые остаются value после fix'а.
+>
+> Сейчас resolved (но оставлены за active rule в каждой):
+> - `@CurrentUser` ArgumentResolver (Сессия 16)
+> - `Tiptap CSS темизация - prefers-color-scheme ≠ manual override`
+>   (Сессия 41) - правило «никогда `prefers-color-scheme` в component
+>   CSS» остаётся в силе
+> - `Tashkeel removal через ProseMirror JSON transform` (Сессия 41) -
+>   реализован JSON transform
+> - `Springdoc-openapi не знает про @CurrentUser` (Сессия 16) - реализован
+>   `OperationCustomizer`
+>
+> Архивацию в отдельный файл `docs/archive/gotchas-resolved.md` делаем
+> только если запись **не содержит** active rule (просто history); пока
+> все 4 resolved содержат active rules, не архивируем.
 
 Формат:
 ```
