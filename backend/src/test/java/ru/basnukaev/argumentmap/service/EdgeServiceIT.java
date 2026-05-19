@@ -23,6 +23,7 @@ import ru.basnukaev.argumentmap.domain.NodeType;
 import ru.basnukaev.argumentmap.exception.EdgeNotFoundException;
 import ru.basnukaev.argumentmap.exception.InvalidEdgeException;
 import ru.basnukaev.argumentmap.exception.NodeNotFoundException;
+import ru.basnukaev.argumentmap.exception.TopicAccessDeniedException;
 import ru.basnukaev.argumentmap.repository.EdgeRepository;
 import ru.basnukaev.argumentmap.repository.NodeRepository;
 
@@ -341,5 +342,70 @@ class EdgeServiceIT {
 
         assertThat(updated.fromNodeId()).isEqualTo(nodeC);
         assertThat(updated.toNodeId()).isEqualTo(nodeB);
+    }
+
+    // ----------------------------------------------------------------
+    // Z-order tests
+    // ----------------------------------------------------------------
+
+    @Test
+    void bringToFront_setsZIndexToMaxPlus1() {
+        // оба ребра стартуют с z_index=0 (default DDL)
+        Edge e1 = edgeService.createEdge(nodeA, nodeB, EdgeType.SUPPORTS, null, userId);
+        UUID nodeC = insertNode(topicId);
+        Edge e2 = edgeService.createEdge(nodeA, nodeC, EdgeType.REFUTES, null, userId);
+
+        // bringToFront e1: max(0,0)+1 = 1
+        Edge result = edgeService.bringToFront(e1.id(), userId, "USER");
+        assertThat(result.zIndex()).isEqualTo(1);
+
+        // после bringToFront e2: max(1,0)+1 = 2
+        Edge result2 = edgeService.bringToFront(e2.id(), userId, "USER");
+        assertThat(result2.zIndex()).isEqualTo(2);
+    }
+
+    @Test
+    void sendToBack_setsZIndexToMinMinus1() {
+        Edge e1 = edgeService.createEdge(nodeA, nodeB, EdgeType.SUPPORTS, null, userId);
+        UUID nodeC = insertNode(topicId);
+        Edge e2 = edgeService.createEdge(nodeA, nodeC, EdgeType.REFUTES, null, userId);
+
+        // sendToBack e1: min(0,0)-1 = -1
+        Edge result = edgeService.sendToBack(e1.id(), userId, "USER");
+        assertThat(result.zIndex()).isEqualTo(-1);
+
+        // sendToBack e2: min(-1,0)-1 = -2
+        Edge result2 = edgeService.sendToBack(e2.id(), userId, "USER");
+        assertThat(result2.zIndex()).isEqualTo(-2);
+    }
+
+    @Test
+    void bringToFront_emptyTopicEdgesReturnZ1() {
+        // Единственное ребро в теме: max = 0 (COALESCE) → 0+1 = 1
+        Edge e = edgeService.createEdge(nodeA, nodeB, EdgeType.SUPPORTS, null, userId);
+
+        Edge result = edgeService.bringToFront(e.id(), userId, "USER");
+        assertThat(result.zIndex()).isEqualTo(1);
+    }
+
+    @Test
+    void bringToFront_unauthorized_throwsAccessDenied() {
+        // чужой user без доступа к PRIVATE теме → TopicAccessDeniedException
+        Edge e = edgeService.createEdge(nodeA, nodeB, EdgeType.SUPPORTS, null, userId);
+
+        UUID strangerId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
+                strangerId, "stranger-" + strangerId, strangerId + "@x.com"
+        );
+
+        assertThatThrownBy(() -> edgeService.bringToFront(e.id(), strangerId, "USER"))
+                .isInstanceOf(TopicAccessDeniedException.class);
+    }
+
+    @Test
+    void bringToFront_notFound_throwsEdgeNotFound() {
+        assertThatThrownBy(() -> edgeService.bringToFront(UUID.randomUUID(), userId, "USER"))
+                .isInstanceOf(EdgeNotFoundException.class);
     }
 }

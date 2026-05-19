@@ -190,6 +190,55 @@ public class EdgeService {
      * Если изменился fromNode/toNode/edgeType - пересчитываем статусы темы.
      * Если только rationale/handle'ы - пересчёт не нужен (на алгоритм не влияют).
      */
+    /**
+     * Stacking order: ставит ребро на передний план относительно других
+     * рёбер темы. z_index = max(z_index рёбер темы) + 1. Тема определяется
+     * через from-узел ребра (инвариант EdgeService). Не пишет revision, не
+     * меняет updatedAt (z-order - UI affordance, не доменное изменение).
+     * Mirror NodeService.bringToFront.
+     */
+    @Transactional
+    public Edge bringToFront(UUID edgeId, UUID userId, String role) {
+        Edge existing = edgeRepository.findById(edgeId)
+                .orElseThrow(() -> new EdgeNotFoundException(edgeId));
+        UUID topicId = nodeRepository.findById(existing.fromNodeId())
+                .orElseThrow(() -> new NodeNotFoundException(existing.fromNodeId()))
+                .topicId();
+        permissionService.assertCanWrite(topicId, userId, role);
+
+        int newZ = edgeRepository.findMaxZIndex(topicId) + 1;
+        edgeRepository.updateZIndex(edgeId, newZ);
+        return new Edge(
+                existing.id(), existing.fromNodeId(), existing.toNodeId(),
+                existing.edgeType(), existing.rationale(),
+                existing.sourceHandle(), existing.targetHandle(),
+                existing.createdBy(), existing.createdAt(), newZ
+        );
+    }
+
+    /**
+     * Stacking order: ставит ребро на задний план. z_index = min(z_index
+     * рёбер темы) - 1. Mirror bringToFront / NodeService.sendToBack.
+     */
+    @Transactional
+    public Edge sendToBack(UUID edgeId, UUID userId, String role) {
+        Edge existing = edgeRepository.findById(edgeId)
+                .orElseThrow(() -> new EdgeNotFoundException(edgeId));
+        UUID topicId = nodeRepository.findById(existing.fromNodeId())
+                .orElseThrow(() -> new NodeNotFoundException(existing.fromNodeId()))
+                .topicId();
+        permissionService.assertCanWrite(topicId, userId, role);
+
+        int newZ = edgeRepository.findMinZIndex(topicId) - 1;
+        edgeRepository.updateZIndex(edgeId, newZ);
+        return new Edge(
+                existing.id(), existing.fromNodeId(), existing.toNodeId(),
+                existing.edgeType(), existing.rationale(),
+                existing.sourceHandle(), existing.targetHandle(),
+                existing.createdBy(), existing.createdAt(), newZ
+        );
+    }
+
     @Transactional
     public Edge updateEdge(UUID edgeId, UUID fromNodeId, UUID toNodeId, EdgeType edgeType,
                            String rationale, String sourceHandle, String targetHandle) {
