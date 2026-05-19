@@ -4,10 +4,12 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.io.ByteArrayInputStream;
@@ -24,6 +26,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfFileInfo;
@@ -111,7 +114,16 @@ class PdfControllerIT {
         Mockito.when(pdfService.openStream(eq(bookId), eq(0), isNull()))
                 .thenReturn(fullResult(sampleBytes));
 
-        mockMvc.perform(get("/api/v1/library/books/{id}/pdf", bookId))
+        // Controller возвращает StreamingResponseBody (async). MockMvc
+        // обрабатывает в два шага: сначала ждём async-старт, затем
+        // dispatch'аем чтобы записать тело и финализировать headers.
+        // Прямой chain без asyncDispatch создаёт race на headers
+        // (CME в MockHttpServletResponse при параллельном чтении/записи)
+        MvcResult mvcResult = mockMvc.perform(get("/api/v1/library/books/{id}/pdf", bookId))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(mvcResult))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "bytes"))
                 .andExpect(header().string(HttpHeaders.CONTENT_LENGTH, "10000"))
@@ -130,8 +142,14 @@ class PdfControllerIT {
                     return partialResult(slice, start, end, sampleBytes.length);
                 });
 
-        mockMvc.perform(get("/api/v1/library/books/{id}/pdf", bookId)
+        // Async dispatch как в full-stream тесте: иначе flaky CME на
+        // header'ах MockHttpServletResponse в составе full verify
+        MvcResult mvcResult = mockMvc.perform(get("/api/v1/library/books/{id}/pdf", bookId)
                         .header(HttpHeaders.RANGE, "bytes=100-199"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(mvcResult))
                 .andExpect(status().isPartialContent())
                 .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "bytes"))
                 .andExpect(header().string(HttpHeaders.CONTENT_RANGE,
@@ -145,8 +163,13 @@ class PdfControllerIT {
         Mockito.when(pdfService.openStream(eq(bookId), eq(3), isNull()))
                 .thenReturn(fullResult(sampleBytes));
 
-        mockMvc.perform(get("/api/v1/library/books/{id}/pdf", bookId)
+        // Success-path streaming - тот же async-dispatch pattern
+        MvcResult mvcResult = mockMvc.perform(get("/api/v1/library/books/{id}/pdf", bookId)
                         .param("fileIndex", "3"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(mvcResult))
                 .andExpect(status().isOk());
 
         Mockito.verify(pdfService).openStream(eq(bookId), eq(3), isNull());

@@ -1791,3 +1791,56 @@ refresh user'а (`revokeAllByUserId`) и бросит 401. Это by-design - м
 **Узнано:** реализация ADR-047 (2026-05-19), backlog Cross-cutting #4.
 Поведение by-design, но contra-intuitive для unsuspecting frontend
 developer - попробует открыть две tabs и удивится.
+
+---
+
+## MockMvc + `StreamingResponseBody`: нужен `asyncDispatch`, иначе flaky CME
+
+**Симптом:** IT тест controller'а возвращающего
+`ResponseEntity<StreamingResponseBody>` (например
+`PdfController.streamPdf`) с header-assertions падает в составе full
+`./mvnw verify` с `ConcurrentModificationException` внутри
+`MockHttpServletResponse.getHeaders`. В изоляции
+(`-Dit.test=PdfControllerIT`) 10/10 pass - именно flaky, не
+deterministic fail.
+
+**Причина:** Spring MVC обрабатывает `StreamingResponseBody` через
+async dispatch (отдельный thread пишет в `ServletOutputStream`).
+Обычный chain `mockMvc.perform(get(...)).andExpect(header().string(...))`
+читает headers synchronously пока async writer всё ещё дописывает →
+ConcurrentModification внутри LinkedHashMap'ов `MockHttpServletResponse`.
+В изолированном прогоне нет конкуренции за CPU и async успевает
+завершиться до header-read - тест выглядит зелёным. В full verify
+другие тесты съедают CPU и timing меняется.
+
+**Решение:** использовать proper async dispatch pattern:
+
+```java
+MvcResult mvcResult = mockMvc.perform(get(...))
+        .andExpect(request().asyncStarted())
+        .andReturn();
+
+mockMvc.perform(asyncDispatch(mvcResult))
+        .andExpect(status().isPartialContent())
+        .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "..."));
+```
+
+`asyncStarted()` гарантирует что controller вернул async response (не
+synchronous error path - exception handlers перехватывают ДО async,
+для них pattern НЕ нужен). `asyncDispatch()` дожидается завершения
+StreamingResponseBody и финализирует headers - после него assertions
+safe.
+
+**Когда применять:**
+- `ResponseEntity<StreamingResponseBody>`
+- `Callable<T>` / `DeferredResult<T>` / `CompletableFuture<T>`
+- `ResponseBodyEmitter` / `SseEmitter`
+
+**Когда НЕ нужно:**
+- Synchronous error paths (404/416/400 которые exception handler
+  пишет sync до того как Spring запустит async dispatch)
+
+**Узнано:** Сессия 46 (2026-05-19), backlog test stability.
+PdfControllerIT обновлён на async-pattern для success-streaming
+тестов (200/206), error-path тесты (404/416) оставлены sync т.к.
+ProblemDetail handler short-circuit'ит до async.
