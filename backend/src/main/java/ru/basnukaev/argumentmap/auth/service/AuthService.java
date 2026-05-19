@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.UUID;
 
@@ -169,14 +170,19 @@ public class AuthService {
     private AuthTokens issueTokenPair(User user) {
         String access = jwtService.generateAccessToken(user);
         String refresh = jwtService.generateRefreshToken(user);
-        Instant accessExpiry = jwtService.accessTokenExpiry();
-        Instant refreshExpiry = jwtService.refreshTokenExpiry();
+        // Truncate в MICROS до persist - PG TIMESTAMPTZ хранит микросекунды
+        // и может округлять nanos в любую сторону (JDBC driver-зависимо).
+        // Без truncation read-after-write вернёт значение отличное от того
+        // что было передано клиенту в AuthTokens - ломает roundtrip
+        // expectations в тестах и API.
+        Instant accessExpiry = jwtService.accessTokenExpiry().truncatedTo(ChronoUnit.MICROS);
+        Instant refreshExpiry = jwtService.refreshTokenExpiry().truncatedTo(ChronoUnit.MICROS);
 
         RefreshToken record = new RefreshToken(
                 UUID.randomUUID(),
                 user.id(),
                 sha256(refresh),
-                Instant.now(),
+                Instant.now().truncatedTo(ChronoUnit.MICROS),
                 refreshExpiry,
                 null, null, null
         );

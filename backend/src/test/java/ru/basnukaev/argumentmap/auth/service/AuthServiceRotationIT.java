@@ -51,6 +51,8 @@ class AuthServiceRotationIT {
         assertThat(record.revokedAt()).isNull();
         assertThat(record.replacedBy()).isNull();
         assertThat(record.revocationReason()).isNull();
+        // AuthService.issueTokenPair truncate'ит к MICROS до persist (см.
+        // комментарий там) - оба значения уже truncated, точное равенство ok
         assertThat(record.expiresAt()).isEqualTo(tokens.refreshTokenExpiresAt());
     }
 

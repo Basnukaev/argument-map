@@ -252,6 +252,48 @@ ZoneOffset.UTC)` перед передачей в `jdbcTemplate`. На чтен�
 
 ---
 
+## PG TIMESTAMPTZ округляет Java Instant nanos - round-trip != equal
+**Симптом:** тест сохраняет в БД `Instant.now()` или `Instant` из бизнес-
+логики, потом читает и сравнивает с исходным:
+```
+expected: 2026-05-26T01:01:15.347153Z
+ but was: 2026-05-26T01:01:15.347154Z   // или 347153, или 347152
+```
+Один цифровой бит разницы в последней позиции. Тест flaky -
+проходит/падает от запуска к запуску
+
+**Причина:** Java `Instant` хранит **наносекунды** (9 знаков после
+точки в секундной части), PostgreSQL `TIMESTAMPTZ` хранит только
+**микросекунды** (6 знаков). JDBC driver при persist'е округляет
+nanos в micros, и направление округления **non-deterministic** -
+зависит от внутренних механизмов rounding'а (round-half-up vs
+round-half-even vs truncate). Result: read-after-write возвращает
+значение которое **не равно** persisted Instant с точностью до nanos
+
+**Решение:** truncate Instant к `ChronoUnit.MICROS` **до** persist'а,
+не на стороне чтения:
+```java
+import java.time.temporal.ChronoUnit;
+// до save:
+Instant truncated = original.truncatedTo(ChronoUnit.MICROS);
+record.save(new RefreshToken(..., truncated, ...));
+// возвращаем клиенту тоже truncated - чтобы equality работала
+return new AuthTokens(..., truncated);
+```
+Случай в Сессии 46 - `AuthService.issueTokenPair` создаёт `RefreshToken`
+с `Instant.now()` и `jwtService.refreshTokenExpiry()` (оба nano-precision)
+- read-after-write через `RefreshTokenRepository.findByHash` возвращал
+другое значение, ломая `assertThat(record.expiresAt()).isEqualTo(tokens.refreshTokenExpiresAt())`.
+Fix - truncate в обеих местах в `issueTokenPair`. **НЕ** truncate на
+стороне теста (через `truncatedTo(MICROS)` в assertion) - это hides
+bug. Правильное место - там где Instant создаётся для persist
+
+Не fixать через `isCloseTo(within(1, MICROS))` - это масло на лицо
+вместо понимания root cause. API клиент должен получать **тот же
+Instant** что и DB - precision consistency
+
+---
+
 ## Failsafe plugin в Spring Boot parent — только pluginManagement
 **Симптом:** `./mvnw verify` запускает только `*Test`-классы, игнорирует
 `*IT`-классы. Smoke-тест проходит, интеграционные не запускаются
