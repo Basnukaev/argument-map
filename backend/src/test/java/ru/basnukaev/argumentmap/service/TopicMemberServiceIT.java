@@ -112,11 +112,14 @@ class TopicMemberServiceIT {
     }
 
     @Test
-    void addMember_nonOwner_throwsAccessDenied() {
-        // Privilege escalation guard - не-owner не может добавлять других
+    void addMember_nonOwner_throwsWriteAccessDenied() {
+        // Privilege escalation guard - не-owner не может добавлять других.
+        // PermissionService.assertIsOwner бросает TopicWriteAccessDeniedException
+        // (а не TopicAccessDeniedException) - добавление member классифицируется
+        // как write operation, а не как denial читать вообще
         assertThatThrownBy(() -> topicMemberService.addMember(
                 topicId, memberId, TopicMemberRole.MEMBER, strangerId, UserRole.USER
-        )).isInstanceOf(TopicAccessDeniedException.class);
+        )).isInstanceOf(TopicWriteAccessDeniedException.class);
     }
 
     @Test
@@ -197,13 +200,15 @@ class TopicMemberServiceIT {
 
     @Test
     void updateMemberRole_memberCannotPromoteSelf() {
-        // Privilege escalation guard - member не может сам себя promotnut
+        // Privilege escalation guard - member не может сам себя promotnut.
+        // assertIsOwner бросает TopicWriteAccessDeniedException для не-owner
+        // (см. addMember_nonOwner_throwsWriteAccessDenied)
         TopicMember added = topicMemberService.addMember(
                 topicId, memberId, TopicMemberRole.MEMBER, ownerId, UserRole.USER
         );
         assertThatThrownBy(() -> topicMemberService.updateMemberRole(
                 topicId, added.id(), TopicMemberRole.EDITOR, memberId, UserRole.USER
-        )).isInstanceOf(TopicAccessDeniedException.class);
+        )).isInstanceOf(TopicWriteAccessDeniedException.class);
     }
 
     @Test
