@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   X,
-  Lock,
   Users,
   ScrollText,
   AlertTriangle,
   Plus,
   ExternalLink,
   Loader2,
+  Save,
   Settings as SettingsIcon,
 } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
@@ -87,6 +87,38 @@ function TopicSettingsDrawer({
   const [savingAlgorithm, setSavingAlgorithm] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [membersModalOpen, setMembersModalOpen] = useState(false);
+
+  // title/description form - локальный draft, кнопка «Сохранить» активна
+  // при изменениях. Backend сторона: backlog tech debt #10 - PATCH
+  // /api/v1/topics/{id} с UpdateTopicRequest (partial title+description)
+  const [titleDraft, setTitleDraft] = useState(topicTitle);
+  const [descriptionDraft, setDescriptionDraft] = useState(topicDescription);
+  const [savingMetadata, setSavingMetadata] = useState(false);
+  // Синхронизируем local draft с props.topic при смене темы (refetch
+  // после save / навигация между темами через тот же drawer mount). Без
+  // этого input оставался бы со старым значением после refetch onChanged
+  useEffect(() => {
+    setTitleDraft(topicTitle);
+    setDescriptionDraft(topicDescription);
+  }, [topicTitle, topicDescription]);
+  const trimmedTitle = titleDraft.trim();
+  // Дешёвые derived-значения - без useMemo (см. frontend/CLAUDE.md - не
+  // превентивно). Validation сообщения локализуются на каждом рендере, t -
+  // стабильная функция (см. memory feedback_stable_hooks_for_deps)
+  let titleError: string | null = null;
+  if (trimmedTitle.length === 0) {
+    titleError = t('topic.settings.field.title_required');
+  } else if (titleDraft.length > 200) {
+    titleError = t('topic.settings.field.title_too_long');
+  }
+  const descriptionError =
+    descriptionDraft.length > 2000
+      ? t('topic.settings.field.description_too_long')
+      : null;
+  const hasChanges =
+    titleDraft !== topicTitle || descriptionDraft !== topicDescription;
+  const canSaveMetadata =
+    hasChanges && !titleError && !descriptionError && !savingMetadata;
 
   // members preview (compact list) - top-3 members + counter. State =
   // 'idle' для no-fetch (non-SHARED visibility), либо fetched array.
@@ -174,6 +206,31 @@ function TopicSettingsDrawer({
     }
   }
 
+  async function handleSaveMetadata() {
+    if (!topicId || !canSaveMetadata) return;
+    setSavingMetadata(true);
+    try {
+      // PATCH-семантика: шлём только реально изменившиеся поля -
+      // backend пишет audit FieldDiff только по diff'у, нет смысла
+      // отправлять unchanged поля и засорять changes-payload
+      const body: { title?: string; description?: string } = {};
+      if (titleDraft !== topicTitle) body.title = trimmedTitle;
+      if (descriptionDraft !== topicDescription)
+        body.description = descriptionDraft;
+      await apiPatchRaw(`/api/v1/topics/${topicId}`, body);
+      toast.success(t('topic.settings.edit.saved'));
+      onChanged();
+    } catch (err: unknown) {
+      const permMsg =
+        err instanceof ApiError ? formatPermissionError(err, t) : null;
+      toast.error(
+        permMsg ?? formatApiError(err, t('topic.settings.edit.save_failed')),
+      );
+    } finally {
+      setSavingMetadata(false);
+    }
+  }
+
   async function handleDelete() {
     if (!topicId) return;
     try {
@@ -243,48 +300,96 @@ function TopicSettingsDrawer({
 
         <div className="flex-1 overflow-y-auto px-5 py-5">
           <div className="flex flex-col gap-6">
-            {/* Section: Metadata (root question + description) */}
-            <section aria-labelledby="ts-root-question">
+            {/* Section: Metadata (title + description) */}
+            <section aria-labelledby="ts-metadata">
               <h3
-                id="ts-root-question"
+                id="ts-metadata"
                 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500"
               >
-                {t('topic.settings.section.root_question')}
+                {t('topic.settings.section.metadata')}
               </h3>
-              <div className="space-y-3">
-                <Field
-                  label={t('topic.settings.field.title')}
-                  hint={t('topic.settings.root_question.locked_hint')}
-                >
-                  <div
-                    dir="auto"
-                    className={`rounded-sm border border-ink-200 bg-ink-50 px-3 py-2 text-sm text-ink-900 ${
-                      hasArabicScript(topicTitle) ? 'font-arabic' : ''
-                    }`}
+              {canManage ? (
+                <div className="space-y-3">
+                  <Field
+                    label={t('topic.settings.field.title')}
+                    error={titleError ?? undefined}
                   >
-                    <div className="flex items-start gap-2">
-                      <Lock
-                        size={12}
-                        className="mt-1 shrink-0 text-ink-500"
-                        aria-hidden
-                      />
-                      <span className="break-words">{topicTitle || '—'}</span>
-                    </div>
-                  </div>
-                </Field>
-                {topicDescription && (
-                  <Field label={t('topic.settings.field.description')}>
-                    <p
+                    <Field.Input
+                      type="text"
+                      value={titleDraft}
+                      onChange={(e) => setTitleDraft(e.target.value)}
+                      placeholder={t('topic.settings.field.title_placeholder')}
                       dir="auto"
-                      className={`rounded-sm border border-ink-200 bg-ink-50 px-3 py-2 text-sm text-ink-700 ${
-                        hasArabicScript(topicDescription) ? 'font-arabic' : ''
+                      maxLength={200}
+                      className={
+                        hasArabicScript(titleDraft) ? 'font-arabic' : ''
+                      }
+                      data-testid="topic-edit-title"
+                    />
+                  </Field>
+                  <Field
+                    label={t('topic.settings.field.description')}
+                    error={descriptionError ?? undefined}
+                  >
+                    <Field.Textarea
+                      rows={3}
+                      value={descriptionDraft}
+                      onChange={(e) => setDescriptionDraft(e.target.value)}
+                      placeholder={t(
+                        'topic.settings.field.description_placeholder',
+                      )}
+                      dir="auto"
+                      maxLength={2000}
+                      className={
+                        hasArabicScript(descriptionDraft) ? 'font-arabic' : ''
+                      }
+                      data-testid="topic-edit-description"
+                    />
+                  </Field>
+                  <div className="flex items-center justify-end">
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      icon={Save}
+                      disabled={!canSaveMetadata}
+                      onClick={() => void handleSaveMetadata()}
+                      data-testid="topic-edit-save"
+                    >
+                      {savingMetadata
+                        ? t('topic.settings.edit.saving')
+                        : t('topic.settings.edit.save')}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Field label={t('topic.settings.field.title')}>
+                    <div
+                      dir="auto"
+                      className={`rounded-sm border border-ink-200 bg-ink-50 px-3 py-2 text-sm text-ink-900 ${
+                        hasArabicScript(topicTitle) ? 'font-arabic' : ''
                       }`}
                     >
-                      {topicDescription}
-                    </p>
+                      <span className="break-words">{topicTitle || '—'}</span>
+                    </div>
                   </Field>
-                )}
-              </div>
+                  {topicDescription && (
+                    <Field label={t('topic.settings.field.description')}>
+                      <p
+                        dir="auto"
+                        className={`rounded-sm border border-ink-200 bg-ink-50 px-3 py-2 text-sm text-ink-700 ${
+                          hasArabicScript(topicDescription)
+                            ? 'font-arabic'
+                            : ''
+                        }`}
+                      >
+                        {topicDescription}
+                      </p>
+                    </Field>
+                  )}
+                </div>
+              )}
             </section>
 
             {/* Section: Visibility */}

@@ -425,13 +425,21 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       `BookResponse`) + frontend фильтрует строго `book.createdBy ===
       currentUser.id`. Reviewer round 4 #8
 
-- [ ] **PATCH /api/v1/topics/{id} для title/description editing** -
+- [x] **PATCH /api/v1/topics/{id} для title/description editing** -
       сейчас readonly в `TopicSettingsDrawer`. Нет REST endpoint для
       переименования темы (visibility patch есть, но title нет).
       User'у приходится создавать новую тему вместо переименования.
       Fix: PATCH endpoint + form в settings drawer + IT тесты на
       audit log для UPDATE с FieldDiff(title, description). Reviewer
-      round 4 #10
+      round 4 #10. Закрыто Сессией 2026-05-19: `UpdateTopicRequest`
+      (PATCH-семантика null=no change), `TopicService.updateTopic`
+      (assertCanWrite, audit FieldDiff только по изменившимся полям),
+      `PATCH /api/v1/topics/{id}` controller, 13 IT (happy/partial/
+      no-op/permission/404) + 6 REST IT в `TopicControllerIT`. Frontend:
+      editable form в metadata-секции `TopicSettingsDrawer` (Save
+      disabled пока нет изменений / валидация title), i18n RU+AR, 5
+      Vitest кейсов (controlled input, save disabled, success PATCH с
+      только changed полями, оба поля в body, 403 toast)
 
 - [ ] **Bulk audit log consolidation - single BULK_DELETE / BULK_STATUS
       action с entityIds[]** - сейчас каждый bulk delete/status change

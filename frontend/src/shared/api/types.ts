@@ -596,6 +596,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/topics/{topicId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getOne"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_1"];
+        options?: never;
+        head?: never;
+        patch: operations["patchTopic"];
+        trace?: never;
+    };
     "/api/v1/topics/{topicId}/visibility": {
         parameters: {
             query?: never;
@@ -638,7 +654,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_1"];
+        delete: operations["delete_2"];
         options?: never;
         head?: never;
         patch: operations["update"];
@@ -667,10 +683,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["getOne"];
+        get: operations["getOne_1"];
         put?: never;
         post?: never;
-        delete: operations["delete_2"];
+        delete: operations["delete_3"];
         options?: never;
         head?: never;
         patch: operations["update_1"];
@@ -686,7 +702,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_3"];
+        delete: operations["delete_4"];
         options?: never;
         head?: never;
         patch: operations["update_2"];
@@ -731,10 +747,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["getOne_1"];
+        get: operations["getOne_2"];
         put?: never;
         post?: never;
-        delete: operations["delete_4"];
+        delete: operations["delete_5"];
         options?: never;
         head?: never;
         patch: operations["update_3"];
@@ -766,7 +782,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_5"];
+        delete: operations["delete_6"];
         options?: never;
         head?: never;
         patch: operations["update_4"];
@@ -782,7 +798,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_6"];
+        delete: operations["delete_7"];
         options?: never;
         head?: never;
         patch: operations["update_5"];
@@ -798,26 +814,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_7"];
-        options?: never;
-        head?: never;
-        patch: operations["update_6"];
-        trace?: never;
-    };
-    "/api/v1/topics/{topicId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["getOne_2"];
-        put?: never;
-        post?: never;
         delete: operations["delete_8"];
         options?: never;
         head?: never;
-        patch?: never;
+        patch: operations["update_6"];
         trace?: never;
     };
     "/api/v1/topics/{topicId}/graph": {
@@ -2016,6 +2016,10 @@ export interface components {
             updated?: number;
             /** Format: int32 */
             skipped?: number;
+        };
+        UpdateTopicRequest: {
+            title?: string;
+            description?: string;
         };
         UpdateTopicVisibilityRequest: {
             visibility: string;
@@ -3623,7 +3627,9 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
-            cookie?: never;
+            cookie?: {
+                refresh_token?: string;
+            };
         };
         requestBody?: never;
         responses: {
@@ -3775,6 +3781,83 @@ export interface operations {
             };
         };
     };
+    getOne: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                topicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TopicResponse"];
+                };
+            };
+        };
+    };
+    delete_1: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                topicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchTopic: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                topicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTopicRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TopicResponse"];
+                };
+            };
+        };
+    };
     updateVisibility: {
         parameters: {
             query?: never;
@@ -3833,7 +3916,7 @@ export interface operations {
             };
         };
     };
-    delete_1: {
+    delete_2: {
         parameters: {
             query?: never;
             header?: {
@@ -3939,7 +4022,7 @@ export interface operations {
             };
         };
     };
-    getOne: {
+    getOne_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -3961,7 +4044,7 @@ export interface operations {
             };
         };
     };
-    delete_2: {
+    delete_3: {
         parameters: {
             query: {
                 currentUserId: string;
@@ -4017,7 +4100,7 @@ export interface operations {
             };
         };
     };
-    delete_3: {
+    delete_4: {
         parameters: {
             query?: never;
             header?: {
@@ -4147,7 +4230,7 @@ export interface operations {
             };
         };
     };
-    getOne_1: {
+    getOne_2: {
         parameters: {
             query: {
                 currentUserId: string;
@@ -4174,7 +4257,7 @@ export interface operations {
             };
         };
     };
-    delete_4: {
+    delete_5: {
         parameters: {
             query: {
                 currentUserId: string;
@@ -4261,7 +4344,7 @@ export interface operations {
             };
         };
     };
-    delete_5: {
+    delete_6: {
         parameters: {
             query?: never;
             header?: {
@@ -4315,7 +4398,7 @@ export interface operations {
             };
         };
     };
-    delete_6: {
+    delete_7: {
         parameters: {
             query?: never;
             header?: {
@@ -4367,7 +4450,7 @@ export interface operations {
             };
         };
     };
-    delete_7: {
+    delete_8: {
         parameters: {
             query: {
                 currentUserId: string;
@@ -4420,54 +4503,6 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["AnswerResponse"];
                 };
-            };
-        };
-    };
-    getOne_2: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
-                "X-User-Id"?: string;
-            };
-            path: {
-                topicId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["TopicResponse"];
-                };
-            };
-        };
-    };
-    delete_8: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
-                "X-User-Id"?: string;
-            };
-            path: {
-                topicId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
