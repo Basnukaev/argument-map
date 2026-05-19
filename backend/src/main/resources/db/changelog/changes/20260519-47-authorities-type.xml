@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260519-47-authorities-type" author="Abdula Basnukaev">
+        <comment>
+            Authority.type column - семантика роли авторитета в системе. До
+            этой миграции authorities был flat namespace: один и тот же UUID
+            мог обозначать muhaddith (Бухари), автора книги (аль-Газали),
+            издательство либо тахкика. Это позволяло grade'нуть хадис как
+            sahih от имени издательства - семантически неверно.
+
+            Whitelist значений (CHECK constraint):
+              - SCHOLAR    - учёный, может оценивать хадисы (default для
+                             всех existing rows)
+              - MUHAQQIQ   - тахкик (исследователь-редактор изданий)
+              - PUBLISHER  - издательство
+              - AUTHOR     - автор книги (если нужно явно разделить от SCHOLAR)
+              - OTHER      - escape hatch для редких случаев
+
+            Backfill: все existing rows получают SCHOLAR (предположение по
+            project history: основной usage до сегодняшней миграции -
+            scholars/authors хадисов и аргументации, тогда как publishers
+            и muhaqqiqs живут в отдельных таблицах lib_publishers и
+            lib_muhaqqiqs c ADR-028). Manual override через ALTER в проде
+            не нужен - дублирования между authorities и lib_publishers
+            нет.
+
+            NOT NULL + DEFAULT 'SCHOLAR': new INSERT без явного type
+            получат SCHOLAR (backward compat для AuthorityService и ETL
+            импорта shamela).
+        </comment>
+        <sql>
+            ALTER TABLE authorities
+              ADD COLUMN type VARCHAR(20) NOT NULL DEFAULT 'SCHOLAR';
+
+            ALTER TABLE authorities
+              ADD CONSTRAINT authorities_type_check
+                CHECK (type IN ('SCHOLAR','MUHAQQIQ','PUBLISHER','AUTHOR','OTHER'));
+
+            CREATE INDEX idx_authorities_type ON authorities(type);
+        </sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_authorities_type;
+                ALTER TABLE authorities DROP CONSTRAINT authorities_type_check;
+                ALTER TABLE authorities DROP COLUMN type;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

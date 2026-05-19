@@ -10,6 +10,12 @@ public record CreateAuthorityRequest(
         @Size(max = 10000) String bio,
         @Size(max = 100) String era,
         @Size(max = 100) String madhab,
-        JsonNode metadata
+        JsonNode metadata,
+        /**
+         * Семантическая роль authority. Whitelist: SCHOLAR / MUHAQQIQ /
+         * PUBLISHER / AUTHOR / OTHER. null → SCHOLAR (default, backward
+         * compat). Невалидное значение → 400 invalid-authority-type
+         */
+        @Size(max = 20) String type
 ) {
 }

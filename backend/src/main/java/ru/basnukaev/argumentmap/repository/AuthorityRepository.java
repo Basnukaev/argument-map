@@ -13,12 +13,13 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 import ru.basnukaev.argumentmap.domain.Authority;
+import ru.basnukaev.argumentmap.domain.AuthorityType;
 
 @Repository
 public class AuthorityRepository {
 
     private static final String COLUMNS =
-            "id, name, bio, era, madhab, metadata, created_at, full_name, death_year_hijri";
+            "id, name, bio, era, madhab, metadata, created_at, full_name, death_year_hijri, type";
 
     private static final RowMapper<Authority> ROW_MAPPER = (rs, rn) -> {
         int deathYear = rs.getInt("death_year_hijri");
@@ -32,7 +33,8 @@ public class AuthorityRepository {
                 rs.getString("metadata"),
                 instant(rs, "created_at"),
                 rs.getString("full_name"),
-                deathYearOrNull
+                deathYearOrNull,
+                rs.getString("type")
         );
     };
 
@@ -43,9 +45,13 @@ public class AuthorityRepository {
     }
 
     public Authority save(Authority authority) {
+        // type null → 'SCHOLAR' через DB default (backward compat для
+        // existing callers, не передающих type). Whitelist enforced
+        // через CHECK constraint в миграции 47
+        String type = authority.type() == null ? AuthorityType.SCHOLAR : authority.type();
         jdbcTemplate.update(
                 "INSERT INTO authorities (" + COLUMNS + ") "
-                        + "VALUES (?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?)",
+                        + "VALUES (?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?)",
                 authority.id(),
                 authority.name(),
                 authority.bio(),
@@ -54,9 +60,15 @@ public class AuthorityRepository {
                 authority.metadata(),
                 odt(authority.createdAt()),
                 authority.fullName(),
-                authority.deathYearHijri()
+                authority.deathYearHijri(),
+                type
         );
-        return authority;
+        return new Authority(
+                authority.id(), authority.name(), authority.bio(),
+                authority.era(), authority.madhab(), authority.metadata(),
+                authority.createdAt(), authority.fullName(),
+                authority.deathYearHijri(), type
+        );
     }
 
     public Optional<Authority> findById(UUID id) {

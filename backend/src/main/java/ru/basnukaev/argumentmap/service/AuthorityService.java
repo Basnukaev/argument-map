@@ -8,7 +8,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.domain.Authority;
+import ru.basnukaev.argumentmap.domain.AuthorityType;
 import ru.basnukaev.argumentmap.exception.AuthorityNotFoundException;
+import ru.basnukaev.argumentmap.exception.InvalidAuthorityTypeException;
 import ru.basnukaev.argumentmap.repository.AuthorityRepository;
 
 @Service
@@ -20,16 +22,36 @@ public class AuthorityService {
         this.authorityRepository = authorityRepository;
     }
 
+    /**
+     * Legacy-перегрузка без type - применяется default SCHOLAR.
+     * Сохранена для existing callers (тесты, ETL без указания роли).
+     */
     @Transactional
     public Authority createAuthority(String name, String bio, String era,
                                      String madhab, String metadataJson) {
+        return createAuthority(name, bio, era, madhab, metadataJson, AuthorityType.SCHOLAR);
+    }
+
+    /**
+     * Создание authority с явным типом. {@code type} проверяется по
+     * whitelist {@link AuthorityType#isValid}: невалидный →
+     * {@link InvalidAuthorityTypeException} → 400. null → default SCHOLAR
+     * (тот же effect что у legacy-перегрузки).
+     */
+    @Transactional
+    public Authority createAuthority(String name, String bio, String era,
+                                     String madhab, String metadataJson,
+                                     String type) {
+        String resolvedType = type == null ? AuthorityType.SCHOLAR : type;
+        if (!AuthorityType.isValid(resolvedType)) {
+            throw new InvalidAuthorityTypeException(resolvedType);
+        }
         Authority authority = new Authority(
                 UUID.randomUUID(), name, bio, era, madhab,
                 metadataJson, Instant.now(),
-                null, null
+                null, null, resolvedType
         );
-        authorityRepository.save(authority);
-        return authority;
+        return authorityRepository.save(authority);
     }
 
     @Transactional(readOnly = true)

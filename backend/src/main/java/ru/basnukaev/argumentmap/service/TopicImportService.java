@@ -204,10 +204,12 @@ public class TopicImportService {
                 continue;
             }
             UUID newId = UUID.randomUUID();
+            // type=null → save() применит DB default SCHOLAR. Import не
+            // несёт type-семантику (старые экспорты до миграции 47)
             Authority newAuthority = new Authority(
                     newId, a.name(), a.bio(), a.era(), a.madhab(),
                     a.metadata(), now,
-                    a.fullName(), a.deathYearHijri()
+                    a.fullName(), a.deathYearHijri(), null
             );
             authorityRepository.save(newAuthority);
             idMap.put(a.id(), newId);

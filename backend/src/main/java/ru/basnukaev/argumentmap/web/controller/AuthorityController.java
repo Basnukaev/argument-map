@@ -37,7 +37,8 @@ public class AuthorityController {
     public ResponseEntity<AuthorityResponse> create(@Valid @RequestBody CreateAuthorityRequest request) {
         Authority created = authorityService.createAuthority(
                 request.name(), request.bio(), request.era(), request.madhab(),
-                DtoMappers.jsonToString(request.metadata())
+                DtoMappers.jsonToString(request.metadata()),
+                request.type()
         );
         return ResponseEntity.created(URI.create("/api/v1/authorities/" + created.id()))
                 .body(DtoMappers.toResponse(created));

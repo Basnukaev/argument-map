@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import ru.basnukaev.argumentmap.domain.Authority;
+import ru.basnukaev.argumentmap.domain.AuthorityType;
 import ru.basnukaev.argumentmap.library.shamela.etl.dto.ShamelaAuthorRow;
 import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaAuthorDao;
 import ru.basnukaev.argumentmap.repository.AuthorityRepository;
@@ -69,6 +70,8 @@ public class ShamelaAuthorityResolver {
         if (existing.isPresent()) {
             return existing.get().id();
         }
+        // shamela импортирует авторов книг - type=AUTHOR. До миграции 47
+        // эти rows получали бы default SCHOLAR (через DB), теперь явно
         Authority created = new Authority(
                 UUID.randomUUID(),
                 normalized,
@@ -77,7 +80,8 @@ public class ShamelaAuthorityResolver {
                 null,
                 null,
                 Instant.now(),
-                null, null
+                null, null,
+                AuthorityType.AUTHOR
         );
         authorityRepository.save(created);
         return created.id();
@@ -88,6 +92,7 @@ public class ShamelaAuthorityResolver {
         if (existing.isPresent()) {
             return existing.get().id();
         }
+        // anonymous-fallback также AUTHOR (книжный контекст)
         Authority created = new Authority(
                 UUID.randomUUID(),
                 ANONYMOUS_AUTHORITY_NAME,
@@ -96,7 +101,8 @@ public class ShamelaAuthorityResolver {
                 null,
                 null,
                 Instant.now(),
-                null, null
+                null, null,
+                AuthorityType.AUTHOR
         );
         authorityRepository.save(created);
         return created.id();
