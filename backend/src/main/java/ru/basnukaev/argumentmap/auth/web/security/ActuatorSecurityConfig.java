@@ -25,10 +25,10 @@ import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWrite
  *
  * <p>В prod profile все actuator endpoints кроме {@code /actuator/health}
  * и {@code /actuator/info} требуют basic auth (single in-memory user с
- * ролью {@code ACTUATOR}). Health и info остаются public - load balancer
- * liveness/readiness probes и CI/CD deploy verification. Защита от
- * reconnaissance leak: circuitbreakers/metrics/env содержат версии
- * backend, DB connection state, bean names.
+ * ролью {@code ACTUATOR}). Health и info <b>не требуют</b> basic auth -
+ * load balancer liveness/readiness probes и CI/CD deploy verification.
+ * Защита от reconnaissance leak: circuitbreakers/metrics/env содержат
+ * версии backend, DB connection state, bean names.
  *
  * <p>В dev/test/local profile - all permitAll, чтобы разработчики
  * могли свободно curl'ить actuator endpoints без credentials.
@@ -120,8 +120,10 @@ public class ActuatorSecurityConfig {
             // распознаёт {noop}, {bcrypt}, etc префиксы
             PasswordEncoder delegatingEncoder =
                     PasswordEncoderFactories.createDelegatingPasswordEncoder();
-            DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-            provider.setUserDetailsService(uds);
+            // Конструктор DaoAuthenticationProvider(UserDetailsService) -
+            // non-deprecated в Spring Security 6.3+ (старый setter
+            // setUserDetailsService помечен deprecated)
+            DaoAuthenticationProvider provider = new DaoAuthenticationProvider(uds);
             provider.setPasswordEncoder(delegatingEncoder);
 
             http
