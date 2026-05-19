@@ -134,7 +134,8 @@ public final class DtoMappers {
                 edge.id(), edge.fromNodeId(), edge.toNodeId(),
                 edge.edgeType(), edge.rationale(),
                 edge.sourceHandle(), edge.targetHandle(),
-                edge.createdBy(), edge.createdAt()
+                edge.createdBy(), edge.createdAt(),
+                edge.zIndex()
         );
     }
 

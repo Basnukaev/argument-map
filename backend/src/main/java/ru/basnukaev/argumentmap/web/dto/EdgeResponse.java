@@ -14,6 +14,7 @@ public record EdgeResponse(
         String sourceHandle,
         String targetHandle,
         UUID createdBy,
-        Instant createdAt
+        Instant createdAt,
+        int zIndex
 ) {
 }

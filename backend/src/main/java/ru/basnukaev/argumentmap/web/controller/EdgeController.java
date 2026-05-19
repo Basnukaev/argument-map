@@ -75,6 +75,32 @@ public class EdgeController {
         return DtoMappers.toResponse(updated);
     }
 
+    /**
+     * Bring to front: ставит ребро на передний план через присваивание
+     * нового z_index = max(z_index рёбер темы) + 1. Endpoint dedicated -
+     * клиенту не нужно знать max, сервер сам вычисляет. Запрос без тела.
+     * Mirror POST /api/v1/nodes/{nodeId}/z-order/bring-to-front.
+     */
+    @PostMapping("/{edgeId}/z-order/bring-to-front")
+    public EdgeResponse bringToFront(@PathVariable UUID edgeId,
+                                     @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        Edge edge = edgeService.bringToFront(edgeId, userId, role);
+        return DtoMappers.toResponse(edge);
+    }
+
+    /**
+     * Send to back: ставит ребро на задний план через присваивание z_index
+     * = min(z_index рёбер темы) - 1. Парный bring-to-front.
+     */
+    @PostMapping("/{edgeId}/z-order/send-to-back")
+    public EdgeResponse sendToBack(@PathVariable UUID edgeId,
+                                   @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        Edge edge = edgeService.sendToBack(edgeId, userId, role);
+        return DtoMappers.toResponse(edge);
+    }
+
     @DeleteMapping("/{edgeId}")
     public ResponseEntity<Void> delete(@PathVariable UUID edgeId, @CurrentUser UUID userId) {
         String role = SecurityContextUtils.currentRoleOrAnonymous();
