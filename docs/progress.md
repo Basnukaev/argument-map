@@ -12,6 +12,51 @@
 
 ---
 
+## 2026-05-19 - Сессия 48 - Sub-project C partial: spec + plan + liquibase-migration skill
+
+### Sub-project C (Project-specific skills) — partial closure
+
+Реализован первый skill из 4 запланированных. Spec + plan written, skill
+`liquibase-migration` создан и работает.
+
+#### Коммиты
+
+- `89b30f6` `docs: spec для Sub-project C (project-specific skills) Claude Code harness` —
+  `docs/superpowers/specs/2026-05-19-project-skills-design.md` (~403 строки):
+  контекст (Anthropic article), goals, non-goals, design всех 4 skills,
+  storage layout `.claude/skills/`, acceptance criteria, risks (4 пункта)
+- `32e3647` `docs: implementation plan для Sub-project C первый skill liquibase-migration` —
+  `docs/superpowers/plans/2026-05-19-project-skills-plan.md`: file structure,
+  frontmatter content, manual test plan (7 check-points), backlog для 3
+  remaining skills
+- `8a61608` `feat(.claude): liquibase-migration skill` —
+  `.claude/skills/liquibase-migration/SKILL.md` (306 строк): step-by-step
+  процедура (5 шагов), XML template, CDATA-escape правило, rollback rules,
+  index rule, 2 реальных примера (миграции 46 + 48), checklist (5 пунктов),
+  таблица частых ошибок
+
+#### Что создано
+
+- **`.claude/skills/liquibase-migration/SKILL.md`** — проектный skill:
+  - Frontmatter `name: liquibase-migration` + `description:` для автоактивации
+    по ключевым словам (миграция, changeset, addColumn, createTable, и пр.)
+  - Step 1-4: определить номер → format ID → создать файл → register в master
+  - CDATA rule, rollback rules, index rule
+  - 2 полных примера из реального changelog (миграции 46, 48)
+  - Checklist 5 пунктов + таблица типичных ошибок
+
+**Storage location:** `.claude/skills/` зеркалит структуру плагинов
+Superpowers. Skills обнаруживаются по frontmatter `name:` + `description:`.
+
+#### Что НЕ сделано (backlog для следующих сессий)
+
+3 remaining skills в порядке приоритета:
+1. **new-rest-endpoint** — scaffold chain Controller+Service+DTO+IT+api-contract
+2. **library-page-rendering** — PDF/OCR/Image modes, lib_pages state machine
+3. **shamela-parser-debug** — ETL diagnostic playbook
+
+---
+
 ## 2026-05-19 - Сессия 47 - Claude Code harness Sub-projects A + B + Tech debt sweep (#7, #3, #1)
 
 ### Tech debt sweep (после Sub-projects A+B closure) — closed

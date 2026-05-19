@@ -229,7 +229,9 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 - ✅ B Hooks setup — 4 hooks (SessionStart/Stop/PreToolUse/PostToolUse) + bypass + README
 - ✅ E Quarterly review process — `doc-hygiene.md` Принцип 12 formalized
 - 🟡 D LSP setup — TypeScript LSP installed (typescript-language-server v5.2.0), Java jdtls **pending** (Eclipse mirrors blocked, см. `.claude/lsp-setup.md` for resume steps)
-- ⏳ C Skills (project-specific) — not started, может быть next priority в Сессии 48
+- 🟡 C Skills (project-specific) — **partial** (Сессия 48): spec + plan committed,
+  первый skill `liquibase-migration` создан (`.claude/skills/liquibase-migration/SKILL.md`).
+  Остальные 3 skills в backlog: new-rest-endpoint, library-page-rendering, shamela-parser-debug
 - ⏳ F Project subagents — deferred (subsumed by C)
 - ⏳ G MCP servers — deferred (article «не делать пока basics не работают»)
 
