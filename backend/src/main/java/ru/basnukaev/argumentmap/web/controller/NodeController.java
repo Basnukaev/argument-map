@@ -22,6 +22,8 @@ import ru.basnukaev.argumentmap.service.NodeProjectionService;
 import ru.basnukaev.argumentmap.service.NodeProjectionService.NodeProjection;
 import ru.basnukaev.argumentmap.service.NodeService;
 import ru.basnukaev.argumentmap.web.CurrentUser;
+import ru.basnukaev.argumentmap.web.dto.BulkDeleteNodesRequest;
+import ru.basnukaev.argumentmap.web.dto.BulkDeleteResponse;
 import ru.basnukaev.argumentmap.web.dto.CreateNodeRequest;
 import ru.basnukaev.argumentmap.web.dto.NodeResponse;
 import ru.basnukaev.argumentmap.web.dto.RevisionResponse;
@@ -122,6 +124,24 @@ public class NodeController {
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         nodeService.deleteNode(nodeId, userId, role);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Групповое удаление узлов одним запросом. Backlog «Bulk audit log
+     * consolidation» - вместо N отдельных {@code DELETE /api/v1/nodes/{id}}
+     * (N audit rows) пишет один {@code BULK_DELETE} с массивом entityIds
+     * в changes JSON. Все узлы должны быть из одной темы. Корневые узлы
+     * пропускаются (не fail'ят весь запрос) и возвращаются в
+     * {@code skippedRootIds}. Лимит 100 узлов на запрос (см.
+     * {@link BulkDeleteNodesRequest}).
+     */
+    @DeleteMapping("/bulk")
+    public BulkDeleteResponse bulkDelete(@Valid @RequestBody BulkDeleteNodesRequest request,
+                                         @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        NodeService.BulkDeleteResult result = nodeService.bulkDeleteNodes(
+                request.nodeIds(), userId, role);
+        return new BulkDeleteResponse(result.deletedIds(), result.skippedRootIds());
     }
 
     @GetMapping("/{nodeId}/revisions")

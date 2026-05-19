@@ -29,6 +29,15 @@
   reproducer + альтернативами + рисками - в `docs/gotchas.md` секция
   «Node 24 + undici 7 - AbortSignal instanceof check».
 - [ ] Полнотекстовый поиск (НЕ через Postgres tsvector - см. раздел «Архитектурные решения» ниже)
+- [ ] **Frontend migration `runDelete` → `DELETE /api/v1/nodes/bulk`** -
+      backend часть Bulk audit log consolidation закрыта 2026-05-19.
+      Сейчас `runDelete` в `GraphCanvas.tsx` шлёт N отдельных
+      `DELETE /api/v1/nodes/{id}` запросов. Переключить на единый
+      `DELETE /api/v1/nodes/bulk` с `{nodeIds: [...]}` - сократит N
+      HTTP-roundtrip'ов до 1, и сразу включит single BULK_DELETE
+      audit row вместо N. Edges остаются как есть (separate
+      `DELETE /api/v1/edges/{id}` без bulk endpoint пока что).
+      Обновить regenerate-api после backend deploy
 - [x] **Экспорт графа в PNG / SVG** - закрыто 2026-05-17. Реализовано
   через `html-to-image` + кнопка с popover (PNG/SVG) в `GraphPanels`
   toolbar. Filename `topic-{slug}-{YYYY-MM-DD}.{ext}` через slugify
@@ -442,14 +451,24 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       Vitest кейсов (controlled input, save disabled, success PATCH с
       только changed полями, оба поля в body, 403 toast)
 
-- [ ] **Bulk audit log consolidation - single BULK_DELETE / BULK_STATUS
-      action с entityIds[]** - сейчас каждый bulk delete/status change
-      создаёт N rows в audit_log (один per entity). При bulk operation
-      на 50 узлах - 50 audit rows. Сложно прочитать в admin UI:
-      «удалил 50 узлов» воспринимается как 50 не связанных событий.
-      Fix: новый action `BULK_DELETE` / `BULK_UPDATE` с массивом
-      `entityIds` в changes JSON. Сейчас acceptable т.к. audit
-      admin UI отложен. Reviewer round 4 recommendation
+- [x] **Bulk audit log consolidation - single BULK_DELETE / BULK_STATUS
+      action с entityIds[]** (закрыто 2026-05-19, backend часть) -
+      `AuditAction.BULK_DELETE` + `BULK_UPDATE` константы (зарезервированы),
+      `AuditLogService.logBulkDelete(childEntityType, parentType, parentId,
+      actor, entityIds, sharedContext)` helper - один audit row с
+      `{childEntityType, entityIds[], count, snapshots}` в changes JSON,
+      `entity_id = parentId` (NOT NULL constraint + bulk row концептуально
+      событие на parent'е). `NodeService.bulkDeleteNodes(nodeIds, userId,
+      role)` - single-topic ограничение, корневые в `skippedRootIds` без
+      fail'а, один пересчёт статусов на topic, audit пишется только если
+      хоть один узел реально удалён. `DELETE /api/v1/nodes/bulk` endpoint
+      с `BulkDeleteNodesRequest(nodeIds: max 100)` + `BulkDeleteResponse(
+      deletedIds, skippedRootIds)`. 7 IT в `NodeServiceIT` (one audit row /
+      filters root / non-writer 403 / cross-topic 400 / non-existent 404 /
+      empty 400 / only-root no-op). Frontend migration на новый endpoint -
+      next step (другая задача, runDelete в `GraphCanvas.tsx`).
+      Bulk update/status change для других сущностей (edges/answers) -
+      по запросу, пока only nodes имеют bulk delete UX
 
 - [x] **NodeTranslationService DRY: extract `promoteToDefault` helper**
       (закрыто 2026-05-19) - извлечён private helper

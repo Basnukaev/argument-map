@@ -1,6 +1,9 @@
 package ru.basnukaev.argumentmap.service;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -258,6 +261,97 @@ public class NodeService {
                 AuditEntityType.TOPIC, existing.topicId(), userId, snapshot);
 
         deleteNode(nodeId);
+    }
+
+    /**
+     * Групповое удаление узлов одним вызовом. Backlog «Bulk audit log
+     * consolidation» - вместо N отдельных {@link #deleteNode(UUID, UUID, String)}
+     * (каждый пишет audit row → N rows в admin UI как 50 несвязанных событий)
+     * один service-метод пишет один {@link AuditAction#BULK_DELETE} per
+     * topic с массивом entityIds.
+     *
+     * <p>Семантика:
+     * <ul>
+     *   <li>Все узлы должны принадлежать одному {@code topicId} - иначе
+     *       {@link IllegalArgumentException}. Single-topic ограничение -
+     *       чтобы один audit row имел один parent (topic) и один
+     *       permission-чек ({@code assertCanWrite}).</li>
+     *   <li>Корневые узлы (равные {@code topic.root_node_id}) пропускаются
+     *       и возвращаются в {@code skippedRootIds} - не fail'ят весь
+     *       запрос (UX: «удалил 47 из 50, 3 корневых пропущено»).</li>
+     *   <li>Узлы которых нет в БД (стрейловый id от frontend) -
+     *       {@link NodeNotFoundException} fail'ит транзакцию целиком
+     *       (consistency: либо удаляем всё указанное, либо ничего).</li>
+     *   <li>Один пересчёт статусов на topic в конце - не N.</li>
+     *   <li>Audit row пишется ТОЛЬКО если хоть один узел реально удалён
+     *       (skippedRootIds non-empty + deletedIds empty - audit не
+     *       пишется, операция no-op).</li>
+     * </ul>
+     *
+     * @return {@code (deletedIds, skippedRootIds)}
+     */
+    @Transactional
+    public BulkDeleteResult bulkDeleteNodes(List<UUID> nodeIds, UUID userId, String role) {
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            throw new IllegalArgumentException("nodeIds не должен быть пустым");
+        }
+        // dedup сохраняя порядок - protect от случайного дубля в запросе
+        Set<UUID> uniqueIds = new LinkedHashSet<>(nodeIds);
+
+        // загружаем все узлы за один проход + валидируем существование
+        List<Node> nodes = new ArrayList<>(uniqueIds.size());
+        for (UUID id : uniqueIds) {
+            Node n = nodeRepository.findById(id)
+                    .orElseThrow(() -> new NodeNotFoundException(id));
+            nodes.add(n);
+        }
+
+        // все узлы должны быть из одного topic - иначе один permission
+        // check + один audit parent не покрывают корректно
+        UUID topicId = nodes.get(0).topicId();
+        for (Node n : nodes) {
+            if (!topicId.equals(n.topicId())) {
+                throw new IllegalArgumentException(
+                        "Все узлы в bulk запросе должны принадлежать одной теме");
+            }
+        }
+        permissionService.assertCanWrite(topicId, userId, role);
+
+        Topic topic = topicRepository.findById(topicId)
+                .orElseThrow(() -> new TopicNotFoundException(topicId));
+
+        // фильтруем корневые - не fail'им весь запрос
+        List<UUID> deletedIds = new ArrayList<>();
+        List<UUID> skippedRootIds = new ArrayList<>();
+        // snapshots: id → {nodeType, content} - в audit row.snapshots
+        Map<String, Object> snapshots = new LinkedHashMap<>();
+        for (Node n : nodes) {
+            if (n.id().equals(topic.rootNodeId())) {
+                skippedRootIds.add(n.id());
+                continue;
+            }
+            nodeRepository.deleteById(n.id());
+            deletedIds.add(n.id());
+            snapshots.put(n.id().toString(), AuditLogService.snapshot()
+                    .put("nodeType", n.nodeType().name())
+                    .put("content", n.content())
+                    .build());
+        }
+
+        if (!deletedIds.isEmpty()) {
+            // один audit row на всю bulk операцию (не N), один пересчёт статусов
+            auditLogService.logBulkDelete(AuditEntityType.NODE,
+                    AuditEntityType.TOPIC, topicId, userId, deletedIds, snapshots);
+            statusCalculationService.recalculateTopic(topicId);
+        }
+
+        return new BulkDeleteResult(deletedIds, skippedRootIds);
+    }
+
+    /**
+     * Результат {@link #bulkDeleteNodes(List, UUID, String)}.
+     */
+    public record BulkDeleteResult(List<UUID> deletedIds, List<UUID> skippedRootIds) {
     }
 
     /**

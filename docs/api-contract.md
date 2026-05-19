@@ -692,6 +692,44 @@ EDITOR'ов.
 **Ошибки:**
 - `404` - узел не найден
 
+#### DELETE /api/v1/nodes/bulk
+
+Групповое удаление узлов одним запросом. Все узлы должны принадлежать
+одной теме. Корневые узлы (`topics.root_node_id`) пропускаются и
+возвращаются в `skippedRootIds` - не fail'ят весь запрос. Несуществующие
+id - 404 (rollback всей транзакции).
+
+Backlog «Bulk audit log consolidation» - вместо N отдельных DELETE'ов
+(каждый пишет свой `audit_log` row, что в admin UI выглядит как N
+несвязанных событий) - один `BULK_DELETE` audit row с массивом
+`entityIds` в `changes` JSON. Один пересчёт статусов на topic, один
+permission-чек
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно). Требуется
+`canWriteTopic` на theme
+
+**Тело:**
+```json
+{
+  "nodeIds": ["uuid1", "uuid2", "..."]
+}
+```
+
+`nodeIds` - non-empty, max 100 (защита от случайной DoS-нагрузки)
+
+**Ответ (200 OK):**
+```json
+{
+  "deletedIds": ["uuid1", "uuid2"],
+  "skippedRootIds": ["uuid3"]
+}
+```
+
+**Ошибки:**
+- `400` - пустой/слишком большой список, узлы из разных тем
+- `403` - `forbidden-topic-access` / `forbidden-topic-write`
+- `404` - один из узлов не найден (вся транзакция rollback)
+
 #### GET /api/v1/nodes/{nodeId}/revisions
 
 История изменений содержимого узла, в хронологическом порядке.
