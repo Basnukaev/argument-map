@@ -120,6 +120,45 @@ class RefreshTokenCleanupJanitorIT {
     }
 
     @Test
+    void cleanup_revokedButRecentAndExpired_keepsBasedOnRevoked() {
+        // Boundary: токен revoked недавно (2 дня назад) но expires_at
+        // далеко в прошлом (60 дней назад). По query
+        // `(revoked_at IS NOT NULL AND revoked_at < cutoff)
+        //  OR (revoked_at IS NULL AND expires_at < cutoff)` -
+        // revoked_at NOT NULL ⇒ срабатывает первая ветка, проверка
+        // revoked_at < cutoff = (now-2d < now-30d) = false. Вторая
+        // ветка short-circuit'нута условием revoked_at IS NULL.
+        // Итог: токен остаётся. Тест pins down этот intent - если кто-то
+        // расширит query на «или expired», тест упадёт
+        Instant recentRevocation = Instant.now().minus(2, ChronoUnit.DAYS);
+        Instant longExpired = Instant.now().minus(60, ChronoUnit.DAYS);
+        insertRefresh("revoked-recent-expired-old", longExpired, recentRevocation);
+
+        janitor.cleanup();
+
+        assertThat(refreshTokenRepository.findByHash("revoked-recent-expired-old")).isPresent();
+    }
+
+    @Test
+    void cleanup_expiresJustAfterCutoff_keeps() {
+        // Boundary: active токен (revoked_at NULL) у которого expires_at
+        // на 5 секунд позже cutoff'а janitor'а. Query использует strict
+        // `<` (expires_at < cutoff) - exact-equal или >= cutoff должны
+        // остаться. Тест защищает от случайного refactor'а `<` → `<=`
+        // или `>` смены направления. 5 секунд достаточно чтобы покрыть
+        // разницу между Instant.now() в тесте и в janitor'е, при этом
+        // сильно меньше retention (30 дней) - чисто boundary
+        Instant justAfterCutoff = Instant.now()
+                .minus(30, ChronoUnit.DAYS)
+                .plus(5, ChronoUnit.SECONDS);
+        insertRefresh("just-after-cutoff-expiry", justAfterCutoff, null);
+
+        janitor.cleanup();
+
+        assertThat(refreshTokenRepository.findByHash("just-after-cutoff-expiry")).isPresent();
+    }
+
+    @Test
     void cleanup_returnsCountOfDeleted() {
         // Mix: 2 удаляемых + 1 живой
         insertRefresh("old-1", Instant.now().plus(7, ChronoUnit.DAYS),
