@@ -180,4 +180,8 @@ function computeOptimistic(
 }
 
 export default VoteWidget;
+// computeOptimistic экспортируется ради unit-тестирования pure logic без
+// рендера компонента. Вынос в отдельный файл не оправдан - функция нужна
+// только VoteWidget'у
+// eslint-disable-next-line react-refresh/only-export-components
 export { computeOptimistic };

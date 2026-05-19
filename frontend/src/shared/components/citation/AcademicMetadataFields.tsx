@@ -17,6 +17,10 @@ export interface AcademicMetadataValues {
   yearGregorian: string;
 }
 
+// EMPTY_ACADEMIC_METADATA - initial-value константа для форм; экспорт
+// co-located с типом AcademicMetadataValues. HMR warning только dev,
+// splitting не оправдан
+// eslint-disable-next-line react-refresh/only-export-components
 export const EMPTY_ACADEMIC_METADATA: AcademicMetadataValues = {
   muhaqqiq: '',
   publisher: '',
@@ -254,6 +258,9 @@ async function fetchPlaceSuggestions(query: string): Promise<SuggestionItem[]> {
   return rows.map((p) => ({ id: p.id ?? '', name: p.name ?? '' }));
 }
 
+// parseIntOrNull - pure utility, co-located т.к. используется только формами
+// в этом модуле. HMR warning только dev, splitting не оправдан
+// eslint-disable-next-line react-refresh/only-export-components
 export function parseIntOrNull(s: string): number | null {
   if (s.trim() === '') return null;
   const n = Number.parseInt(s.trim(), 10);

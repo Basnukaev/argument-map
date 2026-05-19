@@ -25,6 +25,10 @@ export interface CreateForm {
   academic: AcademicMetadataValues;
 }
 
+// INITIAL_CREATE_FORM импортируется только из SourceCreateForm/AddSourceModal
+// как initial state. Вынос в отдельный файл создаст лишний модуль для одной
+// константы; HMR warning влияет только на dev experience, не на runtime
+// eslint-disable-next-line react-refresh/only-export-components
 export const INITIAL_CREATE_FORM: CreateForm = {
   sourceType: 'BOOK',
   title: '',

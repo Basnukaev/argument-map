@@ -52,7 +52,11 @@ interface Props {
  * Утилита: обернуть plain text в минимальный ProseMirror document.
  * Используется как fallback для страниц с NULL formatted_content
  * (legacy Shamela/PDFBox импорт - см. ADR-039 «Backward compat»)
+ *
+ * pure utility co-located с компонентом-потребителем. HMR warning только
+ * dev experience, splitting не оправдан
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function wrapPlainTextAsDoc(text: string | null | undefined): object {
   const safeText = text ?? '';
   if (!safeText) {
