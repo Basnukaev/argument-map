@@ -21,6 +21,12 @@ import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.domain.AuditEntityType;
 import ru.basnukaev.argumentmap.domain.AuditLog;
 import ru.basnukaev.argumentmap.exception.AdminOnlyException;
+import ru.basnukaev.argumentmap.exception.BookNotFoundException;
+import ru.basnukaev.argumentmap.exception.DeletedBookAuditAccessDeniedException;
+import ru.basnukaev.argumentmap.exception.DeletedTopicAuditAccessDeniedException;
+import ru.basnukaev.argumentmap.exception.TopicNotFoundException;
+import ru.basnukaev.argumentmap.library.repository.BookRepository;
+import ru.basnukaev.argumentmap.repository.TopicRepository;
 import ru.basnukaev.argumentmap.service.AuditLogService;
 import ru.basnukaev.argumentmap.service.PermissionService;
 import ru.basnukaev.argumentmap.web.CurrentUser;
@@ -50,6 +56,13 @@ import ru.basnukaev.argumentmap.web.dto.PagedResponse;
  * <p>Username для actor JOIN'ится отдельно после fetch'а - в Repository
  * не делаем JOIN т.к. users отдельный package и хочется избежать
  * cross-package coupling на SQL level.
+ *
+ * <p><b>Deleted entities (compliance forensics):</b> при удалении темы/книги
+ * CASCADE убирает child rows (nodes/edges/members), но audit_log rows
+ * preserved - там нет FK на entity_id. Если запрос пришёл на удалённый
+ * topic/book: ADMIN видит preserved audit, прочие получают 403
+ * {@code forbidden-deleted-topic-audit} / {@code forbidden-deleted-book-audit}.
+ * Если темы нет И audit пустой - обычный 404. Backlog Tech debt round 3 #6.
  */
 @RestController
 @RequestMapping("/api/v1/audit")
@@ -58,13 +71,19 @@ public class AuditLogController {
     private final AuditLogService auditLogService;
     private final PermissionService permissionService;
     private final UserRepository userRepository;
+    private final TopicRepository topicRepository;
+    private final BookRepository bookRepository;
 
     public AuditLogController(AuditLogService auditLogService,
                               PermissionService permissionService,
-                              UserRepository userRepository) {
+                              UserRepository userRepository,
+                              TopicRepository topicRepository,
+                              BookRepository bookRepository) {
         this.auditLogService = auditLogService;
         this.permissionService = permissionService;
         this.userRepository = userRepository;
+        this.topicRepository = topicRepository;
+        this.bookRepository = bookRepository;
     }
 
     @GetMapping("/topics/{topicId}")
@@ -73,10 +92,28 @@ public class AuditLogController {
             @CurrentUser UUID currentUserId,
             @RequestParam(name = "page", required = false) Integer page,
             @RequestParam(name = "size", required = false) Integer size) {
-        // Только owner + EDITOR могут видеть audit темы. Используем
-        // assertCanWrite (а не canRead) - чтение audit это privileged
-        // действие даже на SHARED/PUBLIC темах
         String role = SecurityContextUtils.currentRoleOrAnonymous();
+        // Special case: тема удалена, но audit_log rows preserved (нет FK
+        // на entity_id) - тогда compliance forensics через ADMIN. Бывший
+        // owner темы для него больше не существует, поэтому не пускаем.
+        // Backlog Tech debt round 3 #6 (закрыт 2026-05-19).
+        if (topicRepository.findById(topicId).isEmpty()) {
+            long preservedAudit = auditLogService.countByParentOrSelf(
+                    AuditEntityType.TOPIC, topicId);
+            if (preservedAudit == 0) {
+                // Нет ни темы ни audit - честный 404 (тема никогда не существовала)
+                throw new TopicNotFoundException(topicId);
+            }
+            if (!UserRole.ADMIN.equals(role)) {
+                throw new DeletedTopicAuditAccessDeniedException(topicId, currentUserId);
+            }
+            // ADMIN - возвращаем preserved audit
+            PageRequest pr = PageRequest.from(page, size);
+            List<AuditLog> items = auditLogService.findByParentOrSelfPage(
+                    AuditEntityType.TOPIC, topicId, pr.size(), pr.offset());
+            return PagedResponse.of(toResponses(items), pr.page(), pr.size(), preservedAudit);
+        }
+        // Тема жива - стандартная проверка write-доступа (owner + EDITOR)
         permissionService.assertCanWrite(topicId, currentUserId, role);
         PageRequest pr = PageRequest.from(page, size);
         List<AuditLog> items = auditLogService.findByParentOrSelfPage(
@@ -92,6 +129,21 @@ public class AuditLogController {
             @RequestParam(name = "page", required = false) Integer page,
             @RequestParam(name = "size", required = false) Integer size) {
         String role = SecurityContextUtils.currentRoleOrAnonymous();
+        // Симметрия с auditTopic для удалённых книг - ADMIN-only forensics
+        if (bookRepository.findById(bookId).isEmpty()) {
+            long preservedAudit = auditLogService.countByParentOrSelf(
+                    AuditEntityType.BOOK, bookId);
+            if (preservedAudit == 0) {
+                throw new BookNotFoundException(bookId);
+            }
+            if (!UserRole.ADMIN.equals(role)) {
+                throw new DeletedBookAuditAccessDeniedException(bookId, currentUserId);
+            }
+            PageRequest pr = PageRequest.from(page, size);
+            List<AuditLog> items = auditLogService.findByParentOrSelfPage(
+                    AuditEntityType.BOOK, bookId, pr.size(), pr.offset());
+            return PagedResponse.of(toResponses(items), pr.page(), pr.size(), preservedAudit);
+        }
         permissionService.assertCanWriteBook(bookId, currentUserId, role);
         PageRequest pr = PageRequest.from(page, size);
         List<AuditLog> items = auditLogService.findByParentOrSelfPage(

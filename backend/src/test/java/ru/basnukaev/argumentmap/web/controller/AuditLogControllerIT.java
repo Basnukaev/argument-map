@@ -24,6 +24,10 @@ import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.domain.AuditEntityType;
 import ru.basnukaev.argumentmap.domain.Topic;
 import ru.basnukaev.argumentmap.domain.TopicVisibility;
+import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookType;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
+import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.repository.TopicRepository;
 import ru.basnukaev.argumentmap.service.AuditLogService;
 
@@ -47,6 +51,9 @@ class AuditLogControllerIT {
 
     @Autowired
     private TopicRepository topicRepository;
+
+    @Autowired
+    private BookRepository bookRepository;
 
     @Autowired
     private AuditLogService auditLogService;
@@ -76,6 +83,17 @@ class AuditLogControllerIT {
         topicRepository.save(new Topic(
                 id, "T", null, null, createdBy, Instant.now(), visibility,
                 ru.basnukaev.argumentmap.domain.StatusAlgorithm.MVP
+        ));
+        return id;
+    }
+
+    private UUID insertBook(UUID createdBy, String visibility) {
+        UUID id = UUID.randomUUID();
+        Instant now = Instant.now();
+        bookRepository.save(new Book(
+                id, BookType.BOOK, "B", null, "ar",
+                null, null, createdBy, now, now,
+                null, null, null, null, null, null, visibility
         ));
         return id;
     }
@@ -181,5 +199,118 @@ class AuditLogControllerIT {
         mockMvc.perform(get("/api/v1/audit/admin?entityType=NOT_A_REAL_TYPE")
                         .header("X-User-Id", adminId.toString()))
                 .andExpect(status().isBadRequest());
+    }
+
+    // ---- deleted topic compliance forensics (backlog round 3 #6, 2026-05-19) ----
+
+    @Test
+    void GET_auditDeletedTopic_asAdmin_returnsPreservedRecords() throws Exception {
+        // Создаём тему, пишем audit, потом удаляем тему. Audit_log
+        // rows должны остаться (нет FK на entity_id) и быть видны ADMIN
+        UUID topicId = insertTopic(ownerId, TopicVisibility.PRIVATE);
+        auditLogService.logCreate(AuditEntityType.TOPIC, topicId, null, null,
+                ownerId, Map.of("title", "T"));
+        auditLogService.logDelete(AuditEntityType.TOPIC, topicId, null, null,
+                ownerId, Map.of("title", "T"));
+        jdbcTemplate.update("DELETE FROM topics WHERE id = ?", topicId);
+
+        mockMvc.perform(get("/api/v1/audit/topics/{id}", topicId)
+                        .header("X-User-Id", adminId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    @Test
+    void GET_auditDeletedTopic_asFormerOwner_returns403() throws Exception {
+        // Бывший owner не должен видеть audit удалённой темы - тема для
+        // него больше не существует, compliance forensics через ADMIN
+        UUID topicId = insertTopic(ownerId, TopicVisibility.PRIVATE);
+        auditLogService.logCreate(AuditEntityType.TOPIC, topicId, null, null,
+                ownerId, Map.of("title", "T"));
+        jdbcTemplate.update("DELETE FROM topics WHERE id = ?", topicId);
+
+        mockMvc.perform(get("/api/v1/audit/topics/{id}", topicId)
+                        .header("X-User-Id", ownerId.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type").value(containsString("forbidden-deleted-topic-audit")))
+                .andExpect(jsonPath("$.topicId").value(topicId.toString()));
+    }
+
+    @Test
+    void GET_auditDeletedTopic_noRecords_returns404() throws Exception {
+        // Тема никогда не существовала И audit пустой - честный 404
+        UUID nonexistent = UUID.randomUUID();
+
+        mockMvc.perform(get("/api/v1/audit/topics/{id}", nonexistent)
+                        .header("X-User-Id", adminId.toString()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value(containsString("topic-not-found")));
+    }
+
+    @Test
+    void GET_auditLiveTopic_asOwner_returnsRecords_regression() throws Exception {
+        // Регрессия - existing behaviour не сломан после изменений
+        UUID topicId = insertTopic(ownerId, TopicVisibility.PRIVATE);
+        auditLogService.logCreate(AuditEntityType.TOPIC, topicId, null, null,
+                ownerId, Map.of("title", "T"));
+
+        mockMvc.perform(get("/api/v1/audit/topics/{id}", topicId)
+                        .header("X-User-Id", ownerId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1));
+    }
+
+    @Test
+    void GET_auditLiveTopic_asStranger_returns403_regression() throws Exception {
+        // Регрессия - non-owner на живой PRIVATE теме всё ещё 403
+        UUID topicId = insertTopic(ownerId, TopicVisibility.PRIVATE);
+        auditLogService.logCreate(AuditEntityType.TOPIC, topicId, null, null,
+                ownerId, Map.of("title", "T"));
+
+        mockMvc.perform(get("/api/v1/audit/topics/{id}", topicId)
+                        .header("X-User-Id", otherUserId.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type").value(containsString("forbidden-topic-access")));
+    }
+
+    // ---- симметрия для книг (deleted book audit) ----
+
+    @Test
+    void GET_auditDeletedBook_asAdmin_returnsPreservedRecords() throws Exception {
+        UUID bookId = insertBook(ownerId, BookVisibility.PRIVATE);
+        auditLogService.logCreate(AuditEntityType.BOOK, bookId, null, null,
+                ownerId, Map.of("title", "B"));
+        auditLogService.logDelete(AuditEntityType.BOOK, bookId, null, null,
+                ownerId, Map.of("title", "B"));
+        jdbcTemplate.update("DELETE FROM lib_books WHERE id = ?", bookId);
+
+        mockMvc.perform(get("/api/v1/audit/books/{id}", bookId)
+                        .header("X-User-Id", adminId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2));
+    }
+
+    @Test
+    void GET_auditDeletedBook_asFormerOwner_returns403() throws Exception {
+        UUID bookId = insertBook(ownerId, BookVisibility.PRIVATE);
+        auditLogService.logCreate(AuditEntityType.BOOK, bookId, null, null,
+                ownerId, Map.of("title", "B"));
+        jdbcTemplate.update("DELETE FROM lib_books WHERE id = ?", bookId);
+
+        mockMvc.perform(get("/api/v1/audit/books/{id}", bookId)
+                        .header("X-User-Id", ownerId.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type").value(containsString("forbidden-deleted-book-audit")));
+    }
+
+    @Test
+    void GET_auditDeletedBook_noRecords_returns404() throws Exception {
+        UUID nonexistent = UUID.randomUUID();
+
+        mockMvc.perform(get("/api/v1/audit/books/{id}", nonexistent)
+                        .header("X-User-Id", adminId.toString()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value(containsString("book-not-found")));
     }
 }
