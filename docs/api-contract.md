@@ -1020,6 +1020,32 @@ targetHandle (выставить null) - null трактуется как "не 
 **Ошибки:**
 - `404` - ребро не найдено
 
+#### POST /api/v1/edges/{edgeId}/z-order/bring-to-front
+
+Ставит ребро на передний план относительно других рёбер темы.
+Сервер вычисляет `z_index = MAX(z_index рёбер темы) + 1` и присваивает
+ребру. Тема определяется через from-узел ребра. Клиенту не нужно знать
+текущий max - один POST без подсчёта.
+
+Не пишет revision и не меняет `updatedAt` - z-order это UI affordance,
+не доменное изменение. Mirror `POST /nodes/{id}/z-order/bring-to-front`.
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно). Требуется `canWriteTopic`.
+
+**Запрос:** пустое тело (можно `{}`).
+
+**Ответ (200 OK):** обновлённый `EdgeResponse` с новым `zIndex`.
+
+**Ошибки:**
+- `403` - `forbidden-topic-access` (нет доступа к private теме) или
+  `forbidden-topic-write` (есть read но нет write)
+- `404` - `edge-not-found`
+
+#### POST /api/v1/edges/{edgeId}/z-order/send-to-back
+
+Парный endpoint. `z_index = MIN(z_index рёбер темы) - 1`. Контракт
+идентичный `bring-to-front` - заголовки, запрос, ответ, ошибки.
+
 ### Источники (Sources)
 
 #### POST /api/v1/sources
@@ -1156,6 +1182,34 @@ variability (ханбалитский / Hanbali / حنبلي) делают фи�
 #### DELETE /api/v1/authorities/{authorityId}
 
 Удаление + каскад привязок. `204` или `404`.
+
+#### PATCH /api/v1/authorities/{authorityId}
+
+Частичное обновление авторитета. Поля null/отсутствующие сохраняют текущее
+значение, не-null - применяются.
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+**Запрос:** все поля опциональные:
+```json
+{
+  "name": "Ибн Таймия",
+  "bio": "Известный учёный...",
+  "era": "XIII-XIV век",
+  "madhab": "ханбалитский",
+  "metadata": { "birth_year": 1263 },
+  "type": "SCHOLAR"
+}
+```
+- Поля: те же ограничения что у `POST /api/v1/authorities`
+- `type`: whitelist `SCHOLAR / MUHAQQIQ / PUBLISHER / AUTHOR / OTHER`
+
+**Ответ (200 OK):** `AuthorityResponse` (полный record с обновлёнными полями).
+
+**Ошибки:**
+- `400` - невалидные поля или `type` не в whitelist (`invalid-authority-type`,
+  property `invalidType`)
+- `404` - авторитет не найден (`authority-not-found`)
 
 ### Привязка источников к узлам
 
@@ -1362,12 +1416,17 @@ CRUD - см. секцию «Multi-translation узлов» ниже.
   "sourceHandle": "string|null",
   "targetHandle": "string|null",
   "createdBy": "uuid",
-  "createdAt": "iso8601"
+  "createdAt": "iso8601",
+  "zIndex": 0
 }
 ```
 `sourceHandle`/`targetHandle` - id точки подключения ребра на
 сторонах узлов. `null` для рёбер созданных не через drag-create
 (например, через bulk-импорт) - фронт применит auto-routing.
+
+`zIndex` (миграция 40) - stacking order ребра относительно других рёбер
+темы. Default 0. Управляется через
+`POST /edges/{id}/z-order/bring-to-front` и `send-to-back`.
 
 ### RevisionResponse
 ```json
