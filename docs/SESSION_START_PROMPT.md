@@ -12,28 +12,16 @@ progress.md / roadmap.md и выкидывай
 
 ## Режим работы
 
-**Полная автономия + ruflo-first.** Двигаемся в сторону полного
-перехода на ruflo way работы со всех сторон (subagents, memory,
-session continuity, tasks, learning, code review). Strategic direction
-зафиксирован в `mcp__ruflo__memory_retrieve namespace=argument-map
-key=strategic-direction-ruflo-migration`.
+**Полная автономия.** Тактические решения - сам, без подтверждения.
+Subagents - через нативный Agent tool (`subagent_type=Explore` для
+research, `general-purpose` для исполнения, `Plan` для дизайна
+крупных изменений).
 
-Правила автономии и subagent usage:
-- `mcp__ruflo__memory_retrieve namespace=argument-map key=autonomy-mode`
-  - текущий snapshot правил с semantic recall (ruflo-first variant
-  v2 от 16.05). Subagents - **ВПРЕДЬ через ruflo**: для long-running
-  implementation tasks `mcp__ruflo__hive-mind_spawn` или
-  `mcp__ruflo__swarm_init`+`agent_spawn`, для quick research можно
-  нативный Agent subagent_type=Explore
-- `mcp__ruflo__autopilot_status` - состояние long-horizon resumption
-  (включён 16.05, maxIterations=200, timeoutMinutes=720)
-- `mcp__ruflo__agentdb_pattern-search` - cross-session architectural
-  patterns (например ADR-033 «параллельная иерархия» сохранён как
-  `type=architectural-decision`)
-
-Новая сессия первым делом делает `mcp__ruflo__memory_retrieve`
-для `autonomy-mode` + `strategic-direction-ruflo-migration` перед
-чтением остальной документации.
+Накапливаемые правила (full autonomy, WSL-only, не-частые-билды,
+design-reference check, playwright UI verification и т.д.) живут в
+локальной файловой memory под
+`~/.claude/projects/-home-basnukaev-projects-argument-map/memory/`.
+`MEMORY.md` index подгружается автоматически при старте сессии.
 
 ---
 
@@ -43,13 +31,12 @@ key=strategic-direction-ruflo-migration`.
 
 ### 1. Прочитай в таком порядке
 
-1. **Ruflo memory** - `mcp__ruflo__memory_retrieve namespace=argument-map
-   key=autonomy-mode` - правила автономии. Ранее были в `feedback_full_
-   autonomy_mode.md`, теперь живут в ruflo с semantic recall между
-   сессиями. И `key=argument-map-19b-completion-state` для последнего
-   completion snapshot
-2. **`CLAUDE.md`** (корень) - стэк, команды, layout, навигация по
+1. **`CLAUDE.md`** (корень) - стэк, команды, layout, навигация по
    документации - уже в твоём контексте при старте
+2. **Локальная файловая memory** - `MEMORY.md` index подгружается
+   автоматически при старте сессии. Там накопленные `feedback_*`
+   правила (full autonomy, WSL-only, no frequent builds,
+   design-reference check, playwright UI verification и т.д.)
 3. **`docs/progress.md`** - последние 2-3 записи + «Следующий шаг»
 4. **`docs/roadmap.md`** - текущий приоритетный этап. Закрытые
    этапы свёрнуты в одну строку, активные имеют чек-лист
@@ -74,19 +61,18 @@ key=strategic-direction-ruflo-migration`.
 
 ### 3. Memory и feedback
 
-Два слоя памяти после миграции 16.05:
+**Локальная файловая memory** - единственный слой памяти. Живёт в
+`~/.claude/projects/-home-basnukaev-projects-argument-map/memory/`.
+`MEMORY.md` index подгружается автоматически при старте сессии. Там
+feedback'и про decision authority, WSL-only, не-частые-билды, React
+key-trick, RTL/наshк, design-reference check, playwright UI
+verification, no bulk shamela parsing, no backward compat, full
+autonomy mode и т.д.
 
-- **Ruflo memory** (primary) - `mcp__ruflo__memory_retrieve` /
-  `mcp__ruflo__memory_search_unified` / `mcp__ruflo__agentdb_pattern-
-  search` с `namespace=argument-map`. Sub-cross-session recall через
-  HNSW vector store. Сюда переехал autonomy mode + architectural patterns
-- **Локальная файловая memory** (legacy) - в
-  `~/.claude/projects/-mnt-c-my-folders-projects-argument-map/memory/`.
-  Прочитай `MEMORY.md` index при старте - остались feedback'и про
-  decision authority, WSL-only, не-частые-билды, React key-trick,
-  RTL/наshк, design-reference check, playwright UI verification,
-  no bulk shamela parsing, no backward compat. Постепенно мигрировать
-  в ruflo при касании
+Новый feedback от Абдулы (correction или validated approach) -
+сохранить как `feedback_<slug>.md` с frontmatter `type: feedback` и
+добавить строку в `MEMORY.md`. Подробности правил - в `auto memory`
+секции системного промпта.
 
 ### 4. Проверь актуальное состояние инфры
 

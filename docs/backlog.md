@@ -17,7 +17,7 @@
   `@theme inline` bridge → Tailwind utility `font-book-title` →
   `Card.Title`. Amendment к ADR-031 - см. `docs/decisions.md`
 - [x] **Фикс 12 pre-existing test failures** - закрыто в Сессии 36
-  через ruflo test-regression-diagnoser subagent. Root cause найдено
+  через test-regression-diagnoser subagent. Root cause найдено
   и verified: **Node 24 + undici 7 AbortSignal instanceof bug**
   (nodejs/undici#2596, nodejs/node#56644). Это **внешний bug**, не
   наша проблема. Гипотеза про React 19 + act() отвергнута. Fix -

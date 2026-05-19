@@ -59,14 +59,6 @@ frontend/e2e-report/
 frontend/test-results/
 frontend/playwright-report/
 
-# Ruflo local state
-.claude-flow/
-.agents/
-.swarm/
-agentdb.rvf
-agentdb.rvf.lock
-ruvector.db
-*.ruflo.lock
 # Windows Zone.Identifier files
 *:Zone.Identifier
 /package.json

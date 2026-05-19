@@ -1226,8 +1226,7 @@ instanceof AbortSignal` через **свой** internal prototype, недост
 network call.
 
 Регрессия появилась от **обновления окружения** (Node 22/23 → 24), не от
-кода. Между Сессией 35 и 36 единственный commit `9ab061c chore: connect
-RuFlo` не трогал frontend.
+кода. Frontend код между Сессией 35 и 36 не менялся.
 
 References:
 - github.com/nodejs/undici/issues/2596
@@ -1267,7 +1266,7 @@ beforeAll(() => {
 заменить jsdom на happy-dom (rebreaks RTL utilities), pin Node 22 (downgrade
 не вариант), удалить `{ signal }` из apiGet (теряем prod cleanup-логику).
 
-**Применено:** Сессия 36 через test-regression-diagnoser ruflo subagent.
+**Применено:** Сессия 36 через test-regression-diagnoser subagent.
 142/143 проходит (12 регрессий восстановлены, 1 unrelated pre-existing
 fail в AddSourceModal.test.tsx).
 
