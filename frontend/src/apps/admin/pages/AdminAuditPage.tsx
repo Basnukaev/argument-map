@@ -13,12 +13,17 @@ import type { components } from '@/shared/api/types';
 type AuditLog = components['schemas']['AuditLogResponse'];
 type PagedAudit = components['schemas']['PagedResponseAuditLogResponse'];
 
+/** EntityType - derived из generated OpenAPI schema (single source of truth).
+ * При добавлении нового AuditEntityType.java значения достаточно регенерировать
+ * types.ts через `npm run generate-api` - этот тип обновится автоматически.
+ * ADR-043 Amendment 3, Backlog tech debt round 3 #3. */
+type EntityType = NonNullable<AuditLog['entityType']>;
+
 const PAGE_SIZE = 50;
 
-/** Whitelist значений `entity_type` от бэка - используется и для select options,
- * и для разрешённых query-param values. Должен совпадать с `AuditEntityType`
- * enum в backend (ADR-043 Amendment 3) */
-const ENTITY_TYPES = [
+/** Все допустимые entity_type значения — источник данных для select-options.
+ * Список синхронизирован с backend через generated types.ts (см. EntityType above). */
+const ENTITY_TYPES: readonly EntityType[] = [
   'TOPIC',
   'NODE',
   'EDGE',
@@ -30,10 +35,14 @@ const ENTITY_TYPES = [
   'NODE_SOURCE',
   'QUESTION_SOURCE',
   'ANSWER_SOURCE',
-] as const;
-type EntityType = (typeof ENTITY_TYPES)[number];
+  'NODE_TRANSLATION',
+] satisfies EntityType[];
 
-const ACTIONS = [
+/** Action - derived из generated OpenAPI schema (single source of truth).
+ * При добавлении нового AuditAction.java значения достаточно регенерировать types.ts. */
+type Action = NonNullable<AuditLog['action']>;
+
+const ACTIONS: readonly Action[] = [
   'CREATE',
   'UPDATE',
   'DELETE',
@@ -41,8 +50,7 @@ const ACTIONS = [
   'MEMBER_ADD',
   'MEMBER_REMOVE',
   'MEMBER_ROLE_CHANGE',
-] as const;
-type Action = (typeof ACTIONS)[number];
+] satisfies Action[];
 
 /** Tailwind токены для action badge. Цвета матчат семантику в design system:
  * - CREATE → emerald (positive, новая сущность)
