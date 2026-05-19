@@ -1,5 +1,6 @@
 package ru.basnukaev.argumentmap.library.shamela.service.mapper;
 
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -64,18 +65,18 @@ public class ShamelaBibliographyParser {
             "([\\d٠-٩]+)\\s*م(?:\\s|$|\\\\)"
     );
 
-    private static final java.util.Map<String, Integer> ARABIC_ORDINALS = java.util.Map.ofEntries(
-            java.util.Map.entry("الأولى", 1),
-            java.util.Map.entry("الاولى", 1),
-            java.util.Map.entry("الثانية", 2),
-            java.util.Map.entry("الثالثة", 3),
-            java.util.Map.entry("الرابعة", 4),
-            java.util.Map.entry("الخامسة", 5),
-            java.util.Map.entry("السادسة", 6),
-            java.util.Map.entry("السابعة", 7),
-            java.util.Map.entry("الثامنة", 8),
-            java.util.Map.entry("التاسعة", 9),
-            java.util.Map.entry("العاشرة", 10)
+    private static final Map<String, Integer> ARABIC_ORDINALS = Map.ofEntries(
+            Map.entry("الأولى", 1),
+            Map.entry("الاولى", 1),
+            Map.entry("الثانية", 2),
+            Map.entry("الثالثة", 3),
+            Map.entry("الرابعة", 4),
+            Map.entry("الخامسة", 5),
+            Map.entry("السادسة", 6),
+            Map.entry("السابعة", 7),
+            Map.entry("الثامنة", 8),
+            Map.entry("التاسعة", 9),
+            Map.entry("العاشرة", 10)
     );
 
     public ParsedBibliography parse(String bibliography) {

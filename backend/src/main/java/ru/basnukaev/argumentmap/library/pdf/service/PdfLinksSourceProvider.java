@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 import org.slf4j.Logger;
@@ -287,7 +288,7 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
         // case-insensitive prefix: RFC 3986 говорит схема case-insensitive,
         // shamela теоретически может отдать "HTTPS://..." (наблюдалось в
         // других ETL-источниках, для shamela пока не было, но защищаемся)
-        String lower = filename.toLowerCase(java.util.Locale.ROOT);
+        String lower = filename.toLowerCase(Locale.ROOT);
         return lower.startsWith("http://") || lower.startsWith("https://");
     }
 

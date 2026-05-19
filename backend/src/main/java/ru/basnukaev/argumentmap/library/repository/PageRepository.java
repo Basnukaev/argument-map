@@ -3,6 +3,7 @@ package ru.basnukaev.argumentmap.library.repository;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.instant;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.odt;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -170,7 +171,7 @@ public class PageRepository {
      * @return true если row updated, false если page id не найден
      */
     public boolean updateImagePointer(UUID id, String bucket, String storageKey,
-                                       java.time.Instant uploadedAt, String ocrStatus) {
+                                       Instant uploadedAt, String ocrStatus) {
         int rows = jdbcTemplate.update(
                 "UPDATE lib_pages SET "
                         + "image_bucket = ?, image_storage_key = ?, image_uploaded_at = ?, "
@@ -196,8 +197,8 @@ public class PageRepository {
      * @return true если row updated, false если page id не найден
      */
     public boolean updateOcrStatus(UUID id, String ocrStatus,
-                                    java.time.Instant ocrStartedAt,
-                                    java.time.Instant ocrCompletedAt) {
+                                    Instant ocrStartedAt,
+                                    Instant ocrCompletedAt) {
         int rows = jdbcTemplate.update(
                 "UPDATE lib_pages SET ocr_status = ?, "
                         + "ocr_started_at = COALESCE(?, ocr_started_at), "
@@ -221,7 +222,7 @@ public class PageRepository {
      * @return true если row updated, false если page id не найден
      */
     public boolean updateTextContentAndMarkDone(UUID id, String textContent,
-                                                  java.time.Instant completedAt) {
+                                                  Instant completedAt) {
         int rows = jdbcTemplate.update(
                 "UPDATE lib_pages SET "
                         + "text_content = ?, ocr_status = 'DONE', "
@@ -247,8 +248,8 @@ public class PageRepository {
      * @return true если row updated, false если page id не найден
      */
     public boolean updateAiEditStatus(UUID id, String aiEditStatus,
-                                       java.time.Instant aiEditStartedAt,
-                                       java.time.Instant aiEditCompletedAt) {
+                                       Instant aiEditStartedAt,
+                                       Instant aiEditCompletedAt) {
         int rows = jdbcTemplate.update(
                 "UPDATE lib_pages SET ai_edit_status = ?, "
                         + "ai_edit_started_at = COALESCE(?, ai_edit_started_at), "
@@ -272,7 +273,7 @@ public class PageRepository {
      * @return true если row updated, false если page id не найден
      */
     public boolean updateFormattedContentAndMarkAiEditDone(UUID id, String formattedContent,
-                                                             java.time.Instant completedAt) {
+                                                             Instant completedAt) {
         int rows = jdbcTemplate.update(
                 "UPDATE lib_pages SET formatted_content = ?::jsonb, "
                         + "ai_edit_status = 'DONE', ai_edit_completed_at = ?, "

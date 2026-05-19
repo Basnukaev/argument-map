@@ -6,6 +6,7 @@ import static ru.basnukaev.argumentmap.repository.JdbcTimes.odt;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -290,7 +291,7 @@ public class NodeSourceRepository {
         if (nodeIds == null || nodeIds.isEmpty()) {
             return Map.of();
         }
-        String placeholders = String.join(",", java.util.Collections.nCopies(nodeIds.size(), "?"));
+        String placeholders = String.join(",", Collections.nCopies(nodeIds.size(), "?"));
         String sql = """
                 SELECT ns.id AS ns_id, ns.node_id, ns.source_id, ns.quote, ns.created_at,
                        s.source_type, s.title AS source_title, s.citation AS source_citation,

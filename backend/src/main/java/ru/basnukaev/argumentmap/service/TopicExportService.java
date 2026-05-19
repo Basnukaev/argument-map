@@ -1,6 +1,7 @@
 package ru.basnukaev.argumentmap.service;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -96,7 +97,7 @@ public class TopicExportService {
         // node_sources собираются обходом по узлам - findByNodeId уже
         // отсортирован по created_at, общий порядок detrministic (nodes
         // тоже отсортированы по created_at в findByTopicId)
-        List<NodeSource> allNodeSources = new java.util.ArrayList<>();
+        List<NodeSource> allNodeSources = new ArrayList<>();
         for (Node n : nodes) {
             allNodeSources.addAll(nodeSourceRepository.findByNodeId(n.id()));
         }
