@@ -12,12 +12,12 @@
 
 ---
 
-## 2026-05-19 - Сессия 48 - Sub-project C partial: spec + plan + liquibase-migration skill
+## 2026-05-19 - Сессия 48 - Sub-project C partial: spec + plan + liquibase-migration + new-rest-endpoint skills
 
 ### Sub-project C (Project-specific skills) — partial closure
 
-Реализован первый skill из 4 запланированных. Spec + plan written, skill
-`liquibase-migration` создан и работает.
+Реализованы первые два skill из 4 запланированных. Spec + plan written,
+skills `liquibase-migration` и `new-rest-endpoint` созданы.
 
 #### Коммиты
 
@@ -34,6 +34,13 @@
   процедура (5 шагов), XML template, CDATA-escape правило, rollback rules,
   index rule, 2 реальных примера (миграции 46 + 48), checklist (5 пунктов),
   таблица частых ошибок
+- `0a3e9ba` `feat(.claude): new-rest-endpoint skill` —
+  `.claude/skills/new-rest-endpoint/SKILL.md` (695 строк): decision tree
+  (6 типов endpoint), DTO naming conventions, layer-by-layer scaffold
+  (Repository → Service → DTO → Controller → IT → api-contract → generate-api),
+  pagination pattern, audit log integration, pre-commit checklist,
+  common errors table, 3 реальных примера (TopicController.getOne,
+  AuditLogController.auditAdmin, EdgeController.bringToFront)
 
 #### Что создано
 
@@ -45,15 +52,25 @@
   - 2 полных примера из реального changelog (миграции 46, 48)
   - Checklist 5 пунктов + таблица типичных ошибок
 
+- **`.claude/skills/new-rest-endpoint/SKILL.md`** — проектный skill:
+  - Frontmatter `name: new-rest-endpoint` + `description:` для автоактивации
+    по ключевым словам (новый endpoint, добавить API, CRUD, REST, и пр.)
+  - Decision tree: 6 типов endpoint с паттернами URL и возвращаемыми типами
+  - Step 0-9: DTO → Repository → Service → Controller → IT → api-contract →
+    frontend regeneration → audit log
+  - Pagination pattern: `PageRequest.from` + `PagedResponse.of` + `appendFilters`
+  - Pre-commit checklist (8 пунктов) + таблица частых ошибок (7 строк)
+  - Error handling reference: маппинг exceptions → HTTP codes
+  - 3 примера из проекта: GET single, GET list+filters+pagination, action endpoint
+
 **Storage location:** `.claude/skills/` зеркалит структуру плагинов
 Superpowers. Skills обнаруживаются по frontmatter `name:` + `description:`.
 
 #### Что НЕ сделано (backlog для следующих сессий)
 
-3 remaining skills в порядке приоритета:
-1. **new-rest-endpoint** — scaffold chain Controller+Service+DTO+IT+api-contract
-2. **library-page-rendering** — PDF/OCR/Image modes, lib_pages state machine
-3. **shamela-parser-debug** — ETL diagnostic playbook
+2 remaining skills в порядке приоритета:
+1. **library-page-rendering** — PDF/OCR/Image modes, lib_pages state machine
+2. **shamela-parser-debug** — ETL diagnostic playbook
 
 ---
 
