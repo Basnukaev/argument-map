@@ -1,0 +1,154 @@
+package ru.basnukaev.argumentmap.auth.web.security;
+
+import java.util.Arrays;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
+import org.springframework.core.env.Environment;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+
+/**
+ * Отдельный {@link SecurityFilterChain} для {@code /actuator/**} (ADR-048).
+ *
+ * <p>В prod profile все actuator endpoints кроме {@code /actuator/health}
+ * и {@code /actuator/info} требуют basic auth (single in-memory user с
+ * ролью {@code ACTUATOR}). Health и info остаются public - load balancer
+ * liveness/readiness probes и CI/CD deploy verification. Защита от
+ * reconnaissance leak: circuitbreakers/metrics/env содержат версии
+ * backend, DB connection state, bean names.
+ *
+ * <p>В dev/test/local profile - all permitAll, чтобы разработчики
+ * могли свободно curl'ить actuator endpoints без credentials.
+ *
+ * <p>Этот chain имеет {@code @Order(1)} - матчится первым по
+ * {@code securityMatcher("/actuator/**")}, главный
+ * {@link SecurityConfig} chain не пытается обрабатывать actuator.
+ * In-memory {@link UserDetailsService} применяется локально (через
+ * {@code http.userDetailsService(...)}) - не конфликтует с основным
+ * JWT-based auth (последний вообще не использует UserDetailsService).
+ */
+@Configuration
+public class ActuatorSecurityConfig {
+
+    private final boolean prodProfile;
+    private final String username;
+    private final String password;
+
+    public ActuatorSecurityConfig(Environment environment,
+                                  @Value("${actuator.security.username:}") String username,
+                                  @Value("${actuator.security.password:}") String password) {
+        this.prodProfile = Arrays.stream(environment.getActiveProfiles())
+                .anyMatch("prod"::equals);
+        this.username = username;
+        this.password = password;
+    }
+
+    @Bean
+    @Order(1)
+    public SecurityFilterChain actuatorFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/actuator/**")
+                .csrf(c -> c.disable())
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // HTTP security headers - mirror main SecurityConfig.
+                // Чтобы /actuator/health (доступный LB через HTTPS)
+                // отдавал HSTS / CSP / Referrer / Permissions policy
+                // консистентно с остальным трафиком. Иначе разные chain
+                // дают разный набор header'ов, что путает penetration
+                // scanner'ы и нарушает существующие SecurityHeadersIT
+                .headers(headers -> {
+                    headers.referrerPolicy(rp -> rp.policy(
+                            ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN));
+                    headers.permissionsPolicyHeader(pp -> pp.policy(
+                            "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"));
+                    if (prodProfile) {
+                        headers.httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .preload(false)
+                                .maxAgeInSeconds(31_536_000L));
+                        headers.contentSecurityPolicy(csp -> csp.policyDirectives(
+                                "default-src 'self'; "
+                                        + "script-src 'self'; "
+                                        + "style-src 'self' 'unsafe-inline'; "
+                                        + "img-src 'self' data: blob:; "
+                                        + "font-src 'self' data:; "
+                                        + "connect-src 'self'; "
+                                        + "frame-ancestors 'none'; "
+                                        + "base-uri 'self'; "
+                                        + "form-action 'self'"));
+                    }
+                });
+
+        if (prodProfile) {
+            // Prod fail-fast - credentials обязательны через env
+            // ACTUATOR_USERNAME / ACTUATOR_PASSWORD. В dev падать тут не
+            // надо (там profile != prod, ветка не активна)
+            if (isBlank(username) || isBlank(password)) {
+                throw new IllegalStateException(
+                        "В prod profile actuator.security.username и actuator.security.password обязательны"
+                                + " (env ACTUATOR_USERNAME / ACTUATOR_PASSWORD). Заданные значения пусты.");
+            }
+            UserDetails actuatorUser = User.builder()
+                    .username(username)
+                    // {noop} - plain text, не хеш. Single bootstrap user
+                    // из env-переменной, без БД, без BCrypt - в prod
+                    // credentials заданы один раз через secret manager /
+                    // env, ротация через redeploy. BCrypt не даёт
+                    // benefit в этой модели
+                    .password("{noop}" + password)
+                    .roles("ACTUATOR")
+                    .build();
+            UserDetailsService uds = new InMemoryUserDetailsManager(actuatorUser);
+
+            // Локальный AuthenticationManager для этого chain. Глобальный
+            // PasswordEncoder bean - BCryptPasswordEncoder (для основной
+            // auth), он не понимает {noop} префикс - basic auth матчинг
+            // упал бы 401. Используем DelegatingPasswordEncoder который
+            // распознаёт {noop}, {bcrypt}, etc префиксы
+            PasswordEncoder delegatingEncoder =
+                    PasswordEncoderFactories.createDelegatingPasswordEncoder();
+            DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+            provider.setUserDetailsService(uds);
+            provider.setPasswordEncoder(delegatingEncoder);
+
+            http
+                    .authorizeHttpRequests(auth -> auth
+                            // LB liveness/readiness probes - public
+                            .requestMatchers(
+                                    "/actuator/health",
+                                    "/actuator/health/**",
+                                    "/actuator/info")
+                            .permitAll()
+                            // Всё остальное (metrics/circuitbreakers/env/...)
+                            // требует ACTUATOR role - reconnaissance defence
+                            .anyRequest().hasRole("ACTUATOR"))
+                    .httpBasic(b -> {})
+                    .authenticationManager(new ProviderManager(provider));
+        } else {
+            // dev/test/local - актуатор открыт для удобства локальной
+            // разработки и automated test'ов. Изменение поведения
+            // привязано к prod profile, а не к property-флагу - явная
+            // safety boundary
+            http.authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        }
+
+        return http.build();
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
+    }
+}

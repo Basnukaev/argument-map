@@ -18,6 +18,17 @@ spring:
       max-file-size: 50MB
       max-request-size: 50MB
 
+# Actuator security (ADR-048, Security backlog Crit #7). В prod profile
+# /actuator/** (кроме health/info) требует basic auth - reconnaissance
+# defence. В dev/test/local - actuator открыт, эти env остаются пустыми.
+# В prod обязательны через env ACTUATOR_USERNAME / ACTUATOR_PASSWORD -
+# ActuatorSecurityConfig падает с IllegalStateException при старте если
+# в prod profile значения пусты.
+actuator:
+  security:
+    username: ${ACTUATOR_USERNAME:}
+    password: ${ACTUATOR_PASSWORD:}
+
 # Auth (ADR-040). JWT HS256, access короткоживущий + refresh длинноживущий.
 # В prod секрет ОБЯЗАТЕЛЬНО через env AUTH_JWT_SECRET (минимум 256 бит).
 # Default placeholder заведомо длиннее 32 ASCII-байт - не использовать в проде.

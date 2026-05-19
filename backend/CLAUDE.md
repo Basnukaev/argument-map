@@ -323,6 +323,32 @@ UsernamePasswordAuthenticationFilter.class)`) - блокирует brute force
   при просрочке access token, легко достичь 5 attempts/min при
   нескольких открытых tabs
 
+#### Actuator security (ADR-048)
+
+`/actuator/**` обрабатывается **отдельным `SecurityFilterChain`**
+(`ActuatorSecurityConfig`, `@Order(1)`, `securityMatcher("/actuator/**")`).
+Главный `SecurityConfig` actuator-правил больше не содержит.
+
+- **В prod profile**: basic auth для всех actuator endpoints кроме
+  `/actuator/health` + `/actuator/health/**` + `/actuator/info`.
+  Credentials через env `ACTUATOR_USERNAME` / `ACTUATOR_PASSWORD`,
+  in-memory user с ролью `ACTUATOR`. Fail-fast при пустых
+  значениях в prod
+- **В dev/test/local profile**: chain `permitAll` на всё actuator -
+  curl без креденшалов работает как раньше
+- **HTTP security headers** (HSTS / CSP / Referrer / Permissions) -
+  mirror'ятся из main chain в actuator chain, чтобы /actuator/health
+  отдавал тот же набор header'ов что и API
+- **Локальный AuthenticationManager** через `ProviderManager` +
+  `DaoAuthenticationProvider` с `DelegatingPasswordEncoder` (понимает
+  `{noop}` prefix для plain text из env). Не конфликтует с
+  глобальным `BCryptPasswordEncoder` (используется для основной
+  JWT auth)
+- **Тесты для prod profile** требуют `@TestPropertySource` с
+  `actuator.security.username` + `password` - иначе fail-fast при
+  loading ApplicationContext (ловится в `SecurityHeadersProdProfileIT`,
+  `ActuatorSecurityProdProfileIT`)
+
 ### Permissions (ADR-043, Этап 22)
 
 Per-entity authorization для тем. `topics.visibility` - PRIVATE

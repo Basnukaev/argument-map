@@ -36,7 +36,12 @@ import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("prod")
 @TestPropertySource(properties = {
-        "auth.jwt.secret=test-prod-secret-32chars-or-more-for-hs256-validation"
+        "auth.jwt.secret=test-prod-secret-32chars-or-more-for-hs256-validation",
+        // ADR-048 ActuatorSecurityConfig fail-fast в prod profile если
+        // actuator.security.username/password пусты. Тесты этого класса
+        // про headers, не про actuator security - заглушаем placeholder
+        "actuator.security.username=testactuator",
+        "actuator.security.password=testpass"
 })
 class SecurityHeadersProdProfileIT {
 

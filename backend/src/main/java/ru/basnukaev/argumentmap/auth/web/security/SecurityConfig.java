@@ -3,6 +3,7 @@ package ru.basnukaev.argumentmap.auth.web.security;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -67,6 +68,7 @@ public class SecurityConfig {
     }
 
     @Bean
+    @Order(2)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 // CSRF не нужен - JWT в header, не в cookie (refresh в HttpOnly cookie
@@ -134,15 +136,10 @@ public class SecurityConfig {
                                          "/api/v1/auth/refresh",
                                          "/api/v1/auth/logout")
                             .permitAll();
-                    // actuator health для load balancer / readiness probe
-                    auth.requestMatchers("/actuator/health",
-                                         "/actuator/health/**",
-                                         "/actuator/info")
-                            .permitAll();
-                    // прочие actuator (метрики, circuit breakers) - тоже
-                    // permit для observability tooling; в prod закрывать
-                    // отдельным network layer / basic auth
-                    auth.requestMatchers("/actuator/**").permitAll();
+                    // actuator endpoints обрабатывает отдельный
+                    // ActuatorSecurityConfig chain (@Order(1)) - ADR-048.
+                    // В prod profile - basic auth для всего кроме health/info,
+                    // в dev/test/local - permitAll. Здесь правил не нужно
                     // OpenAPI / Swagger - permit для dev tooling
                     auth.requestMatchers("/v3/api-docs/**",
                                          "/swagger-ui/**",

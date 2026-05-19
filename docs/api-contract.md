@@ -47,7 +47,12 @@ OpenAPI-спецификация: `/v3/api-docs` (JSON), Swagger UI: `/swagger-u
 Все endpoint'ы за исключением:
 
 - `/api/v1/auth/login`, `/register`, `/refresh`, `/logout` (auth flow)
-- `/actuator/health`, `/actuator/info` (load balancer)
+- `/actuator/health`, `/actuator/health/**`, `/actuator/info` (LB
+  liveness/readiness probes + CI/CD deploy verification). Остальные
+  `/actuator/**` endpoint'ы в prod profile требуют **basic auth**
+  через env `ACTUATOR_USERNAME` / `ACTUATOR_PASSWORD` (ADR-048,
+  отдельный SecurityFilterChain). В dev/test/local actuator открыт
+  на чтение без auth
 - `/v3/api-docs/**`, `/swagger-ui/**` (OpenAPI docs)
 - `OPTIONS /**` (CORS preflight)
 - `GET /api/**` в dev/local/test profile (transitional, см. ADR-040)

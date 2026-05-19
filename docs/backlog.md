@@ -476,16 +476,18 @@ security-focused этапом
       Migration to Redis/Hazelcast - при scale-out (см. ADR-046
       trigger to revisit). Bucket4j / Resilience4j / gateway-level
       отвергнуты как overkill для single-instance MVP
-- [ ] **Actuator endpoints behind auth в prod** (Crit Cross-cutting #7) -
-      сейчас `/actuator/**` permitAll во всех profiles. Эндпоинты
-      circuit breakers / health details / info содержат версию backend,
-      DB connection state, registered beans - reconnaissance leak для
-      attacker. Liveness/readiness probes (`/actuator/health`,
-      `/actuator/info`) остаются public для load balancer. Fix: в prod
-      profile - basic auth (`spring.security.user.name/password` env),
-      либо restrict через network layer / API gateway (LB allows только
-      internal cidrs для actuator routes). Reviewer round 5 Crit
-      Cross-cutting #7
+- [x] **Actuator endpoints behind auth в prod** - закрыто 2026-05-19
+      (ADR-048). Отдельный `SecurityFilterChain` (`ActuatorSecurityConfig`,
+      `@Order(1)`, `securityMatcher("/actuator/**")`). В prod profile -
+      basic auth для всего кроме `/actuator/health`, `/actuator/health/**`,
+      `/actuator/info` (LB liveness/readiness + CI/CD deploy verification).
+      In-memory ACTUATOR user из env `ACTUATOR_USERNAME` /
+      `ACTUATOR_PASSWORD`, fail-fast при пустых значениях в prod.
+      Локальный AuthenticationManager с DelegatingPasswordEncoder (не
+      конфликтует с глобальным BCrypt). HTTP security headers
+      (HSTS/CSP/Referrer/Permissions) mirror'ятся в actuator chain.
+      Dev/test - permitAll как раньше. 5 IT в ActuatorSecurityProdProfileIT
+      (health/info public + circuitbreakers 401/200/wrong)
 - [x] **Refresh token rotation** (Important Cross-cutting #4) -
       реализован 2026-05-19 (ADR-047). Single-use refresh с tracking в
       `refresh_tokens` таблице, SHA-256 hex hashing, steal detection

@@ -5590,3 +5590,121 @@ Reviewer round 5 Important Cross-cutting #4 поднял до критичног
   (audit там для CRUD-операций сущностей, не security events).
   Future: добавить SECURITY_EVENT entityType в AuditLog с PII-safe
   payload
+
+## ADR-048: Actuator endpoints behind basic auth в prod profile (Security backlog Crit #7)
+
+**Дата:** 2026-05-19
+
+**Контекст:** все `/actuator/**` endpoints были `permitAll` во всех
+profiles (включая prod). Эндпоинты `/actuator/circuitbreakers`,
+`/actuator/circuitbreakerevents`, `/actuator/metrics`,
+`/actuator/env`, `/actuator/loggers` содержат **reconnaissance-чувствительные
+данные**: имена внутренних beans, версии backend, DB connection
+state, текущие circuit breaker stats, доступные environment
+properties (без secrets, но раскрывает топологию). Public access
+открывает attacker'у surface для profile attack без auth.
+Security backlog Crit Cross-cutting #7 от reviewer round 5.
+
+**Решение:** в prod profile actuator endpoints (кроме `/actuator/health`
++ `/actuator/health/**` + `/actuator/info`) требуют HTTP Basic auth
+через **отдельный `SecurityFilterChain`** (`@Order(1)`,
+`securityMatcher("/actuator/**")`). In-memory user `ACTUATOR` с
+credentials из env-переменных `ACTUATOR_USERNAME` + `ACTUATOR_PASSWORD`.
+В dev/test/local profile - chain делает permitAll, актуатор открыт
+для разработки.
+
+**Архитектура:**
+
+- `ActuatorSecurityConfig` - новый `@Configuration` с
+  `@Bean @Order(1) SecurityFilterChain actuatorFilterChain`.
+  `securityMatcher("/actuator/**")` гарантирует что только actuator
+  трафик идёт через этот chain. Главный `SecurityConfig`
+  получает `@Order(2)` - его правила `/actuator/**` removed (single
+  source of truth - actuator config)
+- `/actuator/health`, `/actuator/health/**`, `/actuator/info` -
+  permitAll даже в prod. Health/liveness/readiness probes для LB
+  и k8s readiness работают без auth (иначе LB не сможет проверить
+  health → false-negative failures, instance уходит из ротации).
+  Info используется CI/CD verify deploy
+- Все остальные endpoint - `hasRole("ACTUATOR")` + HTTP Basic auth.
+  Single user из env, role ACTUATOR (отделена от USER / ADMIN
+  основного auth)
+- Локальный `AuthenticationManager` через `ProviderManager` +
+  `DaoAuthenticationProvider` + `InMemoryUserDetailsManager`.
+  Глобальный PasswordEncoder bean - `BCryptPasswordEncoder` (для
+  основной auth) - не понимает `{noop}` prefix. Используется
+  `PasswordEncoderFactories.createDelegatingPasswordEncoder()`
+  локально для actuator chain (распознаёт `{noop}`, `{bcrypt}` и
+  др. префиксы)
+- HTTP security headers (HSTS / CSP / Referrer-Policy /
+  Permissions-Policy) **mirror'ятся** в actuator chain - чтобы
+  `/actuator/health` отдавал consistent заголовки с остальным
+  трафиком, не путать penetration scanner'ы
+- Fail-fast в prod profile: если `actuator.security.username` или
+  `password` пусты при startup → `IllegalStateException`. В dev
+  без значений всё работает (chain ветка permitAll)
+
+**Альтернативы рассмотрены:**
+
+- **Spring Security default `spring.security.user.{name,password}`** -
+  Spring Boot autoconfig создаёт in-memory user через global
+  `UserDetailsService` bean. Конфликтует с моделью JWT auth (не
+  используем UserDetailsService для API) - autoconfig попытался
+  бы регистрировать default bean. Можно отключить через `exclude`
+  autoconfig, но дополнительная сложность. Локальный chain с local
+  UserDetailsService проще и явно
+- **Network layer (firewall / API gateway)** - production-correct
+  long-term: actuator routes только internal CIDRs через LB rules.
+  Но требует deploy infrastructure не в нашем control сейчас. Basic
+  auth работает как application-level defence-in-depth даже после
+  внедрения network rules
+- **JWT auth для actuator (ADMIN role)** - reused existing auth
+  но monitoring tools (Prometheus, datadog agent, k8s sidecar)
+  обычно не умеют OAuth refresh. Basic auth - стандартный механизм
+  для machine-to-machine monitoring
+- **OAuth2 client credentials grant** - правильно для service-to-
+  service в proper enterprise auth. Overkill для одного monitoring
+  user, требует OAuth2 provider deployment
+- **mTLS** - cert-based auth, идеально для k8s service mesh. Но
+  setup overhead и обычно monitoring stack не настроен на mTLS
+  certs out-of-box. Future possibility
+
+**Trade-offs:**
+
+- **Плюс:** zero external deps (используются only Spring Security
+  primitives), credentials через env (12-factor compliance),
+  rotation через redeploy
+- **Плюс:** fail-fast в prod - missing env credentials ловятся
+  при startup, не silent permitAll
+- **Плюс:** local AuthenticationManager не конфликтует с main JWT
+  auth - clean separation
+- **Минус:** single shared monitoring credentials - если кто-то
+  поделится password с прометеусом и grafana, ротация затронет
+  обоих. Acceptable для MVP, при росте scale нужны отдельные
+  credentials per monitoring system (через `InMemoryUserDetailsManager`
+  с N users либо переход на gateway-level)
+- **Минус:** in-memory user не persisted - при restart auth сразу
+  работает (env stable), но password сменить = redeploy required.
+  Tolerable для compliance схем где password rotation на месяцы
+
+**Trigger to revisit:**
+
+- **Multiple monitoring users** (Prometheus + Datadog + ELK) -
+  расширить InMemoryUserDetailsManager на N user'ов из properties
+  list `actuator.security.users: [{username: prom, password: ...}]`
+- **mTLS deployment** (service mesh) - переместить actuator-auth
+  в network layer, убрать application-level basic auth
+- **Audit для access actuator** - сейчас Spring Security logs basic
+  auth события через debug logger. Если нужен audit trail для compliance -
+  добавить custom filter с log.info на successful actuator access
+
+**Связанные решения:**
+
+- **ADR-040** (JWT auth) - actuator используется **отдельная** auth
+  модель (basic auth + in-memory user, не JWT) - monitoring
+  workflow проще через basic
+- **ADR-046** (Rate limiting) - параллельная Security cross-cutting
+  тема, тоже opt-in через prod env
+- **Security backlog #4** (Refresh rotation) - закрыто отдельным ADR-047
+
+
