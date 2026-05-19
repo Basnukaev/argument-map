@@ -169,27 +169,14 @@ unmount, типичные React 19 ошибки (useSyncExternalStore vs effect)
 
 ### RTL, i18n и арабский текст
 
-**Полный гайд - в `frontend/docs/i18n-guide.md`** (read it first
-при i18n-сессиях). Кратко:
+Локаль UI ≠ язык контента ≠ направление текста — три разных понятия.
+UI-строки через `useT()` + словарь `shared/i18n/dictionary.ts`. Tailwind
+logical classes (`ms-*`, `me-*`, `text-start`, `border-s`), физические
+запрещены. Контент из API — `dir="auto"`, шрифт через `hasArabicScript`.
 
-- Локаль UI ≠ язык контента ≠ направление текста - три разных
-  понятия, не путать
-- Все UI-строки через `useT()` + словарь `shared/i18n/dictionary.ts`,
-  никакого хардкода в JSX
-- Tailwind logical classes (`ms-*`, `me-*`, `text-start`, `border-s`),
-  физические - запрещены
-- Контент из API - `dir="auto"`, шрифт через `hasArabicScript` из
-  `@/shared/i18n`
-- Mixed-content (даты/ID/числа в RTL) - изоляция через `<bdi>`
-- Даты - через локаль-aware форматтер (см. `useFormatDate`), не
-  хардкод `ru-RU`
-- Иконки навигации (ChevronLeft/Right, ArrowLeft/Right) - по
-  локали интерфейса
-- Граф React Flow (canvas, позиции узлов) НЕ зеркалится -
-  пространственная структура
-
-Шрифт naskh подключён через `index.html` preconnect + `@theme
---font-naskh`. См. `docs/glossary.md` исламскую секцию для терминов
+**Полный гайд:** `frontend/docs/i18n-guide.md` (mixed-content изоляция
+через `<bdi>`, локаль-aware даты, иконки навигации по локали, React
+Flow граф не зеркалится, naskh шрифт setup).
 
 ### Тесты
 
