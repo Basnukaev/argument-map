@@ -178,233 +178,112 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 > **Этот раздел обновляется каждой сессией**. Всё выше - стабильное
 
-**Сессия 38 - 4 backend commits, code review fixes Сессии 37 закрыты
-end-to-end** (1 critical + 3 important). Главное - **Этап 16.h
-UserUploadProvider** теперь uploaded PDF читается через `/pdf/info` +
-`/pdf` endpoints (раньше 404). Полный лог в `docs/progress.md` запись
-«2026-05-17 - Сессия 38, post-review fixes Этапа 16».
+### Режим Сессии 46+
 
-**Сессия 37 (предыдущая)** - 12+ коммитов, 4 subagents, Этап 16 PDF
-upload end-to-end + 25.b RetryStrategy.
+**Автономный без остановок** - двигаемся пока пользователь явно не
+скажет «стоп». Не спрашивать «продолжить?» / «начать?» / «коммитить?».
+Тактические решения сам, по логичной границе подэтапа коммит, после
+коммита беру следующий пункт из списка ниже либо из `docs/backlog.md`
 
-### Закрыто в Сессии 38
+**Фокус сессии**: улучшение кодовой базы, стабильность продукта,
+усиление тестов. Новых фичей не добавляем без явного запроса -
+закрываем tech debt + security + missing test coverage из backlog
 
-- **Этап 16.h UserUploadProvider** (commit `b5d4cc4`) - critical issue
-  code review. Новый PdfSourceProvider (@Order=50) для USER_UPLOAD
-  blob'ов, GET `/pdf/info` и `/pdf` теперь работают для uploaded книг.
-  +11 IT (UserUploadProviderIT + E2E в FileImportControllerIT).
-  Smoke на dev: real upload + curl → 200 со streaming PDF
-- **BucketBootstrap idempotent** (commit `dcfdf24`) - catch
-  `BucketAlreadyOwnedByYouException` + `BucketAlreadyExistsException`
-  при concurrent startup двух pod'ов
-- **language whitelist** (commit `5c5277e`) - `Set.of("ar","ru","en")`
-  в FileImportController, mirror frontend
-- **FileImportService комментарий** (commit `f9519c0`) - уточнено что
-  порядок «save pages → put S3» защищает от blob без pages, не наоборот
+**Если задачи закончились** - смотрим `docs/backlog.md`, секции:
+- «Tech debt / performance optimization»
+- «Security backlog»
+- «Бэк - бэклог»
+- «Фронт - общие улучшения»
 
-### Закрыто в Сессии 37
+И двигаемся по приоритету (Critical → Important → Minor)
 
-- **Этап 16 PDF upload end-to-end** (commits `37edb5d`/`da0da7a`/
-  `e224650`/`72a3f3e` backend + `a696c51`/`3e94d84`/`863de6b`
-  frontend + `945d4b9`/`9dbfac4`/`85a9093` academic extension 16.g):
-  PDFBox 3.x page-by-page extraction, `POST /api/v1/library/imports/file`
-  multipart до 50MB, MinIO `library-user-uploads` bucket с
-  BucketBootstrap, admin FileUploadModal на `/admin/shamela`,
-  collapsible academic секция через shared AcademicMetadataFields
-  из 20.e. **ADR-035** PDFBox vs Tika. EPUB отложен (нет UX-кейса)
-- **25.b operational hardening полностью закрыт** (последний пункт)
-  - commit `096f119` - RetryStrategy API вместо deprecated
-  RetryPolicy в S3ClientConfig. `AwsRetryStrategy.standardRetryStrategy()`,
-  `maxAttempts = numRetries + 1` (новый API считает initial attempt).
-  ADR-024 Amendment
-- **F-2 cleanup** (commit `1d8d361`) - unrelated AddSourceModal
-  reliability radio test починен (искал английский label
-  "/reliability/", после i18n стал "Степень достоверности")
-- **F-1 cleanup** - package.json/lock в корне уже в .gitignore с
-  Сессии 36, физические файлы нужны ruflo MCP
+### Snapshot состояния на entry Сессии 46
 
-### Закрытые замечания пользователя (Сессия 38, 8 коммитов в 2 параллельных subagent)
+**Последние закрытые этапы / работы** (детали - в `docs/progress.md`):
+- **2026-05-19 ADR-046 Rate limiting** (`/auth/login` + `/auth/register`)
+  - in-memory sliding window 1 мин + lockout 15 мин, opt-in через env
+  в prod (default disabled), whitelist 127.0.0.1+::1, port-stripping IP,
+  Clock injection для testability. 20 тестов
+- **2026-05-19 ADR-047 Refresh token rotation** - single-use refresh с
+  `refresh_tokens` таблицей (миграция 46), SHA-256 hashing, steal
+  detection (revoke-all-chain при reuse), `jti` claim в JWT. 11 IT
+- **2026-05-19 Test coverage audit + IT для 5 untested services** -
+  `AuthorityService`, `SourceService`, `NodeSourceService`,
+  `NodeProjectionService`, `TopicMemberService`. JaCoCo backend +
+  coverage-v8 frontend для аудита. Отчёт - в `docs/superpowers/audits/`
+- **2026-05-18 Backend arch audit** - 8 findings, 4 fix'а
+  применены (NodeProjectionService, VisibilityPolicy, Source guards;
+  Actor record отложен в backlog)
+- **2026-05-18 Stability/quality round** - backend + frontend audit'ы,
+  E2E Playwright suite (44 tests, 7 suites), translator attribution
+  (миграция 45)
 
-5 из 6 заметок пользователя закрыты end-to-end:
+### Tech debt / Security приоритеты Сессии 46
 
-- **#1 root question delete protection** (`9e8e045` backend +
-  `4a4002d` frontend) - `NodeService.deleteNode` бросает
-  `NodeIsRootException` → 409 `node-is-root` если узел корневой.
-  Frontend GraphCanvas скрывает / disables пункт «Удалить» в context
-  menu для корня + bulk filter в toolbar delete + warning toast
-  «корневой узел не был удалён». +2 backend IT (`deleteNode_whenRoot*`)
-- **#2 Alt+K на не-английской раскладке** (`1ba8faa`/`e4b5938`/`b2517c3`)
-  - после миграции на `useHotkey` через react-hotkeys-hook раскладка
-  больше не affects (library использует event.code для буквенных)
-- **#3 Del/Backspace handler в графе** (`4a4002d` quick fix + `e4b5938`
-  миграция на useHotkey) - выделенные не-root узлы удаляются по Del
-  и Backspace, не срабатывает в input/textarea
-- **#4 ⌘+↵ создать + единообразие hotkeys** - **ADR-036**
-  react-hotkeys-hook принят, `useHotkey` wrapper в
-  `frontend/src/shared/hooks/`, `ShortcutHint` UI helper в
-  `frontend/src/shared/components/ui/` (platform-aware ⌘/Ctrl
-  по navigator.platform). **17+ keyboard handler точек мигрированы**:
-  App, CommandPalette, CitationPicker, ContextMenu, AvatarMenu,
-  BellMenu, Select, NodeSelect, useGraphEscape, GraphCanvas,
-  FormModal, AddNodeModal, AddEdgeModal, PageJump, PdfViewer.
-  0 хардкодных `⌘`/`Ctrl` glyph в JSX. `frontend/CLAUDE.md` новая
-  секция «Hotkeys» с правилами
-- **#5 shamela 502 better UX** (`c6c8188`) - frontend toast для
-  `shamela-api-error` type показывает локализованное «внешний сервис
-  shamela.ws недоступен, попробуйте позже» вместо сырого Problem
-  Details. +3 vitest для AdminShamelaPage
+В порядке убывания приоритета. Каждый - отдельный коммит / atomic
+подэтап. Беру первый available, в конце - следующий
 
-**Tests:** backend 554 → **556** (+2), frontend 156 → **167** (+11)
-**Новые ADR:** ADR-036 (react-hotkeys-hook)
-**Новые gotcha:** «event.key vs event.code в keyboard handlers»,
-«shamela API из WSL2 требует VPN/прокси», «WSL2 corp proxy блокирует
-Google Fonts»
+1. **Actuator endpoints behind auth в prod** (Crit Security #7) -
+   сейчас `/actuator/**` permitAll во всех profiles. В prod -
+   basic auth (`spring.security.user.{name,password}` из env) на
+   actuator path, кроме `/actuator/health` + `/actuator/info` для
+   LB liveness/readiness. Dev/test остаётся permitAll. IT в prod
+   profile: 401 для protected, 200 для health/info, basic auth
+   разрешает access
+2. **RefreshTokenCleanupJanitor** (pre-prod mandatory) - daily cron
+   `@Scheduled` cleanup для revoked старше N дней + expired never
+   used. Replicate pattern `AuditLogRetentionJanitor` (CondOnProp +
+   retention property + cron). Без него `refresh_tokens` растёт
+   линейно от login activity
+3. **PATCH /api/v1/topics/{id}** (round 4 #10) - редактирование
+   title/description. Сейчас readonly в `TopicSettingsDrawer` -
+   нет endpoint'а для rename. Permission canWrite, audit log
+   UPDATE с FieldDiff(title, description). Frontend form в drawer
+4. **NodeTranslationService DRY** (round 4 #2) - private helper
+   `promoteToDefault(nodeId, candidateId)` извлечь из дубля в
+   `addTranslation` + `removeTranslation`
+5. **Audit log для удалённых тем** (round 3 #6) - `assertCanWrite`
+   404 если topic deleted → admin не может посмотреть кто удалил
+   через `/audit/topics/{id}`. Special case либо 410 Gone
+6. **Authority.type column для HadithGrade scholar** (round 3 #4) -
+   миграция + CHECK SCHOLAR/MUHAQQIQ/PUBLISHER/AUTHOR, валидация в
+   `HadithGradeService.addGrade`. Либо ADR на flat namespace
+7. **Shared MinIO Testcontainer** (flag'нут 2 раза) - 9 IT
+   классов поднимают свой MinIOContainer = 45-90 сек overhead на
+   verify. Singleton либо `withReuse(true)`
+8. **BookSummaryResponse.createdBy** (round 4 #8) - frontend «Мои»
+   filter сейчас approximates через `visibility==='PRIVATE'`. Добавить
+   `createdBy: UUID` для strict matching
 
-### Открыто из замечаний - #6 шрифт title книг (ждёт решения)
+После всех 8 - смотрим `docs/backlog.md` под другие пункты (Edge
+z-order persistence, Bulk audit consolidation, Cursor pagination,
+Translation editor UI, Cross-references drawer, и т.д.)
 
-Subagent диагностировал через playwright headless WSL2:
-- `--font-book-title` CSS var = `'Manrope', 'Source Serif', Georgia, serif`
-  - **НЕ EB Garamond** как утверждает backlog запись от Сессии 36.
-  Похоже стиль был объявлен но не доехал до tokens.css, либо был
-  откачен. Drift между документацией и кодом
-- `document.fonts.size = 0` - **НИ ОДИН web font не загрузился** в
-  WSL2 (corp proxy 407 блокирует Google Fonts CDN, см. новый gotcha)
-- Все 5 книг в БД с `language='ar'` → `Card.Title arabic={true}` →
-  `font-arabic` → fallback в system serif (Liberation Serif на WSL2)
-- Скриншот `/tmp/book-list-fonts.png`
+### Инфра на entry Сессии 46
 
-**Решение за пользователем:** в реальном browser (не WSL2 dev preview)
-картина может быть другой - corp proxy там не блокирует. Если и в
-production «выврвиглазно» - обсудить какой шрифт хочется
-(EB Garamond restored, Lora, PT Serif, Old Standard TT для арабского).
-До обсуждения - subagent шрифт не менял.
+- Postgres :5432 healthy, миграции до 46 включительно applied
+  (последняя - `46-create-refresh-tokens.xml` от ADR-047)
+- MinIO :9000 healthy + 4 bucket'а (library-imported-books,
+  library-user-uploads, library-page-images + один служебный)
+  через `BucketBootstrap`
+- Backend :9090 + JDWP :5005 - запускать с JDWP args (см. CLAUDE.md)
+- Frontend :5173 - dev server, после массовых регенераций может
+  потребовать `rm -rf node_modules/.vite`
+- **Текущий baseline tests** запущен в Сессии 46 entry - смотри
+  свежую запись в `docs/progress.md` для финальных цифр
 
-### Опции для Сессии 39 (по приоритету)
+### Известные мелочи (не блокеры)
 
-**Опция A - Этап 17 OCR pipeline** (продолжение 16) - для
-scanned-PDF где `text_content=""` (subagent D зафиксировал что
-check constraint `lib_pages_content_present` проверяет только NULL,
-не emptiness). Tess4j + arabic `ara` training data + async через
-`@Async` + admin re-OCR endpoint. Релевантно сейчас потому что
-свежее знание про PDF processing. ~2 сессии backend+frontend
-
-**Опция B - Импорт/экспорт темы в JSON** (Этап 6 backend) - serializer
-Topic + nodes + edges + node_sources + question_sources +
-answer_sources в JSON. Endpoints `POST /api/v1/topics/{id}/export`
-+ `POST /api/v1/topics/import`. Frontend кнопки в TopicListPage.
-Полезно для backup и обмена темами. **Не блокируется ничем
-внешним**. ~1 сессия
-
-**Опция C - 25.d.5 Lazy PDF streaming через backend** - **ЗАКРЫТО
-Сессия 39**. `PdfSourceProvider.openStream` + `RangeSpec` + Range
-forwarding к archive.org. 17 IT (575→592). См. ADR-023 Amendment.
-MinIO tee при cache miss + range отложен - second iteration
-
-**Опция D - Responsive/mobile sweep** - первый pass по существующим
-pages для tablet/mobile (BookReaderPage, AdminShamelaPage с
-FileUploadModal, CitationPicker, NodeDetailsPanel). Подготовка к
-production. ~1 сессия. См. `docs/backlog.md` раздел Responsive
-
-**Опция E - Полнотекстовый поиск Postgres tsvector** (Этап 6) -
-GIN индекс на `nodes.body` + `lib_pages.text_content` + REST
-endpoint. Актуально когда контента станет много (после Этапа 17
-OCR будет много text content в БД)
-
-**Опция F - Source picker для Корана / Хадисов** (B/C из Сессии 37
-опций) - таб «Коран» / «Хадисы» в CitationPicker. **Зависит от
-внешнего API** (quran.com / sunnah.com) - может блокироваться
-
-**Опция G - NodeCard footer chips (18.h.A1)** - deferred low value
-«duplicate данные с header meta-row». 30 мин closeout. Решить -
-закрыть в roadmap или вообще удалить пункт
-
-**Опция H - Этап 21 Spring Security + JWT** - реальная
-аутентификация. Большая работа (>2 сессий)
-
-### Инфра на момент Сессии 39 entry
-
-- Postgres :5432 healthy, миграции **до 31 включительно** applied
-  (без новых в Сессии 37)
-- MinIO :9000 healthy + 4 bucket'а инициализированы через
-  BucketBootstrap (включая новый `library-user-uploads` для PDF
-  upload). Versioning enabled
-- Backend :9090 + JDWP :5005 - перезапущен с новым classpath
-  (PDFBox 3.0.5 + FileImportService + RetryStrategy API +
-  BucketBootstrap). Стартует с логом
-  «bucket bootstrap завершён - все 4 bucket'а доступны»
-- Frontend :5173 - может потребовать `rm -rf node_modules/.vite`
-  после массовых изменений (types.ts регенерация после 16.b/16.g)
-- **554 backend tests** (543 после Сессии 37 + 11 от Этапа 16.h:
-  9 UserUploadProviderIT + 2 в FileImportControllerIT (E2E + language))
-- **156 frontend tests** (147 baseline + 5 от 16.f + 4 от 16.g = 156)
-- **0 failing** (унрелейтед AddSourceModal reliability fail починен)
-
-### Реальные artefacts в production-БД для smoke
-
-- Test question `3796f633-1822-45fa-87e1-6337a603b6f1` с
-  attached citation (19.b validation)
-- Test answer `8872e584-ca2e-4b33-95ce-f3e545df55bb` со status
-  ANSWERED + attached citation (19.c + 19.d validation)
-- Source `132d75cc-cf4e-4d24-beb3-a4859ba0b776` (тафсир Ибн Касира)
-  reused между 3 entity types (физический proof ADR-018)
-- **Книги загруженные через FileImportController** - проверить
-  через `psql ... -c "SELECT id, title, page_count FROM lib_books
-  WHERE bucket = 'library-user-uploads' ORDER BY created_at DESC
-  LIMIT 5"` либо `mc ls local/library-user-uploads/` (если пользовался
-  upload UI вживую)
-
-### Ruflo memory keys (Сессия 36-37) для load в новой сессии
-
-```
-mcp__ruflo__memory_retrieve namespace=argument-map key=...
-```
-
-Priority (читать в порядке):
-1. `autonomy-mode` - правила автономии (ruflo-first v2)
-2. `ruflo-max-utilization-rule` - всегда использовать ruflo на максимум
-3. `strategic-direction-ruflo-migration` - long-term goal
-4. `session-36-final-snapshot` - снэпшот Сессии 36
-5. `e2e-platform-validation-3-entities` - production E2E proof
-6. `test-regression-fix-plan` - Node 24 undici bug verdict
-
-Architectural patterns в agentdb_pattern-store:
-- `mcp__ruflo__agentdb_pattern-search query="параллельная иерархия"`
-  → ADR-033 pattern с confidence=0.95 (validated 3 times)
-- `mcp__ruflo__agentdb_pattern-search query="academic metadata 2-step"`
-  → ADR-028 + 20.e + 16.g pattern (BookEditModal / AddSourceModal /
-  FileUploadModal все используют shared AcademicMetadataFields,
-  validated 3 times)
-
-### Auto memory путь
-
-Memory **перенесена** в новый путь
-`~/.claude/projects/-home-basnukaev-projects-argument-map/memory/`
-(было `-mnt-c-my-folders-projects-argument-map`). 20 файлов
-скопированы, старый путь оставлен как backup. Auto memory harness
-в новой сессии должен подхватить новый путь автоматически (CWD
-hash совпадает с `/home/basnukaev/projects/argument-map/`).
-
-Если в Сессии 38 убедимся что новая память работает -
-`rm -rf ~/.claude/projects/-mnt-c-my-folders-projects-argument-map/`
-можно удалить старый (включая `.jsonl` transcript'ы старых сессий)
-
-### Известные мелочи (не блокеры) для Сессии 38
-
-- **progress.md = 1552 строки** - превышает 1500 порог из
-  `doc-hygiene.md` Принцип 5. Стоит архивировать Сессии 30-36 в
-  `docs/archive/progress-sessions-30-36.md` в начале Сессии 38
-  (Сессии 22-29 уже в архиве). ~10 минут работы
-- **jsdom + node 24 не парсит multipart FormData** - известная
-  гочa, в FileUploadModal.test тесты для multipart используют
-  mock `globalThis.fetch` напрямую (зафиксировано в комменте теста)
-- **PDFBox text_content="" для scanned-PDF** проходит через
-  CHECK constraint `lib_pages_content_present` (проверяет NULL не
-  emptiness) - это потенциальная гочa для Этапа 17 OCR pipeline,
-  фиксируем что OCR будет seed'ить эти пустые text_content
-- **Bean Validation для @RequestParam не настроена** - subagent
-  D.g обошёл через ручную range-валидацию в controller. Если в
-  будущем добавится много multipart endpoints - стоит настроить
-  глобально через `@Validated` + handler `HandlerMethodValidationException`
-- **playwright WSL2 не загружает Google Fonts** через corp proxy 407
-  - визуальная проверка шрифтов только в реальном браузере
+- **progress.md > 1500 строк** - проверять при handoff, при
+  превышении - архивировать в `docs/archive/progress-sessions-N-M.md`
+- **jsdom + node 24 не парсит multipart FormData** - в
+  `FileUploadModal.test` тесты multipart используют mock
+  `globalThis.fetch` (зафиксировано в комментарии теста)
+- **Node 24 + undici 7 AbortSignal instanceof bug** - workaround
+  в `frontend/src/test-setup.ts` (см. `docs/gotchas.md`)
+- **PDFBox text_content=""` для scanned-PDF** проходит CHECK
+  `lib_pages_content_present` (NULL only check) - OCR pipeline
+  (Этап 17) seed'ит эти пустые text_content. Закрыто в Этапе 17
+- **playwright WSL2 не загружает Google Fonts** через corp proxy
+  407 - визуальная проверка шрифтов только в реальном браузере
 
