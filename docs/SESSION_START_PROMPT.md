@@ -189,6 +189,13 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 усиление тестов. Новых фичей не добавляем без явного запроса -
 закрываем tech debt + security + missing test coverage из backlog
 
+**Discipline на тяжёлые прогоны** (см. memory `feedback_verify_run_discipline.md`):
+- `./mvnw verify` ~2-3 минуты в WSL2. Запускать только на ключевых
+  этапах (см. список в memory). Точечный прогон одного IT класса -
+  `./mvnw -Dit.test=ClassNameIT -DfailIfNoTests=false -Dsurefire.skip=true verify` (~15-30s)
+- Не запускать full verify «на всякий случай» между логическими блоками,
+  после косметического edit'а, сразу после subagent'а который сам прогнал verify
+
 **Если задачи закончились** - смотрим `docs/backlog.md`, секции:
 - «Tech debt / performance optimization»
 - «Security backlog»
@@ -197,72 +204,62 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 И двигаемся по приоритету (Critical → Important → Minor)
 
-### Snapshot состояния на entry Сессии 46
+### Snapshot состояния на entry Сессии 47
 
-**Последние закрытые этапы / работы** (детали - в `docs/progress.md`):
-- **2026-05-19 ADR-046 Rate limiting** (`/auth/login` + `/auth/register`)
-  - in-memory sliding window 1 мин + lockout 15 мин, opt-in через env
-  в prod (default disabled), whitelist 127.0.0.1+::1, port-stripping IP,
-  Clock injection для testability. 20 тестов
-- **2026-05-19 ADR-047 Refresh token rotation** - single-use refresh с
-  `refresh_tokens` таблицей (миграция 46), SHA-256 hashing, steal
-  detection (revoke-all-chain при reuse), `jti` claim в JWT. 11 IT
-- **2026-05-19 Test coverage audit + IT для 5 untested services** -
-  `AuthorityService`, `SourceService`, `NodeSourceService`,
-  `NodeProjectionService`, `TopicMemberService`. JaCoCo backend +
-  coverage-v8 frontend для аудита. Отчёт - в `docs/superpowers/audits/`
-- **2026-05-18 Backend arch audit** - 8 findings, 4 fix'а
-  применены (NodeProjectionService, VisibilityPolicy, Source guards;
-  Actor record отложен в backlog)
-- **2026-05-18 Stability/quality round** - backend + frontend audit'ы,
-  E2E Playwright suite (44 tests, 7 suites), translator attribution
-  (миграция 45)
+**Сессия 46 закрыла 11 tasks** (21 коммитов, см. `docs/progress.md`
+запись от 2026-05-19 «Сессия 46 - Tech debt + Security sweep»):
+1. Baseline fixes (PG TIMESTAMPTZ vs Java Instant precision)
+2. Actuator behind basic auth в prod (ADR-048)
+3. RefreshTokenCleanupJanitor (ADR-047 follow-up)
+4. PATCH /api/v1/topics/{id} (title/description editing)
+5. NodeTranslationService promoteToDefault helper
+6. Audit log для удалённых тем (ADMIN forensics)
+7. Authority.type для HadithGrade scholar validation (миграция 47)
+8. Shared MinIO Testcontainer (9 IT мигрированы)
+9. BookSummaryResponse.createdBy + frontend MINE filter
+10. 6 review fixes по итогам `/superpowers:requesting-code-review`
+11. Baseline AuthServiceRotation/TopicMemberServiceIT/UserUpload fixes
 
-### Tech debt / Security приоритеты Сессии 46
+Тестов: backend 988→999, frontend 565→571. ADR-048 добавлен,
+миграция 47 применена.
 
-В порядке убывания приоритета. Каждый - отдельный коммит / atomic
-подэтап. Беру первый available, в конце - следующий
+### Tech debt / Security приоритеты Сессии 47
 
-1. **Actuator endpoints behind auth в prod** (Crit Security #7) -
-   сейчас `/actuator/**` permitAll во всех profiles. В prod -
-   basic auth (`spring.security.user.{name,password}` из env) на
-   actuator path, кроме `/actuator/health` + `/actuator/info` для
-   LB liveness/readiness. Dev/test остаётся permitAll. IT в prod
-   profile: 401 для protected, 200 для health/info, basic auth
-   разрешает access
-2. **RefreshTokenCleanupJanitor** (pre-prod mandatory) - daily cron
-   `@Scheduled` cleanup для revoked старше N дней + expired never
-   used. Replicate pattern `AuditLogRetentionJanitor` (CondOnProp +
-   retention property + cron). Без него `refresh_tokens` растёт
-   линейно от login activity
-3. **PATCH /api/v1/topics/{id}** (round 4 #10) - редактирование
-   title/description. Сейчас readonly в `TopicSettingsDrawer` -
-   нет endpoint'а для rename. Permission canWrite, audit log
-   UPDATE с FieldDiff(title, description). Frontend form в drawer
-4. **NodeTranslationService DRY** (round 4 #2) - private helper
-   `promoteToDefault(nodeId, candidateId)` извлечь из дубля в
-   `addTranslation` + `removeTranslation`
-5. **Audit log для удалённых тем** (round 3 #6) - `assertCanWrite`
-   404 если topic deleted → admin не может посмотреть кто удалил
-   через `/audit/topics/{id}`. Special case либо 410 Gone
-6. **Authority.type column для HadithGrade scholar** (round 3 #4) -
-   миграция + CHECK SCHOLAR/MUHAQQIQ/PUBLISHER/AUTHOR, валидация в
-   `HadithGradeService.addGrade`. Либо ADR на flat namespace
-7. **Shared MinIO Testcontainer** (flag'нут 2 раза) - 9 IT
-   классов поднимают свой MinIOContainer = 45-90 сек overhead на
-   verify. Singleton либо `withReuse(true)`
-8. **BookSummaryResponse.createdBy** (round 4 #8) - frontend «Мои»
-   filter сейчас approximates через `visibility==='PRIVATE'`. Добавить
-   `createdBy: UUID` для strict matching
+Backlog оставшиеся (читать `docs/backlog.md` для полного списка):
 
-После всех 8 - смотрим `docs/backlog.md` под другие пункты (Edge
-z-order persistence, Bulk audit consolidation, Cursor pagination,
-Translation editor UI, Cross-references drawer, и т.д.)
+1. **Z-index persistence для edges** - mirror Node.zIndex (миграция 40 + REST
+   endpoint). Сейчас edge z-order ephemeral. Low priority пока не critical
+2. **Bulk audit log consolidation** - один BULK_DELETE с entityIds[] вместо
+   N rows. Acceptable пока admin audit UI отложен
+3. **AuditEntityType / UserRole single source of truth** - сейчас BE String
+   константы + FE whitelist в dictionary/types.ts. Расхождение возможно.
+   Low priority пока entity types <15
+4. **Cursor-based pagination** - сейчас offset OK. Cursor нужен при миллионах
+   записей либо stable порядок при concurrent inserts
+5. **PdfControllerIT flaky** - `streamPdf_withRange_returnsPartialContent`
+   ловит ConcurrentModificationException в `MockHttpServletResponse`. В
+   изоляции pass'ает. Не блокер
+6. **Frontend UI Authority.type селект** - в AddAuthorityForm и edit modal.
+   Backend готов (ADR из Сессии 46), frontend регенерация types.ts уже
+   получит type field
+7. **AuthorityService.updateAuthority для смены type** - на existing rows
+   через прямой SQL сейчас. Нужен PATCH endpoint
+8. **HadithGradeService.updateGrade re-validate scholar type** - сейчас
+   проверка только при addGrade. Если scholar изменил тип после создания
+   grade - стейл
 
-### Инфра на entry Сессии 46
+После tech debt - можно браться за фичи:
+- Этап 18.e ImagePageRenderer (mode для image-сканов, после Этапа 17)
+- Этап 25.d.2/25.d.4 PDF Viewer полировка
+- Этап 25.e admin manual page-mapping (Tier 1)
+- Source picker для Корана / Хадисов (внешние API)
 
-- Postgres :5432 healthy, миграции до 46 включительно applied
-  (последняя - `46-create-refresh-tokens.xml` от ADR-047)
+Полный backlog в `docs/backlog.md`
+
+### Инфра на entry Сессии 47
+
+- Postgres :5432 healthy, миграции до 47 включительно applied
+  (47 - `authorities.type`, от Сессии 46)
 - MinIO :9000 healthy + 4 bucket'а (library-imported-books,
   library-user-uploads, library-page-images + один служебный)
   через `BucketBootstrap`
