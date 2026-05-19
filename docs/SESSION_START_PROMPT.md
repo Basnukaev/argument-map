@@ -211,28 +211,25 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 ### Tech debt / Security приоритеты Сессии 47
 
-Backlog оставшиеся (читать `docs/backlog.md` для полного списка):
+Backlog оставшиеся (читать `docs/backlog.md` для полного списка).
 
-1. **Z-index persistence для edges** - mirror Node.zIndex (миграция 40 + REST
-   endpoint). Сейчас edge z-order ephemeral. Low priority пока не critical
-2. **Bulk audit log consolidation** - один BULK_DELETE с entityIds[] вместо
-   N rows. Acceptable пока admin audit UI отложен
-3. **AuditEntityType / UserRole single source of truth** - сейчас BE String
-   константы + FE whitelist в dictionary/types.ts. Расхождение возможно.
-   Low priority пока entity types <15
-4. **Cursor-based pagination** - сейчас offset OK. Cursor нужен при миллионах
-   записей либо stable порядок при concurrent inserts
-5. **PdfControllerIT flaky** - `streamPdf_withRange_returnsPartialContent`
-   ловит ConcurrentModificationException в `MockHttpServletResponse`. В
-   изоляции pass'ает. Не блокер
-6. **Frontend UI Authority.type селект** - в AddAuthorityForm и edit modal.
-   Backend готов (ADR из Сессии 46), frontend регенерация types.ts уже
-   получит type field
-7. **AuthorityService.updateAuthority для смены type** - на existing rows
-   через прямой SQL сейчас. Нужен PATCH endpoint
-8. **HadithGradeService.updateGrade re-validate scholar type** - сейчас
-   проверка только при addGrade. Если scholar изменил тип после создания
-   grade - стейл
+**Resolved в Сессии 47** (cleared 2026-05-19):
+- ✅ #3 AuditEntityType single source — Sub-project A backend `@Schema` уже был добавлен в `9ca073a` (Сессия 46), backend restart + frontend regen в Сессии 47 → types.ts literal unions, AdminAuditPage uses generated type с `satisfies` compile-time check
+- ✅ #5 PdfControllerIT flaky — fixed в `af5686e` (prior session, async-dispatch pattern). Isolated run 10/10 pass
+- ✅ #7 AuthorityService.updateAuthority — done in Сессии 47 (4 commits: repository.update + UpdateAuthorityRequest DTO + service updateAuthority + PATCH endpoint + 8 IT)
+- ✅ #8 HadithGradeService.updateGrade re-validate — already implemented + tested (см. HadithGradeService.java lines 122-134 + `updateGrade_scholarTypeChangedToPublisher_throws400` IT)
+
+**Сomment про #6 (wrong assumption):**
+- ❌ #6 Frontend UI Authority.type селект — AddAuthorityForm **не существует** в codebase. Authority создаются только через ETL/SQL/admin scripts, не через user UI. Реализация требовала бы создание **нового feature** (Authority management UI), что out of scope «новых фич не добавляем без явного запроса». Удалено из backlog.
+
+**Остаются (lower priority):**
+
+1. **Z-index persistence для edges** — mirror Node.zIndex (миграция + REST
+   endpoint). Сейчас edge z-order ephemeral. Multi-layer (migration + REST + frontend). Low priority
+2. **Bulk audit log consolidation** — один BULK_DELETE с entityIds[] вместо
+   N rows. Acceptable пока admin audit UI отложен (out of scope)
+3. **Cursor-based pagination** — сейчас offset OK. Cursor нужен при миллионах
+   записей либо stable порядок при concurrent inserts. Not needed now
 
 После tech debt - можно браться за фичи:
 - Этап 18.e ImagePageRenderer (mode для image-сканов, после Этапа 17)
