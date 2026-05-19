@@ -6,8 +6,12 @@
   "permissions": {
     "allow": [],
     "deny": [
-      "Read(./.env)",
-      "Read(./.env.*)"
+      "Write(./frontend/src/shared/api/types.ts)",
+      "Write(./frontend/design-reference/**)",
+      "Edit(./frontend/src/shared/api/types.ts)",
+      "Edit(./frontend/design-reference/**)",
+      "Bash(rm -rf /*)",
+      "Bash(git push --force *)"
     ]
   },
   "env": {
