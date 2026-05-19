@@ -115,6 +115,59 @@ public class AuditLogService {
                 AuditAction.VISIBILITY_CHANGE, actorUserId, changes);
     }
 
+    /**
+     * Запись BULK_DELETE-события - один audit row для группового удаления
+     * нескольких сущностей одним actor в одном запросе. См. backlog
+     * «Bulk audit log consolidation» - вместо N отдельных DELETE-rows
+     * (тяжело читать в admin UI) пишется один с массивом entityIds.
+     *
+     * <p>entity_id ставится равным parentId (NOT NULL constraint в таблице
+     * + bulk row концептуально - событие на parent'е, не на отдельной
+     * сущности). parent_entity_id дублирует тот же id - для совместимости
+     * с {@code findByParentOrSelf} запросами (которые ищут row'ы темы +
+     * row'ы child entities в одном запросе).
+     *
+     * <p>changes JSON:
+     * <pre>{@code
+     * {
+     *   "entityIds": ["uuid1", "uuid2", ...],
+     *   "count": N,
+     *   "childEntityType": "NODE",        // тип сущностей которые были удалены
+     *   "snapshots": {...}                // optional - shared context либо per-id
+     * }
+     * }</pre>
+     *
+     * @param childEntityType тип сущностей которые удалены (NODE/EDGE/etc.) -
+     *                        пишется в changes.childEntityType. entity_type
+     *                        row'а в БД - это {@code parentType} (TOPIC),
+     *                        чтобы fetch'ы темы видели событие
+     * @param parentType      тип родителя (TOPIC/etc.) - также entity_type row'а
+     * @param parentId        id родителя (NotNull) - также entity_id row'а
+     * @param actorUserId     кто инициировал bulk
+     * @param entityIds       id удалённых сущностей (NotEmpty)
+     * @param sharedContext   опциональный context (snapshots либо метаданные)
+     */
+    @Transactional
+    public AuditLog logBulkDelete(String childEntityType,
+                                  String parentType, UUID parentId,
+                                  UUID actorUserId,
+                                  List<UUID> entityIds,
+                                  Map<String, Object> sharedContext) {
+        Map<String, Object> changes = new LinkedHashMap<>();
+        changes.put("childEntityType", childEntityType);
+        changes.put("entityIds", entityIds.stream().map(UUID::toString).toList());
+        changes.put("count", entityIds.size());
+        if (sharedContext != null && !sharedContext.isEmpty()) {
+            changes.put("snapshots", sharedContext);
+        }
+        // entity_type/entity_id = parentType/parentId. entity_id NOT NULL
+        // в schema (миграция 39), bulk row концептуально событие на
+        // parent'е - не на отдельной сущности. childEntityType в changes
+        // сохраняет тип удалённых сущностей для read-side фильтрации
+        return save(parentType, parentId, parentType, parentId,
+                AuditAction.BULK_DELETE, actorUserId, changes);
+    }
+
     @Transactional
     public AuditLog logMemberAdd(String memberEntityType, UUID memberId,
                                  String parentEntityType, UUID parentEntityId,
