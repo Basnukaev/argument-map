@@ -231,6 +231,47 @@ public class TopicService {
     }
 
     /**
+     * Partial update title/description темы (backlog tech debt #10).
+     *
+     * <p>PATCH-семантика: {@code null} = поле не редактируется. Если
+     * оба null - no-op (audit не пишется, recalculate не запускается).
+     *
+     * <p>Permissions: owner + EDITOR могут редактировать (SHARED тема
+     * - EDITOR член может править content). PUBLIC viewer (без member
+     * role) не может - {@code assertCanWrite} вернёт 403.
+     *
+     * <p>Audit: только реально изменившиеся поля попадают в diff
+     * (через {@link AuditLogService#diff()} - {@code Objects.equals}
+     * сравнение пропускает no-op).
+     */
+    @Transactional
+    public Topic updateTopic(UUID topicId, String newTitle, String newDescription,
+                             UUID userId, String role) {
+        Topic existing = topicRepository.findById(topicId)
+                .orElseThrow(() -> new TopicNotFoundException(topicId));
+        permissionService.assertCanWrite(topicId, userId, role);
+
+        // PATCH-семантика: null = keep existing, non-null = replace
+        String mergedTitle = newTitle != null ? newTitle : existing.title();
+        String mergedDescription = newDescription != null ? newDescription : existing.description();
+
+        Map<String, AuditLogService.FieldDiff> diff = AuditLogService.diff()
+                .compare("title", existing.title(), mergedTitle)
+                .compare("description", existing.description(), mergedDescription)
+                .build();
+
+        if (diff.isEmpty()) {
+            // No-op: ничего не изменилось, не пишем audit и не дёргаем UPDATE
+            return existing;
+        }
+
+        topicRepository.updateTitleAndDescription(topicId, mergedTitle, mergedDescription);
+        auditLogService.logUpdate(AuditEntityType.TOPIC, topicId, null, null,
+                userId, diff);
+        return topicRepository.findById(topicId).orElseThrow();
+    }
+
+    /**
      * Меняет visibility темы (ADR-043) - только owner. EDITOR не может
      * (это privilege-escalation если бы мог - SHARED EDITOR сделал бы
      * себя owner через PUBLIC и обратно).

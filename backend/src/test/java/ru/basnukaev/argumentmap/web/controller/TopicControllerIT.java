@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.web.dto.CreateTopicRequest;
+import ru.basnukaev.argumentmap.web.dto.UpdateTopicRequest;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -361,6 +362,99 @@ class TopicControllerIT {
                 .andReturn().getResponse().getContentAsString();
         String idValue = objectMapper.readTree(json).get("id").asText();
         return UUID.fromString(idValue);
+    }
+
+    // ---- PATCH /topics/{id} (title+description, backlog tech debt #10) ----
+
+    @Test
+    void PATCH_topic_byOwner_updatesBothFields_returns200() throws Exception {
+        UUID topicId = createTopicViaApi();
+        var req = new UpdateTopicRequest("Новое название", "Новое описание");
+
+        mockMvc.perform(patch("/api/v1/topics/{id}", topicId)
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(topicId.toString()))
+                .andExpect(jsonPath("$.title").value("Новое название"))
+                .andExpect(jsonPath("$.description").value("Новое описание"))
+                // counts должны быть в ответе (1 root question, 0 edges)
+                .andExpect(jsonPath("$.nodeCount").value(1))
+                .andExpect(jsonPath("$.edgeCount").value(0));
+    }
+
+    @Test
+    void PATCH_topic_titleOnly_keepsDescription() throws Exception {
+        UUID topicId = createTopicViaApi();
+        // изначальный title="T", description=null (см. createTopicViaApi)
+        var req = new UpdateTopicRequest("Только title", null);
+
+        mockMvc.perform(patch("/api/v1/topics/{id}", topicId)
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Только title"));
+    }
+
+    @Test
+    void PATCH_topic_blankTitle_returns400() throws Exception {
+        UUID topicId = createTopicViaApi();
+        var req = new UpdateTopicRequest("", null);
+
+        mockMvc.perform(patch("/api/v1/topics/{id}", topicId)
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.errors[?(@.field=='title')]").exists());
+    }
+
+    @Test
+    void PATCH_topic_tooLongTitle_returns400() throws Exception {
+        UUID topicId = createTopicViaApi();
+        String tooLong = "a".repeat(201);
+        var req = new UpdateTopicRequest(tooLong, null);
+
+        mockMvc.perform(patch("/api/v1/topics/{id}", topicId)
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[?(@.field=='title')]").exists());
+    }
+
+    @Test
+    void PATCH_topic_byNonOwner_onPrivate_returns403() throws Exception {
+        UUID topicId = createTopicViaApi();
+        UUID otherUserId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
+                otherUserId, "other-" + otherUserId, otherUserId + "@example.com"
+        );
+        var req = new UpdateTopicRequest("X", null);
+
+        mockMvc.perform(patch("/api/v1/topics/{id}", topicId)
+                        .header("X-User-Id", otherUserId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type").value(containsString("forbidden-topic-access")));
+    }
+
+    @Test
+    void PATCH_topic_whenMissing_returns404() throws Exception {
+        UUID missing = UUID.randomUUID();
+        var req = new UpdateTopicRequest("X", null);
+
+        mockMvc.perform(patch("/api/v1/topics/{id}", missing)
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value(containsString("topic-not-found")));
     }
 
     /**

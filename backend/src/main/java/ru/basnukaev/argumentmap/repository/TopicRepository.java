@@ -120,6 +120,17 @@ public class TopicRepository {
     }
 
     /**
+     * Меняет title + description темы. Оба передаются всегда (после
+     * merge'а с текущими значениями в Service). Permission/валидация - в Service.
+     */
+    public void updateTitleAndDescription(UUID topicId, String title, String description) {
+        jdbcTemplate.update(
+                "UPDATE topics SET title = ?, description = ? WHERE id = ?",
+                title, description, topicId
+        );
+    }
+
+    /**
      * Меняет алгоритм пересчёта статусов (ADR-044). Проверка прав и
      * валидация значения - в Service.
      */

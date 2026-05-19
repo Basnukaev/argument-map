@@ -421,6 +421,47 @@ findVisibleToUserWithCounts остался с ASC для обратной сов
   SHARED не member)
 - `404` - тема не найдена
 
+#### PATCH /api/v1/topics/{topicId}
+
+Partial update title / description темы (backlog tech debt #10).
+**Только owner или EDITOR** (через `assertCanWrite`). PUBLIC viewer без
+EDITOR membership получит 403.
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+**Запрос:**
+```json
+{
+  "title": "Новое название",
+  "description": "Новое описание"
+}
+```
+
+PATCH-семантика per-field:
+
+- `null` (или поле отсутствует) - не редактировать (no change)
+- non-null - заменить текущее значение
+
+Поле `description` принимает пустую строку `""` (clear description).
+Поле `title` non-null обязано пройти `@Size(1..200)` - blank отвергается
+(тема обязана иметь название). Если оба поля совпадают с текущими -
+no-op (audit_log запись не пишется).
+
+**Ответ (200 OK):** `TopicResponse` с обновлёнными полями + `nodeCount`
+/ `edgeCount`
+
+**Audit log (ADR-043 Amendment 3):** запись `UPDATE` с `FieldDiff(old,
+new)` только для реально изменившихся полей (через
+`AuditLogService.diff().compare(...)`)
+
+**Ошибки:**
+- `400` - validation: пустой/слишком длинный `title`, слишком длинный
+  `description`
+- `403 forbidden-topic-access` - PRIVATE non-owner non-member
+- `403 forbidden-topic-write` - PUBLIC viewer без EDITOR / SHARED MEMBER
+  (без EDITOR)
+- `404` - тема не найдена
+
 #### PATCH /api/v1/topics/{topicId}/visibility
 
 Сменить visibility темы. **Только owner или ADMIN** (ADR-043).

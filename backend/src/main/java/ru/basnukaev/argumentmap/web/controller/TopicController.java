@@ -30,6 +30,7 @@ import ru.basnukaev.argumentmap.web.dto.GraphResponse;
 import ru.basnukaev.argumentmap.web.dto.PageRequest;
 import ru.basnukaev.argumentmap.web.dto.PagedResponse;
 import ru.basnukaev.argumentmap.web.dto.TopicResponse;
+import ru.basnukaev.argumentmap.web.dto.UpdateTopicRequest;
 import ru.basnukaev.argumentmap.web.dto.UpdateTopicStatusAlgorithmRequest;
 import ru.basnukaev.argumentmap.web.dto.UpdateTopicVisibilityRequest;
 import ru.basnukaev.argumentmap.web.mapper.DtoMappers;
@@ -119,6 +120,23 @@ public class TopicController {
         return DtoMappers.toResponse(graph,
                 batch.stats(), batch.userVotes(),
                 batch.citations(), batch.translations());
+    }
+
+    /**
+     * Partial update title/description темы (backlog tech debt #10).
+     * Owner + EDITOR (через {@code assertCanWrite}). Возвращает
+     * обновлённую тему. См. /visibility и /status-algorithm для других
+     * partial-update endpoint'ов
+     */
+    @PatchMapping("/{topicId}")
+    public TopicResponse patchTopic(@PathVariable UUID topicId,
+                                    @Valid @RequestBody UpdateTopicRequest request,
+                                    @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        Topic updated = topicService.updateTopic(
+                topicId, request.title(), request.description(), userId, role);
+        // Возвращаем с counts чтобы list/details одинаково отображались
+        return DtoMappers.toResponse(topicService.getTopicWithCounts(updated.id()));
     }
 
     @PatchMapping("/{topicId}/visibility")
