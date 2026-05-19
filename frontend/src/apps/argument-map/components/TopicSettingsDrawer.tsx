@@ -91,16 +91,13 @@ function TopicSettingsDrawer({
   // title/description form - локальный draft, кнопка «Сохранить» активна
   // при изменениях. Backend сторона: backlog tech debt #10 - PATCH
   // /api/v1/topics/{id} с UpdateTopicRequest (partial title+description)
+  //
+  // Sync с props при refetch onChanged - через key remount в parent
+  // (TopicGraphPage передаёт key=`${id}|${title}|...`). Эффект-sync
+  // запрещён react-hooks/set-state-in-effect, key-trick - идиома проекта
   const [titleDraft, setTitleDraft] = useState(topicTitle);
   const [descriptionDraft, setDescriptionDraft] = useState(topicDescription);
   const [savingMetadata, setSavingMetadata] = useState(false);
-  // Синхронизируем local draft с props.topic при смене темы (refetch
-  // после save / навигация между темами через тот же drawer mount). Без
-  // этого input оставался бы со старым значением после refetch onChanged
-  useEffect(() => {
-    setTitleDraft(topicTitle);
-    setDescriptionDraft(topicDescription);
-  }, [topicTitle, topicDescription]);
   const trimmedTitle = titleDraft.trim();
   // Дешёвые derived-значения - без useMemo (см. frontend/CLAUDE.md - не
   // превентивно). Validation сообщения локализуются на каждом рендере, t -

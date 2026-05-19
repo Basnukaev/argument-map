@@ -212,7 +212,11 @@ function TopicGraphPage() {
       </main>
 
       {settingsOpen && topic && (
+        // key включает title/description/visibility/algorithm: при refetch
+        // через onChanged drawer перемонтируется и draft'ы инициализируются
+        // из свежих props (см. CLAUDE.md - key-trick для reset state)
         <TopicSettingsDrawer
+          key={`${topic.id}|${topic.title}|${topic.description}|${topic.visibility}|${topic.statusAlgorithm}`}
           open={settingsOpen}
           topic={topic}
           canManage={canManage}

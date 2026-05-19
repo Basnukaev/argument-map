@@ -86,7 +86,6 @@ function TopicMembersModal({ open, topicId, ownerUserId, onClose }: Props) {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [refetch]);
 
   async function handleAdd() {

@@ -104,7 +104,6 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
   // Чтение ref'а в useMemo - сознательно: нужен последний snapshot
   // позиций для passive layout-hint, не для реактивности
   const initial = useMemo(
-    // eslint-disable-next-line react-hooks/refs
     () => buildFlow(graph, showEdgeLabels, lastNodesRef.current),
     [graph, showEdgeLabels],
   );
