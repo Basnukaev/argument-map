@@ -145,6 +145,28 @@ public class AuthorityRepository {
         ).stream().findFirst();
     }
 
+    /**
+     * Partial update через COALESCE: null-поле в параметре = «не менять».
+     * Возвращает количество затронутых строк (0 если id не найден).
+     * Вызывающий код должен проверить результат и бросить
+     * {@link ru.basnukaev.argumentmap.exception.AuthorityNotFoundException}
+     * при 0.
+     */
+    public int update(UUID id, String name, String bio, String era,
+                      String madhab, String type, String metadataJson) {
+        return jdbcTemplate.update(
+                "UPDATE authorities SET"
+                        + " name     = COALESCE(?, name),"
+                        + " bio      = COALESCE(?, bio),"
+                        + " era      = COALESCE(?, era),"
+                        + " madhab   = COALESCE(?, madhab),"
+                        + " type     = COALESCE(?, type),"
+                        + " metadata = COALESCE(?::jsonb, metadata)"
+                        + " WHERE id = ?",
+                name, bio, era, madhab, type, metadataJson, id
+        );
+    }
+
     public boolean deleteById(UUID id) {
         return jdbcTemplate.update("DELETE FROM authorities WHERE id = ?", id) > 0;
     }
