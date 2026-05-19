@@ -229,6 +229,70 @@ JPA») - в `backend/CLAUDE.md` или `backend/docs/antipatterns.md`. Если
 
 При смене порта / debug-флага - правится **одно** место
 
+## Принцип 12. Quarterly CLAUDE.md review (model evolution)
+
+В отличие от Принципа 9 (per-session 1-минутный glance), это
+**ежеквартальный** review — глубокая проверка что rules в CLAUDE.md
+files актуальны для текущего поколения моделей. Источник правила:
+статья Anthropic «How Claude Code works in large codebases» (May 2026)
+секция «Actively maintaining CLAUDE.md files as model intelligence
+evolves».
+
+**Триггеры:**
+- Каждые 3-6 месяцев (default cadence)
+- Сразу после major model release (Opus N+1, Sonnet N+1) — model
+  intelligence изменился, какие-то workarounds могут стать redundant
+- При ощущении что «performance plateaued» — modeling capabilities
+  выросли, harness rules могут tarpit'ить
+
+**Что проверять (по каждому CLAUDE.md):**
+
+1. **Workaround rules** — если правило было написано чтобы compensate
+   model limitation (e.g., «break every refactor into single-file
+   changes» для старой модели), и model теперь handles cross-file
+   refactors fine → правило стало **constraint'ом**, не helper'ом.
+   Удалить или ослабить
+2. **Hook scripts compensating model bugs** — если hook intercepted
+   что-то что Claude теперь делает правильно natively (e.g., hook для
+   Perforce `p4 edit` стал redundant после native Perforce mode) →
+   удалить hook + reference
+3. **Skills targeted at outdated model knowledge** — same logic
+4. **Stale tooling references** — упоминание deprecated libraries,
+   removed services, переименованных classes
+5. **CLAUDE.md size** — за квартал растёт ли? Если subdir CLAUDE.md
+   перевалил 200+ строк — посмотреть что вынести в `backend/docs/` /
+   `frontend/docs/` (см. Sub-project A foundation cleanup pattern)
+
+**Действие в течение review session:**
+
+1. Read each `CLAUDE.md` file полностью (root + backend + frontend)
+2. Для каждого правила задай 3 вопроса:
+   - «Применяю ли я это правило в последний месяц?» (если 0 раз —
+     возможно obsolete)
+   - «Это compensation за model limit или genuine project convention?»
+     (compensation — кандидат на удаление)
+   - «Если бы я писал этот CLAUDE.md сегодня с нуля — включил бы это
+     правило?» (нет — удалить)
+3. Если правило obsolete — удалить + написать reasoning в commit
+   message
+4. Финальный commit: `docs: quarterly CLAUDE.md review YYYY-Qn`
+
+**Output:**
+
+- Diff показывающий что убрано (важнее чем что добавлено)
+- progress.md entry: «### Quarterly review YYYY-Qn — removed N stale
+  rules from CLAUDE.md files»
+
+**Когда не делать:**
+
+- Если последний review был < 2 месяца назад — slishком frequent,
+  rules не успевают накопить stale-ness
+- Если в session уже идёт major task — отложить review до next
+  free session start
+
+См. также: `feedback_continue_earlier_scope` в memory — review можно
+сделать как одну из background tasks в continuous flow.
+
 ## Чек-лист в конце каждой сессии
 
 Перед commit'ом записи в progress.md:
