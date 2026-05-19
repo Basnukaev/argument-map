@@ -10,12 +10,12 @@ import { createTestTopic } from './helpers/topics';
  * стабильны.
  */
 test.describe('Graph', () => {
-  let topicId: string;
-
   test.beforeEach(async ({ page }) => {
     await clearAuth(page);
     await loginAsAdmin(page);
-    topicId = await createTestTopic(page, {
+    // createTestTopic ведёт на /topics/{id}/graph - id не нужен в самих
+    // тестах, навигация делается уже в helper'е
+    await createTestTopic(page, {
       title: `E2E Graph ${Date.now()}`,
     });
     // Ждём что граф загрузился - React Flow viewport показывает root QUESTION

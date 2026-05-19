@@ -5,7 +5,6 @@ import {
   clearAuth,
   expectLoggedIn,
   expectLoggedOut,
-  login,
   loginAsAdmin,
   logout,
   registerNewUser,
