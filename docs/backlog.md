@@ -442,15 +442,16 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       `entityIds` в changes JSON. Сейчас acceptable т.к. audit
       admin UI отложен. Reviewer round 4 recommendation
 
-- [ ] **NodeTranslationService DRY: extract `promoteToDefault` helper** -
-      сейчас в `addTranslation` (через `setDefault`) и
-      `removeTranslation` (через oldest + setDefault) логика «сменить
-      default-перевод узла» дублируется. После rounds 4 fix #2 уже
-      используется setDefault как atomic helper, но оставшийся
-      duplicate - выбор кого promote'ить (новый перевод vs oldest
-      remaining). Fix: private helper `promoteToDefault(nodeId,
-      candidateId)` - один вход для default-switching. Reviewer round
-      4 recommendation #2
+- [x] **NodeTranslationService DRY: extract `promoteToDefault` helper**
+      (закрыто 2026-05-19) - извлечён private helper
+      `promoteToDefault(nodeId, candidateTranslationId)` -
+      инкапсулирует atomic switch default-флага через
+      `translationRepository.setDefault`. Все три mutation-сайта
+      (`addTranslation`, `setDefault`, `removeTranslation`) ходят
+      через helper - один источник истины для default-switching.
+      Decision «кого promote'ить» (новый перевод vs oldest remaining)
+      остаётся на caller'е. 20 IT NodeTranslationServiceIT pass,
+      public API не изменился
 
 ## Security backlog
 

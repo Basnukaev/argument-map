@@ -108,11 +108,11 @@ public class NodeTranslationService {
             throw new NodeTranslationDuplicateException(nodeId, normalizedTranslator, language);
         }
 
-        // если новый перевод default - atomic switch через setDefault.
-        // Использует тот же helper что и явный setDefault endpoint - один источник
-        // истины для default switching logic.
+        // если новый перевод default - atomic switch через promoteToDefault.
+        // Тот же helper используется в removeTranslation - один источник
+        // истины для default-switching logic
         if (effectiveDefault && hasExisting) {
-            translationRepository.setDefault(saved.id(), nodeId);
+            promoteToDefault(nodeId, saved.id());
         }
 
         // audit CREATE - parent = NODE (родительский узел)
@@ -173,7 +173,7 @@ public class NodeTranslationService {
                 .orElseThrow(() -> new NodeNotFoundException(existing.nodeId()));
         permissionService.assertCanWrite(node.topicId(), userId, role);
 
-        translationRepository.setDefault(translationId, existing.nodeId());
+        promoteToDefault(existing.nodeId(), translationId);
 
         // audit UPDATE с change=isDefault: false → true (логически - смена
         // флага default для этого перевода). Old=false т.к. setDefault имеет
@@ -215,7 +215,7 @@ public class NodeTranslationService {
         // promote oldest оставшийся перевод в default если удалили default
         if (existing.isDefault()) {
             Optional<NodeTranslation> oldest = translationRepository.findOldestByNodeId(existing.nodeId());
-            oldest.ifPresent(t -> translationRepository.setDefault(t.id(), existing.nodeId()));
+            oldest.ifPresent(t -> promoteToDefault(existing.nodeId(), t.id()));
         }
     }
 
@@ -225,6 +225,19 @@ public class NodeTranslationService {
                 .orElseThrow(() -> new NodeNotFoundException(nodeId));
         permissionService.assertCanRead(node.topicId(), userId, role);
         return translationRepository.findByNodeId(nodeId);
+    }
+
+    /**
+     * Atomic promote-to-default: candidateTranslationId становится default'ом
+     * узла, флаг снимается со всех остальных переводов того же узла. Один
+     * источник истины для default-switching - используется и в addTranslation
+     * (при добавлении нового default'а), и в removeTranslation (при promote
+     * oldest после удаления текущего default'а), и в setDefault (явный switch
+     * через REST). Decision «кого promote'ить» остаётся на caller'е,
+     * атомарный switch - здесь.
+     */
+    private void promoteToDefault(UUID nodeId, UUID candidateTranslationId) {
+        translationRepository.setDefault(candidateTranslationId, nodeId);
     }
 
     private void validateLanguage(String language) {
