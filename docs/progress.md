@@ -12,9 +12,52 @@
 
 ---
 
-## 2026-05-19 - Сессия 47 - Claude Code harness Sub-project A: Foundation cleanup
+## 2026-05-19 - Сессия 47 - Claude Code harness Sub-projects A + B (Foundation cleanup + Hooks setup)
 
-### Сделано
+### Sub-project B (Hooks setup) — closed
+
+Spec + plan + 7 атомарных execution коммитов:
+
+- `e4eed41` `docs: spec для Sub-project B (Hooks setup) Claude Code harness` — brainstorm spec с 4 hooks design (Approach B для Stop hook через state file + 5min cooldown)
+- `9a7b45d` `docs: implementation plan для Sub-project B (Hooks setup)` — detailed plan на 8 атомарных tasks + manual smoke test plan
+- `6108040` `feat(.claude): hooks lib/common.sh - shared helpers (bypass, jq check, log)` — DRY helpers для всех 4 hooks (check_bypass, check_jq, log_decision)
+- `ec06ed1` `feat(.claude): SessionStart hook - load progress + roadmap + приоритет в context` — автоматическая подгрузка last 2 progress entries + active roadmap + текущий приоритет (save 2-3 Read tool calls)
+- `a408162` `feat(.claude): Stop hook - conditional reminder при commits без progress.md update` — Approach B: state file + 5min cooldown, idempotent
+- `858d666` `feat(.claude): PreToolUse(Bash) hook - block --no-verify, warn про full verify` — block exit 2 для `--no-verify`, warn exit 0 для `./mvnw verify` без args
+- `cbb8a63` `feat(.claude): PostToolUse(Edit|Write) hook - doc-update reminders` — 4 patterns (DTO/Controller, Liquibase migration, ADR, application.yml)
+- `29aee99` `docs(.claude): README для hooks с overview + bypass + smoke tests` — full документация + state file format + edge cases
+- `7b960b2` `chore(.claude): зарегистрировать 4 hooks в settings.json` — append hooks section к existing statusLine + permissions + env
+
+### Метрики Sub-project B
+
+- 5 новых hooks scripts в `.claude/hooks/` (lib/common.sh + 4 event handlers)
+- README.md (111 строк) с overview + smoke test plan + state file format
+- `.claude/settings.json` deny rules: untouched (6 rules от Sub-project A)
+- `.claude/settings.json` hooks section: 0 → 4 events (SessionStart, Stop, PreToolUse, PostToolUse)
+- Bypass: `CLAUDE_HOOKS_DISABLE=1` env var, tested working
+- jq available в WSL2 environment (graceful degradation код есть на случай missing)
+- Memory updates: `feedback_full_autonomy.md` (toggleable MAX mode), new `feedback_subagent_usage.md`, new `feedback_continue_earlier_scope.md`, `MEMORY.md` index updated
+
+### Решения Sub-project B
+
+- **Approach B для Stop hook** (conditional state file vs Approach C UserPromptSubmit) — immediate feedback важнее performance saving
+- **5-min cooldown между Stop reminders** — balanced между timely и noisy
+- **4 PostToolUse patterns:** DTO/Controller, Liquibase, ADR, application.yml. Не покрыто: frontend изменения, hooks themselves (избежать meta-loop)
+- **jq graceful degradation** вместо hard requirement — hooks работают без jq (тихо exit 0) если PreToolUse/PostToolUse content зависим от parsing
+- **`git push --force` НЕ дублируется** в PreToolUse hook — это в settings.json deny rules (Sub-project A), single source of truth
+- **Subagent-driven execution** — 2 subagent calls (Tasks 1-5 hooks scripts + Task 7 README) + inline (Task 6 settings.json reg + Task 8 handoff) + (упрощено vs strict skill pattern по conservation context и MAX autonomy)
+- **MAX autonomy mode toggleable** — default обычный, активируется по explicit phrase. Memory updated с новым правилом + subagent usage rule + continue-earlier-scope rule
+
+### Известные ограничения Sub-project B
+
+- **Hooks применяются только при restart Claude Code session** — settings.json cached в memory активной session. Manual smoke tests deferred до restart
+- **CLAUDE_SESSION_ID** может быть unset → state file shared между sessions (acceptable trade-off)
+- **Stop hook fires per response** — потенциальный overhead на long sessions. 5-min cooldown ограничивает spam
+- **State file cleanup** — auto-orphan при new session, но не удаляются автоматически. Cleanup: `rm /tmp/claude-hooks-session-*.state`
+
+---
+
+### Sub-project A (Foundation cleanup) — closed
 
 Spec + plan + 10 атомарных execution коммитов + handoff:
 
@@ -54,13 +97,35 @@ Spec + plan + 10 атомарных execution коммитов + handoff:
 - Docker недоступен в текущей WSL distro (Docker Desktop WSL integration не активирована) — это блокирует **любые** Testcontainers-based IT в этой среде, не только мои changes. Гарантия что backend не сломан: compile pass + git diff = 0 строк в `*.java`/`*.yml`/`*.xml`. Full `./mvnw verify` нужно запустить **локально с Docker** для финального confirmation
 - frontend uncaught exceptions в `bulkActions.test.tsx` (d3-drag null document в jsdom) — orthogonal к Sub-project A. 571/571 тестов прошли, errors касаются teardown phase (известный jsdom-d3 issue)
 
-### Следующий шаг
+### Следующий шаг (Sub-project A closure — Sub-project B стартовал и закрыт в той же сессии)
 
-**Sub-project B: Hooks setup** — отдельный brainstorm нужен для дизайна hooks (SessionStart для load progress + roadmap, Stop для предложить progress.md update, PreToolUse для запрета `--no-verify` / write в design-reference, PostToolUse для напоминания api-contract после Edit DTO/Controller). Опираться будет на финальную структуру CLAUDE.md и `backend/docs/` после Sub-project A.
+**Sub-project B (Hooks setup) — также closed в этой сессии**, см. секцию выше.
 
-**Параллельно (можно начинать независимо):** Sub-project D (LSP setup), Sub-project E (periodic review process).
+**После A+B closed — продолжение earlier scope (tech debt backlog):**
 
-**После B/C/D/E:** Sub-project F (project subagents — может быть subsumed skills), Sub-project G (MCP servers — статья прямо говорит «не делать пока basics не работают»).
+По feedback_continue_earlier_scope memory rule в MAX autonomy mode — автопереход к ранее остановленному scope. Tech debt items из «Текущий приоритет» Сессии 47 в SESSION_START_PROMPT.md:
+
+1. **Z-index persistence для edges** (mirror Node.zIndex, миграция + REST endpoint)
+2. **Bulk audit log consolidation** (один BULK_DELETE с entityIds[])
+3. **AuditEntityType / UserRole single source of truth** (BE String → FE whitelist sync)
+4. **Cursor-based pagination** (на будущее, сейчас offset OK)
+5. **PdfControllerIT flaky** (`streamPdf_withRange_returnsPartialContent` ConcurrentModificationException)
+6. **Frontend UI Authority.type селект** (backend готов из Сессии 46)
+7. **AuthorityService.updateAuthority для смены type** (PATCH endpoint)
+8. **HadithGradeService.updateGrade re-validate scholar type** (stale check)
+
+После tech debt — features:
+- Этап 18.e ImagePageRenderer
+- Этап 25.d.2/25.d.4 PDF Viewer полировка
+- Этап 25.e admin manual page-mapping (Tier 1)
+- Source picker для Корана / Хадисов
+
+**Параллельно с harness (можно независимо):**
+- Sub-project C (Skills)
+- Sub-project D (LSP setup)
+- Sub-project E (periodic review process)
+
+**Deferred (after basics work):** Sub-project F (project subagents), Sub-project G (MCP servers)
 
 **Backlog для future foundation work:**
 - Consolidation Code review секции между backend/CLAUDE.md и frontend/CLAUDE.md в один общий гайд (для tight frontend target ≤ 250)
@@ -68,8 +133,13 @@ Spec + plan + 10 атомарных execution коммитов + handoff:
 
 ### Spec и plan для будущих sessions
 
-- Spec: `docs/superpowers/specs/2026-05-19-foundation-cleanup-design.md` (commit `e7be9d7`, дополнено spec corrections в `<handoff-hash>`)
+**Sub-project A:**
+- Spec: `docs/superpowers/specs/2026-05-19-foundation-cleanup-design.md` (commit `e7be9d7`)
 - Plan: `docs/superpowers/plans/2026-05-19-foundation-cleanup-plan.md` (commit `92f1776`)
+
+**Sub-project B:**
+- Spec: `docs/superpowers/specs/2026-05-19-hooks-setup-design.md` (commit `e4eed41`)
+- Plan: `docs/superpowers/plans/2026-05-19-hooks-setup-plan.md` (commit `9a7b45d`)
 
 ---
 
