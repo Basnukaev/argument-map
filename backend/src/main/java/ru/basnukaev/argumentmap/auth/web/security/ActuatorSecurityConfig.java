@@ -1,7 +1,5 @@
 package ru.basnukaev.argumentmap.auth.web.security;
 
-import java.util.Arrays;
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,7 +16,6 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 
 /**
  * Отдельный {@link SecurityFilterChain} для {@code /actuator/**} (ADR-048).
@@ -50,8 +47,11 @@ public class ActuatorSecurityConfig {
     public ActuatorSecurityConfig(Environment environment,
                                   @Value("${actuator.security.username:}") String username,
                                   @Value("${actuator.security.password:}") String password) {
-        this.prodProfile = Arrays.stream(environment.getActiveProfiles())
-                .anyMatch("prod"::equals);
+        // Используется shared helper - тот же detection что в SecurityConfig
+        // через SecurityHeadersCustomizer.isProdProfile (literal "prod" в
+        // active profiles). Не передаём Environment через chain - всё фиксируется
+        // в constructor flag, headers/auth ветка ниже использует boolean
+        this.prodProfile = SecurityHeadersCustomizer.isProdProfile(environment);
         this.username = username;
         this.password = password;
     }
@@ -62,35 +62,15 @@ public class ActuatorSecurityConfig {
         http
                 .securityMatcher("/actuator/**")
                 .csrf(c -> c.disable())
-                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // HTTP security headers - mirror main SecurityConfig.
-                // Чтобы /actuator/health (доступный LB через HTTPS)
-                // отдавал HSTS / CSP / Referrer / Permissions policy
-                // консистентно с остальным трафиком. Иначе разные chain
-                // дают разный набор header'ов, что путает penetration
-                // scanner'ы и нарушает существующие SecurityHeadersIT
-                .headers(headers -> {
-                    headers.referrerPolicy(rp -> rp.policy(
-                            ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN));
-                    headers.permissionsPolicyHeader(pp -> pp.policy(
-                            "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"));
-                    if (prodProfile) {
-                        headers.httpStrictTransportSecurity(hsts -> hsts
-                                .includeSubDomains(true)
-                                .preload(false)
-                                .maxAgeInSeconds(31_536_000L));
-                        headers.contentSecurityPolicy(csp -> csp.policyDirectives(
-                                "default-src 'self'; "
-                                        + "script-src 'self'; "
-                                        + "style-src 'self' 'unsafe-inline'; "
-                                        + "img-src 'self' data: blob:; "
-                                        + "font-src 'self' data:; "
-                                        + "connect-src 'self'; "
-                                        + "frame-ancestors 'none'; "
-                                        + "base-uri 'self'; "
-                                        + "form-action 'self'"));
-                    }
-                });
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+
+        // HTTP security headers - shared helper с main SecurityConfig.
+        // Чтобы /actuator/health (доступный LB через HTTPS) отдавал
+        // HSTS / CSP / Referrer / Permissions policy консистентно с
+        // остальным трафиком. Иначе разные chain'ы дают разный набор
+        // header'ов, путают penetration scanner'ы и нарушают существующие
+        // SecurityHeadersIT
+        SecurityHeadersCustomizer.apply(http, prodProfile);
 
         if (prodProfile) {
             // Prod fail-fast - credentials обязательны через env
