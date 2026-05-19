@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
 import BookListPage from './BookListPage';
+import { useAuthStore } from '@/shared/stores/authStore';
 
 const BASE = 'http://test.local';
 
@@ -24,6 +25,7 @@ interface PagedBookFixture {
     bookType?: 'BOOK' | 'HADITH_COLLECTION' | 'QURAN' | 'ARTICLE' | 'MANUSCRIPT';
     visibility?: 'PRIVATE' | 'SHARED' | 'PUBLIC';
     language?: string;
+    createdBy?: string;
   }>;
   page?: number;
   size?: number;
@@ -148,7 +150,70 @@ describe('BookListPage / Library overview', () => {
     });
   });
 
-  it('visibility filter chips переключают видимые книги (client-side)', async () => {
+  it('«Мои» фильтр - strict createdBy === currentUser.id (не visibility approximation)', async () => {
+    // backlog tech debt round 4 #8: «Мои» теперь точно owner-equality,
+    // даже если книга PUBLIC/SHARED, она моя если createdBy совпал
+    const myUserId = 'user-me';
+    const otherUserId = 'user-other';
+    useAuthStore.setState({
+      user: { id: myUserId, username: 'me', email: 'me@e.com', role: 'USER' },
+      initialized: true,
+    });
+
+    server.use(
+      http.get(`${BASE}/api/v1/library/books`, () =>
+        HttpResponse.json(
+          paged(
+            [
+              {
+                id: 'b1',
+                title: 'My Public Book',
+                bookType: 'BOOK',
+                visibility: 'PUBLIC',
+                createdBy: myUserId,
+              },
+              {
+                id: 'b2',
+                title: 'My Private Notes',
+                bookType: 'BOOK',
+                visibility: 'PRIVATE',
+                createdBy: myUserId,
+              },
+              {
+                id: 'b3',
+                title: 'Other User Public',
+                bookType: 'BOOK',
+                visibility: 'PUBLIC',
+                createdBy: otherUserId,
+              },
+            ],
+            { totalElements: 3 },
+          ),
+        ),
+      ),
+    );
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByText('My Public Book')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Other User Public')).toBeInTheDocument();
+
+    const user = userEvent.setup();
+    // переключиться на «Мои» - createdBy === myUserId, две моих остаются
+    await user.click(screen.getByRole('button', { name: 'Мои' }));
+    expect(screen.getByText('My Public Book')).toBeInTheDocument();
+    expect(screen.getByText('My Private Notes')).toBeInTheDocument();
+    // чужая PUBLIC скрыта (visibility не учитывается)
+    expect(screen.queryByText('Other User Public')).not.toBeInTheDocument();
+
+    // обратно на «Все»
+    await user.click(screen.getByRole('button', { name: 'Все' }));
+    expect(screen.getByText('My Public Book')).toBeInTheDocument();
+    expect(screen.getByText('Other User Public')).toBeInTheDocument();
+  });
+
+  it('«Мои» фильтр anonymous (user=null) - пустой список', async () => {
+    useAuthStore.setState({ user: null, initialized: true });
     server.use(
       http.get(`${BASE}/api/v1/library/books`, () =>
         HttpResponse.json(
@@ -159,15 +224,10 @@ describe('BookListPage / Library overview', () => {
                 title: 'Public Book',
                 bookType: 'BOOK',
                 visibility: 'PUBLIC',
-              },
-              {
-                id: 'b2',
-                title: 'Private Book',
-                bookType: 'BOOK',
-                visibility: 'PRIVATE',
+                createdBy: 'some-owner',
               },
             ],
-            { totalElements: 2 },
+            { totalElements: 1 },
           ),
         ),
       ),
@@ -176,18 +236,11 @@ describe('BookListPage / Library overview', () => {
     await waitForApi(() => {
       expect(screen.getByText('Public Book')).toBeInTheDocument();
     });
-    expect(screen.getByText('Private Book')).toBeInTheDocument();
 
     const user = userEvent.setup();
-    // переключиться на «Мои» (PRIVATE)
     await user.click(screen.getByRole('button', { name: 'Мои' }));
+    // нет owner identity - список пустой, рендерится «не найдено»
     expect(screen.queryByText('Public Book')).not.toBeInTheDocument();
-    expect(screen.getByText('Private Book')).toBeInTheDocument();
-
-    // обратно на «Все»
-    await user.click(screen.getByRole('button', { name: 'Все' }));
-    expect(screen.getByText('Public Book')).toBeInTheDocument();
-    expect(screen.getByText('Private Book')).toBeInTheDocument();
   });
 
   it('показывает кнопку Load More и аппендит результаты при клике', async () => {

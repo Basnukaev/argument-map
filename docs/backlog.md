@@ -418,7 +418,7 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       tech-debt, пока решение «зафиксировать в backlog и не делать
       сейчас» - явное (no scope creep в текущем этапе)
 
-- [ ] **BookSummaryResponse.createdBy для accurate «Мои» filter в
+- [x] **BookSummaryResponse.createdBy для accurate «Мои» filter в
       Library overview** - сейчас фильтрация книг текущего user'а в
       Library overview через approximation `visibility === 'PRIVATE'`
       (works in practice т.к. RBAC: privata = owner-only). Hrupkij:
@@ -426,7 +426,12 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       книгой как SHARED - approximation сломается. Fix: добавить
       `createdBy: UUID` в `BookSummaryResponse` (full sync с
       `BookResponse`) + frontend фильтрует строго `book.createdBy ===
-      currentUser.id`. Reviewer round 4 #8
+      currentUser.id`. Reviewer round 4 #8. Закрыто 2026-05-19:
+      `BookSummaryResponse.createdBy` (mapper заполняет из
+      `Book.createdBy`), `BookControllerIT.getBooks_returnsCreatedBy`,
+      `BookListPage` фильтр «Мои» теперь strict
+      `book.createdBy === currentUser.id` (если currentUser=null -
+      пустой список)
 
 - [x] **PATCH /api/v1/topics/{id} для title/description editing** -
       сейчас readonly в `TopicSettingsDrawer`. Нет REST endpoint для

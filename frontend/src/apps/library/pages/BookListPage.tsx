@@ -18,6 +18,7 @@ import VisibilityBadge from '@/shared/components/visibility/VisibilityBadge';
 import { apiGetRaw, ApiError, formatApiError } from '@/shared/api/client';
 import { formatPermissionError } from '@/shared/api/permissionErrors';
 import { toast } from '@/shared/stores/toastStore';
+import { useAuthStore } from '@/shared/stores/authStore';
 import { useT, type DictKey } from '@/shared/i18n';
 import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
@@ -74,15 +75,15 @@ function coverColorFor(id: string): string {
   return palette[Math.abs(hash) % palette.length]!;
 }
 
-/** Visibility-фильтр chips - PRIVATE/SHARED/PUBLIC применяется client-side
- * поверх загруженной страницы (backend не поддерживает ?visibility=).
- * «Мои» книги через `BookSummary.createdBy` сделать не могу - backend не
- * отдаёт это поле в summary; PRIVATE приближённо соответствует «моим»
- * для типичного юзера */
-type VisibilityFilter = 'ALL' | 'PRIVATE' | 'SHARED' | 'PUBLIC';
-const VISIBILITY_FILTERS: ReadonlyArray<VisibilityFilter> = [
+/** Filter chips - применяется client-side поверх загруженной страницы
+ * (backend не поддерживает ?visibility=). «Мои» - strict проверка
+ * `book.createdBy === currentUser.id` (точное owner-equality, не
+ * approximation visibility=PRIVATE: backlog tech debt round 4 #8).
+ * Остальные SHARED/PUBLIC - по `book.visibility` */
+type LibraryFilter = 'ALL' | 'MINE' | 'SHARED' | 'PUBLIC';
+const LIBRARY_FILTERS: ReadonlyArray<LibraryFilter> = [
   'ALL',
-  'PRIVATE',
+  'MINE',
   'SHARED',
   'PUBLIC',
 ];
@@ -97,7 +98,10 @@ function BookListPage() {
   const [state, setState] = useState<AsyncState<BooksAccum>>({ kind: 'loading' });
   const [searchInput, setSearchInput] = useState('');
   const [searchQ, setSearchQ] = useState('');
-  const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilter>('ALL');
+  const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>('ALL');
+  // Хранится currentUserId для strict MINE-фильтра. null = anonymous (или
+  // bootstrap ещё идёт) - MINE вернёт empty (см. displayedBooks)
+  const currentUserId = useAuthStore((s) => s.user?.id ?? null);
   const [typeFilter, setTypeFilter] = useState<BookType | 'ALL'>('ALL');
   const [authorityFilter, setAuthorityFilter] = useState<AuthorityResponse | null>(null);
   const [sortBy, setSortBy] = useState<SortKey>('latest');
@@ -206,25 +210,30 @@ function BookListPage() {
     }
   };
 
-  /** Client-side filter: visibility + sort поверх загруженной страницы.
-   * Search/type/authorityId уже применены server-side через ?q=&type=&
-   * authorityId= */
+  /** Client-side filter: visibility/owner + sort поверх загруженной
+   * страницы. Search/type/authorityId уже применены server-side через
+   * ?q=&type=&authorityId= */
   const displayedBooks = useMemo(() => {
     if (state.kind !== 'success') return [];
     let list = state.data.books;
-    if (visibilityFilter !== 'ALL') {
-      list = list.filter((b) => b.visibility === visibilityFilter);
+    if (libraryFilter === 'MINE') {
+      // Anonymous (currentUserId=null) - пустой список (нет owner identity)
+      list = currentUserId
+        ? list.filter((b) => b.createdBy === currentUserId)
+        : [];
+    } else if (libraryFilter === 'SHARED' || libraryFilter === 'PUBLIC') {
+      list = list.filter((b) => b.visibility === libraryFilter);
     }
     if (sortBy === 'alphabetical') {
       list = [...list].sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''));
     }
     // 'latest' - backend default order (createdAt DESC, стабильный)
     return list;
-  }, [state, visibilityFilter, sortBy]);
+  }, [state, libraryFilter, sortBy, currentUserId]);
 
-  /** Local filter активен (visibility) - скрываем Load More: новые items
-   * приходят но скрыты client-side фильтром, юзер не поймёт */
-  const localFilterActive = visibilityFilter !== 'ALL';
+  /** Local filter активен - скрываем Load More: новые items приходят но
+   * скрыты client-side фильтром, юзер не поймёт */
+  const localFilterActive = libraryFilter !== 'ALL';
 
   return (
     <main className="min-h-screen bg-bg">
@@ -287,24 +296,25 @@ function BookListPage() {
             </label>
           </div>
 
-          {/* Visibility chips - PRIVATE/SHARED/PUBLIC. Mobile: overflow-x
-              scroll для wrap'а с другими row'ами */}
+          {/* Library filter chips - ALL/MINE/SHARED/PUBLIC. MINE - strict
+              owner check (createdBy === currentUser.id), остальные - по
+              book.visibility. Mobile: overflow-x scroll для wrap'а */}
           <div className="-mx-3 flex overflow-x-auto px-3 sm:mx-0 sm:overflow-visible sm:px-0">
             <div className="flex items-center gap-1 rounded-sm border border-ink-200 bg-elevated p-1 shrink-0">
-              {VISIBILITY_FILTERS.map((value) => (
+              {LIBRARY_FILTERS.map((value) => (
                 <button
                   key={value}
                   type="button"
-                  onClick={() => setVisibilityFilter(value)}
+                  onClick={() => setLibraryFilter(value)}
                   className={
-                    visibilityFilter === value
+                    libraryFilter === value
                       ? 'rounded-sm bg-accent-600 px-2.5 py-1 text-xs font-medium text-ink-0 whitespace-nowrap'
                       : 'rounded-sm px-2.5 py-1 text-xs text-ink-600 hover:bg-ink-100 hover:text-ink-900 transition-colors whitespace-nowrap'
                   }
                 >
                   {value === 'ALL'
                     ? t('library.overview.filter.all')
-                    : value === 'PRIVATE'
+                    : value === 'MINE'
                       ? t('library.overview.filter.my')
                       : value === 'SHARED'
                         ? t('library.overview.filter.shared')

@@ -1921,6 +1921,7 @@ export interface components {
             era?: string;
             madhab?: string;
             metadata?: components["schemas"]["JsonNode"];
+            type?: string;
         };
         AuthorityResponse: {
             /** Format: uuid */
@@ -1935,6 +1936,7 @@ export interface components {
             fullName?: string;
             /** Format: int32 */
             deathYearHijri?: number;
+            type?: string;
         };
         RegisterRequest: {
             email: string;
@@ -2216,6 +2218,8 @@ export interface components {
             /** Format: uuid */
             authorityId?: string;
             language?: string;
+            /** Format: uuid */
+            createdBy?: string;
             /** Format: date-time */
             createdAt?: string;
             visibility?: string;
