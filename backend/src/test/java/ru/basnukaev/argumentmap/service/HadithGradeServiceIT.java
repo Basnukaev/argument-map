@@ -300,4 +300,29 @@ class HadithGradeServiceIT {
         )).isInstanceOf(InvalidScholarAuthorityException.class)
                 .hasMessageContaining("MUHAQQIQ");
     }
+
+    @Test
+    void updateGrade_scholarTypeChangedToPublisher_throws400() {
+        // Edge case (сессия 47): scholar был SCHOLAR при addGrade, потом
+        // ADMIN изменил его type на PUBLISHER (через прямой SQL либо future
+        // updateAuthority endpoint). Stale grade row остался с scholarId
+        // указывающим на не-учёного. updateGrade должен re-validate scholar
+        // type и блокировать дальнейшие изменения - семантическая ошибка
+        // в системе должна быть видна, а не молча проходить
+        HadithGrade created = hadithGradeService.addGrade(
+                hadithSourceId, scholarId, HadithGradeValue.SAHIH,
+                null, null, ownerId
+        );
+        // Имитируем post-creation change через прямой SQL (минуя service)
+        jdbcTemplate.update(
+                "UPDATE authorities SET type = ? WHERE id = ?",
+                AuthorityType.PUBLISHER, scholarId
+        );
+
+        assertThatThrownBy(() -> hadithGradeService.updateGrade(
+                created.id(), HadithGradeValue.DAIF, null, null,
+                ownerId, UserRole.USER
+        )).isInstanceOf(InvalidScholarAuthorityException.class)
+                .hasMessageContaining("PUBLISHER");
+    }
 }

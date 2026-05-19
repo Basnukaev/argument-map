@@ -119,6 +119,20 @@ public class HadithGradeService {
         if (newGrade == null) {
             throw new InvalidHadithGradeException("Поле grade обязательно при update");
         }
+        // Re-validate scholar type на каждый update. Сценарий: при addGrade
+        // scholar был SCHOLAR, потом ADMIN изменил его type (через прямой SQL
+        // либо future AuthorityService.updateAuthority) на PUBLISHER/MUHAQQIQ.
+        // Stale grade row остался валидным с точки зрения CHECK constraint
+        // (scholarId FK не проверяет type), но семантически broken - оценка
+        // хадиса от не-учёного. Здесь "lazy fix" - при первом update'е
+        // блокируем дальнейшие изменения, требуя fix scholar.type через
+        // ADMIN либо ручное удаление grade
+        Authority scholar = authorityRepository.findById(existing.scholarId())
+                .orElseThrow(() -> new AuthorityNotFoundException(existing.scholarId()));
+        if (!AuthorityType.SCHOLAR.equals(scholar.type())) {
+            throw new InvalidScholarAuthorityException(existing.scholarId(), scholar.type());
+        }
+
         boolean updated = hadithGradeRepository.update(gradeId, newGrade, gradeCitation, comment);
         if (!updated) {
             // только что был existing - значит row пропал между select и update
