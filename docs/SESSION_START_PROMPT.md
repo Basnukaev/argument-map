@@ -229,10 +229,12 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 - ✅ B Hooks setup — 4 hooks (SessionStart/Stop/PreToolUse/PostToolUse) + bypass + README
 - ✅ E Quarterly review process — `doc-hygiene.md` Принцип 12 formalized
 - 🟡 D LSP setup — TypeScript LSP installed (typescript-language-server v5.2.0), Java jdtls **pending** (Eclipse mirrors blocked, см. `.claude/lsp-setup.md` for resume steps)
-- 🟡 C Skills (project-specific) — **partial** (Сессия 48): spec + plan committed,
-  первый skill `liquibase-migration` создан (`.claude/skills/liquibase-migration/SKILL.md`).
-  Остальные 3 skills в backlog: new-rest-endpoint, library-page-rendering, shamela-parser-debug
-- ⏳ F Project subagents — deferred (subsumed by C)
+- ✅ C Skills (project-specific) — **FULLY CLOSED** (Сессия 48): 4 skills (2019 строк markdown total) в `.claude/skills/`:
+  - `liquibase-migration/SKILL.md` (306 строк) — migration ID format, CDATA, rollback, master registration
+  - `new-rest-endpoint/SKILL.md` (695 строк) — full scaffold chain DTO+Controller+Service+IT+api-contract+regenerate-api
+  - `library-page-rendering/SKILL.md` (429 строк) — PDF/OCR/AI-edit/Image modes, state machines, debug workflows
+  - `shamela-parser-debug/SKILL.md` (589 строк) — 6-step ETL pipeline, troubleshooting decision tree, re-run safety
+- ⏳ F Project subagents — deferred (subsumed by C — skills cover similar use cases)
 - ⏳ G MCP servers — deferred (article «не делать пока basics не работают»)
 
 **Остаются low-priority backlog:**
@@ -249,6 +251,36 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
   в один общий гайд (для tight frontend target ≤ 250)
 - Aggressive depth cleanup: вынос cross-cutting backend/CLAUDE.md секций
   (Pagination, Permissions, Audit log) если depth решим расширить
+
+### Что делать в Сессии 49 (next session entry point)
+
+**Harness setup COMPLETE.** Все 4 in-scope harness sub-projects (A, B, C, E)
+fully closed. D partial (TypeScript LSP works; Java jdtls pending mirrors).
+
+**Возможные направления для Сессии 49+:**
+
+1. **Восстановить feature cadence** (если Абдула снимет «новых фичей не добавляем»
+   restriction) — Этап 18.e ImagePageRenderer / Этап 25.d.x PDF Viewer
+   полировка / 25.e admin page-mapping / Source picker Коран+Хадисы
+2. **Continue low-priority backlog:** Java jdtls install retry (network),
+   bulk audit consolidation если admin audit UI назрел, cursor pagination
+   если объёмы данных потребуют
+3. **Verify hooks working:** при старте Сессии 49 — manual smoke tests
+   из `.claude/hooks/README.md`. **Главное:** verify `$CLAUDE_PROJECT_DIR`
+   expansion работает (см. code review follow-up в `.claude/hooks/README.md`
+   секция «Smoke test priority»)
+4. **Verify skills working:** при старте Сессии 49 — попроси Claude'а
+   сделать что-то triggering каждый skill (новую миграцию для
+   liquibase-migration, новый endpoint для new-rest-endpoint и т.д.).
+   Verify skill activates + следует pattern
+
+**Hooks effects ожидаемые в Сессии 49:**
+- SessionStart hook автоматически прочитает свежий progress.md (2 last
+  entries), roadmap, текущий приоритет — save Claude'у 2-3 Read calls
+- Stop hook ожидает commits в session — но при чисто read-only сессии
+  будет silent
+- PreToolUse(Bash) block --no-verify, warn ./mvnw verify без args
+- PostToolUse(Edit|Write) reminders для DTO/Controller/migration/ADR/yml
 
 После tech debt - можно браться за фичи:
 - Этап 18.e ImagePageRenderer (mode для image-сканов, после Этапа 17)
