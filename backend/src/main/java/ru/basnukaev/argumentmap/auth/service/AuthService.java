@@ -165,18 +165,15 @@ public class AuthService {
 
     /**
      * Выпуск пары access+refresh + персист записи refresh в БД (только
-     * hash, raw value возвращается caller'у для cookie).
+     * hash, raw value возвращается caller'у для cookie). Expiry приходят
+     * уже truncated к MICROS из {@link JwtService} (PG TIMESTAMPTZ
+     * precision контракт).
      */
     private AuthTokens issueTokenPair(User user) {
         String access = jwtService.generateAccessToken(user);
         String refresh = jwtService.generateRefreshToken(user);
-        // Truncate в MICROS до persist - PG TIMESTAMPTZ хранит микросекунды
-        // и может округлять nanos в любую сторону (JDBC driver-зависимо).
-        // Без truncation read-after-write вернёт значение отличное от того
-        // что было передано клиенту в AuthTokens - ломает roundtrip
-        // expectations в тестах и API.
-        Instant accessExpiry = jwtService.accessTokenExpiry().truncatedTo(ChronoUnit.MICROS);
-        Instant refreshExpiry = jwtService.refreshTokenExpiry().truncatedTo(ChronoUnit.MICROS);
+        Instant accessExpiry = jwtService.accessTokenExpiry();
+        Instant refreshExpiry = jwtService.refreshTokenExpiry();
 
         RefreshToken record = new RefreshToken(
                 UUID.randomUUID(),

@@ -284,9 +284,17 @@ return new AuthTokens(..., truncated);
 с `Instant.now()` и `jwtService.refreshTokenExpiry()` (оба nano-precision)
 - read-after-write через `RefreshTokenRepository.findByHash` возвращал
 другое значение, ломая `assertThat(record.expiresAt()).isEqualTo(tokens.refreshTokenExpiresAt())`.
-Fix - truncate в обеих местах в `issueTokenPair`. **НЕ** truncate на
-стороне теста (через `truncatedTo(MICROS)` в assertion) - это hides
-bug. Правильное место - там где Instant создаётся для persist
+
+Fix - truncate в **источнике** Instant'а, не в caller'е. Для refresh/access
+expiry это `JwtService.accessTokenExpiry()` / `refreshTokenExpiry()` -
+методы возвращают уже MICROS-precision Instant. Так контракт «выдан
+для persist'а» зафиксирован в одном месте: любой другой caller
+`JwtService` (не только `AuthService`) автоматически получает корректную
+precision. `Instant.now()` в `issueTokenPair` (для `issued_at`) тоже
+truncated там же.
+
+**НЕ** truncate на стороне теста (через `truncatedTo(MICROS)` в assertion) -
+это hides bug. Правильное место - там где Instant создаётся для persist
 
 Не fixать через `isCloseTo(within(1, MICROS))` - это масло на лицо
 вместо понимания root cause. API клиент должен получать **тот же

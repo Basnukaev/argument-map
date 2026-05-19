@@ -104,12 +104,24 @@ public class JwtService {
         return buildToken(user, TYPE_REFRESH, now, expiresAt);
     }
 
+    /**
+     * Expiry для access-токена. Truncate к MICROS - PG TIMESTAMPTZ хранит
+     * микросекунды, без truncation read-after-write возвращает значение
+     * отличное от persisted (см. gotchas.md «PG TIMESTAMPTZ округляет
+     * Java Instant nanos»). Контракт JwtService - возвращать MICROS-precision
+     * Instant для persist'а, чтобы любой caller (в т.ч. вне AuthService)
+     * не re-introduce'ил nanos drift
+     */
     public Instant accessTokenExpiry() {
-        return Instant.now().plus(accessTtlMinutes, ChronoUnit.MINUTES);
+        return Instant.now().plus(accessTtlMinutes, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.MICROS);
     }
 
+    /**
+     * Expiry для refresh-токена. См. {@link #accessTokenExpiry} - тот же
+     * MICROS-precision контракт
+     */
     public Instant refreshTokenExpiry() {
-        return Instant.now().plus(refreshTtlDays, ChronoUnit.DAYS);
+        return Instant.now().plus(refreshTtlDays, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MICROS);
     }
 
     public long refreshTokenTtlSeconds() {
