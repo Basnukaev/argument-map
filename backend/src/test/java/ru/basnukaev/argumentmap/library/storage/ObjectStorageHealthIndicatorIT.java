@@ -11,14 +11,16 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.MinIOContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
+import ru.basnukaev.argumentmap.SharedMinioContainer;
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.Delete;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectVersionsResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
+import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 
 /**
  * Integration test для {@link ObjectStorageHealthIndicator} через
@@ -29,22 +31,13 @@ import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
  *   <li>Несуществующий bucket → DOWN с statusCode 404</li>
  * </ul>
  */
-@Testcontainers
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
 class ObjectStorageHealthIndicatorIT {
 
-    @Container
-    static final MinIOContainer MINIO =
-            new MinIOContainer("minio/minio:RELEASE.2025-07-23T15-54-02Z-cpuv1")
-                    .withUserName("minioadmin")
-                    .withPassword("minioadmin");
-
     @DynamicPropertySource
     static void minioProperties(DynamicPropertyRegistry r) {
-        r.add("storage.endpoint", MINIO::getS3URL);
-        r.add("storage.access-key", () -> "minioadmin");
-        r.add("storage.secret-key", () -> "minioadmin");
+        SharedMinioContainer.applyProperties(r);
     }
 
     @Autowired private ObjectStorageHealthIndicator healthIndicator;
@@ -80,8 +73,13 @@ class ObjectStorageHealthIndicatorIT {
 
     @Test
     void health_returns_DOWN_when_bucket_missing() throws Exception {
-        // Временно удаляем bucket и проверяем что health становится DOWN
-        s3Client.deleteBucket(b -> b.bucket(properties.buckets().importedBooks()));
+        // Временно удаляем bucket и проверяем что health становится DOWN.
+        // С SharedMinioContainer (shared между классами) bucket мог
+        // содержать objects+versions от других тестов - явно чистим
+        // перед delete, иначе S3 вернёт 409 BucketNotEmpty
+        String bucket = properties.buckets().importedBooks();
+        emptyBucket(bucket);
+        s3Client.deleteBucket(b -> b.bucket(bucket));
         try {
             Health health = healthIndicator.health();
 
@@ -90,10 +88,30 @@ class ObjectStorageHealthIndicatorIT {
             assertThat(health.getDetails().get("statusCode")).isEqualTo(404);
         } finally {
             // Восстанавливаем bucket чтобы другие тесты в той же sequence
-            // не сломались - testcontainer shared между классами через
-            // static + Spring context cache
+            // не сломались - SharedMinioContainer shared между классами
             s3Client.createBucket(CreateBucketRequest.builder()
-                    .bucket(properties.buckets().importedBooks())
+                    .bucket(bucket)
+                    .build());
+        }
+    }
+
+    /**
+     * Удаляет все objects и version markers из bucket'а - prerequisite для
+     * delete bucket'а с включённым versioning. С shared MinIO container
+     * bucket может содержать legacy state от других IT.
+     */
+    private void emptyBucket(String bucket) {
+        ListObjectVersionsResponse versions = s3Client.listObjectVersions(
+                b -> b.bucket(bucket));
+        var toDelete = new java.util.ArrayList<ObjectIdentifier>();
+        versions.versions().forEach(v -> toDelete.add(
+                ObjectIdentifier.builder().key(v.key()).versionId(v.versionId()).build()));
+        versions.deleteMarkers().forEach(m -> toDelete.add(
+                ObjectIdentifier.builder().key(m.key()).versionId(m.versionId()).build()));
+        if (!toDelete.isEmpty()) {
+            s3Client.deleteObjects(DeleteObjectsRequest.builder()
+                    .bucket(bucket)
+                    .delete(Delete.builder().objects(toDelete).build())
                     .build());
         }
     }

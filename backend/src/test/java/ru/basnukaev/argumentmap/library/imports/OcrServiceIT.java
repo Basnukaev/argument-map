@@ -25,10 +25,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.MinIOContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
+import ru.basnukaev.argumentmap.SharedMinioContainer;
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookVisibility;
@@ -74,23 +72,14 @@ import software.amazon.awssdk.services.s3.model.VersioningConfiguration;
  */
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
-@Testcontainers
 @EnabledIf(value = "isTesseractAvailable", disabledReason =
         "tesseract binary или eng.traineddata не найдены - тест пропущен. "
                 + "Установить: sudo apt install tesseract-ocr tesseract-ocr-eng")
 class OcrServiceIT {
 
-    @Container
-    static final MinIOContainer MINIO =
-            new MinIOContainer("minio/minio:RELEASE.2025-07-23T15-54-02Z-cpuv1")
-                    .withUserName("minioadmin")
-                    .withPassword("minioadmin");
-
     @DynamicPropertySource
     static void minioProperties(DynamicPropertyRegistry r) {
-        r.add("storage.endpoint", MINIO::getS3URL);
-        r.add("storage.access-key", () -> "minioadmin");
-        r.add("storage.secret-key", () -> "minioadmin");
+        SharedMinioContainer.applyProperties(r);
         // Force eng-only для теста - надёжнее ara/rus в headless контейнере
         r.add("ocr.tessdata.path",
                 () -> findTessdataPath() != null ? findTessdataPath() : "/usr/share/tesseract-ocr/4.00/tessdata");

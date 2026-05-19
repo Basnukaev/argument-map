@@ -16,10 +16,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
-import org.testcontainers.containers.MinIOContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
+import ru.basnukaev.argumentmap.SharedMinioContainer;
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookVisibility;
@@ -53,7 +51,6 @@ import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
  *   <li>Mixed: 1 ok + 1 corrupted + 1 missing → правильные counters</li>
  * </ul>
  */
-@Testcontainers
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
 @TestPropertySource(properties = {
@@ -65,17 +62,9 @@ import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
 })
 class IntegrityVerificationJobIT {
 
-    @Container
-    static final MinIOContainer MINIO =
-            new MinIOContainer("minio/minio:RELEASE.2025-07-23T15-54-02Z-cpuv1")
-                    .withUserName("minioadmin")
-                    .withPassword("minioadmin");
-
     @DynamicPropertySource
     static void minioProperties(DynamicPropertyRegistry r) {
-        r.add("storage.endpoint", MINIO::getS3URL);
-        r.add("storage.access-key", () -> "minioadmin");
-        r.add("storage.secret-key", () -> "minioadmin");
+        SharedMinioContainer.applyProperties(r);
     }
 
     @Autowired private IntegrityVerificationJob job;

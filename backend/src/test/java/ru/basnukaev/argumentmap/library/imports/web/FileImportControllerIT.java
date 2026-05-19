@@ -31,10 +31,8 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.containers.MinIOContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
+import ru.basnukaev.argumentmap.SharedMinioContainer;
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.library.storage.ObjectStorageProperties;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -58,20 +56,11 @@ import software.amazon.awssdk.services.s3.model.VersioningConfiguration;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
-@Testcontainers
 class FileImportControllerIT {
-
-    @Container
-    static final MinIOContainer MINIO =
-            new MinIOContainer("minio/minio:RELEASE.2025-07-23T15-54-02Z-cpuv1")
-                    .withUserName("minioadmin")
-                    .withPassword("minioadmin");
 
     @DynamicPropertySource
     static void minioProperties(DynamicPropertyRegistry r) {
-        r.add("storage.endpoint", MINIO::getS3URL);
-        r.add("storage.access-key", () -> "minioadmin");
-        r.add("storage.secret-key", () -> "minioadmin");
+        SharedMinioContainer.applyProperties(r);
     }
 
     @Autowired
