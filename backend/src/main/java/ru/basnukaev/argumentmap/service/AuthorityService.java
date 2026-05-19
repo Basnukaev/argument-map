@@ -43,9 +43,7 @@ public class AuthorityService {
                                      String madhab, String metadataJson,
                                      String type) {
         String resolvedType = type == null ? AuthorityType.SCHOLAR : type;
-        if (!AuthorityType.isValid(resolvedType)) {
-            throw new InvalidAuthorityTypeException(resolvedType);
-        }
+        validateType(resolvedType);
         Authority authority = new Authority(
                 UUID.randomUUID(), name, bio, era, madhab,
                 metadataJson, Instant.now(),
@@ -80,11 +78,43 @@ public class AuthorityService {
         return authorityRepository.countFiltered(query, era);
     }
 
+    /**
+     * Partial update authority. Поля с null остаются без изменений
+     * (COALESCE в SQL). {@code type} не-null проверяется по whitelist;
+     * невалидный → {@link InvalidAuthorityTypeException} → 400.
+     * Не найден по id → {@link AuthorityNotFoundException} → 404.
+     *
+     * @return обновлённый Authority (перечитанный из БД)
+     */
+    @Transactional
+    public Authority updateAuthority(UUID id, String name, String bio, String era,
+                                     String madhab, String type, String metadataJson) {
+        if (type != null) {
+            validateType(type);
+        }
+        int affected = authorityRepository.update(id, name, bio, era, madhab, type, metadataJson);
+        if (affected == 0) {
+            throw new AuthorityNotFoundException(id);
+        }
+        return authorityRepository.findById(id)
+                .orElseThrow(() -> new AuthorityNotFoundException(id));
+    }
+
     @Transactional
     public void deleteAuthority(UUID id) {
         boolean removed = authorityRepository.deleteById(id);
         if (!removed) {
             throw new AuthorityNotFoundException(id);
+        }
+    }
+
+    /**
+     * Валидация type по whitelist {@link AuthorityType}. Вынесена, чтобы
+     * createAuthority и updateAuthority не дублировали логику.
+     */
+    private void validateType(String type) {
+        if (!AuthorityType.isValid(type)) {
+            throw new InvalidAuthorityTypeException(type);
         }
     }
 }

@@ -14,7 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.domain.Authority;
+import ru.basnukaev.argumentmap.domain.AuthorityType;
 import ru.basnukaev.argumentmap.exception.AuthorityNotFoundException;
+import ru.basnukaev.argumentmap.exception.InvalidAuthorityTypeException;
 
 /**
  * IT для {@link AuthorityService} - покрывает create/get/list/search/delete +
@@ -111,5 +113,80 @@ class AuthorityServiceIT {
         assertThat(page).hasSize(1);
         assertThat(total).isEqualTo(1L);
         assertThat(page.get(0).name()).isEqualTo("Алим-первый");
+    }
+
+    // ─── updateAuthority ──────────────────────────────────────────────────────
+
+    @Test
+    void updateAuthority_allFields_updates() {
+        Authority created = authorityService.createAuthority(
+                "Имя-ДО", "Био-ДО", "Эпоха-ДО", "Мазхаб-ДО",
+                "{\"k\":\"v\"}", AuthorityType.SCHOLAR
+        );
+
+        Authority updated = authorityService.updateAuthority(
+                created.id(),
+                "Имя-ПОСЛЕ", "Био-ПОСЛЕ", "Эпоха-ПОСЛЕ", "Мазхаб-ПОСЛЕ",
+                AuthorityType.MUHAQQIQ, "{\"k\":\"new\"}"
+        );
+
+        assertThat(updated.name()).isEqualTo("Имя-ПОСЛЕ");
+        assertThat(updated.bio()).isEqualTo("Био-ПОСЛЕ");
+        assertThat(updated.era()).isEqualTo("Эпоха-ПОСЛЕ");
+        assertThat(updated.madhab()).isEqualTo("Мазхаб-ПОСЛЕ");
+        assertThat(updated.type()).isEqualTo(AuthorityType.MUHAQQIQ);
+        // Простая проверка что metadata persisted (не строгий JSON parse)
+        assertThat(updated.metadata()).contains("new");
+    }
+
+    @Test
+    void updateAuthority_partialName_keepsOtherFields() {
+        Authority created = authorityService.createAuthority(
+                "Имя-ДО", "Bio-stable", "Эпоха-stable", "ханбалитский",
+                null, AuthorityType.SCHOLAR
+        );
+
+        // Обновляем только name; все остальные поля null → COALESCE оставит
+        Authority updated = authorityService.updateAuthority(
+                created.id(), "Имя-НОВОЕ", null, null, null, null, null
+        );
+
+        assertThat(updated.name()).isEqualTo("Имя-НОВОЕ");
+        assertThat(updated.bio()).isEqualTo("Bio-stable");
+        assertThat(updated.era()).isEqualTo("Эпоха-stable");
+        assertThat(updated.madhab()).isEqualTo("ханбалитский");
+        assertThat(updated.type()).isEqualTo(AuthorityType.SCHOLAR);
+    }
+
+    @Test
+    void updateAuthority_invalidType_throwsInvalidAuthorityTypeException() {
+        Authority created = authorityService.createAuthority(
+                "Имам Малик", null, null, null, null
+        );
+
+        assertThatThrownBy(() -> authorityService.updateAuthority(
+                created.id(), null, null, null, null, "INVALID", null
+        )).isInstanceOf(InvalidAuthorityTypeException.class);
+    }
+
+    @Test
+    void updateAuthority_validTypeChange_persists() {
+        Authority created = authorityService.createAuthority(
+                "Ибн Кудама", null, null, null, null, AuthorityType.SCHOLAR
+        );
+        assertThat(created.type()).isEqualTo(AuthorityType.SCHOLAR);
+
+        Authority updated = authorityService.updateAuthority(
+                created.id(), null, null, null, null, AuthorityType.MUHAQQIQ, null
+        );
+        assertThat(updated.type()).isEqualTo(AuthorityType.MUHAQQIQ);
+    }
+
+    @Test
+    void updateAuthority_notFound_throwsAuthorityNotFoundException() {
+        UUID missing = UUID.randomUUID();
+        assertThatThrownBy(() -> authorityService.updateAuthority(
+                missing, "Имя", null, null, null, null, null
+        )).isInstanceOf(AuthorityNotFoundException.class);
     }
 }
