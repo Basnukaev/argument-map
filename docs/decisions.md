@@ -5605,6 +5605,17 @@ properties (без secrets, но раскрывает топологию). Publi
 открывает attacker'у surface для profile attack без auth.
 Security backlog Crit Cross-cutting #7 от reviewer round 5.
 
+**Текущий attack surface** (на момент написания ADR) - в prod
+`management.endpoints.web.exposure.include` содержит только
+`health,info,circuitbreakers,circuitbreakerevents`. Из них basic
+auth по этому ADR покрывает только `circuitbreakers` +
+`circuitbreakerevents` - `health` / `info` остаются public. Если в
+будущем понадобится Prometheus scraping (`metrics`),
+diagnostics (`env`, `loggers`) либо threaddump - они автоматически
+получат basic auth через этот же chain (`anyRequest().hasRole("ACTUATOR")`).
+Расширение exposure - отдельное feature decision, не tech debt fix
+этого ADR.
+
 **Решение:** в prod profile actuator endpoints (кроме `/actuator/health`
 + `/actuator/health/**` + `/actuator/info`) требуют HTTP Basic auth
 через **отдельный `SecurityFilterChain`** (`@Order(1)`,
