@@ -30,9 +30,13 @@ EOF
   exit 0
 fi
 
-# Read state
-# shellcheck disable=SC1090
-source "$STATE_FILE"
+# Read state via grep/cut (safer чем source - не выполняет shell code из state file)
+read_state() {
+  grep "^${1}=" "$STATE_FILE" | head -1 | cut -d= -f2-
+}
+session_start_head=$(read_state session_start_head)
+session_start_progress_sha=$(read_state session_start_progress_sha)
+last_reminder_at=$(read_state last_reminder_at)
 
 # Conditions
 commits_present=false

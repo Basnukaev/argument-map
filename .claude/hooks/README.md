@@ -15,17 +15,35 @@ Sub-project B из Claude Code harness setup (статья Anthropic May 2026
 
 ## Bypass
 
-Set env var:
+Set env var в shell от которого стартует Claude Code:
 ```bash
 export CLAUDE_HOOKS_DISABLE=1
+claude
 ```
 
-Или для single command:
+Или один-time для current shell:
 ```bash
-CLAUDE_HOOKS_DISABLE=1 <command>
+CLAUDE_HOOKS_DISABLE=1 claude
 ```
 
 Все hooks early `exit 0` при detected bypass.
+
+**Важно — limitation для inline bash commands:**
+
+`CLAUDE_HOOKS_DISABLE=1 <command>` **внутри** Claude Code Bash tool
+**не bypass'ит** PreToolUse/PostToolUse hooks. Причина: hook process
+inherits Claude Code's environment (без inline env prefix), не
+environment команды которую Claude собирается выполнить.
+
+Корректные способы bypass'нуть PreToolUse/PostToolUse:
+1. **Restart Claude Code** с `export CLAUDE_HOOKS_DISABLE=1` в shell
+2. **Set в `.claude/settings.json`** под `env` key (persistent для всех
+   sessions):
+   ```json
+   "env": { "CLAUDE_HOOKS_DISABLE": "1" }
+   ```
+3. **SessionStart и Stop hooks** работают с inline prefix т.к. они
+   fire независимо от tool commands
 
 ## Dependencies
 
@@ -94,6 +112,18 @@ key=value pairs:
 
 Cleanup: state files auto-orphan при new session (но не удаляются
 автоматически). Опциональный cleanup: `rm /tmp/claude-hooks-session-*.state`.
+
+## Smoke test priority (новая сессия)
+
+**Перед relying на hooks в production workflow — verify в новой Claude
+Code session:**
+
+1. **`$CLAUDE_PROJECT_DIR` expansion** в settings.json hook commands —
+   Claude Code должен expand variable в actual project path. Если NOT
+   expanded → все hooks silently fail (script not found). Test:
+   запустить тривиальный edit или bash и check `/tmp/claude-hooks-*.log`
+   — если log пуст после tool use → expansion broken
+2. Затем — manual smoke tests из «Manual smoke tests» секции выше
 
 ## Edge cases / known limitations
 

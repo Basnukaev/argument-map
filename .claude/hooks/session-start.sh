@@ -8,6 +8,9 @@
 #   3. «Текущий приоритет» секция из docs/SESSION_START_PROMPT.md
 
 set -uo pipefail
+# Note: intentional БЕЗ `set -e` - SessionStart hook info-only,
+# partial output (если awk fails на одной секции) лучше чем abort.
+# Каждая секция guarded `[[ -f ... ]]`.
 
 source "$(dirname "$0")/lib/common.sh"
 check_bypass
