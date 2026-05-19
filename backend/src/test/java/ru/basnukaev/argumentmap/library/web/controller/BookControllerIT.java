@@ -187,6 +187,19 @@ class BookControllerIT {
     }
 
     @Test
+    void getBooks_returnsCreatedBy() throws Exception {
+        // backlog tech debt round 4 #8 - createdBy в summary для точного
+        // фильтра «Мои» на фронте (без approximation visibility=PRIVATE)
+        saveBook("Книга пользователя", BookType.BOOK);
+
+        mockMvc.perform(get("/api/v1/library/books")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].createdBy").value(userId.toString()));
+    }
+
+    @Test
     void listBooks_withQueryFilter_returnsMatching() throws Exception {
         saveBook("Сахих аль-Бухари", BookType.HADITH_COLLECTION);
         saveBook("Муснад Ахмада", BookType.HADITH_COLLECTION);

@@ -50,7 +50,8 @@ public final class LibraryDtoMappers {
     public static BookSummaryResponse toSummary(Book book) {
         return new BookSummaryResponse(
                 book.id(), book.bookType(), book.title(),
-                book.authorityId(), book.language(), book.createdAt(),
+                book.authorityId(), book.language(),
+                book.createdBy(), book.createdAt(),
                 book.visibility()
         );
     }

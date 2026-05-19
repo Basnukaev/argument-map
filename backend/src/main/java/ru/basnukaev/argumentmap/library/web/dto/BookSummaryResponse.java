@@ -11,6 +11,7 @@ public record BookSummaryResponse(
         String title,
         UUID authorityId,
         String language,
+        UUID createdBy,
         Instant createdAt,
         String visibility
 ) {

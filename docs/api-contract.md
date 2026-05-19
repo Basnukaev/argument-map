@@ -1524,7 +1524,7 @@ Query:
 PRIVATE + SHARED где он member. ADMIN видит все.
 
 Response 200 - `PagedResponse<BookSummary>` (без description, metadata,
-createdBy, updatedAt - они в детальном GET; включает `visibility`):
+updatedAt - они в детальном GET; включает `createdBy` и `visibility`):
 ```json
 {
   "items": [
@@ -1534,6 +1534,7 @@ createdBy, updatedAt - они в детальном GET; включает `visib
       "title": "Священный Коран",
       "authorityId": null,
       "language": "ar",
+      "createdBy": "...",
       "createdAt": "...",
       "visibility": "PUBLIC"
     }
@@ -1542,6 +1543,10 @@ createdBy, updatedAt - они в детальном GET; включает `visib
   "hasNext": true, "hasPrev": false
 }
 ```
+
+`createdBy` добавлен 2026-05-19 (backlog tech debt round 4 #8) для
+точного фильтра «Мои» на фронте - был approximation
+`visibility === 'PRIVATE'`, теперь strict `createdBy === currentUser.id`.
 
 ### GET /api/v1/library/books/{id} - книга с деревом chapters
 
