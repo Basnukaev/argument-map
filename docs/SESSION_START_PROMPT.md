@@ -209,27 +209,44 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 Тестов: backend 988→999, frontend 565→571. ADR-048 добавлен,
 миграция 47 применена.
 
-### Tech debt / Security приоритеты Сессии 47
+### Tech debt / Security приоритеты Сессии 47 — снапшот на closure
 
-Backlog оставшиеся (читать `docs/backlog.md` для полного списка).
+Сессия 47 закрыла **большой scope**: Claude Code harness Sub-projects A+B+E
+(плюс D partial) + tech debt backlog Tasks #7+#3+#1. Подробнее в
+`docs/progress.md`. Полный backlog в `docs/backlog.md`.
 
-**Resolved в Сессии 47** (cleared 2026-05-19):
-- ✅ #3 AuditEntityType single source — Sub-project A backend `@Schema` уже был добавлен в `9ca073a` (Сессия 46), backend restart + frontend regen в Сессии 47 → types.ts literal unions, AdminAuditPage uses generated type с `satisfies` compile-time check
-- ✅ #5 PdfControllerIT flaky — fixed в `af5686e` (prior session, async-dispatch pattern). Isolated run 10/10 pass
-- ✅ #7 AuthorityService.updateAuthority — done in Сессии 47 (4 commits: repository.update + UpdateAuthorityRequest DTO + service updateAuthority + PATCH endpoint + 8 IT)
-- ✅ #8 HadithGradeService.updateGrade re-validate — already implemented + tested (см. HadithGradeService.java lines 122-134 + `updateGrade_scholarTypeChangedToPublisher_throws400` IT)
+**Resolved в Сессии 47:**
+- ✅ #1 Z-index persistence для edges — done (6 commits, миграция 48,
+  EdgeServiceIT 20→25, frontend useGraphZOrder API switch)
+- ✅ #3 AuditEntityType single source — done via @Schema autosync
+- ✅ #5 PdfControllerIT flaky — fixed в `af5686e` (prior session)
+- ✅ #7 AuthorityService.updateAuthority + PATCH — done (4 commits)
+- ✅ #8 HadithGradeService.updateGrade re-validate — already implemented + tested
+- ❌ #6 Frontend UI Authority.type селект — wrong assumption (no AddAuthorityForm), removed from backlog
 
-**Сomment про #6 (wrong assumption):**
-- ❌ #6 Frontend UI Authority.type селект — AddAuthorityForm **не существует** в codebase. Authority создаются только через ETL/SQL/admin scripts, не через user UI. Реализация требовала бы создание **нового feature** (Authority management UI), что out of scope «новых фич не добавляем без явного запроса». Удалено из backlog.
+**Harness sub-projects closed:**
+- ✅ A Foundation cleanup — backend/CLAUDE.md 540→418, frontend 351→294, .claudeignore, settings.json deny rules
+- ✅ B Hooks setup — 4 hooks (SessionStart/Stop/PreToolUse/PostToolUse) + bypass + README
+- ✅ E Quarterly review process — `doc-hygiene.md` Принцип 12 formalized
+- 🟡 D LSP setup — TypeScript LSP installed (typescript-language-server v5.2.0), Java jdtls **pending** (Eclipse mirrors blocked, см. `.claude/lsp-setup.md` for resume steps)
+- ⏳ C Skills (project-specific) — not started, может быть next priority в Сессии 48
+- ⏳ F Project subagents — deferred (subsumed by C)
+- ⏳ G MCP servers — deferred (article «не делать пока basics не работают»)
 
-**Остаются (lower priority):**
+**Остаются low-priority backlog:**
 
-1. **Z-index persistence для edges** — mirror Node.zIndex (миграция + REST
-   endpoint). Сейчас edge z-order ephemeral. Multi-layer (migration + REST + frontend). Low priority
-2. **Bulk audit log consolidation** — один BULK_DELETE с entityIds[] вместо
-   N rows. Acceptable пока admin audit UI отложен (out of scope)
-3. **Cursor-based pagination** — сейчас offset OK. Cursor нужен при миллионах
-   записей либо stable порядок при concurrent inserts. Not needed now
+1. **Bulk audit log consolidation** — один BULK_DELETE с entityIds[] вместо
+   N rows. Premature пока admin audit UI deferred. Low priority.
+2. **Cursor-based pagination** — сейчас offset OK. Cursor нужен при миллионах
+   записей либо stable порядок при concurrent inserts. Future scope.
+3. **Java jdtls install** — Eclipse mirrors blocked в Сессии 47. Resume
+   когда network unblocks или manual transfer (см. `.claude/lsp-setup.md`).
+
+**Backlog для harness future foundation work:**
+- Consolidation Code review секции между backend/CLAUDE.md и frontend/CLAUDE.md
+  в один общий гайд (для tight frontend target ≤ 250)
+- Aggressive depth cleanup: вынос cross-cutting backend/CLAUDE.md секций
+  (Pagination, Permissions, Audit log) если depth решим расширить
 
 После tech debt - можно браться за фичи:
 - Этап 18.e ImagePageRenderer (mode для image-сканов, после Этапа 17)
@@ -239,18 +256,23 @@ Backlog оставшиеся (читать `docs/backlog.md` для полног
 
 Полный backlog в `docs/backlog.md`
 
-### Инфра на entry Сессии 47
+### Инфра на closure Сессии 47
 
-- Postgres :5432 healthy, миграции до 47 включительно applied
-  (47 - `authorities.type`, от Сессии 46)
-- MinIO :9000 healthy + 4 bucket'а (library-imported-books,
-  library-user-uploads, library-page-images + один служебный)
-  через `BucketBootstrap`
-- Backend :9090 + JDWP :5005 - запускать с JDWP args (см. CLAUDE.md)
-- Frontend :5173 - dev server, после массовых регенераций может
-  потребовать `rm -rf node_modules/.vite`
-- **Текущий baseline tests** запущен в Сессии 46 entry - смотри
-  свежую запись в `docs/progress.md` для финальных цифр
+- Postgres :5432 healthy, миграции до **48** включительно applied
+  (47 — `authorities.type` от Сессии 46; 48 — `edges.z_index` от Сессии 47)
+- MinIO :9000 healthy + 4 bucket'а через `BucketBootstrap`
+- Backend :9090 + JDWP :5005 — был started в Сессии 47 для regenerate-api,
+  может быть still running (`lsof -ti:9090` чтобы check). Восстановить
+  через CLAUDE.md «Команды» если нужен restart
+- Frontend :5173 — dev server, не starting автоматически. После
+  массовых регенераций может потребовать `rm -rf node_modules/.vite`
+- **TypeScript LSP** (`typescript-language-server` v5.2.0) installed
+  globally — Claude Code `typescript-lsp` plugin auto-activates на `.ts/.tsx`
+- **Java LSP** (jdtls) НЕ installed — pending Eclipse mirrors. См.
+  `.claude/lsp-setup.md` для resume steps
+- **Hooks setup** активирован: `.claude/hooks/{session-start,stop-reminder,pre-bash-guard,post-edit-reminder}.sh` через `.claude/settings.json` hooks section. Bypass: `CLAUDE_HOOKS_DISABLE=1` env var. Smoke tests deferred до new Claude Code session restart.
+- **Backend tests:** последний full `./mvnw verify` в Сессии 47 — 1000/1007 pass (7 errors в RefreshTokenCleanupJanitorIT после Docker restart timing; см. progress.md записи). Точечный verify по затронутым IT после tech debt sweep — все pass.
+- **Frontend tests:** 571/571 pass (с 7 pre-existing jsdom uncaught exceptions в `bulkActions.test.tsx` — orthogonal, baseline).
 
 ### Известные мелочи (не блокеры)
 

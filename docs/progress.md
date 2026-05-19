@@ -55,6 +55,45 @@ Mirror Node.zIndex pattern (миграция 40) for edges. Frontend `useGraphZO
 
 Остаются (lower priority): #2 Bulk audit consolidation (premature пока admin audit UI deferred), #4 Cursor pagination (future).
 
+### Sub-project E (Quarterly review process) — closed
+
+- `f448711` `docs: Принцип 12 - Quarterly CLAUDE.md review (Sub-project E)` — formalized ритуал ежеквартального review CLAUDE.md files per Anthropic article recommendation. Triggers (3-6 months default + post-major-model-release + plateau detection), 5 категорий проверки (workarounds, hook scripts compensating model bugs, outdated skills, stale tooling refs, size growth), 3-question heuristic, output format
+
+Single inline edit, no formal spec/plan (truly XS scope).
+
+### Sub-project D (LSP setup) — partial closure
+
+- TypeScript LSP installed (`typescript-language-server` v5.2.0 via `npm install -g`). Claude Code `typescript-lsp` plugin v1.0.0 auto-activates на .ts/.tsx
+- Java jdtls install **BLOCKED** — Eclipse JDT.LS mirrors возвращали 404/corrupted streams для всех tried URLs (snapshots, milestones, releases, Maven Central, GitHub). Subagent попытка: 4 paths, all failed
+- `.claude/lsp-setup.md` создан с detailed resume steps when mirrors unblock + wrapper script template
+- TypeScript LSP уже даёт value (symbol nav, find references, hover types) для frontend work
+
+### Финальные метрики Сессии 47
+
+Total commits: ~37 (от `f8677f6` baseline до handoff).
+
+**Scope закрытый:**
+- Memory recovery (start of session) — 23 files в `~/.claude/.../memory/`, MEMORY.md index
+- Sub-project A (Foundation cleanup) — 13 commits, backend/CLAUDE.md 540→418, frontend 351→294, 6 new topical docs, .claudeignore, settings.json deny rules, start_conv.md fix
+- Sub-project B (Hooks setup) — 10 commits, 4 hooks + lib/common.sh + README, settings.json hooks registration + 1 follow-up fix commit
+- Sub-project E (Quarterly review) — 1 commit
+- Sub-project D (LSP) — partial (TypeScript done, Java blocked) — 1 commit (lsp-setup.md docs)
+- Tasks #7 + #3 + #1 — 12 commits combined
+- Multiple progress.md / SESSION_START_PROMPT handoff commits
+
+**Memory updates:**
+- `feedback_full_autonomy.md` — toggleable MAX mode (default off, opt-in)
+- `feedback_subagent_usage.md` — new, conservation context rule
+- `feedback_continue_earlier_scope.md` — new, auto-continue rule в MAX mode
+- `user_role.md` — architectural values (quality/extensibility/maintainability/scalability)
+- `MEMORY.md` — index updated с новыми feedback'ами
+
+**Что осталось для next sessions:**
+- Sub-project C (Project-specific skills) — большой scope brainstorm needed
+- Sub-project D Java jdtls install (when Eclipse mirrors unblock)
+- Backlog #2 (Bulk audit), #4 (Cursor pagination) — premature optimizations
+- Features из roadmap (после tech debt): Этап 18.e ImagePageRenderer, 25.d.x PDF Viewer polish, 25.e admin page-mapping
+
 ---
 
 ### Sub-project B (Hooks setup) — closed
