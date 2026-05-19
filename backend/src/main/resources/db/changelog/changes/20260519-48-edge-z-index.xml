@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Z-index persistence для рёбер (backlog tech debt #1: «Z-index
+        persistence для edges»). Mirror миграции 40 (nodes.z_index).
+        До этой миграции "bring to front" / "send to back" для рёбер
+        работали только в локальном RF-state через edgeZRef счётчик
+        и сбрасывались при refetch.
+
+        Семантика: z_index 0 - default, положительный - выше, отрицательный
+        - ниже. "На передний план" = max(z_index рёбер темы) + 1,
+        "на задний" = min - 1. Тема определяется через from-узел (инвариант
+        EdgeService: рёбра не пересекают границы тем).
+
+        Индекс без составного topic_id: у рёбер нет прямого topic_id
+        поля - топик нужно JOIN'ить через from_node_id. Простой индекс
+        на z_index достаточен для диапазона рёбер типичной темы (&lt;500).
+    -->
+    <changeSet id="20260519-48-edge-z-index" author="Abdula Basnukaev">
+        <comment>Добавляем edges.z_index для stacking order рёбер в графе</comment>
+        <addColumn tableName="edges">
+            <column name="z_index" type="INTEGER" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <createIndex tableName="edges" indexName="idx_edges_z_index">
+            <column name="z_index"/>
+        </createIndex>
+        <rollback>
+            <dropIndex tableName="edges" indexName="idx_edges_z_index"/>
+            <dropColumn tableName="edges" columnName="z_index"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
