@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2, ArrowLeft, Maximize2, X, List, Users, Lock } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
@@ -81,6 +81,13 @@ function BookReaderPage() {
   const isMobile = useIsMobile();
   const [chaptersDrawerOpen, setChaptersDrawerOpen] = useState(false);
 
+  // Cleanup для active resize-drag — если user стартует drag и затем
+  // navigate away (Cmd+K, browser back) до pointerup, listeners на document
+  // и body styles утекают app-wide. Храним ссылку на teardown в ref и зовём
+  // её в unmount-effect ниже
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => resizeCleanupRef.current?.(), []);
+
   const handleResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     const startY = e.clientY;
@@ -91,16 +98,19 @@ function BookReaderPage() {
       const next = Math.max(25, Math.min(90, startHeight + deltaVh));
       setSheetHeightVh(next);
     };
-    const onUp = () => {
+    const cleanup = () => {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      resizeCleanupRef.current = null;
     };
+    const onUp = () => cleanup();
     document.body.style.cursor = 'ns-resize';
     document.body.style.userSelect = 'none';
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
+    resizeCleanupRef.current = cleanup;
   };
 
   useEffect(() => {
