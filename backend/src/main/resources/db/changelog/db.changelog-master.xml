@@ -56,5 +56,6 @@
     <include file="db/changelog/changes/20260520-49-expand-user-roles.xml"/>
     <include file="db/changelog/changes/20260520-50-user-book-collections.xml"/>
     <include file="db/changelog/changes/20260520-51-view-counters.xml"/>
+    <include file="db/changelog/changes/20260520-52-hd-narrators.xml"/>
 
 </databaseChangeLog>

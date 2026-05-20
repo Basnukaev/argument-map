@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Vision 49d Section 2.6 Phase 1: Hadith Chains Explorer foundation.
+        hd_narrators — раввии (narrator/rāwī) в иснадах хадисов.
+
+        Cross-link `authority_id` nullable → authorities(id) - для известных
+        учёных мостимся на existing Authority record (тот же Бухари как
+        SCHOLAR имеет grades, как narrator передаёт хадисы).
+
+        Reliability grade — whitelist 6 values (THIQA/SADUQ/MAQBUL/DAIF/
+        MATRUK/UNKNOWN), CHECK constraint.
+
+        See full spec: docs/superpowers/specs/2026-05-20-hadith-explorer-
+        design.md sections 1-3.
+    -->
+    <changeSet id="20260520-52-hd-narrators" author="Abdula Basnukaev">
+        <comment>Hadith Explorer Phase 1: hd_narrators table</comment>
+        <createTable tableName="hd_narrators">
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="authority_id" type="UUID">
+                <constraints nullable="true"
+                             foreignKeyName="fk_hd_narrators_authority"
+                             references="authorities(id)"
+                             deleteCascade="false"/>
+            </column>
+            <column name="name_ar" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name_ar_normalized" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="kunya" type="VARCHAR(120)"/>
+            <column name="laqab" type="VARCHAR(120)"/>
+            <column name="year_birth_hijri" type="INTEGER"/>
+            <column name="year_death_hijri" type="INTEGER"/>
+            <column name="birthplace" type="VARCHAR(120)"/>
+            <column name="death_place" type="VARCHAR(120)"/>
+            <column name="primary_residence" type="VARCHAR(120)"/>
+            <column name="reliability_grade" type="VARCHAR(20)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="reliability_comment" type="TEXT"/>
+            <column name="transmitted_count_cached" type="INTEGER" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="metadata" type="JSONB"/>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <sql>
+            ALTER TABLE hd_narrators ADD CONSTRAINT hd_narrators_reliability_check
+                CHECK (reliability_grade IS NULL OR reliability_grade IN
+                       ('THIQA', 'SADUQ', 'MAQBUL', 'DAIF', 'MATRUK', 'UNKNOWN'));
+        </sql>
+
+        <createIndex tableName="hd_narrators" indexName="idx_hd_narrators_authority">
+            <column name="authority_id"/>
+        </createIndex>
+        <createIndex tableName="hd_narrators" indexName="idx_hd_narrators_name_norm">
+            <column name="name_ar_normalized"/>
+        </createIndex>
+        <createIndex tableName="hd_narrators" indexName="idx_hd_narrators_year_death">
+            <column name="year_death_hijri"/>
+        </createIndex>
+
+        <rollback>
+            <dropTable tableName="hd_narrators"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
