@@ -29,6 +29,7 @@ import ErrorBoundary from '@/shared/components/ErrorBoundary';
 const TopicGraphPage = lazy(() => import('@/apps/argument-map/pages/TopicGraphPage'));
 const BookListPage = lazy(() => import('@/apps/library/pages/BookListPage'));
 const LibraryCollectionsPage = lazy(() => import('@/apps/library/pages/LibraryCollectionsPage'));
+const AdminUsersPage = lazy(() => import('@/apps/admin/pages/AdminUsersPage'));
 const BookReaderPage = lazy(() => import('@/apps/library/pages/BookReaderPage'));
 const AdminShamelaPage = lazy(() => import('@/apps/admin/pages/AdminShamelaPage'));
 const AdminPageEditorPage = lazy(() => import('@/apps/admin/pages/AdminPageEditorPage'));
@@ -160,6 +161,14 @@ function App() {
             element={
               <ProtectedRoute requireRole="ADMIN">
                 <AdminAuditPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <ProtectedRoute requireRole="ADMIN">
+                <AdminUsersPage />
               </ProtectedRoute>
             }
           />
