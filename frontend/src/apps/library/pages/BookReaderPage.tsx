@@ -484,13 +484,18 @@ function BookReaderPage() {
               {readerMode === 'text' && (
                 <>
                   {/* Toolbar: prev/next + page jump + reader mode switch.
-                      Desktop: sticky top-2 (z-30 < aside z-40).
+                      Desktop: sticky top-12 (= h-12 глобального Header'а,
+                      приклеивается прямо под ним). z-30 < Header z-40 -
+                      Header остаётся выше при перекрытии. Elevation
+                      (shadow-sh1 + border-strong) - тот же sub-header
+                      пакет что у глобального Header'а, читается как
+                      продолжение navigation chrome.
                       Mobile: НЕ sticky - browser address-bar collapsing
                       делает sticky прыгающим и недостойным места на узком
                       экране. На mobile добавлена кнопка «Главы» которая
                       открывает drawer Modal со списком (chapters tree
                       основной отсутствующий элемент при скрытом sidebar) */}
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-elevated px-3 py-2.5 shadow-sm md:sticky md:top-2 md:z-30 md:gap-3 md:px-4">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border-strong bg-elevated px-3 py-2.5 shadow-sh1 md:sticky md:top-12 md:z-30 md:gap-3 md:px-4">
                     {/* Mobile only: «Главы» кнопка слева. Desktop: hidden
                         (chapters в inline sidebar) */}
                     <Button
