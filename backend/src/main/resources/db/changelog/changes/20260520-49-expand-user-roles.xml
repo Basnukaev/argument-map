@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Vision 49d Section 2.4: расширение users.role enum из 2 ролей
+        (USER / ADMIN) до 4 (USER / STUDENT / SCHOLAR / ADMIN).
+
+        Семантика (из spec docs/superpowers/specs/2026-05-20-roles-system-design.md):
+        - ADMIN — полный доступ, admin pages, role management
+        - SCHOLAR — может добавлять hadith grades, оценивать иснады
+        - STUDENT — может комментировать, отвечать в Q&amp;A
+        - USER — read-only + voting (basic platform usage)
+
+        Backfill: existing users.role значения остаются как есть (USER → USER,
+        ADMIN → ADMIN). Новые STUDENT/SCHOLAR назначает ADMIN через
+        PATCH /api/v1/users/{id}/role (Phase A.5 будущей сессии).
+
+        Pattern DROP + ADD constraint — mirror миграции 32-extend-users-for-auth
+        где такой же flow использовался для исходного добавления USER/ADMIN.
+    -->
+    <changeSet id="20260520-49-expand-user-roles" author="Abdula Basnukaev">
+        <comment>Расширяем users.role CHECK constraint до 4 ролей: USER/STUDENT/SCHOLAR/ADMIN</comment>
+        <sql>
+            ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+            ALTER TABLE users
+                ADD CONSTRAINT users_role_check
+                CHECK (role IN ('USER', 'STUDENT', 'SCHOLAR', 'ADMIN'));
+        </sql>
+        <rollback>
+            <sql>
+                ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+                ALTER TABLE users
+                    ADD CONSTRAINT users_role_check
+                    CHECK (role IN ('USER', 'ADMIN'));
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
