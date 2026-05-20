@@ -348,74 +348,42 @@ String role
 
 ### Backend IT (~25 новых)
 
-`PermissionServiceIT`:
-- `hasRoleAtLeast_user_under_student_returnsFalse`
-- `hasRoleAtLeast_scholar_above_student_returnsTrue`
-- `hasRoleAtLeast_admin_above_all_returnsTrue`
-- `hasRoleAtLeast_invalidRole_returnsFalse`
-- `assertCanAddHadithGrade_userRole_throws403`
-- `assertCanAddHadithGrade_scholarRole_passes`
-- `assertCanAddHadithGrade_adminRole_passes`
-- аналогично для assertCanCreateAnswer / Question / IsAdmin
+`PermissionServiceIT`: матрица `hasRoleAtLeast` (user<student=false,
+scholar>=student=true, admin>=all=true, invalid=false) + 4 assert
+методов × {USER, STUDENT, SCHOLAR, ADMIN} actor.
 
-`HadithGradeServiceIT`:
-- `addGrade_byUserRole_throwsForbiddenRoleException`
-- `addGrade_byStudentRole_throwsForbiddenRoleException`
-- `addGrade_byScholarRole_succeeds`
-- `addGrade_byAdminRole_succeeds`
+`HadithGradeServiceIT`: `addGrade` × {USER throws, STUDENT throws,
+SCHOLAR succeeds, ADMIN succeeds}.
 
-`AnswerServiceIT`:
-- `createAnswer_byUserRole_throwsForbiddenRoleException`
-- `createAnswer_byStudentRole_succeeds`
-- `createAnswer_byScholarRole_succeeds` (включает students)
+`AnswerServiceIT` / `QuestionServiceIT`: createAnswer / createQuestion
+× {USER throws, STUDENT succeeds, SCHOLAR succeeds, ADMIN succeeds}.
 
-`UserServiceIT`:
-- `register_defaultRoleIsUser`
-- `changeRole_byAdmin_persistsNewRole`
-- `changeRole_byNonAdmin_throwsAdminOnly`
-- `changeRole_lastAdminDowngrade_throws422`
-- `changeRole_invalidRole_throwsIllegalArgumentException`
+`UserServiceIT`: `register_defaultRoleIsUser`, `changeRole_byAdmin_persistsNewRole`,
+`changeRole_byNonAdmin_throwsAdminOnly`, `changeRole_lastAdminDowngrade_throws422`,
+`changeRole_invalidRole_throws400`.
 
-`UserControllerIT` (MockMvc):
-- `PATCH /users/{id}/role byAdmin returns 200`
-- `PATCH /users/{id}/role byUser returns 403`
-- `PATCH /users/{id}/role missingUser returns 404`
-- `PATCH /users/{id}/role invalidRoleBody returns 400`
-- `GET /users?role=SCHOLAR returns filtered`
-- `GET /users byUser returns 403`
+`UserControllerIT` (MockMvc): PATCH `/users/{id}/role` matrix
+(200/403/404/400) + GET `/users` с фильтрами (admin=200, user=403).
 
-`AuthMigrationIT` (новый, изоляционный):
-- `migration49_check_constraint_acceptsAllFourRoles`
-- `migration49_check_constraint_rejectsInvalidRole`
-- `migration49_existingUserRows_preserveRoles`
+`AuthMigrationIT` (изоляционный): `migration49_acceptsAllFourRoles`,
+`migration49_rejectsInvalidRole`, `migration49_preservesExistingRows`.
 
 ### Frontend Vitest (~15 новых)
 
-`authStore.test.ts`:
-- `hasRoleAtLeast helper - student >= user true`
-- `hasRoleAtLeast helper - user < scholar false`
-- `readPersistedUser принимает все 4 валидных роли`
-- `readPersistedUser отбрасывает невалидную роль`
+`authStore.test.ts`: hasRoleAtLeast матрица + readPersistedUser
+принимает все 4 + отбрасывает невалидное.
 
-`ProtectedRoute.test.tsx`:
-- `requireRole=SCHOLAR + user.role=USER → redirect /topics`
-- `requireRole=SCHOLAR + user.role=SCHOLAR → renders children`
-- `requireRole=SCHOLAR + user.role=ADMIN → renders children (hierarchy)`
-- `requireRole=STUDENT + user.role=USER → redirect /topics`
+`ProtectedRoute.test.tsx`: requireRole=SCHOLAR × {USER redirect,
+SCHOLAR renders, ADMIN renders (hierarchy)}; requireRole=STUDENT × USER redirect.
 
-`HadithGradesSection.test.tsx`:
-- `кнопка "добавить grade" disabled когда user.role=USER`
-- `кнопка "добавить grade" enabled когда user.role=SCHOLAR`
-- `tooltip с reason появляется при hover на disabled-кнопку`
+`HadithGradesSection.test.tsx`: кнопка «Добавить grade» disabled
+при USER / enabled при SCHOLAR / tooltip с reason на hover.
 
-`AnswerComposer.test.tsx` (или эквивалент):
-- `textarea disabled когда user.role=USER`
-- `submit включается при role=STUDENT`
+`AnswerComposer.test.tsx`: textarea disabled при USER / submit
+enabled при STUDENT.
 
-`AdminUsersPage.test.tsx` (новый):
-- `рендерится только при role=ADMIN`
-- `Select смены role вызывает PATCH /users/{id}/role`
-- `toast после успешного PATCH`
+`AdminUsersPage.test.tsx` (новый): рендерится только для ADMIN,
+Select смены role вызывает PATCH, toast после успеха.
 
 ### Acceptance / E2E (manual playwright)
 

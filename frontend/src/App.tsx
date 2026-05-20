@@ -72,6 +72,15 @@ function App() {
     togglePalette();
   }, { enableOnFormTags: true }, [isAuthPage, togglePalette]);
 
+  // Force-close palette если route стал auth-page. Edge case: user открыл
+  // palette на /topics, потом logout → redirect на /login. Без сброса
+  // palette продолжал бы рендериться поверх login form
+  useEffect(() => {
+    if (isAuthPage && paletteOpen) {
+      closePalette();
+    }
+  }, [isAuthPage, paletteOpen, closePalette]);
+
   // На mount - bootstrap auth (попытка refresh + /me). Запускается один раз
   // даже в StrictMode dev double-render (initialized флаг защищает от
   // повторного запроса). После завершения - либо user в store, либо null,

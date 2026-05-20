@@ -71,7 +71,6 @@ describe('CommandPalette', () => {
       // scrollIntoView должен был быть вызван на активном элементе
       expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledWith({
         block: 'nearest',
-        behavior: 'smooth',
       });
     });
 
@@ -102,7 +101,6 @@ describe('CommandPalette', () => {
 
       expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledWith({
         block: 'nearest',
-        behavior: 'smooth',
       });
     });
 

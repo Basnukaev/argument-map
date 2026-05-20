@@ -175,9 +175,13 @@ function CommandPaletteBody({ onClose }: { onClose: () => void }) {
 
   // Скроллим активный item в viewport при arrow navigation. Без этого
   // при max-h-80 список не следует за selection. block:'nearest' не
-  // трогает scroll если item уже виден.
+  // трогает scroll если item уже виден. Раньше использовался
+  // behavior:'smooth', но при rapid arrow-down смежные scroll-команды
+  // накладывались и фейлили (browser cancels in-flight smooth scroll
+  // когда новый стартует). Instant scroll корректно follow за
+  // keypress'ами быстро без race
   useEffect(() => {
-    itemRefs.current[safeActiveIdx]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    itemRefs.current[safeActiveIdx]?.scrollIntoView({ block: 'nearest' });
   }, [safeActiveIdx]);
 
   return (
