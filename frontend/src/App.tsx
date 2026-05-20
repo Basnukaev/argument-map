@@ -28,6 +28,7 @@ import ErrorBoundary from '@/shared/components/ErrorBoundary';
 // CreateTopicPage (тоже из start flow), LoginPage / RegisterPage (public).
 const TopicGraphPage = lazy(() => import('@/apps/argument-map/pages/TopicGraphPage'));
 const BookListPage = lazy(() => import('@/apps/library/pages/BookListPage'));
+const LibraryCollectionsPage = lazy(() => import('@/apps/library/pages/LibraryCollectionsPage'));
 const BookReaderPage = lazy(() => import('@/apps/library/pages/BookReaderPage'));
 const AdminShamelaPage = lazy(() => import('@/apps/admin/pages/AdminShamelaPage'));
 const AdminPageEditorPage = lazy(() => import('@/apps/admin/pages/AdminPageEditorPage'));
@@ -119,6 +120,14 @@ function App() {
           />
           <Route path="/topics/:topicId" element={<TopicGraphPage />} />
           <Route path="/books" element={<BookListPage />} />
+          <Route
+            path="/library/collections"
+            element={
+              <ProtectedRoute>
+                <LibraryCollectionsPage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/books/:bookId" element={<BookReaderPage />} />
           <Route path="/qa" element={<QuestionListPage />} />
           <Route
