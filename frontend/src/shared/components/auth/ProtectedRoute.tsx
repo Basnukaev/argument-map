@@ -1,24 +1,31 @@
 import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router';
-import { useAuthStore } from '@/shared/stores/authStore';
+import { useAuthStore, hasRoleAtLeast } from '@/shared/stores/authStore';
+import type { AuthRole } from '@/shared/stores/authStore';
 import { useT } from '@/shared/i18n';
 
 interface Props {
   children: ReactNode;
-  /** Если задано - дополнительная проверка роли (например, ADMIN-only routes) */
-  requireRole?: 'USER' | 'ADMIN';
+  /**
+   * Если задано - дополнительная проверка роли через hierarchy.
+   * `requireRole='SCHOLAR'` пускает SCHOLAR и ADMIN. `requireRole='ADMIN'` -
+   * только ADMIN. Vision 49d Phase A.6 expanded к 4 значениям
+   * (USER < STUDENT < SCHOLAR < ADMIN, монотонная иерархия).
+   */
+  requireRole?: AuthRole;
 }
 
 /**
  * Wrapper защищающий route - если auth bootstrap ещё не завершён,
  * показывает loading. Если user отсутствует - редирект на /login
- * с ?redirect=current-path. Если требуется роль и user не подходит -
- * редирект на /topics (главная страница) и flash сообщения нет
- * (избегаем mismatched expectation - детальную ошибку RBAC покажем
- * на Этапе 22 когда permissions per-entity)
+ * с ?redirect=current-path. Если требуется роль и user не подходит
+ * по иерархии - редирект на /topics (главная страница) и flash
+ * сообщения нет.
  *
- * Используется как обёртка: <ProtectedRoute><MyPage /></ProtectedRoute>
- * либо для admin: <ProtectedRoute requireRole="ADMIN"><AdminPage /></ProtectedRoute>
+ * Используется как обёртка:
+ * <ProtectedRoute><MyPage /></ProtectedRoute>
+ * <ProtectedRoute requireRole="ADMIN"><AdminPage /></ProtectedRoute>
+ * <ProtectedRoute requireRole="SCHOLAR"><HadithGradeEditor /></ProtectedRoute>
  */
 function ProtectedRoute({ children, requireRole }: Props) {
   const t = useT();
@@ -42,9 +49,11 @@ function ProtectedRoute({ children, requireRole }: Props) {
     return <Navigate to={`/login?redirect=${redirect}`} replace />;
   }
 
-  // ADMIN-only гард: USER пытается зайти на /admin/* - редирект на /topics
-  // (silent fallback, на Этапе 22 будет нормальный 403 page)
-  if (requireRole === 'ADMIN' && user.role !== 'ADMIN') {
+  // Hierarchical role guard: requireRole='SCHOLAR' пускает SCHOLAR+ADMIN,
+  // requireRole='ADMIN' — только ADMIN. Если actual ниже required в
+  // иерархии — silent redirect на /topics (на Этапе 22 был запланирован
+  // 403 page, defer)
+  if (requireRole && !hasRoleAtLeast(user.role, requireRole)) {
     return <Navigate to="/topics" replace />;
   }
 

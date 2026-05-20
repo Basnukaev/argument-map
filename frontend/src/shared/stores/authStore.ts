@@ -4,8 +4,27 @@ import { clearUserStorage } from '@/shared/utils/clearUserStorage';
 
 /**
  * Auth-роли как union literal (ADR-040, без TS enum по правилам проекта).
+ * Vision 49d Phase A.6 expanded к 4 значениям (USER < STUDENT <
+ * SCHOLAR < ADMIN, монотонная иерархия). Backend источник истины —
+ * UserRole.java + migration 49 CHECK constraint.
  */
-export type AuthRole = 'USER' | 'ADMIN';
+export type AuthRole = 'USER' | 'STUDENT' | 'SCHOLAR' | 'ADMIN';
+
+/**
+ * Ordered list ролей по возрастанию привилегий. Используется в
+ * hasRoleAtLeast helper (mirror UserRole.hasAtLeast backend).
+ */
+export const ALL_ROLES: readonly AuthRole[] = ['USER', 'STUDENT', 'SCHOLAR', 'ADMIN'];
+
+/**
+ * Иерархическая проверка: возвращает true если actual не ниже required
+ * в порядке USER → STUDENT → SCHOLAR → ADMIN. null/undefined actual
+ * (anonymous) → всегда false.
+ */
+export function hasRoleAtLeast(actual: AuthRole | null | undefined, required: AuthRole): boolean {
+  if (!actual) return false;
+  return ALL_ROLES.indexOf(actual) >= ALL_ROLES.indexOf(required);
+}
 
 export interface AuthUser {
   id: string;
