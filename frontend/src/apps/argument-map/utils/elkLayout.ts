@@ -62,9 +62,9 @@ export async function applyElkLayout(
     layoutOptions: {
       'elk.algorithm': algorithm,
       'elk.direction': direction,
-      // ORTHOGONAL = 90-градусные изломы вокруг узлов - визуально
-      // самый предсказуемый routing для нашего use case
-      'elk.edgeRouting': 'ORTHOGONAL',
+      // SPLINE = плавные кривые между узлами без угловых изломов -
+      // визуально приятнее и лучше разводит пучки рёбер при high-degree
+      'elk.edgeRouting': 'SPLINE',
       'elk.spacing.nodeNode': String(nodeSpacing),
       'elk.layered.spacing.nodeNodeBetweenLayers': String(layerSpacing),
       // Hierarchical algorithm для layered - уменьшает crossings
