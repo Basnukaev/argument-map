@@ -83,10 +83,15 @@
       min-1, 403 nonOwner для обоих action, 404 missing) + 2 frontend
       (MSW). Edges - отдельный пункт ниже, отложен (z-order на edges
       редко важен, локального достаточно)
-- [ ] **Z-index persistence для edges** - на узлах закрыто, на edges
-      остаётся локальный zRef counter в GraphCanvas. Делать если станет
-      критично. Структура аналогичная - миграция, repo.updateZIndex,
-      service.bringToFront/sendToBack, REST endpoints
+- [x] **Z-index persistence для edges** - закрыто 2026-05-19 в Сессии
+      47 (Tech debt task #1). Mirror Node.zIndex pattern: миграция 48
+      (edges.z_index INTEGER NOT NULL DEFAULT 0), Edge.zIndex field,
+      EdgeRepository updateZIndex/findMaxZIndex/findMinZIndex (через
+      JOIN nodes для topicId), EdgeService bringToFront/sendToBack +
+      assertCanWrite, POST endpoints `/api/v1/edges/{id}/z-order/*`,
+      frontend useGraphZOrder switched от ephemeral counter к API
+      (optimistic + onRefetch sync). EdgeServiceIT 20→25, EdgeZIndexIT
+      6 tests. EdgeResponse.zIndex field
 
 ## Responsive / mobile-планшетная адаптация
 
@@ -368,14 +373,14 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
 
 ## Tech debt / performance optimization
 
-- [ ] **AuditEntityType / UserRole single source of truth** - сейчас BE
-  константы String + FE whitelist в `dictionary/types.ts`. Расхождение
-  возможно при добавлении новых типов (BE добавит, FE не узнает пока
-  не запустит против реального API). Fix: BE enum (Java) + OpenAPI
-  generation выдаёт union literal в `types.ts` автоматически. Альтернатива -
-  явный shared enum в api-contract spec. Low priority пока number
-  entity types <15 (сейчас 7: TOPIC/NODE/EDGE/BOOK/QUESTION/ANSWER/
-  TOPIC_MEMBER). Reviewer flag round 3 #2
+- [x] **AuditEntityType / UserRole single source of truth** - закрыто
+      2026-05-19 (Сессия 47 Tech debt task #3). `@Schema(allowableValues)`
+      на DTO fields (added в `9ca073a` Сессия 46) + frontend regenerate
+      `types.ts` после Сессии 47 backend restart → literal unions для
+      `entityType` (12 values incl. NODE_TRANSLATION), `action` (7),
+      `role` (USER/ADMIN/MEMBER/EDITOR). `AdminAuditPage` uses generated
+      type через `NonNullable<components['schemas']['AuditLogResponse']['entityType']>`
+      + `satisfies EntityType[]` compile-time check (commit `8245b77`)
 - [x] **Authority.type column для HadithGrade scholar validation** -
   закрыто 2026-05-19. Реализовано Вариант A: миграция 47 добавила
   `authorities.type VARCHAR(20) NOT NULL DEFAULT 'SCHOLAR'` с CHECK
