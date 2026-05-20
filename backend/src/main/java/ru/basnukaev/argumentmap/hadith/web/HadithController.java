@@ -10,7 +10,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import ru.basnukaev.argumentmap.hadith.domain.Hadith;
+import ru.basnukaev.argumentmap.hadith.domain.Matn;
+import ru.basnukaev.argumentmap.hadith.domain.Sanad;
+import ru.basnukaev.argumentmap.hadith.domain.SanadNarrator;
 import ru.basnukaev.argumentmap.hadith.repository.HadithRepository;
+import ru.basnukaev.argumentmap.hadith.repository.MatnRepository;
+import ru.basnukaev.argumentmap.hadith.repository.SanadRepository;
+import ru.basnukaev.argumentmap.hadith.web.dto.HadithDetailResponse;
 import ru.basnukaev.argumentmap.hadith.web.dto.HadithResponse;
 import ru.basnukaev.argumentmap.web.dto.PageRequest;
 import ru.basnukaev.argumentmap.web.dto.PagedResponse;
@@ -26,9 +32,15 @@ import ru.basnukaev.argumentmap.web.dto.PagedResponse;
 public class HadithController {
 
     private final HadithRepository hadithRepository;
+    private final SanadRepository sanadRepository;
+    private final MatnRepository matnRepository;
 
-    public HadithController(HadithRepository hadithRepository) {
+    public HadithController(HadithRepository hadithRepository,
+                            SanadRepository sanadRepository,
+                            MatnRepository matnRepository) {
         this.hadithRepository = hadithRepository;
+        this.sanadRepository = sanadRepository;
+        this.matnRepository = matnRepository;
     }
 
     @GetMapping
@@ -53,6 +65,50 @@ public class HadithController {
         Hadith h = hadithRepository.findById(id)
                 .orElseThrow(() -> new HadithNotFoundException(id));
         return toResponse(h);
+    }
+
+    /**
+     * Phase 1.g bundled detail: hadith + sanads (each с narrators)
+     * + matns в одном payload. Primary endpoint для UI sanad graph viz.
+     * 1 GET вместо 3+ (N+1 avoidance).
+     */
+    @GetMapping("/{id}/detail")
+    public HadithDetailResponse getDetail(@PathVariable UUID id) {
+        Hadith h = hadithRepository.findById(id)
+                .orElseThrow(() -> new HadithNotFoundException(id));
+
+        List<Sanad> sanads = sanadRepository.findByHadithId(id);
+        List<UUID> sanadIds = sanads.stream().map(Sanad::id).toList();
+        // Bulk fetch narrators avoiding N+1
+        List<SanadNarrator> allLinks = sanadRepository.findNarratorsBySanadIds(sanadIds);
+
+        List<HadithDetailResponse.SanadDto> sanadDtos = sanads.stream()
+                .map(s -> new HadithDetailResponse.SanadDto(
+                        s.id(), s.chainGrade(), s.compiledById(),
+                        s.compiledInBookId(), s.primaryChain(),
+                        allLinks.stream()
+                                .filter(l -> l.sanadId().equals(s.id()))
+                                .map(l -> new HadithDetailResponse.NarratorLinkDto(
+                                        l.position(), l.narratorId(), l.transmissionPhrase()
+                                ))
+                                .toList()
+                ))
+                .toList();
+
+        List<Matn> matns = matnRepository.findByHadithId(id);
+        List<HadithDetailResponse.MatnDto> matnDtos = matns.stream()
+                .map(m -> new HadithDetailResponse.MatnDto(
+                        m.id(), m.textAr(), m.textRu(), m.textEn(),
+                        m.sourceBookId(), m.printedNumber(), m.pageNo(),
+                        m.volume(), m.isPrimary(), m.divergenceSummary()
+                ))
+                .toList();
+
+        return new HadithDetailResponse(
+                h.id(), h.primaryBookId(), h.primaryNumber(),
+                h.normalizedMatn(), h.status(), h.sourceId(), h.createdAt(),
+                sanadDtos, matnDtos
+        );
     }
 
     private static HadithResponse toResponse(Hadith h) {
