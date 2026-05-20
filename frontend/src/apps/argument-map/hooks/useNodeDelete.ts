@@ -111,14 +111,18 @@ export function useNodeDelete({
 
     setDeleting(true);
     try {
-      // рёбра первыми чтобы не получить 404 если узел уже удалит ребро каскадом
-      for (const edgeId of edgeIds) {
-        try {
-          await apiDeleteRaw(`/api/v1/edges/${edgeId}`);
-        } catch (e: unknown) {
-          if (!(e instanceof ApiError && e.status === 404)) throw e;
-        }
-      }
+      // рёбра первыми чтобы не получить 404 если узел уже удалит ребро каскадом.
+      // Параллельный allSettled вместо последовательного await loop — для bulk
+      // выделений в 10-20 рёбер разница ощутима (N round trips → 1 round trip).
+      // 404 толерируем (race с node-каскадом), все остальные ошибки — fatal.
+      const edgeResults = await Promise.allSettled(
+        edgeIds.map((edgeId) => apiDeleteRaw(`/api/v1/edges/${edgeId}`)),
+      );
+      const fatalEdgeError = edgeResults
+        .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+        .map((r) => r.reason as unknown)
+        .find((e) => !(e instanceof ApiError && e.status === 404));
+      if (fatalEdgeError) throw fatalEdgeError;
 
       // узлы - один bulk DELETE /api/v1/nodes/bulk вместо N individual requests.
       // Бэк пишет единственную BULK_DELETE запись в audit log. Корневые узлы

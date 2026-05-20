@@ -531,8 +531,7 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
         items,
       });
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setEdges, setNodes, canWrite],
+    [canWrite, t, bringEdgeToFront, sendEdgeToBack, deleteOneEdge],
   );
 
   // RF onSelectionChange срабатывает при каждом setNodes даже если selection
