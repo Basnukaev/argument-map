@@ -323,6 +323,17 @@ public class GlobalExceptionHandler {
                 "Оценка хадиса не найдена", "hadith-grade-not-found", ex.getMessage());
     }
 
+    // ---- Hadith Explorer (Vision 49d Section 2.6) ----
+
+    @ExceptionHandler(ru.basnukaev.argumentmap.hadith.web.NarratorNotFoundException.class)
+    public ProblemDetail handleNarratorNotFound(
+            ru.basnukaev.argumentmap.hadith.web.NarratorNotFoundException ex) {
+        ProblemDetail pd = problem(HttpStatus.NOT_FOUND,
+                "Narrator не найден", "narrator-not-found", ex.getMessage());
+        pd.setProperty("narratorId", ex.getNarratorId().toString());
+        return pd;
+    }
+
     @ExceptionHandler(InvalidHadithGradeException.class)
     public ProblemDetail handleInvalidHadithGrade(InvalidHadithGradeException ex) {
         return problem(HttpStatus.BAD_REQUEST,
