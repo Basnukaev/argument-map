@@ -13,6 +13,7 @@ import type { components } from '@/shared/api/types';
 
 type QuestionSourceDto = components['schemas']['QuestionSourceResponse'];
 type SourceDto = components['schemas']['SourceResponse'];
+type PagedSources = components['schemas']['PagedResponseSourceResponse'];
 
 interface Props {
   questionId: string;
@@ -47,12 +48,15 @@ function QuestionCitationsSection({ questionId, questionTitle }: Props) {
       apiGetRaw<QuestionSourceDto[]>(`/api/v1/questions/${questionId}/sources`, {
         signal: controller.signal,
       }),
-      apiGetRaw<SourceDto[]>('/api/v1/sources', { signal: controller.signal }),
+      // GET /api/v1/sources возвращает PagedResponse (commit 306e0c0) -
+      // unwrap .items. size=100 чтобы повышенная вероятность найти lookup
+      // для всех link'ов на одной странице
+      apiGetRaw<PagedSources>('/api/v1/sources?size=100', { signal: controller.signal }),
     ])
-      .then(([links, sources]) => {
+      .then(([links, sourcesPage]) => {
         if (controller.signal.aborted) return;
         const sourceLookup = new Map<string, SourceDto>();
-        for (const s of sources ?? []) {
+        for (const s of sourcesPage.items ?? []) {
           if (s.id) sourceLookup.set(s.id, s);
         }
         setState({ kind: 'success', links, sourceLookup });

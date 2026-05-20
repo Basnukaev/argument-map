@@ -15,9 +15,9 @@ import SourceCreateForm, {
 } from '@/apps/argument-map/components/graph/SourceCreateForm';
 import { parseIntOrNull } from '@/shared/components/citation/AcademicMetadataFields';
 
-type SourceDto = components['schemas']['SourceResponse'];
 type NodeSourceDto = components['schemas']['NodeSourceResponse'];
 type BookResponseDto = components['schemas']['BookResponse'];
+type PagedSources = components['schemas']['PagedResponseSourceResponse'];
 
 type Mode = 'search' | 'create';
 
@@ -52,9 +52,11 @@ function AddSourceModal({ nodeId, onClose, onAttached }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    apiGetRaw<SourceDto[]>('/api/v1/sources')
-      .then((sources) => {
-        if (!cancelled) setState({ kind: 'loaded', sources });
+    // GET /api/v1/sources возвращает PagedResponse (commit 306e0c0) -
+    // unwrap .items. size=100 для одной страницы при поиске
+    apiGetRaw<PagedSources>('/api/v1/sources?size=100')
+      .then((page) => {
+        if (!cancelled) setState({ kind: 'loaded', sources: page.items ?? [] });
       })
       .catch((e: unknown) => {
         if (cancelled) return;

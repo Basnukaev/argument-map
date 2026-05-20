@@ -26,8 +26,23 @@ const NODE_ID = '11111111-1111-1111-1111-111111111111';
 const SRC1 = '22222222-2222-2222-2222-222222222222';
 const SRC2 = '33333333-3333-3333-3333-333333333333';
 
+// PagedResponse wrap для GET /api/v1/sources - backend возвращает paged
+// после commit 306e0c0, а раньше тесты мокали bare array. См. fix QA
+// sources iterable bug (Сессия 49d).
+function pagedSources(items: unknown[]) {
+  return {
+    items,
+    page: 0,
+    size: 100,
+    totalElements: items.length,
+    totalPages: 1,
+    hasNext: false,
+    hasPrev: false,
+  };
+}
+
 function fixtureSources() {
-  return [
+  return pagedSources([
     {
       id: SRC1,
       sourceType: 'HADITH',
@@ -41,7 +56,11 @@ function fixtureSources() {
       title: 'Аль-Бидая ва-н-нихая',
       citation: 'т.13, с.137',
     },
-  ];
+  ]);
+}
+
+function emptySources() {
+  return pagedSources([]);
 }
 
 function renderModal(over: Partial<Parameters<typeof AddSourceModal>[0]> = {}) {
@@ -168,7 +187,7 @@ describe('AddSourceModal', () => {
   });
 
   it('пустой справочник показывает подсказку и кнопку создания', async () => {
-    server.use(http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json([])));
+    server.use(http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json(emptySources())));
     renderModal();
     expect(await screen.findByText(/Справочник пуст/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Создать новый источник/ })).toBeInTheDocument();
@@ -176,7 +195,7 @@ describe('AddSourceModal', () => {
 
   describe('create-mode', () => {
     it('кнопка "Создать новый источник" переключает в create-mode и показывает форму', async () => {
-      server.use(http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json([])));
+      server.use(http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json(emptySources())));
       renderModal();
       await screen.findByText(/Справочник пуст/);
       await userEvent.click(
@@ -192,7 +211,7 @@ describe('AddSourceModal', () => {
       let createBody: Record<string, unknown> | null = null;
       let attachBody: Record<string, unknown> | null = null;
       server.use(
-        http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json([])),
+        http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json(emptySources())),
         http.post(`${BASE}/api/v1/sources`, async ({ request }) => {
           createBody = (await request.json()) as Record<string, unknown>;
           return HttpResponse.json({
@@ -227,7 +246,7 @@ describe('AddSourceModal', () => {
     });
 
     it('reliability показывается только для типа HADITH', async () => {
-      server.use(http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json([])));
+      server.use(http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json(emptySources())));
       renderModal();
       await screen.findByText(/Справочник пуст/);
       await userEvent.click(screen.getByRole('button', { name: /Создать новый источник/ }));
@@ -240,7 +259,7 @@ describe('AddSourceModal', () => {
     });
 
     it('без reliability для HADITH кнопка submit disabled', async () => {
-      server.use(http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json([])));
+      server.use(http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json(emptySources())));
       renderModal();
       await screen.findByText(/Справочник пуст/);
       await userEvent.click(screen.getByRole('button', { name: /Создать новый источник/ }));
@@ -254,7 +273,7 @@ describe('AddSourceModal', () => {
     });
 
     it('кнопка "К поиску" возвращает в search-mode', async () => {
-      server.use(http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json([])));
+      server.use(http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json(emptySources())));
       renderModal();
       await screen.findByText(/Справочник пуст/);
       await userEvent.click(screen.getByRole('button', { name: /Создать новый источник/ }));
@@ -271,7 +290,7 @@ describe('AddSourceModal', () => {
 
   describe('Этап 20.e - academic metadata для BOOK', () => {
     it('при sourceType=BOOK секция academic-полей видна', async () => {
-      server.use(http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json([])));
+      server.use(http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json(emptySources())));
       renderModal();
       await screen.findByText(/Справочник пуст/);
       await userEvent.click(screen.getByRole('button', { name: /Создать новый источник/ }));
@@ -282,7 +301,7 @@ describe('AddSourceModal', () => {
     });
 
     it('при sourceType≠BOOK academic-секция скрыта', async () => {
-      server.use(http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json([])));
+      server.use(http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json(emptySources())));
       renderModal();
       await screen.findByText(/Справочник пуст/);
       await userEvent.click(screen.getByRole('button', { name: /Создать новый источник/ }));
@@ -297,7 +316,7 @@ describe('AddSourceModal', () => {
       let sourcesBody: Record<string, unknown> | null = null;
       let attachBody: Record<string, unknown> | null = null;
       server.use(
-        http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json([])),
+        http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json(emptySources())),
         http.post(`${BASE}/api/v1/library/books`, async ({ request }) => {
           booksBody = (await request.json()) as Record<string, unknown>;
           return HttpResponse.json(
@@ -346,7 +365,7 @@ describe('AddSourceModal', () => {
       let booksCalled = false;
       let sourcesBody: Record<string, unknown> | null = null;
       server.use(
-        http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json([])),
+        http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json(emptySources())),
         http.post(`${BASE}/api/v1/library/books`, () => {
           booksCalled = true;
           return HttpResponse.json({ id: 'should-not-be-called' });
