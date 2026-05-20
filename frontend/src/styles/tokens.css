@@ -164,12 +164,15 @@
   --c-paper: #1d1b15;
   --c-paper-deep: #15140f;
 
-  /* Accent ярче в dark - сохраняет контраст на тёмных поверхностях */
-  --c-accent-700: #a5b4fc;
-  --c-accent-600: #818cf8;
-  --c-accent-500: #6366f1;
-  --c-accent-100: #2d2a5a;
-  --c-accent-50: #1e1d3c;
+  /* Accent в dark - desaturated indigo (Vision 49d 1.1). Раньше был
+     saturated indigo (#6366f1 family) - Абдула: "не сочетается с
+     тёмной темой". Теперь muted blue-grey - сохраняет brand identity
+     индиго hue но меньше jarring на warm-slate neutrals (ink). */
+  --c-accent-700: #c4cbed;
+  --c-accent-600: #a8b1d8;
+  --c-accent-500: #8a92c4;
+  --c-accent-100: #2a2940;
+  --c-accent-50: #1d1c2e;
 
   --c-ok-700: #6ee7b7;
   --c-ok-500: #34d399;
