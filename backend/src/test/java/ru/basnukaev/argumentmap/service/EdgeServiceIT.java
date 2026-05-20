@@ -408,4 +408,28 @@ class EdgeServiceIT {
         assertThatThrownBy(() -> edgeService.bringToFront(UUID.randomUUID(), userId, "USER"))
                 .isInstanceOf(EdgeNotFoundException.class);
     }
+
+    // ---- Z-index overflow guard tests ----
+
+    @Test
+    void bringToFront_atMaxZIndex_throwsIllegalState() {
+        Edge e = edgeService.createEdge(nodeA, nodeB, EdgeType.SUPPORTS, null, userId);
+        jdbcTemplate.update("UPDATE edges SET z_index = ? WHERE id = ?",
+                Integer.MAX_VALUE, e.id());
+
+        assertThatThrownBy(() -> edgeService.bringToFront(e.id(), userId, "USER"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("overflow");
+    }
+
+    @Test
+    void sendToBack_atMinZIndex_throwsIllegalState() {
+        Edge e = edgeService.createEdge(nodeA, nodeB, EdgeType.SUPPORTS, null, userId);
+        jdbcTemplate.update("UPDATE edges SET z_index = ? WHERE id = ?",
+                Integer.MIN_VALUE, e.id());
+
+        assertThatThrownBy(() -> edgeService.sendToBack(e.id(), userId, "USER"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("underflow");
+    }
 }

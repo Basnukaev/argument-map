@@ -383,7 +383,12 @@ public class NodeService {
                 .orElseThrow(() -> new NodeNotFoundException(nodeId));
         permissionService.assertCanWrite(existing.topicId(), userId, role);
 
-        int newZ = nodeRepository.findMaxZIndex(existing.topicId()) + 1;
+        int maxZ = nodeRepository.findMaxZIndex(existing.topicId());
+        if (maxZ == Integer.MAX_VALUE) {
+            throw new IllegalStateException(
+                    "Z-index overflow в topic " + existing.topicId() + " — требуется renormalization");
+        }
+        int newZ = maxZ + 1;
         nodeRepository.updateZIndex(nodeId, newZ);
         return new Node(
                 existing.id(), existing.topicId(), existing.nodeType(),
@@ -404,7 +409,12 @@ public class NodeService {
                 .orElseThrow(() -> new NodeNotFoundException(nodeId));
         permissionService.assertCanWrite(existing.topicId(), userId, role);
 
-        int newZ = nodeRepository.findMinZIndex(existing.topicId()) - 1;
+        int minZ = nodeRepository.findMinZIndex(existing.topicId());
+        if (minZ == Integer.MIN_VALUE) {
+            throw new IllegalStateException(
+                    "Z-index underflow в topic " + existing.topicId() + " — требуется renormalization");
+        }
+        int newZ = minZ - 1;
         nodeRepository.updateZIndex(nodeId, newZ);
         return new Node(
                 existing.id(), existing.topicId(), existing.nodeType(),

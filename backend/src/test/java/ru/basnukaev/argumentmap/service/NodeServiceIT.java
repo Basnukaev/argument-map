@@ -397,6 +397,32 @@ class NodeServiceIT {
         )).isInstanceOf(IllegalArgumentException.class);
     }
 
+    // ---- Z-index overflow guard tests ----
+
+    @Test
+    void bringToFront_atMaxZIndex_throwsIllegalState() {
+        // узел с z_index = Integer.MAX_VALUE → bringToFront должен бросить
+        // IllegalStateException (overflow guard), а не молча переполнить int
+        Node node = nodeService.createNode(topicId, NodeType.CLAIM, "переполнение", userId);
+        jdbcTemplate.update("UPDATE nodes SET z_index = ? WHERE id = ?",
+                Integer.MAX_VALUE, node.id());
+
+        assertThatThrownBy(() -> nodeService.bringToFront(node.id(), userId, "USER"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("overflow");
+    }
+
+    @Test
+    void sendToBack_atMinZIndex_throwsIllegalState() {
+        Node node = nodeService.createNode(topicId, NodeType.CLAIM, "underflow", userId);
+        jdbcTemplate.update("UPDATE nodes SET z_index = ? WHERE id = ?",
+                Integer.MIN_VALUE, node.id());
+
+        assertThatThrownBy(() -> nodeService.sendToBack(node.id(), userId, "USER"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("underflow");
+    }
+
     @Test
     void bulkDeleteNodes_onlyRootInRequest_noAuditRow() {
         // если в запросе только корневой узел - удалять нечего, audit

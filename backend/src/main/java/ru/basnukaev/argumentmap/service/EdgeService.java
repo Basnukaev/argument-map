@@ -202,7 +202,12 @@ public class EdgeService {
                 .topicId();
         permissionService.assertCanWrite(topicId, userId, role);
 
-        int newZ = edgeRepository.findMaxZIndex(topicId) + 1;
+        int maxZ = edgeRepository.findMaxZIndex(topicId);
+        if (maxZ == Integer.MAX_VALUE) {
+            throw new IllegalStateException(
+                    "Z-index overflow в topic " + topicId + " — требуется renormalization");
+        }
+        int newZ = maxZ + 1;
         edgeRepository.updateZIndex(edgeId, newZ);
         return new Edge(
                 existing.id(), existing.fromNodeId(), existing.toNodeId(),
@@ -225,7 +230,12 @@ public class EdgeService {
                 .topicId();
         permissionService.assertCanWrite(topicId, userId, role);
 
-        int newZ = edgeRepository.findMinZIndex(topicId) - 1;
+        int minZ = edgeRepository.findMinZIndex(topicId);
+        if (minZ == Integer.MIN_VALUE) {
+            throw new IllegalStateException(
+                    "Z-index underflow в topic " + topicId + " — требуется renormalization");
+        }
+        int newZ = minZ - 1;
         edgeRepository.updateZIndex(edgeId, newZ);
         return new Edge(
                 existing.id(), existing.fromNodeId(), existing.toNodeId(),
