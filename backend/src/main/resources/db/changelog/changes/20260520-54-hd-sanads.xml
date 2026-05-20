@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Vision 49d Section 2.6 Phase 1.d: hd_sanads + hd_sanad_narrators.
+
+        hd_sanads - конкретная цепь передачи для конкретного хадиса.
+        Один hadith может иметь несколько sanads (multiple chains).
+        primary_chain - одна из цепей помечена как основная.
+
+        hd_sanad_narrators - position-ordered линковка sanad ↔ narrator.
+        position 0 = ближайший к Пророку ﷺ (или сам Пророк ﷺ для
+        ahadith-i qudsi). transmission_phrase - семантика передачи
+        («حدثنا» / «أخبرنا» / «عن») влияет на надёжность.
+
+        Cascade: удаление sanad → удаление всех sanad_narrators. Sanads
+        deleteCascade на hd_hadiths не set — удаление хадиса не должно
+        автоматически дропать цепи (защита от случайной потери данных).
+    -->
+    <changeSet id="20260520-54-hd-sanads" author="Abdula Basnukaev">
+        <comment>Hadith Explorer Phase 1.d: hd_sanads + hd_sanad_narrators</comment>
+        <createTable tableName="hd_sanads">
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="hadith_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_hd_sanads_hadith"
+                             references="hd_hadiths(id)"
+                             deleteCascade="false"/>
+            </column>
+            <column name="chain_grade" type="VARCHAR(20)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="compiled_by_id" type="UUID">
+                <constraints nullable="true"
+                             foreignKeyName="fk_hd_sanads_compiled_by"
+                             references="hd_narrators(id)"
+                             deleteCascade="false"/>
+            </column>
+            <column name="compiled_in_book_id" type="UUID">
+                <constraints nullable="true"
+                             foreignKeyName="fk_hd_sanads_book"
+                             references="lib_books(id)"
+                             deleteCascade="false"/>
+            </column>
+            <column name="primary_chain" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="metadata" type="JSONB"/>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <sql>
+            ALTER TABLE hd_sanads ADD CONSTRAINT hd_sanads_chain_grade_check
+                CHECK (chain_grade IS NULL OR chain_grade IN
+                       ('SAHIH', 'HASAN', 'DAIF', 'MAUDU', 'UNKNOWN'));
+        </sql>
+
+        <createIndex tableName="hd_sanads" indexName="idx_hd_sanads_hadith">
+            <column name="hadith_id"/>
+        </createIndex>
+        <createIndex tableName="hd_sanads" indexName="idx_hd_sanads_book">
+            <column name="compiled_in_book_id"/>
+        </createIndex>
+
+        <createTable tableName="hd_sanad_narrators">
+            <column name="sanad_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_hd_sn_sanad"
+                             references="hd_sanads(id)"
+                             deleteCascade="true"/>
+            </column>
+            <column name="position" type="INTEGER">
+                <constraints nullable="false"/>
+            </column>
+            <column name="narrator_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_hd_sn_narrator"
+                             references="hd_narrators(id)"
+                             deleteCascade="false"/>
+            </column>
+            <column name="transmission_phrase" type="VARCHAR(40)"/>
+        </createTable>
+
+        <addPrimaryKey
+                tableName="hd_sanad_narrators"
+                columnNames="sanad_id, position"
+                constraintName="hd_sanad_narrators_pk"/>
+
+        <createIndex tableName="hd_sanad_narrators" indexName="idx_hd_sn_narrator">
+            <column name="narrator_id"/>
+        </createIndex>
+
+        <rollback>
+            <dropTable tableName="hd_sanad_narrators"/>
+            <dropTable tableName="hd_sanads"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

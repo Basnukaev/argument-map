@@ -58,5 +58,6 @@
     <include file="db/changelog/changes/20260520-51-view-counters.xml"/>
     <include file="db/changelog/changes/20260520-52-hd-narrators.xml"/>
     <include file="db/changelog/changes/20260520-53-hd-hadiths.xml"/>
+    <include file="db/changelog/changes/20260520-54-hd-sanads.xml"/>
 
 </databaseChangeLog>
