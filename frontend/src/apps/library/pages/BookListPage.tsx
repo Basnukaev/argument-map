@@ -91,7 +91,7 @@ const LIBRARY_FILTERS: ReadonlyArray<LibraryFilter> = [
 /** Sort - client-side поверх загруженного. Backend default = createdAt DESC
  * (стабильный порядок) = `latest`. `alphabetical` сортирует по title через
  * localeCompare. Server-side sort через ?sort=field,DESC - в backlog */
-type SortKey = 'latest' | 'alphabetical';
+type SortKey = 'recent' | 'popular' | 'alphabetical';
 
 function BookListPage() {
   const t = useT();
@@ -104,7 +104,7 @@ function BookListPage() {
   const currentUserId = useAuthStore((s) => s.user?.id ?? null);
   const [typeFilter, setTypeFilter] = useState<BookType | 'ALL'>('ALL');
   const [authorityFilter, setAuthorityFilter] = useState<AuthorityResponse | null>(null);
-  const [sortBy, setSortBy] = useState<SortKey>('latest');
+  const [sortBy, setSortBy] = useState<SortKey>('recent');
   const [editingBook, setEditingBook] = useState<BookDetailResponse | null>(null);
   const [loadingEdit, setLoadingEdit] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -138,19 +138,20 @@ function BookListPage() {
   };
 
   /** URL builder - объединяет current filter state. Server-side: ?q=,
-   * ?type=, ?authorityId=, ?page=, ?size=. Visibility и sort -
-   * client-side (backend не поддерживает) */
+   * ?type=, ?authorityId=, ?page=, ?size=, ?sort= (Vision 49d Phase 1).
+   * Visibility - client-side (libraryFilter MINE/SHARED/PUBLIC) */
   const buildBooksUrl = useCallback(
     (page: number): string => {
       const params = new URLSearchParams();
       params.set('page', String(page));
       params.set('size', String(PAGE_SIZE));
+      params.set('sort', sortBy);
       if (searchQ) params.set('q', searchQ);
       if (typeFilter !== 'ALL') params.set('type', typeFilter);
       if (authorityFilter?.id) params.set('authorityId', authorityFilter.id);
       return `/api/v1/library/books?${params.toString()}`;
     },
-    [searchQ, typeFilter, authorityFilter],
+    [searchQ, typeFilter, authorityFilter, sortBy],
   );
 
   /** Initial fetch + refetch при изменении server-side filters (q/type).
@@ -224,12 +225,11 @@ function BookListPage() {
     } else if (libraryFilter === 'SHARED' || libraryFilter === 'PUBLIC') {
       list = list.filter((b) => b.visibility === libraryFilter);
     }
-    if (sortBy === 'alphabetical') {
-      list = [...list].sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''));
-    }
-    // 'latest' - backend default order (createdAt DESC, стабильный)
+    // Vision 49d Phase 1: sort теперь server-side через ?sort= param.
+    // Client-side sort removed - бэк делает ORDER BY правильно для
+    // recent/popular/alphabetical.
     return list;
-  }, [state, libraryFilter, sortBy, currentUserId]);
+  }, [state, libraryFilter, currentUserId]);
 
   /** Local filter активен - скрываем Load More: новые items приходят но
    * скрыты client-side фильтром, юзер не поймёт */
@@ -282,10 +282,9 @@ function BookListPage() {
                   onChange={(e) => setSortBy(e.target.value as SortKey)}
                   className="h-9 appearance-none rounded-sm border border-ink-200 bg-elevated ps-3 pe-7 text-xs font-medium text-ink-900 outline-none focus:border-accent-500"
                 >
-                  <option value="latest">{t('library.overview.sort.latest')}</option>
-                  <option value="alphabetical">
-                    {t('library.overview.sort.alphabetical')}
-                  </option>
+                  <option value="recent">{t('common.sort.recent')}</option>
+                  <option value="popular">{t('common.sort.popular')}</option>
+                  <option value="alphabetical">{t('common.sort.alphabetical')}</option>
                 </select>
                 <ChevronDown
                   size={12}

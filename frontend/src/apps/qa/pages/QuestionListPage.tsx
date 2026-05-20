@@ -56,6 +56,8 @@ function QuestionListPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<Status | 'ALL'>('ALL');
   const [loadingMore, setLoadingMore] = useState(false);
+  // Vision 49d Section 2.1 - server-side sort
+  const [sort, setSort] = useState<'recent' | 'popular' | 'alphabetical'>('recent');
 
   /**
    * Backend поддерживает server-side ?status= фильтр. При смене filter
@@ -65,9 +67,10 @@ function QuestionListPage() {
    */
   useEffect(() => {
     const controller = new AbortController();
+    setState({ kind: 'loading' });
     const statusParam = statusFilter === 'ALL' ? '' : `&status=${statusFilter}`;
     apiGetRaw<PagedQuestions>(
-      `/api/v1/questions?page=0&size=${PAGE_SIZE}${statusParam}`,
+      `/api/v1/questions?page=0&size=${PAGE_SIZE}${statusParam}&sort=${sort}`,
       { signal: controller.signal },
     )
       .then((paged) => {
@@ -92,7 +95,7 @@ function QuestionListPage() {
         setState({ kind: 'error', message });
       });
     return () => controller.abort();
-  }, [statusFilter]);
+  }, [statusFilter, sort]);
 
   /**
    * Load More - подгружает следующую страницу с тем же statusFilter
@@ -104,7 +107,7 @@ function QuestionListPage() {
       const nextPage = state.data.page + 1;
       const statusParam = statusFilter === 'ALL' ? '' : `&status=${statusFilter}`;
       const resp = await apiGetRaw<PagedQuestions>(
-        `/api/v1/questions?page=${nextPage}&size=${PAGE_SIZE}${statusParam}`,
+        `/api/v1/questions?page=${nextPage}&size=${PAGE_SIZE}${statusParam}&sort=${sort}`,
       );
       const nextItems = resp.items ?? [];
       setState({
@@ -191,6 +194,20 @@ function QuestionListPage() {
                 </button>
               ))}
             </div>
+          </div>
+          {/* Vision 49d Section 2.1 - sort dropdown */}
+          <div className="flex items-center gap-2 text-sm ms-auto">
+            <span className="text-ink-500">{t('common.sort_by')}</span>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as typeof sort)}
+              className="h-9 rounded-md border border-border-strong bg-elevated px-2 text-sm text-ink-900 outline-none focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
+              aria-label={t('common.sort_by')}
+            >
+              <option value="recent">{t('common.sort.recent')}</option>
+              <option value="popular">{t('common.sort.popular')}</option>
+              <option value="alphabetical">{t('common.sort.alphabetical')}</option>
+            </select>
           </div>
         </div>
 

@@ -47,14 +47,18 @@ function TopicListPage() {
   const [search, setSearch] = useState('');
   const [importBusy, setImportBusy] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  // Vision 49d Section 2.1 - sort через server-side ?sort= param
+  const [sort, setSort] = useState<'recent' | 'popular' | 'alphabetical'>('recent');
 
   useEffect(() => {
     const controller = new AbortController();
+    setState({ kind: 'loading' });
     // apiGetRaw используется т.к. query-params не входят в keyof paths
-    // из openapi-typescript
-    apiGetRaw<PagedTopics>(`/api/v1/topics?page=0&size=${PAGE_SIZE}`, {
-      signal: controller.signal,
-    })
+    // из openapi-typescript. sort param добавлен в Vision 49d Phase 1.
+    apiGetRaw<PagedTopics>(
+      `/api/v1/topics?page=0&size=${PAGE_SIZE}&sort=${sort}`,
+      { signal: controller.signal },
+    )
       .then((paged) => {
         setState({
           kind: 'success',
@@ -77,7 +81,7 @@ function TopicListPage() {
         setState({ kind: 'error', message });
       });
     return () => controller.abort();
-  }, []);
+  }, [sort]);
 
   /**
    * Load More - подгружает следующую страницу, аппендит к existing list.
@@ -90,7 +94,7 @@ function TopicListPage() {
     try {
       const nextPage = state.data.page + 1;
       const resp = await apiGetRaw<PagedTopics>(
-        `/api/v1/topics?page=${nextPage}&size=${PAGE_SIZE}`,
+        `/api/v1/topics?page=${nextPage}&size=${PAGE_SIZE}&sort=${sort}`,
       );
       const nextItems = resp.items ?? [];
       setState({
@@ -228,7 +232,7 @@ function TopicListPage() {
           </div>
         </header>
 
-        <div className="mb-6 flex items-center gap-3">
+        <div className="mb-6 flex flex-wrap items-center gap-3">
           <div className="flex h-9 max-w-md flex-1 items-center rounded-md border border-border-strong bg-elevated transition-all focus-within:border-accent-500 focus-within:ring-2 focus-within:ring-accent-500/20">
             <Search size={15} className="ms-3 text-ink-400" aria-hidden />
             <input
@@ -239,6 +243,20 @@ function TopicListPage() {
               className="flex-1 bg-transparent px-3 text-sm text-ink-900 outline-none placeholder:text-ink-400"
               aria-label={t('common.search')}
             />
+          </div>
+          {/* Vision 49d Section 2.1 - sort dropdown */}
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-ink-500">{t('common.sort_by')}</span>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as typeof sort)}
+              className="h-9 rounded-md border border-border-strong bg-elevated px-2 text-sm text-ink-900 outline-none focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
+              aria-label={t('common.sort_by')}
+            >
+              <option value="recent">{t('common.sort.recent')}</option>
+              <option value="popular">{t('common.sort.popular')}</option>
+              <option value="alphabetical">{t('common.sort.alphabetical')}</option>
+            </select>
           </div>
         </div>
 
