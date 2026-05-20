@@ -6,22 +6,29 @@
 # Идемпотентен: каждый запуск создаёт НОВУЮ тему (uuid'ы новые).
 # Используется как regression-визуал для UI-проверок графа.
 set -e
-USER="14561248-0bfd-4a62-8395-d40a6972182a"
+# DEV_USER_ID из DevUserSeeder.java - admin@argumentmap.local (ADMIN, bypass RBAC).
+# Активен в profile local/dev/test через XUserIdAuthenticationFilter (ADR-040).
+USER="00000000-0000-0000-0000-000000000001"
 H_CT="Content-Type: application/json"
 H_USR="X-User-Id: $USER"
 
+# curl --fail-with-body даёт non-zero exit на HTTP 4xx/5xx + печатает тело
+# в stderr - под set -e скрипт сразу остановится с понятным сообщением
+# вместо тихого парсинга error-JSON в python и невнятного KeyError
+CURL="curl -sS --fail-with-body"
+
 post_topic() {
-  curl -sS -X POST http://localhost:9090/api/v1/topics \
+  $CURL -X POST http://localhost:9090/api/v1/topics \
     -H "$H_CT" -H "$H_USR" -d "$1"
 }
 
 post_node() {
-  curl -sS -X POST http://localhost:9090/api/v1/nodes \
+  $CURL -X POST http://localhost:9090/api/v1/nodes \
     -H "$H_CT" -H "$H_USR" -d "$1" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])"
 }
 
 post_edge() {
-  curl -sS -o /dev/null -w "%{http_code} " -X POST http://localhost:9090/api/v1/edges \
+  $CURL -o /dev/null -w "%{http_code} " -X POST http://localhost:9090/api/v1/edges \
     -H "$H_CT" -H "$H_USR" -d "$1"
 }
 
