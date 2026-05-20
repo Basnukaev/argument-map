@@ -91,6 +91,12 @@ public class QuestionService {
         return repository.findPage(status, query, limit, offset);
     }
 
+    /** Vision 49d Phase 2 - increment view counter. Idempotent (no-op для deleted). */
+    @Transactional
+    public void incrementViewCount(UUID id) {
+        repository.incrementViewCount(id);
+    }
+
     /** Vision 49d Section 2.1 sort overload — recent/popular/alphabetical. */
     @Transactional(readOnly = true)
     public List<Question> listQuestionsPage(QuestionStatus status, String query,

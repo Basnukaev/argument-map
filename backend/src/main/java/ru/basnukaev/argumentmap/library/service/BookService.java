@@ -205,6 +205,12 @@ public class BookService {
                 limit, offset, null);
     }
 
+    /** Vision 49d Phase 2 - increment view counter. */
+    @Transactional
+    public void incrementViewCount(UUID bookId) {
+        bookRepository.incrementViewCount(bookId);
+    }
+
     /**
      * Vision 49d Section 2.1 sort overload — recent/popular/alphabetical.
      * popular = citation_count DESC, дорогая computed аггрегация в

@@ -109,6 +109,13 @@ public class BookController {
         return PagedResponse.of(mapped, pr.page(), pr.size(), total);
     }
 
+    /** Vision 49d Phase 2 - POST view increment endpoint */
+    @PostMapping("/books/{bookId}/views")
+    public ResponseEntity<Void> incrementView(@PathVariable UUID bookId) {
+        bookService.incrementViewCount(bookId);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/books/{bookId}")
     public BookDetailResponse getOne(@PathVariable UUID bookId,
                                      @CurrentUser UUID currentUserId) {

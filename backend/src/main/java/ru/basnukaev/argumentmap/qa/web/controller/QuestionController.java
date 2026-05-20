@@ -77,6 +77,13 @@ public class QuestionController {
         return PagedResponse.of(mapped, pr.page(), pr.size(), total);
     }
 
+    /** Vision 49d Phase 2 - POST view increment endpoint */
+    @PostMapping("/{questionId}/views")
+    public ResponseEntity<Void> incrementView(@PathVariable UUID questionId) {
+        service.incrementViewCount(questionId);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/{questionId}")
     public QuestionResponse getOne(@PathVariable UUID questionId) {
         return toResponse(service.getQuestion(questionId));

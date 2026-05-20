@@ -189,4 +189,10 @@ public class QuestionRepository {
     public boolean deleteById(UUID id) {
         return jdbcTemplate.update("DELETE FROM questions WHERE id = ?", id) > 0;
     }
+
+    /** Vision 49d Phase 2 - increment view_count для popularity ranking. */
+    public void incrementViewCount(UUID id) {
+        jdbcTemplate.update(
+                "UPDATE questions SET view_count = view_count + 1 WHERE id = ?", id);
+    }
 }

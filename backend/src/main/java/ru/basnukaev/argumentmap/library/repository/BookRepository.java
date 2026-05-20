@@ -346,4 +346,10 @@ public class BookRepository {
         );
         return rows > 0;
     }
+
+    /** Vision 49d Phase 2 - increment view_count для popularity ranking. */
+    public void incrementViewCount(UUID bookId) {
+        jdbcTemplate.update(
+                "UPDATE lib_books SET view_count = view_count + 1 WHERE id = ?", bookId);
+    }
 }
