@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -298,12 +299,27 @@ public class NodeService {
         // dedup сохраняя порядок - protect от случайного дубля в запросе
         Set<UUID> uniqueIds = new LinkedHashSet<>(nodeIds);
 
-        // загружаем все узлы за один проход + валидируем существование
+        // batch-загрузка всех узлов одним SQL вместо N findById — N+1 fix
+        List<Node> loaded = nodeRepository.findAllByIds(uniqueIds);
+        if (loaded.size() < uniqueIds.size()) {
+            // определяем первый отсутствующий id для NodeNotFoundException
+            Set<UUID> foundIds = loaded.stream()
+                    .map(Node::id)
+                    .collect(Collectors.toSet());
+            UUID missing = uniqueIds.stream()
+                    .filter(id -> !foundIds.contains(id))
+                    .findFirst()
+                    .orElseThrow();
+            throw new NodeNotFoundException(missing);
+        }
+        // сохраняем порядок как в uniqueIds (findAllByIds не гарантирует порядок)
         List<Node> nodes = new ArrayList<>(uniqueIds.size());
+        Map<UUID, Node> byId = new LinkedHashMap<>();
+        for (Node n : loaded) {
+            byId.put(n.id(), n);
+        }
         for (UUID id : uniqueIds) {
-            Node n = nodeRepository.findById(id)
-                    .orElseThrow(() -> new NodeNotFoundException(id));
-            nodes.add(n);
+            nodes.add(byId.get(id));
         }
 
         // все узлы должны быть из одного topic - иначе один permission

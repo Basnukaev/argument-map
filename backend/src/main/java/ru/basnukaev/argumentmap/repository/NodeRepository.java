@@ -4,9 +4,11 @@ import static ru.basnukaev.argumentmap.repository.JdbcTimes.instant;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.odt;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -71,6 +73,23 @@ public class NodeRepository {
                 ROW_MAPPER,
                 id
         ).stream().findFirst();
+    }
+
+    /**
+     * Batch-загрузка узлов по набору id. Один SQL запрос вместо N. Узлы
+     * которых нет в БД - отсутствуют в результате (caller сам определяет
+     * нужно ли бросать NotFoundException). Пустая коллекция - пустой список.
+     */
+    public List<Node> findAllByIds(Collection<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        String placeholders = ids.stream().map(id -> "?").collect(Collectors.joining(", "));
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM nodes WHERE id IN (" + placeholders + ")",
+                ROW_MAPPER,
+                ids.toArray()
+        );
     }
 
     public List<Node> findByTopicId(UUID topicId) {
