@@ -12,6 +12,44 @@
 
 ---
 
+## 2026-05-20 - Сессия 49b - Backend stability audit + 5 fixes (continuation)
+
+После handoff commit `6127589` (Сессия 49) Абдула просил continue. Dispatched
+**backend audit** subagent → 0 Critical / 5 Important / 3 Minor. Codebase «Healthy».
+Все 5 Important fixed в atomic commits.
+
+### Backend stability fixes (5 atomic commits)
+
+- `01eb154` `perf(backend): NodeService.bulkDeleteNodes - batch findAllByIds eliminates N+1` —
+  `NodeRepository.findAllByIds(Collection<UUID>)` с `WHERE id IN (...)`,
+  bulkDelete 1 SQL вместо N. 22 IT pass
+- `72ed96a` `perf(backend): TopicExportService - batch findByIds eliminates N+1 (3 loops → 4 queries)` —
+  4 new batch methods. Export topic с 50 nodes теперь 4 queries вместо ~85
+- `709d50c` `perf(backend): EdgeService.deleteEdge - eliminate double-load via private helper` —
+  4 queries → 2 при удалении edge через permission-aware path
+- `ef8d86e` `fix(backend): security - убрать email из EmailAlreadyTakenException message` —
+  email enumeration hardening. Generic «Email уже занят». 2 new IT
+- `8b82892` `fix(backend): z-index overflow guard в bringToFront/sendToBack (Node + Edge)` —
+  `Integer.MAX_VALUE/MIN_VALUE` checks + `IllegalStateException`. 4 new IT
+
+### Метрики 49b
+
+- 5 commits, all точечный verify PASS
+- 6 new IT (2 email enumeration + 4 z-overflow guards)
+- Combined verify: NodeServiceIT 24 + EdgeServiceIT 27 + TopicExportServiceIT 5 + AuthControllerIT 17 = **73/73 pass**
+
+### Strengths confirmed audit
+
+Transactional discipline excellent, auth security solid, SQL injection no concern, resource cleanup correct, index coverage thorough.
+
+### Follow-up backlog добавлено
+
+- Z-index renormalization admin endpoint (recovery если overflow trigger)
+- Edge.topic_id денормализация (ADR-level, future schema change)
+- TopicExportService minor: unused Optional import после refactor
+
+---
+
 ## 2026-05-20 - Сессия 49 - Bug fixes + Edge layout + backlog cleanup
 
 ### Сделано
