@@ -224,7 +224,9 @@ public class BookRepository {
     private static String orderByForSort(String sort) {
         if (sort == null) return " ORDER BY created_at DESC";
         return switch (sort) {
-            case "popular" -> " ORDER BY ("
+            // Phase 2.b: composite - view_count (indexed primary) +
+            // citation_count (3 параллельные иерархии) tiebreak + recency
+            case "popular" -> " ORDER BY view_count DESC, ("
                     + "(SELECT COUNT(*) FROM node_sources ns JOIN sources s ON s.id = ns.source_id WHERE s.book_id = lib_books.id) "
                     + "+ (SELECT COUNT(*) FROM question_sources qs JOIN sources s ON s.id = qs.source_id WHERE s.book_id = lib_books.id) "
                     + "+ (SELECT COUNT(*) FROM answer_sources ansrc JOIN sources s ON s.id = ansrc.source_id WHERE s.book_id = lib_books.id)"

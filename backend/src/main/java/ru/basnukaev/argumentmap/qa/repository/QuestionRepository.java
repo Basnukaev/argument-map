@@ -129,11 +129,15 @@ public class QuestionRepository {
         return jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray());
     }
 
-    /** Whitelist ORDER BY clause для sort - SQL safety. */
+    /** Whitelist ORDER BY clause для sort - SQL safety. Phase 2.b
+     *  переключился на indexed view_count column - O(log N) vs prev
+     *  computed subquery в каждой row. answer count - secondary tiebreak. */
     private static String orderByForSort(String sort) {
         if (sort == null) return " ORDER BY created_at DESC";
         return switch (sort) {
-            case "popular" -> " ORDER BY (SELECT COUNT(*) FROM answers a WHERE a.question_id = questions.id) DESC, created_at DESC";
+            case "popular" -> " ORDER BY view_count DESC, "
+                    + "(SELECT COUNT(*) FROM answers a WHERE a.question_id = questions.id) DESC, "
+                    + "created_at DESC";
             case "alphabetical" -> " ORDER BY title ASC";
             case "recent" -> " ORDER BY created_at DESC";
             default -> " ORDER BY created_at DESC";

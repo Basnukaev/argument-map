@@ -229,7 +229,11 @@ public class TopicRepository {
     private static String orderByForSort(String sort) {
         if (sort == null) return " ORDER BY t.created_at DESC";
         return switch (sort) {
-            case "popular" -> " ORDER BY node_count DESC, t.created_at DESC";
+            // Phase 2.b: composite popular score - view_count (primary
+            // signal после tracking накопится) + node_count tiebreak +
+            // recency. Все 3 indexed либо computed: index на view_count
+            // DESC покрывает primary, node_count из COUNTS JOIN subquery.
+            case "popular" -> " ORDER BY t.view_count DESC, node_count DESC, t.created_at DESC";
             case "alphabetical" -> " ORDER BY t.title ASC";
             case "recent" -> " ORDER BY t.created_at DESC";
             default -> " ORDER BY t.created_at DESC";
