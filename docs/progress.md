@@ -108,7 +108,7 @@ context conservation, frontend-design skill перед UI changes.
   algorithm choice)
 - M-3/M-4/M-6 frontend stability audit remaining from 49c
 
-### 49.A Roles - Phase A.1 + A.2 + A.3 closed внутри 49d
+### 49.A Roles - Phase A.1 + A.2 + A.3 + A.4 closed внутри 49d
 
 После handoff Сессии 49d Phase 1 Абдула continue'нул в MAX mode →
 implementation начата прямо в этой же session. Закрытые phases:
@@ -129,6 +129,17 @@ implementation начата прямо в этой же session. Закрыты�
   role сохранён для internal callers. HadithGradeControllerIT updates:
   setUp() users role='SCHOLAR' + 3 new tests (USER 403, STUDENT 403,
   ADMIN 201 hierarchy bypass). 12/12 PASS.
+
+- **Phase A.4** (`cb2b226`) — **Admin user management endpoint**.
+  PATCH /api/v1/users/{id}/role (ADMIN-only). UserController +
+  UserService.updateRole + UserRepository.updateRole + 2 DTOs
+  (ChangeRoleRequest, UserResponse) + 7 IT tests (happy path, admin-
+  only guard, self-downgrade lockout protection, invalid role, empty
+  body, no-op same role, non-existent user). Audit log entry через
+  logUpdate(entityType="USER", changes={role:{old,new}}). After this
+  phase ADMIN может elevate USER → STUDENT/SCHOLAR/ADMIN via REST.
+  api-contract.md updated с обоими PATCH endpoint + SCHOLAR gate
+  semantics на hadith grades.
 
 3 specs subagents (D/E/F) вернулись все 3 spec файла одной волной:
 - `rating-pagination-design.md` (481 строка). NOTE: spec предлагает
@@ -163,12 +174,12 @@ collections`, REST CRUD, BookCard menu «Добавить в коллекцию�
 
 ### Метрики 49d финальные
 
-- **15 commits total** (1 vision spec + 9 fix/feat + 1 handoff + 3 roles
-  phases A.1/A.2/A.3 + 1 second handoff)
-- **Tests:** Backend +17 new (UserRoleTest 9 + PermissionServiceTest 5
-  + HadithGradeControllerIT 3 role gate tests). Frontend 573/573 PASS,
-  TypeScript clean. Auth IT 34/34, HadithGradeServiceIT 17/17,
-  HadithGradeControllerIT 12/12 baseline + new — preserved.
+- **17 commits total** (1 vision spec + 9 fix/feat + 1 handoff + 4
+  roles phases A.1/A.2/A.3/A.4 + 1 second handoff + 1 final handoff)
+- **Tests:** Backend +24 new (UserRoleTest 9 + PermissionServiceTest 5
+  + HadithGradeControllerIT 3 + UserControllerIT 7). Frontend 573/573
+  PASS, TypeScript clean. Auth IT 34/34 baseline + new UserControllerIT
+  7/7 preserved.
 - **Migrations:** 48 → 49 applied (CHECK constraint expansion).
 - **Specs созданы:** 5 в `docs/superpowers/specs/`:
   - `2026-05-20-vision-expansion-49d.md` (root)

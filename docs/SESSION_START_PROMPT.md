@@ -280,20 +280,29 @@ Specs created:
 ### Текущий приоритет — implementation continues
 
 После 49d:
-- Phase A.1+A.2+A.3 уже **сделаны** (migration 49 + UserRole.hasAtLeast
-  + InsufficientRoleException + PermissionService.assertHasRoleAtLeast
-  + HadithGradeService SCHOLAR gate applied).
+- Phase A.1+A.2+A.3+A.4 уже **сделаны** (migration 49 + UserRole +
+  InsufficientRoleException + PermissionService.assertHasRoleAtLeast +
+  HadithGradeService SCHOLAR gate + UserController PATCH /role admin
+  endpoint).
 - 5 specs готовы (vision/roles/rating/hadith/observability).
 
-**Phase A.4 — next priority:** PATCH /api/v1/users/{id}/role endpoint
-(ADMIN only) + GET /api/v1/users?role=... для admin user management.
-UserService.updateRole(adminUserId, targetUserId, newRole). Audit log
-entry. IT.
+**Phase A.5 — next priority:** apply STUDENT gate на AnswerService.
+createAnswer / QuestionService.createQuestion. Breaks existing tests
+где role=USER. Защитная стратегия:
+- ВАРИАНТ 1: использовать admin endpoint (now ready) — migrate dev users
+  → STUDENT в test setUp. Все Question/Answer IT обновить под SCHOLAR/
+  STUDENT setup users.
+- ВАРИАНТ 2: feature flag `roles.gates.enabled` (default false в test).
+  Проще, но скрывает реальное behavior в CI.
 
-**Phase A.5** — apply STUDENT gate на AnswerService.createAnswer /
-QuestionService.createQuestion. **Breaks existing tests** где role=USER.
-Защитная стратегия: либо migrate existing users → STUDENT (depends на
-A.4 first), либо feature flag enable=false в test profile. Effort ~4h.
+Recommended ВАРИАНТ 1 — это reveals real behavior, и admin endpoint
+уже готов чтобы tests могли elevate users в setUp().
+
+Effort ~4h.
+
+**Phase A.6** — Frontend AuthStore type expansion + ProtectedRoute
+requireRole generalize + RoleLockedAction wrapper. После регенерации
+types.ts (включает MeResponse role enum). Effort ~3h.
 
 **Phase A.5+:** Frontend AuthStore type expansion + ScholarRoute/
 StudentRoute (или generalized requireRole) + role-locked UI components.
