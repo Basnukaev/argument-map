@@ -28,6 +28,7 @@ import type { NodeStatus } from '@/shared/utils/designTokens';
 import { useGraphEscape } from '@/apps/argument-map/hooks/useGraphEscape';
 import { useGraphZOrder } from '@/apps/argument-map/hooks/useGraphZOrder';
 import { useElkAutoLayout } from '@/apps/argument-map/hooks/useElkAutoLayout';
+import { useNodeDelete } from '@/apps/argument-map/hooks/useNodeDelete';
 import { useHotkey } from '@/shared/hooks/useHotkey';
 import {
   getAllowedEdgeTypes,
@@ -36,7 +37,7 @@ import {
   NODE_TYPE_META,
 } from '@/apps/argument-map/utils/edgeRules';
 import { buildFlow, findFreePosition, sameIds } from '@/apps/argument-map/utils/graphPlacement';
-import { apiDeleteRaw, apiDeleteWithBody, apiPatchRaw, apiPost, ApiError } from '@/shared/api/client';
+import { apiPatchRaw, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useGraphSelectionStore } from '@/shared/stores/graphSelectionStore';
 import { useT } from '@/shared/i18n';
@@ -44,9 +45,7 @@ import { useThemeStore } from '@/shared/stores/themeStore';
 import type { components } from '@/shared/api/types';
 
 type GraphResponse = components['schemas']['GraphResponse'];
-type NodeDto = components['schemas']['NodeResponse'];
 type EdgeDto = components['schemas']['EdgeResponse'];
-type BulkDeleteResponse = components['schemas']['BulkDeleteResponse'];
 
 // nodeTypes/edgeTypes - стабильные ссылки между рендерами, иначе RF
 // ругается и пере-инициализируется (см coding-standards).
@@ -177,7 +176,6 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
   } | null>(null);
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
-  const [deleting, setDeleting] = useState(false);
 
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -220,6 +218,14 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
   // NodeIsRootException, см. #1). Используем для (а) скрытия пункта
   // "Удалить" в context menu, (б) фильтрации в bulk-delete из toolbar
   const rootNodeId = graph.topic?.rootNodeId ?? null;
+
+  const { runDelete, deleteOneNode, deleteOneEdge, deleting } = useNodeDelete({
+    rootNodeId,
+    rawNodeDtos,
+    setSelectedNodeIds,
+    setSelectedEdgeIds,
+    onRefetch,
+  });
 
   // drag из handle одного узла на handle другого - проверяем матрицу
   // ADR-010 ДО открытия модалки. Запрещённую пару показываем тостом
@@ -322,163 +328,6 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
     },
     [t],
   );
-
-  // Re-create узла из snapshot после undo. POST /nodes восстанавливает
-  // type/content (без id - бэк выдаст новый), затем PATCH прокидывает posX/posY.
-  // Edges НЕ восстанавливаются - re-create меняет id, а edges указывают на старые
-  // id. Это документировано в hint'е к "Отменить" кнопке (см. i18n
-  // graph.node.undo_no_edges_hint). Прагматичный trade-off: undo нужен для
-  // случайных удалений leaf-узлов где edges и так минимальны
-  async function restoreNodeFromSnapshot(snapshot: NodeDto): Promise<void> {
-    if (!snapshot.topicId || !snapshot.nodeType || snapshot.content === undefined) return;
-    try {
-      const created = (await apiPost('/api/v1/nodes', {
-        topicId: snapshot.topicId,
-        nodeType: snapshot.nodeType,
-        content: snapshot.content,
-      })) as NodeDto;
-      if (
-        created.id &&
-        snapshot.posX !== undefined &&
-        snapshot.posY !== undefined
-      ) {
-        try {
-          await apiPatchRaw(`/api/v1/nodes/${created.id}`, {
-            posX: snapshot.posX,
-            posY: snapshot.posY,
-          });
-        } catch {
-          // позиционирование не блокирует восстановление
-        }
-      }
-      onRefetch();
-    } catch (e: unknown) {
-      const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
-      toast.error(`${t('graph.node.undo_failed')}: ${msg}`);
-    }
-  }
-
-  /**
-   * Единая точка удаления узлов/рёбер. Используется из context menu (один
-   * узел/ребро) и хоткея Del/Backspace (bulk-selection). Семантика silent:
-   * никакого `window.confirm` - намерение уже выражено через явный пункт
-   * меню или Del-нажатие, плюс показанный toast с Undo даёт reversibility
-   * на 5 секунд (паттерн Gmail/Slack).
-   *
-   * Возвращает true если хоть что-то реально удалили (для очистки selection).
-   */
-  async function runDelete(nodeIds: string[], edgeIds: string[]): Promise<boolean> {
-    // фильтруем корневой узел локально для undo-snapshot и early-exit;
-    // бэк сам пропустит корень (skippedRootIds) и не бросит 409
-    const nodesToDelete = nodeIds.filter((id) => id !== rootNodeId);
-    const rootSkippedLocally = nodesToDelete.length !== nodeIds.length;
-
-    // snapshot для undo - до удаления, иначе rawNodeDtos уже не содержит
-    const nodeSnapshots = nodesToDelete
-      .map((id) => rawNodeDtos.find((n) => n.id === id))
-      .filter((n): n is NodeDto => !!n);
-
-    if (nodesToDelete.length === 0 && edgeIds.length === 0) {
-      if (rootSkippedLocally) toast.warning(t('graph.root.delete_skipped_toast'));
-      return false;
-    }
-
-    setDeleting(true);
-    try {
-      // рёбра первыми чтобы не получить 404 если узел уже удалит ребро каскадом
-      for (const edgeId of edgeIds) {
-        try {
-          await apiDeleteRaw(`/api/v1/edges/${edgeId}`);
-        } catch (e: unknown) {
-          if (!(e instanceof ApiError && e.status === 404)) throw e;
-        }
-      }
-
-      // узлы - один bulk DELETE /api/v1/nodes/bulk вместо N individual requests.
-      // Бэк пишет единственную BULK_DELETE запись в audit log. Корневые узлы
-      // пропускаются сервером (skippedRootIds) - дублируем предупреждение если
-      // бэк вернул skipped.
-      let serverSkippedRoot = false;
-      if (nodesToDelete.length > 0) {
-        const bulkResult = await apiDeleteWithBody<BulkDeleteResponse>(
-          '/api/v1/nodes/bulk',
-          { nodeIds: nodesToDelete },
-        );
-        serverSkippedRoot = (bulkResult.skippedRootIds?.length ?? 0) > 0;
-      }
-
-      setSelectedNodeIds([]);
-      setSelectedEdgeIds([]);
-      useGraphSelectionStore.getState().clearSelection();
-      onRefetch();
-
-      // undo - только если удалили хотя бы один узел (рёбра restoring не
-      // реализован: они дешевле в воссоздании руками, и без полного snapshot
-      // edges-таблицы при bulk-delete восстановление было бы хрупким)
-      if (nodeSnapshots.length > 0) {
-        const message =
-          nodeSnapshots.length === 1
-            ? t('graph.node.deleted_toast')
-            : t('graph.node.deleted_toast_multi').replace('{count}', String(nodeSnapshots.length));
-        // 5 секунд TTL для destructive action recovery (паттерн Gmail /
-        // Slack / macOS Finder) - явно больше дефолтных 3 сек на success
-        // toast: пользователю нужно прочитать сообщение и среагировать
-        // на Undo, что не успеть за 3 сек особенно при bulk-delete
-        toast.success(
-          message,
-          {
-            label: t('graph.node.deleted_undo'),
-            hint: t('graph.node.undo_no_edges_hint'),
-            onClick: () => {
-              void Promise.all(nodeSnapshots.map((s) => restoreNodeFromSnapshot(s)));
-            },
-          },
-          { ttl: 5000 },
-        );
-      } else if (edgeIds.length > 0) {
-        toast.success(t('graph.edge.deleted_toast'));
-      }
-
-      if (rootSkippedLocally || serverSkippedRoot) {
-        toast.warning(t('graph.root.delete_skipped_toast'));
-      }
-      return true;
-    } catch (e: unknown) {
-      // permission-aware: при отзыве прав в момент удаления показываем
-      // explicit "нет прав", иначе generic delete_failed с titlemessage.
-      // Mirror runBulkStatusChange behavior (Code review round 4 #4)
-      if (e instanceof ApiError && e.is('forbidden-topic-write')) {
-        toast.error(t('bulk_actions.error.permission_denied'));
-      } else {
-        const msg = e instanceof ApiError ? e.problem.title : (e as Error).message;
-        toast.error(`${t('graph.toast.delete_failed')}: ${msg}`);
-      }
-      return false;
-    } finally {
-      setDeleting(false);
-    }
-  }
-
-  const deleteOneNode = useCallback(
-    async (nodeId: string) => {
-      // защитный barrier: context menu уже скрывает пункт удаления для корня,
-      // но если новая точка входа добавится - не дать сделать заведомо
-      // обречённый запрос (бэк бросит 409 NodeIsRootException)
-      if (nodeId === rootNodeId) {
-        toast.warning(t('graph.root.delete_hint'));
-        return;
-      }
-      await runDelete([nodeId], []);
-    },
-    // runDelete - plain async function, recreated each render - using stable
-    // indirect deps instead. rootNodeId и t - stable enough (topic ref / i18n)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rootNodeId, t],
-  );
-
-  async function deleteOneEdge(edgeId: string) {
-    await runDelete([], [edgeId]);
-  }
 
   // Bulk-status: parallel PATCH /api/v1/nodes/{id} с {status}. Partial-failure
   // aware - используем Promise.allSettled, считаем успехи/провалы, выдаём
