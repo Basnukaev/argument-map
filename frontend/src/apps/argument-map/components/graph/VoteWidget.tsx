@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { useT } from '@/shared/i18n/useT';
 import { apiDeleteRaw, apiPostRaw, formatApiError } from '@/shared/api/client';
@@ -41,17 +41,15 @@ function VoteWidget({
   // Локальное состояние - оптимистичное обновление + база при ошибке
   const [local, setLocal] = useState({ upvotes, downvotes, score, userVote });
 
-  // Синхронизируем local при изменении props (e.g. parent перезагрузил граф)
-  if (
-    local.upvotes !== upvotes ||
-    local.downvotes !== downvotes ||
-    local.userVote !== userVote
-  ) {
-    // условный update только когда props свежее - избегаем зацикливания
+  // Синхронизируем local при изменении props (e.g. parent перезагрузил граф).
+  // useEffect вместо render-phase setState - React 19 запрещает setState во
+  // время рендера. pending check защищает от затирания optimistic update
+  // в момент in-flight запроса
+  useEffect(() => {
     if (!pending) {
       setLocal({ upvotes, downvotes, score, userVote });
     }
-  }
+  }, [upvotes, downvotes, score, userVote, pending]);
 
   const handleVote = async (weight: 1 | -1) => {
     if (!user) {
