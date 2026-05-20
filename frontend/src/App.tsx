@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router';
+import { Routes, Route, Navigate, useLocation } from 'react-router';
 import TopicListPage from '@/apps/argument-map/pages/TopicListPage';
 import CreateTopicPage from '@/apps/argument-map/pages/CreateTopicPage';
 import LoginPage from '@/apps/auth/pages/LoginPage';
@@ -61,7 +61,15 @@ function App() {
   const paletteOpen = usePaletteStore((s) => s.open);
   const closePalette = usePaletteStore((s) => s.hide);
 
-  useHotkey('alt+k', togglePalette, { enableOnFormTags: true });
+  // Alt+K не открывает palette на auth страницах (/login, /register) -
+  // там нет авторизованных команд, и palette вводила бы в заблуждение
+  const { pathname } = useLocation();
+  const isAuthPage = pathname === '/login' || pathname === '/register';
+
+  useHotkey('alt+k', () => {
+    if (isAuthPage) return;
+    togglePalette();
+  }, { enableOnFormTags: true }, [isAuthPage, togglePalette]);
 
   // На mount - bootstrap auth (попытка refresh + /me). Запускается один раз
   // даже в StrictMode dev double-render (initialized флаг защищает от
