@@ -481,16 +481,22 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
     }
   }
 
-  async function deleteOneNode(nodeId: string) {
-    // защитный barrier: context menu уже скрывает пункт удаления для корня,
-    // но если новая точка входа добавится - не дать сделать заведомо
-    // обречённый запрос (бэк бросит 409 NodeIsRootException)
-    if (nodeId === rootNodeId) {
-      toast.warning(t('graph.root.delete_hint'));
-      return;
-    }
-    await runDelete([nodeId], []);
-  }
+  const deleteOneNode = useCallback(
+    async (nodeId: string) => {
+      // защитный barrier: context menu уже скрывает пункт удаления для корня,
+      // но если новая точка входа добавится - не дать сделать заведомо
+      // обречённый запрос (бэк бросит 409 NodeIsRootException)
+      if (nodeId === rootNodeId) {
+        toast.warning(t('graph.root.delete_hint'));
+        return;
+      }
+      await runDelete([nodeId], []);
+    },
+    // runDelete - plain async function, recreated each render - using stable
+    // indirect deps instead. rootNodeId и t - stable enough (topic ref / i18n)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rootNodeId, t],
+  );
 
   async function deleteOneEdge(edgeId: string) {
     await runDelete([], [edgeId]);
@@ -696,8 +702,7 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
         items,
       });
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setNodes],
+    [canWrite, rootNodeId, t, rawNodeDtos, bringNodeToFront, sendNodeToBack, deleteOneNode],
   );
 
   // правый клик на ребре - "Редактировать", z-order, "Удалить"
