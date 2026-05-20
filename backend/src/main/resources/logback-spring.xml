@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!--
+        Vision 49d Phase 1 Observability (ADR-051). Default: text console
+        pattern с MDC (existing dev behaviour). В prod (Spring profile):
+        JSON-encoded structured logs, поднимаются aggregator'ом (Loki/
+        Elasticsearch).
+
+        Spring Boot включает logback-spring.xml автоматически (вместо
+        logback.xml) если он есть в classpath - получаем доступ к
+        <springProfile> conditional.
+    -->
+
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- Default: console с text pattern + MDC requestId/userId -->
+    <springProfile name="default | local | test">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{HH:mm:ss.SSS} %5p [%X{requestId:-}] [%X{userId:-}] %-40.40logger{39} : %m%n%wEx</pattern>
+            </encoder>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <!--
+        Prod: JSON structured. Каждая запись - один JSON object на строку.
+        Aggregator-friendly (Loki, Elasticsearch). MDC поля (requestId,
+        userId) автоматически попадают в top-level через
+        includeMdcKeyName.
+    -->
+    <springProfile name="prod">
+        <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <includeMdcKeyName>requestId</includeMdcKeyName>
+                <includeMdcKeyName>userId</includeMdcKeyName>
+                <customFields>{"app":"argument-map","env":"prod"}</customFields>
+                <fieldNames>
+                    <timestamp>@timestamp</timestamp>
+                    <message>message</message>
+                    <thread>thread</thread>
+                    <logger>logger</logger>
+                    <level>level</level>
+                    <levelValue>[ignore]</levelValue>
+                    <stackTrace>stack_trace</stackTrace>
+                </fieldNames>
+            </encoder>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="JSON_CONSOLE"/>
+        </root>
+    </springProfile>
+</configuration>

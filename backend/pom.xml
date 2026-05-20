@@ -51,6 +51,17 @@
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
 		<!--
+			Vision 49d Observability Phase 1 (ADR-051): structured logging
+			JSON encoder для prod profile. В dev/local/test остаётся text
+			console pattern. См. logback-spring.xml + spec
+			docs/superpowers/specs/2026-05-20-observability-design.md
+		-->
+		<dependency>
+			<groupId>net.logstash.logback</groupId>
+			<artifactId>logstash-logback-encoder</artifactId>
+			<version>7.4</version>
+		</dependency>
+		<!--
 			Resilience4j circuit breaker для upstream HTTP вызовов (ADR-024 25.b).
 			Защищает archive.org PDF downloads + shamela API от cascading failures.
 			AOP включается через resilience4j-spring-boot3 starter +
