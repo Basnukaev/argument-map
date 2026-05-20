@@ -246,8 +246,11 @@ collections`, REST CRUD, BookCard menu «Добавить в коллекцию�
 
 ### Метрики 49d финальные
 
-- **47+ commits total** (22 initial + 25+ continued MAX-mode after
+- **57+ commits total** (22 initial + 35+ continued MAX-mode после
   Абдула explicit «не останавливайся»)
+- **Frontend tests:** 573 → 577 (+4 useViewTracking unit tests)
+- **types.ts regenerated** после backend restart с all new schemas
+- **Backend smoke verified** через curl - sample data Hadith пришёл
 - **8 migrations applied:** 48 → 49 (roles) → 50 (collections) →
   51 (view counters) → 52-55 (hadith narrators/hadiths/sanads/matns)
 - **49.C Hadith Explorer Phase 1 backend COMPLETE:** 6 domain
