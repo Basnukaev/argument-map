@@ -96,8 +96,7 @@ public class EdgeService {
         UUID topicId = nodeRepository.findById(existing.fromNodeId())
                 .orElseThrow(() -> new NodeNotFoundException(existing.fromNodeId()))
                 .topicId();
-        edgeRepository.deleteById(edgeId);
-        statusCalculationService.recalculateTopic(topicId);
+        doDeleteEdge(existing, topicId);
     }
 
     /**
@@ -135,7 +134,19 @@ public class EdgeService {
         auditLogService.logDelete(AuditEntityType.EDGE, edgeId,
                 AuditEntityType.TOPIC, topicId, userId, snapshot);
 
-        deleteEdge(edgeId);
+        // уже имеем загруженный edge и topicId — передаём в helper,
+        // чтобы не грузить их повторно внутри deleteEdge(UUID)
+        doDeleteEdge(existing, topicId);
+    }
+
+    /**
+     * Внутренний helper: удалить ребро + пересчитать статусы темы.
+     * Принимает уже загруженные данные — исключает повторный запрос в БД
+     * когда caller уже знает edge и topicId (fix double-load в deleteEdge pair).
+     */
+    private void doDeleteEdge(Edge edge, UUID topicId) {
+        edgeRepository.deleteById(edge.id());
+        statusCalculationService.recalculateTopic(topicId);
     }
 
     @Transactional
