@@ -85,7 +85,14 @@ function Header() {
               работает как symbol-identity (узнаётся по форме вязи),
               читаемость как текста не важна - поэтому жертвуем размером
               ради геометрической компактности. nav остаётся рядом */}
-          <span className="inline-flex h-7 w-auto min-w-7 items-center justify-center rounded-md bg-accent-600 px-1.5 font-arabic text-sm font-semibold leading-none text-ink-0">
+          {/* Logo font - LOCKED Scheherazade New, не подменяется через
+              FontPairEffect (которое динамически меняет --font-arabic).
+              Logo - часть brand identity, должен оставаться constant
+              даже когда пользователь меняет шрифт интерфейса в Settings */}
+          <span
+            className="inline-flex h-7 w-auto min-w-7 items-center justify-center rounded-md bg-accent-600 px-1.5 text-sm font-semibold leading-none text-ink-0"
+            style={{ fontFamily: "'Scheherazade New', 'Amiri', 'Noto Naskh Arabic', serif" }}
+          >
             ﷽
           </span>
         </Link>
