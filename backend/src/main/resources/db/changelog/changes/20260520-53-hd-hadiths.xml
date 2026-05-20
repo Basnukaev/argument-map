@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Vision 49d Section 2.6 Phase 1.c: hd_hadiths - сам хадис.
+
+        primary_book_id → lib_books FK: каноническая публикация (Бухари/
+        Муслим/etc). primary_number INT - номер в книге (6018 etc).
+        UNIQUE (primary_book_id, primary_number) - один хадис в книге раз.
+
+        normalized_matn для search (без taшkīl + leter normalization).
+        Заполняется в service на save.
+
+        status CHECK whitelist: CANONICAL / VARIANT / WEAK / FABRICATED.
+
+        source_id → sources.id nullable - мост в existing citation
+        domain (через node_sources hadith citations).
+    -->
+    <changeSet id="20260520-53-hd-hadiths" author="Abdula Basnukaev">
+        <comment>Hadith Explorer Phase 1.c: hd_hadiths table</comment>
+        <createTable tableName="hd_hadiths">
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="primary_book_id" type="UUID">
+                <constraints nullable="true"
+                             foreignKeyName="fk_hd_hadiths_book"
+                             references="lib_books(id)"
+                             deleteCascade="false"/>
+            </column>
+            <column name="primary_number" type="INTEGER"/>
+            <column name="normalized_matn" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(20)" defaultValue="VARIANT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="source_id" type="UUID">
+                <constraints nullable="true"
+                             foreignKeyName="fk_hd_hadiths_source"
+                             references="sources(id)"
+                             deleteCascade="false"/>
+            </column>
+            <column name="metadata" type="JSONB"/>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <sql>
+            ALTER TABLE hd_hadiths ADD CONSTRAINT hd_hadiths_status_check
+                CHECK (status IN ('CANONICAL', 'VARIANT', 'WEAK', 'FABRICATED'));
+        </sql>
+
+        <addUniqueConstraint
+                tableName="hd_hadiths"
+                columnNames="primary_book_id, primary_number"
+                constraintName="hd_hadiths_book_number_unique"/>
+
+        <createIndex tableName="hd_hadiths" indexName="idx_hd_hadiths_book">
+            <column name="primary_book_id"/>
+        </createIndex>
+        <createIndex tableName="hd_hadiths" indexName="idx_hd_hadiths_status">
+            <column name="status"/>
+        </createIndex>
+
+        <rollback>
+            <dropTable tableName="hd_hadiths"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
