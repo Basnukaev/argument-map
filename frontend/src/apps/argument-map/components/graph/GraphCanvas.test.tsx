@@ -76,10 +76,14 @@ describe('GraphCanvas - delete UX unification', () => {
 
   it('context menu "Удалить" НЕ вызывает window.confirm и удаляет silent + toast undo', async () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const deleteSpy = vi.fn(() => new HttpResponse(null, { status: 204 }));
+    const deleteSpy = vi.fn(() =>
+      HttpResponse.json({ deletedIds: [CLAIM_ID], skippedRootIds: [] }),
+    );
 
     server.use(
-      http.delete(`${BASE}/api/v1/nodes/${CLAIM_ID}`, () => deleteSpy()),
+      // ADR-041 bulk endpoint: runDelete теперь шлёт DELETE /nodes/bulk с {nodeIds:[...]}
+      // вместо N индивидуальных запросов (commit 9d9cc37, Сессия 49).
+      http.delete(`${BASE}/api/v1/nodes/bulk`, () => deleteSpy()),
     );
 
     const onRefetch = vi.fn();
@@ -150,7 +154,10 @@ describe('GraphCanvas - delete UX unification', () => {
   it('toast undo восстанавливает узел через POST /nodes', async () => {
     let postBody: unknown = null;
     server.use(
-      http.delete(`${BASE}/api/v1/nodes/${CLAIM_ID}`, () => new HttpResponse(null, { status: 204 })),
+      // ADR-041 bulk endpoint (см. предыдущий тест): mock /nodes/bulk вместо /{id}
+      http.delete(`${BASE}/api/v1/nodes/bulk`, () =>
+        HttpResponse.json({ deletedIds: [CLAIM_ID], skippedRootIds: [] }),
+      ),
       http.post(`${BASE}/api/v1/nodes`, async ({ request }) => {
         postBody = await request.json();
         return HttpResponse.json({
