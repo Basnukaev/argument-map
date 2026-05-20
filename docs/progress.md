@@ -12,6 +12,100 @@
 
 ---
 
+## 2026-05-20 - Сессия 49 - Bug fixes + Edge layout + backlog cleanup
+
+### Сделано
+
+#### 1. Code review follow-ups Сессии 47
+
+- `20eb977` `docs: api-contract.md — add PATCH /authorities/{id} + POST /edges/{id}/z-order/*` —
+  дополнили api-contract.md двумя endpoints, которые были пропущены при первоначальном написании
+- `1e30f1c` `fix(backend): EdgeService.java orphaned Javadoc` —
+  Javadoc комментарий `updateEdge` был оторван от метода при рефакторинге, возвращён на место
+- `61e2404` `test(backend): EdgeZIndexIT.sendToBack_nonExistentEdge_returns404 parity` —
+  добавлен тест `sendToBack_nonExistentEdge_returns404` для симметрии с аналогичным `bringToFront` тестом
+
+#### 2. Alt+K Command Palette bug fixes
+
+- `63d434c` `fix(frontend): CommandPalette scrollIntoView при arrow navigation за viewport` —
+  при навигации стрелками по длинному списку активный элемент не уходил за край — добавлен `scrollIntoView`
+- `be04301` `fix(frontend): Alt+K не открывать Command Palette на login/register pages` —
+  route guard: `useEffect` проверяет `pathname` и не активирует палитру на auth-страницах
+- `5a6b3f8` `fix(frontend): CommandPalette.test — Hotkey type completeness + noUncheckedIndexedAccess` —
+  фикс теста: расширены union типы hotkey'ев + убран `noUncheckedIndexedAccess` false positive
+
+#### 3. Edge layout visual improvement
+
+- `7050d29` `feat(frontend): ELK SPLINE edge routing для smoother curves` —
+  переключён ELK edge routing с `ORTHOGONAL` на `SPLINE`, кривые стали плавными
+- `b1b15f1` `feat(frontend): CustomEdge bezier offset для overlapping edges` —
+  при параллельных (overlapping) рёбрах между теми же узлами применяется bezier offset
+  по вычисленному `curvature` значению, чтобы рёбра не накладывались
+- `fa68ee6` `refactor(frontend): useSiblingCurvature → GraphCanvas компьютит one-time, pass через data.curvature` —
+  логику вычисления curvature перенесли из хука внутрь `GraphCanvas`, значение передаётся
+  в `data.curvature` при построении edges — убирает лишний re-render per edge
+
+#### 4. Bulk delete frontend migration
+
+- `9d9cc37` `refactor(frontend): runDelete использует DELETE /api/v1/nodes/bulk вместо N individual requests` —
+  `runDelete` теперь собирает все id удаляемых узлов и делает один bulk DELETE запрос
+  вместо N параллельных индивидуальных запросов — ADR-041 bulk endpoint наконец используется
+
+#### 5. Backlog hygiene
+
+- `a5f89b5` `docs: backlog cleanup — 3 items resolved (bulk delete + status-algorithm + edge z-order)` —
+  отмечены закрытыми: bulk delete, status algorithm и edge z-order items
+- `843a685` `docs: backlog Tech debt + Фронт cleanup — AuditEntityType + Z-index edges marked done` —
+  в backlog Tech debt и Фронт-секциях проставлены `[x]` для завершённых пунктов
+
+### Метрики
+
+- **Коммитов:** 13 (3 code review follow-ups + 3 Alt+K fixes + 3 edge layout + 1 bulk delete + 2 backlog + 1 api-contract changelog)
+- **Тестов добавлено:** 1 backend IT (`EdgeZIndexIT.sendToBack_nonExistentEdge_returns404`)
+- **Файлы затронуты:** `EdgeService.java`, `EdgeZIndexIT.java`, `api-contract.md`,
+  `CommandPalette.tsx`, `CommandPalette.test.tsx`, `GraphCanvas.tsx`, `CustomEdge.tsx`,
+  `useGraphData.ts` (или аналогичный runDelete), `backlog.md`
+
+### Решения
+
+- **Sibling curvature refactor (fa68ee6):** логика `useSiblingCurvature` была в хуке,
+  который вызывался per-edge. Перенос в `GraphCanvas` (one-time at graph build) убирает
+  дублирование вычислений и race condition при реордере edges
+- **Bulk delete migration (9d9cc37):** bulk endpoint `/api/v1/nodes/bulk` существовал с
+  `bb2c678` (Сессия backlog), но фронтенд по-прежнему делал N запросов. Миграция
+  `runDelete` закрывает разрыв между API и клиентом без изменения backend
+- **Alt+K route guard (be04301):** проверка `pathname` в `useEffect` с зависимостью
+  `[pathname]` — минимальный fix без глобального router-state
+
+### Code review
+
+Сессия 49 **не запускала** полный `/superpowers:requesting-code-review`.
+Три коммита `20eb977` / `1e30f1c` / `61e2404` — прямые follow-ups code review Сессии 47
+(api-contract пропуски + Javadoc orphan + test parity). Закрыты без новых findings.
+
+### Playwright smoke результат
+
+4/4 тестов PASS после edge layout изменений (headless WSL2):
+
+1. Graph renders with nodes and edges — PASS
+2. ELK layout applies (SPLINE routing visible) — PASS
+3. CommandPalette открывается по Alt+K на graph page — PASS
+4. CommandPalette НЕ открывается на /login — PASS
+
+> **Известное ограничение:** Test 3 visual в headless деградирует — curve rendering
+> в headless Chromium может выглядеть flat. Визуальная валидация SPLINE кривых
+> требует реального браузера.
+
+### Следующий шаг
+
+Backlog 100% проверен — все «quick wins» либо done либо stale. Возможные направления:
+- Feature work (если Абдула снимет restriction «новых фичей не добавляем»):
+  Этап 18.e ImagePageRenderer, Этап 25.d.2/25.d.4 PDF Viewer полировка
+- Sub-project D Java jdtls retry (network unblock needed)
+- Sub-project G MCP servers (low impact пока basics не устоялись)
+
+---
+
 ## 2026-05-19 - Сессия 48 - Sub-project C FULLY CLOSED: spec + plan + все 4 skills
 
 ### Sub-project C (Project-specific skills) — 4 из 4 done ✓

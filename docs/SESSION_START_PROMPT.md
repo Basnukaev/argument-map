@@ -252,41 +252,35 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 - Aggressive depth cleanup: вынос cross-cutting backend/CLAUDE.md секций
   (Pagination, Permissions, Audit log) если depth решим расширить
 
-### Что делать в Сессии 49 (next session entry point)
+### Snapshot состояния на closure Сессии 49
 
-**Harness setup COMPLETE.** Все 4 in-scope harness sub-projects (A, B, C, E)
-fully closed. D partial (TypeScript LSP works; Java jdtls pending mirrors).
+**Сессия 49 закрыла:** bugs (Alt+K scroll + route guard) + edge layout
+improvement (ELK SPLINE + sibling curvature bezier offset) + bulk delete
+frontend migration + code review follow-ups Сессии 47 + 2 backlog cleanup commits.
+Всего 13 коммитов, 1 backend IT добавлен. Playwright 4/4 PASS.
 
-**Возможные направления для Сессии 49+:**
+**Backlog 100% проверен.** Все «quick wins» либо done либо stale.
+Оставшиеся backlog items:
 
-1. **Восстановить feature cadence** (если Абдула снимет «новых фичей не добавляем»
-   restriction) — Этап 18.e ImagePageRenderer / Этап 25.d.x PDF Viewer
-   полировка / 25.e admin page-mapping / Source picker Коран+Хадисы
-2. **Continue low-priority backlog:** Java jdtls install retry (network),
-   bulk audit consolidation если admin audit UI назрел, cursor pagination
-   если объёмы данных потребуют
-3. **Verify hooks working:** при старте Сессии 49 — manual smoke tests
-   из `.claude/hooks/README.md`. **Главное:** verify `$CLAUDE_PROJECT_DIR`
-   expansion работает (см. code review follow-up в `.claude/hooks/README.md`
-   секция «Smoke test priority»)
-4. **Verify skills working:** при старте Сессии 49 — попроси Claude'а
-   сделать что-то triggering каждый skill (новую миграцию для
-   liquibase-migration, новый endpoint для new-rest-endpoint и т.д.).
-   Verify skill activates + следует pattern
+- **Z-index renormalization** — low priority: реальный spread значений
+  в production < 100, конфликты не наблюдались. Не трогать пока не появится
+  конкретный симптом
+- **Cursor-based pagination** — premature: offset OK при текущих объёмах.
+  Вернуться при миллионах записей или stable-order требованиях
+- **Print preview / localization** — features, требуют явного старта
+  от Абдулы
+- **Java jdtls install** — Eclipse mirrors заблокированы в WSL2/сети.
+  Resume только когда network unblocks или manual transfer (см.
+  `.claude/lsp-setup.md`)
 
-**Hooks effects ожидаемые в Сессии 49:**
-- SessionStart hook автоматически прочитает свежий progress.md (2 last
-  entries), roadmap, текущий приоритет — save Claude'у 2-3 Read calls
-- Stop hook ожидает commits в session — но при чисто read-only сессии
-  будет silent
-- PreToolUse(Bash) block --no-verify, warn ./mvnw verify без args
-- PostToolUse(Edit|Write) reminders для DTO/Controller/migration/ADR/yml
+**Suggested next session direction:**
 
-После tech debt - можно браться за фичи:
-- Этап 18.e ImagePageRenderer (mode для image-сканов, после Этапа 17)
-- Этап 25.d.2/25.d.4 PDF Viewer полировка
-- Этап 25.e admin manual page-mapping (Tier 1)
-- Source picker для Корана / Хадисов (внешние API)
+1. **Feature work** (если Абдула снимет restriction «новых фичей не
+   добавляем»): Этап 18.e ImagePageRenderer / Этап 25.d.2/25.d.4 PDF
+   Viewer полировка / 25.e admin page-mapping / Source picker Коран+Хадисы
+2. **Sub-project D** — Java jdtls retry (нужен network unblock)
+3. **Sub-project G** — MCP servers (low impact пока basics не устоялись,
+   деferred по той же причине что в Сессии 47)
 
 Полный backlog в `docs/backlog.md`
 
