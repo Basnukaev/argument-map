@@ -79,7 +79,7 @@ function FloatingActionBar({
     <div
       role="toolbar"
       aria-label={t('bulk_actions.bar.counter').replace('{count}', String(nodeCount))}
-      className="pointer-events-auto fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-lg bg-ink-900 px-2 py-1.5 text-ink-0 shadow-sh3 pb-[max(0.375rem,env(safe-area-inset-bottom))]"
+      className="pointer-events-auto fixed bottom-20 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-lg bg-ink-900 px-2 py-1.5 text-ink-0 shadow-sh3 pb-[max(0.375rem,env(safe-area-inset-bottom))]"
     >
       <div className="inline-flex items-center gap-1.5 px-2.5 text-xs">
         <MousePointer2 size={13} aria-hidden />
