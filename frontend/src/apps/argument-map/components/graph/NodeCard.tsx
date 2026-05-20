@@ -1,7 +1,7 @@
 import { memo, useMemo, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps, Node } from '@xyflow/react';
-import { Languages, MoreHorizontal } from 'lucide-react';
+import { Languages } from 'lucide-react';
 import StatusBadge from '@/shared/components/ui/StatusBadge';
 import TypeChip from '@/shared/components/ui/TypeChip';
 import InlineCitationBody from '@/apps/argument-map/components/citation/InlineCitationBody';
@@ -193,15 +193,6 @@ function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
             </button>
           )}
           <StatusBadge status={status} size="sm" />
-          <button
-            type="button"
-            tabIndex={-1}
-            aria-label="actions"
-            className="-mr-1 text-ink-400 hover:text-ink-700 transition-colors"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <MoreHorizontal size={14} aria-hidden="true" />
-          </button>
         </div>
 
         {showOriginal && (
