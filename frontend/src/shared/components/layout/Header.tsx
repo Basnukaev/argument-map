@@ -24,6 +24,8 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { to: '/topics', labelKey: 'nav.topics' },
   { to: '/books', labelKey: 'nav.library' },
   { to: '/qa', labelKey: 'nav.qa' },
+  // Vision 49d Section 2.6: Hadith Explorer new app section
+  { to: '/hadith/hadiths', labelKey: 'nav.hadith' },
   { to: '/admin/shamela', labelKey: 'nav.admin' },
 ];
 
