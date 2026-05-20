@@ -60,7 +60,7 @@ describe('CommandPalette', () => {
       const arrowDownCb = getHotkeyCallback('arrowdown');
       expect(arrowDownCb).toBeDefined();
 
-      arrowDownCb!(new KeyboardEvent('keydown'), { keys: ['arrowdown'] });
+      arrowDownCb!(new KeyboardEvent('keydown'), { keys: ['arrowdown'], hotkey: 'arrowdown' });
 
       // После обновления state второй item должен стать активным
       await vi.waitFor(() => {
@@ -80,7 +80,7 @@ describe('CommandPalette', () => {
 
       // Сначала arrow-down → на второй item
       const arrowDownCb = getHotkeyCallback('arrowdown');
-      arrowDownCb!(new KeyboardEvent('keydown'), { keys: ['arrowdown'] });
+      arrowDownCb!(new KeyboardEvent('keydown'), { keys: ['arrowdown'], hotkey: 'arrowdown' });
 
       await vi.waitFor(() => {
         const items = screen.getAllByRole('option');
@@ -93,7 +93,7 @@ describe('CommandPalette', () => {
       const arrowUpCb = getHotkeyCallback('arrowup');
       expect(arrowUpCb).toBeDefined();
 
-      arrowUpCb!(new KeyboardEvent('keydown'), { keys: ['arrowup'] });
+      arrowUpCb!(new KeyboardEvent('keydown'), { keys: ['arrowup'], hotkey: 'arrowup' });
 
       await vi.waitFor(() => {
         const items = screen.getAllByRole('option');
@@ -129,10 +129,12 @@ describe('CommandPalette', () => {
       expect(items[0]).toHaveAttribute('aria-selected', 'true');
 
       // Hover на третий item
-      await user.hover(items[2].querySelector('button')!);
+      const thirdItem = items[2]!;
+      const firstItem = items[0]!;
+      await user.hover(thirdItem.querySelector('button')!);
 
-      expect(items[2]).toHaveAttribute('aria-selected', 'true');
-      expect(items[0]).toHaveAttribute('aria-selected', 'false');
+      expect(thirdItem).toHaveAttribute('aria-selected', 'true');
+      expect(firstItem).toHaveAttribute('aria-selected', 'false');
     });
   });
 });
