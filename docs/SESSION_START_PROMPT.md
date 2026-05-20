@@ -279,20 +279,21 @@ Specs created:
 
 ### Текущий приоритет — implementation continues
 
-После 49d (FINAL):
-- Phase A.1+A.2+A.3+A.4+A.5 уже **сделаны** (migration 49 + UserRole +
-  InsufficientRoleException + PermissionService.assertHasRoleAtLeast +
-  HadithGradeService SCHOLAR gate + UserController PATCH /role admin
-  endpoint + Question/Answer STUDENT gate).
+После 49d (FINAL ULTIMATE):
+- Phase A.1+A.2+A.3+A.4+A.5+A.6 уже **сделаны** — full backend +
+  frontend chain:
+  - Backend: migration 49 + UserRole + InsufficientRoleException +
+    PermissionService.assertHasRoleAtLeast + HadithGradeService SCHOLAR
+    gate + UserController PATCH /role admin endpoint + Question/Answer
+    STUDENT gate.
+  - Frontend: AuthRole union extended до 4 значений +
+    hasRoleAtLeast helper + ProtectedRoute hierarchical check.
 - 5 specs готовы (vision/roles/rating/hadith/observability).
-- Backend roles implementation core complete — все 3 gate's установлены
-  (SCHOLAR для hadith grade, STUDENT для question/answer create).
-- 19 commits total в Сессии 49d.
+- 21 commits total в Сессии 49d.
 
-**Phase A.6 — next priority:** Frontend AuthRole type expansion.
-Regenerate types.ts (backend MeResponse @Schema уже updated). Update
-AuthRole в authStore.ts. Generalize ProtectedRoute requireRole prop.
-Optional RoleLockedAction UI wrapper. Effort ~3h.
+**Phase A.7+ (optional UX):** RoleLockedAction wrapper для disabled-
+with-tooltip UX. Admin user management UI page /admin/users. Defer
+до явного UX need.
 
 **UI 1.1 Dark theme palette** — invoke /frontend-design skill, обновить
 accent tokens (indigo «не сочетается» по словам Абдулы). Effort ~3h.
