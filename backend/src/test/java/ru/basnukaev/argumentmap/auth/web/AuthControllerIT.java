@@ -217,6 +217,46 @@ class AuthControllerIT {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void POST_register_duplicateEmail_returns409WithoutRevealingEmail() throws Exception {
+        // security: email enumeration hardening — detail не должен содержать
+        // конкретный email адрес (информация для злоумышленника)
+        var first = new RegisterRequest("secret@example.com", "userX", "password1");
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(first)))
+                .andExpect(status().isCreated());
+
+        var second = new RegisterRequest("secret@example.com", "userY", "password2");
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(second)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value(containsString("email-already-taken")))
+                // detail НЕ должен раскрывать email значение
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.not(
+                        containsString("secret@example.com"))));
+    }
+
+    @Test
+    void POST_register_duplicateUsername_returns409WithoutRevealingUsername() throws Exception {
+        // security: username enumeration hardening
+        var first = new RegisterRequest("a@example.com", "uniqueuser", "password1");
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(first)))
+                .andExpect(status().isCreated());
+
+        var second = new RegisterRequest("b@example.com", "uniqueuser", "password2");
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(second)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value(containsString("username-already-taken")))
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.not(
+                        containsString("uniqueuser"))));
+    }
+
     // ---- helpers ----
 
     private void registerUser(String email, String username, String password) throws Exception {

@@ -3,6 +3,8 @@ package ru.basnukaev.argumentmap.auth.service;
 import java.time.Instant;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +24,8 @@ import ru.basnukaev.argumentmap.exception.UsernameAlreadyTakenException;
 @Service
 public class UserService {
 
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
@@ -38,10 +42,16 @@ public class UserService {
     @Transactional
     public User register(String email, String username, String rawPassword) {
         if (userRepository.existsByEmail(email)) {
-            throw new EmailAlreadyTakenException("Email уже зарегистрирован: " + email);
+            // security: не раскрываем email в сообщении клиенту - enumeration hardening.
+            // для server-side debugging логируем WARN
+            log.warn("Попытка регистрации с уже занятым email (masked): {}",
+                    email.replaceAll("(?<=.{2}).(?=.*@)", "*"));
+            throw new EmailAlreadyTakenException("Email уже занят");
         }
         if (userRepository.existsByUsername(username)) {
-            throw new UsernameAlreadyTakenException("Имя пользователя занято: " + username);
+            // security: не раскрываем username в сообщении клиенту
+            log.warn("Попытка регистрации с уже занятым username: {}", username);
+            throw new UsernameAlreadyTakenException("Имя пользователя уже занято");
         }
         Instant now = Instant.now();
         User user = new User(
