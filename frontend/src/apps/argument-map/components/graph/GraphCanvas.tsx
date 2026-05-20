@@ -140,15 +140,20 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
       const currentNodes = lastNodesRef.current;
       const laidOut = await applyLayout(currentNodes, edgesRef.current, 'elk', 'LR');
       setNodes(laidOut);
-      // PATCH каждый узел с новыми координатами - дальнейшие refetch'и
-      // будут уважать ELK-позиции как обычные сохранённые
-      for (const n of laidOut) {
-        apiPatchRaw(`/api/v1/nodes/${n.id}`, {
-          posX: n.position.x,
-          posY: n.position.y,
-        }).catch(() => {
-          // не блокирующая - при ошибке next toggle перерассчитает
-        });
+      // PATCH все узлы параллельно - Promise.allSettled чтобы partial failures
+      // не блокировали (graceful degradation: при ошибке next ELK-trigger
+      // перерассчитает позиции)
+      const results = await Promise.allSettled(
+        laidOut.map((n) =>
+          apiPatchRaw(`/api/v1/nodes/${n.id}`, {
+            posX: n.position.x,
+            posY: n.position.y,
+          }),
+        ),
+      );
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      if (failed > 0) {
+        toast.warning(t('layout.partial_save_failed').replace('{count}', String(failed)));
       }
       toast.success(t('layout.applied'));
       // fitView после layout - иначе ELK может разложить узлы за viewport

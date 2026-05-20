@@ -766,6 +766,7 @@ export const DICTIONARY = {
     'layout.applying': 'Раскладка...',
     'layout.applied': 'Раскладка обновлена',
     'layout.failed': 'Не удалось пересчитать раскладку',
+    'layout.partial_save_failed': 'Не удалось сохранить позиции {count} узлов',
 
     // form labels (AddEdgeModal)
     'edge.field.from': 'Откуда',
@@ -1881,6 +1882,7 @@ export const DICTIONARY = {
     'layout.applying': 'جارٍ التخطيط...',
     'layout.applied': 'تم تحديث التخطيط',
     'layout.failed': 'تعذّر إعادة حساب التخطيط',
+    'layout.partial_save_failed': 'تعذّر حفظ مواضع {count} عقدة',
 
     'edge.field.from': 'من',
     'edge.field.to': 'إلى',
