@@ -129,7 +129,7 @@ function FloatingActionBar({
           <div
             role="menu"
             aria-label={t('bulk_actions.bar.change_status')}
-            className="absolute bottom-full left-0 z-50 mb-1.5 w-56 rounded-md border border-border bg-elevated py-1 text-ink-700 shadow-sh3"
+            className="absolute bottom-full start-0 z-50 mb-1.5 w-56 rounded-md border border-border bg-elevated py-1 text-ink-700 shadow-sh3"
           >
             <div className="border-b border-border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
               {t('bulk_actions.bar.apply_to_all').replace('{count}', String(nodeCount))}

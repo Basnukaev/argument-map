@@ -253,7 +253,7 @@ function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
                 </button>
                 {dropdownOpen && (
                   <div
-                    className="absolute z-10 top-full mt-1 right-0 min-w-[160px] rounded-md border border-border bg-elevated shadow-sh2 py-1"
+                    className="absolute z-10 top-full mt-1 end-0 min-w-[160px] rounded-md border border-border bg-elevated shadow-sh2 py-1"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {translations.map((tr) => (

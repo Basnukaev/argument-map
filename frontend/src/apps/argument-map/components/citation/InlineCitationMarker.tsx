@@ -120,7 +120,7 @@ function CitationPopover({ citation, t, onClose }: PopoverProps) {
     <div
       role="dialog"
       data-testid="inline-citation-popover"
-      className="absolute left-0 top-full z-50 mt-1 w-72 rounded-md border border-border bg-elevated p-3 text-xs leading-relaxed text-ink-700 shadow-sh3 dark:text-ink-200"
+      className="absolute start-0 top-full z-50 mt-1 w-72 rounded-md border border-border bg-elevated p-3 text-xs leading-relaxed text-ink-700 shadow-sh3 dark:text-ink-200"
       onClick={(e) => e.stopPropagation()}
     >
       {citation.title && (
