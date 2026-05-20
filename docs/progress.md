@@ -108,6 +108,59 @@ context conservation, frontend-design skill перед UI changes.
   algorithm choice)
 - M-3/M-4/M-6 frontend stability audit remaining from 49c
 
+### Continued MAX-autonomy work (commits 23-37+)
+
+Абдула explicit «не останавливайся пока не СТОП». 14+ дополнительных
+коммитов после Phase A.6 финального handoff. Каждый atomic, tests
+preserved, TypeScript clean.
+
+**Closed initiatives:**
+
+- **49.E Library collections** (commits 23, 26, 27) — full backend
+  REST CRUD (migration 50 `user_book_collections` + UserBookCollectionService
+  + UserBookCollectionController + 8 IT) + frontend heart-button в
+  BookCard + dedicated /library/collections page с sidebar collections
+  + remove actions.
+
+- **49.B Rating + pagination Phase 1+2** (commits 24, 25, 33, 34, 35):
+  - Phase 1 backend (sort?=recent|popular|alphabetical) для Topics/
+    Q&A/Books через whitelist orderByForSort. 73/73 IT preserved.
+  - Phase 1.b frontend SortSelect dropdown в 3 list pages + 8 i18n
+    keys.
+  - Phase 2 backend (migration 51 view_count denormalized в 3 tables +
+    POST /views increment endpoints для всех 3 entities).
+  - Phase 2 frontend useViewTracking hook (sessionStorage-based anti-
+    spam) + integration в TopicGraphPage / QuestionDetailPage /
+    BookReaderPage.
+
+- **49.G Guest view** (commit 28) — read-only routes без ProtectedRoute
+  (/topics, /books, /qa + детали). AvatarMenu показывает Login button
+  если user==null. 4 i18n keys.
+
+- **UI 1.1 Dark theme palette** (commit 27) — desaturated accent indigo
+  в [data-theme='dark'] tokens. Сохраняет brand hue но less jarring на
+  warm-slate neutrals.
+
+- **49.A Phase A.7** (commits 30, 31) — Admin user management:
+  - Backend GET /api/v1/users (paginated, ADMIN-only) + UserRepository
+    .findPage/countFiltered. 11/11 IT.
+  - Frontend AdminUsersPage с table + inline role <select> dropdown +
+    search + filter. 14 i18n keys.
+
+- **UI 1.6 Edge routing fan-out** (commit 36) — auto-distribute edges
+  по handles когда БД не предоставила sourceHandle/targetHandle.
+  pickSourceHandle по relative dx/dy между source и target positions.
+
+- **49.D Phase 1 Observability** (commit 32) — structured logging
+  foundation: logstash-logback-encoder 7.4 + logback-spring.xml с
+  spring-profile aware encoder (dev text / prod JSON). RequestContext
+  LogFilter уже existed - готов для prod aggregator.
+
+- **49.C Hadith Explorer Phase 1.a** (commit 37) — foundation start:
+  migration 52 `hd_narrators` (15 fields + CHECK reliability + 3
+  indexes) + Narrator record + NarratorReliability constants. Spec
+  recommendation использован для domain modeling.
+
 ### 49.A Roles - Phase A.1 + A.2 + A.3 + A.4 + A.5 + A.6 closed внутри 49d (full backend + frontend chain)
 
 После handoff Сессии 49d Phase 1 Абдула continue'нул в MAX mode →
@@ -193,8 +246,8 @@ collections`, REST CRUD, BookCard menu «Добавить в коллекцию�
 
 ### Метрики 49d финальные
 
-- **21 commits total** (1 vision spec + 9 fix/feat + 1 handoff + 6
-  roles phases A.1-A.6 + multiple handoff updates)
+- **37+ commits total** (22 initial + 15+ continued MAX-mode after
+  Абдула explicit «не останавливайся»)
 - **Tests:** Backend +24 new (UserRoleTest 9 + PermissionServiceTest 5
   + HadithGradeControllerIT 3 + UserControllerIT 7). All existing
   preserved: AuthControllerIT 34/34, HadithGradeServiceIT 17/17,
