@@ -185,6 +185,31 @@ export function buildFlow(
     if (n.data.nodeType) nodeTypeById.set(n.id, n.data.nodeType);
   }
 
+  // Vision 49d Section 1.6: auto-distribute edges по handles когда
+  // sourceHandle/targetHandle не заданы. Без этого все edges идут с
+  // центра узла (RF default) и при 4+ edges из одного узла - merge в
+  // одну точку. Pick side по relative angle между source и target.
+  const nodePosById = new Map<string, { x: number; y: number }>();
+  for (const n of rawNodes) {
+    nodePosById.set(n.id, n.position);
+  }
+
+  function pickSourceHandle(srcId: string, tgtId: string): 'top' | 'right' | 'bottom' | 'left' {
+    const src = nodePosById.get(srcId);
+    const tgt = nodePosById.get(tgtId);
+    if (!src || !tgt) return 'bottom';
+    const dx = tgt.x - src.x;
+    const dy = tgt.y - src.y;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      return dx > 0 ? 'right' : 'left';
+    }
+    return dy > 0 ? 'bottom' : 'top';
+  }
+
+  function oppositeHandle(h: 'top' | 'right' | 'bottom' | 'left'): 'top' | 'right' | 'bottom' | 'left' {
+    return ({ top: 'bottom', bottom: 'top', left: 'right', right: 'left' } as const)[h];
+  }
+
   // предварительно строим список source/target чтобы вычислить кривизну
   const edgeSrcTarget = (graph.edges ?? [])
     .filter(
@@ -204,12 +229,18 @@ export function buildFlow(
       const edgeType = e.edgeType ?? 'SUPPORTS';
       const fromType = nodeTypeById.get(e.fromNodeId) ?? 'CLAIM';
       const toType = nodeTypeById.get(e.toNodeId) ?? 'CLAIM';
+      // Vision 49d Section 1.6: если БД не предоставил handles
+      // (старые edges либо user не выбрал явно), distribute по relative
+      // position - source side смотрит в сторону target. User-выбранные
+      // handles (created через drag) приоритетнее: e.sourceHandle ?? auto
+      const autoSourceHandle = pickSourceHandle(e.fromNodeId, e.toNodeId);
+      const autoTargetHandle = oppositeHandle(autoSourceHandle);
       return {
         id: e.id,
         source: e.fromNodeId,
         target: e.toNodeId,
-        sourceHandle: e.sourceHandle ?? undefined,
-        targetHandle: e.targetHandle ?? undefined,
+        sourceHandle: e.sourceHandle ?? autoSourceHandle,
+        targetHandle: e.targetHandle ?? autoTargetHandle,
         type: 'argumentEdge' as const,
         data: {
           edgeType,
