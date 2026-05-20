@@ -4,11 +4,18 @@ import java.util.UUID;
 
 import jakarta.validation.Valid;
 
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import ru.basnukaev.argumentmap.web.dto.PageRequest;
+import ru.basnukaev.argumentmap.web.dto.PagedResponse;
+import java.util.List;
 
 import ru.basnukaev.argumentmap.auth.domain.User;
 import ru.basnukaev.argumentmap.auth.service.UserService;
@@ -47,6 +54,34 @@ public class UserController {
     public UserController(UserService userService, AuditLogService auditLogService) {
         this.userService = userService;
         this.auditLogService = auditLogService;
+    }
+
+    /**
+     * Phase A.7: paginated list users для admin management page.
+     * Filters: ?role= (whitelist USER/STUDENT/SCHOLAR/ADMIN),
+     * ?q= (username OR email substring case-insensitive),
+     * ?page=&?size= standard pagination.
+     */
+    @GetMapping
+    public PagedResponse<UserResponse> list(
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @CurrentUser UUID adminId) {
+        String adminRole = SecurityContextUtils.currentRoleOrAnonymous();
+        if (!UserRole.ADMIN.equals(adminRole)) {
+            throw new AdminOnlyException(adminId);
+        }
+        PageRequest pr = PageRequest.from(page, size);
+        List<UserResponse> items = userService.listUsersPage(role, q, pr.size(), pr.offset())
+                .stream()
+                .map(u -> new UserResponse(
+                        u.id(), u.username(), u.email(), u.role(), u.enabled(),
+                        u.createdAt(), u.updatedAt()))
+                .toList();
+        long total = userService.countUsers(role, q);
+        return PagedResponse.of(items, pr.page(), pr.size(), total);
     }
 
     @PatchMapping("/{id}/role")

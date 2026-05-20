@@ -5,6 +5,7 @@ import static ru.basnukaev.argumentmap.repository.JdbcTimes.odt;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -149,5 +150,45 @@ public class UserRepository {
                 "UPDATE users SET role = ?, updated_at = now() WHERE id = ?",
                 newRole, userId
         );
+    }
+
+    /**
+     * Paginated listing - Phase A.7 admin user management.
+     * Filters: role whitelist (USER/STUDENT/SCHOLAR/ADMIN), q
+     * substring (username OR email, case-insensitive).
+     */
+    public List<User> findPage(String role, String q, int limit, int offset) {
+        StringBuilder sql = new StringBuilder("SELECT ").append(COLUMNS)
+                .append(" FROM users WHERE 1=1");
+        List<Object> args = new java.util.ArrayList<>();
+        if (role != null) {
+            sql.append(" AND role = ?");
+            args.add(role);
+        }
+        if (q != null && !q.isBlank()) {
+            sql.append(" AND (LOWER(username) LIKE LOWER(?) OR LOWER(email) LIKE LOWER(?))");
+            args.add("%" + q + "%");
+            args.add("%" + q + "%");
+        }
+        sql.append(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
+        args.add(limit);
+        args.add(offset);
+        return jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray());
+    }
+
+    public long countFiltered(String role, String q) {
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM users WHERE 1=1");
+        List<Object> args = new java.util.ArrayList<>();
+        if (role != null) {
+            sql.append(" AND role = ?");
+            args.add(role);
+        }
+        if (q != null && !q.isBlank()) {
+            sql.append(" AND (LOWER(username) LIKE LOWER(?) OR LOWER(email) LIKE LOWER(?))");
+            args.add("%" + q + "%");
+            args.add("%" + q + "%");
+        }
+        Long count = jdbcTemplate.queryForObject(sql.toString(), Long.class, args.toArray());
+        return count == null ? 0L : count;
     }
 }

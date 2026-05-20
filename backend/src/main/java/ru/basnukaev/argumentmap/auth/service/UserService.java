@@ -110,6 +110,20 @@ public class UserService {
                 .orElseThrow(() -> new UserNotFoundException("Пользователь не найден после update: " + targetUserId));
     }
 
+    /**
+     * Paginated user listing для admin. ADMIN-only check - в caller.
+     * Phase A.7.
+     */
+    @Transactional(readOnly = true)
+    public java.util.List<User> listUsersPage(String role, String q, int limit, int offset) {
+        return userRepository.findPage(role, q, limit, offset);
+    }
+
+    @Transactional(readOnly = true)
+    public long countUsers(String role, String q) {
+        return userRepository.countFiltered(role, q);
+    }
+
     @Transactional
     public void setEnabled(UUID userId, boolean enabled) {
         if (userRepository.findById(userId).isEmpty()) {

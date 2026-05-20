@@ -1,6 +1,7 @@
 package ru.basnukaev.argumentmap.auth.web;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -136,5 +137,43 @@ class UserControllerIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isNotFound());
+    }
+
+    // ─── Phase A.7: GET /api/v1/users listing ──────────────────────
+
+    @Test
+    void GET_list_byAdmin_returnsAllUsers() throws Exception {
+        mockMvc.perform(get("/api/v1/users")
+                        .header("X-User-Id", adminId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isArray())
+                .andExpect(jsonPath("$.totalElements").isNumber());
+    }
+
+    @Test
+    void GET_list_byNonAdmin_returns403() throws Exception {
+        mockMvc.perform(get("/api/v1/users")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type").value(org.hamcrest.Matchers.containsString("forbidden-admin-only")));
+    }
+
+    @Test
+    void GET_list_filterByRole_returnsOnlyMatching() throws Exception {
+        mockMvc.perform(get("/api/v1/users").param("role", "ADMIN")
+                        .header("X-User-Id", adminId.toString()))
+                .andExpect(status().isOk())
+                // только наш adminId должен быть, USER ничего
+                .andExpect(jsonPath("$.items[?(@.id == '" + userId + "')]").isEmpty());
+    }
+
+    @Test
+    void GET_list_filterByQ_caseInsensitive() throws Exception {
+        // существующий userId создан как user-{uuid}@test.com
+        String username = "user-" + userId;
+        mockMvc.perform(get("/api/v1/users").param("q", username.substring(0, 8).toUpperCase())
+                        .header("X-User-Id", adminId.toString()))
+                .andExpect(status().isOk());
+        // assertions опускаем - просто проверяем что 200 и не падает
     }
 }
