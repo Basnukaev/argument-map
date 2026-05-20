@@ -147,6 +147,19 @@ function AutocompleteRow({
   const debounceRef = useRef<number | null>(null);
   const blurTimerRef = useRef<number | null>(null);
 
+  // Cleanup blurTimer на unmount - если input lost focus и компонент
+  // unmounted в течение 150ms (например модалка закрыта Esc), setOpen(false)
+  // выполнится на размонтированном AutocompleteRow
+  useEffect(
+    () => () => {
+      if (blurTimerRef.current != null) {
+        window.clearTimeout(blurTimerRef.current);
+        blurTimerRef.current = null;
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     if (debounceRef.current != null) {
       window.clearTimeout(debounceRef.current);

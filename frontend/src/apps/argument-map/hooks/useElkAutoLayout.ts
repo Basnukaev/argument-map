@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction, RefObject } from 'react';
 import type { ReactFlowInstance } from '@xyflow/react';
 import type { NodeCardNode } from '@/apps/argument-map/components/graph/NodeCard';
@@ -35,6 +35,19 @@ export function useElkAutoLayout({
 }: Args): Result {
   const t = useT();
   const [layoutPending, setLayoutPending] = useState(false);
+  // Cleanup для отложенного fitView - если user navigate away в течение 50ms
+  // после ELK relayout, fitView выполнялся бы на torn-down RF instance
+  // (защищено через ?., но таймер не cleanup'ался)
+  const fitViewTimerRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (fitViewTimerRef.current != null) {
+        window.clearTimeout(fitViewTimerRef.current);
+        fitViewTimerRef.current = null;
+      }
+    },
+    [],
+  );
 
   const triggerElkRelayout = useCallback(async () => {
     if (lastNodesRef.current.length === 0) return;
@@ -60,7 +73,13 @@ export function useElkAutoLayout({
       }
       toast.success(t('layout.applied'));
       // fitView после layout - иначе ELK может разложить узлы за viewport
-      setTimeout(() => rfInstanceRef.current?.fitView({ padding: 0.15 }), 50);
+      if (fitViewTimerRef.current != null) {
+        window.clearTimeout(fitViewTimerRef.current);
+      }
+      fitViewTimerRef.current = window.setTimeout(() => {
+        rfInstanceRef.current?.fitView({ padding: 0.15 });
+        fitViewTimerRef.current = null;
+      }, 50);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       toast.error(`${t('layout.failed')}: ${msg}`);
