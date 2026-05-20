@@ -54,5 +54,6 @@
     <include file="db/changelog/changes/20260519-47-authorities-type.xml"/>
     <include file="db/changelog/changes/20260519-48-edge-z-index.xml"/>
     <include file="db/changelog/changes/20260520-49-expand-user-roles.xml"/>
+    <include file="db/changelog/changes/20260520-50-user-book-collections.xml"/>
 
 </databaseChangeLog>

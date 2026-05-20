@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Vision 49d Section 2.2: Library становится общим каталогом (default
+        PUBLIC), пользователи добавляют книги в свои personal collections
+        ("Избранное", "Для tafsir-курса", и т.п.).
+
+        Модель: M:N user × book × collection_name. Пользователь может
+        иметь несколько collections, каждая - именованная (default
+        "Избранное"). Одна книга может быть в нескольких collections
+        одного user'а.
+
+        UNIQUE (user_id, book_id, collection_name) - запрет дублей
+        в одной коллекции у одного user'а.
+
+        added_at - для сортировки "недавно добавленные сверху".
+
+        FK ON DELETE CASCADE - удаление user или book автоматически
+        очищает их collection-entries. lib_book_members имеет тот же
+        ON DELETE CASCADE pattern.
+    -->
+    <changeSet id="20260520-50-user-book-collections" author="Abdula Basnukaev">
+        <comment>Личные коллекции книг пользователей - "избранное" и тематические</comment>
+        <createTable tableName="user_book_collections">
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_ubc_user"
+                             references="users(id)"
+                             deleteCascade="true"/>
+            </column>
+            <column name="book_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_ubc_book"
+                             references="lib_books(id)"
+                             deleteCascade="true"/>
+            </column>
+            <column name="collection_name" type="VARCHAR(100)" defaultValue="Избранное">
+                <constraints nullable="false"/>
+            </column>
+            <column name="added_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint
+                tableName="user_book_collections"
+                columnNames="user_id, book_id, collection_name"
+                constraintName="user_book_collections_unique"/>
+
+        <createIndex tableName="user_book_collections" indexName="idx_ubc_user_added">
+            <column name="user_id"/>
+            <column name="added_at" descending="true"/>
+        </createIndex>
+        <createIndex tableName="user_book_collections" indexName="idx_ubc_user_collection">
+            <column name="user_id"/>
+            <column name="collection_name"/>
+        </createIndex>
+
+        <rollback>
+            <dropTable tableName="user_book_collections"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
