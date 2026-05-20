@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.auth.domain.UserRole;
+import ru.basnukaev.argumentmap.service.PermissionService;
 import ru.basnukaev.argumentmap.domain.AuditEntityType;
 import ru.basnukaev.argumentmap.exception.AnswerNotFoundException;
 import ru.basnukaev.argumentmap.exception.AnswerWriteAccessDeniedException;
@@ -28,14 +29,29 @@ public class AnswerService {
     private final AnswerRepository answerRepository;
     private final QuestionRepository questionRepository;
     private final AuditLogService auditLogService;
+    private final PermissionService permissionService;
 
     public AnswerService(AnswerRepository answerRepository, QuestionRepository questionRepository,
-                         AuditLogService auditLogService) {
+                         AuditLogService auditLogService, PermissionService permissionService) {
         this.answerRepository = answerRepository;
         this.questionRepository = questionRepository;
         this.auditLogService = auditLogService;
+        this.permissionService = permissionService;
     }
 
+    /**
+     * Vision 49d Phase A.5: role-aware createAnswer. Требует STUDENT+.
+     * Primary entry из REST controller. USER role → 403.
+     */
+    @Transactional
+    public Answer createAnswer(UUID questionId, String body, UUID authorId, String role) {
+        permissionService.assertHasRoleAtLeast(authorId, role, UserRole.STUDENT);
+        return createAnswer(questionId, body, authorId);
+    }
+
+    /**
+     * Legacy overload без role-check. Internal callers + IT.
+     */
     @Transactional
     public Answer createAnswer(UUID questionId, String body, UUID authorId) {
         if (body == null || body.isBlank()) {

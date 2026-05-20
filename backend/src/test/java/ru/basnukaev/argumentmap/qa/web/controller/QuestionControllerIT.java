@@ -48,7 +48,7 @@ class QuestionControllerIT {
     void setUp() {
         userId = UUID.randomUUID();
         jdbcTemplate.update(
-                "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
+                "INSERT INTO users (id, username, email, role) VALUES (?, ?, ?, 'STUDENT')",
                 userId, "user-" + userId, userId + "@example.com"
         );
     }
@@ -205,7 +205,7 @@ class QuestionControllerIT {
         // ADR-043 Amendment (Этап 22.c): only author or admin
         UUID otherUserId = UUID.randomUUID();
         jdbcTemplate.update(
-                "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
+                "INSERT INTO users (id, username, email, role) VALUES (?, ?, ?, 'STUDENT')",
                 otherUserId, "user-" + otherUserId, otherUserId + "@example.com"
         );
         UUID qid = createDirect("Title", "OPEN");
@@ -245,7 +245,7 @@ class QuestionControllerIT {
         // ADR-043 Amendment (Этап 22.c): only author or admin
         UUID otherUserId = UUID.randomUUID();
         jdbcTemplate.update(
-                "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
+                "INSERT INTO users (id, username, email, role) VALUES (?, ?, ?, 'STUDENT')",
                 otherUserId, "user-" + otherUserId, otherUserId + "@example.com"
         );
         UUID qid = createDirect("Title", "OPEN");

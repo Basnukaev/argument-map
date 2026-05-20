@@ -55,7 +55,9 @@ public class AnswerController {
             @PathVariable UUID questionId,
             @Valid @RequestBody CreateAnswerRequest request,
             @CurrentUser UUID currentUserId) {
-        Answer created = answerService.createAnswer(questionId, request.body(), currentUserId);
+        // Vision 49d Phase A.5: REST вход — role-aware overload (STUDENT+)
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        Answer created = answerService.createAnswer(questionId, request.body(), currentUserId, role);
         Question parent = questionService.getQuestion(questionId);
         return ResponseEntity
                 .created(URI.create("/api/v1/answers/" + created.id()))

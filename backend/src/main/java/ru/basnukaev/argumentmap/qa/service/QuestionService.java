@@ -16,6 +16,7 @@ import ru.basnukaev.argumentmap.qa.domain.Question;
 import ru.basnukaev.argumentmap.qa.domain.QuestionStatus;
 import ru.basnukaev.argumentmap.qa.repository.QuestionRepository;
 import ru.basnukaev.argumentmap.service.AuditLogService;
+import ru.basnukaev.argumentmap.service.PermissionService;
 
 /**
  * Сервисный слой Q&amp;A приложения (Этап 19.a, ADR-032).
@@ -25,12 +26,30 @@ public class QuestionService {
 
     private final QuestionRepository repository;
     private final AuditLogService auditLogService;
+    private final PermissionService permissionService;
 
-    public QuestionService(QuestionRepository repository, AuditLogService auditLogService) {
+    public QuestionService(QuestionRepository repository, AuditLogService auditLogService,
+                           PermissionService permissionService) {
         this.repository = repository;
         this.auditLogService = auditLogService;
+        this.permissionService = permissionService;
     }
 
+    /**
+     * Vision 49d Phase A.5: role-aware createQuestion. Требует STUDENT+.
+     * Primary entry point из REST controller. USER role → 403
+     * forbidden-insufficient-role.
+     */
+    @Transactional
+    public Question createQuestion(String title, String body, UUID askedBy, String role) {
+        permissionService.assertHasRoleAtLeast(askedBy, role, UserRole.STUDENT);
+        return createQuestion(title, body, askedBy);
+    }
+
+    /**
+     * Legacy overload без role-check. Для internal callers (ETL/import/
+     * seed) и existing IT тестов которые не проходят через REST.
+     */
     @Transactional
     public Question createQuestion(String title, String body, UUID askedBy) {
         if (title == null || title.isBlank()) {

@@ -48,7 +48,9 @@ public class QuestionController {
     public ResponseEntity<QuestionResponse> create(
             @Valid @RequestBody CreateQuestionRequest request,
             @CurrentUser UUID currentUserId) {
-        Question created = service.createQuestion(request.title(), request.body(), currentUserId);
+        // Vision 49d Phase A.5: REST вход — role-aware overload (STUDENT+)
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        Question created = service.createQuestion(request.title(), request.body(), currentUserId, role);
         return ResponseEntity
                 .created(URI.create("/api/v1/questions/" + created.id()))
                 .body(toResponse(created));
