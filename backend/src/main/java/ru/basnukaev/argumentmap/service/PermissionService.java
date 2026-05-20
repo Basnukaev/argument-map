@@ -12,6 +12,7 @@ import ru.basnukaev.argumentmap.domain.TopicMemberRole;
 import ru.basnukaev.argumentmap.exception.BookAccessDeniedException;
 import ru.basnukaev.argumentmap.exception.BookNotFoundException;
 import ru.basnukaev.argumentmap.exception.BookWriteAccessDeniedException;
+import ru.basnukaev.argumentmap.exception.InsufficientRoleException;
 import ru.basnukaev.argumentmap.exception.TopicAccessDeniedException;
 import ru.basnukaev.argumentmap.exception.TopicNotFoundException;
 import ru.basnukaev.argumentmap.exception.TopicWriteAccessDeniedException;
@@ -229,6 +230,25 @@ public class PermissionService {
     public void assertIsBookOwner(UUID bookId, UUID userId, String role) {
         if (!isBookOwner(bookId, userId, role)) {
             throw new BookWriteAccessDeniedException(bookId, userId);
+        }
+    }
+
+    /**
+     * Vision 49d Section 2.4: role-based authorization. Бросает
+     * {@link InsufficientRoleException} если actual роль ниже required в
+     * иерархии USER &lt; STUDENT &lt; SCHOLAR &lt; ADMIN. Семантика
+     * матрицы прав - см.
+     * {@code docs/superpowers/specs/2026-05-20-roles-system-design.md}.
+     *
+     * <p>Использовать в service-слое перед действием которое требует
+     * минимальной роли. Пример: HadithGradeService.addGrade →
+     * {@code assertHasRoleAtLeast(userId, role, UserRole.SCHOLAR)}.
+     *
+     * <p>Не делает DB query - чистая проверка in-memory hierarchy.
+     */
+    public void assertHasRoleAtLeast(UUID userId, String role, String requiredRole) {
+        if (!UserRole.hasAtLeast(role, requiredRole)) {
+            throw new InsufficientRoleException(userId, role, requiredRole);
         }
     }
 }

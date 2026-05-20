@@ -21,6 +21,7 @@ import ru.basnukaev.argumentmap.domain.Topic;
 import ru.basnukaev.argumentmap.domain.TopicMember;
 import ru.basnukaev.argumentmap.domain.TopicMemberRole;
 import ru.basnukaev.argumentmap.domain.TopicVisibility;
+import ru.basnukaev.argumentmap.exception.InsufficientRoleException;
 import ru.basnukaev.argumentmap.exception.TopicAccessDeniedException;
 import ru.basnukaev.argumentmap.exception.TopicNotFoundException;
 import ru.basnukaev.argumentmap.exception.TopicWriteAccessDeniedException;
@@ -206,5 +207,46 @@ class PermissionServiceTest {
     @Test
     void assertIsOwner_ADMIN_bypass() {
         permissionService.assertIsOwner(topicId, otherUserId, UserRole.ADMIN);
+    }
+
+    // ─── assertHasRoleAtLeast (Vision 49d Section 2.4) ──────────────
+
+    @Test
+    void assertHasRoleAtLeast_admin_canDoAllRoles() {
+        permissionService.assertHasRoleAtLeast(ownerId, UserRole.ADMIN, UserRole.USER);
+        permissionService.assertHasRoleAtLeast(ownerId, UserRole.ADMIN, UserRole.STUDENT);
+        permissionService.assertHasRoleAtLeast(ownerId, UserRole.ADMIN, UserRole.SCHOLAR);
+        permissionService.assertHasRoleAtLeast(ownerId, UserRole.ADMIN, UserRole.ADMIN);
+    }
+
+    @Test
+    void assertHasRoleAtLeast_user_cannotDoStudentActions() {
+        assertThatThrownBy(() -> permissionService.assertHasRoleAtLeast(
+                ownerId, UserRole.USER, UserRole.STUDENT))
+                .isInstanceOf(InsufficientRoleException.class)
+                .hasMessageContaining("USER")
+                .hasMessageContaining("STUDENT");
+    }
+
+    @Test
+    void assertHasRoleAtLeast_student_cannotDoScholarActions() {
+        assertThatThrownBy(() -> permissionService.assertHasRoleAtLeast(
+                ownerId, UserRole.STUDENT, UserRole.SCHOLAR))
+                .isInstanceOf(InsufficientRoleException.class)
+                .hasMessageContaining("STUDENT")
+                .hasMessageContaining("SCHOLAR");
+    }
+
+    @Test
+    void assertHasRoleAtLeast_scholar_canDoStudentActions() {
+        permissionService.assertHasRoleAtLeast(ownerId, UserRole.SCHOLAR, UserRole.STUDENT);
+        permissionService.assertHasRoleAtLeast(ownerId, UserRole.SCHOLAR, UserRole.USER);
+    }
+
+    @Test
+    void assertHasRoleAtLeast_nullActual_throws() {
+        assertThatThrownBy(() -> permissionService.assertHasRoleAtLeast(
+                ownerId, null, UserRole.USER))
+                .isInstanceOf(InsufficientRoleException.class);
     }
 }

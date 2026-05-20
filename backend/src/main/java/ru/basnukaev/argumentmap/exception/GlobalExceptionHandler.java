@@ -280,6 +280,19 @@ public class GlobalExceptionHandler {
         return pd;
     }
 
+    @ExceptionHandler(InsufficientRoleException.class)
+    public ProblemDetail handleInsufficientRole(InsufficientRoleException ex) {
+        ProblemDetail pd = problem(HttpStatus.FORBIDDEN,
+                "Недостаточно прав", "forbidden-insufficient-role",
+                "Текущая роль " + ex.getCurrentRole()
+                        + " не позволяет выполнить операцию, требуется "
+                        + ex.getRequiredRole());
+        pd.setProperty("userId", ex.getUserId().toString());
+        pd.setProperty("currentRole", ex.getCurrentRole());
+        pd.setProperty("requiredRole", ex.getRequiredRole());
+        return pd;
+    }
+
     @ExceptionHandler(DeletedTopicAuditAccessDeniedException.class)
     public ProblemDetail handleDeletedTopicAuditDenied(DeletedTopicAuditAccessDeniedException ex) {
         ProblemDetail pd = problem(HttpStatus.FORBIDDEN,

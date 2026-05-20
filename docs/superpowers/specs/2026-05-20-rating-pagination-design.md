@@ -433,73 +433,44 @@ Phase 1 - must, Phase 2-3 - should, Phase 4 - nice-to-have tuning.
 
 ## 9. Risks / open questions
 
-### Q1: Denormalize vs derived
+**Q1: Denormalize vs derived.** Denormalize (см. 3.2). Cost - 5-7
+sync points + reconcile cron + IT-тест.
 
-**Решение:** denormalize (см. 3.2). Cost - 5-7 sync points в mutating
-services + reconcile cron + IT-тест проверяющий counter.
+**Q2: View tracking - GET middleware vs POST.** POST explicit (4.3).
+GET идемпотентен, side effect break'нет caching contract. Frontend POST
+на mount detail page - cleaner contract.
 
-### Q2: View tracking - GET middleware vs POST
+**Q3: Anonymous view tracking - dedupe без user_id.** `X-Session-Id`
+header (UUID в localStorage). Spoofable, но accept'абельно для view
+counter (не security boundary). Cookie альтернатива - extra config.
+При abuse - rate-limit IP-level (ADR-046 pattern).
 
-**Решение:** POST explicit (4.3). GET идемпотентен, side effect
-break'нет caching contract. Frontend POST на mount detail page -
-cleaner contract, не магия.
+**Q4: Default sort - API vs UI.** API default = `recent` навсегда
+(backward-compat). Frontend default = `popular` после Phase 4 (UX
+decision, тривиальный change).
 
-### Q3: Anonymous view tracking - dedupe без user_id
+**Q5: Book votes.** Defer / не делаем. `citation_count` - сильнее
+сигнал «книга реально используется», чем «лайкнул не читая».
+Если explicit запрос будет - отдельный ADR.
 
-**Решение:** `X-Session-Id` header (UUID в localStorage). Cookie
-альтернатива - extra config (SameSite/Secure), header проще.
-Spoofable, но это accept'абельно для view counter (не security
-boundary). При abuse - rate-limit IP-level (ADR-046 pattern).
+**Q6: Decay - linear vs exponential.** Phase 1: linear. Phase 4
+потенциально: exponential (`exp(-age_days / half_life)`, PG `exp()`
+есть). Решение по data distribution.
 
-### Q4: Default sort - API vs UI
-
-**Решение:** API default = `recent` навсегда (backward-compat).
-Frontend default = `popular` после Phase 4 (UX decision).
-Разделение: API контракт stable, UI меняет default свободно.
-
-### Q5: Book votes
-
-**Решение:** defer / не делаем. `citation_count` - сильнее сигнал
-«книга реально используется», чем «лайкнул не читая». Если
-explicit запрос будет - открыть отдельный ADR.
-
-### Q6: Decay - linear vs exponential
-
-**Phase 1:** linear (`EXTRACT EPOCH / 86400 / N`). Простое.
-
-**Phase 4 потенциально:** exponential (`exp(-age_days / half_life)`).
-PG `exp()` есть. Решение по data distribution: если 90%
-активности в первой неделе - exponential нужен; если плоский - linear ок.
-
-### Q7: Sort interaction с visibility filters
-
-**Контекст:** GET /topics уже filter'ит through ADR-043 WHERE.
-Add'им `?sort=popular` - какое взаимодействие?
-
-**Решение:** sort применяется **внутри** filter result (WHERE
-visibility → ORDER BY sort). Index не covers visibility - filter+sort
-план. Если станет slow - composite `(visibility, popularity_expr)` -
+**Q7: Sort × visibility filters.** Sort применяется внутри filter
+result (WHERE visibility → ORDER BY sort). Index не covers visibility -
+filter+sort план. Если slow - composite index `(visibility, popularity_expr)`
 backlog optimization.
 
-### Q8: BookListPage MINE filter vs server sort
+**Q8: BookListPage MINE filter vs server sort.** MINE filter в
+backlog → server-side (ADR-043 Amendment). Пока - sort работает, MINE
+visible only на загруженной странице (acceptable for MVP).
 
-**Контекст:** Library имеет client-side filter «Мои/Shared/Public»
-поверх backend. Sort server + filter client = верх popular списка
-client'ом может cut'ить до 3 «моих».
+**Q9: AuditLog для view tracking?** Нет. High-volume, low-value
+individually. Если privacy compliance потребует - добавим, не Phase 1-3.
 
-**Решение:** MINE filter в backlog → server-side (ADR-043 Amendment).
-Пока - sort работает, MINE visible only на загруженной странице
-(acceptable for MVP).
-
-### Q9: AuditLog для view tracking?
-
-**Решение:** **нет.** View events high-volume, low-value
-individually. Если privacy compliance потребует - добавим, но не Phase 1-3.
-
-### Q10: Что показывать в metric badge когда score = 0?
-
-**Решение:** **не показывать badge**. `{count > 0 && <Badge/>}`.
-Visual noise иначе - все свежие entity с «0 votes» и это ничего не говорит.
+**Q10: Metric badge при score = 0?** Не показывать. `{count > 0 && <Badge/>}`.
+Visual noise иначе - все свежие entity с «0 votes».
 
 ## 10. Decomposition (для implementation plan)
 

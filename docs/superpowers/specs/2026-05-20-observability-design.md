@@ -102,40 +102,27 @@ JSON структура:
 
 ### 2.3 Per-context MDC helper
 
-`MdcContext implements AutoCloseable` (push/pop): try-with-resources
-для long-running операций.
+`MdcContext implements AutoCloseable` (push/pop): try-with-resources для
+long-running операций. Используется в `OcrService.processPage`,
+`AiEditService.editPage`, `ShamelaBookImportService.importBook`,
+`ObjectStorageService` upload/download (с `bucket`, без full key для privacy).
 
 ```java
 try (var ctx = MdcContext.with("operation", "OcrService.process",
                                 "pageId", pageId.toString())) { ... }
 ```
 
-Используется в `OcrService.processPage`, `AiEditService.editPage`,
-`ShamelaBookImportService.importBook`, `ObjectStorageService`
-upload/download (с `bucket`, без full key для privacy).
+### 2.4 Уровень + redaction
 
-### 2.4 Уровень логирования
-
-- Default INFO для `ru.basnukaev.*`, WARN для frameworks
-- ENV override `LOGGING_LEVEL_RU_BASNUKAEV=DEBUG` (Spring Boot стандарт)
-
-### 2.5 Sensitive data redaction
-
-`SensitiveDataMaskingFilter` (Logback Filter) маскирует regex'ами:
-- JWT pattern → `[JWT_REDACTED]`
-- `Bearer\s+\S+` → `Bearer [REDACTED]`
-- `sk-ant-api[\w-]+` → `[ANTHROPIC_KEY_REDACTED]`
-- email regex (safety net, по политике emails в логи попадать
-  не должны изначально)
-
-**Запрещено в логах:** email, username, JWT raw, password hashes,
-secrets, IP вне rate-limit/audit. **userId UUID разрешён** -
-pseudo-anonymous.
-
-### 2.6 Retention
-
-В prod пишем в **stdout** - rotation делает Docker/k8s + aggregator.
-Файловую rotation в приложении **не делаем** (избегаем duplicated state).
+- Default INFO для `ru.basnukaev.*`, WARN для frameworks. ENV override
+  `LOGGING_LEVEL_RU_BASNUKAEV=DEBUG`
+- `SensitiveDataMaskingFilter` (Logback Filter) regex-маскирует: JWT pattern
+  → `[JWT_REDACTED]`, `Bearer\s+\S+` → `Bearer [REDACTED]`, `sk-ant-api[\w-]+`
+  → `[ANTHROPIC_KEY_REDACTED]`, email (safety net)
+- **Запрещено в логах:** email, username, JWT raw, password hashes, secrets,
+  IP вне rate-limit/audit. **userId UUID разрешён** - pseudo-anonymous
+- В prod пишем в **stdout** - rotation делает Docker/k8s + aggregator.
+  Файловую rotation в приложении не делаем (duplicated state)
 
 ## 3. Phase 2 - Metrics (Micrometer + Prometheus)
 
@@ -454,81 +441,53 @@ reporting), 55 - финал.
 ## 9. Risks / open questions
 
 ### Q1: PII в логах
-
-userId UUID - **разрешён** (pseudo-anonymous). Email/username -
-**запрещены** (`SensitiveDataMaskingFilter` + code review). IP -
-**только** в rate-limit/audit context (security legitimate interest).
-Tomcat default access logs - **выключить**.
-
-Arabic content из book pages - truncate string args на 200 символов
-через Logback `%msg(200)` (storage size, не privacy).
+userId UUID - **разрешён** (pseudo-anonymous). Email/username - **запрещены**
+(`SensitiveDataMaskingFilter` + review). IP - **только** в rate-limit/audit
+context. Tomcat default access logs - **выключить**. Arabic content book pages -
+truncate string args на 200 символов через Logback `%msg(200)`.
 
 ### Q2: Log volume / cost
-
-JSON logs ~3x объём plain. INFO + active users → ГБ/день.
-
-**Mitigation:** auth/permission/AI/OCR - INFO; CRUD endpoints
-downgrade на DEBUG. Prod aggregator: 7d hot + 30d cold (infra-level).
-При первой реальной нагрузке - переосмыслить sampling.
+JSON logs ~3x объём plain. INFO + active users → ГБ/день. **Mitigation:**
+auth/permission/AI/OCR - INFO; CRUD - DEBUG. Prod aggregator: 7d hot + 30d
+cold. При первой реальной нагрузке - переосмыслить sampling.
 
 ### Q3: Self-hosted vs SaaS
-
-- **Datadog** - всё в одном, дорого, sample-based pricing хитрый
-- **Grafana Cloud free tier** - 50GB logs / 10K series / 50GB traces -
-  достаточно для ~100 active users
-- **Self-host** (Prom+Loki+Tempo+Grafana) - max control, требует ops
-
-**Решение:** пишем абстрактно (OTLP/Prom/JSON stdout) - любой backend
-подцепится. Phase 4-5 - **Grafana Cloud free**, zero ops для solo.
+**Datadog** - дорого. **Grafana Cloud free** - 50GB logs / 10K series / 50GB
+traces, достаточно для ~100 active users. **Self-host** - max control, требует
+ops. Спека пишет абстрактно (OTLP/Prom/JSON stdout). Phase 4-5 - Grafana Cloud
+free, zero ops для solo.
 
 ### Q4: Frontend bundle penalty
-
-Sentry full SDK + replay → +130KB gzip. **Mitigation:** lazy init
-если DSN задан (dynamic import), replay сменяемый. Target бюджет:
-total observability < +180KB gzip. OTel frontend - не делаем пока
-бюджет не освобождён.
+Sentry full + replay → +130KB gzip. **Mitigation:** lazy init если DSN задан
+(dynamic import), replay снимаемый. Target бюджет: < +180KB gzip total. OTel
+frontend - не делаем пока бюджет не освобождён.
 
 ### Q5: OTel vs Sleuth
-
-Spring Cloud Sleuth deprecated в Spring Boot 3. **OTel напрямую** -
-актуальный путь.
+Sleuth deprecated в Spring Boot 3. **OTel напрямую** - актуальный путь.
 
 ### Q6: Cardinality explosion
+UUID в Prometheus labels - **запрещены**. Whitelist label values: `endpoint`
+(URI template), `result` (enum), `kind` (enum), `bucket` (4 имени). User/book/
+topic/request id - в trace attributes / log MDC, не в metrics labels.
 
-UUID-ы в Prometheus labels - **запрещены**. Whitelist label values:
-`endpoint` (URI template), `result` (enum), `kind` (enum),
-`bucket` (имена ограничены 4). User/book/topic/request id - в trace
-attributes / log MDC.
-
-### Q7: Тестирование metrics в IT - flaky?
-
-Counter assertions могут разъезжаться при shared MeterRegistry.
-
-**Решение:** `meterRegistry.clear()` в `@BeforeEach` или новый
-registry per test через `@TestConfiguration`. Assertions через
-`>= 1.0` не точное равенство.
+### Q7: Metrics flaky в IT
+Shared MeterRegistry → counter assertions разъезжаются. **Решение:**
+`meterRegistry.clear()` в `@BeforeEach` или per-test через `@TestConfiguration`.
+Assertions через `>= 1.0`, не точное равенство.
 
 ### Q8: Cold start latency
-
-Lazy init `MeterRegistry`/Sentry/OTel exporter даёт выброс первого
-запроса.
-
-**Mitigation:** `@PostConstruct` warmup в `ArgmapMetrics` (регистрация
-meters заранее). OTel exporter прогревается через synthetic startup
-trace. Sentry init - до first React render в `main.tsx`.
+Lazy init дёргает выброс первого запроса. **Mitigation:** `@PostConstruct`
+warmup в `ArgmapMetrics`, synthetic startup trace для OTel exporter, Sentry
+init до first React render в `main.tsx`.
 
 ### Q9: Trace sampling sticky?
-
-10% parentbased: если upstream прислал `traceparent` - respect его
-decision (deterministic). Иначе 10% random. Edge case для дебага:
-`curl -H "traceparent: ..."` принудительная выборка конкретного
-trace.
+10% parentbased: upstream `traceparent` → respect decision (deterministic).
+Иначе 10% random. Дебаг edge case: `curl -H "traceparent: ..."` принудительно.
 
 ### Q10: Arabic encoding в JSON логах
-
-`logstash-encoder` default UTF-8, `escape-non-ascii=false`. Arabic
-**не** превращается в `\uXXXX`. Проверить вручную на первом prod
-log'е (gotcha если default изменится в major version).
+`logstash-encoder` default UTF-8, `escape-non-ascii=false`. Arabic не
+превращается в `\uXXXX`. Проверить вручную на первом prod log'е (gotcha если
+default изменится в major).
 
 ## 10. Decomposition (для implementation plan)
 
