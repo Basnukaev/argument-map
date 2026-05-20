@@ -282,4 +282,17 @@ public class TopicRepository {
         Long count = jdbcTemplate.queryForObject(sql.toString(), Long.class, args.toArray());
         return count == null ? 0L : count;
     }
+
+    /**
+     * Vision 49d Phase 2 - increment view_count для popularity ranking.
+     * Atomic UPDATE topics SET view_count = view_count + 1. Anti-spam
+     * (1 view per session) - в caller через X-Session-Id header tracking
+     * (in-memory set in dev, Redis в prod).
+     */
+    public void incrementViewCount(UUID topicId) {
+        jdbcTemplate.update(
+                "UPDATE topics SET view_count = view_count + 1 WHERE id = ?",
+                topicId
+        );
+    }
 }

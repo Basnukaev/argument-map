@@ -103,6 +103,17 @@ public class TopicController {
         return DtoMappers.toResponse(topicService.getTopicWithCounts(topicId));
     }
 
+    /**
+     * Vision 49d Section 2.1 Phase 2 — view increment endpoint.
+     * Anti-spam: simple - повторный POST в той же session тоже инкрементит.
+     * Phase 2.b добавит in-memory Set<topicId, sessionId> для dedup.
+     */
+    @PostMapping("/{topicId}/views")
+    public ResponseEntity<Void> incrementView(@PathVariable UUID topicId) {
+        topicService.incrementViewCount(topicId);
+        return ResponseEntity.noContent().build();
+    }
+
     @DeleteMapping("/{topicId}")
     public ResponseEntity<Void> delete(@PathVariable UUID topicId, @CurrentUser UUID userId) {
         String role = SecurityContextUtils.currentRoleOrAnonymous();

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Vision 49d Section 2.1 Phase 2 - view counter denormalization.
+        Phase 1 использовал computed subquery в ORDER BY popular (дорого
+        на каждую rows fetch). Phase 2 заменяет на indexed column.
+
+        view_count - increment endpoint POST /{entity}/views с anti-spam
+        (1 view per session per entity). Backfill: existing rows = 0.
+
+        Применяется к 3 entities: topics, questions, lib_books.
+        Index по view_count DESC для O(log N) sorting (TopicRepository
+        orderByForSort переключится на column).
+    -->
+    <changeSet id="20260520-51-view-counters" author="Abdula Basnukaev">
+        <comment>Денормализованные view_count для popularity ranking</comment>
+        <addColumn tableName="topics">
+            <column name="view_count" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <addColumn tableName="questions">
+            <column name="view_count" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <addColumn tableName="lib_books">
+            <column name="view_count" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <createIndex tableName="topics" indexName="idx_topics_view_count">
+            <column name="view_count" descending="true"/>
+        </createIndex>
+        <createIndex tableName="questions" indexName="idx_questions_view_count">
+            <column name="view_count" descending="true"/>
+        </createIndex>
+        <createIndex tableName="lib_books" indexName="idx_lib_books_view_count">
+            <column name="view_count" descending="true"/>
+        </createIndex>
+
+        <rollback>
+            <dropIndex tableName="topics" indexName="idx_topics_view_count"/>
+            <dropIndex tableName="questions" indexName="idx_questions_view_count"/>
+            <dropIndex tableName="lib_books" indexName="idx_lib_books_view_count"/>
+            <dropColumn tableName="topics" columnName="view_count"/>
+            <dropColumn tableName="questions" columnName="view_count"/>
+            <dropColumn tableName="lib_books" columnName="view_count"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

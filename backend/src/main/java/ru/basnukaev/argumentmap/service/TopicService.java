@@ -211,6 +211,15 @@ public class TopicService {
         return getTopicWithCounts(topicId);
     }
 
+    /**
+     * Vision 49d Phase 2 - increment topic view counter. No-op если
+     * topic не найден (idempotent: «view of deleted topic» допустим).
+     */
+    @Transactional
+    public void incrementViewCount(UUID topicId) {
+        topicRepository.incrementViewCount(topicId);
+    }
+
     @Transactional
     public void deleteTopic(UUID topicId) {
         boolean removed = topicRepository.deleteById(topicId);
