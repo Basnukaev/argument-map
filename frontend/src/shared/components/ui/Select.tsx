@@ -143,8 +143,8 @@ function Select({
                   }}
                   className={`flex w-full items-center justify-center gap-2 px-2.5 py-1.5 text-sm transition-colors ${
                     isSelected
-                      ? 'bg-accent-50 text-accent-700 font-semibold'
-                      : 'text-ink-700 hover:bg-ink-100 active:bg-ink-200'
+                      ? 'bg-accent-50 text-accent-700 font-semibold hover:bg-accent-100'
+                      : 'text-ink-700 hover:bg-ink-200 active:bg-ink-200'
                   }`}
                 >
                   <span

@@ -13,6 +13,12 @@
    ────────────────────────────────────────────────────────────── */
 
 :root {
+  /* color-scheme: подсказка браузеру для native form controls
+     (<select> option panel, scrollbar, autofill background). Без неё
+     Chromium на dark theme рендерит native widgets light-UA palette →
+     light cream text на near-white background = невидимо. См. audit
+     UI bug фикс Сессии 49d */
+  color-scheme: light;
   /* ── COLORS ───────────────────────────────────────────────── */
   /* Warm slate neutrals (не холодные blue-grey Tailwind defaults) */
   --c-ink-900: #1a1814;
@@ -139,6 +145,7 @@
    "над" bg.
    ────────────────────────────────────────────────────────────── */
 [data-theme='dark'] {
+  color-scheme: dark;
   --c-ink-900: #f5f1e6;
   --c-ink-800: #e8e3d2;
   --c-ink-700: #c9c4b6;
