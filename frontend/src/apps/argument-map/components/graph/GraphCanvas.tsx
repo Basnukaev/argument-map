@@ -24,11 +24,11 @@ import EdgeDetailsPanel from '@/apps/argument-map/components/graph/EdgeDetailsPa
 import CompactMiniMap from '@/apps/argument-map/components/graph/CompactMiniMap';
 import GraphPanels from '@/apps/argument-map/components/graph/GraphPanels';
 import FloatingActionBar from '@/apps/argument-map/components/graph/FloatingActionBar';
-import type { NodeStatus } from '@/shared/utils/designTokens';
 import { useGraphEscape } from '@/apps/argument-map/hooks/useGraphEscape';
 import { useGraphZOrder } from '@/apps/argument-map/hooks/useGraphZOrder';
 import { useElkAutoLayout } from '@/apps/argument-map/hooks/useElkAutoLayout';
 import { useNodeDelete } from '@/apps/argument-map/hooks/useNodeDelete';
+import { useBulkNodeActions } from '@/apps/argument-map/hooks/useBulkNodeActions';
 import { useHotkey } from '@/shared/hooks/useHotkey';
 import {
   getAllowedEdgeTypes,
@@ -329,53 +329,7 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
     [t],
   );
 
-  // Bulk-status: parallel PATCH /api/v1/nodes/{id} с {status}. Partial-failure
-  // aware - используем Promise.allSettled, считаем успехи/провалы, выдаём
-  // комбинированный toast. После - onRefetch синхронизирует UI
-  const [bulkBusy, setBulkBusy] = useState(false);
-  async function runBulkStatusChange(targetIds: string[], status: NodeStatus) {
-    if (targetIds.length === 0) {
-      toast.warning(t('bulk_actions.warn.no_writable_nodes'));
-      return;
-    }
-    setBulkBusy(true);
-    try {
-      const results = await Promise.allSettled(
-        targetIds.map((id) => apiPatchRaw(`/api/v1/nodes/${id}`, { status })),
-      );
-      const successes = results.filter((r) => r.status === 'fulfilled').length;
-      const failures = results.length - successes;
-
-      if (successes === 0) {
-        // permission-aware error: если все 403 (отозвали права во время
-        // выделения - типичный сценарий: owner SHARED-темы убрал EDITOR
-        // membership пока пользователь делал bulk action) - показываем
-        // explicit "нет прав" вместо generic "не удалось"
-        const firstFailure = results.find(
-          (r): r is PromiseRejectedResult => r.status === 'rejected',
-        );
-        const reason = firstFailure?.reason;
-        if (reason instanceof ApiError && reason.is('forbidden-topic-write')) {
-          toast.error(t('bulk_actions.error.permission_denied'));
-        } else {
-          toast.error(t('bulk_actions.error.all_failed'));
-        }
-      } else if (failures > 0) {
-        toast.warning(
-          t('bulk_actions.success.status_updated_partial')
-            .replace('{success}', String(successes))
-            .replace('{total}', String(results.length)),
-        );
-      } else {
-        toast.success(
-          t('bulk_actions.success.status_updated').replace('{count}', String(successes)),
-        );
-      }
-      onRefetch();
-    } finally {
-      setBulkBusy(false);
-    }
-  }
+  const { runBulkStatusChange, bulkBusy } = useBulkNodeActions({ onRefetch });
 
   // правый клик на pane - "Создать узел здесь" с координатами курсора.
   // Для read-only режима меню не показываем (single mutating action - create)
