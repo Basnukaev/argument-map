@@ -246,8 +246,13 @@ collections`, REST CRUD, BookCard menu «Добавить в коллекцию�
 
 ### Метрики 49d финальные
 
-- **37+ commits total** (22 initial + 15+ continued MAX-mode after
+- **47+ commits total** (22 initial + 25+ continued MAX-mode after
   Абдула explicit «не останавливайся»)
+- **8 migrations applied:** 48 → 49 (roles) → 50 (collections) →
+  51 (view counters) → 52-55 (hadith narrators/hadiths/sanads/matns)
+- **49.C Hadith Explorer Phase 1 backend COMPLETE:** 6 domain
+  records + 4 repositories + 2 REST controllers (Narrator + Hadith
+  with bundled detail) + 2 NotFoundException handlers
 - **Tests:** Backend +24 new (UserRoleTest 9 + PermissionServiceTest 5
   + HadithGradeControllerIT 3 + UserControllerIT 7). All existing
   preserved: AuthControllerIT 34/34, HadithGradeServiceIT 17/17,
