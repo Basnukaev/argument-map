@@ -9,13 +9,14 @@ import {
   ChevronDown,
   Pencil,
   X,
+  Heart,
 } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import Button from '@/shared/components/ui/Button';
 import BookEditModal from '@/shared/components/library/BookEditModal';
 import VisibilityBadge from '@/shared/components/visibility/VisibilityBadge';
-import { apiGetRaw, ApiError, formatApiError } from '@/shared/api/client';
+import { apiGetRaw, apiPostRaw, apiDeleteRaw, ApiError, formatApiError } from '@/shared/api/client';
 import { formatPermissionError } from '@/shared/api/permissionErrors';
 import { toast } from '@/shared/stores/toastStore';
 import { useAuthStore } from '@/shared/stores/authStore';
@@ -108,6 +109,48 @@ function BookListPage() {
   const [editingBook, setEditingBook] = useState<BookDetailResponse | null>(null);
   const [loadingEdit, setLoadingEdit] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  // Vision 49d Section 2.2 — Set bookIds в default коллекции "Избранное"
+  const [favBookIds, setFavBookIds] = useState<Set<string>>(new Set());
+  const [favLoadingId, setFavLoadingId] = useState<string | null>(null);
+
+  // Initial fetch favorites - один раз на mount
+  useEffect(() => {
+    if (!currentUserId) return;
+    const controller = new AbortController();
+    apiGetRaw<Array<{ bookId: string }>>(
+      '/api/v1/library/collections?name=Избранное',
+      { signal: controller.signal },
+    )
+      .then((entries) => {
+        if (controller.signal.aborted) return;
+        setFavBookIds(new Set(entries.map((e) => e.bookId)));
+      })
+      .catch(() => {
+        // silent - favorites не critical, не показываем error
+      });
+    return () => controller.abort();
+  }, [currentUserId]);
+
+  const handleToggleFavorite = useCallback(async (bookId: string, currentlyFav: boolean) => {
+    setFavLoadingId(bookId);
+    try {
+      if (currentlyFav) {
+        await apiDeleteRaw(`/api/v1/library/collections/${bookId}?name=${encodeURIComponent('Избранное')}`);
+        setFavBookIds((prev) => {
+          const next = new Set(prev);
+          next.delete(bookId);
+          return next;
+        });
+      } else {
+        await apiPostRaw('/api/v1/library/collections', { bookId });
+        setFavBookIds((prev) => new Set(prev).add(bookId));
+      }
+    } catch (e) {
+      toast.error(formatApiError(e, t('common.error')));
+    } finally {
+      setFavLoadingId(null);
+    }
+  }, [t]);
 
   /** Debounced search - после 300ms простоя sync'аем searchInput → searchQ.
    * searchQ - триггер refetch'а через useEffect ниже. UX: юзер печатает
@@ -393,6 +436,9 @@ function BookListPage() {
                       book={book}
                       onEdit={handleEdit}
                       editLoading={loadingEdit === book.id}
+                      isFavorite={favBookIds.has(book.id)}
+                      onToggleFavorite={handleToggleFavorite}
+                      favLoading={favLoadingId === book.id}
                     />
                   </li>
                 ))}
@@ -639,9 +685,12 @@ interface BookCardProps {
   book: Book & { id: string };
   onEdit: (bookId: string) => void;
   editLoading: boolean;
+  isFavorite: boolean;
+  onToggleFavorite: (bookId: string, currentlyFav: boolean) => void;
+  favLoading: boolean;
 }
 
-function BookCard({ book, onEdit, editLoading }: BookCardProps) {
+function BookCard({ book, onEdit, editLoading, isFavorite, onToggleFavorite, favLoading }: BookCardProps) {
   const t = useT();
   const bookType = book.bookType ?? 'BOOK';
   const fallbackTitle = t('reader.no_book_title');
@@ -650,6 +699,30 @@ function BookCard({ book, onEdit, editLoading }: BookCardProps) {
 
   return (
     <div className="relative">
+      {/* Vision 49d Section 2.2 - Favorite (heart) button. End-12 = чуть
+          левее pencil чтобы не накладываться */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onToggleFavorite(book.id, isFavorite);
+        }}
+        disabled={favLoading}
+        title={isFavorite ? t('library.fav.remove') : t('library.fav.add')}
+        aria-label={isFavorite ? t('library.fav.remove') : t('library.fav.add')}
+        className={`absolute end-11 top-2 z-10 grid h-7 w-7 place-items-center rounded-sm shadow-sh1 backdrop-blur disabled:opacity-50 ${
+          isFavorite
+            ? 'bg-err-100 text-err-500 hover:bg-err-100'
+            : 'bg-elevated/90 text-ink-600 hover:bg-elevated hover:text-err-500'
+        }`}
+      >
+        {favLoading ? (
+          <Loader2 size={13} className="animate-spin" aria-hidden />
+        ) : (
+          <Heart size={13} fill={isFavorite ? 'currentColor' : 'none'} aria-hidden />
+        )}
+      </button>
       <button
         type="button"
         onClick={(e) => {
