@@ -1,43 +1,9 @@
-import { BaseEdge, EdgeLabelRenderer, getBezierPath, useEdges } from '@xyflow/react';
+import { BaseEdge, EdgeLabelRenderer, getBezierPath } from '@xyflow/react';
 import type { EdgeProps, Edge } from '@xyflow/react';
 import { getContextualEdgeLabelKey, EDGE_TYPE_META } from '@/apps/argument-map/utils/edgeRules';
 import { useT } from '@/shared/i18n';
 import type { EdgeType, NodeType } from '@/apps/argument-map/utils/edgeRules';
 import { EDGE_TYPE_TOKENS } from '@/shared/utils/designTokens';
-
-/**
- * Рассчитывает кривизну Безье для конкретного ребра с учётом «братских»
- * рёбер между той же парой узлов (source+target в том же порядке).
- *
- * Логика:
- * - 1 ребро → стандартная кривизна 0.25
- * - N рёбер → равномерно распределяем от 0.1 до 0.6, чтобы кривые
- *   расходились веером и не сливались в одну линию
- *
- * Сортируем siblings по id для детерминированного порядка: одинаковый
- * индекс между рендерами → нет дрожания кривых при обновлении графа
- */
-function useSiblingCurvature(
-  currentEdgeId: string,
-  source: string,
-  target: string,
-): number {
-  const allEdges = useEdges();
-
-  const siblings = allEdges
-    .filter((e) => e.source === source && e.target === target)
-    .sort((a, b) => a.id.localeCompare(b.id));
-
-  if (siblings.length <= 1) return 0.25;
-
-  const myIndex = siblings.findIndex((e) => e.id === currentEdgeId);
-  const count = siblings.length;
-  const minCurv = 0.1;
-  const maxCurv = 0.6;
-  // равномерно от minCurv до maxCurv: при count=2 → [0.1, 0.6]
-  // при count=3 → [0.1, 0.35, 0.6], и т.д.
-  return minCurv + (myIndex / (count - 1)) * (maxCurv - minCurv);
-}
 
 export type CustomEdgeData = {
   edgeType: EdgeType;
@@ -45,21 +11,25 @@ export type CustomEdgeData = {
   toType: NodeType;
   rationale?: string;
   showLabel?: boolean;
+  /**
+   * Кривизна Безье для этого ребра. Вычисляется один раз в buildFlow
+   * через computeSiblingCurvatures — параллельные рёбра между той же
+   * парой узлов получают разные значения и расходятся веером.
+   * Default 0.25 (стандартная кривизна RF).
+   */
+  curvature?: number;
 };
 
 export type CustomEdgeEdge = Edge<CustomEdgeData, 'argumentEdge'>;
 
 function CustomEdge(props: EdgeProps<CustomEdgeEdge>) {
   const {
-    id,
     sourceX,
     sourceY,
     targetX,
     targetY,
     sourcePosition,
     targetPosition,
-    source,
-    target,
     data,
     selected,
     markerEnd,
@@ -75,9 +45,9 @@ function CustomEdge(props: EdgeProps<CustomEdgeEdge>) {
       ? t(getContextualEdgeLabelKey(data.fromType, edgeType, data.toType))
       : '';
 
-  // curvature рассчитывается с учётом параллельных рёбер между той же
-  // парой узлов: они получают разные значения и расходятся веером
-  const curvature = useSiblingCurvature(id, source, target);
+  // curvature вычислена в buildFlow (computeSiblingCurvatures) и передана
+  // через data — не нужен useEdges() в каждом компоненте (O(E²) per rerender)
+  const curvature = data?.curvature ?? 0.25;
 
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,

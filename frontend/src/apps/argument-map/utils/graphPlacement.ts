@@ -89,9 +89,74 @@ export function findFreePosition(
 }
 
 /**
+ * Вычисляет кривизну Безье для каждого ребра с учётом «братских» рёбер
+ * между той же парой узлов (source+target в том же порядке).
+ *
+ * Логика:
+ * - 1 ребро → стандартная кривизна 0.25
+ * - N рёбер → равномерно от 0.1 до 0.6, расходятся веером
+ *
+ * Сортируем siblings по id для детерминированного порядка: одинаковый
+ * индекс между рендерами → нет дрожания кривых при обновлении графа.
+ *
+ * Вызывается ОДИН РАЗ в buildFlow для всего массива рёбер — в отличие
+ * от прежнего useSiblingCurvature, который вызывал useEdges() в каждом
+ * edge-компоненте (O(E²) per rerender при N рёбрах).
+ *
+ * @returns Map<edgeId, curvature>
+ */
+export function computeSiblingCurvatures(
+  edges: ReadonlyArray<{ id: string; source: string; target: string }>,
+): Map<string, number> {
+  const MIN_CURV = 0.1;
+  const MAX_CURV = 0.6;
+  const DEFAULT_CURV = 0.25;
+
+  // группируем по ключу «source→target», сортируем по id
+  const groups = new Map<string, string[]>();
+  for (const e of edges) {
+    const key = `${e.source}→${e.target}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = [];
+      groups.set(key, group);
+    }
+    group.push(e.id);
+  }
+  for (const group of groups.values()) {
+    group.sort((a, b) => a.localeCompare(b));
+  }
+
+  const result = new Map<string, number>();
+  for (const e of edges) {
+    const key = `${e.source}→${e.target}`;
+    const siblings = groups.get(key)!;
+    if (siblings.length <= 1) {
+      result.set(e.id, DEFAULT_CURV);
+    } else {
+      const myIndex = siblings.indexOf(e.id);
+      // defensive guard: если ребро не нашло себя (concurrent removal),
+      // возвращаем дефолт вместо отрицательного значения
+      if (myIndex < 0) {
+        result.set(e.id, DEFAULT_CURV);
+      } else {
+        const count = siblings.length;
+        result.set(e.id, MIN_CURV + (myIndex / (count - 1)) * (MAX_CURV - MIN_CURV));
+      }
+    }
+  }
+  return result;
+}
+
+/**
  * Собирает RF nodes/edges из бэк-DTO. Применяет layoutGraph (dagre или
  * mixed-mode при наличии сохранённых позиций), прокидывает в data
  * рёбер типы концов для CustomEdge стилизации, проставляет markerEnd.
+ *
+ * Кривизна Безье (curvature) для параллельных рёбер между той же парой
+ * узлов вычисляется здесь один раз через computeSiblingCurvatures и
+ * кладётся в edge.data.curvature — CustomEdge читает готовое значение
+ * без подписки на весь store рёбер.
  *
  * @param previousNodes - последний snapshot nodes (для mixed-режима
  *   layoutGraph: fresh-узлы получают dagre-позиции, сохранённые остаются)
@@ -120,6 +185,16 @@ export function buildFlow(
     if (n.data.nodeType) nodeTypeById.set(n.id, n.data.nodeType);
   }
 
+  // предварительно строим список source/target чтобы вычислить кривизну
+  const edgeSrcTarget = (graph.edges ?? [])
+    .filter(
+      (e): e is EdgeDto & { id: string; fromNodeId: string; toNodeId: string } =>
+        Boolean(e.id && e.fromNodeId && e.toNodeId),
+    )
+    .map((e) => ({ id: e.id, source: e.fromNodeId, target: e.toNodeId }));
+
+  const curvatureMap = computeSiblingCurvatures(edgeSrcTarget);
+
   const rawEdges: CustomEdgeEdge[] = (graph.edges ?? [])
     .filter(
       (e): e is EdgeDto & { id: string; fromNodeId: string; toNodeId: string } =>
@@ -142,6 +217,7 @@ export function buildFlow(
           toType,
           rationale: e.rationale,
           showLabel: showEdgeLabels,
+          curvature: curvatureMap.get(e.id) ?? 0.25,
         },
         markerEnd: {
           type: MarkerType.ArrowClosed,
