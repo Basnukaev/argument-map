@@ -514,8 +514,10 @@ toggle). Persist в `argmap.layoutAlgorithm` localStorage
   routing
 - Лучше для сложных графов с many edges - разводит рёбра вокруг узлов,
   меньше crossings
-- One-shot trigger при выборе ELK в menu - применяет позиции, PATCH'ит
-  posX/posY на бэк, дальше работает как обычные сохранённые позиции
+- One-shot trigger при выборе ELK в menu - применяет позиции локально,
+  затем **параллельные PATCH'и** (Promise.allSettled) на бэк для всех
+  изменённых node positions (commit `fdb873a`). Partial failure: warning
+  toast с количеством failed, остальные позиции сохранены
 - Loading state - spinner на иконке `Network` пока пересчитывается
 
 ### Правила для новых layout-фич

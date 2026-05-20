@@ -127,7 +127,9 @@ Class components не использовать. Если возникает со
 - `useState` — локальное состояние
 - `useEffect` — побочные эффекты, подписки, синхронизация с внешними
   системами
-- `useRef` — мутабельная ссылка, доступ к DOM
+- `useRef` — мутабельная ссылка, доступ к DOM. **React 19:** typing
+  через `RefObject<T>` (НЕ `MutableRefObject` — deprecated). `RefObject`
+  теперь покрывает оба case'а (readonly и mutable refs)
 - `useCallback`, `useMemo` — оптимизация ре-рендеров
 
 **`useMemo` / `useCallback` — только при реальной проблеме**
