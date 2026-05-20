@@ -67,12 +67,18 @@ class HadithGradeControllerIT {
     void setUp() {
         userId = UUID.randomUUID();
         otherUserId = UUID.randomUUID();
+        // Vision 49d Phase A.3: HadithGradeService.addGrade требует SCHOLAR
+        // роль. Тесты которые POST grade'ы используют userId как SCHOLAR,
+        // otherUserId тоже SCHOLAR (тестирует non-author scenarios на
+        // update/delete - role gate uniform для addGrade, разделение
+        // прав - через createdBy в HadithGradeAccessDeniedException).
+        // Separate test ниже проверяет 403 для USER role
         jdbcTemplate.update(
-                "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
+                "INSERT INTO users (id, username, email, role) VALUES (?, ?, ?, 'SCHOLAR')",
                 userId, "user-" + userId, userId + "@example.com"
         );
         jdbcTemplate.update(
-                "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
+                "INSERT INTO users (id, username, email, role) VALUES (?, ?, ?, 'SCHOLAR')",
                 otherUserId, "other-" + otherUserId, otherUserId + "@example.com"
         );
 
@@ -154,6 +160,65 @@ class HadithGradeControllerIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void POST_byUserRole_returns403_forbiddenInsufficientRole() throws Exception {
+        // Vision 49d Phase A.3: USER role не может добавлять hadith grade,
+        // требуется SCHOLAR+. Создаём отдельного user с role='USER'
+        UUID userRoleId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email, role) VALUES (?, ?, ?, 'USER')",
+                userRoleId, "regular-" + userRoleId, userRoleId + "@example.com"
+        );
+
+        var req = new CreateHadithGradeRequest(scholarId, HadithGradeValue.SAHIH, null, null);
+
+        mockMvc.perform(post("/api/v1/sources/{id}/grades", hadithSourceId)
+                        .header("X-User-Id", userRoleId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type").value(containsString("forbidden-insufficient-role")))
+                .andExpect(jsonPath("$.currentRole").value("USER"))
+                .andExpect(jsonPath("$.requiredRole").value("SCHOLAR"));
+    }
+
+    @Test
+    void POST_byStudentRole_returns403() throws Exception {
+        // STUDENT тоже ниже SCHOLAR в иерархии — забанен
+        UUID studentId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email, role) VALUES (?, ?, ?, 'STUDENT')",
+                studentId, "student-" + studentId, studentId + "@example.com"
+        );
+
+        var req = new CreateHadithGradeRequest(scholarId, HadithGradeValue.SAHIH, null, null);
+
+        mockMvc.perform(post("/api/v1/sources/{id}/grades", hadithSourceId)
+                        .header("X-User-Id", studentId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.currentRole").value("STUDENT"));
+    }
+
+    @Test
+    void POST_byAdminRole_returns201() throws Exception {
+        // ADMIN bypass / выше в иерархии — может добавлять grades
+        UUID adminId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email, role) VALUES (?, ?, ?, 'ADMIN')",
+                adminId, "admin-" + adminId, adminId + "@example.com"
+        );
+
+        var req = new CreateHadithGradeRequest(scholarId, HadithGradeValue.SAHIH, null, null);
+
+        mockMvc.perform(post("/api/v1/sources/{id}/grades", hadithSourceId)
+                        .header("X-User-Id", adminId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated());
     }
 
     @Test

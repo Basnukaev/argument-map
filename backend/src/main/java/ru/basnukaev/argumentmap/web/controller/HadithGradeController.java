@@ -48,9 +48,12 @@ public class HadithGradeController {
     public ResponseEntity<HadithGradeResponse> addGrade(@PathVariable UUID sourceId,
                                                         @Valid @RequestBody CreateHadithGradeRequest request,
                                                         @CurrentUser UUID userId) {
+        // Vision 49d Section 2.4 — REST-вход всегда role-aware. Internal
+        // callers (ETL/seed) могут идти через legacy overload без role
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         HadithGrade created = hadithGradeService.addGrade(
                 sourceId, request.scholarId(), request.grade(),
-                request.gradeCitation(), request.comment(), userId
+                request.gradeCitation(), request.comment(), userId, role
         );
         // для consistent response - возвращаем denormalized view из listForSource;
         // simpler: вернуть thin HadithGradeResponse без scholar info (фронт может

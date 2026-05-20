@@ -53,15 +53,38 @@ public class HadithGradeService {
     private final HadithGradeRepository hadithGradeRepository;
     private final SourceRepository sourceRepository;
     private final AuthorityRepository authorityRepository;
+    private final PermissionService permissionService;
 
     public HadithGradeService(HadithGradeRepository hadithGradeRepository,
                               SourceRepository sourceRepository,
-                              AuthorityRepository authorityRepository) {
+                              AuthorityRepository authorityRepository,
+                              PermissionService permissionService) {
         this.hadithGradeRepository = hadithGradeRepository;
         this.sourceRepository = sourceRepository;
         this.authorityRepository = authorityRepository;
+        this.permissionService = permissionService;
     }
 
+    /**
+     * Role-aware overload (Vision 49d Section 2.4): требует роль
+     * SCHOLAR+. После Phase A.3 — primary entry point из REST controller.
+     * Бросает {@link ru.basnukaev.argumentmap.exception.InsufficientRoleException}
+     * для USER/STUDENT.
+     */
+    @Transactional
+    public HadithGrade addGrade(UUID sourceId, UUID scholarId,
+                                HadithGradeValue grade,
+                                String gradeCitation, String comment,
+                                UUID actorUserId, String actorRole) {
+        permissionService.assertHasRoleAtLeast(actorUserId, actorRole, UserRole.SCHOLAR);
+        return addGrade(sourceId, scholarId, grade, gradeCitation, comment, actorUserId);
+    }
+
+    /**
+     * Legacy overload без role-check — оставлен для internal callers
+     * (ETL/import/scheduled jobs) и existing IT тестов. Production REST
+     * traffic идёт через role-aware overload выше.
+     */
     @Transactional
     public HadithGrade addGrade(UUID sourceId, UUID scholarId,
                                 HadithGradeValue grade,
