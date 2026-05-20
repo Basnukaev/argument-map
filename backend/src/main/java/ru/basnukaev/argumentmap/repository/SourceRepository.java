@@ -4,9 +4,11 @@ import static ru.basnukaev.argumentmap.repository.JdbcTimes.instant;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.odt;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -65,6 +67,22 @@ public class SourceRepository {
                 ROW_MAPPER,
                 id
         ).stream().findFirst();
+    }
+
+    /**
+     * Batch-загрузка sources по набору id. Один SQL вместо N findById.
+     * Sources которых нет в БД - отсутствуют в результате.
+     */
+    public List<Source> findByIds(Collection<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        String placeholders = ids.stream().map(id -> "?").collect(Collectors.joining(", "));
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM sources WHERE id IN (" + placeholders + ")",
+                ROW_MAPPER,
+                ids.toArray()
+        );
     }
 
     public Optional<Source> findByBookId(UUID bookId) {

@@ -4,6 +4,7 @@ import static ru.basnukaev.argumentmap.repository.JdbcTimes.instant;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.odt;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -113,6 +115,24 @@ public class NodeSourceRepository {
     /** Удалить конкретную привязку по surrogate id (миграция 25, ADR-FK-A) */
     public boolean deleteById(UUID id) {
         return jdbcTemplate.update("DELETE FROM node_sources WHERE id = ?", id) > 0;
+    }
+
+    /**
+     * Batch-загрузка всех node-source привязок для набора узлов. Один SQL
+     * вместо N findByNodeId вызовов. Используется в TopicExportService
+     * для исключения N+1 при обходе узлов темы.
+     */
+    public List<NodeSource> findByNodeIds(Collection<UUID> nodeIds) {
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            return List.of();
+        }
+        String placeholders = nodeIds.stream().map(id -> "?").collect(Collectors.joining(", "));
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM node_sources WHERE node_id IN (" + placeholders + ") "
+                        + "ORDER BY node_id, created_at",
+                ROW_MAPPER,
+                nodeIds.toArray()
+        );
     }
 
     /**

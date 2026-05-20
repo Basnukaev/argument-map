@@ -1,7 +1,6 @@
 package ru.basnukaev.argumentmap.service;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -94,13 +93,9 @@ public class TopicExportService {
         List<Node> nodes = nodeRepository.findByTopicId(topicId);
         List<Edge> edges = edgeRepository.findByTopicId(topicId);
 
-        // node_sources собираются обходом по узлам - findByNodeId уже
-        // отсортирован по created_at, общий порядок detrministic (nodes
-        // тоже отсортированы по created_at в findByTopicId)
-        List<NodeSource> allNodeSources = new ArrayList<>();
-        for (Node n : nodes) {
-            allNodeSources.addAll(nodeSourceRepository.findByNodeId(n.id()));
-        }
+        // batch: все node_sources за один SQL (не N findByNodeId)
+        List<UUID> nodeIds = nodes.stream().map(Node::id).toList();
+        List<NodeSource> allNodeSources = nodeSourceRepository.findByNodeIds(nodeIds);
 
         // unique source-id из всех node_sources
         // LinkedHashSet для стабильного порядка sources в экспорте (по
@@ -110,9 +105,10 @@ public class TopicExportService {
             sourceIds.add(ns.sourceId());
         }
 
+        // batch: все sources за один SQL
         Map<UUID, Source> sourcesById = new LinkedHashMap<>();
-        for (UUID sid : sourceIds) {
-            sourceRepository.findById(sid).ifPresent(s -> sourcesById.put(s.id(), s));
+        for (Source s : sourceRepository.findByIds(sourceIds)) {
+            sourcesById.put(s.id(), s);
         }
 
         // unique authority-id из sources (sources.authority_id может быть
@@ -123,9 +119,10 @@ public class TopicExportService {
                 authorityIds.add(s.authorityId());
             }
         }
+        // batch: все authorities за один SQL
         Map<UUID, Authority> authoritiesById = new LinkedHashMap<>();
-        for (UUID aid : authorityIds) {
-            authorityRepository.findById(aid).ifPresent(a -> authoritiesById.put(a.id(), a));
+        for (Authority a : authorityRepository.findByIds(authorityIds)) {
+            authoritiesById.put(a.id(), a);
         }
 
         // unique book-id из sources (для hint при импорте)
@@ -135,9 +132,10 @@ public class TopicExportService {
                 bookIds.add(s.bookId());
             }
         }
+        // batch: все books за один SQL
         Map<UUID, Book> booksById = new LinkedHashMap<>();
-        for (UUID bid : bookIds) {
-            bookRepository.findById(bid).ifPresent(b -> booksById.put(b.id(), b));
+        for (Book b : bookRepository.findByIds(bookIds)) {
+            booksById.put(b.id(), b);
         }
 
         return new TopicExportDto(
