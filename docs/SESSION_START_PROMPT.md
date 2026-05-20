@@ -279,30 +279,29 @@ Specs created:
 
 ### Текущий приоритет — implementation continues
 
-После 49d:
-- Phase A.1+A.2+A.3+A.4 уже **сделаны** (migration 49 + UserRole +
+После 49d (FINAL):
+- Phase A.1+A.2+A.3+A.4+A.5 уже **сделаны** (migration 49 + UserRole +
   InsufficientRoleException + PermissionService.assertHasRoleAtLeast +
   HadithGradeService SCHOLAR gate + UserController PATCH /role admin
-  endpoint).
+  endpoint + Question/Answer STUDENT gate).
 - 5 specs готовы (vision/roles/rating/hadith/observability).
+- Backend roles implementation core complete — все 3 gate's установлены
+  (SCHOLAR для hadith grade, STUDENT для question/answer create).
+- 19 commits total в Сессии 49d.
 
-**Phase A.5 — next priority:** apply STUDENT gate на AnswerService.
-createAnswer / QuestionService.createQuestion. Breaks existing tests
-где role=USER. Защитная стратегия:
-- ВАРИАНТ 1: использовать admin endpoint (now ready) — migrate dev users
-  → STUDENT в test setUp. Все Question/Answer IT обновить под SCHOLAR/
-  STUDENT setup users.
-- ВАРИАНТ 2: feature flag `roles.gates.enabled` (default false в test).
-  Проще, но скрывает реальное behavior в CI.
+**Phase A.6 — next priority:** Frontend AuthRole type expansion.
+Regenerate types.ts (backend MeResponse @Schema уже updated). Update
+AuthRole в authStore.ts. Generalize ProtectedRoute requireRole prop.
+Optional RoleLockedAction UI wrapper. Effort ~3h.
 
-Recommended ВАРИАНТ 1 — это reveals real behavior, и admin endpoint
-уже готов чтобы tests могли elevate users в setUp().
+**UI 1.1 Dark theme palette** — invoke /frontend-design skill, обновить
+accent tokens (indigo «не сочетается» по словам Абдулы). Effort ~3h.
 
-Effort ~4h.
+**49.E Library collections** — spec не написан, ~simple scope. Effort
+~5h total (spec + implement).
 
-**Phase A.6** — Frontend AuthStore type expansion + ProtectedRoute
-requireRole generalize + RoleLockedAction wrapper. После регенерации
-types.ts (включает MeResponse role enum). Effort ~3h.
+**49.B Rating + pagination** — spec ready, fix migration IDs 49→50+
+сначала. Phase 1 ~6h.
 
 **Phase A.5+:** Frontend AuthStore type expansion + ScholarRoute/
 StudentRoute (или generalized requireRole) + role-locked UI components.

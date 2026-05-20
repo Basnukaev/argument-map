@@ -108,7 +108,7 @@ context conservation, frontend-design skill перед UI changes.
   algorithm choice)
 - M-3/M-4/M-6 frontend stability audit remaining from 49c
 
-### 49.A Roles - Phase A.1 + A.2 + A.3 + A.4 closed внутри 49d
+### 49.A Roles - Phase A.1 + A.2 + A.3 + A.4 + A.5 closed внутри 49d
 
 После handoff Сессии 49d Phase 1 Абдула continue'нул в MAX mode →
 implementation начата прямо в этой же session. Закрытые phases:
@@ -129,6 +129,17 @@ implementation начата прямо в этой же session. Закрыты�
   role сохранён для internal callers. HadithGradeControllerIT updates:
   setUp() users role='SCHOLAR' + 3 new tests (USER 403, STUDENT 403,
   ADMIN 201 hierarchy bypass). 12/12 PASS.
+
+- **Phase A.5** (`c436af9`) — **STUDENT gate на Question/Answer**.
+  QuestionService.createQuestion + AnswerService.createAnswer получили
+  role-aware overload (..., role) с assertHasRoleAtLeast STUDENT.
+  Legacy overloads без role сохранены для internal callers.
+  QuestionController + AnswerController передают role через
+  SecurityContextUtils. QuestionControllerIT 15/15 + AnswerControllerIT
+  6/6 PASS после adding role='STUDENT' в setUp inserts.
+
+  После Phase A.5: USER не может создавать questions/answers → 403,
+  STUDENT/SCHOLAR/ADMIN могут (hierarchy).
 
 - **Phase A.4** (`cb2b226`) — **Admin user management endpoint**.
   PATCH /api/v1/users/{id}/role (ADMIN-only). UserController +
@@ -174,12 +185,14 @@ collections`, REST CRUD, BookCard menu «Добавить в коллекцию�
 
 ### Метрики 49d финальные
 
-- **17 commits total** (1 vision spec + 9 fix/feat + 1 handoff + 4
-  roles phases A.1/A.2/A.3/A.4 + 1 second handoff + 1 final handoff)
+- **19 commits total** (1 vision spec + 9 fix/feat + 1 handoff + 5
+  roles phases A.1-A.5 + 1 second handoff + 1 final handoff + 1 A.5)
 - **Tests:** Backend +24 new (UserRoleTest 9 + PermissionServiceTest 5
-  + HadithGradeControllerIT 3 + UserControllerIT 7). Frontend 573/573
-  PASS, TypeScript clean. Auth IT 34/34 baseline + new UserControllerIT
-  7/7 preserved.
+  + HadithGradeControllerIT 3 + UserControllerIT 7). All existing
+  preserved: AuthControllerIT 34/34, HadithGradeServiceIT 17/17,
+  HadithGradeControllerIT 12/12, QuestionControllerIT 15/15,
+  AnswerControllerIT 6/6, AnswerServiceIT 20/20. Frontend 573/573,
+  TypeScript clean.
 - **Migrations:** 48 → 49 applied (CHECK constraint expansion).
 - **Specs созданы:** 5 в `docs/superpowers/specs/`:
   - `2026-05-20-vision-expansion-49d.md` (root)
