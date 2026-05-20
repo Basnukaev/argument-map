@@ -225,11 +225,16 @@ function GraphPanels({
                 role="menuitemradio"
                 aria-checked={algorithm === 'dagre'}
                 onClick={() => pickAlgorithm('dagre')}
-                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-start text-sm text-ink-700 hover:bg-ink-100"
+                className="flex w-full items-start justify-between gap-2 px-3 py-2 text-start text-sm text-ink-700 hover:bg-ink-100"
               >
-                <span>{t('layout.algorithm_dagre')}</span>
+                <span className="flex-1">
+                  <span className="block font-medium">{t('layout.algorithm_dagre')}</span>
+                  <span className="block text-xs text-ink-500 mt-0.5">
+                    {t('layout.algorithm_dagre_description')}
+                  </span>
+                </span>
                 {algorithm === 'dagre' && (
-                  <Check size={14} className="shrink-0 text-accent-600" aria-hidden />
+                  <Check size={14} className="mt-1 shrink-0 text-accent-600" aria-hidden />
                 )}
               </button>
               <button
@@ -237,11 +242,16 @@ function GraphPanels({
                 role="menuitemradio"
                 aria-checked={algorithm === 'elk'}
                 onClick={() => pickAlgorithm('elk')}
-                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-start text-sm text-ink-700 hover:bg-ink-100"
+                className="flex w-full items-start justify-between gap-2 px-3 py-2 text-start text-sm text-ink-700 hover:bg-ink-100"
               >
-                <span>{t('layout.algorithm_elk')}</span>
+                <span className="flex-1">
+                  <span className="block font-medium">{t('layout.algorithm_elk')}</span>
+                  <span className="block text-xs text-ink-500 mt-0.5">
+                    {t('layout.algorithm_elk_description')}
+                  </span>
+                </span>
                 {algorithm === 'elk' && (
-                  <Check size={14} className="shrink-0 text-accent-600" aria-hidden />
+                  <Check size={14} className="mt-1 shrink-0 text-accent-600" aria-hidden />
                 )}
               </button>
               <div className="border-t border-border px-3 py-2 text-xs text-ink-500">
