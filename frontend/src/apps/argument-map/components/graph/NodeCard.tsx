@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps, Node } from '@xyflow/react';
 import { Languages, MoreHorizontal } from 'lucide-react';
@@ -328,4 +328,4 @@ function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
   );
 }
 
-export default NodeCard;
+export default memo(NodeCard);

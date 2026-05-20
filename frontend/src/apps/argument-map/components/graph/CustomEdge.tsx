@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { BaseEdge, EdgeLabelRenderer, getBezierPath } from '@xyflow/react';
 import type { EdgeProps, Edge } from '@xyflow/react';
 import { getContextualEdgeLabelKey, EDGE_TYPE_META } from '@/apps/argument-map/utils/edgeRules';
@@ -86,4 +87,4 @@ function CustomEdge(props: EdgeProps<CustomEdgeEdge>) {
   );
 }
 
-export default CustomEdge;
+export default memo(CustomEdge);
