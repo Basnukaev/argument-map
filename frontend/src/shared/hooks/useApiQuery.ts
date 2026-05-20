@@ -33,7 +33,13 @@ interface Options {
  */
 export function useApiQuery<T>(path: string | null, options: Options = {}): AsyncState<T> {
   const { fallbackError = 'Не удалось загрузить', enabled = true } = options;
-  const [state, setState] = useState<AsyncState<T>>({ kind: 'idle' });
+  // Lazy init: если на mount path и enabled активны - стартуем сразу с 'loading',
+  // без промежуточного 'idle' рендера. Иначе consumer мигает с empty-state на 1
+  // фрейм перед запросом, что особенно заметно при List<T> рендере (showing
+  // "пусто" перед "загрузка")
+  const [state, setState] = useState<AsyncState<T>>(() =>
+    enabled && path != null ? { kind: 'loading' } : { kind: 'idle' },
+  );
 
   useEffect(() => {
     if (!enabled || path == null) {
@@ -46,6 +52,9 @@ export function useApiQuery<T>(path: string | null, options: Options = {}): Asyn
       return;
     }
     const controller = new AbortController();
+    // setState('loading') при смене path: семантический переход (новый fetch =
+    // новое loading), не cosmetic. Sync setState in effect здесь intentional
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setState({ kind: 'loading' });
     apiGetRaw<T>(path, { signal: controller.signal })
       .then((data) => {

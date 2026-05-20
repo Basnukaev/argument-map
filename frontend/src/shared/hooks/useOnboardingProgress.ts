@@ -140,6 +140,10 @@ export function useOnboardingProgress(): OnboardingProgress {
     }
 
     const controller = new AbortController();
+    // setIsLoading(true) при смене user: семантический переход (новый user =
+    // новый fetch = loading-state), а не cosmetic. На mount idempotent — initial
+    // state уже true (line 120)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoading(true);
 
     void (async () => {
