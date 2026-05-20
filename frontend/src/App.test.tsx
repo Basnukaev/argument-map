@@ -53,9 +53,6 @@ vi.mock('@/apps/settings/pages/SettingsPage', () => ({
 vi.mock('@/shared/components/citation/SourceDetailPanel', () => ({
   default: () => null,
 }));
-vi.mock('@/shared/components/onboarding/OnboardingChecklist', () => ({
-  default: () => null,
-}));
 
 // Импортируем App после моков
 import App from './App';

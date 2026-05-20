@@ -7,7 +7,9 @@ import RegisterPage from '@/apps/auth/pages/RegisterPage';
 import ProtectedRoute from '@/shared/components/auth/ProtectedRoute';
 import Toaster from '@/shared/components/ui/Toaster';
 import SourceDetailPanel from '@/shared/components/citation/SourceDetailPanel';
-import OnboardingChecklist from '@/shared/components/onboarding/OnboardingChecklist';
+// OnboardingChecklist выключен временно (2026-05-20) - будет переделан под
+// guests-only с фиксацией первого визита в localStorage. Файлы компонента и
+// хука useOnboardingProgress остаются на месте.
 // Lazy: только грузим chunk при первом открытии Alt+K palette
 const CommandPalette = lazy(() => import('@/shared/components/layout/CommandPalette'));
 import { usePaletteStore } from '@/shared/stores/paletteStore';
@@ -192,7 +194,6 @@ function App() {
         </Suspense>
       )}
       <SourceDetailPanel />
-      <OnboardingChecklist />
       <Toaster />
     </ErrorBoundary>
   );
