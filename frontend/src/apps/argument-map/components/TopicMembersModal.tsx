@@ -56,35 +56,38 @@ function TopicMembersModal({ open, topicId, ownerUserId, onClose }: Props) {
   // pending action per member (UI lock на конкретной row)
   const [pendingMemberId, setPendingMemberId] = useState<string | null>(null);
 
-  const refetch = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
-    try {
-      const list = await apiGetRaw<TopicMemberResponse[]>(
-        `/api/v1/topics/${topicId}/members`,
-      );
-      setMembers(list ?? []);
-    } catch (err: unknown) {
-      const permMsg = formatPermissionError(err, t);
-      setLoadError(permMsg ?? formatApiError(err, t('topic.members.load_failed')));
-    } finally {
-      setLoading(false);
-    }
-  }, [topicId, t]);
+  const refetch = useCallback(
+    async (signal?: AbortSignal) => {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const list = await apiGetRaw<TopicMemberResponse[]>(
+          `/api/v1/topics/${topicId}/members`,
+          { signal },
+        );
+        setMembers(list ?? []);
+      } catch (err: unknown) {
+        // AbortError при unmount - не показывать как ошибку
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        const permMsg = formatPermissionError(err, t);
+        setLoadError(permMsg ?? formatApiError(err, t('topic.members.load_failed')));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [topicId, t],
+  );
 
-  // refetch на mount + при смене topicId. setLoading внутри refetch -
-  // первый render show loader, последующие через action handlers - тоже
-  // через refetch. set-state-in-effect здесь намеренный paradigm для
+  // refetch на mount + при смене topicId. Real AbortController отменяет
+  // in-flight запрос при unmount (а не только discards response как
+  // флаг cancelled). set-state-in-effect здесь намеренный paradigm для
   // initial data load (см. frontend/CLAUDE.md "Conditional render для
   // одноразовых модалок")
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      if (cancelled) return;
-      await refetch();
-    })();
+    const controller = new AbortController();
+    void refetch(controller.signal);
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [refetch]);
 
