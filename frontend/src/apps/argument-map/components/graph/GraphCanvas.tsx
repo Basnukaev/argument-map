@@ -707,7 +707,7 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
         items,
       });
     },
-    [canWrite, rootNodeId, t, rawNodeDtos, bringNodeToFront, sendNodeToBack, deleteOneNode],
+    [canWrite, rootNodeId, t, bringNodeToFront, sendNodeToBack, deleteOneNode],
   );
 
   // правый клик на ребре - "Редактировать", z-order, "Удалить"

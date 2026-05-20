@@ -44,9 +44,11 @@ function VoteWidget({
   // Синхронизируем local при изменении props (e.g. parent перезагрузил граф).
   // useEffect вместо render-phase setState - React 19 запрещает setState во
   // время рендера. pending check защищает от затирания optimistic update
-  // в момент in-flight запроса
+  // в момент in-flight запроса. eslint-disable ниже намеренный: это derived
+  // state sync (не side effect), аналог паттерна в useApiQuery/useOnboardingProgress
   useEffect(() => {
     if (!pending) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocal({ upvotes, downvotes, score, userVote });
     }
   }, [upvotes, downvotes, score, userVote, pending]);

@@ -80,12 +80,15 @@ function TopicMembersModal({ open, topicId, ownerUserId, onClose }: Props) {
 
   // refetch на mount + при смене topicId. Real AbortController отменяет
   // in-flight запрос при unmount (а не только discards response как
-  // флаг cancelled). set-state-in-effect здесь намеренный paradigm для
-  // initial data load (см. frontend/CLAUDE.md "Conditional render для
+  // флаг cancelled). Async IIFE с await - setState вызывается после
+  // suspension (await), поэтому react-hooks/set-state-in-effect не
+  // триггерится (см. frontend/CLAUDE.md "Conditional render для
   // одноразовых модалок")
   useEffect(() => {
     const controller = new AbortController();
-    void refetch(controller.signal);
+    void (async () => {
+      await refetch(controller.signal);
+    })();
     return () => {
       controller.abort();
     };
