@@ -252,11 +252,57 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 - Aggressive depth cleanup: вынос cross-cutting backend/CLAUDE.md секций
   (Pagination, Permissions, Audit log) если depth решим расширить
 
-### Snapshot состояния на closure Сессии 49c
+### Snapshot состояния на closure Сессии 49d (vision expansion)
 
-**Сессия 49c закрыла:** frontend stability audit (mirror backend 49b) +
-test debt от bulk-endpoint migration. 6 коммитов: 1 test debt entry-check
-+ 4 Important fixes (I-1..I-5) + 1 Minor batch (M-2 + M-5).
+**Сессия 49d закрыла:** Vision capture + 4 critical bugs + 5 UI fixes
++ 4 specs (1 в этой сессии готов, 3 generated subagent'ами). MAX
+autonomy mode активирован Абдулой («не останавливайся пока не СТОП»).
+
+Critical bugs (4/4):
+- `7bd565f` Bug 0.2 audit UI broken — `color-scheme: light/dark` fix
+- `d995edb` Bug 0.1 QA sources iterable — `PagedResponse` unwrap (3 callsites)
+- `38836a3` Bug 0.3+0.4 Alt+K race + auth-route close
+
+UI polish (5/5 quick wins):
+- 1.2 Select hover/active contrast (вкл. в 7bd565f)
+- `8aed4ac` 1.3 logo font lock (Scheherazade fixed inline)
+- `71b4866` 1.4 FloatingActionBar поднят выше zoom controls
+- `2138061` 1.5 layout algorithm explanation подсказки
+
+Specs created:
+- `vision-expansion-49d.md` (full list целей Абдулы, structured)
+- `roles-system-design.md` (572 строки, 10 subphases, ~19.5h, **ready**)
+- 3 в работе при handoff (Rating / Hadith / Observability)
+
+9 commits total. Frontend tests 573/573 PASS. TypeScript clean. Backend
+не трогался.
+
+### Текущий приоритет — implementation phase
+
+После handoff Сессии 49d:
+
+1. **49.A Roles implementation** — spec ready! Начать с migration 49 +
+   `AuthorizationService` skeleton. `docs/superpowers/specs/2026-05-20-
+   roles-system-design.md`. Phase A.1 (backend foundation) ~4h.
+2. **UI 1.1 Dark theme palette** — accent indigo «не сочетается с тёмной
+   темой ни в каком виде». Invoke `/frontend-design` skill для design
+   guidance перед token tweaks в `[data-theme='dark']`.
+3. **49.E Library collections** — простой scope: новая таблица
+   `user_book_collections` + favorites API + frontend BookCard menu.
+   Vision spec Section 2.2.
+4. **49.G Guest view** — после 49.A roles (зависит от role model).
+5. **49.B/49.C/49.D** — после возврата subagents D/E/F specs.
+
+См. `docs/superpowers/specs/2026-05-20-vision-expansion-49d.md` для
+full prioritized list.
+
+### Backlog deferred items
+
+- UI 1.6 edge routing fan-out distribution (нужна investigation)
+- M-1..M-6 frontend audit (deferred Сессии 49c)
+- Backend low-priority (Z-index renormalization, Edge.topic_id денорм)
+
+### Старый snapshot 49c
 
 - `0009667` `fix(frontend): GraphCanvas.test - update mocks для /nodes/bulk endpoint`
 - `54e8e8d` `fix(frontend): GraphCanvas handleEdgeContextMenu deps + parallel edge delete`

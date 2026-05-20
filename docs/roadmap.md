@@ -441,6 +441,49 @@
       экспорт PDF/SVG, mobile, advanced search. См. `docs/backlog.md`
       раздел «Будущие фичи»
 
+### Этап 49 (Сессия 49d vision expansion) — большие фичи в planning
+
+Запрошены Абдулой в начале Сессии 49d (2026-05-20). Полное описание —
+в `docs/superpowers/specs/2026-05-20-vision-expansion-49d.md`. Отдельные
+design-specs создаются по мере приоритезации.
+
+- [ ] **49.A: Roles ADMIN/SCHOLAR/STUDENT/USER** - расширение `users.role`
+      enum, AuthorizationService, route guards. Spec: `docs/superpowers/
+      specs/2026-05-20-roles-system-design.md` (572 строки, ready для
+      implementation). Effort ~19.5h. Subphases 49.a-49.j.
+
+- [ ] **49.B: Rating + pagination** для Topics/Q&A/Library - sorting
+      by popularity, view tracking, optional vote system. Spec: `docs/
+      superpowers/specs/2026-05-20-rating-pagination-design.md` (в
+      работе subagent'ом)
+
+- [ ] **49.C: Hadith Chains Explorer (BIG)** - новое приложение под
+      `src/apps/hadith/` (ADR-018 platform pivot validation). Visualization
+      sanad через React Flow, narrator database, matn variations, AI
+      assist phase 2. Spec: `docs/superpowers/specs/
+      2026-05-20-hadith-explorer-design.md` (в работе subagent'ом).
+      Объём — 5-10 sessions.
+
+- [ ] **49.D: Observability** - structured logging + Prometheus metrics
+      + OpenTelemetry tracing + frontend error reporting. Spec: `docs/
+      superpowers/specs/2026-05-20-observability-design.md` (в работе
+      subagent'ом)
+
+- [ ] **49.E: Library collections + favorites** - библиотека становится
+      общей (PUBLIC default), пользователи добавляют книги в personal
+      collections. Новая таблица `user_book_collections`. Спек пока не
+      создан — vision spec Section 2.2
+
+- [ ] **49.F: Shamela full search** - расширенный поиск (автор,
+      категория, направление), категории парсятся в `lib_shamela_categories`,
+      possible Elasticsearch. Спек пока не создан — vision spec
+      Section 2.3
+
+- [ ] **49.G: Guest view** - анонимный доступ для просмотра public
+      Topics / Books / Q&A. Public GET endpoints permitAll в prod,
+      auth-aware UI hides write actions. Спек пока не создан — vision
+      spec Section 2.5
+
 ---
 
 ## Cross-cutting / инфраструктура

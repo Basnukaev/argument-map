@@ -12,6 +12,119 @@
 
 ---
 
+## 2026-05-20 - Сессия 49d - Vision expansion + 4 critical bugs + 5 UI fixes + 4 specs
+
+**MAX autonomy mode.** Абдула отправил large vision (~15 items) в начале
+сессии, запросил «не останавливайся пока не скажу СТОП», subagents для
+context conservation, frontend-design skill перед UI changes.
+
+Стратегия: structured vision spec → parallel subagents для investigations
++ design specs → quick wins через main thread → handoff с roadmap.
+
+### Vision capture
+
+- `docs/superpowers/specs/2026-05-20-vision-expansion-49d.md` — full
+  structured список целей Абдулы (3 уровня: critical bugs / UI polish /
+  platform features), приоритизация, workflow rules для continuation.
+
+### Critical bugs (4/4 закрыто)
+
+- `7bd565f` `fix(frontend): dark-theme dropdown fixes - color-scheme + Select contrast + audit i18n`
+  — **Bug 0.2 audit UI broken** (скрин 141039.png). Root cause:
+  отсутствует `color-scheme: dark` CSS property → Chromium для native
+  `<select>` option panel использует OS default light UA → light cream
+  text на near-white background = invisible. Одна-строчный fix
+  `color-scheme: light/dark` в tokens.css глобально исправляет ВСЕ
+  native selects. Bonus: action labels переведены RU/AR. Also closed
+  UI 1.2 Select hover/active contrast (Сессия 49d Section 1.2).
+
+- `d995edb` `fix(frontend): Bug 0.1 - QA sources [sources ??] is not iterable`
+  — **Critical JS runtime error** на `/qa/{id}` (скрин 140915.png). Root
+  cause: `GET /api/v1/sources` после commit `306e0c0` (backend
+  pagination) возвращает `PagedResponse<SourceResponse>`, но 3 frontend
+  callsite ожидали `SourceDto[]`. `for...of` на объекте
+  `{items,page,size,...}` → TypeError. Fixed: `QuestionCitationsSection`,
+  `AnswerCitationsSection`, `AddSourceModal` — unwrap `.items` + new
+  `PagedSources` type alias. Tests — mocks обновлены на paged shape
+  (test debt типичный после backend migration).
+
+- `38836a3` `fix(frontend): Bug 0.3+0.4 - Alt+K scrollIntoView race + auth-route close-on-redirect`
+  — **Bug 0.3 scrollIntoView race**: при rapid arrow press
+  `behavior:'smooth'` race'ы накладывались. Fix: убран smooth, instant
+  scroll. **Bug 0.4 auth-route close**: при logout с открытым palette
+  он оставался поверх login form. Fix: useEffect наблюдает за
+  `(isAuthPage, paletteOpen)` → force close при auth route.
+
+### UI polish (5/5 закрыто из quick wins)
+
+- `7bd565f` Bug 0.2 — также закрыл UI 1.2 Select hover contrast
+- `8aed4ac` `fix(frontend): UI 1.3 - logo always Scheherazade font (locked from user prefs)`
+  — logo `font-arabic` class заменён inline style с fixed font-family.
+  Не подменяется когда FontPairEffect меняет `--font-arabic` token.
+- `71b4866` `fix(frontend): UI 1.4 - FloatingActionBar поднят выше zoom controls`
+  — selection panel `bottom-4` → `bottom-20`. Clear of zoom panel.
+- `2138061` `feat(frontend): UI 1.5 - explanation подсказки в layout algorithm menu`
+  — добавлены inline description под label каждого algorithm item +
+  updated footer hint (объясняет «manual drag сохраняется поверх»).
+
+### Subagents executed (4 parallel)
+
+- **A (QA sources bug investigation)** — нашёл root cause + точные file:line.
+- **B (Audit UI broken investigation)** — нашёл что dictionary keys уже
+  есть, проблема в отсутствующем `color-scheme`. Secondary: перевод
+  labels RU/AR.
+- **C (Roles design spec)** — создал `docs/superpowers/specs/
+  2026-05-20-roles-system-design.md` (572 строки). 10 subphases (49.a-j),
+  ~19.5h effort, ready for implementation. Generalizes existing
+  `ProtectedRoute requireRole=` instead of создания новых wrappers.
+  Migration ID `20260520-49-expand-user-roles`.
+- **D/E/F (Rating + Hadith + Observability specs)** — running при handoff
+  (status: см. roadmap.md Этап 49.B/C/D).
+
+### Метрики 49d
+
+- **9 commits** (1 vision spec + 8 fix/feat). Average ~1 commit/15 min.
+- **Tests:** 580→573 (минус удалённые dead store) → 573 PASS. TypeScript
+  clean throughout.
+- **Backend:** не трогался (baseline сохранён).
+- **Specs созданы:** vision-expansion-49d (full), roles-system-design
+  (572 строки, ready). 3 в работе subagent'ами.
+
+### Strengths confirmed audit
+
+- Test debt от backend API migration (бекенд commit `306e0c0`) ловится
+  только при manual смоук — тесты мокали bare array, CI зелёный, prod
+  broken. Identical pattern был с `/nodes/bulk` Сессии 49 → возможно
+  pattern для будущего: при backend API contract change грепнуть все
+  test mocks по old shape перед мерджем.
+- subagents для parallelism — за 1 messaging запустить 3, получить 3
+  high-quality reports без context bloat. Workflow продуктивный.
+
+### Backlog добавлено
+
+- UI 1.1 dark theme palette overhaul — defer (requires `/frontend-design`
+  skill для design guidance perd tweaks)
+- UI 1.6 edge routing fan-out — defer (нужна investigation subagent для
+  algorithm choice)
+- M-3/M-4/M-6 frontend stability audit remaining from 49c
+
+### Следующий шаг
+
+Subagents D/E/F пока завершают specs. После их return — обновить
+roadmap.md ссылки на spec'и + commit handoff.
+
+Implementation candidates на сессию 50 (по приоритету Абдулы):
+
+1. **49.A Roles implementation** — spec ready, начать с migration 49 +
+   AuthorizationService skeleton. Phase A.1 (backend foundation) ~4h.
+2. **UI 1.1 dark theme** — invoke `/frontend-design` skill, обновить
+   accent tokens в dark mode.
+3. **49.E Library collections** — простой scope (новая таблица +
+   favorites API + frontend Card menu).
+4. **49.G Guest view** — после 49.A roles (зависит от proper role model).
+
+---
+
 ## 2026-05-20 - Сессия 49c - Frontend stability audit + test debt + 5 Important + 2 Minor
 
 После Сессии 49b (backend audit) обнаружил при entry-check **2 failing

@@ -523,6 +523,24 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       не объясняет почему ref пропущена в deps array. Будет regress
       если кто-то превратит ref в state. Quick comment-only fix
 
+- [ ] **Dark theme palette overhaul** (vision 49d Section 1.1) - dark
+      mode логотип в ярко-жёлто-фиолетовом бейдже, ярко-жёлтые placeholder
+      обложки книг конфликтуют с dark surroundings. Indigo accent
+      (#6366f1) «не сочетается с тёмной темой ни в каком виде» (Абдула).
+      Объём: пересмотр accent токенов в `[data-theme='dark']` (tokens.css
+      line 161-165), placeholder обложек, logo bg-accent-600. Требует
+      `/frontend-design` skill invocation для design guidance перед
+      tweaks. Defer до dedicated UI session
+
+- [ ] **Edge routing distribution через handles** (vision 49d Section
+      1.6) - когда из одного узла идёт 4+ рёбер, они merge в одну точку
+      на одном handle. Сейчас SPLINE routing (Сессия 49 commit 7050d29)
+      + bezier offset для overlapping pairs (b1b15f1) решает 2-ребро
+      case, но не fan-out из одного узла. План: distribute edges по
+      4 handles (top/right/bottom/left) в зависимости от relative
+      position connected узлов, либо ELK ports support для multi-edge
+      distribution. Требует investigation subagent
+
 ## Security backlog
 
 Cross-cutting security improvements flagged code review round 5. Не
