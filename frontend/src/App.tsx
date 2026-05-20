@@ -30,6 +30,7 @@ const TopicGraphPage = lazy(() => import('@/apps/argument-map/pages/TopicGraphPa
 const BookListPage = lazy(() => import('@/apps/library/pages/BookListPage'));
 const LibraryCollectionsPage = lazy(() => import('@/apps/library/pages/LibraryCollectionsPage'));
 const AdminUsersPage = lazy(() => import('@/apps/admin/pages/AdminUsersPage'));
+const HadithListPage = lazy(() => import('@/apps/hadith/pages/HadithListPage'));
 const BookReaderPage = lazy(() => import('@/apps/library/pages/BookReaderPage'));
 const AdminShamelaPage = lazy(() => import('@/apps/admin/pages/AdminShamelaPage'));
 const AdminPageEditorPage = lazy(() => import('@/apps/admin/pages/AdminPageEditorPage'));
@@ -140,6 +141,7 @@ function App() {
             }
           />
           <Route path="/qa/:questionId" element={<QuestionDetailPage />} />
+          <Route path="/hadith/hadiths" element={<HadithListPage />} />
           <Route
             path="/admin/shamela"
             element={
