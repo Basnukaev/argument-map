@@ -61,7 +61,7 @@ function Header() {
       {/* На mobile - compact (gap-2, px-3) чтобы logo + hamburger + search
           + locale поместились в 375px viewport. Desktop сохраняет старые
           gap-6/px-6 */}
-      <header className="flex-none h-12 flex items-center gap-2 px-3 md:gap-6 md:px-6 bg-elevated border-b border-border">
+      <header className="sticky top-0 z-30 flex-none h-12 flex items-center gap-2 px-3 md:gap-6 md:px-6 bg-elevated border-b border-border">
         {/* На mobile - hamburger перед logo (стандарт для drawer-pattern).
             Desktop - hamburger не нужен, nav inline */}
         {isMobile && (
