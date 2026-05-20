@@ -25,6 +25,8 @@ import type { components } from '@/shared/api/types';
 type SourceDto = components['schemas']['SourceResponse'];
 type AuthorityDto = components['schemas']['AuthorityResponse'];
 type NodeSourceDto = components['schemas']['NodeSourceResponse'];
+type PagedSources = components['schemas']['PagedResponseSourceResponse'];
+type PagedAuthorities = components['schemas']['PagedResponseAuthorityResponse'];
 
 interface CitationsData {
   links: NodeSourceDto[];
@@ -68,17 +70,17 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
     const controller = new AbortController();
     Promise.all([
       apiGetRaw<NodeSourceDto[]>(`/api/v1/nodes/${nodeId}/sources`, { signal: controller.signal }),
-      apiGetRaw<SourceDto[]>(`/api/v1/sources`, { signal: controller.signal }),
-      apiGetRaw<AuthorityDto[]>(`/api/v1/authorities`, { signal: controller.signal }),
+      apiGetRaw<PagedSources>(`/api/v1/sources?size=100`, { signal: controller.signal }),
+      apiGetRaw<PagedAuthorities>(`/api/v1/authorities?size=100`, { signal: controller.signal }),
     ])
-      .then(([links, sources, authorities]) => {
+      .then(([links, sourcesPage, authoritiesPage]) => {
         if (controller.signal.aborted) return;
         const sourceLookup = new Map<string, SourceDto>();
-        for (const src of sources) {
+        for (const src of sourcesPage.items ?? []) {
           if (src.id) sourceLookup.set(src.id, src);
         }
         const authorityLookup = new Map<string, AuthorityDto>();
-        for (const a of authorities) {
+        for (const a of authoritiesPage.items ?? []) {
           if (a.id) authorityLookup.set(a.id, a);
         }
         setState({
