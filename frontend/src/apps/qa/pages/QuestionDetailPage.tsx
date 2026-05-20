@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
+import { useViewTracking } from '@/shared/hooks/useViewTracking';
 import { ArrowLeft, Trash2, AlertCircle, Loader2 } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
@@ -38,6 +39,9 @@ function QuestionDetailPage() {
   const { questionId } = useParams<{ questionId: string }>();
   const [state, setState] = useState<AsyncState<Question>>({ kind: 'loading' });
   const [updating, setUpdating] = useState(false);
+
+  // Vision 49d Phase 2 — track view для popularity ranking
+  useViewTracking('questions', questionId ?? null);
 
   useEffect(() => {
     if (!questionId) return;

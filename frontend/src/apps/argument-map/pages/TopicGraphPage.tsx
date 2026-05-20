@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useViewTracking } from '@/shared/hooks/useViewTracking';
 import { Link, useParams } from 'react-router';
 import {
   ArrowLeft,
@@ -43,6 +44,9 @@ function TopicGraphPage() {
   const [state, setState] = useState<TopicState>({ kind: 'loading' });
   const [refreshKey, setRefreshKey] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Vision 49d Phase 2 — track view для popularity ranking
+  useViewTracking('topics', topicId ?? null);
 
   const refetch = useCallback(() => setRefreshKey((k) => k + 1), []);
 

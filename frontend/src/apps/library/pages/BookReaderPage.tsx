@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { useViewTracking } from '@/shared/hooks/useViewTracking';
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2, ArrowLeft, Maximize2, X, List, Users, Lock } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import Button from '@/shared/components/ui/Button';
@@ -49,6 +50,9 @@ type BookState =
  */
 function BookReaderPage() {
   const { bookId } = useParams<{ bookId: string }>();
+
+  // Vision 49d Phase 2 — track view для popularity ranking
+  useViewTracking('library/books', bookId ?? null);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const locale = useLocaleStore((s) => s.locale);
