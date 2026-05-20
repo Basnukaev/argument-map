@@ -11,7 +11,7 @@ public record MeResponse(
         UUID id,
         String username,
         String email,
-        @Schema(allowableValues = {"USER", "ADMIN"})
+        @Schema(allowableValues = {"USER", "STUDENT", "SCHOLAR", "ADMIN"})
         String role
 ) {
 }

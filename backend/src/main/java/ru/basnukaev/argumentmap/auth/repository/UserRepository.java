@@ -137,4 +137,17 @@ public class UserRepository {
                 enabled, userId
         );
     }
+
+    /**
+     * Phase A.4 (Vision 49d): обновляет роль пользователя. Валидация
+     * role-значения — в caller (UserService.updateRole) через
+     * UserRole.isValid. CHECK constraint в БД finally guards если
+     * вызывающий ошибся.
+     */
+    public void updateRole(UUID userId, String newRole) {
+        jdbcTemplate.update(
+                "UPDATE users SET role = ?, updated_at = now() WHERE id = ?",
+                newRole, userId
+        );
+    }
 }

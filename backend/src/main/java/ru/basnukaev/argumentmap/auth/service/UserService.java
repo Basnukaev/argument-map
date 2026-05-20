@@ -73,6 +73,43 @@ public class UserService {
                 .orElseThrow(() -> new UserNotFoundException("Пользователь не найден: " + id));
     }
 
+    /**
+     * Vision 49d Phase A.4 — admin-only updating роли пользователя.
+     * Permission check (ADMIN role) — в caller (UserController через
+     * PermissionService.assertHasRoleAtLeast). Здесь только domain
+     * валидация (newRole в whitelist + user exists).
+     *
+     * <p>Не позволяет admin'у downgrade самого себя в non-ADMIN
+     * (защищает от accidental lockout: последний ADMIN downgrade
+     * сам себя — никто не сможет обратить). Этот guard семантический,
+     * не security — если admin'ов 2+, downgrade одного безопасен,
+     * но мы не проверяем «есть ли ещё ADMIN'ы» (требует extra query
+     * на каждый call). Self-downgrade прямой не разрешён вообще —
+     * admin может downgrade'ить только других admin'ов.
+     */
+    @Transactional
+    public User updateRole(UUID actorAdminId, UUID targetUserId, String newRole) {
+        if (!UserRole.isValid(newRole)) {
+            throw new IllegalArgumentException("Invalid role: " + newRole
+                    + ". Must be one of " + UserRole.ALL);
+        }
+        User target = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new UserNotFoundException("Пользователь не найден: " + targetUserId));
+        if (actorAdminId.equals(targetUserId) && !UserRole.ADMIN.equals(newRole)) {
+            throw new IllegalArgumentException(
+                    "ADMIN не может понизить свою собственную роль (защита от lockout)");
+        }
+        if (target.role().equals(newRole)) {
+            // no-op - early return without UPDATE
+            return target;
+        }
+        log.info("Role change: user={} oldRole={} newRole={} actorAdmin={}",
+                targetUserId, target.role(), newRole, actorAdminId);
+        userRepository.updateRole(targetUserId, newRole);
+        return userRepository.findById(targetUserId)
+                .orElseThrow(() -> new UserNotFoundException("Пользователь не найден после update: " + targetUserId));
+    }
+
     @Transactional
     public void setEnabled(UUID userId, boolean enabled) {
         if (userRepository.findById(userId).isEmpty()) {
