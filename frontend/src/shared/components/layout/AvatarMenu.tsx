@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { LogOut, Settings, User } from 'lucide-react';
+import { LogIn, LogOut, Settings, User } from 'lucide-react';
 import { useT } from '@/shared/i18n';
 import { useHotkey } from '@/shared/hooks/useHotkey';
 import { useAuthStore } from '@/shared/stores/authStore';
@@ -68,6 +68,24 @@ function AvatarMenu({ initials }: Props) {
 
   const displayName = user?.username ?? t('avatar.guest_user');
   const displayEmail = user?.email ?? '';
+
+  // Vision 49d Section 2.5 — Guest mode: если user отсутствует
+  // (anonymous), показываем кнопку «Войти» вместо avatar dropdown.
+  // Это primary path для unauthenticated users чтобы попасть на
+  // /login.
+  if (!user) {
+    return (
+      <button
+        type="button"
+        onClick={() => navigate('/login')}
+        aria-label={t('auth.login_aria')}
+        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border-strong bg-elevated px-2.5 text-xs font-medium text-ink-700 transition-colors hover:border-accent-500 hover:text-accent-700"
+      >
+        <LogIn size={13} aria-hidden />
+        {t('auth.login')}
+      </button>
+    );
+  }
 
   return (
     <div ref={wrapperRef} className="relative">

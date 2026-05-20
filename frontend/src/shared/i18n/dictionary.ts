@@ -1102,6 +1102,8 @@ export const DICTIONARY = {
     'register.error_username_short': 'Имя должно быть не короче 3 символов',
     'register.error_generic': 'Не удалось создать аккаунт',
 
+    'auth.login': 'Войти',
+    'auth.login_aria': 'Войти в аккаунт',
     'logout.label': 'Выйти',
     'logout.confirm': 'Выйти из аккаунта?',
     'logout.failed': 'Не удалось выйти',
@@ -2222,6 +2224,8 @@ export const DICTIONARY = {
     'register.error_username_short': 'اسم المستخدم قصير، 3 أحرف على الأقل',
     'register.error_generic': 'تعذّر إنشاء الحساب',
 
+    'auth.login': 'تسجيل الدخول',
+    'auth.login_aria': 'تسجيل الدخول إلى الحساب',
     'logout.label': 'خروج',
     'logout.confirm': 'هل تريد الخروج؟',
     'logout.failed': 'تعذّر تسجيل الخروج',

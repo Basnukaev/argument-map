@@ -104,14 +104,11 @@ function App() {
           <Route path="/register" element={<RegisterPage />} />
 
           <Route path="/" element={<Navigate to="/topics" replace />} />
-          <Route
-            path="/topics"
-            element={
-              <ProtectedRoute>
-                <TopicListPage />
-              </ProtectedRoute>
-            }
-          />
+          {/* Vision 49d Section 2.5 — Guest view: read routes доступны
+              без auth. Backend GET endpoints в dev/test уже permitAll,
+              в prod через PUBLIC visibility filter. Frontend hide write
+              actions если user==null (см. permissions-integration.md) */}
+          <Route path="/topics" element={<TopicListPage />} />
           <Route
             path="/topics/new"
             element={
@@ -120,38 +117,10 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/topics/:topicId"
-            element={
-              <ProtectedRoute>
-                <TopicGraphPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/books"
-            element={
-              <ProtectedRoute>
-                <BookListPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/books/:bookId"
-            element={
-              <ProtectedRoute>
-                <BookReaderPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/qa"
-            element={
-              <ProtectedRoute>
-                <QuestionListPage />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/topics/:topicId" element={<TopicGraphPage />} />
+          <Route path="/books" element={<BookListPage />} />
+          <Route path="/books/:bookId" element={<BookReaderPage />} />
+          <Route path="/qa" element={<QuestionListPage />} />
           <Route
             path="/qa/new"
             element={
@@ -160,14 +129,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/qa/:questionId"
-            element={
-              <ProtectedRoute>
-                <QuestionDetailPage />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/qa/:questionId" element={<QuestionDetailPage />} />
           <Route
             path="/admin/shamela"
             element={
