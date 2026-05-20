@@ -12,6 +12,114 @@
 
 ---
 
+## 2026-05-20 - Сессия 49c - Frontend stability audit + test debt + 5 Important + 2 Minor
+
+После Сессии 49b (backend audit) обнаружил при entry-check **2 failing
+frontend tests** (`GraphCanvas.test.tsx > delete UX unification`) — test
+debt от migration на `DELETE /api/v1/nodes/bulk` (commit `9d9cc37`,
+Сессия 49). Затем dispatched **frontend stability audit subagent** mirror
+backend pattern → 0 Critical / 5 Important / 6 Minor. Закрыты все 5
+Important + 2 Minor (M-2, M-5).
+
+### Test debt fix (entry check)
+
+- `0009667` `fix(frontend): GraphCanvas.test - update mocks для /nodes/bulk endpoint` —
+  два test файла в `delete UX unification` мокали `DELETE /api/v1/nodes/${id}`,
+  а `runDelete` после commit `9d9cc37` шлёт `DELETE /api/v1/nodes/bulk` с body.
+  Без mock'а endpoint MSW отвечал ошибкой → catch path → `toast.error`
+  вместо `toast.success` → assertion на `action.label === "Отменить"` падал.
+  Mocks обновлены на `/bulk` endpoint + `BulkDeleteResponse` body.
+
+### Frontend stability fixes (4 atomic commits)
+
+- `54e8e8d` `fix(frontend): GraphCanvas handleEdgeContextMenu deps + parallel edge delete`
+  (I-1 + I-2):
+  - deps array на line 535 содержал stale `setEdges/setNodes` (не используются)
+    и пропускал `t`, `bringEdgeToFront`, `sendEdgeToBack`, `deleteOneEdge`.
+    После locale switch context menu на edge показывал старые labels.
+    Эслинт-disable снят, deps mirror line 486 (handleNodeContextMenu).
+  - useNodeDelete.runDelete удалял edges последовательно (N round trips).
+    Switch на `Promise.allSettled` — bulk delete 10-20 edges с разницей latency.
+
+- `d36d553` `fix(frontend): useApiQuery lazy init + explicit setState-in-effect disables`
+  (I-3): устранён 'idle' flash в первом рендере через lazy useState init.
+  Consumer (List<T>) видел empty-state перед loading. Также добавлены явные
+  eslint-disable на legitimate sync setState в effect (useApiQuery loading
+  transition + useOnboardingProgress на смене user).
+
+- `d5cb405` `fix(frontend): BookReaderPage resize-drag leak на unmount`
+  (I-4): `handleResizeStart` прикреплял `pointermove/pointerup` к document
+  вне useEffect. При navigate away мid-drag — listeners + body styles
+  (`cursor='ns-resize'`, `userSelect='none'`) leak app-wide. Fix: cleanup
+  function в useRef + unmount-effect dispatches её.
+
+- `7e9cd33` `refactor(frontend): удалить dead graphSelectionStore - 3 writes / 0 subscribers`
+  (I-5): Zustand store хранил `Set<string>` selectedNodeIds/Edges, на каждый
+  RF `onSelectionChange` писались, но НИ ОДИН consumer не подписывался
+  (`useGraphSelectionStore(selector)`). Все 3 callsite — `.getState()` для
+  write. Был добавлен «на будущее» для cross-component без prop-drilling,
+  никогда не востребован. Удалены: store.ts + store.test.ts (7 tests) +
+  3 callsite в GraphCanvas + useNodeDelete. 580→573 tests (минус удалённые).
+
+### Minor cleanup (1 atomic commit)
+
+- `9e3ad31` `fix(frontend): timer leak cleanup в AcademicMetadataFields и useElkAutoLayout`
+  (M-2 + M-5):
+  - `AcademicMetadataFields.AutocompleteRow.blurTimerRef` (150ms delayed
+    close) не очищался на unmount. Если input lost focus и modal закрыт
+    Esc в течение 150ms — setOpen на размонтированном.
+  - `useElkAutoLayout` `setTimeout(fitView, 50ms)` сохранён в ref + useEffect
+    cleanup. Раньше при navigate away за 50ms callback читал rfInstanceRef
+    (защищено `?.`), но timer не cleanup'ался.
+
+### Метрики 49c
+
+- **6 commits** (1 test debt + 4 Important + 1 Minor)
+- **Тестов:** 580→573 frontend tests (нет регрессий, -7 удалённых из dead
+  graphSelectionStore.test). Все 573/573 PASS.
+- **TypeScript:** clean throughout
+- **Backend:** не трогался, 1003/1010 baseline сохранён
+
+### Backlog добавлено (M-1, M-3, M-4, M-6 deferred)
+
+- **M-1** Frontend UX consistency `window.confirm` → unified pattern —
+  5 production paths (TopicMembersModal, BookMembersModal, HadithGradesSection,
+  AnswersSection, QuestionDetailPage). Объём ~1-2 часа, решение либо
+  shared `ConfirmDialog`, либо toast-undo для всех destructive
+- **M-3** AdminShamelaPage placeholder hardcoded RU strings — 5 mock log
+  lines, миграция в dictionary или TODO comment до backend log endpoint
+- **M-4** CreateQuestionPage raw-HTML render без sanitize — теоретический
+  XSS, dictionary controlled, fix через split на structured `<p><br/></p>`
+  либо DOMPurify wrap
+- **M-6** GraphCanvas lastNodesRef comment fragility — comment-only
+
+### Strengths confirmed audit
+
+- `useAiEdit` cleanup exemplary (AbortController + interval/timeout/ticker
+  triple cleanup, polling-leak class).
+- Test mocks consistent `/api/v1/nodes/bulk` после fix.
+- DOMPurify guards untrusted-HTML reader path; PUA stripping correct.
+- toastStore cleans up TTL timers on dismiss/clear — no leak.
+- React.memo on NodeCard/CustomEdge + stable nodeTypes/edgeTypes — standard
+  RF pattern correctly applied (от commits Сессии 49b sweep).
+- Auth interceptor serializes refresh via single `refreshPromise` slot —
+  no thundering herd on 401 storm.
+
+### Следующий шаг
+
+Backlog 100% audit'ом покрыт. Quick wins либо done либо deferred. Возможные
+направления:
+- **M-1** window.confirm unification (требует UX-выбор: ConfirmDialog vs
+  toast-undo) — ~1-2 часа scope
+- **Backend** Z-index renormalization admin endpoint (low-priority follow-up
+  Сессии 49b)
+- **Backend** Edge.topic_id денормализация — ADR-level decision (требует
+  обсуждения trade-offs)
+- **Feature work** только если Абдула снимет restriction «новых фичей не
+  добавляем» — Этап 18.e ImagePageRenderer или 25.d.2/d.4 PDF Viewer
+
+---
+
 ## 2026-05-20 - Сессия 49b - Backend stability audit + 5 fixes (continuation)
 
 После handoff commit `6127589` (Сессия 49) Абдула просил continue. Dispatched

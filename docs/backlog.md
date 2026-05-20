@@ -498,6 +498,24 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       остаётся на caller'е. 20 IT NodeTranslationServiceIT pass,
       public API не изменился
 
+- [ ] **Frontend UX consistency: window.confirm → unified pattern**
+      (audit 2026-05-20 M-1) - 5 production paths используют
+      blocking native `window.confirm` для destructive actions:
+      `TopicMembersModal.tsx:151`, `BookMembersModal.tsx:152`,
+      `HadithGradesSection.tsx:122`, `AnswersSection.tsx:133`,
+      `QuestionDetailPage.tsx:93`. Node-delete уже мигрирован на
+      `toast + Undo` (5 сек). Выбор подхода: либо shared
+      `ConfirmDialog` (styled, testable), либо унификация на
+      toast-undo для всех destructive. Code review checklist уже
+      flag'нул эту inconsistency, не закрыто. Объём ~1-2 часа
+
+- [ ] **GraphCanvas lastNodesRef comment fragility** (audit M-6) -
+      callback `handleNodeContextMenu` читает `lastNodesRef.current`
+      и не включает ref в deps (правильно для mutable ref). Комментарий
+      line 404 объясняет lastNodesRef vs `nodes` closure capture, но
+      не объясняет почему ref пропущена в deps array. Будет regress
+      если кто-то превратит ref в state. Quick comment-only fix
+
 ## Security backlog
 
 Cross-cutting security improvements flagged code review round 5. Не
@@ -564,6 +582,23 @@ security-focused этапом
       frontend `useGraphZOrder` switched от ephemeral counter к API
       с optimistic + onRefetch sync. EdgeServiceIT 20→25, EdgeZIndexIT
       6 tests
+
+- [ ] **CreateQuestionPage raw-HTML render без sanitize**
+      (audit 2026-05-20 M-4) - `CreateQuestionPage.tsx:132` рендерит
+      `t('qa.create.hint_body')` через React raw-HTML escape hatch без
+      DOMPurify wrap. Risk теоретический - dictionary controlled by team.
+      Но прецедент нежелательный: если i18n loading перейдёт на remote
+      backend, эта точка станет реальной XSS дырой. Fix: либо разбить
+      на структурированный `<p>{t(..._p1)}<br/>{t(..._p2)}</p>`, либо
+      обернуть `sanitizePageHtml` (используется в reader path).
+
+- [ ] **AdminShamelaPage placeholder strings hardcoded RU**
+      (audit M-3) - `AdminShamelaPage.tsx:629-633` пять mock log lines
+      литералы на русском (`'sync-master: ничего нового...'`). Heading
+      i18n'd, но строки логов нет. Placeholder исчезнет когда backend
+      log endpoint появится - но до тех пор при locale=en/ar mixed
+      rendering. Fix: TODO comment либо migration в dictionary
+      ru/ar/en временные ключи
 
 ---
 

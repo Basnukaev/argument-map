@@ -252,35 +252,45 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 - Aggressive depth cleanup: вынос cross-cutting backend/CLAUDE.md секций
   (Pagination, Permissions, Audit log) если depth решим расширить
 
-### Snapshot состояния на closure Сессии 49
+### Snapshot состояния на closure Сессии 49c
 
-**Сессия 49 закрыла:** bugs (Alt+K scroll + route guard) + edge layout
-improvement (ELK SPLINE + sibling curvature bezier offset) + bulk delete
-frontend migration + code review follow-ups Сессии 47 + 2 backlog cleanup commits.
-Всего 13 коммитов, 1 backend IT добавлен. Playwright 4/4 PASS.
+**Сессия 49c закрыла:** frontend stability audit (mirror backend 49b) +
+test debt от bulk-endpoint migration. 6 коммитов: 1 test debt entry-check
++ 4 Important fixes (I-1..I-5) + 1 Minor batch (M-2 + M-5).
 
-**Backlog 100% проверен.** Все «quick wins» либо done либо stale.
-Оставшиеся backlog items:
+- `0009667` `fix(frontend): GraphCanvas.test - update mocks для /nodes/bulk endpoint`
+- `54e8e8d` `fix(frontend): GraphCanvas handleEdgeContextMenu deps + parallel edge delete`
+- `d36d553` `fix(frontend): useApiQuery lazy init + explicit setState-in-effect disables`
+- `d5cb405` `fix(frontend): BookReaderPage resize-drag leak на unmount`
+- `7e9cd33` `refactor(frontend): удалить dead graphSelectionStore - 3 writes / 0 subscribers`
+- `9e3ad31` `fix(frontend): timer leak cleanup в AcademicMetadataFields и useElkAutoLayout`
 
-- **Z-index renormalization** — low priority: реальный spread значений
-  в production < 100, конфликты не наблюдались. Не трогать пока не появится
-  конкретный симптом
-- **Cursor-based pagination** — premature: offset OK при текущих объёмах.
-  Вернуться при миллионах записей или stable-order требованиях
-- **Print preview / localization** — features, требуют явного старта
-  от Абдулы
-- **Java jdtls install** — Eclipse mirrors заблокированы в WSL2/сети.
-  Resume только когда network unblocks или manual transfer (см.
-  `.claude/lsp-setup.md`)
+Frontend tests 573/573 PASS (580→573 после удаления dead store.test).
+TypeScript clean. Backend не трогался.
+
+**Backlog 100% проверен** обоими audit'ами (backend 49b + frontend 49c).
+4 deferred Minor frontend items в `docs/backlog.md`:
+- **M-1** `window.confirm` unification (5 paths, ~1-2 часа)
+- **M-3** AdminShamelaPage placeholder RU strings (cosmetic)
+- **M-4** CreateQuestionPage raw-HTML без sanitize (теоретический XSS)
+- **M-6** GraphCanvas lastNodesRef comment fragility (comment-only)
+
+И backend low-priority follow-ups Сессии 49b:
+- **Z-index renormalization** admin endpoint (low priority: spread <100)
+- **Edge.topic_id денормализация** — ADR-level (требует discussion)
+- **Cursor-based pagination** — premature, offset OK
+- **Java jdtls install** — Eclipse mirrors blocked (см. `.claude/lsp-setup.md`)
 
 **Suggested next session direction:**
 
-1. **Feature work** (если Абдула снимет restriction «новых фичей не
-   добавляем»): Этап 18.e ImagePageRenderer / Этап 25.d.2/25.d.4 PDF
+1. **M-1 window.confirm unification** — самый понятный scope. Решение
+   между `ConfirmDialog` (styled, testable, добавляем new component) или
+   миграцией всех destructive на toast-undo pattern (consistency с node-delete)
+2. **Feature work** (только если Абдула снимет restriction «новых фичей
+   не добавляем»): Этап 18.e ImagePageRenderer / Этап 25.d.2/25.d.4 PDF
    Viewer полировка / 25.e admin page-mapping / Source picker Коран+Хадисы
-2. **Sub-project D** — Java jdtls retry (нужен network unblock)
-3. **Sub-project G** — MCP servers (low impact пока basics не устоялись,
-   деferred по той же причине что в Сессии 47)
+3. **Sub-project D** — Java jdtls retry (нужен network unblock)
+4. **Sub-project G** — MCP servers (low impact пока basics не устоялись)
 
 Полный backlog в `docs/backlog.md`
 
