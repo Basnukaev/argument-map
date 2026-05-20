@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { Dispatch, SetStateAction, MutableRefObject } from 'react';
+import type { Dispatch, SetStateAction, RefObject } from 'react';
 import type { ReactFlowInstance } from '@xyflow/react';
 import type { NodeCardNode } from '@/apps/argument-map/components/graph/NodeCard';
 import type { CustomEdgeEdge } from '@/apps/argument-map/components/graph/CustomEdge';
@@ -9,9 +9,9 @@ import { useT } from '@/shared/i18n';
 import { applyLayout } from '@/apps/argument-map/utils/graphLayout';
 
 interface Args {
-  lastNodesRef: MutableRefObject<NodeCardNode[]>;
-  edgesRef: MutableRefObject<CustomEdgeEdge[]>;
-  rfInstanceRef: MutableRefObject<ReactFlowInstance<NodeCardNode, CustomEdgeEdge> | null>;
+  lastNodesRef: RefObject<NodeCardNode[]>;
+  edgesRef: RefObject<CustomEdgeEdge[]>;
+  rfInstanceRef: RefObject<ReactFlowInstance<NodeCardNode, CustomEdgeEdge> | null>;
   setNodes: Dispatch<SetStateAction<NodeCardNode[]>>;
 }
 
