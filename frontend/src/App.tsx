@@ -8,7 +8,8 @@ import ProtectedRoute from '@/shared/components/auth/ProtectedRoute';
 import Toaster from '@/shared/components/ui/Toaster';
 import SourceDetailPanel from '@/shared/components/citation/SourceDetailPanel';
 import OnboardingChecklist from '@/shared/components/onboarding/OnboardingChecklist';
-import CommandPalette from '@/shared/components/layout/CommandPalette';
+// Lazy: только грузим chunk при первом открытии Alt+K palette
+const CommandPalette = lazy(() => import('@/shared/components/layout/CommandPalette'));
 import { usePaletteStore } from '@/shared/stores/paletteStore';
 import { useHotkey } from '@/shared/hooks/useHotkey';
 import { useAuthStore } from '@/shared/stores/authStore';
@@ -192,7 +193,11 @@ function App() {
           />
         </Routes>
       </Suspense>
-      <CommandPalette open={paletteOpen} onClose={closePalette} />
+      {paletteOpen && (
+        <Suspense fallback={null}>
+          <CommandPalette open={paletteOpen} onClose={closePalette} />
+        </Suspense>
+      )}
       <SourceDetailPanel />
       <OnboardingChecklist />
       <Toaster />
