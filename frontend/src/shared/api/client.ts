@@ -302,6 +302,19 @@ export async function apiDeleteRaw(
 }
 
 /**
+ * Типизированный DELETE с телом запроса. Используется для bulk-операций
+ * где бэк ожидает JSON-тело (например DELETE /api/v1/nodes/bulk с {nodeIds}).
+ * Тип ответа подставляется руками аналогично apiGetRaw.
+ */
+export async function apiDeleteWithBody<T>(
+  path: string,
+  body: unknown,
+  options?: { signal?: AbortSignal },
+): Promise<T> {
+  return request<T>(path, { method: 'DELETE', body, signal: options?.signal });
+}
+
+/**
  * Сырой PATCH для динамических путей. Тип ответа подставляется руками.
  */
 export async function apiPatchRaw<T>(

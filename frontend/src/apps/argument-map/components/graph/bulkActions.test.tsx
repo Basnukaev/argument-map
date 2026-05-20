@@ -101,6 +101,94 @@ async function selectNodes(ids: string[]): Promise<boolean> {
   return true;
 }
 
+describe('bulkDelete: один bulk DELETE /api/v1/nodes/bulk вместо N individual', () => {
+  beforeEach(() => {
+    useToastStore.getState().clear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function renderCanvas() {
+    return render(
+      <MemoryRouter>
+        <GraphCanvas graph={makeGraph()} topicId={TOPIC_ID} onRefetch={vi.fn()} />
+        <Toaster />
+      </MemoryRouter>,
+    );
+  }
+
+  it('runDelete отправляет один bulk request вместо N individual', async () => {
+    const bulkCalled: string[][] = [];
+    const individualCalled: string[] = [];
+
+    server.use(
+      http.delete(`${BASE}/api/v1/nodes/bulk`, async ({ request }) => {
+        const body = (await request.json()) as { nodeIds: string[] };
+        bulkCalled.push(body.nodeIds);
+        return HttpResponse.json({ deletedIds: body.nodeIds, skippedRootIds: [] });
+      }),
+      http.delete(`${BASE}/api/v1/nodes/:nodeId`, ({ params }) => {
+        individualCalled.push(params.nodeId as string);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    renderCanvas();
+
+    const selected = await selectNodes([NODE_A, NODE_B]);
+    if (!selected) return;
+
+    // FloatingActionBar появляется при selection >0. getAllByRole - возможен
+    // дубль если RF рендерит aria-label на узлах, берём первый совпавший
+    const deleteBtns = await screen.findAllByRole('button', { name: /Удалить/i });
+    const firstDeleteBtn = deleteBtns[0];
+    if (!firstDeleteBtn) return;
+    await userEvent.click(firstDeleteBtn);
+
+    await waitForApi(() => {
+      // должен быть ровно один bulk-запрос
+      expect(bulkCalled.length).toBe(1);
+      // individual-delete не должен звать
+      expect(individualCalled.length).toBe(0);
+      // bulk payload содержит оба ID
+      expect(bulkCalled[0]).toEqual(expect.arrayContaining([NODE_A, NODE_B]));
+    });
+  });
+
+  it('bulk delete ошибка - сохраняет ноды, показывает toast', async () => {
+    server.use(
+      http.delete(`${BASE}/api/v1/nodes/bulk`, () =>
+        new HttpResponse(
+          JSON.stringify({
+            type: 'about:blank',
+            title: 'Internal Server Error',
+            status: 500,
+          }),
+          { status: 500, headers: { 'content-type': 'application/problem+json' } },
+        ),
+      ),
+    );
+
+    renderCanvas();
+
+    const selected = await selectNodes([NODE_A]);
+    if (!selected) return;
+
+    const deleteBtns = await screen.findAllByRole('button', { name: /Удалить/i });
+    const firstDeleteBtn = deleteBtns[0];
+    if (!firstDeleteBtn) return;
+    await userEvent.click(firstDeleteBtn);
+
+    await waitForApi(() => {
+      const toasts = useToastStore.getState().toasts;
+      const errToast = toasts.find((t) => t.kind === 'error');
+      expect(errToast).toBeDefined();
+    });
+  });
+});
+
 describe('bulkActions: partial failure + permission-aware error', () => {
   beforeEach(() => {
     useToastStore.getState().clear();

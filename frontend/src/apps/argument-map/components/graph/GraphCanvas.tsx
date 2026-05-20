@@ -35,7 +35,7 @@ import {
   NODE_TYPE_META,
 } from '@/apps/argument-map/utils/edgeRules';
 import { buildFlow, findFreePosition, sameIds } from '@/apps/argument-map/utils/graphPlacement';
-import { apiDeleteRaw, apiPatchRaw, apiPost, ApiError } from '@/shared/api/client';
+import { apiDeleteRaw, apiDeleteWithBody, apiPatchRaw, apiPost, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useGraphSelectionStore } from '@/shared/stores/graphSelectionStore';
 import { useT } from '@/shared/i18n';
@@ -46,6 +46,7 @@ import type { components } from '@/shared/api/types';
 type GraphResponse = components['schemas']['GraphResponse'];
 type NodeDto = components['schemas']['NodeResponse'];
 type EdgeDto = components['schemas']['EdgeResponse'];
+type BulkDeleteResponse = components['schemas']['BulkDeleteResponse'];
 
 // nodeTypes/edgeTypes - стабильные ссылки между рендерами, иначе RF
 // ругается и пере-инициализируется (см coding-standards).
@@ -389,9 +390,10 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
    * Возвращает true если хоть что-то реально удалили (для очистки selection).
    */
   async function runDelete(nodeIds: string[], edgeIds: string[]): Promise<boolean> {
-    // отфильтровываем корневой узел - бэк бы вернул 409 NodeIsRootException
+    // фильтруем корневой узел локально для undo-snapshot и early-exit;
+    // бэк сам пропустит корень (skippedRootIds) и не бросит 409
     const nodesToDelete = nodeIds.filter((id) => id !== rootNodeId);
-    const rootSkipped = nodesToDelete.length !== nodeIds.length;
+    const rootSkippedLocally = nodesToDelete.length !== nodeIds.length;
 
     // snapshot для undo - до удаления, иначе rawNodeDtos уже не содержит
     const nodeSnapshots = nodesToDelete
@@ -399,7 +401,7 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
       .filter((n): n is NodeDto => !!n);
 
     if (nodesToDelete.length === 0 && edgeIds.length === 0) {
-      if (rootSkipped) toast.warning(t('graph.root.delete_skipped_toast'));
+      if (rootSkippedLocally) toast.warning(t('graph.root.delete_skipped_toast'));
       return false;
     }
 
@@ -413,13 +415,20 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
           if (!(e instanceof ApiError && e.status === 404)) throw e;
         }
       }
-      for (const nodeId of nodesToDelete) {
-        try {
-          await apiDeleteRaw(`/api/v1/nodes/${nodeId}`);
-        } catch (e: unknown) {
-          if (!(e instanceof ApiError && e.status === 404)) throw e;
-        }
+
+      // узлы - один bulk DELETE /api/v1/nodes/bulk вместо N individual requests.
+      // Бэк пишет единственную BULK_DELETE запись в audit log. Корневые узлы
+      // пропускаются сервером (skippedRootIds) - дублируем предупреждение если
+      // бэк вернул skipped.
+      let serverSkippedRoot = false;
+      if (nodesToDelete.length > 0) {
+        const bulkResult = await apiDeleteWithBody<BulkDeleteResponse>(
+          '/api/v1/nodes/bulk',
+          { nodeIds: nodesToDelete },
+        );
+        serverSkippedRoot = (bulkResult.skippedRootIds?.length ?? 0) > 0;
       }
+
       setSelectedNodeIds([]);
       setSelectedEdgeIds([]);
       useGraphSelectionStore.getState().clearSelection();
@@ -452,7 +461,9 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
         toast.success(t('graph.edge.deleted_toast'));
       }
 
-      if (rootSkipped) toast.warning(t('graph.root.delete_skipped_toast'));
+      if (rootSkippedLocally || serverSkippedRoot) {
+        toast.warning(t('graph.root.delete_skipped_toast'));
+      }
       return true;
     } catch (e: unknown) {
       // permission-aware: при отзыве прав в момент удаления показываем
