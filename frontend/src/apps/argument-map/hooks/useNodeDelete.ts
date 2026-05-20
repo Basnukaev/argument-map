@@ -4,7 +4,6 @@ import { apiDeleteRaw, apiDeleteWithBody, apiPost, ApiError } from '@/shared/api
 import { apiPatchRaw } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useT } from '@/shared/i18n';
-import { useGraphSelectionStore } from '@/shared/stores/graphSelectionStore';
 import type { components } from '@/shared/api/types';
 
 type NodeDto = components['schemas']['NodeResponse'];
@@ -139,7 +138,6 @@ export function useNodeDelete({
 
       setSelectedNodeIds([]);
       setSelectedEdgeIds([]);
-      useGraphSelectionStore.getState().clearSelection();
       onRefetch();
 
       // undo - только если удалили хотя бы один узел (рёбра restoring не

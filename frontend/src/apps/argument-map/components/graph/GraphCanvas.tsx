@@ -39,7 +39,6 @@ import {
 import { buildFlow, findFreePosition, sameIds } from '@/apps/argument-map/utils/graphPlacement';
 import { apiPatchRaw, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
-import { useGraphSelectionStore } from '@/shared/stores/graphSelectionStore';
 import { useT } from '@/shared/i18n';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import type { components } from '@/shared/api/types';
@@ -536,16 +535,13 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
 
   // RF onSelectionChange срабатывает при каждом setNodes даже если selection
   // не изменилась. Inline-callback создавал новые [] - infinite loop. Решение:
-  // stable callback + функциональный update со сравнением содержимого.
-  // Параллельно зеркалим в graphSelectionStore чтобы FloatingActionBar и
-  // bulk-операции могли подписаться без проп-drilling
+  // stable callback + функциональный update со сравнением содержимого
   const handleSelectionChange = useCallback(
     ({ nodes: ns, edges: es }: { nodes: Node[]; edges: { id: string }[] }) => {
       const nextNodeIds = ns.map((n) => n.id);
       const nextEdgeIds = es.map((e) => e.id);
       setSelectedNodeIds((prev) => (sameIds(prev, nextNodeIds) ? prev : nextNodeIds));
       setSelectedEdgeIds((prev) => (sameIds(prev, nextEdgeIds) ? prev : nextEdgeIds));
-      useGraphSelectionStore.getState().setSelection(nextNodeIds, nextEdgeIds);
     },
     [],
   );
@@ -583,7 +579,6 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
     setSelectedEdgeIds([]);
     setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
     setEdges((eds) => eds.map((edge) => ({ ...edge, selected: false })));
-    useGraphSelectionStore.getState().clearSelection();
   }, [setNodes, setEdges]);
 
   useGraphEscape({
