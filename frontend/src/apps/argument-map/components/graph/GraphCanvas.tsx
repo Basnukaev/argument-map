@@ -27,6 +27,7 @@ import FloatingActionBar from '@/apps/argument-map/components/graph/FloatingActi
 import type { NodeStatus } from '@/shared/utils/designTokens';
 import { useGraphEscape } from '@/apps/argument-map/hooks/useGraphEscape';
 import { useGraphZOrder } from '@/apps/argument-map/hooks/useGraphZOrder';
+import { useElkAutoLayout } from '@/apps/argument-map/hooks/useElkAutoLayout';
 import { useHotkey } from '@/shared/hooks/useHotkey';
 import {
   getAllowedEdgeTypes,
@@ -40,7 +41,6 @@ import { toast } from '@/shared/stores/toastStore';
 import { useGraphSelectionStore } from '@/shared/stores/graphSelectionStore';
 import { useT } from '@/shared/i18n';
 import { useThemeStore } from '@/shared/stores/themeStore';
-import { applyLayout } from '@/apps/argument-map/utils/graphLayout';
 import type { components } from '@/shared/api/types';
 
 type GraphResponse = components['schemas']['GraphResponse'];
@@ -89,7 +89,6 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
   // остаются светлыми на тёмной странице. Berührется effectiveTheme
   // через themeStore - не reactive к смене темы без re-render канваса
   const effectiveTheme = useThemeStore((s) => s.effectiveTheme);
-  const [layoutPending, setLayoutPending] = useState(false);
   const [showEdgeLabels, setShowEdgeLabels] = useState<boolean>(readShowLabels);
 
   useEffect(() => {
@@ -133,38 +132,12 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
   // dagre/layoutGraph их уважает). Вызывается из GraphPanels при click
   // на ELK в layout-menu. После применения - PATCH'ит новые координаты
   // на бэк, дальше работает как обычные сохранённые позиции
-  const triggerElkRelayout = useCallback(async () => {
-    if (lastNodesRef.current.length === 0) return;
-    setLayoutPending(true);
-    try {
-      const currentNodes = lastNodesRef.current;
-      const laidOut = await applyLayout(currentNodes, edgesRef.current, 'elk', 'LR');
-      setNodes(laidOut);
-      // PATCH все узлы параллельно - Promise.allSettled чтобы partial failures
-      // не блокировали (graceful degradation: при ошибке next ELK-trigger
-      // перерассчитает позиции)
-      const results = await Promise.allSettled(
-        laidOut.map((n) =>
-          apiPatchRaw(`/api/v1/nodes/${n.id}`, {
-            posX: n.position.x,
-            posY: n.position.y,
-          }),
-        ),
-      );
-      const failed = results.filter((r) => r.status === 'rejected').length;
-      if (failed > 0) {
-        toast.warning(t('layout.partial_save_failed').replace('{count}', String(failed)));
-      }
-      toast.success(t('layout.applied'));
-      // fitView после layout - иначе ELK может разложить узлы за viewport
-      setTimeout(() => rfInstanceRef.current?.fitView({ padding: 0.15 }), 50);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      toast.error(`${t('layout.failed')}: ${msg}`);
-    } finally {
-      setLayoutPending(false);
-    }
-  }, [setNodes, t]);
+  const { triggerElkRelayout, layoutPending } = useElkAutoLayout({
+    lastNodesRef,
+    edgesRef,
+    rfInstanceRef,
+    setNodes,
+  });
 
   // Узлы из бэка без posX/posY - dagre проставляет им позиции на фронте,
   // но эти позиции живут только в RF-state. Чтобы layout был стабильным
