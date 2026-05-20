@@ -277,24 +277,36 @@ Specs created:
 9 commits total. Frontend tests 573/573 PASS. TypeScript clean. Backend
 не трогался.
 
-### Текущий приоритет — implementation phase
+### Текущий приоритет — implementation continues
 
-После handoff Сессии 49d:
+После 49d:
+- Phase A.1+A.2 уже **сделаны** (migration 49 expand_user_roles +
+  PermissionService.assertHasRoleAtLeast + InsufficientRoleException).
+- 5 specs готовы (vision/roles/rating/hadith/observability).
 
-1. **49.A Roles implementation** — spec ready! Начать с migration 49 +
-   `AuthorizationService` skeleton. `docs/superpowers/specs/2026-05-20-
-   roles-system-design.md`. Phase A.1 (backend foundation) ~4h.
-2. **UI 1.1 Dark theme palette** — accent indigo «не сочетается с тёмной
-   темой ни в каком виде». Invoke `/frontend-design` skill для design
-   guidance перед token tweaks в `[data-theme='dark']`.
-3. **49.E Library collections** — простой scope: новая таблица
-   `user_book_collections` + favorites API + frontend BookCard menu.
-   Vision spec Section 2.2.
-4. **49.G Guest view** — после 49.A roles (зависит от role model).
-5. **49.B/49.C/49.D** — после возврата subagents D/E/F specs.
+**Phase A.3 — next priority:** apply role gates на existing services.
+- HadithGradeService.addGrade requires SCHOLAR. Только этот gate
+  безопасен — HadithGradeServiceIT существует, нужно обновить под
+  passing SCHOLAR role.
+- AnswerService.createAnswer / QuestionService.createQuestion requires
+  STUDENT — **breaks existing tests** где role=USER. Защитная стратегия:
+  сначала Phase A.4 (PATCH /api/v1/users/{id}/role) → migrate dev users
+  в STUDENT → apply STUDENT gate. Либо feature flag.
+
+**Phase A.4:** PATCH /api/v1/users/{id}/role endpoint (ADMIN only) +
+GET /api/v1/users?role=... для admin user management. ~2h.
+
+**Phase A.5+:** Frontend AuthStore type expansion + ScholarRoute/
+StudentRoute (или generalized requireRole) + role-locked UI components.
+
+**Параллельные candidates:**
+- UI 1.1 Dark theme palette overhaul (invoke /frontend-design)
+- 49.B Rating + pagination (spec ready; reset migration IDs 49→50)
+- 49.E Library collections (spec не написан; либо subagent gen, либо
+  inline planning)
 
 См. `docs/superpowers/specs/2026-05-20-vision-expansion-49d.md` для
-full prioritized list.
+full prioritized list (Section 3 — приоритезация).
 
 ### Backlog deferred items
 

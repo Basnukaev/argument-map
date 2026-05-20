@@ -108,20 +108,70 @@ context conservation, frontend-design skill перед UI changes.
   algorithm choice)
 - M-3/M-4/M-6 frontend stability audit remaining from 49c
 
-### Следующий шаг
+### 49.A Roles - Phase A.1 + A.2 closed внутри 49d
 
-Subagents D/E/F пока завершают specs. После их return — обновить
-roadmap.md ссылки на spec'и + commit handoff.
+После handoff Сессии 49d Phase 1 Абдула continue'нул в MAX mode →
+implementation начата прямо в этой же session. Закрытые phases:
 
-Implementation candidates на сессию 50 (по приоритету Абдулы):
+- **Phase A.1** (`8b81f55`) — migration 49 expand_user_roles.
+  UserRole.java расширен на STUDENT/SCHOLAR + `hasAtLeast` hierarchy
+  helper. UserRoleTest 9/9. Auth IT preserved 34/34.
 
-1. **49.A Roles implementation** — spec ready, начать с migration 49 +
-   AuthorizationService skeleton. Phase A.1 (backend foundation) ~4h.
-2. **UI 1.1 dark theme** — invoke `/frontend-design` skill, обновить
-   accent tokens в dark mode.
-3. **49.E Library collections** — простой scope (новая таблица +
-   favorites API + frontend Card menu).
-4. **49.G Guest view** — после 49.A roles (зависит от proper role model).
+- **Phase A.2** (`990dd6f`) — InsufficientRoleException + handler
+  (`forbidden-insufficient-role` 403) + PermissionService.
+  assertHasRoleAtLeast() helper. 5 new tests (PermissionServiceTest
+  25/25 total).
+
+3 specs subagents (D/E/F) вернулись все 3 spec файла одной волной:
+- `rating-pagination-design.md` (481 строка). NOTE: spec предлагает
+  migration ID 49 — конфликт с уже взятым roles migration 49. При
+  implementation Phase 49.B (rating) использовать 50+ IDs.
+- `hadith-explorer-design.md` (1086, 6 phases, ADRs 051-054).
+- `observability-design.md` (506, 12 subphases, ADRs 051-055).
+
+### Следующий шаг (Сессия 50 candidates)
+
+**49.A Phase A.3** — apply assertHasRoleAtLeast на existing services:
+- HadithGradeService.addGrade requires SCHOLAR — добавить `actorRole`
+  param + assertion. Update controller + HadithGradeServiceIT.
+- AnswerService.createAnswer / QuestionService.createQuestion requires
+  STUDENT — careful! Breaks existing tests где роль USER. Подход:
+  feature-flag OR migrate всех existing USER → STUDENT через admin
+  endpoint (Phase A.4) сначала. Effort ~3h.
+
+**49.A Phase A.4** — PATCH /api/v1/users/{id}/role (ADMIN only).
+Backend service + IT + audit log. Effort ~2h.
+
+**UI 1.1 Dark theme palette** — invoke /frontend-design skill, обновить
+accent tokens в dark mode.
+
+**49.E Library collections** — простой scope: migration `user_book_
+collections`, REST CRUD, BookCard menu «Добавить в коллекцию», page
+`/library/collections`. Effort ~4h.
+
+**49.G Guest view** — depends on 49.A.5 finalization.
+
+### Метрики 49d финальные
+
+- **13 commits total** (1 vision spec + 9 fix/feat + 1 handoff + 2
+  roles phase A.1 + A.2)
+- **Tests:** Backend +14 new (UserRoleTest 9 + PermissionServiceTest 5).
+  Frontend 573/573 PASS, TypeScript clean. Auth IT 34/34 baseline ok.
+- **Migrations:** 48 → 49 applied (CHECK constraint expansion).
+- **Specs созданы:** 5 в `docs/superpowers/specs/`:
+  - `2026-05-20-vision-expansion-49d.md` (root)
+  - `2026-05-20-roles-system-design.md` (572 строки, **Phase A.1/A.2
+    реализованы**, A.3-A.10 ready)
+  - `2026-05-20-rating-pagination-design.md` (481, ready, fix mig IDs
+    50+)
+  - `2026-05-20-hadith-explorer-design.md` (1086, ready)
+  - `2026-05-20-observability-design.md` (506, ready)
+
+### Subagent track record 49d
+
+5 subagents launched, 5 successful returns. Average duration ~5-8 min
+per subagent. Total context savings ~150K tokens, иначе main thread
+утопал бы в чтении 30+ файлов per spec.
 
 ---
 
