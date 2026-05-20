@@ -108,7 +108,7 @@ context conservation, frontend-design skill перед UI changes.
   algorithm choice)
 - M-3/M-4/M-6 frontend stability audit remaining from 49c
 
-### 49.A Roles - Phase A.1 + A.2 closed внутри 49d
+### 49.A Roles - Phase A.1 + A.2 + A.3 closed внутри 49d
 
 После handoff Сессии 49d Phase 1 Абдула continue'нул в MAX mode →
 implementation начата прямо в этой же session. Закрытые phases:
@@ -122,6 +122,14 @@ implementation начата прямо в этой же session. Закрыты�
   assertHasRoleAtLeast() helper. 5 new tests (PermissionServiceTest
   25/25 total).
 
+- **Phase A.3** (`c7913d5`) — **First applied role gate**.
+  HadithGradeService.addGrade требует SCHOLAR. Inject PermissionService.
+  Role-aware overload вызывается из REST controller через
+  SecurityContextUtils.currentRoleOrAnonymous(). Legacy overload без
+  role сохранён для internal callers. HadithGradeControllerIT updates:
+  setUp() users role='SCHOLAR' + 3 new tests (USER 403, STUDENT 403,
+  ADMIN 201 hierarchy bypass). 12/12 PASS.
+
 3 specs subagents (D/E/F) вернулись все 3 spec файла одной волной:
 - `rating-pagination-design.md` (481 строка). NOTE: spec предлагает
   migration ID 49 — конфликт с уже взятым roles migration 49. При
@@ -131,16 +139,18 @@ implementation начата прямо в этой же session. Закрыты�
 
 ### Следующий шаг (Сессия 50 candidates)
 
-**49.A Phase A.3** — apply assertHasRoleAtLeast на existing services:
-- HadithGradeService.addGrade requires SCHOLAR — добавить `actorRole`
-  param + assertion. Update controller + HadithGradeServiceIT.
-- AnswerService.createAnswer / QuestionService.createQuestion requires
-  STUDENT — careful! Breaks existing tests где роль USER. Подход:
-  feature-flag OR migrate всех existing USER → STUDENT через admin
-  endpoint (Phase A.4) сначала. Effort ~3h.
+**49.A Phase A.4 (next)** — PATCH /api/v1/users/{id}/role endpoint
+(ADMIN only). Backend `UserService.updateRole(adminUserId, targetUserId,
+newRole)` + ChangeRoleRequest DTO + IT + audit log entry. После этого
+admin может elevate USER → STUDENT/SCHOLAR/ADMIN. Effort ~2h.
 
-**49.A Phase A.4** — PATCH /api/v1/users/{id}/role (ADMIN only).
-Backend service + IT + audit log. Effort ~2h.
+**49.A Phase A.5** — apply STUDENT gate на AnswerService.createAnswer /
+QuestionService.createQuestion. Breaks existing tests где role=USER.
+Стратегия: либо feature flag OR migrate существующих users → STUDENT
+через admin endpoint (depends on A.4 done first). Effort ~4h с тестами.
+
+**49.A Phase A.6** — Frontend AuthRole type expansion + RoleLockedAction
+UI wrapper. Effort ~3h.
 
 **UI 1.1 Dark theme palette** — invoke /frontend-design skill, обновить
 accent tokens в dark mode.
@@ -153,10 +163,12 @@ collections`, REST CRUD, BookCard menu «Добавить в коллекцию�
 
 ### Метрики 49d финальные
 
-- **13 commits total** (1 vision spec + 9 fix/feat + 1 handoff + 2
-  roles phase A.1 + A.2)
-- **Tests:** Backend +14 new (UserRoleTest 9 + PermissionServiceTest 5).
-  Frontend 573/573 PASS, TypeScript clean. Auth IT 34/34 baseline ok.
+- **15 commits total** (1 vision spec + 9 fix/feat + 1 handoff + 3 roles
+  phases A.1/A.2/A.3 + 1 second handoff)
+- **Tests:** Backend +17 new (UserRoleTest 9 + PermissionServiceTest 5
+  + HadithGradeControllerIT 3 role gate tests). Frontend 573/573 PASS,
+  TypeScript clean. Auth IT 34/34, HadithGradeServiceIT 17/17,
+  HadithGradeControllerIT 12/12 baseline + new — preserved.
 - **Migrations:** 48 → 49 applied (CHECK constraint expansion).
 - **Specs созданы:** 5 в `docs/superpowers/specs/`:
   - `2026-05-20-vision-expansion-49d.md` (root)

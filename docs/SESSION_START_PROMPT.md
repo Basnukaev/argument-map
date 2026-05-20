@@ -280,21 +280,20 @@ Specs created:
 ### Текущий приоритет — implementation continues
 
 После 49d:
-- Phase A.1+A.2 уже **сделаны** (migration 49 expand_user_roles +
-  PermissionService.assertHasRoleAtLeast + InsufficientRoleException).
+- Phase A.1+A.2+A.3 уже **сделаны** (migration 49 + UserRole.hasAtLeast
+  + InsufficientRoleException + PermissionService.assertHasRoleAtLeast
+  + HadithGradeService SCHOLAR gate applied).
 - 5 specs готовы (vision/roles/rating/hadith/observability).
 
-**Phase A.3 — next priority:** apply role gates на existing services.
-- HadithGradeService.addGrade requires SCHOLAR. Только этот gate
-  безопасен — HadithGradeServiceIT существует, нужно обновить под
-  passing SCHOLAR role.
-- AnswerService.createAnswer / QuestionService.createQuestion requires
-  STUDENT — **breaks existing tests** где role=USER. Защитная стратегия:
-  сначала Phase A.4 (PATCH /api/v1/users/{id}/role) → migrate dev users
-  в STUDENT → apply STUDENT gate. Либо feature flag.
+**Phase A.4 — next priority:** PATCH /api/v1/users/{id}/role endpoint
+(ADMIN only) + GET /api/v1/users?role=... для admin user management.
+UserService.updateRole(adminUserId, targetUserId, newRole). Audit log
+entry. IT.
 
-**Phase A.4:** PATCH /api/v1/users/{id}/role endpoint (ADMIN only) +
-GET /api/v1/users?role=... для admin user management. ~2h.
+**Phase A.5** — apply STUDENT gate на AnswerService.createAnswer /
+QuestionService.createQuestion. **Breaks existing tests** где role=USER.
+Защитная стратегия: либо migrate existing users → STUDENT (depends на
+A.4 first), либо feature flag enable=false в test profile. Effort ~4h.
 
 **Phase A.5+:** Frontend AuthStore type expansion + ScholarRoute/
 StudentRoute (или generalized requireRole) + role-locked UI components.
