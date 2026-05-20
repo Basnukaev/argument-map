@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Vision 49d Section 2.6 Phase 1.e: hd_matns - тексты вариаций
+        хадиса.
+
+        Один hd_hadiths может иметь несколько matns - вариации текста
+        в разных сборниках (Бухари version vs Муслим version, и т.п.).
+        is_primary помечает основной matn. divergence_summary - generated
+        при ETL ("opener differs" / "ending differs" / etc.).
+
+        text_ar_normalized для diff calculation и search. text_ru/text_en
+        - переводы (Phase 5+ когда добавим translations).
+
+        printed_number/page_no/volume - reference в published book.
+
+        Cascade: matns deleteCascade на hadith - часть identity хадиса.
+    -->
+    <changeSet id="20260520-55-hd-matns" author="Abdula Basnukaev">
+        <comment>Hadith Explorer Phase 1.e: hd_matns table</comment>
+        <createTable tableName="hd_matns">
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="hadith_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_hd_matns_hadith"
+                             references="hd_hadiths(id)"
+                             deleteCascade="true"/>
+            </column>
+            <column name="text_ar" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="text_ar_normalized" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="text_ru" type="TEXT"/>
+            <column name="text_en" type="TEXT"/>
+            <column name="source_book_id" type="UUID">
+                <constraints nullable="true"
+                             foreignKeyName="fk_hd_matns_book"
+                             references="lib_books(id)"
+                             deleteCascade="false"/>
+            </column>
+            <column name="printed_number" type="INTEGER"/>
+            <column name="page_no" type="INTEGER"/>
+            <column name="volume" type="INTEGER"/>
+            <column name="is_primary" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="divergence_summary" type="TEXT"/>
+            <column name="metadata" type="JSONB"/>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <createIndex tableName="hd_matns" indexName="idx_hd_matns_hadith">
+            <column name="hadith_id"/>
+        </createIndex>
+        <createIndex tableName="hd_matns" indexName="idx_hd_matns_book">
+            <column name="source_book_id"/>
+        </createIndex>
+
+        <rollback>
+            <dropTable tableName="hd_matns"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
