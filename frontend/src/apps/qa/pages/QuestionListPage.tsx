@@ -74,7 +74,7 @@ function QuestionListPage() {
         setState({
           kind: 'success',
           data: {
-            questions: (paged.items ?? []) as Question[],
+            questions: paged.items ?? [],
             page: paged.page ?? 0,
             hasNext: paged.hasNext ?? false,
             totalElements: paged.totalElements ?? 0,
@@ -106,7 +106,7 @@ function QuestionListPage() {
       const resp = await apiGetRaw<PagedQuestions>(
         `/api/v1/questions?page=${nextPage}&size=${PAGE_SIZE}${statusParam}`,
       );
-      const nextItems = (resp.items ?? []) as Question[];
+      const nextItems = resp.items ?? [];
       setState({
         kind: 'success',
         data: {

@@ -140,7 +140,7 @@ function AdminAuditPage() {
         setState({
           kind: 'success',
           data: {
-            items: (paged.items ?? []) as AuditLog[],
+            items: paged.items ?? [],
             page: paged.page ?? 0,
             hasNext: paged.hasNext ?? false,
             totalElements: paged.totalElements ?? 0,
@@ -166,7 +166,7 @@ function AdminAuditPage() {
     try {
       const nextPage = state.data.page + 1;
       const resp = await apiGetRaw<PagedAudit>(buildAuditUrl(applied, nextPage));
-      const nextItems = (resp.items ?? []) as AuditLog[];
+      const nextItems = resp.items ?? [];
       setState({
         kind: 'success',
         data: {

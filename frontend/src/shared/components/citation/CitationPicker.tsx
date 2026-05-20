@@ -94,7 +94,7 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
       { signal: ctl.signal },
     )
       .then((paged) =>
-        setBooksState({ kind: 'success', books: (paged.items ?? []) as Book[] }),
+        setBooksState({ kind: 'success', books: paged.items ?? [] }),
       )
       .catch((e: unknown) => {
         if (ctl.signal.aborted) return;

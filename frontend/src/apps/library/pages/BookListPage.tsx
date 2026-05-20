@@ -165,7 +165,7 @@ function BookListPage() {
         setState({
           kind: 'success',
           data: {
-            books: (paged.items ?? []) as Book[],
+            books: paged.items ?? [],
             page: paged.page ?? 0,
             hasNext: paged.hasNext ?? false,
             totalElements: paged.totalElements ?? 0,
@@ -193,7 +193,7 @@ function BookListPage() {
     try {
       const nextPage = state.data.page + 1;
       const resp = await apiGetRaw<PagedBooks>(buildBooksUrl(nextPage));
-      const nextItems = (resp.items ?? []) as Book[];
+      const nextItems = resp.items ?? [];
       setState({
         kind: 'success',
         data: {
@@ -515,7 +515,7 @@ function AuthorityFilter({ selected, onChange }: AuthorityFilterProps) {
     })
       .then((paged) => {
         if (controller.signal.aborted) return;
-        setResults((paged.items ?? []) as AuthorityResponse[]);
+        setResults(paged.items ?? []);
       })
       .catch(() => {
         if (controller.signal.aborted) return;

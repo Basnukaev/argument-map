@@ -46,10 +46,8 @@ export interface OnboardingStep {
 
 const DISMISSED_KEY = 'onboarding_dismissed';
 
-type Topic = components['schemas']['TopicResponse'];
 type PagedTopics = components['schemas']['PagedResponseTopicResponse'];
 type Graph = components['schemas']['GraphResponse'];
-type Node = components['schemas']['NodeResponse'];
 
 function readDismissed(): boolean {
   if (typeof window === 'undefined') return false;
@@ -155,7 +153,7 @@ export function useOnboardingProgress(): OnboardingProgress {
           '/api/v1/topics?page=0&size=20',
           { signal: controller.signal },
         );
-        const items = (topicsPage.items ?? []) as Topic[];
+        const items = topicsPage.items ?? [];
         const ownTopics = items.filter((tp) => tp.createdBy === user.id);
         const firstOwn = ownTopics[0];
         const hasTopic = ownTopics.length > 0;
@@ -185,7 +183,7 @@ export function useOnboardingProgress(): OnboardingProgress {
           `/api/v1/topics/${firstOwn.id}/graph`,
           { signal: controller.signal },
         );
-        const nodes = (graph.nodes ?? []) as Node[];
+        const nodes = graph.nodes ?? [];
 
         const hasClaimNode = nodes.some((n) => n.nodeType === 'CLAIM');
         const hasAttachedSource = nodes.some(

@@ -59,7 +59,7 @@ function TopicListPage() {
         setState({
           kind: 'success',
           data: {
-            topics: (paged.items ?? []) as Topic[],
+            topics: paged.items ?? [],
             page: paged.page ?? 0,
             hasNext: paged.hasNext ?? false,
             totalElements: paged.totalElements ?? 0,
@@ -92,7 +92,7 @@ function TopicListPage() {
       const resp = await apiGetRaw<PagedTopics>(
         `/api/v1/topics?page=${nextPage}&size=${PAGE_SIZE}`,
       );
-      const nextItems = (resp.items ?? []) as Topic[];
+      const nextItems = resp.items ?? [];
       setState({
         kind: 'success',
         data: {
@@ -151,7 +151,7 @@ function TopicListPage() {
       setState({
         kind: 'success',
         data: {
-          topics: (refetched.items ?? []) as Topic[],
+          topics: refetched.items ?? [],
           page: refetched.page ?? 0,
           hasNext: refetched.hasNext ?? false,
           totalElements: refetched.totalElements ?? 0,
