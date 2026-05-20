@@ -33,7 +33,9 @@ post_edge() {
 }
 
 mknode() {
-  python3 -c "import json,sys; print(json.dumps({'topicId':'$TOPIC_ID','nodeType':sys.argv[1],'content':sys.argv[2]}))" "$1" "$2"
+  # originalLang='ru' явно: текст содержит лигатуру ﷺ, без явного lang
+  # фронт раньше детектил его как арабский (font-naskh на весь блок).
+  python3 -c "import json,sys; print(json.dumps({'topicId':'$TOPIC_ID','nodeType':sys.argv[1],'content':sys.argv[2],'originalLang':'ru'}))" "$1" "$2"
 }
 
 mkedge() {
