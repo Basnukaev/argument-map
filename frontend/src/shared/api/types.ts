@@ -52,6 +52,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/topics/{topicId}/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["incrementView"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/topics/{topicId}/members": {
         parameters: {
             query?: never;
@@ -126,6 +142,22 @@ export interface paths {
         get: operations["list_3"];
         put?: never;
         post: operations["create_2"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/questions/{questionId}/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["incrementView_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -372,6 +404,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/library/collections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAll"];
+        put?: never;
+        post: operations["addToCollection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/library/books": {
         parameters: {
             query?: never;
@@ -382,6 +430,22 @@ export interface paths {
         get: operations["list_7"];
         put?: never;
         post: operations["create_8"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/books/{bookId}/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["incrementView_2"];
         delete?: never;
         options?: never;
         head?: never;
@@ -628,6 +692,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/{id}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateRole"];
+        trace?: never;
+    };
     "/api/v1/topics/{topicId}": {
         parameters: {
             query?: never;
@@ -868,6 +948,22 @@ export interface paths {
         patch: operations["update_7"];
         trace?: never;
     };
+    "/api/v1/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_10"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/topics/{topicId}/graph": {
         parameters: {
             query?: never;
@@ -923,7 +1019,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_10"];
+        get: operations["list_11"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1028,6 +1124,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/library/collections/names": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listCollectionNames"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/library/books/{bookId}/pdf": {
         parameters: {
             query?: never;
@@ -1052,6 +1164,86 @@ export interface paths {
             cookie?: never;
         };
         get: operations["getPdfInfo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hadith/narrators": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_12"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hadith/narrators/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getOne_5"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hadith/hadiths": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_13"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hadith/hadiths/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getOne_6"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hadith/hadiths/{id}/detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getDetail"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1147,7 +1339,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_11"];
+        get: operations["list_14"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1263,6 +1455,22 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["delete_11"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/collections/{bookId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["removeFromCollection"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1849,6 +2057,24 @@ export interface components {
             bucket?: string;
             storageKey?: string;
         };
+        AddToCollectionRequest: {
+            /** Format: uuid */
+            bookId: string;
+            /**
+             * @description Имя коллекции (default "Избранное")
+             * @example Избранное
+             */
+            collectionName?: string;
+        };
+        CollectionEntryResponse: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            bookId?: string;
+            collectionName?: string;
+            /** Format: date-time */
+            addedAt?: string;
+        };
         CreateBookRequest: {
             /** @enum {string} */
             bookType: "QURAN" | "HADITH_COLLECTION" | "BOOK" | "ARTICLE" | "MANUSCRIPT";
@@ -2072,6 +2298,26 @@ export interface components {
             /** Format: int32 */
             skipped?: number;
         };
+        ChangeRoleRequest: {
+            /**
+             * @description Новая роль пользователя - whitelist из 4 значений
+             * @enum {string}
+             */
+            newRole: "USER" | "STUDENT" | "SCHOLAR" | "ADMIN";
+        };
+        UserResponse: {
+            /** Format: uuid */
+            id?: string;
+            username?: string;
+            email?: string;
+            /** @enum {string} */
+            role?: "USER" | "STUDENT" | "SCHOLAR" | "ADMIN";
+            enabled?: boolean;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
         UpdateTopicRequest: {
             title?: string;
             description?: string;
@@ -2197,6 +2443,19 @@ export interface components {
         };
         UpdateAnswerRequest: {
             body: string;
+        };
+        PagedResponseUserResponse: {
+            items?: components["schemas"]["UserResponse"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            totalElements?: number;
+            /** Format: int32 */
+            totalPages?: number;
+            hasNext?: boolean;
+            hasPrev?: boolean;
         };
         PagedResponseTopicResponse: {
             items?: components["schemas"]["TopicResponse"][];
@@ -2327,6 +2586,120 @@ export interface components {
             hasText?: boolean;
             hasImage?: boolean;
         };
+        NarratorResponse: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            authorityId?: string;
+            nameAr?: string;
+            kunya?: string;
+            laqab?: string;
+            /** Format: int32 */
+            yearBirthHijri?: number;
+            /** Format: int32 */
+            yearDeathHijri?: number;
+            birthplace?: string;
+            primaryResidence?: string;
+            /** @enum {string} */
+            reliabilityGrade?: "THIQA" | "SADUQ" | "MAQBUL" | "DAIF" | "MATRUK" | "UNKNOWN";
+            reliabilityComment?: string;
+            /** Format: int32 */
+            transmittedCount?: number;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        PagedResponseNarratorResponse: {
+            items?: components["schemas"]["NarratorResponse"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            totalElements?: number;
+            /** Format: int32 */
+            totalPages?: number;
+            hasNext?: boolean;
+            hasPrev?: boolean;
+        };
+        HadithResponse: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            primaryBookId?: string;
+            /** Format: int32 */
+            primaryNumber?: number;
+            normalizedMatn?: string;
+            /** @enum {string} */
+            status?: "CANONICAL" | "VARIANT" | "WEAK" | "FABRICATED";
+            /** Format: uuid */
+            sourceId?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        PagedResponseHadithResponse: {
+            items?: components["schemas"]["HadithResponse"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            totalElements?: number;
+            /** Format: int32 */
+            totalPages?: number;
+            hasNext?: boolean;
+            hasPrev?: boolean;
+        };
+        HadithDetailResponse: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            primaryBookId?: string;
+            /** Format: int32 */
+            primaryNumber?: number;
+            normalizedMatn?: string;
+            status?: string;
+            /** Format: uuid */
+            sourceId?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            sanads?: components["schemas"]["SanadDto"][];
+            matns?: components["schemas"]["MatnDto"][];
+        };
+        MatnDto: {
+            /** Format: uuid */
+            id?: string;
+            textAr?: string;
+            textRu?: string;
+            textEn?: string;
+            /** Format: uuid */
+            sourceBookId?: string;
+            /** Format: int32 */
+            printedNumber?: number;
+            /** Format: int32 */
+            pageNo?: number;
+            /** Format: int32 */
+            volume?: number;
+            isPrimary?: boolean;
+            divergenceSummary?: string;
+        };
+        NarratorLinkDto: {
+            /** Format: int32 */
+            position?: number;
+            /** Format: uuid */
+            narratorId?: string;
+            transmissionPhrase?: string;
+        };
+        SanadDto: {
+            /** Format: uuid */
+            id?: string;
+            chainGrade?: string;
+            /** Format: uuid */
+            compiledById?: string;
+            /** Format: uuid */
+            compiledInBookId?: string;
+            primaryChain?: boolean;
+            narrators?: components["schemas"]["NarratorLinkDto"][];
+        };
         PagedResponseAuthorityResponse: {
             items?: components["schemas"]["AuthorityResponse"][];
             /** Format: int32 */
@@ -2346,7 +2719,7 @@ export interface components {
             username?: string;
             email?: string;
             /** @enum {string} */
-            role?: "USER" | "ADMIN";
+            role?: "USER" | "STUDENT" | "SCHOLAR" | "ADMIN";
         };
         AuditLogResponse: {
             /** Format: uuid */
@@ -2536,6 +2909,7 @@ export interface operations {
                 visibility?: string;
                 page?: number;
                 size?: number;
+                sort?: string;
             };
             header?: {
                 /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
@@ -2581,6 +2955,26 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["TopicResponse"];
                 };
+            };
+        };
+    };
+    incrementView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                topicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -2781,6 +3175,7 @@ export interface operations {
                 q?: string;
                 page?: number;
                 size?: number;
+                sort?: string;
             };
             header?: never;
             path?: never;
@@ -2825,6 +3220,26 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["QuestionResponse"];
                 };
+            };
+        };
+    };
+    incrementView_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -3401,6 +3816,58 @@ export interface operations {
             };
         };
     };
+    listAll: {
+        parameters: {
+            query?: {
+                name?: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CollectionEntryResponse"][];
+                };
+            };
+        };
+    };
+    addToCollection: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddToCollectionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CollectionEntryResponse"];
+                };
+            };
+        };
+    };
     list_7: {
         parameters: {
             query: {
@@ -3410,6 +3877,7 @@ export interface operations {
                 publisherId?: string;
                 page?: number;
                 size?: number;
+                sort?: string;
                 currentUserId: string;
             };
             header?: {
@@ -3458,6 +3926,26 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["BookResponse"];
                 };
+            };
+        };
+    };
+    incrementView_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -3903,6 +4391,37 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["BackfillBibliographyResponse"];
+                };
+            };
+        };
+    };
+    updateRole: {
+        parameters: {
+            query: {
+                adminId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["UserResponse"];
                 };
             };
         };
@@ -4700,6 +5219,35 @@ export interface operations {
             };
         };
     };
+    list_10: {
+        parameters: {
+            query: {
+                role?: string;
+                q?: string;
+                page?: number;
+                size?: number;
+                adminId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PagedResponseUserResponse"];
+                };
+            };
+        };
+    };
     getGraph: {
         parameters: {
             query?: never;
@@ -4789,7 +5337,7 @@ export interface operations {
             };
         };
     };
-    list_10: {
+    list_11: {
         parameters: {
             query?: never;
             header?: never;
@@ -4952,6 +5500,29 @@ export interface operations {
             };
         };
     };
+    listCollectionNames: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string[];
+                };
+            };
+        };
+    };
     streamPdf: {
         parameters: {
             query?: {
@@ -4996,6 +5567,123 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["PdfInfoResponse"];
+                };
+            };
+        };
+    };
+    list_12: {
+        parameters: {
+            query?: {
+                q?: string;
+                reliability?: string;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PagedResponseNarratorResponse"];
+                };
+            };
+        };
+    };
+    getOne_5: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["NarratorResponse"];
+                };
+            };
+        };
+    };
+    list_13: {
+        parameters: {
+            query?: {
+                q?: string;
+                status?: string;
+                bookId?: string;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PagedResponseHadithResponse"];
+                };
+            };
+        };
+    };
+    getOne_6: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["HadithResponse"];
+                };
+            };
+        };
+    };
+    getDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["HadithDetailResponse"];
                 };
             };
         };
@@ -5136,7 +5824,7 @@ export interface operations {
             };
         };
     };
-    list_11: {
+    list_14: {
         parameters: {
             query?: never;
             header?: never;
@@ -5298,6 +5986,31 @@ export interface operations {
             header?: never;
             path: {
                 regionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    removeFromCollection: {
+        parameters: {
+            query?: {
+                name?: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                bookId: string;
             };
             cookie?: never;
         };
