@@ -29,15 +29,13 @@
   reproducer + альтернативами + рисками - в `docs/gotchas.md` секция
   «Node 24 + undici 7 - AbortSignal instanceof check».
 - [ ] Полнотекстовый поиск (НЕ через Postgres tsvector - см. раздел «Архитектурные решения» ниже)
-- [ ] **Frontend migration `runDelete` → `DELETE /api/v1/nodes/bulk`** -
-      backend часть Bulk audit log consolidation закрыта 2026-05-19.
-      Сейчас `runDelete` в `GraphCanvas.tsx` шлёт N отдельных
-      `DELETE /api/v1/nodes/{id}` запросов. Переключить на единый
-      `DELETE /api/v1/nodes/bulk` с `{nodeIds: [...]}` - сократит N
-      HTTP-roundtrip'ов до 1, и сразу включит single BULK_DELETE
-      audit row вместо N. Edges остаются как есть (separate
-      `DELETE /api/v1/edges/{id}` без bulk endpoint пока что).
-      Обновить regenerate-api после backend deploy
+- [x] **Frontend migration `runDelete` → `DELETE /api/v1/nodes/bulk`** -
+      закрыто 2026-05-20 (commit `9d9cc37`). `runDelete` в
+      `GraphCanvas.tsx` использует единый bulk endpoint с
+      `{nodeIds: [...]}` payload, новый `apiDeleteWithBody` helper в
+      `shared/api/client.ts`. Single HTTP roundtrip + atomic
+      BULK_DELETE audit row. `skippedRootIds` обрабатывается gracefully.
+      2 новых теста в `bulkActions.test.tsx`
 - [x] **Экспорт графа в PNG / SVG** - закрыто 2026-05-17. Реализовано
   через `html-to-image` + кнопка с popover (PNG/SVG) в `GraphPanels`
   toolbar. Filename `topic-{slug}-{YYYY-MM-DD}.{ext}` через slugify
@@ -327,10 +325,13 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       **Frontend toggle** оставлен в backlog отдельным пунктом ниже -
       пока доступно только через curl. Preferred/stable extensions и
       bipolar argumentation отвергнуты в ADR-044
-- [ ] **Frontend UI для переключения status-algorithm** - бэкенд готов
-      (PATCH endpoint работает), фронту нужен toggle в TopicMetaPanel /
-      TopicSettingsModal для owner'а. Сейчас power-user'ы могут через curl,
-      но обычным пользователям нужен GUI
+- [x] **Frontend UI для переключения status-algorithm** - **уже сделано
+      ранее** в commit `7990b13` (2026-05-18). Section «Алгоритм статусов»
+      в `TopicSettingsDrawer.tsx` с radio cards MVP/DUNG_GROUNDED,
+      `handleAlgorithmChange` шлёт PATCH `/api/v1/topics/{id}/status-algorithm`.
+      Gated через `canManage` для read-only users. 12 tests в
+      `TopicSettingsDrawer.test.tsx`. Backlog запись была stale,
+      cleared в Сессии 49
 - [x] Импорт / экспорт темы в JSON - закрыт в Сессии 39
       (ADR-037, GET `/topics/{id}/export` + POST `/topics/import`)
 - [x] **Голосование за вес аргументов** - закрыто 2026-05-18.
@@ -538,10 +539,15 @@ security-focused этапом
       (RefreshTokenCleanupJanitorIT через Testcontainers): revoked старше/
       внутри retention, expired never-used, active valid, count returned
 
-- [ ] **Edge z-order persistence** - см. дубликат выше «Z-index
-      persistence для edges». Pattern идентичен Node.zIndex (миграция 40).
-      Не делать пока z-order на edges не станет реальным UX-вопросом.
-      Reviewer round 5 Bonus #7
+- [x] **Edge z-order persistence** - закрыто 2026-05-19 в Сессии 47
+      (Tech debt task #1, 6 commits). Mirror Node.zIndex pattern:
+      миграция 48 (`edges.z_index`), `Edge.zIndex` field, EdgeRepository
+      `updateZIndex/findMaxZIndex/findMinZIndex`, EdgeService
+      `bringToFront/sendToBack` с permission check, POST endpoints
+      `/api/v1/edges/{id}/z-order/{bring-to-front,send-to-back}`,
+      frontend `useGraphZOrder` switched от ephemeral counter к API
+      с optimistic + onRefetch sync. EdgeServiceIT 20→25, EdgeZIndexIT
+      6 tests
 
 ---
 
