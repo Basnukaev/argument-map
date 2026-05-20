@@ -412,7 +412,18 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
   collaborative темы). Renormalize (compact all z_index в continuous
   integer sequence 1, 2, 3, ...) при достижении большого spread
   (e.g. abs(max) > 1_000_000). Pattern из CAD/diagramming tools.
-  Low priority - real-world spread <100 у большинства тем
+  Low priority - real-world spread <100 у большинства тем.
+  **Update Сессия 49b (2026-05-20):** added overflow guards в
+  `NodeService.bringToFront/sendToBack` + `EdgeService.bringToFront/sendToBack`
+  (commit `8b82892`) - throws `IllegalStateException` при достижении
+  `Integer.MAX_VALUE/MIN_VALUE`. Recovery path (admin `POST /api/v1/topics/{id}/renormalize-zindex`)
+  не реализован - оставлено в этом backlog item, overflow rare
+- [ ] **Edge.topic_id денормализация (ADR-level decision)** - сейчас
+  `EdgeService.bringToFront/sendToBack` и `deleteEdge` loadят edge +
+  from-node для получения topicId (2 queries per call). Если store
+  `topic_id` directly на edges table - устраняет JOIN nodes path,
+  consistency через FK или trigger. Schema change + миграция.
+  Future, не сейчас. Backlog from Сессии 49b audit follow-up
 
 - [x] **Shared MinIO Testcontainer для IT suite** - закрыто 2026-05-19
       (Сессия 46). `SharedMinioContainer` singleton с static `INSTANCE`
