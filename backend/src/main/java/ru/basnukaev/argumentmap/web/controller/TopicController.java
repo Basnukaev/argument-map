@@ -83,11 +83,14 @@ public class TopicController {
             @CurrentUser UUID userId,
             @RequestParam(name = "visibility", required = false) String visibility,
             @RequestParam(name = "page", required = false) Integer page,
-            @RequestParam(name = "size", required = false) Integer size) {
+            @RequestParam(name = "size", required = false) Integer size,
+            @RequestParam(name = "sort", required = false) String sort) {
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         PageRequest pr = PageRequest.from(page, size);
+        // Vision 49d Section 2.1: sort whitelist (recent/popular/alphabetical)
+        // - валидация в TopicRepository.orderByForSort через switch с default
         List<TopicWithCounts> items = topicService.listVisibleTopicsPage(
-                userId, role, visibility, pr.size(), pr.offset());
+                userId, role, visibility, pr.size(), pr.offset(), sort);
         long total = topicService.countVisibleTopics(userId, role, visibility);
         List<TopicResponse> mapped = items.stream().map(DtoMappers::toResponse).toList();
         return PagedResponse.of(mapped, pr.page(), pr.size(), total);

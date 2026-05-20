@@ -188,6 +188,20 @@ public class BookRepository {
     public List<Book> findVisibleToUserPage(UUID userId, String query, BookType type,
                                             UUID authorityId, UUID publisherId,
                                             int limit, int offset) {
+        return findVisibleToUserPage(userId, query, type, authorityId, publisherId,
+                limit, offset, null);
+    }
+
+    /**
+     * Vision 49d Section 2.1: sort overload. "recent" (default),
+     * "popular" (citation_count DESC через UNION subquery),
+     * "alphabetical" (title ASC). citation_count = (count node_sources
+     * + count answer_sources + count question_sources) для этой
+     * книги — Phase 1 computed, не denormalized counter (Phase 2 будет).
+     */
+    public List<Book> findVisibleToUserPage(UUID userId, String query, BookType type,
+                                            UUID authorityId, UUID publisherId,
+                                            int limit, int offset, String sort) {
         StringBuilder sql = new StringBuilder("SELECT ").append(COLUMNS)
                 .append(" FROM lib_books WHERE 1=1");
         List<Object> args = new ArrayList<>();
@@ -195,10 +209,30 @@ public class BookRepository {
         sql.append(VISIBLE_TO_USER_WHERE);
         args.add(userId);
         args.add(userId);
-        sql.append(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
+        sql.append(orderByForSort(sort)).append(" LIMIT ? OFFSET ?");
         args.add(limit);
         args.add(offset);
         return jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray());
+    }
+
+    /**
+     * Whitelist ORDER BY clause - SQL safety. citation_count -
+     * computed subquery суммирующая 3 параллельных иерархии цитат.
+     * Phase 1: дорогая операция (3 subquery на каждую row), Phase 2
+     * заменим на denormalized counter в lib_books.citation_count.
+     */
+    private static String orderByForSort(String sort) {
+        if (sort == null) return " ORDER BY created_at DESC";
+        return switch (sort) {
+            case "popular" -> " ORDER BY ("
+                    + "(SELECT COUNT(*) FROM node_sources ns JOIN sources s ON s.id = ns.source_id WHERE s.book_id = lib_books.id) "
+                    + "+ (SELECT COUNT(*) FROM question_sources qs JOIN sources s ON s.id = qs.source_id WHERE s.book_id = lib_books.id) "
+                    + "+ (SELECT COUNT(*) FROM answer_sources ansrc JOIN sources s ON s.id = ansrc.source_id WHERE s.book_id = lib_books.id)"
+                    + ") DESC, created_at DESC";
+            case "alphabetical" -> " ORDER BY title ASC";
+            case "recent" -> " ORDER BY created_at DESC";
+            default -> " ORDER BY created_at DESC";
+        };
     }
 
     public long countVisibleToUser(UUID userId, String query, BookType type,

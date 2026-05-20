@@ -91,6 +91,13 @@ public class QuestionService {
         return repository.findPage(status, query, limit, offset);
     }
 
+    /** Vision 49d Section 2.1 sort overload — recent/popular/alphabetical. */
+    @Transactional(readOnly = true)
+    public List<Question> listQuestionsPage(QuestionStatus status, String query,
+                                            int limit, int offset, String sort) {
+        return repository.findPage(status, query, limit, offset, sort);
+    }
+
     @Transactional(readOnly = true)
     public long countQuestions(QuestionStatus status, String query) {
         return repository.countFiltered(status, query);

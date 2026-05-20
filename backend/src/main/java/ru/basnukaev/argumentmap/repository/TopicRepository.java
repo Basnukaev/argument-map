@@ -193,13 +193,12 @@ public class TopicRepository {
      * по visibility (внутри set'а уже видимых). Используется REST endpoint
      * GET /api/v1/topics с {@code ?page=&size=&visibility=}.
      *
-     * <p>Порядок ORDER BY t.created_at DESC - последние созданные сверху.
-     * Это отличается от {@link #findVisibleToUserWithCounts(UUID)}
-     * (ASC), но для UI list page последние созданные - что нужно
-     * по UX-default'у (consistent with sources/questions).
+     * <p>Vision 49d Section 2.1: `sort` параметр - "recent" (default,
+     * created_at DESC), "popular" (node_count DESC), "alphabetical"
+     * (title ASC). Invalid sort → fallback to "recent" silently.
      */
     public List<TopicWithCounts> findVisibleToUserPage(UUID userId, String visibility,
-                                                       int limit, int offset) {
+                                                       int limit, int offset, String sort) {
         StringBuilder sql = new StringBuilder(COUNTS_SQL_BASE).append(VISIBLE_TO_USER_WHERE);
         List<Object> args = new ArrayList<>();
         args.add(userId);
@@ -208,10 +207,33 @@ public class TopicRepository {
             sql.append(" AND t.visibility = ?");
             args.add(visibility);
         }
-        sql.append(" ORDER BY t.created_at DESC LIMIT ? OFFSET ?");
+        sql.append(orderByForSort(sort)).append(" LIMIT ? OFFSET ?");
         args.add(limit);
         args.add(offset);
         return jdbcTemplate.query(sql.toString(), WITH_COUNTS_MAPPER, args.toArray());
+    }
+
+    /**
+     * Backward-compat overload без sort param - использует "recent"
+     * default. Existing callers продолжают работать без изменений.
+     */
+    public List<TopicWithCounts> findVisibleToUserPage(UUID userId, String visibility,
+                                                       int limit, int offset) {
+        return findVisibleToUserPage(userId, visibility, limit, offset, null);
+    }
+
+    /**
+     * SQL ORDER BY clause для sort value. Whitelist для SQL safety -
+     * никаких string interpolation от user input. Vision 49d 2.1.
+     */
+    private static String orderByForSort(String sort) {
+        if (sort == null) return " ORDER BY t.created_at DESC";
+        return switch (sort) {
+            case "popular" -> " ORDER BY node_count DESC, t.created_at DESC";
+            case "alphabetical" -> " ORDER BY t.title ASC";
+            case "recent" -> " ORDER BY t.created_at DESC";
+            default -> " ORDER BY t.created_at DESC";
+        };
     }
 
     public long countVisibleToUser(UUID userId, String visibility) {
@@ -232,17 +254,22 @@ public class TopicRepository {
      * ADMIN paginated: все темы, без visibility-фильтра пользователя.
      * Используется когда role=ADMIN на REST уровне.
      */
-    public List<TopicWithCounts> findAllPage(String visibility, int limit, int offset) {
+    public List<TopicWithCounts> findAllPage(String visibility, int limit, int offset, String sort) {
         StringBuilder sql = new StringBuilder(COUNTS_SQL_BASE).append(" WHERE 1=1");
         List<Object> args = new ArrayList<>();
         if (visibility != null) {
             sql.append(" AND t.visibility = ?");
             args.add(visibility);
         }
-        sql.append(" ORDER BY t.created_at DESC LIMIT ? OFFSET ?");
+        sql.append(orderByForSort(sort)).append(" LIMIT ? OFFSET ?");
         args.add(limit);
         args.add(offset);
         return jdbcTemplate.query(sql.toString(), WITH_COUNTS_MAPPER, args.toArray());
+    }
+
+    /** Backward-compat overload без sort. */
+    public List<TopicWithCounts> findAllPage(String visibility, int limit, int offset) {
+        return findAllPage(visibility, limit, offset, null);
     }
 
     public long countAll(String visibility) {

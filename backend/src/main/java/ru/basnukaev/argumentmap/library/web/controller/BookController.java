@@ -90,15 +90,17 @@ public class BookController {
             @RequestParam(name = "publisherId", required = false) UUID publisherId,
             @RequestParam(name = "page", required = false) Integer page,
             @RequestParam(name = "size", required = false) Integer size,
+            @RequestParam(name = "sort", required = false) String sort,
             @CurrentUser UUID currentUserId) {
         // ADR-043 Amendment: visibility filter применяется на repository
         // уровне через listVisibleBooksPage. PRIVATE owned + SHARED member
         // + PUBLIC видны user'у. ADMIN видит всё.
+        // Vision 49d Section 2.1: sort whitelist (recent/popular/alphabetical).
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         PageRequest pr = PageRequest.from(page, size);
         List<Book> items = bookService.listVisibleBooksPage(currentUserId, role,
                 query, type, authorityId, publisherId,
-                pr.size(), pr.offset());
+                pr.size(), pr.offset(), sort);
         long total = bookService.countVisibleBooks(currentUserId, role,
                 query, type, authorityId, publisherId);
         List<BookSummaryResponse> mapped = items.stream()

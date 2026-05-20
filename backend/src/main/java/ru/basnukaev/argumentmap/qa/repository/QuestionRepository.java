@@ -107,14 +107,37 @@ public class QuestionRepository {
      */
     public List<Question> findPage(QuestionStatus status, String query,
                                    int limit, int offset) {
+        return findPage(status, query, limit, offset, null);
+    }
+
+    /**
+     * Vision 49d Section 2.1: sort overload для popularity ranking.
+     * sort: "recent" (default), "popular" (answer_count DESC),
+     * "alphabetical" (title ASC). Computed answer_count через subquery
+     * - дороже чем denormalized counter, но в Phase 1 без миграции
+     * counters.
+     */
+    public List<Question> findPage(QuestionStatus status, String query,
+                                   int limit, int offset, String sort) {
         StringBuilder sql = new StringBuilder("SELECT ")
                 .append(COLUMNS).append(" FROM questions WHERE 1=1");
         List<Object> args = new ArrayList<>();
         appendFilters(sql, args, status, query);
-        sql.append(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
+        sql.append(orderByForSort(sort)).append(" LIMIT ? OFFSET ?");
         args.add(limit);
         args.add(offset);
         return jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray());
+    }
+
+    /** Whitelist ORDER BY clause для sort - SQL safety. */
+    private static String orderByForSort(String sort) {
+        if (sort == null) return " ORDER BY created_at DESC";
+        return switch (sort) {
+            case "popular" -> " ORDER BY (SELECT COUNT(*) FROM answers a WHERE a.question_id = questions.id) DESC, created_at DESC";
+            case "alphabetical" -> " ORDER BY title ASC";
+            case "recent" -> " ORDER BY created_at DESC";
+            default -> " ORDER BY created_at DESC";
+        };
     }
 
     public long countFiltered(QuestionStatus status, String query) {

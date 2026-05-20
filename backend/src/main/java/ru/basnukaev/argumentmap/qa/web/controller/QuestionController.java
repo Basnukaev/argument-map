@@ -65,9 +65,11 @@ public class QuestionController {
             @RequestParam(name = "status", required = false) QuestionStatus status,
             @RequestParam(name = "q", required = false) String query,
             @RequestParam(name = "page", required = false) Integer page,
-            @RequestParam(name = "size", required = false) Integer size) {
+            @RequestParam(name = "size", required = false) Integer size,
+            @RequestParam(name = "sort", required = false) String sort) {
         PageRequest pr = PageRequest.from(page, size);
-        List<Question> items = service.listQuestionsPage(status, query, pr.size(), pr.offset());
+        // Vision 49d Section 2.1: sort whitelist (recent/popular/alphabetical)
+        List<Question> items = service.listQuestionsPage(status, query, pr.size(), pr.offset(), sort);
         long total = service.countQuestions(status, query);
         List<QuestionResponse> mapped = items.stream()
                 .map(QuestionController::toResponse)

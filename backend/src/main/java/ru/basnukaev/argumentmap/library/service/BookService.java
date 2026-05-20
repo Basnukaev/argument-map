@@ -201,11 +201,25 @@ public class BookService {
                                            String query, BookType type,
                                            UUID authorityId, UUID publisherId,
                                            int limit, int offset) {
+        return listVisibleBooksPage(userId, role, query, type, authorityId, publisherId,
+                limit, offset, null);
+    }
+
+    /**
+     * Vision 49d Section 2.1 sort overload — recent/popular/alphabetical.
+     * popular = citation_count DESC, дорогая computed аггрегация в
+     * Phase 1 (Phase 2 заменит на denormalized counter).
+     */
+    @Transactional(readOnly = true)
+    public List<Book> listVisibleBooksPage(UUID userId, String role,
+                                           String query, BookType type,
+                                           UUID authorityId, UUID publisherId,
+                                           int limit, int offset, String sort) {
         if (UserRole.ADMIN.equals(role)) {
             return bookRepository.findPage(query, type, authorityId, publisherId, limit, offset);
         }
         return bookRepository.findVisibleToUserPage(userId, query, type, authorityId, publisherId,
-                limit, offset);
+                limit, offset, sort);
     }
 
     @Transactional(readOnly = true)

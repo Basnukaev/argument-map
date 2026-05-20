@@ -161,11 +161,24 @@ public class TopicService {
     public List<TopicWithCounts> listVisibleTopicsPage(UUID userId, String role,
                                                        String visibility,
                                                        int limit, int offset) {
+        return listVisibleTopicsPage(userId, role, visibility, limit, offset, null);
+    }
+
+    /**
+     * Vision 49d Section 2.1 — sort parameter overload. sort:
+     * "recent" (default), "popular", "alphabetical". Invalid → fallback
+     * recent silently. Whitelist в TopicRepository.orderByForSort.
+     */
+    @Transactional(readOnly = true)
+    public List<TopicWithCounts> listVisibleTopicsPage(UUID userId, String role,
+                                                       String visibility,
+                                                       int limit, int offset,
+                                                       String sort) {
         validateVisibility(visibility);
         if (UserRole.ADMIN.equals(role)) {
-            return topicRepository.findAllPage(visibility, limit, offset);
+            return topicRepository.findAllPage(visibility, limit, offset, sort);
         }
-        return topicRepository.findVisibleToUserPage(userId, visibility, limit, offset);
+        return topicRepository.findVisibleToUserPage(userId, visibility, limit, offset, sort);
     }
 
     @Transactional(readOnly = true)
