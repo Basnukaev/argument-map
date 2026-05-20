@@ -279,21 +279,32 @@ Specs created:
 
 ### Текущий приоритет — implementation continues
 
-После 49d (FINAL ULTIMATE):
-- Phase A.1+A.2+A.3+A.4+A.5+A.6 уже **сделаны** — full backend +
-  frontend chain:
-  - Backend: migration 49 + UserRole + InsufficientRoleException +
-    PermissionService.assertHasRoleAtLeast + HadithGradeService SCHOLAR
-    gate + UserController PATCH /role admin endpoint + Question/Answer
-    STUDENT gate.
-  - Frontend: AuthRole union extended до 4 значений +
-    hasRoleAtLeast helper + ProtectedRoute hierarchical check.
+После 49d (MASSIVE CONTINUED MAX-MODE):
+- **41+ commits total** в одной сессии. Implementation расширилась
+  далеко за initial vision scope.
+- **Closed initiatives (full chains):**
+  - 49.A Roles A.1-A.7 (migration 49 + UserRole hierarchy +
+    InsufficientRoleException + assertHasRoleAtLeast + HadithGradeService
+    SCHOLAR + Question/Answer STUDENT + PATCH /users/{id}/role admin
+    endpoint + GET /users listing + Frontend AuthRole expansion +
+    AdminUsersPage)
+  - 49.B Rating Phase 1+2 (sort param 3 endpoints + SortSelect UI +
+    migration 51 view counters + POST /views endpoints + useViewTracking
+    hook)
+  - 49.E Library collections (migration 50 + REST CRUD + heart button
+    + dedicated page)
+  - 49.G Guest view (read routes без auth)
+  - 49.D Phase 1 Observability (logback JSON encoder)
+  - UI 1.1 Dark theme desaturate, UI 1.6 Edge routing fan-out
+- **Started (active):**
+  - 49.C Hadith Explorer Phase 1.a-d (migrations 52/53/54: narrators
+    + hadiths + sanads + sanad_narrators, domains + Narrator
+    repository + REST GET endpoints)
 - 5 specs готовы (vision/roles/rating/hadith/observability).
-- 21 commits total в Сессии 49d.
 
-**Phase A.7+ (optional UX):** RoleLockedAction wrapper для disabled-
-with-tooltip UX. Admin user management UI page /admin/users. Defer
-до явного UX need.
+**Phase 49.C Phase 1.e (next):** Migration 55 hd_matns + repositories
+для Hadith/Sanad/SanadNarrator + REST GET /api/v1/hadith/hadiths/{id}
+с polished response (hadith + sanads + matns в одном payload).
 
 **UI 1.1 Dark theme palette** — invoke /frontend-design skill, обновить
 accent tokens (indigo «не сочетается» по словам Абдулы). Effort ~3h.
