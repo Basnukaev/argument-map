@@ -62,6 +62,7 @@ function CommandPaletteBody({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('');
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const itemRefs = useRef<Array<HTMLLIElement | null>>([]);
 
   // Font commands - сгенерированы из FONT_PAIRS/ARABIC_FONTS. Позволяют
   // переключать шрифт через Alt+K → "шрифт inter" без потери контекста
@@ -172,6 +173,13 @@ function CommandPaletteBody({ onClose }: { onClose: () => void }) {
   // фильтрация и activeIdx считаются через derived activeIdx = Math.min(...)
   const safeActiveIdx = Math.min(activeIdx, Math.max(commands.length - 1, 0));
 
+  // Скроллим активный item в viewport при arrow navigation. Без этого
+  // при max-h-80 список не следует за selection. block:'nearest' не
+  // трогает scroll если item уже виден.
+  useEffect(() => {
+    itemRefs.current[safeActiveIdx]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [safeActiveIdx]);
+
   return (
     <div
       role="dialog"
@@ -209,7 +217,12 @@ function CommandPaletteBody({ onClose }: { onClose: () => void }) {
           {commands.map((cmd, i) => {
             const active = i === safeActiveIdx;
             return (
-              <li key={cmd.id} role="option" aria-selected={active}>
+              <li
+                key={cmd.id}
+                ref={(el) => { itemRefs.current[i] = el; }}
+                role="option"
+                aria-selected={active}
+              >
                 <button
                   type="button"
                   onMouseEnter={() => setActiveIdx(i)}
