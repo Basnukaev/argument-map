@@ -189,13 +189,36 @@ export async function applyElkLayout(
       }
       return { id: n.id, width, height, layoutOptions };
     }),
-    edges: edges.map(
-      (e): ElkExtendedEdge => ({
-        id: e.id,
-        sources: [e.source],
-        targets: [e.target],
-      }),
-    ),
+    // Инвертируем direction рёбер для ELK layered. Семантика наших
+    // edge types - "ребёнок→родитель":
+    //   SUPPORTS:    довод     → тезис       (довод обосновывает)
+    //   REFUTES:     довод     → тезис       (довод опровергает)
+    //   INVALIDATES: свид-во   → довод       (свидетельство ломает)
+    //   RESPONDS_TO: тезис     → вопрос      (тезис отвечает)
+    //   QUALIFIES:   уточнение → уточняемое
+    //
+    // Sugiyama (ELK layered) кладёт source ВЫШЕ target. Без инверсии
+    // на DOWN-preset мы получили бы довод ВЫШЕ тезиса - инверсия
+    // семантики чтения argument map. Reverse при build elkGraph
+    // даёт canonical вид: вопрос наверху, тезис под ним, доводы под
+    // тезисом, свидетельства снизу. Это canonical Toulmin schema.
+    //
+    // React Flow рёбра остаются с оригинальным source/target -
+    // визуальная стрелка указывает в исходную сторону, как domain
+    // знает.
+    edges: edges.map((e): ElkExtendedEdge => {
+      // Сообщаем ELK размер edge-label (бейдж с типом отношения).
+      // Без этого algorithm не учитывает label при routing - подписи
+      // могли налезать на узлы или другие рёбра. ~120×24 - типичный
+      // размер бейджа CustomEdge с icon + русским текстом
+      // ("ДОКАЗЫВАЕТ", "ПРОТИВОРЕЧИТ" и пр.).
+      const labels = e.data?.showLabel
+        ? [{ id: `${e.id}-l`, width: 120, height: 24 }]
+        : [];
+      return isLayered
+        ? { id: e.id, sources: [e.target], targets: [e.source], labels }
+        : { id: e.id, sources: [e.source], targets: [e.target], labels };
+    }),
   };
 
   const result = await elk.layout(elkGraph);
@@ -208,8 +231,14 @@ export async function applyElkLayout(
   // координаты startPoint + bendPoints[] + endPoint для каждого
   // ортогонального ребра. Эти точки описывают точный path который
   // ELK *задумал* при routing - используются в CustomEdge для
-  // precise SVG rendering (вместо геометрической аппроксимации
-  // через getSmoothStepPath от handles).
+  // precise SVG rendering.
+  //
+  // ВАЖНО: для layered preset мы передали edges в ELK с инвертированным
+  // direction (target→source, см. build elkGraph). Bend points приходят
+  // в порядке от ELK source = original target → ... → ELK target =
+  // original source. CustomEdge строит path от original sourceX/sourceY,
+  // значит bend points нужно RESERVE - иначе path будет идти зигзагом.
+  // Для radial direction не инвертировался, bends остаются as-is.
   const bendsByEdgeId = new Map<string, Array<{ x: number; y: number }>>();
   for (const elkEdge of result.edges ?? []) {
     const sections = elkEdge.sections ?? [];
@@ -217,7 +246,11 @@ export async function applyElkLayout(
     if (!first) continue;
     const bends = (first.bendPoints ?? []).map((p) => ({ x: p.x, y: p.y }));
     if (bends.length > 0) {
-      bendsByEdgeId.set(elkEdge.id, bends);
+      // reverse только для layered (т.к. там делалась direction-inversion).
+      // Для radial preset bends в правильном порядке - но radial вообще
+      // не используется здесь (radial идёт через d3-hierarchy), так что
+      // безусловный reverse корректен.
+      bendsByEdgeId.set(elkEdge.id, isLayered ? bends.reverse() : bends);
     }
   }
 

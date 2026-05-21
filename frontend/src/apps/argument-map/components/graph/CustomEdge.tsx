@@ -6,6 +6,7 @@ import { useT } from '@/shared/i18n';
 import type { EdgeType, NodeType } from '@/apps/argument-map/utils/edgeRules';
 import { EDGE_TYPE_TOKENS } from '@/shared/utils/designTokens';
 import { useLayoutPresetStore } from '@/shared/stores/layoutPresetStore';
+import { useEdgeStyleStore } from '@/shared/stores/edgeStyleStore';
 import {
   buildRoundedOrthogonalPath,
   pickLabelPosition,
@@ -63,22 +64,28 @@ function CustomEdge(props: EdgeProps<CustomEdgeEdge>) {
   // через data — не нужен useEdges() в каждом компоненте (O(E²) per rerender)
   const curvature = data?.curvature ?? 0.25;
 
-  // Routing зависит от preset + наличия bend points из layout:
+  // Routing зависит от preset + edgeStyle (user toggle) + наличия
+  // bend points из layout:
   //
-  // 1) tree-* + есть bendPoints (от ELK ORTHOGONAL) → строим path
-  //    строго по этим точкам со скруглёнными углами 12px. Это match'ит
-  //    точный routing алгоритма - в т.ч. правильные обходы вокруг
-  //    соседних узлов, без диагональных bezier «через весь экран».
+  // 1) tree-* + edgeStyle=orthogonal + bendPoints → строим path
+  //    строго по точкам со скруглёнными углами 12px. Match'ит
+  //    точный routing ELK - инженерный look, читается как блок-схема.
   //
-  // 2) tree-* без bendPoints (initial render до relayout) → fallback
-  //    на getSmoothStepPath — геометрическая аппроксимация. Хуже но
-  //    приемлемо для коротких рёбер.
+  // 2) tree-* + edgeStyle=orthogonal без bendPoints (initial render
+  //    до relayout) → fallback на getSmoothStepPath — геометрическая
+  //    аппроксимация.
   //
-  // 3) radial → bezier с curvature. Дуги от центра к периферии
-  //    смотрятся естественнее ортогональных углов на радиальной
-  //    раскладке.
+  // 3) tree-* + edgeStyle=smooth → bezier с curvature. Мягкий look,
+  //    игнорирует ortho bend points. Toggle для пользователей которым
+  //    инженерный стиль не нравится.
+  //
+  // 4) radial → всегда bezier с curvature, edgeStyle игнорируется.
+  //    Дуги к концентрическим кольцам естественнее ортогональных
+  //    углов в полярной топологии.
   const preset = useLayoutPresetStore((s) => s.preset);
-  const useOrthogonal = preset === 'tree-tb' || preset === 'tree-lr';
+  const edgeStyle = useEdgeStyleStore((s) => s.edgeStyle);
+  const isTree = preset === 'tree-tb' || preset === 'tree-lr';
+  const useOrthogonal = isTree && edgeStyle === 'orthogonal';
   const bendPoints = data?.bendPoints;
 
   let edgePath: string;

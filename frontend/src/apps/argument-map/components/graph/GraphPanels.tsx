@@ -32,6 +32,7 @@ import {
   useLayoutPresetStore,
   type LayoutPreset,
 } from '@/shared/stores/layoutPresetStore';
+import { useEdgeStyleStore } from '@/shared/stores/edgeStyleStore';
 
 interface Props {
   showEdgeLabels: boolean;
@@ -101,6 +102,8 @@ function GraphPanels({
   const layoutMenuRef = useRef<HTMLDivElement>(null);
   const preset = useLayoutPresetStore((s) => s.preset);
   const setPreset = useLayoutPresetStore((s) => s.setPreset);
+  const edgeStyle = useEdgeStyleStore((s) => s.edgeStyle);
+  const setEdgeStyle = useEdgeStyleStore((s) => s.setEdgeStyle);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
   // Dismiss popover при клике вне меню и при Escape
@@ -272,6 +275,39 @@ function GraphPanels({
                   )}
                 </button>
               ))}
+              <div className="my-1 border-t border-border" />
+              {/* Edge style toggle - применим только для tree-presets.
+                 Radial всегда bezier (curves естественнее в polar
+                 топологии), для него секция dimmed. */}
+              <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-500">
+                {t('layout.edge_style.label')}
+              </div>
+              {(['orthogonal', 'smooth'] as const).map((style) => {
+                const disabled = preset === 'radial';
+                return (
+                  <button
+                    key={style}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={edgeStyle === style}
+                    disabled={disabled}
+                    onClick={() => setEdgeStyle(style)}
+                    className={`flex w-full items-start justify-between gap-2 px-3 py-2 text-start text-sm hover:bg-ink-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent ${edgeStyle === style ? 'text-ink-900' : 'text-ink-700'}`}
+                  >
+                    <span className="flex-1">
+                      <span className="block font-medium">
+                        {t(`layout.edge_style.${style}` as const)}
+                      </span>
+                      <span className="block text-xs text-ink-500 mt-0.5">
+                        {t(`layout.edge_style.${style}_description` as const)}
+                      </span>
+                    </span>
+                    {edgeStyle === style && !disabled && (
+                      <Check size={14} className="mt-1 shrink-0 text-accent-600" aria-hidden />
+                    )}
+                  </button>
+                );
+              })}
               <div className="my-1 border-t border-border" />
               {canWrite && (
                 <button
