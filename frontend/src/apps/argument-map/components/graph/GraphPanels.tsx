@@ -49,11 +49,15 @@ interface Props {
   /** Read-only: скрыть mutating кнопки (Add Node / Add Edge / Delete).
    * Export, zoom, label toggle - всегда доступны. Default true */
   canWrite?: boolean;
-  /** ELK layout сейчас пересчитывается (loading indicator на кнопке) */
+  /** Layout сейчас пересчитывается (loading indicator на кнопке) */
   layoutPending?: boolean;
   /** Триггер ELK re-layout - вызывается при выборе ELK в layout-menu.
    * Owner логики - GraphCanvas (там state nodes/edges и rfInstance) */
   onApplyElkLayout?: () => void | Promise<void>;
+  /** Триггер DAGRE re-layout - симметричный elk. Без него выбор «dagre»
+   * в меню был бы no-op для уже-разложенных графов (см. forceLayout
+   * в layoutGraph) */
+  onApplyDagreLayout?: () => void | Promise<void>;
 }
 
 /**
@@ -83,6 +87,7 @@ function GraphPanels({
   canWrite = true,
   layoutPending = false,
   onApplyElkLayout,
+  onApplyDagreLayout,
 }: Props) {
   const t = useT();
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
@@ -127,11 +132,14 @@ function GraphPanels({
     setLayoutMenuOpen(false);
     if (next === algorithm) return;
     setAlgorithm(next);
+    // Симметрично триггерим re-layout для обоих алгоритмов. Раньше dagre
+    // только сохранял preference в store - визуально ничего не менялось
+    // (для уже-разложенных графов layoutGraph возвращал saved позиции
+    // as-is). С forceLayout=true в useAutoLayout dagre переcчитывает.
     if (next === 'elk' && onApplyElkLayout) {
-      // ELK выбран - триггерим one-shot re-layout. dagre - просто сохраняем
-      // preference в store, действующий layout остаётся пока пользователь
-      // вручную не перетащит узлы или не добавит новых
       void onApplyElkLayout();
+    } else if (next === 'dagre' && onApplyDagreLayout) {
+      void onApplyDagreLayout();
     }
   }
 

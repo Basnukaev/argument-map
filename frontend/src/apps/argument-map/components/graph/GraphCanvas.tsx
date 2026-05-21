@@ -26,7 +26,7 @@ import GraphPanels from '@/apps/argument-map/components/graph/GraphPanels';
 import FloatingActionBar from '@/apps/argument-map/components/graph/FloatingActionBar';
 import { useGraphEscape } from '@/apps/argument-map/hooks/useGraphEscape';
 import { useGraphZOrder } from '@/apps/argument-map/hooks/useGraphZOrder';
-import { useElkAutoLayout } from '@/apps/argument-map/hooks/useElkAutoLayout';
+import { useAutoLayout } from '@/apps/argument-map/hooks/useElkAutoLayout';
 import { useNodeDelete } from '@/apps/argument-map/hooks/useNodeDelete';
 import { useBulkNodeActions } from '@/apps/argument-map/hooks/useBulkNodeActions';
 import { useHotkey } from '@/shared/hooks/useHotkey';
@@ -125,12 +125,11 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
   // значение в момент callback выполнения
   const rfInstanceRef = useRef<ReactFlowInstance<NodeCardNode, CustomEdgeEdge> | null>(null);
 
-  // ELK re-layout - one-shot trigger при переключении алгоритма на elk.
-  // НЕ запускается на каждый refetch (т.к. posX/posY уже сохранены и
-  // dagre/layoutGraph их уважает). Вызывается из GraphPanels при click
-  // на ELK в layout-menu. После применения - PATCH'ит новые координаты
-  // на бэк, дальше работает как обычные сохранённые позиции
-  const { triggerElkRelayout, layoutPending } = useElkAutoLayout({
+  // Auto-layout one-shot trigger при выборе алгоритма в меню. Hook
+  // обобщён для обоих dagre/elk - для dagre layoutGraph вызывается с
+  // forceLayout=true (иначе saved posX/posY уважались бы и dagre-выбор
+  // был бы no-op). После применения PATCH'ит новые координаты на бэк.
+  const { triggerRelayout, layoutPending } = useAutoLayout({
     lastNodesRef,
     edgesRef,
     rfInstanceRef,
@@ -689,7 +688,8 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
             topicTitle={graph.topic?.title}
             canWrite={canWrite}
             layoutPending={layoutPending}
-            onApplyElkLayout={triggerElkRelayout}
+            onApplyElkLayout={() => triggerRelayout('elk')}
+            onApplyDagreLayout={() => triggerRelayout('dagre')}
           />
         </ReactFlow>
       )}

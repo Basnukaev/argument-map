@@ -30,11 +30,20 @@ export function layoutGraph(
   edges: CustomEdgeEdge[],
   direction: 'LR' | 'TB' = 'LR',
   previousNodes: ReadonlyArray<NodeCardNode> = [],
+  forceLayout: boolean = false,
 ): NodeCardNode[] {
   if (nodes.length === 0) return [];
 
   const hasSaved = (n: NodeCardNode) =>
     typeof n.data.posX === 'number' && typeof n.data.posY === 'number';
+
+  // forceLayout=true (вызывается при явном выборе раскладки в меню)
+  // игнорирует saved positions и считает dagre с нуля. Без него
+  // меню «выбрать алгоритм → dagre» было бы no-op для уже-разложенных
+  // графов (см. PR fix: смена раскладки)
+  if (forceLayout) {
+    return dagreLayout(nodes, edges, direction);
+  }
 
   const allSaved = nodes.every(hasSaved);
   const noneSaved = nodes.every((n) => !hasSaved(n));
@@ -109,20 +118,21 @@ export async function applyLayout(
   algorithm: LayoutAlgorithm = 'dagre',
   direction: 'LR' | 'TB' = 'LR',
   previousNodes: ReadonlyArray<NodeCardNode> = [],
+  forceLayout: boolean = false,
 ): Promise<NodeCardNode[]> {
   if (nodes.length === 0) return [];
   if (algorithm === 'elk') {
     // Lazy import - elkjs ~200KB gzipped; не нагружаем initial bundle
-    // для пользователей которые остаются на dagre (default)
+    // для пользователей которые остаются на dagre (default).
+    // ELK всегда пересчитывает весь граф - forceLayout flag для него
+    // semantic no-op
     const { applyElkLayout } = await import('./elkLayout');
     const { nodes: laidOut } = await applyElkLayout(nodes, edges, {
-      // RIGHT для LR (наша default direction для tree-of-thought),
-      // DOWN для TB
       direction: direction === 'LR' ? 'RIGHT' : 'DOWN',
     });
     return laidOut;
   }
-  return layoutGraph(nodes, edges, direction, previousNodes);
+  return layoutGraph(nodes, edges, direction, previousNodes, forceLayout);
 }
 
 function dagreLayout(
