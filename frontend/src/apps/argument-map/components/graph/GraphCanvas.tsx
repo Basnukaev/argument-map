@@ -26,7 +26,7 @@ import GraphPanels from '@/apps/argument-map/components/graph/GraphPanels';
 import FloatingActionBar from '@/apps/argument-map/components/graph/FloatingActionBar';
 import { useGraphEscape } from '@/apps/argument-map/hooks/useGraphEscape';
 import { useGraphZOrder } from '@/apps/argument-map/hooks/useGraphZOrder';
-import { useAutoLayout } from '@/apps/argument-map/hooks/useElkAutoLayout';
+import { useAutoLayout } from '@/apps/argument-map/hooks/useAutoLayout';
 import { useNodeDelete } from '@/apps/argument-map/hooks/useNodeDelete';
 import { useBulkNodeActions } from '@/apps/argument-map/hooks/useBulkNodeActions';
 import { useHotkey } from '@/shared/hooks/useHotkey';
@@ -113,7 +113,7 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
     lastNodesRef.current = nodes;
   }, [nodes]);
 
-  // edges ref - чтобы triggerElkRelayout (useCallback с минимальным deps)
+  // edges ref - чтобы triggerRelayout (useCallback с минимальным deps)
   // читал свежие edges без пере-создания на каждый edge-change
   const edgesRef = useRef<CustomEdgeEdge[]>(edges);
   useEffect(() => {
