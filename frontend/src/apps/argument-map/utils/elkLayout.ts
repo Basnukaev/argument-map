@@ -11,70 +11,127 @@ import type { CustomEdgeEdge } from '@/apps/argument-map/components/graph/Custom
 const DEFAULT_NODE_WIDTH = 288;
 const DEFAULT_NODE_HEIGHT = 140;
 
-/**
- * Single ELK instance. Bundled-вариант (без Web Worker) выбран ради
- * простоты: для типичных графов (<200 узлов) layout считается
- * мгновенно на main thread. Worker-вариант полезен только при
- * визуально заметной задержке - в этот момент переключиться на
- * `elkjs/lib/elk-api.js` + workerUrl
- */
 const elk = new ELK();
 
-export type ElkAlgorithm = 'layered' | 'mrtree' | 'force' | 'stress';
-export type ElkDirection = 'DOWN' | 'UP' | 'LEFT' | 'RIGHT';
+/**
+ * Layout-preset выражает выбранную пользователем форму графа. Внутри
+ * мапится в (algorithm, direction, spacing, edgeRouting, constraints).
+ * См. ADR об argument-map layout: presets вместо raw algorithm choice -
+ * UX не требует от пользователя знаний ELK/dagre.
+ *
+ * - `tree-tb`: канонический Sugiyama TOP→BOTTOM (как Kialo, Rationale).
+ *   QUESTION сверху, EVIDENCE внизу через layerConstraint.
+ * - `tree-lr`: тот же layered алгоритм, но LEFT→RIGHT для wide screens
+ *   или длинных reasoning chains.
+ * - `radial`: ELK radial - root в центре, слои как кольца. Удобно для
+ *   20+ узлов и презентационных скриншотов.
+ */
+export type LayoutPreset = 'tree-tb' | 'tree-lr' | 'radial';
 
-export interface ElkLayoutOptions {
-  algorithm?: ElkAlgorithm;
-  direction?: ElkDirection;
-  /** Расстояние между узлами (одного уровня) */
-  nodeSpacing?: number;
-  /** Расстояние между уровнями (только для `layered`) */
-  layerSpacing?: number;
+interface ElkPresetConfig {
+  algorithm: 'layered' | 'radial';
+  direction?: 'DOWN' | 'RIGHT';
+  /** Per-preset layoutOptions для ELK (mergee к base) */
+  options: Record<string, string>;
 }
 
 /**
- * Считает layout графа через ELK. Возвращает узлы с новыми позициями
- * (top-left, как ожидает React Flow); рёбра возвращаются неизменно -
- * мы используем ELK только ради позиций узлов, чтобы edges с
- * 4-handles и кастомным CustomEdge работали как раньше.
+ * Base options общие для layered presets - Sugiyama best-practice:
+ * BRANDES_KOEPF placement (2001) даёт straight long-edges без ломки,
+ * NETWORK_SIMPLEX layering минимизирует общую длину рёбер,
+ * LAYER_SWEEP crossing minimization - стандарт для interactive UI.
+ * ORTHOGONAL routing рисует edges под 90° (вместо bezier хаоса).
+ */
+const LAYERED_BASE: Record<string, string> = {
+  'elk.algorithm': 'layered',
+  'elk.edgeRouting': 'ORTHOGONAL',
+  'elk.spacing.nodeNode': '80',
+  'elk.layered.spacing.nodeNodeBetweenLayers': '120',
+  'elk.layered.spacing.edgeNodeBetweenLayers': '40',
+  'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+  'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
+  'elk.layered.layering.strategy': 'NETWORK_SIMPLEX',
+  'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+};
+
+const PRESET_CONFIG: Record<LayoutPreset, ElkPresetConfig> = {
+  'tree-tb': {
+    algorithm: 'layered',
+    direction: 'DOWN',
+    options: { ...LAYERED_BASE, 'elk.direction': 'DOWN' },
+  },
+  'tree-lr': {
+    algorithm: 'layered',
+    direction: 'RIGHT',
+    options: { ...LAYERED_BASE, 'elk.direction': 'RIGHT' },
+  },
+  radial: {
+    algorithm: 'radial',
+    options: {
+      'elk.algorithm': 'radial',
+      'elk.spacing.nodeNode': '100',
+      'elk.radial.compactor': 'RADIAL_COMPACTION',
+    },
+  },
+};
+
+/**
+ * Semantic-aware layer constraints. Argument map имеет естественную
+ * иерархию типов (Toulmin, Carneades), которую алгоритм сам по edges
+ * не выводит. Явно прибиваем QUESTION к верхнему слою (FIRST_SEPARATE)
+ * и EVIDENCE к нижнему (LAST_SEPARATE). CLAIM/ARGUMENT остаются
+ * `NONE` - сами лягут между по topological rank.
  *
- * Async: ELK API всегда промисный, даже в bundled-варианте без worker
+ * `FIRST_SEPARATE` (а не просто `FIRST`) гарантирует, что узлы этого
+ * типа займут отдельный слой, даже если есть edge от такого узла к
+ * другому того же типа.
+ */
+type NodeTypeLayerConstraint = 'FIRST_SEPARATE' | 'NONE' | 'LAST_SEPARATE';
+
+const TYPE_LAYER_CONSTRAINT: Record<string, NodeTypeLayerConstraint> = {
+  QUESTION: 'FIRST_SEPARATE',
+  CLAIM: 'NONE',
+  ARGUMENT: 'NONE',
+  EVIDENCE: 'LAST_SEPARATE',
+};
+
+function layerConstraintFor(node: NodeCardNode): NodeTypeLayerConstraint {
+  const nodeType = node.data?.nodeType ?? 'CLAIM';
+  return TYPE_LAYER_CONSTRAINT[nodeType] ?? 'NONE';
+}
+
+/**
+ * Применяет ELK-раскладку для выбранного preset'а. Возвращает узлы с
+ * новыми позициями (top-left, как ожидает React Flow). Edges -
+ * неизменно, layout считается только под позиции; React Flow + наш
+ * CustomEdge сами роутят рёбра по handles.
  *
- * @param algorithm - `layered` (по умолчанию) аналогичен dagre, но
- *   лучше route'ит edges; `mrtree` - для древовидных; `force` - для
- *   связных кластеров; `stress` - для семантически близких групп
+ * Для layered-preset'ов добавляется per-node `layerConstraint` по
+ * семантическому типу (QUESTION top / EVIDENCE bottom). Для radial -
+ * constraint игнорируется (layers концепции нет, узлы кладутся
+ * концентрическими окружностями вокруг root).
  */
 export async function applyElkLayout(
   nodes: NodeCardNode[],
   edges: CustomEdgeEdge[],
-  options: ElkLayoutOptions = {},
+  preset: LayoutPreset = 'tree-tb',
 ): Promise<{ nodes: NodeCardNode[]; edges: CustomEdgeEdge[] }> {
   if (nodes.length === 0) return { nodes: [], edges };
 
-  const algorithm = options.algorithm ?? 'layered';
-  const direction = options.direction ?? 'RIGHT';
-  const nodeSpacing = options.nodeSpacing ?? 80;
-  const layerSpacing = options.layerSpacing ?? 120;
+  const config = PRESET_CONFIG[preset];
+  const isLayered = config.algorithm === 'layered';
 
-  // Граф для ELK: id + width/height обязательны для children
   const elkGraph: ElkNode = {
     id: 'root',
-    layoutOptions: {
-      'elk.algorithm': algorithm,
-      'elk.direction': direction,
-      // SPLINE = плавные кривые между узлами без угловых изломов -
-      // визуально приятнее и лучше разводит пучки рёбер при high-degree
-      'elk.edgeRouting': 'SPLINE',
-      'elk.spacing.nodeNode': String(nodeSpacing),
-      'elk.layered.spacing.nodeNodeBetweenLayers': String(layerSpacing),
-      // Hierarchical algorithm для layered - уменьшает crossings
-      'elk.layered.crossingMinimization.semiInteractive': 'true',
-    },
+    layoutOptions: config.options,
     children: nodes.map(
       (n): ElkNode => ({
         id: n.id,
         width: DEFAULT_NODE_WIDTH,
         height: DEFAULT_NODE_HEIGHT,
+        layoutOptions: isLayered
+          ? { 'elk.layered.layering.layerConstraint': layerConstraintFor(n) }
+          : undefined,
       }),
     ),
     edges: edges.map(

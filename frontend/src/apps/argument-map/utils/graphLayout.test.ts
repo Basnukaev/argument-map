@@ -129,27 +129,38 @@ describe('layoutGraph', () => {
   });
 });
 
-describe('applyLayout (algorithm switch)', () => {
-  it('algorithm=dagre - использует layoutGraph (sync wrap)', async () => {
+describe('applyLayout (preset)', () => {
+  it('preset=tree-tb - возвращает ELK позиции через моки elkjs', async () => {
     const nodes = [makeNode('a'), makeNode('b')];
     const edges = [makeEdge('e', 'a', 'b')];
-    const result = await applyLayout(nodes, edges, 'dagre', 'LR');
-    expect(result).toHaveLength(2);
-    // dagre раскладывает узлы по разным позициям (не моки elk)
-    expect(result[0]!.position.x).not.toBe(999);
-  });
-
-  it('algorithm=elk - использует ELK позиции (через моки elkjs)', async () => {
-    const nodes = [makeNode('a'), makeNode('b')];
-    const edges = [makeEdge('e', 'a', 'b')];
-    const result = await applyLayout(nodes, edges, 'elk', 'LR');
+    const result = await applyLayout(nodes, edges, 'tree-tb');
     expect(result).toHaveLength(2);
     expect(result[0]!.position).toEqual({ x: 999, y: 888 });
     expect(result[1]!.position).toEqual({ x: 1000, y: 889 });
   });
 
-  it('пустой граф - возвращает пустой массив (любой алгоритм)', async () => {
-    expect(await applyLayout([], [], 'dagre')).toEqual([]);
-    expect(await applyLayout([], [], 'elk')).toEqual([]);
+  it('preset=tree-lr - тот же layered ELK, но direction RIGHT', async () => {
+    const nodes = [makeNode('a'), makeNode('b')];
+    const result = await applyLayout(nodes, [], 'tree-lr');
+    expect(result).toHaveLength(2);
+    expect(result[0]!.position).toEqual({ x: 999, y: 888 });
+  });
+
+  it('preset=radial - радиальный алгоритм', async () => {
+    const nodes = [makeNode('a'), makeNode('b'), makeNode('c')];
+    const result = await applyLayout(nodes, [], 'radial');
+    expect(result).toHaveLength(3);
+  });
+
+  it('пустой граф - возвращает пустой массив для любого preset', async () => {
+    expect(await applyLayout([], [], 'tree-tb')).toEqual([]);
+    expect(await applyLayout([], [], 'tree-lr')).toEqual([]);
+    expect(await applyLayout([], [], 'radial')).toEqual([]);
+  });
+
+  it('default preset (без аргумента) - tree-tb', async () => {
+    const nodes = [makeNode('a')];
+    const result = await applyLayout(nodes, []);
+    expect(result).toHaveLength(1);
   });
 });

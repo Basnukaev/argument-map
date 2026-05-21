@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ReactFlowProvider } from '@xyflow/react';
 import GraphPanels from './GraphPanels';
-import { useLayoutAlgorithmStore } from '@/shared/stores/layoutAlgorithmStore';
+import { useLayoutPresetStore } from '@/shared/stores/layoutPresetStore';
 
 // Мок elkjs - чтобы тест не загружал bundled.js 1.4MB в jsdom
 vi.mock('elkjs/lib/elk.bundled.js', () => {
@@ -38,61 +38,75 @@ function renderPanels(overrides: Partial<React.ComponentProps<typeof GraphPanels
   );
 }
 
-describe('GraphPanels - layout algorithm menu', () => {
+describe('GraphPanels - layout preset menu', () => {
   beforeEach(() => {
+    window.localStorage.removeItem('argmap.layoutPreset');
     window.localStorage.removeItem('argmap.layoutAlgorithm');
-    useLayoutAlgorithmStore.setState({ algorithm: 'dagre' });
+    useLayoutPresetStore.setState({ preset: 'tree-tb' });
   });
 
-  it('кнопка "Алгоритм раскладки" открывает меню с двумя радио-вариантами', async () => {
+  it('кнопка «Раскладка» открывает меню с тремя preset-вариантами', async () => {
     renderPanels();
-    const btn = screen.getByRole('button', { name: 'Алгоритм раскладки' });
+    const btn = screen.getByRole('button', { name: 'Раскладка' });
     await userEvent.click(btn);
 
-    expect(screen.getByRole('menuitemradio', { name: /Стандартный/ })).toBeInTheDocument();
-    expect(screen.getByRole('menuitemradio', { name: /Умный/ })).toBeInTheDocument();
+    expect(screen.getByRole('menuitemradio', { name: /Дерево \(вертикальное\)/ })).toBeInTheDocument();
+    expect(screen.getByRole('menuitemradio', { name: /Дерево \(горизонтальное\)/ })).toBeInTheDocument();
+    expect(screen.getByRole('menuitemradio', { name: /Радиальное/ })).toBeInTheDocument();
   });
 
-  it('по default выбран dagre - aria-checked у "Стандартный"', async () => {
+  it('по default выбран tree-tb - aria-checked у «Дерево (вертикальное)»', async () => {
     renderPanels();
-    await userEvent.click(screen.getByRole('button', { name: 'Алгоритм раскладки' }));
-    const dagreItem = screen.getByRole('menuitemradio', { name: /Стандартный/ });
-    expect(dagreItem).toHaveAttribute('aria-checked', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'Раскладка' }));
+    const treeTb = screen.getByRole('menuitemradio', { name: /Дерево \(вертикальное\)/ });
+    expect(treeTb).toHaveAttribute('aria-checked', 'true');
   });
 
-  it('клик на "Умный (elkjs)" - меняет store и вызывает onApplyElkLayout', async () => {
-    const onApplyElkLayout = vi.fn();
-    renderPanels({ onApplyElkLayout });
+  it('клик на «Радиальное» - меняет store и вызывает onApplyPreset с radial', async () => {
+    const onApplyPreset = vi.fn();
+    renderPanels({ onApplyPreset });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Алгоритм раскладки' }));
-    await userEvent.click(screen.getByRole('menuitemradio', { name: /Умный/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Раскладка' }));
+    await userEvent.click(screen.getByRole('menuitemradio', { name: /Радиальное/ }));
 
-    expect(useLayoutAlgorithmStore.getState().algorithm).toBe('elk');
-    expect(onApplyElkLayout).toHaveBeenCalledTimes(1);
+    expect(useLayoutPresetStore.getState().preset).toBe('radial');
+    expect(onApplyPreset).toHaveBeenCalledTimes(1);
+    expect(onApplyPreset).toHaveBeenCalledWith('radial');
   });
 
-  it('клик на тот же алгоритм - НЕ вызывает onApplyElkLayout (no-op)', async () => {
-    const onApplyElkLayout = vi.fn();
-    renderPanels({ onApplyElkLayout });
+  it('клик на тот же preset - НЕ вызывает onApplyPreset (no-op)', async () => {
+    const onApplyPreset = vi.fn();
+    renderPanels({ onApplyPreset });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Алгоритм раскладки' }));
-    await userEvent.click(screen.getByRole('menuitemradio', { name: /Стандартный/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Раскладка' }));
+    await userEvent.click(screen.getByRole('menuitemradio', { name: /Дерево \(вертикальное\)/ }));
 
-    expect(onApplyElkLayout).not.toHaveBeenCalled();
-    expect(useLayoutAlgorithmStore.getState().algorithm).toBe('dagre');
+    expect(onApplyPreset).not.toHaveBeenCalled();
+    expect(useLayoutPresetStore.getState().preset).toBe('tree-tb');
   });
 
-  it('клик на "Стандартный" из elk - меняет store и вызывает onApplyDagreLayout', async () => {
-    useLayoutAlgorithmStore.setState({ algorithm: 'elk' });
-    const onApplyDagreLayout = vi.fn();
-    const onApplyElkLayout = vi.fn();
-    renderPanels({ onApplyDagreLayout, onApplyElkLayout });
+  it('клик на «Дерево (горизонтальное)» из tree-tb - меняет store и вызывает onApplyPreset', async () => {
+    const onApplyPreset = vi.fn();
+    renderPanels({ onApplyPreset });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Алгоритм раскладки' }));
-    await userEvent.click(screen.getByRole('menuitemradio', { name: /Стандартный/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Раскладка' }));
+    await userEvent.click(screen.getByRole('menuitemradio', { name: /Дерево \(горизонтальное\)/ }));
 
-    expect(useLayoutAlgorithmStore.getState().algorithm).toBe('dagre');
-    expect(onApplyDagreLayout).toHaveBeenCalledTimes(1);
-    expect(onApplyElkLayout).not.toHaveBeenCalled();
+    expect(useLayoutPresetStore.getState().preset).toBe('tree-lr');
+    expect(onApplyPreset).toHaveBeenCalledTimes(1);
+    expect(onApplyPreset).toHaveBeenCalledWith('tree-lr');
+  });
+
+  it('reset кнопка появляется только если onResetLayout passed', async () => {
+    const onResetLayout = vi.fn();
+    renderPanels({ onResetLayout });
+    await userEvent.click(screen.getByRole('button', { name: 'Раскладка' }));
+    expect(screen.getByText('Сбросить ручную раскладку')).toBeInTheDocument();
+  });
+
+  it('reset кнопка скрыта если onResetLayout не passed', async () => {
+    renderPanels();
+    await userEvent.click(screen.getByRole('button', { name: 'Раскладка' }));
+    expect(screen.queryByText('Сбросить ручную раскладку')).not.toBeInTheDocument();
   });
 });

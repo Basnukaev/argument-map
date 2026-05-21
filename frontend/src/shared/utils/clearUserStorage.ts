@@ -8,9 +8,9 @@
  * по реализации - чистятся здесь
  *
  * Не чистим device-level preferences (theme - выбранная пользователем
- * под экран; layoutAlgorithm/showEdgeLabels - пер-устройство):
+ * под экран; layoutPreset/showEdgeLabels - пер-устройство):
  * - `theme` - наследуется как ambient device setting между users
- * - `argmap.layoutAlgorithm` - device pref для productivity
+ * - `argmap.layoutPreset` - device pref для productivity (форма графа)
  * - `argmap.showEdgeLabels` - graph viewport pref
  *
  * `auth.user` чистится через persistUser(null) в самом authStore -

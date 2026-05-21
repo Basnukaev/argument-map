@@ -7,7 +7,7 @@ import { apiPatchRaw } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useT } from '@/shared/i18n';
 import { applyLayout } from '@/apps/argument-map/utils/graphLayout';
-import type { LayoutAlgorithm } from '@/shared/stores/layoutAlgorithmStore';
+import type { LayoutPreset } from '@/shared/stores/layoutPresetStore';
 
 interface Args {
   lastNodesRef: RefObject<NodeCardNode[]>;
@@ -17,20 +17,18 @@ interface Args {
 }
 
 interface Result {
-  triggerRelayout: (algorithm: LayoutAlgorithm) => Promise<void>;
+  triggerRelayout: (preset: LayoutPreset) => Promise<void>;
   layoutPending: boolean;
 }
 
 /**
- * One-shot relayout trigger для любого из двух алгоритмов (dagre/elk).
- * Вызывается из GraphPanels когда user выбирает алгоритм в меню. Считает
- * новые позиции, применяет локально, PATCH'ит все узлы параллельно, потом
- * fitView для сохранения видимости.
+ * One-shot relayout trigger для выбранного preset'а формы графа.
+ * Вызывается из GraphPanels когда user picks preset в меню. Считает
+ * новые позиции через ELK с type-aware constraints (QUESTION top,
+ * EVIDENCE bottom для tree-presets), применяет локально, PATCH'ит
+ * все узлы параллельно, потом fitView для сохранения видимости.
  *
- * Для dagre передаётся forceLayout=true — без него `layoutGraph` бы вернул
- * сохранённые позиции as-is (allSaved early return) и меню стало бы no-op.
- *
- * Extracted from GraphCanvas (audit 2026-05-20 Minor #10).
+ * Detailed preset → ELK config mapping в elkLayout.ts.
  */
 export function useAutoLayout({
   lastNodesRef,
@@ -52,21 +50,12 @@ export function useAutoLayout({
   );
 
   const triggerRelayout = useCallback(
-    async (algorithm: LayoutAlgorithm) => {
+    async (preset: LayoutPreset) => {
       if (lastNodesRef.current.length === 0) return;
       setLayoutPending(true);
       try {
         const currentNodes = lastNodesRef.current;
-        const laidOut = await applyLayout(
-          currentNodes,
-          edgesRef.current,
-          algorithm,
-          'LR',
-          [],
-          // forceLayout=true для dagre - игнорирует saved posX/posY,
-          // считает с нуля. ELK всегда forces, флаг ему semantic no-op
-          true,
-        );
+        const laidOut = await applyLayout(currentNodes, edgesRef.current, preset);
         setNodes(laidOut);
         const results = await Promise.allSettled(
           laidOut.map((n) =>

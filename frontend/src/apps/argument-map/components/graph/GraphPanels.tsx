@@ -17,6 +17,8 @@ import {
   Check,
 } from 'lucide-react';
 import IconButton from '@/shared/components/ui/IconButton';
+import Button from '@/shared/components/ui/Button';
+import Modal from '@/shared/components/ui/Modal';
 import Kbd from '@/shared/components/ui/Kbd';
 import { useHotkey } from '@/shared/hooks/useHotkey';
 import { useT } from '@/shared/i18n';
@@ -27,9 +29,9 @@ import {
 } from '@/apps/argument-map/utils/graphExport';
 import { toast } from '@/shared/stores/toastStore';
 import {
-  useLayoutAlgorithmStore,
-  type LayoutAlgorithm,
-} from '@/shared/stores/layoutAlgorithmStore';
+  useLayoutPresetStore,
+  type LayoutPreset,
+} from '@/shared/stores/layoutPresetStore';
 
 interface Props {
   showEdgeLabels: boolean;
@@ -51,13 +53,15 @@ interface Props {
   canWrite?: boolean;
   /** Layout сейчас пересчитывается (loading indicator на кнопке) */
   layoutPending?: boolean;
-  /** Триггер ELK re-layout - вызывается при выборе ELK в layout-menu.
-   * Owner логики - GraphCanvas (там state nodes/edges и rfInstance) */
-  onApplyElkLayout?: () => void | Promise<void>;
-  /** Триггер DAGRE re-layout - симметричный elk. Без него выбор «dagre»
-   * в меню был бы no-op для уже-разложенных графов (см. forceLayout
-   * в layoutGraph) */
-  onApplyDagreLayout?: () => void | Promise<void>;
+  /** Триггер re-layout с выбранным preset'ом - вызывается при выборе
+   * формы в меню. Owner логики - GraphCanvas (там state nodes/edges
+   * и rfInstance). Один callback для всех presets - preset проходит
+   * как аргумент, mapping в ELK config живёт в elkLayout.ts */
+  onApplyPreset?: (preset: LayoutPreset) => void | Promise<void>;
+  /** Триггер сброса ручных позиций. POST /topics/{id}/reset-layout
+   * → SET posX=NULL, posY=NULL для всех узлов темы, после чего
+   * onApplyPreset(current preset) применяет свежий layout */
+  onResetLayout?: () => void | Promise<void>;
 }
 
 /**
@@ -86,8 +90,8 @@ function GraphPanels({
   graphContainerRef,
   canWrite = true,
   layoutPending = false,
-  onApplyElkLayout,
-  onApplyDagreLayout,
+  onApplyPreset,
+  onResetLayout,
 }: Props) {
   const t = useT();
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
@@ -95,8 +99,9 @@ function GraphPanels({
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
   const layoutMenuRef = useRef<HTMLDivElement>(null);
-  const algorithm = useLayoutAlgorithmStore((s) => s.algorithm);
-  const setAlgorithm = useLayoutAlgorithmStore((s) => s.setAlgorithm);
+  const preset = useLayoutPresetStore((s) => s.preset);
+  const setPreset = useLayoutPresetStore((s) => s.setPreset);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
   // Dismiss popover при клике вне меню и при Escape
   useEffect(() => {
@@ -128,18 +133,34 @@ function GraphPanels({
 
   useHotkey('escape', () => setLayoutMenuOpen(false), { enabled: layoutMenuOpen });
 
-  function pickAlgorithm(next: LayoutAlgorithm) {
+  function pickPreset(next: LayoutPreset) {
     setLayoutMenuOpen(false);
-    if (next === algorithm) return;
-    setAlgorithm(next);
-    // Симметрично триггерим re-layout для обоих алгоритмов. Раньше dagre
-    // только сохранял preference в store - визуально ничего не менялось
-    // (для уже-разложенных графов layoutGraph возвращал saved позиции
-    // as-is). С forceLayout=true в useAutoLayout dagre переcчитывает.
-    if (next === 'elk' && onApplyElkLayout) {
-      void onApplyElkLayout();
-    } else if (next === 'dagre' && onApplyDagreLayout) {
-      void onApplyDagreLayout();
+    if (next === preset) return;
+    setPreset(next);
+    if (onApplyPreset) {
+      void onApplyPreset(next);
+    }
+  }
+
+  /** Re-apply current preset (используется кнопкой «Применить заново»
+   * и после reset-layout flow для свежей раскладки без смены preset'а) */
+  function reapplyCurrentPreset() {
+    setLayoutMenuOpen(false);
+    if (onApplyPreset) {
+      void onApplyPreset(preset);
+    }
+  }
+
+  async function confirmResetLayout() {
+    setResetConfirmOpen(false);
+    setLayoutMenuOpen(false);
+    if (!onResetLayout) return;
+    try {
+      await onResetLayout();
+    } finally {
+      // После очистки posX/posY на бэке применяем current preset
+      // чтобы юзер сразу увидел разложенный заново граф
+      if (onApplyPreset) await onApplyPreset(preset);
     }
   }
 
@@ -208,14 +229,17 @@ function GraphPanels({
           active={showEdgeLabels}
           onClick={onToggleLabels}
         />
-        {/* Layout-algorithm dropdown - тот же паттерн что export-меню.
-           Icon в loading-state крутится пока async ELK пересчитывает */}
+        {/* Layout-preset dropdown - 3 формы графа (Tree TB / Tree LR /
+           Radial). Mapping в ELK config - в elkLayout.ts (type-aware
+           constraints, ORTHOGONAL routing, BRANDES_KOEPF placement).
+           Reset secondary action очищает все ручные posX/posY и
+           применяет current preset заново. */}
         <div ref={layoutMenuRef} className="relative">
           <IconButton
             icon={layoutPending ? Loader2 : Network}
             label={t('layout.menu_label')}
             size="md"
-            active={layoutMenuOpen || algorithm === 'elk'}
+            active={layoutMenuOpen}
             onClick={() => setLayoutMenuOpen((v) => !v)}
             className={layoutPending ? '[&_svg]:animate-spin' : ''}
           />
@@ -223,47 +247,52 @@ function GraphPanels({
             <div
               role="menu"
               aria-label={t('layout.menu_label')}
-              className="absolute start-full top-0 z-50 ms-2 min-w-64 rounded-md border border-border bg-elevated py-1 shadow-sh3"
+              className="absolute start-full top-0 z-50 ms-2 min-w-72 rounded-md border border-border bg-elevated py-1 shadow-sh3"
             >
               <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-500">
-                {t('layout.algorithm_label')}
+                {t('layout.preset.label')}
               </div>
-              <button
-                type="button"
-                role="menuitemradio"
-                aria-checked={algorithm === 'dagre'}
-                onClick={() => pickAlgorithm('dagre')}
-                className="flex w-full items-start justify-between gap-2 px-3 py-2 text-start text-sm text-ink-700 hover:bg-ink-100"
-              >
-                <span className="flex-1">
-                  <span className="block font-medium">{t('layout.algorithm_dagre')}</span>
-                  <span className="block text-xs text-ink-500 mt-0.5">
-                    {t('layout.algorithm_dagre_description')}
+              {(['tree-tb', 'tree-lr', 'radial'] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={preset === p}
+                  onClick={() => pickPreset(p)}
+                  className="flex w-full items-start justify-between gap-2 px-3 py-2 text-start text-sm text-ink-700 hover:bg-ink-100"
+                >
+                  <span className="flex-1">
+                    <span className="block font-medium">{t(`layout.preset.${p}` as const)}</span>
+                    <span className="block text-xs text-ink-500 mt-0.5">
+                      {t(`layout.preset.${p}_description` as const)}
+                    </span>
                   </span>
-                </span>
-                {algorithm === 'dagre' && (
-                  <Check size={14} className="mt-1 shrink-0 text-accent-600" aria-hidden />
-                )}
-              </button>
-              <button
-                type="button"
-                role="menuitemradio"
-                aria-checked={algorithm === 'elk'}
-                onClick={() => pickAlgorithm('elk')}
-                className="flex w-full items-start justify-between gap-2 px-3 py-2 text-start text-sm text-ink-700 hover:bg-ink-100"
-              >
-                <span className="flex-1">
-                  <span className="block font-medium">{t('layout.algorithm_elk')}</span>
-                  <span className="block text-xs text-ink-500 mt-0.5">
-                    {t('layout.algorithm_elk_description')}
-                  </span>
-                </span>
-                {algorithm === 'elk' && (
-                  <Check size={14} className="mt-1 shrink-0 text-accent-600" aria-hidden />
-                )}
-              </button>
+                  {preset === p && (
+                    <Check size={14} className="mt-1 shrink-0 text-accent-600" aria-hidden />
+                  )}
+                </button>
+              ))}
+              <div className="my-1 border-t border-border" />
+              {canWrite && (
+                <button
+                  type="button"
+                  onClick={reapplyCurrentPreset}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-start text-sm text-ink-700 hover:bg-ink-100"
+                >
+                  {t('layout.reapply')}
+                </button>
+              )}
+              {canWrite && onResetLayout && (
+                <button
+                  type="button"
+                  onClick={() => setResetConfirmOpen(true)}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-start text-sm text-err-700 hover:bg-err-50"
+                >
+                  {t('layout.reset_manual')}
+                </button>
+              )}
               <div className="border-t border-border px-3 py-2 text-xs text-ink-500">
-                {t('layout.algorithm_hint')}
+                {t('layout.preset.hint')}
               </div>
             </div>
           )}
@@ -367,6 +396,23 @@ function GraphPanels({
             onClick={() => rfInstance.fitView({ padding: 0.2 })}
           />
         </Panel>
+      )}
+      {resetConfirmOpen && (
+        <Modal
+          open
+          onClose={() => setResetConfirmOpen(false)}
+          title={t('layout.reset_confirm_title')}
+        >
+          <p className="text-sm text-ink-700">{t('layout.reset_confirm_body')}</p>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setResetConfirmOpen(false)}>
+              {t('layout.reset_cancel')}
+            </Button>
+            <Button variant="danger" size="sm" onClick={confirmResetLayout}>
+              {t('layout.reset_confirm_action')}
+            </Button>
+          </div>
+        </Modal>
       )}
     </>
   );

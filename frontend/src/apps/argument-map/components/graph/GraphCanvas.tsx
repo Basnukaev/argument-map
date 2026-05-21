@@ -37,7 +37,7 @@ import {
   NODE_TYPE_META,
 } from '@/apps/argument-map/utils/edgeRules';
 import { buildFlow, findFreePosition, sameIds } from '@/apps/argument-map/utils/graphPlacement';
-import { apiPatchRaw, ApiError } from '@/shared/api/client';
+import { apiPatchRaw, apiPostRaw, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useT } from '@/shared/i18n';
 import { useThemeStore } from '@/shared/stores/themeStore';
@@ -135,6 +135,20 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
     rfInstanceRef,
     setNodes,
   });
+
+  // Reset ручной раскладки: bulk-clear posX/posY на бэке для всех узлов
+  // темы. После confirm в GraphPanels вызывается этот handler, затем
+  // GraphPanels сам триггерит triggerRelayout(currentPreset) - юзер видит
+  // свежий канонический layout через выбранную форму.
+  const handleResetLayout = useCallback(async () => {
+    try {
+      await apiPostRaw<void>(`/api/v1/topics/${topicId}/reset-layout`, {});
+      toast.success(t('layout.reset_success'));
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(`${t('layout.reset_failed')}: ${msg}`);
+    }
+  }, [topicId, t]);
 
   // Узлы из бэка без posX/posY - dagre проставляет им позиции на фронте,
   // но эти позиции живут только в RF-state. Чтобы layout был стабильным
@@ -688,8 +702,8 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
             topicTitle={graph.topic?.title}
             canWrite={canWrite}
             layoutPending={layoutPending}
-            onApplyElkLayout={() => triggerRelayout('elk')}
-            onApplyDagreLayout={() => triggerRelayout('dagre')}
+            onApplyPreset={(p) => triggerRelayout(p)}
+            onResetLayout={canWrite ? handleResetLayout : undefined}
           />
         </ReactFlow>
       )}

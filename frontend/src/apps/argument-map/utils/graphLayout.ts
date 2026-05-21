@@ -1,7 +1,7 @@
 import dagre from 'dagre';
 import type { NodeCardNode } from '@/apps/argument-map/components/graph/NodeCard';
 import type { CustomEdgeEdge } from '@/apps/argument-map/components/graph/CustomEdge';
-import type { LayoutAlgorithm } from '@/shared/stores/layoutAlgorithmStore';
+import type { LayoutPreset } from '@/apps/argument-map/utils/elkLayout';
 
 const NODE_WIDTH = 288;
 const NODE_HEIGHT = 140;
@@ -107,35 +107,24 @@ export function layoutGraph(
 }
 
 /**
- * Async-вариант с переключателем алгоритма. Для `dagre` - синхронно
- * (см. `layoutGraph`) обёрнуто в Promise. Для `elk` - lazy-import
- * (bundle splitting: elkjs ~200KB не попадает в initial chunk) и
- * перезаписывает позиции узлов через ORTHOGONAL edge routing.
+ * User-initiated relayout через ELK для выбранного preset'а. Всегда
+ * async (elkjs lazy-import, ~200KB не в initial bundle). Type-aware
+ * layer constraints + ORTHOGONAL routing + BRANDES_KOEPF placement
+ * см. в elkLayout.ts.
  *
- * `previousNodes` имеет смысл только для `dagre` mixed-режима;
- * `elk` пересчитывает весь граф целиком
+ * dagre оставлен только в `layoutGraph` (sync) для initial placement
+ * при первом mount графа без сохранённых posX/posY - там нужен
+ * мгновенный результат, async ELK был бы flash'ем (0,0) → laid-out.
  */
 export async function applyLayout(
   nodes: NodeCardNode[],
   edges: CustomEdgeEdge[],
-  algorithm: LayoutAlgorithm = 'dagre',
-  direction: 'LR' | 'TB' = 'LR',
-  previousNodes: ReadonlyArray<NodeCardNode> = [],
-  forceLayout: boolean = false,
+  preset: LayoutPreset = 'tree-tb',
 ): Promise<NodeCardNode[]> {
   if (nodes.length === 0) return [];
-  if (algorithm === 'elk') {
-    // Lazy import - elkjs ~200KB gzipped; не нагружаем initial bundle
-    // для пользователей которые остаются на dagre (default).
-    // ELK всегда пересчитывает весь граф - forceLayout flag для него
-    // semantic no-op
-    const { applyElkLayout } = await import('./elkLayout');
-    const { nodes: laidOut } = await applyElkLayout(nodes, edges, {
-      direction: direction === 'LR' ? 'RIGHT' : 'DOWN',
-    });
-    return laidOut;
-  }
-  return layoutGraph(nodes, edges, direction, previousNodes, forceLayout);
+  const { applyElkLayout } = await import('./elkLayout');
+  const { nodes: laidOut } = await applyElkLayout(nodes, edges, preset);
+  return laidOut;
 }
 
 function dagreLayout(
