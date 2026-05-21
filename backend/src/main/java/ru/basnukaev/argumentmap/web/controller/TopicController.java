@@ -114,6 +114,20 @@ public class TopicController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Bulk-сброс ручных координат узлов темы. Используется фронтом
+     * когда пользователь хочет вернуться к авто-раскладке (см.
+     * frontend layoutPresetStore + elkLayout). Owner + EDITOR через
+     * assertCanWrite. 204 No Content.
+     */
+    @PostMapping("/{topicId}/reset-layout")
+    public ResponseEntity<Void> resetLayout(@PathVariable UUID topicId,
+                                            @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        topicService.resetLayout(topicId, userId, role);
+        return ResponseEntity.noContent().build();
+    }
+
     @DeleteMapping("/{topicId}")
     public ResponseEntity<Void> delete(@PathVariable UUID topicId, @CurrentUser UUID userId) {
         String role = SecurityContextUtils.currentRoleOrAnonymous();

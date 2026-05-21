@@ -320,6 +320,27 @@ public class TopicService {
     }
 
     /**
+     * Bulk-clear координат узлов темы. Используется фронтом когда
+     * пользователь хочет вернуться к авто-раскладке после ручных
+     * перетаскиваний (preset-based layout system, см. elkLayout.ts).
+     *
+     * <p>Permissions: owner + EDITOR (assertCanWrite — те же что
+     * patchTopic). PUBLIC viewer не может сбросить чужой topic.
+     *
+     * <p>Audit не пишется: позиции — UI affordance, не доменное
+     * изменение (тот же argument что у updatePosition / updateZIndex
+     * в NodeRepository).
+     */
+    @Transactional
+    public void resetLayout(UUID topicId, UUID userId, String role) {
+        if (topicRepository.findById(topicId).isEmpty()) {
+            throw new TopicNotFoundException(topicId);
+        }
+        permissionService.assertCanWrite(topicId, userId, role);
+        nodeRepository.clearPositionsByTopic(topicId);
+    }
+
+    /**
      * Меняет алгоритм пересчёта статусов узлов (ADR-044) - только owner.
      * Side effect: после смены сразу запускается пересчёт всех узлов под
      * новым алгоритмом. Это intentional - переключение значит «применить

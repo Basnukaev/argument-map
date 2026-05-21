@@ -136,6 +136,20 @@ public class NodeRepository {
     }
 
     /**
+     * Bulk-clear координат всех узлов темы. Вызывается из reset-layout
+     * endpoint — пользователь хочет вернуться к авто-раскладке после
+     * ручных перетаскиваний. Возвращает количество затронутых строк.
+     * NULL posX/posY означает «свежий узел, layout-алгоритм фронта
+     * проставит позицию» (см. graphPlacement.ts noneSaved branch).
+     */
+    public int clearPositionsByTopic(UUID topicId) {
+        return jdbcTemplate.update(
+                "UPDATE nodes SET pos_x = NULL, pos_y = NULL WHERE topic_id = ?",
+                topicId
+        );
+    }
+
+    /**
      * Обновление stacking order (z_index) узла на канвасе. По аналогии с
      * updatePosition - не пишет revision, не меняет updatedAt: z-order это
      * UI affordance, не доменное изменение содержимого. Возвращает true
