@@ -25,6 +25,7 @@ import CompactMiniMap from '@/apps/argument-map/components/graph/CompactMiniMap'
 import GraphPanels from '@/apps/argument-map/components/graph/GraphPanels';
 import FloatingActionBar from '@/apps/argument-map/components/graph/FloatingActionBar';
 import { useGraphEscape } from '@/apps/argument-map/hooks/useGraphEscape';
+import { useIsMobile } from '@/shared/hooks/useViewport';
 import { useGraphZOrder } from '@/apps/argument-map/hooks/useGraphZOrder';
 import { useAutoLayout } from '@/apps/argument-map/hooks/useAutoLayout';
 import { useNodeDelete } from '@/apps/argument-map/hooks/useNodeDelete';
@@ -685,6 +686,13 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
   }, [initial.nodes, initial.edges, setNodes, setEdges]);
 
   const isEmpty = initial.nodes.length === 0;
+  const isMobile = useIsMobile();
+  // Когда NodeDetailsPanel или EdgeDetailsPanel открыт справа (400px,
+  // только desktop) - сжимаем graph canvas через padding-right на
+  // wrapper'е. ReactFlow Panel'ы (zoom controls top-center)
+  // автоматически центрируются по оставшейся ширине.
+  // FloatingActionBar fixed - получает offsetEndPx prop отдельно.
+  const detailOpen = (detailNodeId !== null || detailEdgeId !== null) && !isMobile;
 
   return (
     <>
@@ -696,6 +704,9 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
           )}
         </div>
       ) : (
+        <div
+          className={`h-full w-full transition-[padding] duration-200 ${detailOpen ? 'pe-[400px]' : ''}`}
+        >
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -748,6 +759,7 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
             onResetLayout={canWrite ? handleResetLayout : undefined}
           />
         </ReactFlow>
+        </div>
       )}
 
       <AddNodeModal
@@ -815,6 +827,7 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
         edgeCount={selectedEdgeIds.length}
         canWrite={canWrite}
         busy={deleting || bulkBusy}
+        offsetEndPx={detailOpen ? 400 : 0}
         onDelete={() => void handleDelete()}
         onChangeStatus={(status) => void runBulkStatusChange(selectedNodeIds, status)}
         onClear={clearSelection}

@@ -31,6 +31,11 @@ interface Props {
   onClear: () => void;
   /** Заблокировать кнопки на время bulk-операции */
   busy?: boolean;
+  /** Сдвиг от правого края viewport в пикселях. Используется когда
+   * NodeDetailsPanel/EdgeDetailsPanel открыт справа (400px) - бар
+   * центрируется в оставшейся видимой области, не уезжает под
+   * sidebar. На mobile sidebar fullscreen, offset=0. */
+  offsetEndPx?: number;
 }
 
 const STATUS_OPTIONS: BulkStatus[] = ['STANDING', 'DISPUTED', 'REFUTED'];
@@ -43,6 +48,7 @@ function FloatingActionBar({
   onChangeStatus,
   onClear,
   busy = false,
+  offsetEndPx = 0,
 }: Props) {
   const t = useT();
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
@@ -75,11 +81,24 @@ function FloatingActionBar({
     onChangeStatus(status);
   }
 
+  // offsetEndPx сдвигает баР в сторону start (логически "влево" в LTR,
+  // "вправо" в RTL) на половину sidebar width - тогда center bar'а
+  // совпадает с center видимой canvas (между left edge и open
+  // sidebar'ом справа). Через CSS transform + calc.
+  const transform =
+    offsetEndPx > 0
+      ? `translate(calc(-50% - ${offsetEndPx / 2}px), 0)`
+      : 'translate(-50%, 0)';
   return (
     <div
       role="toolbar"
       aria-label={t('bulk_actions.bar.counter').replace('{count}', String(nodeCount))}
-      className="pointer-events-auto fixed bottom-20 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-lg bg-ink-900 px-2 py-1.5 text-ink-0 shadow-sh3 pb-[max(0.375rem,env(safe-area-inset-bottom))]"
+      // bg-accent-800: navy stable в обеих темах (accent палитра не
+      // swap'ится в dark mode, в отличие от ink-900 которая в тёмной
+      // теме становилась почти белой). text-ink-0 - always white.
+      // Сочетание даёт высокий контраст + identity цвет проекта.
+      className="pointer-events-auto fixed bottom-20 left-1/2 z-40 flex items-center gap-2 rounded-lg border border-accent-900/40 bg-accent-800 px-2 py-1.5 text-ink-0 shadow-sh3 pb-[max(0.375rem,env(safe-area-inset-bottom))] transition-transform duration-200"
+      style={{ transform }}
     >
       <div className="inline-flex items-center gap-1.5 px-2.5 text-xs">
         <MousePointer2 size={13} aria-hidden />

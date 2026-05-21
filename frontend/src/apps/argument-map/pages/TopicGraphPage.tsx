@@ -118,24 +118,31 @@ function TopicGraphPage() {
           {t('graph.back_to_list')}
         </Link>
         <span className="text-ink-300">/</span>
-        {/* font-arabic для arabic titles - top bar compact, font-serif
-            тут не подходит (смешает functional/editorial registers).
-            hasArabicScript detect по unicode range вместо локали интерфейса */}
-        <h1
-          dir="auto"
-          className={`truncate text-sm font-semibold text-ink-900 ${hasArabicScript(topicTitle) ? 'font-arabic' : ''}`}
-          title={topicDescription || topicTitle}
-        >
-          {topicTitle}
-        </h1>
-        {topicDescription && (
-          <p
+        {/* Title + description выравниваются по baseline между собой -
+            два text-* разных размеров (sm vs xs) на items-center
+            разъезжаются по вертикали (web-design feedback). Обёрнуто
+            в свой flex чтобы не задеть позиционирование Link/badges
+            справа (для них items-center правильнее). */}
+        <div className="flex min-w-0 flex-1 items-baseline gap-3">
+          {/* font-arabic для arabic titles - top bar compact, font-serif
+              тут не подходит (смешает functional/editorial registers).
+              hasArabicScript detect по unicode range вместо локали интерфейса */}
+          <h1
             dir="auto"
-            className={`hidden truncate text-xs text-ink-500 md:block ${hasArabicScript(topicDescription) ? 'font-arabic' : ''}`}
+            className={`truncate text-sm font-semibold text-ink-900 ${hasArabicScript(topicTitle) ? 'font-arabic' : ''}`}
+            title={topicDescription || topicTitle}
           >
-            {topicDescription}
-          </p>
-        )}
+            {topicTitle}
+          </h1>
+          {topicDescription && (
+            <p
+              dir="auto"
+              className={`hidden truncate text-xs text-ink-500 md:block ${hasArabicScript(topicDescription) ? 'font-arabic' : ''}`}
+            >
+              {topicDescription}
+            </p>
+          )}
+        </div>
         {state.kind === 'success' && (
           <div className="ms-auto flex items-center gap-2">
             {!canWriteOptimistic && (

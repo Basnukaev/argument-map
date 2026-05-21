@@ -409,7 +409,7 @@ function GraphPanels({
 
       {rfInstance && (
         <Panel
-          position="bottom-center"
+          position="top-center"
           className="!m-3 flex items-center gap-0.5 rounded-md border border-border bg-elevated/95 p-1 shadow-md backdrop-blur"
         >
           <IconButton
