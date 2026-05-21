@@ -100,10 +100,18 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
   const lastNodesRef = useRef<NodeCardNode[]>([]);
 
   // Чтение ref'а в useMemo - сознательно: нужен последний snapshot
-  // позиций для passive layout-hint, не для реактивности
+  // позиций для passive layout-hint, не для реактивности.
+  //
+  // showEdgeLabels НЕ в deps намеренно: toggle labels не должен
+  // ре-инициализировать весь граф (раньше так и было - useEffect ниже
+  // через setNodes/setEdges(initial) откатывал любые relayout-позиции
+  // и drag-by-user. «Ломает граф» баг). Labels обновляются точечно
+  // через отдельный useEffect (см. ниже), который меняет только
+  // edge.data.showLabel в state.
   const initial = useMemo(
     () => buildFlow(graph, showEdgeLabels, lastNodesRef.current),
-    [graph, showEdgeLabels],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [graph],
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState<NodeCardNode>(initial.nodes);
@@ -112,6 +120,18 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
   useEffect(() => {
     lastNodesRef.current = nodes;
   }, [nodes]);
+
+  // Toggle «Скрыть/Показать подписи» - точечный sync на edge.data.showLabel
+  // без re-mount всего графа. Раньше toggle ре-инициализировал initial
+  // через useMemo deps, что сбрасывало позиции после relayout и drag.
+  useEffect(() => {
+    setEdges((eds) =>
+      eds.map((e) => ({
+        ...e,
+        data: e.data ? { ...e.data, showLabel: showEdgeLabels } : e.data,
+      })),
+    );
+  }, [showEdgeLabels, setEdges]);
 
   // edges ref - чтобы triggerRelayout (useCallback с минимальным deps)
   // читал свежие edges без пере-создания на каждый edge-change
