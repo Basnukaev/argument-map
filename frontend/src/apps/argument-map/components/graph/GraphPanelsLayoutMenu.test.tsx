@@ -81,4 +81,18 @@ describe('GraphPanels - layout algorithm menu', () => {
     expect(onApplyElkLayout).not.toHaveBeenCalled();
     expect(useLayoutAlgorithmStore.getState().algorithm).toBe('dagre');
   });
+
+  it('клик на "Стандартный" из elk - меняет store и вызывает onApplyDagreLayout', async () => {
+    useLayoutAlgorithmStore.setState({ algorithm: 'elk' });
+    const onApplyDagreLayout = vi.fn();
+    const onApplyElkLayout = vi.fn();
+    renderPanels({ onApplyDagreLayout, onApplyElkLayout });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Алгоритм раскладки' }));
+    await userEvent.click(screen.getByRole('menuitemradio', { name: /Стандартный/ }));
+
+    expect(useLayoutAlgorithmStore.getState().algorithm).toBe('dagre');
+    expect(onApplyDagreLayout).toHaveBeenCalledTimes(1);
+    expect(onApplyElkLayout).not.toHaveBeenCalled();
+  });
 });
