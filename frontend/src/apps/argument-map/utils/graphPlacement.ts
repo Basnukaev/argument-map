@@ -185,12 +185,16 @@ export function buildFlow(
     if (n.data.nodeType) nodeTypeById.set(n.id, n.data.nodeType);
   }
 
-  // Vision 49d Section 1.6: auto-distribute edges по handles когда
-  // sourceHandle/targetHandle не заданы. Без этого все edges идут с
-  // центра узла (RF default) и при 4+ edges из одного узла - merge в
-  // одну точку. Pick side по relative angle между source и target.
+  // КРИТИЧЕСКИ: layoutGraph должен запуститься ДО построения edges,
+  // потому что pickSourceHandle делает дистанцию dx/dy по реальным
+  // позициям узлов. Если читать сырые position={x:0,y:0} (строка
+  // ~174 — placeholder до layout), все edges получают один handle
+  // (для (0,0)→(0,0) → dy=0 → return 'top'/'bottom') и сходятся
+  // в одной точке. Поэтому: layout сначала, edges с handles потом.
+  const laidOutNodes = layoutGraph(rawNodes, [], 'LR', previousNodes);
+
   const nodePosById = new Map<string, { x: number; y: number }>();
-  for (const n of rawNodes) {
+  for (const n of laidOutNodes) {
     nodePosById.set(n.id, n.position);
   }
 
@@ -259,5 +263,5 @@ export function buildFlow(
       };
     });
 
-  return { nodes: layoutGraph(rawNodes, rawEdges, 'LR', previousNodes), edges: rawEdges };
+  return { nodes: laidOutNodes, edges: rawEdges };
 }
