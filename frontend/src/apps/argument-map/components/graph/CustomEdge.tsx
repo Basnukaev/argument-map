@@ -1,10 +1,11 @@
 import { memo } from 'react';
-import { BaseEdge, EdgeLabelRenderer, getBezierPath } from '@xyflow/react';
+import { BaseEdge, EdgeLabelRenderer, getBezierPath, getSmoothStepPath } from '@xyflow/react';
 import type { EdgeProps, Edge } from '@xyflow/react';
 import { getContextualEdgeLabelKey, EDGE_TYPE_META } from '@/apps/argument-map/utils/edgeRules';
 import { useT } from '@/shared/i18n';
 import type { EdgeType, NodeType } from '@/apps/argument-map/utils/edgeRules';
 import { EDGE_TYPE_TOKENS } from '@/shared/utils/designTokens';
+import { useLayoutPresetStore } from '@/shared/stores/layoutPresetStore';
 
 export type CustomEdgeData = {
   edgeType: EdgeType;
@@ -50,15 +51,35 @@ function CustomEdge(props: EdgeProps<CustomEdgeEdge>) {
   // через data — не нужен useEdges() в каждом компоненте (O(E²) per rerender)
   const curvature = data?.curvature ?? 0.25;
 
-  const [edgePath, labelX, labelY] = getBezierPath({
-    sourceX,
-    sourceY,
-    sourcePosition,
-    targetX,
-    targetY,
-    targetPosition,
-    curvature,
-  });
+  // Routing зависит от preset: для tree-* (Sugiyama-layered с ELK
+  // ORTHOGONAL) канонично рисовать рёбра smoothstep'ом со скруглёнными
+  // углами 12px - это match'ит ортогональный routing layout-движка
+  // и убирает диагональные bezier-кривые «через весь экран» (web Claude
+  // claim в скринах). Для radial preset bezier выглядит органичнее
+  // (дуги от центра к периферии).
+  const preset = useLayoutPresetStore((s) => s.preset);
+  const useOrthogonal = preset === 'tree-tb' || preset === 'tree-lr';
+
+  const [edgePath, labelX, labelY] = useOrthogonal
+    ? getSmoothStepPath({
+        sourceX,
+        sourceY,
+        sourcePosition,
+        targetX,
+        targetY,
+        targetPosition,
+        borderRadius: 12,
+        offset: 20,
+      })
+    : getBezierPath({
+        sourceX,
+        sourceY,
+        sourcePosition,
+        targetX,
+        targetY,
+        targetPosition,
+        curvature,
+      });
 
   return (
     <>
