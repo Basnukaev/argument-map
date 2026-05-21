@@ -107,24 +107,40 @@ export function layoutGraph(
 }
 
 /**
- * User-initiated relayout через ELK для выбранного preset'а. Всегда
- * async (elkjs lazy-import, ~200KB не в initial bundle). Type-aware
- * layer constraints + ORTHOGONAL routing + BRANDES_KOEPF placement
- * см. в elkLayout.ts.
+ * User-initiated relayout для выбранного preset'а.
  *
- * dagre оставлен только в `layoutGraph` (sync) для initial placement
- * при первом mount графа без сохранённых posX/posY - там нужен
- * мгновенный результат, async ELK был бы flash'ем (0,0) → laid-out.
+ * - `tree-tb` / `tree-lr` → ELK layered (Sugiyama + BRANDES_KOEPF +
+ *   ORTHOGONAL). ELK даёт bend points через edge.sections - сохраняются
+ *   на edge.data.bendPoints для precise rendering в CustomEdge.
+ * - `radial` → d3-hierarchy с polar interpretation. ELK radial не
+ *   справляется с прямоугольными узлами 288×140+, заменён на d3-tree
+ *   (canonical industry pattern, Observable / d3-flare).
+ *
+ * Возвращает кортеж: новые узлы (с обновлёнными positions) и
+ * **обновлённые edges** с bend points в data (для tree-presets) либо
+ * cleared bendPoints (для radial - там bezier рендеринг через handles).
  */
+export interface LayoutResult {
+  nodes: NodeCardNode[];
+  edges: CustomEdgeEdge[];
+}
+
 export async function applyLayout(
   nodes: NodeCardNode[],
   edges: CustomEdgeEdge[],
   preset: LayoutPreset = 'tree-tb',
-): Promise<NodeCardNode[]> {
-  if (nodes.length === 0) return [];
+): Promise<LayoutResult> {
+  if (nodes.length === 0) return { nodes: [], edges };
+  if (preset === 'radial') {
+    const { applyRadialLayout } = await import('./radialLayout');
+    return {
+      nodes: applyRadialLayout(nodes, edges),
+      // radial рисуется bezier'ом - bend points очищаем
+      edges: edges.map((e) => ({ ...e, data: e.data ? { ...e.data, bendPoints: undefined } : e.data })),
+    };
+  }
   const { applyElkLayout } = await import('./elkLayout');
-  const { nodes: laidOut } = await applyElkLayout(nodes, edges, preset);
-  return laidOut;
+  return applyElkLayout(nodes, edges, preset);
 }
 
 function dagreLayout(

@@ -204,6 +204,23 @@ export async function applyElkLayout(
     positionById.set(child.id, { x: child.x ?? 0, y: child.y ?? 0 });
   }
 
+  // Извлекаем bend points из результата ELK. edge.sections даёт
+  // координаты startPoint + bendPoints[] + endPoint для каждого
+  // ортогонального ребра. Эти точки описывают точный path который
+  // ELK *задумал* при routing - используются в CustomEdge для
+  // precise SVG rendering (вместо геометрической аппроксимации
+  // через getSmoothStepPath от handles).
+  const bendsByEdgeId = new Map<string, Array<{ x: number; y: number }>>();
+  for (const elkEdge of result.edges ?? []) {
+    const sections = elkEdge.sections ?? [];
+    const first = sections[0];
+    if (!first) continue;
+    const bends = (first.bendPoints ?? []).map((p) => ({ x: p.x, y: p.y }));
+    if (bends.length > 0) {
+      bendsByEdgeId.set(elkEdge.id, bends);
+    }
+  }
+
   return {
     nodes: nodes.map((n) => {
       const pos = positionById.get(n.id);
@@ -211,6 +228,14 @@ export async function applyElkLayout(
       // координат - оставляем существующие, чтобы узел не прыгнул в (0,0)
       return pos ? { ...n, position: pos } : n;
     }),
-    edges,
+    edges: edges.map((e) => {
+      const bends = bendsByEdgeId.get(e.id);
+      return {
+        ...e,
+        data: e.data
+          ? { ...e.data, bendPoints: bends }
+          : (bends ? { bendPoints: bends } : e.data) as typeof e.data,
+      };
+    }),
   };
 }

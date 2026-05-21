@@ -6,6 +6,10 @@ import { useT } from '@/shared/i18n';
 import type { EdgeType, NodeType } from '@/apps/argument-map/utils/edgeRules';
 import { EDGE_TYPE_TOKENS } from '@/shared/utils/designTokens';
 import { useLayoutPresetStore } from '@/shared/stores/layoutPresetStore';
+import {
+  buildRoundedOrthogonalPath,
+  pickLabelPosition,
+} from '@/apps/argument-map/utils/orthogonalPath';
 
 export type CustomEdgeData = {
   edgeType: EdgeType;
@@ -20,6 +24,14 @@ export type CustomEdgeData = {
    * Default 0.25 (стандартная кривизна RF).
    */
   curvature?: number;
+  /**
+   * Bend points из ELK layout - координаты изломов ортогонального
+   * пути в системе React Flow. Заполнено для tree-presets после
+   * `applyLayout`, undefined для radial. CustomEdge использует их
+   * для precise rendering вместо геометрической smoothstep
+   * аппроксимации - точно match'ит layout движок.
+   */
+  bendPoints?: Array<{ x: number; y: number }>;
 };
 
 export type CustomEdgeEdge = Edge<CustomEdgeData, 'argumentEdge'>;
@@ -51,35 +63,60 @@ function CustomEdge(props: EdgeProps<CustomEdgeEdge>) {
   // через data — не нужен useEdges() в каждом компоненте (O(E²) per rerender)
   const curvature = data?.curvature ?? 0.25;
 
-  // Routing зависит от preset: для tree-* (Sugiyama-layered с ELK
-  // ORTHOGONAL) канонично рисовать рёбра smoothstep'ом со скруглёнными
-  // углами 12px - это match'ит ортогональный routing layout-движка
-  // и убирает диагональные bezier-кривые «через весь экран» (web Claude
-  // claim в скринах). Для radial preset bezier выглядит органичнее
-  // (дуги от центра к периферии).
+  // Routing зависит от preset + наличия bend points из layout:
+  //
+  // 1) tree-* + есть bendPoints (от ELK ORTHOGONAL) → строим path
+  //    строго по этим точкам со скруглёнными углами 12px. Это match'ит
+  //    точный routing алгоритма - в т.ч. правильные обходы вокруг
+  //    соседних узлов, без диагональных bezier «через весь экран».
+  //
+  // 2) tree-* без bendPoints (initial render до relayout) → fallback
+  //    на getSmoothStepPath — геометрическая аппроксимация. Хуже но
+  //    приемлемо для коротких рёбер.
+  //
+  // 3) radial → bezier с curvature. Дуги от центра к периферии
+  //    смотрятся естественнее ортогональных углов на радиальной
+  //    раскладке.
   const preset = useLayoutPresetStore((s) => s.preset);
   const useOrthogonal = preset === 'tree-tb' || preset === 'tree-lr';
+  const bendPoints = data?.bendPoints;
 
-  const [edgePath, labelX, labelY] = useOrthogonal
-    ? getSmoothStepPath({
-        sourceX,
-        sourceY,
-        sourcePosition,
-        targetX,
-        targetY,
-        targetPosition,
-        borderRadius: 12,
-        offset: 20,
-      })
-    : getBezierPath({
-        sourceX,
-        sourceY,
-        sourcePosition,
-        targetX,
-        targetY,
-        targetPosition,
-        curvature,
-      });
+  let edgePath: string;
+  let labelX: number;
+  let labelY: number;
+
+  if (useOrthogonal && bendPoints && bendPoints.length > 0) {
+    const points = [
+      { x: sourceX, y: sourceY },
+      ...bendPoints,
+      { x: targetX, y: targetY },
+    ];
+    edgePath = buildRoundedOrthogonalPath(points, 12);
+    const labelPos = pickLabelPosition(points);
+    labelX = labelPos.x;
+    labelY = labelPos.y;
+  } else if (useOrthogonal) {
+    [edgePath, labelX, labelY] = getSmoothStepPath({
+      sourceX,
+      sourceY,
+      sourcePosition,
+      targetX,
+      targetY,
+      targetPosition,
+      borderRadius: 12,
+      offset: 20,
+    });
+  } else {
+    [edgePath, labelX, labelY] = getBezierPath({
+      sourceX,
+      sourceY,
+      sourcePosition,
+      targetX,
+      targetY,
+      targetPosition,
+      curvature,
+    });
+  }
 
   return (
     <>

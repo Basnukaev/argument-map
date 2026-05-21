@@ -58,26 +58,36 @@ export function useAutoLayout({
       setLayoutPending(true);
       try {
         const currentNodes = lastNodesRef.current;
-        const laidOut = await applyLayout(currentNodes, edgesRef.current, preset);
-        setNodes(laidOut);
+        const result = await applyLayout(currentNodes, edgesRef.current, preset);
+        setNodes(result.nodes);
 
-        // Recompute edge handles по новым positions. Без этого рёбра
-        // рисуются bezier'ом через старые (placeholder либо dagre-mount)
-        // handles → новые позиции и петлёй уходят за viewport. Особенно
-        // заметно на radial-preset (см. был radial.png).
-        const posById = new Map(laidOut.map((n) => [n.id, n.position]));
+        // Recompute edge handles по новым positions + накатываем bend
+        // points из layout-результата (для tree-presets ELK даёт bends,
+        // для radial они undefined → CustomEdge fallback'нется на bezier).
+        // Без recompute handles рёбра bezier'ятся через старые handles
+        // → новые позиции и петлями уходят за viewport.
+        const posById = new Map(result.nodes.map((n) => [n.id, n.position]));
+        const bendsById = new Map(
+          result.edges.map((e) => [e.id, e.data?.bendPoints]),
+        );
         setEdges((prev) =>
           prev.map((e) => {
             const { source, target } = pickHandlesByPosition(
               posById.get(e.source),
               posById.get(e.target),
             );
-            return { ...e, sourceHandle: source, targetHandle: target };
+            const bendPoints = bendsById.get(e.id);
+            return {
+              ...e,
+              sourceHandle: source,
+              targetHandle: target,
+              data: e.data ? { ...e.data, bendPoints } : e.data,
+            };
           }),
         );
 
         const results = await Promise.allSettled(
-          laidOut.map((n) =>
+          result.nodes.map((n) =>
             apiPatchRaw(`/api/v1/nodes/${n.id}`, {
               posX: n.position.x,
               posY: n.position.y,

@@ -77,10 +77,15 @@ describe('applyElkLayout', () => {
     expect(nodes[0]!.type).toBe('argumentNode');
   });
 
-  it('возвращает рёбра без изменений (мы только пересчитываем позиции узлов)', async () => {
+  it('возвращает рёбра с теми же id (positions считаются для node, bendPoints для edges)', async () => {
     const inputNodes = [makeNode('a'), makeNode('b')];
     const inputEdges = [makeEdge('e1', 'a', 'b')];
     const { edges } = await applyElkLayout(inputNodes, inputEdges);
-    expect(edges).toBe(inputEdges);
+    expect(edges).toHaveLength(1);
+    expect(edges[0]!.id).toBe('e1');
+    expect(edges[0]!.source).toBe('a');
+    expect(edges[0]!.target).toBe('b');
+    // Mock ELK не возвращает sections → bendPoints отсутствует (undefined)
+    expect(edges[0]!.data?.bendPoints).toBeUndefined();
   });
 });

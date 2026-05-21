@@ -134,33 +134,36 @@ describe('applyLayout (preset)', () => {
     const nodes = [makeNode('a'), makeNode('b')];
     const edges = [makeEdge('e', 'a', 'b')];
     const result = await applyLayout(nodes, edges, 'tree-tb');
-    expect(result).toHaveLength(2);
-    expect(result[0]!.position).toEqual({ x: 999, y: 888 });
-    expect(result[1]!.position).toEqual({ x: 1000, y: 889 });
+    expect(result.nodes).toHaveLength(2);
+    expect(result.nodes[0]!.position).toEqual({ x: 999, y: 888 });
+    expect(result.nodes[1]!.position).toEqual({ x: 1000, y: 889 });
   });
 
   it('preset=tree-lr - тот же layered ELK, но direction RIGHT', async () => {
     const nodes = [makeNode('a'), makeNode('b')];
     const result = await applyLayout(nodes, [], 'tree-lr');
-    expect(result).toHaveLength(2);
-    expect(result[0]!.position).toEqual({ x: 999, y: 888 });
+    expect(result.nodes).toHaveLength(2);
+    expect(result.nodes[0]!.position).toEqual({ x: 999, y: 888 });
   });
 
-  it('preset=radial - радиальный алгоритм', async () => {
+  it('preset=radial - d3-hierarchy radial layout', async () => {
     const nodes = [makeNode('a'), makeNode('b'), makeNode('c')];
-    const result = await applyLayout(nodes, [], 'radial');
-    expect(result).toHaveLength(3);
+    const edges = [makeEdge('e1', 'a', 'b'), makeEdge('e2', 'a', 'c')];
+    const result = await applyLayout(nodes, edges, 'radial');
+    expect(result.nodes).toHaveLength(3);
+    // root (первый узел при absence QUESTION) в (-w/2, -h/2)
+    expect(result.nodes[0]!.position).toBeDefined();
   });
 
-  it('пустой граф - возвращает пустой массив для любого preset', async () => {
-    expect(await applyLayout([], [], 'tree-tb')).toEqual([]);
-    expect(await applyLayout([], [], 'tree-lr')).toEqual([]);
-    expect(await applyLayout([], [], 'radial')).toEqual([]);
+  it('пустой граф - возвращает пустые массивы для любого preset', async () => {
+    expect((await applyLayout([], [], 'tree-tb')).nodes).toEqual([]);
+    expect((await applyLayout([], [], 'tree-lr')).nodes).toEqual([]);
+    expect((await applyLayout([], [], 'radial')).nodes).toEqual([]);
   });
 
   it('default preset (без аргумента) - tree-tb', async () => {
     const nodes = [makeNode('a')];
     const result = await applyLayout(nodes, []);
-    expect(result).toHaveLength(1);
+    expect(result.nodes).toHaveLength(1);
   });
 });
