@@ -7,6 +7,7 @@ import { apiPatchRaw } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useT } from '@/shared/i18n';
 import { applyLayout } from '@/apps/argument-map/utils/graphLayout';
+import { pickHandlesByPosition } from '@/apps/argument-map/utils/graphHandles';
 import type { LayoutPreset } from '@/shared/stores/layoutPresetStore';
 
 interface Args {
@@ -14,6 +15,7 @@ interface Args {
   edgesRef: RefObject<CustomEdgeEdge[]>;
   rfInstanceRef: RefObject<ReactFlowInstance<NodeCardNode, CustomEdgeEdge> | null>;
   setNodes: Dispatch<SetStateAction<NodeCardNode[]>>;
+  setEdges: Dispatch<SetStateAction<CustomEdgeEdge[]>>;
 }
 
 interface Result {
@@ -35,6 +37,7 @@ export function useAutoLayout({
   edgesRef,
   rfInstanceRef,
   setNodes,
+  setEdges,
 }: Args): Result {
   const t = useT();
   const [layoutPending, setLayoutPending] = useState(false);
@@ -57,6 +60,22 @@ export function useAutoLayout({
         const currentNodes = lastNodesRef.current;
         const laidOut = await applyLayout(currentNodes, edgesRef.current, preset);
         setNodes(laidOut);
+
+        // Recompute edge handles по новым positions. Без этого рёбра
+        // рисуются bezier'ом через старые (placeholder либо dagre-mount)
+        // handles → новые позиции и петлёй уходят за viewport. Особенно
+        // заметно на radial-preset (см. был radial.png).
+        const posById = new Map(laidOut.map((n) => [n.id, n.position]));
+        setEdges((prev) =>
+          prev.map((e) => {
+            const { source, target } = pickHandlesByPosition(
+              posById.get(e.source),
+              posById.get(e.target),
+            );
+            return { ...e, sourceHandle: source, targetHandle: target };
+          }),
+        );
+
         const results = await Promise.allSettled(
           laidOut.map((n) =>
             apiPatchRaw(`/api/v1/nodes/${n.id}`, {

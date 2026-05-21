@@ -134,6 +134,7 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
     edgesRef,
     rfInstanceRef,
     setNodes,
+    setEdges,
   });
 
   // Reset ручной раскладки: bulk-clear posX/posY на бэке для всех узлов

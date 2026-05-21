@@ -41,17 +41,26 @@ interface ElkPresetConfig {
  * NETWORK_SIMPLEX layering минимизирует общую длину рёбер,
  * LAYER_SWEEP crossing minimization - стандарт для interactive UI.
  * ORTHOGONAL routing рисует edges под 90° (вместо bezier хаоса).
+ *
+ * Spacings подняты до 100/160 (с прежних 80/120) - реальный
+ * EVIDENCE-узел с хадисом ~320×180, фикс наложений на v_tree/g_tree.
+ * unnecessaryBendpoints=true срезает лишние изломы ортогональных
+ * рёбер. portConstraints=FIXED_ORDER сохраняет логический порядок
+ * handles вокруг узла при routing.
  */
 const LAYERED_BASE: Record<string, string> = {
   'elk.algorithm': 'layered',
   'elk.edgeRouting': 'ORTHOGONAL',
-  'elk.spacing.nodeNode': '80',
-  'elk.layered.spacing.nodeNodeBetweenLayers': '120',
-  'elk.layered.spacing.edgeNodeBetweenLayers': '40',
+  'elk.spacing.nodeNode': '100',
+  'elk.layered.spacing.nodeNodeBetweenLayers': '160',
+  'elk.layered.spacing.edgeNodeBetweenLayers': '50',
+  'elk.layered.spacing.edgeEdgeBetweenLayers': '20',
   'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
   'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
   'elk.layered.layering.strategy': 'NETWORK_SIMPLEX',
   'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+  'elk.layered.unnecessaryBendpoints': 'true',
+  'elk.portConstraints': 'FIXED_ORDER',
 };
 
 const PRESET_CONFIG: Record<LayoutPreset, ElkPresetConfig> = {
@@ -67,10 +76,18 @@ const PRESET_CONFIG: Record<LayoutPreset, ElkPresetConfig> = {
   },
   radial: {
     algorithm: 'radial',
+    // Radial: POLYLINE edge routing - ORTHOGONAL давал острые углы
+    // вокруг колец (90° + центральная симметрия = визуальная грязь).
+    // POLYLINE рисует прямые сегменты с плавными перегибами.
+    // centerOnRoot + явный root узел через node.layoutOptions (см.
+    // applyElkLayout) - без этого ELK выбирал random первый узел
+    // как центр и кольца не формировались.
     options: {
       'elk.algorithm': 'radial',
-      'elk.spacing.nodeNode': '100',
+      'elk.edgeRouting': 'POLYLINE',
+      'elk.spacing.nodeNode': '120',
       'elk.radial.compactor': 'RADIAL_COMPACTION',
+      'elk.radial.optimizationCriteria': 'EDGE_LENGTH',
     },
   },
 };
@@ -101,6 +118,38 @@ function layerConstraintFor(node: NodeCardNode): NodeTypeLayerConstraint {
 }
 
 /**
+ * Находит root-узел для radial preset'а - QUESTION без incoming edges
+ * (т.е. на него ничто не отвечает, это «голова» вопроса). Если таких
+ * несколько - берётся первый. Если нет вообще QUESTION'ов - первый
+ * узел графа (degenerate case, edge cases в reasoning без вопросов).
+ */
+function findRadialRoot(nodes: NodeCardNode[], edges: CustomEdgeEdge[]): string {
+  const incoming = new Set<string>();
+  for (const e of edges) {
+    incoming.add(e.target);
+  }
+  const questions = nodes.filter((n) => n.data?.nodeType === 'QUESTION');
+  const questionWithoutIn = questions.find((q) => !incoming.has(q.id));
+  if (questionWithoutIn) return questionWithoutIn.id;
+  if (questions.length > 0 && questions[0]) return questions[0].id;
+  return nodes[0]?.id ?? '';
+}
+
+/**
+ * Возвращает размеры узла. Приоритет: React-Flow measured (реальные
+ * post-mount размеры через `node.measured.width/height`) → fallback
+ * на DEFAULT. Без этого EVIDENCE с длинным хадисом (реально ~320×200)
+ * раскладывался как 288×140 и налегал на соседей (см. v_tree.png).
+ */
+function nodeSize(n: NodeCardNode): { width: number; height: number } {
+  const measured = (n as { measured?: { width?: number; height?: number } }).measured;
+  return {
+    width: measured?.width ?? DEFAULT_NODE_WIDTH,
+    height: measured?.height ?? DEFAULT_NODE_HEIGHT,
+  };
+}
+
+/**
  * Применяет ELK-раскладку для выбранного preset'а. Возвращает узлы с
  * новыми позициями (top-left, как ожидает React Flow). Edges -
  * неизменно, layout считается только под позиции; React Flow + наш
@@ -108,8 +157,8 @@ function layerConstraintFor(node: NodeCardNode): NodeTypeLayerConstraint {
  *
  * Для layered-preset'ов добавляется per-node `layerConstraint` по
  * семантическому типу (QUESTION top / EVIDENCE bottom). Для radial -
- * constraint игнорируется (layers концепции нет, узлы кладутся
- * концентрическими окружностями вокруг root).
+ * constraint игнорируется (layers концепции нет), вместо этого
+ * проставляется явный root через `elk.radial.rootNode` на нужный node.
  */
 export async function applyElkLayout(
   nodes: NodeCardNode[],
@@ -120,20 +169,26 @@ export async function applyElkLayout(
 
   const config = PRESET_CONFIG[preset];
   const isLayered = config.algorithm === 'layered';
+  const radialRootId = !isLayered ? findRadialRoot(nodes, edges) : '';
 
   const elkGraph: ElkNode = {
     id: 'root',
     layoutOptions: config.options,
-    children: nodes.map(
-      (n): ElkNode => ({
-        id: n.id,
-        width: DEFAULT_NODE_WIDTH,
-        height: DEFAULT_NODE_HEIGHT,
-        layoutOptions: isLayered
-          ? { 'elk.layered.layering.layerConstraint': layerConstraintFor(n) }
-          : undefined,
-      }),
-    ),
+    children: nodes.map((n): ElkNode => {
+      const { width, height } = nodeSize(n);
+      let layoutOptions: Record<string, string> | undefined;
+      if (isLayered) {
+        layoutOptions = {
+          'elk.layered.layering.layerConstraint': layerConstraintFor(n),
+        };
+      } else if (n.id === radialRootId) {
+        // ELK radial: указываем root через layoutOptions узла -
+        // алгоритм центрирует именно его, остальные узлы ложатся
+        // концентрическими кольцами по hop-distance от root'а.
+        layoutOptions = { 'elk.radial.rootNode': 'true' };
+      }
+      return { id: n.id, width, height, layoutOptions };
+    }),
     edges: edges.map(
       (e): ElkExtendedEdge => ({
         id: e.id,

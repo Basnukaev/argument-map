@@ -1,6 +1,7 @@
 import { MarkerType } from '@xyflow/react';
 import { EDGE_TYPE_TOKENS } from '@/shared/utils/designTokens';
 import { layoutGraph } from '@/apps/argument-map/utils/graphLayout';
+import { pickHandlesByPosition } from '@/apps/argument-map/utils/graphHandles';
 import type { NodeCardNode } from '@/apps/argument-map/components/graph/NodeCard';
 import type { CustomEdgeEdge } from '@/apps/argument-map/components/graph/CustomEdge';
 import type { components } from '@/shared/api/types';
@@ -198,22 +199,6 @@ export function buildFlow(
     nodePosById.set(n.id, n.position);
   }
 
-  function pickSourceHandle(srcId: string, tgtId: string): 'top' | 'right' | 'bottom' | 'left' {
-    const src = nodePosById.get(srcId);
-    const tgt = nodePosById.get(tgtId);
-    if (!src || !tgt) return 'bottom';
-    const dx = tgt.x - src.x;
-    const dy = tgt.y - src.y;
-    if (Math.abs(dx) > Math.abs(dy)) {
-      return dx > 0 ? 'right' : 'left';
-    }
-    return dy > 0 ? 'bottom' : 'top';
-  }
-
-  function oppositeHandle(h: 'top' | 'right' | 'bottom' | 'left'): 'top' | 'right' | 'bottom' | 'left' {
-    return ({ top: 'bottom', bottom: 'top', left: 'right', right: 'left' } as const)[h];
-  }
-
   // предварительно строим список source/target чтобы вычислить кривизну
   const edgeSrcTarget = (graph.edges ?? [])
     .filter(
@@ -237,8 +222,12 @@ export function buildFlow(
       // (старые edges либо user не выбрал явно), distribute по relative
       // position - source side смотрит в сторону target. User-выбранные
       // handles (created через drag) приоритетнее: e.sourceHandle ?? auto
-      const autoSourceHandle = pickSourceHandle(e.fromNodeId, e.toNodeId);
-      const autoTargetHandle = oppositeHandle(autoSourceHandle);
+      const auto = pickHandlesByPosition(
+        nodePosById.get(e.fromNodeId),
+        nodePosById.get(e.toNodeId),
+      );
+      const autoSourceHandle = auto.source;
+      const autoTargetHandle = auto.target;
       return {
         id: e.id,
         source: e.fromNodeId,
