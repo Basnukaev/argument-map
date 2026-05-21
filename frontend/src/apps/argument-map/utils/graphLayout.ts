@@ -40,7 +40,10 @@ export function layoutGraph(
   // forceLayout=true (вызывается при явном выборе раскладки в меню)
   // игнорирует saved positions и считает dagre с нуля. Без него
   // меню «выбрать алгоритм → dagre» было бы no-op для уже-разложенных
-  // графов (см. PR fix: смена раскладки)
+  // графов (см. PR fix: смена раскладки).
+  //
+  // previousNodes намеренно НЕ передаётся в dagreLayout - user явно
+  // запросил свежий layout, prior-frame стабильность нерелевантна.
   if (forceLayout) {
     return dagreLayout(nodes, edges, direction);
   }
