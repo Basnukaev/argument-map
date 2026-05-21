@@ -61,6 +61,13 @@ interface PdfViewerProps {
    * родителем). Null → page 1.
    */
   initialPrintedPage?: number | null;
+  /**
+   * Прилипает ли pagination toolbar к низу глобального Header'а при
+   * скролле. По умолчанию true — для use-case full-page reader. В
+   * embedded-overlay (bottom-sheet preview) у нас свой header, sticky
+   * пересекается с overlay-структурой — передавать false.
+   */
+  stickyToolbar?: boolean;
 }
 
 type LoadState =
@@ -135,7 +142,7 @@ function findFileIndexForPart(
   return null;
 }
 
-function PdfViewer({ bookId, initialPart, initialPrintedPage }: PdfViewerProps) {
+function PdfViewer({ bookId, initialPart, initialPrintedPage, stickyToolbar = true }: PdfViewerProps) {
   const locale = useLocaleStore((s) => s.locale);
   const t = useT();
   // Toolbar (стрелки, направление flex) - по локали интерфейса
@@ -347,9 +354,20 @@ function PdfViewer({ bookId, initialPart, initialPrintedPage }: PdfViewerProps) 
           Mobile (<sm): два ряда - prev/page/next сверху, zoom+download снизу.
           Desktop: всё в одну строку через justify-between. Flex-wrap +
           явная разбивка через order на mobile через CSS не делает - проще
-          stack groups через `flex-col sm:flex-row` */}
+          stack groups через `flex-col sm:flex-row`
+
+          stickyToolbar=true: прилипает sm:top-12 под глобальным Header
+          (h-12=48px), z-30 ниже Header z-40, тот же elevation pack что
+          у Header (shadow-sh1 + border-strong) - чтобы читалось как
+          continuation navigation chrome. На mobile НЕ sticky -
+          browser address-bar collapsing глючит. В overlay (embedded
+          bottom-sheet) sticky выключен через prop. */}
       <div
-        className="flex flex-col gap-2 border-b border-border bg-elevated px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-4 sm:py-2.5"
+        className={`flex flex-col gap-2 bg-elevated px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-4 sm:py-2.5 ${
+          stickyToolbar
+            ? 'border-b border-border-strong shadow-sh1 sm:sticky sm:top-12 sm:z-30'
+            : 'border-b border-border'
+        }`}
         dir={isRtlUi ? 'rtl' : 'ltr'}
       >
         {/* Row 1 (mobile) / inline (desktop): navigation + page jump */}

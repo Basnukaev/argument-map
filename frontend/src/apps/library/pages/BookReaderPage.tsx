@@ -665,6 +665,7 @@ function BookReaderPage() {
                 bookId={bookId}
                 initialPart={currentPart}
                 initialPrintedPage={currentPrintedPage}
+                stickyToolbar={false}
               />
             </Suspense>
           </div>
