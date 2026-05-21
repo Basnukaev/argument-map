@@ -348,6 +348,26 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
     [rawNodeDtos, onRefetch, setEdges, t],
   );
 
+  // drag-start - очищаем bendPoints на рёбрах связанных с двинутым
+  // узлом. ELK раcсчитал их для конкретной конфигурации позиций; как
+  // только узел поехал - старый ortho path становится «застрявшим»
+  // (наблюдалось на скринах: рёбра отрисовывались между ушедшими
+  // углами). После clear CustomEdge fallback'нется на getSmoothStepPath
+  // (для orthogonal style) или bezier - оба следуют за позицией узла
+  // в реальном времени через handles.
+  const handleNodeDragStart = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      setEdges((eds) =>
+        eds.map((e) => {
+          if (e.source !== node.id && e.target !== node.id) return e;
+          if (!e.data?.bendPoints) return e;
+          return { ...e, data: { ...e.data, bendPoints: undefined } };
+        }),
+      );
+    },
+    [setEdges],
+  );
+
   // drag-end - PATCH с координатами, оптимистично. Ошибка - toast
   const handleNodeDragStop = useCallback(
     (_event: React.MouseEvent, node: Node) => {
@@ -683,6 +703,7 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
           onEdgesChange={onEdgesChange}
           onConnect={handleConnect}
           onReconnect={handleReconnect}
+          onNodeDragStart={handleNodeDragStart}
           onNodeDragStop={handleNodeDragStop}
           onInit={(inst) => {
             setRfInstance(inst);
