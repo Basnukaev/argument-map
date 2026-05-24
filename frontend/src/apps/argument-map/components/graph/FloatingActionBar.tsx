@@ -93,19 +93,21 @@ function FloatingActionBar({
     <div
       role="toolbar"
       aria-label={t('bulk_actions.bar.counter').replace('{count}', String(nodeCount))}
-      // bg-accent-800: navy stable в обеих темах (accent палитра не
-      // swap'ится в dark mode, в отличие от ink-900 которая в тёмной
-      // теме становилась почти белой). text-ink-0 - always white.
-      // Сочетание даёт высокий контраст + identity цвет проекта.
-      className="pointer-events-auto fixed bottom-20 left-1/2 z-40 flex items-center gap-2 rounded-lg border border-accent-900/40 bg-accent-800 px-2 py-1.5 text-ink-0 shadow-sh3 pb-[max(0.375rem,env(safe-area-inset-bottom))] transition-transform duration-200"
+      // bg-elevated + ink + accent palette: то же что у обычных card'ов
+      // в проекте, автоматический контраст в обеих темах через token swap.
+      // border-strong + shadow-sh3 даёт чёткую elevation от canvas.
+      // Раньше использовалось bg-accent-800 - давало проблемы в обеих
+      // темах: в light слишком тёмная плашка для overlay, в dark
+      // визуально близка к background.
+      className="pointer-events-auto fixed bottom-20 left-1/2 z-40 flex items-center gap-2 rounded-lg border border-border-strong bg-elevated px-2 py-1.5 text-ink-900 shadow-sh3 pb-[max(0.375rem,env(safe-area-inset-bottom))] transition-transform duration-200"
       style={{ transform }}
     >
       <div className="inline-flex items-center gap-1.5 px-2.5 text-xs">
-        <MousePointer2 size={13} aria-hidden />
-        <span>
+        <MousePointer2 size={13} className="text-ink-500" aria-hidden />
+        <span className="text-ink-700">
           {counterText.split(/(\d+)/).map((part, i) =>
             /^\d+$/.test(part) ? (
-              <span key={i} className="font-mono font-bold text-accent-500">
+              <span key={i} className="font-mono font-bold text-accent-600">
                 {part}
               </span>
             ) : (
@@ -115,15 +117,15 @@ function FloatingActionBar({
         </span>
       </div>
 
-      <div className="h-5 w-px bg-ink-0/20" aria-hidden />
+      <div className="h-5 w-px bg-border" aria-hidden />
 
       <button
         type="button"
         disabled={busy || nodeCount === 0}
         onClick={onDelete}
-        className="inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-xs font-medium hover:bg-ink-0/10 focus:bg-ink-0/10 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+        className="inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-xs font-medium text-ink-700 hover:bg-ink-100 focus:bg-ink-100 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        <Trash2 size={12} className="text-err-500" aria-hidden />
+        <Trash2 size={12} className="text-err-600" aria-hidden />
         {t('bulk_actions.bar.delete')}
       </button>
 
@@ -135,13 +137,13 @@ function FloatingActionBar({
           aria-haspopup="menu"
           onClick={() => setStatusMenuOpen((v) => !v)}
           className={
-            'inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-xs font-medium hover:bg-ink-0/10 focus:bg-ink-0/10 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ' +
-            (statusMenuOpen ? 'bg-ink-0/10' : '')
+            'inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-xs font-medium text-ink-700 hover:bg-ink-100 focus:bg-ink-100 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ' +
+            (statusMenuOpen ? 'bg-ink-100' : '')
           }
         >
-          <CheckCircle2 size={12} aria-hidden />
+          <CheckCircle2 size={12} className="text-ink-500" aria-hidden />
           {t('bulk_actions.bar.change_status')}
-          <ChevronUp size={11} aria-hidden className={statusMenuOpen ? '' : 'rotate-180'} />
+          <ChevronUp size={11} className="text-ink-500" aria-hidden style={{ transform: statusMenuOpen ? undefined : 'rotate(180deg)' }} />
         </button>
 
         {statusMenuOpen && (
@@ -178,14 +180,14 @@ function FloatingActionBar({
         )}
       </div>
 
-      <div className="h-5 w-px bg-ink-0/20" aria-hidden />
+      <div className="h-5 w-px bg-border" aria-hidden />
 
       <button
         type="button"
         onClick={onClear}
-        className="inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-xs font-medium hover:bg-ink-0/10 focus:bg-ink-0/10 focus:outline-none"
+        className="inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-xs font-medium text-ink-700 hover:bg-ink-100 focus:bg-ink-100 focus:outline-none"
       >
-        <X size={12} aria-hidden />
+        <X size={12} className="text-ink-500" aria-hidden />
         {t('bulk_actions.bar.clear')}
       </button>
     </div>
