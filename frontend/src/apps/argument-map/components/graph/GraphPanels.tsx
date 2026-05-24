@@ -409,8 +409,8 @@ function GraphPanels({
 
       {rfInstance && (
         <Panel
-          position="top-center"
-          className="!m-3 flex items-center gap-0.5 rounded-md border border-border bg-elevated/95 p-1 shadow-md backdrop-blur"
+          position="top-right"
+          className="!m-3 !mt-16 flex items-center gap-0.5 rounded-md border border-border bg-elevated/95 p-1 shadow-md backdrop-blur"
         >
           <IconButton
             icon={ZoomOut}
