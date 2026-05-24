@@ -714,6 +714,10 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
           onEdgesChange={onEdgesChange}
           onConnect={handleConnect}
           onReconnect={handleReconnect}
+          // reconnectRadius (default 10) - радиус snap'а к handle'у
+          // при drag'е endpoint'а. Увеличиваем до 30 чтобы было
+          // forgiving для рёбер слипающихся в одной handle-точке.
+          reconnectRadius={30}
           onNodeDragStart={handleNodeDragStart}
           onNodeDragStop={handleNodeDragStop}
           onInit={(inst) => {

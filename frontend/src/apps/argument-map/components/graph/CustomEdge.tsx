@@ -130,13 +130,44 @@ function CustomEdge(props: EdgeProps<CustomEdgeEdge>) {
       <BaseEdge
         path={edgePath}
         markerEnd={markerEnd}
+        // interactionWidth=24 даёт invisible click-path 24px вокруг
+        // visible линии - сильно облегчает выделение когда несколько
+        // рёбер близко (например все идут к одному handle узла).
+        // Default RF = 20, мы поднимаем до 24 для нашего edge-density.
+        interactionWidth={24}
         style={{
           stroke: token.stroke,
-          strokeWidth: selected ? token.strokeWidth + 1 : token.strokeWidth,
+          // selected: +3px strokeWidth + drop-shadow accent halo -
+          // выделенное ребро визуально отделяется от соседей в пучке,
+          // понятно «вот это активно».
+          strokeWidth: selected ? token.strokeWidth + 3 : token.strokeWidth,
           strokeDasharray: token.strokeDasharray,
           opacity: token.opacity ?? 1,
+          filter: selected ? 'drop-shadow(0 0 4px var(--c-accent-500))' : undefined,
         }}
       />
+      {/* Visible reconnect endpoints при selected - круги на source и
+          target points. Пользователь видит «вот за это можно тянуть»
+          для смены handle. Реальная reconnect-логика - в onReconnect
+          у ReactFlow root (handleReconnect в GraphCanvas). */}
+      {selected && (
+        <>
+          <circle
+            cx={sourceX}
+            cy={sourceY}
+            r={6}
+            className="fill-elevated stroke-accent-600"
+            strokeWidth={2}
+          />
+          <circle
+            cx={targetX}
+            cy={targetY}
+            r={6}
+            className="fill-elevated stroke-accent-600"
+            strokeWidth={2}
+          />
+        </>
+      )}
       <EdgeLabelRenderer>
         <div
           className={`pointer-events-none absolute flex items-center gap-1 rounded-md border bg-elevated px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide shadow-sh2 ${token.badgeBg} ${token.badgeText} ${token.badgeBorder} ${edgeType === 'INVALIDATES' ? 'font-bold' : ''}`}
