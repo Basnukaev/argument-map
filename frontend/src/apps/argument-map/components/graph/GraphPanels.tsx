@@ -15,6 +15,7 @@ import {
   Network,
   Loader2,
   Check,
+  HelpCircle,
 } from 'lucide-react';
 import IconButton from '@/shared/components/ui/IconButton';
 import Button from '@/shared/components/ui/Button';
@@ -63,6 +64,10 @@ interface Props {
    * → SET posX=NULL, posY=NULL для всех узлов темы, после чего
    * onApplyPreset(current preset) применяет свежий layout */
   onResetLayout?: () => void | Promise<void>;
+  /** NodeDetailsPanel или EdgeDetailsPanel открыт справа (desktop, 400px).
+   * Используется для shift'а bottom-right элементов (zoom controls,
+   * MiniMap) чтобы они оставались visible рядом с открытой панелью. */
+  detailOpen?: boolean;
 }
 
 /**
@@ -93,6 +98,7 @@ function GraphPanels({
   layoutPending = false,
   onApplyPreset,
   onResetLayout,
+  detailOpen = false,
 }: Props) {
   const t = useT();
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
@@ -105,6 +111,20 @@ function GraphPanels({
   const edgeStyle = useEdgeStyleStore((s) => s.edgeStyle);
   const setEdgeStyle = useEdgeStyleStore((s) => s.setEdgeStyle);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [hintsOpen, setHintsOpen] = useState(false);
+  const hintsRef = useRef<HTMLDivElement>(null);
+
+  // Dismiss hints popover на клик вне
+  useEffect(() => {
+    if (!hintsOpen) return;
+    function onPointerDown(e: PointerEvent) {
+      if (hintsRef.current && !hintsRef.current.contains(e.target as Node)) {
+        setHintsOpen(false);
+      }
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [hintsOpen]);
 
   // Dismiss popover при клике вне меню и при Escape
   useEffect(() => {
@@ -392,25 +412,48 @@ function GraphPanels({
         )}
       </Panel>
 
-      <Panel
-        position="top-right"
-        className="!m-3 flex items-center gap-3 rounded-md border border-border bg-elevated/95 px-3 py-2 text-xs text-ink-600 shadow-sm backdrop-blur"
-      >
-        <span className="inline-flex items-center gap-1">
-          <Kbd>2x</Kbd> {t('graph.hint_details')}
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <Kbd>Del</Kbd> {t('graph.hint_delete')}
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <Kbd>RMB</Kbd> {t('graph.hint_context_menu')}
-        </span>
+      {/* Hotkey hints компактно под ?-кнопкой: меньше визуального
+         шума на canvas, открывается hover/click. Раньше был развёрнутый
+         hint-bar в top-right — съедал место и был распылён вниманию. */}
+      <Panel position="top-right" className="!m-3">
+        <div ref={hintsRef} className="relative">
+          <IconButton
+            icon={HelpCircle}
+            label={t('graph.hints_label')}
+            size="md"
+            active={hintsOpen}
+            onClick={() => setHintsOpen((v) => !v)}
+          />
+          {hintsOpen && (
+            <div
+              role="dialog"
+              aria-label={t('graph.hints_label')}
+              className="absolute end-0 top-full z-50 mt-1.5 flex min-w-56 flex-col gap-1.5 rounded-md border border-border bg-elevated px-3 py-2 text-xs text-ink-700 shadow-sh3"
+            >
+              <span className="inline-flex items-center gap-2">
+                <Kbd>2x</Kbd> {t('graph.hint_details')}
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <Kbd>Del</Kbd> {t('graph.hint_delete')}
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <Kbd>RMB</Kbd> {t('graph.hint_context_menu')}
+              </span>
+            </div>
+          )}
+        </div>
       </Panel>
 
+      {/* Zoom controls: bottom-right, прибиты НАД MiniMap. MiniMap
+         170px высота + 12px gap → mb-[182px]. При открытом detail
+         panel - shift на ту же 416px как у MiniMap (см. CompactMiniMap)
+         чтобы они двигались парой. */}
       {rfInstance && (
         <Panel
-          position="top-right"
-          className="!m-3 !mt-16 flex items-center gap-0.5 rounded-md border border-border bg-elevated/95 p-1 shadow-md backdrop-blur"
+          position="bottom-right"
+          className={`!mb-[182px] flex items-center gap-0.5 rounded-md border border-border bg-elevated/95 p-1 shadow-md backdrop-blur ${
+            detailOpen ? '!me-[416px]' : '!me-3'
+          }`}
         >
           <IconButton
             icon={ZoomOut}

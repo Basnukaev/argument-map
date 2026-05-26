@@ -99,7 +99,7 @@ function FloatingActionBar({
       // Раньше использовалось bg-accent-800 - давало проблемы в обеих
       // темах: в light слишком тёмная плашка для overlay, в dark
       // визуально близка к background.
-      className="pointer-events-auto fixed bottom-20 left-1/2 z-40 flex items-center gap-2 rounded-lg border border-border-strong bg-elevated px-2 py-1.5 text-ink-900 shadow-sh3 pb-[max(0.375rem,env(safe-area-inset-bottom))] transition-transform duration-200"
+      className="pointer-events-auto fixed bottom-3 left-1/2 z-40 flex items-center gap-2 rounded-lg border border-border-strong bg-elevated px-2 py-1.5 text-ink-900 shadow-sh3 pb-[max(0.375rem,env(safe-area-inset-bottom))] transition-transform duration-200"
       style={{ transform }}
     >
       <div className="inline-flex items-center gap-1.5 px-2.5 text-xs">
