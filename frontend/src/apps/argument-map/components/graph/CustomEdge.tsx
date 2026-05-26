@@ -139,7 +139,7 @@ function CustomEdge(props: EdgeProps<CustomEdgeEdge>) {
         interactionWidth={24}
         style={{
           stroke: token.stroke,
-          strokeWidth: selected ? token.strokeWidth + 1 : token.strokeWidth,
+          strokeWidth: selected ? token.strokeWidth + 2 : token.strokeWidth,
           strokeDasharray: token.strokeDasharray,
           opacity: token.opacity ?? 1,
         }}

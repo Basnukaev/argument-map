@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNodes, useEdges, useStore, useReactFlow } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Maximize2, Minimize2, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+import IconButton from '@/shared/components/ui/IconButton';
 import type { NodeType, EdgeType } from '@/apps/argument-map/utils/edgeRules';
 import { useT } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
@@ -71,7 +72,7 @@ function CompactMiniMap({ detailOpen = false }: MiniMapProps) {
   const [tx, ty, zoom] = useStore((s) => s.transform);
   const canvasW = useStore((s) => s.width);
   const canvasH = useStore((s) => s.height);
-  const { setViewport } = useReactFlow();
+  const { setViewport, zoomIn, zoomOut, fitView } = useReactFlow();
 
   const [expanded, setExpanded] = useState(false);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -150,17 +151,42 @@ function CompactMiniMap({ detailOpen = false }: MiniMapProps) {
       }`}
       style={{ width: W }}
     >
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          setExpanded((v) => !v);
-        }}
-        aria-label={t('graph.minimap')}
-        className="absolute end-1 top-1 z-10 rounded bg-elevated/90 p-1 text-ink-500 shadow-sh1 hover:bg-elevated hover:text-ink-700"
-      >
-        {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-      </button>
+      {/* Zoom toolbar row над SVG: -, +, fit, expand. Прижат к MiniMap
+         как visual cluster - один блок controls graph viewport'а.
+         Раньше zoom-controls жили отдельным Panel'ом с фикс offset'ом
+         mb-[182px] - при expanded MiniMap (336px высота) контролы
+         скрывались за ним. В composite-блоке этой проблемы нет:
+         row всегда сверху SVG и масштабируется с ним. */}
+      <div className="flex items-center justify-end gap-0.5 border-b border-border bg-elevated px-1 py-1">
+        <IconButton
+          icon={ZoomOut}
+          label={t('graph.zoom_out')}
+          size="sm"
+          onClick={() => zoomOut()}
+        />
+        <IconButton
+          icon={ZoomIn}
+          label={t('graph.zoom_in')}
+          size="sm"
+          onClick={() => zoomIn()}
+        />
+        <IconButton
+          icon={Maximize}
+          label={t('graph.fit_by_size')}
+          size="sm"
+          onClick={() => fitView({ padding: 0.2 })}
+        />
+        <div className="mx-0.5 h-5 w-px bg-ink-200" />
+        <IconButton
+          icon={expanded ? Minimize2 : Maximize2}
+          label={t('graph.minimap')}
+          size="sm"
+          onClick={(e: React.MouseEvent) => {
+            e.stopPropagation();
+            setExpanded((v) => !v);
+          }}
+        />
+      </div>
       <svg
         ref={svgRef}
         width={W}

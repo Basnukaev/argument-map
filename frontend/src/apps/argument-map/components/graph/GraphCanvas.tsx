@@ -601,22 +601,6 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
     [],
   );
 
-  // Boost zIndex выделенных узлов чтобы они оказывались СВЕРХУ
-  // overlapped кластера - тогда drag захватывает именно selected
-  // (а не «верхний» под cursor'ом). ReactFlow drag начинается с того
-  // что под cursor; если selected узел спрятан под другим, drag
-  // достанет не его. Поднимаем selected на zIndex=1000 (заведомо
-  // выше persisted z_index из БД, который обычно 0).
-  useEffect(() => {
-    setNodes((prev) =>
-      prev.map((n) => {
-        const isSel = selectedNodeIds.includes(n.id);
-        const baseZ = n.data?.zIndex ?? 0;
-        const targetZ = isSel ? 1000 : baseZ;
-        return n.zIndex === targetZ ? n : { ...n, zIndex: targetZ };
-      }),
-    );
-  }, [selectedNodeIds, setNodes]);
   const canAddEdge = rawNodeDtos.length >= 2;
   const selectedCount = selectedNodeIds.length + selectedEdgeIds.length;
 
@@ -756,8 +740,14 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
           fitView
           minZoom={0.2}
           maxZoom={1.5}
-          elevateNodesOnSelect={false}
-          elevateEdgesOnSelect={false}
+          // elevateNodesOnSelect=true: selected node автоматически
+          // получает максимальный z-index в RF stack - drag в overlap'е
+          // захватывает именно его. Раньше было false (sticky stacking
+          // через persisted z_index из БД), но это создавало баг:
+          // user'у нужно перетащить selected узел который спрятан под
+          // другим, drag брал «верхний». Возвращаемся к RF дефолту.
+          elevateNodesOnSelect
+          elevateEdgesOnSelect
           colorMode={effectiveTheme}
           proOptions={{ hideAttribution: true }}
         >

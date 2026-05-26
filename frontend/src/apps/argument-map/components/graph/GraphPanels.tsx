@@ -6,9 +6,6 @@ import {
   Eye,
   EyeOff,
   Link2,
-  ZoomIn,
-  ZoomOut,
-  Maximize,
   Download,
   FileImage,
   FileCode,
@@ -98,7 +95,6 @@ function GraphPanels({
   layoutPending = false,
   onApplyPreset,
   onResetLayout,
-  detailOpen = false,
 }: Props) {
   const t = useT();
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
@@ -444,38 +440,10 @@ function GraphPanels({
         </div>
       </Panel>
 
-      {/* Zoom controls: bottom-right, прибиты НАД MiniMap. MiniMap
-         170px высота + 12px gap → mb-[182px]. При открытом detail
-         panel - shift на ту же 416px как у MiniMap (см. CompactMiniMap)
-         чтобы они двигались парой. */}
-      {rfInstance && (
-        <Panel
-          position="bottom-right"
-          className={`!mb-[182px] flex items-center gap-0.5 rounded-md border border-border bg-elevated/95 p-1 shadow-md backdrop-blur ${
-            detailOpen ? '!me-[416px]' : '!me-3'
-          }`}
-        >
-          <IconButton
-            icon={ZoomOut}
-            label={t('graph.zoom_out')}
-            size="sm"
-            onClick={() => rfInstance.zoomOut()}
-          />
-          <IconButton
-            icon={ZoomIn}
-            label={t('graph.zoom_in')}
-            size="sm"
-            onClick={() => rfInstance.zoomIn()}
-          />
-          <div className="mx-1 h-5 w-px bg-ink-200" />
-          <IconButton
-            icon={Maximize}
-            label={t('graph.fit_by_size')}
-            size="sm"
-            onClick={() => rfInstance.fitView({ padding: 0.2 })}
-          />
-        </Panel>
-      )}
+      {/* Zoom controls перемещены ВНУТРЬ CompactMiniMap (toolbar row
+         над SVG) - они визуально и логически часть minimap surface'а,
+         масштабируются с ним при expanded/compact mode. См.
+         CompactMiniMap.tsx top-toolbar. */}
       {resetConfirmOpen && (
         <Modal
           open
