@@ -600,6 +600,23 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
     },
     [],
   );
+
+  // Boost zIndex выделенных узлов чтобы они оказывались СВЕРХУ
+  // overlapped кластера - тогда drag захватывает именно selected
+  // (а не «верхний» под cursor'ом). ReactFlow drag начинается с того
+  // что под cursor; если selected узел спрятан под другим, drag
+  // достанет не его. Поднимаем selected на zIndex=1000 (заведомо
+  // выше persisted z_index из БД, который обычно 0).
+  useEffect(() => {
+    setNodes((prev) =>
+      prev.map((n) => {
+        const isSel = selectedNodeIds.includes(n.id);
+        const baseZ = n.data?.zIndex ?? 0;
+        const targetZ = isSel ? 1000 : baseZ;
+        return n.zIndex === targetZ ? n : { ...n, zIndex: targetZ };
+      }),
+    );
+  }, [selectedNodeIds, setNodes]);
   const canAddEdge = rawNodeDtos.length >= 2;
   const selectedCount = selectedNodeIds.length + selectedEdgeIds.length;
 
@@ -761,6 +778,7 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
             layoutPending={layoutPending}
             onApplyPreset={(p) => triggerRelayout(p)}
             onResetLayout={canWrite ? handleResetLayout : undefined}
+            detailOpen={detailOpen}
           />
         </ReactFlow>
         </div>
