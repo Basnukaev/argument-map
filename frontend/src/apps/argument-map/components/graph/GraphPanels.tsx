@@ -12,12 +12,11 @@ import {
   Network,
   Loader2,
   Check,
-  HelpCircle,
 } from 'lucide-react';
 import IconButton from '@/shared/components/ui/IconButton';
 import Button from '@/shared/components/ui/Button';
 import Modal from '@/shared/components/ui/Modal';
-import Kbd from '@/shared/components/ui/Kbd';
+import HelpShortcuts from '@/apps/argument-map/components/graph/HelpShortcuts';
 import { useHotkey } from '@/shared/hooks/useHotkey';
 import { useT } from '@/shared/i18n';
 import {
@@ -70,14 +69,13 @@ interface Props {
 /**
  * Три статичных Panel поверх React Flow:
  * - top-left: вертикальная toolbar (Add Node/Edge, toggle labels, Delete, Export)
- * - top-right: hotkeys-hint
- * - bottom-center: zoom controls (только если rfInstance готов)
+ * - top-right: HelpShortcuts (?-кнопка с popover шорткатов)
  *
  * Status-легенда удалена per design-reference v3 - дублирует информацию
  * с StatusBadge на узлах и засоряет canvas.
  *
- * MiniMap живёт отдельно в CompactMiniMap (bottom-end, shift'нется когда
- * detail panel открыт).
+ * Zoom controls + MiniMap живут отдельно в GraphViewportPanel (bottom-end,
+ * shift'нется когда detail panel открыт).
  */
 function GraphPanels({
   showEdgeLabels,
@@ -107,20 +105,6 @@ function GraphPanels({
   const edgeStyle = useEdgeStyleStore((s) => s.edgeStyle);
   const setEdgeStyle = useEdgeStyleStore((s) => s.setEdgeStyle);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
-  const [hintsOpen, setHintsOpen] = useState(false);
-  const hintsRef = useRef<HTMLDivElement>(null);
-
-  // Dismiss hints popover на клик вне
-  useEffect(() => {
-    if (!hintsOpen) return;
-    function onPointerDown(e: PointerEvent) {
-      if (hintsRef.current && !hintsRef.current.contains(e.target as Node)) {
-        setHintsOpen(false);
-      }
-    }
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [hintsOpen]);
 
   // Dismiss popover при клике вне меню и при Escape
   useEffect(() => {
@@ -408,42 +392,27 @@ function GraphPanels({
         )}
       </Panel>
 
-      {/* Hotkey hints компактно под ?-кнопкой: меньше визуального
-         шума на canvas, открывается hover/click. Раньше был развёрнутый
-         hint-bar в top-right — съедал место и был распылён вниманию. */}
       <Panel position="top-right" className="!m-3">
-        <div ref={hintsRef} className="relative">
-          <IconButton
-            icon={HelpCircle}
-            label={t('graph.hints_label')}
-            size="md"
-            active={hintsOpen}
-            onClick={() => setHintsOpen((v) => !v)}
-          />
-          {hintsOpen && (
-            <div
-              role="dialog"
-              aria-label={t('graph.hints_label')}
-              className="absolute end-0 top-full z-50 mt-1.5 flex min-w-56 flex-col gap-1.5 rounded-md border border-border bg-elevated px-3 py-2 text-xs text-ink-700 shadow-sh3"
-            >
-              <span className="inline-flex items-center gap-2">
-                <Kbd>2x</Kbd> {t('graph.hint_details')}
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <Kbd>Del</Kbd> {t('graph.hint_delete')}
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <Kbd>RMB</Kbd> {t('graph.hint_context_menu')}
-              </span>
-            </div>
-          )}
-        </div>
+        <HelpShortcuts
+          shortcuts={[
+            { group: t('graph.shortcut_group_nav'), label: t('graph.shortcut_details'), keys: ['2×'] },
+            { group: t('graph.shortcut_group_nav'), label: t('graph.shortcut_context_menu'), keys: ['RMB'] },
+            { group: t('graph.shortcut_group_nav'), label: t('graph.shortcut_reset_view'), keys: ['0'] },
+            { group: t('graph.shortcut_group_actions'), label: t('graph.shortcut_add_node'), keys: ['N'] },
+            { group: t('graph.shortcut_group_actions'), label: t('graph.shortcut_create_edge'), keys: ['L'] },
+            { group: t('graph.shortcut_group_actions'), label: t('graph.shortcut_delete'), keys: ['Del'] },
+            { group: t('graph.shortcut_group_selection'), label: t('graph.shortcut_select_all'), keys: ['⌘', 'A'] },
+            { group: t('graph.shortcut_group_selection'), label: t('graph.shortcut_deselect'), keys: ['Esc'] },
+          ]}
+          title={t('graph.shortcuts_title')}
+          position="down"
+          align="right"
+        />
       </Panel>
 
-      {/* Zoom controls перемещены ВНУТРЬ CompactMiniMap (toolbar row
-         над SVG) - они визуально и логически часть minimap surface'а,
-         масштабируются с ним при expanded/compact mode. См.
-         CompactMiniMap.tsx top-toolbar. */}
+      {/* Zoom controls + minimap живут в GraphViewportPanel (bottom-end):
+         ZoomControls — отдельный pill над MinimapCard, оба биндятся к
+         React Flow store. Рендерится из GraphCanvas, не отсюда. */}
       {resetConfirmOpen && (
         <Modal
           open

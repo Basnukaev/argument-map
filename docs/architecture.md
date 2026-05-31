@@ -385,7 +385,8 @@ frontend/src/
     argument-map/   - граф аргументации
       pages/        TopicListPage, TopicGraphPage, CreateTopicPage
       components/   graph/* (NodeCard, CustomEdge, NodeDetailsPanel,
-                    Add*Modal, CompactMiniMap, NodeSelect)
+                    Add*Modal, GraphViewportPanel [ZoomControls +
+                    MinimapCard], HelpShortcuts, NodeSelect)
       utils/        edgeRules, graphLayout, attachmentTokens
     library/        - библиотека книг shamela + PDF
       pages/        BookListPage, BookReaderPage

@@ -21,7 +21,7 @@ import AddNodeModal, { type AutoEdgeSpec } from '@/apps/argument-map/components/
 import AddEdgeModal from '@/apps/argument-map/components/graph/AddEdgeModal';
 import NodeDetailsPanel from '@/apps/argument-map/components/graph/NodeDetailsPanel';
 import EdgeDetailsPanel from '@/apps/argument-map/components/graph/EdgeDetailsPanel';
-import CompactMiniMap from '@/apps/argument-map/components/graph/CompactMiniMap';
+import GraphViewportPanel from '@/apps/argument-map/components/graph/GraphViewportPanel';
 import GraphPanels from '@/apps/argument-map/components/graph/GraphPanels';
 import FloatingActionBar from '@/apps/argument-map/components/graph/FloatingActionBar';
 import { useGraphEscape } from '@/apps/argument-map/hooks/useGraphEscape';
@@ -752,7 +752,7 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={24} size={1} />
-          <CompactMiniMap detailOpen={!!detailNode || !!detailEdge} />
+          <GraphViewportPanel detailOpen={!!detailNode || !!detailEdge} />
           <GraphPanels
             showEdgeLabels={showEdgeLabels}
             onToggleLabels={() => setShowEdgeLabels((v) => !v)}

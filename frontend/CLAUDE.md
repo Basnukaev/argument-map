@@ -234,8 +234,11 @@ formatPermissionError, тесты с HTMLDialogElement polyfill).
   `border-l`/`border-r`/`rounded-l-`/`rounded-r-`) - только
   логические (`ms`/`me`/`ps`/`pe`/`start`/`end`/`text-start`/
   `text-end`/`border-s`/`border-e`/`rounded-s-`/`rounded-e-`).
-  Исключение: внутренности `NodeCard` и `CompactMiniMap` (граф
-  React Flow целиком не зеркалится). Подробно - в
+  Исключение: внутренности `NodeCard` и graph-chrome компонентов
+  (`MinimapCard` / `ZoomControls` / `HelpShortcuts` /
+  `GraphViewportPanel`) - граф React Flow целиком не зеркалится
+  (см. design-reference handoff: «the mini-map do not mirror —
+  graph spatial semantics are direction-agnostic»). Подробно - в
   `docs/coding-standards.md` раздел «RTL и bidi»
 - Не определять направление контента по локали интерфейса. Для
   контента из API - `dir="auto"`, шрифт через `hasArabicScript`

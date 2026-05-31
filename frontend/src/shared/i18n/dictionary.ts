@@ -522,6 +522,39 @@ export const DICTIONARY = {
     'graph.title_new_edge': 'Новая связь',
     'graph.minimap_aria': 'Мини-карта графа',
 
+    // zoom controls
+    'graph.zoom_fit_selection': 'Вписать выделение',
+    'graph.zoom_fullscreen': 'Полный экран',
+    'graph.zoom_presets': 'Пресеты масштаба',
+
+    // minimap card
+    'graph.minimap_title': 'Обзор',
+    'graph.minimap_center_selection': 'Центр на выделении',
+    'graph.minimap_show_edges': 'Показать связи',
+    'graph.minimap_hide_edges': 'Скрыть связи',
+    'graph.minimap_collapse': 'Свернуть',
+    'graph.minimap_expand': 'Развернуть карту',
+    'graph.minimap_selected': 'Выбрано',
+    'graph.minimap_node_one': 'узел',
+    'graph.minimap_node_few': 'узла',
+    'graph.minimap_node_many': 'узлов',
+
+    // help shortcuts
+    'graph.shortcuts_title': 'Шорткаты',
+    'graph.shortcuts_pin': 'Закрепить',
+    'graph.shortcuts_unpin': 'Открепить',
+    'graph.shortcut_group_nav': 'Навигация',
+    'graph.shortcut_group_actions': 'Действия',
+    'graph.shortcut_group_selection': 'Выделение',
+    'graph.shortcut_details': 'Детали узла',
+    'graph.shortcut_context_menu': 'Контекстное меню',
+    'graph.shortcut_reset_view': 'Сбросить вид',
+    'graph.shortcut_add_node': 'Добавить узел',
+    'graph.shortcut_create_edge': 'Создать связь',
+    'graph.shortcut_delete': 'Удалить',
+    'graph.shortcut_select_all': 'Выделить всё',
+    'graph.shortcut_deselect': 'Снять выделение',
+
     // edge details panel sections
     'edge.section.connection': 'Связь',
     'edge.section.type': 'Тип связи',
@@ -1748,6 +1781,39 @@ export const DICTIONARY = {
     'graph.title_new_node': 'عقدة جديدة',
     'graph.title_new_edge': 'علاقة جديدة',
     'graph.minimap_aria': 'الخريطة المصغرة للرسم',
+
+    // zoom controls
+    'graph.zoom_fit_selection': 'احتواء المحدد',
+    'graph.zoom_fullscreen': 'ملء الشاشة',
+    'graph.zoom_presets': 'إعدادات التكبير',
+
+    // minimap card
+    'graph.minimap_title': 'نظرة عامة',
+    'graph.minimap_center_selection': 'توسيط المحدد',
+    'graph.minimap_show_edges': 'إظهار الروابط',
+    'graph.minimap_hide_edges': 'إخفاء الروابط',
+    'graph.minimap_collapse': 'طي',
+    'graph.minimap_expand': 'توسيع الخريطة',
+    'graph.minimap_selected': 'محدد',
+    'graph.minimap_node_one': 'عقدة',
+    'graph.minimap_node_few': 'عقد',
+    'graph.minimap_node_many': 'عقد',
+
+    // help shortcuts
+    'graph.shortcuts_title': 'اختصارات',
+    'graph.shortcuts_pin': 'تثبيت',
+    'graph.shortcuts_unpin': 'إلغاء التثبيت',
+    'graph.shortcut_group_nav': 'التنقل',
+    'graph.shortcut_group_actions': 'الإجراءات',
+    'graph.shortcut_group_selection': 'التحديد',
+    'graph.shortcut_details': 'تفاصيل العقدة',
+    'graph.shortcut_context_menu': 'القائمة السياقية',
+    'graph.shortcut_reset_view': 'إعادة تعيين العرض',
+    'graph.shortcut_add_node': 'إضافة عقدة',
+    'graph.shortcut_create_edge': 'إنشاء رابط',
+    'graph.shortcut_delete': 'حذف',
+    'graph.shortcut_select_all': 'تحديد الكل',
+    'graph.shortcut_deselect': 'إلغاء التحديد',
 
     'edge.section.connection': 'العلاقة',
     'edge.section.type': 'نوع العلاقة',
