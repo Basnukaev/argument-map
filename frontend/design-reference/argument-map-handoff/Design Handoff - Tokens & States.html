@@ -1,0 +1,1299 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Argument Map — Design Handoff</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500;600&family=Scheherazade+New:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+
+<style>
+  /* ---- doc chrome ---- */
+  body {
+    background: var(--bg-app);
+    color: var(--text-base);
+    font-family: var(--font-ui);
+  }
+  .doc {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 56px 40px 120px;
+  }
+  .doc-head {
+    border-bottom: 1px solid var(--border-base);
+    padding-bottom: 32px;
+    margin-bottom: 48px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 32px;
+  }
+  .doc-head__intro { max-width: 720px; }
+  .doc-head h1 {
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text-strong);
+    margin: 0 0 8px;
+    line-height: 1.1;
+  }
+  .doc-head p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 16px;
+    line-height: 1.55;
+  }
+  .doc-meta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-meta);
+    text-align: right;
+    line-height: 1.7;
+    flex-shrink: 0;
+  }
+  .doc-meta span {
+    display: block;
+  }
+  .doc-meta strong {
+    color: var(--text-base);
+    font-weight: 600;
+  }
+
+  /* Theme toggle */
+  .theme-toggle {
+    position: fixed;
+    top: 24px; right: 24px;
+    z-index: 100;
+    display: flex;
+    background: var(--bg-card);
+    border: 1px solid var(--border-base);
+    border-radius: 999px;
+    padding: 4px;
+    box-shadow: var(--shadow-md);
+  }
+  .theme-toggle button {
+    width: 36px; height: 36px;
+    border-radius: 999px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .theme-toggle button.is-active {
+    background: var(--brand-500);
+    color: white;
+  }
+  [data-theme="dark"] .theme-toggle button.is-active { color: oklch(15% 0.012 270); }
+
+  /* TOC */
+  .toc {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    margin-bottom: 56px;
+  }
+  .toc a {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    text-decoration: none;
+    color: var(--text-base);
+    transition: background 120ms;
+  }
+  .toc a:hover { background: var(--bg-hover); }
+  .toc a span:first-child {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-meta);
+    letter-spacing: 0.05em;
+  }
+  .toc a span:last-child {
+    font-weight: 600;
+    color: var(--text-strong);
+    font-size: 14px;
+  }
+
+  /* Section */
+  section { margin-bottom: 80px; scroll-margin-top: 32px; }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    padding-bottom: 20px;
+    margin-bottom: 28px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .section-head .num {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-meta);
+    letter-spacing: 0.05em;
+  }
+  .section-head h2 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--text-strong);
+    margin: 0;
+  }
+  .section-head .lead {
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-left: auto;
+    max-width: 460px;
+    line-height: 1.55;
+  }
+
+  .sub {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-meta);
+    font-weight: 600;
+    margin: 32px 0 12px;
+  }
+  .sub:first-child { margin-top: 0; }
+
+  /* === Swatches === */
+  .swatches {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+  }
+  .swatch {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .swatch__color {
+    height: 72px;
+  }
+  .swatch__color--text {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 700;
+    background: var(--bg-card);
+  }
+  .swatch__body { padding: 10px 12px 12px; }
+  .swatch__name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-strong);
+    margin-bottom: 2px;
+  }
+  .swatch__var {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+  .swatch__var strong { color: var(--text-base); font-weight: 600; }
+
+  /* === Type scale === */
+  .type-table {
+    width: 100%;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .type-row {
+    display: grid;
+    grid-template-columns: 120px 80px 80px 1fr;
+    align-items: baseline;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border-subtle);
+    gap: 24px;
+  }
+  .type-row:last-child { border-bottom: none; }
+  .type-row__token {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-meta);
+  }
+  .type-row__size {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-base);
+  }
+  .type-row__weight {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-base);
+  }
+  .type-row__sample {
+    color: var(--text-strong);
+    line-height: 1.25;
+  }
+
+  /* === Spacing demo === */
+  .spacing-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 10px 16px;
+    border-radius: 8px;
+  }
+  .spacing-row:hover { background: var(--bg-subtle); }
+  .spacing-row__label {
+    width: 90px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-base);
+  }
+  .spacing-row__val {
+    width: 50px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-meta);
+  }
+  .spacing-row__bar {
+    background: var(--brand-200);
+    border-left: 2px solid var(--brand-500);
+    height: 24px;
+  }
+  [data-theme="dark"] .spacing-row__bar { background: var(--brand-800); }
+
+  /* === Radius demo === */
+  .radii {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .radii__item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .radii__shape {
+    width: 80px; height: 80px;
+    background: var(--bg-subtle);
+    border: 1px solid var(--border-base);
+  }
+  .radii__label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-meta);
+    text-align: center;
+  }
+  .radii__label strong { display: block; color: var(--text-base); }
+
+  /* === Shadow demo === */
+  .shadows {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  .shadow-card {
+    background: var(--bg-card);
+    padding: 24px;
+    border-radius: 12px;
+  }
+  .shadow-card__name {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-meta);
+    margin-bottom: 6px;
+  }
+  .shadow-card__use {
+    font-size: 13px;
+    color: var(--text-base);
+  }
+
+  /* === Demo block (showing a state) === */
+  .demo-block {
+    background: var(--bg-canvas);
+    border: 1px solid var(--border-base);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .demo-block__head {
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .demo-block__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-strong);
+  }
+  .demo-block__title .pill {
+    margin-left: 8px;
+    font-size: 10px;
+  }
+  .demo-block__hint {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-meta);
+  }
+  .demo-block__body {
+    padding: 32px;
+    background: var(--bg-app);
+    min-height: 280px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* === Code block === */
+  pre.code {
+    margin: 0;
+    background: var(--bg-canvas);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    padding: 18px 20px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--text-base);
+    overflow-x: auto;
+  }
+  [data-theme="dark"] pre.code { background: oklch(13% 0.01 270); }
+  pre.code .k { color: var(--brand-500); font-weight: 600; }
+  pre.code .s { color: var(--status-ok); }
+  pre.code .n { color: var(--status-info); }
+  pre.code .c { color: var(--text-meta); font-style: italic; }
+  pre.code .p { color: var(--text-muted); }
+
+  .code-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  .code-grid .demo-block { margin-bottom: 0; }
+
+  /* === States showcase (the actual demo of empty/loading/error patterns) === */
+  /* skeleton — uses the shimmer from app.css */
+  .sk { background: linear-gradient(90deg, var(--bg-subtle) 0%, var(--bg-hover) 50%, var(--bg-subtle) 100%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; border-radius: 6px; }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .sk-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 16px; width: 100%; }
+  .sk-line { height: 12px; }
+  .sk-line + .sk-line { margin-top: 8px; }
+  .sk-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 8px; margin-bottom: 8px; }
+  .sk-circle { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; }
+
+  .state-block {
+    text-align: center;
+    padding: 56px 24px;
+    max-width: 440px;
+    margin: 0 auto;
+  }
+  .state-block__illus {
+    width: 96px; height: 96px;
+    margin: 0 auto 24px;
+    border-radius: 50%;
+    background: var(--bg-subtle);
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .state-block__title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-strong);
+    margin: 0 0 8px;
+  }
+  .state-block__body {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin: 0 0 24px;
+  }
+  .state-block__actions {
+    display: inline-flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /* Toast */
+  .toast {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-base);
+    border-radius: 10px;
+    box-shadow: var(--shadow-md);
+    min-width: 320px;
+    max-width: 420px;
+  }
+  .toast__icon {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .toast--ok .toast__icon { background: oklch(94% 0.05 155); color: var(--status-ok); }
+  .toast--warn .toast__icon { background: oklch(95% 0.08 80); color: oklch(50% 0.14 70); }
+  .toast--err .toast__icon { background: oklch(95% 0.05 28); color: var(--status-err); }
+  .toast--info .toast__icon { background: oklch(95% 0.05 250); color: var(--status-info); }
+  [data-theme="dark"] .toast--ok .toast__icon { background: oklch(28% 0.06 155); }
+  [data-theme="dark"] .toast--warn .toast__icon { background: oklch(30% 0.08 80); }
+  [data-theme="dark"] .toast--err .toast__icon { background: oklch(28% 0.08 28); }
+  [data-theme="dark"] .toast--info .toast__icon { background: oklch(28% 0.08 250); }
+
+  .toast__body { flex: 1; }
+  .toast__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-strong);
+  }
+  .toast__msg {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+
+  /* Inline error */
+  .inline-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    background: oklch(95% 0.04 28 / 0.6);
+    border: 1px solid oklch(85% 0.10 28);
+    border-radius: 8px;
+    color: var(--status-err);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  [data-theme="dark"] .inline-error {
+    background: oklch(25% 0.08 28 / 0.4);
+    border-color: oklch(45% 0.15 28);
+    color: oklch(85% 0.15 28);
+  }
+  .inline-error__icon { flex-shrink: 0; }
+  .inline-error strong { font-weight: 700; }
+
+  /* Banner */
+  .banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    background: oklch(96% 0.04 250);
+    border-bottom: 1px solid oklch(85% 0.08 250);
+    color: oklch(35% 0.15 250);
+    font-size: 13px;
+  }
+  [data-theme="dark"] .banner {
+    background: oklch(25% 0.08 250 / 0.5);
+    border-color: oklch(45% 0.15 250);
+    color: oklch(85% 0.12 250);
+  }
+  .banner__close {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.7;
+  }
+
+  /* === Reference summary === */
+  .ref-list {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .ref-list__item {
+    display: grid;
+    grid-template-columns: 160px 1fr 200px;
+    gap: 16px;
+    align-items: center;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 13px;
+  }
+  .ref-list__item:last-child { border-bottom: none; }
+  .ref-list__file {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--brand-500);
+    font-weight: 600;
+  }
+  .ref-list__desc { color: var(--text-base); }
+  .ref-list__use {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-meta);
+    text-align: right;
+  }
+</style>
+</head>
+<body data-theme="light">
+
+<div class="theme-toggle">
+  <button class="is-active" data-set-theme="light" aria-label="Light">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+  </button>
+  <button data-set-theme="dark" aria-label="Dark">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+  </button>
+</div>
+
+<div class="doc">
+
+  <header class="doc-head">
+    <div class="doc-head__intro">
+      <p style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.08em;color:var(--text-meta);text-transform:uppercase;margin:0 0 12px">Argument Map · Design Handoff</p>
+      <h1>Tokens &amp; State patterns</h1>
+      <p>Минимальный пакет для Claude Code: один CSS-файл токенов, визуальная демонстрация каждой группы, паттерны для loading / empty / error / inline-feedback. Всё построено на CSS variables — переключение тем работает автоматически.</p>
+    </div>
+    <div class="doc-meta">
+      <span>VERSION <strong>1.0</strong></span>
+      <span>FILES <strong>2</strong> · tokens.css · app.css</span>
+      <span>THEMES <strong>light · dark · rtl</strong></span>
+      <span>STACK <strong>React 19 · Tailwind 4</strong></span>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <a href="#colors"><span>01</span><span>Colors</span></a>
+    <a href="#typography"><span>02</span><span>Typography</span></a>
+    <a href="#spacing"><span>03</span><span>Spacing &amp; radii</span></a>
+    <a href="#shadows"><span>04</span><span>Shadows</span></a>
+    <a href="#loading"><span>05</span><span>Loading / Skeleton</span></a>
+    <a href="#empty"><span>06</span><span>Empty states</span></a>
+    <a href="#errors"><span>07</span><span>Error states</span></a>
+    <a href="#feedback"><span>08</span><span>Toast &amp; inline</span></a>
+  </nav>
+
+  <!-- ============= 01 COLORS ============= -->
+  <section id="colors">
+    <div class="section-head">
+      <span class="num">01</span>
+      <h2>Colors</h2>
+      <p class="lead">Все цвета через <code style="font-family:var(--font-mono);font-size:12px">oklch()</code>. Переменные с одинаковыми именами в light и dark переопределяются — компоненты не знают про тему.</p>
+    </div>
+
+    <div class="sub">Brand scale</div>
+    <div class="swatches">
+      <div class="swatch"><div class="swatch__color" style="background:var(--brand-100)"></div><div class="swatch__body"><div class="swatch__name">brand-100</div><div class="swatch__var">soft tint · avatar bg</div></div></div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--brand-300)"></div><div class="swatch__body"><div class="swatch__name">brand-300</div><div class="swatch__var">accent · hover</div></div></div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--brand-500)"></div><div class="swatch__body"><div class="swatch__name">brand-500</div><div class="swatch__var"><strong>--brand-500</strong><br/>primary CTA · active</div></div></div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--brand-700)"></div><div class="swatch__body"><div class="swatch__name">brand-700</div><div class="swatch__var">hover · pressed</div></div></div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--brand-900)"></div><div class="swatch__body"><div class="swatch__name">brand-900</div><div class="swatch__var">dense · text on light</div></div></div>
+    </div>
+
+    <div class="sub">Surfaces</div>
+    <div class="swatches">
+      <div class="swatch"><div class="swatch__color" style="background:var(--bg-app);border-bottom:1px solid var(--border-subtle)"></div><div class="swatch__body"><div class="swatch__name">bg-app</div><div class="swatch__var">page background</div></div></div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--bg-canvas)"></div><div class="swatch__body"><div class="swatch__name">bg-canvas</div><div class="swatch__var">graph · reader area</div></div></div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--bg-card)"></div><div class="swatch__body"><div class="swatch__name">bg-card</div><div class="swatch__var">card · modal · popover</div></div></div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--bg-subtle)"></div><div class="swatch__body"><div class="swatch__name">bg-subtle</div><div class="swatch__var">input · inactive</div></div></div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--bg-hover)"></div><div class="swatch__body"><div class="swatch__name">bg-hover</div><div class="swatch__var">hover bg</div></div></div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--bg-active)"></div><div class="swatch__body"><div class="swatch__name">bg-active</div><div class="swatch__var">pressed bg</div></div></div>
+    </div>
+
+    <div class="sub">Text — все ≥4.5:1 контраст к bg-app в обеих темах</div>
+    <div class="swatches">
+      <div class="swatch"><div class="swatch__color swatch__color--text" style="color:var(--text-strong)">Aa</div><div class="swatch__body"><div class="swatch__name">text-strong</div><div class="swatch__var">headings · labels</div></div></div>
+      <div class="swatch"><div class="swatch__color swatch__color--text" style="color:var(--text-base)">Aa</div><div class="swatch__body"><div class="swatch__name">text-base</div><div class="swatch__var">body copy</div></div></div>
+      <div class="swatch"><div class="swatch__color swatch__color--text" style="color:var(--text-muted)">Aa</div><div class="swatch__body"><div class="swatch__name">text-muted</div><div class="swatch__var">secondary · captions</div></div></div>
+      <div class="swatch"><div class="swatch__color swatch__color--text" style="color:var(--text-meta)">Aa</div><div class="swatch__body"><div class="swatch__name">text-meta</div><div class="swatch__var">metadata · ≥13px only</div></div></div>
+      <div class="swatch"><div class="swatch__color swatch__color--text" style="color:var(--text-faint)">Aa</div><div class="swatch__body"><div class="swatch__name">text-faint</div><div class="swatch__var">placeholders only</div></div></div>
+    </div>
+
+    <div class="sub">Status — semantic feedback</div>
+    <div class="swatches">
+      <div class="swatch"><div class="swatch__color" style="background:var(--status-ok)"></div><div class="swatch__body"><div class="swatch__name">status-ok</div><div class="swatch__var">success · sahih · synced</div></div></div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--status-warn)"></div><div class="swatch__body"><div class="swatch__name">status-warn</div><div class="swatch__var">caution · partial</div></div></div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--status-err)"></div><div class="swatch__body"><div class="swatch__name">status-err</div><div class="swatch__var">error · destructive</div></div></div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--status-info)"></div><div class="swatch__body"><div class="swatch__name">status-info</div><div class="swatch__var">information · clarifies</div></div></div>
+    </div>
+
+    <div class="sub">Node types — graph semantic colors (paired with icons)</div>
+    <div class="swatches">
+      <div class="swatch"><div class="swatch__color" style="background:var(--node-question);border-bottom:1px solid var(--node-question-bd)"></div><div class="swatch__body"><div class="swatch__name" style="color:var(--node-question-ink)">ВОПРОС</div><div class="swatch__var">--node-question · ink · bd</div></div></div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--node-thesis);border-bottom:1px solid var(--node-thesis-bd)"></div><div class="swatch__body"><div class="swatch__name" style="color:var(--node-thesis-ink)">ТЕЗИС</div><div class="swatch__var">--node-thesis</div></div></div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--node-argument);border-bottom:1px solid var(--node-argument-bd)"></div><div class="swatch__body"><div class="swatch__name" style="color:var(--node-argument-ink)">ДОВОД</div><div class="swatch__var">--node-argument</div></div></div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--node-evidence);border-bottom:1px solid var(--node-evidence-bd)"></div><div class="swatch__body"><div class="swatch__name" style="color:var(--node-evidence-ink)">СВИДЕТЕЛЬСТВО</div><div class="swatch__var">--node-evidence</div></div></div>
+    </div>
+
+    <div class="sub">Edges — relations (double-encoded via icon + color)</div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap;padding:24px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:12px">
+      <div style="display:flex;align-items:center;gap:10px"><svg width="60" height="2"><line x1="0" y1="1" x2="60" y2="1" stroke="var(--edge-supports)" stroke-width="2"/></svg><span style="font-family:var(--font-mono);font-size:11px"><strong style="color:var(--status-ok)">✓ supports</strong> · solid</span></div>
+      <div style="display:flex;align-items:center;gap:10px"><svg width="60" height="2"><line x1="0" y1="1" x2="60" y2="1" stroke="var(--edge-attacks)" stroke-width="2"/></svg><span style="font-family:var(--font-mono);font-size:11px"><strong style="color:var(--status-err)">✗ attacks</strong> · solid</span></div>
+      <div style="display:flex;align-items:center;gap:10px"><svg width="60" height="2"><line x1="0" y1="1" x2="60" y2="1" stroke="var(--edge-rebuts)" stroke-width="2" stroke-dasharray="5 3"/></svg><span style="font-family:var(--font-mono);font-size:11px"><strong style="color:var(--status-err)">⊘ rebuts</strong> · dashed</span></div>
+      <div style="display:flex;align-items:center;gap:10px"><svg width="60" height="2"><line x1="0" y1="1" x2="60" y2="1" stroke="var(--edge-clarifies)" stroke-width="2"/></svg><span style="font-family:var(--font-mono);font-size:11px"><strong style="color:var(--status-info)">» clarifies</strong> · solid</span></div>
+      <div style="display:flex;align-items:center;gap:10px"><svg width="60" height="2"><line x1="0" y1="1" x2="60" y2="1" stroke="var(--edge-neutral)" stroke-width="2"/></svg><span style="font-family:var(--font-mono);font-size:11px"><strong style="color:var(--text-muted)">— neutral</strong></span></div>
+    </div>
+  </section>
+
+  <!-- ============= 02 TYPOGRAPHY ============= -->
+  <section id="typography">
+    <div class="section-head">
+      <span class="num">02</span>
+      <h2>Typography</h2>
+      <p class="lead">UI: Manrope · Long-form: Source Serif 4 · Arabic: Scheherazade New · Mono: JetBrains Mono. RTL автоматически переключает <code style="font-family:var(--font-mono);font-size:12px">--font-ui</code> на Scheherazade.</p>
+    </div>
+
+    <div class="type-table">
+      <div class="type-row">
+        <span class="type-row__token">--text-4xl</span>
+        <span class="type-row__size">48px</span>
+        <span class="type-row__weight">800</span>
+        <span class="type-row__sample" style="font-size:48px;font-weight:800;letter-spacing:-0.02em">Темы аргументации</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row__token">--text-3xl</span>
+        <span class="type-row__size">36px</span>
+        <span class="type-row__weight">700</span>
+        <span class="type-row__sample" style="font-size:36px;font-weight:700;letter-spacing:-0.01em">Дозволенность Мавлида</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row__token">--text-2xl</span>
+        <span class="type-row__size">28px</span>
+        <span class="type-row__weight">700</span>
+        <span class="type-row__sample" style="font-size:28px;font-weight:700">Заголовок раздела</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row__token">--text-xl</span>
+        <span class="type-row__size">22px</span>
+        <span class="type-row__weight">600</span>
+        <span class="type-row__sample" style="font-size:22px;font-weight:600">Подзаголовок</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row__token">--text-lg</span>
+        <span class="type-row__size">18px</span>
+        <span class="type-row__weight">600</span>
+        <span class="type-row__sample" style="font-size:18px;font-weight:600">Lead paragraph</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row__token">--text-base</span>
+        <span class="type-row__size">15px</span>
+        <span class="type-row__weight">400</span>
+        <span class="type-row__sample" style="font-size:15px">Тело текста · хороший контраст для длинного чтения на десктопе и мобильном.</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row__token">--text-sm</span>
+        <span class="type-row__size">13px</span>
+        <span class="type-row__weight">400</span>
+        <span class="type-row__sample" style="font-size:13px;color:var(--text-muted)">Вторичный текст — metadata, captions, помощь</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row__token">--text-xs</span>
+        <span class="type-row__size">11px</span>
+        <span class="type-row__weight">600</span>
+        <span class="type-row__sample" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted)">EYEBROW · CATEGORY LABEL</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row__token">--font-serif</span>
+        <span class="type-row__size">18px</span>
+        <span class="type-row__weight">400</span>
+        <span class="type-row__sample" style="font-family:var(--font-serif);font-size:18px">Source Serif для книжной типографики</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row__token">--font-ar</span>
+        <span class="type-row__size">24px</span>
+        <span class="type-row__weight">400</span>
+        <span class="type-row__sample" style="font-family:var(--font-ar);font-size:24px;direction:rtl;text-align:right">إنما الأعمال بالنيات وإنما لكل امرئٍ ما نوى</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row__token">--font-mono</span>
+        <span class="type-row__size">12px</span>
+        <span class="type-row__weight">500</span>
+        <span class="type-row__sample" style="font-family:var(--font-mono);font-size:12px;font-weight:500">2a65afd7 · sha-256 · GET /api/topics/list</span>
+      </div>
+    </div>
+
+    <div class="sub" style="margin-top:32px">Utility tokens</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      <div class="swatch" style="padding:14px 16px"><div class="swatch__name">Leading</div><div class="swatch__var">--leading-tight 1.2 · --leading-snug 1.35 · --leading-normal 1.5 · --leading-relax 1.7 · --leading-loose 1.85 (AR)</div></div>
+      <div class="swatch" style="padding:14px 16px"><div class="swatch__name">Tracking</div><div class="swatch__var">--tracking-tight -0.01em · --tracking-normal 0 · --tracking-wide 0.02em · --tracking-caps 0.08em</div></div>
+      <div class="swatch" style="padding:14px 16px"><div class="swatch__name">Max prose</div><div class="swatch__var">--maxw-prose <strong>68ch</strong> — комфортная line-length для reader</div></div>
+    </div>
+  </section>
+
+  <!-- ============= 03 SPACING / RADII ============= -->
+  <section id="spacing">
+    <div class="section-head">
+      <span class="num">03</span>
+      <h2>Spacing &amp; radii</h2>
+      <p class="lead">8px grid — 10 значений, ровно столько, чтоб не было «своих» margin'ов. Радиусы — 5 значений + full. Hit-targets явные.</p>
+    </div>
+
+    <div class="sub">Spacing scale</div>
+    <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:12px;padding:8px">
+      <div class="spacing-row"><span class="spacing-row__label">--space-1</span><span class="spacing-row__val">4px</span><span class="spacing-row__bar" style="width:4px"></span></div>
+      <div class="spacing-row"><span class="spacing-row__label">--space-2</span><span class="spacing-row__val">8px</span><span class="spacing-row__bar" style="width:8px"></span></div>
+      <div class="spacing-row"><span class="spacing-row__label">--space-3</span><span class="spacing-row__val">12px</span><span class="spacing-row__bar" style="width:12px"></span></div>
+      <div class="spacing-row"><span class="spacing-row__label">--space-4</span><span class="spacing-row__val">16px</span><span class="spacing-row__bar" style="width:16px"></span></div>
+      <div class="spacing-row"><span class="spacing-row__label">--space-5</span><span class="spacing-row__val">20px</span><span class="spacing-row__bar" style="width:20px"></span></div>
+      <div class="spacing-row"><span class="spacing-row__label">--space-6</span><span class="spacing-row__val">24px</span><span class="spacing-row__bar" style="width:24px"></span></div>
+      <div class="spacing-row"><span class="spacing-row__label">--space-8</span><span class="spacing-row__val">32px</span><span class="spacing-row__bar" style="width:32px"></span></div>
+      <div class="spacing-row"><span class="spacing-row__label">--space-10</span><span class="spacing-row__val">40px</span><span class="spacing-row__bar" style="width:40px"></span></div>
+      <div class="spacing-row"><span class="spacing-row__label">--space-12</span><span class="spacing-row__val">48px</span><span class="spacing-row__bar" style="width:48px"></span></div>
+      <div class="spacing-row"><span class="spacing-row__label">--space-16</span><span class="spacing-row__val">64px</span><span class="spacing-row__bar" style="width:64px"></span></div>
+    </div>
+
+    <div class="sub">Border radii</div>
+    <div class="radii">
+      <div class="radii__item"><div class="radii__shape" style="border-radius:var(--radius-xs)"></div><div class="radii__label"><strong>--radius-xs</strong>4px · pill icon</div></div>
+      <div class="radii__item"><div class="radii__shape" style="border-radius:var(--radius-sm)"></div><div class="radii__label"><strong>--radius-sm</strong>6px · kbd</div></div>
+      <div class="radii__item"><div class="radii__shape" style="border-radius:var(--radius-md)"></div><div class="radii__label"><strong>--radius-md</strong>8px · button · input</div></div>
+      <div class="radii__item"><div class="radii__shape" style="border-radius:var(--radius-lg)"></div><div class="radii__label"><strong>--radius-lg</strong>12px · card</div></div>
+      <div class="radii__item"><div class="radii__shape" style="border-radius:var(--radius-xl)"></div><div class="radii__label"><strong>--radius-xl</strong>16px · modal</div></div>
+      <div class="radii__item"><div class="radii__shape" style="border-radius:var(--radius-full)"></div><div class="radii__label"><strong>--radius-full</strong>9999px · avatar</div></div>
+    </div>
+
+    <div class="sub">Hit targets</div>
+    <div style="display:flex;gap:16px;padding:24px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:12px;align-items:center">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+        <div style="width:36px;height:36px;background:var(--brand-500);border-radius:8px"></div>
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-meta)">36px · desktop</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+        <div style="width:44px;height:44px;background:var(--brand-500);border-radius:8px"></div>
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-meta)">44px · mobile/touch · iOS HIG</div>
+      </div>
+      <p style="margin-left:auto;max-width:380px;color:var(--text-muted);font-size:13px;line-height:1.55">
+        <code style="font-family:var(--font-mono);font-size:12px">@media (max-width:640px)</code> автоматически растягивает все <code style="font-family:var(--font-mono);font-size:12px">.btn</code>, <code style="font-family:var(--font-mono);font-size:12px">.icon-btn</code> до 44px.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============= 04 SHADOWS ============= -->
+  <section id="shadows">
+    <div class="section-head">
+      <span class="num">04</span>
+      <h2>Shadows</h2>
+      <p class="lead">Только 3 уровня elevation + 1 фокус-кольцо. В dark — глубокие тени; в light — деликатные. Никогда не комбинируйте.</p>
+    </div>
+
+    <div class="shadows">
+      <div class="shadow-card" style="box-shadow:var(--shadow-sm)">
+        <div class="shadow-card__name">--shadow-sm</div>
+        <div class="shadow-card__use">Dropdown trigger · inactive raised</div>
+      </div>
+      <div class="shadow-card" style="box-shadow:var(--shadow-md)">
+        <div class="shadow-card__name">--shadow-md</div>
+        <div class="shadow-card__use">Card hover · floating toolbar</div>
+      </div>
+      <div class="shadow-card" style="box-shadow:var(--shadow-lg)">
+        <div class="shadow-card__name">--shadow-lg</div>
+        <div class="shadow-card__use">Modal · popover · selection bar</div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;padding:24px;display:flex;align-items:center;gap:24px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:12px">
+      <button class="btn btn--primary" style="box-shadow:var(--shadow-focus)">Focused button</button>
+      <div>
+        <div class="shadow-card__name">--shadow-focus</div>
+        <div class="shadow-card__use" style="color:var(--text-muted)">3px solid ring at brand-500 / 30% alpha — replaces native focus outline</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============= 05 LOADING ============= -->
+  <section id="loading">
+    <div class="section-head">
+      <span class="num">05</span>
+      <h2>Loading &amp; skeleton</h2>
+      <p class="lead">Skeleton с shimmer-анимацией повторяет силуэт реальной разметки. Используйте всегда, когда первый paint &gt; 200ms. Никаких generic spinners.</p>
+    </div>
+
+    <div class="code-grid">
+      <div class="demo-block">
+        <div class="demo-block__head">
+          <div class="demo-block__title">Skeleton · card grid <span class="pill pill--neutral">topics list</span></div>
+          <div class="demo-block__hint">.sk-card</div>
+        </div>
+        <div class="demo-block__body" style="padding:24px;align-items:stretch;display:grid;grid-template-columns:1fr 1fr;gap:12px;min-height:0">
+          <div class="sk-card">
+            <div class="sk" style="height:90px;margin-bottom:14px"></div>
+            <div class="sk sk-line" style="width:70%"></div>
+            <div class="sk sk-line" style="width:100%;height:10px"></div>
+            <div class="sk sk-line" style="width:50%;height:10px"></div>
+          </div>
+          <div class="sk-card">
+            <div class="sk" style="height:90px;margin-bottom:14px"></div>
+            <div class="sk sk-line" style="width:65%"></div>
+            <div class="sk sk-line" style="width:90%;height:10px"></div>
+            <div class="sk sk-line" style="width:45%;height:10px"></div>
+          </div>
+        </div>
+      </div>
+      <pre class="code"><span class="c">/* Базовый класс — shimmer-анимация. Помечайте каждый
+   placeholder этим классом и задавайте size через style/utility. */</span>
+
+<span class="k">.sk</span> {
+  background: linear-gradient(<span class="n">90deg</span>,
+    var(<span class="p">--bg-subtle</span>) 0%,
+    var(<span class="p">--bg-hover</span>) 50%,
+    var(<span class="p">--bg-subtle</span>) 100%);
+  background-size: <span class="n">200% 100%</span>;
+  animation: shimmer <span class="n">1.5s</span> ease-in-out infinite;
+  border-radius: var(<span class="p">--radius-sm</span>);
+}
+
+<span class="k">@keyframes</span> shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+<span class="c">/* React:</span>
+<span class="c"><Card className="sk-card"></span>
+<span class="c">  <div className="sk h-[90px] mb-3" /></span>
+<span class="c">  <div className="sk sk-line w-7/12" /></span>
+<span class="c">  ... </span>
+<span class="c"></Card> */</span></pre>
+    </div>
+
+    <div class="code-grid" style="margin-top:16px">
+      <div class="demo-block">
+        <div class="demo-block__head">
+          <div class="demo-block__title">Skeleton · list row <span class="pill pill--neutral">Q&amp;A, hadith, comments</span></div>
+          <div class="demo-block__hint">.sk-row</div>
+        </div>
+        <div class="demo-block__body" style="display:block;padding:24px;min-height:0">
+          <div class="sk-row">
+            <div class="sk sk-circle"></div>
+            <div style="flex:1">
+              <div class="sk sk-line" style="width:50%"></div>
+              <div class="sk sk-line" style="width:85%;height:10px"></div>
+            </div>
+            <div class="sk" style="width:60px;height:22px"></div>
+          </div>
+          <div class="sk-row">
+            <div class="sk sk-circle"></div>
+            <div style="flex:1">
+              <div class="sk sk-line" style="width:65%"></div>
+              <div class="sk sk-line" style="width:70%;height:10px"></div>
+            </div>
+            <div class="sk" style="width:60px;height:22px"></div>
+          </div>
+          <div class="sk-row">
+            <div class="sk sk-circle"></div>
+            <div style="flex:1">
+              <div class="sk sk-line" style="width:40%"></div>
+              <div class="sk sk-line" style="width:55%;height:10px"></div>
+            </div>
+            <div class="sk" style="width:60px;height:22px"></div>
+          </div>
+        </div>
+      </div>
+      <pre class="code"><span class="c">/* Кружок-аватар + 2 строки + status-pill placeholder.
+   Используйте 3-5 рядов — не больше, иначе кажется fake. */</span>
+
+<span class="k">.sk-row</span> {
+  display: flex; align-items: center; gap: <span class="n">12px</span>;
+  padding: <span class="n">12px 16px</span>;
+  background: var(<span class="p">--bg-card</span>);
+  border: <span class="n">1px solid</span> var(<span class="p">--border-subtle</span>);
+  border-radius: var(<span class="p">--radius-md</span>);
+}
+
+<span class="k">.sk-circle</span> {
+  width: <span class="n">32px</span>; height: <span class="n">32px</span>;
+  border-radius: <span class="n">50%</span>;
+}
+
+<span class="c">/* React pattern:
+{isLoading
+  ? Array.from({length: 4}).map((_, i) =>
+      <SkeletonRow key={i} />)
+  : items.map(item => <ItemRow {...item} />)} */</span></pre>
+    </div>
+
+    <div class="sub" style="margin-top:32px">Когда что использовать</div>
+    <div class="ref-list">
+      <div class="ref-list__item">
+        <span class="ref-list__file">.sk-card</span>
+        <span class="ref-list__desc">Карточная сетка — topics, library, collections</span>
+        <span class="ref-list__use">first paint &lt; 800ms</span>
+      </div>
+      <div class="ref-list__item">
+        <span class="ref-list__file">.sk-row</span>
+        <span class="ref-list__desc">Списочные представления — Q&amp;A, hadith, log</span>
+        <span class="ref-list__use">first paint &lt; 800ms</span>
+      </div>
+      <div class="ref-list__item">
+        <span class="ref-list__file">spinner</span>
+        <span class="ref-list__desc">Граф — только spinner в центре canvas + статус-текст</span>
+        <span class="ref-list__use">tree layout &gt; 500ms</span>
+      </div>
+      <div class="ref-list__item">
+        <span class="ref-list__file">inline progress</span>
+        <span class="ref-list__desc">Внутри уже отрисованной кнопки/секции — sync, save</span>
+        <span class="ref-list__use">user-initiated</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============= 06 EMPTY ============= -->
+  <section id="empty">
+    <div class="section-head">
+      <span class="num">06</span>
+      <h2>Empty states</h2>
+      <p class="lead">Каждый пустой экран должен мотивировать первое действие. Иллюстрация (схематичная, в стиле графа) + название + одно-два предложения + основной CTA.</p>
+    </div>
+
+    <div class="demo-block">
+      <div class="demo-block__head">
+        <div class="demo-block__title">Empty · нет тем <span class="pill pill--neutral">первое создание</span></div>
+        <div class="demo-block__hint">.state-block</div>
+      </div>
+      <div class="demo-block__body">
+        <div class="state-block">
+          <div class="state-block__illus" style="width:120px;height:120px">
+            <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
+              <line x1="40" y1="26" x2="22" y2="46" stroke="var(--edge-supports)" stroke-width="1.5" stroke-dasharray="3 3"/>
+              <line x1="40" y1="26" x2="58" y2="46" stroke="var(--edge-supports)" stroke-width="1.5" stroke-dasharray="3 3"/>
+              <circle cx="40" cy="20" r="7" fill="var(--node-thesis-bd)"/>
+              <circle cx="22" cy="50" r="5" fill="var(--node-evidence-bd)" opacity="0.4"/>
+              <circle cx="58" cy="50" r="5" fill="var(--node-evidence-bd)" opacity="0.4"/>
+            </svg>
+          </div>
+          <h3 class="state-block__title">Начните свой первый аргумент</h3>
+          <p class="state-block__body">Темы — это структурированные дискуссии, где аргументы становятся узлами, а связи — отношениями.</p>
+          <div class="state-block__actions">
+            <button class="btn btn--primary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> Создать первую тему</button>
+            <button class="btn btn--secondary">Шаблоны</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="code-grid">
+      <div class="demo-block">
+        <div class="demo-block__head">
+          <div class="demo-block__title">Empty · нет результатов поиска <span class="pill pill--neutral">filter result</span></div>
+          <div class="demo-block__hint">smaller variant</div>
+        </div>
+        <div class="demo-block__body">
+          <div class="state-block" style="padding:32px 16px;max-width:360px">
+            <div class="state-block__illus" style="width:64px;height:64px;margin-bottom:16px">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            </div>
+            <h3 class="state-block__title" style="font-size:18px">По запросу «...» ничего не найдено</h3>
+            <p class="state-block__body" style="margin-bottom:16px">Попробуйте: убрать огласовки · сократить · искать в обоих языках</p>
+            <button class="btn btn--ghost">Сбросить фильтры</button>
+          </div>
+        </div>
+      </div>
+      <div class="demo-block">
+        <div class="demo-block__head">
+          <div class="demo-block__title">Empty · коллекция пуста <span class="pill pill--neutral">inside content</span></div>
+          <div class="demo-block__hint">inline panel</div>
+        </div>
+        <div class="demo-block__body">
+          <div class="state-block" style="padding:32px 16px;max-width:340px">
+            <div class="state-block__illus" style="width:64px;height:64px;margin-bottom:16px">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            </div>
+            <h3 class="state-block__title" style="font-size:18px">Коллекция «Избранное» пуста</h3>
+            <p class="state-block__body" style="margin-bottom:16px">Добавьте книги через ♡ на карточке в библиотеке.</p>
+            <button class="btn btn--primary">Перейти в библиотеку</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <pre class="code" style="margin-top:16px"><span class="c">/* React component */</span>
+<span class="k">export const</span> <span class="n">EmptyState</span> = ({
+  illustration, title, body, primary, secondary
+}) =&gt; (
+  &lt;<span class="k">div</span> className=<span class="s">"state-block"</span>&gt;
+    &lt;<span class="k">div</span> className=<span class="s">"state-block__illus"</span>&gt;{illustration}&lt;/<span class="k">div</span>&gt;
+    &lt;<span class="k">h3</span> className=<span class="s">"state-block__title"</span>&gt;{title}&lt;/<span class="k">h3</span>&gt;
+    &lt;<span class="k">p</span> className=<span class="s">"state-block__body"</span>&gt;{body}&lt;/<span class="k">p</span>&gt;
+    &lt;<span class="k">div</span> className=<span class="s">"state-block__actions"</span>&gt;
+      {primary && &lt;<span class="n">Button</span> variant=<span class="s">"primary"</span>&gt;{primary}&lt;/<span class="n">Button</span>&gt;}
+      {secondary && &lt;<span class="n">Button</span> variant=<span class="s">"ghost"</span>&gt;{secondary}&lt;/<span class="n">Button</span>&gt;}
+    &lt;/<span class="k">div</span>&gt;
+  &lt;/<span class="k">div</span>&gt;
+);</pre>
+  </section>
+
+  <!-- ============= 07 ERRORS ============= -->
+  <section id="errors">
+    <div class="section-head">
+      <span class="num">07</span>
+      <h2>Error states</h2>
+      <p class="lead">Тон спокойный, не алармистский. Скажите что произошло одним предложением, дайте кнопку «Повторить» или путь обратно. Цвет — серый (для info-tier) или приглушённый красный (для destructive).</p>
+    </div>
+
+    <div class="demo-block">
+      <div class="demo-block__head">
+        <div class="demo-block__title">Error · 404 not found <span class="pill pill--neutral">page-level</span></div>
+        <div class="demo-block__hint">.state-block</div>
+      </div>
+      <div class="demo-block__body">
+        <div class="state-block">
+          <div class="state-block__illus" style="width:120px;height:120px">
+            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 10h.01M15 10h.01M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2 2.5-2 2.5 2 2.5-2 3 3V10a8 8 0 0 0-8-8z"/></svg>
+          </div>
+          <h3 class="state-block__title">Здесь ничего нет</h3>
+          <p class="state-block__body">Возможно, тема удалена или вы зашли по старой ссылке.</p>
+          <div class="state-block__actions">
+            <button class="btn btn--primary">Вернуться к темам</button>
+            <button class="btn btn--ghost">На главную</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="code-grid">
+      <div class="demo-block">
+        <div class="demo-block__head">
+          <div class="demo-block__title">Error · network <span class="pill pill--warn">auto-retry</span></div>
+          <div class="demo-block__hint">.state-block</div>
+        </div>
+        <div class="demo-block__body">
+          <div class="state-block" style="padding:32px 16px;max-width:360px">
+            <div class="state-block__illus" style="width:96px;height:96px;margin-bottom:20px">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/><path d="m2 2 20 20"/></svg>
+            </div>
+            <h3 class="state-block__title" style="font-size:20px">Нет соединения</h3>
+            <p class="state-block__body">Проверьте подключение. Повтор через 5с… <span style="font-family:var(--font-mono)">(3/5)</span></p>
+            <button class="btn btn--primary">Повторить сейчас</button>
+          </div>
+        </div>
+      </div>
+      <div class="demo-block">
+        <div class="demo-block__head">
+          <div class="demo-block__title">Error · permission <span class="pill pill--neutral">access</span></div>
+          <div class="demo-block__hint">.state-block</div>
+        </div>
+        <div class="demo-block__body">
+          <div class="state-block" style="padding:32px 16px;max-width:360px">
+            <div class="state-block__illus" style="width:96px;height:96px;margin-bottom:20px">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <h3 class="state-block__title" style="font-size:20px">Тема приватная</h3>
+            <p class="state-block__body">Запросите доступ у автора или вернитесь к публичным.</p>
+            <div class="state-block__actions">
+              <button class="btn btn--primary">Запросить доступ</button>
+              <button class="btn btn--ghost">Назад</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sub" style="margin-top:32px">Inline error (внутри формы / секции — не страница)</div>
+    <div class="code-grid">
+      <div class="demo-block">
+        <div class="demo-block__head">
+          <div class="demo-block__title">Inline · ошибка в форме <span class="pill pill--err">validation</span></div>
+          <div class="demo-block__hint">.inline-error</div>
+        </div>
+        <div class="demo-block__body" style="display:block;padding:32px">
+          <label style="display:block;font-size:13px;font-weight:600;color:var(--text-strong);margin-bottom:6px">Email</label>
+          <input class="input" defaultValue="not-an-email" style="border-color:var(--status-err)"/>
+          <div class="inline-error" style="margin-top:8px">
+            <span class="inline-error__icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+            </span>
+            <span><strong>Некорректный email.</strong> Проверьте, что строка содержит <code style="font-family:var(--font-mono);font-size:12px">@</code> и домен.</span>
+          </div>
+        </div>
+      </div>
+      <pre class="code"><span class="k">.inline-error</span> {
+  display: flex; align-items: flex-start; gap: <span class="n">10px</span>;
+  padding: <span class="n">12px 14px</span>;
+  background: oklch(<span class="n">95% 0.04 28</span> / <span class="n">0.6</span>);
+  border: <span class="n">1px solid</span> oklch(<span class="n">85% 0.10 28</span>);
+  border-radius: var(<span class="p">--radius-md</span>);
+  color: var(<span class="p">--status-err</span>);
+  font-size: var(<span class="p">--text-sm</span>);
+  line-height: <span class="n">1.5</span>;
+}
+
+<span class="c">/* Dark theme override — see tokens.css */</span></pre>
+    </div>
+  </section>
+
+  <!-- ============= 08 FEEDBACK ============= -->
+  <section id="feedback">
+    <div class="section-head">
+      <span class="num">08</span>
+      <h2>Toast &amp; inline feedback</h2>
+      <p class="lead">Транзиентные сообщения о результате действий. Toast — bottom-right · 3s · auto-dismiss. Banner — sticky top, ручное закрытие. Inline — внутри секции, не исчезает.</p>
+    </div>
+
+    <div class="sub">Toasts (auto-dismiss)</div>
+    <div class="demo-block">
+      <div class="demo-block__head">
+        <div class="demo-block__title">Toast · все 4 варианта <span class="pill pill--neutral">bottom-right · 3s</span></div>
+        <div class="demo-block__hint">.toast.toast--{ok|warn|err|info}</div>
+      </div>
+      <div class="demo-block__body" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start;padding:32px">
+        <div class="toast toast--ok">
+          <div class="toast__icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+          </div>
+          <div class="toast__body">
+            <div class="toast__title">Тема создана</div>
+            <div class="toast__msg">«Дозволенность Мавлида» добавлена в ваши темы.</div>
+          </div>
+          <button class="icon-btn" style="width:24px;height:24px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        </div>
+        <div class="toast toast--info">
+          <div class="toast__icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          </div>
+          <div class="toast__body">
+            <div class="toast__title">Узел сохранён локально</div>
+            <div class="toast__msg">Синхронизация при восстановлении сети.</div>
+          </div>
+        </div>
+        <div class="toast toast--warn">
+          <div class="toast__icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+          </div>
+          <div class="toast__body">
+            <div class="toast__title">Импорт частично завершён</div>
+            <div class="toast__msg">6 страниц без <code style="font-family:var(--font-mono);font-size:12px">printedPage</code>.</div>
+          </div>
+        </div>
+        <div class="toast toast--err">
+          <div class="toast__icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+          </div>
+          <div class="toast__body">
+            <div class="toast__title">Не удалось удалить узел</div>
+            <div class="toast__msg">Сетевая ошибка. Попробуйте снова.</div>
+          </div>
+          <button class="btn btn--ghost" style="height:28px;padding:0 10px;font-size:12px">Повторить</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sub">Banner (sticky · manual dismiss)</div>
+    <div class="demo-block">
+      <div class="demo-block__head">
+        <div class="demo-block__title">Banner · информационный <span class="pill pill--neutral">top of page</span></div>
+        <div class="demo-block__hint">.banner</div>
+      </div>
+      <div class="demo-block__body" style="padding:0;display:block;min-height:120px">
+        <div class="banner">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          <span>В этой теме новые ответы. <a href="#" style="color:inherit;text-decoration:underline;font-weight:600">Обновить страницу</a>, чтобы загрузить.</span>
+          <button class="banner__close" aria-label="Закрыть">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div style="padding:32px;color:var(--text-muted);font-size:13px">остальной контент страницы…</div>
+      </div>
+    </div>
+
+    <pre class="code"><span class="c">/* React Toast — recommended Radix integration */</span>
+<span class="k">import</span> * <span class="k">as</span> Toast <span class="k">from</span> <span class="s">"@radix-ui/react-toast"</span>;
+
+&lt;<span class="n">Toast.Root</span> className=<span class="s">"toast toast--ok"</span> duration={<span class="n">3000</span>}&gt;
+  &lt;<span class="k">div</span> className=<span class="s">"toast__icon"</span>&gt;&lt;<span class="n">CheckIcon</span>/&gt;&lt;/<span class="k">div</span>&gt;
+  &lt;<span class="k">div</span> className=<span class="s">"toast__body"</span>&gt;
+    &lt;<span class="n">Toast.Title</span> className=<span class="s">"toast__title"</span>&gt;{title}&lt;/<span class="n">Toast.Title</span>&gt;
+    &lt;<span class="n">Toast.Description</span> className=<span class="s">"toast__msg"</span>&gt;{msg}&lt;/<span class="n">Toast.Description</span>&gt;
+  &lt;/<span class="k">div</span>&gt;
+  &lt;<span class="n">Toast.Close</span> <span class="k">asChild</span>&gt;&lt;<span class="n">IconButton</span>/&gt;&lt;/<span class="n">Toast.Close</span>&gt;
+&lt;/<span class="n">Toast.Root</span>&gt;
+
+<span class="c">/* Toast.Viewport positions everything bottom-right (LTR) /
+   bottom-left (RTL) — handled automatically by [dir] attr. */</span></pre>
+  </section>
+
+  <!-- ============= FILE MANIFEST ============= -->
+  <section>
+    <div class="section-head">
+      <span class="num">∞</span>
+      <h2>Files to ship</h2>
+      <p class="lead">Передайте эти два файла + этот документ Claude Code. Все React-компоненты ниже строятся поверх этих CSS-классов.</p>
+    </div>
+
+    <div class="ref-list">
+      <div class="ref-list__item">
+        <span class="ref-list__file">tokens.css</span>
+        <span class="ref-list__desc">CSS variables · light / dark / rtl · единственный источник правды для цветов, типографики, spacing, shadows, motion</span>
+        <span class="ref-list__use">@import первым</span>
+      </div>
+      <div class="ref-list__item">
+        <span class="ref-list__file">app.css</span>
+        <span class="ref-list__desc">Component primitives на токенах: .btn .input .card .pill .kbd .segmented .icon-btn .sk .header — никаких magic numbers</span>
+        <span class="ref-list__use">@import вторым</span>
+      </div>
+      <div class="ref-list__item">
+        <span class="ref-list__file">Design Handoff.html</span>
+        <span class="ref-list__desc">Этот документ — визуальная демонстрация всех токенов и состояний</span>
+        <span class="ref-list__use">reference only</span>
+      </div>
+    </div>
+
+    <div class="sub">Tailwind v4 integration hint</div>
+    <pre class="code"><span class="c">/* Add to your app.css after Tailwind directives: */</span>
+
+<span class="k">@import</span> <span class="s">"./tokens.css"</span>;
+<span class="k">@import</span> <span class="s">"./app.css"</span>;
+
+<span class="k">@theme</span> {
+  <span class="c">/* Bridge tokens to Tailwind utilities — write Tailwind classes,
+     they read the CSS variables, themes still work. */</span>
+  --color-brand-50: var(--brand-50);
+  --color-brand-500: var(--brand-500);
+  --color-brand-700: var(--brand-700);
+  --color-text-strong: var(--text-strong);
+  --color-text-base: var(--text-base);
+  --color-text-muted: var(--text-muted);
+  --color-bg-app: var(--bg-app);
+  --color-bg-card: var(--bg-card);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-border: var(--border-base);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --font-sans: var(--font-ui);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
+}
+
+<span class="c">/* Then in React: */</span>
+<span class="c">// &lt;button className="bg-brand-500 text-white rounded-md px-4 h-9"&gt;</span>
+<span class="c">//   Создать</span>
+<span class="c">// &lt;/button&gt;</span></pre>
+  </section>
+</div>
+
+<script>
+  document.querySelectorAll(".theme-toggle button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const theme = btn.dataset.setTheme;
+      document.body.dataset.theme = theme;
+      document.querySelectorAll(".theme-toggle button").forEach(b => b.classList.toggle("is-active", b === btn));
+    });
+  });
+</script>
+
+</body>
+</html>

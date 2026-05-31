@@ -1,0 +1,194 @@
+/* ================================================================
+   ARGUMENT MAP — DESIGN TOKENS
+   Single source of truth. Edit here, propagate everywhere.
+   ================================================================ */
+
+:root {
+  /* === BRAND ============================================== */
+  --brand-50:   oklch(96% 0.02 270);
+  --brand-100:  oklch(92% 0.05 270);
+  --brand-200:  oklch(85% 0.09 270);
+  --brand-300:  oklch(75% 0.13 270);
+  --brand-400:  oklch(62% 0.17 270);
+  --brand-500:  oklch(52% 0.20 270);  /* primary */
+  --brand-600:  oklch(45% 0.21 270);
+  --brand-700:  oklch(38% 0.19 270);
+  --brand-800:  oklch(30% 0.16 270);
+  --brand-900:  oklch(22% 0.12 270);
+
+  /* === NODE TYPES (graph) ================================= */
+  --node-question:      oklch(94% 0.04 290);   /* bg light */
+  --node-question-ink:  oklch(38% 0.16 290);   /* text */
+  --node-question-bd:   oklch(85% 0.08 290);   /* border */
+
+  --node-thesis:        oklch(94% 0.05 270);
+  --node-thesis-ink:    oklch(38% 0.18 270);
+  --node-thesis-bd:     oklch(82% 0.10 270);
+
+  --node-argument:      oklch(95% 0.05 80);
+  --node-argument-ink:  oklch(42% 0.14 60);
+  --node-argument-bd:   oklch(82% 0.10 80);
+
+  --node-evidence:      oklch(94% 0.05 155);
+  --node-evidence-ink:  oklch(38% 0.13 155);
+  --node-evidence-bd:   oklch(80% 0.10 155);
+
+  /* === EDGES ============================================== */
+  --edge-supports:  oklch(55% 0.15 155);   /* green */
+  --edge-attacks:   oklch(55% 0.20 28);    /* red   */
+  --edge-rebuts:    oklch(60% 0.20 28);    /* red dashed */
+  --edge-clarifies: oklch(55% 0.18 250);   /* blue  */
+  --edge-neutral:   oklch(60% 0.02 260);   /* gray  */
+
+  /* === STATUS ============================================= */
+  --status-ok:    oklch(55% 0.14 155);
+  --status-warn:  oklch(70% 0.15 80);
+  --status-err:   oklch(58% 0.20 28);
+  --status-info:  oklch(55% 0.15 250);
+
+  /* === NEUTRALS (light) =================================== */
+  --bg-app:      oklch(99% 0.003 270);
+  --bg-canvas:   oklch(98% 0.005 270);
+  --bg-card:     oklch(100% 0 0);
+  --bg-subtle:   oklch(96% 0.005 270);
+  --bg-hover:    oklch(94% 0.008 270);
+  --bg-active:   oklch(90% 0.015 270);
+
+  --border-subtle: oklch(92% 0.006 270);
+  --border-base:   oklch(88% 0.008 270);
+  --border-strong: oklch(78% 0.01 270);
+
+  /* Text — every step ≥4.5:1 against bg-app */
+  --text-strong:  oklch(18% 0.01 270);   /* headings */
+  --text-base:    oklch(28% 0.012 270);  /* body */
+  --text-muted:   oklch(45% 0.012 270);  /* secondary, captions */
+  --text-meta:    oklch(55% 0.010 270);  /* metadata, only ≥13px */
+  --text-faint:   oklch(70% 0.008 270);  /* placeholders only */
+
+  /* === RADII ============================================== */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;   /* default — cards, inputs, buttons */
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* === SHADOWS (subtle, max 2 levels) ===================== */
+  --shadow-sm: 0 1px 2px oklch(20% 0 0 / 0.04), 0 1px 1px oklch(20% 0 0 / 0.03);
+  --shadow-md: 0 2px 8px oklch(20% 0 0 / 0.06), 0 1px 3px oklch(20% 0 0 / 0.04);
+  --shadow-lg: 0 8px 24px oklch(20% 0 0 / 0.08), 0 2px 6px oklch(20% 0 0 / 0.04);
+  --shadow-focus: 0 0 0 3px oklch(52% 0.20 270 / 0.30);
+
+  /* === SPACING (8px grid) ================================= */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* === TYPOGRAPHY ========================================== */
+  --font-ui:    "Manrope", system-ui, -apple-system, sans-serif;
+  --font-serif: "Source Serif 4", "Source Serif Pro", Georgia, serif;
+  --font-mono:  "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-ar:    "Scheherazade New", "Amiri", "Noto Naskh Arabic", serif;
+
+  --text-xs:    11px;
+  --text-sm:    13px;
+  --text-base:  15px;
+  --text-md:    16px;
+  --text-lg:    18px;
+  --text-xl:    22px;
+  --text-2xl:   28px;
+  --text-3xl:   36px;
+  --text-4xl:   48px;
+
+  --leading-tight:  1.2;
+  --leading-snug:   1.35;
+  --leading-normal: 1.5;
+  --leading-relax:  1.7;
+  --leading-loose:  1.85;
+
+  --tracking-tight: -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.02em;
+  --tracking-caps: 0.08em;
+
+  /* === MOTION ============================================= */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+
+  /* === LAYOUT ============================================= */
+  --hit-target: 44px;       /* min tap-target on mobile */
+  --hit-target-desktop: 36px;
+  --header-h: 56px;
+  --maxw-prose: 68ch;
+}
+
+/* === DARK THEME ============================================ */
+[data-theme="dark"] {
+  --bg-app:      oklch(15% 0.012 270);
+  --bg-canvas:   oklch(17% 0.014 270);
+  --bg-card:     oklch(20% 0.016 270);
+  --bg-subtle:   oklch(22% 0.018 270);
+  --bg-hover:    oklch(26% 0.020 270);
+  --bg-active:   oklch(30% 0.022 270);
+
+  --border-subtle: oklch(26% 0.018 270);
+  --border-base:   oklch(32% 0.020 270);
+  --border-strong: oklch(45% 0.022 270);
+
+  --text-strong:  oklch(98% 0.005 270);
+  --text-base:    oklch(90% 0.008 270);
+  --text-muted:   oklch(72% 0.012 270);   /* lifted from light's 55% → 72% */
+  --text-meta:    oklch(62% 0.012 270);
+  --text-faint:   oklch(48% 0.012 270);
+
+  /* Node types — re-tuned for dark, NOT same oklch */
+  --node-question:      oklch(28% 0.06 290);
+  --node-question-ink:  oklch(85% 0.10 290);
+  --node-question-bd:   oklch(40% 0.10 290);
+
+  --node-thesis:        oklch(28% 0.08 270);
+  --node-thesis-ink:    oklch(86% 0.12 270);
+  --node-thesis-bd:     oklch(42% 0.14 270);
+
+  --node-argument:      oklch(30% 0.07 70);
+  --node-argument-ink:  oklch(88% 0.10 75);
+  --node-argument-bd:   oklch(45% 0.10 70);
+
+  --node-evidence:      oklch(28% 0.07 155);
+  --node-evidence-ink:  oklch(86% 0.10 155);
+  --node-evidence-bd:   oklch(42% 0.10 155);
+
+  /* Edges — boosted saturation+lightness for dark */
+  --edge-supports:  oklch(68% 0.18 155);
+  --edge-attacks:   oklch(68% 0.22 28);
+  --edge-rebuts:    oklch(72% 0.22 28);
+  --edge-clarifies: oklch(70% 0.20 250);
+  --edge-neutral:   oklch(58% 0.015 270);
+
+  --status-ok:    oklch(68% 0.16 155);
+  --status-warn:  oklch(78% 0.16 80);
+  --status-err:   oklch(70% 0.22 28);
+  --status-info:  oklch(70% 0.18 250);
+
+  --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.4), 0 1px 1px oklch(0% 0 0 / 0.2);
+  --shadow-md: 0 2px 8px oklch(0% 0 0 / 0.4), 0 1px 3px oklch(0% 0 0 / 0.25);
+  --shadow-lg: 0 8px 24px oklch(0% 0 0 / 0.5), 0 2px 6px oklch(0% 0 0 / 0.3);
+  --shadow-focus: 0 0 0 3px oklch(72% 0.18 270 / 0.45);
+
+  /* Brand stays accessible in dark */
+  --brand-500: oklch(70% 0.17 270);
+  --brand-600: oklch(62% 0.19 270);
+}
+
+[dir="rtl"] {
+  --font-ui: "Scheherazade New", "Amiri", "Noto Naskh Arabic", "Manrope", system-ui, sans-serif;
+}

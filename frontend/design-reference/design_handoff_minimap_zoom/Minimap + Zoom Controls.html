@@ -1,0 +1,856 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Minimap + Zoom Controls</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  :root {
+    --font: 'Geist', system-ui, -apple-system, sans-serif;
+    --mono: 'Geist Mono', ui-monospace, monospace;
+  }
+  .theme-dark {
+    --bg: #0d0d0a;
+    --surface: #1a1a16;
+    --surface-2: #22221d;
+    --surface-3: #2c2c25;
+    --border: #2a2a23;
+    --border-strong: #3a3a31;
+    --text: #ece8df;
+    --text-muted: #8a8678;
+    --text-dim: #5a5750;
+    --accent: oklch(0.72 0.16 295);
+    --accent-bg: oklch(0.32 0.08 295 / 0.4);
+    --accent-fg: oklch(0.85 0.14 295);
+    --node-q: oklch(0.7 0.16 295);   /* Вопрос — фиолетовый */
+    --node-a: oklch(0.7 0.16 160);   /* Ответ — зелёный */
+    --node-h: oklch(0.72 0.14 60);   /* Хадис — янтарный */
+    --node-t: oklch(0.7 0.14 230);   /* Тема — синий */
+    --grid-dot: rgba(255,255,255,.045);
+    --canvas-bg: #131310;
+    --shadow-card: 0 1px 0 rgba(255,255,255,.04), 0 8px 24px rgba(0,0,0,.4);
+    --shadow-float: 0 2px 0 rgba(255,255,255,.03), 0 16px 40px rgba(0,0,0,.55);
+  }
+  .theme-light {
+    --bg: #f6f4ee;
+    --surface: #ffffff;
+    --surface-2: #f1efe7;
+    --surface-3: #e9e7dd;
+    --border: #e4e1d6;
+    --border-strong: #cfcbbb;
+    --text: #1c1b16;
+    --text-muted: #6f6c5e;
+    --text-dim: #a09c8c;
+    --accent: oklch(0.55 0.18 295);
+    --accent-bg: oklch(0.93 0.04 295);
+    --accent-fg: oklch(0.45 0.2 295);
+    --node-q: oklch(0.55 0.16 295);
+    --node-a: oklch(0.5 0.14 160);
+    --node-h: oklch(0.6 0.12 60);
+    --node-t: oklch(0.5 0.14 230);
+    --grid-dot: rgba(0,0,0,.06);
+    --canvas-bg: #f1efe7;
+    --shadow-card: 0 1px 2px rgba(20,18,10,.06), 0 8px 24px rgba(20,18,10,.08);
+    --shadow-float: 0 2px 4px rgba(20,18,10,.06), 0 16px 40px rgba(20,18,10,.16);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; font-family: var(--font); background: #0a0a08; color: #ece8df; overflow: hidden; }
+
+  /* ── Demo shell ── */
+  .demo-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 10px 16px;
+    background: rgba(10,10,8,.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,.06);
+    font-size: 13px;
+  }
+  .demo-bar .title { font-weight: 600; color: #fff; margin-right: auto; letter-spacing: -.01em; }
+  .demo-bar .title small { color: #8a8678; font-weight: 400; margin-left: 8px; }
+  .demo-bar .group { display: flex; align-items: center; gap: 2px; padding: 3px; background: rgba(255,255,255,.04); border-radius: 9px; }
+  .demo-bar .group button {
+    border: 0; background: transparent; color: #b8b3a3; cursor: pointer;
+    font: 500 12.5px/1 var(--font); padding: 7px 12px; border-radius: 7px;
+  }
+  .demo-bar .group button[data-active=true] { background: rgba(255,255,255,.1); color: #fff; }
+  .demo-bar .label { color: #6e6a5d; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; }
+
+  .stage {
+    position: fixed; inset: 52px 0 0 0;
+    background: var(--canvas-bg);
+    background-image: radial-gradient(circle, var(--grid-dot) 1px, transparent 1px);
+    background-size: 32px 32px;
+    overflow: hidden;
+  }
+  .stage-fade {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 30%, var(--canvas-bg) 95%);
+  }
+
+  /* Placement on canvas: stacked bottom-right, like in the original */
+  .corner-rb {
+    position: absolute; bottom: 24px; right: 24px;
+    display: flex; flex-direction: column; gap: 10px; align-items: flex-end;
+    z-index: 10;
+  }
+
+  /* ────────────────────────────────────────── */
+  /*  ZOOM CONTROLS                              */
+  /* ────────────────────────────────────────── */
+  .zc {
+    display: inline-flex; align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 4px;
+    gap: 2px;
+    box-shadow: var(--shadow-card);
+  }
+  .zc button.icon {
+    width: 30px; height: 30px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 0; background: transparent; color: var(--text-muted); cursor: pointer;
+    border-radius: 6px;
+    position: relative;
+  }
+  .zc button.icon:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+  .zc button.icon:disabled { opacity: 0.35; cursor: not-allowed; }
+  .zc .pct {
+    min-width: 56px;
+    height: 30px;
+    padding: 0 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 4px;
+    border: 0; background: transparent;
+    color: var(--text);
+    font: 500 12.5px/1 var(--mono);
+    cursor: pointer;
+    border-radius: 6px;
+    position: relative;
+  }
+  .zc .pct:hover { background: var(--surface-2); }
+  .zc .pct svg { color: var(--text-dim); }
+  .zc .divider { width: 1px; height: 18px; background: var(--border); margin: 0 4px; align-self: center; }
+
+  /* Tooltips (shared) */
+  .tt {
+    position: absolute;
+    bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%) translateY(4px);
+    background: var(--surface-3);
+    color: var(--text);
+    padding: 5px 9px; border-radius: 6px;
+    font: 500 11.5px/1.2 var(--font);
+    white-space: nowrap;
+    opacity: 0; pointer-events: none;
+    transition: opacity .12s, transform .12s;
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-card);
+    z-index: 50;
+  }
+  .tt .kbd-mini {
+    font: 500 10.5px var(--mono); color: var(--text-muted);
+    background: var(--surface); padding: 1px 5px; border-radius: 3px; margin-left: 6px;
+  }
+  button:hover > .tt, .has-tt:hover > .tt { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Zoom presets dropdown */
+  .zc-presets {
+    position: absolute;
+    bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    padding: 5px;
+    min-width: 180px;
+    box-shadow: var(--shadow-float);
+    z-index: 60;
+    display: flex; flex-direction: column;
+    gap: 1px;
+  }
+  .zc-presets button {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px;
+    border: 0; background: transparent; color: var(--text);
+    font: 400 13px/1 var(--font);
+    cursor: pointer; border-radius: 6px; text-align: left;
+  }
+  .zc-presets button:hover { background: var(--surface-2); }
+  .zc-presets button .preset-pct {
+    font: 500 11.5px var(--mono); color: var(--text-muted); margin-left: auto;
+  }
+  .zc-presets button .preset-kbd {
+    font: 500 10.5px var(--mono); background: var(--surface-2); color: var(--text-muted); padding: 1px 5px; border-radius: 3px;
+  }
+  .zc-presets .divider-h { height: 1px; background: var(--border); margin: 4px 0; }
+  .zc-presets button.current .preset-pct { color: var(--accent-fg); }
+  .zc-presets button.current::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent); margin-right: -2px;
+  }
+
+  /* ────────────────────────────────────────── */
+  /*  MINIMAP                                    */
+  /* ────────────────────────────────────────── */
+  .mm {
+    width: 240px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+    transition: width .25s cubic-bezier(.2,.7,.3,1), height .25s cubic-bezier(.2,.7,.3,1);
+  }
+  .mm-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 6px 6px 12px;
+    height: 32px;
+    border-bottom: 1px solid var(--border);
+  }
+  .mm-title {
+    font: 500 11px/1 var(--font);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--text-dim);
+    margin-right: auto;
+  }
+  .mm-actions { display: inline-flex; gap: 2px; }
+  .mm-actions button {
+    width: 24px; height: 24px;
+    border: 0; background: transparent; color: var(--text-muted); cursor: pointer;
+    border-radius: 5px;
+    display: inline-flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .mm-actions button:hover { background: var(--surface-2); color: var(--text); }
+
+  .mm-canvas {
+    position: relative;
+    width: 100%;
+    height: 150px;
+    background: var(--canvas-bg);
+    background-image: radial-gradient(circle, var(--grid-dot) 1px, transparent 1px);
+    background-size: 14px 14px;
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .mm-canvas .mm-edge {
+    position: absolute;
+    height: 1px;
+    background: var(--text-dim);
+    opacity: .35;
+    transform-origin: 0 50%;
+    pointer-events: none;
+  }
+  .mm-node {
+    position: absolute;
+    border-radius: 2px;
+    background: var(--node-q);
+    box-shadow: 0 0 0 0.5px rgba(0,0,0,.2);
+    pointer-events: none;
+  }
+  .mm-node.q { background: var(--node-q); }
+  .mm-node.a { background: var(--node-a); }
+  .mm-node.h { background: var(--node-h); }
+  .mm-node.t { background: var(--node-t); }
+  .mm-node.selected {
+    box-shadow: 0 0 0 1.5px var(--accent), 0 0 6px 0 var(--accent);
+  }
+
+  .mm-viewport {
+    position: absolute;
+    border: 1.5px solid var(--accent);
+    background: color-mix(in oklch, var(--accent) 12%, transparent);
+    border-radius: 3px;
+    cursor: grab;
+    transition: background .12s, box-shadow .12s;
+  }
+  .mm-viewport:hover { background: color-mix(in oklch, var(--accent) 18%, transparent); box-shadow: 0 0 0 1px var(--accent); }
+  .mm-viewport.dragging { cursor: grabbing; background: color-mix(in oklch, var(--accent) 22%, transparent); }
+
+  .mm-footer {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px;
+    border-top: 1px solid var(--border);
+    font: 500 11px/1 var(--mono);
+    color: var(--text-muted);
+    height: 28px;
+  }
+  .mm-footer .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim);
+  }
+  .mm-footer .dot.q { background: var(--node-q); }
+  .mm-footer .dot.a { background: var(--node-a); }
+  .mm-footer .dot.h { background: var(--node-h); }
+  .mm-footer .stat {
+    display: inline-flex; align-items: center; gap: 4px;
+    color: var(--text-muted);
+  }
+  .mm-footer .spacer { flex: 1; }
+  .mm-footer .zoom-badge {
+    font: 500 11px var(--mono);
+    color: var(--text);
+    background: var(--surface-2);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  /* Collapsed state — compact pill with mini preview */
+  .mm.collapsed { width: 168px; }
+  .mm.collapsed .mm-canvas, .mm.collapsed .mm-footer, .mm.collapsed .mm-title { display: none; }
+  .mm.collapsed .mm-header {
+    border-bottom: 0;
+    height: 40px;
+    padding: 4px 4px 4px 6px;
+    gap: 8px;
+  }
+  .mm.collapsed .mm-actions button { width: 32px; height: 32px; }
+  .mm:not(.collapsed) .mm-collapsed-body { display: none; }
+  .mm-collapsed-body {
+    display: flex; align-items: center; gap: 8px;
+    flex: 1; min-width: 0;
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 6px;
+    transition: background .12s;
+  }
+  .mm-collapsed-body:hover { background: var(--surface-2); }
+  .mm-collapsed-preview {
+    position: relative;
+    width: 44px; height: 28px;
+    background: var(--canvas-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .mm-collapsed-preview .mp-node {
+    position: absolute;
+    border-radius: 1px;
+    pointer-events: none;
+  }
+  .mm-collapsed-preview .mp-node.q { background: var(--node-q); }
+  .mm-collapsed-preview .mp-node.a { background: var(--node-a); }
+  .mm-collapsed-preview .mp-node.h { background: var(--node-h); }
+  .mm-collapsed-preview .mp-node.t { background: var(--node-t); }
+  .mm-collapsed-preview .mp-vp {
+    position: absolute;
+    border: 1px solid var(--accent);
+    background: color-mix(in oklch, var(--accent) 18%, transparent);
+    border-radius: 1px;
+  }
+  .mm-collapsed-meta {
+    display: flex; flex-direction: column; justify-content: center;
+    gap: 2px;
+    font: 500 11.5px/1 var(--mono);
+    color: var(--text);
+    min-width: 0;
+  }
+  .mm-collapsed-meta .mm-collapsed-sub {
+    font: 400 10px/1 var(--font);
+    color: var(--text-muted);
+    letter-spacing: .02em;
+  }
+
+  /* Footer color when selection exists */
+  .selection-banner {
+    background: var(--accent-bg);
+    color: var(--accent-fg);
+    padding: 2px 6px; border-radius: 4px;
+    font: 500 10.5px/1.2 var(--font);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="env,react">
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+// Russian pluralization: 1 = one, 2-4 = few, 5+ = many
+const pluralRu = (n, one, few, many) => {
+  const mod10 = n % 10, mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+  return many;
+};
+
+/* ── Icons ── */
+const SvgIcon = ({ d, size = 16, fill = 'none' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    {Array.isArray(d) ? d.map((p, i) => <path key={i} d={p} />) : <path d={d} />}
+  </svg>
+);
+const IconMinus = (p) => <SvgIcon d="M5 12h14" {...p} />;
+const IconPlus = (p) => <SvgIcon d="M12 5v14M5 12h14" {...p} />;
+// Fit-to-content: outer frame brackets + inner rect (content inside)
+const IconFit = (p) => <SvgIcon d={["M3 8V5a2 2 0 0 1 2-2h3","M21 8V5a2 2 0 0 0-2-2h-3","M3 16v3a2 2 0 0 0 2 2h3","M21 16v3a2 2 0 0 1-2 2h-3","M8 8h8v8H8z"]} {...p} />;
+// Fullscreen: pure 4 corner brackets, no inner rect
+const IconMaximize = (p) => <SvgIcon d={["M4 9V4h5","M20 9V4h-5","M4 15v5h5","M20 15v5h-5"]} {...p} />;
+const IconChevron = (p) => <SvgIcon d="M6 9l6 6 6-6" {...p} />;
+const IconMinimize2 = (p) => <SvgIcon d={["M4 14h6v6","M20 10h-6V4","M14 10l7-7","M3 21l7-7"]} {...p} />;
+const IconExpand = (p) => <SvgIcon d={["M15 3h6v6","M9 21H3v-6","M21 3l-7 7","M3 21l7-7"]} {...p} />;
+const IconCenter = (p) => <SvgIcon d={["M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z","M12 12h.01"]} {...p} />;
+const IconEye = (p) => <SvgIcon d={["M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12z","M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"]} {...p} />;
+const IconEyeOff = (p) => <SvgIcon d={["M9.88 9.88a3 3 0 1 0 4.24 4.24","M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68","M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61","M2 2l20 20"]} {...p} />;
+
+/* ───────────────────────────────────────────────────
+   ZoomControls
+   ─────────────────────────────────────────────────── */
+const PRESETS = [
+  { value: 0.25, label: '25%' },
+  { value: 0.5,  label: '50%' },
+  { value: 0.75, label: '75%' },
+  { value: 1,    label: '100%', kbd: '⌘0' },
+  { value: 1.25, label: '125%' },
+  { value: 1.5,  label: '150%' },
+  { value: 2,    label: '200%' },
+];
+
+function ZoomControls({
+  zoom = 1,
+  min = 0.1,
+  max = 5,
+  step = 0.1,
+  onZoomChange,
+  onFit,
+  onFitSelection,
+  onFullscreen,
+  hasSelection = false,
+}) {
+  const [presetsOpen, setPresetsOpen] = useState(false);
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!presetsOpen) return;
+    const onClick = (e) => { if (!rootRef.current?.contains(e.target)) setPresetsOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setPresetsOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onClick); document.removeEventListener('keydown', onKey); };
+  }, [presetsOpen]);
+
+  const clamp = (v) => Math.max(min, Math.min(max, v));
+  const setZoom = (v) => onZoomChange?.(clamp(v));
+  const pct = Math.round(zoom * 100);
+
+  return (
+    <div className="zc" ref={rootRef}>
+      <button className="icon" onClick={() => setZoom(zoom - step)} disabled={zoom <= min}>
+        <IconMinus size={14}/>
+        <span className="tt">Уменьшить <span className="kbd-mini">⌘−</span></span>
+      </button>
+
+      <button className="pct" onClick={() => setPresetsOpen(o => !o)} aria-haspopup="menu" aria-expanded={presetsOpen}>
+        {pct}%
+        <IconChevron size={12}/>
+        {presetsOpen && (
+          <div className="zc-presets" role="menu" onClick={e => e.stopPropagation()}>
+            {PRESETS.map(p => (
+              <button
+                key={p.value}
+                className={Math.abs(zoom - p.value) < 0.001 ? 'current' : ''}
+                onClick={() => { setZoom(p.value); setPresetsOpen(false); }}
+              >
+                <span>{p.label}</span>
+                <span className="preset-pct">{p.kbd ? <span className="preset-kbd">{p.kbd}</span> : null}</span>
+              </button>
+            ))}
+            <div className="divider-h" />
+            <button onClick={() => { onFit?.(); setPresetsOpen(false); }}>
+              <IconFit size={14}/> Вписать всё <span className="preset-pct"><span className="preset-kbd">⌘1</span></span>
+            </button>
+            {hasSelection && (
+              <button onClick={() => { onFitSelection?.(); setPresetsOpen(false); }}>
+                <IconCenter size={14}/> Вписать выделение <span className="preset-pct"><span className="preset-kbd">⌘2</span></span>
+              </button>
+            )}
+          </div>
+        )}
+      </button>
+
+      <button className="icon" onClick={() => setZoom(zoom + step)} disabled={zoom >= max}>
+        <IconPlus size={14}/>
+        <span className="tt">Увеличить <span className="kbd-mini">⌘+</span></span>
+      </button>
+
+      <span className="divider" />
+
+      <button className="icon" onClick={onFit}>
+        <IconFit size={15}/>
+        <span className="tt">Вписать всё <span className="kbd-mini">⌘1</span></span>
+      </button>
+      <button className="icon" onClick={onFullscreen}>
+        <IconMaximize size={15}/>
+        <span className="tt">Полный экран <span className="kbd-mini">F</span></span>
+      </button>
+    </div>
+  );
+}
+
+/* ───────────────────────────────────────────────────
+   Minimap
+   ─────────────────────────────────────────────────── */
+function Minimap({
+  nodes = [],
+  edges = [],
+  viewport,             // { x, y, w, h } in canvas coords
+  canvasBounds,         // { w, h } total content extents
+  zoom = 1,
+  onViewportChange,
+  onCenterOnSelection,
+  collapsed: collapsedProp,
+  defaultCollapsed = false,
+  onCollapsedChange,
+  showEdges: showEdgesProp,
+}) {
+  const [internalCollapsed, setInternalCollapsed] = useState(defaultCollapsed);
+  const collapsed = collapsedProp !== undefined ? collapsedProp : internalCollapsed;
+  const setCollapsed = (v) => { setInternalCollapsed(v); onCollapsedChange?.(v); };
+
+  const [internalShowEdges, setInternalShowEdges] = useState(true);
+  const showEdges = showEdgesProp !== undefined ? showEdgesProp : internalShowEdges;
+
+  const canvasRef = useRef(null);
+  const [dragging, setDragging] = useState(false);
+  const dragRef = useRef(null);
+
+  // Bounds: derive from nodes if not given
+  const bounds = useMemo(() => {
+    if (canvasBounds) return canvasBounds;
+    let maxX = 1000, maxY = 600;
+    nodes.forEach(n => { maxX = Math.max(maxX, n.x + n.w); maxY = Math.max(maxY, n.y + n.h); });
+    return { w: maxX * 1.2, h: maxY * 1.2 };
+  }, [nodes, canvasBounds]);
+
+  const mmW = 240, mmInnerW = 240, mmInnerH = 150;
+  const sx = mmInnerW / bounds.w;
+  const sy = mmInnerH / bounds.h;
+  const s = Math.min(sx, sy);
+  const offsetX = (mmInnerW - bounds.w * s) / 2;
+  const offsetY = (mmInnerH - bounds.h * s) / 2;
+
+  const project = (cx, cy) => ({ x: offsetX + cx * s, y: offsetY + cy * s });
+
+  // Viewport rect in mm coords
+  const vp = viewport ? {
+    x: offsetX + viewport.x * s,
+    y: offsetY + viewport.y * s,
+    w: viewport.w * s,
+    h: viewport.h * s,
+  } : null;
+
+  // Selection / counts
+  const selectedNodes = nodes.filter(n => n.selected);
+  const hasSelection = selectedNodes.length > 0;
+  const typeCounts = useMemo(() => {
+    const c = { q: 0, a: 0, h: 0, t: 0, other: 0 };
+    nodes.forEach(n => { c[n.type] != null ? c[n.type]++ : c.other++; });
+    return c;
+  }, [nodes]);
+
+  // Drag viewport
+  const onPointerDownVP = (e) => {
+    if (!vp || !viewport) return;
+    e.stopPropagation();
+    setDragging(true);
+    const rect = canvasRef.current.getBoundingClientRect();
+    dragRef.current = {
+      startMouseX: e.clientX, startMouseY: e.clientY,
+      startVpX: viewport.x, startVpY: viewport.y,
+      rect,
+    };
+    e.target.setPointerCapture(e.pointerId);
+  };
+  const onPointerMoveVP = (e) => {
+    if (!dragging || !dragRef.current) return;
+    const dx = (e.clientX - dragRef.current.startMouseX) / s;
+    const dy = (e.clientY - dragRef.current.startMouseY) / s;
+    onViewportChange?.({
+      x: clampX(dragRef.current.startVpX + dx),
+      y: clampY(dragRef.current.startVpY + dy),
+      w: viewport.w, h: viewport.h,
+    });
+  };
+  const onPointerUpVP = (e) => {
+    setDragging(false);
+    dragRef.current = null;
+    try { e.target.releasePointerCapture(e.pointerId); } catch {}
+  };
+  const clampX = (x) => Math.max(0, Math.min(bounds.w - viewport.w, x));
+  const clampY = (y) => Math.max(0, Math.min(bounds.h - viewport.h, y));
+
+  // Click-to-jump (click on canvas, not on viewport rect)
+  const onCanvasClick = (e) => {
+    if (!viewport) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const localX = e.clientX - rect.left;
+    const localY = e.clientY - rect.top;
+    const cx = (localX - offsetX) / s - viewport.w / 2;
+    const cy = (localY - offsetY) / s - viewport.h / 2;
+    onViewportChange?.({ x: clampX(cx), y: clampY(cy), w: viewport.w, h: viewport.h });
+  };
+
+  const pct = Math.round(zoom * 100);
+
+  if (collapsed) {
+    // Mini preview dimensions
+    const previewW = 42, previewH = 26;
+    const pSx = previewW / bounds.w;
+    const pSy = previewH / bounds.h;
+    const pS = Math.min(pSx, pSy);
+    const pOffsetX = (previewW - bounds.w * pS) / 2;
+    const pOffsetY = (previewH - bounds.h * pS) / 2;
+    return (
+      <div className="mm collapsed">
+        <div className="mm-header">
+          <div
+            className="mm-collapsed-body"
+            onClick={() => setCollapsed(false)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCollapsed(false); } }}
+          >
+            <div className="mm-collapsed-preview">
+              {nodes.map(n => (
+                <div key={n.id}
+                     className={`mp-node ${n.type || 'q'}`}
+                     style={{
+                       left: pOffsetX + n.x * pS,
+                       top:  pOffsetY + n.y * pS,
+                       width:  Math.max(2, n.w * pS),
+                       height: Math.max(2, n.h * pS),
+                     }} />
+              ))}
+              {viewport && (
+                <div className="mp-vp" style={{
+                  left:   pOffsetX + viewport.x * pS,
+                  top:    pOffsetY + viewport.y * pS,
+                  width:  Math.max(4, viewport.w * pS),
+                  height: Math.max(4, viewport.h * pS),
+                }} />
+              )}
+            </div>
+            <div className="mm-collapsed-meta">
+              <span>{pct}%</span>
+              <span className="mm-collapsed-sub">{nodes.length} {pluralRu(nodes.length, 'узел', 'узла', 'узлов')}</span>
+            </div>
+          </div>
+          <div className="mm-actions">
+            <button onClick={(e) => { e.stopPropagation(); setCollapsed(false); }}>
+              <IconExpand size={15}/>
+              <span className="tt">Развернуть карту</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mm">
+      <div className="mm-header">
+        <span className="mm-title">Обзор</span>
+        <div className="mm-actions">
+          {hasSelection && (
+            <button onClick={onCenterOnSelection}>
+              <IconCenter size={13}/>
+              <span className="tt">Центр на выделении</span>
+            </button>
+          )}
+          <button onClick={() => setInternalShowEdges(v => !v)}>
+            {showEdges ? <IconEye size={13}/> : <IconEyeOff size={13}/>}
+            <span className="tt">{showEdges ? 'Скрыть связи' : 'Показать связи'}</span>
+          </button>
+          <button onClick={() => setCollapsed(true)}>
+            <IconMinimize2 size={13}/>
+            <span className="tt">Свернуть</span>
+          </button>
+        </div>
+      </div>
+
+      <div
+        ref={canvasRef}
+        className="mm-canvas"
+        onClick={onCanvasClick}
+      >
+        {showEdges && edges.map((e, i) => {
+          const from = nodes.find(n => n.id === e.from);
+          const to = nodes.find(n => n.id === e.to);
+          if (!from || !to) return null;
+          const a = project(from.x + from.w / 2, from.y + from.h / 2);
+          const b = project(to.x + to.w / 2, to.y + to.h / 2);
+          const dx = b.x - a.x, dy = b.y - a.y;
+          const len = Math.sqrt(dx * dx + dy * dy);
+          const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+          return (
+            <div key={i} className="mm-edge"
+                 style={{ left: a.x, top: a.y, width: len, transform: `rotate(${angle}deg)` }} />
+          );
+        })}
+
+        {nodes.map(n => {
+          const p = project(n.x, n.y);
+          return (
+            <div key={n.id}
+                 className={`mm-node ${n.type || 'q'} ${n.selected ? 'selected' : ''}`}
+                 style={{ left: p.x, top: p.y, width: n.w * s, height: n.h * s }} />
+          );
+        })}
+
+        {vp && (
+          <div
+            className={`mm-viewport ${dragging ? 'dragging' : ''}`}
+            style={{ left: vp.x, top: vp.y, width: vp.w, height: vp.h }}
+            onPointerDown={onPointerDownVP}
+            onPointerMove={onPointerMoveVP}
+            onPointerUp={onPointerUpVP}
+            onClick={e => e.stopPropagation()}
+          />
+        )}
+      </div>
+
+      <div className="mm-footer">
+        {hasSelection ? (
+          <span className="selection-banner">Выбрано {selectedNodes.length}</span>
+        ) : (
+          <>
+            {typeCounts.q > 0 && <span className="stat"><span className="dot q"/> {typeCounts.q}</span>}
+            {typeCounts.a > 0 && <span className="stat"><span className="dot a"/> {typeCounts.a}</span>}
+            {typeCounts.h > 0 && <span className="stat"><span className="dot h"/> {typeCounts.h}</span>}
+          </>
+        )}
+        <span className="spacer"/>
+        <span className="zoom-badge">{pct}%</span>
+      </div>
+    </div>
+  );
+}
+
+/* ───────────────────────────────────────────────────
+   Demo App
+   ─────────────────────────────────────────────────── */
+const SAMPLE_NODES = [
+  { id: 'n1', x: 400, y: 300, w: 200, h: 70, type: 'q', selected: false },
+  { id: 'n2', x: 100, y: 320, w: 180, h: 60, type: 'a' },
+  { id: 'n3', x: 700, y: 180, w: 180, h: 60, type: 'a' },
+  { id: 'n4', x: 850, y: 380, w: 180, h: 60, type: 'h' },
+  { id: 'n5', x: 620, y: 480, w: 180, h: 60, type: 'h' },
+  { id: 'n6', x: 320, y: 600, w: 180, h: 60, type: 'a' },
+  { id: 'n7', x: 50,  y: 500, w: 170, h: 60, type: 't' },
+];
+const SAMPLE_EDGES = [
+  { from: 'n1', to: 'n2' },
+  { from: 'n1', to: 'n3' },
+  { from: 'n1', to: 'n4' },
+  { from: 'n1', to: 'n5' },
+  { from: 'n1', to: 'n6' },
+  { from: 'n2', to: 'n7' },
+];
+
+function App() {
+  const [theme, setTheme] = useState('dark');
+  const [zoom, setZoom] = useState(1);
+  const [viewport, setViewport] = useState({ x: 300, y: 200, w: 600, h: 350 });
+  const [nodes, setNodes] = useState(SAMPLE_NODES);
+  const [hasSel, setHasSel] = useState(false);
+
+  const toggleSelection = () => {
+    setHasSel(s => {
+      const next = !s;
+      setNodes(prev => prev.map(n => ({ ...n, selected: next && (n.id === 'n3' || n.id === 'n4') })));
+      return next;
+    });
+  };
+
+  const onFit = () => {
+    setViewport({ x: 0, y: 0, w: 1200, h: 700 });
+    setZoom(0.5);
+  };
+  const onFitSelection = () => {
+    const sel = nodes.filter(n => n.selected);
+    if (!sel.length) return;
+    const xs = sel.map(n => n.x), ys = sel.map(n => n.y);
+    const xe = sel.map(n => n.x + n.w), ye = sel.map(n => n.y + n.h);
+    const minX = Math.min(...xs), minY = Math.min(...ys);
+    const maxX = Math.max(...xe), maxY = Math.max(...ye);
+    const pad = 100;
+    setViewport({ x: minX - pad, y: minY - pad, w: (maxX - minX) + 2*pad, h: (maxY - minY) + 2*pad });
+    setZoom(1);
+  };
+
+  return (
+    <>
+      <div className="demo-bar">
+        <div className="title">Minimap + Zoom Controls <small>отдельный компонент</small></div>
+
+        <span className="label">Тема</span>
+        <div className="group">
+          <button data-active={theme === 'dark'} onClick={() => setTheme('dark')}>Тёмная</button>
+          <button data-active={theme === 'light'} onClick={() => setTheme('light')}>Светлая</button>
+        </div>
+
+        <span className="label">Демо</span>
+        <div className="group">
+          <button onClick={toggleSelection} data-active={hasSel}>{hasSel ? 'Снять выделение' : 'Выделить 2 ноды'}</button>
+        </div>
+      </div>
+
+      <div className={`stage theme-${theme}`}>
+        <div className="stage-fade"/>
+
+        {/* Hint */}
+        <div style={{
+          position: 'absolute', top: 24, left: 24,
+          color: 'var(--text-muted)', font: '13px/1.5 var(--font)',
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          padding: '12px 14px', borderRadius: 10, maxWidth: 360,
+          boxShadow: 'var(--shadow-card)',
+        }}>
+          <div style={{ color: 'var(--text)', fontWeight: 600, marginBottom: 6 }}>Попробуй:</div>
+          <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+            <li>Перетащи синий viewport-прямоугольник в миникарте</li>
+            <li>Кликни в пустое место миникарты — viewport прыгнет туда</li>
+            <li>Кликни на «%» в zoom-баре — пресеты</li>
+            <li>Сверни миникарту, потом разверни</li>
+            <li>Выдели ноды (кнопка наверху) — появится «центр на выделении»</li>
+          </ul>
+        </div>
+
+        <div className="corner-rb">
+          <ZoomControls
+            zoom={zoom}
+            onZoomChange={setZoom}
+            onFit={onFit}
+            onFitSelection={onFitSelection}
+            onFullscreen={() => alert('Fullscreen!')}
+            hasSelection={hasSel}
+          />
+          <Minimap
+            nodes={nodes}
+            edges={SAMPLE_EDGES}
+            viewport={viewport}
+            canvasBounds={{ w: 1200, h: 700 }}
+            zoom={zoom}
+            onViewportChange={setViewport}
+            onCenterOnSelection={onFitSelection}
+          />
+        </div>
+      </div>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
