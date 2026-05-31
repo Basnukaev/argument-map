@@ -246,8 +246,8 @@ function MinimapCard({
   const typeCounts = useMemo(() => {
     const counts: Partial<Record<NodeTypeKey, number>> = {};
     for (const n of nodes) {
-      const t = n.type ?? 'CLAIM';
-      counts[t] = (counts[t] ?? 0) + 1;
+      const nodeType = n.type ?? 'CLAIM';
+      counts[nodeType] = (counts[nodeType] ?? 0) + 1;
     }
     return counts;
   }, [nodes]);
@@ -603,10 +603,10 @@ function MinimapCard({
           <span className="flex items-center gap-2">
             {(
               ['QUESTION', 'CLAIM', 'ARGUMENT', 'EVIDENCE'] as const
-            ).map((t) => {
-              const count = typeCounts[t];
+            ).map((type) => {
+              const count = typeCounts[type];
               if (!count) return null;
-              return <TypeStat key={t} type={t} count={count} />;
+              return <TypeStat key={type} type={type} count={count} />;
             })}
           </span>
         )}

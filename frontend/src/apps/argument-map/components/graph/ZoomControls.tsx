@@ -35,8 +35,12 @@ const ZOOM_VALUES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 function buildPresets(
   t: (key: DictKey) => string,
   hasSelection: boolean,
+  min: number,
+  max: number,
 ): PresetItem[] {
-  const items: PresetItem[] = ZOOM_VALUES.map((v) => ({
+  // Не показываем пресеты вне [min, max] — иначе клик по «200%» при maxZoom
+  // 1.5 уводил бы на 150%, и подсветка «текущего» расходилась бы с реальностью.
+  const items: PresetItem[] = ZOOM_VALUES.filter((v) => v >= min && v <= max).map((v) => ({
     kind: 'zoom' as const,
     value: v,
     kbd: v === 1 ? '⌘ 0' : null,
@@ -192,7 +196,7 @@ function ZoomControls({
     setPresetsOpen(false);
   }
 
-  const presets = buildPresets(t, hasSelection);
+  const presets = buildPresets(t, hasSelection, min, max);
 
   /* ── Render ────────────────────────────────────────────────────── */
   return (

@@ -168,6 +168,10 @@ function HelpShortcuts({
       <div
         role="dialog"
         aria-label={title}
+        // Когда закрыт — прячем из a11y-дерева и tab-order (иначе SR
+        // озвучивает скрытый диалог, а Tab достаёт невидимый pin).
+        aria-hidden={!isOpen}
+        inert={!isOpen}
         className={`group/popover absolute z-50 min-w-[260px] rounded-[12px] border border-bd-strong bg-card p-[14px] shadow-lg transition-all duration-150 ${popoverPositionClass} ${
           isOpen
             ? 'pointer-events-auto translate-y-0 opacity-100'

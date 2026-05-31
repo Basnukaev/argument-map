@@ -559,6 +559,22 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
     UUID). Для dev-seed ок; реальный ETL должен дедуплицировать по identity
     (name_ar_normalized + era), иначе `/narrators/{id}/transmitted` покажет
     неполный корпус раввия. Учесть в Phase 5 (ETL `NarratorMapper`).
+  - **Smoke-тесты для нового graph-chrome** (code-review Сессии 51, Reviewer 1
+    рекомендация): `ZoomControls` (preset open/Escape/disabled-at-limits),
+    `MinimapCard` (collapse↔expand, click-to-jump → onViewportChange, drag),
+    `HelpShortcuts` (hover/click open, pin stopPropagation). Остальной graph/
+    хорошо покрыт — это gap. Не блокер (build/tsc/lint green, токены проверены
+    визуально).
+  - **v2→v3 token alias cleanup** (code-review Сессии 51, Minor): новый chrome
+    использует `accent-*` алиасы вместо `brand-*`; `Badge`/`BookListPage`/
+    `EdgeDetailsPanel`/`edgeRules` ещё на старых `type-*`/`edge-*-bg` именах.
+    Всё резолвится через alias-блок (cross-cutting sweep подтвердил 0 unstyled),
+    финальный шаг — мигрировать на v3 имена и удалить alias-блок в
+    `index.css`/`tokens.css`.
+  - **NodeDetailsPanel «Опора» тесты падают** (pre-existing, НЕ регрессия
+    Сессии 51 — файл не тронут): 3 subtests citations/sources (MSW handler
+    `/sources` + изменённый формат label, семья 49d QA-sources). Флак вместе
+    с `bulkActions` d3-drag. Триаж отдельно.
 
 - [ ] **GraphCanvas lastNodesRef comment fragility** (audit M-6) -
       callback `handleNodeContextMenu` читает `lastNodesRef.current`
@@ -567,14 +583,13 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       не объясняет почему ref пропущена в deps array. Будет regress
       если кто-то превратит ref в state. Quick comment-only fix
 
-- [ ] **Dark theme palette overhaul** (vision 49d Section 1.1) - dark
-      mode логотип в ярко-жёлто-фиолетовом бейдже, ярко-жёлтые placeholder
-      обложки книг конфликтуют с dark surroundings. Indigo accent
-      (#6366f1) «не сочетается с тёмной темой ни в каком виде» (Абдула).
-      Объём: пересмотр accent токенов в `[data-theme='dark']` (tokens.css
-      line 161-165), placeholder обложек, logo bg-accent-600. Требует
-      `/frontend-design` skill invocation для design guidance перед
-      tweaks. Defer до dedicated UI session
+- [~] **Dark theme palette overhaul** (vision 49d Section 1.1) — **core
+      адресован Сессией 51** token-миграцией v2→v3 (`a907218`): indigo accent
+      заменён на purple-violet brand (hue 270, oklch), retuned per-theme
+      (`[data-theme='dark']` brand-500/600 brightened). Indigo «не сочетается»
+      — закрыто. **Остаётся проверить глазами:** placeholder обложек книг
+      (ярко-жёлтые) и logo bg в dark — если ещё конфликтуют, точечный tweak.
+      Проверить при manual browser pass.
 
 - [ ] **Edge routing distribution через handles** (vision 49d Section
       1.6) - когда из одного узла идёт 4+ рёбер, они merge в одну точку
