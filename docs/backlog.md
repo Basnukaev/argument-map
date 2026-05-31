@@ -519,6 +519,17 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       ('confirm')` на `vi.mock(confirmStore)`. `common.confirm` +
       `common.confirm_title` i18n RU+AR
 
+- [ ] **Flaky test: `bulkActions.test.tsx` (d3-drag + jsdom)** — обнаружено
+      2026-05-31. В полном параллельном прогоне (`vitest run`) 3 теста
+      падают с unhandled-ошибками из `d3-drag/nodrag.js` (`document` style
+      mutation на `selectstart`/`pointerdown`, которую jsdom не реализует).
+      **В изоляции файл проходит 5/5** — это flakiness (async-ошибка teardown
+      одного теста прилетает в другой под параллельной нагрузкой), не
+      реальная регрессия. Фикс: подавить эти unhandled-ошибки в `test-setup.ts`
+      (filter по d3-drag stack) либо изолировать lasso-тесты. Non-blocking,
+      pre-existing на master. Объём ~1ч + итерации (flakiness
+      недетерминирована)
+
 - [ ] **GraphCanvas lastNodesRef comment fragility** (audit M-6) -
       callback `handleNodeContextMenu` читает `lastNodesRef.current`
       и не включает ref в deps (правильно для mutable ref). Комментарий
