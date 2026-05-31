@@ -112,7 +112,7 @@ function HadithDetailPage() {
                 </h2>
                 <span className="text-xs text-ink-400">{t('hadith.detail.tap_hint')}</span>
               </div>
-              <div className="h-[560px] w-full overflow-hidden rounded-lg border border-border-strong bg-bg-sunken md:h-[640px]">
+              <div className="h-[560px] w-full overflow-hidden rounded-lg border border-border-strong bg-sunken md:h-[640px]">
                 {id && <SanadGraph hadithId={id} />}
               </div>
             </section>

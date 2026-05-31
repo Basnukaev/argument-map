@@ -134,7 +134,7 @@ function NarratorDetailPage() {
             </dl>
 
             {bio.reliabilityComment && (
-              <div className="mb-8 rounded-md bg-bg-sunken p-3 text-sm leading-relaxed text-ink-700">
+              <div className="mb-8 rounded-md bg-sunken p-3 text-sm leading-relaxed text-ink-700">
                 {bio.reliabilityComment}
               </div>
             )}

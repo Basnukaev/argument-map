@@ -530,6 +530,30 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       pre-existing на master. Объём ~1ч + итерации (flakiness
       недетерминирована)
 
+- [ ] **Hadith Explorer — follow-ups из code-review Сессии 50** (3 parallel
+      reviewers: backend / frontend / domain-accuracy). Critical: 0. Закрыто
+      в сессии: `bg-bg-sunken`→`bg-sunken` (visual bug), 2 фактические ошибки
+      matn (Бухари №6689 не «без إنّما»; Муслим №1907 matn был обрезан),
+      role-precedence COLLECTOR>COMPANION задокументирована, Тамим место
+      смерти уточнено. **Отложено (намеренно):**
+  - **Prod guest-access**: `GET /api/v1/hadith/**` permitAll только в dev/test
+    profile; в prod `anyRequest().authenticated()` закроет гостевой просмотр
+    (spec §4.3 / vision §2.5). **Pre-existing** (вся платформа dev/test-only
+    per ADR-040 transitional; Phase 1.f hadith endpoints имели тот же gap).
+    Закрыть в рамках prod-hardening этапа (ADR-040): добавить
+    `requestMatchers(GET, "/api/v1/hadith/**").permitAll()` вне dev-ветки.
+  - **`react-hooks/set-state-in-effect` lint** (`SanadGraph.tsx`,
+    `NarratorDetailPage.tsx` + 5 pre-existing файлов repo-wide): синхронный
+    `setState` в теле effect для reset-on-dep-change. Не новая регрессия —
+    совпадает с существующим паттерном (sibling-страницы). Фикс repo-wide:
+    либо route-`key` remount, либо консолидация в один `AsyncState`. Lint
+    gate уже красный на master из-за этого.
+  - **Narrator identity duplication в seed**: один и тот же человек (Суфьян
+    ибн Уяйна, Малик) — отдельные `hd_narrators` записи per-hadith (разные
+    UUID). Для dev-seed ок; реальный ETL должен дедуплицировать по identity
+    (name_ar_normalized + era), иначе `/narrators/{id}/transmitted` покажет
+    неполный корпус раввия. Учесть в Phase 5 (ETL `NarratorMapper`).
+
 - [ ] **GraphCanvas lastNodesRef comment fragility** (audit M-6) -
       callback `handleNodeContextMenu` читает `lastNodesRef.current`
       и не включает ref в deps (правильно для mutable ref). Комментарий

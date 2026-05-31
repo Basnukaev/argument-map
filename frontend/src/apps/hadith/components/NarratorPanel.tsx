@@ -94,7 +94,7 @@ function NarratorPanel({ data, onClose }: NarratorPanelProps) {
         )}
 
         {data.reliabilityComment && (
-          <div className="mt-4 rounded-md bg-bg-sunken p-3 text-sm leading-relaxed text-ink-700">
+          <div className="mt-4 rounded-md bg-sunken p-3 text-sm leading-relaxed text-ink-700">
             {data.reliabilityComment}
           </div>
         )}

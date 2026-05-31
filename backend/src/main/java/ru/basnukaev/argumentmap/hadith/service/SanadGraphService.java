@@ -120,6 +120,10 @@ public class SanadGraphService {
             if (n == null) {
                 continue;
             }
+            // Приоритет COLLECTOR над COMPANION намеренный: роль COLLECTOR несёт
+            // ярлык сборника (collection), важный для UI. Пересечение (сподвижник,
+            // который одновременно compiledById) - вырожденный случай: в канонических
+            // иснадах составитель всегда внизу цепи, не на position 0.
             String role = collectorIds.contains(nid) ? "COLLECTOR"
                     : companionIds.contains(nid) ? "COMPANION"
                     : "NARRATOR";
