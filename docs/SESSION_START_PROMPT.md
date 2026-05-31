@@ -199,13 +199,13 @@ brand, oklch, семантические tiers; backward-compat алиасы д�
 review (Critical 0, Important 2/2). Green: tsc/lint/build; тесты 613 pass
 (pre-existing flake: bulkActions d3-drag + NodeDetailsPanel «Опора» — в backlog).
 
-**Следующий шаг — Phase 5 ETL РАЗБЛОКИРОВАН** (decision points решены
-Абдулой, см. спеку `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md`
-§11). Эпик ~3-4 сессии, порядок:
-1. Миграция **`hd_collections`** + repoint FK (`hd_hadiths.primary_book_id`→
-   `collection_id`, `hd_matns.source_book_id`) с `lib_books` на `hd_collections`
-   + обновить `DevHadithSeeder`. ← чистый старт следующей сессии.
-2. `SunnahDataSource` абстракция (dump-reader сначала, API потом) + staging
+**Phase 5 ETL В РАБОТЕ** (decision points решены Абдулой, спека
+`docs/superpowers/specs/2026-05-31-sunnah-etl-design.md` §11). Эпик ~3-4 сессии:
+1. ✅ **DONE Сессией 51** (`ea09c5c`+`8098415`, ADR-050): migration 57
+   `hd_collections` + repoint FK → `collection_id` + Collection domain/repo +
+   rename во всех слоях + `DevHadithSeeder` создаёт 3 сборника. Verify 1066/0;
+   seeder live-validated (3 collections + matns wired; API отдаёт collectionId).
+2. ← **СЛЕДУЮЩИЙ ШАГ:** `SunnahDataSource` абстракция (dump-reader сначала, API потом) + staging
    `sn_staging_*` + `SunnahToHadithMapper` → каталог Бухари+Муслим. Зеркалить
    shamela staging→mapper. `SunnahHttpClientConfig` **использует** прокси
    (gotcha: sunnah ТОЛЬКО через прокси — инверсия shamela).

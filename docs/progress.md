@@ -77,9 +77,14 @@ aria-hidden+inert когда закрыт. Minor: t-shadowing fix, 5 orphaned i1
 **Phase 5 ETL РАЗБЛОКИРОВАН** — Абдула ответил на §9 (записано в спеку §11,
 коммит после handoff). Phase 6 AI **слит в Phase 5** (AI = извлечение иснада,
 не резюме). Эпик ~3-4 сессии, порядок (см. §11):
-1. Миграция **`hd_collections`** + repoint FK (`hd_hadiths`/`hd_matns` с
-   `lib_books` → `hd_collections`) + обновить `DevHadithSeeder` ← чистый старт.
-2. `SunnahDataSource` (dump + API) + staging + `SunnahToHadithMapper` →
+1. ✅ **СДЕЛАНО Сессией 51** (`ea09c5c` backend + `8098415` frontend,
+   ADR-050): migration 57 `hd_collections` + repoint FK
+   (`hd_hadiths.primary_book_id`/`hd_matns.source_book_id` → `collection_id`
+   на `hd_collections`); Collection domain+repo; rename во всех слоях;
+   `DevHadithSeeder` создаёт 3 сборника (Бухари/Муслим/Муватта) с compiler-
+   нарраторами. **Verify 1066/0**, frontend tsc + hadith vitest 25/25.
+2. ← **СЛЕДУЮЩИЙ ШАГ:** `SunnahDataSource` (dump + API) + staging +
+   `SunnahToHadithMapper` →
    каталог Бухари+Муслим. `SunnahHttpClientConfig` использует applyProxy()
    (gotcha: sunnah ТОЛЬКО через прокси).
 3. **`IsnadExtraction` (= Phase 6 AI)** — граф для ЛЮБОГО хадиса через
