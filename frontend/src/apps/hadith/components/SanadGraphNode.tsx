@@ -1,0 +1,98 @@
+import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
+import { BookOpen, Star } from 'lucide-react';
+import { useT, type DictKey } from '@/shared/i18n';
+import { RELIABILITY_TOKENS, ROLE_STRIP } from '@/apps/hadith/sanadTokens';
+import type { SanadFlowNodeData } from '@/apps/hadith/types';
+
+export type SanadNode = Node<SanadFlowNodeData, 'sanad'>;
+
+/**
+ * Узел графа иснада — карточка передатчика. Read-only: handle'ы только
+ * для рисования рёбер (верх = откуда получил, низ = кому передал),
+ * перетаскивание отключено на уровне ReactFlow.
+ *
+ * Узел Пророка ﷺ рендерится особо (зелёная рамка, без оценки надёжности —
+ * источник вне шкалы джарх ва тадиль).
+ */
+function SanadGraphNode({ data, selected }: NodeProps<SanadNode>) {
+  const t = useT();
+  const rel = data.reliabilityGrade ? RELIABILITY_TOKENS[data.reliabilityGrade] : null;
+
+  if (data.role === 'PROPHET') {
+    return (
+      <>
+        <div className="w-[240px] rounded-xl border-2 border-emerald-400 bg-emerald-50 px-4 py-3 text-center shadow-sh2">
+          <div className="font-arabic text-xl leading-snug text-emerald-900" dir="rtl">
+            {data.nameAr}
+          </div>
+          {data.nameRu && (
+            <div className="mt-0.5 text-xs font-medium text-emerald-700">{data.nameRu}</div>
+          )}
+        </div>
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          className="!h-2 !w-2 !border-0 !bg-emerald-400"
+        />
+      </>
+    );
+  }
+
+  const isCollector = data.role === 'COLLECTOR';
+  const isCompanion = data.role === 'COMPANION';
+
+  return (
+    <>
+      <Handle type="target" position={Position.Top} className="!h-2 !w-2 !border-0 !bg-ink-300" />
+      <div
+        className={`w-[240px] overflow-hidden rounded-lg border bg-elevated shadow-sh1 ${
+          selected ? 'border-accent-500 ring-2 ring-accent-300' : 'border-border-strong'
+        }`}
+      >
+        <div className={`h-1 w-full ${ROLE_STRIP[data.role]}`} />
+        <div className="px-3 py-2">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="font-arabic text-lg leading-tight text-ink-900" dir="rtl">
+                {data.nameAr}
+              </div>
+              {data.nameRu && (
+                <div className="mt-0.5 truncate text-xs text-ink-600">{data.nameRu}</div>
+              )}
+            </div>
+            {rel && data.reliabilityGrade && (
+              <span
+                className={`shrink-0 rounded-sm px-1.5 py-0.5 font-arabic text-[12px] font-semibold ${rel.chip}`}
+                dir="rtl"
+                title={t(`hadith.reliability.${data.reliabilityGrade}` as DictKey)}
+              >
+                {rel.ar}
+              </span>
+            )}
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-ink-500">
+            {data.generation && (
+              <span className="inline-flex items-center gap-1">
+                {isCompanion && <Star size={10} className="text-violet-500" aria-hidden />}
+                {data.generation}
+              </span>
+            )}
+            {data.yearDeathHijri != null && (
+              <span>
+                {t('hadith.graph.died')} {data.yearDeathHijri} {t('hadith.graph.hijri')}
+              </span>
+            )}
+          </div>
+          {isCollector && data.collection && (
+            <div className="mt-2 inline-flex items-center gap-1 rounded-sm bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
+              <BookOpen size={11} aria-hidden /> {data.collection}
+            </div>
+          )}
+        </div>
+      </div>
+      <Handle type="source" position={Position.Bottom} className="!h-2 !w-2 !border-0 !bg-ink-300" />
+    </>
+  );
+}
+
+export default SanadGraphNode;

@@ -1,26 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { ArrowLeft, BookOpen, Loader2 } from 'lucide-react';
+import { ArrowLeft, BookOpen, Loader2, Network } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
+import SanadGraph from '@/apps/hadith/components/SanadGraph';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
 import { useT } from '@/shared/i18n';
 import type { AsyncState } from '@/shared/types/async';
 
-// Backend types ещё не regenerated.
-interface SanadDto {
-  id: string;
-  chainGrade: string | null;
-  compiledById: string | null;
-  compiledInBookId: string | null;
-  primaryChain: boolean;
-  narrators: Array<{
-    position: number;
-    narratorId: string;
-    transmissionPhrase: string | null;
-  }>;
-}
-
+// Backend types ещё не regenerated для hadith-домена — inline.
 interface MatnDto {
   id: string;
   textAr: string;
@@ -42,16 +30,17 @@ interface HadithDetail {
   status: string;
   sourceId: string | null;
   createdAt: string;
-  sanads: SanadDto[];
   matns: MatnDto[];
 }
 
 /**
- * Vision 49d Section 2.6 Phase 2.b — bundled hadith detail.
- * GET /api/v1/hadith/hadiths/{id}/detail.
+ * Hadith Explorer Phase 3 — страница хадиса с графом иснада.
  *
- * <p>Phase 2.b - text/list rendering. Phase 2.c - React Flow sanad
- * graph viz (mirror argument-map graph stack).
+ * <p>Шапка + варианты matn'а грузятся из {@code /detail}; центральная
+ * визуализация (граф иснада) — отдельный компонент SanadGraph, который
+ * сам тянет {@code /sanad-graph} (дедуплицированный, преднастроенный под
+ * React Flow). Раньше иснады рендерились плоским списком UUID — заменено
+ * на навигируемый граф.
  */
 function HadithDetailPage() {
   const t = useT();
@@ -103,7 +92,7 @@ function HadithDetailPage() {
               <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-ink-500">
                 <BookOpen size={12} aria-hidden /> Hadith {state.data.primaryNumber ?? '—'}
               </div>
-              <h1 className="mt-1 text-xl text-ink-900" dir="auto">
+              <h1 className="mt-1 font-arabic text-2xl leading-relaxed text-ink-900" dir="rtl">
                 {state.data.normalizedMatn}
               </h1>
               <div className="mt-2 inline-flex items-center gap-2">
@@ -114,44 +103,15 @@ function HadithDetailPage() {
             </header>
 
             <section className="mb-8">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-500">
-                {t('hadith.detail.sanads')} · {state.data.sanads.length}
-              </h2>
-              {state.data.sanads.length === 0 ? (
-                <p className="text-sm text-ink-500">{t('hadith.detail.no_sanads')}</p>
-              ) : (
-                <ul className="space-y-4">
-                  {state.data.sanads.map((s) => (
-                    <li key={s.id}>
-                      <Card className="p-4">
-                        <div className="mb-2 flex items-center gap-2 text-xs text-ink-500">
-                          {s.primaryChain && (
-                            <span className="rounded-sm bg-accent-50 text-accent-700 px-1.5 py-0.5 font-semibold">
-                              {t('hadith.detail.primary')}
-                            </span>
-                          )}
-                          {s.chainGrade && (
-                            <span className="rounded-sm bg-ink-100 px-1.5 py-0.5 font-medium uppercase">
-                              {s.chainGrade}
-                            </span>
-                          )}
-                        </div>
-                        <ol className="space-y-1 text-sm text-ink-700">
-                          {s.narrators.map((n) => (
-                            <li key={`${s.id}-${n.position}`} className="flex items-center gap-2">
-                              <span className="font-mono text-xs text-ink-400 w-6">#{n.position}</span>
-                              {n.transmissionPhrase && (
-                                <span className="text-xs text-ink-500" dir="auto">{n.transmissionPhrase}</span>
-                              )}
-                              <span className="font-mono text-xs text-ink-600">{n.narratorId.slice(0, 8)}</span>
-                            </li>
-                          ))}
-                        </ol>
-                      </Card>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-ink-500">
+                  <Network size={14} aria-hidden /> {t('hadith.detail.graph')}
+                </h2>
+                <span className="text-xs text-ink-400">{t('hadith.detail.tap_hint')}</span>
+              </div>
+              <div className="h-[560px] w-full overflow-hidden rounded-lg border border-border-strong bg-bg-sunken md:h-[640px]">
+                {id && <SanadGraph hadithId={id} />}
+              </div>
             </section>
 
             <section>
@@ -165,9 +125,9 @@ function HadithDetailPage() {
                   {state.data.matns.map((m) => (
                     <li key={m.id}>
                       <Card className="p-4">
-                        <div className="mb-2 flex items-center gap-2 text-xs text-ink-500">
+                        <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-ink-500">
                           {m.isPrimary && (
-                            <span className="rounded-sm bg-accent-50 text-accent-700 px-1.5 py-0.5 font-semibold">
+                            <span className="rounded-sm bg-accent-50 px-1.5 py-0.5 font-semibold text-accent-700">
                               {t('hadith.detail.primary')}
                             </span>
                           )}
@@ -175,10 +135,14 @@ function HadithDetailPage() {
                           {m.volume != null && <span>vol.{m.volume}</span>}
                           {m.pageNo != null && <span>p.{m.pageNo}</span>}
                         </div>
-                        <p className="text-sm text-ink-900" dir="auto">{m.textAr}</p>
+                        <p className="font-arabic text-lg leading-loose text-ink-900" dir="rtl">
+                          {m.textAr}
+                        </p>
                         {m.textRu && <p className="mt-2 text-sm text-ink-700" dir="ltr">{m.textRu}</p>}
                         {m.divergenceSummary && (
-                          <p className="mt-2 text-xs text-ink-500 italic">{m.divergenceSummary}</p>
+                          <p className="mt-2 text-xs italic text-ink-500" dir="auto">
+                            {m.divergenceSummary}
+                          </p>
                         )}
                       </Card>
                     </li>
