@@ -190,6 +190,35 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 И двигаемся по приоритету (Critical → Important → Minor)
 
+### ⭐ АКТУАЛЬНО — entry Сессии 52 (snapshot'ы ниже — историч., можно сжать)
+
+**Сессия 51 закрыла** (7 коммитов `aa9ec03..bdfd382`, см. progress.md):
+minimap/zoom/help redesign + **app-wide token-миграция v2→v3** (violet
+brand, oklch, семантические tiers; backward-compat алиасы для всех старых
+имён) + Phase 5 ETL feasibility-спайк + **lint repo-wide → 0/0** + code
+review (Critical 0, Important 2/2). Green: tsc/lint/build; тесты 613 pass
+(pre-existing flake: bulkActions d3-drag + NodeDetailsPanel «Опора» — в backlog).
+
+**Следующий шаг (порядок по готовности):**
+1. **Phase 6 — AI-ассист передатчика** (Claude summary, ADR-042 инфра,
+   graceful без ключа, IT со стабом) — bounded, НЕ заблокирован. Этап 49.C.
+2. **Phase 5 ETL код** — ТОЛЬКО после ответов Абдулы на decision points §9
+   спеки `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md` (источник
+   dump/API, объём, стратегия по иснаду, collection-сущность, лицензия).
+   Зеркалить shamela staging→mapper; `SunnahHttpClientConfig` **использует**
+   прокси (gotcha: sunnah ТОЛЬКО через прокси — инверсия shamela).
+3. **Tech-debt:** generate-api для hadith-типов; smoke-тесты нового
+   graph-chrome; v2→v3 alias cleanup (Badge/BookListPage/EdgeDetailsPanel/
+   edgeRules → v3 имена, затем удалить alias-блок).
+
+**Manual за Абдулой:** граф chrome в браузере (drag minimap viewport, zoom
+presets, help popover, dark+RTL) — headless дал 401, в браузере не проверен;
+placeholder обложек / logo bg в dark-теме.
+
+**Инфра:** Docker (postgres+minio) up. Backend :9090 (local+JDWP :5005) +
+frontend :5173 запущены. Backend держит pre-matn-fix сид (для свежих matns —
+очистить hd_* + рестарт, см. Сессия 50 handoff).
+
 ### Snapshot состояния на entry Сессии 47
 
 **Сессия 46 закрыла 11 tasks** (21 коммитов, см. `docs/progress.md`

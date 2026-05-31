@@ -8,6 +8,85 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
+## 2026-05-31 - Сессия 51 - Minimap/zoom/help redesign + token-система v3 + Phase 5 спайк + lint green
+
+**Автономный tech-lead режим.** Старт: AskUserQuestion по двум развилкам
+из handoff'а — (1) что делать с WIP minimap/zoom/help в дереве → Абдула
+«доделай и закоммить»; (2) следующий этап → Phase 5 ETL sunnah.com (спайк).
+Затем «tech-debt из backlog» по третьей развилке. 7 коммитов
+(`aa9ec03..bdfd382`).
+
+### Сделано
+
+**1. WIP minimap/zoom/help redesign (доделан + закоммичен, 3 коммита).**
+Оказалось WIP включал НЕ только граф, а **app-wide token-миграцию v2→v3**:
+- `22e90ca` design-reference handoffs (argument-map-handoff + minimap_zoom +
+  help_shortcuts) версионированы.
+- `a907218` `refactor: tokens v2→v3` — navy/indigo accent → purple-violet
+  brand (hue 270, oklch), flat ink-* → семантические surface/text tiers, 4
+  раздельные node-палитры. Backward-compat алиасы для ВСЕХ старых имён →
+  существующие компоненты не тронуты. `index.css` @theme inline bridge.
+  Закрывает 49d UI 1.1 (indigo «не сочетается»).
+- `5d41a28` `feat: minimap/zoom/help redesign` — ZoomControls + MinimapCard +
+  HelpShortcuts + GraphViewportPanel (glue к React Flow store) вкручены в
+  GraphCanvas/GraphPanels; удалены dead CompactMiniMap + graphBounds; i18n
+  RU/AR; docs (CLAUDE.md RTL-исключение, architecture.md) синхронизированы.
+
+**2. Phase 5 ETL sunnah.com — feasibility-спайк + design spec** (`006045b`,
+код не писал — по плану). Spec: `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md`.
+
+**3. Tech-debt: lint repo-wide → GREEN** (2 коммита).
+- `a969313` HelpShortcuts immutability (let currentGroup мутировался в render
+  → вынесен в pure helper). Был внесён в 5d41a28, пойман в lint-sweep.
+- `9bc4e53` 6 сайтов set-state-in-effect → justified eslint-disable (idiom
+  useApiQuery) + убраны 2 stale unused-disable + useAutoLayout missing dep
+  setEdges. Lint был красный (7err/3warn) → теперь **0/0**.
+
+**4. Code review** (2 параллельных reviewer'а) + фиксы (`bdfd382`).
+Critical: 0. Important: 2/2 закрыто — ZoomControls пресеты фильтруются по
+min/max (клик «200%» больше не уводит на 150%); HelpShortcuts popover
+aria-hidden+inert когда закрыт. Minor: t-shadowing fix, 5 orphaned i18n
+ключей удалены. Reviewer cross-cutting sweep: все старые token-классы
+резолвятся через alias (0 unstyled).
+
+### Решения
+
+- **Scope WIP:** «доделай» = весь WIP в дереве, включая token-миграцию
+  (не только граф). 3 атомарных коммита (spec / tokens / chrome).
+- **Lint set-state-in-effect:** justified-disable idiom (как useApiQuery), а
+  НЕ большой AsyncState-рефактор — это idiom проекта, low-risk, документирован.
+  Реальная консолидация — опционально-future (backlog).
+- **Phase 5 ключевой вывод:** sunnah.com даёт matn+isnad единым блобом, БЕЗ
+  структурного иснада → импорт = каталог (для Phase 4 поиска), НЕ питает
+  sanad-граф. sunnah.com доступен ТОЛЬКО через прокси (инверсия shamela) —
+  gotcha записан.
+
+### Проблемы / открытые хвосты
+
+- **Граф chrome не проверен глазами в браузере** — headless Playwright дал
+  401 (нет логина), увидел только token-миграцию (light+dark рендерятся
+  чисто, violet primary button не desaturated, select читаем). Граф с новыми
+  ZoomControls/MinimapCard/HelpShortcuts — **за Абдулой** (manual check).
+- **NodeDetailsPanel «Опора» тесты** (3) падают — pre-existing (файл не
+  тронут, семья 49d QA-sources), флак с bulkActions d3-drag. В backlog на триаж.
+- **Phase 5 код заблокирован** decision points §9 спеки (источник dump/API,
+  объём, стратегия по иснаду, collection-сущность, лицензия) — за Абдулой.
+
+### Следующий шаг
+
+Развилка для следующей сессии (порядок по готовности):
+1. **Phase 6 — AI-ассист** (резюме передатчика через Claude, ADR-042 инфра,
+   graceful без ключа, IT со стабом) — самый bounded, НЕ заблокирован.
+2. **Phase 5 ETL код** — после ответов Абдулы на §9 спеки
+   (`2026-05-31-sunnah-etl-design.md`). Зеркалить shamela staging→mapper
+   паттерн; SunnahHttpClientConfig переиспользует applyProxy() (gotcha:
+   sunnah ТОЛЬКО через прокси).
+3. **Tech-debt:** generate-api для hadith-типов; smoke-тесты нового
+   graph-chrome (Reviewer рекомендация); v2→v3 alias cleanup (мигрировать
+   Badge/BookListPage/EdgeDetailsPanel/edgeRules на v3 имена, удалить alias-блок).
+4. **Manual:** Абдула проверяет граф chrome в браузере (drag minimap viewport,
+   zoom presets, help popover, dark+RTL); placeholder обложек/logo bg в dark.
+
 ## 2026-05-31 - Сессия 50 - Hadith sanad graph (flagship) + бренд-марка + ConfirmDialog
 
 **Автономный tech-lead режим.** Абдула: «запусти бесконечное улучшение…
