@@ -11,11 +11,7 @@ type NodeDto = components['schemas']['NodeResponse'];
 const DEFAULT_NODE_W = 288;
 const DEFAULT_NODE_H = 120;
 
-interface GraphViewportPanelProps {
-  detailOpen?: boolean;
-}
-
-function GraphViewportPanel({ detailOpen = false }: GraphViewportPanelProps) {
+function GraphViewportPanel() {
   const rfNodes = useNodes();
   const rfEdges = useEdges();
   const [tx, ty, zoom] = useStore((s) => s.transform);
@@ -89,9 +85,17 @@ function GraphViewportPanel({ detailOpen = false }: GraphViewportPanelProps) {
 
   return (
     <div
-      className={`absolute bottom-3 z-10 flex flex-col items-end gap-2.5 ${
-        detailOpen ? 'end-[416px]' : 'end-3'
-      }`}
+      // end-3 постоянно (НЕ end-[416px] при открытой панели!). Этот
+      // контейнер - position:absolute ВНУТРИ обёртки графа, у которой
+      // при открытом NodeDetailsPanel/EdgeDetailsPanel стоит pe-[400px]
+      // (см. GraphCanvas). Padding сам сжимает контейнер на ширину
+      // панели, и absolute-миникарта, привязанная к его правому краю,
+      // уезжает влево ровно на 400px - этого достаточно. Добавочный
+      // end-[416px] давал ДВОЙНОЙ офсет (~800px): миникарта улетала в
+      // центр канвы с дырой ~416px до панели. Ср. FloatingActionBar -
+      // он position:fixed (вне padded-обёртки), поэтому ему offsetEndPx
+      // действительно нужен; здесь - нет.
+      className="absolute bottom-3 end-3 z-10 flex flex-col items-end gap-2.5"
     >
       <ZoomControls
         zoom={zoom}

@@ -752,7 +752,7 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={24} size={1} />
-          <GraphViewportPanel detailOpen={!!detailNode || !!detailEdge} />
+          <GraphViewportPanel />
           <GraphPanels
             showEdgeLabels={showEdgeLabels}
             onToggleLabels={() => setShowEdgeLabels((v) => !v)}
