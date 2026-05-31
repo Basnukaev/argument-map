@@ -34,7 +34,7 @@ describe('NarratorDetailPage', () => {
           primaryResidence: 'Медина',
           reliabilityGrade: 'THIQA',
           reliabilityComment: 'Имам Медины, автор Муватты',
-          transmittedCountCached: 1,
+          transmittedCount: 1,
           createdAt: '2026-01-01',
         }),
       ),

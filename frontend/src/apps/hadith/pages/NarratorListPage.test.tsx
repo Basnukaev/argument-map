@@ -30,7 +30,7 @@ describe('NarratorListPage', () => {
               primaryResidence: 'Медина',
               reliabilityGrade: 'THIQA',
               reliabilityComment: null,
-              transmittedCountCached: 0,
+              transmittedCount: 0,
               createdAt: '2026-01-01',
             },
           ]),

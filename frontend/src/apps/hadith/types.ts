@@ -105,7 +105,7 @@ export interface NarratorResponseDto {
   primaryResidence: string | null;
   reliabilityGrade: ReliabilityGrade | null;
   reliabilityComment: string | null;
-  transmittedCountCached: number;
+  transmittedCount: number;
   createdAt: string;
 }
 

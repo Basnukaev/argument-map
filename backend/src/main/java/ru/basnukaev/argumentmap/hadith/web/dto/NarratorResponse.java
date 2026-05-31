@@ -18,7 +18,7 @@ public record NarratorResponse(
         Integer yearDeathHijri,
         String birthplace,
         String primaryResidence,
-        @Schema(allowableValues = {"THIQA", "SADUQ", "MAQBUL", "DAIF", "MATRUK", "UNKNOWN"})
+        @Schema(allowableValues = {"THIQA", "SADUQ", "MAQBUL", "DAIF", "MATRUK", "SAHABI", "UNKNOWN"})
         String reliabilityGrade,
         String reliabilityComment,
         int transmittedCount,
