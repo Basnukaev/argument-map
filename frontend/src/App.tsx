@@ -6,6 +6,7 @@ import LoginPage from '@/apps/auth/pages/LoginPage';
 import RegisterPage from '@/apps/auth/pages/RegisterPage';
 import ProtectedRoute from '@/shared/components/auth/ProtectedRoute';
 import Toaster from '@/shared/components/ui/Toaster';
+import ConfirmDialog from '@/shared/components/ui/ConfirmDialog';
 import SourceDetailPanel from '@/shared/components/citation/SourceDetailPanel';
 // OnboardingChecklist выключен временно (2026-05-20) - будет переделан под
 // guests-only с фиксацией первого визита в localStorage. Файлы компонента и
@@ -194,6 +195,7 @@ function App() {
         </Suspense>
       )}
       <SourceDetailPanel />
+      <ConfirmDialog />
       <Toaster />
     </ErrorBoundary>
   );

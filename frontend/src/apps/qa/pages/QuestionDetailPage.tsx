@@ -14,6 +14,7 @@ import {
   ApiError,
 } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
+import { askConfirm } from '@/shared/stores/confirmStore';
 import { useT, useFormatDate, hasArabicScript, type DictKey } from '@/shared/i18n';
 import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
@@ -94,7 +95,7 @@ function QuestionDetailPage() {
 
   const handleDelete = async () => {
     if (!questionId) return;
-    if (!window.confirm(t('qa.detail.delete_confirm'))) return;
+    if (!(await askConfirm({ message: t('qa.detail.delete_confirm'), danger: true }))) return;
     try {
       await apiDeleteRaw(`/api/v1/questions/${questionId}`);
       toast.success(t('qa.detail.deleted'));

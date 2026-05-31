@@ -7,6 +7,10 @@ import { waitForApi } from '@/test/asyncHelpers';
 import { HadithGradesSection } from './HadithGradesSection';
 import { useAuthStore } from '@/shared/stores/authStore';
 
+vi.mock('@/shared/stores/confirmStore', () => ({
+  askConfirm: () => Promise.resolve(true),
+}));
+
 const BASE = 'http://test.local';
 const SOURCE_ID = 'src-h-1';
 const USER_ID = 'user-1';
@@ -145,7 +149,7 @@ describe('HadithGradesSection', () => {
   });
 
   it('delete grade с confirm - DELETE запрос + refresh', async () => {
-    vi.stubGlobal('confirm', () => true);
+    // askConfirm замокан на уровне модуля (resolve true) — см. vi.mock сверху
 
     let deleteCalled = false;
     let getCallNo = 0;

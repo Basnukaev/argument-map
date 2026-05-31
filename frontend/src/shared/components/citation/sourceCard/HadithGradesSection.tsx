@@ -11,6 +11,7 @@ import {
 import { hasArabicScript, useT } from '@/shared/i18n';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { toast } from '@/shared/stores/toastStore';
+import { askConfirm } from '@/shared/stores/confirmStore';
 import Button from '@/shared/components/ui/Button';
 import Modal from '@/shared/components/ui/Modal';
 import Field from '@/shared/components/ui/Field';
@@ -119,9 +120,11 @@ export function HadithGradesSection({ sourceId, sourceType }: Props) {
   const onDelete = async (g: HadithGradeDto) => {
     if (!g.id) return;
     const scholarLabel = g.scholarFullName ?? g.scholarName ?? '';
-    if (!window.confirm(t('hadith.grades.confirm_delete').replace('{scholar}', scholarLabel))) {
-      return;
-    }
+    const confirmed = await askConfirm({
+      message: t('hadith.grades.confirm_delete').replace('{scholar}', scholarLabel),
+      danger: true,
+    });
+    if (!confirmed) return;
     try {
       await apiDeleteRaw(`/api/v1/sources/grades/${g.id}`);
       toast.success(t('hadith.grades.delete_success'));

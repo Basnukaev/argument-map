@@ -6,6 +6,10 @@ import { server } from '@/test/server';
 import { waitForApi } from '@/test/asyncHelpers';
 import TopicMembersModal from './TopicMembersModal';
 
+vi.mock('@/shared/stores/confirmStore', () => ({
+  askConfirm: () => Promise.resolve(true),
+}));
+
 const BASE = 'http://test.local';
 const TOPIC_ID = '00000000-0000-0000-0000-000000000aaa';
 const OWNER_ID = '00000000-0000-0000-0000-000000000001';
@@ -38,8 +42,7 @@ describe('TopicMembersModal', () => {
         this.open = false;
       };
     }
-    // confirm() в jsdom - возвращает true для удаления (без него тест блокируется)
-    vi.stubGlobal('confirm', () => true);
+    // askConfirm замокан на уровне модуля (resolve true) — см. vi.mock сверху
   });
 
   it('загружает и показывает список участников + owner badge', async () => {

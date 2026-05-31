@@ -18,6 +18,7 @@ import {
   formatApiError,
 } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
+import { askConfirm } from '@/shared/stores/confirmStore';
 import { hasArabicScript, useFormatDate, useT } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
 import AnswerCitationsSection from './AnswerCitationsSection';
@@ -130,7 +131,7 @@ function AnswersSection({ questionId, askedBy, acceptedAnswerId, onAcceptanceCha
   }
 
   async function handleDelete(answerId: string) {
-    if (!window.confirm(t('qa.answers.delete_confirm'))) return;
+    if (!(await askConfirm({ message: t('qa.answers.delete_confirm'), danger: true }))) return;
     setBusyAnswerId(answerId);
     try {
       await apiDeleteRaw(`/api/v1/answers/${answerId}`);

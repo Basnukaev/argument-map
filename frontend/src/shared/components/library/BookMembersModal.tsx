@@ -16,6 +16,7 @@ import {
 import { formatPermissionError } from '@/shared/api/permissionErrors';
 import { useT, useFormatDate } from '@/shared/i18n';
 import { toast } from '@/shared/stores/toastStore';
+import { askConfirm } from '@/shared/stores/confirmStore';
 import type { components } from '@/shared/api/types';
 
 type BookMemberResponse = components['schemas']['BookMemberResponse'];
@@ -149,7 +150,7 @@ function BookMembersModal({ open, bookId, ownerUserId, onClose }: Props) {
   }
 
   async function handleRemove(memberId: string) {
-    if (!window.confirm(t('book.members.remove_confirm'))) return;
+    if (!(await askConfirm({ message: t('book.members.remove_confirm'), danger: true }))) return;
     setPendingMemberId(memberId);
     try {
       await apiDeleteRaw(`/api/v1/library/books/${bookId}/members/${memberId}`);

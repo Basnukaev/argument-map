@@ -505,16 +505,19 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       остаётся на caller'е. 20 IT NodeTranslationServiceIT pass,
       public API не изменился
 
-- [ ] **Frontend UX consistency: window.confirm → unified pattern**
-      (audit 2026-05-20 M-1) - 5 production paths используют
-      blocking native `window.confirm` для destructive actions:
-      `TopicMembersModal.tsx:151`, `BookMembersModal.tsx:152`,
-      `HadithGradesSection.tsx:122`, `AnswersSection.tsx:133`,
-      `QuestionDetailPage.tsx:93`. Node-delete уже мигрирован на
-      `toast + Undo` (5 сек). Выбор подхода: либо shared
-      `ConfirmDialog` (styled, testable), либо унификация на
-      toast-undo для всех destructive. Code review checklist уже
-      flag'нул эту inconsistency, не закрыто. Объём ~1-2 часа
+- [x] **Frontend UX consistency: window.confirm → unified pattern**
+      (audit 2026-05-20 M-1) — закрыто 2026-05-31. Выбран **styled
+      `ConfirmDialog`** (не toast-undo): member removal / grade delete /
+      answer delete — действия без естественного undo, для них modal
+      с явным подтверждением честнее. Реализован promise-based
+      `askConfirm(opts): Promise<boolean>` (`shared/stores/confirmStore.ts`,
+      императивный API как у `toast.*`) + глобальный host `ConfirmDialog`
+      в App.tsx. Все 5 callsite'ов мигрированы с `window.confirm` на
+      `await askConfirm({ message, danger })`. Node-delete остаётся на
+      toast+Undo (там undo осмыслен). 6 тестов (confirmStore 3 +
+      ConfirmDialog 3), 3 component-теста переведены с `vi.stubGlobal
+      ('confirm')` на `vi.mock(confirmStore)`. `common.confirm` +
+      `common.confirm_title` i18n RU+AR
 
 - [ ] **GraphCanvas lastNodesRef comment fragility** (audit M-6) -
       callback `handleNodeContextMenu` читает `lastNodesRef.current`
