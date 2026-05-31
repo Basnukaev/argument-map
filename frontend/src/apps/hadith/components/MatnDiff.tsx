@@ -23,6 +23,8 @@ function MatnDiff({ base, variant }: Props) {
             : op.type === 'del'
               ? 'rounded-sm bg-rose-100 px-0.5 text-rose-700 line-through'
               : '';
+        // key с index намеренно: diff — производный, append-only, не
+        // переупорядочиваемый список без естественного id (слова повторяются)
         return (
           <span key={`${idx}-${op.text}`} className={cls}>
             {op.text}{' '}

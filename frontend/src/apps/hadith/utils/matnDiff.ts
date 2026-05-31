@@ -1,7 +1,9 @@
-// Огласовки (харакат) + tatweel + sukun/superscript alef — снимаем при
-// сопоставлении, чтобы diff показывал расхождения в СЛОВАХ, а не в
-// диакритике (النِّيَّاتِ vs النِّيَّةِ → النيات vs النية → разные).
-const TASHKEEL = /[ً-ْـٰ]/g;
+// Огласовки (харакат) снимаем при сопоставлении, чтобы diff показывал
+// расхождения в СЛОВАХ, а не в диакритике. Явные codepoints (ASCII \u),
+// чтобы НЕ задеть арабские цифры (U+0660-0669) и пунктуацию:
+//   064B-0656 — танвин/фатха/дамма/касра/шадда/сукун + madda/hamza/subscript-alef
+//   0670 — dagger alef · 06D6-06DC — кораничные малые знаки · 0640 — tatweel
+const TASHKEEL = /[ً-ٰٖۖ-ۜـ]/g;
 
 function normalize(word: string): string {
   return word.replace(TASHKEEL, '');
@@ -67,4 +69,13 @@ export function wordDiff(base: string, variant: string): DiffOp[] {
     j++;
   }
   return ops;
+}
+
+/**
+ * Есть ли пословное расхождение (после нормализации огласовок). Для решения,
+ * показывать ли кнопку diff: матны, отличающиеся только харакатом, считаются
+ * одинаковыми — кнопка не нужна.
+ */
+export function hasWordDiff(base: string, variant: string): boolean {
+  return wordDiff(base, variant).some((op) => op.type !== 'same');
 }

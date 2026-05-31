@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { wordDiff } from './matnDiff';
+import { wordDiff, hasWordDiff } from './matnDiff';
 
 describe('wordDiff', () => {
   it('идентичные строки → всё same', () => {
@@ -27,5 +27,17 @@ describe('wordDiff', () => {
   it('добавленное в конце слово → add', () => {
     const ops = wordDiff('بسم الله', 'بسم الله الرحمن');
     expect(ops.filter((o) => o.type === 'add').map((o) => o.text)).toEqual(['الرحمن']);
+  });
+
+  it('пустые входы обрабатываются', () => {
+    expect(wordDiff('', '')).toEqual([]);
+    expect(wordDiff('', 'بسم').map((o) => o.type)).toEqual(['add']);
+    expect(wordDiff('بسم', '').map((o) => o.type)).toEqual(['del']);
+  });
+
+  it('hasWordDiff: true при словесном расхождении, false при идентичности и отличии лишь в огласовках', () => {
+    expect(hasWordDiff('الأعمال بالنيات', 'الأعمال بالنية')).toBe(true);
+    expect(hasWordDiff('بسم الله', 'بسم الله')).toBe(false);
+    expect(hasWordDiff('كَتَبَ', 'كتب')).toBe(false);
   });
 });

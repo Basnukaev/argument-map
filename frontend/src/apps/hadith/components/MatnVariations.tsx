@@ -2,13 +2,15 @@ import { useState } from 'react';
 import Card from '@/shared/components/ui/Card';
 import { useT } from '@/shared/i18n';
 import MatnDiff from '@/apps/hadith/components/MatnDiff';
+import { hasWordDiff } from '@/apps/hadith/utils/matnDiff';
 import type { MatnDto } from '@/apps/hadith/types';
 
 function MatnItem({ matn, primary }: { matn: MatnDto; primary: MatnDto | null }) {
   const t = useT();
   const [showDiff, setShowDiff] = useState(false);
-  // diff доступен только для НЕ-основной редакции, когда есть с чем сравнивать
-  const canDiff = !matn.isPrimary && primary !== null && primary.textAr !== matn.textAr;
+  // diff доступен только для НЕ-основной редакции с реальным пословным
+  // расхождением (отличие лишь в огласовках → кнопку не показываем)
+  const canDiff = !matn.isPrimary && primary !== null && hasWordDiff(primary.textAr, matn.textAr);
 
   return (
     <Card className="p-4">
