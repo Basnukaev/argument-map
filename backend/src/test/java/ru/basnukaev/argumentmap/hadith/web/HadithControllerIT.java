@@ -122,7 +122,8 @@ class HadithControllerIT {
                 .andExpect(jsonPath("$.sanads[0].narrators[0].position").value(0))
                 .andExpect(jsonPath("$.matns").isArray())
                 .andExpect(jsonPath("$.matns.length()").value(1))
-                .andExpect(jsonPath("$.matns[0].isPrimary").value(true));
+                .andExpect(jsonPath("$.matns[0].isPrimary").value(true))
+                .andExpect(jsonPath("$.grades").isArray());
     }
 
     @Test

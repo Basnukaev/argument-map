@@ -20,8 +20,17 @@ public record HadithDetailResponse(
         UUID sourceId,
         Instant createdAt,
         List<SanadDto> sanads,
-        List<MatnDto> matns
+        List<MatnDto> matns,
+        List<GradeDto> grades
 ) {
+
+    /** Курируемая оценка хадиса учёным (из hd_hadiths.metadata.grades). */
+    public record GradeDto(
+            String scholar,
+            String grade,
+            String note
+    ) {
+    }
 
     public record SanadDto(
             UUID id,

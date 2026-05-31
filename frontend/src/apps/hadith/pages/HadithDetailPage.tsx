@@ -4,9 +4,11 @@ import { ArrowLeft, BookOpen, Loader2, Network } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import SanadGraph from '@/apps/hadith/components/SanadGraph';
+import HadithGradesList from '@/apps/hadith/components/HadithGradesList';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
 import { useT } from '@/shared/i18n';
 import type { AsyncState } from '@/shared/types/async';
+import type { HadithGrade } from '@/apps/hadith/types';
 
 // Backend types ещё не regenerated для hadith-домена — inline.
 interface MatnDto {
@@ -31,6 +33,7 @@ interface HadithDetail {
   sourceId: string | null;
   createdAt: string;
   matns: MatnDto[];
+  grades: HadithGrade[];
 }
 
 /**
@@ -113,6 +116,8 @@ function HadithDetailPage() {
                 {id && <SanadGraph hadithId={id} />}
               </div>
             </section>
+
+            <HadithGradesList grades={state.data.grades ?? []} />
 
             <section>
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-500">

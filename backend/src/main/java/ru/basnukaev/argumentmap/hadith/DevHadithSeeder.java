@@ -56,6 +56,16 @@ public class DevHadithSeeder implements CommandLineRunner {
             "إنما الأعمال بالنيات وإنما لكل امرئ ما نوى فمن كانت هجرته إلى دنيا "
                     + "يصيبها أو إلى امرأة ينكحها فهجرته إلى ما هاجر إليه";
 
+    // Курируемые оценки учёных в hd_hadiths.metadata.grades (jsonb) —
+    // surface'ятся в detail endpoint через HadithController.parseGrades.
+    private static final String GRADES_JSON = "{\"grades\":["
+            + "{\"scholar\":\"аль-Бухари\",\"grade\":\"Сахих\",\"note\":\"Хадис №1, открывает «Сахих»; повторён ещё в 6 местах\"},"
+            + "{\"scholar\":\"Муслим\",\"grade\":\"Сахих\",\"note\":\"Китаб аль-имара, №1907\"},"
+            + "{\"scholar\":\"Муттафакун алейхи\",\"grade\":\"Сахих\",\"note\":\"Согласован аль-Бухари и Муслимом — высшая степень достоверности\"},"
+            + "{\"scholar\":\"аль-Албани\",\"grade\":\"Сахих\",\"note\":\"Подтверждён везде, где встречается\"},"
+            + "{\"scholar\":\"Критики (Яхья аль-Каттан и др.)\",\"grade\":\"Гариб, но сахих\",\"note\":\"Одиночная передача (фард) на четырёх уровнях, но цепь полностью достоверна; машхур ниже Яхьи ибн Саида\"}"
+            + "]}";
+
     private final HadithRepository hadithRepository;
     private final NarratorRepository narratorRepository;
     private final SanadRepository sanadRepository;
@@ -178,7 +188,7 @@ public class DevHadithSeeder implements CommandLineRunner {
 
         Hadith hadith = new Hadith(
                 UUID.randomUUID(), null, 1, NORMALIZED_MATN,
-                HadithStatus.CANONICAL, null, null, now);
+                HadithStatus.CANONICAL, null, GRADES_JSON, now);
         hadithRepository.save(hadith);
 
         // Цепь 1 - аль-Бухари №1 (основная, явная сама').

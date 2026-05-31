@@ -74,3 +74,10 @@ export interface SanadGraphResponse {
 
 /** Данные узла React Flow = NarratorData + role (для рендера карточки). */
 export type SanadFlowNodeData = NarratorData & { role: NarratorRole };
+
+/** Курируемая оценка хадиса учёным (из detail endpoint, metadata.grades). */
+export interface HadithGrade {
+  scholar: string | null;
+  grade: string | null;
+  note: string | null;
+}

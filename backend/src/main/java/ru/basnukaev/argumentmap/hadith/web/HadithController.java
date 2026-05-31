@@ -1,7 +1,11 @@
 package ru.basnukaev.argumentmap.hadith.web;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,15 +41,18 @@ public class HadithController {
     private final SanadRepository sanadRepository;
     private final MatnRepository matnRepository;
     private final SanadGraphService sanadGraphService;
+    private final ObjectMapper objectMapper;
 
     public HadithController(HadithRepository hadithRepository,
                             SanadRepository sanadRepository,
                             MatnRepository matnRepository,
-                            SanadGraphService sanadGraphService) {
+                            SanadGraphService sanadGraphService,
+                            ObjectMapper objectMapper) {
         this.hadithRepository = hadithRepository;
         this.sanadRepository = sanadRepository;
         this.matnRepository = matnRepository;
         this.sanadGraphService = sanadGraphService;
+        this.objectMapper = objectMapper;
     }
 
     @GetMapping
@@ -109,11 +116,43 @@ public class HadithController {
                 ))
                 .toList();
 
+        List<HadithDetailResponse.GradeDto> grades = parseGrades(h.metadata(), objectMapper);
+
         return new HadithDetailResponse(
                 h.id(), h.primaryBookId(), h.primaryNumber(),
                 h.normalizedMatn(), h.status(), h.sourceId(), h.createdAt(),
-                sanadDtos, matnDtos
+                sanadDtos, matnDtos, grades
         );
+    }
+
+    /**
+     * Курируемые оценки учёных из {@code hd_hadiths.metadata.grades} (jsonb).
+     * Defensive: любая ошибка парсинга → пустой список (grades не критичны).
+     * Package-private static — unit-тестируется без Spring/БД.
+     */
+    static List<HadithDetailResponse.GradeDto> parseGrades(String metadata, ObjectMapper objectMapper) {
+        if (metadata == null || metadata.isBlank()) {
+            return List.of();
+        }
+        try {
+            JsonNode arr = objectMapper.readTree(metadata).get("grades");
+            if (arr == null || !arr.isArray()) {
+                return List.of();
+            }
+            List<HadithDetailResponse.GradeDto> out = new ArrayList<>();
+            for (JsonNode g : arr) {
+                out.add(new HadithDetailResponse.GradeDto(
+                        nodeText(g, "scholar"), nodeText(g, "grade"), nodeText(g, "note")));
+            }
+            return out;
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    private static String nodeText(JsonNode node, String field) {
+        JsonNode v = node.get(field);
+        return v == null || v.isNull() ? null : v.asText();
     }
 
     /**

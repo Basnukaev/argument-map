@@ -3021,8 +3021,10 @@ normalized matn), `status` (CANONICAL/VARIANT/WEAK/FABRICATED), `bookId`.
 
 ### GET /api/v1/hadith/hadiths/{id}/detail
 
-Bundled detail: hadith + sanads (с narrator-link'ами) + matns в одном
-payload (N+1 avoidance). 404 `hadith-not-found`.
+Bundled detail: hadith + sanads (с narrator-link'ами) + matns + `grades`
+(курируемые оценки учёных `[{scholar, grade, note}]` из
+`hd_hadiths.metadata.grades`) в одном payload (N+1 avoidance). 404
+`hadith-not-found`.
 
 ### GET /api/v1/hadith/hadiths/{id}/sanad-graph
 
