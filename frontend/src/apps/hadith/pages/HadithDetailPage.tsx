@@ -5,24 +5,11 @@ import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import SanadGraph from '@/apps/hadith/components/SanadGraph';
 import HadithGradesList from '@/apps/hadith/components/HadithGradesList';
+import MatnVariations from '@/apps/hadith/components/MatnVariations';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
 import { useT } from '@/shared/i18n';
 import type { AsyncState } from '@/shared/types/async';
-import type { HadithGrade } from '@/apps/hadith/types';
-
-// Backend types ещё не regenerated для hadith-домена — inline.
-interface MatnDto {
-  id: string;
-  textAr: string;
-  textRu: string | null;
-  textEn: string | null;
-  sourceBookId: string | null;
-  printedNumber: number | null;
-  pageNo: number | null;
-  volume: number | null;
-  isPrimary: boolean;
-  divergenceSummary: string | null;
-}
+import type { HadithGrade, MatnDto } from '@/apps/hadith/types';
 
 interface HadithDetail {
   id: string;
@@ -123,37 +110,7 @@ function HadithDetailPage() {
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-500">
                 {t('hadith.detail.matns')} · {state.data.matns.length}
               </h2>
-              {state.data.matns.length === 0 ? (
-                <p className="text-sm text-ink-500">{t('hadith.detail.no_matns')}</p>
-              ) : (
-                <ul className="space-y-3">
-                  {state.data.matns.map((m) => (
-                    <li key={m.id}>
-                      <Card className="p-4">
-                        <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-ink-500">
-                          {m.isPrimary && (
-                            <span className="rounded-sm bg-accent-50 px-1.5 py-0.5 font-semibold text-accent-700">
-                              {t('hadith.detail.primary')}
-                            </span>
-                          )}
-                          {m.printedNumber != null && <span className="font-mono">№{m.printedNumber}</span>}
-                          {m.volume != null && <span>vol.{m.volume}</span>}
-                          {m.pageNo != null && <span>p.{m.pageNo}</span>}
-                        </div>
-                        <p className="font-arabic text-lg leading-loose text-ink-900" dir="rtl">
-                          {m.textAr}
-                        </p>
-                        {m.textRu && <p className="mt-2 text-sm text-ink-700" dir="ltr">{m.textRu}</p>}
-                        {m.divergenceSummary && (
-                          <p className="mt-2 text-xs italic text-ink-500" dir="auto">
-                            {m.divergenceSummary}
-                          </p>
-                        )}
-                      </Card>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <MatnVariations matns={state.data.matns} />
             </section>
           </article>
         )}

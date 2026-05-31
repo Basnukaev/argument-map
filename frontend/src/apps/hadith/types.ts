@@ -109,6 +109,20 @@ export interface NarratorResponseDto {
   createdAt: string;
 }
 
+/** Вариация текста хадиса (matn) из detail endpoint. */
+export interface MatnDto {
+  id: string;
+  textAr: string;
+  textRu: string | null;
+  textEn: string | null;
+  sourceBookId: string | null;
+  printedNumber: number | null;
+  pageNo: number | null;
+  volume: number | null;
+  isPrimary: boolean;
+  divergenceSummary: string | null;
+}
+
 /** HadithResponse (thin) — для списка «передал хадисов». */
 export interface HadithSummaryDto {
   id: string;
