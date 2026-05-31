@@ -16,8 +16,10 @@ import ru.basnukaev.argumentmap.hadith.domain.SanadNarrator;
 import ru.basnukaev.argumentmap.hadith.repository.HadithRepository;
 import ru.basnukaev.argumentmap.hadith.repository.MatnRepository;
 import ru.basnukaev.argumentmap.hadith.repository.SanadRepository;
+import ru.basnukaev.argumentmap.hadith.service.SanadGraphService;
 import ru.basnukaev.argumentmap.hadith.web.dto.HadithDetailResponse;
 import ru.basnukaev.argumentmap.hadith.web.dto.HadithResponse;
+import ru.basnukaev.argumentmap.hadith.web.dto.SanadGraphResponse;
 import ru.basnukaev.argumentmap.web.dto.PageRequest;
 import ru.basnukaev.argumentmap.web.dto.PagedResponse;
 
@@ -34,13 +36,16 @@ public class HadithController {
     private final HadithRepository hadithRepository;
     private final SanadRepository sanadRepository;
     private final MatnRepository matnRepository;
+    private final SanadGraphService sanadGraphService;
 
     public HadithController(HadithRepository hadithRepository,
                             SanadRepository sanadRepository,
-                            MatnRepository matnRepository) {
+                            MatnRepository matnRepository,
+                            SanadGraphService sanadGraphService) {
         this.hadithRepository = hadithRepository;
         this.sanadRepository = sanadRepository;
         this.matnRepository = matnRepository;
+        this.sanadGraphService = sanadGraphService;
     }
 
     @GetMapping
@@ -109,6 +114,19 @@ public class HadithController {
                 h.normalizedMatn(), h.status(), h.sourceId(), h.createdAt(),
                 sanadDtos, matnDtos
         );
+    }
+
+    /**
+     * Phase 3: граф иснада, преднастроенный под React Flow
+     * (дедуплицированные узлы narrator'ов + синтетический корень Пророка ﷺ
+     * + рёбра с формулами передачи). Питает компонент SanadGraph на фронте.
+     */
+    @GetMapping("/{id}/sanad-graph")
+    public SanadGraphResponse getSanadGraph(@PathVariable UUID id) {
+        // 404 если хадиса нет - граф несуществующего хадиса бессмыслен
+        hadithRepository.findById(id)
+                .orElseThrow(() -> new HadithNotFoundException(id));
+        return sanadGraphService.buildGraph(id);
     }
 
     private static HadithResponse toResponse(Hadith h) {

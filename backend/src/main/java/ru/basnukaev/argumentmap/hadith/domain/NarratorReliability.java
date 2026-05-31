@@ -12,6 +12,8 @@ import java.util.Set;
  *   <li>MAQBUL - приемлемый</li>
  *   <li>DAIF - слабый</li>
  *   <li>MATRUK - оставленный</li>
+ *   <li>SAHABI - сподвижник (по иджме 'адль, не оценивается через
+ *       джарх ва тадиль; стоит вне шкалы критики)</li>
  *   <li>UNKNOWN - не определено</li>
  * </ul>
  */
@@ -22,9 +24,10 @@ public final class NarratorReliability {
     public static final String MAQBUL = "MAQBUL";
     public static final String DAIF = "DAIF";
     public static final String MATRUK = "MATRUK";
+    public static final String SAHABI = "SAHABI";
     public static final String UNKNOWN = "UNKNOWN";
 
-    public static final Set<String> ALL = Set.of(THIQA, SADUQ, MAQBUL, DAIF, MATRUK, UNKNOWN);
+    public static final Set<String> ALL = Set.of(THIQA, SADUQ, MAQBUL, DAIF, MATRUK, SAHABI, UNKNOWN);
 
     private NarratorReliability() {
     }

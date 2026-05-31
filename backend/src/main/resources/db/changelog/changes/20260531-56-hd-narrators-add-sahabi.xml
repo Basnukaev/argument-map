@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Hadith Explorer Phase 3 (sanad graph viz): расширение whitelist
+        надёжности narrator значением SAHABI.
+
+        Сподвижники (сахаба) по единогласию учёных (иджма) являются
+        'удул - справедливыми, их передача не подвергается оценке через
+        джарх ва тадиль (критику и подтверждение). Поэтому им нужна
+        отдельная категория, а не THIQA: на графе иснада сподвижник
+        отмечается особым бейджем. Эталон - Умар ибн аль-Хаттаб в
+        хадисе "Дела по намерениям".
+    -->
+    <changeSet id="20260531-56-hd-narrators-add-sahabi" author="Abdula Basnukaev">
+        <comment>Hadith Explorer: add SAHABI to hd_narrators reliability whitelist</comment>
+        <sql>
+            ALTER TABLE hd_narrators DROP CONSTRAINT hd_narrators_reliability_check;
+            ALTER TABLE hd_narrators ADD CONSTRAINT hd_narrators_reliability_check
+                CHECK (reliability_grade IS NULL OR reliability_grade IN
+                       ('THIQA', 'SADUQ', 'MAQBUL', 'DAIF', 'MATRUK', 'SAHABI', 'UNKNOWN'));
+        </sql>
+        <rollback>
+            <sql>
+                ALTER TABLE hd_narrators DROP CONSTRAINT hd_narrators_reliability_check;
+                ALTER TABLE hd_narrators ADD CONSTRAINT hd_narrators_reliability_check
+                    CHECK (reliability_grade IS NULL OR reliability_grade IN
+                           ('THIQA', 'SADUQ', 'MAQBUL', 'DAIF', 'MATRUK', 'UNKNOWN'));
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

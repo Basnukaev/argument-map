@@ -73,6 +73,19 @@ public class NarratorRepository {
     }
 
     /**
+     * Bulk fetch narrator'ов по списку id одной волной (избегаем N+1
+     * при сборке sanad-графа, где один граф ссылается на 5-10 narrator'ов).
+     */
+    public List<Narrator> findByIds(List<UUID> ids) {
+        if (ids.isEmpty()) return List.of();
+        String placeholders = String.join(",", ids.stream().map(id -> "?").toList());
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM hd_narrators WHERE id IN (" + placeholders + ")",
+                ROW_MAPPER, ids.toArray()
+        );
+    }
+
+    /**
      * Paginated listing с filters (Vision 49d Phase 1 - search/filter).
      * q substring по name_ar_normalized (case-insensitive); reliability
      * exact match через whitelist.

@@ -3008,6 +3008,69 @@ URL hierarchy сохраняет `answerId` под будущую авториз
   поддерживает - добавим если появится UX-кейс
 - Soft delete + audit (после auth)
 
+## Hadith Explorer API (sanad graph)
+
+Домен `hd_*` (Hadith Chains Explorer, ADR-049). Эндпоинты read-only,
+данные публичные. Доменная модель - в spec
+`docs/superpowers/specs/2026-05-20-hadith-explorer-design.md`.
+
+### GET /api/v1/hadith/hadiths
+
+Список, `PagedResponse<HadithResponse>`. Фильтры: `q` (подстрока по
+normalized matn), `status` (CANONICAL/VARIANT/WEAK/FABRICATED), `bookId`.
+
+### GET /api/v1/hadith/hadiths/{id}/detail
+
+Bundled detail: hadith + sanads (с narrator-link'ами) + matns в одном
+payload (N+1 avoidance). 404 `hadith-not-found`.
+
+### GET /api/v1/hadith/hadiths/{id}/sanad-graph
+
+Граф иснада, преднастроенный под React Flow. **Узлы дедуплицированы**
+(один narrator = один узел даже если он в нескольких цепях); сверху
+добавляется синтетический корень `prophet` (Пророк ﷺ), соединённый со
+сподвижником (position 0). Рёбра дедуплицируются по `source->target`,
+видимая подпись берётся из primary chain, число цепей через ребро -
+в `sanadCount`.
+
+**Response** `SanadGraphResponse`:
+
+```jsonc
+{
+  "hadithId": "uuid",
+  "nodes": [
+    { "id": "prophet", "role": "PROPHET",
+      "data": { "narratorId": null, "nameAr": "النبي محمد ﷺ", "tier": 0 } },
+    { "id": "narrator-{uuid}", "role": "COMPANION|NARRATOR|COLLECTOR",
+      "data": {
+        "narratorId": "uuid", "nameAr": "...", "nameRu": "...",
+        "kunya": "...", "laqab": "...", "yearDeathHijri": 143,
+        "reliabilityGrade": "THIQA|SADUQ|MAQBUL|DAIF|MATRUK|SAHABI|UNKNOWN",
+        "reliabilityComment": "...", "generation": "...",
+        "collection": "Сахих аль-Бухари (только COLLECTOR)", "tier": 4
+      } }
+  ],
+  "edges": [
+    { "id": "edge-0", "source": "prophet", "target": "narrator-{uuid}",
+      "data": { "transmissionPhrase": "سَمِعْتُ", "chainGrade": "SAHIH",
+                "onPrimaryChain": true, "sanadCount": 3 } }
+  ],
+  "sanads": [
+    { "id": "uuid", "collectionRu": "Сахих аль-Бухари",
+      "collectionAr": "صحيح البخاري", "chainGrade": "SAHIH",
+      "primaryChain": true, "collectorNodeId": "narrator-{uuid}" }
+  ]
+}
+```
+
+- `role`: `PROPHET` (синтетический корень) / `COMPANION` (position 0) /
+  `COLLECTOR` (составитель, есть в `compiledById` sanad'а) / `NARRATOR`.
+- `tier` - глубина (Пророк ﷺ = 0, далее position+1) для семантики.
+- `data.collection` заполняется только для `COLLECTOR` (из metadata sanad'а).
+- 404 `hadith-not-found` если хадиса нет.
+
+Питает компонент `SanadGraph` (React Flow, dagre TB layout, read-only).
+
 ## Hadith grades API (multi-grading)
 
 Один и тот же хадис (source с `sourceType=HADITH`) может быть оценён

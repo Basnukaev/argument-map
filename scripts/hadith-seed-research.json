@@ -1,0 +1,304 @@
+{
+  "hadith": {
+    "arabicMatn": "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ، وَإِنَّمَا لِكُلِّ امْرِئٍ مَا نَوَى، فَمَنْ كَانَتْ هِجْرَتُهُ إِلَى دُنْيَا يُصِيبُهَا أَوْ إِلَى امْرَأَةٍ يَنْكِحُهَا فَهِجْرَتُهُ إِلَى مَا هَاجَرَ إِلَيْهِ.",
+    "bukhariNumber": 1,
+    "muslimNumber": 1907,
+    "translationRu": "Поистине, дела (оцениваются) только по намерениям, и поистине, каждому человеку (достанется) лишь то, что он намеревался (обрести). Так, тот, чья хиджра была к Аллаху и Его Посланнику, переселился к Аллаху и Его Посланнику, а тот, чья хиджра была ради мирских благ, которые он хотел приобрести, или ради женщины, на которой хотел жениться, переселился (лишь) к тому, к чему он переселялся.",
+    "translationEn": "Actions are but by intentions, and every person will have only what he intended. So whoever's emigration (hijrah) was for Allah and His Messenger, his emigration was for Allah and His Messenger; and whoever's emigration was for some worldly gain he might attain, or a woman he would marry, then his emigration was for that which he emigrated.",
+    "status": "CANONICAL"
+  },
+  "narrators": [
+    {
+      "slug": "umar-ibn-al-khattab",
+      "nameAr": "عُمَر بن الخَطّاب",
+      "nameRu": "Умар ибн аль-Хаттаб",
+      "kunya": "Abu Hafs (Абу Хафс)",
+      "laqab": "al-Faruq (аль-Фарук), Amir al-Mu'minin (Амир аль-муминин)",
+      "yearBirthHijri": null,
+      "yearDeathHijri": 23,
+      "birthplace": "Mecca (Мекка)",
+      "residence": "Medina (Медина)",
+      "deathPlace": "Medina (Медина)",
+      "generation": "Sahabi (сподвижник, 1-е поколение)",
+      "reliabilityGrade": "SAHABI",
+      "reliabilityComment": "Второй праведный халиф, один из десяти обрадованных Раем. Сподвижники по единогласию (иджма) считаются справедливыми ('udul), их передача не нуждается в оценке джарх ва тадиль. Произнёс этот хадис с минбара, ссылаясь на услышанное от Пророка (мир ему)."
+    },
+    {
+      "slug": "alqamah-ibn-waqqas",
+      "nameAr": "عَلْقَمَة بن وَقّاص اللَّيْثِي",
+      "nameRu": "Алькама ибн Ваккас аль-Лейси",
+      "kunya": "Abu Yahya / Abu Waqqas (Абу Яхья / Абу Ваккас)",
+      "laqab": "al-Laythi al-Madani (аль-Лейси аль-Мадани)",
+      "yearBirthHijri": null,
+      "yearDeathHijri": 80,
+      "birthplace": "Medina (Медина)",
+      "residence": "Medina (Медина)",
+      "deathPlace": "Medina (Медина)",
+      "generation": "Tabi'i, kibar (старшие табиины, 2-е поколение)",
+      "reliabilityGrade": "THIQA",
+      "reliabilityComment": "Из старших табиинов Медины. Передавал от Умара, Аиши, Амра ибн аль-Аса, Ибн Умара. Ибн Хаджар в Такриб ат-тахзиб: ثقة (надёжный). Умер в Медине во время правления Абд аль-Малика ибн Марвана (точный год не зафиксирован, ок. 65-86 г.х.; приведена средняя оценка 80 г.х.)."
+    },
+    {
+      "slug": "muhammad-ibn-ibrahim-al-taymi",
+      "nameAr": "مُحَمَّد بن إبراهيم بن الحارث التَّيْمِي",
+      "nameRu": "Мухаммад ибн Ибрахим ат-Тайми",
+      "kunya": "Abu Abdillah (Абу Абдиллях)",
+      "laqab": "al-Taymi al-Madani (ат-Тайми аль-Мадани)",
+      "yearBirthHijri": null,
+      "yearDeathHijri": 120,
+      "birthplace": "Medina (Медина)",
+      "residence": "Medina (Медина)",
+      "deathPlace": "Medina (Медина)",
+      "generation": "Tabi'i (средние табиины, 3-е поколение)",
+      "reliabilityGrade": "THIQA",
+      "reliabilityComment": "Мединский табиин из рода Тайм ибн Мурра. Ибн Хаджар в Такриб ат-тахзиб: ثقة لها أفراد (надёжный, имеет отдельные/единичные передачи). Передаёт от Алькамы ибн Ваккаса; от него — Яхья ибн Саид аль-Ансари. Умер в 120 г.х."
+    },
+    {
+      "slug": "yahya-ibn-said-al-ansari",
+      "nameAr": "يَحْيَى بن سَعِيد بن قَيْس الأَنْصَارِي",
+      "nameRu": "Яхья ибн Саид аль-Ансари",
+      "kunya": "Abu Sa'id (Абу Саид)",
+      "laqab": "al-Ansari al-Madani, qadi al-Madina (аль-Ансари аль-Мадани, кади Медины)",
+      "yearBirthHijri": null,
+      "yearDeathHijri": 143,
+      "birthplace": "Medina (Медина)",
+      "residence": "Medina, затем al-Hashimiyya, Ирак (Медина, затем аль-Хашимия)",
+      "deathPlace": "al-Hashimiyya, Iraq (аль-Хашимия, Ирак)",
+      "generation": "Tabi'i, sighar (младшие табиины, 5-е поколение)",
+      "reliabilityGrade": "THIQA",
+      "reliabilityComment": "Ключевая точка (мадар, common link) всех путей этого хадиса: все позднейшие передатчики (Малик, Суфьян ибн Уяйна, Хаммад, Шуба, ас-Саври, Ибн аль-Мубарак) получают его от Яхьи. Кади Медины, затем Ирака. Ибн Хаджар: ثقة ثبت (надёжный, точный). Согласован всеми составителями шести сводов. Умер в 143 (по др. сведениям 144) г.х."
+    },
+    {
+      "slug": "malik-ibn-anas",
+      "nameAr": "مَالِك بن أَنَس بن مَالِك الأَصْبَحِي",
+      "nameRu": "Малик ибн Анас",
+      "kunya": "Abu Abdillah (Абу Абдиллях)",
+      "laqab": "Imam Dar al-Hijra, al-Asbahi al-Madani (Имам Дар аль-Хиджра, аль-Асбахи аль-Мадани)",
+      "yearBirthHijri": 93,
+      "yearDeathHijri": 179,
+      "birthplace": "Medina (Медина)",
+      "residence": "Medina (Медина)",
+      "deathPlace": "Medina (Медина)",
+      "generation": "Atba' al-Tabi'in (последователи табиинов, 7-е поколение)",
+      "reliabilityGrade": "THIQA",
+      "reliabilityComment": "Имам Медины, автор аль-Муватты, эпоним маликитского мазхаба. Ибн Хаджар: رأس المتقنين وكبير المتثبتين (глава точных и старший среди надёжных). Передаёт этот хадис от Яхьи ибн Саида аль-Ансари; через него хадис приводит Муслим в своём Сахихе. Умер в Медине в 179 г.х."
+    },
+    {
+      "slug": "sufyan-ibn-uyaynah",
+      "nameAr": "سُفْيَان بن عُيَيْنَة بن مَيْمُون الهِلَالِي",
+      "nameRu": "Суфьян ибн Уяйна",
+      "kunya": "Abu Muhammad (Абу Мухаммад)",
+      "laqab": "al-Hilali al-Kufi thumma al-Makki (аль-Хиляли аль-Куфи, затем аль-Макки)",
+      "yearBirthHijri": 107,
+      "yearDeathHijri": 198,
+      "birthplace": "Kufa (Куфа)",
+      "residence": "Mecca (Мекка)",
+      "deathPlace": "Mecca (Мекка)",
+      "generation": "Atba' al-Tabi'in, kibar (старшие последователи табиинов, 8-е поколение)",
+      "reliabilityGrade": "THIQA",
+      "reliabilityComment": "Хафиз, шейх аль-ислам, мухаддис Мекки. Родился в Куфе в 107 г.х., поселился в Мекке. Ибн Хаджар: ثقة حافظ فقيه إمام حجة (надёжный, хафиз, факих, имам, худжжа). Передаёт от Яхьи ибн Саида аль-Ансари; от него — аль-Хумайди (шейх аль-Бухари). Похоронен в аль-Хаджуне (Мекка). Умер в 198 г.х."
+    },
+    {
+      "slug": "al-humaydi",
+      "nameAr": "عَبْد الله بن الزُّبَيْر بن عِيسَى الحُمَيْدِي",
+      "nameRu": "Абдуллах ибн аз-Зубайр аль-Хумайди",
+      "kunya": "Abu Bakr (Абу Бакр)",
+      "laqab": "al-Humaydi al-Asadi al-Makki (аль-Хумайди аль-Асади аль-Макки)",
+      "yearBirthHijri": null,
+      "yearDeathHijri": 219,
+      "birthplace": "Mecca (Мекка)",
+      "residence": "Mecca (Мекка)",
+      "deathPlace": "Mecca (Мекка)",
+      "generation": "Tabi' atba' al-Tabi'in (10-е поколение, шейхи аль-Бухари)",
+      "reliabilityGrade": "THIQA",
+      "reliabilityComment": "Непосредственный шейх аль-Бухари в хадисе №1. Старший и самый известный ученик Суфьяна ибн Уяйны. Абу Хатим: люди единодушны, что аль-Хумайди — глава учеников Ибн Уяйны, надёжный (ثقة) имам. Автор первого по хронологии Муснада. Аль-Бухари говорил: если находил хадис у аль-Хумайди, не оставлял его ради другого. Умер в Мекке в 219 г.х."
+    },
+    {
+      "slug": "al-bukhari",
+      "nameAr": "مُحَمَّد بن إسْمَاعِيل البُخَارِي",
+      "nameRu": "Мухаммад ибн Исмаиль аль-Бухари",
+      "kunya": "Abu Abdillah (Абу Абдиллях)",
+      "laqab": "Amir al-Mu'minin fi al-hadith, al-Ju'fi al-Bukhari (Амир аль-муминин в хадисе, аль-Джуфи аль-Бухари)",
+      "yearBirthHijri": 194,
+      "yearDeathHijri": 256,
+      "birthplace": "Bukhara (Бухара)",
+      "residence": "Bukhara, Khartank близ Самарканда (Бухара, Хартанк)",
+      "deathPlace": "Khartank, близ Samarqand (Хартанк под Самаркандом)",
+      "generation": "A'immat al-hadith (имамы хадиса, составители)",
+      "reliabilityGrade": "THIQA",
+      "reliabilityComment": "Автор Сахих аль-Бухари — самого достоверного свода после Корана у ахль ас-сунна. Амир аль-муминин в науке хадиса, имам в джарх ва тадиль. Этим хадисом открывает свой Сахих (№1). Родился в Бухаре в 194 г.х., умер в Хартанке близ Самарканда в 256 г.х."
+    },
+    {
+      "slug": "muslim-ibn-al-hajjaj",
+      "nameAr": "مُسْلِم بن الحَجّاج القُشَيْرِي النَّيْسَابُورِي",
+      "nameRu": "Муслим ибн аль-Хаджжадж",
+      "kunya": "Abu al-Husayn (Абу-ль-Хусейн)",
+      "laqab": "al-Qushayri al-Naysaburi (аль-Кушайри ан-Найсабури)",
+      "yearBirthHijri": 206,
+      "yearDeathHijri": 261,
+      "birthplace": "Nishapur (Нишапур)",
+      "residence": "Nishapur (Нишапур)",
+      "deathPlace": "Nishapur (Нишапур)",
+      "generation": "A'immat al-hadith (имамы хадиса, составители)",
+      "reliabilityGrade": "THIQA",
+      "reliabilityComment": "Автор Сахих Муслим — второго по достоверности свода. Приводит этот хадис в своём Сахихе (Китаб аль-имара) через Яхью ибн Саида аль-Ансари (путём Малика ибн Анаса через своего шейха аль-Каанаби). Современник и собеседник аль-Бухари. Родился в Нишапуре ок. 204-206 г.х., умер там же в 261 г.х."
+    }
+  ],
+  "sanads": [
+    {
+      "collector": "al-bukhari",
+      "collectionAr": "صحيح البخاري",
+      "collectionRu": "Сахих аль-Бухари",
+      "printedNumber": 1,
+      "grade": "Sahih (Muttafaq alayh)",
+      "primaryChain": true,
+      "chain": [
+        {
+          "slug": "umar-ibn-al-khattab",
+          "transmissionPhrase": "سَمِعْتُ رَسُولَ اللَّهِ صلى الله عليه وسلم يَقُولُ (heard the Messenger of Allah say)"
+        },
+        {
+          "slug": "alqamah-ibn-waqqas",
+          "transmissionPhrase": "سَمِعْتُ عُمَرَ بْنَ الْخَطَّابِ عَلَى الْمِنْبَرِ قَالَ (heard Umar ibn al-Khattab on the minbar say)"
+        },
+        {
+          "slug": "muhammad-ibn-ibrahim-al-taymi",
+          "transmissionPhrase": "أَنَّهُ سَمِعَ عَلْقَمَةَ بْنَ وَقَّاصٍ اللَّيْثِيَّ يَقُولُ (that he heard Alqama ibn Waqqas al-Laythi say)"
+        },
+        {
+          "slug": "yahya-ibn-said-al-ansari",
+          "transmissionPhrase": "أَخْبَرَنِي مُحَمَّدُ بْنُ إِبْرَاهِيمَ التَّيْمِيُّ (Muhammad ibn Ibrahim al-Taymi informed me)"
+        },
+        {
+          "slug": "sufyan-ibn-uyaynah",
+          "transmissionPhrase": "قَالَ حَدَّثَنَا يَحْيَى بْنُ سَعِيدٍ الأَنْصَارِيُّ (Yahya ibn Sa'id al-Ansari narrated to us)"
+        },
+        {
+          "slug": "al-humaydi",
+          "transmissionPhrase": "قَالَ حَدَّثَنَا سُفْيَانُ (Sufyan narrated to us)"
+        },
+        {
+          "slug": "al-bukhari",
+          "transmissionPhrase": "حَدَّثَنَا الْحُمَيْدِيُّ عَبْدُ اللَّهِ بْنُ الزُّبَيْرِ (al-Humaydi Abdullah ibn al-Zubayr narrated to us)"
+        }
+      ]
+    },
+    {
+      "collector": "malik-ibn-anas",
+      "collectionAr": "موطأ مالك",
+      "collectionRu": "Муватта Малика",
+      "printedNumber": null,
+      "grade": "Sahih",
+      "primaryChain": false,
+      "chain": [
+        {
+          "slug": "umar-ibn-al-khattab",
+          "transmissionPhrase": "أَنَّ رَسُولَ اللَّهِ صلى الله عليه وسلم قَالَ (that the Messenger of Allah said)"
+        },
+        {
+          "slug": "alqamah-ibn-waqqas",
+          "transmissionPhrase": "عَنْ عُمَرَ بْنِ الْخَطَّابِ (from Umar ibn al-Khattab)"
+        },
+        {
+          "slug": "muhammad-ibn-ibrahim-al-taymi",
+          "transmissionPhrase": "عَنْ عَلْقَمَةَ بْنِ وَقَّاصٍ اللَّيْثِيِّ (from Alqama ibn Waqqas al-Laythi)"
+        },
+        {
+          "slug": "yahya-ibn-said-al-ansari",
+          "transmissionPhrase": "عَنْ مُحَمَّدِ بْنِ إِبْرَاهِيمَ (from Muhammad ibn Ibrahim)"
+        },
+        {
+          "slug": "malik-ibn-anas",
+          "transmissionPhrase": "عَنْ يَحْيَى بْنِ سَعِيدٍ (Malik narrates from Yahya ibn Sa'id) — collected in Kitab al-Jihad, Bab al-niyyah fi al-qital"
+        }
+      ]
+    },
+    {
+      "collector": "muslim-ibn-al-hajjaj",
+      "collectionAr": "صحيح مسلم",
+      "collectionRu": "Сахих Муслим",
+      "printedNumber": 1907,
+      "grade": "Sahih (Muttafaq alayh)",
+      "primaryChain": false,
+      "chain": [
+        {
+          "slug": "umar-ibn-al-khattab",
+          "transmissionPhrase": "أَنَّ رَسُولَ اللَّهِ صلى الله عليه وسلم قَالَ (that the Messenger of Allah said)"
+        },
+        {
+          "slug": "alqamah-ibn-waqqas",
+          "transmissionPhrase": "عَنْ عُمَرَ بْنِ الْخَطَّابِ (from Umar ibn al-Khattab)"
+        },
+        {
+          "slug": "muhammad-ibn-ibrahim-al-taymi",
+          "transmissionPhrase": "عَنْ عَلْقَمَةَ بْنِ وَقَّاصٍ اللَّيْثِيِّ (from Alqama ibn Waqqas al-Laythi)"
+        },
+        {
+          "slug": "yahya-ibn-said-al-ansari",
+          "transmissionPhrase": "عَنْ مُحَمَّدِ بْنِ إِبْرَاهِيمَ (from Muhammad ibn Ibrahim)"
+        },
+        {
+          "slug": "malik-ibn-anas",
+          "transmissionPhrase": "عَنْ يَحْيَى بْنِ سَعِيدٍ (Malik, from Yahya ibn Sa'id) — confirmed via sunnah.com muslim:1907a"
+        },
+        {
+          "slug": "muslim-ibn-al-hajjaj",
+          "transmissionPhrase": "حَدَّثَنَا عَبْدُ اللَّهِ بْنُ مَسْلَمَةَ بْنِ قَعْنَبٍ، حَدَّثَنَا مَالِكٌ (Abdullah ibn Maslama ibn Qa'nab narrated to us; Malik narrated to us) — Muslim's route is via Malik, NOT Sufyan ibn Uyayna. Muslim's immediate teacher al-Qa'nabi is folded into Malik's link as he is not in the provided slug set."
+        }
+      ]
+    }
+  ],
+  "matns": [
+    {
+      "textAr": "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ، وَإِنَّمَا لِكُلِّ امْرِئٍ مَا نَوَى، فَمَنْ كَانَتْ هِجْرَتُهُ إِلَى دُنْيَا يُصِيبُهَا أَوْ إِلَى امْرَأَةٍ يَنْكِحُهَا فَهِجْرَتُهُ إِلَى مَا هَاجَرَ إِلَيْهِ.",
+      "textRu": "Поистине, дела (оцениваются) только по намерениям, и поистине, каждому человеку (достанется) лишь то, что он намеревался (обрести). Так, тот, чья хиджра была к Аллаху и Его Посланнику, переселился к Аллаху и Его Посланнику, а тот, чья хиджра была ради мирских благ, которые он хотел приобрести, или ради женщины, на которой хотел жениться, переселился (лишь) к тому, к чему он переселялся.",
+      "textEn": "Actions are but by intentions, and every person will have only what he intended. So whoever's emigration (hijrah) was for Allah and His Messenger, his emigration was for Allah and His Messenger; and whoever's emigration was for some worldly gain he might attain, or a woman he would marry, then his emigration was for that which he emigrated.",
+      "isPrimary": true,
+      "divergenceSummary": "Базовая редакция Сахих аль-Бухари №1 (и №6953): множественное число «al-niyyat» (бِالنِّيَّاتِ) и «li-kulli imri'» (لِكُلِّ امْرِئٍ). Явно приведён пункт о dunya/женщине; пункт «к Аллаху и Его Посланнику» лишь подразумевается.",
+      "collection": "Сахих аль-Бухари №1"
+    },
+    {
+      "textAr": "إِنَّمَا الأَعْمَالُ بِالنِّيَّةِ، وَإِنَّمَا لِامْرِئٍ مَا نَوَى، فَمَنْ كَانَتْ هِجْرَتُهُ إِلَى اللَّهِ وَرَسُولِهِ فَهِجْرَتُهُ إِلَى اللَّهِ وَرَسُولِهِ، وَمَنْ كَانَتْ هِجْرَتُهُ إِلَى دُنْيَا يُصِيبُهَا أَوِ امْرَأَةٍ يَتَزَوَّجُهَا فَهِجْرَتُهُ إِلَى مَا هَاجَرَ إِلَيْهِ.",
+      "textRu": "Поистине, дела (оцениваются) только по намерению, и поистине, человеку (достанется) лишь то, что он намеревался (обрести). Так, тот, чья хиджра была к Аллаху и Его Посланнику, переселился к Аллаху и Его Посланнику, а тот, чья хиджра была ради мирских благ, которые он хотел приобрести, или ради женщины, на которой хотел жениться, переселился (лишь) к тому, к чему он переселялся.",
+      "textEn": "Actions are but by intention, and a person will have only what he intended. So whoever's emigration was for Allah and His Messenger, his emigration was for Allah and His Messenger; and whoever's emigration was for some worldly gain he might attain, or a woman he would marry, then his emigration was for that which he emigrated.",
+      "isPrimary": false,
+      "divergenceSummary": "Редакция Сахих Муслим №1907 (путь Малика через аль-Каанаби): единственное число «al-niyya» (بِالنِّيَّةِ) и «li-imri'» (لِامْرِئٍ) без «kull». Оба пункта хиджры (к Аллаху и к мирскому) приведены полностью. В суб-наррациях (1907a, 1907b) встречается вводное «فِيمَا أَحْسَبُ» — пометка передатчика о неуверенности в точной последовательности двух пунктов хиджры.",
+      "collection": "Сахих Муслим №1907"
+    },
+    {
+      "textAr": "الأَعْمَالُ بِالنِّيَّةِ، وَلِكُلِّ امْرِئٍ مَا نَوَى، فَمَنْ كَانَتْ هِجْرَتُهُ إِلَى اللَّهِ وَرَسُولِهِ فَهِجْرَتُهُ إِلَى اللَّهِ وَرَسُولِهِ، وَمَنْ كَانَتْ هِجْرَتُهُ إِلَى دُنْيَا يُصِيبُهَا أَوِ امْرَأَةٍ يَنْكِحُهَا فَهِجْرَتُهُ إِلَى مَا هَاجَرَ إِلَيْهِ.",
+      "textRu": "Дела (оцениваются) по намерению, и каждому человеку (достанется) лишь то, что он намеревался (обрести). Так, тот, чья хиджра была к Аллаху и Его Посланнику, переселился к Аллаху и Его Посланнику, а тот, чья хиджра была ради мирских благ, которые он хотел приобрести, или ради женщины, на которой хотел жениться, переселился (лишь) к тому, к чему он переселялся.",
+      "textEn": "Actions are by intention, and every person will have only what he intended. So whoever's emigration was for Allah and His Messenger, his emigration was for Allah and His Messenger; and whoever's emigration was for some worldly gain he might attain, or a woman he would marry, then his emigration was for that which he emigrated.",
+      "isPrimary": false,
+      "divergenceSummary": "Некоторые редакции у аль-Бухари (например №6689, Китаб аль-айман ва-н-нузур) начинаются без вводной частицы «innama»: «الأَعْمَالُ بِالنِّيَّةِ» либо «الأَعْمَالُ بِالنِّيَّاتِ، وَلِكُلِّ امْرِئٍ مَا نَوَى». Незначительная вариация в союзах и в числе слова niyya (ед./мн.). Полная редакция аль-Бухари №54 приводит оба пункта хиджры целиком.",
+      "collection": "Сахих аль-Бухари №6689 / №54"
+    }
+  ],
+  "grades": [
+    {
+      "scholar": "Muhammad ibn Ismail al-Bukhari",
+      "grade": "Sahih",
+      "note": "Reported by al-Bukhari in his Sahih as Hadith #1 (Kitab Bad' al-Wahy / opening), and repeated in 6 further places: #54, #2529, #3898, #5070, #6689, #6953."
+    },
+    {
+      "scholar": "Muslim ibn al-Hajjaj",
+      "grade": "Sahih",
+      "note": "Reported in Sahih Muslim #1907, Kitab al-Imara (The Book on Government/Leadership), bab 'Innama al-a'mal bi-l-niyya'."
+    },
+    {
+      "scholar": "Consensus of al-Bukhari and Muslim",
+      "grade": "Muttafaq alayh",
+      "note": "Agreed upon by both al-Bukhari and Muslim; the matn is one of the most strongly authenticated in the entire corpus of hadith."
+    },
+    {
+      "scholar": "Muhammad Nasir al-Din al-Albani",
+      "grade": "Sahih",
+      "note": "Authenticated by al-Albani wherever it appears (e.g. in his rulings on the Sunan and Riyad al-Salihin); grading is uncontested given it is muttafaq alayh."
+    },
+    {
+      "scholar": "Yahya ibn Sa'id al-Qattan / classical hadith critics",
+      "grade": "Gharib (singularly transmitted) yet Sahih",
+      "note": "Famous as 'gharib' because at the level of the Companion it is reported only from Umar ibn al-Khattab, then only from him by Alqama b. Waqqas, then only by Muhammad b. Ibrahim al-Taymi, then only by Yahya b. Sa'id al-Ansari — i.e. fard at four levels — yet the chain is fully sound (sahih). Despite this, scholars (e.g. al-Khattabi, al-Nawawi) note that 'no hadith is more widely transmitted onward from Yahya', so it is gharib at its source but mashhur in its branches."
+    }
+  ]
+}

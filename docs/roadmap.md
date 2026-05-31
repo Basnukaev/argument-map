@@ -457,12 +457,20 @@ design-specs создаются по мере приоритезации.
       superpowers/specs/2026-05-20-rating-pagination-design.md` (в
       работе subagent'ом)
 
-- [ ] **49.C: Hadith Chains Explorer (BIG)** - новое приложение под
-      `src/apps/hadith/` (ADR-018 platform pivot validation). Visualization
-      sanad через React Flow, narrator database, matn variations, AI
-      assist phase 2. Spec: `docs/superpowers/specs/
-      2026-05-20-hadith-explorer-design.md` (в работе subagent'ом).
-      Объём — 5-10 sessions.
+- [~] **49.C: Hadith Chains Explorer (BIG)** - новое приложение
+      `src/apps/hadith/` (ADR-018 platform pivot validation).
+      **Phase 1 (backend foundation)** ✅ — migrations 52-55, domain/repo/
+      controllers, DevHadithSeeder. **Phase 3 (sanad graph viz)** ✅
+      2026-05-31 (ADR-049): `GET /hadiths/{id}/sanad-graph` (дедуплицированные
+      узлы + синтетический Пророк ﷺ + рёбра с формулами передачи),
+      `SanadGraph` React Flow read-only граф (dagre TB), `NarratorPanel`
+      с биографией, легенда (цепи + надёжность + тахаммуль), migration 56
+      (`SAHABI` whitelist), enriched seed хадиса №1 «Дела по намерениям»
+      (9 передатчиков, 3 цепи: Бухари/Муватта/Муслим, fan-out у Яхьи).
+      Осталось: **Phase 2** (narrator/collection list pages), **Phase 4**
+      (FTS поиск + фильтры), **Phase 5** (ETL sunnah.com), **Phase 6** (AI
+      assist). Spec: `docs/superpowers/specs/2026-05-20-hadith-explorer-design.md`.
+      Объём остатка — 4-7 sessions.
 
 - [ ] **49.D: Observability** - structured logging + Prometheus metrics
       + OpenTelemetry tracing + frontend error reporting. Spec: `docs/

@@ -131,4 +131,25 @@ class HadithControllerIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].status").value("CANONICAL"));
     }
+
+    @Test
+    void GET_sanadGraph_returnsProphetRootedGraph() throws Exception {
+        // setUp создаёт 1 sanad с 1 narrator (position 0) - граф = Пророк ﷺ
+        // (синтетический корень) + 1 узел-сподвижник, соединённые 1 ребром.
+        mockMvc.perform(get("/api/v1/hadith/hadiths/{id}/sanad-graph", hadithId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hadithId").value(hadithId.toString()))
+                .andExpect(jsonPath("$.nodes.length()").value(2))
+                .andExpect(jsonPath("$.edges.length()").value(1))
+                .andExpect(jsonPath("$.edges[0].source").value("prophet"))
+                .andExpect(jsonPath("$.edges[0].target").value("narrator-" + narratorId))
+                .andExpect(jsonPath("$.sanads.length()").value(1));
+    }
+
+    @Test
+    void GET_sanadGraph_nonExistent_returns404() throws Exception {
+        mockMvc.perform(get("/api/v1/hadith/hadiths/{id}/sanad-graph", UUID.randomUUID()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value(org.hamcrest.Matchers.containsString("hadith-not-found")));
+    }
 }
