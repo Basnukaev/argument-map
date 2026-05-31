@@ -1856,3 +1856,26 @@ safe.
 PdfControllerIT обновлён на async-pattern для success-streaming
 тестов (200/206), error-path тесты (404/416) оставлены sync т.к.
 ProblemDetail handler short-circuit'ит до async.
+
+## sunnah.com доступен ТОЛЬКО через прокси (инверсия shamela)
+
+**Симптом:** прямое соединение к `sunnah.com` / `api.sunnah.com` из
+WSL2 виснет (curl timeout 28), а через `HTTPS_PROXY` — мгновенно
+(200 / 403-нужен-ключ).
+
+**Причина:** sunnah.com за corp-egress; доступен только через
+авторизованный corp-прокси. Это **противоположно** shamela.ws,
+который доступен напрямую, а corp-прокси его 407-ит (см. «shamela
+API из WSL2 требует VPN/прокси» выше).
+
+**Решение для будущего ETL-клиента:** `SunnahHttpClientConfig`
+**должен использовать** прокси (переиспользовать `applyProxy()`
+паттерн из `ShamelaHttpClientConfig` — Authenticator на
+`RequestorType.PROXY` + static-блок
+`jdk.http.auth.tunneling.disabledSchemes=""` уже есть в
+`ArgumentMapApplication`). **НЕ копировать** дефолт shamela
+(`ProxySelector.of(null)` = direct) — для sunnah.com это сломает
+соединение.
+
+**Узнано:** Сессия 51 (2026-05-31), Phase 5 feasibility-спайк.
+Детали — `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md` §3.

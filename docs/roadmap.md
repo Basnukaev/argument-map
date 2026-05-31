@@ -468,8 +468,12 @@ design-specs создаются по мере приоритезации.
       (`SAHABI` whitelist), enriched seed хадиса №1 «Дела по намерениям»
       (9 передатчиков, 3 цепи: Бухари/Муватта/Муслим, fan-out у Яхьи).
       Осталось: **Phase 2** (narrator/collection list pages), **Phase 4**
-      (FTS поиск + фильтры), **Phase 5** (ETL sunnah.com), **Phase 6** (AI
-      assist). Spec: `docs/superpowers/specs/2026-05-20-hadith-explorer-design.md`.
+      (FTS поиск + фильтры), **Phase 5** (ETL sunnah.com — feasibility-спайк
+      ✅ 2026-05-31, спека готова: `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md`;
+      🔴 ключевой вывод: sunnah.com даёт каталог хадисов+grades, но НЕ
+      структурированный иснад → sanad-граф остаётся curated-only; код ждёт
+      decision points Абдулы §9), **Phase 6** (AI assist). Spec Explorer:
+      `docs/superpowers/specs/2026-05-20-hadith-explorer-design.md`.
       Объём остатка — 4-7 sessions.
 
 - [ ] **49.D: Observability** - structured logging + Prometheus metrics
