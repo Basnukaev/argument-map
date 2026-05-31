@@ -113,7 +113,7 @@ export function useAutoLayout({
         setLayoutPending(false);
       }
     },
-    [lastNodesRef, edgesRef, rfInstanceRef, setNodes, t],
+    [lastNodesRef, edgesRef, rfInstanceRef, setNodes, setEdges, t],
   );
 
   return { triggerRelayout, layoutPending };

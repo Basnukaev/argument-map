@@ -59,6 +59,9 @@ function AdminUsersPage() {
   }, [search, roleFilter, t]);
 
   useEffect(() => {
+    // fetchUsers синхронно выставляет loading до await — намеренный
+    // переход (idiom как в useApiQuery), а не cosmetic setState.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchUsers();
   }, [fetchUsers]);
 

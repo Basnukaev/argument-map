@@ -81,6 +81,9 @@ function LibraryCollectionsPage() {
   }, []);
 
   useEffect(() => {
+    // fetchAll синхронно выставляет loading до await — намеренный
+    // переход (idiom как в useApiQuery), а не cosmetic setState.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchAll();
   }, [fetchAll]);
 

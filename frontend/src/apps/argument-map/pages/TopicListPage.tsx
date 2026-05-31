@@ -52,6 +52,9 @@ function TopicListPage() {
 
   useEffect(() => {
     const controller = new AbortController();
+    // Намеренный loading-переход при смене sort: новый запрос = новое
+    // loading (idiom как в useApiQuery), а не cosmetic setState.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setState({ kind: 'loading' });
     // apiGetRaw используется т.к. query-params не входят в keyof paths
     // из openapi-typescript. sort param добавлен в Vision 49d Phase 1.

@@ -23,6 +23,9 @@ function NarratorDetailPage() {
   useEffect(() => {
     if (!id) return;
     const controller = new AbortController();
+    // Сброс при смене id передатчика: новый fetch = loading + чистая
+    // ошибка (idiom как в useApiQuery), а не cosmetic setState.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setError(null);
     Promise.all([

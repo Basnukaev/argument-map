@@ -41,6 +41,9 @@ function SanadGraph({ hadithId }: SanadGraphProps) {
 
   useEffect(() => {
     const controller = new AbortController();
+    // Сброс состояния при смене hadithId: новый граф = чистый старт
+    // (loading-плейсхолдер без stale-данных предыдущего хадиса).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setGraph(null);
     setError(null);
     setSelected(null);

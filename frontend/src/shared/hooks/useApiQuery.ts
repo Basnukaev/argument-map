@@ -53,8 +53,8 @@ export function useApiQuery<T>(path: string | null, options: Options = {}): Asyn
     }
     const controller = new AbortController();
     // setState('loading') при смене path: семантический переход (новый fetch =
-    // новое loading), не cosmetic. Sync setState in effect здесь intentional
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // новое loading), не cosmetic. Здесь setState стоит после guard'а
+    // (early-return выше) — правило set-state-in-effect его не флагует.
     setState({ kind: 'loading' });
     apiGetRaw<T>(path, { signal: controller.signal })
       .then((data) => {

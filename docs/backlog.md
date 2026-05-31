@@ -542,12 +542,18 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
     per ADR-040 transitional; Phase 1.f hadith endpoints имели тот же gap).
     Закрыть в рамках prod-hardening этапа (ADR-040): добавить
     `requestMatchers(GET, "/api/v1/hadith/**").permitAll()` вне dev-ветки.
-  - **`react-hooks/set-state-in-effect` lint** (`SanadGraph.tsx`,
-    `NarratorDetailPage.tsx` + 5 pre-existing файлов repo-wide): синхронный
-    `setState` в теле effect для reset-on-dep-change. Не новая регрессия —
-    совпадает с существующим паттерном (sibling-страницы). Фикс repo-wide:
-    либо route-`key` remount, либо консолидация в один `AsyncState`. Lint
-    gate уже красный на master из-за этого.
+  - ✅ **`react-hooks/set-state-in-effect` lint** — **RESOLVED** Сессия 51.
+    Все 6 сайтов (`SanadGraph`, `NarratorDetailPage`, `TopicListPage`,
+    `QuestionListPage`, `AdminUsersPage`, `LibraryCollectionsPage`) — это
+    намеренный loading/reset-переход при смене dep. Применён justified
+    `eslint-disable-next-line` + «почему»-комментарий на каждом сайте —
+    тот же idiom что в каноническом `useApiQuery` (он делает то же для
+    loading-перехода). Заодно убраны 2 устаревших unused-disable
+    (`useApiQuery` L57, `useOnboardingProgress` L146 — после guard'а правило
+    не флагует) + добавлен missing dep `setEdges` в `useAutoLayout`.
+    **Lint теперь green (0/0).** Опционально-future: реальная консолидация
+    в один `AsyncState`-хук или route-`key` remount (не блокер, idiom
+    задокументирован).
   - **Narrator identity duplication в seed**: один и тот же человек (Суфьян
     ибн Уяйна, Малик) — отдельные `hd_narrators` записи per-hadith (разные
     UUID). Для dev-seed ок; реальный ETL должен дедуплицировать по identity

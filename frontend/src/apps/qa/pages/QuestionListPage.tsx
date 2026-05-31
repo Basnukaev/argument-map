@@ -67,6 +67,9 @@ function QuestionListPage() {
    */
   useEffect(() => {
     const controller = new AbortController();
+    // Намеренный loading-переход при смене status/sort: новый запрос =
+    // новое loading (idiom как в useApiQuery), а не cosmetic setState.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setState({ kind: 'loading' });
     const statusParam = statusFilter === 'ALL' ? '' : `&status=${statusFilter}`;
     apiGetRaw<PagedQuestions>(
