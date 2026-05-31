@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, NavLink } from 'react-router';
 import { Menu, Search } from 'lucide-react';
+import Logo from '@/shared/components/layout/Logo';
 import LocaleSwitch from '@/shared/components/layout/LocaleSwitch';
 import ThemeSwitch from '@/shared/components/layout/ThemeSwitch';
 import SettingsLink from '@/shared/components/layout/SettingsLink';
@@ -80,24 +81,13 @@ function Header() {
           className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 rounded-sm"
           aria-label={t('nav.home_aria')}
         >
-          {/* ﷽ (U+FDFD) - арабская лигатура Бисмиллах, горизонтальный
-              aspect-ratio ~4:1. Квадратный 28×28 box обрезал её → используем
-              w-auto + px-2.5 чтобы box расширялся под каллиграфию. font-arabic
-              даёт правильный naskh rendering вместо системного serif fallback */}
-          {/* ﷽ компактный mode: text-sm + минимальный padding. logo
-              работает как symbol-identity (узнаётся по форме вязи),
-              читаемость как текста не важна - поэтому жертвуем размером
-              ради геометрической компактности. nav остаётся рядом */}
-          {/* Logo font - LOCKED Scheherazade New, не подменяется через
-              FontPairEffect (которое динамически меняет --font-arabic).
-              Logo - часть brand identity, должен оставаться constant
-              даже когда пользователь меняет шрифт интерфейса в Settings */}
-          <span
-            className="inline-flex h-7 w-auto min-w-7 items-center justify-center rounded-md bg-accent-600 px-1.5 text-sm font-semibold leading-none text-ink-0"
-            style={{ fontFamily: "'Scheherazade New', 'Amiri', 'Noto Naskh Arabic', serif" }}
-          >
-            ﷽
-          </span>
+          {/* SVG бренд-марка (Rub el Hizb ۞ + узел-точка). Заменила
+              текстовую лигатуру ﷽ — теперь это настоящая иконка, а не
+              глиф шрифта: рисуется одинаково во всех окружениях,
+              масштабируется без потери чёткости, дублируется в
+              public/favicon.svg для вкладки браузера. text-accent-600
+              задаёт цвет тайла через currentColor (следует за темой). */}
+          <Logo size={28} className="text-accent-600" />
         </Link>
 
         {/* Inline navigation - только desktop (≥md). На mobile скрыт,

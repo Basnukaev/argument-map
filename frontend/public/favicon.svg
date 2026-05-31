@@ -1,0 +1,15 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Argument Map">
+  <!--
+    Бренд-марка платформы. Мотив - Rub el Hizb (۞): два наложенных
+    квадрата, образующие 8-конечную исламскую звезду (используется для
+    разметки разделов Корана). В центре - узел-точка, отсылка к графам
+    (argument-map / иснад-деревья / библиотека). Цвет - accent (indigo).
+  -->
+  <rect width="32" height="32" rx="7" fill="#4f46e5"/>
+  <g fill="#ffffff">
+    <rect x="9" y="9" width="14" height="14" rx="1.6"/>
+    <rect x="9" y="9" width="14" height="14" rx="1.6" transform="rotate(45 16 16)"/>
+  </g>
+  <circle cx="16" cy="16" r="3.2" fill="#4f46e5"/>
+  <circle cx="16" cy="16" r="1.5" fill="#ffffff"/>
+</svg>
