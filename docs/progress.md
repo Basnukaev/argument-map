@@ -74,14 +74,20 @@ aria-hidden+inert когда закрыт. Minor: t-shadowing fix, 5 orphaned i1
 
 ### Следующий шаг
 
-Развилка для следующей сессии (порядок по готовности):
-1. **Phase 6 — AI-ассист** (резюме передатчика через Claude, ADR-042 инфра,
-   graceful без ключа, IT со стабом) — самый bounded, НЕ заблокирован.
-2. **Phase 5 ETL код** — после ответов Абдулы на §9 спеки
-   (`2026-05-31-sunnah-etl-design.md`). Зеркалить shamela staging→mapper
-   паттерн; SunnahHttpClientConfig переиспользует applyProxy() (gotcha:
-   sunnah ТОЛЬКО через прокси).
-3. **Tech-debt:** generate-api для hadith-типов; smoke-тесты нового
+**Phase 5 ETL РАЗБЛОКИРОВАН** — Абдула ответил на §9 (записано в спеку §11,
+коммит после handoff). Phase 6 AI **слит в Phase 5** (AI = извлечение иснада,
+не резюме). Эпик ~3-4 сессии, порядок (см. §11):
+1. Миграция **`hd_collections`** + repoint FK (`hd_hadiths`/`hd_matns` с
+   `lib_books` → `hd_collections`) + обновить `DevHadithSeeder` ← чистый старт.
+2. `SunnahDataSource` (dump + API) + staging + `SunnahToHadithMapper` →
+   каталог Бухари+Муслим. `SunnahHttpClientConfig` использует applyProxy()
+   (gotcha: sunnah ТОЛЬКО через прокси).
+3. **`IsnadExtraction` (= Phase 6 AI)** — граф для ЛЮБОГО хадиса через
+   AI-извлечение (ADR-042) + `extraction_source`/`review_status` + UI-пометки
+   «не выверено». ⚖️ AI-цепочка не выдаётся за факт.
+4. API-источник + объём за пределы пилота.
+
+Альт./параллельно — **Tech-debt:** generate-api для hadith-типов; smoke-тесты нового
    graph-chrome (Reviewer рекомендация); v2→v3 alias cleanup (мигрировать
    Badge/BookListPage/EdgeDetailsPanel/edgeRules на v3 имена, удалить alias-блок).
 4. **Manual:** Абдула проверяет граф chrome в браузере (drag minimap viewport,

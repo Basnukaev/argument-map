@@ -199,17 +199,24 @@ brand, oklch, семантические tiers; backward-compat алиасы д�
 review (Critical 0, Important 2/2). Green: tsc/lint/build; тесты 613 pass
 (pre-existing flake: bulkActions d3-drag + NodeDetailsPanel «Опора» — в backlog).
 
-**Следующий шаг (порядок по готовности):**
-1. **Phase 6 — AI-ассист передатчика** (Claude summary, ADR-042 инфра,
-   graceful без ключа, IT со стабом) — bounded, НЕ заблокирован. Этап 49.C.
-2. **Phase 5 ETL код** — ТОЛЬКО после ответов Абдулы на decision points §9
-   спеки `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md` (источник
-   dump/API, объём, стратегия по иснаду, collection-сущность, лицензия).
-   Зеркалить shamela staging→mapper; `SunnahHttpClientConfig` **использует**
-   прокси (gotcha: sunnah ТОЛЬКО через прокси — инверсия shamela).
-3. **Tech-debt:** generate-api для hadith-типов; smoke-тесты нового
-   graph-chrome; v2→v3 alias cleanup (Badge/BookListPage/EdgeDetailsPanel/
-   edgeRules → v3 имена, затем удалить alias-блок).
+**Следующий шаг — Phase 5 ETL РАЗБЛОКИРОВАН** (decision points решены
+Абдулой, см. спеку `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md`
+§11). Эпик ~3-4 сессии, порядок:
+1. Миграция **`hd_collections`** + repoint FK (`hd_hadiths.primary_book_id`→
+   `collection_id`, `hd_matns.source_book_id`) с `lib_books` на `hd_collections`
+   + обновить `DevHadithSeeder`. ← чистый старт следующей сессии.
+2. `SunnahDataSource` абстракция (dump-reader сначала, API потом) + staging
+   `sn_staging_*` + `SunnahToHadithMapper` → каталог Бухари+Муслим. Зеркалить
+   shamela staging→mapper. `SunnahHttpClientConfig` **использует** прокси
+   (gotcha: sunnah ТОЛЬКО через прокси — инверсия shamela).
+3. **`IsnadExtraction` стадия (= Phase 6 AI, слиты!)** — граф для ЛЮБОГО
+   хадиса через AI-извлечение цепочки (ADR-042 Claude) + `extraction_source`/
+   `review_status` (CURATED/AI/MANUAL, UNVERIFIED/SCHOLAR_VERIFIED) + UI-пометки
+   «не выверено». ⚖️ AI-цепочка НЕ выдаётся за факт.
+4. API-источник + расширение объёма.
+
+**Параллельный tech-debt (если нужен лёгкий старт):** generate-api для
+hadith-типов; smoke-тесты graph-chrome; v2→v3 alias cleanup.
 
 **Manual за Абдулой:** граф chrome в браузере (drag minimap viewport, zoom
 presets, help popover, dark+RTL) — headless дал 401, в браузере не проверен;

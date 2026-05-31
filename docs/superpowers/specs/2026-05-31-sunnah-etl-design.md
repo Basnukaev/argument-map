@@ -148,7 +148,9 @@ sunnah dump/API
 5. 🟡 **Объём** — full sunnah.com ~ десятки тысяч хадисов; влияние на БД,
    Phase 4 поиск (всё ещё нужен ES для арабской морфологии — backlog).
 
-## 9. Decision points для Абдулы (нужны до кода)
+## 9. Decision points — ✅ РЕШЕНО Абдулой (Сессия 51)
+
+Ответы и их влияние на дизайн — в **§11**. Исходные вопросы (история):
 
 1. **Источник:** dump (B, рекомендую) vs API (A) vs гибрид?
 2. **Объём первого импорта:** 1-2 сборника (Бухари+Муслим) pilot vs всё?
@@ -164,4 +166,59 @@ sunnah dump/API
 - ✅ Модель данных sunnah.com из `spec.v1.yml`.
 - ✅ Маппинг на `hd_*` (миграции 52-56), выявлено отсутствие иснада.
 - ✅ Архитектура ETL + риски + decision points.
-- ❌ Код (по плану — после approval §9).
+- ✅ Decision points решены Абдулой → §11.
+- ❌ Код (по плану — следующая сессия, см. §11 порядок).
+
+## 11. Решения Абдулы (Сессия 51) + влияние на дизайн
+
+### 1. Источник — ОБА (dump + API)
+Абстракция `SunnahDataSource` (интерфейс) → 2 реализации: `SunnahDumpReader`
+(MySQL-дамп `sunnah-com/api` → staging) + `SunnahApiClient` (REST, proxy-aware
+через `applyProxy` — **gotcha: sunnah ТОЛЬКО через прокси**). Обе пишут в одни
+`sn_staging_*` → один `SunnahToHadithMapper`. Пилот стартует с dump (проще, без
+ключа); API добавляется позже без изменения mapper.
+
+### 2. Объём — пилот: Бухари + Муслим (Сахихайн)
+Полный корпус — после валидации конвейера end-to-end.
+
+### 3. 🔴 Граф для ЛЮБОГО хадиса — обязателен → стадия извлечения иснада
+sunnah.com не даёт структурный иснад, поэтому добавляем **pluggable стадию
+`IsnadExtraction`** между импортом текста и графом:
+- **вход:** `hd_matns.text_ar` (matn+isnad блоб);
+- **выход:** структурные `hd_narrators` + `hd_sanads` + `hd_sanad_narrators`;
+- **реализации** (по реалистичности): **(I) AI-извлечение через Claude**
+  (ADR-042 инфра) — isnad-часть текста → упорядоченная цепочка (имена +
+  формулы тахаммуль) → резолв/дедуп в `hd_narrators`; **(II) ручной редактор**
+  (admin UI) — ground truth / правка; **(III) будущий rule-based арабский
+  парсер** (опц.).
+- **Phase 5 ↔ Phase 6 СЛИВАЮТСЯ:** Phase 6 AI — это уже не «резюме
+  передатчика», а **AI-извлечение иснада** (резюме — бонус). Меняет
+  позиционирование Phase 6 в roadmap.
+- **⚖️ Академическая точность (критично):** AI-цепочка НЕ выдаётся за факт.
+  Новые поля `hd_sanads.extraction_source` (`CURATED` | `AI` | `MANUAL`) +
+  `review_status` (`UNVERIFIED` | `SCHOLAR_VERIFIED`). UI помечает AI-цепочки
+  «не выверено, ждёт учёного»; курируемые (Сессия 50) — authoritative.
+  Граф ВОЗМОЖЕН для любого хадиса, но trust-level трекается и виден.
+
+### 4. Сущность сборника — выделенная `hd_collections` (расширяемо)
+Новая таблица `hd_collections` (id, slug `bukhari`/`muslim`, name_ar/en/ru,
+`compiler_narrator_id` → `hd_narrators` [Бухари-человек], total_hadith,
+metadata). Миграция: перенацелить `hd_hadiths.primary_book_id`
+(→ переименовать в `collection_id`) и `hd_matns.source_book_id` с `lib_books`
+на `hd_collections`. Не coupling с library-доменом (pages/OCR/visibility/
+members), расширяемо под будущие hadith-фичи. `DevHadithSeeder` обновить
+(seed создаёт `hd_collections` для Бухари/Муслим).
+
+### 5. Лицензия — НЕ блокер
+Импортируем максимально информативно: арабские матны + ВСЕ доступные переводы
++ оценки + структура книга/глава + вся metadata. Юр.вопросы Абдула решит
+отдельно.
+
+### Влияние на объём и порядок реализации (эпик ~3-4 сессии)
+1. Миграция `hd_collections` + repoint FK (`hd_hadiths`/`hd_matns`) +
+   обновить `DevHadithSeeder`.
+2. `SunnahDataSource` абстракция + `SunnahDumpReader` + staging `sn_staging_*`
+   + `SunnahToHadithMapper` → каталог Бухари+Муслим (текст + grades + структура).
+3. `IsnadExtraction` стадия (AI через Claude, Phase 6 слит) +
+   `extraction_source`/`review_status` миграция + UI-пометки доверия.
+4. `SunnahApiClient` источник + расширение объёма за пределы пилота.
