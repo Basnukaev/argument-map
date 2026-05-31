@@ -76,8 +76,15 @@ Research-workflow (4 субагента, sunnah.com + рижаль) вывери
   столпах» Бухари №8 + Муслим №16 / «Религия — искренность» Муслим №55),
   выверено 2-м research-workflow (`scripts/hadith-seed-research-2.json`).
   Explorer перестал быть демо на один хадис.
-- Тесты: frontend hadith 13, backend `parseGrades` 2 + `SanadGraphService`
-  (unit, без Docker). Всё компилируется (`test-compile` зелёный).
+- **Phase 2 frontend (علم الرجال)**: `NarratorListPage` (/hadith/narrators —
+  каталог: поиск + фильтр по надёжности) + `NarratorDetailPage` (биография +
+  «передал хадисов» через transmitted endpoint). Ссылка «Передатчики» на
+  списке хадисов. 3 vitest (MSW + MemoryRouter).
+- Тесты: frontend hadith **16**, backend `parseGrades` 2 + `SanadGraphService`
+  (unit, без Docker). Всё компилируется (`test-compile`); tsc clean.
+- **matn-diff отложён** (future) — чисто визуальная фича diff'а вариаций
+  matn, рискованно строить без браузера; `divergenceSummary` уже описывает
+  различия прозой.
 
 ### Открытые хвосты
 
