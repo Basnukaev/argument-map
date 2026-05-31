@@ -86,13 +86,28 @@ Research-workflow (4 субагента, sunnah.com + рижаль) вывери
   matn, рискованно строить без браузера; `divergenceSummary` уже описывает
   различия прозой.
 
+### Docker-верификация (Абдула включил Docker — выполнено в сессии)
+
+- ✅ `./mvnw verify` — **1066 тестов, 0 failures/errors** (real Postgres,
+  migration 56 применилась чисто, все hadith IT). Регрессий нет.
+- ✅ **Visual** (standalone Playwright + bundled chromium, в обход
+  sudo-блокированного MCP `chrome`-channel): граф иснада (Пророк ﷺ → strand
+  → fan-out у Яхьи на Бухари/Муслим/Малик), панель биографии по клику, тёмная
+  тема, логотип ۞. Скрины: `/tmp/hadith-{graph,panel,dark}.png`.
+- ✅ **Live curl smoke** (local profile, реальный `DevHadithSeeder`): 3 хадиса;
+  detail #1 — 3 matns + 5 grades распарсены из metadata; sanad-graph — 10 узлов
+  (1 PROPHET / 1 COMPANION / 5 NARRATOR / 3 COLLECTOR) + 9 дедуплицированных
+  рёбер + 1 prophet-edge; 22 раввия (3 SAHABI / 3 SADUQ / 16 THIQA);
+  `transmitted` JOIN + `reliability`-фильтр работают.
+- Backend (9090, local+JDWP :5005) и frontend (5173) оставлены запущенными
+  для ручного просмотра в браузере.
+
 ### Открытые хвосты
 
-- **Stash:** WIP прошлой сессии (minimap/zoom/help redesign — 4 компонента
-  + tokens.css overhaul) отложен в `git stash@{0}` чтобы коммиты были
-  изолированы. **Восстановить перед закрытием сессии** (`git stash pop`).
-- **Manual visual check** (Playwright не прошёл из-за env) — за Абдулой.
-- Hadith Phase 2/4/5/6 (narrator pages, FTS, ETL, AI) — в roadmap.
+- **Stash:** WIP прошлой сессии (minimap/zoom/help) **восстановлен**
+  (`git stash pop`) — в рабочем дереве, мои 15 коммитов изолированы.
+- Hadith **Phase 4/5/6** (FTS-поиск, ETL sunnah.com, AI assist) + matn-diff —
+  в roadmap/backlog.
 
 
 - Сессии 0-21: [`docs/archive/progress-sessions-1-21.md`](archive/progress-sessions-1-21.md)
