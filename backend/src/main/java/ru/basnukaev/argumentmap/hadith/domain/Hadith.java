@@ -6,9 +6,10 @@ import java.util.UUID;
 /**
  * Сам хадис (matn + meta). Vision 49d Section 2.6 Phase 1.c.
  *
- * <p>primaryBookId → lib_books.id (FK): каноническая публикация - Бухари,
- * Муслим, и т.п. primaryNumber - номер в этой книге (e.g. 6018 для
- * "Действия по намерениям" из Бухари).
+ * <p>collectionId → hd_collections.id (FK): сборник хадисов - Бухари,
+ * Муслим, и т.п. primaryNumber - номер в этом сборнике (e.g. 6018 для
+ * "Действия по намерениям" из Бухари). Phase 5 (§11): выделенная
+ * hd_collections вместо lib_books.
  *
  * <p>normalizedMatn - normalized арабский текст для search (без
  * tashkīl + letter normalization). Заполняется в service-слое.
@@ -19,8 +20,8 @@ import java.util.UUID;
  * UI.
  *
  * @param id surrogate UUID PK
- * @param primaryBookId FK на основную книгу (nullable если standalone)
- * @param primaryNumber номер в primary_book (e.g. 6018)
+ * @param collectionId FK на сборник hd_collections (nullable если standalone)
+ * @param primaryNumber номер в сборнике (e.g. 6018)
  * @param normalizedMatn нормализованный текст хадиса
  * @param status whitelist {@link HadithStatus}
  * @param sourceId nullable FK на sources для citation bridge
@@ -29,7 +30,7 @@ import java.util.UUID;
  */
 public record Hadith(
         UUID id,
-        UUID primaryBookId,
+        UUID collectionId,
         Integer primaryNumber,
         String normalizedMatn,
         String status,

@@ -20,7 +20,7 @@ public class MatnRepository {
 
     private static final String COLUMNS =
             "id, hadith_id, text_ar, text_ar_normalized, text_ru, text_en, "
-                    + "source_book_id, printed_number, page_no, volume, "
+                    + "collection_id, printed_number, page_no, volume, "
                     + "is_primary, divergence_summary, metadata, created_at";
 
     private static final RowMapper<Matn> ROW_MAPPER = (rs, rn) -> new Matn(
@@ -30,7 +30,7 @@ public class MatnRepository {
             rs.getString("text_ar_normalized"),
             rs.getString("text_ru"),
             rs.getString("text_en"),
-            rs.getObject("source_book_id", UUID.class),
+            rs.getObject("collection_id", UUID.class),
             (Integer) rs.getObject("printed_number"),
             (Integer) rs.getObject("page_no"),
             (Integer) rs.getObject("volume"),
@@ -51,7 +51,7 @@ public class MatnRepository {
                 "INSERT INTO hd_matns (" + COLUMNS + ") VALUES "
                         + "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?)",
                 m.id(), m.hadithId(), m.textAr(), m.textArNormalized(),
-                m.textRu(), m.textEn(), m.sourceBookId(),
+                m.textRu(), m.textEn(), m.collectionId(),
                 m.printedNumber(), m.pageNo(), m.volume(),
                 m.isPrimary(), m.divergenceSummary(), m.metadata(),
                 odt(m.createdAt())

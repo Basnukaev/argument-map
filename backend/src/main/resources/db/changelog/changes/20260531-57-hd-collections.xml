@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Phase 5 ETL (этап 49.C), decision point #4: выделенная сущность
+        сборника хадисов hd_collections вместо reuse lib_books.
+
+        Почему отдельная таблица, а не lib_books: сборник хадисов (Бухари,
+        Муслим) — другой концепт, чем книга-публикация library-домена
+        (lib_books несёт pages/OCR/visibility/members). Coupling ограничивал
+        бы будущие hadith-фичи. Расширяемая сущность (Абдула: «неограничивающий
+        вариант»). Спека: docs/superpowers/specs/2026-05-31-sunnah-etl-design.md §11.
+
+        Repoint FK: hd_hadiths.primary_book_id → collection_id (на
+        hd_collections), hd_matns.source_book_id → collection_id. Data
+        migration не нужна — оба поля NULL во всём текущем seed'е.
+
+        НЕ трогаем: hd_sanads.compiled_in_book_id (→ lib_books, публикация
+        компиляции) и hd_hadiths.source_id (→ sources, citation-домен) —
+        отдельные концепты.
+
+        compiler_narrator_id → hd_narrators(id): автор-составитель как
+        передатчик (Бухари-человек уже есть в hd_narrators).
+    -->
+    <changeSet id="20260531-57-hd-collections" author="Abdula Basnukaev">
+        <comment>hd_collections + repoint FK hd_hadiths/hd_matns с lib_books на hd_collections</comment>
+        <sql><![CDATA[
+            CREATE TABLE hd_collections (
+                id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                slug varchar(50) NOT NULL UNIQUE,
+                name_ar text NOT NULL,
+                name_en text NULL,
+                name_ru text NULL,
+                compiler_narrator_id uuid NULL REFERENCES hd_narrators(id),
+                total_hadith integer NULL,
+                metadata jsonb NULL,
+                created_at timestamptz NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_hd_collections_compiler ON hd_collections(compiler_narrator_id);
+
+            -- hd_hadiths: primary_book_id (→lib_books) → collection_id (→hd_collections)
+            ALTER TABLE hd_hadiths DROP CONSTRAINT fk_hd_hadiths_book;
+            ALTER TABLE hd_hadiths DROP CONSTRAINT hd_hadiths_book_number_unique;
+            DROP INDEX idx_hd_hadiths_book;
+            ALTER TABLE hd_hadiths RENAME COLUMN primary_book_id TO collection_id;
+            ALTER TABLE hd_hadiths ADD CONSTRAINT fk_hd_hadiths_collection
+                FOREIGN KEY (collection_id) REFERENCES hd_collections(id);
+            ALTER TABLE hd_hadiths ADD CONSTRAINT hd_hadiths_collection_number_unique
+                UNIQUE (collection_id, primary_number);
+            CREATE INDEX idx_hd_hadiths_collection ON hd_hadiths(collection_id);
+
+            -- hd_matns: source_book_id (→lib_books) → collection_id (→hd_collections)
+            ALTER TABLE hd_matns DROP CONSTRAINT fk_hd_matns_book;
+            DROP INDEX idx_hd_matns_book;
+            ALTER TABLE hd_matns RENAME COLUMN source_book_id TO collection_id;
+            ALTER TABLE hd_matns ADD CONSTRAINT fk_hd_matns_collection
+                FOREIGN KEY (collection_id) REFERENCES hd_collections(id);
+            CREATE INDEX idx_hd_matns_collection ON hd_matns(collection_id);
+        ]]></sql>
+        <rollback><![CDATA[
+            DROP INDEX idx_hd_matns_collection;
+            ALTER TABLE hd_matns DROP CONSTRAINT fk_hd_matns_collection;
+            ALTER TABLE hd_matns RENAME COLUMN collection_id TO source_book_id;
+            CREATE INDEX idx_hd_matns_book ON hd_matns(source_book_id);
+            ALTER TABLE hd_matns ADD CONSTRAINT fk_hd_matns_book
+                FOREIGN KEY (source_book_id) REFERENCES lib_books(id);
+
+            DROP INDEX idx_hd_hadiths_collection;
+            ALTER TABLE hd_hadiths DROP CONSTRAINT hd_hadiths_collection_number_unique;
+            ALTER TABLE hd_hadiths DROP CONSTRAINT fk_hd_hadiths_collection;
+            ALTER TABLE hd_hadiths RENAME COLUMN collection_id TO primary_book_id;
+            CREATE INDEX idx_hd_hadiths_book ON hd_hadiths(primary_book_id);
+            ALTER TABLE hd_hadiths ADD CONSTRAINT hd_hadiths_book_number_unique
+                UNIQUE (primary_book_id, primary_number);
+            ALTER TABLE hd_hadiths ADD CONSTRAINT fk_hd_hadiths_book
+                FOREIGN KEY (primary_book_id) REFERENCES lib_books(id);
+
+            DROP INDEX idx_hd_collections_compiler;
+            DROP TABLE hd_collections;
+        ]]></rollback>
+    </changeSet>
+
+</databaseChangeLog>

@@ -21,12 +21,12 @@ import ru.basnukaev.argumentmap.hadith.domain.Hadith;
 public class HadithRepository {
 
     private static final String COLUMNS =
-            "id, primary_book_id, primary_number, normalized_matn, status, "
+            "id, collection_id, primary_number, normalized_matn, status, "
                     + "source_id, metadata, created_at";
 
     private static final RowMapper<Hadith> ROW_MAPPER = (rs, rn) -> new Hadith(
             rs.getObject("id", UUID.class),
-            rs.getObject("primary_book_id", UUID.class),
+            rs.getObject("collection_id", UUID.class),
             (Integer) rs.getObject("primary_number"),
             rs.getString("normalized_matn"),
             rs.getString("status"),
@@ -45,7 +45,7 @@ public class HadithRepository {
         jdbcTemplate.update(
                 "INSERT INTO hd_hadiths (" + COLUMNS + ") VALUES "
                         + "(?, ?, ?, ?, ?, ?, ?::jsonb, ?)",
-                h.id(), h.primaryBookId(), h.primaryNumber(), h.normalizedMatn(),
+                h.id(), h.collectionId(), h.primaryNumber(), h.normalizedMatn(),
                 h.status(), h.sourceId(), h.metadata(), odt(h.createdAt())
         );
         return h;
@@ -58,7 +58,7 @@ public class HadithRepository {
         ).stream().findFirst();
     }
 
-    public List<Hadith> findPage(String q, String status, UUID bookId,
+    public List<Hadith> findPage(String q, String status, UUID collectionId,
                                  int limit, int offset) {
         StringBuilder sql = new StringBuilder("SELECT ").append(COLUMNS)
                 .append(" FROM hd_hadiths WHERE 1=1");
@@ -71,9 +71,9 @@ public class HadithRepository {
             sql.append(" AND status = ?");
             args.add(status);
         }
-        if (bookId != null) {
-            sql.append(" AND primary_book_id = ?");
-            args.add(bookId);
+        if (collectionId != null) {
+            sql.append(" AND collection_id = ?");
+            args.add(collectionId);
         }
         sql.append(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
         args.add(limit);
@@ -81,7 +81,7 @@ public class HadithRepository {
         return jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray());
     }
 
-    public long countFiltered(String q, String status, UUID bookId) {
+    public long countFiltered(String q, String status, UUID collectionId) {
         StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM hd_hadiths WHERE 1=1");
         List<Object> args = new ArrayList<>();
         if (q != null && !q.isBlank()) {
@@ -92,9 +92,9 @@ public class HadithRepository {
             sql.append(" AND status = ?");
             args.add(status);
         }
-        if (bookId != null) {
-            sql.append(" AND primary_book_id = ?");
-            args.add(bookId);
+        if (collectionId != null) {
+            sql.append(" AND collection_id = ?");
+            args.add(collectionId);
         }
         Long count = jdbcTemplate.queryForObject(sql.toString(), Long.class, args.toArray());
         return count == null ? 0L : count;
@@ -107,7 +107,7 @@ public class HadithRepository {
      */
     public List<Hadith> findByNarratorIdPage(UUID narratorId, int limit, int offset) {
         return jdbcTemplate.query(
-                "SELECT DISTINCT h.id, h.primary_book_id, h.primary_number, h.normalized_matn, "
+                "SELECT DISTINCT h.id, h.collection_id, h.primary_number, h.normalized_matn, "
                         + "h.status, h.source_id, h.metadata, h.created_at "
                         + "FROM hd_hadiths h "
                         + "JOIN hd_sanads s ON s.hadith_id = h.id "

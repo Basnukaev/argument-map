@@ -14,7 +14,7 @@ import ru.basnukaev.argumentmap.hadith.domain.Hadith;
  */
 public record HadithResponse(
         UUID id,
-        UUID primaryBookId,
+        UUID collectionId,
         Integer primaryNumber,
         String normalizedMatn,
         @Schema(allowableValues = {"CANONICAL", "VARIANT", "WEAK", "FABRICATED"})
@@ -24,7 +24,7 @@ public record HadithResponse(
 ) {
 
     public static HadithResponse from(Hadith h) {
-        return new HadithResponse(h.id(), h.primaryBookId(), h.primaryNumber(),
+        return new HadithResponse(h.id(), h.collectionId(), h.primaryNumber(),
                 h.normalizedMatn(), h.status(), h.sourceId(), h.createdAt());
     }
 }

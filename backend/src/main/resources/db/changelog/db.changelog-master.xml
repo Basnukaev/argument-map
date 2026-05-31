@@ -61,5 +61,6 @@
     <include file="db/changelog/changes/20260520-54-hd-sanads.xml"/>
     <include file="db/changelog/changes/20260520-55-hd-matns.xml"/>
     <include file="db/changelog/changes/20260531-56-hd-narrators-add-sahabi.xml"/>
+    <include file="db/changelog/changes/20260531-57-hd-collections.xml"/>
 
 </databaseChangeLog>

@@ -5791,4 +5791,28 @@ credentials из env-переменных `ACTUATOR_USERNAME` + `ACTUATOR_PASSWO
   ADR-052 из спеки (фактический следующий номер — 049).
 - **ADR-045** (lazy chunks) — `@xyflow/react` грузится в hadith-detail chunk.
 
+## ADR-050: Выделенная сущность hd_collections для сборников хадисов (Phase 5)
+
+**Контекст.** Phase 5 ETL (импорт sunnah.com) требует представления сборников
+(Сахих аль-Бухари, Муслим и т.п.). Изначально `hd_hadiths.primary_book_id` и
+`hd_matns.source_book_id` ссылались на `lib_books` (library-домен).
+
+**Решение.** Выделить таблицу `hd_collections` (slug, name_ar/en/ru,
+compiler_narrator_id → hd_narrators, total_hadith, metadata) и перенацелить
+обе FK на неё, переименовав колонки в `collection_id` (migration 57). Data
+migration не нужна — оба поля были NULL во всём seed'е.
+
+**Альтернатива (отвергнута): reuse `lib_books`.** FK уже туда вели, но
+`lib_books` несёт library-специфику (pages/OCR/visibility/members), не нужную
+сборнику хадисов; coupling ограничивал бы будущие hadith-фичи. Абдула:
+«расширяемый, неограничивающий вариант».
+
+**Trade-offs:** + чистое разделение доменов, расширяемость под hadith-специфику;
++ compiler как передатчик (граф «кто составил» переиспользует hd_narrators);
+− API-контракт изменился (primaryBookId/sourceBookId → collectionId), потребовал
+правки frontend-типов.
+
+**Связанные:** Spec `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md` §11
+(decision points #3/#4 + порядок эпика), ADR-049 (sanad graph).
+
 

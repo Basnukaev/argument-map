@@ -13,6 +13,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
+import ru.basnukaev.argumentmap.hadith.domain.Collection;
 import ru.basnukaev.argumentmap.hadith.domain.Hadith;
 import ru.basnukaev.argumentmap.hadith.domain.HadithStatus;
 import ru.basnukaev.argumentmap.hadith.domain.Matn;
@@ -20,6 +21,7 @@ import ru.basnukaev.argumentmap.hadith.domain.Narrator;
 import ru.basnukaev.argumentmap.hadith.domain.NarratorReliability;
 import ru.basnukaev.argumentmap.hadith.domain.Sanad;
 import ru.basnukaev.argumentmap.hadith.domain.SanadNarrator;
+import ru.basnukaev.argumentmap.hadith.repository.CollectionRepository;
 import ru.basnukaev.argumentmap.hadith.repository.HadithRepository;
 import ru.basnukaev.argumentmap.hadith.repository.MatnRepository;
 import ru.basnukaev.argumentmap.hadith.repository.NarratorRepository;
@@ -70,15 +72,18 @@ public class DevHadithSeeder implements CommandLineRunner {
     private final NarratorRepository narratorRepository;
     private final SanadRepository sanadRepository;
     private final MatnRepository matnRepository;
+    private final CollectionRepository collectionRepository;
 
     public DevHadithSeeder(HadithRepository hadithRepository,
                            NarratorRepository narratorRepository,
                            SanadRepository sanadRepository,
-                           MatnRepository matnRepository) {
+                           MatnRepository matnRepository,
+                           CollectionRepository collectionRepository) {
         this.hadithRepository = hadithRepository;
         this.narratorRepository = narratorRepository;
         this.sanadRepository = sanadRepository;
         this.matnRepository = matnRepository;
+        this.collectionRepository = collectionRepository;
     }
 
     @Override
@@ -186,8 +191,13 @@ public class DevHadithSeeder implements CommandLineRunner {
                         + "Современник аль-Бухари. Умер в 261 г.х.",
                 "Муслим ибн аль-Хаджжадж", "Имам-составитель"));
 
+        // Сборники (Phase 5 §11) — создаются один раз, разделяются всеми
+        // хадисами seed'а. compiler_narrator_id → составитель в hd_narrators.
+        Map<String, UUID> collections = seedCollections(now,
+                n.get("bukhari"), n.get("muslim"), n.get("malik"));
+
         Hadith hadith = new Hadith(
-                UUID.randomUUID(), null, 1, NORMALIZED_MATN,
+                UUID.randomUUID(), collections.get("bukhari"), 1, NORMALIZED_MATN,
                 HadithStatus.CANONICAL, null, GRADES_JSON, now);
         hadithRepository.save(hadith);
 
@@ -224,7 +234,7 @@ public class DevHadithSeeder implements CommandLineRunner {
                         step(n, "malik", "عَنْ"),
                         step(n, "muslim", "حَدَّثَنَا")));
 
-        saveMatn(hadith, now,
+        saveMatn(hadith, now, collections.get("bukhari"),
                 "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ، وَإِنَّمَا لِكُلِّ امْرِئٍ مَا نَوَى، فَمَنْ كَانَتْ "
                         + "هِجْرَتُهُ إِلَى دُنْيَا يُصِيبُهَا أَوْ إِلَى امْرَأَةٍ يَنْكِحُهَا فَهِجْرَتُهُ إِلَى مَا "
                         + "هَاجَرَ إِلَيْهِ.",
@@ -238,7 +248,7 @@ public class DevHadithSeeder implements CommandLineRunner {
                         + "intended.",
                 1, true, "Базовая редакция Сахих аль-Бухари №1: множественное «النيّات».");
 
-        saveMatn(hadith, now,
+        saveMatn(hadith, now, collections.get("muslim"),
                 "إِنَّمَا الأَعْمَالُ بِالنِّيَّةِ، وَإِنَّمَا لِامْرِئٍ مَا نَوَى، فَمَنْ كَانَتْ هِجْرَتُهُ إِلَى "
                         + "اللَّهِ وَرَسُولِهِ فَهِجْرَتُهُ إِلَى اللَّهِ وَرَسُولِهِ، وَمَنْ كَانَتْ هِجْرَتُهُ إِلَى دُنْيَا "
                         + "يُصِيبُهَا أَوِ امْرَأَةٍ يَتَزَوَّجُهَا فَهِجْرَتُهُ إِلَى مَا هَاجَرَ إِلَيْهِ.",
@@ -250,7 +260,7 @@ public class DevHadithSeeder implements CommandLineRunner {
                 "Редакция Сахих Муслим №1907 (путь Малика через аль-Каанаби): единственное "
                         + "число «النيّة» вместо «النيّات», оба пункта хиджры в полном виде.");
 
-        saveMatn(hadith, now,
+        saveMatn(hadith, now, null,
                 "الأَعْمَالُ بِالنِّيَّةِ، وَلِكُلِّ امْرِئٍ مَا نَوَى.",
                 "الاعمال بالنية ولكل امرئ ما نوى",
                 "Дела (оцениваются) по намерению, и каждому человеку (достанется) лишь то, "
@@ -259,15 +269,15 @@ public class DevHadithSeeder implements CommandLineRunner {
                 null, false,
                 "Краткая форма (часто цитируется в книгах усуль/фикха), без вводной частицы «إنّما».");
 
-        seedIslamOnFive(now);
-        seedReligionSincerity(now);
+        seedIslamOnFive(now, collections);
+        seedReligionSincerity(now, collections);
 
         log.info("Dev hadith seed completed: 3 hadiths "
                 + "(Дела по намерениям / Ислам на пяти столпах / Религия — искренность)");
     }
 
     /** Хадис «Ислам построен на пяти» (Бухари №8 / Муслим №16, муттафакун алейхи). */
-    private void seedIslamOnFive(Instant now) {
+    private void seedIslamOnFive(Instant now, Map<String, UUID> collections) {
         Map<String, Narrator> n = new LinkedHashMap<>();
         n.put("ibn-umar", saveNarrator(now,
                 "عَبْد الله بن عُمَر", "abdullah ibn umar", "أبو عبد الرحمن", null,
@@ -318,7 +328,7 @@ public class DevHadithSeeder implements CommandLineRunner {
                 + "{\"scholar\":\"Муслим\",\"grade\":\"Сахих\",\"note\":\"Сахих Муслим №16, Китаб аль-иман\"},"
                 + "{\"scholar\":\"Муттафакун алейхи\",\"grade\":\"Сахих\",\"note\":\"Согласован Бухари и Муслимом\"}"
                 + "]}";
-        Hadith hadith = new Hadith(UUID.randomUUID(), null, 8,
+        Hadith hadith = new Hadith(UUID.randomUUID(), collections.get("bukhari"), 8,
                 "بني الإسلام على خمس شهادة أن لا إله إلا الله وأن محمدا رسول الله "
                         + "وإقام الصلاة وإيتاء الزكاة والحج وصوم رمضان",
                 HadithStatus.CANONICAL, null, grades, now);
@@ -334,14 +344,14 @@ public class DevHadithSeeder implements CommandLineRunner {
                         step(n, "abu-malik", "عَنْ"), step(n, "abu-khalid", "عَنْ"),
                         step(n, "ibn-numayr", "حَدَّثَنَا")));
 
-        saveMatn(hadith, now,
+        saveMatn(hadith, now, collections.get("bukhari"),
                 "بُنِيَ الإِسْلاَمُ عَلَى خَمْسٍ: شَهَادَةِ أَنْ لاَ إِلَهَ إِلاَّ اللَّهُ وَأَنَّ مُحَمَّدًا رَسُولُ اللَّهِ، "
                         + "وَإِقَامِ الصَّلاَةِ، وَإِيتَاءِ الزَّكَاةِ، وَالْحَجِّ، وَصَوْمِ رَمَضَانَ.",
                 "buniya al-islam ala khams",
                 "Ислам построен на пяти столпах: свидетельство, что нет божества кроме Аллаха и "
                         + "что Мухаммад — посланник Аллаха; молитва; закят; хадж; пост в рамадан.",
                 null, 8, true, "Редакция аль-Бухари (№8): хадж упомянут раньше поста.");
-        saveMatn(hadith, now,
+        saveMatn(hadith, now, collections.get("muslim"),
                 "بُنِيَ الإِسْلاَمُ عَلَى خَمْسَةٍ: عَلَى أَنْ يُوَحَّدَ اللَّهُ، وَإِقَامِ الصَّلاَةِ، وَإِيتَاءِ الزَّكَاةِ، "
                         + "وَصِيَامِ رَمَضَانَ، وَالْحَجِّ.",
                 "buniya al-islam ala khamsa",
@@ -350,7 +360,7 @@ public class DevHadithSeeder implements CommandLineRunner {
     }
 
     /** Хадис «Религия — это искренность» (Муслим №55; 7-й в «Сорока ан-Навави»). */
-    private void seedReligionSincerity(Instant now) {
+    private void seedReligionSincerity(Instant now, Map<String, UUID> collections) {
         Map<String, Narrator> n = new LinkedHashMap<>();
         n.put("tamim", saveNarrator(now,
                 "تَمِيم بن أوس الداري", "tamim al-dari", "أبو رقية", "ад-Дари",
@@ -386,7 +396,7 @@ public class DevHadithSeeder implements CommandLineRunner {
                 + "{\"scholar\":\"ан-Навави\",\"grade\":\"Сахих\",\"note\":\"7-й хадис «Сорока ан-Навави» с развёрнутым шархом\"},"
                 + "{\"scholar\":\"Общее мнение мухаддисов\",\"grade\":\"Сахих\",\"note\":\"Иснад достоверен, передатчики надёжны, разрыва нет\"}"
                 + "]}";
-        Hadith hadith = new Hadith(UUID.randomUUID(), null, 55,
+        Hadith hadith = new Hadith(UUID.randomUUID(), collections.get("muslim"), 55,
                 "الدين النصيحة قلنا لمن قال لله ولكتابه ولرسوله ولأئمة المسلمين وعامتهم",
                 HadithStatus.CANONICAL, null, grades, now);
         hadithRepository.save(hadith);
@@ -397,7 +407,7 @@ public class DevHadithSeeder implements CommandLineRunner {
                         step(n, "suhayl", "عَنْ"), step(n, "sufyan", "عَنْ"),
                         step(n, "ibn-abbad", "حَدَّثَنَا")));
 
-        saveMatn(hadith, now,
+        saveMatn(hadith, now, collections.get("muslim"),
                 "الدِّينُ النَّصِيحَةُ. قُلْنَا لِمَنْ؟ قَالَ: لِلَّهِ وَلِكِتَابِهِ وَلِرَسُولِهِ "
                         + "وَلِأَئِمَّةِ الْمُسْلِمِينَ وَعَامَّتِهِمْ.",
                 "ad-din an-nasiha",
@@ -439,15 +449,35 @@ public class DevHadithSeeder implements CommandLineRunner {
         }
     }
 
-    private void saveMatn(Hadith hadith, Instant now,
+    private void saveMatn(Hadith hadith, Instant now, UUID collectionId,
                           String textAr, String textArNormalized,
                           String textRu, String textEn,
                           Integer printedNumber, boolean isPrimary, String divergence) {
         Matn matn = new Matn(
                 UUID.randomUUID(), hadith.id(), textAr, textArNormalized,
-                textRu, textEn, null, printedNumber, null, null,
+                textRu, textEn, collectionId, printedNumber, null, null,
                 isPrimary, divergence, null, now);
         matnRepository.save(matn);
+    }
+
+    private Map<String, UUID> seedCollections(Instant now, Narrator bukhari,
+                                              Narrator muslim, Narrator malik) {
+        Map<String, UUID> ids = new LinkedHashMap<>();
+        ids.put("bukhari", saveCollection(now, "bukhari",
+                "صحيح البخاري", "Sahih al-Bukhari", "Сахих аль-Бухари", bukhari.id()));
+        ids.put("muslim", saveCollection(now, "muslim",
+                "صحيح مسلم", "Sahih Muslim", "Сахих Муслим", muslim.id()));
+        ids.put("muwatta", saveCollection(now, "muwatta",
+                "موطأ مالك", "Muwatta Malik", "Муватта Малика", malik.id()));
+        return ids;
+    }
+
+    private UUID saveCollection(Instant now, String slug, String nameAr,
+                                String nameEn, String nameRu, UUID compilerNarratorId) {
+        Collection c = new Collection(UUID.randomUUID(), slug, nameAr, nameEn, nameRu,
+                compilerNarratorId, null, null, now);
+        collectionRepository.save(c);
+        return c.id();
     }
 
     private static ChainStep step(Map<String, Narrator> narrators, String slug, String phrase) {

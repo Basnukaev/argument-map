@@ -13,7 +13,7 @@ import java.util.UUID;
  */
 public record HadithDetailResponse(
         UUID id,
-        UUID primaryBookId,
+        UUID collectionId,
         Integer primaryNumber,
         String normalizedMatn,
         String status,
@@ -54,7 +54,7 @@ public record HadithDetailResponse(
             String textAr,
             String textRu,
             String textEn,
-            UUID sourceBookId,
+            UUID collectionId,
             Integer printedNumber,
             Integer pageNo,
             Integer volume,

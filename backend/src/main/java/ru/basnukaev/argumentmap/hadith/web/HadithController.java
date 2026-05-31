@@ -111,7 +111,7 @@ public class HadithController {
         List<HadithDetailResponse.MatnDto> matnDtos = matns.stream()
                 .map(m -> new HadithDetailResponse.MatnDto(
                         m.id(), m.textAr(), m.textRu(), m.textEn(),
-                        m.sourceBookId(), m.printedNumber(), m.pageNo(),
+                        m.collectionId(), m.printedNumber(), m.pageNo(),
                         m.volume(), m.isPrimary(), m.divergenceSummary()
                 ))
                 .toList();
@@ -119,7 +119,7 @@ public class HadithController {
         List<HadithDetailResponse.GradeDto> grades = parseGrades(h.metadata(), objectMapper);
 
         return new HadithDetailResponse(
-                h.id(), h.primaryBookId(), h.primaryNumber(),
+                h.id(), h.collectionId(), h.primaryNumber(),
                 h.normalizedMatn(), h.status(), h.sourceId(), h.createdAt(),
                 sanadDtos, matnDtos, grades
         );
