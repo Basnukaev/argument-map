@@ -64,6 +64,21 @@ Research-workflow (4 субагента, sunnah.com + рижаль) вывери
   глобальный host. 6 тестов, 3 component-теста переведены с
   `vi.stubGlobal('confirm')` на `vi.mock`.
 
+### Продолжение по «делай рекомменд» (Абдула одобрил рекомендации)
+
+- `afd19fd` `feat(backend): narrators/{id}/transmitted` — علم الرجال:
+  хадисы, переданные раввием (paginated JOIN).
+- `0a7c750` `feat: hadith scholarly gradings display` — секция «Оценки
+  учёных» на странице хадиса (Бухари/Муслим/муттафакун алейхи/аль-Албани +
+  «гариб, но сахих»). Курируется в `hd_hadiths.metadata.grades`,
+  `parseGrades` unit-тест (без БД), `HadithGradesList` компонент + тест.
+- Seed расширен до **3 хадисов** (Дела по намерениям / «Ислам на пяти
+  столпах» Бухари №8 + Муслим №16 / «Религия — искренность» Муслим №55),
+  выверено 2-м research-workflow (`scripts/hadith-seed-research-2.json`).
+  Explorer перестал быть демо на один хадис.
+- Тесты: frontend hadith 13, backend `parseGrades` 2 + `SanadGraphService`
+  (unit, без Docker). Всё компилируется (`test-compile` зелёный).
+
 ### Открытые хвосты
 
 - **Stash:** WIP прошлой сессии (minimap/zoom/help redesign — 4 компонента
