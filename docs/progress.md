@@ -16,11 +16,20 @@
 Ultracode эффорт. Стратегия: research-workflow для выверенных данных
 иснада → flagship-граф end-to-end → бренд → tech-debt cleanup.
 
-**Инфра-ограничения сессии:** docker недоступен в этом WSL2 (нет Postgres
-→ backend не поднять локально); Playwright MCP требует sudo для install
-Chrome (нет askpass). Поэтому live-Playwright не выполнен — верификация
-через backend IT (реальный Testcontainers Postgres), Vitest, tsc,
-production build. Manual visual check — за Абдулой (см. handoff).
+**Инфра-ограничения сессии (важно):** docker недоступен в этом WSL2
+(Testcontainers IT не запускаются — `verify`/IT падают с «Could not find
+a valid Docker environment»); Playwright MCP требует sudo для install
+Chrome (нет askpass) → live-Playwright тоже не выполнен.
+
+**Что реально проверено в сессии (зелёное):** backend `test-compile`
+(main+test компилируются), `SanadGraphServiceTest` unit (Mockito, без БД —
+покрывает дедуп/fan-out/роли графа); frontend Vitest (6 hadith + 6 confirm),
+`tsc --noEmit`, `npm run build`. **НЕ проверено здесь (за Абдулой):**
+`./mvnw verify` (backend IT через Testcontainers) + визуальный smoke в
+браузере. Шаги для ручной проверки — в handoff-сообщении сессии.
+
+(Прим.: ранние «IT exit 0» в логе были artefact'ом `mvn | tail` —
+exit code брался от tail, не от maven; фактически IT не выполнялись.)
 
 ### Бренд-марка (`fba23bf`)
 

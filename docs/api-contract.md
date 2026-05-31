@@ -3071,6 +3071,25 @@ payload (N+1 avoidance). 404 `hadith-not-found`.
 
 Питает компонент `SanadGraph` (React Flow, dagre TB layout, read-only).
 
+### GET /api/v1/hadith/narrators
+
+Каталог передатчиков, `PagedResponse<NarratorResponse>`. Фильтры: `q`
+(подстрока по name_ar_normalized), `reliability` (THIQA / SADUQ / MAQBUL /
+DAIF / MATRUK / SAHABI / UNKNOWN).
+
+### GET /api/v1/hadith/narrators/{id}
+
+Биография передатчика. 404 `narrator-not-found`.
+
+### GET /api/v1/hadith/narrators/{id}/transmitted
+
+Хадисы, в иснадах которых встречается этот передатчик (علم الرجال) —
+через `hd_sanad_narrators → hd_sanads → hd_hadiths` (DISTINCT, т.к. один
+хадис может ссылаться на narrator'а в нескольких своих цепях).
+`PagedResponse<HadithResponse>`, сортировка `created_at DESC`. Paginated —
+у плодовитых сподвижников счёт хадисов идёт на тысячи. 404
+`narrator-not-found`.
+
 ## Hadith grades API (multi-grading)
 
 Один и тот же хадис (source с `sourceType=HADITH`) может быть оценён

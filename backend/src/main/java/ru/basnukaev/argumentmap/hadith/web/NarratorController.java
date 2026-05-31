@@ -10,7 +10,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import ru.basnukaev.argumentmap.hadith.domain.Narrator;
+import ru.basnukaev.argumentmap.hadith.repository.HadithRepository;
 import ru.basnukaev.argumentmap.hadith.repository.NarratorRepository;
+import ru.basnukaev.argumentmap.hadith.web.dto.HadithResponse;
 import ru.basnukaev.argumentmap.hadith.web.dto.NarratorResponse;
 import ru.basnukaev.argumentmap.web.dto.PageRequest;
 import ru.basnukaev.argumentmap.web.dto.PagedResponse;
@@ -27,9 +29,12 @@ import ru.basnukaev.argumentmap.web.dto.PagedResponse;
 public class NarratorController {
 
     private final NarratorRepository narratorRepository;
+    private final HadithRepository hadithRepository;
 
-    public NarratorController(NarratorRepository narratorRepository) {
+    public NarratorController(NarratorRepository narratorRepository,
+                              HadithRepository hadithRepository) {
         this.narratorRepository = narratorRepository;
+        this.hadithRepository = hadithRepository;
     }
 
     /**
@@ -57,6 +62,28 @@ public class NarratorController {
         Narrator n = narratorRepository.findById(id)
                 .orElseThrow(() -> new NarratorNotFoundException(id));
         return toResponse(n);
+    }
+
+    /**
+     * Phase 2 (علم الرجال): хадисы, в иснадах которых встречается этот
+     * передатчик. Paginated — у плодовитых сподвижников (Абу Хурайра)
+     * счёт идёт на тысячи. 404 если narrator'а нет.
+     */
+    @GetMapping("/{id}/transmitted")
+    public PagedResponse<HadithResponse> transmitted(
+            @PathVariable UUID id,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        narratorRepository.findById(id)
+                .orElseThrow(() -> new NarratorNotFoundException(id));
+        PageRequest pr = PageRequest.from(page, size);
+        List<HadithResponse> items = hadithRepository
+                .findByNarratorIdPage(id, pr.size(), pr.offset())
+                .stream()
+                .map(HadithResponse::from)
+                .toList();
+        long total = hadithRepository.countByNarratorId(id);
+        return PagedResponse.of(items, pr.page(), pr.size(), total);
     }
 
     private static NarratorResponse toResponse(Narrator n) {

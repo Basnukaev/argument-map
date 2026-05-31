@@ -130,9 +130,6 @@ public class HadithController {
     }
 
     private static HadithResponse toResponse(Hadith h) {
-        return new HadithResponse(
-                h.id(), h.primaryBookId(), h.primaryNumber(),
-                h.normalizedMatn(), h.status(), h.sourceId(), h.createdAt()
-        );
+        return HadithResponse.from(h);
     }
 }

@@ -99,4 +99,33 @@ public class HadithRepository {
         Long count = jdbcTemplate.queryForObject(sql.toString(), Long.class, args.toArray());
         return count == null ? 0L : count;
     }
+
+    /**
+     * Хадисы, в иснадах которых встречается данный narrator (علم الرجال):
+     * hd_sanad_narrators → hd_sanads → hd_hadiths. DISTINCT — один хадис
+     * может ссылаться на narrator'а в нескольких своих цепях.
+     */
+    public List<Hadith> findByNarratorIdPage(UUID narratorId, int limit, int offset) {
+        return jdbcTemplate.query(
+                "SELECT DISTINCT h.id, h.primary_book_id, h.primary_number, h.normalized_matn, "
+                        + "h.status, h.source_id, h.metadata, h.created_at "
+                        + "FROM hd_hadiths h "
+                        + "JOIN hd_sanads s ON s.hadith_id = h.id "
+                        + "JOIN hd_sanad_narrators sn ON sn.sanad_id = s.id "
+                        + "WHERE sn.narrator_id = ? "
+                        + "ORDER BY h.created_at DESC LIMIT ? OFFSET ?",
+                ROW_MAPPER, narratorId, limit, offset
+        );
+    }
+
+    public long countByNarratorId(UUID narratorId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(DISTINCT h.id) FROM hd_hadiths h "
+                        + "JOIN hd_sanads s ON s.hadith_id = h.id "
+                        + "JOIN hd_sanad_narrators sn ON sn.sanad_id = s.id "
+                        + "WHERE sn.narrator_id = ?",
+                Long.class, narratorId
+        );
+        return count == null ? 0L : count;
+    }
 }

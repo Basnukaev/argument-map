@@ -17,9 +17,15 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
+import ru.basnukaev.argumentmap.hadith.domain.Hadith;
+import ru.basnukaev.argumentmap.hadith.domain.HadithStatus;
 import ru.basnukaev.argumentmap.hadith.domain.Narrator;
 import ru.basnukaev.argumentmap.hadith.domain.NarratorReliability;
+import ru.basnukaev.argumentmap.hadith.domain.Sanad;
+import ru.basnukaev.argumentmap.hadith.domain.SanadNarrator;
+import ru.basnukaev.argumentmap.hadith.repository.HadithRepository;
 import ru.basnukaev.argumentmap.hadith.repository.NarratorRepository;
+import ru.basnukaev.argumentmap.hadith.repository.SanadRepository;
 
 /**
  * IT для NarratorController. Vision 49d Section 2.6 Phase 1.b smoke.
@@ -32,6 +38,8 @@ class NarratorControllerIT {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private NarratorRepository narratorRepository;
+    @Autowired private HadithRepository hadithRepository;
+    @Autowired private SanadRepository sanadRepository;
 
     private UUID id1;
     private UUID id2;
@@ -79,6 +87,35 @@ class NarratorControllerIT {
     void GET_nonExistent_returns404() throws Exception {
         UUID ghost = UUID.randomUUID();
         mockMvc.perform(get("/api/v1/hadith/narrators/{id}", ghost))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value(org.hamcrest.Matchers.containsString("narrator-not-found")));
+    }
+
+    @Test
+    void GET_transmitted_returnsHadithsByNarrator() throws Exception {
+        Instant now = Instant.now();
+        Hadith h = new Hadith(UUID.randomUUID(), null, 1, "إنما الأعمال بالنيات",
+                HadithStatus.CANONICAL, null, null, now);
+        hadithRepository.save(h);
+        Sanad s = new Sanad(UUID.randomUUID(), h.id(), "SAHIH", null, null, true, null, now);
+        sanadRepository.save(s);
+        sanadRepository.saveNarratorLink(new SanadNarrator(s.id(), 0, id1, "سمعت"));
+
+        // id1 передавал этот хадис
+        mockMvc.perform(get("/api/v1/hadith/narrators/{id}/transmitted", id1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(h.id().toString()));
+
+        // id2 не встречается ни в одном sanad'е
+        mockMvc.perform(get("/api/v1/hadith/narrators/{id}/transmitted", id2))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+    }
+
+    @Test
+    void GET_transmitted_nonExistentNarrator_returns404() throws Exception {
+        mockMvc.perform(get("/api/v1/hadith/narrators/{id}/transmitted", UUID.randomUUID()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value(org.hamcrest.Matchers.containsString("narrator-not-found")));
     }

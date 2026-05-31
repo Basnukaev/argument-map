@@ -5,6 +5,8 @@ import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+import ru.basnukaev.argumentmap.hadith.domain.Hadith;
+
 /**
  * Hadith response DTO для GET endpoints (list + single).
  * Phase 1.f - thin response (без sanads/matns - они на отдельных
@@ -20,4 +22,9 @@ public record HadithResponse(
         UUID sourceId,
         Instant createdAt
 ) {
+
+    public static HadithResponse from(Hadith h) {
+        return new HadithResponse(h.id(), h.primaryBookId(), h.primaryNumber(),
+                h.normalizedMatn(), h.status(), h.sourceId(), h.createdAt());
+    }
 }
