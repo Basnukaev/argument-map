@@ -2625,7 +2625,7 @@ export interface components {
             /** Format: uuid */
             id?: string;
             /** Format: uuid */
-            primaryBookId?: string;
+            collectionId?: string;
             /** Format: int32 */
             primaryNumber?: number;
             normalizedMatn?: string;
@@ -2653,7 +2653,7 @@ export interface components {
             /** Format: uuid */
             id?: string;
             /** Format: uuid */
-            primaryBookId?: string;
+            collectionId?: string;
             /** Format: int32 */
             primaryNumber?: number;
             normalizedMatn?: string;
@@ -2672,7 +2672,7 @@ export interface components {
             textRu?: string;
             textEn?: string;
             /** Format: uuid */
-            sourceBookId?: string;
+            collectionId?: string;
             /** Format: int32 */
             printedNumber?: number;
             /** Format: int32 */

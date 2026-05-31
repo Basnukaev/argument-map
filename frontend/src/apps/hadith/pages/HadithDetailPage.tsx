@@ -13,7 +13,7 @@ import type { HadithGrade, MatnDto } from '@/apps/hadith/types';
 
 interface HadithDetail {
   id: string;
-  primaryBookId: string | null;
+  collectionId: string | null;
   primaryNumber: number | null;
   normalizedMatn: string;
   status: string;

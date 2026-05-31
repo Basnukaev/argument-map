@@ -10,7 +10,7 @@ function matn(p: Partial<MatnDto>): MatnDto {
     textAr: '',
     textRu: null,
     textEn: null,
-    sourceBookId: null,
+    collectionId: null,
     printedNumber: null,
     pageNo: null,
     volume: null,

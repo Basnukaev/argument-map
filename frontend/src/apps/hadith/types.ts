@@ -115,7 +115,7 @@ export interface MatnDto {
   textAr: string;
   textRu: string | null;
   textEn: string | null;
-  sourceBookId: string | null;
+  collectionId: string | null;
   printedNumber: number | null;
   pageNo: number | null;
   volume: number | null;
@@ -126,7 +126,7 @@ export interface MatnDto {
 /** HadithResponse (thin) — для списка «передал хадисов». */
 export interface HadithSummaryDto {
   id: string;
-  primaryBookId: string | null;
+  collectionId: string | null;
   primaryNumber: number | null;
   normalizedMatn: string;
   status: string;

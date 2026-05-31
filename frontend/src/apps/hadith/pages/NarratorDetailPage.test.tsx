@@ -43,7 +43,7 @@ describe('NarratorDetailPage', () => {
           items: [
             {
               id: 'h1',
-              primaryBookId: null,
+              collectionId: null,
               primaryNumber: 1,
               normalizedMatn: 'إنما الأعمال بالنيات',
               status: 'CANONICAL',

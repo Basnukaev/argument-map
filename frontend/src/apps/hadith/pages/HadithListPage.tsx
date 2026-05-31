@@ -10,7 +10,7 @@ import type { AsyncState } from '@/shared/types/async';
 // Backend types ещё не regenerated в types.ts - inline types.
 interface HadithItem {
   id: string;
-  primaryBookId: string | null;
+  collectionId: string | null;
   primaryNumber: number | null;
   normalizedMatn: string;
   status: 'CANONICAL' | 'VARIANT' | 'WEAK' | 'FABRICATED';
