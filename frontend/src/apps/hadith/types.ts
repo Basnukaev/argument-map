@@ -81,3 +81,41 @@ export interface HadithGrade {
   grade: string | null;
   note: string | null;
 }
+
+/** Обёртка PagedResponse<T> с бэка (GET-list endpoints). */
+export interface Paged<T> {
+  items: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+}
+
+/** NarratorResponse — каталог/деталь передатчика (علم الرجال). */
+export interface NarratorResponseDto {
+  id: string;
+  authorityId: string | null;
+  nameAr: string;
+  kunya: string | null;
+  laqab: string | null;
+  yearBirthHijri: number | null;
+  yearDeathHijri: number | null;
+  birthplace: string | null;
+  primaryResidence: string | null;
+  reliabilityGrade: ReliabilityGrade | null;
+  reliabilityComment: string | null;
+  transmittedCountCached: number;
+  createdAt: string;
+}
+
+/** HadithResponse (thin) — для списка «передал хадисов». */
+export interface HadithSummaryDto {
+  id: string;
+  primaryBookId: string | null;
+  primaryNumber: number | null;
+  normalizedMatn: string;
+  status: string;
+  sourceId: string | null;
+  createdAt: string;
+}

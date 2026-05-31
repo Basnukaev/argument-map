@@ -35,6 +35,8 @@ const LibraryCollectionsPage = lazy(() => import('@/apps/library/pages/LibraryCo
 const AdminUsersPage = lazy(() => import('@/apps/admin/pages/AdminUsersPage'));
 const HadithListPage = lazy(() => import('@/apps/hadith/pages/HadithListPage'));
 const HadithDetailPage = lazy(() => import('@/apps/hadith/pages/HadithDetailPage'));
+const NarratorListPage = lazy(() => import('@/apps/hadith/pages/NarratorListPage'));
+const NarratorDetailPage = lazy(() => import('@/apps/hadith/pages/NarratorDetailPage'));
 const BookReaderPage = lazy(() => import('@/apps/library/pages/BookReaderPage'));
 const AdminShamelaPage = lazy(() => import('@/apps/admin/pages/AdminShamelaPage'));
 const AdminPageEditorPage = lazy(() => import('@/apps/admin/pages/AdminPageEditorPage'));
@@ -147,6 +149,8 @@ function App() {
           <Route path="/qa/:questionId" element={<QuestionDetailPage />} />
           <Route path="/hadith/hadiths" element={<HadithListPage />} />
           <Route path="/hadith/hadiths/:id" element={<HadithDetailPage />} />
+          <Route path="/hadith/narrators" element={<NarratorListPage />} />
+          <Route path="/hadith/narrators/:id" element={<NarratorDetailPage />} />
           <Route
             path="/admin/shamela"
             element={

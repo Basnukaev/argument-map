@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { BookOpen, Search, Loader2 } from 'lucide-react';
+import { BookOpen, Search, Loader2, Users } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
@@ -67,6 +67,12 @@ function HadithListPage() {
           </div>
           <h1 className="mt-1 text-2xl font-semibold text-ink-900">{t('hadith.title')}</h1>
           <p className="mt-1 text-sm text-ink-600">{t('hadith.subtitle')}</p>
+          <Link
+            to="/hadith/narrators"
+            className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-accent-700 hover:underline"
+          >
+            <Users size={14} aria-hidden /> {t('hadith.narrators.link')}
+          </Link>
         </header>
 
         <div className="mb-6 flex flex-wrap items-center gap-3">
