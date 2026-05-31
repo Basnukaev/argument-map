@@ -16,6 +16,17 @@ interface HelpShortcutsProps {
   trigger?: 'hover' | 'click';
 }
 
+/** Флаги «первая строка в своей группе» — для рендера group-label. */
+function computeGroupLabelFlags(shortcuts: Shortcut[]): boolean[] {
+  const flags: boolean[] = [];
+  let prev: string | undefined;
+  for (const s of shortcuts) {
+    flags.push(s.group !== undefined && s.group !== prev);
+    if (s.group !== undefined) prev = s.group;
+  }
+  return flags;
+}
+
 /**
  * Compact help-shortcuts popover for graph canvas.
  * Trigger is a ?-icon button; popover lists grouped keyboard shortcuts.
@@ -125,8 +136,10 @@ function HelpShortcuts({
   // Animation origin for translateY direction
   const translateFrom = position === 'down' ? '-translate-y-1' : 'translate-y-1';
 
-  // Group consecutive shortcuts by group field
-  let currentGroup: string | undefined;
+  // Group consecutive shortcuts by group field. Вычисляем флаги до
+  // рендера — мутация let во время render запрещена
+  // (react-hooks/immutability, React Compiler).
+  const groupLabelFlags = computeGroupLabelFlags(shortcuts);
 
   return (
     <div
@@ -182,8 +195,7 @@ function HelpShortcuts({
 
         {/* Shortcut rows */}
         {shortcuts.map((shortcut, idx) => {
-          const showGroupLabel = shortcut.group !== undefined && shortcut.group !== currentGroup;
-          if (shortcut.group !== undefined) currentGroup = shortcut.group;
+          const showGroupLabel = groupLabelFlags[idx] ?? false;
 
           return (
             <div key={`${shortcut.label}-${idx}`}>
