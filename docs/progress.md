@@ -5,6 +5,65 @@
 Формат записи описан в `docs/doc-hygiene.md` Принцип 5
 
 **Архив:**
+
+<!-- NEWEST-ENTRY-ANCHOR -->
+
+## 2026-05-31 - Сессия 50 - Hadith sanad graph (flagship) + бренд-марка + ConfirmDialog
+
+**Автономный tech-lead режим.** Абдула: «запусти бесконечное улучшение…
+не останавливайся пока не напишу СТОП», explicit asks — (1) визуализация
+иснада хадиса красивым нередактируемым графом, (2) SVG-иконка для лого.
+Ultracode эффорт. Стратегия: research-workflow для выверенных данных
+иснада → flagship-граф end-to-end → бренд → tech-debt cleanup.
+
+**Инфра-ограничения сессии:** docker недоступен в этом WSL2 (нет Postgres
+→ backend не поднять локально); Playwright MCP требует sudo для install
+Chrome (нет askpass). Поэтому live-Playwright не выполнен — верификация
+через backend IT (реальный Testcontainers Postgres), Vitest, tsc,
+production build. Manual visual check — за Абдулой (см. handoff).
+
+### Бренд-марка (`fba23bf`)
+
+- `feat(frontend): SVG бренд-марка (Rub el Hizb ۞) + favicon`. Текстовая
+  лигатура ﷽ в Header заменена на SVG-иконку: 8-конечная звезда Rub el
+  Hizb (два наложенных квадрата) + узел-точка в центре (отсылка к графам).
+  `Logo.tsx` (currentColor → следует за accent-токеном), `public/favicon.svg`
+  вместо дефолтного `/vite.svg`.
+
+### Hadith Chains Explorer — Phase 3 sanad graph (flagship, ADR-049)
+
+Research-workflow (4 субагента, sunnah.com + рижаль) выверил иснад хадиса
+№1 «Дела по намерениям» → `scripts/hadith-seed-research.json` (9 раввиев,
+3 цепи). Структура «гариб у истока, машхур в ветвях»: единая нить
+Умар→Алькама→Мухаммад→Яхья, расходящаяся у Яхьи (мадар) на Бухари
+(через Суфьяна+аль-Хумайди), Муватту (Малик), Муслима (через Малика).
+
+- `feb27c3` `feat(backend): sanad-graph endpoint + enriched isnad seed` —
+  `GET /hadiths/{id}/sanad-graph` (дедуп узлов + синтетический Пророк ﷺ +
+  дедуп рёбер), `SanadGraphService`, migration 56 (`SAHABI` в whitelist),
+  переписан `DevHadithSeeder` (9 раввиев/3 цепи), `NarratorRepository.findByIds`,
+  HadithControllerIT +2. ADR-049 + api-contract + glossary + roadmap.
+- `aa25acb` `feat(frontend): sanad graph visualization` — read-only React
+  Flow (dagre TB), `SanadGraphNode` (наскх-имя + бейдж надёжности ثقة/صدوق
+  + год смерти + сборник у составителей), `NarratorPanel` (биография),
+  легенда (цепи + надёжность + тахаммуль). 6 vitest + 28 i18n RU/AR.
+
+### Tech-debt: ConfirmDialog (`40b5379`, backlog M-1)
+
+- `refactor(frontend): unified ConfirmDialog вместо window.confirm`. 5
+  destructive-путей мигрированы на promise-based `askConfirm()` +
+  глобальный host. 6 тестов, 3 component-теста переведены с
+  `vi.stubGlobal('confirm')` на `vi.mock`.
+
+### Открытые хвосты
+
+- **Stash:** WIP прошлой сессии (minimap/zoom/help redesign — 4 компонента
+  + tokens.css overhaul) отложен в `git stash@{0}` чтобы коммиты были
+  изолированы. **Восстановить перед закрытием сессии** (`git stash pop`).
+- **Manual visual check** (Playwright не прошёл из-за env) — за Абдулой.
+- Hadith Phase 2/4/5/6 (narrator pages, FTS, ETL, AI) — в roadmap.
+
+
 - Сессии 0-21: [`docs/archive/progress-sessions-1-21.md`](archive/progress-sessions-1-21.md)
 - Сессии 22-29: [`docs/archive/progress-sessions-22-29.md`](archive/progress-sessions-22-29.md)
 - Сессии 30-37: [`docs/archive/progress-sessions-30-37.md`](archive/progress-sessions-30-37.md)
