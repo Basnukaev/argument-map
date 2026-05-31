@@ -82,9 +82,18 @@ Research-workflow (4 субагента, sunnah.com + рижаль) вывери
   списке хадисов. 3 vitest (MSW + MemoryRouter).
 - Тесты: frontend hadith **16**, backend `parseGrades` 2 + `SanadGraphService`
   (unit, без Docker). Всё компилируется (`test-compile`); tsc clean.
-- **matn-diff отложён** (future) — чисто визуальная фича diff'а вариаций
-  matn, рискованно строить без браузера; `divergenceSummary` уже описывает
-  различия прозой.
+- **matn-diff РЕАЛИЗОВАН** (после Docker — visual smoke через standalone
+  playwright): `wordDiff` (LCS по нормализованным токенам) + `MatnDiff` /
+  `MatnVariations`, toggle «показать отличия» на вариантах matn (зелёным
+  добавлено / красным зачёркнутым опущено). hadith frontend: **25 тестов**.
+- **Code review (2 раунда, superpowers)**: (1) полная сессия — 3 parallel
+  reviewer (backend / frontend / domain-accuracy), Critical: 0. Исправлено:
+  `bg-bg-sunken`→`bg-sunken` (visual bug), 2 фактические ошибки matn (Бухари
+  №6689 не «без إنّма»; Муслим №1907 был truncated), role-precedence доку.
+  (2) matn-diff стадия — Critical/Important: 0; minor: `hasWordDiff` guard,
+  TASHKEEL ranges (verified node-ом — не трогает цифры), empty-input тесты.
+  Отложено в backlog: prod guest-access (ADR-040), set-state-in-effect lint
+  (repo-wide), narrator dedup (Phase 5 ETL).
 
 ### Docker-верификация (Абдула включил Docker — выполнено в сессии)
 
