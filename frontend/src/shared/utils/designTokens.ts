@@ -20,7 +20,7 @@ export type NodeType = NonNullable<NodeDto['nodeType']>;
 export type EdgeType = NonNullable<EdgeDto['edgeType']>;
 
 /**
- * v2 design tokens. Все цвета через семантические Tailwind-classы
+ * v3 design tokens. Все цвета через семантические Tailwind-classы
  * (ok-/warn-/err-/ink-/accent-/type-abstract-/type-empirical-/edge-*)
  * которые в свою очередь резолвятся через CSS-переменные --c-* и
  * автоматически переключаются на [data-theme="dark"].
@@ -106,54 +106,53 @@ export interface NodeTypeToken {
 }
 
 /**
- * Per v2 design system: QUESTION/CLAIM/ARGUMENT - "abstract" type family,
- * EVIDENCE - "empirical" type family. Различие концептуальное (теоретическое
- * утверждение vs наблюдение), и оно отражено в цвете chip.
- * Иконка остаётся per-тип для visual cue.
+ * v3 design system: 4 distinct per-type palettes for instant visual ID.
+ * QUESTION (violet 290°), CLAIM/thesis (purple 270°), ARGUMENT (amber 80°),
+ * EVIDENCE (green 155°). Each type gets its own bg/ink/bd token triplet.
  */
 export const NODE_TYPE_TOKENS: Record<NodeType, NodeTypeToken> = {
   QUESTION: {
     key: 'QUESTION',
     labelKey: 'node.type.QUESTION',
     hintKey: 'node.type.QUESTION.hint',
-    chipBg: 'bg-type-abstract-bg',
-    chipText: 'text-type-abstract-fg',
-    headerBg: 'bg-type-abstract-bg',
-    iconBg: 'bg-type-abstract-bg',
-    iconText: 'text-type-abstract-fg',
+    chipBg: 'bg-node-question',
+    chipText: 'text-node-question-ink',
+    headerBg: 'bg-node-question',
+    iconBg: 'bg-node-question',
+    iconText: 'text-node-question-ink',
     Icon: CircleHelp,
   },
   CLAIM: {
     key: 'CLAIM',
     labelKey: 'node.type.CLAIM',
     hintKey: 'node.type.CLAIM.hint',
-    chipBg: 'bg-type-abstract-bg',
-    chipText: 'text-type-abstract-fg',
-    headerBg: 'bg-type-abstract-bg',
-    iconBg: 'bg-type-abstract-bg',
-    iconText: 'text-type-abstract-fg',
+    chipBg: 'bg-node-thesis',
+    chipText: 'text-node-thesis-ink',
+    headerBg: 'bg-node-thesis',
+    iconBg: 'bg-node-thesis',
+    iconText: 'text-node-thesis-ink',
     Icon: Megaphone,
   },
   ARGUMENT: {
     key: 'ARGUMENT',
     labelKey: 'node.type.ARGUMENT',
     hintKey: 'node.type.ARGUMENT.hint',
-    chipBg: 'bg-type-abstract-bg',
-    chipText: 'text-type-abstract-fg',
-    headerBg: 'bg-type-abstract-bg',
-    iconBg: 'bg-type-abstract-bg',
-    iconText: 'text-type-abstract-fg',
+    chipBg: 'bg-node-argument',
+    chipText: 'text-node-argument-ink',
+    headerBg: 'bg-node-argument',
+    iconBg: 'bg-node-argument',
+    iconText: 'text-node-argument-ink',
     Icon: MessageSquareQuote,
   },
   EVIDENCE: {
     key: 'EVIDENCE',
     labelKey: 'node.type.EVIDENCE',
     hintKey: 'node.type.EVIDENCE.hint',
-    chipBg: 'bg-type-empirical-bg',
-    chipText: 'text-type-empirical-fg',
-    headerBg: 'bg-type-empirical-bg',
-    iconBg: 'bg-type-empirical-bg',
-    iconText: 'text-type-empirical-fg',
+    chipBg: 'bg-node-evidence',
+    chipText: 'text-node-evidence-ink',
+    headerBg: 'bg-node-evidence',
+    iconBg: 'bg-node-evidence',
+    iconText: 'text-node-evidence-ink',
     Icon: FileText,
   },
 };
@@ -172,55 +171,56 @@ export interface EdgeTypeToken {
 }
 
 /**
- * Edge strokes используются как `style={{ stroke: token.stroke }}` в
- * React Flow. CSS-var (var(--c-edge-supports)) подхватывает тему.
+ * Edge strokes: inline style `stroke: token.stroke` in React Flow.
+ * v3 vars: --edge-supports / --edge-attacks / --edge-rebuts /
+ * --edge-clarifies / --edge-neutral. Theme-switching automatic.
  */
 export const EDGE_TYPE_TOKENS: Record<EdgeType, EdgeTypeToken> = {
   SUPPORTS: {
     key: 'SUPPORTS',
     labelKey: 'edge.type.SUPPORTS',
-    stroke: 'var(--c-edge-supports)',
+    stroke: 'var(--edge-supports)',
     strokeWidth: 2,
-    badgeBg: 'bg-edge-supports-bg',
+    badgeBg: 'bg-status-ok-bg',
     badgeText: 'text-edge-supports',
     badgeBorder: 'border-edge-supports/30',
   },
   REFUTES: {
     key: 'REFUTES',
     labelKey: 'edge.type.REFUTES',
-    stroke: 'var(--c-edge-refutes)',
+    stroke: 'var(--edge-attacks)',
     strokeWidth: 2,
-    badgeBg: 'bg-edge-refutes-bg',
-    badgeText: 'text-edge-refutes',
-    badgeBorder: 'border-edge-refutes/30',
+    badgeBg: 'bg-status-err-bg',
+    badgeText: 'text-edge-attacks',
+    badgeBorder: 'border-edge-attacks/30',
   },
   INVALIDATES: {
     key: 'INVALIDATES',
     labelKey: 'edge.type.INVALIDATES',
-    stroke: 'var(--c-edge-refutes)',
+    stroke: 'var(--edge-rebuts)',
     strokeWidth: 3,
     strokeDasharray: '8 4',
-    badgeBg: 'bg-edge-refutes-bg',
-    badgeText: 'text-edge-refutes',
-    badgeBorder: 'border-edge-refutes/40',
+    badgeBg: 'bg-status-err-bg',
+    badgeText: 'text-edge-attacks',
+    badgeBorder: 'border-edge-attacks/40',
   },
   QUALIFIES: {
     key: 'QUALIFIES',
     labelKey: 'edge.type.QUALIFIES',
-    stroke: 'var(--c-edge-qualifies)',
+    stroke: 'var(--edge-clarifies)',
     strokeWidth: 2,
-    badgeBg: 'bg-edge-qualifies-bg',
-    badgeText: 'text-edge-qualifies',
-    badgeBorder: 'border-edge-qualifies/30',
+    badgeBg: 'bg-status-info-bg',
+    badgeText: 'text-edge-clarifies',
+    badgeBorder: 'border-edge-clarifies/30',
   },
   RESPONDS_TO: {
     key: 'RESPONDS_TO',
     labelKey: 'edge.type.RESPONDS_TO',
-    stroke: 'var(--c-edge-responds)',
+    stroke: 'var(--edge-neutral)',
     strokeWidth: 1.5,
     opacity: 0.7,
-    badgeBg: 'bg-edge-responds-bg',
-    badgeText: 'text-edge-responds',
-    badgeBorder: 'border-edge-responds/30',
+    badgeBg: 'bg-subtle',
+    badgeText: 'text-edge-neutral',
+    badgeBorder: 'border-edge-neutral/30',
   },
 };

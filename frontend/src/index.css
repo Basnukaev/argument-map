@@ -71,14 +71,96 @@
  * styles/tokens.css. Здесь только алиасы для Tailwind utilities.
  */
 @theme inline {
-  /* === Colors === */
-  --color-bg: var(--c-bg);
-  --color-elevated: var(--c-bg-elevated);
-  --color-sunken: var(--c-bg-sunken);
-  --color-paper: var(--c-paper);
-  --color-border: var(--c-border);
-  --color-border-strong: var(--c-border-strong);
+  /* ── NEW v3 color utilities ────────────────────────────────
+     These create classes like bg-app, text-strong, border-base,
+     bg-brand-500, etc.                                         */
 
+  /* Brand scale → bg-brand-500, text-brand-600, border-brand-700 */
+  --color-brand-50:  var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+
+  /* Semantic surfaces → bg-app, bg-canvas, bg-card, bg-subtle */
+  --color-app:    var(--bg-app);
+  --color-canvas: var(--bg-canvas);
+  --color-card:   var(--bg-card);
+  --color-subtle: var(--bg-subtle);
+  --color-hover:  var(--bg-hover);
+  --color-active: var(--bg-active);
+
+  /* Semantic borders → border-s-base, border-s-strong, border-s-subtle */
+  --color-bd:        var(--border-base);
+  --color-bd-subtle: var(--border-subtle);
+  --color-bd-strong: var(--border-strong);
+
+  /* Text tiers → text-strong, text-body, text-muted, text-meta */
+  --color-strong: var(--text-strong);
+  --color-body:   var(--text-body);
+  --color-muted:  var(--text-muted);
+  --color-meta:   var(--text-meta);
+  --color-faint:  var(--text-faint);
+
+  /* Node type colors → bg-node-question, text-node-question-ink */
+  --color-node-question:     var(--node-question);
+  --color-node-question-ink: var(--node-question-ink);
+  --color-node-question-bd:  var(--node-question-bd);
+  --color-node-thesis:       var(--node-thesis);
+  --color-node-thesis-ink:   var(--node-thesis-ink);
+  --color-node-thesis-bd:    var(--node-thesis-bd);
+  --color-node-argument:     var(--node-argument);
+  --color-node-argument-ink: var(--node-argument-ink);
+  --color-node-argument-bd:  var(--node-argument-bd);
+  --color-node-evidence:     var(--node-evidence);
+  --color-node-evidence-ink: var(--node-evidence-ink);
+  --color-node-evidence-bd:  var(--node-evidence-bd);
+
+  /* Edge colors → text-edge-supports, border-edge-attacks */
+  --color-edge-supports:  var(--edge-supports);
+  --color-edge-attacks:   var(--edge-attacks);
+  --color-edge-rebuts:    var(--edge-rebuts);
+  --color-edge-clarifies: var(--edge-clarifies);
+  --color-edge-neutral:   var(--edge-neutral);
+
+  /* Status → bg-status-ok, text-status-err */
+  --color-status-ok:       var(--status-ok);
+  --color-status-ok-bg:    var(--status-ok-bg);
+  --color-status-ok-ink:   var(--status-ok-ink);
+  --color-status-warn:     var(--status-warn);
+  --color-status-warn-bg:  var(--status-warn-bg);
+  --color-status-warn-ink: var(--status-warn-ink);
+  --color-status-err:      var(--status-err);
+  --color-status-err-bg:   var(--status-err-bg);
+  --color-status-err-ink:  var(--status-err-ink);
+  --color-status-info:     var(--status-info);
+  --color-status-info-bg:  var(--status-info-bg);
+  --color-status-info-ink: var(--status-info-ink);
+
+  /* New shadow utilities → shadow-sm, shadow-md, shadow-lg */
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-focus: var(--shadow-focus);
+
+  /* ── BACKWARD COMPAT utilities (v2 names) ──────────────────
+     Keep old Tailwind class names working: bg-elevated,
+     text-ink-700, border-border, shadow-sh3, etc.              */
+
+  /* Semantic surfaces */
+  --color-bg: var(--bg-app);
+  --color-elevated: var(--bg-card);
+  --color-sunken: var(--bg-subtle);
+  --color-paper: var(--bg-canvas);
+  --color-border: var(--border-base);
+  --color-border-strong: var(--border-strong);
+
+  /* Ink scale */
   --color-ink-0: var(--c-ink-0);
   --color-ink-50: var(--c-ink-50);
   --color-ink-100: var(--c-ink-100);
@@ -92,65 +174,70 @@
   --color-ink-800: var(--c-ink-800);
   --color-ink-900: var(--c-ink-900);
 
-  --color-accent-50: var(--c-accent-50);
-  --color-accent-100: var(--c-accent-100);
-  --color-accent-500: var(--c-accent-500);
-  --color-accent-600: var(--c-accent-600);
-  --color-accent-700: var(--c-accent-700);
+  /* Accent (→ brand) */
+  --color-accent-50: var(--brand-50);
+  --color-accent-100: var(--brand-100);
+  --color-accent-500: var(--brand-500);
+  --color-accent-600: var(--brand-600);
+  --color-accent-700: var(--brand-700);
 
-  --color-ok-100: var(--c-ok-100);
-  --color-ok-500: var(--c-ok-500);
-  --color-ok-700: var(--c-ok-700);
-  --color-warn-100: var(--c-warn-100);
-  --color-warn-500: var(--c-warn-500);
-  --color-warn-700: var(--c-warn-700);
-  --color-err-100: var(--c-err-100);
-  --color-err-500: var(--c-err-500);
-  --color-err-700: var(--c-err-700);
+  /* Status 3-tier */
+  --color-ok-100: var(--status-ok-bg);
+  --color-ok-500: var(--status-ok);
+  --color-ok-700: var(--status-ok-ink);
+  --color-warn-100: var(--status-warn-bg);
+  --color-warn-500: var(--status-warn);
+  --color-warn-700: var(--status-warn-ink);
+  --color-err-100: var(--status-err-bg);
+  --color-err-500: var(--status-err);
+  --color-err-700: var(--status-err-ink);
+  --color-err-50: var(--status-err-bg);
 
-  /* Graph type tokens - chips для QUESTION/CLAIM/ARGUMENT/EVIDENCE */
-  --color-type-abstract-bg: var(--c-type-abstract-bg);
-  --color-type-abstract-fg: var(--c-type-abstract-fg);
-  --color-type-empirical-bg: var(--c-type-empirical-bg);
-  --color-type-empirical-fg: var(--c-type-empirical-fg);
+  /* Graph type tokens (v2 naming) */
+  --color-type-abstract-bg: var(--node-thesis);
+  --color-type-abstract-fg: var(--node-thesis-ink);
+  --color-type-empirical-bg: var(--node-evidence);
+  --color-type-empirical-fg: var(--node-evidence-ink);
 
-  /* Graph edge tokens - labels на связях в графе */
-  --color-edge-supports: var(--c-edge-supports);
-  --color-edge-supports-bg: var(--c-edge-supports-bg);
-  --color-edge-refutes: var(--c-edge-refutes);
-  --color-edge-refutes-bg: var(--c-edge-refutes-bg);
-  --color-edge-qualifies: var(--c-edge-qualifies);
-  --color-edge-qualifies-bg: var(--c-edge-qualifies-bg);
-  --color-edge-responds: var(--c-edge-responds);
-  --color-edge-responds-bg: var(--c-edge-responds-bg);
+  /* Graph edge tokens (v2 naming) */
+  --color-edge-supports-bg: var(--status-ok-bg);
+  --color-edge-refutes: var(--edge-attacks);
+  --color-edge-refutes-bg: var(--status-err-bg);
+  --color-edge-qualifies: var(--edge-clarifies);
+  --color-edge-qualifies-bg: var(--status-info-bg);
+  --color-edge-responds: var(--edge-neutral);
+  --color-edge-responds-bg: var(--bg-subtle);
 
   /* === Fonts === */
   --font-ui: var(--font-ui);
   --font-serif: var(--font-serif);
   --font-mono: var(--font-mono);
   --font-arabic: var(--font-arabic);
-  /* Совместимость с существующим font-naskh */
   --font-naskh: var(--font-arabic);
 
   /* === Text sizes === */
-  --text-xs: var(--t-xs);
-  --text-sm: var(--t-sm);
-  --text-base: var(--t-base);
-  --text-md: var(--t-md);
-  --text-lg: var(--t-lg);
-  --text-xl: var(--t-xl);
-  --text-2xl: var(--t-2xl);
+  --text-xs: var(--fs-xs);
+  --text-sm: var(--fs-sm);
+  --text-base: var(--fs-base);
+  --text-md: var(--fs-md);
+  --text-lg: var(--fs-lg);
+  --text-xl: var(--fs-xl);
+  --text-2xl: var(--fs-2xl);
+  --text-3xl: var(--fs-3xl);
+  --text-4xl: var(--fs-4xl);
 
   /* === Radii === */
-  --radius-sm: var(--r-sm);
-  --radius-md: var(--r-md);
-  --radius-lg: var(--r-lg);
+  --radius-xs: var(--radius-xs);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
 
-  /* === Shadows === */
-  --shadow-sh1: var(--sh-1);
-  --shadow-sh2: var(--sh-2);
-  --shadow-sh3: var(--sh-3);
-  --shadow-sh4: var(--sh-4);
+  /* === Shadows (v2 names) === */
+  --shadow-sh1: var(--shadow-sm);
+  --shadow-sh2: var(--shadow-sm);
+  --shadow-sh3: var(--shadow-md);
+  --shadow-sh4: var(--shadow-lg);
 }
 
 /*
@@ -207,14 +294,14 @@
     font-weight: 700;
     font-size: 1.15em;
     margin-block-end: 0.5em;
-    color: var(--c-text);
+    color: var(--text-strong);
   }
   .book-content blockquote {
     margin-block: 1em;
     padding-inline-start: 1em;
-    border-inline-start: 3px solid var(--c-border-strong);
+    border-inline-start: 3px solid var(--border-strong);
     font-style: italic;
-    color: var(--c-text-muted);
+    color: var(--text-muted);
   }
   .book-content h1,
   .book-content h2,

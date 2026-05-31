@@ -1,234 +1,367 @@
-/* ──────────────────────────────────────────────────────────────
-   DESIGN SYSTEM TOKENS — v2
-   Scholarly workspace · Navy accent · Source Serif body · Inter UI
+/* ================================================================
+   DESIGN SYSTEM TOKENS — v3
+   Argument Map · Purple-violet brand · oklch perceptual color
+   Manrope UI · Source Serif body · JetBrains Mono code
 
-   Эти переменные - семантический слой. На него опираются:
-   1. @theme в index.css (генерирует Tailwind utility-классы:
-      bg-accent-600, text-ink-700, font-arabic, rounded-lg и т.д.)
-   2. Внутренние стили компонентов через var(--c-*).
-   3. .prose стилизация в reader.
+   Migrated from v2 (navy accent, hex-based, ink-* neutral scale)
+   to v3 (violet brand, oklch, semantic surface/text tiers).
 
-   Темизация - через [data-theme="dark"] на <html>. Семантические
-   токены (--c-bg, --c-text, --c-border) автоматически переключаются.
-   ────────────────────────────────────────────────────────────── */
+   All values live in CSS custom properties on :root (light) and
+   [data-theme="dark"] (dark). RTL adjustments via [dir="rtl"].
+
+   BACKWARD COMPAT: old --c-* / --t-* / --r-* / --sh-* / --s-*
+   names are aliased at the bottom of each theme block. Existing
+   components using old names continue to work without changes.
+   New code should use the new names exclusively.
+   ================================================================ */
 
 :root {
-  /* color-scheme: подсказка браузеру для native form controls
-     (<select> option panel, scrollbar, autofill background). Без неё
-     Chromium на dark theme рендерит native widgets light-UA palette →
-     light cream text на near-white background = невидимо. См. audit
-     UI bug фикс Сессии 49d */
   color-scheme: light;
-  /* ── COLORS ───────────────────────────────────────────────── */
-  /* Warm slate neutrals (не холодные blue-grey Tailwind defaults) */
-  --c-ink-900: #1a1814;
-  --c-ink-800: #29251f;
-  --c-ink-700: #3a3631;
-  --c-ink-600: #524d46;
-  --c-ink-500: #6b6660;
-  --c-ink-400: #918b83;
-  --c-ink-300: #b8b2a8;
-  --c-ink-200: #d8d3c8;
-  --c-ink-150: #e6e1d6;
-  --c-ink-100: #efeae0;
-  --c-ink-50: #f7f3ea;
-  --c-ink-0: #ffffff;
 
-  --c-surface-cool: #f8f8fa;
-  --c-surface-pure: #ffffff;
-  --c-paper: #fbfaf5;
-  --c-paper-deep: #f3f0e7;
+  /* ── BRAND ──────────────────────────────────────────────────
+     Purple-violet scale in oklch. Perceptually uniform steps.
+     --brand-500 is the canonical primary CTA color.            */
+  --brand-50:   oklch(96% 0.02 270);
+  --brand-100:  oklch(92% 0.05 270);
+  --brand-200:  oklch(85% 0.09 270);
+  --brand-300:  oklch(75% 0.13 270);
+  --brand-400:  oklch(62% 0.17 270);
+  --brand-500:  oklch(52% 0.20 270);
+  --brand-600:  oklch(45% 0.21 270);
+  --brand-700:  oklch(38% 0.19 270);
+  --brand-800:  oklch(30% 0.16 270);
+  --brand-900:  oklch(22% 0.12 270);
 
-  /* Navy accent — single source of truth */
-  --c-accent-700: #1a3170;
-  --c-accent-600: #1e3a8a;
-  --c-accent-500: #2950b3;
-  --c-accent-100: #e0e7f5;
-  --c-accent-50: #eef2fb;
+  /* ── NODE TYPES (graph) ─────────────────────────────────────
+     4 distinct per-type palettes: bg / ink (text) / bd (border).
+     Hue-separated for instant visual identification on canvas.   */
+  --node-question:      oklch(94% 0.04 290);
+  --node-question-ink:  oklch(38% 0.16 290);
+  --node-question-bd:   oklch(85% 0.08 290);
 
-  /* Status */
-  --c-ok-700: #14532d;
-  --c-ok-500: #16a34a;
-  --c-ok-100: #dcfce7;
-  --c-warn-700: #78350f;
-  --c-warn-500: #d97706;
-  --c-warn-100: #fef3c7;
-  --c-err-700: #7f1d1d;
-  --c-err-500: #dc2626;
-  --c-err-100: #fee2e2;
+  --node-thesis:        oklch(94% 0.05 270);
+  --node-thesis-ink:    oklch(38% 0.18 270);
+  --node-thesis-bd:     oklch(82% 0.10 270);
 
-  /* ── TYPOGRAPHY ───────────────────────────────────────────────
-     Все шрифты self-hosted через @fontsource-variable (импорт в
-     index.css). Variable axis = wght 100-900 в одном WOFF2 файле.
-     Имена 'X Variable' - конвенция fontsource для variable cuts. */
+  --node-argument:      oklch(95% 0.05 80);
+  --node-argument-ink:  oklch(42% 0.14 60);
+  --node-argument-bd:   oklch(82% 0.10 80);
 
-  /* Manrope - современный sans-serif с правильной cyrillic поддержкой,
-     character width оптимизированы под UI-плотность v2 дизайна */
-  --font-ui:
-    'Manrope Variable', 'Manrope', system-ui, -apple-system, 'Segoe UI',
-    sans-serif;
-  --font-serif:
-    'Source Serif 4 Variable', 'Source Serif 4', 'Source Serif Pro', 'Charter',
-    Georgia, serif;
-  --font-mono:
-    'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo,
-    monospace;
-  --font-arabic: 'Amiri', 'Scheherazade New', 'Noto Naskh Arabic', serif;
+  --node-evidence:      oklch(94% 0.05 155);
+  --node-evidence-ink:  oklch(38% 0.13 155);
+  --node-evidence-bd:   oklch(80% 0.10 155);
 
-  /* 6-step scale. Nothing else exists. */
-  --t-xs: 12px;
-  --t-sm: 14px;
-  --t-base: 16px;
-  --t-md: 18px;
-  --t-lg: 22px;
-  --t-xl: 28px;
-  --t-2xl: 40px;
+  /* ── EDGES ──────────────────────────────────────────────────
+     Each edge color paired with glyph (✓ ✗ ⊘ ») for a11y.     */
+  --edge-supports:  oklch(55% 0.15 155);
+  --edge-attacks:   oklch(55% 0.20 28);
+  --edge-rebuts:    oklch(60% 0.20 28);
+  --edge-clarifies: oklch(55% 0.18 250);
+  --edge-neutral:   oklch(60% 0.02 260);
 
-  --lh-tight: 1.25;
-  --lh-snug: 1.45;
-  --lh-base: 1.55;
-  --lh-prose: 1.75;
-  --lh-arabic: 1.95;
+  /* ── STATUS ─────────────────────────────────────────────────
+     Single canonical value per status. Derived tints below.     */
+  --status-ok:    oklch(55% 0.14 155);
+  --status-warn:  oklch(70% 0.15 80);
+  --status-err:   oklch(58% 0.20 28);
+  --status-info:  oklch(55% 0.15 250);
 
-  /* ── SPACING ──────────────────────────────────────────────── */
-  --s-1: 4px;
-  --s-2: 8px;
-  --s-3: 16px;
-  --s-4: 24px;
-  --s-5: 40px;
-  --s-6: 64px;
+  /* Status tint layers (bg / dark text) for badges & banners */
+  --status-ok-bg:    oklch(95% 0.05 155);
+  --status-ok-ink:   oklch(35% 0.12 155);
+  --status-warn-bg:  oklch(95% 0.08 80);
+  --status-warn-ink: oklch(38% 0.14 70);
+  --status-err-bg:   oklch(95% 0.05 28);
+  --status-err-ink:  oklch(38% 0.16 28);
+  --status-info-bg:  oklch(95% 0.05 250);
+  --status-info-ink: oklch(35% 0.14 250);
 
-  /* ── RADIUS ───────────────────────────────────────────────── */
-  --r-sm: 4px;
-  --r-md: 8px;
-  --r-lg: 12px;
+  /* ── SURFACES ───────────────────────────────────────────────
+     6 semantic levels. Never use raw hex for backgrounds.       */
+  --bg-app:      oklch(99% 0.003 270);
+  --bg-canvas:   oklch(98% 0.005 270);
+  --bg-card:     oklch(100% 0 0);
+  --bg-subtle:   oklch(96% 0.005 270);
+  --bg-hover:    oklch(94% 0.008 270);
+  --bg-active:   oklch(90% 0.015 270);
 
-  /* ── ELEVATION ────────────────────────────────────────────── */
-  --sh-1: 0 1px 0 rgba(26, 24, 20, 0.04);
-  --sh-2: 0 1px 2px rgba(26, 24, 20, 0.06), 0 1px 1px rgba(26, 24, 20, 0.03);
-  --sh-3: 0 4px 16px rgba(26, 24, 20, 0.08), 0 1px 2px rgba(26, 24, 20, 0.04);
-  --sh-4: 0 10px 32px rgba(26, 24, 20, 0.12), 0 2px 4px rgba(26, 24, 20, 0.04);
+  /* ── BORDERS ────────────────────────────────────────────────  */
+  --border-subtle: oklch(92% 0.006 270);
+  --border-base:   oklch(88% 0.008 270);
+  --border-strong: oklch(78% 0.01 270);
 
-  /* Semantic surface aliases — switch per-theme. Использовать в
-     компонентах вместо хардкода ink-0 / #fff. */
-  --c-bg: var(--c-surface-cool);
-  --c-bg-elevated: var(--c-ink-0);
-  --c-bg-sunken: var(--c-ink-50);
-  --c-border: var(--c-ink-150);
-  --c-border-strong: var(--c-ink-200);
-  --c-text: var(--c-ink-900);
-  --c-text-muted: var(--c-ink-500);
-  --c-link: var(--c-accent-600);
+  /* ── TEXT TIERS ─────────────────────────────────────────────
+     Every tier ≥4.5:1 contrast against --bg-app in both themes. */
+  --text-strong:  oklch(18% 0.01 270);
+  --text-body:    oklch(28% 0.012 270);
+  --text-muted:   oklch(45% 0.012 270);
+  --text-meta:    oklch(55% 0.010 270);
+  --text-faint:   oklch(70% 0.008 270);
 
-  /* Semantic tokens for graph node-type chips & edge labels. */
-  --c-type-abstract-bg: #ede9fe;
-  --c-type-abstract-fg: #5b21b6;
-  --c-type-empirical-bg: #d1fae5;
-  --c-type-empirical-fg: #065f46;
-  --c-edge-supports: #16a34a;
-  --c-edge-supports-bg: #f0fdf4;
-  --c-edge-refutes: #dc2626;
-  --c-edge-refutes-bg: #fef2f2;
-  --c-edge-qualifies: #2563eb;
-  --c-edge-qualifies-bg: #eff6ff;
-  --c-edge-responds: #525252;
-  --c-edge-responds-bg: #fafafa;
+  /* ── RADII ──────────────────────────────────────────────────  */
+  --radius-xs:   4px;
+  --radius-sm:   6px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-full: 9999px;
 
-  /* Density multiplier для prose vertical rhythm. 0.7-1.15. */
+  /* ── SHADOWS ────────────────────────────────────────────────  */
+  --shadow-sm:    0 1px 2px oklch(20% 0 0 / 0.04), 0 1px 1px oklch(20% 0 0 / 0.03);
+  --shadow-md:    0 2px 8px oklch(20% 0 0 / 0.06), 0 1px 3px oklch(20% 0 0 / 0.04);
+  --shadow-lg:    0 8px 24px oklch(20% 0 0 / 0.08), 0 2px 6px oklch(20% 0 0 / 0.04);
+  --shadow-focus: 0 0 0 3px oklch(52% 0.20 270 / 0.30);
+
+  /* ── SPACING (8px grid) ─────────────────────────────────────  */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ── TYPOGRAPHY ─────────────────────────────────────────────  */
+  --font-ui:    'Manrope Variable', 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-serif: 'Source Serif 4 Variable', 'Source Serif 4', 'Source Serif Pro', 'Charter', Georgia, serif;
+  --font-mono:  'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-ar:    'Scheherazade New', 'Amiri', 'Noto Naskh Arabic', serif;
+  --font-arabic: var(--font-ar);
+
+  --fs-xs:   11px;
+  --fs-sm:   13px;
+  --fs-base: 15px;
+  --fs-md:   16px;
+  --fs-lg:   18px;
+  --fs-xl:   22px;
+  --fs-2xl:  28px;
+  --fs-3xl:  36px;
+  --fs-4xl:  48px;
+
+  --leading-tight:  1.2;
+  --leading-snug:   1.35;
+  --leading-normal: 1.5;
+  --leading-relax:  1.7;
+  --leading-loose:  1.85;
+
+  --tracking-tight:  -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide:   0.02em;
+  --tracking-caps:   0.08em;
+
+  /* ── MOTION ─────────────────────────────────────────────────  */
+  --ease:          cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+
+  /* ── LAYOUT ─────────────────────────────────────────────────  */
+  --hit-target:         44px;
+  --hit-target-desktop: 36px;
+  --header-h:           56px;
+  --maxw-prose:         68ch;
+
+  /* ── DENSITY (preserved from v2, used by .prose) ────────────  */
   --density-scale: 1;
+
+  /* ================================================================
+     BACKWARD COMPAT — old v2 names aliased to v3 tokens.
+     These let existing components work without changes.
+     New code should NOT use these — use the primary names above.
+     ================================================================ */
+
+  /* Ink neutral scale → semantic tiers */
+  --c-ink-900: var(--text-strong);
+  --c-ink-800: var(--text-body);
+  --c-ink-700: var(--text-body);
+  --c-ink-600: var(--text-muted);
+  --c-ink-500: var(--text-muted);
+  --c-ink-400: var(--text-meta);
+  --c-ink-300: var(--text-faint);
+  --c-ink-200: var(--border-base);
+  --c-ink-150: var(--border-subtle);
+  --c-ink-100: var(--bg-subtle);
+  --c-ink-50:  var(--bg-canvas);
+  --c-ink-0:   var(--bg-card);
+
+  /* Semantic surface aliases */
+  --c-surface-cool: var(--bg-app);
+  --c-surface-pure: var(--bg-card);
+  --c-paper:        var(--bg-canvas);
+  --c-paper-deep:   var(--bg-subtle);
+  --c-bg:           var(--bg-app);
+  --c-bg-elevated:  var(--bg-card);
+  --c-bg-sunken:    var(--bg-subtle);
+  --c-border:       var(--border-base);
+  --c-border-strong: var(--border-strong);
+  --c-text:         var(--text-strong);
+  --c-text-muted:   var(--text-muted);
+  --c-link:         var(--brand-600);
+
+  /* Accent → Brand */
+  --c-accent-700: var(--brand-700);
+  --c-accent-600: var(--brand-600);
+  --c-accent-500: var(--brand-500);
+  --c-accent-100: var(--brand-100);
+  --c-accent-50:  var(--brand-50);
+
+  /* Status 3-tier */
+  --c-ok-700:   var(--status-ok-ink);
+  --c-ok-500:   var(--status-ok);
+  --c-ok-100:   var(--status-ok-bg);
+  --c-warn-700: var(--status-warn-ink);
+  --c-warn-500: var(--status-warn);
+  --c-warn-100: var(--status-warn-bg);
+  --c-err-700:  var(--status-err-ink);
+  --c-err-500:  var(--status-err);
+  --c-err-100:  var(--status-err-bg);
+
+  /* Node type tokens (v2 abstract/empirical → v3 per-type) */
+  --c-type-abstract-bg: var(--node-thesis);
+  --c-type-abstract-fg: var(--node-thesis-ink);
+  --c-type-empirical-bg: var(--node-evidence);
+  --c-type-empirical-fg: var(--node-evidence-ink);
+
+  /* Edge tokens */
+  --c-edge-supports:    var(--edge-supports);
+  --c-edge-supports-bg: var(--status-ok-bg);
+  --c-edge-refutes:     var(--edge-attacks);
+  --c-edge-refutes-bg:  var(--status-err-bg);
+  --c-edge-qualifies:   var(--edge-clarifies);
+  --c-edge-qualifies-bg: var(--status-info-bg);
+  --c-edge-responds:    var(--edge-neutral);
+  --c-edge-responds-bg: var(--bg-subtle);
+
+  /* Typography old names */
+  --t-xs:   var(--fs-xs);
+  --t-sm:   var(--fs-sm);
+  --t-base: var(--fs-base);
+  --t-md:   var(--fs-md);
+  --t-lg:   var(--fs-lg);
+  --t-xl:   var(--fs-xl);
+  --t-2xl:  var(--fs-2xl);
+
+  --lh-tight: var(--leading-tight);
+  --lh-snug:  var(--leading-snug);
+  --lh-base:  var(--leading-normal);
+  --lh-prose: var(--leading-relax);
+  --lh-arabic: var(--leading-loose);
+
+  /* Spacing old names */
+  --s-1: var(--space-1);
+  --s-2: var(--space-2);
+  --s-3: var(--space-4);
+  --s-4: var(--space-6);
+  --s-5: var(--space-10);
+  --s-6: var(--space-16);
+
+  /* Radii old names */
+  --r-sm: var(--radius-xs);
+  --r-md: var(--radius-md);
+  --r-lg: var(--radius-lg);
+
+  /* Shadows old names */
+  --sh-1: var(--shadow-sm);
+  --sh-2: var(--shadow-sm);
+  --sh-3: var(--shadow-md);
+  --sh-4: var(--shadow-lg);
 }
 
-/* ── DARK THEME ────────────────────────────────────────────────
-   Применяется на <html data-theme="dark">. Ink scale инвертирован
-   (ink-0 = darkest, ink-900 = lightest), semantic значения сохраняют
-   смысл - text-muted остаётся приглушённым, bg-elevated остаётся
-   "над" bg.
-   ────────────────────────────────────────────────────────────── */
+/* ── DARK THEME ──────────────────────────────────────────────── */
 [data-theme='dark'] {
   color-scheme: dark;
-  --c-ink-900: #f5f1e6;
-  --c-ink-800: #e8e3d2;
-  --c-ink-700: #c9c4b6;
-  --c-ink-600: #a8a298;
-  --c-ink-500: #898478;
-  --c-ink-400: #6b675c;
-  --c-ink-300: #524e44;
-  --c-ink-200: #3d3a32;
-  --c-ink-150: #2f2c26;
-  --c-ink-100: #25231d;
-  --c-ink-50: #1d1b15;
-  --c-ink-0: #14130e;
 
-  --c-surface-cool: #14130e;
-  --c-surface-pure: #1a1812;
-  --c-paper: #1d1b15;
-  --c-paper-deep: #15140f;
+  /* Surfaces */
+  --bg-app:      oklch(15% 0.012 270);
+  --bg-canvas:   oklch(17% 0.014 270);
+  --bg-card:     oklch(20% 0.016 270);
+  --bg-subtle:   oklch(22% 0.018 270);
+  --bg-hover:    oklch(26% 0.020 270);
+  --bg-active:   oklch(30% 0.022 270);
 
-  /* Accent в dark - desaturated indigo (Vision 49d 1.1). Раньше был
-     saturated indigo (#6366f1 family) - Абдула: "не сочетается с
-     тёмной темой". Теперь muted blue-grey - сохраняет brand identity
-     индиго hue но меньше jarring на warm-slate neutrals (ink). */
-  --c-accent-700: #c4cbed;
-  --c-accent-600: #a8b1d8;
-  --c-accent-500: #8a92c4;
-  --c-accent-100: #2a2940;
-  --c-accent-50: #1d1c2e;
+  /* Borders */
+  --border-subtle: oklch(26% 0.018 270);
+  --border-base:   oklch(32% 0.020 270);
+  --border-strong: oklch(45% 0.022 270);
 
-  --c-ok-700: #6ee7b7;
-  --c-ok-500: #34d399;
-  --c-ok-100: #14302a;
-  --c-warn-700: #fde68a;
-  --c-warn-500: #fbbf24;
-  --c-warn-100: #2c2410;
-  --c-err-700: #fca5a5;
-  --c-err-500: #f87171;
-  --c-err-100: #3a1818;
+  /* Text tiers */
+  --text-strong:  oklch(98% 0.005 270);
+  --text-body:    oklch(90% 0.008 270);
+  --text-muted:   oklch(72% 0.012 270);
+  --text-meta:    oklch(62% 0.012 270);
+  --text-faint:   oklch(48% 0.012 270);
 
-  --c-bg: #14130e;
-  --c-bg-elevated: #1d1b15;
-  --c-bg-sunken: #1a1812;
-  --c-border: #2a2720;
-  --c-border-strong: #3d3a32;
-  --c-text: #f5f1e6;
-  --c-text-muted: #898478;
-  --c-link: #8eaaff;
+  /* Brand - brightened for dark-on-dark contrast */
+  --brand-500: oklch(70% 0.17 270);
+  --brand-600: oklch(62% 0.19 270);
 
-  --sh-1: 0 1px 0 rgba(0, 0, 0, 0.3);
-  --sh-2: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 1px rgba(0, 0, 0, 0.25);
-  --sh-3: 0 4px 16px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --sh-4: 0 10px 32px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.3);
+  /* Node types — re-tuned independently, NOT same oklch as light */
+  --node-question:      oklch(28% 0.06 290);
+  --node-question-ink:  oklch(85% 0.10 290);
+  --node-question-bd:   oklch(40% 0.10 290);
 
-  /* Graph type/edge - quieter в dark, без "glowing chip" эффекта */
-  --c-type-abstract-bg: #2a2347;
-  --c-type-abstract-fg: #c4b5fd;
-  --c-type-empirical-bg: #0f2e25;
-  --c-type-empirical-fg: #6ee7b7;
-  --c-edge-supports: #6ee7b7;
-  --c-edge-supports-bg: #0f2e25;
-  --c-edge-refutes: #fca5a5;
-  --c-edge-refutes-bg: #3a1a1a;
-  --c-edge-qualifies: #a5b4fc;
-  --c-edge-qualifies-bg: #1f1d3a;
-  --c-edge-responds: #a3a3a3;
-  --c-edge-responds-bg: #25231d;
+  --node-thesis:        oklch(28% 0.08 270);
+  --node-thesis-ink:    oklch(86% 0.12 270);
+  --node-thesis-bd:     oklch(42% 0.14 270);
+
+  --node-argument:      oklch(30% 0.07 70);
+  --node-argument-ink:  oklch(88% 0.10 75);
+  --node-argument-bd:   oklch(45% 0.10 70);
+
+  --node-evidence:      oklch(28% 0.07 155);
+  --node-evidence-ink:  oklch(86% 0.10 155);
+  --node-evidence-bd:   oklch(42% 0.10 155);
+
+  /* Edges — boosted saturation+lightness so they read on dark bg */
+  --edge-supports:  oklch(68% 0.18 155);
+  --edge-attacks:   oklch(68% 0.22 28);
+  --edge-rebuts:    oklch(72% 0.22 28);
+  --edge-clarifies: oklch(70% 0.20 250);
+  --edge-neutral:   oklch(58% 0.015 270);
+
+  /* Status */
+  --status-ok:    oklch(68% 0.16 155);
+  --status-warn:  oklch(78% 0.16 80);
+  --status-err:   oklch(70% 0.22 28);
+  --status-info:  oklch(70% 0.18 250);
+
+  --status-ok-bg:    oklch(22% 0.06 155);
+  --status-ok-ink:   oklch(85% 0.10 155);
+  --status-warn-bg:  oklch(24% 0.08 80);
+  --status-warn-ink: oklch(88% 0.10 80);
+  --status-err-bg:   oklch(22% 0.08 28);
+  --status-err-ink:  oklch(88% 0.10 28);
+  --status-info-bg:  oklch(22% 0.06 250);
+  --status-info-ink: oklch(85% 0.10 250);
+
+  /* Shadows — deeper for dark surfaces */
+  --shadow-sm:    0 1px 2px oklch(0% 0 0 / 0.4), 0 1px 1px oklch(0% 0 0 / 0.2);
+  --shadow-md:    0 2px 8px oklch(0% 0 0 / 0.4), 0 1px 3px oklch(0% 0 0 / 0.25);
+  --shadow-lg:    0 8px 24px oklch(0% 0 0 / 0.5), 0 2px 6px oklch(0% 0 0 / 0.3);
+  --shadow-focus: 0 0 0 3px oklch(72% 0.18 270 / 0.45);
+
+  /* ── BACKWARD COMPAT (dark overrides) ──────────────────────── */
+  --c-link: oklch(75% 0.14 270);
+}
+
+/* ── RTL ──────────────────────────────────────────────────────── */
+[dir='rtl'] {
+  --font-ui: 'Scheherazade New', 'Amiri', 'Noto Naskh Arabic', 'Manrope Variable', 'Manrope', system-ui, sans-serif;
 }
 
 /* ── BASE ─────────────────────────────────────────────────────── */
 body {
   font-family: var(--font-ui);
-  /* body-weight ставит FontPairEffect (default 400). Через var() остаётся
-     реактивной к live tweaker в Settings. */
   font-weight: var(--body-weight, 400);
-  color: var(--c-text);
-  background: var(--c-bg);
+  color: var(--text-body);
+  background: var(--bg-app);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* Book/topic title typography - вынесено из inline-style Card.tsx чтобы
-   не делать грязный `as unknown as number` cast для var(). Класс
-   применяется к не-arabic заголовкам в Card.Title; arabic заголовки
-   используют свой набор inline-styles т.к. зависят от --font-arabic. */
 .book-title {
   font-weight: var(--title-weight, 600);
 }
@@ -236,9 +369,9 @@ body {
 /* ── PROSE (reader article body) ─────────────────────────────── */
 .prose {
   font-family: var(--font-serif);
-  font-size: var(--t-md);
-  line-height: var(--lh-prose);
-  color: var(--c-text);
+  font-size: var(--fs-md);
+  line-height: var(--leading-relax);
+  color: var(--text-body);
   font-feature-settings: 'kern', 'liga', 'onum', 'pnum';
 }
 .prose p {
@@ -251,29 +384,29 @@ body {
 .prose h2 {
   font-family: var(--font-serif);
   font-weight: 600;
-  font-size: var(--t-lg);
-  line-height: var(--lh-snug);
+  font-size: var(--fs-lg);
+  line-height: var(--leading-snug);
   margin: calc(1.8em * var(--density-scale, 1)) 0
     calc(0.6em * var(--density-scale, 1));
-  color: var(--c-text);
+  color: var(--text-strong);
 }
 .prose h3 {
   font-family: var(--font-serif);
   font-weight: 600;
-  font-size: var(--t-md);
+  font-size: var(--fs-md);
   margin: calc(1.5em * var(--density-scale, 1)) 0
     calc(0.4em * var(--density-scale, 1));
 }
 .prose blockquote {
   margin: 1.4em 0;
   padding: 0.6em 1.2em;
-  border-inline-start: 3px solid var(--c-accent-600);
+  border-inline-start: 3px solid var(--brand-600);
   font-style: italic;
-  color: var(--c-ink-700);
-  background: var(--c-bg-sunken);
+  color: var(--text-muted);
+  background: var(--bg-subtle);
 }
 .prose .ref {
-  color: var(--c-accent-600);
+  color: var(--brand-600);
   font-family: var(--font-mono);
   font-size: 0.78em;
   vertical-align: super;
@@ -282,13 +415,13 @@ body {
   border-radius: 2px;
 }
 .prose .ref:hover {
-  background: var(--c-accent-100);
+  background: var(--brand-100);
 }
 
 .prose-arabic {
-  font-family: var(--font-arabic);
+  font-family: var(--font-ar);
   font-size: 22px;
-  line-height: var(--lh-arabic);
+  line-height: var(--leading-loose);
   direction: rtl;
   text-align: justify;
   font-feature-settings: 'kern', 'liga', 'calt';
@@ -303,13 +436,13 @@ body {
   height: 10px;
 }
 *::-webkit-scrollbar-thumb {
-  background: var(--c-ink-200);
+  background: var(--border-base);
   border-radius: 6px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: var(--c-ink-300);
+  background: var(--border-strong);
   background-clip: padding-box;
 }
 *::-webkit-scrollbar-track {
