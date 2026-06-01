@@ -8,6 +8,77 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
+## 2026-06-01 - Сессия 52 - Multi-agent багоохота + security/UX fixes + thesis-metadata + ADR-043 sweep
+
+**Автономный режим.** Старт: визуальный баг (минимап) → multi-agent
+багоохота по картбланшу → security/concurrency/UX фиксы → 2 продуктовых
+бага (shamela описание, dark-theme цвета) → code review → ADR-043 sweep +
+usePagedSearch рефактор. **18 коммитов** (`c2eafe3..HEAD`).
+
+### Сделано
+
+**0. Bash-лаг диагностирован (не баг проекта).** Буферизация вывода =
+упавший async-хук `security-guidance` (venv на Ubuntu 24.04 без
+`python3.12-venv`). Лечится `apt install python3.12-venv` + рестарт.
+Memory `feedback_session_buffering_venv.md`.
+
+**1. Multi-agent багоохота (Workflow, 235 агентов).** 19 finders ×
+измерения + 3-линзовая adversarial-верификация → 72 raw → **48
+подтверждённых** (24 отброшено). Системный вывод: ADR-043 permission-модель
+не вызывалась рядом эндпоинтов. Triage в
+`docs/superpowers/audits/2026-06-01-bug-hunt-handoff.md`.
+
+**2. Фиксы из багоохоты (9 коммитов).** Все 4 HIGH security + medium:
+- `c2eafe3` минимап double-offset; `8dc88ad` 6 authz-дыр (export/PDF-IDOR/
+  accept-answer/page-write/vote-leak/source-detach); `771ac76` authStore
+  role drop; `2cdbfe5` PDF reader trio; `1b74e0e` AI-edit гонка;
+  `2cf2944` accepted-answer stuck; `819e639` hadith debounce+пагинация;
+  `4235731` refresh rotation atomicity.
+
+**3. Два продуктовых бага.** `d98310b` описание shamela-книги скрывалось
+(BookHeader either/or); `622b5ec` dark-theme белые pills (brand-50/100/700
+не override'нуты в dark).
+
+**4. Thesis-метаданные (`21e5d99`, крупная фича).** Shamela-диссертации:
+рисала/научрук/университет парсились в description сырым текстом (дубль).
+Миграция 58 + thesis-колонки + parser markers (رسالة/إشراف/العام الجامعي)
++ BookHeader строками. Принцип: наполнять таблицу, НЕ дампить текст.
+
+**5. Code review (4 reviewer-агента, 0 Critical) → fixes `bf31af1`.**
+dash-separator parser bug, dark CTA-hover Button (новый --accent-cta-hover
+токен), refresh loser-branch test, debounce suppression test.
+
+**6. ADR-043 sweep домётён (`5f27689`).** NodeSource + Q&A citation
+controllers (те же authz-дыры из review) → topic/author guards + parent-
+scoped delete. 72/72 + 53/53 регрессия.
+
+**7. usePagedSearch хук (`ae41c98`).** Извлечён debounce+пагинация из
+hadith/narrator страниц + fix Load More stale-append race. 9/9 тестов.
+
+### Состояние
+
+- Backend ~1087 тестов 0 failures (2 errors = ShamelaApiClientLiveIT
+  live-network, не связано). Frontend typecheck/lint зелёные.
+- Backend перезапущен (миграция 58 применена, JDWP :5005).
+- ⚠️ Известный flake: тесты зелёные в изоляции / падают в полном прогоне
+  (Spring context cache + MSW pollution) — см. `docs/gotchas.md`.
+
+### Следующее (для свежей сессии — handoff)
+
+**Phase 5 ETL sunnah.com** — основной эпик (~3-4 сессии). Спека
+`docs/superpowers/specs/2026-05-31-sunnah-etl-design.md` (decision points
+решены). Step 1 (hd_collections) сделан в Сессии 51. **Next = SunnahDataSource**
+(API client + dump reader, зеркало shamela-паттерна). Брать в чистом
+контексте — это greenfield ETL, не bounded fix.
+
+**Tier-3 баги (30 low) + 7 review follow-ups** — в `docs/backlog.md`
+секции «Code-review findings» + «Bug-hunt Tier-3». Информация сохранена,
+не срочно.
+
+**Ручная проверка** (Playwright headless ≠ браузер): hadith списки
+(debounce+Load More), dark-theme primary Button hover, thesis-книга 15
+рендер, минимап при detail-панели.
+
 ## 2026-05-31 - Сессия 51 - Minimap/zoom/help redesign + token-система v3 + Phase 5 спайк + lint green
 
 **Автономный tech-lead режим.** Старт: AskUserQuestion по двум развилкам
