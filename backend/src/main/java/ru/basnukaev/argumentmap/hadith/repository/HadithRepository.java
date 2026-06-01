@@ -61,6 +61,16 @@ public class HadithRepository {
     }
 
     /**
+     * Выставляет {@code source_id} (мост в citation-домен) — под-проект #2,
+     * при первом прикреплении хадиса к узлу как опоры. Идемпотентно на
+     * уровне сервиса (вызывается только если source_id был null).
+     */
+    public void updateSourceId(UUID hadithId, UUID sourceId) {
+        jdbcTemplate.update("UPDATE hd_hadiths SET source_id = ? WHERE id = ?",
+                sourceId, hadithId);
+    }
+
+    /**
      * Natural-key lookup (collection_id, primary_number) — естественный ключ
      * импортированного хадиса. Используется ETL для идемпотентности (UNIQUE
      * constraint hd_hadiths_collection_number_unique).

@@ -3030,6 +3030,20 @@ normalized matn), `status` (CANONICAL/VARIANT/WEAK/FABRICATED), `collectionId`
 текст первичного matn (диакритизированный, очищенный) для карточки списка
 (красивее folded normalizedMatn; nullable; batch-load, без N+1).
 
+### POST /api/v1/nodes/{nodeId}/hadith-citations
+
+Прикрепляет хадис из `hd_*` к узлу как опору (под-проект #2). Body
+`AttachHadithCitationRequest {hadithId}`. Переиспользует мост
+`Hadith.sourceId → sources.id`: ensure-source (создаёт `Source` sourceType=HADITH,
+title «`<сборник> №<номер>`», идемпотентно — один Source на хадис) + линкует в
+`node_sources`. authz: assertCanWrite на тему узла (ADR-043) → 403
+forbidden-topic-write (или forbidden-topic-access если read закрыт). 404
+hadith-not-found. **201** `HadithCitationResponse {nodeSourceId, nodeId,
+hadithId, sourceId}`. List/detach хадис-опор — через существующий
+`GET/DELETE /api/v1/nodes/{id}/sources` (хадис-опора = node_source с HADITH-
+источником). Рендер хадис-опоры на фронте (matn-сниппет + ссылка) — follow-up
+(обогащение source-списка `hadithId`/previewMatn).
+
 ### GET /api/v1/hadith/hadiths/{id}/detail
 
 Bundled detail: hadith + sanads (с narrator-link'ами) + matns + `grades`
