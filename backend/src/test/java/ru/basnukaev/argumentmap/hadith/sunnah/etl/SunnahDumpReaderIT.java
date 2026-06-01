@@ -98,6 +98,8 @@ class SunnahDumpReaderIT {
         assertThat(h1.chapterId()).isEqualTo("1");
         assertThat(h1.urnAr()).isEqualTo(100010L);
         assertThat(h1.urnEn()).isEqualTo(10L);
+        // fixture matn содержит markup (<c_q1>…</c_q1>, <p>) — reader срезает
+        // её через SunnahTextCleaner, отдаёт чистый текст
         assertThat(h1.bodyAr()).isEqualTo("إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ");
         assertThat(h1.bodyEn()).isEqualTo("Actions are by intentions");
         assertThat(h1.gradesJson()).contains("Sahih");

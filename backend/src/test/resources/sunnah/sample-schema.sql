@@ -86,7 +86,7 @@ INSERT INTO ChapterData (collection, arabicBookID, babID, arabicBabNumber, engli
 -- Хадис 3 → bookNumber '99' (нет BookData) + babID 9.0 (нет ChapterData) +
 -- пустой grade → ветки b==null/ch==null/no-grades-key.
 INSERT INTO HadithTable (collection, bookNumber, babID, hadithNumber, arabicURN, englishURN, arabicText, englishText, arabicgrade1, englishgrade1) VALUES
-  ('bukhari', '1',  1.00, '1', 100010, 10, 'إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ', 'Actions are by intentions',       '', 'Sahih'),
+  ('bukhari', '1',  1.00, '1', 100010, 10, 'إِنَّمَا <c_q1>الأَعْمَالُ</c_q1> بِالنِّيَّاتِ', '<p>Actions are by intentions</p>', '', 'Sahih'),
   ('bukhari', '1',  1.10, '2', 100020, 20, 'حَدَّثَنَا عَبْدُ اللَّهِ',           'The commencement of revelation',  '', 'Sahih'),
   ('bukhari', '5',  1.00, '8', 100080, 80, 'بُنِيَ الْإِسْلَامُ عَلَى خَمْسٍ',     'Islam is built on five',          '', 'Hasan'),
   ('bukhari', '99', 9.00, '3', 100030, 30, 'نَصٌّ بِلَا كِتَابٍ وَلَا بَابٍ',      'Orphan hadith',                   '', '');

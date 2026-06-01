@@ -108,8 +108,8 @@ public class SunnahDumpReader implements SunnahDataSource {
             canonicalDecimal(rs.getBigDecimal("babID")),
             rs.getObject("arabicURN", Long.class),
             rs.getObject("englishURN", Long.class),
-            rs.getString("arabicText"),
-            rs.getString("englishText"),
+            SunnahTextCleaner.clean(rs.getString("arabicText")),
+            SunnahTextCleaner.clean(rs.getString("englishText")),
             buildGrades(rs.getString("englishgrade1"), rs.getString("arabicgrade1")),
             null
     );
