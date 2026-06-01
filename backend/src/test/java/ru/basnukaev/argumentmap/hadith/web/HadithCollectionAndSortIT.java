@@ -22,8 +22,10 @@ import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.hadith.domain.Collection;
 import ru.basnukaev.argumentmap.hadith.domain.Hadith;
 import ru.basnukaev.argumentmap.hadith.domain.HadithStatus;
+import ru.basnukaev.argumentmap.hadith.domain.Matn;
 import ru.basnukaev.argumentmap.hadith.repository.CollectionRepository;
 import ru.basnukaev.argumentmap.hadith.repository.HadithRepository;
+import ru.basnukaev.argumentmap.hadith.repository.MatnRepository;
 
 /**
  * IT: GET /api/v1/hadith/collections (chip-фильтр) + sort param на списке
@@ -47,6 +49,9 @@ class HadithCollectionAndSortIT {
     @Autowired
     private HadithRepository hadithRepository;
 
+    @Autowired
+    private MatnRepository matnRepository;
+
     private UUID collectionId;
 
     @BeforeEach
@@ -67,8 +72,21 @@ class HadithCollectionAndSortIT {
                 "جيم", HadithStatus.VARIANT, null, null, now));
         hadithRepository.save(new Hadith(UUID.randomUUID(), collectionId, 2,
                 "الف", HadithStatus.VARIANT, null, null, now));
-        hadithRepository.save(new Hadith(UUID.randomUUID(), collectionId, 1,
+        UUID h1 = UUID.randomUUID();
+        hadithRepository.save(new Hadith(h1, collectionId, 1,
                 "باء", HadithStatus.VARIANT, null, null, now));
+        // первичный matn для preview-карточки (диакритизированный)
+        matnRepository.save(new Matn(UUID.randomUUID(), h1, "بِالنِّيَّاتِ", "بالنيات",
+                null, null, collectionId, 1, null, null, true, null, null, now));
+    }
+
+    @Test
+    void list_includes_preview_matn_from_primary_matn() throws Exception {
+        // у хадиса №1 есть первичный matn → previewMatn = его text_ar (с огласовками)
+        mockMvc.perform(get("/api/v1/hadith/hadiths?sort=number"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].primaryNumber").value(1))
+                .andExpect(jsonPath("$.items[0].previewMatn").value("بِالنِّيَّاتِ"));
     }
 
     @Test

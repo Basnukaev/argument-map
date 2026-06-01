@@ -2,6 +2,7 @@ package ru.basnukaev.argumentmap.hadith.web;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -64,10 +65,12 @@ public class HadithController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
         PageRequest pr = PageRequest.from(page, size);
-        List<HadithResponse> items = hadithRepository
-                .findPage(q, status, collectionId, sort, pr.size(), pr.offset())
-                .stream()
-                .map(HadithController::toResponse)
+        List<Hadith> hadiths = hadithRepository
+                .findPage(q, status, collectionId, sort, pr.size(), pr.offset());
+        Map<UUID, String> previews = matnRepository.findPrimaryTextByHadithIds(
+                hadiths.stream().map(Hadith::id).toList());
+        List<HadithResponse> items = hadiths.stream()
+                .map(h -> HadithResponse.from(h, previews.get(h.id())))
                 .toList();
         long total = hadithRepository.countFiltered(q, status, collectionId);
         return PagedResponse.of(items, pr.page(), pr.size(), total);

@@ -3,8 +3,11 @@ package ru.basnukaev.argumentmap.hadith.repository;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.instant;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.odt;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -65,5 +68,26 @@ public class MatnRepository {
                         + "ORDER BY is_primary DESC, created_at ASC",
                 ROW_MAPPER, hadithId
         );
+    }
+
+    /**
+     * Текст первичного matn (text_ar) по списку hadith-id, одним запросом —
+     * для preview-карточек списка (избегаем N+1). Возвращает map hadith_id →
+     * text_ar только для хадисов с is_primary matn.
+     */
+    public Map<UUID, String> findPrimaryTextByHadithIds(List<UUID> hadithIds) {
+        if (hadithIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, String> texts = new HashMap<>();
+        String placeholders = hadithIds.stream().map(x -> "?").collect(Collectors.joining(","));
+        jdbcTemplate.query(
+                "SELECT hadith_id, text_ar FROM hd_matns "
+                        + "WHERE is_primary = true AND hadith_id IN (" + placeholders + ")",
+                (java.sql.ResultSet rs) -> {
+                    texts.put(rs.getObject("hadith_id", UUID.class), rs.getString("text_ar"));
+                },
+                hadithIds.toArray());
+        return texts;
     }
 }

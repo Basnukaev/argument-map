@@ -17,6 +17,9 @@ public record HadithResponse(
         UUID collectionId,
         Integer primaryNumber,
         String normalizedMatn,
+        /** Текст первичного matn (диакритизированный, очищенный) для карточки
+         * списка — красивее folded normalizedMatn. Nullable (нет matn). */
+        String previewMatn,
         @Schema(allowableValues = {"CANONICAL", "VARIANT", "WEAK", "FABRICATED"})
         String status,
         UUID sourceId,
@@ -24,7 +27,11 @@ public record HadithResponse(
 ) {
 
     public static HadithResponse from(Hadith h) {
+        return from(h, null);
+    }
+
+    public static HadithResponse from(Hadith h, String previewMatn) {
         return new HadithResponse(h.id(), h.collectionId(), h.primaryNumber(),
-                h.normalizedMatn(), h.status(), h.sourceId(), h.createdAt());
+                h.normalizedMatn(), previewMatn, h.status(), h.sourceId(), h.createdAt());
     }
 }

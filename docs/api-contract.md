@@ -3026,7 +3026,9 @@ URL hierarchy сохраняет `answerId` под будущую авториз
 normalized matn), `status` (CANONICAL/VARIANT/WEAK/FABRICATED), `collectionId`
 (UUID сборника — переименован с `bookId`). `sort` (whitelist): `recent`
 (default, created_at DESC), `number` (primary_number ASC), `alphabetical`
-(normalized_matn ASC — арабский алфавитный).
+(normalized_matn ASC — арабский алфавитный). `HadithResponse.previewMatn` —
+текст первичного matn (диакритизированный, очищенный) для карточки списка
+(красивее folded normalizedMatn; nullable; batch-load, без N+1).
 
 ### GET /api/v1/hadith/hadiths/{id}/detail
 
