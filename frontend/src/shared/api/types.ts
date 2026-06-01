@@ -324,6 +324,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/nodes/{nodeId}/hadith-citations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["attach_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/nodes/{nodeId}/citations": {
         parameters: {
             query?: never;
@@ -2080,6 +2096,15 @@ export interface components {
             context?: string;
             location?: string;
         };
+        HadithRef: {
+            /** Format: uuid */
+            hadithId?: string;
+            /** Format: int32 */
+            primaryNumber?: number;
+            collectionName?: string;
+            previewMatn?: string;
+            status?: string;
+        };
         NodeSourceResponse: {
             /** Format: uuid */
             id?: string;
@@ -2095,6 +2120,21 @@ export interface components {
             legacySnapshot?: string;
             /** Format: date-time */
             createdAt?: string;
+            hadith?: components["schemas"]["HadithRef"];
+        };
+        AttachHadithCitationRequest: {
+            /** Format: uuid */
+            hadithId: string;
+        };
+        HadithCitationResponse: {
+            /** Format: uuid */
+            nodeSourceId?: string;
+            /** Format: uuid */
+            nodeId?: string;
+            /** Format: uuid */
+            hadithId?: string;
+            /** Format: uuid */
+            sourceId?: string;
         };
         CreateImageRegionRequest: {
             /** Format: double */
@@ -3794,6 +3834,37 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["NodeSourceResponse"];
+                };
+            };
+        };
+    };
+    attach_1: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                nodeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachHadithCitationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["HadithCitationResponse"];
                 };
             };
         };
