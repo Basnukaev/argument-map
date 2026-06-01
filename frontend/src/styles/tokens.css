@@ -298,6 +298,21 @@
   --brand-500: oklch(70% 0.17 270);
   --brand-600: oklch(62% 0.19 270);
 
+  /* Brand light tints (50/100) - в dark теме это «лёгкая подложка»
+     (selected/hover у Select, accent-50/100 bg). БЕЗ override они
+     наследовали light-значения oklch(96%/92%) = почти белые пятна
+     (неприятные яркие pills в dropdown тома/страницы PDF). Переводим
+     в тёмные приглушённо-фиолетовые подложки по той же lightness-
+     лестнице что surfaces/status-bg (~22-32%). */
+  --brand-50:  oklch(26% 0.04 270);
+  --brand-100: oklch(32% 0.06 270);
+
+  /* Brand-700 в light - тёмный фиолет (text-accent-700 = foreground на
+     светлой подложке). В dark подложка стала тёмной → foreground должен
+     стать СВЕТЛЫМ, иначе dark-on-dark текст selected-опции нечитаем.
+     Поднимаем до яркого (~80%) для контраста на --brand-50 (26%). */
+  --brand-700: oklch(82% 0.10 270);
+
   /* Node types — re-tuned independently, NOT same oklch as light */
   --node-question:      oklch(28% 0.06 290);
   --node-question-ink:  oklch(85% 0.10 290);
