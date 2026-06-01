@@ -474,6 +474,44 @@ public class BookService {
     }
 
     /**
+     * Версия updateFormattedContent с write-guard (ADR-043 Amendment).
+     * Раньше PATCH /pages/{id}/formatted-content шёл без какой-либо
+     * проверки - любой authenticated user мог переписать контент
+     * страницы чужой (в т.ч. PRIVATE) книги. Резолвим parent book
+     * страницы и проверяем write-доступ.
+     */
+    @Transactional
+    public PageDetail updateFormattedContent(UUID pageId, String formattedContentJson,
+                                             UUID userId, String role) {
+        assertCanWriteBookForPage(pageId, userId, role);
+        return updateFormattedContent(pageId, formattedContentJson);
+    }
+
+    /**
+     * Write-guard для page-level мутаций (formatted-content / ai-edit /
+     * page-image). Резолвит book страницы и делегирует в
+     * {@link PermissionService#assertCanWriteBook}. Reusable из page-
+     * мутирующих контроллеров вне BookService (AiEdit, PageImage).
+     *
+     * @throws PageNotFoundException если страницы нет
+     */
+    @Transactional(readOnly = true)
+    public void assertCanWriteBookForPage(UUID pageId, UUID userId, String role) {
+        Page page = pageRepository.findById(pageId)
+                .orElseThrow(() -> new PageNotFoundException(pageId));
+        permissionService.assertCanWriteBook(page.bookId(), userId, role);
+    }
+
+    /**
+     * Write-guard на уровне книги (для page-image upload, где bookId
+     * приходит из path напрямую).
+     */
+    @Transactional(readOnly = true)
+    public void assertCanWriteBook(UUID bookId, UUID userId, String role) {
+        permissionService.assertCanWriteBook(bookId, userId, role);
+    }
+
+    /**
      * Собирает плоский список глав в дерево по parent_chapter_id.
      * Корневые главы — те, у которых parentChapterId == null.
      * Сортировка по orderIndex обеспечивается порядком из репозитория

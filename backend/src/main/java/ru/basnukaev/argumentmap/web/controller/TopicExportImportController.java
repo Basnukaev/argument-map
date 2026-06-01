@@ -21,6 +21,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.validation.Valid;
 
+import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
+import ru.basnukaev.argumentmap.service.PermissionService;
 import ru.basnukaev.argumentmap.service.TopicExportService;
 import ru.basnukaev.argumentmap.service.TopicImportService;
 import ru.basnukaev.argumentmap.web.CurrentUser;
@@ -49,13 +51,16 @@ public class TopicExportImportController {
 
     private final TopicExportService exportService;
     private final TopicImportService importService;
+    private final PermissionService permissionService;
     private final ObjectMapper objectMapper;
 
     public TopicExportImportController(TopicExportService exportService,
                                        TopicImportService importService,
+                                       PermissionService permissionService,
                                        ObjectMapper objectMapper) {
         this.exportService = exportService;
         this.importService = importService;
+        this.permissionService = permissionService;
         this.objectMapper = objectMapper;
     }
 
@@ -63,9 +68,18 @@ public class TopicExportImportController {
      * Экспорт темы в JSON. Возвращает {@link TopicExportDto} как
      * {@code application/json} с {@code Content-Disposition: attachment} -
      * браузер сразу скачивает как файл.
+     *
+     * <p>Read-guard (ADR-043): export отдаёт полный граф темы (nodes +
+     * edges + sources + authorities), поэтому требует тех же read-прав
+     * что GET /topics/{id} и /graph. Без проверки любой мог бы скачать
+     * приватную тему по её URL. assertCanRead для PRIVATE чужой темы →
+     * 403 (404-like: не leak'аем существование).
      */
     @GetMapping("/{topicId}/export")
-    public ResponseEntity<TopicExportDto> export(@PathVariable UUID topicId) {
+    public ResponseEntity<TopicExportDto> export(@PathVariable UUID topicId,
+                                                 @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        permissionService.assertCanRead(topicId, userId, role);
         TopicExportDto dto = exportService.exportTopic(topicId);
 
         // короткий ID (первые 8 символов UUID) для имени файла - читаемо

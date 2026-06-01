@@ -122,7 +122,7 @@ class NodeSourceServiceIT {
     void detachById_whenMissing_throwsSourceNotFoundException() {
         // Использует SourceNotFoundException (legacy naming для "ссылка не
         // существует") - покрываем чтобы зафиксировать текущий контракт.
-        assertThatThrownBy(() -> nodeSourceService.detachById(UUID.randomUUID()))
+        assertThatThrownBy(() -> nodeSourceService.detachById(UUID.randomUUID(), UUID.randomUUID()))
                 .isInstanceOf(SourceNotFoundException.class);
     }
 
@@ -132,9 +132,24 @@ class NodeSourceServiceIT {
         Source s = sourceService.createSource(SourceType.BOOK, "B", null, null, null, null, null);
         NodeSource link = nodeSourceService.attachSource(node.id(), s.id(), "q", null, null);
 
-        nodeSourceService.detachById(link.id());
+        nodeSourceService.detachById(node.id(), link.id());
 
         assertThat(nodeSourceService.getNodeSources(node.id())).isEmpty();
+    }
+
+    @Test
+    void detachById_wrongNode_doesNotDeleteAndThrows() {
+        // IDOR-защита: citation узла A нельзя удалить через путь узла B.
+        // DELETE /nodes/{B}/sources/{linkOfA} → 404, citation остаётся.
+        Node nodeA = nodeService.createNode(topicId, NodeType.CLAIM, "A", userId);
+        Node nodeB = nodeService.createNode(topicId, NodeType.CLAIM, "B", userId);
+        Source s = sourceService.createSource(SourceType.BOOK, "B", null, null, null, null, null);
+        NodeSource link = nodeSourceService.attachSource(nodeA.id(), s.id(), "q", null, null);
+
+        assertThatThrownBy(() -> nodeSourceService.detachById(nodeB.id(), link.id()))
+                .isInstanceOf(SourceNotFoundException.class);
+        // citation узла A не тронута
+        assertThat(nodeSourceService.getNodeSources(nodeA.id())).hasSize(1);
     }
 
     @Test

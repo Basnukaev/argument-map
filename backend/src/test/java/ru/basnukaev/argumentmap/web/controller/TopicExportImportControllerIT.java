@@ -57,7 +57,8 @@ class TopicExportImportControllerIT {
     void exportTopic_returns200WithFilenameHeader() throws Exception {
         UUID topicId = createTopicViaApi();
 
-        mockMvc.perform(get("/api/v1/topics/{id}/export", topicId))
+        mockMvc.perform(get("/api/v1/topics/{id}/export", topicId)
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(header().string("Content-Disposition",
@@ -73,10 +74,33 @@ class TopicExportImportControllerIT {
 
     @Test
     void exportTopic_notFound_returns404() throws Exception {
+        // export теперь требует principal (@CurrentUser) - без X-User-Id
+        // был бы 401 до handler'а. С валидным user'ом доходим до
+        // assertCanRead → findById → TopicNotFound (404).
         UUID missing = UUID.randomUUID();
-        mockMvc.perform(get("/api/v1/topics/{id}/export", missing))
+        mockMvc.perform(get("/api/v1/topics/{id}/export", missing)
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value(containsString("topic-not-found")));
+    }
+
+    @Test
+    void exportTopic_privateTopicOfAnotherUser_returns403() throws Exception {
+        // owner создаёт PRIVATE тему (default), другой user пытается
+        // экспортнуть - раньше export шёл без проверки и сливал приватную
+        // тему целиком. Теперь assertCanRead → 403 (ADR-043).
+        UUID topicId = createTopicViaApi();
+
+        UUID otherUserId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
+                otherUserId, "other-" + otherUserId, otherUserId + "@example.com"
+        );
+
+        mockMvc.perform(get("/api/v1/topics/{id}/export", topicId)
+                        .header("X-User-Id", otherUserId.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type").value(containsString("forbidden-topic-access")));
     }
 
     @Test

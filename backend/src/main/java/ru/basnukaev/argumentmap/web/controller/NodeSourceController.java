@@ -66,7 +66,7 @@ public class NodeSourceController {
     @DeleteMapping("/{nodeSourceId}")
     public ResponseEntity<Void> detach(@PathVariable UUID nodeId,
                                        @PathVariable UUID nodeSourceId) {
-        nodeSourceService.detachById(nodeSourceId);
+        nodeSourceService.detachById(nodeId, nodeSourceId);
         return ResponseEntity.noContent().build();
     }
 }

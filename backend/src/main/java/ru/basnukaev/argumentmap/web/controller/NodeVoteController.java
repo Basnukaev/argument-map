@@ -63,7 +63,9 @@ public class NodeVoteController {
     @GetMapping("/votes")
     public NodeVoteStatsResponse getStats(@PathVariable UUID nodeId,
                                           @CurrentUser UUID userId) {
-        VoteStats stats = nodeVoteService.getStatsForNode(nodeId);
+        // read-guard (ADR-043): отдаём агрегаты только если есть доступ к
+        // теме узла - иначе утечка голосов приватных тем
+        VoteStats stats = nodeVoteService.getStatsForNode(nodeId, userId);
         Integer userVote = nodeVoteService.getUserVote(nodeId, userId).orElse(null);
         return new NodeVoteStatsResponse(
                 nodeId, stats.upvotes(), stats.downvotes(), stats.score(), userVote

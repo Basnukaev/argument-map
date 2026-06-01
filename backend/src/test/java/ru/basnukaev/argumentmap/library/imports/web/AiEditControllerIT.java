@@ -108,6 +108,26 @@ class AiEditControllerIT {
     }
 
     @Test
+    void POST_aiEdit_nonOwner_returns403() throws Exception {
+        // ADR-043 Amendment: AI edit мутирует контент книги + жжёт API
+        // budget - требует write-доступ. Книга PUBLIC, но write только у
+        // owner/EDITOR, поэтому другой user → 403.
+        Mockito.when(anthropicClient.isEnabled()).thenReturn(true);
+        Page page = savePage("text");
+
+        UUID otherUser = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
+                otherUser, "other-" + otherUser, otherUser + "@example.com");
+
+        mockMvc.perform(post("/api/v1/library/pages/" + page.id() + "/ai-edit")
+                        .header("X-User-Id", otherUser.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type").value(
+                        org.hamcrest.Matchers.containsString("forbidden-book-write")));
+    }
+
+    @Test
     void POST_aiEdit_unknownPage_returns404() throws Exception {
         Mockito.when(anthropicClient.isEnabled()).thenReturn(true);
         UUID bogus = UUID.randomUUID();

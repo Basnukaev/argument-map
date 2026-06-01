@@ -16,8 +16,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
+import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.exception.AnswerNotFoundException;
 import ru.basnukaev.argumentmap.exception.QuestionNotFoundException;
+import ru.basnukaev.argumentmap.exception.QuestionWriteAccessDeniedException;
 import ru.basnukaev.argumentmap.qa.domain.Answer;
 import ru.basnukaev.argumentmap.qa.domain.Question;
 import ru.basnukaev.argumentmap.qa.domain.QuestionStatus;
@@ -196,6 +198,49 @@ class AnswerServiceIT {
         UUID missing = UUID.randomUUID();
         assertThatThrownBy(() -> answerService.acceptAnswer(questionId, missing))
                 .isInstanceOf(AnswerNotFoundException.class);
+    }
+
+    @Test
+    void acceptAnswer_byNonAuthor_throws403() {
+        // ADR-043 Amendment: accept мутирует вопрос - только автор вопроса
+        // или ADMIN. questionId создан userId; другой user → 403.
+        Answer a = answerService.createAnswer(questionId, "ответ", userId);
+        UUID otherUser = createUser();
+
+        assertThatThrownBy(() ->
+                answerService.acceptAnswer(questionId, a.id(), otherUser, UserRole.STUDENT))
+                .isInstanceOf(QuestionWriteAccessDeniedException.class);
+    }
+
+    @Test
+    void acceptAnswer_byAuthor_succeeds() {
+        Answer a = answerService.createAnswer(questionId, "ответ", userId);
+
+        Question updated = answerService.acceptAnswer(questionId, a.id(), userId, UserRole.STUDENT);
+
+        assertThat(updated.acceptedAnswerId()).isEqualTo(a.id());
+    }
+
+    @Test
+    void acceptAnswer_byAdmin_succeeds() {
+        // ADMIN bypass - может принять ответ на чужой вопрос
+        Answer a = answerService.createAnswer(questionId, "ответ", userId);
+        UUID admin = createUser();
+
+        Question updated = answerService.acceptAnswer(questionId, a.id(), admin, UserRole.ADMIN);
+
+        assertThat(updated.acceptedAnswerId()).isEqualTo(a.id());
+    }
+
+    @Test
+    void revokeAcceptance_byNonAuthor_throws403() {
+        Answer a = answerService.createAnswer(questionId, "ответ", userId);
+        answerService.acceptAnswer(questionId, a.id());
+        UUID otherUser = createUser();
+
+        assertThatThrownBy(() ->
+                answerService.revokeAcceptance(questionId, otherUser, UserRole.STUDENT))
+                .isInstanceOf(QuestionWriteAccessDeniedException.class);
     }
 
     // ---------- revoke ----------

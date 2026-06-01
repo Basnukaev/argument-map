@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.library.domain.Page;
 import ru.basnukaev.argumentmap.library.imports.PageImageException;
 import ru.basnukaev.argumentmap.library.imports.PageImageService;
@@ -72,6 +73,13 @@ public class PageImageController {
             @CurrentUser UUID currentUserId) {
 
         validateFile(file);
+
+        // ADR-043 Amendment: write-guard - upload перезаписывает image
+        // страницы + сбрасывает ocr_status, поэтому требует write-доступ
+        // к книге. Раньше шло без проверки (любой мог затереть чужую
+        // PRIVATE книгу).
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        bookService.assertCanWriteBook(bookId, currentUserId, role);
 
         log.info("page image upload: bookId={} pageNumber={} size={}B contentType={} by user={}",
                 bookId, pageNumber, file.getSize(), file.getContentType(), currentUserId);

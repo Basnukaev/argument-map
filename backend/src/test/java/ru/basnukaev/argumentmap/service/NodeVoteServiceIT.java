@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.domain.NodeType;
+import ru.basnukaev.argumentmap.exception.TopicAccessDeniedException;
 import ru.basnukaev.argumentmap.domain.NodeVote;
 import ru.basnukaev.argumentmap.domain.VoteStats;
 import ru.basnukaev.argumentmap.exception.InvalidVoteException;
@@ -136,6 +137,32 @@ class NodeVoteServiceIT {
         assertThat(stats.upvotes()).isEqualTo(1);
         assertThat(stats.downvotes()).isEqualTo(1);
         assertThat(stats.score()).isZero();
+    }
+
+    @Test
+    void getStatsForNode_withReadGuard_privateTopicNonOwner_throws403() {
+        // ADR-043: GET /votes раньше отдавал агрегаты по узлам приватных
+        // тем любому. Новый guarded overload должен бросить access-denied
+        // для non-owner на PRIVATE теме.
+        UUID privTopicId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO topics (id, title, created_by, visibility) VALUES (?, ?, ?, 'PRIVATE')",
+                privTopicId, "T-priv", ownerId
+        );
+        UUID privNodeId = nodeService.createNode(privTopicId, NodeType.ARGUMENT, "Арг", ownerId).id();
+
+        assertThatThrownBy(() -> nodeVoteService.getStatsForNode(privNodeId, otherUserId))
+                .isInstanceOf(TopicAccessDeniedException.class);
+    }
+
+    @Test
+    void getStatsForNode_withReadGuard_ownerSucceeds() {
+        nodeVoteService.vote(nodeId, ownerId, 1);
+
+        // PUBLIC тема (из setUp) - owner видит агрегаты
+        VoteStats stats = nodeVoteService.getStatsForNode(nodeId, ownerId);
+
+        assertThat(stats.upvotes()).isEqualTo(1);
     }
 
     @Test

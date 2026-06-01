@@ -100,14 +100,24 @@ public class AnswerController {
     @PostMapping("/questions/{questionId}/accepted-answer/{answerId}")
     public QuestionResponse acceptAnswer(
             @PathVariable UUID questionId,
-            @PathVariable UUID answerId) {
-        Question updated = answerService.acceptAnswer(questionId, answerId);
+            @PathVariable UUID answerId,
+            @CurrentUser UUID currentUserId) {
+        // ADR-043 Amendment (Q&A guards): accept мутирует вопрос - только
+        // автор вопроса или ADMIN
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        Question updated = answerService.acceptAnswer(questionId, answerId,
+                currentUserId, role);
         return toQuestionResponse(updated);
     }
 
     @DeleteMapping("/questions/{questionId}/accepted-answer")
-    public QuestionResponse revokeAcceptance(@PathVariable UUID questionId) {
-        Question updated = answerService.revokeAcceptance(questionId);
+    public QuestionResponse revokeAcceptance(@PathVariable UUID questionId,
+                                             @CurrentUser UUID currentUserId) {
+        // ADR-043 Amendment (Q&A guards): revoke мутирует вопрос - только
+        // автор вопроса или ADMIN
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        Question updated = answerService.revokeAcceptance(questionId,
+                currentUserId, role);
         return toQuestionResponse(updated);
     }
 

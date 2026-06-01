@@ -1,5 +1,7 @@
 package ru.basnukaev.argumentmap.auth.web.security;
 
+import java.util.UUID;
+
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -46,5 +48,28 @@ public final class SecurityContextUtils {
             return user.role();
         }
         return UserRole.USER;
+    }
+
+    /**
+     * Возвращает {@code id} principal'а из SecurityContext, либо
+     * {@code null} если контекст пустой / principal не
+     * {@link AuthenticatedUser}.
+     *
+     * <p>Используется там где userId нужен не как @CurrentUser
+     * controller-параметр, а внутри service-слоя (например streaming
+     * PdfService, вызываемый из контроллера). Permission-checks
+     * корректно обрабатывают {@code null} userId (anonymous) через
+     * visibility-правила (PUBLIC доступен, PRIVATE/SHARED - нет).
+     */
+    public static UUID currentUserIdOrNull() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return null;
+        }
+        Object principal = auth.getPrincipal();
+        if (principal instanceof AuthenticatedUser user) {
+            return user.id();
+        }
+        return null;
     }
 }

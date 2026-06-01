@@ -82,6 +82,28 @@ public class NodeVoteService {
         return nodeVoteRepository.deleteByNodeAndUser(nodeId, userId);
     }
 
+    /**
+     * Агрегаты голосов узла с read-guard (ADR-043). Резолвит topicId
+     * узла и проверяет доступ - GET /votes раньше отдавал статистику
+     * по узлам приватных тем любому. Симметрично vote()/removeVote().
+     *
+     * @throws ru.basnukaev.argumentmap.exception.TopicAccessDeniedException
+     *         если нет read-доступа к теме узла (403)
+     */
+    @Transactional(readOnly = true)
+    public VoteStats getStatsForNode(UUID nodeId, UUID userId) {
+        Node node = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new NodeNotFoundException(nodeId));
+        permissionService.assertCanRead(node.topicId(), userId,
+                ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils.currentRoleOrAnonymous());
+        return nodeVoteRepository.getStatsForNode(nodeId);
+    }
+
+    /**
+     * Backward-compat без read-guard. Используется внутри сервиса после
+     * того как доступ уже проверен (vote/removeVote) + internal/IT.
+     * REST GET endpoint должен звать {@link #getStatsForNode(UUID, UUID)}.
+     */
     @Transactional(readOnly = true)
     public VoteStats getStatsForNode(UUID nodeId) {
         if (nodeRepository.findById(nodeId).isEmpty()) {

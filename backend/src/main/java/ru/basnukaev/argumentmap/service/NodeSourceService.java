@@ -64,10 +64,17 @@ public class NodeSourceService {
         return nodeSourceRepository.findByNodeIdWithLocation(nodeId);
     }
 
-    /** Detach по surrogate id (миграция 25, ADR-FK-A) */
+    /**
+     * Detach по surrogate id, scoped к узлу (миграция 25, ADR-FK-A).
+     * Удаляет citation только если она принадлежит {@code nodeId} из
+     * path - защита от IDOR: DELETE /nodes/{nodeId}/sources/{id} не
+     * должен удалять citation другого узла по голому id. Если citation
+     * не существует ИЛИ принадлежит другому узлу → 404 (не leak'аем
+     * существование чужой citation).
+     */
     @Transactional
-    public void detachById(UUID nodeSourceId) {
-        boolean removed = nodeSourceRepository.deleteById(nodeSourceId);
+    public void detachById(UUID nodeId, UUID nodeSourceId) {
+        boolean removed = nodeSourceRepository.deleteByIdAndNode(nodeSourceId, nodeId);
         if (!removed) {
             throw new SourceNotFoundException(nodeSourceId);
         }

@@ -117,6 +117,15 @@ public class NodeSourceRepository {
         return jdbcTemplate.update("DELETE FROM node_sources WHERE id = ?", id) > 0;
     }
 
+    // Node-scoped delete: удаляет citation только если она принадлежит
+    // указанному узлу. Защита от IDOR - DELETE /nodes/{nodeId}/sources/{id}
+    // не должен удалять citation другого узла по голому surrogate id.
+    public boolean deleteByIdAndNode(UUID id, UUID nodeId) {
+        return jdbcTemplate.update(
+                "DELETE FROM node_sources WHERE id = ? AND node_id = ?",
+                id, nodeId) > 0;
+    }
+
     /**
      * Batch-загрузка всех node-source привязок для набора узлов. Один SQL
      * вместо N findByNodeId вызовов. Используется в TopicExportService

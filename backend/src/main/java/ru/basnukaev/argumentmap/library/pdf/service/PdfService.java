@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
+import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.exception.BookNotFoundException;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.pdf.domain.PdfLocation;
@@ -14,6 +15,7 @@ import ru.basnukaev.argumentmap.library.pdf.domain.PdfStreamingResult;
 import ru.basnukaev.argumentmap.library.pdf.domain.RangeSpec;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.storage.ObjectStorageService;
+import ru.basnukaev.argumentmap.service.PermissionService;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
@@ -45,13 +47,16 @@ public class PdfService {
     private final List<PdfSourceProvider> providers;
     private final BookRepository bookRepository;
     private final ObjectStorageService objectStorageService;
+    private final PermissionService permissionService;
 
     public PdfService(List<PdfSourceProvider> providers,
                       BookRepository bookRepository,
-                      ObjectStorageService objectStorageService) {
+                      ObjectStorageService objectStorageService,
+                      PermissionService permissionService) {
         this.providers = providers;
         this.bookRepository = bookRepository;
         this.objectStorageService = objectStorageService;
+        this.permissionService = permissionService;
     }
 
     /**
@@ -114,6 +119,17 @@ public class PdfService {
     }
 
     private Book loadBook(UUID bookId) {
+        // read-guard (ADR-043 Amendment): сам PDF-блоб - самый
+        // чувствительный payload книги. GET /books/{id} (метадата) уже
+        // защищён через BookService.getBookWithChapters, но stream/info
+        // шли мимо - любой authenticated user мог скачать PRIVATE книгу
+        // перебором bookId (IDOR). PDF endpoints читают principal из
+        // SecurityContext (не через @CurrentUser param), т.к. PdfService
+        // зовётся из streaming-контроллера. assertCanReadBook сам
+        // обрабатывает null userId (anonymous) через visibility-правила.
+        permissionService.assertCanReadBook(bookId,
+                SecurityContextUtils.currentUserIdOrNull(),
+                SecurityContextUtils.currentRoleOrAnonymous());
         return bookRepository.findById(bookId)
                 .orElseThrow(() -> new BookNotFoundException(bookId));
     }

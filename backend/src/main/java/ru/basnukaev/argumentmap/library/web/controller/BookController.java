@@ -200,10 +200,14 @@ public class BookController {
     @PatchMapping("/pages/{pageId}/formatted-content")
     public PageResponse updateFormattedContent(
             @PathVariable UUID pageId,
-            @Valid @RequestBody UpdateFormattedContentRequest request) {
+            @Valid @RequestBody UpdateFormattedContentRequest request,
+            @CurrentUser UUID userId) {
+        // ADR-043 Amendment: write-guard на parent book страницы
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         PageDetail detail = bookService.updateFormattedContent(
                 pageId,
-                request.formattedContent().toString()
+                request.formattedContent().toString(),
+                userId, role
         );
         return LibraryDtoMappers.toResponse(detail);
     }
