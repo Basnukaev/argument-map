@@ -67,6 +67,13 @@ function BookReaderPage() {
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [pageContent, setPageContent] = useState<PageContentState>({ kind: 'loading' });
   const [readerMode, setReaderMode] = useState<ReaderMode>('text');
+  // Deep-link ?pdfPageNumber=N - это PDF-page (внутренний индекс PDF), НЕ
+  // lib_pages.pageNumber (бизнес-ключ страницы). Раньше N писался в
+  // pageNumber (текстовый стейт), но они в разных пространствах нумерации:
+  // при несовпадении currentPageMeta=undefined → PdfViewer открывался на
+  // томе 1 / стр 1 и prev/next ломались (currentIndex=-1). Держим отдельно
+  // и передаём прямо в PdfViewer.initialPrintedPage.
+  const [pdfDeepLinkPage, setPdfDeepLinkPage] = useState<number | null>(null);
   // Members + visibility modals (22.c.f, ADR-043 Amendment). Open only
   // for owner/admin
   const [membersOpen, setMembersOpen] = useState(false);
@@ -160,8 +167,11 @@ function BookReaderPage() {
       const pdfPage = searchParams.get('pdfPageNumber');
       if (pdfPage) {
         const n = parseInt(pdfPage, 10);
-         
-        if (Number.isFinite(n) && n >= 1) setPageNumber(n);
+        // pdfPageNumber → отдельный pdfDeepLinkPage (НЕ pageNumber), чтобы
+        // не сломать текстовый стейт / prev-next индекс. PdfViewer получит
+        // его как initialPrintedPage и сам clamp'нет к numPages.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (Number.isFinite(n) && n >= 1) setPdfDeepLinkPage(n);
       }
       return;
     }
@@ -583,10 +593,10 @@ function BookReaderPage() {
                     }
                   >
                     <PdfViewer
-                key={`${currentPart ?? ''}-${currentPrintedPage ?? ''}`}
+                key={`${currentPart ?? ''}-${pdfDeepLinkPage ?? currentPrintedPage ?? ''}`}
                 bookId={bookId}
                 initialPart={currentPart}
-                initialPrintedPage={currentPrintedPage}
+                initialPrintedPage={pdfDeepLinkPage ?? currentPrintedPage}
               />
                   </Suspense>
                 </>

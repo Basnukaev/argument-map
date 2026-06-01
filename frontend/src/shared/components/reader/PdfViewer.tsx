@@ -467,10 +467,23 @@ function PdfViewer({ bookId, initialPart, initialPrintedPage, stickyToolbar = tr
           <Document
             key={fileUrl}
             file={fileUrl}
-            onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-            onLoadError={(err) => {
-              setState({ kind: 'error', message: err.message });
+            onLoadSuccess={({ numPages: loaded }) => {
+              setNumPages(loaded);
+              // Clamp текущую страницу к реальному размеру PDF. initialPrintedPage
+              // приходит из shamela printed_page (номер на физической странице
+              // книги) и может превышать число страниц в PDF - без clamp
+              // открылись бы на несуществующей странице → пустой viewport
+              // (Page loading={null} ничего не рисует). Опускаем до последней.
+              if (pageNumber > loaded) {
+                changePage(loaded);
+              }
             }}
+            // НЕ эскалируем per-file load failure в component-wide error
+            // state: это unmount'ит volume selector + toolbar (см. ранний
+            // return на kind==='error') и убивает весь reader из-за сбоя
+            // одного тома. Scoped error UI ниже (error=...) держит toolbar
+            // смонтированным, юзер может переключить том. Глобальный error
+            // оставлен только за /pdf/info fetch (loadInfo).
             loading={
               <div className="py-20 text-center">
                 <Loader2 size={20} className="mx-auto animate-spin text-ink-400" />
