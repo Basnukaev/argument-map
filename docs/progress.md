@@ -87,6 +87,22 @@ test pollution (другой класс коммитит lib_books), не tie-br
 subsequence-ассерт. Системная flakiness (PdfControllerIT и др.) — в backlog,
 отдельная тест-гигиена.
 
+**9. ПОД-ПРОЕКТ #1 — инструмент просмотра/дебага хадисов (pivot Абдулы:
+«контент в последнюю очередь, нужны инструменты для заполнения/просмотра/
+дебага»).** Страница хадисов была непригодна (стена текста + сырая разметка
+sunnah). Спека `2026-06-01-hadith-viewing-tool-design.md` (brainstorm →
+approved). Сделано (4 коммита):
+- **`SunnahTextCleaner`** (`adb…`): срезает inline-разметку (HTML, quran-якоря
+  `<A href=openquran>`, footnote `<c_qNN>`), decode entities, в reader. Реальная
+  перечистка: delete 98 + reimport → 0 matns с markup (хадис №32 теперь чистый).
+- **`GET /hadith/collections`** (chip-фильтр + реальный hadithCount) + **sort**
+  (number/alphabetical-арабский/recent) + **previewMatn** (диакритизированный
+  text_ar первичного matn, batch-load — красивее folded normalizedMatn).
+- **Редизайн `HadithListPage`**: чипы-сборники + sort + одна колонка, чистые
+  арабские карточки (naskh/RTL). 3 component-теста, lint 0err, build green.
+- ⚠️ Playwright visual НЕ прогнан (MCP chromium missing + skill не
+  зарегистрирован) — но страница ЖИВАЯ на :5173 с реальными данными.
+
 ### Решения
 
 - **ADR-051** staging-схема sn_staging_* (+ дополнение про mapper-слой).
@@ -109,20 +125,24 @@ subsequence-ассерт. Системная flakiness (PdfControllerIT и др.
 
 ### Следующий шаг
 
-**Шаг 2 ЗАКРЫТ ПОЛНОСТЬЮ (2.a-2.e) + реальный пилот прогнан.** Конвейер
-дамп → hd_* работает против настоящего дампа (98 хадисов Бухари в hd_*).
-Дальше:
+**Phase 5 шаг 2 закрыт (2.a-2.e) + под-проект #1 (просмотр хадисов) сделан.**
+Пивот Абдулы: контент — в последнюю очередь, **строим инструменты**. Очередь
+под-проектов (спека `2026-06-01-hadith-viewing-tool-design.md` §5 — out of scope #1):
 
-1. **HTML-cleaner для englishText** (быстрый, до показа в проде): реальный
-   `HadithTable.englishText` содержит HTML (`<p>`), арабский чистый. Text-cleaner
-   (аналог `ShamelaTextCleaner`) в reader/mapper перед `hd_matns.text_en`.
-2. **Frontend AdminSunnahPage** (опц., AdminShamelaPage-стиль): кнопки превью +
-   импорт поверх `/api/v1/admin/sunnah/*` (типы уже в types.ts) — чтобы Абдула
-   триггерил без curl.
-3. **Step 3 `IsnadExtraction`** (= Phase 6 AI слит): matn+isnad блоб → AI
-   (ADR-042) → структурный иснад (hd_sanads) + `extraction_source`/
-   `review_status` + UI «не выверено». step 4 `SunnahApiClient` + полный корпус
-   (sample-дамп = только 100 хадисов Бухари; muslim/др. — только метаданные).
+1. **Под-проект #1 — просмотр/дебаг хадисов: ✅ СДЕЛАН** (чистка текста +
+   чипы-сборники + sort + чистые арабские карточки). Остаток (опц.): английский
+   текст тоже содержит HTML — `SunnahTextCleaner` уже применяется и к bodyEn,
+   так что чисто; диакритизация на карточке — через previewMatn, сделано.
+2. ← **Под-проект #2 — линковка хадисов в узлы тем** (citation-picker для
+   хадисов: выбрать хадис из hd_* и прикрепить к узлу как опору). Tooling для
+   «заполнения контента» — в духе пивота.
+3. **Под-проект #3 — примирение `hd_collections` ↔ библиотечный «Сборник
+   хадисов»** (book_type=HADITH): два представления одного сборника. Архитектура.
+4. **Frontend AdminSunnahPage** (опц.): кнопки превью+импорт поверх
+   `/api/v1/admin/sunnah/*` (типы в types.ts) — триггерить импорт без curl.
+5. **Под-проект #4 / Phase 5 step 3 `IsnadExtraction`** (= контент, Абдула
+   отложил): matn+isnad блоб → AI (ADR-042) → hd_sanads + trust-level. step 4
+   `SunnahApiClient` + полный корпус (sample-дамп = только 100 хадисов Бухари).
 
 Источник за интерфейсом `SunnahDataSource` (dump сейчас, API позже одной
 реализацией, mapper/контроллер не двигаются).

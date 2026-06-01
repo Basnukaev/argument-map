@@ -209,20 +209,27 @@ failures** (системная full-suite flakiness — в backlog, отдель
    ADMIN-only, bulk-policy gate). **Реальный пилот прогнан**: `POST /import/bukhari`
    → 98 импортировано (2 курируемых победили). Дедуп вариаций + структурный иснад
    — ОТЛОЖЕНЫ.
-3. ← **СЛЕДУЮЩИЙ ШАГ:** (a) **HTML-cleaner для englishText** (дамп даёт en с
-   `<p>`-тегами, ar чистый — аналог `ShamelaTextCleaner` перед `hd_matns.text_en`,
-   до показа в проде); (b) опц. **frontend AdminSunnahPage** (типы в types.ts,
-   чтобы триггерить импорт без curl); затем (c) **step 3 `IsnadExtraction`**.
-4. **`IsnadExtraction` стадия (= Phase 6 AI, слиты!)** — граф для ЛЮБОГО
-   хадиса через AI-извлечение цепочки (ADR-042) + `extraction_source`/
-   `review_status` + UI-пометки «не выверено». ⚖️ AI-цепочка НЕ факт.
-5. `SunnahApiClient` (proxy-aware) + полный корпус (sample-дамп = только 100
-   хадисов Бухари; muslim/др. — лишь метаданные сборников).
+3. ✅ **Под-проект #1 (просмотр/дебаг хадисов)** — СДЕЛАН (спека
+   `2026-06-01-hadith-viewing-tool-design.md`): `SunnahTextCleaner` (срез
+   markup, перечистка), `GET /hadith/collections` + sort + `previewMatn`
+   (диакритизированный), редизайн `HadithListPage` (чипы-сборники + sort +
+   чистые арабские карточки). ⚠️ Playwright НЕ прогнан (MCP chromium missing).
 
-**Manual за Абдулой (висит с Сессии 52):** hadith/narrator списки (debounce +
-Load More), dark-theme primary Button hover, thesis-книга 15 рендер, минимап
-при открытой detail-панели. **Новое:** Бухари в Hadith Explorer = 101 хадис
-с реальным текстом (en содержит HTML — см. next #a).
+**ПИВОТ Абдулы (важно для приоритизации): контент — в последнюю очередь,
+строим ИНСТРУМЕНТЫ** (заполнение/просмотр/дебаг контента). Очередь под-проектов:
+4. ← **СЛЕДУЮЩИЙ ШАГ — под-проект #2: линковка хадисов в узлы тем**
+   (citation-picker для хадисов из hd_* как опора узла). Tooling для заполнения.
+5. **Под-проект #3 — `hd_collections` ↔ библиотечный «Сборник хадисов»**
+   (book_type=HADITH): два представления одного сборника, архитектура.
+   + опц. frontend AdminSunnahPage (импорт без curl).
+6. **Под-проект #4 / Phase 5 step 3 `IsnadExtraction`** (КОНТЕНТ, отложено
+   Абдулой): matn+isnad блоб → AI (ADR-042) → hd_sanads + trust-level. step 4
+   `SunnahApiClient` + полный корпус (sample-дамп = только 100 хадисов Бухари).
+
+**Manual за Абдулой:** **НОВОЕ — глянуть `/hadith` на :5173** (редизайн +
+реальные данные Бухари, текст теперь чистый; Playwright не прогнан, нужен
+визуальный взгляд). Висит с Сессии 52: dark-theme primary Button hover,
+thesis-книга 15 рендер, минимап при detail-панели.
 
 **Инфра:** Docker (postgres+minio) up + **`sunnah-mysql` :3307** (дамп
 `db/00-samplegitdb.sql`, root/root, БД `sunnah`; дамп-файл `/tmp/sunnah.sql`).

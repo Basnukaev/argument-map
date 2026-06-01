@@ -417,11 +417,12 @@ Important + большинство Minor закрыты в сессии). Соз
   (Darussalam)") не извлекается. Улучшить при необходимости.
 
 **Шаг 2.e (прод-обвязка + реальный пилот, Сессия 53):**
-- [ ] **HTML в englishText дампа**: реальный пилот Бухари показал, что
-  `HadithTable.englishText` содержит HTML (`<p>`-теги, `<br>`), арабский —
-  чистый. Нужен text-cleaner для en (аналог `ShamelaTextCleaner`) перед
-  записью в `hd_matns.text_en`, иначе фронт рендерит сырой HTML. Reader или
-  mapper. Приоритет — до показа sunnah-данных в проде.
+- [x] **HTML/markup в тексте дампа** — **исправлено Сессией 53** (под-проект #1):
+  оказалось, что разметка (HTML `<p>`, quran-якоря `<A href=openquran>`, footnote
+  `<c_qNN>`) есть и в арабском, и в английском, и текла в `normalized_matn`
+  (поиск). `SunnahTextCleaner` срезает её в reader для bodyAr И bodyEn;
+  перечистка 98 импортированных через delete+reimport. + previewMatn
+  (диакритизированный) на карточке + редизайн HadithListPage.
 - [ ] **Frontend AdminSunnahPage** (AdminShamelaPage-стиль): кнопки
   «превью каталога» + «импорт сборника» поверх `/api/v1/admin/sunnah/*`.
   Типы уже в `types.ts` (generate-api). Чтобы Абдула триггерил импорт без curl.
