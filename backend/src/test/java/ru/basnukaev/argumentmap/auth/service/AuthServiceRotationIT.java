@@ -114,6 +114,38 @@ class AuthServiceRotationIT {
                 .isInstanceOf(InvalidTokenException.class);
     }
 
+    /**
+     * Атомарность ротации (review fix): markReplaced - conditional UPDATE
+     * (WHERE revoked_at IS NULL), на котором держится single-use инвариант.
+     * Если строка уже revoked (например параллельный refresh выиграл гонку),
+     * markReplaced возвращает 0 → проигравший refresh бросает и его
+     * @Transactional откатывает выпущенную пару → выживает одна chain.
+     *
+     * <p>Сам race-branch (`rotated==0`) недостижим single-threaded через
+     * public refresh() - ранний revokedAt-check ловит already-revoked токен
+     * раньше. Поэтому проверяем load-bearing примитив напрямую: markReplaced
+     * на уже-revoked строке == 0 affected rows (idempotent, не «перетирает»).
+     */
+    @Test
+    void markReplaced_onAlreadyRevokedRow_returnsZero_atomicGuard() {
+        userService.register("atomic@example.com", "atomicuser", "password1");
+        AuthTokens initial = authService.login("atomic@example.com", "password1");
+        RefreshToken row = refreshTokenRepository
+                .findByHash(sha256(initial.refreshToken()))
+                .orElseThrow();
+
+        // Первый markReplaced выигрывает (revoked_at был NULL) → 1 row
+        int first = refreshTokenRepository.markReplaced(
+                row.id(), row.id(), RefreshToken.REASON_ROTATION);
+        assertThat(first).isEqualTo(1);
+
+        // Повторный markReplaced (строка уже revoked) → 0 rows. Это и есть
+        // сигнал, по которому проигравший concurrent refresh бросает.
+        int second = refreshTokenRepository.markReplaced(
+                row.id(), row.id(), RefreshToken.REASON_ROTATION);
+        assertThat(second).isZero();
+    }
+
     @Test
     void refresh_unknownButValidJwt_throwsNotFound() {
         // Регистрируем user A, выдаём refresh, но удаляем запись из БД

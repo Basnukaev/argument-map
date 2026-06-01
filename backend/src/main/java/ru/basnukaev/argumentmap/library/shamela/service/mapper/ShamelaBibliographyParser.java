@@ -117,10 +117,12 @@ public class ShamelaBibliographyParser {
         String thesisDegree = null;
         String thesisInstitution = null;
         if (thesisLine != null) {
-            int sep = firstSeparatorIndex(thesisLine);
-            if (sep > 0) {
-                thesisDegree = thesisLine.substring(0, sep).trim();
-                thesisInstitution = thesisLine.substring(sep + 1).trim();
+            Separator sep = firstSeparator(thesisLine);
+            if (sep != null) {
+                thesisDegree = thesisLine.substring(0, sep.index()).trim();
+                // sep.length() - чтобы для « - » (3 символа) срезать весь
+                // разделитель, иначе у institution остаётся ведущий «-».
+                thesisInstitution = thesisLine.substring(sep.index() + sep.length()).trim();
             } else {
                 // Нет разделителя - вся строка как degree (минимальный случай)
                 thesisDegree = thesisLine.trim();
@@ -149,22 +151,23 @@ public class ShamelaBibliographyParser {
         );
     }
 
+    /** Позиция + длина разделителя degree/institution (length важна чтобы
+     *  срезать весь « - », а не оставлять ведущий «-» у institution). */
+    private record Separator(int index, int length) {
+    }
+
     /**
-     * Индекс первого разделителя degree/institution в строке رسالة:
-     * arabic-запятая «،», обычная запятая «,» либо « - ». Возвращает -1
-     * если разделителя нет.
+     * Первый разделитель degree/institution в строке رسالة: arabic-запятая
+     * «،», обычная запятая «,» (length 1) либо « - » (length 3). Возвращает
+     * {@code null} если разделителя нет.
      */
-    private static int firstSeparatorIndex(String s) {
-        int best = -1;
-        for (String sep : new String[] {"،", ","}) {
+    private static Separator firstSeparator(String s) {
+        Separator best = null;
+        for (String sep : new String[] {"،", ",", " - "}) {
             int idx = s.indexOf(sep);
-            if (idx >= 0 && (best == -1 || idx < best)) {
-                best = idx;
+            if (idx >= 0 && (best == null || idx < best.index())) {
+                best = new Separator(idx, sep.length());
             }
-        }
-        int dash = s.indexOf(" - ");
-        if (dash >= 0 && (best == -1 || dash < best)) {
-            best = dash;
         }
         return best;
     }

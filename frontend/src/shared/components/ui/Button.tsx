@@ -37,7 +37,7 @@ const ICON_SIZE: Record<Size, number> = {
 
 const VARIANT_CLASSES: Record<Variant, string> = {
   primary:
-    'bg-accent-600 text-ink-0 hover:bg-accent-700 active:bg-accent-700 border border-accent-700/40 shadow-sh1',
+    'bg-accent-600 text-ink-0 hover:bg-accent-cta-hover active:bg-accent-cta-hover border border-accent-cta-hover/40 shadow-sh1',
   secondary:
     'bg-elevated text-ink-900 hover:bg-ink-50 active:bg-ink-100 border border-ink-200 hover:border-ink-300 shadow-sh1',
   ghost:

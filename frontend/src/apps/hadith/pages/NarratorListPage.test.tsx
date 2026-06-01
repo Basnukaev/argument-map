@@ -125,16 +125,22 @@ describe('NarratorListPage', () => {
     });
 
     const input = screen.getByPlaceholderText(/.*/) as HTMLInputElement;
+    // 4 символа печатаются быстрее 300ms debounce → промежуточные
+    // keystroke (م/ما/مال) НЕ должны слать запрос, только финальный مالك.
     await userEvent.type(input, 'مالك');
 
-    // debounce 300ms - ждём пока settle (timeout 800ms) и проверяем что
-    // запрос с q ушёл
+    // Ждём пока финальный запрос придёт (debounce 300ms, timeout 800ms)
     await waitFor(
       () => {
-        expect(queries.length).toBeGreaterThanOrEqual(1);
         expect(queries[queries.length - 1]).toBe('مالك');
       },
       { timeout: 800 },
     );
+
+    // Suppression-проверка (ловит регрессию debounce): после settle прошёл
+    // РОВНО один q-запрос, а не по одному на keystroke. Без debounce было
+    // бы 4 (م, ما, مال, مالك). Даём ещё запас времени чтобы добить хвост.
+    await new Promise((r) => setTimeout(r, 350));
+    expect(queries).toEqual(['مالك']);
   });
 });

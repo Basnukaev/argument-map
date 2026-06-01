@@ -32,6 +32,15 @@
   --brand-800:  oklch(30% 0.16 270);
   --brand-900:  oklch(22% 0.12 270);
 
+  /* Primary-CTA hover/active fill. Отдельный семантический токен, т.к.
+     контраст кнопки ИНВЕРТИРОВАН между темами: light = белый текст на
+     тёмно-фиолетовой заливке (hover = темнее), dark = тёмный текст на
+     светлой заливке (hover = чуть темнее/насыщеннее, но всё ещё светлый).
+     Раньше Button использовал accent-700 как hover-fill, но dark-override
+     brand-700→82% (для text-accent-700 на тёмной подложке) ломал это →
+     CTA hover становился бледно-лавандовым. Light = тот же darker shade. */
+  --accent-cta-hover: var(--brand-700);
+
   /* ── NODE TYPES (graph) ─────────────────────────────────────
      4 distinct per-type palettes: bg / ink (text) / bd (border).
      Hue-separated for instant visual identification on canvas.   */
@@ -312,6 +321,12 @@
      стать СВЕТЛЫМ, иначе dark-on-dark текст selected-опции нечитаем.
      Поднимаем до яркого (~80%) для контраста на --brand-50 (26%). */
   --brand-700: oklch(82% 0.10 270);
+
+  /* CTA hover в dark - НЕ brand-700 (он теперь светлый 82%). Кнопка в
+     dark = тёмный текст (ink-0=bg-card) на светлой заливке (accent-600
+     62%); hover делаем чуть темнее+насыщеннее (56%), сохраняя читаемость
+     тёмного текста. */
+  --accent-cta-hover: oklch(56% 0.20 270);
 
   /* Node types — re-tuned independently, NOT same oklch as light */
   --node-question:      oklch(28% 0.06 290);

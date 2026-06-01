@@ -186,6 +186,21 @@ class ShamelaBibliographyParserTest {
     }
 
     @Test
+    void parsesThesis_dashSeparator_noLeadingDashOnInstitution() {
+        // Если рисала разделяет degree/institution через « - » (а не «،»),
+        // institution не должен получить ведущий «-» (весь разделитель
+        // срезается, не только пробел).
+        String biblio = "رسالة: دكتوراه - جامعة أم القرى - كلية الشريعة";
+
+        ParsedBibliography parsed = parser.parse(biblio);
+
+        assertThat(parsed.thesisDegree()).isEqualTo("دكتوراه");
+        assertThat(parsed.thesisInstitution()).isEqualTo("جامعة أم القرى - كلية الشريعة");
+        // ведущего дефиса нет
+        assertThat(parsed.thesisInstitution()).doesNotStartWith("-");
+    }
+
+    @Test
     void publishedBookHasNoThesisFields_noFalsePositives() {
         // Обычная изданная книга (ابن كثير) НЕ должна получить thesis-поля.
         String biblio = "الكتاب: تفسير القرآن العظيم\\rالمؤلف: ابن كثير"
