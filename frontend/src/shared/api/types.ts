@@ -1316,6 +1316,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hadith/collections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_14"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/me": {
         parameters: {
             query?: never;
@@ -1403,7 +1419,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_14"];
+        get: operations["list_15"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2721,6 +2737,7 @@ export interface components {
             /** Format: int32 */
             primaryNumber?: number;
             normalizedMatn?: string;
+            previewMatn?: string;
             /** @enum {string} */
             status?: "CANONICAL" | "VARIANT" | "WEAK" | "FABRICATED";
             /** Format: uuid */
@@ -2846,6 +2863,18 @@ export interface components {
             compiledInBookId?: string;
             primaryChain?: boolean;
             narrators?: components["schemas"]["NarratorLinkDto"][];
+        };
+        CollectionResponse: {
+            /** Format: uuid */
+            id?: string;
+            slug?: string;
+            nameAr?: string;
+            nameEn?: string;
+            nameRu?: string;
+            /** Format: int32 */
+            totalHadith?: number;
+            /** Format: int64 */
+            hadithCount?: number;
         };
         PagedResponseAuthorityResponse: {
             items?: components["schemas"]["AuthorityResponse"][];
@@ -5880,7 +5909,8 @@ export interface operations {
             query?: {
                 q?: string;
                 status?: string;
-                bookId?: string;
+                collectionId?: string;
+                sort?: string;
                 page?: number;
                 size?: number;
             };
@@ -5963,6 +5993,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["HadithDetailResponse"];
+                };
+            };
+        };
+    };
+    list_14: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CollectionResponse"][];
                 };
             };
         };
@@ -6103,7 +6153,7 @@ export interface operations {
             };
         };
     };
-    list_14: {
+    list_15: {
         parameters: {
             query?: never;
             header?: never;
