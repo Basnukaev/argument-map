@@ -127,8 +127,16 @@ public class AiEditService {
             return;
         }
 
-        pageRepository.updateAiEditStatus(pageId, AiEditStatus.PROCESSING,
-                Instant.now(), null);
+        // Атомарный claim PROCESSING: если другой concurrent вызов уже в
+        // PROCESSING - не делаем второй платный Anthropic-запрос. Защита от
+        // double-submit / retry-в-полёте (check-then-act гонка).
+        boolean claimed = pageRepository.tryClaimAiEditProcessing(
+                pageId, AiEditStatus.PROCESSING, Instant.now());
+        if (!claimed) {
+            log.info("AI edit пропущен для page {} - уже PROCESSING "
+                    + "(concurrent trigger), второй платный вызов не делаем", pageId);
+            return;
+        }
 
         try {
             String prompt = loadPromptTemplate().replace(PROMPT_PLACEHOLDER,

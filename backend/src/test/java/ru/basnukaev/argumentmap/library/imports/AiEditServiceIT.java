@@ -166,6 +166,27 @@ class AiEditServiceIT {
     }
 
     @Test
+    void enhance_alreadyProcessing_skipsSecondPaidCall() {
+        // Защита от check-then-act гонки: страница уже PROCESSING (другой
+        // вызов в полёте) - второй enhance не должен дёргать платный API.
+        org.mockito.Mockito.when(anthropicClient.complete(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn("{\"type\":\"doc\",\"content\":[]}");
+        Page page = savePage("some text");
+        // эмулируем что concurrent вызов уже застолбил PROCESSING
+        pageRepository.updateAiEditStatus(page.id(), AiEditStatus.PROCESSING,
+                Instant.now(), null);
+
+        service.enhance(page.id());
+
+        // tryClaim вернул false → complete() не вызван
+        org.mockito.Mockito.verify(anthropicClient,
+                org.mockito.Mockito.never()).complete(org.mockito.ArgumentMatchers.anyString());
+        // статус остался PROCESSING (не перезаписан)
+        Page after = pageRepository.findById(page.id()).orElseThrow();
+        assertThat(after.aiEditStatus()).isEqualTo(AiEditStatus.PROCESSING);
+    }
+
+    @Test
     void enhance_clientDisabled_marksFailedWithoutCall() {
         org.mockito.Mockito.when(anthropicClient.isEnabled()).thenReturn(false);
 

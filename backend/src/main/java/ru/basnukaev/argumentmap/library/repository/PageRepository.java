@@ -265,6 +265,35 @@ public class PageRepository {
     }
 
     /**
+     * Атомарный compare-and-set: переводит страницу в {@code processingStatus}
+     * только если она ещё НЕ в этом статусе (status IS DISTINCT FROM ? -
+     * корректно обрабатывает NULL/PENDING/DONE/FAILED). Возвращает true
+     * если ИМЕННО ЭТОТ вызов выиграл переход (rows==1), false если другой
+     * concurrent вызов уже застолбил PROCESSING либо page не найден.
+     *
+     * <p>Защита от check-then-act гонки: два параллельных POST /ai-edit
+     * для одной страницы (double-submit / retry в полёте) иначе оба дошли
+     * бы до платного Anthropic API. Только winner транзакции делает
+     * complete(). Status передаётся строкой - repository не coupled к
+     * AiEditStatus (как и updateAiEditStatus выше).
+     */
+    public boolean tryClaimAiEditProcessing(UUID id, String processingStatus,
+                                            Instant startedAt) {
+        int rows = jdbcTemplate.update(
+                "UPDATE lib_pages SET ai_edit_status = ?, "
+                        + "ai_edit_started_at = ?, "
+                        + "updated_at = now() "
+                        + "WHERE id = ? "
+                        + "AND ai_edit_status IS DISTINCT FROM ?",
+                processingStatus,
+                odt(startedAt),
+                id,
+                processingStatus
+        );
+        return rows == 1;
+    }
+
+    /**
      * Атомарно записать AI-сгенерированный ProseMirror JSON в
      * {@code formatted_content} + установить {@code ai_edit_status=DONE}
      * + {@code ai_edit_completed_at=now} (миграция 35, ADR-042).
