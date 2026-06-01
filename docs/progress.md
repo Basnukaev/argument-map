@@ -136,11 +136,16 @@ approved). Сделано (4 коммита):
 2. **Под-проект #2 — линковка хадисов в узлы тем** (спека
    `2026-06-01-hadith-node-citation-design.md`). **#2.A backend ✅** (`84a565e`):
    `HadithCitationService` (ensure-source через мост `Hadith.sourceId` +
-   attach) + `POST /nodes/{id}/hadith-citations` + IT (4). ← **#2.B frontend
-   (next):** picker-модалка (переиспользует список хадисов #1) + рендер
-   хадис-опоры в «Опора» (matn-сниппет + ссылка на `/hadith/{id}`) + обогащение
-   source-списка (`hadithId`/previewMatn для HADITH-источников) +
-   **generate-api** (нужен рестарт backend — новый endpoint ещё не в types.ts).
+   attach) + `POST /nodes/{id}/hadith-citations` + IT (4). **← #2.B — порядок:**
+   **(a) backend-обогащение (НЕ сделано):** `HadithRepository.findBySourceIds`
+   + обогатить `GET /nodes/{id}/sources` для HADITH полями `hadithId`/
+   `previewMatn`/`collectionName`/`primaryNumber` в `NodeSourceResponse` (без
+   них фронт не нарисует) + IT; **(b)** рестарт backend → `generate-api`;
+   **(c) frontend:** новая `HadithPickerModal` (НЕ reuse full-page
+   `HadithListPage` — у неё нет onSelect; переиспользовать хук `usePagedSearch`
+   + `GET /hadith/hadiths`), `onSelect(hadithId)`; **(d)** рендер хадис-опоры
+   в `NodeCitationsSection.tsx` (3-я кнопка «прикрепить хадис» + ветка рендера
+   по `hadithId` перед FreeformCite). Детали — SESSION_START «next».
 3. **Под-проект #3 — примирение `hd_collections` ↔ библиотечный «Сборник
    хадисов»** (book_type=HADITH): два представления одного сборника. Архитектура.
 4. **Frontend AdminSunnahPage** (опц.): кнопки превью+импорт поверх

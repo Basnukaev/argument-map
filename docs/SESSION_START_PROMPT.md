@@ -190,7 +190,7 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 И двигаемся по приоритету (Critical → Important → Minor)
 
-### ⭐ АКТУАЛЬНО — entry Сессии 53 (snapshot'ы ниже — историч., можно сжать)
+### ⭐ АКТУАЛЬНО — entry Сессии 53
 
 **Сессия 53 закрыла Phase 5 ETL шаг 2 ПОЛНОСТЬЮ (2.a-2.e) + прогнала реальный
 пилот** (~10 коммитов `2b24e76..HEAD`, см. progress.md): конвейер **дамп →
@@ -220,10 +220,26 @@ failures** (системная full-suite flakiness — в backlog, отдель
 4. **Под-проект #2 — линковка хадисов в узлы** (спека
    `2026-06-01-hadith-node-citation-design.md`). **#2.A backend ✅** (`84a565e`):
    `HadithCitationService` (мост `Hadith.sourceId`) + `POST /nodes/{id}/
-   hadith-citations` + IT. ← **СЛЕДУЮЩИЙ ШАГ — #2.B frontend:** picker-модалка
-   (переиспользует список хадисов #1) + рендер хадис-опоры в «Опора» (matn +
-   ссылка) + обогащение source-списка (`hadithId`/previewMatn) +
-   **generate-api** (рестарт backend — endpoint ещё не в types.ts).
+   hadith-citations` + IT. ← **СЛЕДУЮЩИЙ ШАГ — #2.B, порядок строгий:**
+   - **(a) #2.B.backend — обогащение source-списка (ещё НЕ сделано, это backend):**
+     `HadithRepository.findBySourceIds(List<UUID>)` (batch reverse-lookup) +
+     обогатить `GET /nodes/{id}/sources` для HADITH-источников полями
+     `hadithId`/`previewMatn`/`collectionName`/`primaryNumber` в `NodeSourceResponse`
+     (сейчас их нет — без них фронт не нарисует хадис-опору) + IT.
+   - **(b) рестарт backend** (с `SUNNAH_DUMP_*` env, команда ниже) → **`generate-api`**
+     (тогда в types.ts появятся И POST endpoint, И обогащённый NodeSourceResponse).
+   - **(c) #2.B.frontend — picker:** НЕ переиспользовать `HadithListPage` (это
+     full-page: Header + `<Link>`-навигация, нет onSelect/reusable export).
+     Сделать **новую `HadithPickerModal`** ({open && <Modal/>}), переиспользующую
+     хук `usePagedSearch` + `GET /api/v1/hadith/hadiths` (q/status/collectionId/
+     sort, `PagedResponse<HadithResponse>`, previewMatn на карточке), с
+     `onSelect(hadithId)` вместо Link. Структурный референс — `CitationPicker.tsx`.
+   - **(d) рендер + кнопка:** site = `NodeCitationsSection.tsx` (секция «Опора»).
+     Добавить 3-ю кнопку «прикрепить хадис» рядом с существующими; ветку
+     рендера HADITH-опоры (по `hadithId` из обогащённого ответа: сборник·№ +
+     matn-сниппет naskh + ссылка на `/hadith/{hadithId}`) ПЕРЕД FreeformCite
+     fallback. Контракты: `api-contract.md` GET /hadith/hadiths + POST
+     /nodes/{id}/hadith-citations.
 5. **Под-проект #3 — `hd_collections` ↔ библиотечный «Сборник хадисов»**
    (book_type=HADITH): два представления одного сборника, архитектура.
    + опц. frontend AdminSunnahPage (импорт без curl).
@@ -236,213 +252,21 @@ failures** (системная full-suite flakiness — в backlog, отдель
 визуальный взгляд). Висит с Сессии 52: dark-theme primary Button hover,
 thesis-книга 15 рендер, минимап при detail-панели.
 
-**Инфра:** Docker (postgres+minio) up + **`sunnah-mysql` :3307** (дамп
-`db/00-samplegitdb.sql`, root/root, БД `sunnah`; дамп-файл `/tmp/sunnah.sql`).
-Backend :9090 запущен **с `SUNNAH_DUMP_*` env** (см. progress.md «Инфра пилота»)
-+ JDWP :5005 — без этих env импорт-endpoint → 503. migration 59 применена.
-Дев-Postgres: 101 hd_hadiths (3 сид + 98 импорт). frontend :5173. Admin user
-для curl: `00000000-0000-0000-0000-000000000001`.
+**Инфра:** Docker (postgres+minio) up + **`sunnah-mysql` :3307** (root/root,
+БД `sunnah`; SQL-дамп лежит как `db/00-samplegitdb.sql` ВНУТРИ контейнера,
+host-копия — `/tmp/sunnah.sql`, re-fetch: `curl -sL raw.githubusercontent.com/
+sunnah-com/api/master/db/00-samplegitdb.sql`). Backend :9090 запущен **с
+`SUNNAH_DUMP_*` env** (см. progress.md «Инфра пилота») + JDWP :5005 — без этих
+env импорт-endpoint → 503. ⚠️ Работающий JVM стартовал ДО коммита #2.A
+(`84a565e`) — endpoint `/nodes/{id}/hadith-citations` НЕ в нём; перед
+`generate-api` нужен полный рестарт backend. migration 59 применена. Дев-
+Postgres: 101 hd_hadiths (3 CANONICAL сид + 98 VARIANT импорт Бухари),
+0 matns с markup. frontend :5173. Admin для curl:
+`00000000-0000-0000-0000-000000000001`.
 
-### Snapshot состояния на entry Сессии 47
+### Историч. снапшоты (Сессии 47/49d/49c) — сжаты
 
-**Сессия 46 закрыла 11 tasks** (21 коммитов, см. `docs/progress.md`
-запись от 2026-05-19 «Сессия 46 - Tech debt + Security sweep»):
-1. Baseline fixes (PG TIMESTAMPTZ vs Java Instant precision)
-2. Actuator behind basic auth в prod (ADR-048)
-3. RefreshTokenCleanupJanitor (ADR-047 follow-up)
-4. PATCH /api/v1/topics/{id} (title/description editing)
-5. NodeTranslationService promoteToDefault helper
-6. Audit log для удалённых тем (ADMIN forensics)
-7. Authority.type для HadithGrade scholar validation (миграция 47)
-8. Shared MinIO Testcontainer (9 IT мигрированы)
-9. BookSummaryResponse.createdBy + frontend MINE filter
-10. 6 review fixes по итогам `/superpowers:requesting-code-review`
-11. Baseline AuthServiceRotation/TopicMemberServiceIT/UserUpload fixes
-
-Тестов: backend 988→999, frontend 565→571. ADR-048 добавлен,
-миграция 47 применена.
-
-### Tech debt / Security приоритеты Сессии 47 — снапшот на closure
-
-Сессия 47 закрыла **большой scope**: Claude Code harness Sub-projects A+B+E
-(плюс D partial) + tech debt backlog Tasks #7+#3+#1. Подробнее в
-`docs/progress.md`. Полный backlog в `docs/backlog.md`.
-
-**Resolved в Сессии 47:**
-- ✅ #1 Z-index persistence для edges — done (6 commits, миграция 48,
-  EdgeServiceIT 20→25, frontend useGraphZOrder API switch)
-- ✅ #3 AuditEntityType single source — done via @Schema autosync
-- ✅ #5 PdfControllerIT flaky — fixed в `af5686e` (prior session)
-- ✅ #7 AuthorityService.updateAuthority + PATCH — done (4 commits)
-- ✅ #8 HadithGradeService.updateGrade re-validate — already implemented + tested
-- ❌ #6 Frontend UI Authority.type селект — wrong assumption (no AddAuthorityForm), removed from backlog
-
-**Harness sub-projects closed:**
-- ✅ A Foundation cleanup — backend/CLAUDE.md 540→418, frontend 351→294, .claudeignore, settings.json deny rules
-- ✅ B Hooks setup — 4 hooks (SessionStart/Stop/PreToolUse/PostToolUse) + bypass + README
-- ✅ E Quarterly review process — `doc-hygiene.md` Принцип 12 formalized
-- 🟡 D LSP setup — TypeScript LSP installed (typescript-language-server v5.2.0), Java jdtls **pending** (Eclipse mirrors blocked, см. `.claude/lsp-setup.md` for resume steps)
-- ✅ C Skills (project-specific) — **FULLY CLOSED** (Сессия 48): 4 skills (2019 строк markdown total) в `.claude/skills/`:
-  - `liquibase-migration/SKILL.md` (306 строк) — migration ID format, CDATA, rollback, master registration
-  - `new-rest-endpoint/SKILL.md` (695 строк) — full scaffold chain DTO+Controller+Service+IT+api-contract+regenerate-api
-  - `library-page-rendering/SKILL.md` (429 строк) — PDF/OCR/AI-edit/Image modes, state machines, debug workflows
-  - `shamela-parser-debug/SKILL.md` (589 строк) — 6-step ETL pipeline, troubleshooting decision tree, re-run safety
-- ⏳ F Project subagents — deferred (subsumed by C — skills cover similar use cases)
-- ⏳ G MCP servers — deferred (article «не делать пока basics не работают»)
-
-**Остаются low-priority backlog:**
-
-1. **Bulk audit log consolidation** — один BULK_DELETE с entityIds[] вместо
-   N rows. Premature пока admin audit UI deferred. Low priority.
-2. **Cursor-based pagination** — сейчас offset OK. Cursor нужен при миллионах
-   записей либо stable порядок при concurrent inserts. Future scope.
-3. **Java jdtls install** — Eclipse mirrors blocked в Сессии 47. Resume
-   когда network unblocks или manual transfer (см. `.claude/lsp-setup.md`).
-
-**Backlog для harness future foundation work:**
-- Consolidation Code review секции между backend/CLAUDE.md и frontend/CLAUDE.md
-  в один общий гайд (для tight frontend target ≤ 250)
-- Aggressive depth cleanup: вынос cross-cutting backend/CLAUDE.md секций
-  (Pagination, Permissions, Audit log) если depth решим расширить
-
-### Snapshot состояния на closure Сессии 49d (vision expansion)
-
-**Сессия 49d закрыла:** Vision capture + 4 critical bugs + 5 UI fixes
-+ 4 specs (1 в этой сессии готов, 3 generated subagent'ами). MAX
-autonomy mode активирован Абдулой («не останавливайся пока не СТОП»).
-
-Critical bugs (4/4):
-- `7bd565f` Bug 0.2 audit UI broken — `color-scheme: light/dark` fix
-- `d995edb` Bug 0.1 QA sources iterable — `PagedResponse` unwrap (3 callsites)
-- `38836a3` Bug 0.3+0.4 Alt+K race + auth-route close
-
-UI polish (5/5 quick wins):
-- 1.2 Select hover/active contrast (вкл. в 7bd565f)
-- `8aed4ac` 1.3 logo font lock (Scheherazade fixed inline)
-- `71b4866` 1.4 FloatingActionBar поднят выше zoom controls
-- `2138061` 1.5 layout algorithm explanation подсказки
-
-Specs created:
-- `vision-expansion-49d.md` (full list целей Абдулы, structured)
-- `roles-system-design.md` (572 строки, 10 subphases, ~19.5h, **ready**)
-- 3 в работе при handoff (Rating / Hadith / Observability)
-
-9 commits total. Frontend tests 573/573 PASS. TypeScript clean. Backend
-не трогался.
-
-### Текущий приоритет — implementation continues
-
-После 49d (MASSIVE CONTINUED MAX-MODE):
-- **57+ commits total** в одной сессии. Implementation расширилась
-  далеко за initial vision scope. Hadith Explorer Phase 1 backend
-  + Phase 2 frontend готовы и работают (sample data загружен через
-  DevHadithSeeder).
-- **Closed initiatives (full chains):**
-  - 49.A Roles A.1-A.7 (migration 49 + UserRole hierarchy +
-    InsufficientRoleException + assertHasRoleAtLeast + HadithGradeService
-    SCHOLAR + Question/Answer STUDENT + PATCH /users/{id}/role admin
-    endpoint + GET /users listing + Frontend AuthRole expansion +
-    AdminUsersPage)
-  - 49.B Rating Phase 1+2 (sort param 3 endpoints + SortSelect UI +
-    migration 51 view counters + POST /views endpoints + useViewTracking
-    hook)
-  - 49.E Library collections (migration 50 + REST CRUD + heart button
-    + dedicated page)
-  - 49.G Guest view (read routes без auth)
-  - 49.D Phase 1 Observability (logback JSON encoder)
-  - UI 1.1 Dark theme desaturate, UI 1.6 Edge routing fan-out
-- **Started (active):**
-  - 49.C Hadith Explorer Phase 1.a-d (migrations 52/53/54: narrators
-    + hadiths + sanads + sanad_narrators, domains + Narrator
-    repository + REST GET endpoints)
-- 5 specs готовы (vision/roles/rating/hadith/observability).
-
-**Phase 49.C Phase 1.e (next):** Migration 55 hd_matns + repositories
-для Hadith/Sanad/SanadNarrator + REST GET /api/v1/hadith/hadiths/{id}
-с polished response (hadith + sanads + matns в одном payload).
-
-**UI 1.1 Dark theme palette** — invoke /frontend-design skill, обновить
-accent tokens (indigo «не сочетается» по словам Абдулы). Effort ~3h.
-
-**49.E Library collections** — spec не написан, ~simple scope. Effort
-~5h total (spec + implement).
-
-**49.B Rating + pagination** — spec ready, fix migration IDs 49→50+
-сначала. Phase 1 ~6h.
-
-**Phase A.5+:** Frontend AuthStore type expansion + ScholarRoute/
-StudentRoute (или generalized requireRole) + role-locked UI components.
-
-**Параллельные candidates:**
-- UI 1.1 Dark theme palette overhaul (invoke /frontend-design)
-- 49.B Rating + pagination (spec ready; reset migration IDs 49→50)
-- 49.E Library collections (spec не написан; либо subagent gen, либо
-  inline planning)
-
-См. `docs/superpowers/specs/2026-05-20-vision-expansion-49d.md` для
-full prioritized list (Section 3 — приоритезация).
-
-### Backlog deferred items
-
-- UI 1.6 edge routing fan-out distribution (нужна investigation)
-- M-1..M-6 frontend audit (deferred Сессии 49c)
-- Backend low-priority (Z-index renormalization, Edge.topic_id денорм)
-
-### Старый snapshot 49c
-
-- `0009667` `fix(frontend): GraphCanvas.test - update mocks для /nodes/bulk endpoint`
-- `54e8e8d` `fix(frontend): GraphCanvas handleEdgeContextMenu deps + parallel edge delete`
-- `d36d553` `fix(frontend): useApiQuery lazy init + explicit setState-in-effect disables`
-- `d5cb405` `fix(frontend): BookReaderPage resize-drag leak на unmount`
-- `7e9cd33` `refactor(frontend): удалить dead graphSelectionStore - 3 writes / 0 subscribers`
-- `9e3ad31` `fix(frontend): timer leak cleanup в AcademicMetadataFields и useElkAutoLayout`
-
-Frontend tests 573/573 PASS (580→573 после удаления dead store.test).
-TypeScript clean. Backend не трогался.
-
-**Backlog 100% проверен** обоими audit'ами (backend 49b + frontend 49c).
-4 deferred Minor frontend items в `docs/backlog.md`:
-- **M-1** `window.confirm` unification (5 paths, ~1-2 часа)
-- **M-3** AdminShamelaPage placeholder RU strings (cosmetic)
-- **M-4** CreateQuestionPage raw-HTML без sanitize (теоретический XSS)
-- **M-6** GraphCanvas lastNodesRef comment fragility (comment-only)
-
-И backend low-priority follow-ups Сессии 49b:
-- **Z-index renormalization** admin endpoint (low priority: spread <100)
-- **Edge.topic_id денормализация** — ADR-level (требует discussion)
-- **Cursor-based pagination** — premature, offset OK
-- **Java jdtls install** — Eclipse mirrors blocked (см. `.claude/lsp-setup.md`)
-
-**Suggested next session direction:**
-
-1. **M-1 window.confirm unification** — самый понятный scope. Решение
-   между `ConfirmDialog` (styled, testable, добавляем new component) или
-   миграцией всех destructive на toast-undo pattern (consistency с node-delete)
-2. **Feature work** (только если Абдула снимет restriction «новых фичей
-   не добавляем»): Этап 18.e ImagePageRenderer / Этап 25.d.2/25.d.4 PDF
-   Viewer полировка / 25.e admin page-mapping / Source picker Коран+Хадисы
-3. **Sub-project D** — Java jdtls retry (нужен network unblock)
-4. **Sub-project G** — MCP servers (low impact пока basics не устоялись)
-
-Полный backlog в `docs/backlog.md`
-
-### Инфра на closure Сессии 47
-
-- Postgres :5432 healthy, миграции до **48** включительно applied
-  (47 — `authorities.type` от Сессии 46; 48 — `edges.z_index` от Сессии 47)
-- MinIO :9000 healthy + 4 bucket'а через `BucketBootstrap`
-- Backend :9090 + JDWP :5005 — был started в Сессии 47 для regenerate-api,
-  может быть still running (`lsof -ti:9090` чтобы check). Восстановить
-  через CLAUDE.md «Команды» если нужен restart
-- Frontend :5173 — dev server, не starting автоматически. После
-  массовых регенераций может потребовать `rm -rf node_modules/.vite`
-- **TypeScript LSP** (`typescript-language-server` v5.2.0) installed
-  globally — Claude Code `typescript-lsp` plugin auto-activates на `.ts/.tsx`
-- **Java LSP** (jdtls) НЕ installed — pending Eclipse mirrors. См.
-  `.claude/lsp-setup.md` для resume steps
-- **Hooks setup** активирован: `.claude/hooks/{session-start,stop-reminder,pre-bash-guard,post-edit-reminder}.sh` через `.claude/settings.json` hooks section. Bypass: `CLAUDE_HOOKS_DISABLE=1` env var. Smoke tests deferred до new Claude Code session restart.
-- **Backend tests:** последний full `./mvnw verify` в Сессии 47 — 1000/1007 pass (7 errors в RefreshTokenCleanupJanitorIT после Docker restart timing; см. progress.md записи). Точечный verify по затронутым IT после tech debt sweep — все pass.
-- **Frontend tests:** 571/571 pass (с 7 pre-existing jsdom uncaught exceptions в `bulkActions.test.tsx` — orthogonal, baseline).
+Снапшоты приоритетов прошлых сессий убраны (doc-hygiene Принцип 6); детали — в `docs/progress.md` и `docs/archive/progress-sessions-*.md`.
 
 ### Известные мелочи (не блокеры)
 

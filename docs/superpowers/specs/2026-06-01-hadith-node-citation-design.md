@@ -40,11 +40,25 @@
 
 ## 3. Фронт
 
-- В секции «Опора» (`NodeCitationsSection`): действие «прикрепить хадис» →
-  **модалка-picker**, переиспользующая UI списка хадисов (поиск + чипы-сборники
-  + выбор одного из `/hadith/hadiths`). На выбор → POST hadith-citation.
-- Рендер: HADITH-опора (по `hadithId` в обогащённом source-ответе) — карточка
-  «сборник·№ + matn-сниппет (naskh/RTL) + ссылка на `/hadith/{hadithId}`».
+⚠️ **Предусловие:** §2 backend-обогащение (`NodeSourceResponse.hadithId/
+previewMatn/...` + `HadithRepository.findBySourceIds`) ДОЛЖНО быть сделано и
+прогнано `generate-api` ДО фронта — иначе рендерить нечего. `#2.A` (только
+attach-endpoint) этого НЕ включает.
+
+- В секции «Опора» (`NodeCitationsSection.tsx`, `apps/argument-map/components/
+  graph/`): 3-я кнопка «прикрепить хадис» рядом с существующими (которые
+  открывают `CitationPicker` для library/freeform).
+- **Picker — НОВАЯ модалка `HadithPickerModal`** (идиома `{open && <Modal/>}`).
+  `HadithListPage` НЕ переиспользуется напрямую (это full-page: `<Header/>` +
+  `<Link>`-навигация, нет `onSelect`/reusable export). Переиспользовать **хук
+  `usePagedSearch` + `GET /api/v1/hadith/hadiths`** (q/status/collectionId/sort,
+  `PagedResponse<HadithResponse>`, previewMatn на карточке) с
+  `onSelect(hadithId)` вместо Link. Структурный референс — `CitationPicker.tsx`
+  (модалка цитирования), паттерн attach-then-reload — `AddSourceModal`.
+- На выбор → `POST /nodes/{id}/hadith-citations {hadithId}` → reload опор.
+- Рендер: ветка HADITH-опоры в `CitationsList` (по `hadithId` из обогащённого
+  source-ответа, ПЕРЕД `FreeformCite` fallback) — карточка «сборник·№ +
+  matn-сниппет (naskh/RTL) + ссылка на `/hadith/{hadithId}`».
 
 ## 4. Решения (зафиксированы)
 

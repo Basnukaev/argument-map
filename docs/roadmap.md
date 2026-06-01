@@ -471,7 +471,7 @@ design-specs создаются по мере приоритезации.
       (FTS поиск + фильтры), **Phase 5** (ETL sunnah.com — В РАБОТЕ: спайк +
       спека `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md` ✅;
       decision points решены §11; **step 1 done** 2026-05-31 — migration 57
-      `hd_collections`, ADR-050; **step 2 done полностью (2.a-2.d)** 2026-06-01
+      `hd_collections`, ADR-050; **step 2 done полностью (2.a-2.e)** 2026-06-01
       (Сессия 53, ADR-051/052) — migration 59 `sn_staging_*` (chapter_id varchar
       для дробного babID) + `SunnahDataSource` + 4 staging DAO +
       `SunnahToHadithMapper` + `ArabicTextNormalizer` + `SunnahDumpReader`
@@ -479,9 +479,13 @@ design-specs создаются по мере приоритезации.
       (SunnahDumpProperties + conditional MySQL DataSource + admin REST-триггер,
       bulk-policy gate); **реальный пилот прогнан** (98 хадисов Бухари из
       настоящего дампа `db/00-samplegitdb.sql` в hd_*); ~45 тестов + 2
-      multi-agent review (0 Critical обе); **next:** HTML-cleaner для englishText
-      + (опц.) frontend AdminSunnahPage → **step 3 IsnadExtraction** (AI) +
-      step 4 SunnahApiClient/полный корпус; 🔴 sunnah.com не даёт структурный иснад
+      multi-agent review (0 Critical обе). **Пивот Абдулы: контент в последнюю
+      очередь, строим инструменты.** Под-проект #1 (просмотр хадисов: чистка
+      текста+навигация) ✅ Сессией 53. **next:** под-проект #2.B (линковка
+      хадисов в узлы — backend-обогащение + picker + рендер; #2.A backend done);
+      затем #3 (`hd_collections` ↔ библ. «Сборник хадисов»); **step 3
+      IsnadExtraction** (AI, КОНТЕНТ — отложено) + step 4 SunnahApiClient/полный
+      корпус; 🔴 sunnah.com не даёт структурный иснад
       → граф для любого хадиса через AI-извлечение, **Phase 6 слит в Phase 5**).
       Spec Explorer:
       `docs/superpowers/specs/2026-05-20-hadith-explorer-design.md`.
