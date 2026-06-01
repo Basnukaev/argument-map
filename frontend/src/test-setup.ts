@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest';
 import { afterAll, afterEach, beforeAll, vi } from 'vitest';
 import { server } from '@/test/server';
+import { invalidateCache } from '@/shared/hooks/queryCache';
 
 vi.stubEnv('VITE_API_URL', 'http://test.local');
 vi.stubEnv('VITE_DEV_USER_ID', '00000000-0000-0000-0000-000000000001');
@@ -90,5 +91,11 @@ beforeAll(() => {
   server.listen({ onUnhandledRequest: 'error' });
   wrapFetchStripSignal();
 });
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+  server.resetHandlers();
+  // SWR-кэш (shared/hooks/queryCache) module-scoped — утекает между
+  // тестами иначе: один тест закэширует path, следующий по тому же path
+  // получит stale-hit вместо чистого loading/error. Чистим после каждого.
+  invalidateCache();
+});
 afterAll(() => server.close());

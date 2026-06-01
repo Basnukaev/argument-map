@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { http, HttpResponse, delay } from 'msw';
 import { server } from '@/test/server';
 import { usePagedSearch } from './usePagedSearch';
+import { getCached, setCached } from './queryCache';
 
 const BASE = 'http://test.local';
 
@@ -201,5 +202,61 @@ describe('usePagedSearch', () => {
     await waitFor(() => {
       expect(calls.some((c) => c.status === 'CANONICAL')).toBe(true);
     });
+  });
+
+  it('SWR: на mount восстанавливает накопленный список из кэша мгновенно (без loading), затем ревалидирует page 0', async () => {
+    // Засеяли кэш под page-0 ключом «накопленным» списком из 2 элементов
+    // (как если бы в прошлый визит юзер сделал Load More).
+    const key = buildUrl(0, '');
+    setCached(key, paged([{ id: 'cached-a' }, { id: 'cached-b' }], { hasNext: false }));
+
+    server.use(
+      http.get(`${BASE}/api/v1/items`, () =>
+        HttpResponse.json(paged([{ id: 'fresh-a' }])),
+      ),
+    );
+
+    const { result } = renderHook(() => usePagedSearch<Item>({ buildUrl }));
+
+    // Мгновенно success с накопленным кэшем — НЕ loading.
+    expect(result.current.state.kind).toBe('success');
+    if (result.current.state.kind === 'success') {
+      expect(result.current.state.data.items).toEqual([
+        { id: 'cached-a' },
+        { id: 'cached-b' },
+      ]);
+    }
+
+    // Фоновая ревалидация page 0 заменяет на свежий ответ.
+    await waitFor(() => {
+      if (result.current.state.kind !== 'success') throw new Error('not success');
+      expect(result.current.state.data.items).toEqual([{ id: 'fresh-a' }]);
+    });
+  });
+
+  it('SWR: Load More дописывает накопленный список в кэш (page-0 ключ)', async () => {
+    server.use(
+      http.get(`${BASE}/api/v1/items`, ({ request }) => {
+        const page = new URL(request.url).searchParams.get('page');
+        if (page === '1') {
+          return HttpResponse.json(paged([{ id: 'b' }], { page: 1, hasNext: false }));
+        }
+        return HttpResponse.json(paged([{ id: 'a' }], { page: 0, hasNext: true }));
+      }),
+    );
+
+    const { result } = renderHook(() => usePagedSearch<Item>({ buildUrl }));
+    await waitFor(() => expect(result.current.state.kind).toBe('success'));
+
+    act(() => result.current.loadMore());
+
+    await waitFor(() => {
+      if (result.current.state.kind !== 'success') throw new Error('not success');
+      expect(result.current.state.data.items).toEqual([{ id: 'a' }, { id: 'b' }]);
+    });
+
+    // Кэш под page-0 ключом содержит ВЕСЬ накопленный список.
+    const cached = getCached<ReturnType<typeof paged>>(buildUrl(0, ''));
+    expect(cached?.data.items).toEqual([{ id: 'a' }, { id: 'b' }]);
   });
 });

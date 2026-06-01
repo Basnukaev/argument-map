@@ -3,6 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
 import { useApiQuery } from './useApiQuery';
+import { setCached } from './queryCache';
 
 interface Topic {
   id: string;
@@ -104,5 +105,53 @@ describe('useApiQuery', () => {
       () =>
         result.current.kind === 'success' && result.current.data.id === '2',
     );
+  });
+
+  it('SWR: при наличии кэша стартует сразу с success (без loading), затем ревалидирует', async () => {
+    // Засеяли кэш «старой» версией.
+    setCached('/api/v1/topics', [{ id: '1', title: 'Старое' }] as Topic[]);
+    server.use(
+      http.get('http://test.local/api/v1/topics', () =>
+        HttpResponse.json([{ id: '1', title: 'Свежее' }] as Topic[]),
+      ),
+    );
+
+    const { result } = renderHook(() => useApiQuery<Topic[]>('/api/v1/topics'));
+
+    // Мгновенно success с кэшем — НЕ loading.
+    expect(result.current.kind).toBe('success');
+    if (result.current.kind === 'success') {
+      expect(result.current.data[0]?.title).toBe('Старое');
+    }
+
+    // Фоновая ревалидация заменяет на свежее.
+    await waitFor(() => {
+      if (result.current.kind !== 'success') throw new Error('not success');
+      expect(result.current.data[0]?.title).toBe('Свежее');
+    });
+  });
+
+  it('SWR: ошибка ревалидации НЕ затирает закэшированные данные', async () => {
+    setCached('/api/v1/topics', [{ id: '1', title: 'Кэш' }] as Topic[]);
+    server.use(
+      http.get('http://test.local/api/v1/topics', () =>
+        HttpResponse.json(
+          { type: 'about:blank', title: 'fail', status: 500 },
+          { status: 500 },
+        ),
+      ),
+    );
+
+    const { result } = renderHook(() => useApiQuery<Topic[]>('/api/v1/topics'));
+
+    // Стартует с кэша.
+    expect(result.current.kind).toBe('success');
+    // Даём revalidate провалиться — состояние остаётся success с кэшем,
+    // не переходит в error.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(result.current.kind).toBe('success');
+    if (result.current.kind === 'success') {
+      expect(result.current.data[0]?.title).toBe('Кэш');
+    }
   });
 });

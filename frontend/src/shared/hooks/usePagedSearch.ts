@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiGetRaw, formatApiError } from '@/shared/api/client';
 import type { AsyncState } from '@/shared/types/async';
+import { getCached, setCached } from './queryCache';
 
 /**
  * Обёртка PagedResponse<T> с бэка (GET-list endpoints). Структурно
@@ -58,6 +59,15 @@ interface Result<TItem> {
  *   page-N был in-flight, его ответ игнорируется (иначе stale page-N
  *   items приклеились бы к свежему page-0 списку).
  *
+ * SWR (stale-while-revalidate): весь накопленный список (page 0 +
+ * подгруженные через loadMore страницы, вместе с page-курсором и
+ * hasNext) кэшируется в `queryCache` под ключом page-0 URL
+ * (`buildUrl(0, debouncedQuery)`). Этот ключ уже инкапсулирует query И
+ * все фильтры (buildUrl замыкается на те же значения что и deps). На
+ * повторный mount с тем же ключом список восстанавливается МГНОВЕННО
+ * (без спиннера), а page 0 ревалидируется в фоне и заменяет данные.
+ * Generation-guard сохраняется — stale-append всё так же игнорируется.
+ *
  * Страница владеет рендером инпута / <select> фильтра / карточек —
  * сюда переезжает только fetch/debounce/pagination state.
  */
@@ -69,7 +79,15 @@ export function usePagedSearch<TItem>(options: Options): Result<TItem> {
     fallbackError = 'Не удалось загрузить',
   } = options;
 
-  const [state, setState] = useState<AsyncState<Paged<TItem>>>({ kind: 'loading' });
+  // Lazy init из SWR-кэша: на mount ключ — page-0 URL с пустым query
+  // (debouncedQuery стартует с ''). Есть кэш → мгновенный success
+  // (накопленный список из прошлого визита), иначе loading.
+  const [state, setState] = useState<AsyncState<Paged<TItem>>>(() => {
+    const cached = getCached<Paged<TItem>>(buildUrl(0, ''));
+    return cached !== undefined
+      ? { kind: 'success', data: cached.data }
+      : { kind: 'loading' };
+  });
   // searchInput — то что печатает юзер; debouncedQuery — debounced
   // значение, которое реально триггерит запрос (без спама API).
   const [searchInput, setSearchInput] = useState('');
@@ -114,16 +132,33 @@ export function usePagedSearch<TItem>(options: Options): Result<TItem> {
   /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     generationRef.current += 1;
+    const cacheKey = buildUrl(0, debouncedQuery);
+    // SWR: при смене query/deps мгновенно показываем закэшированный
+    // накопленный список (если есть) — без flash-to-spinner. Затем
+    // ревалидируем page 0 в фоне и заменяем. Если кэша нет — оставляем
+    // текущий state (старый список виден пока грузится новый, см.
+    // комментарий выше про set-state-in-effect).
+    const cached = getCached<Paged<TItem>>(cacheKey);
+    if (cached !== undefined) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setState({ kind: 'success', data: cached.data });
+    }
     const controller = new AbortController();
-    apiGetRaw<Paged<TItem>>(buildUrl(0, debouncedQuery), {
+    apiGetRaw<Paged<TItem>>(cacheKey, {
       signal: controller.signal,
     })
       .then((paged) => {
         if (controller.signal.aborted) return;
+        // Page 0 заменяет накопление — кэшируем свежий page-0 список под
+        // page-0 ключом (loadMore допишет накопленный список туда же).
+        setCached(cacheKey, paged);
         setState({ kind: 'success', data: paged });
       })
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;
+        // Не затираем валидный кэш error-экраном: если по ключу есть
+        // закэшированный список — оставляем его (revalidate провалился).
+        if (getCached<Paged<TItem>>(cacheKey) !== undefined) return;
         setState({ kind: 'error', message: formatApiError(e, fallbackError) });
       });
     return () => controller.abort();
@@ -150,14 +185,19 @@ export function usePagedSearch<TItem>(options: Options): Result<TItem> {
         // in-flight — игнорируем, иначе stale page-N приклеится к
         // свежему page-0 списку.
         if (issuedGeneration !== generationRef.current) return;
-        setState((prev) =>
-          prev.kind === 'success'
-            ? {
-                kind: 'success',
-                data: { ...resp, items: [...prev.data.items, ...resp.items] },
-              }
-            : prev,
-        );
+        setState((prev) => {
+          if (prev.kind !== 'success') return prev;
+          const merged: Paged<TItem> = {
+            ...resp,
+            items: [...prev.data.items, ...resp.items],
+          };
+          // SWR: дописываем накопленный список в кэш под page-0 ключом,
+          // чтобы при возврате на страницу восстановились ВСЕ подгруженные
+          // страницы (а не только page 0). Ключ строим по текущему query —
+          // тому же что использовал page-0 effect.
+          setCached(buildUrlRef.current(0, debouncedQueryRef.current), merged);
+          return { kind: 'success', data: merged };
+        });
       })
       .catch((e: unknown) => {
         if (issuedGeneration !== generationRef.current) return;

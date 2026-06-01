@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { apiGetRaw, formatApiError } from '@/shared/api/client';
 import type { AsyncState } from '@/shared/types/async';
+import { getCached, setCached } from './queryCache';
 
 interface Options {
   /** Возвращаемое сообщение при ошибке если не Error-like */
@@ -30,16 +31,29 @@ interface Options {
  * простым success-state. Существующие useEffect-patterns не
  * мигрировались - они уже работают и иногда имеют extra logic
  * (counters, manual refetch) которые этот hook не покрывает.
+ *
+ * SWR (stale-while-revalidate): ответ кэшируется по `path` в
+ * `queryCache`. На повторный mount того же path кэш отдаётся МГНОВЕННО
+ * (state=success без спиннера), а сетевой запрос идёт в фоне и заменяет
+ * данные когда придёт. На ошибке при наличии кэша мы НЕ затираем
+ * валидные данные error-экраном — оставляем последний успешный ответ
+ * (для path без кэша ошибка показывается как раньше). Кэш чистится
+ * мутациями через `invalidateCache` из queryCache.
  */
 export function useApiQuery<T>(path: string | null, options: Options = {}): AsyncState<T> {
   const { fallbackError = 'Не удалось загрузить', enabled = true } = options;
-  // Lazy init: если на mount path и enabled активны - стартуем сразу с 'loading',
-  // без промежуточного 'idle' рендера. Иначе consumer мигает с empty-state на 1
-  // фрейм перед запросом, что особенно заметно при List<T> рендере (showing
-  // "пусто" перед "загрузка")
-  const [state, setState] = useState<AsyncState<T>>(() =>
-    enabled && path != null ? { kind: 'loading' } : { kind: 'idle' },
-  );
+  // Lazy init:
+  // - есть кэш по path → стартуем сразу с 'success' (SWR: мгновенно
+  //   показываем последний известный ответ, без спиннера);
+  // - path/enabled активны но кэша нет → 'loading' (без промежуточного
+  //   'idle' кадра — иначе List<T> мигает "пусто" перед "загрузка");
+  // - иначе → 'idle'.
+  const [state, setState] = useState<AsyncState<T>>(() => {
+    if (!enabled || path == null) return { kind: 'idle' };
+    const cached = getCached<T>(path);
+    if (cached !== undefined) return { kind: 'success', data: cached.data };
+    return { kind: 'loading' };
+  });
 
   useEffect(() => {
     if (!enabled || path == null) {
@@ -52,17 +66,30 @@ export function useApiQuery<T>(path: string | null, options: Options = {}): Asyn
       return;
     }
     const controller = new AbortController();
-    // setState('loading') при смене path: семантический переход (новый fetch =
-    // новое loading), не cosmetic. Здесь setState стоит после guard'а
+    // SWR: при смене path сначала отдаём кэш (если есть) — мгновенный
+    // success без спиннера. Иначе семантический переход в 'loading'
+    // (новый fetch = новое loading). Здесь setState стоит после guard'а
     // (early-return выше) — правило set-state-in-effect его не флагует.
-    setState({ kind: 'loading' });
+    const cached = getCached<T>(path);
+    if (cached !== undefined) {
+      setState({ kind: 'success', data: cached.data });
+    } else {
+      setState({ kind: 'loading' });
+    }
+    // Revalidate всегда — даже при наличии кэша подтягиваем свежие данные.
     apiGetRaw<T>(path, { signal: controller.signal })
       .then((data) => {
         if (controller.signal.aborted) return;
+        setCached(path, data);
         setState({ kind: 'success', data });
       })
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;
+        // Не затираем валидный кэш error-экраном: если по path есть
+        // закэшированные данные — оставляем их (revalidate провалился,
+        // но stale-данные лучше пустой ошибки). Без кэша — показываем
+        // ошибку как раньше.
+        if (getCached<T>(path) !== undefined) return;
         setState({ kind: 'error', message: formatApiError(e, fallbackError) });
       });
     return () => controller.abort();
