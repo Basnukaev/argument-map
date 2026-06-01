@@ -5,17 +5,20 @@ import {
   AlertCircle,
   BookOpen,
   ChevronDown,
+  ExternalLink,
   Plus,
   Quote,
+  ScrollText,
   Trash2,
   User as UserIcon,
 } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import PanelSection from '@/apps/argument-map/components/graph/PanelSection';
 import AddSourceModal from '@/apps/argument-map/components/graph/AddSourceModal';
+import HadithPickerModal from '@/apps/argument-map/components/graph/HadithPickerModal';
 import CitationPicker from '@/shared/components/citation/CitationPicker';
 import { SourceCard } from '@/shared/components/citation/sourceCard';
-import { apiGetRaw, apiDeleteRaw, formatApiError } from '@/shared/api/client';
+import { apiGetRaw, apiPostRaw, apiDeleteRaw, formatApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useSourceDetailPanelStore } from '@/shared/stores/sourceDetailPanelStore';
 import { SOURCE_TYPE_LABEL } from '@/apps/argument-map/utils/attachmentTokens';
@@ -51,6 +54,7 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
   const [state, setState] = useState<SourcesState>({ kind: 'loading' });
   const [addSourceOpen, setAddSourceOpen] = useState(false);
   const [citationPickerOpen, setCitationPickerOpen] = useState(false);
+  const [hadithPickerOpen, setHadithPickerOpen] = useState(false);
 
   // ref на callback - чтобы effect не fire'ил при каждом render parent'а
   // если он передаёт inline callback. Это fix для duplicate requests:
@@ -129,6 +133,25 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
     }
   }
 
+  /**
+   * Прикрепить хадис как опору. Бэкенд (под-проект #2.A) переиспользует
+   * мост Source: создаёт node_sources-строку с привязкой к хадису.
+   * POST бросает 403 при нехватке прав — пробрасываем дальше, чтобы
+   * HadithPickerModal не закрылся (catch в handlePick отсутствует —
+   * ошибка показывается тостом тут).
+   */
+  async function attachHadith(hadithId: string) {
+    if (!nodeId) return;
+    try {
+      await apiPostRaw(`/api/v1/nodes/${nodeId}/hadith-citations`, { hadithId });
+      await reloadSources();
+      toast.success(t('node.citation_hadith_attached'));
+    } catch (e: unknown) {
+      toast.error(formatApiError(e, t('graph.toast.update_failed')));
+      throw e;
+    }
+  }
+
   return (
     <>
       <PanelSection
@@ -150,6 +173,17 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
             full
           >
             {t('node.citation_add_library')}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            icon={ScrollText}
+            onClick={() => setHadithPickerOpen(true)}
+            disabled={!nodeId}
+            full
+          >
+            {t('node.citation_add_hadith')}
           </Button>
           <Button
             type="button"
@@ -180,6 +214,14 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
           targetLabel={nodeContent}
           onClose={() => setCitationPickerOpen(false)}
           onCreated={reloadSources}
+        />
+      )}
+
+      {hadithPickerOpen && nodeId && (
+        <HadithPickerModal
+          open={hadithPickerOpen}
+          onClose={() => setHadithPickerOpen(false)}
+          onSelect={attachHadith}
         />
       )}
     </>
@@ -292,6 +334,9 @@ function CitationsList({ state, onDetach }: CitationsListProps) {
             />
           );
         }
+        if (link.hadith) {
+          return <HadithCite key={key} link={link} onDetach={onDetach} navigate={navigate} />;
+        }
         return (
           <FreeformCite
             key={key}
@@ -302,6 +347,91 @@ function CitationsList({ state, onDetach }: CitationsListProps) {
           />
         );
       })}
+    </div>
+  );
+}
+
+/** Цвет статус-бэйджа хадиса (зеркалит HadithListPage/HadithPickerModal). */
+function hadithStatusClass(status: string | undefined): string {
+  switch (status) {
+    case 'CANONICAL':
+      return 'bg-emerald-100 text-emerald-700';
+    case 'WEAK':
+      return 'bg-amber-100 text-amber-700';
+    case 'FABRICATED':
+      return 'bg-rose-100 text-rose-700';
+    default:
+      return 'bg-ink-100 text-ink-700';
+  }
+}
+
+interface HadithCiteProps {
+  link: NodeSourceDto;
+  /** Передаётся nodeSourceId (link.id) - FK variant A */
+  onDetach: (nodeSourceId: string) => void;
+  navigate: ReturnType<typeof useNavigate>;
+}
+
+/**
+ * Карточка опоры-хадиса. Хадис привязан к узлу через мост Source
+ * (под-проект #2.A) — это всё ещё node_sources-строка с link.id,
+ * поэтому detach работает так же как для остальных опор. Превью matn
+ * рендерится naskh + RTL, ссылка ведёт в Hadith Explorer.
+ */
+function HadithCite({ link, onDetach, navigate }: HadithCiteProps) {
+  const t = useT();
+  const h = link.hadith;
+  if (!h) return null;
+  return (
+    <div className="group/h rounded-md border border-border bg-ink-50/60 p-2.5">
+      <div className="flex items-center gap-2">
+        <span
+          className="inline-flex items-center gap-1 rounded border border-border bg-ink-100 px-1.5 py-0.5 text-xs font-bold uppercase tracking-wider text-ink-700"
+          aria-label={t('node.citation_hadith_aria')}
+        >
+          <ScrollText size={11} aria-hidden="true" />
+          Хадис
+        </span>
+        {h.collectionName && (
+          <span className="truncate text-xs font-medium text-ink-600" dir="auto">
+            {h.collectionName}
+          </span>
+        )}
+        {h.primaryNumber != null && (
+          <span className="font-mono text-xs text-ink-500">№{h.primaryNumber}</span>
+        )}
+        {h.status && (
+          <span
+            className={`rounded-sm px-1.5 py-0.5 text-xs font-semibold ${hadithStatusClass(h.status)}`}
+          >
+            {h.status}
+          </span>
+        )}
+        <button
+          type="button"
+          aria-label={t('node.citation_detach_aria')}
+          onClick={() => link.id && onDetach(link.id)}
+          className="ms-auto rounded p-1 text-ink-400 opacity-0 transition-opacity hover:bg-err-100 hover:text-err-700 focus:opacity-100 group-hover/h:opacity-100"
+        >
+          <Trash2 size={13} aria-hidden="true" />
+        </button>
+      </div>
+
+      {h.previewMatn && (
+        <p className="mt-2 font-arabic text-base leading-loose text-ink-900 line-clamp-3" dir="rtl">
+          {h.previewMatn}
+        </p>
+      )}
+
+      {h.hadithId && (
+        <button
+          type="button"
+          onClick={() => navigate(`/hadith/hadiths/${h.hadithId}`)}
+          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent-700 hover:underline"
+        >
+          <ExternalLink size={12} aria-hidden="true" /> {t('node.citation_hadith_open')}
+        </button>
+      )}
     </div>
   );
 }
