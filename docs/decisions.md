@@ -5882,7 +5882,9 @@ dump-first/API-later), `SunnahToHadithMapper` (staging → hd_*) и
 
 ## ADR-052: Чтение дампа sunnah.com через MySQL-драйвер + Testcontainers (Phase 5 шаг 2.d)
 
-**Статус:** решено Абдулой (Сессия 53), реализация — следующая сессия.
+**Статус:** решено Абдулой + **реализовано** (Сессия 53). `SunnahDumpReader` +
+`SunnahImportService` + dual-container IT (Postgres+MySQL) зелёные; изучена
+реальная (денормализованная) схема дампа — 7 таблиц, ≠ логической spec.v1.yml.
 
 **Контекст.** `SunnahDumpReader` (первая реализация `SunnahDataSource`, шаг
 2.d) должен прочитать открытый дамп `github.com/sunnah-com/api`. Дамп

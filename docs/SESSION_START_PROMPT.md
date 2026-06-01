@@ -192,30 +192,30 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 ### ⭐ АКТУАЛЬНО — entry Сессии 53 (snapshot'ы ниже — историч., можно сжать)
 
-**Сессия 53 закрыла Phase 5 ETL шаг 2.a-2.c** (4 коммита `2b24e76..be8bdf0`,
-см. progress.md): конвейер `staging → hd_*` для импорта sunnah.com. migration
-59 `sn_staging_*` + `SunnahDataSource` + 4 staging DAO + `SunnahToHadithMapper`
-+ `ArabicTextNormalizer`. 27 тестов + multi-agent review (5 измерений → 0
-Critical, все Important закрыты). Backend 1124 тестов, 0 реальных failures
-(1 = `BookRepositoryIT.findAll_orderByCreatedAt` флак в full-прогоне, зелёный
-в изоляции — в backlog, НЕ регрессия).
+**Сессия 53 закрыла Phase 5 ETL шаг 2 ПОЛНОСТЬЮ (2.a-2.d)** (7 коммитов
+`2b24e76..29ba54a`, см. progress.md): конвейер **дамп → `sn_staging_*` →
+mapper → `hd_*`**, end-to-end на реальной MySQL-схеме sunnah.com. ~40 тестов
++ 2 multi-agent review (0 Critical обе). Backend **1131 тест, 0 реальных
+failures** (1 = `BookRepositoryIT.findAll_orderByCreatedAt` флак в full-прогоне,
+зелёный в изоляции — в backlog, НЕ регрессия).
 
-**Phase 5 ETL В РАБОТЕ** (спека `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md`
-§11). Эпик ~ещё 2 сессии:
+**Phase 5 ETL** (спека `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md`
+§11). Эпик ~ещё 1-2 сессии:
 1. ✅ **step 1** (Сессия 51, ADR-050): migration 57 `hd_collections`.
-2. ✅ **step 2.a-2.c** (Сессия 53, ADR-051): staging-схема + DAO + mapper +
-   normalizer. Пилот Бухари+Муслим (текст ar/en + grades + структура книга/
-   глава). Дедуп вариаций и структурный иснад — ОТЛОЖЕНЫ (документировано).
-3. ← **СЛЕДУЮЩИЙ ШАГ — step 2.d `SunnahDumpReader`** (ADR-052: **MySQL-драйвер
-   + Testcontainers** решено Абдулой). План: `pom.xml` += `mysql-connector-j`
-   (runtime) + `testcontainers:mysql` (test); получить дамп
-   `github.com/sunnah-com/api` (их docker-compose MySQL / init-SQL) → изучить
-   РЕАЛЬНУЮ MySQL-схему (спайк дал только логическую из spec.v1.yml);
-   `SunnahDumpReader implements SunnahDataSource` (JDBC → `sn_staging_*` через
-   готовые DAO, зеркаль `ShamelaBookReader`); `SunnahDumpReaderIT` с
-   `MySQLContainer`; тонкий `SunnahImportService` + admin-триггер под
-   **bulk-policy gate** (по одному сборнику, превью до commit). Детали —
-   progress.md «Следующий шаг».
+2. ✅ **step 2 (2.a-2.d)** (Сессия 53, ADR-051/052): staging-схема + DAO +
+   `SunnahToHadithMapper` + `ArabicTextNormalizer` + `SunnahDumpReader` (читает
+   РЕАЛЬНУЮ денормализованную схему дампа: 7 таблиц, `HadithTable` консолидирует
+   ar+en+grade, дробный babID → `chapter_id` varchar) + `SunnahImportService`
+   (dual-container Postgres+MySQL IT). Пилот Бухари+Муслим. Дедуп вариаций +
+   структурный иснад — ОТЛОЖЕНЫ (документировано).
+3. ← **СЛЕДУЮЩИЙ ШАГ — прод-обвязка импорта** (чтобы запустить против реального
+   дампа вне тестов): `SunnahDumpProperties` (jdbc url/user/pass/enabled) +
+   `@ConditionalOnProperty` bean MySQL-`DataSource` + фабрика `SunnahDumpReader`;
+   **admin REST-триггер** (AdminShamelaPage-стиль) под **bulk-policy gate**
+   (превью staging до commit, по одному сборнику); api-contract + generate-api
+   в том же коммите. Затем — пилот Бухари+Муслим против реального дампа
+   (clone `github.com/sunnah-com/api`, поднять их MySQL; полная схема изучена).
+   Детали — progress.md «Следующий шаг».
 4. **`IsnadExtraction` стадия (= Phase 6 AI, слиты!)** — граф для ЛЮБОГО
    хадиса через AI-извлечение цепочки (ADR-042) + `extraction_source`/
    `review_status` + UI-пометки «не выверено». ⚖️ AI-цепочка НЕ факт.
@@ -228,7 +228,9 @@ Load More), dark-theme primary Button hover, thesis-книга 15 рендер, 
 
 **Инфра:** Docker (postgres+minio) up. Backend :9090 (local+JDWP :5005) +
 frontend :5173 запущены. Backend держит сид Сессии 52 (migration 58); после
-применения migration 59 рестартом подхватит `sn_staging_*` (пустые до 2.d).
+рестарта подхватит migration 59 (`sn_staging_*`, пустые — импорт ещё не
+запускался против реального дампа). ⚠️ migration 59 правлена in place
+(chapter_id varchar) — дев-БД на 58, конфликта checksum нет.
 
 ### Snapshot состояния на entry Сессии 47
 

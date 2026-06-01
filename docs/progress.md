@@ -8,12 +8,12 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
-## 2026-06-01 - Сессия 53 - Phase 5 ETL sunnah.com шаг 2 (staging + mapper) + multi-agent review
+## 2026-06-01 - Сессия 53 - Phase 5 ETL sunnah.com шаг 2 (staging + mapper + dump reader) + 2 review-волны
 
 **Автономный режим (ultracode).** Цель из handoff'а Сессии 52: Phase 5 ETL
-sunnah.com шаг 2 — `SunnahDataSource` + staging + mapper. Закрыт end-to-end
-конвейер `staging → hd_*` (шаги 2.a-2.c) + review-волна. **4 коммита**
-(`2b24e76..be8bdf0`).
+sunnah.com шаг 2. Закрыт **весь шаг 2** (2.a-2.d): конвейер дамп → `sn_staging_*`
+→ mapper → `hd_*`, end-to-end на реальной MySQL-схеме. **7 коммитов**
+(`2b24e76..29ba54a`), 2 multi-agent review-волны (0 Critical обе).
 
 ### Сделано
 
@@ -50,44 +50,67 @@ hardening. Фиксы: parseNumber только ASCII (иначе коллизи
 арабо-индийскими цифрами), NFKC в normalizer, +18 тестов, architecture-platform/
 glossary/ADR-051 docs.
 
+**5. Шаг 2.d — `SunnahDumpReader` + end-to-end импорт (`a7443a4`+`29ba54a`,
+ADR-052).** Изучена РЕАЛЬНАЯ схема дампа (`db/00-samplegitdb.sql`, 7 таблиц) —
+денормализованная, ≠ логической spec.v1.yml: `HadithTable` консолидирует ar+en+
+grade, книга/глава inline; `ChapterData` хранит bookID (не bookNumber); babID
+ДРОБНЫЙ (1.1, 22.10). **Из-за дробного babID исправлен migration 59:
+`chapter_id` integer → varchar** (иначе 1.0/1.1 схлопнулись бы), ripple в
+DTO/DAO/mapper/тесты. `SunnahDumpReader` (JDBC MySQL → DTO, канонизация babID,
+JOIN ChapterData→BookData) + `SunnahImportService` (source→staging→mapper,
+bulk-policy gate, source как параметр). pom += `mysql-connector-j` +
+`testcontainers:mysql`. **Первый dual-container IT** (Postgres+MySQL) — end-to-end
+дамп→hd_*. Reader IT 4 + import IT 3.
+
+**6. Вторая review-волна (Workflow, 3 измерения, `29ba54a`).** 17 raw → 7
+confirmed, **0 Critical**, 10 отброшено. Все test-quality: fixture был
+недостаточно discriminating (1 книга где bookID==bookNumber → JOIN не доказан;
+mutation select bookID прошёл бы). Усилен fixture (книга bookID 2.0 ≠ bookNumber
+5; orphan-хадис; muslim hasbooks='no') + тесты доказывают JOIN end-to-end +
+ветки b==null/ch==null/no-grades + matn idempotency.
+
 ### Решения
 
 - **ADR-051** staging-схема sn_staging_* (+ дополнение про mapper-слой).
 - **ADR-052** (step 2.d): дамп sunnah.com читаем через **MySQL-драйвер +
   Testcontainers** (решение Абдулы) — `mysql-connector-j` runtime +
   `testcontainers:mysql`. Отвергнуто: конвертация в SQLite, API-first.
-  Зависимость одобрена явно (backend/CLAUDE.md gate).
+  Реализовано в этой же сессии.
+- **migration 59 `chapter_id` integer → varchar** — из-за дробного babID
+  реального дампа (1.1, 22.10). Миграция была unreleased (дев-бэк на 58),
+  потому правлена in place, а не alter-миграцией.
 
 ### Проблемы / known
 
 - `BookRepositoryIT.findAll_orderByCreatedAt` флак в full `./mvnw verify`
-  (1/1124), **в изоляции зелёный 14/14** — НЕ регрессия (lib_books, диф весь
+  (1/1131), **в изоляции зелёный 14/14** — НЕ регрессия (lib_books, диф весь
   в hd_*/sn_staging_*); причина — тай `created_at`. В backlog.
-- Backend тесты: 1124, 0 реальных failures (1 = флак выше).
+- Backend тесты: **1131, 0 реальных failures** (1 = флак выше).
 
 ### Следующий шаг
 
-**Phase 5 step 2.d — `SunnahDumpReader`** (ADR-052, MySQL+Testcontainers
-решено):
-1. `pom.xml`: `mysql-connector-j` (runtime) + `org.testcontainers:mysql` (test).
-2. Получить дамп: clone `github.com/sunnah-com/api`, поднять их docker-compose
-   MySQL (или загрузить init-SQL в `MySQLContainer`). Изучить РЕАЛЬНУЮ MySQL-
-   схему дампа (таблицы collection/book/chapter/hadith + их колонки) — спайк
-   дал только логическую модель из `spec.v1.yml`, не сырые имена таблиц.
-3. `SunnahDumpReader implements SunnahDataSource` (пакет
-   `hadith.sunnah.etl`): JDBC `jdbc:mysql://…` → читает в DTO-records →
-   пишет в `sn_staging_*` через существующие DAO. Зеркаль
-   `ShamelaBookReader`/`SqliteValueParser`.
-4. `SunnahDumpReaderIT` с `MySQLContainer` + fixture-схемой sunnah (без сети,
-   `@Tag("live")` если понадобится реальный дамп).
-5. Тонкий `SunnahImportService` (orchestration source→staging→mapper) +
-   admin-триггер (AdminShamelaPage-стиль) под **bulk-policy gate** (импорт
-   по одному сборнику, превью staging до commit — НЕ массово вслепую).
-6. **Контракт коммита** (backend/CLAUDE.md): ETL-слой = миграция/reader +
-   IT + api-contract в том же коммите.
+**Шаг 2 ЗАКРЫТ полностью (2.a-2.d).** Конвейер дамп → hd_* работает end-to-end
+(dual-container IT зелёный). Дальше — **довести 2.d до прод-запуска**, затем
+step 3:
 
-Затем step 3 (IsnadExtraction AI), step 4 (SunnahApiClient + объём). Эпик
-~ещё 2 сессии. Готовое (2.a-2.c) — фундамент, конкретный reader его не двигает.
+1. **Прод-обвязка импорта** (чтобы запустить против реального дампа вне тестов):
+   - `SunnahDumpProperties` (jdbc url/user/pass/enabled) + `@ConditionalOnProperty`
+     bean MySQL-`DataSource` + фабрика `SunnahDumpReader`.
+   - Получить реальный дамп: clone `github.com/sunnah-com/api`, поднять их
+     `docker compose` MySQL (или загрузить `db/00-samplegitdb.sql`). Полная
+     схема уже изучена (`/tmp/sunnah.sql` если ещё лежит, иначе re-fetch
+     raw `db/00-samplegitdb.sql`).
+   - **Admin REST-триггер** (AdminShamelaPage-стиль) под bulk-policy gate:
+     превью staging до commit, импорт по одному сборнику. api-contract.md +
+     generate-api в том же коммите.
+2. **Прогнать пилот** Бухари+Муслим против реального дампа, UX-валидация (как
+   с shamela — одна единица → проверка → масштаб). НЕ массово вслепую.
+3. **Step 3 `IsnadExtraction`** (= Phase 6 AI слит): matn+isnad блоб → AI
+   (ADR-042) → структурный иснад (hd_sanads) + `extraction_source`/
+   `review_status` + UI «не выверено». step 4 `SunnahApiClient` + объём.
+
+Готовое (2.a-2.d) — фундамент; источник за интерфейсом `SunnahDataSource`
+(dump сейчас, API позже одной реализацией, mapper не двигается).
 
 **Ручная проверка (от Абдулы, висит с Сессии 52):** hadith/narrator списки
 (debounce+Load More), dark-theme primary Button hover, thesis-книга 15, минимап
