@@ -36,6 +36,12 @@ function BookHeader({ book, pagesCount, children }: Props) {
   const typeKey = `book.type.${bookType}` as const;
   const typeLabel = t(typeKey);
 
+  // Shamela «بطاقة الكتاب» хранит строки через CR (\r) либо CRLF. CSS
+  // white-space: pre-line ломает строки только по \n, поэтому
+  // нормализуем CR(LF) → LF чтобы каждое поле (الكتاب / رسالة / إعداد /
+  // إشراف / العام الجامعي / عدد الصفحات) встало на свою строку как на shamela.
+  const descriptionText = book.description?.replace(/\r\n?/g, '\n') ?? null;
+
   // Structured metadata если хоть одно поле есть. Иначе fallback на
   // raw `description` (shamela bibliography text)
   const hasStructuredMetadata = Boolean(
@@ -124,16 +130,24 @@ function BookHeader({ book, pagesCount, children }: Props) {
           </div>
         )}
 
-        {!hasStructuredMetadata && book.description && (
+        {/* Описание (shamela «بطاقة الكتاب» / bibliography) показываем ВСЕГДА
+            когда оно есть. Раньше был guard `!hasStructuredMetadata` →
+            если автор резолвился в structured authority, богатая карточка
+            книги (тип работы, университет, научрук, год, кол-во страниц)
+            полностью пряталась - showed только автора. Карточка несёт
+            больше чем structured-поля, поэтому рендерим её отдельным блоком
+            под metadata-box. whitespace-pre-line - сохраняем переносы строк
+            если они есть в тексте. */}
+        {descriptionText && (
           <p
             className={
               isArabic
-                ? 'book-bibliography mt-2 font-naskh text-sm leading-relaxed text-ink-600'
-                : 'book-bibliography mt-2 text-sm leading-relaxed text-ink-600'
+                ? 'book-bibliography mt-2 whitespace-pre-line font-naskh text-sm leading-relaxed text-ink-600'
+                : 'book-bibliography mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-600'
             }
             dir={isArabic ? 'rtl' : 'ltr'}
           >
-            {book.description}
+            {descriptionText}
           </p>
         )}
       </div>
