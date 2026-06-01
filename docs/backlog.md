@@ -380,6 +380,78 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
 
 ## Tech debt / performance optimization
 
+### Bug-hunt Tier-3 (Сессия 52, 2026-06-01) — 30 low-severity
+
+Из multi-agent багоохоты (235 агентов, 48 подтверждённых; HIGH security +
+medium закрыты в Сессии 52, см. `docs/superpowers/audits/2026-06-01-bug-hunt-handoff.md`).
+Остаток — low severity, ни один не критичен. Канон фиксов — в handoff'е.
+
+Security hardening:
+- [ ] **AuthService login timing side-channel** — malformed dummy bcrypt
+      hash в timing-protection path → email-enumeration по времени ответа
+      остаётся. `AuthService.java:72`.
+- [ ] **Disabled-account login leak** — отдельное error-сообщение +
+      проверка после password check → утечка валидности credentials.
+      `AuthService.java:83`.
+- [ ] **ShamelaArchiveExtractor decompression bomb** — нет per-entry /
+      total size cap → возможно disk exhaustion. `ShamelaArchiveExtractor.java:59`.
+- [ ] **View-count inflation** — `POST /books/{id}/views` unauthenticated +
+      unbounded (anti-spam dedup отложен Phase 2.b). `BookController.java:113`.
+
+Concurrency (применить tryClaim-паттерн как в AI-edit #10 / refresh #4):
+- [ ] **OCR re-trigger concurrent** — нет check-then-act guard → duplicate
+      OCR, last-write-wins. `OcrController.java:73` + `OcrService.java:127`.
+- [ ] **ShamelaAuthorityResolver find-then-insert** — без uniqueness guard
+      → дубли authorities при concurrent import. `ShamelaAuthorityResolver.java:69`.
+- [ ] **AnthropicClient retry на permanent 4xx** — multiplies cost +
+      stall FAILED signal. `AnthropicClient.java:133`.
+
+Logic:
+- [ ] **OcrService NULL→FAILED** для страниц без скана (not-applicable
+      перезаписывается FAILED). `OcrService.java:121`.
+- [ ] **updateOcrStatus COALESCE** preserves stale ocr_completed_at при
+      re-run DONE/FAILED. `PageRepository.java:205`.
+- [ ] **ShamelaChapterMapper** silently drops главы в parent-ref cycle
+      (no error/log). `ShamelaChapterMapper.java:67`.
+- [ ] **ShamelaBibliographyParser** dash-split mis-routes publisher →
+      publication place. `ShamelaBibliographyParser.java:95`.
+- [ ] **QuestionService updateQuestion** body="" вместо NULL (contra
+      документированной clear-to-null семантики). `QuestionService.java:156`.
+- [ ] **acceptAnswer на CLOSED вопросе** silently reopens lifecycle →
+      ANSWERED. `AnswerService.java:194`.
+- [ ] **HadithController stale `bookId` query param** после Phase 5
+      collection rename. `HadithController.java:62`.
+- [ ] **getDetail O(sanads×links)** per-sanad linear scan narrator links.
+      `HadithController.java:101`.
+- [ ] **TopicListPage post-import refetch** теряет active sort order.
+      `TopicListPage.tsx:155`.
+- [ ] **MinimapCard drag/clamp** использует content bounds без padding →
+      drag snaps inconsistently. `MinimapCard.tsx:317`.
+- [ ] **useViewTracking** marks view sent до resolve POST → failed first
+      POST не retry. `useViewTracking.ts:29`.
+
+Accessibility / UX:
+- [ ] **ContextMenu off-screen** near canvas edges (нет viewport clamp) +
+      нет keyboard-nav. `ContextMenu.tsx:52,54`.
+- [ ] **Toaster error toasts** 'polite' вместо 'assertive' aria-live.
+      `Toaster.tsx:74`.
+- [ ] **QuestionDetailPage delete-кнопка** видна всем (нет ownership
+      gating, inconsistent с answer-level). `QuestionDetailPage.tsx:248`.
+- [ ] **AnswersSection** single busyAnswerId mishandles concurrent
+      accept/delete разных ответов. `AnswersSection.tsx:59`.
+- [ ] **PageView citation highlight** может теряться на AI-edited страницах
+      (async render race). `PageView.tsx:148`.
+- [ ] **QuestionListPage Load More** использует label-строку как error
+      fallback message. `QuestionListPage.tsx:126`.
+- [ ] **AdminUsersPage createdAt** non-locale-aware toLocaleDateString.
+      `AdminUsersPage.tsx:182`.
+- [ ] **PdfViewer initial page suffix-range / HttpClientPdfFetcher**
+      negative Content-Length при upstream 206 без Content-Length.
+      `HttpClientPdfFetcher.java:122`.
+- [ ] **PageImageService S3-put-before-DB** в @Transactional → rollback
+      оставляет orphan scan (или включить OrphanDetectionJanitor в prod).
+      `PageImageService.java:125`.
+
 - [x] **AuditEntityType / UserRole single source of truth** - закрыто
       2026-05-19 (Сессия 47 Tech debt task #3). `@Schema(allowableValues)`
       на DTO fields (added в `9ca073a` Сессия 46) + frontend regenerate
