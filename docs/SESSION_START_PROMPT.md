@@ -190,41 +190,45 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 И двигаемся по приоритету (Critical → Important → Minor)
 
-### ⭐ АКТУАЛЬНО — entry Сессии 52 (snapshot'ы ниже — историч., можно сжать)
+### ⭐ АКТУАЛЬНО — entry Сессии 53 (snapshot'ы ниже — историч., можно сжать)
 
-**Сессия 51 закрыла** (7 коммитов `aa9ec03..bdfd382`, см. progress.md):
-minimap/zoom/help redesign + **app-wide token-миграция v2→v3** (violet
-brand, oklch, семантические tiers; backward-compat алиасы для всех старых
-имён) + Phase 5 ETL feasibility-спайк + **lint repo-wide → 0/0** + code
-review (Critical 0, Important 2/2). Green: tsc/lint/build; тесты 613 pass
-(pre-existing flake: bulkActions d3-drag + NodeDetailsPanel «Опора» — в backlog).
+**Сессия 53 закрыла Phase 5 ETL шаг 2.a-2.c** (4 коммита `2b24e76..be8bdf0`,
+см. progress.md): конвейер `staging → hd_*` для импорта sunnah.com. migration
+59 `sn_staging_*` + `SunnahDataSource` + 4 staging DAO + `SunnahToHadithMapper`
++ `ArabicTextNormalizer`. 27 тестов + multi-agent review (5 измерений → 0
+Critical, все Important закрыты). Backend 1124 тестов, 0 реальных failures
+(1 = `BookRepositoryIT.findAll_orderByCreatedAt` флак в full-прогоне, зелёный
+в изоляции — в backlog, НЕ регрессия).
 
-**Phase 5 ETL В РАБОТЕ** (decision points решены Абдулой, спека
-`docs/superpowers/specs/2026-05-31-sunnah-etl-design.md` §11). Эпик ~3-4 сессии:
-1. ✅ **DONE Сессией 51** (`ea09c5c`+`8098415`, ADR-050): migration 57
-   `hd_collections` + repoint FK → `collection_id` + Collection domain/repo +
-   rename во всех слоях + `DevHadithSeeder` создаёт 3 сборника. Verify 1066/0;
-   seeder live-validated (3 collections + matns wired; API отдаёт collectionId).
-2. ← **СЛЕДУЮЩИЙ ШАГ:** `SunnahDataSource` абстракция (dump-reader сначала, API потом) + staging
-   `sn_staging_*` + `SunnahToHadithMapper` → каталог Бухари+Муслим. Зеркалить
-   shamela staging→mapper. `SunnahHttpClientConfig` **использует** прокси
-   (gotcha: sunnah ТОЛЬКО через прокси — инверсия shamela).
-3. **`IsnadExtraction` стадия (= Phase 6 AI, слиты!)** — граф для ЛЮБОГО
-   хадиса через AI-извлечение цепочки (ADR-042 Claude) + `extraction_source`/
-   `review_status` (CURATED/AI/MANUAL, UNVERIFIED/SCHOLAR_VERIFIED) + UI-пометки
-   «не выверено». ⚖️ AI-цепочка НЕ выдаётся за факт.
-4. API-источник + расширение объёма.
+**Phase 5 ETL В РАБОТЕ** (спека `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md`
+§11). Эпик ~ещё 2 сессии:
+1. ✅ **step 1** (Сессия 51, ADR-050): migration 57 `hd_collections`.
+2. ✅ **step 2.a-2.c** (Сессия 53, ADR-051): staging-схема + DAO + mapper +
+   normalizer. Пилот Бухари+Муслим (текст ar/en + grades + структура книга/
+   глава). Дедуп вариаций и структурный иснад — ОТЛОЖЕНЫ (документировано).
+3. ← **СЛЕДУЮЩИЙ ШАГ — step 2.d `SunnahDumpReader`** (ADR-052: **MySQL-драйвер
+   + Testcontainers** решено Абдулой). План: `pom.xml` += `mysql-connector-j`
+   (runtime) + `testcontainers:mysql` (test); получить дамп
+   `github.com/sunnah-com/api` (их docker-compose MySQL / init-SQL) → изучить
+   РЕАЛЬНУЮ MySQL-схему (спайк дал только логическую из spec.v1.yml);
+   `SunnahDumpReader implements SunnahDataSource` (JDBC → `sn_staging_*` через
+   готовые DAO, зеркаль `ShamelaBookReader`); `SunnahDumpReaderIT` с
+   `MySQLContainer`; тонкий `SunnahImportService` + admin-триггер под
+   **bulk-policy gate** (по одному сборнику, превью до commit). Детали —
+   progress.md «Следующий шаг».
+4. **`IsnadExtraction` стадия (= Phase 6 AI, слиты!)** — граф для ЛЮБОГО
+   хадиса через AI-извлечение цепочки (ADR-042) + `extraction_source`/
+   `review_status` + UI-пометки «не выверено». ⚖️ AI-цепочка НЕ факт.
+5. `SunnahApiClient` (proxy-aware, sunnah ТОЛЬКО через прокси — инверсия
+   shamela) + расширение объёма за пилот.
 
-**Параллельный tech-debt (если нужен лёгкий старт):** generate-api для
-hadith-типов; smoke-тесты graph-chrome; v2→v3 alias cleanup.
-
-**Manual за Абдулой:** граф chrome в браузере (drag minimap viewport, zoom
-presets, help popover, dark+RTL) — headless дал 401, в браузере не проверен;
-placeholder обложек / logo bg в dark-теме.
+**Manual за Абдулой (висит с Сессии 52):** hadith/narrator списки (debounce +
+Load More), dark-theme primary Button hover, thesis-книга 15 рендер, минимап
+при открытой detail-панели.
 
 **Инфра:** Docker (postgres+minio) up. Backend :9090 (local+JDWP :5005) +
-frontend :5173 запущены. Backend держит pre-matn-fix сид (для свежих matns —
-очистить hd_* + рестарт, см. Сессия 50 handoff).
+frontend :5173 запущены. Backend держит сид Сессии 52 (migration 58); после
+применения migration 59 рестартом подхватит `sn_staging_*` (пустые до 2.d).
 
 ### Snapshot состояния на entry Сессии 47
 

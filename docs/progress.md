@@ -8,6 +8,91 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
+## 2026-06-01 - Сессия 53 - Phase 5 ETL sunnah.com шаг 2 (staging + mapper) + multi-agent review
+
+**Автономный режим (ultracode).** Цель из handoff'а Сессии 52: Phase 5 ETL
+sunnah.com шаг 2 — `SunnahDataSource` + staging + mapper. Закрыт end-to-end
+конвейер `staging → hd_*` (шаги 2.a-2.c) + review-волна. **4 коммита**
+(`2b24e76..be8bdf0`).
+
+### Сделано
+
+**Ключевая декомпозиция.** `SunnahDataSource` как интерфейс ПЕРЕД любым
+конкретным reader'ом → staging-схема, DAO, mapper и все 27 тестов
+зафиксированы **независимо** от нерешённой развилки «как читать дамп». Поэтому
+шаги 2.a-2.c сделаны автономно без новых зависимостей и без сети.
+
+**1. Шаг 2.a — migration 59 `sn_staging_*` (`2b24e76`, ADR-051).** Четыре
+staging-таблицы (collection/book/chapter/hadith), зеркало логической модели
+sunnah.com (spec §5). Отличия от shamela staging: естественные составные PK
+(идемпотентный `ON CONFLICT` upsert), денормализация языков в `*_ar`/`*_en`,
+`raw` jsonb forward-compat, без `deleted_at` tombstone (dump = полный snapshot).
+
+**2. Шаг 2.b — `SunnahDataSource` + DTO + DAO (`2b24e76`).** Интерфейс
+источника (dump + API → одни staging, единый mapper; гранулярность по
+сборнику). 4 staging DTO-records + 4 DAO (упрощённый idiom
+`batchUpdate(sql, List<Object[]>)` — без shamela-boilerplate, `imported_at`
+через DB-default). `SunnahStagingDaoIT` 12 тестов.
+
+**3. Шаг 2.c — `SunnahToHadithMapper` + `ArabicTextNormalizer` (`141b0b7`).**
+Маппер staging → hd_collections/hd_hadiths/hd_matns: текст ar/en, grades
+`[{graded_by}]` → metadata `[{scholar,grade}]` (контракт parseGrades),
+структура книга/глава → matn.metadata, status=VARIANT (импорт не выдаётся за
+канон), идемпотентность по `(collection_id, primary_number)`. Нормализатор
+арабского (NFKC + снятие диакритики + сведение алиф/йа/та-марбута/хамза) —
+вычисляется, а не вбивается руками. 6 mapper-IT + 9 normalizer-unit.
+
+**4. Multi-agent code review (Workflow, 41 агент, `be8bdf0`).** 5 измерений
+→ adversarial verify: 36 raw → 25 confirmed, **0 Critical**, 11 false-positive
+отброшено. Все 6 Important + большинство Minor закрыты. Production-багов НЕ
+было — гэпы в покрытии (вакуумные тесты enrichment book/chapter), доках,
+hardening. Фиксы: parseNumber только ASCII (иначе коллизия idempotency с
+арабо-индийскими цифрами), NFKC в normalizer, +18 тестов, architecture-platform/
+glossary/ADR-051 docs.
+
+### Решения
+
+- **ADR-051** staging-схема sn_staging_* (+ дополнение про mapper-слой).
+- **ADR-052** (step 2.d): дамп sunnah.com читаем через **MySQL-драйвер +
+  Testcontainers** (решение Абдулы) — `mysql-connector-j` runtime +
+  `testcontainers:mysql`. Отвергнуто: конвертация в SQLite, API-first.
+  Зависимость одобрена явно (backend/CLAUDE.md gate).
+
+### Проблемы / known
+
+- `BookRepositoryIT.findAll_orderByCreatedAt` флак в full `./mvnw verify`
+  (1/1124), **в изоляции зелёный 14/14** — НЕ регрессия (lib_books, диф весь
+  в hd_*/sn_staging_*); причина — тай `created_at`. В backlog.
+- Backend тесты: 1124, 0 реальных failures (1 = флак выше).
+
+### Следующий шаг
+
+**Phase 5 step 2.d — `SunnahDumpReader`** (ADR-052, MySQL+Testcontainers
+решено):
+1. `pom.xml`: `mysql-connector-j` (runtime) + `org.testcontainers:mysql` (test).
+2. Получить дамп: clone `github.com/sunnah-com/api`, поднять их docker-compose
+   MySQL (или загрузить init-SQL в `MySQLContainer`). Изучить РЕАЛЬНУЮ MySQL-
+   схему дампа (таблицы collection/book/chapter/hadith + их колонки) — спайк
+   дал только логическую модель из `spec.v1.yml`, не сырые имена таблиц.
+3. `SunnahDumpReader implements SunnahDataSource` (пакет
+   `hadith.sunnah.etl`): JDBC `jdbc:mysql://…` → читает в DTO-records →
+   пишет в `sn_staging_*` через существующие DAO. Зеркаль
+   `ShamelaBookReader`/`SqliteValueParser`.
+4. `SunnahDumpReaderIT` с `MySQLContainer` + fixture-схемой sunnah (без сети,
+   `@Tag("live")` если понадобится реальный дамп).
+5. Тонкий `SunnahImportService` (orchestration source→staging→mapper) +
+   admin-триггер (AdminShamelaPage-стиль) под **bulk-policy gate** (импорт
+   по одному сборнику, превью staging до commit — НЕ массово вслепую).
+6. **Контракт коммита** (backend/CLAUDE.md): ETL-слой = миграция/reader +
+   IT + api-contract в том же коммите.
+
+Затем step 3 (IsnadExtraction AI), step 4 (SunnahApiClient + объём). Эпик
+~ещё 2 сессии. Готовое (2.a-2.c) — фундамент, конкретный reader его не двигает.
+
+**Ручная проверка (от Абдулы, висит с Сессии 52):** hadith/narrator списки
+(debounce+Load More), dark-theme primary Button hover, thesis-книга 15, минимап
+при detail-панели.
+
 ## 2026-06-01 - Сессия 52 - Multi-agent багоохота + security/UX fixes + thesis-metadata + ADR-043 sweep
 
 **Автономный режим.** Старт: визуальный баг (минимап) → multi-agent

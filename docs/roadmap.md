@@ -471,9 +471,14 @@ design-specs создаются по мере приоритезации.
       (FTS поиск + фильтры), **Phase 5** (ETL sunnah.com — В РАБОТЕ: спайк +
       спека `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md` ✅;
       decision points решены §11; **step 1 done** 2026-05-31 — migration 57
-      `hd_collections` + repoint FK + seeder, ADR-050; next: SunnahDataSource +
-      mapper; 🔴 sunnah.com не даёт структурный иснад → граф для любого хадиса
-      через AI-извлечение, **Phase 6 слит в Phase 5**). Spec Explorer:
+      `hd_collections`, ADR-050; **step 2.a-2.c done** 2026-06-01 (Сессия 53,
+      ADR-051) — migration 59 `sn_staging_*` + `SunnahDataSource` + 4 staging
+      DAO + `SunnahToHadithMapper` (staging → hd_*, пилот Бухари+Муслим) +
+      `ArabicTextNormalizer`; 27 тестов + multi-agent review (0 Critical);
+      **next: step 2.d** `SunnahDumpReader` (MySQL-драйвер + Testcontainers,
+      ADR-052), затем step 3 IsnadExtraction + step 4 API/объём; 🔴 sunnah.com
+      не даёт структурный иснад → граф для любого хадиса через AI-извлечение,
+      **Phase 6 слит в Phase 5**). Spec Explorer:
       `docs/superpowers/specs/2026-05-20-hadith-explorer-design.md`.
       Объём остатка — 4-7 sessions.
 

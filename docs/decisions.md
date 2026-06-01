@@ -5880,4 +5880,37 @@ dump-first/API-later), `SunnahToHadithMapper` (staging → hd_*) и
 **Связанные:** Spec `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md`
 §5/§7/§11, ADR-020 (shamela ETL двухслойная staging), ADR-050 (hd_collections).
 
+## ADR-052: Чтение дампа sunnah.com через MySQL-драйвер + Testcontainers (Phase 5 шаг 2.d)
+
+**Статус:** решено Абдулой (Сессия 53), реализация — следующая сессия.
+
+**Контекст.** `SunnahDumpReader` (первая реализация `SunnahDataSource`, шаг
+2.d) должен прочитать открытый дамп `github.com/sunnah-com/api`. Дамп
+распространяется как **MySQL** (`docker compose up` → MySQL + sample dataset,
+init-SQL в репо). У проекта в `pom.xml` только `sqlite-jdbc` (для shamela
+.sqlite-архивов), MySQL-драйвера нет. backend/CLAUDE.md: «не добавлять
+зависимости без обсуждения» — поэтому развилка вынесена Абдуле.
+
+**Решение.** Добавить `mysql-connector-j` (runtime scope) + `testcontainers:mysql`
+(test scope). `SunnahDumpReader` подключается к загруженному дампу через JDBC
+(`jdbc:mysql://…`) и реализует `SunnahDataSource` (readCollections /
+readBooks/Chapters/Hadiths(name) → `sn_staging_*` через существующие DAO). IT —
+`MySQLContainer` с fixture-схемой sunnah (без сети).
+
+**Альтернатива (отвергнута): конвертация дампа в SQLite.** Офлайн-скрипт
+MySQL→SQLite + переиспользование `sqlite-jdbc`. Без новой runtime-зависимости,
+но добавляет офлайн-шаг конвертации и re-convert при каждом обновлении дампа;
+менее faithful к тому, как дамп реально распространяется (MySQL).
+
+**Альтернатива (отвергнута): сразу REST API (`SunnahApiClient`).** Пропустить
+dump. Против порядка спеки (§11: пилот стартует с dump — проще, без ключа);
+rate limits + тысячи запросов через прокси.
+
+**Trade-offs:** + faithful, прямое чтение MySQL как распространяется, точное
+зеркало shamela-JDBC-паттерна; − новая runtime-зависимость + второй тип
+Testcontainer (IT чуть медленнее). Абдула одобрил зависимость явно.
+
+**Связанные:** ADR-051 (staging-схема + mapper), ADR-020
+(`ShamelaHttpClientConfig`/SQLite reader — паттерн), spec §11 шаг 2.d.
+
 
