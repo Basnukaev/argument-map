@@ -3092,6 +3092,35 @@ DAIF / MATRUK / SAHABI / UNKNOWN).
 у плодовитых сподвижников счёт хадисов идёт на тысячи. 404
 `narrator-not-found`.
 
+## Sunnah Import Admin API (ADR-052, Phase 5 шаг 2.d)
+
+Импорт корпуса хадисов из дампа sunnah.com в `hd_*`. **ADMIN-only** (как
+audit admin). Источник (`SunnahDataSource`) активен только при
+`sunnah.dump.enabled=true` (+ `SUNNAH_DUMP_URL/USERNAME/PASSWORD` →
+MySQL с загруженным `db/00-samplegitdb.sql`). Если не сконфигурирован — **503**
+`sunnah-dump-not-configured`. **Bulk-policy gate:** импорт строго по одному
+сборнику явным вызовом.
+
+### GET /api/v1/admin/sunnah/collections
+
+Превью каталога сборников из источника (до импорта). `List<SunnahCollectionPreview>`
+= `{ name, titleEn, titleAr, totalHadith, hasBooks, hasChapters }`. ADMIN-only
+(403 `forbidden-admin-only`). 503 если источник не настроен.
+
+### POST /api/v1/admin/sunnah/import/{collection}
+
+Импорт одного сборника: источник → `sn_staging_*` → `SunnahToHadithMapper`
+→ `hd_collections`/`hd_hadiths`/`hd_matns`. **Идемпотентно** (по
+`(collection_id, primary_number)` — уже импортированные/курируемые
+пропускаются). Ответ `SunnahImportResponse` =
+`{ collectionName, inserted, skippedExisting, skippedInvalid }`. ADMIN-only
+(403). 503 если источник не настроен.
+
+Импортированные хадисы — `status=VARIANT` (не выдаются за канон); текст ar/en
+в `hd_matns`, grades (если есть) в `hd_hadiths.metadata`, структура книга/глава
+в `hd_matns.metadata`. Структурный иснад НЕ извлекается (sunnah даёт matn+isnad
+блобом — отдельная стадия IsnadExtraction, шаг 3).
+
 ## Hadith grades API (multi-grading)
 
 Один и тот же хадис (source с `sourceType=HADITH`) может быть оценён

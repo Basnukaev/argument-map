@@ -20,6 +20,7 @@ import ru.basnukaev.argumentmap.library.imports.PageImageException;
 import ru.basnukaev.argumentmap.library.imports.web.UnsupportedMediaTypeException;
 import ru.basnukaev.argumentmap.library.pdf.service.PdfNotAvailableException;
 import ru.basnukaev.argumentmap.library.pdf.service.RangeNotSatisfiableException;
+import ru.basnukaev.argumentmap.hadith.sunnah.web.SunnahDumpNotConfiguredException;
 import ru.basnukaev.argumentmap.library.shamela.api.ShamelaApiException;
 import ru.basnukaev.argumentmap.library.shamela.etl.ShamelaArchiveException;
 import ru.basnukaev.argumentmap.library.shamela.etl.ShamelaReaderException;
@@ -278,6 +279,13 @@ public class GlobalExceptionHandler {
                 "Этот endpoint доступен только пользователям с ролью ADMIN");
         pd.setProperty("userId", ex.getUserId().toString());
         return pd;
+    }
+
+    @ExceptionHandler(SunnahDumpNotConfiguredException.class)
+    public ProblemDetail handleSunnahDumpNotConfigured(SunnahDumpNotConfiguredException ex) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE,
+                "Источник sunnah не настроен", "sunnah-dump-not-configured",
+                ex.getMessage());
     }
 
     @ExceptionHandler(InsufficientRoleException.class)

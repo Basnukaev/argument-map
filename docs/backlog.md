@@ -416,6 +416,19 @@ Important + большинство Minor закрыты в сессии). Соз
   `[{graded_by:"", grade: текст}]`. Грейдер ("Darussalam" из "Sahih
   (Darussalam)") не извлекается. Улучшить при необходимости.
 
+**Шаг 2.e (прод-обвязка + реальный пилот, Сессия 53):**
+- [ ] **HTML в englishText дампа**: реальный пилот Бухари показал, что
+  `HadithTable.englishText` содержит HTML (`<p>`-теги, `<br>`), арабский —
+  чистый. Нужен text-cleaner для en (аналог `ShamelaTextCleaner`) перед
+  записью в `hd_matns.text_en`, иначе фронт рендерит сырой HTML. Reader или
+  mapper. Приоритет — до показа sunnah-данных в проде.
+- [ ] **Frontend AdminSunnahPage** (AdminShamelaPage-стиль): кнопки
+  «превью каталога» + «импорт сборника» поверх `/api/v1/admin/sunnah/*`.
+  Типы уже в `types.ts` (generate-api). Чтобы Абдула триггерил импорт без curl.
+- [ ] **Полный корпус**: репо-sample `00-samplegitdb.sql` = только 100
+  хадисов Бухари (muslim/др. — только метаданные сборников). Полный корпус —
+  через `SunnahApiClient` (шаг 4) либо полный дамп от sunnah.com.
+
 ### Code-review findings (Сессия 52, 2026-06-01) — ADR-043 sweep gaps
 
 Из code-review fix-волны (4 reviewer-агента). Реальные, но out-of-scope
