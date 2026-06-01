@@ -154,7 +154,16 @@ class BookRepositoryIT {
 
         List<Book> all = bookRepository.findAll(null, null);
 
-        assertThat(all).extracting(Book::id).containsExactly(older.id(), newer.id());
+        // findAll возвращает ВСЕ книги — в полном прогоне таблицу может
+        // «загрязнить» другой IT-класс, который коммитит lib_books (shared
+        // Testcontainers Postgres, context-cache pollution — см. gotchas).
+        // Проверяем порядок СВОИХ книг как подпоследовательность — устойчиво
+        // к посторонним строкам (created_at у older/newer различны → порядок
+        // детерминирован).
+        List<UUID> ownOrder = all.stream().map(Book::id)
+                .filter(id -> id.equals(older.id()) || id.equals(newer.id()))
+                .toList();
+        assertThat(ownOrder).containsExactly(older.id(), newer.id());
     }
 
     @Test

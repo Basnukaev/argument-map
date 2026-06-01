@@ -729,13 +729,13 @@ Accessibility / UX:
     Сессии 51 — файл не тронут): 3 subtests citations/sources (MSW handler
     `/sources` + изменённый формат label, семья 49d QA-sources). Флак вместе
     с `bulkActions` d3-drag. Триаж отдельно.
-  - **BookRepositoryIT.findAll_orderByCreatedAt флак в полном прогоне**
-    (замечен Сессией 53, НЕ регрессия — `lib_books`, диф сессии весь в
-    `hd_*`/`sn_staging_*`). В full `./mvnw verify` падает 1/1118, **в изоляции
-    `-Dit.test=BookRepositoryIT` зелёный 14/14**. Гипотеза причины: две книги в
-    тесте получают одинаковый `created_at` (тай по миллисекунде) → `ORDER BY
-    created_at` недетерминирован. Fix: вторичный tie-break ключ в сортировке
-    (`created_at DESC, id`) либо разнести `created_at` в фикстуре. Non-blocking.
+  - [x] **BookRepositoryIT.findAll_orderByCreatedAt флак** — **исправлено
+    Сессией 53**. Реальная причина оказалась НЕ tie-break, а **test
+    pollution**: `findAll(null,null)` возвращает все книги, а другой
+    IT-класс, коммитящий `lib_books` в shared Testcontainers Postgres,
+    «загрязняет» таблицу. Fix: ассерт порядка СВОИХ книг как
+    подпоследовательности (устойчиво к посторонним строкам). Класс
+    `@Transactional`, так что свои строки откатываются — протекали чужие.
 
 - [ ] **GraphCanvas lastNodesRef comment fragility** (audit M-6) -
       callback `handleNodeContextMenu` читает `lastNodesRef.current`
