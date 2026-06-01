@@ -58,6 +58,19 @@ public class HadithRepository {
         ).stream().findFirst();
     }
 
+    /**
+     * Natural-key lookup (collection_id, primary_number) — естественный ключ
+     * импортированного хадиса. Используется ETL для идемпотентности (UNIQUE
+     * constraint hd_hadiths_collection_number_unique).
+     */
+    public Optional<Hadith> findByCollectionIdAndPrimaryNumber(UUID collectionId, int primaryNumber) {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM hd_hadiths "
+                        + "WHERE collection_id = ? AND primary_number = ?",
+                ROW_MAPPER, collectionId, primaryNumber
+        ).stream().findFirst();
+    }
+
     public List<Hadith> findPage(String q, String status, UUID collectionId,
                                  int limit, int offset) {
         StringBuilder sql = new StringBuilder("SELECT ").append(COLUMNS)
