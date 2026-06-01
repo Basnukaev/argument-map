@@ -399,6 +399,23 @@ Important + большинство Minor закрыты в сессии). Соз
   (hasBooks/hasChapters опциональны). Опционально: mapper логирует/считает
   хадисы с (book,chapter), не находящими staging-родителя.
 
+**Шаг 2.d (SunnahDumpReader, Сессия 53):**
+- [ ] **Admin REST-триггер импорта sunnah** + прод-config MySQL-DataSource
+  (`SunnahDumpProperties` url/user/pass/enabled + conditional bean). Нужно
+  чтобы запустить импорт против реального дампа вне тестов. AdminShamelaPage-
+  стиль, под bulk-policy gate (превью staging до commit).
+- [ ] **`SunnahDumpReader.readChapters` INNER JOIN** по `arabicBookID`: в
+  реальном дампе `BookData.arabicBookID` nullable → главы книги с
+  `arabicBookID IS NULL` отбросятся (главы теряются, хадисы — нет). Для
+  Бухари+Муслим arabicBookID заполнен. Fix при расширении объёма: LEFT JOIN
+  + fallback резолва book_number, либо валидация.
+- [ ] **Whole-collection in-memory List** в reader/import: `readHadiths`
+  материализует весь сборник в память (~7.5k строк для Сахихайн — ОК). При
+  расширении за пилот / API-источнике — пересмотреть на Stream/пагинацию.
+- [ ] **grade-парсинг dump**: `arabicgrade1`/`englishgrade1` кладутся как
+  `[{graded_by:"", grade: текст}]`. Грейдер ("Darussalam" из "Sahih
+  (Darussalam)") не извлекается. Улучшить при необходимости.
+
 ### Code-review findings (Сессия 52, 2026-06-01) — ADR-043 sweep gaps
 
 Из code-review fix-волны (4 reviewer-агента). Реальные, но out-of-scope

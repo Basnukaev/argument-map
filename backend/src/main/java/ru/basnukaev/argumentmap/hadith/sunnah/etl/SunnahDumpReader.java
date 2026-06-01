@@ -40,10 +40,17 @@ import ru.basnukaev.argumentmap.hadith.sunnah.etl.dto.SunnahHadithRow;
  * отдельный от основного Postgres. Конструируется оркестратором импорта из
  * сконфигурированного MySQL-DataSource (симметрично shamela SQLite reader).
  *
- * <p><b>Допущение:</b> {@code HadithTable.bookNumber == BookData.arabicBookNumber}
- * (совпадают для пилота Бухари+Муслим). Если для какого-то сборника нумерации
- * расходятся — обогащение имени книги/главы может промахнуться (не теряя
- * хадис); вынести в follow-up при расширении объёма.
+ * <p><b>Допущения (приемлемы для пилота Бухари+Муслим, follow-up при
+ * расширении объёма):</b>
+ * <ul>
+ *   <li>{@code HadithTable.bookNumber == BookData.arabicBookNumber} — если
+ *       нумерации расходятся, обогащение имени книги/главы промахнётся (хадис
+ *       НЕ теряется — попадает в hd_* без bookName/chapterTitle);</li>
+ *   <li>{@code readChapters} использует INNER JOIN по {@code arabicBookID};
+ *       в реальном дампе {@code BookData.arabicBookID} nullable — главы книги
+ *       с {@code arabicBookID IS NULL} будут отброшены (главы потеряются, но
+ *       не хадисы). Для Бухари+Муслим arabicBookID заполнен.</li>
+ * </ul>
  */
 public class SunnahDumpReader implements SunnahDataSource {
 

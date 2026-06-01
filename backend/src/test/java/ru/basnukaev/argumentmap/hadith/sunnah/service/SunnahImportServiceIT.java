@@ -86,7 +86,7 @@ class SunnahImportServiceIT {
     void imports_bukhari_end_to_end_dump_to_hd() throws Exception {
         SunnahMappingResult result = importService.importCollection(reader, "bukhari");
 
-        assertThat(result.inserted()).isEqualTo(2);
+        assertThat(result.inserted()).isEqualTo(4);
 
         Collection c = collectionRepository.findBySlug("bukhari").orElseThrow();
         assertThat(c.nameEn()).isEqualTo("Sahih al-Bukhari");
@@ -94,11 +94,9 @@ class SunnahImportServiceIT {
 
         List<Hadith> hadiths = hadithRepository.findPage(null, null, c.id(), 10, 0);
         assertThat(hadiths).extracting(Hadith::primaryNumber)
-                .containsExactlyInAnyOrder(1, 2);
+                .containsExactlyInAnyOrder(1, 2, 8, 3);
 
-        Hadith h1 = hadiths.stream()
-                .filter(h -> Integer.valueOf(1).equals(h.primaryNumber()))
-                .findFirst().orElseThrow();
+        Hadith h1 = byNumber(hadiths, 1);
         assertThat(h1.status()).isEqualTo(HadithStatus.VARIANT);
         assertThat(h1.normalizedMatn()).isEqualTo("انما الاعمال بالنيات");
 
@@ -113,6 +111,23 @@ class SunnahImportServiceIT {
         // grades из dump ('Sahih') доехали в hd_hadiths.metadata
         JsonNode grades = objectMapper.readTree(h1.metadata()).get("grades");
         assertThat(grades.get(0).get("grade").asText()).isEqualTo("Sahih");
+
+        // hadith 8 → книга bookNumber '5' (bookID 2.0): JOIN-доказательство
+        // end-to-end. Сломанный ChapterData→BookData JOIN дал бы book_number
+        // '2', chapterKey '5/1' не нашёлся бы → chapterTitle отсутствовал бы.
+        JsonNode meta8 = objectMapper.readTree(matnOf(h(c, 8)).metadata());
+        assertThat(meta8.get("bookNameEn").asText()).isEqualTo("Belief");
+        assertThat(meta8.get("chapterTitleEn").asText()).isEqualTo("Belief Chapter");
+
+        // hadith 3 → orphan (bookNumber '99' нет BookData, babID 9 нет
+        // ChapterData) + пустой grade: импортируется, но без enrichment/grades
+        Hadith h3 = byNumber(hadiths, 3);
+        assertThat(objectMapper.readTree(h3.metadata()).has("grades")).isFalse();
+        JsonNode meta3 = objectMapper.readTree(matnOf(h3).metadata());
+        assertThat(meta3.get("bookNumber").asText()).isEqualTo("99");
+        assertThat(meta3.has("bookNameEn")).isFalse();
+        assertThat(meta3.get("chapterId").asText()).isEqualTo("9");
+        assertThat(meta3.has("chapterTitleEn")).isFalse();
     }
 
     @Test
@@ -121,8 +136,25 @@ class SunnahImportServiceIT {
         SunnahMappingResult second = importService.importCollection(reader, "bukhari");
 
         assertThat(second.inserted()).isZero();
-        assertThat(second.skippedExisting()).isEqualTo(2);
-        assertThat(hadithRepository.countFiltered(null, null, null)).isEqualTo(2);
+        assertThat(second.skippedExisting()).isEqualTo(4);
+        assertThat(hadithRepository.countFiltered(null, null, null)).isEqualTo(4);
+        // первичный matn не задублирован на повторном прогоне
+        Collection c = collectionRepository.findBySlug("bukhari").orElseThrow();
+        assertThat(matnRepository.findByHadithId(h(c, 1).id())).hasSize(1);
+    }
+
+    private Hadith h(Collection c, int primaryNumber) {
+        return byNumber(hadithRepository.findPage(null, null, c.id(), 10, 0), primaryNumber);
+    }
+
+    private Matn matnOf(Hadith hadith) {
+        return matnRepository.findByHadithId(hadith.id()).get(0);
+    }
+
+    private static Hadith byNumber(List<Hadith> hadiths, int primaryNumber) {
+        return hadiths.stream()
+                .filter(h -> Integer.valueOf(primaryNumber).equals(h.primaryNumber()))
+                .findFirst().orElseThrow();
     }
 
     @Test
