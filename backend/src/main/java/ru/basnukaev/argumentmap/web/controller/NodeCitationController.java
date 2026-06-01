@@ -12,7 +12,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.service.NodeCitationService;
+import ru.basnukaev.argumentmap.web.CurrentUser;
 import ru.basnukaev.argumentmap.web.dto.CitationRequest;
 import ru.basnukaev.argumentmap.web.dto.NodeSourceResponse;
 
@@ -36,7 +38,12 @@ public class NodeCitationController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public NodeSourceResponse create(@PathVariable UUID nodeId,
-                                     @Valid @RequestBody CitationRequest request) {
-        return service.createCitation(nodeId, request);
+                                     @Valid @RequestBody CitationRequest request,
+                                     @CurrentUser UUID userId) {
+        // write-guard (ADR-043): structured citation - то же контентное
+        // изменение темы узла, что freeform /sources. Без этого guard на
+        // /sources обходится через /citations (sibling-path bypass).
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        return service.createCitation(nodeId, request, userId, role);
     }
 }

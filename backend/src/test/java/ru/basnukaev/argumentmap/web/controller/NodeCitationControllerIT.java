@@ -78,6 +78,7 @@ class NodeCitationControllerIT {
                 "quote", "context");
 
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/citations", nodeId)
+                        .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated())
@@ -98,6 +99,7 @@ class NodeCitationControllerIT {
                 null, null, "ctx");
 
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/citations", nodeId)
+                        .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated())
@@ -113,6 +115,7 @@ class NodeCitationControllerIT {
                 null, null, null, null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/citations", nodeId)
+                        .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isBadRequest())
@@ -126,10 +129,29 @@ class NodeCitationControllerIT {
                 pageId, 0, 10, null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/citations", missing)
+                        .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value(containsString("node-not-found")));
+    }
+
+    @Test
+    void post_nonOwnerOnPrivateTopic_returns403() throws Exception {
+        // ADR-043 write-guard: structured citation на узле чужой PRIVATE темы
+        // запрещён (sibling-path /citations не должен обходить guard /sources).
+        UUID otherUserId = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
+                otherUserId, "other-" + otherUserId, otherUserId + "@e.com");
+        var req = new CitationRequest(bookId,
+                pageId, 0, 10, null, null, null, null, null, null);
+
+        mockMvc.perform(post("/api/v1/nodes/{nodeId}/citations", nodeId)
+                        .header("X-User-Id", otherUserId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type").value(containsString("forbidden-topic-access")));
     }
 
     @Test
@@ -139,6 +161,7 @@ class NodeCitationControllerIT {
                 pageId, 0, 10, null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/citations", nodeId)
+                        .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isNotFound())
@@ -154,6 +177,7 @@ class NodeCitationControllerIT {
                 + "\"pdfBbox\":{\"x\":2.0,\"y\":0.1,\"width\":0.5,\"height\":0.5}}";
 
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/citations", nodeId)
+                        .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest());

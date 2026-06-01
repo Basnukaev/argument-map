@@ -51,6 +51,7 @@ public class NodeCitationService {
     private final SourceRepository sourceRepository;
     private final NodeSourceRepository nodeSourceRepository;
     private final LibraryFileRepository libraryFileRepository;
+    private final PermissionService permissionService;
     private final JdbcTemplate jdbcTemplate;
 
     public NodeCitationService(NodeRepository nodeRepository,
@@ -59,6 +60,7 @@ public class NodeCitationService {
                                SourceRepository sourceRepository,
                                NodeSourceRepository nodeSourceRepository,
                                LibraryFileRepository libraryFileRepository,
+                               PermissionService permissionService,
                                JdbcTemplate jdbcTemplate) {
         this.nodeRepository = nodeRepository;
         this.bookRepository = bookRepository;
@@ -66,9 +68,36 @@ public class NodeCitationService {
         this.sourceRepository = sourceRepository;
         this.nodeSourceRepository = nodeSourceRepository;
         this.libraryFileRepository = libraryFileRepository;
+        this.permissionService = permissionService;
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    /**
+     * Создание structured citation с write-guard (ADR-043). Sibling
+     * freeform-пути NodeSourceService.attachSource - тот же контентный
+     * mutating-эффект (вставка в node_sources), поэтому требует тех же
+     * write-прав на тему узла. Без этого guard на /sources обходился бы
+     * через /citations (sibling-path bypass). Резолвит topicId узла и
+     * ассертит assertCanWrite.
+     *
+     * @throws NodeNotFoundException если узла нет (404)
+     * @throws ru.basnukaev.argumentmap.exception.TopicWriteAccessDeniedException
+     *         если нет write-доступа к теме узла (403)
+     */
+    @Transactional
+    public NodeSourceResponse createCitation(UUID nodeId, CitationRequest req,
+                                             UUID actorUserId, String actorRole) {
+        ru.basnukaev.argumentmap.domain.Node node = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new NodeNotFoundException(nodeId));
+        permissionService.assertCanWrite(node.topicId(), actorUserId, actorRole);
+        return createCitation(nodeId, req);
+    }
+
+    /**
+     * Legacy overload без permission-check. Internal callers + IT.
+     * REST endpoint должен звать
+     * {@link #createCitation(UUID, CitationRequest, UUID, String)}.
+     */
     @Transactional
     public NodeSourceResponse createCitation(UUID nodeId, CitationRequest req) {
         if (nodeRepository.findById(nodeId).isEmpty()) {
