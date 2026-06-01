@@ -4,7 +4,9 @@ import static ru.basnukaev.argumentmap.repository.JdbcTimes.instant;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.odt;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -73,6 +75,11 @@ public class HadithRepository {
 
     public List<Hadith> findPage(String q, String status, UUID collectionId,
                                  int limit, int offset) {
+        return findPage(q, status, collectionId, null, limit, offset);
+    }
+
+    public List<Hadith> findPage(String q, String status, UUID collectionId,
+                                 String sort, int limit, int offset) {
         StringBuilder sql = new StringBuilder("SELECT ").append(COLUMNS)
                 .append(" FROM hd_hadiths WHERE 1=1");
         List<Object> args = new ArrayList<>();
@@ -88,10 +95,35 @@ public class HadithRepository {
             sql.append(" AND collection_id = ?");
             args.add(collectionId);
         }
-        sql.append(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
+        sql.append(orderByClause(sort)).append(" LIMIT ? OFFSET ?");
         args.add(limit);
         args.add(offset);
         return jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray());
+    }
+
+    /**
+     * Whitelist ORDER BY — SQL-safe (фиксированные клаузы, не интерполяция).
+     * {@code alphabetical} — арабский алфавитный (по normalized_matn);
+     * {@code number} — по номеру в сборнике; иначе {@code recent}.
+     */
+    private static String orderByClause(String sort) {
+        return switch (sort == null ? "recent" : sort) {
+            case "number" -> " ORDER BY primary_number ASC NULLS LAST, created_at DESC";
+            case "alphabetical" -> " ORDER BY normalized_matn ASC";
+            default -> " ORDER BY created_at DESC";
+        };
+    }
+
+    /** Число хадисов по каждому сборнику (для chip-фильтра на UI). Один GROUP BY. */
+    public Map<UUID, Long> countByCollectionGrouped() {
+        Map<UUID, Long> counts = new HashMap<>();
+        jdbcTemplate.query(
+                "SELECT collection_id, COUNT(*) AS cnt FROM hd_hadiths "
+                        + "WHERE collection_id IS NOT NULL GROUP BY collection_id",
+                (java.sql.ResultSet rs) -> {
+                    counts.put(rs.getObject("collection_id", UUID.class), rs.getLong("cnt"));
+                });
+        return counts;
     }
 
     public long countFiltered(String q, String status, UUID collectionId) {

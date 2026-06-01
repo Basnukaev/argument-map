@@ -59,16 +59,17 @@ public class HadithController {
     public PagedResponse<HadithResponse> list(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) UUID bookId,
+            @RequestParam(required = false) UUID collectionId,
+            @RequestParam(required = false) String sort,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
         PageRequest pr = PageRequest.from(page, size);
         List<HadithResponse> items = hadithRepository
-                .findPage(q, status, bookId, pr.size(), pr.offset())
+                .findPage(q, status, collectionId, sort, pr.size(), pr.offset())
                 .stream()
                 .map(HadithController::toResponse)
                 .toList();
-        long total = hadithRepository.countFiltered(q, status, bookId);
+        long total = hadithRepository.countFiltered(q, status, collectionId);
         return PagedResponse.of(items, pr.page(), pr.size(), total);
     }
 

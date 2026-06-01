@@ -3014,10 +3014,19 @@ URL hierarchy сохраняет `answerId` под будущую авториз
 данные публичные. Доменная модель - в spec
 `docs/superpowers/specs/2026-05-20-hadith-explorer-design.md`.
 
+### GET /api/v1/hadith/collections
+
+Список сборников `hd_collections` (под-проект #1, chip-фильтр). Возвращает
+`List<CollectionResponse>` = `{ id, slug, nameAr, nameEn, nameRu, totalHadith
+(заявленный объём), hadithCount (реально импортировано в hd_hadiths) }`.
+
 ### GET /api/v1/hadith/hadiths
 
 Список, `PagedResponse<HadithResponse>`. Фильтры: `q` (подстрока по
-normalized matn), `status` (CANONICAL/VARIANT/WEAK/FABRICATED), `bookId`.
+normalized matn), `status` (CANONICAL/VARIANT/WEAK/FABRICATED), `collectionId`
+(UUID сборника — переименован с `bookId`). `sort` (whitelist): `recent`
+(default, created_at DESC), `number` (primary_number ASC), `alphabetical`
+(normalized_matn ASC — арабский алфавитный).
 
 ### GET /api/v1/hadith/hadiths/{id}/detail
 
