@@ -11,6 +11,7 @@ import type { NarratorResponseDto, Paged, ReliabilityGrade } from '@/apps/hadith
 
 const PAGE_SIZE = 30;
 const GRADES: ReliabilityGrade[] = ['SAHABI', 'THIQA', 'SADUQ', 'MAQBUL', 'DAIF', 'MATRUK', 'UNKNOWN'];
+const SEARCH_DEBOUNCE_MS = 300;
 
 /**
  * Каталог передатчиков (علم الرجال). Поиск по имени + фильтр по степени
@@ -19,15 +20,29 @@ const GRADES: ReliabilityGrade[] = ['SAHABI', 'THIQA', 'SADUQ', 'MAQBUL', 'DAIF'
 function NarratorListPage() {
   const t = useT();
   const [state, setState] = useState<AsyncState<Paged<NarratorResponseDto>>>({ kind: 'loading' });
-  const [search, setSearch] = useState('');
+  // searchInput - что печатает юзер; searchQ - debounced (триггерит запрос).
+  // Раньше запрос шёл на каждый keystroke - спам API.
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQ, setSearchQ] = useState('');
   const [grade, setGrade] = useState<ReliabilityGrade | 'ALL'>('ALL');
+  const [loadingMore, setLoadingMore] = useState(false);
 
+  // Debounce: после 300ms простоя sync'аем searchInput → searchQ
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setSearchQ(searchInput.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+  }, [searchInput]);
+
+  // НЕ сбрасываем в loading на refetch (избегаем flash-to-spinner +
+  // react-hooks set-state-in-effect) - старый список виден пока грузится.
   useEffect(() => {
     const controller = new AbortController();
     const params = new URLSearchParams();
     params.set('page', '0');
     params.set('size', String(PAGE_SIZE));
-    if (search.trim()) params.set('q', search.trim());
+    if (searchQ) params.set('q', searchQ);
     if (grade !== 'ALL') params.set('reliability', grade);
     apiGetRaw<Paged<NarratorResponseDto>>(`/api/v1/hadith/narrators?${params.toString()}`, {
       signal: controller.signal,
@@ -38,7 +53,31 @@ function NarratorListPage() {
         setState({ kind: 'error', message: e instanceof ApiError ? e.problem.title : String(e) });
       });
     return () => controller.abort();
-  }, [search, grade]);
+  }, [searchQ, grade]);
+
+  /** Load More - подгружает следующую страницу, аппендит к existing list */
+  const loadMore = () => {
+    if (state.kind !== 'success' || !state.data.hasNext || loadingMore) return;
+    const nextPage = state.data.page + 1;
+    setLoadingMore(true);
+    const params = new URLSearchParams();
+    params.set('page', String(nextPage));
+    params.set('size', String(PAGE_SIZE));
+    if (searchQ) params.set('q', searchQ);
+    if (grade !== 'ALL') params.set('reliability', grade);
+    apiGetRaw<Paged<NarratorResponseDto>>(`/api/v1/hadith/narrators?${params.toString()}`)
+      .then((resp) => {
+        setState((prev) =>
+          prev.kind === 'success'
+            ? { kind: 'success', data: { ...resp, items: [...prev.data.items, ...resp.items] } }
+            : prev,
+        );
+      })
+      .catch((e: unknown) => {
+        setState({ kind: 'error', message: e instanceof ApiError ? e.problem.title : String(e) });
+      })
+      .finally(() => setLoadingMore(false));
+  };
 
   return (
     <main className="min-h-screen bg-bg">
@@ -65,8 +104,8 @@ function NarratorListPage() {
             <Search size={15} className="ms-3 text-ink-400" aria-hidden />
             <input
               type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               placeholder={t('hadith.narrators.search')}
               dir="auto"
               className="flex-1 bg-transparent px-3 text-sm text-ink-900 outline-none"
@@ -104,6 +143,7 @@ function NarratorListPage() {
               {t('hadith.narrators.empty')}
             </div>
           ) : (
+            <>
             <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {state.data.items.map((nr) => {
                 const rel = nr.reliabilityGrade ? RELIABILITY_TOKENS[nr.reliabilityGrade] : null;
@@ -146,6 +186,20 @@ function NarratorListPage() {
                 );
               })}
             </ul>
+            {state.data.hasNext && (
+              <div className="mt-4 flex justify-center">
+                <button
+                  type="button"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="inline-flex items-center gap-2 rounded-md border border-border-strong bg-elevated px-4 py-2 text-sm font-medium text-ink-700 hover:bg-ink-100 disabled:opacity-50"
+                >
+                  {loadingMore && <Loader2 size={14} className="animate-spin" />}
+                  {t('common.load_more')}
+                </button>
+              </div>
+            )}
+            </>
           ))}
       </div>
     </main>

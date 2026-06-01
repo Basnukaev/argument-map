@@ -32,18 +32,36 @@ const PAGE_SIZE = 20;
  * Vision 49d Section 2.6 Phase 2 frontend — Hadith list page.
  * GET /api/v1/hadith/hadiths.
  */
+const SEARCH_DEBOUNCE_MS = 300;
+
 function HadithListPage() {
   const t = useT();
   const [state, setState] = useState<AsyncState<PagedHadith>>({ kind: 'loading' });
-  const [search, setSearch] = useState('');
+  // searchInput - то что юзер печатает; searchQ - debounced значение,
+  // которое реально триггерит запрос. Раньше запрос шёл на каждый
+  // keystroke (search в deps без debounce) - спам API.
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQ, setSearchQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<HadithItem['status'] | 'ALL'>('ALL');
+  const [loadingMore, setLoadingMore] = useState(false);
 
+  // Debounce: после 300ms простоя sync'аем searchInput → searchQ
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setSearchQ(searchInput.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+  }, [searchInput]);
+
+  // Загрузка первой страницы при смене debounced query / фильтра.
+  // НЕ сбрасываем в loading (избегаем flash-to-spinner + react-hooks
+  // set-state-in-effect) - старый список виден пока грузится новый.
   useEffect(() => {
     const controller = new AbortController();
     const params = new URLSearchParams();
     params.set('page', '0');
     params.set('size', String(PAGE_SIZE));
-    if (search.trim()) params.set('q', search.trim());
+    if (searchQ) params.set('q', searchQ);
     if (statusFilter !== 'ALL') params.set('status', statusFilter);
     apiGetRaw<PagedHadith>(`/api/v1/hadith/hadiths?${params.toString()}`, {
       signal: controller.signal,
@@ -55,7 +73,38 @@ function HadithListPage() {
         setState({ kind: 'error', message });
       });
     return () => controller.abort();
-  }, [search, statusFilter]);
+  }, [searchQ, statusFilter]);
+
+  /** Load More - подгружает следующую страницу, аппендит к existing list */
+  const loadMore = () => {
+    if (state.kind !== 'success' || !state.data.hasNext || loadingMore) return;
+    const nextPage = state.data.page + 1;
+    setLoadingMore(true);
+    const params = new URLSearchParams();
+    params.set('page', String(nextPage));
+    params.set('size', String(PAGE_SIZE));
+    if (searchQ) params.set('q', searchQ);
+    if (statusFilter !== 'ALL') params.set('status', statusFilter);
+    apiGetRaw<PagedHadith>(`/api/v1/hadith/hadiths?${params.toString()}`)
+      .then((resp) => {
+        setState((prev) =>
+          prev.kind === 'success'
+            ? {
+                kind: 'success',
+                data: {
+                  ...resp,
+                  items: [...prev.data.items, ...resp.items],
+                },
+              }
+            : prev,
+        );
+      })
+      .catch((e: unknown) => {
+        const message = e instanceof ApiError ? e.problem.title : String(e);
+        setState({ kind: 'error', message });
+      })
+      .finally(() => setLoadingMore(false));
+  };
 
   return (
     <main className="min-h-screen bg-bg">
@@ -80,8 +129,8 @@ function HadithListPage() {
             <Search size={15} className="ms-3 text-ink-400" aria-hidden />
             <input
               type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               placeholder={t('hadith.search_placeholder')}
               dir="auto"
               className="flex-1 bg-transparent px-3 text-sm text-ink-900 outline-none"
@@ -149,6 +198,19 @@ function HadithListPage() {
             <div className="mt-4 text-xs text-ink-500">
               {t('hadith.total').replace('{count}', String(state.data.totalElements))}
             </div>
+            {state.data.hasNext && (
+              <div className="mt-4 flex justify-center">
+                <button
+                  type="button"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="inline-flex items-center gap-2 rounded-md border border-border-strong bg-elevated px-4 py-2 text-sm font-medium text-ink-700 hover:bg-ink-100 disabled:opacity-50"
+                >
+                  {loadingMore && <Loader2 size={14} className="animate-spin" />}
+                  {t('common.load_more')}
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
