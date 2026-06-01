@@ -25,7 +25,7 @@ public class SunnahHadithDao {
             rs.getString("collection_name"),
             rs.getString("hadith_number"),
             rs.getString("book_number"),
-            rs.getObject("chapter_id", Integer.class),
+            rs.getString("chapter_id"),
             rs.getObject("urn_ar", Long.class),
             rs.getObject("urn_en", Long.class),
             rs.getString("body_ar"),

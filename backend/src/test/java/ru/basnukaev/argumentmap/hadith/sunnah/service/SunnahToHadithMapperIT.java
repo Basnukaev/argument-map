@@ -93,7 +93,7 @@ class SunnahToHadithMapperIT {
     void maps_hadith_creating_collection_hadith_and_primary_matn() throws Exception {
         seedBukhariStructure();
         hadithDao.upsertAll(List.of(new SunnahHadithRow(
-                "bukhari", "1", "1", 1, 1L, 1L,
+                "bukhari", "1", "1", "1", 1L, 1L,
                 "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ", "Actions are by intentions",
                 "[{\"graded_by\":\"\",\"grade\":\"Sahih\"}]", null)));
 
@@ -124,14 +124,14 @@ class SunnahToHadithMapperIT {
         // структура книга/глава едет в metadata matn'а (spec §6)
         JsonNode matnMeta = objectMapper.readTree(m.metadata());
         assertThat(matnMeta.get("bookNumber").asText()).isEqualTo("1");
-        assertThat(matnMeta.get("chapterId").asInt()).isEqualTo(1);
+        assertThat(matnMeta.get("chapterId").asText()).isEqualTo("1");
     }
 
     @Test
     void maps_grades_into_metadata_in_frontend_expected_shape() throws Exception {
         seedBukhariStructure();
         hadithDao.upsertAll(List.of(new SunnahHadithRow(
-                "bukhari", "1", "1", 1, null, null, "متن", "matn",
+                "bukhari", "1", "1", "1", null, null, "متن", "matn",
                 "[{\"graded_by\":\"Al-Albani\",\"grade\":\"Sahih\"}]", null)));
 
         mapper.mapCollection("bukhari");
@@ -187,7 +187,7 @@ class SunnahToHadithMapperIT {
         hadithDao.upsertAll(List.of(
                 hadithRow("bukhari", "2", "نص صحيح"),
                 hadithRow("bukhari", "2b", "نص بنومером غير числовым"),
-                new SunnahHadithRow("bukhari", "3", "1", 1, null, null,
+                new SunnahHadithRow("bukhari", "3", "1", "1", null, null,
                         "   ", "only english", null, null)));
 
         SunnahMappingResult r = mapper.mapCollection("bukhari");
@@ -292,12 +292,12 @@ class SunnahToHadithMapperIT {
     void writes_chapter_id_without_title_when_book_number_null() throws Exception {
         seedBukhariStructure();
         hadithDao.upsertAll(List.of(new SunnahHadithRow(
-                "bukhari", "1", null, 1, null, null, "نص", null, null, null)));
+                "bukhari", "1", null, "1", null, null, "نص", null, null, null)));
 
         mapper.mapCollection("bukhari");
 
         JsonNode meta = objectMapper.readTree(onlyMatn().metadata());
-        assertThat(meta.get("chapterId").asInt()).isEqualTo(1);
+        assertThat(meta.get("chapterId").asText()).isEqualTo("1");
         assertThat(meta.has("chapterTitleAr")).isFalse();
         assertThat(meta.has("bookNumber")).isFalse();
     }
@@ -318,7 +318,7 @@ class SunnahToHadithMapperIT {
     }
 
     private static SunnahHadithRow gradedHadith(String number, String gradesJson) {
-        return new SunnahHadithRow("bukhari", number, "1", 1, null, null,
+        return new SunnahHadithRow("bukhari", number, "1", "1", null, null,
                 "متن " + number, null, gradesJson, null);
     }
 
@@ -329,12 +329,12 @@ class SunnahToHadithMapperIT {
         bookDao.upsertAll(List.of(new SunnahBookRow(
                 "bukhari", "1", 1, 7, 7, "كتاب بدء الوحي", "Revelation", null)));
         chapterDao.upsertAll(List.of(new SunnahChapterRow(
-                "bukhari", "1", 1, null, null,
+                "bukhari", "1", "1", null, null,
                 "باب كيف كان بدء الوحي", "How Revelation started",
                 null, null, null, null, null)));
     }
 
     private static SunnahHadithRow hadithRow(String coll, String number, String bodyAr) {
-        return new SunnahHadithRow(coll, number, "1", 1, null, null, bodyAr, null, null, null);
+        return new SunnahHadithRow(coll, number, "1", "1", null, null, bodyAr, null, null, null);
     }
 }

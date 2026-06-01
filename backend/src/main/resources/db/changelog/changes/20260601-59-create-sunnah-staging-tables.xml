@@ -47,9 +47,12 @@
               semantics). Инкрементальные удаления станут актуальны только
               с API-источником (шаг 4) — добавим tombstone тогда (YAGNI).
 
-          (5) book_number / hadith_number — varchar, не integer. sunnah.com
-              допускает нечисловые («introduction») и суб-номера («1a»).
-              chapter_id — integer (chapterId числовой в spec.v1.yml).
+          (5) book_number / hadith_number / chapter_id — varchar, не integer.
+              sunnah.com допускает нечисловые («introduction») и суб-номера
+              («1a»). chapter_id (babID реального дампа) — ДРОБНЫЙ
+              (1.1, 22.10 — суб-главы), потому varchar с канонической
+              нормализацией в reader'е, а не integer (иначе 1.0/1.1
+              схлопнулись бы в одну главу).
 
           (6) grades jsonb на hadith — массив [{graded_by, grade}] как
               приходит из sunnah; mapper переложит в hd_hadiths.metadata.grades.
@@ -95,7 +98,7 @@
             CREATE TABLE sn_staging_chapter (
                 collection_name    varchar(50) NOT NULL,
                 book_number        varchar(30) NOT NULL,
-                chapter_id         integer NOT NULL,
+                chapter_id         varchar(20) NOT NULL,
                 chapter_number_ar  text,
                 chapter_number_en  text,
                 title_ar           text,
@@ -116,7 +119,7 @@
                                  REFERENCES sn_staging_collection(name) ON DELETE CASCADE,
                 hadith_number    varchar(30) NOT NULL,
                 book_number      varchar(30),
-                chapter_id       integer,
+                chapter_id       varchar(20),
                 urn_ar           bigint,
                 urn_en           bigint,
                 body_ar          text,

@@ -16,7 +16,7 @@ package ru.basnukaev.argumentmap.hadith.sunnah.etl.dto;
  * @param collectionName часть PK (→ sn_staging_collection.name)
  * @param hadithNumber часть PK, номер хадиса в сборнике (varchar)
  * @param bookNumber книга, к которой относится (nullable)
- * @param chapterId глава (nullable, hasChapters опционален)
+ * @param chapterId глава — канонический babID (nullable, hasChapters опционален)
  * @param urnAr URN арабской версии (nullable)
  * @param urnEn URN английской версии (nullable)
  * @param bodyAr арабский текст matn+isnad (nullable)
@@ -28,7 +28,7 @@ public record SunnahHadithRow(
         String collectionName,
         String hadithNumber,
         String bookNumber,
-        Integer chapterId,
+        String chapterId,
         Long urnAr,
         Long urnEn,
         String bodyAr,

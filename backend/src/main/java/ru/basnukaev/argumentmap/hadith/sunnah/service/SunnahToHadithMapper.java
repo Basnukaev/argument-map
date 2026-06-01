@@ -247,7 +247,7 @@ public class SunnahToHadithMapper {
         }
     }
 
-    private static String chapterKey(String bookNumber, int chapterId) {
+    private static String chapterKey(String bookNumber, String chapterId) {
         return bookNumber + "/" + chapterId;
     }
 

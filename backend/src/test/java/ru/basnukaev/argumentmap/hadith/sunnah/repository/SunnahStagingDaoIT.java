@@ -137,13 +137,13 @@ class SunnahStagingDaoIT {
         bookDao.upsertAll(List.of(new SunnahBookRow(
                 "bukhari", "1", null, null, null, null, "Revelation", null)));
         chapterDao.upsertAll(List.of(new SunnahChapterRow(
-                "bukhari", "1", 1, "١", "1", "باب", "Chapter",
+                "bukhari", "1", "1", "١", "1", "باب", "Chapter",
                 "مقدمة", "Intro", "خاتمة", "Ending", "{\"k\":1}")));
 
         // полное покрытие колонок: column-order mismatch в RowMapper иначе
         // незаметен при single-field assertions
         SunnahChapterRow ch = chapterDao.findByCollection("bukhari").get(0);
-        assertThat(ch.chapterId()).isEqualTo(1);
+        assertThat(ch.chapterId()).isEqualTo("1");
         assertThat(ch.chapterNumberAr()).isEqualTo("١");
         assertThat(ch.chapterNumberEn()).isEqualTo("1");
         assertThat(ch.titleAr()).isEqualTo("باب");
@@ -161,7 +161,7 @@ class SunnahStagingDaoIT {
     void hadith_upsert_roundtrip_persists_body_and_grades_jsonb() {
         collectionDao.upsertAll(List.of(collection("bukhari", "Sahih al-Bukhari")));
         hadithDao.upsertAll(List.of(new SunnahHadithRow(
-                "bukhari", "1", "1", 1, 1L, 100001L,
+                "bukhari", "1", "1", "1", 1L, 100001L,
                 "إنما الأعمال بالنيات", "Actions are but by intentions",
                 "[{\"graded_by\":\"\",\"grade\":\"Sahih\"}]", "{\"src\":\"dump\"}")));
 
@@ -209,7 +209,7 @@ class SunnahStagingDaoIT {
         bookDao.upsertAll(List.of(new SunnahBookRow(
                 "bukhari", "1", null, null, null, null, "Revelation", null)));
         chapterDao.upsertAll(List.of(new SunnahChapterRow(
-                "bukhari", "1", 1, null, null, null, "Chapter", null, null, null, null, null)));
+                "bukhari", "1", "1", null, null, null, "Chapter", null, null, null, null, null)));
         hadithDao.upsertAll(List.of(hadith("bukhari", "1", "matn")));
 
         // pre-state: дети существуют (иначе тест прошёл бы вакуумно даже

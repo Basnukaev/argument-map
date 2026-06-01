@@ -103,6 +103,18 @@
 			<version>3.45.3.0</version>
 		</dependency>
 		<!--
+			MySQL JDBC для чтения дампа sunnah.com (ADR-052, Phase 5 шаг 2.d).
+			Используется только в hadith.sunnah.etl.SunnahDumpReader - подключение
+			к загруженному MySQL-дампу (github.com/sunnah-com/api) через
+			DriverManager, без вмешательства в основной DataSource Postgres.
+			Version managed by Spring Boot BOM. Симметрично sqlite-jdbc для shamela.
+		-->
+		<dependency>
+			<groupId>com.mysql</groupId>
+			<artifactId>mysql-connector-j</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+		<!--
 			AWS SDK v2 S3 client (ADR-024). Version managed by bom-import выше.
 			Используется в library.storage.S3ClientConfig для подключения к
 			MinIO (dev) / любому S3-compatible сервису (prod).
@@ -217,6 +229,17 @@
 		<dependency>
 			<groupId>org.testcontainers</groupId>
 			<artifactId>postgresql</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!--
+			Testcontainers MySQL (ADR-052). Поднимает MySQL container в IT для
+			SunnahDumpReader - читает дамп sunnah.com из реальной MySQL-схемы
+			(fixture в src/test/resources/sunnah). Изолированно от Postgres-
+			контейнера основных IT. Version managed by Spring Boot BOM.
+		-->
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>mysql</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<!--

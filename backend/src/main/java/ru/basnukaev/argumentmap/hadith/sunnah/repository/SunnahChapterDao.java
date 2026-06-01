@@ -23,7 +23,7 @@ public class SunnahChapterDao {
     private static final RowMapper<SunnahChapterRow> ROW_MAPPER = (rs, rn) -> new SunnahChapterRow(
             rs.getString("collection_name"),
             rs.getString("book_number"),
-            rs.getInt("chapter_id"),
+            rs.getString("chapter_id"),
             rs.getString("chapter_number_ar"),
             rs.getString("chapter_number_en"),
             rs.getString("title_ar"),
