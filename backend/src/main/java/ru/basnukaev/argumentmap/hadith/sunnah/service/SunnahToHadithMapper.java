@@ -103,38 +103,101 @@ public class SunnahToHadithMapper {
         Instant now = Instant.now();
         Collection collection = resolveCollection(staging, now);
 
-        Map<String, SunnahBookRow> books = bookDao.findByCollection(collectionName).stream()
-                .collect(Collectors.toMap(SunnahBookRow::bookNumber, b -> b,
-                        (a, b) -> a, LinkedHashMap::new));
-        Map<String, SunnahChapterRow> chapters = chapterDao.findByCollection(collectionName).stream()
-                .collect(Collectors.toMap(c -> chapterKey(c.bookNumber(), c.chapterId()), c -> c,
-                        (a, b) -> a, LinkedHashMap::new));
+        Map<String, SunnahBookRow> books = booksByNumber(collectionName);
+        Map<String, SunnahChapterRow> chapters = chaptersByKey(collectionName);
 
         int inserted = 0;
         int skippedExisting = 0;
         int skippedInvalid = 0;
         for (SunnahHadithRow row : hadithDao.findByCollection(collectionName)) {
-            Integer number = parseNumber(row.hadithNumber());
-            String normalized = ArabicTextNormalizer.normalize(row.bodyAr());
-            if (number == null || normalized.isEmpty()) {
-                skippedInvalid++;
-                continue;
+            switch (mapRow(row, collection, books, chapters, now)) {
+                case INSERTED -> inserted++;
+                case SKIPPED_EXISTING -> skippedExisting++;
+                case SKIPPED_INVALID -> skippedInvalid++;
             }
-            if (hadithRepository.findByCollectionIdAndPrimaryNumber(collection.id(), number).isPresent()) {
-                skippedExisting++;
-                continue;
-            }
-            UUID hadithId = UUID.randomUUID();
-            hadithRepository.save(new Hadith(hadithId, collection.id(), number, normalized,
-                    HadithStatus.VARIANT, null, buildHadithMetadata(row), now));
-            matnRepository.save(new Matn(UUID.randomUUID(), hadithId, row.bodyAr(), normalized,
-                    null, row.bodyEn(), collection.id(), number, null, null,
-                    true, null, buildMatnMetadata(row, books, chapters), now));
-            inserted++;
         }
         log.info("sunnah→hd mapping {}: inserted={} skippedExisting={} skippedInvalid={}",
                 collectionName, inserted, skippedExisting, skippedInvalid);
         return new SunnahMappingResult(collectionName, inserted, skippedExisting, skippedInvalid);
+    }
+
+    /**
+     * Маппинг одного staged-хадиса по номеру (фазовый/верифицируемый путь,
+     * ADR-052). Использует тот же per-row код что и {@link #mapCollection}, но
+     * только для одной строки — гарантия идентичности bulk и single импорта.
+     *
+     * @return результат как у {@link #mapCollection} но максимум для 1 хадиса
+     * @throws IllegalArgumentException если сборника нет в staging
+     * @throws IllegalStateException если хадиса нет в staging (после staging-
+     *         шага он обязан там быть — это safety net, а не пользовательский
+     *         404; валидацию «нет в дампе» делает {@code SunnahImportService})
+     */
+    @Transactional
+    public SunnahMappingResult mapSingle(String collectionName, String hadithNumber) {
+        SunnahCollectionRow staging = collectionDao.findByName(collectionName)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Нет staging-сборника sunnah: " + collectionName));
+        SunnahHadithRow row = hadithDao.findByCollection(collectionName).stream()
+                .filter(h -> hadithNumber.equals(h.hadithNumber()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "Staged-хадис исчез после staging: " + collectionName + "/" + hadithNumber));
+
+        Instant now = Instant.now();
+        Collection collection = resolveCollection(staging, now);
+        Map<String, SunnahBookRow> books = booksByNumber(collectionName);
+        Map<String, SunnahChapterRow> chapters = chaptersByKey(collectionName);
+
+        int inserted = 0;
+        int skippedExisting = 0;
+        int skippedInvalid = 0;
+        switch (mapRow(row, collection, books, chapters, now)) {
+            case INSERTED -> inserted++;
+            case SKIPPED_EXISTING -> skippedExisting++;
+            case SKIPPED_INVALID -> skippedInvalid++;
+        }
+        return new SunnahMappingResult(collectionName, inserted, skippedExisting, skippedInvalid);
+    }
+
+    /** Исход маппинга одной staged-строки. */
+    private enum RowOutcome { INSERTED, SKIPPED_EXISTING, SKIPPED_INVALID }
+
+    /**
+     * Маппит одну staged-строку в hd_hadiths + первичный hd_matns. Единый
+     * источник истины для bulk ({@link #mapCollection}) и single
+     * ({@link #mapSingle}) — одинаковая чистка/нормализация/grades/идемпотентность.
+     */
+    private RowOutcome mapRow(SunnahHadithRow row, Collection collection,
+                              Map<String, SunnahBookRow> books,
+                              Map<String, SunnahChapterRow> chapters,
+                              Instant now) {
+        Integer number = parseNumber(row.hadithNumber());
+        String normalized = ArabicTextNormalizer.normalize(row.bodyAr());
+        if (number == null || normalized.isEmpty()) {
+            return RowOutcome.SKIPPED_INVALID;
+        }
+        if (hadithRepository.findByCollectionIdAndPrimaryNumber(collection.id(), number).isPresent()) {
+            return RowOutcome.SKIPPED_EXISTING;
+        }
+        UUID hadithId = UUID.randomUUID();
+        hadithRepository.save(new Hadith(hadithId, collection.id(), number, normalized,
+                HadithStatus.VARIANT, null, buildHadithMetadata(row), now));
+        matnRepository.save(new Matn(UUID.randomUUID(), hadithId, row.bodyAr(), normalized,
+                null, row.bodyEn(), collection.id(), number, null, null,
+                true, null, buildMatnMetadata(row, books, chapters), now));
+        return RowOutcome.INSERTED;
+    }
+
+    private Map<String, SunnahBookRow> booksByNumber(String collectionName) {
+        return bookDao.findByCollection(collectionName).stream()
+                .collect(Collectors.toMap(SunnahBookRow::bookNumber, b -> b,
+                        (a, b) -> a, LinkedHashMap::new));
+    }
+
+    private Map<String, SunnahChapterRow> chaptersByKey(String collectionName) {
+        return chapterDao.findByCollection(collectionName).stream()
+                .collect(Collectors.toMap(c -> chapterKey(c.bookNumber(), c.chapterId()), c -> c,
+                        (a, b) -> a, LinkedHashMap::new));
     }
 
     /**

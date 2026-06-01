@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import ru.basnukaev.argumentmap.auth.domain.UserRole;
@@ -17,8 +18,12 @@ import ru.basnukaev.argumentmap.hadith.sunnah.etl.SunnahDataSource;
 import ru.basnukaev.argumentmap.hadith.sunnah.service.SunnahImportService;
 import ru.basnukaev.argumentmap.hadith.sunnah.service.SunnahMappingResult;
 import ru.basnukaev.argumentmap.hadith.sunnah.web.dto.SunnahCollectionPreview;
+import ru.basnukaev.argumentmap.hadith.sunnah.web.dto.SunnahHadithBrowseItem;
+import ru.basnukaev.argumentmap.hadith.sunnah.web.dto.SunnahHadithPreview;
 import ru.basnukaev.argumentmap.hadith.sunnah.web.dto.SunnahImportResponse;
 import ru.basnukaev.argumentmap.web.CurrentUser;
+import ru.basnukaev.argumentmap.web.dto.PageRequest;
+import ru.basnukaev.argumentmap.web.dto.PagedResponse;
 
 /**
  * Admin REST endpoints для импорта sunnah.com (Phase 5 ETL шаг 2.d, ADR-052).
@@ -55,12 +60,59 @@ public class SunnahAdminController {
                 .toList();
     }
 
+    /**
+     * Список хадисов сборника, доступных В ИСТОЧНИКЕ (до импорта), с флагом
+     * {@code alreadyImported}. Фазовый импорт (ADR-052): пролистать корпус
+     * прежде чем коммитить. Пагинация в памяти источника.
+     */
+    @GetMapping("/collections/{collection}/hadiths")
+    public PagedResponse<SunnahHadithBrowseItem> browseHadiths(
+            @PathVariable String collection,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @CurrentUser UUID currentUserId) {
+        requireAdmin(currentUserId);
+        PageRequest pr = PageRequest.from(page, size);
+        SunnahDataSource src = source();
+        List<SunnahHadithBrowseItem> items =
+                importService.browseHadiths(src, collection, pr.size(), pr.offset());
+        long total = importService.countHadiths(src, collection);
+        return PagedResponse.of(items, pr.page(), pr.size(), total);
+    }
+
+    /**
+     * DRY-RUN превью маппинга одного хадиса в наш формат hd_* — БЕЗ записи в БД
+     * (ключевая фича фазового импорта, ADR-052). См.
+     * {@link SunnahImportService#previewSingle}.
+     */
+    @GetMapping("/preview/{collection}/{number}")
+    public SunnahHadithPreview preview(@PathVariable String collection,
+                                       @PathVariable String number,
+                                       @CurrentUser UUID currentUserId) {
+        requireAdmin(currentUserId);
+        return importService.previewSingle(source(), collection, number);
+    }
+
     /** Импорт одного сборника: источник → staging → hd_*. Идемпотентно. */
     @PostMapping("/import/{collection}")
     public SunnahImportResponse importCollection(@PathVariable String collection,
                                                  @CurrentUser UUID currentUserId) {
         requireAdmin(currentUserId);
         SunnahMappingResult result = importService.importCollection(source(), collection);
+        return SunnahImportResponse.from(result);
+    }
+
+    /**
+     * Импорт ровно ОДНОГО хадиса по номеру (фазовый/верифицируемый путь,
+     * ADR-052). Идемпотентно по (collection, primaryNumber). 404 если хадиса
+     * нет в источнике.
+     */
+    @PostMapping("/import/{collection}/{number}")
+    public SunnahImportResponse importSingle(@PathVariable String collection,
+                                             @PathVariable String number,
+                                             @CurrentUser UUID currentUserId) {
+        requireAdmin(currentUserId);
+        SunnahMappingResult result = importService.importSingle(source(), collection, number);
         return SunnahImportResponse.from(result);
     }
 

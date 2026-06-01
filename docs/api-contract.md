@@ -3149,6 +3149,55 @@ MySQL с загруженным `db/00-samplegitdb.sql`). Если не скон
 = `{ name, titleEn, titleAr, totalHadith, hasBooks, hasChapters }`. ADMIN-only
 (403 `forbidden-admin-only`). 503 если источник не настроен.
 
+### Фазовый верифицируемый импорт (ADR-052)
+
+Требование: admin должен (1) пролистать корпус источника, (2) увидеть, во что
+конкретный хадис превратится в НАШЕМ формате ДО коммита, (3) импортировать по
+одному. Все три endpoint'а ADMIN-only (403 `forbidden-admin-only`), за тем же
+503-gate `sunnah-dump-not-configured`.
+
+#### GET /api/v1/admin/sunnah/collections/{collection}/hadiths?page=&size=
+
+Список хадисов, доступных В ИСТОЧНИКЕ для сборника (до импорта). Пагинация в
+памяти источника (`PageRequest`: page=0/size=20 default, MAX_SIZE=100).
+`PagedResponse<SunnahHadithBrowseItem>`, где item =
+`{ number, textArSnippet, textEnSnippet, alreadyImported }`. `number` — varchar
+(sunnah допускает "1a"); сниппеты — обрезанный (≤200 симв.) очищенный текст
+matn+isnad единым блоком; `alreadyImported` — есть ли уже `hd_hadiths` для
+`(collection_id, primary_number)` (если сборника нет в `hd_collections` —
+для всех `false`). 400 `illegal-argument` если сборника нет в источнике.
+
+#### GET /api/v1/admin/sunnah/preview/{collection}/{number}
+
+**DRY-RUN** маппинга одного хадиса в наш формат `hd_*` — БЕЗ записи в БД.
+Ответ `SunnahHadithPreview` =
+`{ collection, primaryNumber, status, matnAr, matnEn, normalizedMatn,
+grades: [{ scholar, grade }], structure: { bookNumber, bookNameAr, bookNameEn,
+chapterId, chapterTitleAr, chapterTitleEn }, isnad, importable, alreadyImported }`.
+`primaryNumber` — распарсенный числовой (null если нечисловой → не был бы
+импортирован); `importable=false` если нечисловой номер / пустой арабский matn
+(хадис попал бы в `skippedInvalid`); `isnad` пока всегда `null` (sunnah даёт
+matn+isnad блобом — структурный иснад отдельной стадией IsnadExtraction).
+404 `sunnah-hadith-not-found` если хадиса нет в источнике; 400 `illegal-argument`
+если сборника нет в источнике.
+
+**Недеструктивность (точный dry-run):** реализован через rollback-транзакцию —
+сервис прогоняет РЕАЛЬНЫЙ код импорта (staging upsert + тот же
+`SunnahToHadithMapper`) внутри `@Transactional`-метода, читает только что
+записанные `hd_*`-строки чтобы собрать DTO, затем форсит откат через
+`TransactionAspectSupport.currentTransactionStatus().setRollbackOnly()`. Чтения
+видят незакоммиченные записи, rollback стирает их (включая staging) → БД не
+мутируется, а превью В ТОЧНОСТИ равно реальному импорту (тот же mapper, та же
+чистка/нормализация/grades).
+
+#### POST /api/v1/admin/sunnah/import/{collection}/{number}
+
+Импорт ровно ОДНОГО хадиса по номеру (фазовый/верифицируемый путь). Тот же
+mapper и идемпотентность по `(collection_id, primary_number)`, что и bulk.
+Ответ `SunnahImportResponse` = `{ collectionName, inserted, skippedExisting,
+skippedInvalid }` (для одного хадиса — суммы 0/1). 404 `sunnah-hadith-not-found`
+если хадиса нет в источнике; 400 `illegal-argument` если сборника нет.
+
 ### POST /api/v1/admin/sunnah/import/{collection}
 
 Импорт одного сборника: источник → `sn_staging_*` → `SunnahToHadithMapper`

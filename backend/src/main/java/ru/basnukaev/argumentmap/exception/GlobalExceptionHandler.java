@@ -20,6 +20,7 @@ import ru.basnukaev.argumentmap.library.imports.PageImageException;
 import ru.basnukaev.argumentmap.library.imports.web.UnsupportedMediaTypeException;
 import ru.basnukaev.argumentmap.library.pdf.service.PdfNotAvailableException;
 import ru.basnukaev.argumentmap.library.pdf.service.RangeNotSatisfiableException;
+import ru.basnukaev.argumentmap.hadith.sunnah.service.SunnahHadithNotFoundException;
 import ru.basnukaev.argumentmap.hadith.sunnah.web.SunnahDumpNotConfiguredException;
 import ru.basnukaev.argumentmap.library.shamela.api.ShamelaApiException;
 import ru.basnukaev.argumentmap.library.shamela.etl.ShamelaArchiveException;
@@ -285,6 +286,13 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleSunnahDumpNotConfigured(SunnahDumpNotConfiguredException ex) {
         return problem(HttpStatus.SERVICE_UNAVAILABLE,
                 "Источник sunnah не настроен", "sunnah-dump-not-configured",
+                ex.getMessage());
+    }
+
+    @ExceptionHandler(SunnahHadithNotFoundException.class)
+    public ProblemDetail handleSunnahHadithNotFound(SunnahHadithNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND,
+                "Хадис не найден в источнике sunnah", "sunnah-hadith-not-found",
                 ex.getMessage());
     }
 
