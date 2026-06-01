@@ -386,17 +386,13 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
 для закрытых 6 authz-дыр — тот же системный паттерн «эндпоинт не зовёт
 permission-модель», который надо домести чтобы sweep был полным:
 
-- [ ] **NodeSourceController без topic-authz** — `attach`(POST)/`list`(GET)/
-  `detach`(DELETE) на `/nodes/{nodeId}/sources` не зовут assertCanWrite/
-  assertCanRead на тему узла (даже @CurrentUser не принимают). IDOR-scoping
-  detach закрыт (Сессия 52), но топик-уровневая авторизация отсутствует —
-  любой authenticated может attach/delete citations в чужой теме. Fix:
-  резолвить node.topicId() → assertCanWrite/assertCanRead в NodeSourceService.
-- [ ] **Q&A citation controllers — unscoped detachById** —
-  `QuestionCitationController`/`AnswerCitationController` зовут
-  `detachById(sourceId)` (single-arg, не parent-scoped) без author/admin
-  guard. Тот же pre-fix паттерн что был у NodeSource. Применить
-  node-scoped delete + author guard.
+- [x] **NodeSourceController без topic-authz** — закрыто (commit 5f27689,
+  Сессия 52). attach/detach → assertCanWrite на тему узла, list →
+  assertCanRead. @CurrentUser прокинут. detach остаётся node-scoped.
+- [x] **Q&A citation controllers — unscoped detachById** — закрыто
+  (commit 5f27689). create/detach → автор вопроса/ответа или ADMIN; detach
+  стал question/answer-scoped (deleteByIdAndQuestion/deleteByIdAndAnswer,
+  404 при mismatch). GET без guard (open discussion). Завершает ADR-043 sweep.
 - [ ] **AI-edit stuck-PROCESSING liveness** — `tryClaimAiEditProcessing`
   claims `WHERE ai_edit_status IS DISTINCT FROM 'PROCESSING'`. Если процесс
   упал mid-`complete()` не дойдя до FAILED, страница навсегда не
