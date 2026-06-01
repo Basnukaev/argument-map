@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -81,6 +82,25 @@ public class HadithRepository {
                         + "WHERE collection_id = ? AND primary_number = ?",
                 ROW_MAPPER, collectionId, primaryNumber
         ).stream().findFirst();
+    }
+
+    /**
+     * Обратный lookup по списку {@code source_id} (мост citation→hadith,
+     * под-проект #2). Используется при обогащении {@code GET
+     * /nodes/{id}/sources}: хадис-опоры узнаём по source_id. Один SQL вместо
+     * N findById. Пустой список — без запроса (IN () невалиден в SQL),
+     * как в {@link MatnRepository#findPrimaryTextByHadithIds}.
+     */
+    public List<Hadith> findBySourceIds(List<UUID> sourceIds) {
+        if (sourceIds == null || sourceIds.isEmpty()) {
+            return List.of();
+        }
+        String placeholders = sourceIds.stream().map(x -> "?").collect(Collectors.joining(","));
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM hd_hadiths "
+                        + "WHERE source_id IN (" + placeholders + ")",
+                ROW_MAPPER, sourceIds.toArray()
+        );
     }
 
     public List<Hadith> findPage(String q, String status, UUID collectionId,

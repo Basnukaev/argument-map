@@ -2664,7 +2664,14 @@ insert в node_sources с positional полями.
       "pageNumber": 7
     } | null
   } | null,
-  "createdAt": "iso8601"
+  "createdAt": "iso8601",
+  "hadith": {
+    "hadithId": "uuid",
+    "primaryNumber": 1,
+    "collectionName": "Сахих аль-Бухари",
+    "previewMatn": "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ",
+    "status": "CANONICAL"
+  } | null
 }
 ```
 
@@ -2684,6 +2691,16 @@ nested citation.
 - PDF когда `pdfFileId` set
 - REGION когда `imageRegionId` set
 - LEGACY когда все positional NULL (citation = null или все nested refs null)
+
+`hadith` (под-проект #2) — не-null **только** если source это мост хадиса
+(`hd_hadiths.source_id` указывает на этот source, sourceType=HADITH). Несёт
+хадис-специфику для рендера карточки без доп. GET: `hadithId`, `primaryNumber`
+(nullable), `collectionName` (nameRu→nameAr→slug, nullable), `previewMatn`
+(диакритизированный text_ar первичного matn, nullable), `status`
+(CANONICAL/VARIANT/WEAK/FABRICATED — для бейджа). Для обычных source-опор
+(BOOK/etc) поле = null. Обогащение делается batch'ем в `GET
+/nodes/{id}/sources` (reverse lookup `findBySourceIds` + batch previewMatn,
+без N+1).
 
 ### GET /api/v1/nodes/{nodeId}/sources (обновлён)
 

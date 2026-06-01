@@ -1,5 +1,6 @@
 package ru.basnukaev.argumentmap.web.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -124,6 +125,50 @@ class NodeSourceControllerIT {
     }
 
     @Test
+    void listNodeSources_hadithBridge_returnsHadithRef_andNullForPlainSource() throws Exception {
+        // хадис-опора: collection + hadith + primary matn, прикреплён через #2.A
+        UUID collectionId = insertCollection();
+        UUID hadithId = insertHadith(collectionId, 1, "CANONICAL");
+        insertPrimaryMatn(hadithId, "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ");
+        attachHadith(hadithId);
+
+        // обычная (не-хадис) опора на том же узле
+        attach(sourceId, "q-plain", "c-plain");
+
+        var listResult = mockMvc.perform(get("/api/v1/nodes/{nodeId}/sources", nodeId)
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andReturn();
+        var arr = objectMapper.readTree(listResult.getResponse().getContentAsString());
+
+        // строку-хадис ищем по наличию non-null hadith; plain — по sourceId
+        var hadithRow = findRow(arr, n -> !n.path("hadith").isNull() && n.path("hadith").isObject());
+        var plainRow = findRow(arr, n -> sourceId.toString().equals(n.path("sourceId").asText()));
+
+        var hadith = hadithRow.get("hadith");
+        assertThat(hadith.get("hadithId").asText()).isEqualTo(hadithId.toString());
+        assertThat(hadith.get("primaryNumber").asInt()).isEqualTo(1);
+        assertThat(hadith.get("collectionName").asText()).isEqualTo("Сахих аль-Бухари");
+        assertThat(hadith.get("previewMatn").asText()).contains("الأَعْمَالُ");
+        assertThat(hadith.get("status").asText()).isEqualTo("CANONICAL");
+
+        // обычная опора: hadith == null
+        assertThat(plainRow.path("hadith").isNull()).isTrue();
+    }
+
+    private static com.fasterxml.jackson.databind.JsonNode findRow(
+            com.fasterxml.jackson.databind.JsonNode arr,
+            java.util.function.Predicate<com.fasterxml.jackson.databind.JsonNode> match) {
+        for (var n : arr) {
+            if (match.test(n)) {
+                return n;
+            }
+        }
+        throw new AssertionError("строка не найдена в ответе: " + arr);
+    }
+
+    @Test
     void detachSource_returns204() throws Exception {
         attach(sourceId, null, null);
 
@@ -161,6 +206,46 @@ class NodeSourceControllerIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated());
+    }
+
+    /** Прикрепляет хадис через #2.A POST — создаёт мост Source + node_source. */
+    private void attachHadith(UUID hadithId) throws Exception {
+        mockMvc.perform(post("/api/v1/nodes/{nodeId}/hadith-citations", nodeId)
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"hadithId\":\"" + hadithId + "\"}"))
+                .andExpect(status().isCreated());
+    }
+
+    private UUID insertCollection() {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO hd_collections (id, slug, name_ar, name_en, name_ru, created_at) "
+                        + "VALUES (?, ?, ?, ?, ?, ?)",
+                id, "coll-" + id, "صحيح البخاري", "Sahih al-Bukhari",
+                "Сахих аль-Бухари", odt(Instant.now())
+        );
+        return id;
+    }
+
+    private UUID insertHadith(UUID collectionId, int primaryNumber, String status) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO hd_hadiths (id, collection_id, primary_number, normalized_matn, "
+                        + "status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                id, collectionId, primaryNumber, "انما الاعمال بالنيات",
+                status, odt(Instant.now())
+        );
+        return id;
+    }
+
+    private void insertPrimaryMatn(UUID hadithId, String textAr) {
+        // text_ar_normalized NOT NULL (миграция 55) — кладём упрощённую версию
+        jdbcTemplate.update(
+                "INSERT INTO hd_matns (id, hadith_id, text_ar, text_ar_normalized, "
+                        + "is_primary, created_at) VALUES (?, ?, ?, ?, true, ?)",
+                UUID.randomUUID(), hadithId, textAr, "انما الاعمال بالنيات", odt(Instant.now())
+        );
     }
 
     private UUID insertNode() {

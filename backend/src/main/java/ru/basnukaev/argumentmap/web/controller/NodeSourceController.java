@@ -1,6 +1,8 @@
 package ru.basnukaev.argumentmap.web.controller;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -16,10 +18,16 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.domain.NodeSource;
+import ru.basnukaev.argumentmap.hadith.domain.Hadith;
+import ru.basnukaev.argumentmap.hadith.repository.CollectionRepository;
+import ru.basnukaev.argumentmap.hadith.repository.HadithRepository;
+import ru.basnukaev.argumentmap.hadith.repository.MatnRepository;
 import ru.basnukaev.argumentmap.repository.NodeSourceRepository;
+import ru.basnukaev.argumentmap.repository.NodeSourceRepository.NodeSourceWithLocation;
 import ru.basnukaev.argumentmap.service.NodeSourceService;
 import ru.basnukaev.argumentmap.web.CurrentUser;
 import ru.basnukaev.argumentmap.web.dto.AttachSourceRequest;
+import ru.basnukaev.argumentmap.web.dto.HadithRef;
 import ru.basnukaev.argumentmap.web.dto.NodeSourceResponse;
 import ru.basnukaev.argumentmap.web.mapper.DtoMappers;
 
@@ -29,11 +37,20 @@ public class NodeSourceController {
 
     private final NodeSourceService nodeSourceService;
     private final NodeSourceRepository nodeSourceRepository;
+    private final HadithRepository hadithRepository;
+    private final MatnRepository matnRepository;
+    private final CollectionRepository collectionRepository;
 
     public NodeSourceController(NodeSourceService nodeSourceService,
-                                 NodeSourceRepository nodeSourceRepository) {
+                                 NodeSourceRepository nodeSourceRepository,
+                                 HadithRepository hadithRepository,
+                                 MatnRepository matnRepository,
+                                 CollectionRepository collectionRepository) {
         this.nodeSourceService = nodeSourceService;
         this.nodeSourceRepository = nodeSourceRepository;
+        this.hadithRepository = hadithRepository;
+        this.matnRepository = matnRepository;
+        this.collectionRepository = collectionRepository;
     }
 
     @PostMapping
@@ -59,8 +76,61 @@ public class NodeSourceController {
                                          @CurrentUser UUID userId) {
         // read-guard (ADR-043): citations узлов приватных тем не утекают
         String role = SecurityContextUtils.currentRoleOrAnonymous();
-        return nodeSourceService.getNodeSourcesWithLocation(nodeId, userId, role).stream()
-                .map(DtoMappers::toResponse).toList();
+        List<NodeSourceWithLocation> rows =
+                nodeSourceService.getNodeSourcesWithLocation(nodeId, userId, role);
+        // под-проект #2: обогащаем хадис-опоры (sourceType=HADITH) полями matn/
+        // сборник/статус. Не-хадисы получают hadith=null.
+        Map<UUID, HadithRef> hadithRefBySourceId = buildHadithRefs(rows);
+        return rows.stream()
+                .map(row -> DtoMappers.toResponse(
+                        row, hadithRefBySourceId.get(row.ns().sourceId())))
+                .toList();
+    }
+
+    /**
+     * Строит map sourceId→HadithRef для хадис-опор данного списка (под-проект #2).
+     * Хадис-опору узнаём обратным lookup'ом {@code hd_hadiths.source_id IN (...)};
+     * previewMatn батчем (тот же механизм что у hadith-list), имя сборника —
+     * per-hadith (N мало). Не-хадисы в map не попадают → enrichment даёт null.
+     */
+    private Map<UUID, HadithRef> buildHadithRefs(List<NodeSourceWithLocation> rows) {
+        List<UUID> sourceIds = rows.stream()
+                .map(r -> r.ns().sourceId())
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        List<Hadith> hadiths = hadithRepository.findBySourceIds(sourceIds);
+        if (hadiths.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, String> previews = matnRepository.findPrimaryTextByHadithIds(
+                hadiths.stream().map(Hadith::id).toList());
+        Map<UUID, HadithRef> result = new HashMap<>();
+        for (Hadith h : hadiths) {
+            result.put(h.sourceId(), new HadithRef(
+                    h.id(), h.primaryNumber(), resolveCollectionName(h.collectionId()),
+                    previews.get(h.id()), h.status()));
+        }
+        return result;
+    }
+
+    /** Имя сборника nameRu→nameAr→slug (как HadithCitationService#buildTitle). */
+    private String resolveCollectionName(UUID collectionId) {
+        if (collectionId == null) {
+            return null;
+        }
+        return collectionRepository.findById(collectionId)
+                .map(c -> firstNonBlank(c.nameRu(), c.nameAr(), c.slug()))
+                .orElse(null);
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String v : values) {
+            if (v != null && !v.isBlank()) {
+                return v;
+            }
+        }
+        return null;
     }
 
     /**

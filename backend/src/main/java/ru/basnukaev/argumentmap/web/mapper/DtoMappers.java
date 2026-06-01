@@ -29,6 +29,7 @@ import ru.basnukaev.argumentmap.web.dto.BookCitationRef;
 import ru.basnukaev.argumentmap.web.dto.CitationResponse;
 import ru.basnukaev.argumentmap.web.dto.EdgeResponse;
 import ru.basnukaev.argumentmap.web.dto.GraphResponse;
+import ru.basnukaev.argumentmap.web.dto.HadithRef;
 import ru.basnukaev.argumentmap.web.dto.InlineCitationRef;
 import ru.basnukaev.argumentmap.web.dto.LocationRef;
 import ru.basnukaev.argumentmap.web.dto.MuhaqqiqRef;
@@ -231,6 +232,17 @@ public final class DtoMappers {
      * поле в своём блоке.
      */
     public static NodeSourceResponse toResponse(NodeSourceRepository.NodeSourceWithLocation row) {
+        return toResponse(row, null);
+    }
+
+    /**
+     * Перегрузка с hadith-обогащением (под-проект #2). {@code hadithOrNull}
+     * передаётся не-null только для source-опор типа HADITH (caller строит
+     * map sourceId→HadithRef через {@code findBySourceIds} + batch preview).
+     * Базовая перегрузка (hadith=null) сохранена для всех остальных callers.
+     */
+    public static NodeSourceResponse toResponse(NodeSourceRepository.NodeSourceWithLocation row,
+                                                HadithRef hadithOrNull) {
         NodeSource link = row.ns();
         // legacySnapshot - заполняется только для LEGACY mode (freeform citation
         // через AddSourceModal). Для TEXT/PDF/REGION snapshot хранится в БД для
@@ -247,7 +259,8 @@ public final class DtoMappers {
                 link.mode(),
                 toCitationResponse(row.citation()),
                 legacySnapshot,
-                link.createdAt()
+                link.createdAt(),
+                hadithOrNull
         );
     }
 
