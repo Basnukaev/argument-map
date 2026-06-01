@@ -141,11 +141,33 @@ public class AuthService {
         // UUID при save)
         IssuedTokens issued = issueTokenPair(user);
 
-        // Mark старого как replaced - rotation
-        refreshTokenRepository.markReplaced(
+        // Mark старого как replaced - rotation. markReplaced - conditional
+        // UPDATE (WHERE revoked_at IS NULL), возвращает affected rows.
+        //
+        // Atomic single-use guard (ADR-047): два concurrent refresh с ОДНИМ
+        // и тем же ещё-валидным токеном оба проходят revokedAt==null check
+        // выше (READ COMMITTED не сериализует SELECT'ы), оба делают
+        // issueTokenPair. Но markReplaced на одной строке сериализуется
+        // row-lock'ом: loser блокируется на UPDATE, после commit winner'а
+        // re-evaluate'ит WHERE → revoked_at уже NOT NULL → 0 rows. Раньше
+        // return игнорировался → обе сессии получали рабочую пару (ДВЕ live
+        // chain из одной ротации, обход single-use). Теперь loser (rows==0)
+        // бросает → его @Transactional откатывает в т.ч. его issueTokenPair
+        // INSERT → выживает ровно одна chain.
+        int rotated = refreshTokenRepository.markReplaced(
                 existing.id(),
                 issued.refreshTokenId(),
                 RefreshToken.REASON_ROTATION);
+        if (rotated == 0) {
+            // Проиграли гонку ротации: токен уже был ротирован concurrent
+            // запросом (reason=rotation, НЕ reuse-after-revoke - chain не
+            // нюкаем, это benign double-submit / retry). Откатываем нашу
+            // выпущенную пару через rollback и просим повторить с новой cookie.
+            log.warn("Concurrent refresh rotation race userId={} - откат проигравшей "
+                    + "транзакции (single-use invariant сохранён)", existing.userId());
+            throw new InvalidTokenException(
+                    "Параллельная ротация токена - повторите запрос");
+        }
 
         return issued.tokens();
     }
