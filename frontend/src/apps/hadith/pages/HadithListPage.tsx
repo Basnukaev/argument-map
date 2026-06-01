@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Link } from 'react-router';
 import { BookOpen, Search, Loader2, Users } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
-import { apiGetRaw, ApiError } from '@/shared/api/client';
 import { useT } from '@/shared/i18n';
-import type { AsyncState } from '@/shared/types/async';
+import { usePagedSearch } from '@/shared/hooks/usePagedSearch';
 
 // Backend types ещё не regenerated в types.ts - inline types.
 interface HadithItem {
@@ -17,94 +16,31 @@ interface HadithItem {
   sourceId: string | null;
   createdAt: string;
 }
-interface PagedHadith {
-  items: HadithItem[];
-  page: number;
-  size: number;
-  totalElements: number;
-  totalPages: number;
-  hasNext: boolean;
-}
 
 const PAGE_SIZE = 20;
 
 /**
  * Vision 49d Section 2.6 Phase 2 frontend — Hadith list page.
- * GET /api/v1/hadith/hadiths.
+ * GET /api/v1/hadith/hadiths. Debounce + Load-More — через usePagedSearch.
  */
-const SEARCH_DEBOUNCE_MS = 300;
-
 function HadithListPage() {
   const t = useT();
-  const [state, setState] = useState<AsyncState<PagedHadith>>({ kind: 'loading' });
-  // searchInput - то что юзер печатает; searchQ - debounced значение,
-  // которое реально триггерит запрос. Раньше запрос шёл на каждый
-  // keystroke (search в deps без debounce) - спам API.
-  const [searchInput, setSearchInput] = useState('');
-  const [searchQ, setSearchQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<HadithItem['status'] | 'ALL'>('ALL');
-  const [loadingMore, setLoadingMore] = useState(false);
 
-  // Debounce: после 300ms простоя sync'аем searchInput → searchQ
-  useEffect(() => {
-    const handle = setTimeout(() => {
-      setSearchQ(searchInput.trim());
-    }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(handle);
-  }, [searchInput]);
+  const buildUrl = useCallback(
+    (page: number, q: string): string => {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('size', String(PAGE_SIZE));
+      if (q) params.set('q', q);
+      if (statusFilter !== 'ALL') params.set('status', statusFilter);
+      return `/api/v1/hadith/hadiths?${params.toString()}`;
+    },
+    [statusFilter],
+  );
 
-  // Загрузка первой страницы при смене debounced query / фильтра.
-  // НЕ сбрасываем в loading (избегаем flash-to-spinner + react-hooks
-  // set-state-in-effect) - старый список виден пока грузится новый.
-  useEffect(() => {
-    const controller = new AbortController();
-    const params = new URLSearchParams();
-    params.set('page', '0');
-    params.set('size', String(PAGE_SIZE));
-    if (searchQ) params.set('q', searchQ);
-    if (statusFilter !== 'ALL') params.set('status', statusFilter);
-    apiGetRaw<PagedHadith>(`/api/v1/hadith/hadiths?${params.toString()}`, {
-      signal: controller.signal,
-    })
-      .then((paged) => setState({ kind: 'success', data: paged }))
-      .catch((e: unknown) => {
-        if (controller.signal.aborted) return;
-        const message = e instanceof ApiError ? e.problem.title : String(e);
-        setState({ kind: 'error', message });
-      });
-    return () => controller.abort();
-  }, [searchQ, statusFilter]);
-
-  /** Load More - подгружает следующую страницу, аппендит к existing list */
-  const loadMore = () => {
-    if (state.kind !== 'success' || !state.data.hasNext || loadingMore) return;
-    const nextPage = state.data.page + 1;
-    setLoadingMore(true);
-    const params = new URLSearchParams();
-    params.set('page', String(nextPage));
-    params.set('size', String(PAGE_SIZE));
-    if (searchQ) params.set('q', searchQ);
-    if (statusFilter !== 'ALL') params.set('status', statusFilter);
-    apiGetRaw<PagedHadith>(`/api/v1/hadith/hadiths?${params.toString()}`)
-      .then((resp) => {
-        setState((prev) =>
-          prev.kind === 'success'
-            ? {
-                kind: 'success',
-                data: {
-                  ...resp,
-                  items: [...prev.data.items, ...resp.items],
-                },
-              }
-            : prev,
-        );
-      })
-      .catch((e: unknown) => {
-        const message = e instanceof ApiError ? e.problem.title : String(e);
-        setState({ kind: 'error', message });
-      })
-      .finally(() => setLoadingMore(false));
-  };
+  const { state, searchInput, setSearchInput, loadMore, loadingMore } =
+    usePagedSearch<HadithItem>({ buildUrl, deps: [statusFilter] });
 
   return (
     <main className="min-h-screen bg-bg">

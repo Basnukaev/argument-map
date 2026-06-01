@@ -1,83 +1,39 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Link } from 'react-router';
 import { Users, Search, Loader2, ArrowLeft } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
-import { apiGetRaw, ApiError } from '@/shared/api/client';
 import { useT, type DictKey } from '@/shared/i18n';
-import type { AsyncState } from '@/shared/types/async';
+import { usePagedSearch } from '@/shared/hooks/usePagedSearch';
 import { RELIABILITY_TOKENS } from '@/apps/hadith/sanadTokens';
-import type { NarratorResponseDto, Paged, ReliabilityGrade } from '@/apps/hadith/types';
+import type { NarratorResponseDto, ReliabilityGrade } from '@/apps/hadith/types';
 
 const PAGE_SIZE = 30;
 const GRADES: ReliabilityGrade[] = ['SAHABI', 'THIQA', 'SADUQ', 'MAQBUL', 'DAIF', 'MATRUK', 'UNKNOWN'];
-const SEARCH_DEBOUNCE_MS = 300;
 
 /**
  * Каталог передатчиков (علم الرجال). Поиск по имени + фильтр по степени
- * надёжности. Карточка ведёт на NarratorDetailPage.
+ * надёжности. Карточка ведёт на NarratorDetailPage. Debounce + Load-More —
+ * через usePagedSearch.
  */
 function NarratorListPage() {
   const t = useT();
-  const [state, setState] = useState<AsyncState<Paged<NarratorResponseDto>>>({ kind: 'loading' });
-  // searchInput - что печатает юзер; searchQ - debounced (триггерит запрос).
-  // Раньше запрос шёл на каждый keystroke - спам API.
-  const [searchInput, setSearchInput] = useState('');
-  const [searchQ, setSearchQ] = useState('');
   const [grade, setGrade] = useState<ReliabilityGrade | 'ALL'>('ALL');
-  const [loadingMore, setLoadingMore] = useState(false);
 
-  // Debounce: после 300ms простоя sync'аем searchInput → searchQ
-  useEffect(() => {
-    const handle = setTimeout(() => {
-      setSearchQ(searchInput.trim());
-    }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(handle);
-  }, [searchInput]);
+  const buildUrl = useCallback(
+    (page: number, q: string): string => {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('size', String(PAGE_SIZE));
+      if (q) params.set('q', q);
+      if (grade !== 'ALL') params.set('reliability', grade);
+      return `/api/v1/hadith/narrators?${params.toString()}`;
+    },
+    [grade],
+  );
 
-  // НЕ сбрасываем в loading на refetch (избегаем flash-to-spinner +
-  // react-hooks set-state-in-effect) - старый список виден пока грузится.
-  useEffect(() => {
-    const controller = new AbortController();
-    const params = new URLSearchParams();
-    params.set('page', '0');
-    params.set('size', String(PAGE_SIZE));
-    if (searchQ) params.set('q', searchQ);
-    if (grade !== 'ALL') params.set('reliability', grade);
-    apiGetRaw<Paged<NarratorResponseDto>>(`/api/v1/hadith/narrators?${params.toString()}`, {
-      signal: controller.signal,
-    })
-      .then((d) => setState({ kind: 'success', data: d }))
-      .catch((e: unknown) => {
-        if (controller.signal.aborted) return;
-        setState({ kind: 'error', message: e instanceof ApiError ? e.problem.title : String(e) });
-      });
-    return () => controller.abort();
-  }, [searchQ, grade]);
-
-  /** Load More - подгружает следующую страницу, аппендит к existing list */
-  const loadMore = () => {
-    if (state.kind !== 'success' || !state.data.hasNext || loadingMore) return;
-    const nextPage = state.data.page + 1;
-    setLoadingMore(true);
-    const params = new URLSearchParams();
-    params.set('page', String(nextPage));
-    params.set('size', String(PAGE_SIZE));
-    if (searchQ) params.set('q', searchQ);
-    if (grade !== 'ALL') params.set('reliability', grade);
-    apiGetRaw<Paged<NarratorResponseDto>>(`/api/v1/hadith/narrators?${params.toString()}`)
-      .then((resp) => {
-        setState((prev) =>
-          prev.kind === 'success'
-            ? { kind: 'success', data: { ...resp, items: [...prev.data.items, ...resp.items] } }
-            : prev,
-        );
-      })
-      .catch((e: unknown) => {
-        setState({ kind: 'error', message: e instanceof ApiError ? e.problem.title : String(e) });
-      })
-      .finally(() => setLoadingMore(false));
-  };
+  const { state, searchInput, setSearchInput, loadMore, loadingMore } =
+    usePagedSearch<NarratorResponseDto>({ buildUrl, deps: [grade] });
 
   return (
     <main className="min-h-screen bg-bg">
