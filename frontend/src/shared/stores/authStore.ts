@@ -80,7 +80,11 @@ function readPersistedUser(): AuthUser | null {
       typeof parsed.id === 'string' &&
       typeof parsed.username === 'string' &&
       typeof parsed.email === 'string' &&
-      (parsed.role === 'USER' || parsed.role === 'ADMIN')
+      // Vision 49d Phase A.6: role расширен USER<STUDENT<SCHOLAR<ADMIN.
+      // Раньше проверка была только USER|ADMIN → persisted STUDENT/SCHOLAR
+      // не проходил валидацию и сессия терялась на reload. Проверяем по
+      // ALL_ROLES (источник истины списка ролей).
+      ALL_ROLES.includes(parsed.role as AuthRole)
     ) {
       return parsed as AuthUser;
     }

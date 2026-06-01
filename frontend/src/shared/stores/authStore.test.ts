@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
 import { useAuthStore } from './authStore';
@@ -255,5 +255,56 @@ describe('authStore', () => {
     expect(t1).toBe('access.token.v1');
     expect(t2).toBe('access.token.v1');
     expect(calls).toBe(2);
+  });
+});
+
+// readPersistedUser вызывается на module-load (seed initial store.user),
+// поэтому тестируем через resetModules + динамический реимпорт после того
+// как засеяли localStorage. Регрессия: Vision 49d Phase A.6 расширил role
+// до USER<STUDENT<SCHOLAR<ADMIN, но валидация осталась USER|ADMIN →
+// persisted STUDENT/SCHOLAR не проходил и сессия терялась на reload.
+describe('authStore: hydration persisted role (Vision 49d Phase A.6)', () => {
+  beforeEach(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('auth.user');
+    }
+  });
+
+  it.each(['USER', 'STUDENT', 'SCHOLAR', 'ADMIN'] as const)(
+    'persisted role %s переживает reload (initial store.user не null)',
+    async (role) => {
+      window.localStorage.setItem(
+        'auth.user',
+        JSON.stringify({
+          id: '00000000-0000-0000-0000-0000000000aa',
+          username: 'u-' + role.toLowerCase(),
+          email: role.toLowerCase() + '@e.com',
+          role,
+        }),
+      );
+
+      vi.resetModules();
+      const { useAuthStore: freshStore } = await import('./authStore');
+      const user = freshStore.getState().user;
+
+      expect(user).not.toBeNull();
+      expect(user?.role).toBe(role);
+    },
+  );
+
+  it('невалидная role в localStorage → user=null (treated as logged out)', async () => {
+    window.localStorage.setItem(
+      'auth.user',
+      JSON.stringify({
+        id: '00000000-0000-0000-0000-0000000000bb',
+        username: 'bogus',
+        email: 'bogus@e.com',
+        role: 'SUPERADMIN',
+      }),
+    );
+
+    vi.resetModules();
+    const { useAuthStore: freshStore } = await import('./authStore');
+    expect(freshStore.getState().user).toBeNull();
   });
 });
