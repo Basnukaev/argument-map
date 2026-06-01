@@ -60,6 +60,19 @@
   --node-evidence-ink:  oklch(38% 0.13 155);
   --node-evidence-bd:   oklch(80% 0.10 155);
 
+  /* ── COVERS (book cards) ────────────────────────────────────
+     Dedicated palette для Card.Cover. 5 hue-разделённых цветов
+     на фиксированной mid-lightness (~52-58%) — белый текст
+     (text-white/95) читается уверенно. Это НЕ *-ink (foreground)
+     токены: те в dark теме взлетают до 85-88% lightness и дают
+     блёклые слепящие пятна. Light = насыщенные, dark override
+     ниже = приглушённые/затемнённые, чтобы не резало глаз.       */
+  --cover-1: oklch(52% 0.16 270);  /* violet  */
+  --cover-2: oklch(54% 0.13 220);  /* blue    */
+  --cover-3: oklch(54% 0.13 155);  /* green   */
+  --cover-4: oklch(56% 0.14 30);   /* terra   */
+  --cover-5: oklch(56% 0.12 80);   /* amber   */
+
   /* ── EDGES ──────────────────────────────────────────────────
      Each edge color paired with glyph (✓ ✗ ⊘ ») for a11y.     */
   --edge-supports:  oklch(55% 0.15 155);
@@ -344,6 +357,15 @@
   --node-evidence:      oklch(28% 0.07 155);
   --node-evidence-ink:  oklch(86% 0.10 155);
   --node-evidence-bd:   oklch(42% 0.10 155);
+
+  /* Covers — приглушённые в dark: ниже lightness (~40%) и chroma,
+     чтобы обложки были «спокойными», не слепили на тёмном фоне.
+     text-white/95 поверх всё ещё контрастен (40% подложка). */
+  --cover-1: oklch(40% 0.10 270);
+  --cover-2: oklch(41% 0.09 220);
+  --cover-3: oklch(41% 0.09 155);
+  --cover-4: oklch(43% 0.10 30);
+  --cover-5: oklch(43% 0.09 80);
 
   /* Edges — boosted saturation+lightness so they read on dark bg */
   --edge-supports:  oklch(68% 0.18 155);

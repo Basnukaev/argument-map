@@ -95,6 +95,7 @@ Card.Eyebrow = CardEyebrow;
 function CardTitle({
   children,
   arabic,
+  clamp = false,
 }: {
   children: ReactNode;
   /**
@@ -106,6 +107,15 @@ function CardTitle({
    * serif. Поэтому решаем по фактическому содержимому, не по метаданным.
    */
   arabic?: boolean;
+  /**
+   * Опт-ин: клампит заголовок ровно в 2 строки (line-clamp-2) и
+   * резервирует high под 2 строки (min-height = 2 × fs × lh), чтобы
+   * карточки в grid'е имели одинаковую высоту независимо от длины
+   * названия (1-строчные и 2-строчные занимают одинаковую вертикаль).
+   * Используется в BookListPage. По умолчанию off - другие callers
+   * (auto-grow) не затрагиваются.
+   */
+  clamp?: boolean;
 }) {
   const isArabic =
     arabic ?? (typeof children === 'string' && hasArabicScript(children));
@@ -114,25 +124,36 @@ function CardTitle({
   // Non-arabic: font-serif (Source Serif 4 Variable) + 15px + weight 600
   // + line-height 1.3. font-optical-sizing: auto активирует opsz axis
   // Source Serif 4 - браузер выбирает display vs body cut автоматически.
+  const clampClass = clamp ? ' line-clamp-2' : '';
   if (isArabic) {
+    const lineHeight = 1.3;
+    const fontSize = 18;
     return (
       <h3
         dir="auto"
-        className="text-ink-900 m-0 font-arabic"
-        style={{ fontSize: 18, fontWeight: 600, lineHeight: 1.3 }}
+        className={`text-ink-900 m-0 font-arabic${clampClass}`}
+        style={{
+          fontSize,
+          fontWeight: 600,
+          lineHeight,
+          ...(clamp ? { minHeight: 2 * fontSize * lineHeight } : null),
+        }}
       >
         {children}
       </h3>
     );
   }
+  const lineHeight = 1.3;
+  const fontSize = 15;
   return (
     <h3
       dir="auto"
-      className="text-ink-900 m-0 font-serif book-title"
+      className={`text-ink-900 m-0 font-serif book-title${clampClass}`}
       style={{
-        fontSize: 15,
-        lineHeight: 1.3,
+        fontSize,
+        lineHeight,
         fontOpticalSizing: 'auto',
+        ...(clamp ? { minHeight: 2 * fontSize * lineHeight } : null),
       }}
     >
       {children}
@@ -144,13 +165,17 @@ Card.Title = CardTitle;
 function CardMeta({
   children,
   arabic = false,
+  className = '',
 }: {
   children: ReactNode;
   arabic?: boolean;
+  /** Доп. классы - напр. `mt-auto` чтобы прижать meta к низу
+   *  flex-колонки Card.Body (равная высота карточек в grid'е). */
+  className?: string;
 }) {
   const fontClass = arabic ? 'font-arabic text-sm' : '';
   return (
-    <div dir="auto" className={`text-xs text-ink-600 ${fontClass}`}>
+    <div dir="auto" className={`text-xs text-ink-600 ${fontClass} ${className}`}>
       {children}
     </div>
   );

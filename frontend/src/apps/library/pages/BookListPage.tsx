@@ -61,15 +61,20 @@ const BOOK_TYPE_BADGE: Record<BookType, string> = {
 };
 
 /** Стабильный цвет на основе bookId для Card.Cover - выглядит как
- * индивидуальная обложка. 5 цветов выбраны так чтобы цвет читался в
- * обоих темах. Cover должен быть solid color (не gradient) - см. handoff/04 */
+ * индивидуальная обложка. Используем выделенную cover-палитру
+ * (--cover-1..5, см. tokens.css): mid-lightness в light, приглушённую
+ * в dark ([data-theme="dark"] override) - белый текст читается в обеих
+ * темах, обложки «спокойные» в тёмной теме (не слепят). Раньше брали
+ * *-ink (foreground) токены, которые в dark взлетают до ~85% lightness
+ * = блёклые яркие пятна. Cover должен быть solid color (не gradient) -
+ * см. handoff/04 */
 function coverColorFor(id: string): string {
   const palette = [
-    'var(--c-accent-600)',
-    'var(--c-type-abstract-fg)',
-    'var(--c-type-empirical-fg)',
-    'var(--c-ok-700)',
-    'var(--c-warn-700)',
+    'var(--cover-1)',
+    'var(--cover-2)',
+    'var(--cover-3)',
+    'var(--cover-4)',
+    'var(--cover-5)',
   ];
   let hash = 0;
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
@@ -698,7 +703,7 @@ function BookCard({ book, onEdit, editLoading, isFavorite, onToggleFavorite, fav
   const initialLetter = title.charAt(0).toUpperCase() || '?';
 
   return (
-    <div className="relative">
+    <div className="relative h-full">
       {/* Vision 49d Section 2.2 - Favorite (heart) button. End-12 = чуть
           левее pencil чтобы не накладываться */}
       <button
@@ -743,30 +748,37 @@ function BookCard({ book, onEdit, editLoading, isFavorite, onToggleFavorite, fav
       <Link
         to={`/books/${book.id}`}
         aria-label={title}
-        className="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bg rounded-md"
+        className="group block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bg rounded-md"
       >
-        <Card interactive className="h-full overflow-hidden">
+        <Card interactive className="flex h-full flex-col overflow-hidden">
           <Card.Cover color={coverColorFor(book.id)}>{initialLetter}</Card.Cover>
-          <Card.Body>
+          {/* flex-1 чтобы body тянул карточку до равной высоты; meta
+              прижат к низу через mt-auto - id-строка всегда на одной
+              базовой линии у всех карточек ряда */}
+          <Card.Body className="flex-1">
+            {/* flex-wrap: при узкой карточке chips переносятся аккуратно,
+                не выходя за края eyebrow-строки */}
             <Card.Eyebrow>
-              <span
-                className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider ${BOOK_TYPE_BADGE[bookType]}`}
-              >
-                {t(BOOK_TYPE_DICT_KEY[bookType])}
-              </span>
-              {book.language && (
-                <span className="inline-flex items-center rounded-sm bg-ink-100 px-1.5 py-0.5 text-xs font-mono uppercase text-ink-600">
-                  <bdi dir="ltr">{book.language}</bdi>
+              <div className="flex flex-wrap items-center gap-1">
+                <span
+                  className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider ${BOOK_TYPE_BADGE[bookType]}`}
+                >
+                  {t(BOOK_TYPE_DICT_KEY[bookType])}
                 </span>
-              )}
-              <VisibilityBadge
-                visibility={book.visibility}
-                labelPrefix="book.visibility"
-                compact
-              />
+                {book.language && (
+                  <span className="inline-flex items-center rounded-sm bg-ink-100 px-1.5 py-0.5 text-xs font-mono uppercase text-ink-600">
+                    <bdi dir="ltr">{book.language}</bdi>
+                  </span>
+                )}
+                <VisibilityBadge
+                  visibility={book.visibility}
+                  labelPrefix="book.visibility"
+                  compact
+                />
+              </div>
             </Card.Eyebrow>
-            <Card.Title>{title}</Card.Title>
-            <Card.Meta>
+            <Card.Title clamp>{title}</Card.Title>
+            <Card.Meta className="mt-auto pt-1">
               <span className="font-mono text-xs">
                 <bdi dir="ltr">{book.id.slice(0, 8)}</bdi>
               </span>
