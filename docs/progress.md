@@ -133,9 +133,14 @@ approved). Сделано (4 коммита):
    чипы-сборники + sort + чистые арабские карточки). Остаток (опц.): английский
    текст тоже содержит HTML — `SunnahTextCleaner` уже применяется и к bodyEn,
    так что чисто; диакритизация на карточке — через previewMatn, сделано.
-2. ← **Под-проект #2 — линковка хадисов в узлы тем** (citation-picker для
-   хадисов: выбрать хадис из hd_* и прикрепить к узлу как опору). Tooling для
-   «заполнения контента» — в духе пивота.
+2. **Под-проект #2 — линковка хадисов в узлы тем** (спека
+   `2026-06-01-hadith-node-citation-design.md`). **#2.A backend ✅** (`84a565e`):
+   `HadithCitationService` (ensure-source через мост `Hadith.sourceId` +
+   attach) + `POST /nodes/{id}/hadith-citations` + IT (4). ← **#2.B frontend
+   (next):** picker-модалка (переиспользует список хадисов #1) + рендер
+   хадис-опоры в «Опора» (matn-сниппет + ссылка на `/hadith/{id}`) + обогащение
+   source-списка (`hadithId`/previewMatn для HADITH-источников) +
+   **generate-api** (нужен рестарт backend — новый endpoint ещё не в types.ts).
 3. **Под-проект #3 — примирение `hd_collections` ↔ библиотечный «Сборник
    хадисов»** (book_type=HADITH): два представления одного сборника. Архитектура.
 4. **Frontend AdminSunnahPage** (опц.): кнопки превью+импорт поверх

@@ -217,8 +217,13 @@ failures** (системная full-suite flakiness — в backlog, отдель
 
 **ПИВОТ Абдулы (важно для приоритизации): контент — в последнюю очередь,
 строим ИНСТРУМЕНТЫ** (заполнение/просмотр/дебаг контента). Очередь под-проектов:
-4. ← **СЛЕДУЮЩИЙ ШАГ — под-проект #2: линковка хадисов в узлы тем**
-   (citation-picker для хадисов из hd_* как опора узла). Tooling для заполнения.
+4. **Под-проект #2 — линковка хадисов в узлы** (спека
+   `2026-06-01-hadith-node-citation-design.md`). **#2.A backend ✅** (`84a565e`):
+   `HadithCitationService` (мост `Hadith.sourceId`) + `POST /nodes/{id}/
+   hadith-citations` + IT. ← **СЛЕДУЮЩИЙ ШАГ — #2.B frontend:** picker-модалка
+   (переиспользует список хадисов #1) + рендер хадис-опоры в «Опора» (matn +
+   ссылка) + обогащение source-списка (`hadithId`/previewMatn) +
+   **generate-api** (рестарт backend — endpoint ещё не в types.ts).
 5. **Под-проект #3 — `hd_collections` ↔ библиотечный «Сборник хадисов»**
    (book_type=HADITH): два представления одного сборника, архитектура.
    + опц. frontend AdminSunnahPage (импорт без curl).
