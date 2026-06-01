@@ -380,6 +380,43 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
 
 ## Tech debt / performance optimization
 
+### Code-review findings (Сессия 52, 2026-06-01) — ADR-043 sweep gaps
+
+Из code-review fix-волны (4 reviewer-агента). Реальные, но out-of-scope
+для закрытых 6 authz-дыр — тот же системный паттерн «эндпоинт не зовёт
+permission-модель», который надо домести чтобы sweep был полным:
+
+- [ ] **NodeSourceController без topic-authz** — `attach`(POST)/`list`(GET)/
+  `detach`(DELETE) на `/nodes/{nodeId}/sources` не зовут assertCanWrite/
+  assertCanRead на тему узла (даже @CurrentUser не принимают). IDOR-scoping
+  detach закрыт (Сессия 52), но топик-уровневая авторизация отсутствует —
+  любой authenticated может attach/delete citations в чужой теме. Fix:
+  резолвить node.topicId() → assertCanWrite/assertCanRead в NodeSourceService.
+- [ ] **Q&A citation controllers — unscoped detachById** —
+  `QuestionCitationController`/`AnswerCitationController` зовут
+  `detachById(sourceId)` (single-arg, не parent-scoped) без author/admin
+  guard. Тот же pre-fix паттерн что был у NodeSource. Применить
+  node-scoped delete + author guard.
+- [ ] **AI-edit stuck-PROCESSING liveness** — `tryClaimAiEditProcessing`
+  claims `WHERE ai_edit_status IS DISTINCT FROM 'PROCESSING'`. Если процесс
+  упал mid-`complete()` не дойдя до FAILED, страница навсегда не
+  re-claimable. Нужен timeout-escape (`started_at < now() - interval`) либо
+  janitor. Safety-сторона ок (не платим дважды), но liveness-дыра.
+- [ ] **Thesis `إعداد:` author-loss** — partial-parse прячет raw
+  description (guard `!hasStructuredMetadata`); у диссертаций автор иногда
+  только в `إعداد:` и не резолвится в shamela authorId → теряется. Либо
+  парсить إعداد в authority/thesis, либо показывать raw когда есть
+  непокрытые structured-полями строки.
+- [ ] **Repository round-trip IT для thesis-колонок** — есть только parser
+  unit-тесты; нет IT что `save()`/`updateThesisMetadata` реально
+  персистят/читают thesis_* через Postgres (защита от reorder/typo).
+- [ ] **HadithListPage test asymmetry** — debounce+пагинация добавлены в
+  HadithListPage и NarratorListPage идентично, но тесты только у Narrator.
+  Кандидат на извлечение общего `usePagedSearch` хука + один тест.
+- [ ] **Load More stale-append race** — `loadMore` без AbortController:
+  смена query во время in-flight page-N аппендит stale items на свежий
+  page-0. Тот же паттерн что в BookListPage. Fix: query-ref guard в .then.
+
 ### Bug-hunt Tier-3 (Сессия 52, 2026-06-01) — 30 low-severity
 
 Из multi-agent багоохоты (235 агентов, 48 подтверждённых; HIGH security +
