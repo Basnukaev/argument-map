@@ -192,45 +192,44 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 ### ⭐ АКТУАЛЬНО — entry Сессии 53 (snapshot'ы ниже — историч., можно сжать)
 
-**Сессия 53 закрыла Phase 5 ETL шаг 2 ПОЛНОСТЬЮ (2.a-2.d)** (7 коммитов
-`2b24e76..29ba54a`, см. progress.md): конвейер **дамп → `sn_staging_*` →
-mapper → `hd_*`**, end-to-end на реальной MySQL-схеме sunnah.com. ~40 тестов
-+ 2 multi-agent review (0 Critical обе). Backend **1131 тест, 0 реальных
-failures** (1 = `BookRepositoryIT.findAll_orderByCreatedAt` флак в full-прогоне,
-зелёный в изоляции — в backlog, НЕ регрессия).
+**Сессия 53 закрыла Phase 5 ETL шаг 2 ПОЛНОСТЬЮ (2.a-2.e) + прогнала реальный
+пилот** (~10 коммитов `2b24e76..HEAD`, см. progress.md): конвейер **дамп →
+`sn_staging_*` → mapper → `hd_*`** + прод-обвязка + admin REST. **98 хадисов
+Бухари импортированы из настоящего дампа** в hd_*. ~45 тестов + 2 multi-agent
+review (0 Critical обе) + de-flake BookRepositoryIT. Backend **0 реальных
+failures** (системная full-suite flakiness — в backlog, отдельная тест-гигиена).
 
 **Phase 5 ETL** (спека `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md`
-§11). Эпик ~ещё 1-2 сессии:
+§11). Эпик ~ещё 1 сессия:
 1. ✅ **step 1** (Сессия 51, ADR-050): migration 57 `hd_collections`.
-2. ✅ **step 2 (2.a-2.d)** (Сессия 53, ADR-051/052): staging-схема + DAO +
-   `SunnahToHadithMapper` + `ArabicTextNormalizer` + `SunnahDumpReader` (читает
-   РЕАЛЬНУЮ денормализованную схему дампа: 7 таблиц, `HadithTable` консолидирует
-   ar+en+grade, дробный babID → `chapter_id` varchar) + `SunnahImportService`
-   (dual-container Postgres+MySQL IT). Пилот Бухари+Муслим. Дедуп вариаций +
-   структурный иснад — ОТЛОЖЕНЫ (документировано).
-3. ← **СЛЕДУЮЩИЙ ШАГ — прод-обвязка импорта** (чтобы запустить против реального
-   дампа вне тестов): `SunnahDumpProperties` (jdbc url/user/pass/enabled) +
-   `@ConditionalOnProperty` bean MySQL-`DataSource` + фабрика `SunnahDumpReader`;
-   **admin REST-триггер** (AdminShamelaPage-стиль) под **bulk-policy gate**
-   (превью staging до commit, по одному сборнику); api-contract + generate-api
-   в том же коммите. Затем — пилот Бухари+Муслим против реального дампа
-   (clone `github.com/sunnah-com/api`, поднять их MySQL; полная схема изучена).
-   Детали — progress.md «Следующий шаг».
+2. ✅ **step 2 (2.a-2.e)** (Сессия 53, ADR-051/052): staging + DAO + mapper +
+   normalizer + `SunnahDumpReader` (РЕАЛЬНАЯ денормализ. схема: 7 таблиц,
+   дробный babID → `chapter_id` varchar) + `SunnahImportService` + **прод-обвязка**
+   (`SunnahDumpProperties` + conditional MySQL DataSource + `SunnahAdminController`
+   ADMIN-only, bulk-policy gate). **Реальный пилот прогнан**: `POST /import/bukhari`
+   → 98 импортировано (2 курируемых победили). Дедуп вариаций + структурный иснад
+   — ОТЛОЖЕНЫ.
+3. ← **СЛЕДУЮЩИЙ ШАГ:** (a) **HTML-cleaner для englishText** (дамп даёт en с
+   `<p>`-тегами, ar чистый — аналог `ShamelaTextCleaner` перед `hd_matns.text_en`,
+   до показа в проде); (b) опц. **frontend AdminSunnahPage** (типы в types.ts,
+   чтобы триггерить импорт без curl); затем (c) **step 3 `IsnadExtraction`**.
 4. **`IsnadExtraction` стадия (= Phase 6 AI, слиты!)** — граф для ЛЮБОГО
    хадиса через AI-извлечение цепочки (ADR-042) + `extraction_source`/
    `review_status` + UI-пометки «не выверено». ⚖️ AI-цепочка НЕ факт.
-5. `SunnahApiClient` (proxy-aware, sunnah ТОЛЬКО через прокси — инверсия
-   shamela) + расширение объёма за пилот.
+5. `SunnahApiClient` (proxy-aware) + полный корпус (sample-дамп = только 100
+   хадисов Бухари; muslim/др. — лишь метаданные сборников).
 
 **Manual за Абдулой (висит с Сессии 52):** hadith/narrator списки (debounce +
 Load More), dark-theme primary Button hover, thesis-книга 15 рендер, минимап
-при открытой detail-панели.
+при открытой detail-панели. **Новое:** Бухари в Hadith Explorer = 101 хадис
+с реальным текстом (en содержит HTML — см. next #a).
 
-**Инфра:** Docker (postgres+minio) up. Backend :9090 (local+JDWP :5005) +
-frontend :5173 запущены. Backend держит сид Сессии 52 (migration 58); после
-рестарта подхватит migration 59 (`sn_staging_*`, пустые — импорт ещё не
-запускался против реального дампа). ⚠️ migration 59 правлена in place
-(chapter_id varchar) — дев-БД на 58, конфликта checksum нет.
+**Инфра:** Docker (postgres+minio) up + **`sunnah-mysql` :3307** (дамп
+`db/00-samplegitdb.sql`, root/root, БД `sunnah`; дамп-файл `/tmp/sunnah.sql`).
+Backend :9090 запущен **с `SUNNAH_DUMP_*` env** (см. progress.md «Инфра пилота»)
++ JDWP :5005 — без этих env импорт-endpoint → 503. migration 59 применена.
+Дев-Postgres: 101 hd_hadiths (3 сид + 98 импорт). frontend :5173. Admin user
+для curl: `00000000-0000-0000-0000-000000000001`.
 
 ### Snapshot состояния на entry Сессии 47
 

@@ -475,12 +475,13 @@ design-specs создаются по мере приоритезации.
       (Сессия 53, ADR-051/052) — migration 59 `sn_staging_*` (chapter_id varchar
       для дробного babID) + `SunnahDataSource` + 4 staging DAO +
       `SunnahToHadithMapper` + `ArabicTextNormalizer` + `SunnahDumpReader`
-      (реальная MySQL-схема дампа) + `SunnahImportService`; конвейер дамп→hd_*
-      end-to-end (dual-container Postgres+MySQL IT), пилот Бухари+Муслим; ~40
-      тестов + 2 multi-agent review (0 Critical обе); **next: прод-обвязка**
-      (SunnahDumpProperties + conditional DataSource + admin REST-триггер под
-      bulk-policy gate) → пилот против реального дампа → **step 3 IsnadExtraction**
-      (AI) + step 4 SunnahApiClient/объём; 🔴 sunnah.com не даёт структурный иснад
+      (реальная MySQL-схема) + `SunnahImportService` + **прод-обвязка 2.e**
+      (SunnahDumpProperties + conditional MySQL DataSource + admin REST-триггер,
+      bulk-policy gate); **реальный пилот прогнан** (98 хадисов Бухари из
+      настоящего дампа `db/00-samplegitdb.sql` в hd_*); ~45 тестов + 2
+      multi-agent review (0 Critical обе); **next:** HTML-cleaner для englishText
+      + (опц.) frontend AdminSunnahPage → **step 3 IsnadExtraction** (AI) +
+      step 4 SunnahApiClient/полный корпус; 🔴 sunnah.com не даёт структурный иснад
       → граф для любого хадиса через AI-извлечение, **Phase 6 слит в Phase 5**).
       Spec Explorer:
       `docs/superpowers/specs/2026-05-20-hadith-explorer-design.md`.

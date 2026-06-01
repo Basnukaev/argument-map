@@ -736,6 +736,15 @@ Accessibility / UX:
     «загрязняет» таблицу. Fix: ассерт порядка СВОИХ книг как
     подпоследовательности (устойчиво к посторонним строкам). Класс
     `@Transactional`, так что свои строки откатываются — протекали чужие.
+  - **Системная flakiness полного прогона (НЕ исправлено, требует выделенной
+    работы):** корень — IT-классы делят один Testcontainers Postgres (context-
+    cache), часть коммитит данные, часть ассертит «все строки». Каждый full
+    `verify` краснит 1 случайный тест-«жертву» (зелёный в изоляции).
+    Известные жертвы: `PdfControllerIT.streamPdf_withoutRange` (MinIO/timing),
+    ранее `BookRepositoryIT` (исправлен). Durable fix — изоляция (per-class
+    truncation либо `@Transactional` на коммитящих). Объём — отдельная
+    тест-гигиена, вне Phase 5. До тех пор: упавший в full прогоне класс
+    прогнать в изоляции прежде чем считать регрессией.
 
 - [ ] **GraphCanvas lastNodesRef comment fragility** (audit M-6) -
       callback `handleNodeContextMenu` читает `lastNodesRef.current`

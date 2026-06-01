@@ -8,12 +8,13 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
-## 2026-06-01 - Сессия 53 - Phase 5 ETL sunnah.com шаг 2 (staging + mapper + dump reader) + 2 review-волны
+## 2026-06-01 - Сессия 53 - Phase 5 ETL sunnah.com шаг 2 (2.a-2.e) + РЕАЛЬНЫЙ ПИЛОТ Бухари
 
 **Автономный режим (ultracode).** Цель из handoff'а Сессии 52: Phase 5 ETL
-sunnah.com шаг 2. Закрыт **весь шаг 2** (2.a-2.d): конвейер дамп → `sn_staging_*`
-→ mapper → `hd_*`, end-to-end на реальной MySQL-схеме. **7 коммитов**
-(`2b24e76..29ba54a`), 2 multi-agent review-волны (0 Critical обе).
+sunnah.com шаг 2. Закрыт **весь шаг 2 (2.a-2.e)**: конвейер дамп → `sn_staging_*`
+→ mapper → `hd_*`, прогнан **против реального дампа** (98 хадисов Бухари
+импортированы). ~10 коммитов (`2b24e76..HEAD`), 2 multi-agent review-волны
+(0 Critical обе) + de-flake BookRepositoryIT.
 
 ### Сделано
 
@@ -69,6 +70,23 @@ mutation select bookID прошёл бы). Усилен fixture (книга book
 5; orphan-хадис; muslim hasbooks='no') + тесты доказывают JOIN end-to-end +
 ветки b==null/ch==null/no-grades + matn idempotency.
 
+**7. Шаг 2.e — прод-обвязка + РЕАЛЬНЫЙ ПИЛОТ (`adb76b2`).** Просьба Абдулы:
+«сделай всё сам в плане дампа, без ручной работы». Сделано:
+- `SunnahDumpProperties` + `SunnahDumpConfig` (@ConditionalOnProperty bean
+  MySQL DataSource + reader, изолирован от Postgres) + `SunnahAdminController`
+  (ADMIN-only, bulk-policy gate: GET /collections превью, POST /import/{coll}) +
+  503 `sunnah-dump-not-configured`. Controller IT 3, api-contract + generate-api.
+- **Реальный прогон:** поднял MySQL (docker, `db/00-samplegitdb.sql` —
+  13 collections / 100 hadiths Бухари), backend с `SUNNAH_DUMP_*` env →
+  `POST /import/bukhari` → **inserted=98** skippedExisting=2 (курируемые №1/№8
+  побеждают). hd_hadiths 101, matn ar/en + book/chapter enrichment корректны,
+  detail/list API отдают. Реальные данные видны в Hadith Explorer.
+
+**8. De-flake BookRepositoryIT.** Рекуррентный флак full-прогона — оказался
+test pollution (другой класс коммитит lib_books), не tie-break. Fix:
+subsequence-ассерт. Системная flakiness (PdfControllerIT и др.) — в backlog,
+отдельная тест-гигиена.
+
 ### Решения
 
 - **ADR-051** staging-схема sn_staging_* (+ дополнение про mapper-слой).
@@ -82,39 +100,48 @@ mutation select bookID прошёл бы). Усилен fixture (книга book
 
 ### Проблемы / known
 
-- `BookRepositoryIT.findAll_orderByCreatedAt` флак в full `./mvnw verify`
-  (1/1131), **в изоляции зелёный 14/14** — НЕ регрессия (lib_books, диф весь
-  в hd_*/sn_staging_*); причина — тай `created_at`. В backlog.
-- Backend тесты: **1131, 0 реальных failures** (1 = флак выше).
+- Системная flakiness full-прогона: IT-классы делят Testcontainers Postgres,
+  каждый `verify` краснит 1 случайную «жертву» (зелёная в изоляции).
+  `BookRepositoryIT` исправлен (subsequence-ассерт); `PdfControllerIT` и др. —
+  в backlog (отдельная тест-гигиена). **0 реальных failures**, ~1137 тестов.
+- ⚠️ **migration 59 правлена in place** (chapter_id varchar) — дев-БД была на
+  58, конфликта checksum нет; теперь backend применил 59 при рестарте.
 
 ### Следующий шаг
 
-**Шаг 2 ЗАКРЫТ полностью (2.a-2.d).** Конвейер дамп → hd_* работает end-to-end
-(dual-container IT зелёный). Дальше — **довести 2.d до прод-запуска**, затем
-step 3:
+**Шаг 2 ЗАКРЫТ ПОЛНОСТЬЮ (2.a-2.e) + реальный пилот прогнан.** Конвейер
+дамп → hd_* работает против настоящего дампа (98 хадисов Бухари в hd_*).
+Дальше:
 
-1. **Прод-обвязка импорта** (чтобы запустить против реального дампа вне тестов):
-   - `SunnahDumpProperties` (jdbc url/user/pass/enabled) + `@ConditionalOnProperty`
-     bean MySQL-`DataSource` + фабрика `SunnahDumpReader`.
-   - Получить реальный дамп: clone `github.com/sunnah-com/api`, поднять их
-     `docker compose` MySQL (или загрузить `db/00-samplegitdb.sql`). Полная
-     схема уже изучена (`/tmp/sunnah.sql` если ещё лежит, иначе re-fetch
-     raw `db/00-samplegitdb.sql`).
-   - **Admin REST-триггер** (AdminShamelaPage-стиль) под bulk-policy gate:
-     превью staging до commit, импорт по одному сборнику. api-contract.md +
-     generate-api в том же коммите.
-2. **Прогнать пилот** Бухари+Муслим против реального дампа, UX-валидация (как
-   с shamela — одна единица → проверка → масштаб). НЕ массово вслепую.
+1. **HTML-cleaner для englishText** (быстрый, до показа в проде): реальный
+   `HadithTable.englishText` содержит HTML (`<p>`), арабский чистый. Text-cleaner
+   (аналог `ShamelaTextCleaner`) в reader/mapper перед `hd_matns.text_en`.
+2. **Frontend AdminSunnahPage** (опц., AdminShamelaPage-стиль): кнопки превью +
+   импорт поверх `/api/v1/admin/sunnah/*` (типы уже в types.ts) — чтобы Абдула
+   триггерил без curl.
 3. **Step 3 `IsnadExtraction`** (= Phase 6 AI слит): matn+isnad блоб → AI
    (ADR-042) → структурный иснад (hd_sanads) + `extraction_source`/
-   `review_status` + UI «не выверено». step 4 `SunnahApiClient` + объём.
+   `review_status` + UI «не выверено». step 4 `SunnahApiClient` + полный корпус
+   (sample-дамп = только 100 хадисов Бухари; muslim/др. — только метаданные).
 
-Готовое (2.a-2.d) — фундамент; источник за интерфейсом `SunnahDataSource`
-(dump сейчас, API позже одной реализацией, mapper не двигается).
+Источник за интерфейсом `SunnahDataSource` (dump сейчас, API позже одной
+реализацией, mapper/контроллер не двигаются).
+
+**Инфра пилота (важно для воспроизводимости):**
+- Контейнер `sunnah-mysql` на :3307 (`db/00-samplegitdb.sql` загружен,
+  root/root, БД `sunnah`). Дамп-файл — `/tmp/sunnah.sql` (re-fetch:
+  `curl -sL raw.githubusercontent.com/sunnah-com/api/master/db/00-samplegitdb.sql`).
+- Backend сейчас запущен с `SUNNAH_DUMP_ENABLED=true SUNNAH_DUMP_URL=
+  'jdbc:mysql://localhost:3307/sunnah?allowPublicKeyRetrieval=true&useSSL=false'
+  SUNNAH_DUMP_USERNAME=root SUNNAH_DUMP_PASSWORD=root` + JDWP :5005. Без этих
+  env импорт-endpoint → 503 (by design).
+- Дев-Postgres теперь: 101 hd_hadiths (3 сид + 98 импорт Бухари VARIANT).
+- Admin user для curl: `00000000-0000-0000-0000-000000000001`.
 
 **Ручная проверка (от Абдулы, висит с Сессии 52):** hadith/narrator списки
 (debounce+Load More), dark-theme primary Button hover, thesis-книга 15, минимап
-при detail-панели.
+при detail-панели. **Новое:** Бухари в Hadith Explorer теперь 101 хадис с
+реальным текстом — глянуть как выглядит (en содержит HTML — см. follow-up #1).
 
 ## 2026-06-01 - Сессия 52 - Multi-agent багоохота + security/UX fixes + thesis-metadata + ADR-043 sweep
 
