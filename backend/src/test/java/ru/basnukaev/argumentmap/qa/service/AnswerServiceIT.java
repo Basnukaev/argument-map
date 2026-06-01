@@ -256,6 +256,35 @@ class AnswerServiceIT {
         assertThat(reverted.status()).isEqualTo(QuestionStatus.OPEN);
     }
 
+    @Test
+    void deleteAnswer_acceptedAnswer_resetsQuestionStatusToOpen() {
+        // Удаление принятого ответа: FK ON DELETE SET NULL обнулит
+        // accepted_answer_id, но status застрял бы в ANSWERED без фикса.
+        // deleteAnswer должен revoke acceptance (status → OPEN).
+        Answer a = answerService.createAnswer(questionId, "принятый", userId);
+        answerService.acceptAnswer(questionId, a.id());
+
+        answerService.deleteAnswer(a.id(), userId, UserRole.STUDENT);
+
+        Question q = questionRepository.findById(questionId).orElseThrow();
+        assertThat(q.acceptedAnswerId()).isNull();
+        assertThat(q.status()).isEqualTo(QuestionStatus.OPEN);
+    }
+
+    @Test
+    void deleteAnswer_nonAcceptedAnswer_leavesQuestionStatusUnchanged() {
+        // Удаление НЕ принятого ответа не должно трогать lifecycle вопроса.
+        Answer accepted = answerService.createAnswer(questionId, "принятый", userId);
+        Answer other = answerService.createAnswer(questionId, "другой", userId);
+        answerService.acceptAnswer(questionId, accepted.id());
+
+        answerService.deleteAnswer(other.id(), userId, UserRole.STUDENT);
+
+        Question q = questionRepository.findById(questionId).orElseThrow();
+        assertThat(q.acceptedAnswerId()).isEqualTo(accepted.id());
+        assertThat(q.status()).isEqualTo(QuestionStatus.ANSWERED);
+    }
+
     // ---------- cascade / ON DELETE ----------
 
     @Test

@@ -161,7 +161,27 @@ public class AnswerService {
                 AuditEntityType.QUESTION, existing.questionId(),
                 actorUserId, snapshot);
 
+        // Если удаляемый ответ был принятым - сбрасываем lifecycle вопроса.
+        // FK accepted_answer_id ON DELETE SET NULL обнулит ссылку, но
+        // questions.status остаётся 'ANSWERED' → вопрос завис в ANSWERED
+        // без accepted answer. revokeAcceptedAnswer ставит status=OPEN.
+        resetQuestionStatusIfAcceptedAnswerDeleted(existing);
+
         deleteAnswer(answerId);
+    }
+
+    /**
+     * Если переданный ответ является принятым ответом своего вопроса -
+     * снимает acceptance (status → OPEN) ПЕРЕД удалением. Иначе вопрос
+     * остался бы в неконсистентном состоянии ANSWERED + accepted_answer_id
+     * = NULL (через FK ON DELETE SET NULL).
+     */
+    private void resetQuestionStatusIfAcceptedAnswerDeleted(Answer answer) {
+        questionRepository.findById(answer.questionId()).ifPresent(question -> {
+            if (answer.id().equals(question.acceptedAnswerId())) {
+                questionRepository.revokeAcceptedAnswer(answer.questionId());
+            }
+        });
     }
 
     private void assertAuthorOrAdmin(UUID answerId, UUID actorUserId, String actorRole) {
