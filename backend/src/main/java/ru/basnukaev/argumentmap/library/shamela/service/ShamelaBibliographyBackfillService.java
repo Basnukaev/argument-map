@@ -114,7 +114,7 @@ public class ShamelaBibliographyBackfillService {
         Integer yearGregorian = parsed.publishedYearGregorian() != null
                 ? parsed.publishedYearGregorian() : book.publishedYearGregorian();
 
-        return bookRepository.updateAcademicMetadata(
+        boolean updated = bookRepository.updateAcademicMetadata(
                 book.id(),
                 muhaqqiqId,
                 publisherId,
@@ -123,6 +123,20 @@ public class ShamelaBibliographyBackfillService {
                 yearHijri,
                 yearGregorian
         );
+
+        // Thesis-поля (миграция 58) - заполняем если парсер их выловил
+        // (академические рисала). Merge: parser-значение либо существующее.
+        if (parsed.thesisDegree() != null || parsed.thesisSupervisor() != null
+                || parsed.thesisInstitution() != null) {
+            bookRepository.updateThesisMetadata(
+                    book.id(),
+                    parsed.thesisDegree() != null ? parsed.thesisDegree() : book.thesisDegree(),
+                    parsed.thesisSupervisor() != null ? parsed.thesisSupervisor() : book.thesisSupervisor(),
+                    parsed.thesisInstitution() != null ? parsed.thesisInstitution() : book.thesisInstitution()
+            );
+            updated = true;
+        }
+        return updated;
     }
 
     public record BackfillResult(int scanned, int updated, int skipped) {

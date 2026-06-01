@@ -20,10 +20,17 @@ public record ParsedBibliography(
         String publicationPlace,
         Integer editionNumber,
         Integer publishedYearHijri,
-        Integer publishedYearGregorian
+        Integer publishedYearGregorian,
+        // Thesis (академическая рисала) поля - для shamela-книг которые
+        // на самом деле магистерские/докторские диссертации (миграция 58).
+        // thesisDegree = ماجستير/دكتوراه, supervisor = إشراف,
+        // institution = جامعة/كلية. Все nullable - обычные книги их не имеют.
+        String thesisDegree,
+        String thesisSupervisor,
+        String thesisInstitution
 ) {
     public static ParsedBibliography empty() {
-        return new ParsedBibliography(null, null, null, null, null, null);
+        return new ParsedBibliography(null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -36,6 +43,9 @@ public record ParsedBibliography(
                 && publicationPlace == null
                 && editionNumber == null
                 && publishedYearHijri == null
-                && publishedYearGregorian == null;
+                && publishedYearGregorian == null
+                && thesisDegree == null
+                && thesisSupervisor == null
+                && thesisInstitution == null;
     }
 }

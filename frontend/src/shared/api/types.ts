@@ -68,6 +68,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/topics/{topicId}/reset-layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resetLayout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/topics/{topicId}/members": {
         parameters: {
             query?: never;
@@ -1204,6 +1220,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hadith/narrators/{id}/transmitted": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["transmitted"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/hadith/hadiths": {
         parameters: {
             query?: never;
@@ -1228,6 +1260,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["getOne_6"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hadith/hadiths/{id}/sanad-graph": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getSanadGraph"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2404,6 +2452,9 @@ export interface components {
             publisher?: components["schemas"]["PublisherRef"];
             publicationPlace?: components["schemas"]["PublicationPlaceRef"];
             visibility?: string;
+            thesisDegree?: string;
+            thesisSupervisor?: string;
+            thesisInstitution?: string;
         };
         ChapterResponse: {
             /** Format: uuid */
@@ -2601,7 +2652,7 @@ export interface components {
             birthplace?: string;
             primaryResidence?: string;
             /** @enum {string} */
-            reliabilityGrade?: "THIQA" | "SADUQ" | "MAQBUL" | "DAIF" | "MATRUK" | "UNKNOWN";
+            reliabilityGrade?: "THIQA" | "SADUQ" | "MAQBUL" | "DAIF" | "MATRUK" | "SAHABI" | "UNKNOWN";
             reliabilityComment?: string;
             /** Format: int32 */
             transmittedCount?: number;
@@ -2649,6 +2700,60 @@ export interface components {
             hasNext?: boolean;
             hasPrev?: boolean;
         };
+        GraphEdge: {
+            id?: string;
+            source?: string;
+            target?: string;
+            data?: components["schemas"]["EdgeData"];
+        };
+        GraphNode: {
+            id?: string;
+            role?: string;
+            data?: components["schemas"]["NarratorData"];
+        };
+        NarratorData: {
+            /** Format: uuid */
+            narratorId?: string;
+            nameAr?: string;
+            nameLatin?: string;
+            nameRu?: string;
+            kunya?: string;
+            laqab?: string;
+            /** Format: int32 */
+            yearBirthHijri?: number;
+            /** Format: int32 */
+            yearDeathHijri?: number;
+            birthplace?: string;
+            primaryResidence?: string;
+            deathPlace?: string;
+            reliabilityGrade?: string;
+            reliabilityComment?: string;
+            generation?: string;
+            collection?: string;
+            /** Format: int32 */
+            tier?: number;
+        };
+        SanadGraphResponse: {
+            /** Format: uuid */
+            hadithId?: string;
+            nodes?: components["schemas"]["GraphNode"][];
+            edges?: components["schemas"]["GraphEdge"][];
+            sanads?: components["schemas"]["SanadSummary"][];
+        };
+        SanadSummary: {
+            /** Format: uuid */
+            id?: string;
+            collectionRu?: string;
+            collectionAr?: string;
+            chainGrade?: string;
+            primaryChain?: boolean;
+            collectorNodeId?: string;
+        };
+        GradeDto: {
+            scholar?: string;
+            grade?: string;
+            note?: string;
+        };
         HadithDetailResponse: {
             /** Format: uuid */
             id?: string;
@@ -2664,6 +2769,7 @@ export interface components {
             createdAt?: string;
             sanads?: components["schemas"]["SanadDto"][];
             matns?: components["schemas"]["MatnDto"][];
+            grades?: components["schemas"]["GradeDto"][];
         };
         MatnDto: {
             /** Format: uuid */
@@ -2962,6 +3068,29 @@ export interface operations {
         parameters: {
             query?: never;
             header?: never;
+            path: {
+                topicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    resetLayout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
             path: {
                 topicId: string;
             };
@@ -3324,8 +3453,13 @@ export interface operations {
     };
     acceptAnswer: {
         parameters: {
-            query?: never;
-            header?: never;
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
             path: {
                 questionId: string;
                 answerId: string;
@@ -4852,7 +4986,10 @@ export interface operations {
     updateFormattedContent: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
             path: {
                 pageId: string;
             };
@@ -5276,7 +5413,10 @@ export interface operations {
     export: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
             path: {
                 topicId: string;
             };
@@ -5618,6 +5758,31 @@ export interface operations {
             };
         };
     };
+    transmitted: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PagedResponseHadithResponse"];
+                };
+            };
+        };
+    };
     list_13: {
         parameters: {
             query?: {
@@ -5662,6 +5827,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["HadithResponse"];
+                };
+            };
+        };
+    };
+    getSanadGraph: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SanadGraphResponse"];
                 };
             };
         };
@@ -5912,8 +6099,13 @@ export interface operations {
     };
     revokeAcceptance: {
         parameters: {
-            query?: never;
-            header?: never;
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
             path: {
                 questionId: string;
             };

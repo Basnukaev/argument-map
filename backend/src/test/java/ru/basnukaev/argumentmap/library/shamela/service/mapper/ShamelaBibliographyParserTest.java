@@ -158,4 +158,47 @@ class ShamelaBibliographyParserTest {
         assertThat(parsed.editionNumber()).isEqualTo(1);
         assertThat(parsed.publishedYearHijri()).isNull();
     }
+
+    @Test
+    void parsesMastersThesis_book15() {
+        // Реальная «بطاقة الكتاب» книги 15 (магистерская диссертация).
+        // degree+institution из строки رسالة, supervisor из إشراف, год из
+        // العام الجامعي. publisher/muhaqqiq отсутствуют - это не изданная книга.
+        String biblio = "الكتاب: الاستنباط عند الخطيب الشربيني (٩٧٧ هـ) في تفسيره السراج المنير - جمعاً ودراسة"
+                + "\\rرسالة: ماجستير، جامعة الإمام محمد بن سعود الإسلامية - كلية أصول الدين - قسم القرآن وعلومه"
+                + "\\rإعداد: أسماء بنت محمد بن عبدالعزيز الناصر"
+                + "\\rإشراف: د عبدالعزيز بن ناصر السبر"
+                + "\\rالعام الجامعي: ١٤٣٧ - ١٤٣٨ هـ"
+                + "\\rعدد الصفحات: ٨٧١";
+
+        ParsedBibliography parsed = parser.parse(biblio);
+
+        assertThat(parsed.thesisDegree()).isEqualTo("ماجستير");
+        assertThat(parsed.thesisInstitution())
+                .isEqualTo("جامعة الإمام محمد بن سعود الإسلامية - كلية أصول الدين - قسم القرآن وعلومه");
+        assertThat(parsed.thesisSupervisor()).isEqualTo("د عبدالعزيز بن ناصر السبر");
+        // Академический год → hijri (берётся последний/максимальный матч هـ)
+        assertThat(parsed.publishedYearHijri()).isIn(1437, 1438);
+        // Не изданная книга - publisher/muhaqqiq/edition отсутствуют
+        assertThat(parsed.publisher()).isNull();
+        assertThat(parsed.muhaqqiq()).isNull();
+        assertThat(parsed.editionNumber()).isNull();
+    }
+
+    @Test
+    void publishedBookHasNoThesisFields_noFalsePositives() {
+        // Обычная изданная книга (ابن كثير) НЕ должна получить thesis-поля.
+        String biblio = "الكتاب: تفسير القرآن العظيم\\rالمؤلف: ابن كثير"
+                + "\\rالمحقق: حكمت بن بشير بن ياسين"
+                + "\\rالناشر: دار ابن الجوزي للنشر والتوزيع - السعودية"
+                + "\\rالطبعة: الأولى، ١٤٣١ هـ";
+
+        ParsedBibliography parsed = parser.parse(biblio);
+
+        assertThat(parsed.thesisDegree()).isNull();
+        assertThat(parsed.thesisSupervisor()).isNull();
+        assertThat(parsed.thesisInstitution()).isNull();
+        // structured-поля по-прежнему парсятся
+        assertThat(parsed.muhaqqiq()).isEqualTo("حكمت بن بشير بن ياسين");
+    }
 }

@@ -84,7 +84,10 @@ public final class LibraryDtoMappers {
                 toMuhaqqiqRef(detail.muhaqqiq()),
                 toPublisherRef(detail.publisher()),
                 toPublicationPlaceRef(detail.publicationPlace()),
-                book.visibility()
+                book.visibility(),
+                book.thesisDegree(),
+                book.thesisSupervisor(),
+                book.thesisInstitution()
         );
     }
 

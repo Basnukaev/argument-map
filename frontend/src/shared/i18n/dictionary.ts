@@ -23,6 +23,9 @@ export const DICTIONARY = {
     'cite.label.edition': 'Издание',
     'cite.label.year': 'Год',
     'cite.label.metadata': 'Метаданные',
+    'cite.label.thesis_degree': 'Работа',
+    'cite.label.thesis_supervisor': 'Научный руководитель',
+    'cite.label.thesis_institution': 'Учебное заведение',
 
     // citation actions
     'cite.action.gotoSource': 'Перейти к источнику',
@@ -1304,6 +1307,9 @@ export const DICTIONARY = {
     'cite.label.edition': 'الطبعة',
     'cite.label.year': 'السنة',
     'cite.label.metadata': 'البيانات الوصفية',
+    'cite.label.thesis_degree': 'نوع الرسالة',
+    'cite.label.thesis_supervisor': 'إشراف',
+    'cite.label.thesis_institution': 'الجامعة',
 
     'cite.action.gotoSource': 'اذهب إلى المصدر',
     'cite.action.detach': 'فصل الاستناد',

@@ -34,6 +34,12 @@ public record BookDetailResponse(
         MuhaqqiqRef muhaqqiq,
         PublisherRef publisher,
         PublicationPlaceRef publicationPlace,
-        String visibility
+        String visibility,
+        // Thesis (академическая рисала) поля - nullable, заполнены только
+        // для shamela-диссертаций (миграция 58). degree=ماجستير/دكتوراه,
+        // supervisor=إشراف, institution=جامعة/كلية.
+        String thesisDegree,
+        String thesisSupervisor,
+        String thesisInstitution
 ) {
 }

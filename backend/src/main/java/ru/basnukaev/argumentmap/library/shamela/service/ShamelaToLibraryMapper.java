@@ -154,7 +154,10 @@ public class ShamelaToLibraryMapper {
                 parsedBiblio.editionNumber(),
                 parsedBiblio.publishedYearHijri(),
                 parsedBiblio.publishedYearGregorian(),
-                BookVisibility.PUBLIC
+                BookVisibility.PUBLIC,
+                parsedBiblio.thesisDegree(),
+                parsedBiblio.thesisSupervisor(),
+                parsedBiblio.thesisInstitution()
         );
         bookRepository.save(book);
 

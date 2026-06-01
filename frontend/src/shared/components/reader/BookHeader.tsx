@@ -43,11 +43,15 @@ function BookHeader({ book, pagesCount, children }: Props) {
   const descriptionText = book.description?.replace(/\r\n?/g, '\n') ?? null;
 
   // Structured metadata если хоть одно поле есть. Иначе fallback на
-  // raw `description` (shamela bibliography text)
+  // raw `description` (shamela bibliography text). Thesis-поля (рисала)
+  // тоже считаются structured - для них тоже не показываем raw текст.
+  const hasThesisMetadata = Boolean(
+    book.thesisDegree ?? book.thesisSupervisor ?? book.thesisInstitution
+  );
   const hasStructuredMetadata = Boolean(
     book.authority ?? book.muhaqqiq ?? book.publisher ?? book.publicationPlace ??
     book.editionNumber ?? book.publishedYearHijri ?? book.publishedYearGregorian
-  );
+  ) || hasThesisMetadata;
 
   return (
     <div className="mb-4 flex items-start justify-between gap-4">
@@ -120,25 +124,39 @@ function BookHeader({ book, pagesCount, children }: Props) {
               </RtlRow>
             )}
             {(book.publishedYearHijri != null || book.publishedYearGregorian != null) && (
-              <RtlRow label={t('cite.label.year')} last>
+              <RtlRow label={t('cite.label.year')} last={!hasThesisMetadata}>
                 <HijriYear
                   hijri={book.publishedYearHijri}
                   gregorian={book.publishedYearGregorian}
                 />
               </RtlRow>
             )}
+            {/* Thesis (рисала) rows - для академических диссертаций. Каждое
+                поле своей строкой как остальные, НЕ сырым текстом. */}
+            {book.thesisDegree && (
+              <RtlRow label={t('cite.label.thesis_degree')}>
+                <FlexValue text={book.thesisDegree} size={13} />
+              </RtlRow>
+            )}
+            {book.thesisSupervisor && (
+              <RtlRow label={t('cite.label.thesis_supervisor')}>
+                <FlexValue text={book.thesisSupervisor} size={13} />
+              </RtlRow>
+            )}
+            {book.thesisInstitution && (
+              <RtlRow label={t('cite.label.thesis_institution')} last>
+                <FlexValue text={book.thesisInstitution} size={13} />
+              </RtlRow>
+            )}
           </div>
         )}
 
-        {/* Описание (shamela «بطاقة الكتاب» / bibliography) показываем ВСЕГДА
-            когда оно есть. Раньше был guard `!hasStructuredMetadata` →
-            если автор резолвился в structured authority, богатая карточка
-            книги (тип работы, университет, научрук, год, кол-во страниц)
-            полностью пряталась - showed только автора. Карточка несёт
-            больше чем structured-поля, поэтому рендерим её отдельным блоком
-            под metadata-box. whitespace-pre-line - сохраняем переносы строк
-            если они есть в тексте. */}
-        {descriptionText && (
+        {/* Raw bibliography (shamela «بطاقة الكتاب») - ТОЛЬКО fallback когда
+            structured-поля пусты. Если парсер извлёк muhaqqiq/publisher/
+            edition/year - они уже в metadata-box выше, дублировать сырой
+            текст не нужно (был баг дублирования). Цель: наполнять нашу
+            таблицу через ShamelaBibliographyParser, а не дампить текст. */}
+        {!hasStructuredMetadata && descriptionText && (
           <p
             className={
               isArabic

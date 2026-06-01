@@ -58,6 +58,14 @@ public class ShamelaBibliographyParser {
     private static final Pattern EDITION = compileField("الطبعة");
     private static final Pattern YEAR_LINE = compileField("(?:عام النشر|سنة النشر)");
 
+    // Thesis (рисала) markers - для академических диссертаций (миграция 58):
+    //   رسالة: ماجستير، جامعة الإمام ... - كلية ... → degree + institution
+    //   إشراف: د. فلان                              → supervisor
+    //   العام الجامعي: ١٤٣٧ - ١٤٣٨ هـ                → academic year (→ hijri)
+    private static final Pattern THESIS_LINE = compileField("رسالة");
+    private static final Pattern SUPERVISOR = compileField("(?:إشراف|اشراف|المشرف)");
+    private static final Pattern ACADEMIC_YEAR_LINE = compileField("(?:العام الجامعي|العام الدراسي)");
+
     private static final Pattern HIJRI_YEAR = Pattern.compile(
             "([\\d٠-٩]+)\\s*هـ"
     );
@@ -102,9 +110,31 @@ public class ShamelaBibliographyParser {
             }
         }
 
+        // Thesis-поля. Строка رسالة содержит degree + institution через
+        // разделитель «،» либо « - »: "ماجستير، جامعة الإمام ... - كلية ...".
+        // Первый сегмент = degree (ماجستير/دكتوراه), остаток = institution.
+        String thesisLine = extract(bibliography, THESIS_LINE);
+        String thesisDegree = null;
+        String thesisInstitution = null;
+        if (thesisLine != null) {
+            int sep = firstSeparatorIndex(thesisLine);
+            if (sep > 0) {
+                thesisDegree = thesisLine.substring(0, sep).trim();
+                thesisInstitution = thesisLine.substring(sep + 1).trim();
+            } else {
+                // Нет разделителя - вся строка как degree (минимальный случай)
+                thesisDegree = thesisLine.trim();
+            }
+        }
+        String thesisSupervisor = extract(bibliography, SUPERVISOR);
+
         Integer editionNumber = parseEditionNumber(editionRaw);
-        Integer hijri = parseYear(joinNullable(editionRaw, yearLine), HIJRI_YEAR);
-        Integer gregorian = parseYear(joinNullable(editionRaw, yearLine), GREGORIAN_YEAR);
+        // Год: для изданных книг - الطبعة/عام النشر; для диссертаций -
+        // العام الجامعي. Все источники складываем в извлечение года.
+        String academicYearLine = extract(bibliography, ACADEMIC_YEAR_LINE);
+        String yearSources = joinNullable(joinNullable(editionRaw, yearLine), academicYearLine);
+        Integer hijri = parseYear(yearSources, HIJRI_YEAR);
+        Integer gregorian = parseYear(yearSources, GREGORIAN_YEAR);
 
         return new ParsedBibliography(
                 blank(muhaqqiq),
@@ -112,8 +142,31 @@ public class ShamelaBibliographyParser {
                 blank(publicationPlace),
                 editionNumber,
                 hijri,
-                gregorian
+                gregorian,
+                blank(thesisDegree),
+                blank(thesisSupervisor),
+                blank(thesisInstitution)
         );
+    }
+
+    /**
+     * Индекс первого разделителя degree/institution в строке رسالة:
+     * arabic-запятая «،», обычная запятая «,» либо « - ». Возвращает -1
+     * если разделителя нет.
+     */
+    private static int firstSeparatorIndex(String s) {
+        int best = -1;
+        for (String sep : new String[] {"،", ","}) {
+            int idx = s.indexOf(sep);
+            if (idx >= 0 && (best == -1 || idx < best)) {
+                best = idx;
+            }
+        }
+        int dash = s.indexOf(" - ");
+        if (dash >= 0 && (best == -1 || dash < best)) {
+            best = dash;
+        }
+        return best;
     }
 
     private static Pattern compileField(String markerAlternation) {

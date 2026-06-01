@@ -25,7 +25,8 @@ public class BookRepository {
             + "created_by, created_at, updated_at, "
             + "muhaqqiq_id, publisher_id, publication_place_id, "
             + "edition_number, published_year_hijri, published_year_gregorian, "
-            + "visibility";
+            + "visibility, "
+            + "thesis_degree, thesis_supervisor, thesis_institution";
 
     private static final RowMapper<Book> ROW_MAPPER = (rs, rn) -> {
         int edition = rs.getInt("edition_number");
@@ -52,7 +53,10 @@ public class BookRepository {
                 editionOrNull,
                 yearHOrNull,
                 yearGOrNull,
-                rs.getString("visibility")
+                rs.getString("visibility"),
+                rs.getString("thesis_degree"),
+                rs.getString("thesis_supervisor"),
+                rs.getString("thesis_institution")
         );
     };
 
@@ -65,7 +69,7 @@ public class BookRepository {
     public Book save(Book book) {
         jdbcTemplate.update(
                 "INSERT INTO lib_books (" + COLUMNS + ") "
-                        + "VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 book.id(),
                 book.bookType().name(),
                 book.title(),
@@ -82,7 +86,10 @@ public class BookRepository {
                 book.editionNumber(),
                 book.publishedYearHijri(),
                 book.publishedYearGregorian(),
-                book.visibility()
+                book.visibility(),
+                book.thesisDegree(),
+                book.thesisSupervisor(),
+                book.thesisInstitution()
         );
         return book;
     }
@@ -344,6 +351,29 @@ public class BookRepository {
                 editionNumber,
                 publishedYearHijri,
                 publishedYearGregorian,
+                bookId
+        );
+        return rows > 0;
+    }
+
+    /**
+     * Обновить thesis-поля (миграция 58) - отдельно от academic metadata,
+     * т.к. user-facing book edit их не редактирует (только shamela backfill
+     * /import заполняет из bibliography). Возвращает true если строка
+     * обновлена.
+     */
+    public boolean updateThesisMetadata(UUID bookId,
+                                        String thesisDegree,
+                                        String thesisSupervisor,
+                                        String thesisInstitution) {
+        int rows = jdbcTemplate.update(
+                "UPDATE lib_books SET "
+                        + "thesis_degree = ?, thesis_supervisor = ?, thesis_institution = ?, "
+                        + "updated_at = now() "
+                        + "WHERE id = ?",
+                thesisDegree,
+                thesisSupervisor,
+                thesisInstitution,
                 bookId
         );
         return rows > 0;

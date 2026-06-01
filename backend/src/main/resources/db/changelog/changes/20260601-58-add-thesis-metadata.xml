@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Thesis (academic dissertation) metadata для lib_books.
+
+        Часть shamela-книг - это академические рисала (магистерские /
+        докторские диссертации), а не изданные книги. Их «بطاقة الكتاب»
+        несёт поля которые НЕ ложатся в обычные publisher/muhaqqiq/edition:
+          - رسالة: ماجستير / دكتوراه  → тип научной работы (degree)
+          - إشراف: د. فلان            → научный руководитель (supervisor)
+          - جامعة... / كلية...        → учебное заведение (institution)
+        (العام الجامعي / academic year маппится в существующий
+         published_year_hijri - отдельная колонка не нужна.)
+
+        Раньше эти данные либо терялись, либо дампились сырым текстом в
+        description (создавая дубль со structured-таблицей). Теперь
+        ShamelaBibliographyParser наполняет эти structured-колонки, а
+        UI рендерит их строками как остальные поля - НЕ текстом.
+
+        Per-book scalars (не reusable между книгами - у каждой диссертации
+        свой научрук/вуз), поэтому TEXT прямо на lib_books, без справочника
+        (в отличие от publishers/muhaqqiqs - ADR-028). Все nullable: обычные
+        изданные книги их не имеют.
+    -->
+    <changeSet id="20260601-58-add-thesis-metadata" author="Abdula Basnukaev">
+        <comment>Добавляем thesis-поля (degree/supervisor/institution) в lib_books для академических рисала</comment>
+        <addColumn tableName="lib_books">
+            <column name="thesis_degree" type="TEXT"/>
+            <column name="thesis_supervisor" type="TEXT"/>
+            <column name="thesis_institution" type="TEXT"/>
+        </addColumn>
+        <rollback>
+            <dropColumn tableName="lib_books" columnName="thesis_degree"/>
+            <dropColumn tableName="lib_books" columnName="thesis_supervisor"/>
+            <dropColumn tableName="lib_books" columnName="thesis_institution"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
