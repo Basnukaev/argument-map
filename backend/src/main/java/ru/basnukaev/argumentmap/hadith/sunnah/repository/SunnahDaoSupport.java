@@ -17,6 +17,10 @@ final class SunnahDaoSupport {
     /**
      * Суммирует затронутые строки по batch'у. JDBC-драйвер может вернуть
      * {@code SUCCESS_NO_INFO (-2)}, если число неизвестно — считаем как 1.
+     *
+     * <p>Возвращаемое из upsertAll значение — «обработано строк»
+     * (insert+update суммарно), приблизительное при SUCCESS_NO_INFO; это
+     * НЕ дельта вставок. Вызывающим использовать только для логирования.
      */
     static int sumAffected(int[] affected) {
         int total = 0;

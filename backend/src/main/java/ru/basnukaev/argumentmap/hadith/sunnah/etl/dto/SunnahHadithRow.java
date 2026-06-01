@@ -4,7 +4,7 @@ package ru.basnukaev.argumentmap.hadith.sunnah.etl.dto;
  * Staging-строка хадиса sunnah.com ({@code sn_staging_hadith}).
  * Phase 5 ETL шаг 2 (ADR-051).
  *
- * <p>🔴 Ключевая особенность sunnah.com (spec §2.2): {@code bodyAr} —
+ * <p>Ключевая особенность sunnah.com (spec §2.2): {@code bodyAr} —
  * это matn + isnad единым текстовым блоком. Структурированной цепочки
  * передатчиков НЕТ — она извлекается отдельной стадией IsnadExtraction
  * (шаг 3). На шаге 2 переносим только текст + grades + структуру.

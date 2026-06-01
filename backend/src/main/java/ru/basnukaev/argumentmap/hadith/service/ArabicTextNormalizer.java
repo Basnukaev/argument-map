@@ -1,12 +1,17 @@
 package ru.basnukaev.argumentmap.hadith.service;
 
+import java.text.Normalizer;
+
 /**
  * Нормализация арабского текста для search/dedup matn'ов (Phase 5 ETL).
  *
  * <p>ETL импортирует тысячи matn'ов — нормализованная форма вычисляется,
- * а не вбивается руками (как было в DevHadithSeeder). Правила (стандартная
- * арабская нормализация, как в Lucene ArabicNormalizer):
+ * а не вбивается руками (как было в DevHadithSeeder). Конвейер:
  * <ol>
+ *   <li><b>NFKC</b>-предобработка: раскрывает presentation forms
+ *       (FB50+/FE70+), лигатуру лям-алиф (U+FEFB → لا) и
+ *       NFD-декомпозированные носители хамзы в канонические буквы +
+ *       комбинируемые знаки;</li>
  *   <li>удаление огласовок/танвина/шадды/сукуна (U+064B–U+065F) и
  *       надстрочного алифа (U+0670);</li>
  *   <li>удаление татвиля-кашиды (U+0640);</li>
@@ -18,8 +23,11 @@ package ru.basnukaev.argumentmap.hadith.service;
  *   <li>схлопывание пробельных последовательностей в один пробел + trim.</li>
  * </ol>
  *
- * <p>Нормализация лоссиная (по дизайну — для нечувствительного к огласовкам
- * поиска). Оригинальный текст хранится в {@code hd_matns.text_ar}.
+ * <p>Аналогично Lucene ArabicNormalizer, но <b>агрессивнее</b>: шире
+ * диапазон удаляемой диакритики, плюс сведение хамза-носителей, удаление
+ * одиночной хамзы и NFKC-предобработка. Нормализация лоссиная (по дизайну —
+ * для нечувствительного к огласовкам поиска); оригинал в {@code hd_matns.text_ar}.
+ * Идемпотентна: {@code normalize(normalize(x)) == normalize(x)}.
  */
 public final class ArabicTextNormalizer {
 
@@ -30,11 +38,15 @@ public final class ArabicTextNormalizer {
         if (input == null || input.isBlank()) {
             return "";
         }
-        StringBuilder sb = new StringBuilder(input.length());
-        for (int i = 0; i < input.length(); i++) {
-            char c = input.charAt(i);
-            // огласовки и комбинируемые знаки (U+064B–U+065F) + надстрочный
-            // алиф (U+0670) + татвиль-кашида (U+0640) — удаляем
+        // NFKC раскрывает presentation forms / лигатуры / NFD-носители хамзы
+        // в канонические буквы + комбинируемые знаки, которые ниже снимаются
+        String nfkc = Normalizer.normalize(input, Normalizer.Form.NFKC);
+        StringBuilder sb = new StringBuilder(nfkc.length());
+        for (int i = 0; i < nfkc.length(); i++) {
+            char c = nfkc.charAt(i);
+            // огласовки и комбинируемые знаки (U+064B–U+065F, включая
+            // комбинируемую хамзу U+0654/0655 после NFD-декомпозиции) +
+            // надстрочный алиф (U+0670) + татвиль-кашида (U+0640) — удаляем
             if ((c >= 'ً' && c <= 'ٟ') || c == 'ٰ' || c == 'ـ') {
                 continue;
             }

@@ -187,10 +187,14 @@ public class SunnahToHadithMapper {
         }
         if (row.chapterId() != null) {
             m.put("chapterId", row.chapterId());
-            SunnahChapterRow ch = chapters.get(chapterKey(row.bookNumber(), row.chapterId()));
-            if (ch != null) {
-                putIfPresent(m, "chapterTitleAr", ch.titleAr());
-                putIfPresent(m, "chapterTitleEn", ch.titleEn());
+            // title резолвим только при наличии bookNumber — chapterKey
+            // составной (book/chapter); без книги lookup был бы "null/N"
+            if (row.bookNumber() != null) {
+                SunnahChapterRow ch = chapters.get(chapterKey(row.bookNumber(), row.chapterId()));
+                if (ch != null) {
+                    putIfPresent(m, "chapterTitleAr", ch.titleAr());
+                    putIfPresent(m, "chapterTitleEn", ch.titleEn());
+                }
             }
         }
         return m.isEmpty() ? null : writeJson(m);
@@ -252,13 +256,18 @@ public class SunnahToHadithMapper {
         return (v == null || v.isNull()) ? null : v.asText();
     }
 
-    /** Строгий разбор номера хадиса: только чисто-числовой ("1a" → null). */
+    /**
+     * Строгий разбор номера хадиса: только ASCII-цифры ("1a" → null,
+     * арабо-индийские "١٢" → null). ASCII-ограничение намеренно: иначе
+     * Character.isDigit + Integer.parseInt приняли бы "١٢"=12, что дало бы
+     * коллизию в idempotency-ключе (collection_id, primary_number) с "12".
+     */
     private static Integer parseNumber(String raw) {
         if (raw == null) {
             return null;
         }
         String t = raw.trim();
-        if (t.isEmpty() || !t.chars().allMatch(Character::isDigit)) {
+        if (t.isEmpty() || !t.chars().allMatch(c -> c >= '0' && c <= '9')) {
             return null;
         }
         try {

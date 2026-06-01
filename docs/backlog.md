@@ -380,6 +380,25 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
 
 ## Tech debt / performance optimization
 
+### Code-review findings (Сессия 53, 2026-06-01) — Phase 5 ETL шаг 2 deferred Minor
+
+Из multi-agent review (5 измерений → adversarial verify, 0 Critical, все 6
+Important + большинство Minor закрыты в сессии). Сознательно отложенные Minor:
+
+- [ ] **Concurrent-run idempotency** (Minor): `SunnahToHadithMapper` —
+  find-then-insert (TOCTOU). Для admin-triggered single import безопасно
+  (UNIQUE-констрейнт ловит), но параллельные прогоны одного сборника дали бы
+  сырой constraint-violation вместо чистого skip. Если появится параллельный
+  импорт: advisory lock по slug либо `INSERT ... ON CONFLICT DO NOTHING`.
+- [ ] **Расширенные формы хамзы/алифа** (Minor): NFKC + текущие folds
+  покрывают обычный текст и presentation forms; редкие U+0672/0673/0675/0676/
+  0677 (alef/waw with wavy hamza) пройдут verbatim. Добавить в switch если
+  встретятся в реальном дампе.
+- [ ] **hadith→book/chapter referential gap** (Minor, by design): в
+  `sn_staging_hadith` `book_number`/`chapter_id` — мягкие атрибуты без FK
+  (hasBooks/hasChapters опциональны). Опционально: mapper логирует/считает
+  хадисы с (book,chapter), не находящими staging-родителя.
+
 ### Code-review findings (Сессия 52, 2026-06-01) — ADR-043 sweep gaps
 
 Из code-review fix-волны (4 reviewer-агента). Реальные, но out-of-scope
@@ -680,6 +699,13 @@ Accessibility / UX:
     Сессии 51 — файл не тронут): 3 subtests citations/sources (MSW handler
     `/sources` + изменённый формат label, семья 49d QA-sources). Флак вместе
     с `bulkActions` d3-drag. Триаж отдельно.
+  - **BookRepositoryIT.findAll_orderByCreatedAt флак в полном прогоне**
+    (замечен Сессией 53, НЕ регрессия — `lib_books`, диф сессии весь в
+    `hd_*`/`sn_staging_*`). В full `./mvnw verify` падает 1/1118, **в изоляции
+    `-Dit.test=BookRepositoryIT` зелёный 14/14**. Гипотеза причины: две книги в
+    тесте получают одинаковый `created_at` (тай по миллисекунде) → `ORDER BY
+    created_at` недетерминирован. Fix: вторичный tie-break ключ в сортировке
+    (`created_at DESC, id`) либо разнести `created_at` в фикстуре. Non-blocking.
 
 - [ ] **GraphCanvas lastNodesRef comment fragility** (audit M-6) -
       callback `handleNodeContextMenu` читает `lastNodesRef.current`

@@ -220,6 +220,26 @@ DAIF). Означает что хадис фабрикован - приписа�
 (например, "Абу Бакр" - "отец Бакра"). Часть полного имени
 авторитета в дизайн-карточках. Сейчас не отдельное поле.
 
+**sn_staging_\* (staging-схема импорта sunnah.com)** — четыре
+staging-таблицы (`sn_staging_collection/book/chapter/hadith`,
+миграция 59, ADR-051) первого слоя ETL sunnah.com (Phase 5, в коде).
+Зеркалят логическую модель sunnah.com (collection → book → chapter →
+hadith) с естественными составными PK, денормализацией языков в
+`*_ar`/`*_en` и `raw` jsonb (forward-compat). Наполняются через
+`SunnahDataSource`, переносятся в `hd_*` маппером
+`SunnahToHadithMapper`. Аналог `lib_shamela_*` в library-домене.
+
+**SunnahDataSource** — Java-абстракция источника данных sunnah.com
+(Phase 5 §11): один интерфейс, две реализации — `SunnahDumpReader`
+(MySQL-дамп `github.com/sunnah-com/api`) и `SunnahApiClient` (REST,
+proxy-aware). Обе пишут в одни `sn_staging_*`, поэтому смена источника
+не трогает mapper. Гранулярность — по сборнику (под bulk-policy gate).
+
+**URN (sunnah.com)** — per-language числовой идентификатор хадиса в
+sunnah.com (`urn_ar`/`urn_en` в `sn_staging_hadith`). Уникален для
+конкретной языковой версии. В `hd_*` кладётся в metadata, не служит
+ключом — ключ дедупа/идемпотентности `(collection_id, primary_number)`.
+
 ## Library (книги и страницы)
 
 Введено в Этапе 14 (ADR-019) как фундамент платформы.

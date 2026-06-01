@@ -105,7 +105,10 @@ class SunnahStagingDaoIT {
         List<SunnahBookRow> books = bookDao.findByCollection("bukhari");
         assertThat(books).hasSize(1);
         assertThat(books.get(0).bookNumber()).isEqualTo("1");
+        assertThat(books.get(0).nameAr()).isEqualTo("كتاب بدء الوحي");
         assertThat(books.get(0).nameEn()).isEqualTo("Revelation");
+        assertThat(books.get(0).hadithStartNumber()).isEqualTo(1);
+        assertThat(books.get(0).hadithEndNumber()).isEqualTo(7);
         assertThat(books.get(0).numberOfHadith()).isEqualTo(7);
     }
 
@@ -134,12 +137,22 @@ class SunnahStagingDaoIT {
         bookDao.upsertAll(List.of(new SunnahBookRow(
                 "bukhari", "1", null, null, null, null, "Revelation", null)));
         chapterDao.upsertAll(List.of(new SunnahChapterRow(
-                "bukhari", "1", 1, "١", "1", "باب", "Chapter", null, null, null, null, "{}")));
+                "bukhari", "1", 1, "١", "1", "باب", "Chapter",
+                "مقدمة", "Intro", "خاتمة", "Ending", "{\"k\":1}")));
 
-        List<SunnahChapterRow> chapters = chapterDao.findByCollection("bukhari");
-        assertThat(chapters).hasSize(1);
-        assertThat(chapters.get(0).chapterId()).isEqualTo(1);
-        assertThat(chapters.get(0).titleEn()).isEqualTo("Chapter");
+        // полное покрытие колонок: column-order mismatch в RowMapper иначе
+        // незаметен при single-field assertions
+        SunnahChapterRow ch = chapterDao.findByCollection("bukhari").get(0);
+        assertThat(ch.chapterId()).isEqualTo(1);
+        assertThat(ch.chapterNumberAr()).isEqualTo("١");
+        assertThat(ch.chapterNumberEn()).isEqualTo("1");
+        assertThat(ch.titleAr()).isEqualTo("باب");
+        assertThat(ch.titleEn()).isEqualTo("Chapter");
+        assertThat(ch.introAr()).isEqualTo("مقدمة");
+        assertThat(ch.introEn()).isEqualTo("Intro");
+        assertThat(ch.endingAr()).isEqualTo("خاتمة");
+        assertThat(ch.endingEn()).isEqualTo("Ending");
+        assertThat(ch.rawJson()).contains("\"k\"");
     }
 
     // --- hadith ---
@@ -158,6 +171,7 @@ class SunnahStagingDaoIT {
         assertThat(h.hadithNumber()).isEqualTo("1");
         assertThat(h.bodyAr()).isEqualTo("إنما الأعمال بالنيات");
         assertThat(h.bodyEn()).isEqualTo("Actions are but by intentions");
+        assertThat(h.urnAr()).isEqualTo(1L);
         assertThat(h.urnEn()).isEqualTo(100001L);
         assertThat(h.gradesJson()).contains("Sahih");
     }

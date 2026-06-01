@@ -330,9 +330,22 @@ PDF lazy через `GET /admin/shamela/book/{id}/pdf/{fileIndex}` -
 `ready.shamela.ws/pdf{path}`. Не batch'им - 8500 книг ×
 ~5MB = 40+GB не оправданы для MVP.
 
-Расширение в будущем: `QuranComImportService`,
-`SunnahComImportService` - тот же двухслойный паттерн (свои
-staging-таблицы + общий маппер в `lib_books/Authority`).
+Расширение источников: тот же двухслойный паттерн (свои
+staging-таблицы + маппер в целевую модель), но **цель зависит от домена**:
+
+- `QuranComImportService` (будущее) → `lib_books`/`Authority`.
+- **sunnah.com ETL (Phase 5, ADR-050/051, в работе):** цель — НЕ library,
+  а **hadith-домен** `hd_*`. Staging `sn_staging_collection/book/chapter/hadith`
+  (естественные составные PK, денормализация ar/en, `raw` jsonb forward-compat)
+  наполняется через абстракцию `SunnahDataSource` (две реализации:
+  dump-reader + proxy-aware API-client — оба пишут в одни staging-таблицы).
+  Маппер `SunnahToHadithMapper` → `hd_collections` + `hd_hadiths` + `hd_matns`
+  (текст ar/en + grades в `hd_hadiths.metadata` + структура книга/глава в
+  `hd_matns.metadata`; нормализация арабского через `ArabicTextNormalizer`;
+  идемпотентность по `(collection_id, primary_number)`). Структурный иснад
+  (`hd_sanads`) sunnah.com НЕ даёт — извлекается отдельной стадией
+  IsnadExtraction (шаг 3). ⚠️ sunnah.com доступен ТОЛЬКО через прокси
+  (инверсия shamela) — см. `gotchas.md`.
 
 #### B. Загрузка PDF/EPUB
 

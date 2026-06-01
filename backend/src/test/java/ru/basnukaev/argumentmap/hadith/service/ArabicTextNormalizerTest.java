@@ -67,4 +67,47 @@ class ArabicTextNormalizerTest {
                 .isEqualTo(ArabicTextNormalizer.normalize(plain))
                 .isEqualTo("انما الاعمال بالنيات");
     }
+
+    @Test
+    void unfolds_presentation_forms_and_lam_alef_ligature_via_nfkc() {
+        // лигатура лям-алиф ﻻ (U+FEFB) → لا
+        assertThat(ArabicTextNormalizer.normalize("ﻻ")).isEqualTo("لا");
+        // isolated-форма алиф-с-маддой ﺁ (U+FE81) → ا
+        assertThat(ArabicTextNormalizer.normalize("ﺁ")).isEqualTo("ا");
+    }
+
+    @Test
+    void equivalent_for_decomposed_nfd_input() {
+        // одинаковый результат для NFC- и NFD-представления одного текста
+        String composed = "أئؤ";
+        String decomposed = java.text.Normalizer.normalize(composed, java.text.Normalizer.Form.NFD);
+        assertThat(ArabicTextNormalizer.normalize(decomposed))
+                .isEqualTo(ArabicTextNormalizer.normalize(composed))
+                .isEqualTo("ايو");
+    }
+
+    @Test
+    void passes_through_latin_and_digits_as_text() {
+        // нормализатор — для текста: латиница и цифры (вкл. арабо-индийские) сохраняются
+        assertThat(ArabicTextNormalizer.normalize("رقم ٤٥ ref-12"))
+                .isEqualTo("رقم ٤٥ ref-12");
+    }
+
+    @Test
+    void strips_dagger_alif_and_tanwin_at_range_boundaries() {
+        // надстрочный алиф U+0670
+        assertThat(ArabicTextNormalizer.normalize("هَٰذَا")).isEqualTo("هذا");
+        // танвин-фатха U+064B (нижняя граница диапазона диакритики)
+        assertThat(ArabicTextNormalizer.normalize("محمدًا")).isEqualTo("محمدا");
+    }
+
+    @Test
+    void is_idempotent() {
+        for (String s : new String[]{
+                "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ", "موسى", "صلاة", "ﻻ",
+                "محـــمـد", "رقم ٤٥ ref-12", "مؤمن قائل شيء"}) {
+            String once = ArabicTextNormalizer.normalize(s);
+            assertThat(ArabicTextNormalizer.normalize(once)).isEqualTo(once);
+        }
+    }
 }

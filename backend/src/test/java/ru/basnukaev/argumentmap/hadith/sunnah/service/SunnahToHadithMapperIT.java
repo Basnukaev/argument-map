@@ -156,6 +156,9 @@ class SunnahToHadithMapperIT {
         assertThat(second.inserted()).isZero();
         assertThat(second.skippedExisting()).isEqualTo(1);
         assertThat(hadithRepository.countFiltered(null, null, null)).isEqualTo(1);
+        // и первичный matn не задублирован
+        Hadith h = hadithRepository.findPage(null, null, null, 10, 0).get(0);
+        assertThat(matnRepository.findByHadithId(h.id())).hasSize(1);
     }
 
     @Test
@@ -199,7 +202,125 @@ class SunnahToHadithMapperIT {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void enriches_matn_metadata_with_book_and_chapter_names() throws Exception {
+        seedBukhariStructure();
+        hadithDao.upsertAll(List.of(hadithRow("bukhari", "1", "نص")));
+
+        mapper.mapCollection("bukhari");
+
+        Matn m = onlyMatn();
+        JsonNode meta = objectMapper.readTree(m.metadata());
+        // join staging book/chapter реально отработал (не только raw id) — иначе
+        // тест прошёл бы вакуумно с пустыми books/chapters maps
+        assertThat(meta.get("bookNameEn").asText()).isEqualTo("Revelation");
+        assertThat(meta.get("bookNameAr").asText()).isEqualTo("كتاب بدء الوحي");
+        assertThat(meta.get("chapterTitleEn").asText()).isEqualTo("How Revelation started");
+        assertThat(meta.get("chapterTitleAr").asText()).isEqualTo("باب كيف كان بدء الوحي");
+    }
+
+    @Test
+    void maps_multiple_hadiths_as_distinct_rows_with_own_matns() {
+        seedBukhariStructure();
+        hadithDao.upsertAll(List.of(
+                hadithRow("bukhari", "2", "نص اثنان"),
+                hadithRow("bukhari", "10", "نص عشرة"),
+                hadithRow("bukhari", "100", "نص مئة")));
+
+        SunnahMappingResult r = mapper.mapCollection("bukhari");
+
+        assertThat(r.inserted()).isEqualTo(3);
+        Collection c = collectionRepository.findBySlug("bukhari").orElseThrow();
+        List<Hadith> hadiths = hadithRepository.findPage(null, null, c.id(), 10, 0);
+        assertThat(hadiths).extracting(Hadith::primaryNumber)
+                .containsExactlyInAnyOrder(2, 10, 100);
+        for (Hadith h : hadiths) {
+            assertThat(matnRepository.findByHadithId(h.id())).hasSize(1);
+        }
+    }
+
+    @Test
+    void maps_muslim_collection_independently_of_bukhari() {
+        seedBukhariStructure();
+        seedMuslimStructure();
+        hadithDao.upsertAll(List.of(hadithRow("bukhari", "1", "بخاري")));
+        hadithDao.upsertAll(List.of(hadithRow("muslim", "1", "مسلم")));
+
+        SunnahMappingResult r = mapper.mapCollection("muslim");
+
+        assertThat(r.inserted()).isEqualTo(1);
+        Collection muslim = collectionRepository.findBySlug("muslim").orElseThrow();
+        assertThat(muslim.nameEn()).isEqualTo("Sahih Muslim");
+        assertThat(hadithRepository.countFiltered(null, null, muslim.id())).isEqualTo(1);
+        // mapCollection("muslim") НЕ трогает bukhari (collection-name-driven scope)
+        assertThat(collectionRepository.findBySlug("bukhari")).isEmpty();
+    }
+
+    @Test
+    void grades_edge_cases_produce_no_grades_key() throws Exception {
+        seedBukhariStructure();
+        hadithDao.upsertAll(List.of(
+                gradedHadith("1", null),    // null grades
+                gradedHadith("2", "{}"),    // jsonb-объект, не массив
+                gradedHadith("3", "[]")));  // пустой массив
+
+        SunnahMappingResult r = mapper.mapCollection("bukhari");
+
+        assertThat(r.inserted()).isEqualTo(3);
+        for (Hadith h : hadithRepository.findPage(null, null, null, 10, 0)) {
+            assertThat(objectMapper.readTree(h.metadata()).has("grades")).isFalse();
+        }
+    }
+
+    @Test
+    void parse_number_trims_and_rejects_non_ascii_and_empty() {
+        seedBukhariStructure();
+        hadithDao.upsertAll(List.of(
+                hadithRow("bukhari", " 7 ", "نص سبعة"),       // пробелы → trim → 7
+                hadithRow("bukhari", "١٢", "نص عربي"),        // арабо-индийские цифры → skip
+                hadithRow("bukhari", "", "نص فارغ الرقم")));  // пустой номер → skip
+
+        SunnahMappingResult r = mapper.mapCollection("bukhari");
+
+        assertThat(r.inserted()).isEqualTo(1);
+        assertThat(r.skippedInvalid()).isEqualTo(2);
+        assertThat(hadithRepository.findPage(null, null, null, 10, 0).get(0).primaryNumber())
+                .isEqualTo(7);
+    }
+
+    @Test
+    void writes_chapter_id_without_title_when_book_number_null() throws Exception {
+        seedBukhariStructure();
+        hadithDao.upsertAll(List.of(new SunnahHadithRow(
+                "bukhari", "1", null, 1, null, null, "نص", null, null, null)));
+
+        mapper.mapCollection("bukhari");
+
+        JsonNode meta = objectMapper.readTree(onlyMatn().metadata());
+        assertThat(meta.get("chapterId").asInt()).isEqualTo(1);
+        assertThat(meta.has("chapterTitleAr")).isFalse();
+        assertThat(meta.has("bookNumber")).isFalse();
+    }
+
     // --- helpers ---
+
+    private Matn onlyMatn() {
+        Hadith h = hadithRepository.findPage(null, null, null, 10, 0).get(0);
+        return matnRepository.findByHadithId(h.id()).get(0);
+    }
+
+    private void seedMuslimStructure() {
+        collectionDao.upsertAll(List.of(new SunnahCollectionRow(
+                "muslim", true, true, 7500, 7500,
+                "صحيح مسلم", "Sahih Muslim", null, null, null)));
+        bookDao.upsertAll(List.of(new SunnahBookRow(
+                "muslim", "1", 1, 1, 1, "كتاب الإيمان", "Faith", null)));
+    }
+
+    private static SunnahHadithRow gradedHadith(String number, String gradesJson) {
+        return new SunnahHadithRow("bukhari", number, "1", 1, null, null,
+                "متن " + number, null, gradesJson, null);
+    }
 
     private void seedBukhariStructure() {
         collectionDao.upsertAll(List.of(new SunnahCollectionRow(

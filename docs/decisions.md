@@ -5856,6 +5856,27 @@ forward-compat через raw; + staging→mapper тестируется на ф
 − денормализация ar/en фиксирует пилотный набор языков (расширяется
 колонками); − нет инкрементальных удалений до API-слоя (приемлемо для dump).
 
+**Дополнение (шаг 2.c — mapper-слой).** Кроме staging-схемы, тот же эпик
+ввёл Java-слой: интерфейс `SunnahDataSource` (гранулярность по сборнику,
+dump-first/API-later), `SunnahToHadithMapper` (staging → hd_*) и
+`ArabicTextNormalizer`. Ключевые решения mapper'а:
+- **status = `VARIANT`** для импортированных хадисов (не `CANONICAL`):
+  импорт не выверен как канон в нашей системе; курируемые seed'ы остаются
+  `CANONICAL`. Оценки sunnah.com лежат в `hd_hadiths.metadata.grades`
+  (формат `[{scholar,grade}]`), статус из них автоматически НЕ выводится —
+  академическая осторожность (§11.3).
+- **Идемпотентность** по natural-key `(collection_id, primary_number)`
+  (UNIQUE-констрейнт), не fuzzy-сопоставление. Нечисловые номера ("1a",
+  арабо-индийские) и пустой арабский matn пропускаются (skippedInvalid).
+- **Дедуп вариаций между сборниками ОТЛОЖЕН** (§6/§8.1, YAGNI для пилота):
+  один staging-хадис = один `hd_hadiths` + один первичный `hd_matns`.
+  Слияние одинаковых хадисов из разных сборников в один `hd_hadiths` с
+  несколькими matn требует fuzzy/LCS с порогом — отдельный подэтап.
+- **Нормализация арабского** (`ArabicTextNormalizer`) вычисляется (NFKC +
+  снятие диакритики + сведение алиф/йа/та-марбута/хамза), а не вбивается
+  руками как в `DevHadithSeeder` — для ETL на тысячах matn'ов это
+  обязательно.
+
 **Связанные:** Spec `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md`
 §5/§7/§11, ADR-020 (shamela ETL двухслойная staging), ADR-050 (hd_collections).
 
