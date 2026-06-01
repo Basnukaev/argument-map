@@ -11,10 +11,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.domain.PdfBbox;
 import ru.basnukaev.argumentmap.domain.Source;
 import ru.basnukaev.argumentmap.domain.SourceType;
 import ru.basnukaev.argumentmap.exception.AnswerNotFoundException;
+import ru.basnukaev.argumentmap.exception.AnswerWriteAccessDeniedException;
 import ru.basnukaev.argumentmap.exception.BookNotFoundException;
 import ru.basnukaev.argumentmap.exception.ImageRegionNotFoundException;
 import ru.basnukaev.argumentmap.exception.InvalidCitationException;
@@ -27,6 +29,7 @@ import ru.basnukaev.argumentmap.library.pdf.service.PdfNotAvailableException;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.repository.LibraryFileRepository;
 import ru.basnukaev.argumentmap.library.repository.PageRepository;
+import ru.basnukaev.argumentmap.qa.domain.Answer;
 import ru.basnukaev.argumentmap.qa.domain.AnswerSource;
 import ru.basnukaev.argumentmap.qa.repository.AnswerRepository;
 import ru.basnukaev.argumentmap.qa.repository.AnswerSourceRepository;
@@ -74,6 +77,26 @@ public class AnswerCitationService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    /**
+     * Create citation с author/admin guard (ADR-043 Amendment, Q&amp;A guards).
+     * Citation вешается на ответ - мутация, доступная только автору ответа
+     * (author_id) или ADMIN. Симметрично AnswerService.updateAnswer. Без
+     * этого любой authenticated мог вешать citation на чужой ответ.
+     *
+     * @throws AnswerNotFoundException если ответа нет (404)
+     * @throws AnswerWriteAccessDeniedException если не автор ответа и не ADMIN (403)
+     */
+    @Transactional
+    public AnswerSourceResponse createCitation(UUID answerId, CitationRequest req,
+                                               UUID actorUserId, String actorRole) {
+        assertAnswerAuthorOrAdmin(answerId, actorUserId, actorRole);
+        return createCitation(answerId, req);
+    }
+
+    /**
+     * Legacy overload без author-guard. Internal callers + IT. REST endpoint
+     * должен звать {@link #createCitation(UUID, CitationRequest, UUID, String)}.
+     */
     @Transactional
     public AnswerSourceResponse createCitation(UUID answerId, CitationRequest req) {
         if (answerRepository.findById(answerId).isEmpty()) {
@@ -184,11 +207,53 @@ public class AnswerCitationService {
                 .toList();
     }
 
+    /**
+     * Detach с author/admin guard (ADR-043 Amendment) поверх answer-scoped
+     * delete. Удаление citation - мутация ответа, только автор (author_id)
+     * или ADMIN. Answer-scoped delete (WHERE id=? AND answer_id=?) -
+     * IDOR-защита: citation другого ответа через путь данного ответа не
+     * удаляется (mismatch → 404, не leak'аем существование чужой citation).
+     *
+     * @throws AnswerNotFoundException если ответа нет (404)
+     * @throws AnswerWriteAccessDeniedException если не автор ответа и не ADMIN (403)
+     * @throws SourceNotFoundException если citation не существует ИЛИ
+     *         принадлежит другому ответу (404)
+     */
+    @Transactional
+    public void detachById(UUID answerId, UUID answerSourceId,
+                           UUID actorUserId, String actorRole) {
+        assertAnswerAuthorOrAdmin(answerId, actorUserId, actorRole);
+        boolean removed = answerSourceRepository.deleteByIdAndAnswer(answerSourceId, answerId);
+        if (!removed) {
+            throw new SourceNotFoundException(answerSourceId);
+        }
+    }
+
+    /**
+     * Legacy overload без author-guard и без parent-scope. Internal callers +
+     * IT. REST endpoint должен звать
+     * {@link #detachById(UUID, UUID, UUID, String)}.
+     */
     @Transactional
     public void detachById(UUID answerSourceId) {
         boolean removed = answerSourceRepository.deleteById(answerSourceId);
         if (!removed) {
             throw new SourceNotFoundException(answerSourceId);
+        }
+    }
+
+    /**
+     * Guard: actor должен быть автором ответа (author_id) либо ADMIN.
+     * Зеркалит AnswerService.assertAuthorOrAdmin.
+     */
+    private void assertAnswerAuthorOrAdmin(UUID answerId, UUID actorUserId, String actorRole) {
+        Answer answer = answerRepository.findById(answerId)
+                .orElseThrow(() -> new AnswerNotFoundException(answerId));
+        if (UserRole.ADMIN.equals(actorRole)) {
+            return;
+        }
+        if (!answer.authorId().equals(actorUserId)) {
+            throw new AnswerWriteAccessDeniedException(answerId, actorUserId);
         }
     }
 

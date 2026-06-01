@@ -17,11 +17,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
+import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.domain.CitationMode;
 import ru.basnukaev.argumentmap.domain.PdfBbox;
 import ru.basnukaev.argumentmap.domain.Source;
 import ru.basnukaev.argumentmap.domain.SourceType;
 import ru.basnukaev.argumentmap.exception.AnswerNotFoundException;
+import ru.basnukaev.argumentmap.exception.AnswerWriteAccessDeniedException;
 import ru.basnukaev.argumentmap.exception.BookNotFoundException;
 import ru.basnukaev.argumentmap.exception.ImageRegionNotFoundException;
 import ru.basnukaev.argumentmap.exception.InvalidCitationException;
@@ -323,6 +325,84 @@ class AnswerCitationServiceIT {
         UUID missing = UUID.randomUUID();
         assertThatThrownBy(() -> service.detachById(missing))
                 .isInstanceOf(SourceNotFoundException.class);
+    }
+
+    // ---- ADR-043 Amendment: author/admin guard + answer-scoped detach ----
+
+    @Test
+    void createCitation_roleAware_nonAuthor_throws403() {
+        UUID stranger = UUID.randomUUID();
+        CitationRequest req = new CitationRequest(bookId,
+                pageId, 0, 10, null, null, null, null, null, null);
+
+        assertThatThrownBy(() -> service.createCitation(answerId, req, stranger, UserRole.USER))
+                .isInstanceOf(AnswerWriteAccessDeniedException.class);
+
+        assertThat(service.getAnswerSourcesWithLocation(answerId)).isEmpty();
+    }
+
+    @Test
+    void createCitation_roleAware_author_succeeds() {
+        CitationRequest req = new CitationRequest(bookId,
+                pageId, 0, 10, null, null, null, null, null, null);
+
+        AnswerSourceResponse response = service.createCitation(answerId, req, userId, UserRole.USER);
+
+        assertThat(response.answerId()).isEqualTo(answerId);
+        assertThat(service.getAnswerSourcesWithLocation(answerId)).hasSize(1);
+    }
+
+    @Test
+    void createCitation_roleAware_admin_succeeds() {
+        UUID admin = UUID.randomUUID();
+        CitationRequest req = new CitationRequest(bookId,
+                pageId, 0, 10, null, null, null, null, null, null);
+
+        AnswerSourceResponse response = service.createCitation(answerId, req, admin, UserRole.ADMIN);
+
+        assertThat(response.answerId()).isEqualTo(answerId);
+    }
+
+    @Test
+    void detachById_roleAware_nonAuthor_throws403_keepsCitation() {
+        AnswerSourceResponse created = service.createCitation(answerId,
+                new CitationRequest(bookId, pageId, 0, 10, null, null, null, null, null, null));
+        UUID stranger = UUID.randomUUID();
+
+        assertThatThrownBy(() -> service.detachById(answerId, created.id(), stranger, UserRole.USER))
+                .isInstanceOf(AnswerWriteAccessDeniedException.class);
+
+        assertThat(service.getAnswerSourcesWithLocation(answerId)).hasSize(1);
+    }
+
+    @Test
+    void detachById_roleAware_author_removesCitation() {
+        AnswerSourceResponse created = service.createCitation(answerId,
+                new CitationRequest(bookId, pageId, 0, 10, null, null, null, null, null, null));
+
+        service.detachById(answerId, created.id(), userId, UserRole.USER);
+
+        assertThat(service.getAnswerSourcesWithLocation(answerId)).isEmpty();
+    }
+
+    @Test
+    void detachById_roleAware_wrongAnswer_throws404_keepsCitation() {
+        // IDOR: citation ответа A нельзя удалить через путь ответа B.
+        // Ответ B того же автора (userId) - guard проходит, но
+        // answer-scoped delete не находит row → 404, citation цела
+        UUID answerB = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO answers (id, question_id, body, author_id, created_at, updated_at) "
+                        + "VALUES (?, ?, ?, ?, now(), now())",
+                answerB, questionId, "Другой ответ", userId);
+
+        AnswerSourceResponse created = service.createCitation(answerId,
+                new CitationRequest(bookId, pageId, 0, 10, null, null, null, null, null, null));
+
+        assertThatThrownBy(() -> service.detachById(answerB, created.id(), userId, UserRole.USER))
+                .isInstanceOf(SourceNotFoundException.class);
+
+        assertThat(service.getAnswerSourcesWithLocation(answerId)).hasSize(1);
     }
 
     @Test

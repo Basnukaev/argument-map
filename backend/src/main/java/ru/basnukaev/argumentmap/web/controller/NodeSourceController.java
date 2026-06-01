@@ -14,9 +14,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.domain.NodeSource;
 import ru.basnukaev.argumentmap.repository.NodeSourceRepository;
 import ru.basnukaev.argumentmap.service.NodeSourceService;
+import ru.basnukaev.argumentmap.web.CurrentUser;
 import ru.basnukaev.argumentmap.web.dto.AttachSourceRequest;
 import ru.basnukaev.argumentmap.web.dto.NodeSourceResponse;
 import ru.basnukaev.argumentmap.web.mapper.DtoMappers;
@@ -36,9 +38,13 @@ public class NodeSourceController {
 
     @PostMapping
     public ResponseEntity<NodeSourceResponse> attach(@PathVariable UUID nodeId,
-                                                     @Valid @RequestBody AttachSourceRequest request) {
+                                                     @Valid @RequestBody AttachSourceRequest request,
+                                                     @CurrentUser UUID userId) {
+        // write-guard (ADR-043): citation - контентное изменение темы узла
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
         NodeSource saved = nodeSourceService.attachSource(
-                nodeId, request.sourceId(), request.quote(), request.context(), request.location()
+                nodeId, request.sourceId(), request.quote(), request.context(), request.location(),
+                userId, role
         );
         // Возврат через findByIdWithLocation - один JOIN запрос для structured citation
         NodeSourceResponse response = nodeSourceRepository
@@ -49,8 +55,11 @@ public class NodeSourceController {
     }
 
     @GetMapping
-    public List<NodeSourceResponse> list(@PathVariable UUID nodeId) {
-        return nodeSourceService.getNodeSourcesWithLocation(nodeId).stream()
+    public List<NodeSourceResponse> list(@PathVariable UUID nodeId,
+                                         @CurrentUser UUID userId) {
+        // read-guard (ADR-043): citations узлов приватных тем не утекают
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        return nodeSourceService.getNodeSourcesWithLocation(nodeId, userId, role).stream()
                 .map(DtoMappers::toResponse).toList();
     }
 
@@ -65,8 +74,11 @@ public class NodeSourceController {
      */
     @DeleteMapping("/{nodeSourceId}")
     public ResponseEntity<Void> detach(@PathVariable UUID nodeId,
-                                       @PathVariable UUID nodeSourceId) {
-        nodeSourceService.detachById(nodeId, nodeSourceId);
+                                       @PathVariable UUID nodeSourceId,
+                                       @CurrentUser UUID userId) {
+        // write-guard (ADR-043) поверх node-scoped delete (IDOR-защита)
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        nodeSourceService.detachById(nodeId, nodeSourceId, userId, role);
         return ResponseEntity.noContent().build();
     }
 }

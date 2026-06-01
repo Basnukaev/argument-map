@@ -11,6 +11,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.domain.PdfBbox;
 import ru.basnukaev.argumentmap.domain.Source;
 import ru.basnukaev.argumentmap.domain.SourceType;
@@ -19,7 +20,9 @@ import ru.basnukaev.argumentmap.exception.ImageRegionNotFoundException;
 import ru.basnukaev.argumentmap.exception.InvalidCitationException;
 import ru.basnukaev.argumentmap.exception.PageNotFoundException;
 import ru.basnukaev.argumentmap.exception.QuestionNotFoundException;
+import ru.basnukaev.argumentmap.exception.QuestionWriteAccessDeniedException;
 import ru.basnukaev.argumentmap.exception.SourceNotFoundException;
+import ru.basnukaev.argumentmap.qa.domain.Question;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.LibraryFile;
 import ru.basnukaev.argumentmap.library.domain.Page;
@@ -74,6 +77,26 @@ public class QuestionCitationService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    /**
+     * Create citation с author/admin guard (ADR-043 Amendment, Q&amp;A guards).
+     * Citation вешается на вопрос - мутация, доступная только автору вопроса
+     * (asked_by) или ADMIN. Симметрично QuestionService.updateQuestion.
+     * Без этого любой authenticated мог вешать citation на чужой вопрос.
+     *
+     * @throws QuestionNotFoundException если вопроса нет (404)
+     * @throws QuestionWriteAccessDeniedException если не автор вопроса и не ADMIN (403)
+     */
+    @Transactional
+    public QuestionSourceResponse createCitation(UUID questionId, CitationRequest req,
+                                                 UUID actorUserId, String actorRole) {
+        assertQuestionAuthorOrAdmin(questionId, actorUserId, actorRole);
+        return createCitation(questionId, req);
+    }
+
+    /**
+     * Legacy overload без author-guard. Internal callers + IT. REST endpoint
+     * должен звать {@link #createCitation(UUID, CitationRequest, UUID, String)}.
+     */
     @Transactional
     public QuestionSourceResponse createCitation(UUID questionId, CitationRequest req) {
         if (questionRepository.findById(questionId).isEmpty()) {
@@ -184,11 +207,53 @@ public class QuestionCitationService {
                 .toList();
     }
 
+    /**
+     * Detach с author/admin guard (ADR-043 Amendment) поверх question-scoped
+     * delete. Удаление citation - мутация вопроса, только автор (asked_by)
+     * или ADMIN. Question-scoped delete (WHERE id=? AND question_id=?) -
+     * IDOR-защита: citation другого вопроса через путь данного вопроса не
+     * удаляется (mismatch → 404, не leak'аем существование чужой citation).
+     *
+     * @throws QuestionNotFoundException если вопроса нет (404)
+     * @throws QuestionWriteAccessDeniedException если не автор вопроса и не ADMIN (403)
+     * @throws SourceNotFoundException если citation не существует ИЛИ
+     *         принадлежит другому вопросу (404)
+     */
+    @Transactional
+    public void detachById(UUID questionId, UUID questionSourceId,
+                           UUID actorUserId, String actorRole) {
+        assertQuestionAuthorOrAdmin(questionId, actorUserId, actorRole);
+        boolean removed = questionSourceRepository.deleteByIdAndQuestion(questionSourceId, questionId);
+        if (!removed) {
+            throw new SourceNotFoundException(questionSourceId);
+        }
+    }
+
+    /**
+     * Legacy overload без author-guard и без parent-scope. Internal callers +
+     * IT. REST endpoint должен звать
+     * {@link #detachById(UUID, UUID, UUID, String)}.
+     */
     @Transactional
     public void detachById(UUID questionSourceId) {
         boolean removed = questionSourceRepository.deleteById(questionSourceId);
         if (!removed) {
             throw new SourceNotFoundException(questionSourceId);
+        }
+    }
+
+    /**
+     * Guard: actor должен быть автором вопроса (asked_by) либо ADMIN.
+     * Зеркалит QuestionService.assertAuthorOrAdmin.
+     */
+    private void assertQuestionAuthorOrAdmin(UUID questionId, UUID actorUserId, String actorRole) {
+        Question question = questionRepository.findById(questionId)
+                .orElseThrow(() -> new QuestionNotFoundException(questionId));
+        if (UserRole.ADMIN.equals(actorRole)) {
+            return;
+        }
+        if (!question.askedBy().equals(actorUserId)) {
+            throw new QuestionWriteAccessDeniedException(questionId, actorUserId);
         }
     }
 

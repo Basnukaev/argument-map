@@ -17,6 +17,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
+import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.domain.CitationMode;
 import ru.basnukaev.argumentmap.domain.PdfBbox;
 import ru.basnukaev.argumentmap.domain.Source;
@@ -26,6 +27,7 @@ import ru.basnukaev.argumentmap.exception.ImageRegionNotFoundException;
 import ru.basnukaev.argumentmap.exception.InvalidCitationException;
 import ru.basnukaev.argumentmap.exception.PageNotFoundException;
 import ru.basnukaev.argumentmap.exception.QuestionNotFoundException;
+import ru.basnukaev.argumentmap.exception.QuestionWriteAccessDeniedException;
 import ru.basnukaev.argumentmap.exception.SourceNotFoundException;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookVisibility;
@@ -305,6 +307,84 @@ class QuestionCitationServiceIT {
         UUID missing = UUID.randomUUID();
         assertThatThrownBy(() -> service.detachById(missing))
                 .isInstanceOf(SourceNotFoundException.class);
+    }
+
+    // ---- ADR-043 Amendment: author/admin guard + question-scoped detach ----
+
+    @Test
+    void createCitation_roleAware_nonAuthor_throws403() {
+        UUID stranger = UUID.randomUUID();
+        CitationRequest req = new CitationRequest(bookId,
+                pageId, 0, 10, null, null, null, null, null, null);
+
+        assertThatThrownBy(() -> service.createCitation(questionId, req, stranger, UserRole.USER))
+                .isInstanceOf(QuestionWriteAccessDeniedException.class);
+
+        assertThat(service.getQuestionSourcesWithLocation(questionId)).isEmpty();
+    }
+
+    @Test
+    void createCitation_roleAware_author_succeeds() {
+        CitationRequest req = new CitationRequest(bookId,
+                pageId, 0, 10, null, null, null, null, null, null);
+
+        QuestionSourceResponse response = service.createCitation(questionId, req, userId, UserRole.USER);
+
+        assertThat(response.questionId()).isEqualTo(questionId);
+        assertThat(service.getQuestionSourcesWithLocation(questionId)).hasSize(1);
+    }
+
+    @Test
+    void createCitation_roleAware_admin_succeeds() {
+        UUID admin = UUID.randomUUID();
+        CitationRequest req = new CitationRequest(bookId,
+                pageId, 0, 10, null, null, null, null, null, null);
+
+        QuestionSourceResponse response = service.createCitation(questionId, req, admin, UserRole.ADMIN);
+
+        assertThat(response.questionId()).isEqualTo(questionId);
+    }
+
+    @Test
+    void detachById_roleAware_nonAuthor_throws403_keepsCitation() {
+        QuestionSourceResponse created = service.createCitation(questionId,
+                new CitationRequest(bookId, pageId, 0, 10, null, null, null, null, null, null));
+        UUID stranger = UUID.randomUUID();
+
+        assertThatThrownBy(() -> service.detachById(questionId, created.id(), stranger, UserRole.USER))
+                .isInstanceOf(QuestionWriteAccessDeniedException.class);
+
+        assertThat(service.getQuestionSourcesWithLocation(questionId)).hasSize(1);
+    }
+
+    @Test
+    void detachById_roleAware_author_removesCitation() {
+        QuestionSourceResponse created = service.createCitation(questionId,
+                new CitationRequest(bookId, pageId, 0, 10, null, null, null, null, null, null));
+
+        service.detachById(questionId, created.id(), userId, UserRole.USER);
+
+        assertThat(service.getQuestionSourcesWithLocation(questionId)).isEmpty();
+    }
+
+    @Test
+    void detachById_roleAware_wrongQuestion_throws404_keepsCitation() {
+        // IDOR: citation вопроса A нельзя удалить через путь вопроса B.
+        // Вопрос B принадлежит тому же автору (userId) - guard проходит,
+        // но question-scoped delete не находит row → 404, citation цела
+        UUID questionB = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO questions (id, title, body, status, asked_by, created_at, updated_at) "
+                        + "VALUES (?, ?, ?, 'OPEN', ?, now(), now())",
+                questionB, "Другой вопрос", null, userId);
+
+        QuestionSourceResponse created = service.createCitation(questionId,
+                new CitationRequest(bookId, pageId, 0, 10, null, null, null, null, null, null));
+
+        assertThatThrownBy(() -> service.detachById(questionB, created.id(), userId, UserRole.USER))
+                .isInstanceOf(SourceNotFoundException.class);
+
+        assertThat(service.getQuestionSourcesWithLocation(questionId)).hasSize(1);
     }
 
     @Test

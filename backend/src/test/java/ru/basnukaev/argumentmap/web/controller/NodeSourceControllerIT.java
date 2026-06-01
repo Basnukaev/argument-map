@@ -71,6 +71,7 @@ class NodeSourceControllerIT {
         var req = new AttachSourceRequest(sourceId, "точная цитата", "контекст", "стр. 42");
 
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/sources", nodeId)
+                        .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated())
@@ -84,6 +85,7 @@ class NodeSourceControllerIT {
         var req = new AttachSourceRequest(sourceId, null, null, null);
 
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/sources", UUID.randomUUID())
+                        .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isNotFound())
@@ -95,6 +97,7 @@ class NodeSourceControllerIT {
         var req = new AttachSourceRequest(UUID.randomUUID(), null, null, null);
 
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/sources", nodeId)
+                        .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isNotFound())
@@ -107,14 +110,16 @@ class NodeSourceControllerIT {
         UUID source2 = insertSource();
         attach(source2, "q2", "c2");
 
-        mockMvc.perform(get("/api/v1/nodes/{nodeId}/sources", nodeId))
+        mockMvc.perform(get("/api/v1/nodes/{nodeId}/sources", nodeId)
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2));
     }
 
     @Test
     void listNodeSources_whenNodeMissing_returns404() throws Exception {
-        mockMvc.perform(get("/api/v1/nodes/{nodeId}/sources", UUID.randomUUID()))
+        mockMvc.perform(get("/api/v1/nodes/{nodeId}/sources", UUID.randomUUID())
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isNotFound());
     }
 
@@ -124,30 +129,35 @@ class NodeSourceControllerIT {
 
         // Миграция 25 (FK variant A): DELETE по surrogate nodeSourceId
         // вместо (nodeId, sourceId) pair - находим id через GET /sources
-        var listResult = mockMvc.perform(get("/api/v1/nodes/{nodeId}/sources", nodeId))
+        var listResult = mockMvc.perform(get("/api/v1/nodes/{nodeId}/sources", nodeId)
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
                 .andReturn();
         String responseBody = listResult.getResponse().getContentAsString();
         var node = objectMapper.readTree(responseBody);
         UUID nodeSourceId = UUID.fromString(node.get(0).get("id").asText());
 
-        mockMvc.perform(delete("/api/v1/nodes/{nodeId}/sources/{nodeSourceId}", nodeId, nodeSourceId))
+        mockMvc.perform(delete("/api/v1/nodes/{nodeId}/sources/{nodeSourceId}", nodeId, nodeSourceId)
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isNoContent());
 
-        mockMvc.perform(get("/api/v1/nodes/{nodeId}/sources", nodeId))
+        mockMvc.perform(get("/api/v1/nodes/{nodeId}/sources", nodeId)
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
     }
 
     @Test
     void detachSource_whenNotAttached_returns404() throws Exception {
-        mockMvc.perform(delete("/api/v1/nodes/{nodeId}/sources/{nodeSourceId}", nodeId, UUID.randomUUID()))
+        mockMvc.perform(delete("/api/v1/nodes/{nodeId}/sources/{nodeSourceId}", nodeId, UUID.randomUUID())
+                        .header("X-User-Id", userId.toString()))
                 .andExpect(status().isNotFound());
     }
 
     private void attach(UUID source, String quote, String context) throws Exception {
         var req = new AttachSourceRequest(source, quote, context, null);
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/sources", nodeId)
+                        .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated());

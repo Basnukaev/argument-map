@@ -15,6 +15,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
+import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.domain.Node;
 import ru.basnukaev.argumentmap.domain.NodeSource;
 import ru.basnukaev.argumentmap.domain.NodeType;
@@ -22,6 +23,7 @@ import ru.basnukaev.argumentmap.domain.Source;
 import ru.basnukaev.argumentmap.domain.SourceType;
 import ru.basnukaev.argumentmap.exception.NodeNotFoundException;
 import ru.basnukaev.argumentmap.exception.SourceNotFoundException;
+import ru.basnukaev.argumentmap.exception.TopicAccessDeniedException;
 import ru.basnukaev.argumentmap.repository.NodeSourceRepository;
 
 /**
@@ -149,6 +151,96 @@ class NodeSourceServiceIT {
         assertThatThrownBy(() -> nodeSourceService.detachById(nodeB.id(), link.id()))
                 .isInstanceOf(SourceNotFoundException.class);
         // citation узла A не тронута
+        assertThat(nodeSourceService.getNodeSources(nodeA.id())).hasSize(1);
+    }
+
+    // ---- ADR-043 role-aware overloads (topic-level authz) ----
+
+    @Test
+    void attachSource_roleAware_nonOwnerOnPrivateTopic_throws403() {
+        // PRIVATE тема (default): non-owner не может вешать citation.
+        // canRead=false → TopicAccessDeniedException (не leak'аем приватную тему)
+        Node node = nodeService.createNode(topicId, NodeType.CLAIM, "тезис", userId);
+        Source s = sourceService.createSource(SourceType.BOOK, "B", null, null, null, null, null);
+        UUID stranger = UUID.randomUUID();
+
+        assertThatThrownBy(() -> nodeSourceService.attachSource(
+                node.id(), s.id(), "q", null, null, stranger, UserRole.USER
+        )).isInstanceOf(TopicAccessDeniedException.class);
+
+        assertThat(nodeSourceRepository.findByNodeId(node.id())).isEmpty();
+    }
+
+    @Test
+    void attachSource_roleAware_owner_persistsLink() {
+        Node node = nodeService.createNode(topicId, NodeType.CLAIM, "тезис", userId);
+        Source s = sourceService.createSource(SourceType.BOOK, "B", null, null, null, null, null);
+
+        NodeSource link = nodeSourceService.attachSource(
+                node.id(), s.id(), "q", null, null, userId, UserRole.USER);
+
+        assertThat(nodeSourceService.getNodeSources(node.id())).hasSize(1);
+        assertThat(link.nodeId()).isEqualTo(node.id());
+    }
+
+    @Test
+    void getNodeSourcesWithLocation_roleAware_nonOwnerOnPrivateTopic_throws403() {
+        Node node = nodeService.createNode(topicId, NodeType.CLAIM, "тезис", userId);
+        UUID stranger = UUID.randomUUID();
+
+        assertThatThrownBy(() -> nodeSourceService.getNodeSourcesWithLocation(
+                node.id(), stranger, UserRole.USER
+        )).isInstanceOf(TopicAccessDeniedException.class);
+    }
+
+    @Test
+    void getNodeSourcesWithLocation_roleAware_owner_returns() {
+        Node node = nodeService.createNode(topicId, NodeType.CLAIM, "тезис", userId);
+        Source s = sourceService.createSource(SourceType.BOOK, "B", null, null, null, null, null);
+        nodeSourceService.attachSource(node.id(), s.id(), "q", null, null);
+
+        assertThat(nodeSourceService.getNodeSourcesWithLocation(node.id(), userId, UserRole.USER))
+                .hasSize(1);
+    }
+
+    @Test
+    void detachById_roleAware_nonOwnerOnPrivateTopic_throws403_keepsLink() {
+        Node node = nodeService.createNode(topicId, NodeType.CLAIM, "тезис", userId);
+        Source s = sourceService.createSource(SourceType.BOOK, "B", null, null, null, null, null);
+        NodeSource link = nodeSourceService.attachSource(node.id(), s.id(), "q", null, null);
+        UUID stranger = UUID.randomUUID();
+
+        assertThatThrownBy(() -> nodeSourceService.detachById(
+                node.id(), link.id(), stranger, UserRole.USER
+        )).isInstanceOf(TopicAccessDeniedException.class);
+
+        assertThat(nodeSourceService.getNodeSources(node.id())).hasSize(1);
+    }
+
+    @Test
+    void detachById_roleAware_owner_removesLink() {
+        Node node = nodeService.createNode(topicId, NodeType.CLAIM, "тезис", userId);
+        Source s = sourceService.createSource(SourceType.BOOK, "B", null, null, null, null, null);
+        NodeSource link = nodeSourceService.attachSource(node.id(), s.id(), "q", null, null);
+
+        nodeSourceService.detachById(node.id(), link.id(), userId, UserRole.USER);
+
+        assertThat(nodeSourceService.getNodeSources(node.id())).isEmpty();
+    }
+
+    @Test
+    void detachById_roleAware_owner_wrongNode_throws404_keepsLink() {
+        // IDOR + write-guard вместе: owner может писать, но citation узла A
+        // нельзя удалить через путь узла B → 404, citation остаётся
+        Node nodeA = nodeService.createNode(topicId, NodeType.CLAIM, "A", userId);
+        Node nodeB = nodeService.createNode(topicId, NodeType.CLAIM, "B", userId);
+        Source s = sourceService.createSource(SourceType.BOOK, "B", null, null, null, null, null);
+        NodeSource link = nodeSourceService.attachSource(nodeA.id(), s.id(), "q", null, null);
+
+        assertThatThrownBy(() -> nodeSourceService.detachById(
+                nodeB.id(), link.id(), userId, UserRole.USER
+        )).isInstanceOf(SourceNotFoundException.class);
+
         assertThat(nodeSourceService.getNodeSources(nodeA.id())).hasSize(1);
     }
 

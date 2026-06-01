@@ -107,6 +107,17 @@ public class AnswerSourceRepository {
         return jdbcTemplate.update("DELETE FROM answer_sources WHERE id = ?", id) > 0;
     }
 
+    // Answer-scoped delete: удаляет citation только если она принадлежит
+    // указанному ответу. Защита от IDOR - DELETE
+    // /answers/{answerId}/sources/{id} не должен удалять citation другого
+    // ответа по голому surrogate id (зеркало
+    // NodeSourceRepository.deleteByIdAndNode).
+    public boolean deleteByIdAndAnswer(UUID id, UUID answerId) {
+        return jdbcTemplate.update(
+                "DELETE FROM answer_sources WHERE id = ? AND answer_id = ?",
+                id, answerId) > 0;
+    }
+
     public record AnswerSourceWithLocation(AnswerSource as, CitationDetail citation) {
     }
 

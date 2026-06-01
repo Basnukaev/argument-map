@@ -104,6 +104,17 @@ public class QuestionSourceRepository {
         return jdbcTemplate.update("DELETE FROM question_sources WHERE id = ?", id) > 0;
     }
 
+    // Question-scoped delete: удаляет citation только если она принадлежит
+    // указанному вопросу. Защита от IDOR - DELETE
+    // /questions/{questionId}/sources/{id} не должен удалять citation
+    // другого вопроса по голому surrogate id (зеркало
+    // NodeSourceRepository.deleteByIdAndNode).
+    public boolean deleteByIdAndQuestion(UUID id, UUID questionId) {
+        return jdbcTemplate.update(
+                "DELETE FROM question_sources WHERE id = ? AND question_id = ?",
+                id, questionId) > 0;
+    }
+
     public record QuestionSourceWithLocation(QuestionSource qs, CitationDetail citation) {
     }
 

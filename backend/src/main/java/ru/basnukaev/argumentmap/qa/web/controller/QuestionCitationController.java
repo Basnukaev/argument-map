@@ -16,8 +16,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.qa.service.QuestionCitationService;
 import ru.basnukaev.argumentmap.qa.web.dto.QuestionSourceResponse;
+import ru.basnukaev.argumentmap.web.CurrentUser;
 import ru.basnukaev.argumentmap.web.dto.CitationRequest;
 
 /**
@@ -46,10 +48,16 @@ public class QuestionCitationController {
     @PostMapping("/citations")
     @ResponseStatus(HttpStatus.CREATED)
     public QuestionSourceResponse create(@PathVariable UUID questionId,
-                                         @Valid @RequestBody CitationRequest request) {
-        return service.createCitation(questionId, request);
+                                         @Valid @RequestBody CitationRequest request,
+                                         @CurrentUser UUID userId) {
+        // ADR-043 Amendment (Q&A guards): create citation - мутация вопроса,
+        // только автор вопроса или ADMIN
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        return service.createCitation(questionId, request, userId, role);
     }
 
+    // GET без guard: Q&A - open discussion, sources вопроса видны всем
+    // authenticated (зеркало AnswerController.list)
     @GetMapping("/sources")
     public List<QuestionSourceResponse> list(@PathVariable UUID questionId) {
         return service.getQuestionSourcesWithLocation(questionId);
@@ -57,8 +65,12 @@ public class QuestionCitationController {
 
     @DeleteMapping("/sources/{questionSourceId}")
     public ResponseEntity<Void> detach(@PathVariable UUID questionId,
-                                       @PathVariable UUID questionSourceId) {
-        service.detachById(questionSourceId);
+                                       @PathVariable UUID questionSourceId,
+                                       @CurrentUser UUID userId) {
+        // ADR-043 Amendment (Q&A guards) + question-scoped delete (IDOR):
+        // только автор вопроса или ADMIN
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        service.detachById(questionId, questionSourceId, userId, role);
         return ResponseEntity.noContent().build();
     }
 }
