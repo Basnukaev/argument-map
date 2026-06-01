@@ -5815,4 +5815,48 @@ migration не нужна — оба поля были NULL во всём seed'�
 **Связанные:** Spec `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md` §11
 (decision points #3/#4 + порядок эпика), ADR-049 (sanad graph).
 
+## ADR-051: Staging-схема sn_staging_* для импорта sunnah.com (Phase 5 шаг 2)
+
+**Контекст.** Phase 5 шаг 2 (спека §11) импортирует корпус хадисов из
+sunnah.com в `hd_*`. Решение Абдулы — два источника (open dump + REST API)
+через абстракцию `SunnahDataSource`, оба наполняют одни staging-таблицы,
+единый `SunnahToHadithMapper` переносит в `hd_*`. Нужна staging-схема
+(слой 1), зеркалящая shamela ETL (ADR-020), но под модель данных sunnah.com
+(§5: collection → book → chapter → hadith с per-language полями).
+
+**Решение.** Migration 59 создаёт `sn_staging_collection` /
+`sn_staging_book` / `sn_staging_chapter` / `sn_staging_hadith`. Ключевые
+отличия от shamela staging:
+
+- **Естественные составные PK** вместо суррогатного BIGINT-id: sunnah.com
+  не даёт единого числового id, идентичность естественная (collection=name
+  slug, book=(collection,bookNumber), chapter=(…,chapterId),
+  hadith=(collection,hadithNumber)). Даёт идемпотентный `ON CONFLICT` upsert.
+- **Денормализация языков** в `*_ar`/`*_en` колонки (пилот ar+en, §6
+  body_ar→text_ar / body_en→text_en). Прочие языки сохраняются в `raw` jsonb.
+- **`raw` jsonb** — полный исходный payload (forward-compat, симметрично
+  shamela `extra_metadata`).
+- **Нет `deleted_at` tombstone** (в отличие от shamela): dump = полный
+  snapshot, реимпорт = upsert поверх. Инкрементальные удаления — только с
+  API-источником (шаг 4), tombstone добавим тогда (YAGNI).
+- **`book_number`/`hadith_number` — varchar** (sunnah допускает
+  «introduction», суб-номера «1a»); `chapter_id` — integer.
+
+**Альтернатива (отвергнута): суррогатный id + lang-строки (как «сырой»
+mirror).** sunnah.com lang-массив неудобно зеркалить построчно, а суррогатный
+id не даёт естественного upsert-ключа. Денормализация ar/en проще для
+mapper'а и совпадает с целевой `hd_matns`.
+
+**Альтернатива (отвергнута): сразу нормализовать в hd_* без staging.**
+Потеряли бы идемпотентность реимпорта и возможность превью перед commit
+(bulk-policy gate, §7); staging — единый стык для dump и API источников.
+
+**Trade-offs:** + единый стык для обоих источников, идемпотентный реимпорт,
+forward-compat через raw; + staging→mapper тестируется на фикстурах без сети;
+− денормализация ar/en фиксирует пилотный набор языков (расширяется
+колонками); − нет инкрементальных удалений до API-слоя (приемлемо для dump).
+
+**Связанные:** Spec `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md`
+§5/§7/§11, ADR-020 (shamela ETL двухслойная staging), ADR-050 (hd_collections).
+
 

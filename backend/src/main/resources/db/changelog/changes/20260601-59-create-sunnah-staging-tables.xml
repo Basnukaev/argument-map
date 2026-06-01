@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Phase 5 ETL (этап 49.C), шаг 2: staging-таблицы sn_staging_* для
+        импорта корпуса хадисов из sunnah.com в hd_* схему.
+        Спека: docs/superpowers/specs/2026-05-31-sunnah-etl-design.md §5/§7/§11.
+        Решение: ADR-051.
+
+        Двухслойная архитектура зеркалит shamela ETL (ADR-020):
+          слой 1 — sn_staging_* отражает логическую модель sunnah.com
+                   (collection → book → chapter → hadith). И dump-reader, и
+                   будущий API-client пишут сюда (через абстракцию
+                   SunnahDataSource), затем единый SunnahToHadithMapper
+                   наполняет hd_collections / hd_hadiths / hd_matns.
+          слой 2 — hd_* (миграции 52-57) — целевая доменная модель.
+
+        Решения для staging-схемы (отличия от shamela staging — §5 sunnah):
+
+          (1) Естественные составные PK вместо суррогатного BIGINT-id.
+              sunnah.com не даёт единого числового id для collection/book/
+              chapter — идентичность естественная: collection=name (slug
+              "bukhari"/"muslim"), book=(collection,bookNumber),
+              chapter=(collection,bookNumber,chapterId), hadith=
+              (collection,hadithNumber). Это даёт ON CONFLICT upsert по
+              естественному ключу (идемпотентный реимпорт), как у shamela
+              по id.
+
+          (2) Денормализация языков в *_ar / *_en колонки. sunnah.com отдаёт
+              поля per-language массивом {lang, ...}. Пилот — арабский +
+              английский (spec §6: body_ar → hd_matns.text_ar, body_en →
+              text_en). Денормализация ar/en проще для mapper'а и совпадает
+              с целевой hd_matns (text_ar/text_en). Прочие языки (будущий
+              ru-перевод) не теряются — лежат в raw jsonb, расширим колонками
+              при необходимости.
+
+          (3) raw jsonb — полный исходный payload (forward-compat). Поля
+              sunnah.com, ещё не вынесенные в типизированные колонки, не
+              теряются (симметрично shamela extra_metadata).
+
+          (4) НЕТ deleted_at tombstone (в отличие от shamela). Dump —
+              полный snapshot, реимпорт = upsert поверх (full reload
+              semantics). Инкрементальные удаления станут актуальны только
+              с API-источником (шаг 4) — добавим tombstone тогда (YAGNI).
+
+          (5) book_number / hadith_number — varchar, не integer. sunnah.com
+              допускает нечисловые («introduction») и суб-номера («1a»).
+              chapter_id — integer (chapterId числовой в spec.v1.yml).
+
+          (6) grades jsonb на hadith — массив [{graded_by, grade}] как
+              приходит из sunnah; mapper переложит в hd_hadiths.metadata.grades.
+
+          (7) Префикс sn_staging_* — staging домена hadith (sn = sunnah),
+              симметрично lib_shamela_* в library-домене.
+
+        FK с CASCADE сверху вниз (collection → book → chapter): удаление
+        сборника из staging уносит его содержимое. hadith ссылается только
+        на collection (chapter_id — мягкий атрибут, т.к. hasChapters опционален).
+    -->
+    <changeSet id="20260601-59-create-sunnah-staging-tables" author="Abdula Basnukaev">
+        <comment>Phase 5 ETL шаг 2: staging-таблицы sn_staging_* (collection/book/chapter/hadith) для импорта sunnah.com</comment>
+        <sql><![CDATA[
+            CREATE TABLE sn_staging_collection (
+                name                   varchar(50) PRIMARY KEY,
+                has_books              boolean,
+                has_chapters           boolean,
+                total_hadith           integer,
+                total_available_hadith integer,
+                title_ar               text,
+                title_en               text,
+                short_intro_ar         text,
+                short_intro_en         text,
+                raw                    jsonb,
+                imported_at            timestamptz NOT NULL DEFAULT now()
+            );
+
+            CREATE TABLE sn_staging_book (
+                collection_name      varchar(50) NOT NULL
+                                     REFERENCES sn_staging_collection(name) ON DELETE CASCADE,
+                book_number          varchar(30) NOT NULL,
+                hadith_start_number  integer,
+                hadith_end_number    integer,
+                number_of_hadith     integer,
+                name_ar              text,
+                name_en              text,
+                raw                  jsonb,
+                imported_at          timestamptz NOT NULL DEFAULT now(),
+                PRIMARY KEY (collection_name, book_number)
+            );
+
+            CREATE TABLE sn_staging_chapter (
+                collection_name    varchar(50) NOT NULL,
+                book_number        varchar(30) NOT NULL,
+                chapter_id         integer NOT NULL,
+                chapter_number_ar  text,
+                chapter_number_en  text,
+                title_ar           text,
+                title_en           text,
+                intro_ar           text,
+                intro_en           text,
+                ending_ar          text,
+                ending_en          text,
+                raw                jsonb,
+                imported_at        timestamptz NOT NULL DEFAULT now(),
+                PRIMARY KEY (collection_name, book_number, chapter_id),
+                FOREIGN KEY (collection_name, book_number)
+                    REFERENCES sn_staging_book(collection_name, book_number) ON DELETE CASCADE
+            );
+
+            CREATE TABLE sn_staging_hadith (
+                collection_name  varchar(50) NOT NULL
+                                 REFERENCES sn_staging_collection(name) ON DELETE CASCADE,
+                hadith_number    varchar(30) NOT NULL,
+                book_number      varchar(30),
+                chapter_id       integer,
+                urn_ar           bigint,
+                urn_en           bigint,
+                body_ar          text,
+                body_en          text,
+                grades           jsonb,
+                raw              jsonb,
+                imported_at      timestamptz NOT NULL DEFAULT now(),
+                PRIMARY KEY (collection_name, hadith_number)
+            );
+        ]]></sql>
+        <rollback><![CDATA[
+            DROP TABLE sn_staging_hadith;
+            DROP TABLE sn_staging_chapter;
+            DROP TABLE sn_staging_book;
+            DROP TABLE sn_staging_collection;
+        ]]></rollback>
+    </changeSet>
+
+</databaseChangeLog>
