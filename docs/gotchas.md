@@ -1879,3 +1879,40 @@ API из WSL2 требует VPN/прокси» выше).
 
 **Узнано:** Сессия 51 (2026-05-31), Phase 5 feasibility-спайк.
 Детали — `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md` §3.
+
+## Тесты зелёные в изоляции, падают в полном прогоне (test pollution)
+
+**Симптом:** при полном прогоне (`./mvnw test` / `npx vitest run`) часть
+тестов «падает», но те же классы/файлы **проходят при запуске в
+изоляции**. Backend: ~20 errors «Failed to load ApplicationContext …
+JwtAuthenticationFilter does not have a registered order» в
+NarratorControllerIT / HadithControllerIT / AuthorityServiceIT /
+AuthServiceIT (cascade «ApplicationContext failure threshold (1)
+exceeded»). Frontend: `useAiEdit.test.tsx` (polling/fake-timers) падает
+3 теста в полном прогоне, 5/5 зелёный соло.
+
+**Причина:** shared global state, протекающий между тест-файлами в
+зависимости от порядка выполнения:
+- Backend — Spring **context cache**: первый класс, которому нужен
+  определённый flavor контекста, иногда не собирает security-filter
+  chain (порядок инициализации), и все последующие классы того же
+  config'а авто-падают как errors. Не связано с прикладным кодом.
+- Frontend — MSW server + `vi.useFakeTimers()` протекают между файлами
+  (handler bleed / незавершённые таймеры), ломая соседний suite.
+
+**Как проверить что это flake, а не регрессия:** прогнать упавшие
+классы в изоляции (`./mvnw -Dtest='ClassA,ClassB' test` /
+`npx vitest run path/to.test.tsx`). Если зелёные — это pollution, не
+ваш код. `mvn` при этом часто возвращает **exit 0** (errors есть, но
+порог сборки не превышен) — поэтому смотреть надо surefire XML, а не
+только exit-code.
+
+**Решение (на будущее, не сделано):** backend — `@DirtiesContext` либо
+унификация `@SpringBootTest` config'ов чтобы кэш не множил flavors;
+frontend — `server.resetHandlers()` + `vi.useRealTimers()` в afterEach
+проблемных suite. Пока — джиттер, не блокер: верифицировать свои правки
+прогоном затронутых классов в изоляции.
+
+**Узнано:** Сессия 52 (2026-06-01), multi-agent багоохота + Tier-1/2
+fix-волна. 1085 backend тестов 0 failures (2 errors = ShamelaApiClientLiveIT
+live-network, отдельно); 623 frontend 620 pass соло-зелёные.
