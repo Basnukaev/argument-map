@@ -84,8 +84,10 @@ public class ArchiveOrgMetadataMapper {
                 // мухаккык в archive.org description обычно отсутствует
                 ProvenanceField.missing(),
                 ProvenanceField.of(toStr(parsed.editionNumber())),
-                ProvenanceField.of(firstNonBlank(hijriFrom(m), toStr(parsed.yearHijri()))),
-                ProvenanceField.of(firstNonBlank(gregorianFrom(m), toStr(parsed.yearGregorian()))),
+                // год хиджры/григориан - чистого поля у archive.org нет
+                // (только в арабском description), берём из parsed.
+                ProvenanceField.of(toStr(parsed.yearHijri())),
+                ProvenanceField.of(toStr(parsed.yearGregorian())),
                 ProvenanceField.of(firstNonBlank(scalar(m, "volumes"), toStr(parsed.volumes()))),
                 ProvenanceField.of(normalizeLanguage(scalar(m, "language"))),
                 description,
@@ -285,23 +287,5 @@ public class ArchiveOrgMetadataMapper {
             case "english", "eng", "en" -> "en";
             default -> v;
         };
-    }
-
-    /**
-     * Год по хиджре - чистого поля у archive.org нет (только в арабском
-     * description). MVP: missing. Метод-заглушка для явного выражения
-     * провенанса и точки расширения (итерация: парсинг description).
-     */
-    private static String hijriFrom(Map<String, Object> m) {
-        return null;
-    }
-
-    /**
-     * Год григорианский. archive.org может иметь {@code year}/{@code date},
-     * но для арабских изданий это обычно дата заливки скана, а не год
-     * издания - чтобы не вводить в заблуждение, MVP помечает missing.
-     */
-    private static String gregorianFrom(Map<String, Object> m) {
-        return null;
     }
 }

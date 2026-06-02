@@ -179,7 +179,12 @@ Confirm не блокирует на пустых (можно импортиро
    на карточке).
 
 **Итерации (тестовая эксплуатация):**
-- Полное фоновое извлечение всех томов (+ Tesseract для скан-only).
+- Полное фоновое извлечение всех томов (+ Tesseract для скан-only). В рамках
+  этой итерации — **вынести извлечение текста из транзакции импорта** (сейчас
+  при `extractText=true` синхронный download+parse PDF идёт внутри
+  `@Transactional` в `ArchiveOrgImportService`; за флагом, дефолт off):
+  перевести на async (как OCR-пайплайн), чтобы не держать БД-транзакцию
+  открытой на минуты при больших томах.
 - Volume-dropdown в reader; eager-download UI.
 - Provenance-enrichment как общий паттерн для shamela/sunnah/alminasa.
 

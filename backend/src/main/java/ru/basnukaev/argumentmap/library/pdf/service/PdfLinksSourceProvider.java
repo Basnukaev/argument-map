@@ -131,6 +131,9 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
         List<PdfFileInfo> files = new ArrayList<>(filesNode.size());
         for (int i = 0; i < filesNode.size(); i++) {
             JsonNode element = filesNode.get(i);
+            // Обложка - первый элемент массива по convention (index-based by
+            // design): archive.org-импорт всегда кладёт cover в files[0] с
+            // непустым name, поэтому raw-индекс i здесь надёжен.
             boolean cover = hasCover && i == 0;
             if (element != null && element.isObject()) {
                 // Object-form (ADR-056, archive.org): {name, label, variant, volumeNo, size}

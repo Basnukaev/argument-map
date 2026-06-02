@@ -6142,3 +6142,19 @@ dual-view готов на уровне данных; − синхронное и
 **Связанные:** ADR-023 (PdfSourceProvider), ADR-024 (MinIO), ADR-028 (academic
 citation), ADR-035 (PDF upload), ADR-054 (системный пользователь / bridge
 паттерн), Этап 17 (OCR/AI-edit).
+
+**Amendment (итерации после исходного ADR).** Два открытых пункта исходного
+текста закрыты в последующих коммитах:
+
+- (a) **Арабский `description` теперь парсится** (`ArchiveOrgDescriptionParser`,
+  коммит `4ecada1`) — вытягивает издателя / год (хиджра + григориан) / число
+  томов / издание / автора / место из «метка: значение» строк HTML-описания.
+  Эти provenance-поля помечаются `archive_org` (а не `missing`) когда найдены.
+  Решение #4 («для MVP **не парсим** description») **отменено** — over-parsing
+  оказался достаточно надёжным при консервативных regex по arabic-меткам
+  (стиль зеркалит `ShamelaBibliographyParser`).
+- (b) **`cover_url` теперь экспонируется и рендерится** (коммит `e678352`) —
+  поле есть в `BookResponse` / `BookSummary` / `BookDetail` и рисуется как
+  `<img>` на карточке в `BookListPage` и в шапке reader'а, с фолбэком на
+  letter-avatar когда обложки нет. «Рендеринг cover_url в API-ответах +
+  BookListPage/Reader — итерация» (конец блока миграции 67) — **сделано**.

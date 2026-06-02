@@ -112,7 +112,7 @@ public class ArchiveOrgImportService {
             Book book = existing.get();
             log.info("archive.org import idempotent hit: identifier={} bookId={}", id, book.id());
             return new ArchiveOrgImportResponse(
-                    book.id(), id, 0, book.metadata() != null && book.metadata().contains("\"cover\""),
+                    book.id(), id, 0, book.coverUrl() != null,
                     0, true);
         }
 

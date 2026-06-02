@@ -27,7 +27,7 @@ import org.springframework.stereotype.Component;
  *       чистый split ненадёжен);</li>
  *   <li>{@code مكان النشر:} → place (явная метка - имеет приоритет);</li>
  *   <li>{@code سنة النشر:} / {@code عام النشر:} → год(ы). «1433 - 2012»
- *       → hijri=1433 (≤1500), gregorian=2012 (≥1800). Одно или оба;</li>
+ *       → hijri=1433 (≤1600), gregorian=2012 (≥1800). Одно или оба;</li>
  *   <li>{@code عدد المجلدات:} → volumes (целое);</li>
  *   <li>{@code رقم الطبعة:} / {@code الطبعة:} → edition (arabic ordinal,
  *       best-effort: «الثالثة عشر»=13; если не парсится в int - null).</li>
