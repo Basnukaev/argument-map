@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Голосование за темы (community-сигнал популярности). 1 user может
+        проголосовать за 1 тему ровно 1 раз - upvote (+1) или downvote (-1).
+        0 не сохраняется отдельным значением - снять голос = DELETE row.
+
+        Зеркалит node_votes (миграция 38), но на уровне тем. Голоса узлов
+        удалены (миграция 60) - узлы это curated expert data, голосование за
+        них семантически неверно. См. ADR в docs/decisions.md.
+
+        Permission: только authenticated user может vote. Если он видит тему
+        (read access) - может голосовать. Не нужен write access - vote это
+        reaction, не модификация контента. PRIVATE-темы автоматически
+        защищены read-check'ом.
+    -->
+    <changeSet id="20260602-61-create-topic-votes" author="Abdula Basnukaev">
+        <comment>Таблица topic_votes для голосования за темы (популярность)</comment>
+        <sql>
+            CREATE TABLE topic_votes (
+                id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                topic_id  UUID NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+                user_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                weight    SMALLINT NOT NULL,
+                voted_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                CONSTRAINT topic_votes_weight_check CHECK (weight IN (-1, 1)),
+                CONSTRAINT topic_votes_unique UNIQUE (topic_id, user_id)
+            );
+
+            CREATE INDEX idx_topic_votes_topic ON topic_votes(topic_id);
+            CREATE INDEX idx_topic_votes_user ON topic_votes(user_id);
+        </sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_topic_votes_user;
+                DROP INDEX IF EXISTS idx_topic_votes_topic;
+                DROP TABLE IF EXISTS topic_votes;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

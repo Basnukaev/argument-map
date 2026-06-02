@@ -857,27 +857,25 @@ default-перевода пока есть хоть один).
 
 **Ошибки:** 403, 404 `node-translation-not-found`.
 
-### Голосование за вес аргументов (миграция 38)
+### Голосование за темы (миграция 61)
 
-Пользователи могут голосовать за/против узлов (`EVIDENCE`/`ARGUMENT`)
-усиливая или ослабляя их в графе. Один user - один голос на один node,
-значения `+1` (upvote, поддержать) и `-1` (downvote, не согласен).
-Нейтральная позиция не сохраняется отдельно - вместо неё row удаляется.
-Голоса агрегируются и попадают в `NodeResponse.vote*` поля при загрузке
-графа.
+Пользователи голосуют за/против **тем** - community-сигнал популярности
+(сообщество видит какие темы интересны). Голосование за узлы удалено
+(миграция 60): узлы - curated expert data, голосовать за них семантически
+неверно. Один user - один голос на одну тему, значения `+1` (upvote) и
+`-1` (downvote). Нейтральная позиция не сохраняется отдельно - вместо неё
+row удаляется. Агрегаты попадают в `TopicResponse.voteScore` / `userVote`
+на list/detail.
 
-**Permission модель:** vote требует только read-access к topic'у узла -
-голос это reaction, не write. Анонимный user не может голосовать
-(вернётся 401 / 400 missing-user-header).
-
-**Влияние на статусы:** vote'ы НЕ участвуют в StatusCalculation (Dung-style
-аргументация остаётся неизменной). Голоса - параллельный сигнал силы
-от сообщества.
+**Permission модель:** vote требует только read-access к теме - голос это
+reaction, не write. ADMIN bypass автоматический. Анонимный user не может
+голосовать (вернётся 401 / 400 missing-user-header). PRIVATE-темы
+защищены read-check'ом (non-owner не видит и не голосует).
 
 **MVP 3-point scale** `{-1, +1}`. Возможное расширение до 5-point
 `{-2..+2}` (категории силы) - в backlog'е.
 
-#### POST /api/v1/nodes/{nodeId}/vote
+#### POST /api/v1/topics/{topicId}/vote
 
 Upsert голоса вызывающего user'а. Идемпотентен - повторный POST с тем
 же weight оставляет всё как есть; POST с другим weight меняет.
@@ -890,10 +888,10 @@ Upsert голоса вызывающего user'а. Идемпотентен - �
 ```
 - `weight`: int, обязательно. Допустимые значения: `1` или `-1`.
 
-**Ответ (201 Created):**
+**Ответ (201 Created):** `TopicVoteStatsResponse`
 ```json
 {
-  "nodeId": "uuid",
+  "topicId": "uuid",
   "upvotes": 4,
   "downvotes": 1,
   "score": 3,
@@ -904,10 +902,10 @@ Upsert голоса вызывающего user'а. Идемпотентен - �
 **Ошибки:**
 - `400 invalid-vote` - weight не из `{-1, +1}`
 - `400` - validation (weight отсутствует)
-- `404 node-not-found` - узла нет
+- `404 topic-not-found` - темы нет
 - `403 forbidden-topic-access` - не видит тему (PRIVATE чужого user'а)
 
-#### DELETE /api/v1/nodes/{nodeId}/vote
+#### DELETE /api/v1/topics/{topicId}/vote
 
 Снять голос. Идемпотентен - если голоса не было, возвращает 204
 без ошибки.
@@ -917,20 +915,20 @@ Upsert голоса вызывающего user'а. Идемпотентен - �
 **Ответ:** `204 No Content`
 
 **Ошибки:**
-- `404 node-not-found` - узла нет
+- `404 topic-not-found` - темы нет
 - `403 forbidden-topic-access` - не видит тему
 
-#### GET /api/v1/nodes/{nodeId}/votes
+#### GET /api/v1/topics/{topicId}/votes
 
 Текущая статистика голосов + персональный голос вызывающего user'а.
 
 **Заголовки:** `X-User-Id: <uuid>` (обязательно)
 
-**Ответ (200 OK):** `NodeVoteStatsResponse` - та же схема что у POST.
+**Ответ (200 OK):** `TopicVoteStatsResponse` - та же схема что у POST.
 `userVote` = `null` если вызывающий user не голосовал.
 
 **Ошибки:**
-- `404 node-not-found`
+- `404 topic-not-found`
 - `403 forbidden-topic-access`
 
 ### Рёбра (Edges)
@@ -1284,9 +1282,26 @@ variability (ханбалитский / Hanbali / حنبلي) делают фи�
   "visibility": "PRIVATE|SHARED|PUBLIC",
   "statusAlgorithm": "MVP|DUNG_GROUNDED",
   "nodeCount": 12,
-  "edgeCount": 18
+  "edgeCount": 18,
+  "voteScore": 3,
+  "userVote": 1
 }
 ```
+
+`voteScore` (int) / `userVote` (Integer nullable) - голосование за тему
+(миграция 61, ADR voting node→topic; community-сигнал популярности).
+`voteScore` = `upvotes - downvotes` (может быть отрицательным),
+`userVote` ∈ `{-1, +1, null}` (голос вызывающего, `null` если не
+голосовал). Заполняются bulk-load из `topic_votes` на:
+- `GET /api/v1/topics` (list) - 2 SQL на всю страницу (stats + userVotes,
+  не N+1)
+- `GET /api/v1/topics/{id}` (one) - точечная подгрузка
+- `POST /api/v1/topics` (create) - свежая тема: `voteScore=0`,
+  `userVote=null`
+
+На `PATCH /topics/{id}/visibility` и `/status-algorithm` поля могут
+быть default `0`/`null` (как и `nodeCount`/`edgeCount`). CRUD голосов -
+см. секцию «Голосование за темы».
 
 `nodeCount` / `edgeCount` (int) - агрегаты числа узлов и рёбер темы.
 Заполняются на всех эндпоинтах возвращающих TopicResponse:
@@ -1318,10 +1333,6 @@ algorithm` (owner only)
   "createdBy": "uuid",
   "createdAt": "iso8601",
   "updatedAt": "iso8601",
-  "voteUpvotes": 0,
-  "voteDownvotes": 0,
-  "voteScore": 0,
-  "userVote": null,
   "inlineCitations": [
     {
       "ordinal": 1,
@@ -1353,12 +1364,9 @@ algorithm` (owner only)
 до первого `bring-to-front` / `send-to-back`. Управляется через
 два dedicated endpoint - см. секцию ниже.
 
-`voteUpvotes`/`voteDownvotes`/`voteScore` - агрегаты голосов
-(миграция 38, см. секцию «Голосование за вес аргументов»).
-Заполняются на GET `/api/v1/topics/{id}/graph` (bulk-load один SQL
-на весь граф) и mutating endpoints на узлах. `userVote` ∈ `{-1, +1, null}`
-- голос вызывающего user'а, `null` если не голосовал. На POST `/api/v1/nodes`
-для нового узла поля заполняются нулями (голосов ещё нет).
+Голосование за узлы удалено (миграция 60, ADR voting node→topic) - узлы
+это curated expert data. Community-сигнал популярности теперь на уровне
+тем (`TopicResponse.voteScore`, см. секцию «Голосование за темы»).
 
 `inlineCitations` (array) - лёгкие ссылки на node_sources для рендеринга
 inline-маркеров `[N]` в `content`. Подход A (implicit ordinal): фронт
@@ -1391,17 +1399,17 @@ AR vs RU; для EN-оригинала задавать явно). На POST/PAT
 
 CRUD - см. секцию «Multi-translation узлов» ниже.
 
-### NodeVoteStatsResponse
+### TopicVoteStatsResponse
 ```json
 {
-  "nodeId": "uuid",
+  "topicId": "uuid",
   "upvotes": 4,
   "downvotes": 1,
   "score": 3,
   "userVote": 1
 }
 ```
-Возвращается на POST/GET /api/v1/nodes/{id}/vote(s).
+Возвращается на POST/GET /api/v1/topics/{id}/vote(s).
 `score` = `upvotes - downvotes` (может быть отрицательным).
 `userVote` ∈ `{-1, +1, null}`.
 
@@ -3546,6 +3554,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-06-02 | v1 | **Голосование перенесено с узлов на темы (ADR voting node→topic).** Миграция 60 DROP `node_votes`, миграция 61 CREATE `topic_votes (id UUID PK, topic_id FK CASCADE, user_id FK CASCADE, weight SMALLINT CHECK IN (-1,1), voted_at TIMESTAMPTZ, UNIQUE(topic_id, user_id))` + 2 индекса. **Удалены** 3 node-vote endpoint (`POST/DELETE /api/v1/nodes/{id}/vote`, `GET /api/v1/nodes/{id}/votes`), `NodeVoteStatsResponse`, `CreateNodeVoteRequest`, и 4 vote-поля из `NodeResponse` (`voteUpvotes`/`voteDownvotes`/`voteScore`/`userVote`) — граф больше не несёт голосов на узлах. **Добавлены** 3 topic-vote endpoint под `/api/v1/topics/{topicId}` (`POST /vote` → 201 `TopicVoteStatsResponse{topicId, upvotes, downvotes, score, userVote}` upsert ON CONFLICT, `DELETE /vote` → 204 идемпотентен, `GET /votes` → `TopicVoteStatsResponse`). `TopicResponse` расширен `voteScore` (int) + `userVote` (Integer nullable) — bulk-load из `topic_votes` на list (2 SQL на страницу) и detail (точечно), default 0/null. Ошибка `400 invalid-vote` сохранена. Permission: vote требует `canReadTopic` (видишь тему — можешь vote, ADMIN bypass). IT: `TopicVoteServiceIT` + `TopicVoteControllerIT`; `NodeProjectionService` упрощён (votes убраны, остались citations+translations) | Product-решение: узлы — curated expert data, голосование за них семантически неверно. Голоса принадлежат уровню тем как community-сигнал популярности (сообщество видит какие темы интересны). Голоса узлов не были источником истины ни для чего (ортогональны StatusCalculation), поэтому drop без миграции данных |
 | 2026-06-01 | v1 | **Security: NodeCitation sibling-path write-guard (ADR-043, замыкание sweep).** `POST /api/v1/nodes/{nodeId}/citations` (structured citation через CitationPicker) — sibling freeform `/sources` (attach), тот же контентный mutating-эффект (insert в `node_sources`), но БЕЗ write-guard'а → guard на `/sources` обходился через `/citations`. Теперь требует `@CurrentUser` + `assertCanWrite` на тему узла (`NodeCitationService.createCitation` role-aware overload, +PermissionService dep). non-writer → 403 `forbidden-topic-write`, non-reader на PRIVATE → 403 `forbidden-topic-access`, node-not-found → 404 (lookup до permission-check). +403 IT; NodeCitationControllerIT обновлён (X-User-Id обязателен). Найдено automated security review коммита 5f27689 | Sibling-path bypass: ADR-043 guard на одном пути бесполезен если параллельный путь к той же мутации не закрыт. Канон тот же (Service-слой, controller прокидывает @CurrentUser+role, legacy overload для internal/IT) |
 | 2026-06-01 | v1 | **Thesis (рисала) metadata для книг.** Миграция 58 ALTER `lib_books` ADD `thesis_degree` / `thesis_supervisor` / `thesis_institution` (TEXT nullable). `BookDetailResponse` расширен этими 3 полями (nullable, заполнены только для shamela-диссертаций). `ShamelaBibliographyParser` теперь распознаёт academic-thesis markers в «بطاقة الكتاب»: `رسالة:` → degree (ماجستير/دكتوراه) + institution (split по «،»/« - »), `إشراف:` → supervisor, `العام الجامعي:` → published_year_hijri. `ShamelaToLibraryMapper` (import) + `ShamelaBibliographyBackfillService` (backfill existing, новый `BookRepository.updateThesisMetadata`) наполняют structured-колонки. Frontend `BookHeader` рендерит thesis строками (РАБОТА/НАУЧНЫЙ РУКОВОДИТЕЛЬ/УЧЕБНОЕ ЗАВЕДЕНИЕ) внутри metadata-box, i18n RU/AR. `Book` record получил 3 поля + backward-compat 17-арг конструктор (existing call-sites не тронуты) | Часть shamela-книг - академические рисала (магистерские/докторские). Их «بطاقة الكتاب» несёт degree/supervisor/institution которые НЕ ложились в publisher/muhaqqiq. Раньше эти данные дампились сырым текстом в description (создавая дубль со structured-таблицей у книг с распарсенным автором). Принцип: наполнять нашу таблицу через parser, а НЕ вставлять текст shamela. Per-book scalars (не reusable), TEXT прямо на lib_books без справочника |
 | 2026-06-01 | v1 | **Security: закрытие 3 оставшихся citation authorization-дыр (ADR-043 coverage gaps, продолжение).** Code review после багоохоты нашёл 3 эндпоинта того же класса, что и фикс #6 (node-source), но не закрытые. Закрыто без изменения схемы БД / DTO (только permission-checks + parent-scoped SQL): (A) **NodeSource topic-level authz** — `POST /api/v1/nodes/{nodeId}/sources` (attach) + `DELETE .../{nodeSourceId}` (detach) теперь требуют `assertCanWrite` на тему узла, `GET .../sources` (list) — `assertCanRead` (раньше любой authenticated вешал/снимал/читал citation на узлах чужих PRIVATE/SHARED тем). Все три теперь требуют `@CurrentUser` (X-User-Id); non-reader → 403 `forbidden-topic-access`, non-writer → 403 `forbidden-topic-write`. Detach остаётся node-scoped (404 при mismatch); (B) **Q&A question citations** — `POST /api/v1/questions/{questionId}/citations` (create) + `DELETE .../sources/{questionSourceId}` (detach) теперь требуют автора вопроса (`asked_by`) или ADMIN; non-author → 403 `forbidden-question-write`. Detach стал question-scoped (`DELETE ... WHERE id=? AND question_id=?`) — citation чужого вопроса по голому id → 404. `GET .../sources` остаётся без guard (open discussion); (C) **Q&A answer citations** — `POST /api/v1/answers/{answerId}/citations` (create) + `DELETE .../sources/{answerSourceId}` (detach) теперь требуют автора ответа (`author_id`) или ADMIN; non-author → 403 `forbidden-answer-write`. Detach стал answer-scoped (`DELETE ... WHERE id=? AND answer_id=?`) → 404 при mismatch. `GET .../sources` без guard. Все 3 фикса с IT (403/404 + happy-path owner/author + ADMIN allow) | Code review #2 после commit 8dc88ad: тот же системный паттерн (ADR-043 permission-модель не вызывалась). Канон: проверки в Service-слое, controller прокидывает `@CurrentUser` + `SecurityContextUtils.currentRoleOrAnonymous()`. Q&A — author/admin guard (mutating only), не visibility. NodeSource — topic-scoped read/write как у NodeVote/NodeController. Legacy overloads без auth оставлены для internal callers / IT. Новые repo-методы `deleteByIdAndQuestion`/`deleteByIdAndAnswer` (mirror `NodeSourceRepository.deleteByIdAndNode`) — только новый SQL, без DDL |

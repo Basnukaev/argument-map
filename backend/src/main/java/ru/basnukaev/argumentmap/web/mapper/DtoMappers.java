@@ -19,7 +19,6 @@ import ru.basnukaev.argumentmap.domain.Revision;
 import ru.basnukaev.argumentmap.domain.Source;
 import ru.basnukaev.argumentmap.domain.Topic;
 import ru.basnukaev.argumentmap.domain.TopicMember;
-import ru.basnukaev.argumentmap.domain.VoteStats;
 import ru.basnukaev.argumentmap.repository.NodeSourceRepository;
 import ru.basnukaev.argumentmap.repository.TopicWithCounts;
 import ru.basnukaev.argumentmap.service.GraphView;
@@ -62,17 +61,33 @@ public final class DtoMappers {
     }
 
     public static TopicResponse toResponse(Topic topic, int nodeCount, int edgeCount) {
+        return toResponse(topic, nodeCount, edgeCount, 0, null);
+    }
+
+    /**
+     * Полная перегрузка с vote-данными (ADR-053). voteScore -
+     * нетто голосов (upvotes-downvotes), userVote - голос вызывающего
+     * (-1/+1/null). На list/detail заполняются bulk-load'ом из topic_votes,
+     * на mutating endpoint'ах default 0/null.
+     */
+    public static TopicResponse toResponse(Topic topic, int nodeCount, int edgeCount,
+                                           int voteScore, Integer userVote) {
         return new TopicResponse(
                 topic.id(), topic.title(), topic.description(),
                 topic.rootNodeId(), topic.createdBy(), topic.createdAt(),
                 topic.visibility(),
                 topic.statusAlgorithm(),
-                nodeCount, edgeCount
+                nodeCount, edgeCount,
+                voteScore, userVote
         );
     }
 
     public static TopicResponse toResponse(TopicWithCounts twc) {
         return toResponse(twc.topic(), twc.nodeCount(), twc.edgeCount());
+    }
+
+    public static TopicResponse toResponse(TopicWithCounts twc, int voteScore, Integer userVote) {
+        return toResponse(twc.topic(), twc.nodeCount(), twc.edgeCount(), voteScore, userVote);
     }
 
     public static TopicMemberResponse toResponse(TopicMember member) {
@@ -83,29 +98,22 @@ public final class DtoMappers {
     }
 
     /**
-     * Mapper для одного узла без vote-данных. Используется когда vote-агрегация
-     * не нужна (например пара legacy IT-кейсов через прямую реконструкцию).
-     * Vote-поля заполняются нулями, userVote = null, inlineCitations и
-     * translations - пустые списки. Если важна актуальная статистика -
-     * использовать перегрузку с VoteStats/userVote/citations/translations.
+     * Mapper для одного узла без enrichment. inlineCitations и translations -
+     * пустые списки. Если важны citations/translations - использовать
+     * перегрузку с этими аргументами.
      */
     public static NodeResponse toResponse(Node node) {
-        return toResponse(node, VoteStats.EMPTY, null, List.of(), List.of());
+        return toResponse(node, List.of(), List.of());
     }
 
-    public static NodeResponse toResponse(Node node, VoteStats stats, Integer userVote) {
-        return toResponse(node, stats, userVote, List.of(), List.of());
-    }
-
-    public static NodeResponse toResponse(Node node, VoteStats stats, Integer userVote,
+    public static NodeResponse toResponse(Node node,
                                           List<InlineCitationRef> inlineCitations) {
-        return toResponse(node, stats, userVote, inlineCitations, List.of());
+        return toResponse(node, inlineCitations, List.of());
     }
 
-    public static NodeResponse toResponse(Node node, VoteStats stats, Integer userVote,
+    public static NodeResponse toResponse(Node node,
                                           List<InlineCitationRef> inlineCitations,
                                           List<NodeTranslation> translations) {
-        VoteStats s = stats == null ? VoteStats.EMPTY : stats;
         List<InlineCitationRef> citations = inlineCitations == null ? List.of() : inlineCitations;
         List<NodeTranslationRef> translationRefs = translations == null
                 ? List.of()
@@ -116,8 +124,6 @@ public final class DtoMappers {
                 node.posX(), node.posY(), node.zIndex(),
                 node.createdBy(),
                 node.createdAt(), node.updatedAt(),
-                s.upvotes(), s.downvotes(), s.score(),
-                userVote,
                 citations,
                 node.originalLang(),
                 translationRefs
@@ -149,52 +155,35 @@ public final class DtoMappers {
     }
 
     public static GraphResponse toResponse(GraphView graph) {
-        return toResponse(graph, Map.of(), Map.of(), Map.of(), Map.of());
+        return toResponse(graph, Map.of(), Map.of());
     }
 
     /**
-     * Перегрузка для GraphView с vote-данными. statsByNode/userVotesByNode -
-     * bulk-загруженные maps из {@link ru.basnukaev.argumentmap.repository.NodeVoteRepository}.
-     * Отсутствующий nodeId в map трактуется как {@link VoteStats#EMPTY} /
-     * userVote=null. Один SQL на весь граф - не N+1.
-     */
-    public static GraphResponse toResponse(GraphView graph,
-                                           Map<UUID, VoteStats> statsByNode,
-                                           Map<UUID, Integer> userVotesByNode) {
-        return toResponse(graph, statsByNode, userVotesByNode, Map.of(), Map.of());
-    }
-
-    /**
-     * Перегрузка для GraphView с vote-данными и inline citations. citationsByNode -
+     * Перегрузка для GraphView с inline citations. citationsByNode -
      * bulk-загруженная map из {@link NodeSourceRepository#findInlineCitationsForNodes}.
      * Узлы без node_sources получают пустой список. Один SQL на весь граф - не N+1
      */
     public static GraphResponse toResponse(GraphView graph,
-                                           Map<UUID, VoteStats> statsByNode,
-                                           Map<UUID, Integer> userVotesByNode,
                                            Map<UUID, List<InlineCitationRef>> citationsByNode) {
-        return toResponse(graph, statsByNode, userVotesByNode, citationsByNode, Map.of());
+        return toResponse(graph, citationsByNode, Map.of());
     }
 
     /**
      * Полная перегрузка с translations. translationsByNode - bulk-загруженная
      * map из {@link ru.basnukaev.argumentmap.repository.NodeTranslationRepository#findByNodeIds}.
-     * Узлы без переводов получают пустой список. Один SQL на весь граф - не N+1
+     * Узлы без переводов получают пустой список. Один SQL на весь граф - не N+1.
+     *
+     * <p>Голосование за узлы удалено (ADR-053) - граф больше
+     * не несёт vote-полей на узлах.
      */
     public static GraphResponse toResponse(GraphView graph,
-                                           Map<UUID, VoteStats> statsByNode,
-                                           Map<UUID, Integer> userVotesByNode,
                                            Map<UUID, List<InlineCitationRef>> citationsByNode,
                                            Map<UUID, List<NodeTranslation>> translationsByNode) {
-        Map<UUID, VoteStats> stats = statsByNode == null ? Map.of() : statsByNode;
-        Map<UUID, Integer> userVotes = userVotesByNode == null ? Map.of() : userVotesByNode;
         Map<UUID, List<InlineCitationRef>> citations = citationsByNode == null ? Map.of() : citationsByNode;
         Map<UUID, List<NodeTranslation>> translations = translationsByNode == null ? Map.of() : translationsByNode;
         List<NodeResponse> nodes = graph.nodes().stream()
                 .map(n -> toResponse(
                         n,
-                        stats.getOrDefault(n.id(), VoteStats.EMPTY),
-                        userVotes.get(n.id()),
                         citations.getOrDefault(n.id(), List.of()),
                         translations.getOrDefault(n.id(), List.of())
                 ))

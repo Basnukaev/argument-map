@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.domain.Node;
-import ru.basnukaev.argumentmap.domain.VoteStats;
 import ru.basnukaev.argumentmap.service.NodeProjectionService;
 import ru.basnukaev.argumentmap.service.NodeProjectionService.NodeProjection;
 import ru.basnukaev.argumentmap.service.NodeService;
@@ -53,10 +52,10 @@ public class NodeController {
                 request.topicId(), request.nodeType(), request.content(),
                 originalLang, userId, role
         );
-        // Только что созданный узел не имеет ни голосов ни node_sources ни
-        // переводов - VoteStats.EMPTY, userVote=null, citations/translations=[]
+        // Только что созданный узел не имеет ни node_sources ни переводов -
+        // citations/translations пустые
         return ResponseEntity.created(URI.create("/api/v1/nodes/" + created.id()))
-                .body(DtoMappers.toResponse(created, VoteStats.EMPTY, null, List.of(), List.of()));
+                .body(DtoMappers.toResponse(created, List.of(), List.of()));
     }
 
     /**
@@ -91,7 +90,7 @@ public class NodeController {
         if (hasPosition) {
             node = nodeService.updatePosition(nodeId, request.posX(), request.posY(), userId, role);
         }
-        return enrichResponse(node, userId);
+        return enrichResponse(node);
     }
 
     /**
@@ -104,7 +103,7 @@ public class NodeController {
                                      @CurrentUser UUID userId) {
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         Node node = nodeService.bringToFront(nodeId, userId, role);
-        return enrichResponse(node, userId);
+        return enrichResponse(node);
     }
 
     /**
@@ -116,7 +115,7 @@ public class NodeController {
                                    @CurrentUser UUID userId) {
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         Node node = nodeService.sendToBack(nodeId, userId, role);
-        return enrichResponse(node, userId);
+        return enrichResponse(node);
     }
 
     @DeleteMapping("/{nodeId}")
@@ -153,14 +152,13 @@ public class NodeController {
     }
 
     /**
-     * Обогащает Node проекцией (votes / citations / translations) и мэппит в
-     * NodeResponse. Заменяет 4-строчный inline fragment который дублировался
-     * в трёх методах (PATCH / bringToFront / sendToBack).
+     * Обогащает Node проекцией (citations / translations) и мэппит в
+     * NodeResponse. Заменяет inline fragment который дублировался в трёх
+     * методах (PATCH / bringToFront / sendToBack).
      */
-    private NodeResponse enrichResponse(Node node, UUID userId) {
-        NodeProjection projection = nodeProjectionService.single(node.id(), userId);
+    private NodeResponse enrichResponse(Node node) {
+        NodeProjection projection = nodeProjectionService.single(node.id());
         return DtoMappers.toResponse(node,
-                projection.stats(), projection.userVote(),
                 projection.citations(), projection.translations());
     }
 

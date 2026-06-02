@@ -2,6 +2,7 @@ package ru.basnukaev.argumentmap.web.controller;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
@@ -17,6 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.domain.Topic;
+import ru.basnukaev.argumentmap.domain.VoteStats;
+import ru.basnukaev.argumentmap.repository.TopicVoteRepository;
 import ru.basnukaev.argumentmap.repository.TopicWithCounts;
 import ru.basnukaev.argumentmap.service.GraphService;
 import ru.basnukaev.argumentmap.service.GraphView;
@@ -44,14 +47,17 @@ public class TopicController {
     private final GraphService graphService;
     private final PermissionService permissionService;
     private final NodeProjectionService nodeProjectionService;
+    private final TopicVoteRepository topicVoteRepository;
 
     public TopicController(TopicService topicService, GraphService graphService,
                            PermissionService permissionService,
-                           NodeProjectionService nodeProjectionService) {
+                           NodeProjectionService nodeProjectionService,
+                           TopicVoteRepository topicVoteRepository) {
         this.topicService = topicService;
         this.graphService = graphService;
         this.permissionService = permissionService;
         this.nodeProjectionService = nodeProjectionService;
+        this.topicVoteRepository = topicVoteRepository;
     }
 
     @PostMapping
@@ -62,8 +68,9 @@ public class TopicController {
                 request.rootQuestion(), request.visibility(), userId
         );
         // Дополнительный SQL за актуальными nodeCount/edgeCount после create -
-        // ответ должен честно отражать состояние темы (rootQuestion = 1 узел)
-        TopicResponse body = DtoMappers.toResponse(topicService.getTopicWithCounts(created.id()));
+        // ответ должен честно отражать состояние темы (rootQuestion = 1 узел).
+        // Свежая тема не имеет голосов - voteScore=0, userVote=null
+        TopicResponse body = withVotes(topicService.getTopicWithCounts(created.id()), userId);
         return ResponseEntity.created(URI.create("/api/v1/topics/" + created.id())).body(body);
     }
 
@@ -92,7 +99,17 @@ public class TopicController {
         List<TopicWithCounts> items = topicService.listVisibleTopicsPage(
                 userId, role, visibility, pr.size(), pr.offset(), sort);
         long total = topicService.countVisibleTopics(userId, role, visibility);
-        List<TopicResponse> mapped = items.stream().map(DtoMappers::toResponse).toList();
+        // Bulk-load голосов (ADR-053): 2 SQL на всю страницу,
+        // не N+1. voteScore = upvotes-downvotes, userVote = голос вызывающего
+        List<UUID> topicIds = items.stream().map(twc -> twc.topic().id()).toList();
+        Map<UUID, VoteStats> statsByTopic = topicVoteRepository.getStatsForTopics(topicIds);
+        Map<UUID, Integer> userVotesByTopic = topicVoteRepository.getUserVotesForTopics(topicIds, userId);
+        List<TopicResponse> mapped = items.stream()
+                .map(twc -> DtoMappers.toResponse(
+                        twc,
+                        statsByTopic.getOrDefault(twc.topic().id(), VoteStats.EMPTY).score(),
+                        userVotesByTopic.get(twc.topic().id())))
+                .toList();
         return PagedResponse.of(mapped, pr.page(), pr.size(), total);
     }
 
@@ -100,7 +117,19 @@ public class TopicController {
     public TopicResponse getOne(@PathVariable UUID topicId, @CurrentUser UUID userId) {
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         permissionService.assertCanRead(topicId, userId, role);
-        return DtoMappers.toResponse(topicService.getTopicWithCounts(topicId));
+        return withVotes(topicService.getTopicWithCounts(topicId), userId);
+    }
+
+    /**
+     * Обогащает тему vote-данными (ADR-053) и мэппит в
+     * TopicResponse. voteScore = upvotes-downvotes, userVote = голос
+     * вызывающего (null если не голосовал).
+     */
+    private TopicResponse withVotes(TopicWithCounts twc, UUID userId) {
+        UUID topicId = twc.topic().id();
+        int score = topicVoteRepository.getStatsForTopic(topicId).score();
+        Integer userVote = topicVoteRepository.getUserVote(topicId, userId).orElse(null);
+        return DtoMappers.toResponse(twc, score, userVote);
     }
 
     /**
@@ -140,13 +169,13 @@ public class TopicController {
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         permissionService.assertCanRead(topicId, userId, role);
         GraphView graph = graphService.getGraph(topicId);
-        // Bulk-load через NodeProjectionService: 4 SQL на весь граф, не N+1 на
-        // каждый узел. NodeResponse получает vote-поля + inlineCitations +
-        // translations для рендеринга [N]-маркеров и переключателя языков
+        // Bulk-load через NodeProjectionService: 2 SQL на весь граф, не N+1 на
+        // каждый узел. NodeResponse получает inlineCitations + translations для
+        // рендеринга [N]-маркеров и переключателя языков. Голосование за узлы
+        // удалено (ADR-053) - граф больше не несёт vote-полей
         List<UUID> nodeIds = graph.nodes().stream().map(n -> n.id()).toList();
-        NodeProjectionBatch batch = nodeProjectionService.batch(nodeIds, userId);
+        NodeProjectionBatch batch = nodeProjectionService.batch(nodeIds);
         return DtoMappers.toResponse(graph,
-                batch.stats(), batch.userVotes(),
                 batch.citations(), batch.translations());
     }
 
@@ -163,8 +192,8 @@ public class TopicController {
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         Topic updated = topicService.updateTopic(
                 topicId, request.title(), request.description(), userId, role);
-        // Возвращаем с counts чтобы list/details одинаково отображались
-        return DtoMappers.toResponse(topicService.getTopicWithCounts(updated.id()));
+        // Возвращаем с counts + votes чтобы list/details одинаково отображались
+        return withVotes(topicService.getTopicWithCounts(updated.id()), userId);
     }
 
     @PatchMapping("/{topicId}/visibility")

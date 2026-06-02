@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Удаление таблицы node_votes. Product-решение: голосование за узлы
+        (curated expert data) - семантически неверно. Голоса переезжают на
+        уровень тем (topic_votes, миграция 61) как community-сигнал
+        популярности. См. ADR в docs/decisions.md.
+
+        Голоса узлов не были источником истины ни для чего (StatusCalculation
+        ортогонален голосам), поэтому drop без миграции данных. <rollback>
+        пересоздаёт таблицу (копия CREATE из миграции 38).
+    -->
+    <changeSet id="20260602-60-drop-node-votes" author="Abdula Basnukaev">
+        <comment>DROP node_votes - голосование переезжает на уровень тем</comment>
+        <sql>
+            DROP TABLE IF EXISTS node_votes;
+        </sql>
+        <rollback>
+            <sql>
+                CREATE TABLE node_votes (
+                    id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    node_id   UUID NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+                    user_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    weight    SMALLINT NOT NULL,
+                    voted_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    CONSTRAINT node_votes_weight_check CHECK (weight IN (-1, 1)),
+                    CONSTRAINT node_votes_unique UNIQUE (node_id, user_id)
+                );
+
+                CREATE INDEX idx_node_votes_node ON node_votes(node_id);
+                CREATE INDEX idx_node_votes_user ON node_votes(user_id);
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

@@ -5916,3 +5916,62 @@ Testcontainer (IT чуть медленнее). Абдула одобрил за
 (`ShamelaHttpClientConfig`/SQLite reader — паттерн), spec §11 шаг 2.d.
 
 
+
+## ADR-053: Голосование перенесено с узлов на темы (community popularity signal)
+
+**Контекст.** Изначально (миграция 38) голосование было на уровне узлов
+графа: пользователи ставили `+1`/`-1` на `ARGUMENT`/`EVIDENCE` узлы,
+усиливая или ослабляя их. Product-ревизия владельца показала, что это
+семантически неверно: узлы — curated expert data (выверенный контент
+графа аргументации), и community-голосование за них противоречит роли
+графа как экспертной структуры. Голоса узлов при этом ни на что не влияли
+как источник истины — они ортогональны StatusCalculation (Dung-style
+logical status), т.е. были «висящим» сигналом.
+
+**Решение.** Убрать голосование с узлов, перенести на уровень **тем** —
+там голос имеет смысл как community-сигнал популярности (сообщество видит,
+какие темы интересны/спорны).
+
+- **Миграция 60** DROP `node_votes` (с `<rollback>` пересоздающим таблицу —
+  копия CREATE из миграции 38). Без миграции данных: голоса узлов не были
+  источником истины ни для чего.
+- **Миграция 61** CREATE `topic_votes` — зеркало `node_votes` но на тему
+  (`topic_id` FK CASCADE, `user_id` FK CASCADE, `weight` SMALLINT CHECK
+  IN(-1,1), UNIQUE(topic_id, user_id) + индексы на topic_id/user_id).
+- Удалён весь node-vote стек (domain/repo/service/controller/2 DTO/2 IT) +
+  4 vote-поля из `NodeResponse`. `NodeProjectionService` упрощён до
+  citations+translations (votes убраны из single/batch проекции — граф
+  больше не несёт голосов на узлах).
+- Добавлен topic-vote стек по тому же паттерну: `TopicVote` domain,
+  `TopicVoteRepository` (UPSERT ON CONFLICT, bulk `getStatsForTopics` /
+  `getUserVotesForTopics`), `TopicVoteService`, `TopicVoteController`
+  (`POST/DELETE /api/v1/topics/{id}/vote`, `GET /votes`),
+  `TopicVoteStatsResponse` + `CreateTopicVoteRequest`.
+- `TopicResponse` расширен `voteScore` (int) + `userVote` (Integer
+  nullable). Bulk-load в topic LIST path (2 SQL на страницу — stats +
+  userVotes, keyed by topicId, не N+1) и точечно в getOne. Default 0/null.
+- **Generic `VoteStats`** record переиспользован для тем (он чистый
+  upvotes/downvotes/score, не привязан к узлам) — не дублировали.
+- **Permission семантика идентична node-vote:** read-access → vote-access
+  (`assertCanRead` на тему; ADMIN bypass автоматический через
+  PermissionService). PRIVATE-темы защищены read-check'ом. Голос — reaction,
+  не write. Сохранён `InvalidVoteException` (400 `invalid-vote`) для
+  weight ∉ {-1,+1}.
+
+**Альтернатива (отвергнута): оставить голосование и на узлах, и на темах.**
+Дублирует UX-смысл и сохраняет семантически неверное голосование за
+curated data. Владелец явно решил убрать с узлов.
+
+**Альтернатива (отвергнута): мигрировать голоса узлов в темы (агрегация).**
+Голоса узлов не имеют осмысленного отображения на голос темы; данные не
+были источником истины. Чистый drop проще и честнее (solo-проект, без
+backward-compat-хаков).
+
+**Trade-offs:** + голосование теперь семантически корректно (community
+signal на community-уровне), граф остаётся экспертной структурой; чистое
+зеркало проверенного node-vote паттерна. − потеря исторических голосов
+узлов (приемлемо — они ни на что не влияли). MVP 3-point scale `{-1,+1}`;
+5-point в backlog.
+
+**Связанные:** миграция 38 (исходное node-voting, отменено), ADR-043
+(permission-модель — read→vote), ADR-016 (агрегаты в TopicResponse).

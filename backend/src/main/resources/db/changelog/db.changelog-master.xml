@@ -64,5 +64,7 @@
     <include file="db/changelog/changes/20260531-57-hd-collections.xml"/>
     <include file="db/changelog/changes/20260601-58-add-thesis-metadata.xml"/>
     <include file="db/changelog/changes/20260601-59-create-sunnah-staging-tables.xml"/>
+    <include file="db/changelog/changes/20260602-60-drop-node-votes.xml"/>
+    <include file="db/changelog/changes/20260602-61-create-topic-votes.xml"/>
 
 </databaseChangeLog>
