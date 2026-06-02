@@ -931,6 +931,81 @@ Upsert голоса вызывающего user'а. Идемпотентен - �
 - `404 topic-not-found`
 - `403 forbidden-topic-access`
 
+### Голосование за вопросы Q&A (миграция 62)
+
+Пользователи голосуют за/против **вопросов** Q&A - community-сигнал
+популярности за вопрос&ответ (зеркалит голосование за темы, но на уровне
+вопросов). Один user - один голос на один вопрос, значения `+1` (upvote) и
+`-1` (downvote). Нейтральная позиция не сохраняется отдельно - вместо неё
+row удаляется. Агрегаты попадают в `QuestionResponse.voteScore` / `userVote`
+на list/detail.
+
+**Permission модель:** questions это open discussion (без visibility model,
+см. backend/CLAUDE.md «Q&A guards»). Голосовать может **любой
+authenticated user** - не нужен read/write access check как у тем.
+Достаточно чтобы вопрос существовал. POST/DELETE требуют принципала
+(анонимный → 401). GET открыт (агрегаты видны всем); `userVote` для
+anonymous = `null`.
+
+**MVP 3-point scale** `{-1, +1}`. Возможное расширение до 5-point
+`{-2..+2}` - в backlog'е.
+
+#### POST /api/v1/questions/{questionId}/vote
+
+Upsert голоса вызывающего user'а. Идемпотентен - повторный POST с тем
+же weight оставляет всё как есть; POST с другим weight меняет.
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+**Запрос:**
+```json
+{ "weight": 1 }
+```
+- `weight`: int, обязательно. Допустимые значения: `1` или `-1`.
+
+**Ответ (201 Created):** `QuestionVoteStatsResponse`
+```json
+{
+  "questionId": "uuid",
+  "upvotes": 4,
+  "downvotes": 1,
+  "score": 3,
+  "userVote": 1
+}
+```
+
+**Ошибки:**
+- `400 invalid-vote` - weight не из `{-1, +1}`
+- `400` - validation (weight отсутствует)
+- `404 question-not-found` - вопроса нет
+- `401` - анонимный (нет принципала)
+
+#### DELETE /api/v1/questions/{questionId}/vote
+
+Снять голос. Идемпотентен - если голоса не было, возвращает 204
+без ошибки.
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+**Ответ:** `204 No Content`
+
+**Ошибки:**
+- `404 question-not-found` - вопроса нет
+- `401` - анонимный
+
+#### GET /api/v1/questions/{questionId}/votes
+
+Текущая статистика голосов + персональный голос вызывающего user'а.
+Открыт (auth опционален - questions это open discussion).
+
+**Заголовки:** `X-User-Id: <uuid>` (опционально - для `userVote`)
+
+**Ответ (200 OK):** `QuestionVoteStatsResponse` - та же схема что у POST.
+`userVote` = `null` если вызывающий user не голосовал либо anonymous.
+
+**Ошибки:**
+- `404 question-not-found`
+
 ### Рёбра (Edges)
 
 #### POST /api/v1/edges
@@ -1412,6 +1487,20 @@ CRUD - см. секцию «Multi-translation узлов» ниже.
 Возвращается на POST/GET /api/v1/topics/{id}/vote(s).
 `score` = `upvotes - downvotes` (может быть отрицательным).
 `userVote` ∈ `{-1, +1, null}`.
+
+### QuestionVoteStatsResponse
+```json
+{
+  "questionId": "uuid",
+  "upvotes": 4,
+  "downvotes": 1,
+  "score": 3,
+  "userVote": 1
+}
+```
+Возвращается на POST/GET /api/v1/questions/{id}/vote(s).
+`score` = `upvotes - downvotes` (может быть отрицательным).
+`userVote` ∈ `{-1, +1, null}` (`null` если не голосовал либо anonymous).
 
 ### EdgeResponse
 ```json
@@ -2746,10 +2835,26 @@ standalone Question CRUD без attached sources. Source attach
   "body": "...|null",
   "status": "OPEN|ANSWERED|CLOSED",
   "askedBy": "uuid|null",
+  "acceptedAnswerId": "uuid|null",
   "createdAt": "iso8601",
-  "updatedAt": "iso8601"
+  "updatedAt": "iso8601",
+  "voteScore": 0,
+  "userVote": null
 }
 ```
+
+`voteScore` (int) / `userVote` (Integer nullable) - голосование за вопрос
+(community-сигнал популярности за вопрос&ответ, миграция 62).
+`voteScore` = `upvotes - downvotes` (может быть отрицательным),
+`userVote` ∈ `{-1, +1, null}` (голос вызывающего, `null` если не голосовал
+либо anonymous). Заполняются из `question_votes` на:
+- `GET /api/v1/questions` (list) - bulk-load, 2 SQL на всю страницу
+  (stats + userVotes), не N+1
+- `GET /api/v1/questions/{id}` (detail) - точечно
+- На mutating endpoint'ах (`POST` create, `PATCH` update, accept/revoke
+  answer) - default `voteScore=0`, `userVote=null`
+
+Подробности голосования - см. секцию «Голосование за вопросы Q&A».
 
 ### GET /api/v1/questions
 
@@ -2966,6 +3071,18 @@ question.acceptedAnswerId`. На новом ответе всегда `false`.
 
 Не `null` означает что у вопроса есть принятый ответ (обычно когда
 `status = ANSWERED`).
+
+С голосования за вопросы (миграция 62) в `QuestionResponse` добавлены:
+
+```
+"voteScore": 3,
+"userVote": 1
+```
+
+`voteScore` (int) = `upvotes - downvotes`, `userVote` ∈ `{-1, +1, null}` -
+голос вызывающего user'а. Bulk-load на GET list, точечно на GET detail,
+default `0`/`null` на mutating endpoint'ах. См. секцию «Голосование за
+вопросы Q&A».
 
 ### Что **не** реализовано в Этапе 19.c
 
@@ -3557,6 +3674,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-06-02 | v1 | **Голосование за вопросы Q&A (зеркалит topic-vote stack).** Миграция 62 CREATE `question_votes (id UUID PK gen_random_uuid, question_id FK CASCADE, user_id FK CASCADE, weight SMALLINT CHECK IN (-1,1), voted_at TIMESTAMPTZ, UNIQUE(question_id, user_id))` + 2 индекса (question_id, user_id). **Добавлены** 3 question-vote endpoint под `/api/v1/questions/{questionId}` (`POST /vote` → 201 `QuestionVoteStatsResponse{questionId, upvotes, downvotes, score, userVote}` upsert ON CONFLICT, `DELETE /vote` → 204 идемпотентен, `GET /votes` → `QuestionVoteStatsResponse`, открыт для anonymous). DTO `CreateQuestionVoteRequest{weight}`. `QuestionResponse` расширен `voteScore` (int) + `userVote` (Integer nullable) — bulk-load из `question_votes` на list (2 SQL на страницу: getStatsForQuestions + getUserVotesForQuestions) и detail (точечно), default 0/null на mutating endpoint'ах (create/update/accept/revoke answer). Ошибки `400 invalid-vote` / `404 question-not-found`. **Permission: НЕТ visibility/read-write check** — questions это open discussion (ADR-043 «Q&A guards»): голосовать может любой authenticated user; POST/DELETE требуют принципала (anonymous → 401), GET открыт. Переиспользованы `VoteStats` + `InvalidVoteException` (generic). Пакет `qa.{domain,repository,service,web.{controller,dto}}`. IT: `QuestionVoteServiceIT` (12) + `QuestionVoteControllerIT` (16); `QuestionControllerIT` адаптирован под новые поля | Product: community-сигнал популярности «за тему вцелом ИЛИ за вопрос&ответ» — topic-vote сторона уже была, добавлена Q&A сторона. Mirror того же стека, но без permission-модели (questions открыты по дизайну, в отличие от тем с visibility) |
 | 2026-06-02 | v1 | **Голосование перенесено с узлов на темы (ADR voting node→topic).** Миграция 60 DROP `node_votes`, миграция 61 CREATE `topic_votes (id UUID PK, topic_id FK CASCADE, user_id FK CASCADE, weight SMALLINT CHECK IN (-1,1), voted_at TIMESTAMPTZ, UNIQUE(topic_id, user_id))` + 2 индекса. **Удалены** 3 node-vote endpoint (`POST/DELETE /api/v1/nodes/{id}/vote`, `GET /api/v1/nodes/{id}/votes`), `NodeVoteStatsResponse`, `CreateNodeVoteRequest`, и 4 vote-поля из `NodeResponse` (`voteUpvotes`/`voteDownvotes`/`voteScore`/`userVote`) — граф больше не несёт голосов на узлах. **Добавлены** 3 topic-vote endpoint под `/api/v1/topics/{topicId}` (`POST /vote` → 201 `TopicVoteStatsResponse{topicId, upvotes, downvotes, score, userVote}` upsert ON CONFLICT, `DELETE /vote` → 204 идемпотентен, `GET /votes` → `TopicVoteStatsResponse`). `TopicResponse` расширен `voteScore` (int) + `userVote` (Integer nullable) — bulk-load из `topic_votes` на list (2 SQL на страницу) и detail (точечно), default 0/null. Ошибка `400 invalid-vote` сохранена. Permission: vote требует `canReadTopic` (видишь тему — можешь vote, ADMIN bypass). IT: `TopicVoteServiceIT` + `TopicVoteControllerIT`; `NodeProjectionService` упрощён (votes убраны, остались citations+translations) | Product-решение: узлы — curated expert data, голосование за них семантически неверно. Голоса принадлежат уровню тем как community-сигнал популярности (сообщество видит какие темы интересны). Голоса узлов не были источником истины ни для чего (ортогональны StatusCalculation), поэтому drop без миграции данных |
 | 2026-06-01 | v1 | **Security: NodeCitation sibling-path write-guard (ADR-043, замыкание sweep).** `POST /api/v1/nodes/{nodeId}/citations` (structured citation через CitationPicker) — sibling freeform `/sources` (attach), тот же контентный mutating-эффект (insert в `node_sources`), но БЕЗ write-guard'а → guard на `/sources` обходился через `/citations`. Теперь требует `@CurrentUser` + `assertCanWrite` на тему узла (`NodeCitationService.createCitation` role-aware overload, +PermissionService dep). non-writer → 403 `forbidden-topic-write`, non-reader на PRIVATE → 403 `forbidden-topic-access`, node-not-found → 404 (lookup до permission-check). +403 IT; NodeCitationControllerIT обновлён (X-User-Id обязателен). Найдено automated security review коммита 5f27689 | Sibling-path bypass: ADR-043 guard на одном пути бесполезен если параллельный путь к той же мутации не закрыт. Канон тот же (Service-слой, controller прокидывает @CurrentUser+role, legacy overload для internal/IT) |
 | 2026-06-01 | v1 | **Thesis (рисала) metadata для книг.** Миграция 58 ALTER `lib_books` ADD `thesis_degree` / `thesis_supervisor` / `thesis_institution` (TEXT nullable). `BookDetailResponse` расширен этими 3 полями (nullable, заполнены только для shamela-диссертаций). `ShamelaBibliographyParser` теперь распознаёт academic-thesis markers в «بطاقة الكتاب»: `رسالة:` → degree (ماجستير/دكتوراه) + institution (split по «،»/« - »), `إشراف:` → supervisor, `العام الجامعي:` → published_year_hijri. `ShamelaToLibraryMapper` (import) + `ShamelaBibliographyBackfillService` (backfill existing, новый `BookRepository.updateThesisMetadata`) наполняют structured-колонки. Frontend `BookHeader` рендерит thesis строками (РАБОТА/НАУЧНЫЙ РУКОВОДИТЕЛЬ/УЧЕБНОЕ ЗАВЕДЕНИЕ) внутри metadata-box, i18n RU/AR. `Book` record получил 3 поля + backward-compat 17-арг конструктор (existing call-sites не тронуты) | Часть shamela-книг - академические рисала (магистерские/докторские). Их «بطاقة الكتاب» несёт degree/supervisor/institution которые НЕ ложились в publisher/muhaqqiq. Раньше эти данные дампились сырым текстом в description (создавая дубль со structured-таблицей у книг с распарсенным автором). Принцип: наполнять нашу таблицу через parser, а НЕ вставлять текст shamela. Per-book scalars (не reusable), TEXT прямо на lib_books без справочника |

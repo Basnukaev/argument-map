@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Голосование за вопросы Q&amp;A (community-сигнал популярности за
+        вопрос&amp;ответ). 1 user может проголосовать за 1 вопрос ровно 1 раз
+        - upvote (+1) или downvote (-1). 0 не сохраняется отдельным значением
+        - снять голос = DELETE row.
+
+        Зеркалит topic_votes (миграция 61), но на уровне вопросов. См. ADR в
+        docs/decisions.md.
+
+        Permission: questions это open discussion (без visibility model, см.
+        backend/CLAUDE.md «Q&amp;A guards»). Голосовать может любой
+        authenticated user - не нужен read/write access check. Достаточно
+        чтобы вопрос существовал.
+    -->
+    <changeSet id="20260602-62-create-question-votes" author="Abdula Basnukaev">
+        <comment>Таблица question_votes для голосования за вопросы (популярность)</comment>
+        <sql>
+            CREATE TABLE question_votes (
+                id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                question_id  UUID NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+                user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                weight       SMALLINT NOT NULL,
+                voted_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+                CONSTRAINT question_votes_weight_check CHECK (weight IN (-1, 1)),
+                CONSTRAINT question_votes_unique UNIQUE (question_id, user_id)
+            );
+
+            CREATE INDEX idx_question_votes_question ON question_votes(question_id);
+            CREATE INDEX idx_question_votes_user ON question_votes(user_id);
+        </sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_question_votes_user;
+                DROP INDEX IF EXISTS idx_question_votes_question;
+                DROP TABLE IF EXISTS question_votes;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

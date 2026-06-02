@@ -2,6 +2,7 @@ package ru.basnukaev.argumentmap.qa.web.controller;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
@@ -17,8 +18,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
+import ru.basnukaev.argumentmap.domain.VoteStats;
 import ru.basnukaev.argumentmap.qa.domain.Question;
 import ru.basnukaev.argumentmap.qa.domain.QuestionStatus;
+import ru.basnukaev.argumentmap.qa.repository.QuestionVoteRepository;
 import ru.basnukaev.argumentmap.qa.service.QuestionService;
 import ru.basnukaev.argumentmap.qa.web.dto.CreateQuestionRequest;
 import ru.basnukaev.argumentmap.qa.web.dto.QuestionResponse;
@@ -39,9 +42,12 @@ import ru.basnukaev.argumentmap.web.dto.PagedResponse;
 public class QuestionController {
 
     private final QuestionService service;
+    private final QuestionVoteRepository questionVoteRepository;
 
-    public QuestionController(QuestionService service) {
+    public QuestionController(QuestionService service,
+                             QuestionVoteRepository questionVoteRepository) {
         this.service = service;
+        this.questionVoteRepository = questionVoteRepository;
     }
 
     @PostMapping
@@ -51,9 +57,10 @@ public class QuestionController {
         // Vision 49d Phase A.5: REST вход — role-aware overload (STUDENT+)
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         Question created = service.createQuestion(request.title(), request.body(), currentUserId, role);
+        // свежий вопрос не имеет голосов - voteScore=0, userVote=null
         return ResponseEntity
                 .created(URI.create("/api/v1/questions/" + created.id()))
-                .body(toResponse(created));
+                .body(toResponse(created, 0, null));
     }
 
     /**
@@ -71,8 +78,18 @@ public class QuestionController {
         // Vision 49d Section 2.1: sort whitelist (recent/popular/alphabetical)
         List<Question> items = service.listQuestionsPage(status, query, pr.size(), pr.offset(), sort);
         long total = service.countQuestions(status, query);
+        // Bulk-load голосов: 2 SQL на всю страницу, не N+1. questions это open
+        // discussion - GET без обязательного auth, userVote резолвим опционально
+        // (null если anonymous). voteScore = upvotes-downvotes
+        UUID currentUserId = SecurityContextUtils.currentUserIdOrNull();
+        List<UUID> questionIds = items.stream().map(Question::id).toList();
+        Map<UUID, VoteStats> statsByQuestion = questionVoteRepository.getStatsForQuestions(questionIds);
+        Map<UUID, Integer> userVotesByQuestion =
+                questionVoteRepository.getUserVotesForQuestions(questionIds, currentUserId);
         List<QuestionResponse> mapped = items.stream()
-                .map(QuestionController::toResponse)
+                .map(q -> toResponse(q,
+                        statsByQuestion.getOrDefault(q.id(), VoteStats.EMPTY).score(),
+                        userVotesByQuestion.get(q.id())))
                 .toList();
         return PagedResponse.of(mapped, pr.page(), pr.size(), total);
     }
@@ -86,7 +103,13 @@ public class QuestionController {
 
     @GetMapping("/{questionId}")
     public QuestionResponse getOne(@PathVariable UUID questionId) {
-        return toResponse(service.getQuestion(questionId));
+        Question q = service.getQuestion(questionId);
+        // point-load голосов. questions это open discussion - GET без auth,
+        // userVote опционален (null если anonymous либо не голосовал)
+        UUID currentUserId = SecurityContextUtils.currentUserIdOrNull();
+        int score = questionVoteRepository.getStatsForQuestion(questionId).score();
+        Integer userVote = questionVoteRepository.getUserVote(questionId, currentUserId).orElse(null);
+        return toResponse(q, score, userVote);
     }
 
     @PatchMapping("/{questionId}")
@@ -99,7 +122,8 @@ public class QuestionController {
         Question updated = service.updateQuestion(
                 questionId, request.title(), request.body(), request.status(),
                 currentUserId, role);
-        return toResponse(updated);
+        // PATCH-ответ не несёт vote-данных (mutating endpoint) - default 0/null
+        return toResponse(updated, 0, null);
     }
 
     @DeleteMapping("/{questionId}")
@@ -111,7 +135,7 @@ public class QuestionController {
         return ResponseEntity.noContent().build();
     }
 
-    private static QuestionResponse toResponse(Question q) {
+    private static QuestionResponse toResponse(Question q, int voteScore, Integer userVote) {
         return new QuestionResponse(
                 q.id(),
                 q.title(),
@@ -120,7 +144,9 @@ public class QuestionController {
                 q.askedBy(),
                 q.acceptedAnswerId(),
                 q.createdAt(),
-                q.updatedAt()
+                q.updatedAt(),
+                voteScore,
+                userVote
         );
     }
 }

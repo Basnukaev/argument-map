@@ -66,5 +66,6 @@
     <include file="db/changelog/changes/20260601-59-create-sunnah-staging-tables.xml"/>
     <include file="db/changelog/changes/20260602-60-drop-node-votes.xml"/>
     <include file="db/changelog/changes/20260602-61-create-topic-votes.xml"/>
+    <include file="db/changelog/changes/20260602-62-create-question-votes.xml"/>
 
 </databaseChangeLog>

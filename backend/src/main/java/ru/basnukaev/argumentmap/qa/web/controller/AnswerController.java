@@ -134,6 +134,8 @@ public class AnswerController {
     }
 
     private static QuestionResponse toQuestionResponse(Question q) {
+        // accept/revoke-answer это mutating endpoint - vote-данные не несём
+        // (default 0/null). Полные voteScore/userVote отдают GET list/detail
         return new QuestionResponse(
                 q.id(),
                 q.title(),
@@ -142,7 +144,9 @@ public class AnswerController {
                 q.askedBy(),
                 q.acceptedAnswerId(),
                 q.createdAt(),
-                q.updatedAt()
+                q.updatedAt(),
+                0,
+                null
         );
     }
 }
