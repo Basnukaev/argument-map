@@ -738,7 +738,14 @@ function BookCard({
 
   const cardInner = (
     <Card interactive className="flex h-full flex-col overflow-hidden">
-      <Card.Cover color={coverColorFor(book.id)}>
+      {/* Реальная обложка (book.coverUrl, напр. archive.org thumbnail) если
+          задана; иначе сгенерированная letter-обложка. img onError →
+          graceful fallback на letter (см. Card.Cover). Спиннер резолва
+          сборника показываем только в letter-режиме (resolving не для img). */}
+      <Card.Cover
+        color={coverColorFor(book.id)}
+        imageUrl={book.coverUrl || undefined}
+      >
         {resolving ? <Loader2 size={28} className="animate-spin" aria-hidden /> : initialLetter}
       </Card.Cover>
       {/* flex-1 чтобы body тянул карточку до равной высоты; meta

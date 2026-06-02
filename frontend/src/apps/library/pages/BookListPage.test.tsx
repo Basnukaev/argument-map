@@ -47,6 +47,7 @@ interface PagedBookFixture {
     visibility?: 'PRIVATE' | 'SHARED' | 'PUBLIC';
     language?: string;
     createdBy?: string;
+    coverUrl?: string;
   }>;
   page?: number;
   size?: number;
@@ -146,6 +147,45 @@ describe('BookListPage / Library overview', () => {
     expect(
       screen.getByRole('button', { name: /صحيح البخاري — Открыть в обозревателе хадисов/i }),
     ).toBeInTheDocument();
+  });
+
+  it('книга с coverUrl → рендерит обложку <img>; без coverUrl → letter-avatar', async () => {
+    server.use(
+      http.get(`${BASE}/api/v1/library/books`, () =>
+        HttpResponse.json(
+          paged(
+            [
+              {
+                id: 'b1',
+                title: 'With Cover',
+                bookType: 'BOOK',
+                visibility: 'PUBLIC',
+                coverUrl: 'https://archive.org/cover.jpg',
+              },
+              {
+                id: 'b2',
+                title: 'No Cover',
+                bookType: 'BOOK',
+                visibility: 'PUBLIC',
+              },
+            ],
+            { totalElements: 2 },
+          ),
+        ),
+      ),
+    );
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByText('With Cover')).toBeInTheDocument();
+    });
+
+    // карточка с coverUrl: обложка-img (decorative, role=presentation) с этим src
+    const covers = screen.getAllByRole('presentation');
+    expect(covers.some((img) => img.getAttribute('src') === 'https://archive.org/cover.jpg')).toBe(true);
+
+    // карточка без coverUrl показывает letter-avatar (первая буква title)
+    const link = screen.getByRole('link', { name: /No Cover/i });
+    expect(within(link).getByText('N')).toBeInTheDocument();
   });
 
   it('debounced search триггерит refetch с ?q=', async () => {

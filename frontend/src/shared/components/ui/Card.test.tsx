@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Card from './Card';
 
@@ -70,6 +70,38 @@ describe('Card', () => {
       render(<Card.Title arabic>Custom</Card.Title>);
       const heading = screen.getByRole('heading');
       expect(heading.className).toContain('font-arabic');
+    });
+  });
+
+  describe('Card.Cover - обложка', () => {
+    it('без imageUrl → letter-обложка (children), без img', () => {
+      render(<Card.Cover color="#123456">A</Card.Cover>);
+      expect(screen.getByText('A')).toBeInTheDocument();
+      expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    });
+
+    it('с imageUrl → рендерит <img> с этим src (letter скрыта)', () => {
+      render(
+        <Card.Cover color="#123456" imageUrl="https://example.org/cover.jpg">
+          A
+        </Card.Cover>,
+      );
+      const img = screen.getByRole('presentation');
+      expect(img).toHaveAttribute('src', 'https://example.org/cover.jpg');
+      expect(screen.queryByText('A')).not.toBeInTheDocument();
+    });
+
+    it('img onError → graceful fallback на letter-обложку', () => {
+      render(
+        <Card.Cover color="#123456" imageUrl="https://example.org/404.jpg">
+          A
+        </Card.Cover>,
+      );
+      const img = screen.getByRole('presentation');
+      // archive.org thumbnail 404'нул - симулируем ошибку загрузки
+      fireEvent.error(img);
+      expect(screen.queryByRole('presentation')).not.toBeInTheDocument();
+      expect(screen.getByText('A')).toBeInTheDocument();
     });
   });
 

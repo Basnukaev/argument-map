@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { BookOpen } from 'lucide-react';
 import type { components } from '@/shared/api/types';
 import { hasArabicScript, useT, useLocaleStore } from '@/shared/i18n';
@@ -55,6 +56,10 @@ function BookHeader({ book, pagesCount, children }: Props) {
 
   return (
     <div className="mb-4 flex items-start justify-between gap-4">
+      {/* Маленький thumbnail реальной обложки (book.coverUrl, напр.
+          archive.org). При 404/ошибке загрузки graceful-скрывается
+          (onError → не рендерим) - decorative, fallback = просто без него. */}
+      {book.coverUrl && <CoverThumb url={book.coverUrl} />}
       <div className="min-w-0 flex-1">
         <div
           className="mb-1 flex items-center gap-2 text-xs uppercase tracking-wide text-ink-500"
@@ -171,6 +176,21 @@ function BookHeader({ book, pagesCount, children }: Props) {
       </div>
       {children && <div className="shrink-0">{children}</div>}
     </div>
+  );
+}
+
+/** Decorative cover thumbnail в header'е ридера. onError = книга без
+ *  валидной обложки → скрываем (не показываем broken-image иконку). */
+function CoverThumb({ url }: { url: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+  return (
+    <img
+      src={url}
+      alt=""
+      className="h-20 w-14 shrink-0 rounded-sm border border-border object-cover shadow-sh1"
+      onError={() => setFailed(true)}
+    />
   );
 }
 

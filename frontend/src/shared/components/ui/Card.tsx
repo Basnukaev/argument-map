@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode } from 'react';
+import { useState, type HTMLAttributes, type ReactNode } from 'react';
 import { hasArabicScript } from '@/shared/i18n';
 
 /**
@@ -52,19 +52,39 @@ function Card({
 
 function CardCover({
   color,
+  imageUrl,
   children,
 }: {
   color?: string;
+  /**
+   * Реальная обложка книги (напр. archive.org thumbnail). Когда задан и
+   * не упал на загрузке - рендерится `<img>` заполняющий cover-бокс
+   * (object-cover). Иначе fallback на сгенерированную letter-обложку
+   * (color + children). archive.org thumbnails могут 404'ить, поэтому
+   * onError → graceful fallback на letter-обложку.
+   */
+  imageUrl?: string;
   children?: ReactNode;
 }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const showImage = Boolean(imageUrl) && !imgFailed;
   return (
     <div
       className="aspect-[5/3] grid place-items-center relative overflow-hidden rounded-t-md"
-      style={{ background: color || 'var(--c-accent-600)' }}
+      style={showImage ? undefined : { background: color || 'var(--c-accent-600)' }}
     >
-      <div className="font-serif text-3xl font-semibold text-white/95 tracking-tight relative">
-        {children}
-      </div>
+      {showImage ? (
+        <img
+          src={imageUrl}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={() => setImgFailed(true)}
+        />
+      ) : (
+        <div className="font-serif text-3xl font-semibold text-white/95 tracking-tight relative">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
