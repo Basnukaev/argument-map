@@ -88,10 +88,13 @@ memory `project_session_54_preprod` + 3 feedback-memory. Сделано **шир
 
 ### Проблемы / known
 
-- **3 pre-existing fail** `NodeDetailsPanel.test.tsx > секция Опора` (findByText
-  timeout ~1s). **Строго проверено**: падают и с откатанным на 39f06ae
-  NodeCitationsSection → НЕ регрессия этой сессии, environment/timing-флак,
-  существовал до сессии. Разобрать отдельно (MSW/async timing в WSL2 jsdom).
+- ✅ **3 pre-existing fail** `NodeDetailsPanel.test.tsx > секция Опора` —
+  **ПОЧИНЕНЫ** (был не timing, а stale-mock: NodeCitationsSection читает
+  /sources+/authorities как PagedResponse `.items`, а моки отдавали сырые
+  массивы после миграции endpoints на PagedResponse). Fix: helper `paged()`.
+  NodeDetailsPanel 25/25. Остаётся только d3-drag uncaught-шум в
+  `bulkActions.test.tsx` (React Flow teardown в jsdom — не test-failure, тесты
+  файла проходят; pre-existing, отдельная тест-гигиена).
 - **Осиротевший `git stash@{0}`** (WIP on master @ e1802b6, BookListPage+
   dictionary) — избыточен (закоммиченный BookListPage уже на ListControls).
   НЕ дропнут (создан не мной). Абдуле: `git stash show -p stash@{0}`, при
@@ -110,7 +113,7 @@ memory `project_session_54_preprod` + 3 feedback-memory. Сделано **шир
   verify): 21 raw → 17 confirmed, 0 Critical.** Закрыты обе Important (TopicVoteWidget
   props-clobber, usePagedSearch loadingMore залипал) + 12 Minor (Sunnah browse
   ORDER BY, queryCache cap, focus-trap, i18n, orphaned keys, доки, +6 authz-IT).
-  Backlog: 3 pre-existing NodeDetailsPanel timing-падения, Sunnah offset-overflow
+  Backlog: Sunnah offset-overflow
   (repo-wide PageRequest), bulkActions d3-flake.
 
 ### Следующий шаг
@@ -119,7 +122,8 @@ memory `project_session_54_preprod` + 3 feedback-memory. Сделано **шир
 1. **Визуально проверить руками** все редизайны (особенно глобальный масштаб 0.9
    — если мелко, переключить «Стандартный (базовый)» в настройках) + прогнать
    playwright-smoke когда удобно.
-2. Разобрать 3 pre-existing `NodeDetailsPanel секция Опора` падения (timing).
+2. ✅ 3 `NodeDetailsPanel секция Опора` падения починены (stale PagedResponse
+   моки). Остаётся опц.: d3-drag uncaught-шум в bulkActions.test.tsx (teardown).
 3. ✅ Голосование на **вопросах** добавлено (Фаза 3b+, migration 62 question_votes
    + обобщённый shared `VoteWidget`). Осталось опц.: answer_votes (голос за
    отдельный ответ — accept-answer уже сигналит лучший, поэтому низкий приоритет).

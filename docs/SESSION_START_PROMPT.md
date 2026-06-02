@@ -215,9 +215,9 @@ drawer + UI-scale (дефолт compact 0.9, откат на 100%) + reader font
    **0.9 по умолчанию** (если мелко — настройки → «Стандартный (базовый)»);
    AdminSunnahPage preview-flow (/admin/sunnah); чтение хадиса; голоса на темах;
    Q&A detail; тёмная тема обложек библиотеки. Прогнать playwright-smoke когда удобно.
-2. **3 pre-existing fail** `NodeDetailsPanel.test.tsx > секция Опора` (findByText
-   timeout ~1s) — СТРОГО проверено что НЕ регрессия 54 (падают и на 39f06ae);
-   разобрать timing (MSW/async в WSL2 jsdom) отдельно.
+2. ✅ 3 `NodeDetailsPanel секция Опора` падения ПОЧИНЕНЫ (были stale-mock: сырые
+   массивы вместо PagedResponse `.items`). Остаётся опц. d3-drag uncaught-шум в
+   `bulkActions.test.tsx` (React Flow teardown в jsdom — не test-failure).
 3. Голосование на **вопросах** ✅ (migration 62 + обобщённый VoteWidget). Опц.
    осталось answer_votes (низкий приоритет — accept-answer уже сигналит лучший).
 4. Опц.: alminasa.ai import-tool (карточка-заглушка в админке готова).
