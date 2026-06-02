@@ -1680,7 +1680,8 @@ Request body:
 - `description` (optional, ≤5000): короткое описание
 - `metadata` (optional): произвольный JSON для тип-специфики
 
-Response 201, body - полный `BookResponse` (ADR-043 Amendment добавил `visibility`):
+Response 201, body - полный `BookResponse` (ADR-043 Amendment добавил
+`visibility`; ADR-056 / миграция 67 добавили `coverUrl`):
 ```json
 {
   "id": "...",
@@ -1693,10 +1694,16 @@ Response 201, body - полный `BookResponse` (ADR-043 Amendment добави
   "createdBy": "uuid-of-user",
   "createdAt": "ISO-8601",
   "updatedAt": "ISO-8601",
-  "visibility": "PUBLIC"
+  "visibility": "PUBLIC",
+  "coverUrl": null
 }
 ```
 Header `Location: /api/v1/library/books/{id}`.
+
+**coverUrl** (ADR-056, миграция 67): nullable ссылка на обложку
+(archive.org thumbnail / первая страница cover-PDF / upload). Заполняется
+только archive.org-импортом; обычные книги (shamela ETL, REST create,
+user-upload) → `null` → фронт показывает letter-avatar.
 
 **visibility** (ADR-043 Amendment, Этап 22.c):
 - REST POST устанавливает `PUBLIC` по умолчанию (open library)
@@ -1727,7 +1734,8 @@ Query:
 PRIVATE + SHARED где он member. ADMIN видит все.
 
 Response 200 - `PagedResponse<BookSummary>` (без description, metadata,
-updatedAt - они в детальном GET; включает `createdBy` и `visibility`):
+updatedAt - они в детальном GET; включает `createdBy`, `visibility` и
+`coverUrl`):
 ```json
 {
   "items": [
@@ -1739,7 +1747,8 @@ updatedAt - они в детальном GET; включает `createdBy` и `v
       "language": "ar",
       "createdBy": "...",
       "createdAt": "...",
-      "visibility": "PUBLIC"
+      "visibility": "PUBLIC",
+      "coverUrl": null
     }
   ],
   "page": 0, "size": 20, "totalElements": 42, "totalPages": 3,
@@ -1753,8 +1762,8 @@ updatedAt - они в детальном GET; включает `createdBy` и `v
 
 ### GET /api/v1/library/books/{id} - книга с деревом chapters
 
-Response 200 - `BookDetailResponse` (поля как в `BookResponse` +
-поле `chapters`, рекурсивное дерево):
+Response 200 - `BookDetailResponse` (поля как в `BookResponse`, включая
+nullable `coverUrl` ADR-056, + поле `chapters`, рекурсивное дерево):
 ```json
 {
   "id": "...",
@@ -1767,6 +1776,7 @@ Response 200 - `BookDetailResponse` (поля как в `BookResponse` +
   "createdBy": "...",
   "createdAt": "...",
   "updatedAt": "...",
+  "coverUrl": null,
   "chapters": [
     {
       "id": "...",
@@ -2530,7 +2540,9 @@ interface без изменения API.
 
 Колонка **`lib_books.cover_url`** (миграция 67) — прямая ссылка на обложку
 (archive.org thumbnail `/services/img/{id}` / cover-PDF / upload). Nullable;
-рендеринг в book-detail ответах + BookListPage/Reader — итерация.
+отдаётся в `BookResponse` / `BookSummaryResponse` / `BookDetailResponse`
+как `coverUrl` (null → letter-avatar fallback на фронте). Рендеринг на
+BookListPage/Reader — фронт-итерация.
 
 ### GET /api/v1/library/books/{bookId}/pdf/info
 
@@ -2637,19 +2649,20 @@ item не найден → **404** `archive-org-item-not-found`; archive.org
 Распарсить metadata + сгруппировать PDF, **без записи в БД**. `url` —
 полный URL (`archive.org/details/{id}/...`) либо bare identifier.
 
-Response 200 — `ArchiveOrgPreview`:
+Response 200 — `ArchiveOrgPreview` (fmhji: gap-поля распарсены из
+арабского `description` — ADR-056):
 ```json
 {
   "archiveOrgId": "fmhji",
   "title":  { "value": "الفقه المنهجي...", "source": "archive_org" },
-  "author": { "value": null, "source": "missing" },
-  "publisher": { "value": null, "source": "missing" },
+  "author": { "value": "مصطفى الخن ، مصطفى البغا ...", "source": "archive_org" },
+  "publisher": { "value": "دار القلم دمشق", "source": "archive_org" },
   "place": { "value": null, "source": "missing" },
   "muhaqqiq": { "value": null, "source": "missing" },
-  "edition": { "value": null, "source": "missing" },
-  "yearHijri": { "value": null, "source": "missing" },
-  "yearGregorian": { "value": null, "source": "missing" },
-  "volumes": { "value": null, "source": "missing" },
+  "edition": { "value": "13", "source": "archive_org" },
+  "yearHijri": { "value": "1433", "source": "archive_org" },
+  "yearGregorian": { "value": "2012", "source": "archive_org" },
+  "volumes": { "value": "3", "source": "archive_org" },
   "language": { "value": "ar", "source": "archive_org" },
   "rawDescription": "<div>...المؤلف...الناشر...عدد المجلدات...</div>",
   "files": [
@@ -2669,10 +2682,18 @@ Response 200 — `ArchiveOrgPreview`:
 }
 ```
 
-**Провенанс** (`source`): `archive_org` — взято из метаданных (prefilled);
+**Провенанс** (`source`): `archive_org` — взято из источника (prefilled);
 `missing` — нет в источнике (фронт подсвечивает «дообогати»). archive.org
-чисто отдаёт title/creator(→author)/language; издатель/год/тома обычно
-только в арабском `rawDescription` (MVP не парсит — копипаста админом).
+чисто отдаёт title/creator(→author)/language. Издатель/год/тома/издание/
+автор чаще лежат только в арабском HTML `description` — их вытягивает
+`ArchiveOrgDescriptionParser` (метки `المؤلف:`/`تأليف:` → author,
+`الناشر:`/`دار النشر:` → publisher, `مكان النشر:` → place, `سنة النشر:`/
+`عام النشر:` → year(s) (`1433 - 2012` → hijri 1433 + gregorian 2012),
+`عدد المجلدات:` → volumes, `رقم الطبعة:`/`الطبعة:` → edition (arabic ordinal
+best-effort, `الثالثة عشر`=13)). Приоритет: чистое metadata-поле → парсинг
+description (тоже `archive_org`, значение из источника) → `missing`. Метка
+отсутствует/нечитаема → поле остаётся `missing`. `rawDescription`
+отдаётся всегда (admin видит оригинал).
 
 **Группировка** robustна: нет `_text.pdf` → `ocr: null` («только скан»);
 один PDF без `{id}{N}` → один том без обложки; нет `{id}0` → без обложки;
@@ -2721,9 +2742,11 @@ Response 200 — `ArchiveOrgImportResponse`:
 
 - Полное фоновое извлечение текста всех томов (+ Tesseract для скан-only) —
   сейчас синхронно за флагом `extractText`/`testModePages`.
-- Рендеринг `cover_url` в book-detail ответах + volume-dropdown в reader.
-- Парсинг арабского `description` для publisher/year/volumes (gap-поля
-  заполняются админом вручную).
+- Volume-dropdown в reader (`cover_url` уже отдаётся в book-list /
+  book-detail ответах через `coverUrl`).
+- Парсинг `мухаккык` из `description` (нет стабильной метки у archive.org)
+  и чистый split города из строки `الناشر` (place остаётся `missing`,
+  если нет явной метки `مكان النشر:`).
 
 ## File import API (ADR-035, Этап 16)
 

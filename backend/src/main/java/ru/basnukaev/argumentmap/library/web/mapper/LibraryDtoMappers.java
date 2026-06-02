@@ -43,7 +43,8 @@ public final class LibraryDtoMappers {
                 book.authorityId(), book.language(), book.description(),
                 jsonFromString(book.metadata()),
                 book.createdBy(), book.createdAt(), book.updatedAt(),
-                book.visibility()
+                book.visibility(),
+                book.coverUrl()
         );
     }
 
@@ -52,7 +53,8 @@ public final class LibraryDtoMappers {
                 book.id(), book.bookType(), book.title(),
                 book.authorityId(), book.language(),
                 book.createdBy(), book.createdAt(),
-                book.visibility()
+                book.visibility(),
+                book.coverUrl()
         );
     }
 
@@ -87,7 +89,8 @@ public final class LibraryDtoMappers {
                 book.visibility(),
                 book.thesisDegree(),
                 book.thesisSupervisor(),
-                book.thesisInstitution()
+                book.thesisInstitution(),
+                book.coverUrl()
         );
     }
 

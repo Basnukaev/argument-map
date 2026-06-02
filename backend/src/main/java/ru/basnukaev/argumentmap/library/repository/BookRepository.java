@@ -26,7 +26,8 @@ public class BookRepository {
             + "muhaqqiq_id, publisher_id, publication_place_id, "
             + "edition_number, published_year_hijri, published_year_gregorian, "
             + "visibility, "
-            + "thesis_degree, thesis_supervisor, thesis_institution";
+            + "thesis_degree, thesis_supervisor, thesis_institution, "
+            + "cover_url";
 
     private static final RowMapper<Book> ROW_MAPPER = (rs, rn) -> {
         int edition = rs.getInt("edition_number");
@@ -56,7 +57,8 @@ public class BookRepository {
                 rs.getString("visibility"),
                 rs.getString("thesis_degree"),
                 rs.getString("thesis_supervisor"),
-                rs.getString("thesis_institution")
+                rs.getString("thesis_institution"),
+                rs.getString("cover_url")
         );
     };
 
@@ -69,7 +71,7 @@ public class BookRepository {
     public Book save(Book book) {
         jdbcTemplate.update(
                 "INSERT INTO lib_books (" + COLUMNS + ") "
-                        + "VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 book.id(),
                 book.bookType().name(),
                 book.title(),
@@ -89,7 +91,8 @@ public class BookRepository {
                 book.visibility(),
                 book.thesisDegree(),
                 book.thesisSupervisor(),
-                book.thesisInstitution()
+                book.thesisInstitution(),
+                book.coverUrl()
         );
         return book;
     }

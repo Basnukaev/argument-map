@@ -288,6 +288,35 @@ class BookControllerIT {
     }
 
     @Test
+    void getBook_withCoverUrl_returnsIt_otherwiseNull() throws Exception {
+        // ADR-056 (миграция 67): cover_url прокидывается в BookDetailResponse
+        // и BookSummaryResponse. С обложкой → значение, без → null
+        // (фронт показывает letter-avatar).
+        Book withCover = saveBook("С обложкой", BookType.BOOK);
+        bookRepository.updateCoverUrl(withCover.id(),
+                "https://archive.org/services/img/fmhji");
+        Book noCover = saveBook("Без обложки", BookType.BOOK);
+
+        mockMvc.perform(get("/api/v1/library/books/{id}", withCover.id())
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.coverUrl")
+                        .value("https://archive.org/services/img/fmhji"));
+
+        mockMvc.perform(get("/api/v1/library/books/{id}", noCover.id())
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.coverUrl").doesNotExist());
+
+        // list-summary тоже несёт coverUrl (карточка библиотеки)
+        mockMvc.perform(get("/api/v1/library/books").param("q", "С обложкой")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].coverUrl")
+                        .value("https://archive.org/services/img/fmhji"));
+    }
+
+    @Test
     void getBook_nonexistent_returns404() throws Exception {
         mockMvc.perform(get("/api/v1/library/books/{id}", UUID.randomUUID())
                         .header("X-User-Id", userId.toString()))

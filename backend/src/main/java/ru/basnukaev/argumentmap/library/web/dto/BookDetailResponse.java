@@ -40,6 +40,9 @@ public record BookDetailResponse(
         // supervisor=إشراف, institution=جامعة/كلية.
         String thesisDegree,
         String thesisSupervisor,
-        String thesisInstitution
+        String thesisInstitution,
+        // Ссылка на обложку (миграция 67, ADR-056) - nullable. null →
+        // letter-avatar fallback на фронте.
+        String coverUrl
 ) {
 }

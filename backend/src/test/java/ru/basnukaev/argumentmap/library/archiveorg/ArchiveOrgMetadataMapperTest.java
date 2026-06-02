@@ -32,7 +32,8 @@ class ArchiveOrgMetadataMapperTest {
     // client нужен мапперу только ради baseUrl() - сеть не дёргается
     private final ArchiveOrgClient client =
             new ArchiveOrgClient(null, new ArchiveOrgProperties(BASE, 30, 10), objectMapper);
-    private final ArchiveOrgMetadataMapper mapper = new ArchiveOrgMetadataMapper(client);
+    private final ArchiveOrgMetadataMapper mapper =
+            new ArchiveOrgMetadataMapper(client, new ArchiveOrgDescriptionParser());
 
     private ArchiveOrgMetadata load(String fixture) throws Exception {
         try (InputStream is = getClass().getResourceAsStream("/archiveorg/" + fixture)) {
@@ -44,22 +45,108 @@ class ArchiveOrgMetadataMapperTest {
     // ---------------- fmhji: multi-volume + cover + OCR ----------------
 
     @Test
-    void fmhji_provenance_titleFromSource_authorMissing() throws Exception {
+    void fmhji_provenance_titleFromSource_gapFieldsParsedFromDescription() throws Exception {
         ArchiveOrgPreview p = mapper.toPreview("fmhji", load("fmhji.json"));
 
         assertThat(p.archiveOrgId()).isEqualTo("fmhji");
         assertThat(p.title().source()).isEqualTo(ProvenanceSource.archive_org);
         assertThat(p.title().value()).contains("الفقه المنهجي");
-        // creator у fmhji null - автор только в арабском description
-        assertThat(p.author().source()).isEqualTo(ProvenanceSource.missing);
         assertThat(p.language().source()).isEqualTo(ProvenanceSource.archive_org);
         assertThat(p.language().value()).isEqualTo("ar"); // "Arabic" → "ar"
-        // editions/years/place/muhaqqiq/volumes - MVP не парсит description
-        assertThat(p.publisher().source()).isEqualTo(ProvenanceSource.missing);
-        assertThat(p.yearHijri().source()).isEqualTo(ProvenanceSource.missing);
-        assertThat(p.volumes().source()).isEqualTo(ProvenanceSource.missing);
-        // rawDescription отдаётся для копипасты админом
+
+        // creator у fmhji null - автор теперь парсится из description (المؤلف:)
+        assertThat(p.author().source()).isEqualTo(ProvenanceSource.archive_org);
+        assertThat(p.author().value()).contains("مصطفى الخن");
+        // الناشر: دار القلم دمشق - кладём целиком в publisher (place не сплитим)
+        assertThat(p.publisher().source()).isEqualTo(ProvenanceSource.archive_org);
+        assertThat(p.publisher().value()).isEqualTo("دار القلم دمشق");
+        // سنة النشر: 1433 - 2012 → hijri=1433, gregorian=2012
+        assertThat(p.yearHijri().source()).isEqualTo(ProvenanceSource.archive_org);
+        assertThat(p.yearHijri().value()).isEqualTo("1433");
+        assertThat(p.yearGregorian().source()).isEqualTo(ProvenanceSource.archive_org);
+        assertThat(p.yearGregorian().value()).isEqualTo("2012");
+        // عدد المجلدات : 3 → volumes=3
+        assertThat(p.volumes().source()).isEqualTo(ProvenanceSource.archive_org);
+        assertThat(p.volumes().value()).isEqualTo("3");
+        // رقم الطبعة : الطبعة الثالثة عشر → 13 (best-effort ordinal)
+        assertThat(p.edition().source()).isEqualTo(ProvenanceSource.archive_org);
+        assertThat(p.edition().value()).isEqualTo("13");
+        // place явной метки مكان النشر нет → остаётся missing
+        assertThat(p.place().source()).isEqualTo(ProvenanceSource.missing);
+        // мухаккык в archive.org description отсутствует → missing
+        assertThat(p.muhaqqiq().source()).isEqualTo(ProvenanceSource.missing);
+
+        // rawDescription отдаётся для копипасты админом (оригинал всегда)
         assertThat(p.rawDescription()).contains("الناشر").contains("عدد المجلدات");
+    }
+
+    // ---------------- description parsing edge cases ----------------
+
+    @Test
+    void noParseableDescription_allGapFieldsMissing() {
+        ArchiveOrgMetadata raw = new ArchiveOrgMetadata(
+                java.util.Map.of(
+                        "title", "كتاب بلا وصف",
+                        "language", "Arabic",
+                        // description без меток المؤلف/الناشر/... - ничего не парсится
+                        "description", "<div>مجرد نص حر بدون أي حقول معرّفة</div>"),
+                java.util.List.of(new ArchiveOrgMetadata.FileEntry(
+                        "book.pdf", "Text PDF", "original", "1000")));
+
+        ArchiveOrgPreview p = mapper.toPreview("nodesc", raw);
+
+        assertThat(p.title().value()).isEqualTo("كتاب بلا وصف");
+        assertThat(p.author().source()).isEqualTo(ProvenanceSource.missing);
+        assertThat(p.publisher().source()).isEqualTo(ProvenanceSource.missing);
+        assertThat(p.place().source()).isEqualTo(ProvenanceSource.missing);
+        assertThat(p.edition().source()).isEqualTo(ProvenanceSource.missing);
+        assertThat(p.yearHijri().source()).isEqualTo(ProvenanceSource.missing);
+        assertThat(p.yearGregorian().source()).isEqualTo(ProvenanceSource.missing);
+        assertThat(p.volumes().source()).isEqualTo(ProvenanceSource.missing);
+        // raw всё равно отдаётся
+        assertThat(p.rawDescription()).contains("مجرد نص حر");
+    }
+
+    @Test
+    void partialLabels_onlyPresentFieldsParsed() {
+        // только الناشر + عدد المجلدات; остальные метки отсутствуют
+        ArchiveOrgMetadata raw = new ArchiveOrgMetadata(
+                java.util.Map.of(
+                        "title", "كتاب",
+                        "language", "ara",
+                        "description", "الناشر: دار الفكر<br />عدد المجلدات: 5"),
+                java.util.List.of(new ArchiveOrgMetadata.FileEntry(
+                        "book.pdf", "Text PDF", "original", "1000")));
+
+        ArchiveOrgPreview p = mapper.toPreview("partial", raw);
+
+        assertThat(p.publisher().source()).isEqualTo(ProvenanceSource.archive_org);
+        assertThat(p.publisher().value()).isEqualTo("دار الفكر");
+        assertThat(p.volumes().source()).isEqualTo(ProvenanceSource.archive_org);
+        assertThat(p.volumes().value()).isEqualTo("5");
+        // отсутствующие метки → missing
+        assertThat(p.author().source()).isEqualTo(ProvenanceSource.missing);
+        assertThat(p.yearHijri().source()).isEqualTo(ProvenanceSource.missing);
+        assertThat(p.yearGregorian().source()).isEqualTo(ProvenanceSource.missing);
+        assertThat(p.edition().source()).isEqualTo(ProvenanceSource.missing);
+    }
+
+    @Test
+    void cleanMetadataField_preferredOverDescription() {
+        // у item есть чистый publisher И description с الناشر - берём чистый
+        ArchiveOrgMetadata raw = new ArchiveOrgMetadata(
+                java.util.Map.of(
+                        "title", "كتاب",
+                        "creator", "مؤلف نظيف",
+                        "publisher", "ناشر نظيف",
+                        "description", "المؤلف: مؤلف من الوصف<br />الناشر: ناشر من الوصف"),
+                java.util.List.of(new ArchiveOrgMetadata.FileEntry(
+                        "book.pdf", "Text PDF", "original", "1000")));
+
+        ArchiveOrgPreview p = mapper.toPreview("clean", raw);
+
+        assertThat(p.author().value()).isEqualTo("مؤلف نظيف");
+        assertThat(p.publisher().value()).isEqualTo("ناشر نظيف");
     }
 
     @Test

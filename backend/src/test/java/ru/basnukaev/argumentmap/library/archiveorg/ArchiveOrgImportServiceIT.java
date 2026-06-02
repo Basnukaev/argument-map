@@ -140,10 +140,12 @@ class ArchiveOrgImportServiceIT {
         // metadata: archive_org_id + object-form pdf_links (variant, volumeNo).
         // jsonb переформатирует пробелы, поэтому парсим, а не string-match.
         assertMetadata(book.metadata());
-        // cover_url проставлен (thumbnail по умолчанию)
+        // cover_url проставлен (thumbnail по умолчанию) - и в БД, и через
+        // RowMapper в Book.coverUrl() (миграция 67 wiring end-to-end)
         String coverUrl = jdbcTemplate.queryForObject(
                 "SELECT cover_url FROM lib_books WHERE id = ?", String.class, resp.bookId());
         assertThat(coverUrl).endsWith("/services/img/" + IDENTIFIER);
+        assertThat(book.coverUrl()).isEqualTo(coverUrl);
         // pages не извлечены
         assertThat(pageCount(resp.bookId())).isZero();
     }

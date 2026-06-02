@@ -33,7 +33,12 @@ public record Book(
         // = جامعة/كلية. Academic year маппится в publishedYearHijri.
         String thesisDegree,
         String thesisSupervisor,
-        String thesisInstitution
+        String thesisInstitution,
+        // Ссылка на обложку (миграция 67, ADR-056) - archive.org thumbnail /
+        // первая страница cover-PDF / загруженная картинка. Nullable:
+        // shamela ETL и старые user-uploads обложки не имеют (фронт
+        // показывает letter-avatar). Заполняется archive.org-импортом.
+        String coverUrl
 ) {
     /**
      * Backward-compat конструктор без thesis-полей (17 аргументов).
@@ -51,6 +56,27 @@ public record Book(
         this(id, bookType, title, authorityId, language, description, metadata,
                 createdBy, createdAt, updatedAt, muhaqqiqId, publisherId,
                 publicationPlaceId, editionNumber, publishedYearHijri,
-                publishedYearGregorian, visibility, null, null, null);
+                publishedYearGregorian, visibility, null, null, null, null);
+    }
+
+    /**
+     * Backward-compat конструктор без coverUrl (20 аргументов) - shamela
+     * mapper и прочие callers создавшие книгу до миграции 67 не передают
+     * обложку (она ставится позже отдельным {@code updateCoverUrl} только
+     * archive.org-импортом). Делегируем с {@code coverUrl=null}.
+     */
+    public Book(
+            UUID id, BookType bookType, String title, UUID authorityId,
+            String language, String description, String metadata, UUID createdBy,
+            Instant createdAt, Instant updatedAt, UUID muhaqqiqId, UUID publisherId,
+            UUID publicationPlaceId, Integer editionNumber, Integer publishedYearHijri,
+            Integer publishedYearGregorian, String visibility,
+            String thesisDegree, String thesisSupervisor, String thesisInstitution
+    ) {
+        this(id, bookType, title, authorityId, language, description, metadata,
+                createdBy, createdAt, updatedAt, muhaqqiqId, publisherId,
+                publicationPlaceId, editionNumber, publishedYearHijri,
+                publishedYearGregorian, visibility,
+                thesisDegree, thesisSupervisor, thesisInstitution, null);
     }
 }

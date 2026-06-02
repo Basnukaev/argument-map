@@ -13,6 +13,9 @@ public record BookSummaryResponse(
         String language,
         UUID createdBy,
         Instant createdAt,
-        String visibility
+        String visibility,
+        // Ссылка на обложку (миграция 67, ADR-056) - nullable. Карточка
+        // книги в списке рендерит её; null → letter-avatar fallback.
+        String coverUrl
 ) {
 }

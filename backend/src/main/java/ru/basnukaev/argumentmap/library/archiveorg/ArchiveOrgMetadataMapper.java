@@ -9,6 +9,7 @@ import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
+import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgDescriptionParser.ParsedDescription;
 import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgMetadata.FileEntry;
 import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgPreview.CoverOption;
 import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgPreview.PdfFileRef;
@@ -21,10 +22,11 @@ import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgPreview.VolumeGroup
  *
  * <h2>Провенанс полей (gap-aware enrichment)</h2>
  * archive.org чисто отдаёт title / creator (→author) / language. Издатель,
- * год, число томов, мухаккык, издание чаще лежат только в арабском HTML
- * {@code description} - для MVP их НЕ парсим (over-parsing хрупок), а
- * помечаем {@code missing} и отдаём {@code rawDescription} для копипасты
- * админом.
+ * год, число томов, издание чаще лежат только в арабском HTML
+ * {@code description} - их вытягивает {@link ArchiveOrgDescriptionParser}
+ * (ADR-056). Приоритет: чистое metadata-поле → парсинг description
+ * ({@code archive_org}, т.к. значение всё равно из источника) → {@code
+ * missing}. {@code rawDescription} отдаётся всегда (admin видит оригинал).
  *
  * <h2>Группировка PDF в тома</h2>
  * PDF-форматы archive.org: {@code Image Container PDF}/{@code Text PDF}
@@ -50,9 +52,12 @@ public class ArchiveOrgMetadataMapper {
     private static final String PDF_EXT = ".pdf";
 
     private final ArchiveOrgClient client;
+    private final ArchiveOrgDescriptionParser descriptionParser;
 
-    public ArchiveOrgMetadataMapper(ArchiveOrgClient client) {
+    public ArchiveOrgMetadataMapper(ArchiveOrgClient client,
+                                    ArchiveOrgDescriptionParser descriptionParser) {
         this.client = client;
+        this.descriptionParser = descriptionParser;
     }
 
     public ArchiveOrgPreview toPreview(String identifier, ArchiveOrgMetadata raw) {
@@ -64,26 +69,43 @@ public class ArchiveOrgMetadataMapper {
         boolean hasCoverPdf = groups.stream()
                 .anyMatch(g -> VolumeGroup.ROLE_COVER.equals(g.role()));
 
+        // Парсим арабский description: издатель/год/тома/издание/автор/место
+        // чаще лежат там, не в чистых полях. Приоритет - чистое metadata-поле,
+        // затем parsed (всё равно archive_org), затем missing.
+        String description = scalar(m, "description");
+        ParsedDescription parsed = descriptionParser.parse(description);
+
         return new ArchiveOrgPreview(
                 identifier,
                 ProvenanceField.of(scalar(m, "title")),
-                ProvenanceField.of(scalar(m, "creator")),
-                // publisher/place/muhaqqiq/edition/years/volumes - чисто
-                // в metadata редко присутствуют (обычно только в description).
-                // MVP: пробуем чистое поле, иначе missing. НЕ парсим description.
-                ProvenanceField.of(scalar(m, "publisher")),
+                ProvenanceField.of(firstNonBlank(scalar(m, "creator"), parsed.author())),
+                ProvenanceField.of(firstNonBlank(scalar(m, "publisher"), parsed.publisher())),
+                ProvenanceField.of(parsed.place()),
+                // мухаккык в archive.org description обычно отсутствует
                 ProvenanceField.missing(),
-                ProvenanceField.missing(),
-                ProvenanceField.missing(),
-                ProvenanceField.of(hijriFrom(m)),
-                ProvenanceField.of(gregorianFrom(m)),
-                ProvenanceField.of(scalar(m, "volumes")),
+                ProvenanceField.of(toStr(parsed.editionNumber())),
+                ProvenanceField.of(firstNonBlank(hijriFrom(m), toStr(parsed.yearHijri()))),
+                ProvenanceField.of(firstNonBlank(gregorianFrom(m), toStr(parsed.yearGregorian()))),
+                ProvenanceField.of(firstNonBlank(scalar(m, "volumes"), toStr(parsed.volumes()))),
                 ProvenanceField.of(normalizeLanguage(scalar(m, "language"))),
-                scalar(m, "description"),
+                description,
                 groups,
                 buildCoverOptions(identifier, base, hasCoverPdf),
                 hasPdf
         );
+    }
+
+    private static String toStr(Integer value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String v : values) {
+            if (v != null && !v.isBlank()) {
+                return v;
+            }
+        }
+        return null;
     }
 
     // ---------------- PDF grouping ----------------
