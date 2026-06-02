@@ -28,13 +28,19 @@
           берёт created_by из @CurrentUser админа). Сеем фиксированного
           системного пользователя как владельца книг-представлений сборников.
           enabled=FALSE + password_hash=NULL — логин невозможен (служебная
-          запись, не реальный аккаунт). Идемпотентный insert (ON CONFLICT).
+          запись, не реальный аккаунт). Идемпотентный insert (WHERE NOT EXISTS
+          по натуральным ключам username/email - устойчив к re-run и к
+          pre-existing строке с другим id).
     -->
     <changeSet id="20260602-65-hd-collections-book-bridge" author="Abdula Basnukaev">
         <comment>Мост hd_collections.book_id → lib_books + системный пользователь для книг-представлений сборников</comment>
         <sql><![CDATA[
+            -- WHERE NOT EXISTS на натуральных ключах (username/email) делает
+            -- insert идемпотентным даже если строка с тем же username/email,
+            -- но другим id уже существует - ON CONFLICT (id) этот случай не
+            -- покрывал бы (UNIQUE(username)/UNIQUE(email) дали бы ошибку).
             INSERT INTO users (id, username, email, password_hash, role, enabled, created_at, updated_at)
-            VALUES (
+            SELECT
                 '00000000-0000-0000-0000-000000000002',
                 'system',
                 'system@argumentmap.local',
@@ -43,8 +49,10 @@
                 FALSE,
                 now(),
                 now()
-            )
-            ON CONFLICT (id) DO NOTHING;
+            WHERE NOT EXISTS (
+                SELECT 1 FROM users
+                WHERE username = 'system' OR email = 'system@argumentmap.local'
+            );
 
             ALTER TABLE hd_collections
                 ADD COLUMN book_id uuid NULL REFERENCES lib_books(id) ON DELETE SET NULL;
@@ -53,6 +61,11 @@
         <rollback><![CDATA[
             DROP INDEX idx_hd_collections_book;
             ALTER TABLE hd_collections DROP COLUMN book_id;
+            -- Книги-представления сборников (lib_books.created_by = системный
+            -- пользователь) удаляем ПЕРЕД самим пользователем: lib_books.created_by
+            -- NOT NULL REFERENCES users(id) без ON DELETE (RESTRICT), иначе
+            -- DELETE пользователя падает на FK как только мост был использован.
+            DELETE FROM lib_books WHERE created_by = '00000000-0000-0000-0000-000000000002';
             DELETE FROM users WHERE id = '00000000-0000-0000-0000-000000000002';
         ]]></rollback>
     </changeSet>

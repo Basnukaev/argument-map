@@ -21,7 +21,7 @@ import ru.basnukaev.argumentmap.qa.repository.QuestionVoteRepository;
  * <p>Контракт permission: questions это open discussion (без visibility model,
  * см. backend/CLAUDE.md «Q&amp;A guards»). Голосовать может любой
  * authenticated user - не нужен read/write access check как у тем. Достаточно
- * чтобы вопрос существовал (иначе 404) и weight был валидным (-1/+1, иначе 422).
+ * чтобы вопрос существовал (иначе 404) и weight был валидным (-1/+1, иначе 400).
  *
  * <p>Зеркалит {@link ru.basnukaev.argumentmap.service.TopicVoteService} но без
  * permission-проверок.
@@ -43,7 +43,7 @@ public class QuestionVoteService {
      * -1 или +1. Идемпотентен: повторный vote с тем же weight - no-op (upsert).
      *
      * @throws QuestionNotFoundException если вопроса нет (404)
-     * @throws InvalidVoteException      если weight не из {-1, +1} (422)
+     * @throws InvalidVoteException      если weight не из {-1, +1} (400)
      */
     @Transactional
     public QuestionVote vote(UUID questionId, UUID userId, int weight) {

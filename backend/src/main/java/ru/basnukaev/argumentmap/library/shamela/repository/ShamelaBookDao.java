@@ -262,9 +262,13 @@ public class ShamelaBookDao {
      * paged.
      *
      * <p>Сортировка детерминированная для стабильной пагинации: точное
-     * id-совпадение → точное name-совпадение → по {@code LENGTH(name)} →
-     * по {@code b.id}. id - tiebreaker (уникален), поэтому порядок
-     * стабилен между страницами.
+     * id-совпадение (CASE tier 0) → name-substring-совпадение (tier 1,
+     * {@code b.name ILIKE %q%}) → по {@code LENGTH(name)} (короткие имена =
+     * более релевантные) → по {@code b.id}. Точного name-tier нет: ILIKE
+     * привязан к substring {@code %q%}, не к {@code q} целиком, поэтому
+     * ELSE-ветка (tier 2) недостижима когда q задан - WHERE уже отфильтровал
+     * строки до тех что матчат name-substring ИЛИ id-exact. id -
+     * tiebreaker (уникален), поэтому порядок стабилен между страницами.
      *
      * <p>Tombstoned записи ({@code deleted_at IS NOT NULL}) исключаются -
      * тот же фильтр что в {@link #countFiltered}.
