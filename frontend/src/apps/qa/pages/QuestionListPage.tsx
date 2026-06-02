@@ -15,6 +15,7 @@ import SearchInput from '@/shared/components/ui/SearchInput';
 import FilterChips from '@/shared/components/ui/FilterChips';
 import SortSelect from '@/shared/components/ui/SortSelect';
 import LoadMoreButton from '@/shared/components/ui/LoadMoreButton';
+import QuestionStatusBadge from '@/apps/qa/components/QuestionStatusBadge';
 import { usePagedSearch } from '@/shared/hooks/usePagedSearch';
 import { useT, useFormatDate, hasArabicScript, type DictKey } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
@@ -24,18 +25,6 @@ type Status = NonNullable<Question['status']>;
 type SortKey = 'recent' | 'popular' | 'alphabetical';
 
 const PAGE_SIZE = 20;
-
-const STATUS_BADGE: Record<Status, string> = {
-  OPEN: 'bg-ok-100 text-ok-700',
-  ANSWERED: 'bg-accent-100 text-accent-700',
-  CLOSED: 'bg-ink-100 text-ink-600',
-};
-
-const STATUS_LABEL: Record<Status, DictKey> = {
-  OPEN: 'qa.status.OPEN',
-  ANSWERED: 'qa.status.ANSWERED',
-  CLOSED: 'qa.status.CLOSED',
-};
 
 const FILTER_LABEL: Record<'ALL' | Status, DictKey> = {
   ALL: 'qa.list.filter_all',
@@ -183,7 +172,7 @@ function QuestionListPage() {
 
         {state.kind === 'success' && state.data.items.length > 0 && (
           <>
-          <ul className="flex flex-col gap-2">
+          <ul className="flex flex-col gap-3">
             {state.data.items
               .filter((q): q is Question & { id: string } => Boolean(q.id))
               .map((qn) => {
@@ -193,54 +182,50 @@ function QuestionListPage() {
                   <li key={qn.id}>
                     <Link
                       to={`/qa/${qn.id}`}
-                      className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 rounded-md"
+                      className="block rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
                     >
-                      <Card interactive className="p-4">
-                        <div className="flex items-start gap-3">
-                          <span
-                            className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider ${STATUS_BADGE[status]}`}
+                      <Card interactive className="flex h-full flex-col p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <p
+                            className={`min-w-0 flex-1 text-[15px] font-semibold leading-snug text-ink-900 ${isArabic ? 'font-arabic' : 'font-serif'}`}
+                            dir="auto"
                           >
-                            {t(STATUS_LABEL[status])}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <p
-                              className={`text-sm font-semibold text-ink-900 ${isArabic ? 'font-arabic' : ''}`}
-                              dir="auto"
-                            >
-                              {qn.title}
-                            </p>
-                            {qn.body && (
-                              <p
-                                className="mt-1 line-clamp-2 text-xs text-ink-500"
-                                dir="auto"
-                              >
-                                {qn.body}
-                              </p>
-                            )}
-                            {/* Meta line: дата + признаки. updatedAt вместо
-                                createdAt - last activity более полезный сигнал
-                                для скана списка обсуждений. acceptedAnswerId
-                                marker даёт быстрый visual indicator закрытых
-                                по существу обсуждений */}
-                            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-400">
-                              <bdi dir="ltr">
-                                {qn.updatedAt
-                                  ? `${t('qa.list.card.updated_prefix')} ${formatDate(qn.updatedAt, 'short')}`
-                                  : qn.createdAt
-                                    ? formatDate(qn.createdAt, 'short')
-                                    : ''}
-                              </bdi>
-                              {qn.acceptedAnswerId && (
-                                <>
-                                  <span aria-hidden>·</span>
-                                  <span className="inline-flex items-center gap-1 text-ok-700">
-                                    <CheckCircle2 size={11} aria-hidden />
-                                    {t('qa.list.card.has_accepted')}
-                                  </span>
-                                </>
-                              )}
-                            </div>
-                          </div>
+                            {qn.title}
+                          </p>
+                          <QuestionStatusBadge status={status} size="sm" />
+                        </div>
+
+                        {qn.body && (
+                          <p
+                            className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-ink-500"
+                            dir="auto"
+                          >
+                            {qn.body}
+                          </p>
+                        )}
+
+                        {/* Meta line: дата активности + accepted-индикатор.
+                            updatedAt = last activity (полезнее createdAt при
+                            скане списка обсуждений). acceptedAnswerId marker -
+                            быстрый сигнал «есть принятый ответ». mt-auto
+                            прижимает meta к низу для равной высоты карточек */}
+                        <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-ink-400">
+                          <bdi dir="ltr">
+                            {qn.updatedAt
+                              ? `${t('qa.list.card.updated_prefix')} ${formatDate(qn.updatedAt, 'short')}`
+                              : qn.createdAt
+                                ? formatDate(qn.createdAt, 'short')
+                                : ''}
+                          </bdi>
+                          {qn.acceptedAnswerId && (
+                            <>
+                              <span aria-hidden>·</span>
+                              <span className="inline-flex items-center gap-1 font-medium text-ok-700">
+                                <CheckCircle2 size={12} aria-hidden />
+                                {t('qa.list.card.has_accepted')}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </Card>
                     </Link>

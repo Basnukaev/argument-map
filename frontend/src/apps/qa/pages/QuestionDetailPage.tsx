@@ -1,12 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useViewTracking } from '@/shared/hooks/useViewTracking';
-import { ArrowLeft, Trash2, AlertCircle, Loader2 } from 'lucide-react';
-import Button from '@/shared/components/ui/Button';
+import { ArrowLeft, Trash2, AlertCircle, Loader2, CalendarClock, History } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
+import OverflowMenu from '@/shared/components/ui/OverflowMenu';
+import type { ContextMenuItem } from '@/shared/components/ui/ContextMenu';
+import QuestionStatusBadge from '@/apps/qa/components/QuestionStatusBadge';
 import QuestionCitationsSection from '@/apps/qa/components/QuestionCitationsSection';
 import AnswersSection from '@/apps/qa/components/AnswersSection';
+import {
+  QUESTION_STATUS_ORDER,
+  QUESTION_STATUS_TOKENS,
+  type QuestionStatus,
+} from '@/apps/qa/utils/statusTokens';
 import {
   apiDeleteRaw,
   apiGetRaw,
@@ -15,24 +22,13 @@ import {
 } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { askConfirm } from '@/shared/stores/confirmStore';
-import { useT, useFormatDate, hasArabicScript, type DictKey } from '@/shared/i18n';
+import { useT, useFormatDate, hasArabicScript } from '@/shared/i18n';
 import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
 
 type Question = components['schemas']['QuestionResponse'];
-type Status = NonNullable<Question['status']>;
 
-const STATUS_BADGE: Record<Status, string> = {
-  OPEN: 'bg-ok-100 text-ok-700',
-  ANSWERED: 'bg-accent-100 text-accent-700',
-  CLOSED: 'bg-ink-100 text-ink-600',
-};
-
-const STATUS_LABEL: Record<Status, DictKey> = {
-  OPEN: 'qa.status.OPEN',
-  ANSWERED: 'qa.status.ANSWERED',
-  CLOSED: 'qa.status.CLOSED',
-};
+const DEV_USER_ID = import.meta.env.VITE_DEV_USER_ID ?? '';
 
 function QuestionDetailPage() {
   const t = useT();
@@ -75,7 +71,7 @@ function QuestionDetailPage() {
     }
   };
 
-  const handleStatusChange = async (status: Status) => {
+  const handleStatusChange = async (status: QuestionStatus) => {
     if (!questionId) return;
     setUpdating(true);
     try {
@@ -109,11 +105,12 @@ function QuestionDetailPage() {
   return (
     <main className="min-h-screen bg-bg">
       <Header />
-      <div className="mx-auto max-w-3xl px-6 py-8">
-        <div className="mb-6">
+      {/* Читаемая центрированная колонка - длинный текст не на весь экран */}
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
+        <div className="mb-5">
           <Link
             to="/qa"
-            className="inline-flex items-center gap-1 text-xs text-ink-500 hover:text-ink-700"
+            className="inline-flex items-center gap-1 text-xs text-ink-500 transition-colors hover:text-ink-700"
           >
             <ArrowLeft size={14} aria-hidden />
             {t('qa.detail.back')}
@@ -141,13 +138,15 @@ function QuestionDetailPage() {
           </Card>
         )}
 
-        {state.kind === 'success' && <Detail
+        {state.kind === 'success' && (
+          <Detail
             question={state.data}
             updating={updating}
             onStatusChange={handleStatusChange}
             onDelete={handleDelete}
             onRefetchQuestion={refetchQuestion}
-          />}
+          />
+        )}
       </div>
     </main>
   );
@@ -156,7 +155,7 @@ function QuestionDetailPage() {
 interface DetailProps {
   question: Question;
   updating: boolean;
-  onStatusChange: (s: Status) => void;
+  onStatusChange: (s: QuestionStatus) => void;
   onDelete: () => void;
   onRefetchQuestion: () => void;
 }
@@ -168,64 +167,93 @@ function Detail({ question, updating, onStatusChange, onDelete, onRefetchQuestio
   const isTitleArabic = question.title ? hasArabicScript(question.title) : false;
   const isBodyArabic = question.body ? hasArabicScript(question.body) : false;
 
+  // Владелец вопроса (asker) видит overflow-меню: смена статуса + удаление.
+  // Сравнение по VITE_DEV_USER_ID - до Spring Security (как в AnswersSection).
+  const isAsker = Boolean(DEV_USER_ID && question.askedBy && DEV_USER_ID === question.askedBy);
+
+  const hasActivity =
+    question.updatedAt &&
+    question.createdAt &&
+    question.updatedAt !== question.createdAt;
+
+  // Пункты overflow-меню: переключение статуса (кроме текущего) + удаление.
+  const ownerMenuItems: ContextMenuItem[] = isAsker
+    ? [
+        ...QUESTION_STATUS_ORDER.filter((s) => s !== status).map((s) => ({
+          id: `status-${s}`,
+          label: t('qa.detail.set_status_to').replace(
+            '{status}',
+            t(QUESTION_STATUS_TOKENS[s].labelKey),
+          ),
+          icon: QUESTION_STATUS_TOKENS[s].Icon,
+          disabled: updating,
+          onClick: () => onStatusChange(s),
+        })),
+        { id: 'sep', separator: true, label: '' },
+        {
+          id: 'delete',
+          label: t('qa.detail.delete'),
+          icon: Trash2,
+          danger: true,
+          onClick: onDelete,
+        },
+      ]
+    : [];
+
   return (
     <article>
-      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
-        {t('qa.detail.eyebrow')}
-      </div>
-      <div className="mb-2 flex items-center gap-2">
-        <span
-          className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider ${STATUS_BADGE[status]}`}
-        >
-          {t(STATUS_LABEL[status])}
-        </span>
-        <span className="text-xs text-ink-400">
-          <bdi dir="ltr">
-            {question.createdAt ? formatDate(question.createdAt, 'short') : ''}
-          </bdi>
-        </span>
-      </div>
+      {/* Шапка вопроса: eyebrow + статус-бейдж + overflow-меню владельца */}
+      <header className="mb-5">
+        <div className="mb-2 flex items-start justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
+              {t('qa.detail.eyebrow')}
+            </span>
+            <QuestionStatusBadge status={status} size="md" />
+          </div>
+          {isAsker && (
+            <OverflowMenu items={ownerMenuItems} label={t('qa.detail.actions')} size="sm" />
+          )}
+        </div>
 
-      {/* font-serif для latin, font-arabic для arabic - не миксовать
-          editorial latin serif с арабской вязью (плохо смотрится) */}
-      <h1
-        className={`mb-3 text-[28px] font-semibold leading-tight tracking-tight text-ink-900 ${isTitleArabic ? 'font-arabic' : 'font-serif'}`}
-        dir="auto"
-      >
-        {question.title}
-      </h1>
+        {/* font-serif для latin, font-arabic для arabic - не миксовать
+            editorial latin serif с арабской вязью (плохо смотрится) */}
+        <h1
+          className={`text-[26px] font-semibold leading-tight tracking-tight text-ink-900 sm:text-[30px] ${isTitleArabic ? 'font-arabic' : 'font-serif'}`}
+          dir="auto"
+        >
+          {question.title}
+        </h1>
+
+        {/* Meta-строка: дата постановки + последняя активность */}
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500">
+          {question.createdAt && (
+            <span className="inline-flex items-center gap-1">
+              <CalendarClock size={13} aria-hidden className="text-ink-400" />
+              {t('qa.detail.asked_prefix')}{' '}
+              <bdi dir="ltr">{formatDate(question.createdAt, 'short')}</bdi>
+            </span>
+          )}
+          {hasActivity && (
+            <span className="inline-flex items-center gap-1">
+              <History size={13} aria-hidden className="text-ink-400" />
+              {t('qa.detail.updated_prefix')}{' '}
+              <bdi dir="ltr">{formatDate(question.updatedAt, 'short')}</bdi>
+            </span>
+          )}
+        </div>
+      </header>
 
       {question.body && (
-        <Card className="mb-6 p-4">
+        <Card className="mb-7 p-5">
           <p
-            className={`whitespace-pre-wrap text-sm leading-relaxed text-ink-800 ${isBodyArabic ? 'font-arabic' : ''}`}
+            className={`whitespace-pre-wrap text-[15px] leading-relaxed text-ink-800 ${isBodyArabic ? 'font-arabic' : ''}`}
             dir="auto"
           >
             {question.body}
           </p>
         </Card>
       )}
-
-      {/* status switcher → mb-8 для отделения от section'ов ниже
-          (design-system: major section gap 32px) */}
-      <div className="mb-8 flex flex-wrap items-center gap-2">
-        <span className="text-xs text-ink-500">{t('qa.detail.change_status')}:</span>
-        {(['OPEN', 'ANSWERED', 'CLOSED'] as const).map((s) => (
-          <button
-            key={s}
-            type="button"
-            disabled={updating || status === s}
-            onClick={() => onStatusChange(s)}
-            className={`inline-flex h-7 items-center rounded-sm px-3 text-xs font-semibold uppercase tracking-wider transition-colors disabled:opacity-50 ${
-              status === s
-                ? STATUS_BADGE[s]
-                : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900'
-            }`}
-          >
-            {t(STATUS_LABEL[s])}
-          </button>
-        ))}
-      </div>
 
       {question.id && (
         <QuestionCitationsSection
@@ -242,19 +270,6 @@ function Detail({ question, updating, onStatusChange, onDelete, onRefetchQuestio
           onAcceptanceChange={onRefetchQuestion}
         />
       )}
-
-      {/* destructive action отделён mt-10 + border-top - визуальный
-          «забор» против случайных кликов рядом с answer-form'ом */}
-      <div className="mt-10 flex justify-end border-t border-ink-100 pt-4">
-        <Button
-          variant="ghost"
-          icon={Trash2}
-          onClick={onDelete}
-          className="text-err-700 hover:bg-err-100"
-        >
-          {t('qa.detail.delete')}
-        </Button>
-      </div>
     </article>
   );
 }

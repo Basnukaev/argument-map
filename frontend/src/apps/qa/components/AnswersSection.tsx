@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronUp,
   Trash2,
+  User,
 } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
@@ -150,17 +151,27 @@ function AnswersSection({ questionId, askedBy, acceptedAnswerId, onAcceptanceCha
     }
   }
 
+  // Принятый ответ закрепляем сверху - distinct ribbon + видимость без скролла.
+  const sortedAnswers =
+    state.kind === 'success'
+      ? [...state.answers].sort((a, b) => {
+          const aAcc = a.accepted === true ? 1 : 0;
+          const bAcc = b.accepted === true ? 1 : 0;
+          return bAcc - aAcc;
+        })
+      : [];
+
   return (
-    <section className="mt-6">
-      <div className="mb-3 flex items-center">
+    <section className="mt-8 border-t border-border pt-7">
+      <div className="mb-4 flex items-baseline gap-2">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-500">
           {t('qa.answers.section_title')}
-          {state.kind === 'success' && state.answers.length > 0 && (
-            <span className="ms-2 font-mono text-xs text-ink-400">
-              <bdi dir="ltr">{state.answers.length}</bdi>
-            </span>
-          )}
         </h2>
+        {state.kind === 'success' && state.answers.length > 0 && (
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ink-100 px-1.5 text-xs font-semibold text-ink-600">
+            <bdi dir="ltr">{state.answers.length}</bdi>
+          </span>
+        )}
       </div>
 
       {state.kind === 'loading' && (
@@ -184,8 +195,8 @@ function AnswersSection({ questionId, askedBy, acceptedAnswerId, onAcceptanceCha
       )}
 
       {state.kind === 'success' && state.answers.length > 0 && (
-        <div className="space-y-3">
-          {state.answers.map((a) => (
+        <div className="space-y-4">
+          {sortedAnswers.map((a) => (
             <AnswerCard
               key={a.id}
               answer={a}
@@ -201,9 +212,10 @@ function AnswersSection({ questionId, askedBy, acceptedAnswerId, onAcceptanceCha
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-2">
+      {/* Композер ответа: явный заголовок «Ваш ответ» */}
+      <form onSubmit={handleSubmit} className="mt-7 rounded-md border border-border bg-elevated p-4 shadow-sh1">
         <Field
-          label={t('qa.answers.add_button')}
+          label={t('qa.answers.compose_title')}
           hint={t('qa.answers.placeholder')}
         >
           <Field.Textarea
@@ -216,7 +228,7 @@ function AnswersSection({ questionId, askedBy, acceptedAnswerId, onAcceptanceCha
           />
           <Field.Meta left={`${bodyInput.length} / ${BODY_MAX}`} />
         </Field>
-        <div className="flex justify-end">
+        <div className="mt-2 flex justify-end">
           <Button
             type="submit"
             variant="primary"
@@ -265,29 +277,39 @@ function AnswerCard({
 
   return (
     <Card
-      className={`p-4 ${accepted ? 'border-ok-500/40 bg-ok-50' : ''}`.trim()}
+      className={`overflow-hidden ${accepted ? 'border-ok-500/50' : ''}`.trim()}
     >
+      {/* Принятый ответ: заметный ribbon во всю ширину сверху */}
       {accepted && (
-        <div className="mb-2 inline-flex items-center gap-1 rounded-sm bg-ok-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wider text-ok-700">
-          <CheckCircle size={12} aria-hidden />
+        <div className="flex items-center gap-1.5 bg-ok-100 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-ok-700">
+          <CheckCircle size={13} aria-hidden />
           {t('qa.answers.accepted_label')}
         </div>
       )}
 
-      <p
-        className={`whitespace-pre-wrap text-sm leading-relaxed text-ink-800 ${isBodyArabic ? 'font-arabic' : ''}`}
-        dir="auto"
-      >
-        {answer.body}
-      </p>
+      <div className={`p-4 ${accepted ? 'bg-ok-50' : ''}`.trim()}>
+        {/* Meta-строка автора над телом ответа */}
+        <div className="mb-2.5 flex items-center gap-2 text-xs text-ink-500">
+          <span className="inline-flex items-center gap-1">
+            <User size={12} aria-hidden className="text-ink-400" />
+            {t('qa.answers.author_prefix')}
+          </span>
+          <span aria-hidden>·</span>
+          <span>
+            <bdi dir="ltr">
+              {answer.createdAt ? formatDate(answer.createdAt, 'short') : ''}
+            </bdi>
+          </span>
+        </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-ink-100 pt-2">
-        <span className="text-xs text-ink-400">
-          <bdi dir="ltr">
-            {answer.createdAt ? formatDate(answer.createdAt, 'short') : ''}
-          </bdi>
-        </span>
-        <div className="flex flex-wrap gap-2">
+        <p
+          className={`whitespace-pre-wrap text-[15px] leading-relaxed text-ink-800 ${isBodyArabic ? 'font-arabic' : ''}`}
+          dir="auto"
+        >
+          {answer.body}
+        </p>
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2.5">
           <Button
             type="button"
             size="sm"
@@ -299,51 +321,53 @@ function AnswerCard({
               ? t('qa.answers.sources_hide')
               : t('qa.answers.sources_show')}
           </Button>
-          {isAsker && !accepted && (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              icon={CheckCircle}
-              onClick={onAccept}
-              disabled={busy}
-            >
-              {t('qa.answers.accept_button')}
-            </Button>
-          )}
-          {isAsker && accepted && (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={onRevoke}
-              disabled={busy}
-            >
-              {t('qa.answers.revoke_button')}
-            </Button>
-          )}
-          {isAuthor && (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              icon={Trash2}
-              onClick={onDelete}
-              disabled={busy}
-              className="text-err-700 hover:bg-err-100"
-            >
-              {t('qa.answers.delete_button')}
-            </Button>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {isAsker && !accepted && (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                icon={CheckCircle}
+                onClick={onAccept}
+                disabled={busy}
+              >
+                {t('qa.answers.accept_button')}
+              </Button>
+            )}
+            {isAsker && accepted && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={onRevoke}
+                disabled={busy}
+              >
+                {t('qa.answers.revoke_button')}
+              </Button>
+            )}
+            {isAuthor && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                icon={Trash2}
+                onClick={onDelete}
+                disabled={busy}
+                className="text-err-700 hover:bg-err-100"
+              >
+                {t('qa.answers.delete_button')}
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
 
-      {sourcesOpen && answer.id && (
-        <AnswerCitationsSection
-          answerId={answer.id}
-          answerBodyPreview={bodyPreview}
-        />
-      )}
+        {sourcesOpen && answer.id && (
+          <AnswerCitationsSection
+            answerId={answer.id}
+            answerBodyPreview={bodyPreview}
+          />
+        )}
+      </div>
     </Card>
   );
 }

@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from 'react';
+import type { ButtonHTMLAttributes, Ref } from 'react';
 import type { LucideIcon } from 'lucide-react';
 
 type Variant = 'ghost' | 'solid';
@@ -11,6 +11,8 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
   active?: boolean;
   size?: Size;
   variant?: Variant;
+  /** React 19: ref как обычный prop - нужен для popover-якоря (OverflowMenu) */
+  ref?: Ref<HTMLButtonElement>;
 };
 
 const SIZE_CLASSES: Record<Size, string> = {
@@ -34,6 +36,7 @@ function IconButton({
   size = 'md',
   variant = 'ghost',
   className = '',
+  ref,
   ...rest
 }: Props) {
   const variantClass =
@@ -42,6 +45,7 @@ function IconButton({
       : 'bg-elevated border-ink-200 text-ink-700 hover:bg-ink-50';
   return (
     <button
+      ref={ref}
       type="button"
       title={label}
       aria-label={label}
