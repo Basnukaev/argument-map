@@ -117,11 +117,18 @@ public class HttpClientPdfFetcher implements PdfFetcher {
             boolean isPartial = status == 206;
             long totalSize = parseTotalSizeFromContentRange(resp)
                     .orElseGet(() -> resp.headers().firstValueAsLong("Content-Length").orElse(-1L));
-            long contentLength = resp.headers().firstValueAsLong("Content-Length").orElse(-1L);
             long startInclusive = range != null ? range.startInclusive() : 0L;
-            long endInclusive = isPartial && contentLength > 0
-                    ? startInclusive + contentLength - 1
-                    : (totalSize > 0 ? totalSize - 1 : contentLength - 1);
+            long headerContentLength = resp.headers()
+                    .firstValueAsLong("Content-Length").orElse(-1L);
+            // Некоторые CDN отдают 206 БЕЗ Content-Length. Прежняя формула
+            // тогда давала отрицательный contentLength/-2 endInclusive (см.
+            // deriveContentLength / deriveEndInclusive). Деривация
+            // вынесена в чистые helper'ы с защитой от negative.
+            long contentLength = deriveContentLength(
+                    isPartial, headerContentLength,
+                    parseEndFromContentRange(resp), startInclusive);
+            long endInclusive = deriveEndInclusive(
+                    isPartial, contentLength, startInclusive, totalSize);
 
             if (!isPartial && range != null) {
                 log.warn("upstream {} проигнорировал Range header (вернул 200 вместо 206) - "
@@ -163,6 +170,80 @@ public class HttpClientPdfFetcher implements PdfFetcher {
         } catch (NumberFormatException e) {
             return OptionalLong.empty();
         }
+    }
+
+    /**
+     * Парсит {@code end} из {@code Content-Range: bytes <start>-<end>/<total>}
+     * (число между {@code -} и {@code /}). Используется как резервный
+     * источник длины когда 206-ответ пришёл без {@code Content-Length}.
+     * Возвращает empty если header отсутствует / формат не совпадает /
+     * это unsatisfied-range form (звёздочка вместо диапазона).
+     */
+    private static OptionalLong parseEndFromContentRange(HttpResponse<?> resp) {
+        Optional<String> header = resp.headers().firstValue("Content-Range");
+        if (header.isEmpty()) {
+            return OptionalLong.empty();
+        }
+        String value = header.get();
+        int slash = value.lastIndexOf('/');
+        int dash = value.lastIndexOf('-');
+        if (slash < 0 || dash < 0 || dash >= slash) {
+            return OptionalLong.empty();
+        }
+        String endStr = value.substring(dash + 1, slash).trim();
+        try {
+            return OptionalLong.of(Long.parseLong(endStr));
+        } catch (NumberFormatException e) {
+            return OptionalLong.empty();
+        }
+    }
+
+    /**
+     * Вычисляет длину тела ответа (для {@code Content-Length}). Приоритет:
+     * <ol>
+     *   <li>заголовок {@code Content-Length} если он валиден ({@code >= 0});</li>
+     *   <li>иначе для 206 - длина из {@code Content-Range} ({@code end -
+     *       start + 1}) если та неотрицательна;</li>
+     *   <li>иначе unknown ({@code -1L}) - длину не выставляем.</li>
+     * </ol>
+     *
+     * <p>Защита от бага: 206 без {@code Content-Length} раньше давал
+     * {@code -1}, что ниже по коду вырождалось в отрицательный
+     * {@code endInclusive}. Теперь никогда не возвращаем отрицательное
+     * кроме явного sentinel-unknown {@code -1L}.
+     */
+    static long deriveContentLength(boolean isPartial, long headerContentLength,
+                                    OptionalLong contentRangeEnd, long startInclusive) {
+        if (headerContentLength >= 0) {
+            return headerContentLength;
+        }
+        if (isPartial && contentRangeEnd.isPresent()) {
+            long derived = contentRangeEnd.getAsLong() - startInclusive + 1;
+            if (derived >= 0) {
+                return derived;
+            }
+        }
+        // длина неизвестна - sentinel, Content-Length не выставляем
+        return -1L;
+    }
+
+    /**
+     * Вычисляет последний байт диапазона (для {@code Content-Range}).
+     * Для 206 c известной длиной - {@code start + length - 1}; иначе из
+     * {@code totalSize} ({@code total - 1}). Если ни то ни другое не
+     * известно - возвращает {@code -1L} (unknown), НИКОГДА отрицательное
+     * как побочный эффект арифметики (раньше {@code contentLength - 1}
+     * давал {@code -2}).
+     */
+    static long deriveEndInclusive(boolean isPartial, long contentLength,
+                                   long startInclusive, long totalSize) {
+        if (isPartial && contentLength > 0) {
+            return startInclusive + contentLength - 1;
+        }
+        if (totalSize > 0) {
+            return totalSize - 1;
+        }
+        return -1L;
     }
 
     /**

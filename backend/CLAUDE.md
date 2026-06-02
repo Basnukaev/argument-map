@@ -219,6 +219,11 @@ text_content. Optional enhancement — без ключа платформа ра
 провайдера — новый `@Component @ConditionalOnProperty` + блок
 `ai.<provider>.*` в `application.yml`.
 
+**Liveness-escape:** `tryClaimAiEditProcessing` вытесняет stale PROCESSING
+(worker умер mid-complete) спустя `ai.edit.processing-timeout-minutes`
+(env `AI_EDIT_PROCESSING_TIMEOUT_MINUTES`, default 10) — иначе строка
+застряла бы навечно в PROCESSING и re-AI-edit был бы невозможен.
+
 **Детали:** `backend/docs/ai-editing.md` (provider switch, env vars
 config, async pipeline `aiEditTaskExecutor`, retry policy Resilience4j,
 state machine в `lib_pages.ai_edit_status`, prompt template, graceful

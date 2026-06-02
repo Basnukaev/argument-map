@@ -18,6 +18,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
+import ru.basnukaev.argumentmap.library.domain.AiEditStatus;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
@@ -216,5 +217,68 @@ class PageRepositoryIT {
         List<String> parts = pageRepository.findDistinctPartsByBookId(book.id());
 
         assertThat(parts).containsExactly("المقدمة", "1", "2");
+    }
+
+    private static final int TIMEOUT_MINUTES = 10;
+
+    @Test
+    void tryClaimAiEditProcessing_freshNonProcessingPage_claimWins() {
+        Page page = pageRepository.save(new Page(
+                UUID.randomUUID(), book.id(), null, 1,
+                null, null, null,
+                "text", null, null, Instant.now(), Instant.now()
+        ));
+
+        boolean claimed = pageRepository.tryClaimAiEditProcessing(
+                page.id(), AiEditStatus.PROCESSING, Instant.now(), TIMEOUT_MINUTES);
+
+        assertThat(claimed).isTrue();
+        Page after = pageRepository.findById(page.id()).orElseThrow();
+        assertThat(after.aiEditStatus()).isEqualTo(AiEditStatus.PROCESSING);
+        assertThat(after.aiEditStartedAt()).isNotNull();
+    }
+
+    @Test
+    void tryClaimAiEditProcessing_freshProcessingPage_claimLoses() {
+        Page page = pageRepository.save(new Page(
+                UUID.randomUUID(), book.id(), null, 1,
+                null, null, null,
+                "text", null, null, Instant.now(), Instant.now()
+        ));
+        // свежий PROCESSING (started_at = now) - другой worker в полёте
+        pageRepository.tryClaimAiEditProcessing(
+                page.id(), AiEditStatus.PROCESSING, Instant.now(), TIMEOUT_MINUTES);
+
+        boolean claimed = pageRepository.tryClaimAiEditProcessing(
+                page.id(), AiEditStatus.PROCESSING, Instant.now(), TIMEOUT_MINUTES);
+
+        assertThat(claimed).isFalse();
+    }
+
+    @Test
+    void tryClaimAiEditProcessing_staleProcessingPage_claimWinsAndRefreshesStartedAt() {
+        Page page = pageRepository.save(new Page(
+                UUID.randomUUID(), book.id(), null, 1,
+                null, null, null,
+                "text", null, null, Instant.now(), Instant.now()
+        ));
+        // эмулируем «зависший» PROCESSING: worker умер 30 минут назад,
+        // started_at протух относительно TIMEOUT_MINUTES=10
+        Instant stale = Instant.now().minus(java.time.Duration.ofMinutes(30));
+        jdbcTemplate.update(
+                "UPDATE lib_pages SET ai_edit_status = ?, ai_edit_started_at = ? WHERE id = ?",
+                AiEditStatus.PROCESSING,
+                stale.atOffset(java.time.ZoneOffset.UTC),
+                page.id());
+
+        Instant freshClaim = Instant.now();
+        boolean claimed = pageRepository.tryClaimAiEditProcessing(
+                page.id(), AiEditStatus.PROCESSING, freshClaim, TIMEOUT_MINUTES);
+
+        assertThat(claimed).isTrue();
+        Page after = pageRepository.findById(page.id()).orElseThrow();
+        assertThat(after.aiEditStatus()).isEqualTo(AiEditStatus.PROCESSING);
+        // started_at обновлён на свежее значение (не остался stale)
+        assertThat(after.aiEditStartedAt()).isAfter(stale.plus(java.time.Duration.ofMinutes(20)));
     }
 }

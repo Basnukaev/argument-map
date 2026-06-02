@@ -487,11 +487,12 @@ permission-модель», который надо домести чтобы swe
   (commit 5f27689). create/detach → автор вопроса/ответа или ADMIN; detach
   стал question/answer-scoped (deleteByIdAndQuestion/deleteByIdAndAnswer,
   404 при mismatch). GET без guard (open discussion). Завершает ADR-043 sweep.
-- [ ] **AI-edit stuck-PROCESSING liveness** — `tryClaimAiEditProcessing`
-  claims `WHERE ai_edit_status IS DISTINCT FROM 'PROCESSING'`. Если процесс
-  упал mid-`complete()` не дойдя до FAILED, страница навсегда не
-  re-claimable. Нужен timeout-escape (`started_at < now() - interval`) либо
-  janitor. Safety-сторона ок (не платим дважды), но liveness-дыра.
+- [x] **AI-edit stuck-PROCESSING liveness** — закрыто Сессия 55 Фаза 12:
+  `tryClaimAiEditProcessing` теперь выигрывает также при stale PROCESSING
+  (`OR ai_edit_started_at IS NULL OR ai_edit_started_at < now() -
+  make_interval(mins => ?)`), интервал из `ai.edit.processing-timeout-minutes`
+  (default 10). 3 IT-кейса (fresh-non-proc wins / fresh-proc loses /
+  stale-proc wins + started_at refreshed).
 - [ ] **Thesis `إعداد:` author-loss** — partial-parse прячет raw
   description (guard `!hasStructuredMetadata`); у диссертаций автор иногда
   только в `إعداد:` и не резолвится в shamela authorId → теряется. Либо
@@ -677,9 +678,14 @@ Accessibility / UX:
       `AdminUsersPage.tsx:182`. Закрыто Сессия 55 Фаза 11: `new
       Date().toLocaleDateString()` → `useFormatDate()` `full` style в
       `<bdi dir="ltr">` (mirror AdminAuditPage). Тест: дата по локали ru.
-- [ ] **PdfViewer initial page suffix-range / HttpClientPdfFetcher**
+- [~] **PdfViewer initial page suffix-range / HttpClientPdfFetcher**
       negative Content-Length при upstream 206 без Content-Length.
-      `HttpClientPdfFetcher.java:122`.
+      Content-Length-половина закрыта Сессия 55 Фаза 12: деривация длины
+      вынесена в `deriveContentLength`/`deriveEndInclusive` с guard'ом
+      (206 без Content-Length → длина из Content-Range или unknown `-1`,
+      никогда негатив); controller не выставляет `Content-Length` при `-1`.
+      Suffix-range половина отдельная/намеренная (PdfController отклоняет
+      suffix `bytes=-N` per ADR-023 amendment — PDF.js их не шлёт).
 - [ ] **PageImageService S3-put-before-DB** в @Transactional → rollback
       оставляет orphan scan (или включить OrphanDetectionJanitor в prod).
       `PageImageService.java:125`.

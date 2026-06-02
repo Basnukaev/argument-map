@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -69,6 +70,15 @@ public class AiEditService {
     private final ObjectMapper objectMapper;
 
     /**
+     * Порог «протухания» PROCESSING-claim'а (минуты). Если worker умер
+     * mid-complete() ДО перехода в FAILED/DONE, строка осталась бы навечно
+     * PROCESSING и страница была бы незаявляемой. Спустя этот таймаут
+     * новый claim вытесняет stale PROCESSING. Default 10 минут - комфортно
+     * выше LLM-таймаута (~60с + retries), живой worker не вытесняется.
+     */
+    private final int processingTimeoutMinutes;
+
+    /**
      * Lazy-loaded prompt template (один раз на JVM). Volatile для
      * thread-safety при первом инициализующем чтении - после загрузки
      * immutable строка.
@@ -77,10 +87,13 @@ public class AiEditService {
 
     public AiEditService(PageRepository pageRepository,
                           LlmClient llmClient,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper,
+                          @Value("${ai.edit.processing-timeout-minutes:10}")
+                          int processingTimeoutMinutes) {
         this.pageRepository = pageRepository;
         this.llmClient = llmClient;
         this.objectMapper = objectMapper;
+        this.processingTimeoutMinutes = processingTimeoutMinutes;
     }
 
     /**
@@ -131,10 +144,12 @@ public class AiEditService {
         }
 
         // Атомарный claim PROCESSING: если другой concurrent вызов уже в
-        // PROCESSING - не делаем второй платный LLM-запрос. Защита от
-        // double-submit / retry-в-полёте (check-then-act гонка).
+        // PROCESSING (и claim свежий) - не делаем второй платный LLM-запрос.
+        // Защита от double-submit / retry-в-полёте (check-then-act гонка).
+        // processingTimeoutMinutes - liveness-escape: stale PROCESSING
+        // (worker умер mid-complete) всё-таки переклаймивается.
         boolean claimed = pageRepository.tryClaimAiEditProcessing(
-                pageId, AiEditStatus.PROCESSING, Instant.now());
+                pageId, AiEditStatus.PROCESSING, Instant.now(), processingTimeoutMinutes);
         if (!claimed) {
             log.info("AI edit пропущен для page {} - уже PROCESSING "
                     + "(concurrent trigger), второй платный вызов не делаем", pageId);

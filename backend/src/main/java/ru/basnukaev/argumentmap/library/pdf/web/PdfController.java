@@ -10,6 +10,7 @@ import org.springframework.http.HttpRange;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.ResponseEntity.BodyBuilder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -89,11 +90,16 @@ public class PdfController {
                     res.stream().transferTo(output);
                 }
             };
-            return ResponseEntity.ok()
+            BodyBuilder okBuilder = ResponseEntity.ok()
                     .header(HttpHeaders.ACCEPT_RANGES, "bytes")
-                    .contentType(MediaType.APPLICATION_PDF)
-                    .contentLength(result.contentLength())
-                    .body(body);
+                    .contentType(MediaType.APPLICATION_PDF);
+            // -1 = upstream не дал Content-Length (некоторые CDN). Не
+            // выставляем заголовок вовсе - стримим без фиксированной длины,
+            // а не эмитим Content-Length: -1.
+            if (result.contentLength() >= 0) {
+                okBuilder.contentLength(result.contentLength());
+            }
+            return okBuilder.body(body);
         }
 
         log.debug("pdf range stream: book={} fileIndex={} bytes={}-{}/{}",
@@ -103,14 +109,16 @@ public class PdfController {
                 res.stream().transferTo(output);
             }
         };
-        return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
+        BodyBuilder partialBuilder = ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                 .header(HttpHeaders.CONTENT_RANGE,
                         "bytes " + result.startInclusive() + "-" + result.endInclusive()
                                 + "/" + result.totalSize())
-                .contentType(MediaType.APPLICATION_PDF)
-                .contentLength(result.contentLength())
-                .body(body);
+                .contentType(MediaType.APPLICATION_PDF);
+        if (result.contentLength() >= 0) {
+            partialBuilder.contentLength(result.contentLength());
+        }
+        return partialBuilder.body(body);
     }
 
     /**

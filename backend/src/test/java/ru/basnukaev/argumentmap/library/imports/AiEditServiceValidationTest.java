@@ -31,7 +31,8 @@ class AiEditServiceValidationTest {
         service = new AiEditService(
                 mock(PageRepository.class),
                 mock(LlmClient.class),
-                new ObjectMapper());
+                new ObjectMapper(),
+                10);
     }
 
     @Test

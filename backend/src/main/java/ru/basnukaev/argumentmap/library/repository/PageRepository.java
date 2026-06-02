@@ -209,28 +209,44 @@ public class PageRepository {
     /**
      * Атомарный compare-and-set: переводит страницу в {@code processingStatus}
      * только если она ещё НЕ в этом статусе (status IS DISTINCT FROM ? -
-     * корректно обрабатывает NULL/PENDING/DONE/FAILED). Возвращает true
-     * если ИМЕННО ЭТОТ вызов выиграл переход (rows==1), false если другой
-     * concurrent вызов уже застолбил PROCESSING либо page не найден.
+     * корректно обрабатывает NULL/PENDING/DONE/FAILED) ЛИБО если она в этом
+     * статусе, но «протухла» (ai_edit_started_at старше чем
+     * {@code timeoutMinutes} назад). Возвращает true если ИМЕННО ЭТОТ вызов
+     * выиграл переход (rows==1), false если другой concurrent вызов уже
+     * застолбил свежий PROCESSING либо page не найден.
      *
      * <p>Защита от check-then-act гонки: два параллельных POST /ai-edit
      * для одной страницы (double-submit / retry в полёте) иначе оба дошли
      * бы до платного Anthropic API. Только winner транзакции делает
      * complete(). Status передаётся строкой - repository не coupled к
      * AiEditStatus (как и updateAiEditStatus выше).
+     *
+     * <p>Liveness-escape: если worker умер mid-{@code complete()} ДО перехода
+     * в FAILED/DONE, строка осталась бы PROCESSING навсегда и страница была
+     * бы навечно незаявляемой (re-AI-edit невозможен). Поэтому к предикату
+     * добавлено условие staleness: PROCESSING со {@code started_at} старше
+     * {@code timeoutMinutes} тоже выигрывается. {@code timeoutMinutes}
+     * берётся комфортно выше LLM-таймаута (~60с + retries), поэтому живой
+     * worker никогда не вытесняется. Интервал параметризуется безопасно
+     * через {@code make_interval(mins => ?)} (без string-concat). При
+     * claim {@code started_at} всегда сбрасывается на свежее значение -
+     * следующий staleness-отсчёт идёт от момента нового claim.
      */
     public boolean tryClaimAiEditProcessing(UUID id, String processingStatus,
-                                            Instant startedAt) {
+                                            Instant startedAt, int timeoutMinutes) {
         int rows = jdbcTemplate.update(
                 "UPDATE lib_pages SET ai_edit_status = ?, "
                         + "ai_edit_started_at = ?, "
                         + "updated_at = now() "
                         + "WHERE id = ? "
-                        + "AND ai_edit_status IS DISTINCT FROM ?",
+                        + "AND (ai_edit_status IS DISTINCT FROM ? "
+                        + "     OR ai_edit_started_at IS NULL "
+                        + "     OR ai_edit_started_at < now() - make_interval(mins => ?))",
                 processingStatus,
                 odt(startedAt),
                 id,
-                processingStatus
+                processingStatus,
+                timeoutMinutes
         );
         return rows == 1;
     }

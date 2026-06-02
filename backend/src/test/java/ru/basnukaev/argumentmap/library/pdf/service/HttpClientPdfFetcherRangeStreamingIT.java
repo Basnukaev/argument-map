@@ -188,6 +188,63 @@ class HttpClientPdfFetcherRangeStreamingIT {
     }
 
     @Test
+    void openStream_206WithoutContentLengthOrContentRange_neverNegativeLength() throws Exception {
+        // Некоторые CDN отдают 206 БЕЗ Content-Length И без Content-Range.
+        // Прежняя формула давала contentLength=-1 → endInclusive=-2.
+        // Теперь длина unknown (-1 sentinel), но НИКОГДА не -2 / negative.
+        server.createContext("/file.pdf", exchange -> {
+            byte[] slice = new byte[100];
+            System.arraycopy(payload, 100, slice, 0, slice.length);
+            exchange.getResponseHeaders().add("Content-Type", "application/pdf");
+            // намеренно НЕ выставляем ни Content-Length, ни Content-Range.
+            // sendResponseHeaders(206, 0) → chunked, без Content-Length
+            exchange.sendResponseHeaders(206, 0);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(slice);
+            }
+        });
+        server.start();
+        URI url = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/file.pdf");
+
+        try (PdfStreamingResult result = fetcher.openStream(url, new RangeSpec(100L, 199L))) {
+            assertThat(result.isPartial()).isTrue();
+            // длина неизвестна - sentinel -1, но не отрицательное < -1
+            assertThat(result.contentLength()).isGreaterThanOrEqualTo(-1L);
+            assertThat(result.endInclusive()).isGreaterThanOrEqualTo(-1L);
+            // тело всё равно стримится корректно
+            assertThat(result.stream().readAllBytes()).hasSize(100);
+        }
+    }
+
+    @Test
+    void openStream_206WithContentRangeButNoContentLength_derivesLengthFromRange() throws Exception {
+        // 206 с Content-Range но без Content-Length: длину выводим из
+        // диапазона (end - start + 1), без отрицательных значений.
+        server.createContext("/file.pdf", exchange -> {
+            byte[] slice = new byte[100];
+            System.arraycopy(payload, 100, slice, 0, slice.length);
+            exchange.getResponseHeaders().add("Content-Type", "application/pdf");
+            exchange.getResponseHeaders().add("Content-Range",
+                    "bytes 100-199/" + payload.length);
+            exchange.sendResponseHeaders(206, 0); // chunked, без Content-Length
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(slice);
+            }
+        });
+        server.start();
+        URI url = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/file.pdf");
+
+        try (PdfStreamingResult result = fetcher.openStream(url, new RangeSpec(100L, 199L))) {
+            assertThat(result.isPartial()).isTrue();
+            assertThat(result.contentLength()).isEqualTo(100); // 199-100+1
+            assertThat(result.startInclusive()).isEqualTo(100);
+            assertThat(result.endInclusive()).isEqualTo(199);
+            assertThat(result.totalSize()).isEqualTo(payload.length);
+            assertThat(result.stream().readAllBytes()).hasSize(100);
+        }
+    }
+
+    @Test
     void openStream_upstreamReturns416_throwsShamelaApiException() throws Exception {
         // archive.org может вернуть 416 если запросили range за пределами
         // файла. Наш fetcher оборачивает это в ShamelaApiException -
