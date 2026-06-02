@@ -28,6 +28,7 @@ import { useT, useFormatDate } from '@/shared/i18n';
 import { toast } from '@/shared/stores/toastStore';
 import type { components } from '@/shared/api/types';
 import VisibilityBadge from '@/apps/argument-map/components/VisibilityBadge';
+import TopicVoteWidget from '@/apps/argument-map/components/TopicVoteWidget';
 
 type Topic = components['schemas']['TopicResponse'];
 type TopicImportResponse = components['schemas']['TopicImportResponse'];
@@ -366,7 +367,7 @@ function TopicCard({ topic }: TopicCardProps) {
               {topic.description}
             </p>
           )}
-          <div className="mt-3 flex items-center justify-between text-xs text-ink-500">
+          <div className="mt-3 flex items-center justify-between gap-2 text-xs text-ink-500">
             <span className="font-mono">
               <bdi dir="ltr">{topic.id.slice(0, 8)}</bdi>
             </span>
@@ -376,6 +377,18 @@ function TopicCard({ topic }: TopicCardProps) {
                 <bdi>{date}</bdi>
               </span>
             )}
+          </div>
+          {/* Голосование за тему. stopPropagation - карточка обёрнута в Link,
+              клик по кнопкам не должен триггерить navigate. e.preventDefault
+              в самом widget'е не нужен: stopPropagation на onClick блокирует
+              всплытие до Link. */}
+          <div className="mt-2 flex justify-end" onClick={(e) => e.preventDefault()}>
+            <TopicVoteWidget
+              topicId={topic.id}
+              score={topic.voteScore ?? 0}
+              userVote={topic.userVote ?? null}
+              stopPropagation
+            />
           </div>
         </Card.Body>
       </Card>

@@ -30,10 +30,6 @@ const BASE_DATA: NodeCardData = {
   createdBy: 'user-1',
   createdAt: '2026-05-18T00:00:00Z',
   updatedAt: '2026-05-18T00:00:00Z',
-  voteUpvotes: 0,
-  voteDownvotes: 0,
-  voteScore: 0,
-  userVote: undefined,
   inlineCitations: [],
   translations: [],
 };

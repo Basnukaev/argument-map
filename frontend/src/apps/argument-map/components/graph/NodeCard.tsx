@@ -12,7 +12,6 @@ import {
   type BilingualModePref,
 } from '@/shared/stores/preferencesStore';
 import type { components } from '@/shared/api/types';
-import VoteWidget from './VoteWidget';
 
 type NodeDto = components['schemas']['NodeResponse'];
 type TranslationRef = components['schemas']['NodeTranslationRef'];
@@ -300,18 +299,6 @@ function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
                 {truncatedTranslationBody}
               </p>
             )}
-          </div>
-        )}
-
-        {(nodeType === 'ARGUMENT' || nodeType === 'EVIDENCE') && (
-          <div className="mt-2 flex justify-end">
-            <VoteWidget
-              nodeId={data.id ?? ''}
-              upvotes={data.voteUpvotes ?? 0}
-              downvotes={data.voteDownvotes ?? 0}
-              score={data.voteScore ?? 0}
-              userVote={data.userVote ?? null}
-            />
           </div>
         )}
       </div>

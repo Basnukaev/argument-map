@@ -15,6 +15,7 @@ import IconButton from '@/shared/components/ui/IconButton';
 import Header from '@/shared/components/layout/Header';
 import GraphCanvas from '@/apps/argument-map/components/graph/GraphCanvas';
 import VisibilityBadge from '@/apps/argument-map/components/VisibilityBadge';
+import TopicVoteWidget from '@/apps/argument-map/components/TopicVoteWidget';
 import TopicSettingsDrawer from '@/apps/argument-map/components/TopicSettingsDrawer';
 import type { TopicVisibility } from '@/apps/argument-map/components/VisibilityRadioGroup';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
@@ -145,6 +146,14 @@ function TopicGraphPage() {
         </div>
         {state.kind === 'success' && (
           <div className="ms-auto flex items-center gap-2">
+            {topic?.id && (
+              <TopicVoteWidget
+                topicId={topic.id}
+                score={topic.voteScore ?? 0}
+                userVote={topic.userVote ?? null}
+                onVoteChanged={refetch}
+              />
+            )}
             {!canWriteOptimistic && (
               <span
                 title={t('topic.permission.read_only_hint')}

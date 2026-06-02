@@ -52,6 +52,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/topics/{topicId}/vote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["vote"];
+        delete: operations["removeVote"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/topics/{topicId}/views": {
         parameters: {
             query?: never;
@@ -271,22 +287,6 @@ export interface paths {
         put?: never;
         post: operations["bringToFront"];
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/nodes/{nodeId}/vote": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["vote"];
-        delete: operations["removeVote"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1028,6 +1028,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/topics/{topicId}/votes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/topics/{topicId}/graph": {
         parameters: {
             query?: never;
@@ -1084,22 +1100,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["list_11"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/nodes/{nodeId}/votes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["getStats"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1682,6 +1682,26 @@ export interface components {
             nodeCount?: number;
             /** Format: int32 */
             edgeCount?: number;
+            /** Format: int32 */
+            voteScore?: number;
+            /** Format: int32 */
+            userVote?: number;
+        };
+        CreateTopicVoteRequest: {
+            /** Format: int32 */
+            weight: number;
+        };
+        TopicVoteStatsResponse: {
+            /** Format: uuid */
+            topicId?: string;
+            /** Format: int32 */
+            upvotes?: number;
+            /** Format: int32 */
+            downvotes?: number;
+            /** Format: int32 */
+            score?: number;
+            /** Format: int32 */
+            userVote?: number;
         };
         AddTopicMemberRequest: {
             /** Format: uuid */
@@ -2095,14 +2115,6 @@ export interface components {
             createdAt?: string;
             /** Format: date-time */
             updatedAt?: string;
-            /** Format: int32 */
-            voteUpvotes?: number;
-            /** Format: int32 */
-            voteDownvotes?: number;
-            /** Format: int32 */
-            voteScore?: number;
-            /** Format: int32 */
-            userVote?: number;
             inlineCitations?: components["schemas"]["InlineCitationRef"][];
             originalLang?: string;
             translations?: components["schemas"]["NodeTranslationRef"][];
@@ -2114,22 +2126,6 @@ export interface components {
             language?: string;
             body?: string;
             isDefault?: boolean;
-        };
-        CreateNodeVoteRequest: {
-            /** Format: int32 */
-            weight: number;
-        };
-        NodeVoteStatsResponse: {
-            /** Format: uuid */
-            nodeId?: string;
-            /** Format: int32 */
-            upvotes?: number;
-            /** Format: int32 */
-            downvotes?: number;
-            /** Format: int32 */
-            score?: number;
-            /** Format: int32 */
-            userVote?: number;
         };
         CreateNodeTranslationRequest: {
             translatorName?: string;
@@ -3276,6 +3272,58 @@ export interface operations {
             };
         };
     };
+    vote: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                topicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTopicVoteRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TopicVoteStatsResponse"];
+                };
+            };
+        };
+    };
+    removeVote: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                topicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     incrementView: {
         parameters: {
             query?: never;
@@ -3768,58 +3816,6 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["NodeResponse"];
                 };
-            };
-        };
-    };
-    vote: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
-                "X-User-Id"?: string;
-            };
-            path: {
-                nodeId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateNodeVoteRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["NodeVoteStatsResponse"];
-                };
-            };
-        };
-    };
-    removeVote: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
-                "X-User-Id"?: string;
-            };
-            path: {
-                nodeId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
@@ -5698,6 +5694,31 @@ export interface operations {
             };
         };
     };
+    getStats: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                topicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TopicVoteStatsResponse"];
+                };
+            };
+        };
+    };
     getGraph: {
         parameters: {
             query?: never;
@@ -5808,31 +5829,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["QuestionSourceResponse"][];
-                };
-            };
-        };
-    };
-    getStats: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
-                "X-User-Id"?: string;
-            };
-            path: {
-                nodeId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["NodeVoteStatsResponse"];
                 };
             };
         };

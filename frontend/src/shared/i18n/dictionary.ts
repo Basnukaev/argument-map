@@ -1387,6 +1387,10 @@ export const DICTIONARY = {
     'vote.failed': 'Не удалось проголосовать',
     'vote.no_votes': 'голосов пока нет',
     'vote.aria_widget': 'Виджет голосования',
+    // Topic vote (голосование перенесено на уровень темы)
+    'vote.topic.upvote_tooltip': 'Голос за тему',
+    'vote.topic.downvote_tooltip': 'Голос против темы',
+    'vote.topic.aria_widget': 'Голосов за тему',
 
     // Onboarding 4-step checklist (floating widget bottom-end)
     'onboarding.title': 'Начни работу',
@@ -2771,6 +2775,10 @@ export const DICTIONARY = {
     'vote.failed': 'تعذّر التصويت',
     'vote.no_votes': 'لا توجد أصوات بعد',
     'vote.aria_widget': 'أداة التصويت',
+    // Topic vote (نُقل التصويت إلى مستوى الموضوع)
+    'vote.topic.upvote_tooltip': 'صوّت للموضوع',
+    'vote.topic.downvote_tooltip': 'صوّت ضد الموضوع',
+    'vote.topic.aria_widget': 'أصوات الموضوع',
 
     // Onboarding (الإعداد الأولي - قائمة الخطوات الأربع)
     'onboarding.title': 'لنبدأ',
