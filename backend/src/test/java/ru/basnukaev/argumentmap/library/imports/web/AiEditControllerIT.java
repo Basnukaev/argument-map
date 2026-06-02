@@ -26,7 +26,7 @@ import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.Page;
-import ru.basnukaev.argumentmap.library.imports.AnthropicClient;
+import ru.basnukaev.argumentmap.ai.LlmClient;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.repository.PageRepository;
 
@@ -35,9 +35,10 @@ import ru.basnukaev.argumentmap.library.repository.PageRepository;
  * ADR-042). Проверяет статусы / DTO body / Problem Details mapping
  * через {@code GlobalExceptionHandler}.
  *
- * <p>{@link AnthropicClient} замокан - тесты не делают реальных HTTP
- * вызовов в Anthropic. Логика самого client уже покрыта
- * {@link ru.basnukaev.argumentmap.library.imports.AnthropicClientStubIT}.
+ * <p>{@link LlmClient} замокан - тесты не делают реальных HTTP вызовов
+ * в LLM провайдер. Логика самих client'ов уже покрыта
+ * {@link ru.basnukaev.argumentmap.ai.AnthropicLlmClientStubIT} и
+ * {@link ru.basnukaev.argumentmap.ai.OpenAiCompatibleLlmClientStubIT}.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -45,7 +46,7 @@ import ru.basnukaev.argumentmap.library.repository.PageRepository;
 class AiEditControllerIT {
 
     @MockBean
-    private AnthropicClient anthropicClient;
+    private LlmClient llmClient;
 
     @Autowired
     private MockMvc mockMvc;
@@ -78,9 +79,9 @@ class AiEditControllerIT {
 
     @Test
     void POST_aiEdit_enabledClient_returns202() throws Exception {
-        Mockito.when(anthropicClient.isEnabled()).thenReturn(true);
+        Mockito.when(llmClient.isEnabled()).thenReturn(true);
         // complete() будет вызван в background async - не ждём результата
-        Mockito.when(anthropicClient.complete(ArgumentMatchers.anyString()))
+        Mockito.when(llmClient.complete(ArgumentMatchers.anyString()))
                 .thenReturn("{\"type\":\"doc\",\"content\":[]}");
 
         Page page = savePage("text");
@@ -95,7 +96,7 @@ class AiEditControllerIT {
 
     @Test
     void POST_aiEdit_disabledClient_returns503() throws Exception {
-        Mockito.when(anthropicClient.isEnabled()).thenReturn(false);
+        Mockito.when(llmClient.isEnabled()).thenReturn(false);
 
         Page page = savePage("text");
 
@@ -112,7 +113,7 @@ class AiEditControllerIT {
         // ADR-043 Amendment: AI edit мутирует контент книги + жжёт API
         // budget - требует write-доступ. Книга PUBLIC, но write только у
         // owner/EDITOR, поэтому другой user → 403.
-        Mockito.when(anthropicClient.isEnabled()).thenReturn(true);
+        Mockito.when(llmClient.isEnabled()).thenReturn(true);
         Page page = savePage("text");
 
         UUID otherUser = UUID.randomUUID();
@@ -129,7 +130,7 @@ class AiEditControllerIT {
 
     @Test
     void POST_aiEdit_unknownPage_returns404() throws Exception {
-        Mockito.when(anthropicClient.isEnabled()).thenReturn(true);
+        Mockito.when(llmClient.isEnabled()).thenReturn(true);
         UUID bogus = UUID.randomUUID();
 
         mockMvc.perform(post("/api/v1/library/pages/" + bogus + "/ai-edit")
@@ -141,7 +142,7 @@ class AiEditControllerIT {
 
     @Test
     void GET_aiEditStatus_existingPage_returns200WithNullStatus() throws Exception {
-        Mockito.when(anthropicClient.isEnabled()).thenReturn(true);
+        Mockito.when(llmClient.isEnabled()).thenReturn(true);
         Page page = savePage("text");
 
         mockMvc.perform(get("/api/v1/library/pages/" + page.id() + "/ai-edit")

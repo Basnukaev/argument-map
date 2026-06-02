@@ -13,8 +13,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import ru.basnukaev.argumentmap.ai.LlmApiException;
 import ru.basnukaev.argumentmap.library.imports.AiEditNotConfiguredException;
-import ru.basnukaev.argumentmap.library.imports.AnthropicApiException;
 import ru.basnukaev.argumentmap.library.imports.FileImportException;
 import ru.basnukaev.argumentmap.library.imports.PageImageException;
 import ru.basnukaev.argumentmap.library.imports.web.UnsupportedMediaTypeException;
@@ -583,17 +583,17 @@ public class GlobalExceptionHandler {
                 ex.getMessage());
     }
 
-    @ExceptionHandler(AnthropicApiException.class)
-    public ProblemDetail handleAnthropicApi(AnthropicApiException ex) {
-        log.warn("Anthropic API error (status={}): {}",
+    @ExceptionHandler(LlmApiException.class)
+    public ProblemDetail handleLlmApi(LlmApiException ex) {
+        log.warn("LLM API error (status={}): {}",
                 ex.statusCode(), ex.getMessage());
         // 502 Bad Gateway если upstream вернул не-2xx;
         // 503 если IOException / connection failed (statusCode=0)
         HttpStatus status = ex.statusCode() == 0
                 ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.BAD_GATEWAY;
         ProblemDetail pd = problem(status,
-                "Anthropic API недоступен",
-                "anthropic-api-error",
+                "LLM API недоступен",
+                "llm-api-error",
                 ex.getMessage());
         if (ex.statusCode() > 0) {
             pd.setProperty("upstreamStatus", ex.statusCode());

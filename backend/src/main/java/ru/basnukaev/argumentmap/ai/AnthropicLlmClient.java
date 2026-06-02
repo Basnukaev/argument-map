@@ -1,4 +1,4 @@
-package ru.basnukaev.argumentmap.library.imports;
+package ru.basnukaev.argumentmap.ai;
 
 import java.io.IOException;
 import java.net.URI;
@@ -6,6 +6,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -13,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -21,44 +23,42 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.retry.annotation.Retry;
 
 /**
- * HTTP-обёртка над Anthropic Messages API (ADR-042, Этап 17.e).
+ * Реализация {@link LlmClient} поверх Anthropic Messages API (ADR-058,
+ * миграция из AnthropicClient). Default-провайдер: активен при
+ * {@code ai.provider=anthropic} либо если property отсутствует
+ * (matchIfMissing=true).
  *
- * <p>Тонкий клиент (~100 LOC) поверх {@code java.net.http.HttpClient}.
- * Намеренно без Anthropic Java SDK - один endpoint, простой JSON
- * body, не оправдывает heavy dependency. Если в будущем понадобятся
- * streaming responses / batch API - переехать на SDK.
+ * <p>Тонкий клиент (~120 LOC) поверх {@code java.net.http.HttpClient}.
+ * Намеренно без Anthropic Java SDK - один endpoint, простой JSON body,
+ * не оправдывает heavy dependency.
  *
- * <p>Защищён Resilience4j {@code @Retry(name="anthropicApi")} - max
- * 3 попытки ТОЛЬКО на transient errors (429 rate limit, 5xx server
- * error, IOException/timeout). Permanent 4xx (400/401/403/404) НЕ
- * повторяются - повтор только множит cost+latency. Решает
- * {@link AnthropicTransientFailurePredicate}. Конфиг в
- * {@code application.yml} {@code
- * resilience4j.retry.instances.anthropicApi}.
+ * <p>Защищён Resilience4j {@code @Retry(name="llmApi")} - max 3 попытки
+ * ТОЛЬКО на transient errors (429 rate limit, 5xx server error,
+ * IOException/timeout). Permanent 4xx (400/401/403/404) НЕ повторяются.
+ * Решает {@link LlmTransientFailurePredicate}. Конфиг в
+ * {@code application.yml} {@code resilience4j.retry.instances.llmApi}.
  *
- * <p>Disabled mode - если {@code ai.anthropic.api-key=disabled}
- * (default value), {@link #isEnabled()} возвращает false. AiEditService
- * проверяет до триггера задачи и возвращает 503 пользователю с
- * понятным сообщением «AI editing не настроен».
+ * <p>System prompt: Anthropic Messages API принимает top-level поле
+ * {@code system} (отдельно от messages). Если systemPrompt не blank -
+ * добавляем его в body.
  *
- * <p>Timeout 60s - LLM генерация для arabic page занимает 5-15с
- * типично, 60s даёт запас на cold start / network jitter. Превышение
- * → IOException → retry либо bubble up в caller.
+ * <p>Timeout 60s - LLM генерация занимает 5-15с типично, 60s даёт запас
+ * на cold start / network jitter.
  *
- * @see AiEditService
+ * @see LlmClient
  */
 @Component
-public class AnthropicClient {
+@ConditionalOnProperty(name = "ai.provider", havingValue = "anthropic", matchIfMissing = true)
+public class AnthropicLlmClient implements LlmClient {
 
-    private static final Logger log = LoggerFactory.getLogger(AnthropicClient.class);
+    private static final Logger log = LoggerFactory.getLogger(AnthropicLlmClient.class);
 
     /**
      * Sentinel значение по умолчанию - signal что API key не настроен.
-     * Сравниваем case-sensitive (только этот exact literal).
      */
     public static final String DISABLED_SENTINEL = "disabled";
 
-    private static final String RETRY_NAME = "anthropicApi";
+    private static final String RETRY_NAME = "llmApi";
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -69,7 +69,7 @@ public class AnthropicClient {
     private final Duration timeout;
 
     @Autowired
-    public AnthropicClient(
+    public AnthropicLlmClient(
             ObjectMapper objectMapper,
             @Value("${ai.anthropic.api-key:disabled}") String apiKey,
             @Value("${ai.anthropic.base-url:https://api.anthropic.com}") String baseUrl,
@@ -85,7 +85,7 @@ public class AnthropicClient {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
-        log.info("AnthropicClient init: model={}, baseUrl={}, enabled={}",
+        log.info("AnthropicLlmClient init: model={}, baseUrl={}, enabled={}",
                 model, baseUrl, isEnabled());
     }
 
@@ -94,9 +94,9 @@ public class AnthropicClient {
      * (например указывающий на JDK HttpServer stub на localhost) и
      * полностью overwrite конфиг.
      */
-    AnthropicClient(HttpClient httpClient, ObjectMapper objectMapper,
-                    String apiKey, String baseUrl, String model,
-                    int maxTokens, int timeoutSeconds) {
+    AnthropicLlmClient(HttpClient httpClient, ObjectMapper objectMapper,
+                       String apiKey, String baseUrl, String model,
+                       int maxTokens, int timeoutSeconds) {
         this.httpClient = httpClient;
         this.objectMapper = objectMapper;
         this.apiKey = apiKey;
@@ -106,43 +106,35 @@ public class AnthropicClient {
         this.timeout = Duration.ofSeconds(timeoutSeconds);
     }
 
-    /**
-     * true если API key настроен (не дефолтный sentinel). AiEditService
-     * вызывает до триггера async task - чтобы 503 вернулся синхронно,
-     * а не в background через FAILED status.
-     */
+    @Override
     public boolean isEnabled() {
         return apiKey != null && !apiKey.isBlank()
                 && !DISABLED_SENTINEL.equalsIgnoreCase(apiKey);
     }
 
     /**
-     * Отправить user prompt в Claude Messages API + извлечь text из
-     * первого content block ответа.
+     * Отправить system + user промпты в Claude Messages API + извлечь
+     * text из первого content block ответа.
      *
      * <p>Retry через Resilience4j (до 3 attempts, exponential backoff)
-     * ТОЛЬКО на transient failures - 429/5xx → {@link AnthropicApiException},
-     * IOException/timeout (statusCode=0). Permanent 4xx (400/401/403/404)
-     * пробрасываются сразу без повтора (см.
-     * {@link AnthropicTransientFailurePredicate}).
+     * ТОЛЬКО на transient failures - 429/5xx → {@link LlmApiException},
+     * IOException/timeout (statusCode=0). Permanent 4xx пробрасываются
+     * сразу без повтора (см. {@link LlmTransientFailurePredicate}).
      *
-     * @param userPrompt полный текст user message (включая prompt
-     *                   template + raw arabic text)
-     * @return raw text response (ожидается valid JSON, но валидация
-     *         делается caller'ом - AiEditService.enhance)
-     * @throws AnthropicApiException на 4xx/5xx ответ либо IO error
-     *                               после исчерпания retry
-     * @throws IllegalStateException если клиент disabled (caller
-     *                               должен проверять isEnabled())
+     * @throws LlmApiException на 4xx/5xx ответ либо IO error после
+     *                         исчерпания retry
+     * @throws IllegalStateException если клиент disabled (caller должен
+     *                               проверять isEnabled())
      */
+    @Override
     @Retry(name = RETRY_NAME)
-    public String complete(String userPrompt) {
+    public String complete(String systemPrompt, String userPrompt) {
         if (!isEnabled()) {
             throw new IllegalStateException(
-                    "AnthropicClient disabled - ANTHROPIC_API_KEY не настроен");
+                    "AnthropicLlmClient disabled - ANTHROPIC_API_KEY не настроен");
         }
 
-        String body = buildRequestBody(userPrompt);
+        String body = buildRequestBody(systemPrompt, userPrompt);
         HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/v1/messages"))
                 .timeout(timeout)
                 .header("x-api-key", apiKey)
@@ -158,40 +150,43 @@ public class AnthropicClient {
             if (status / 100 == 2) {
                 return extractText(response.body());
             }
-            // 4xx/5xx - бросаем для retry либо bubble up.
-            // Логируем тело для диагностики (но без api-key естественно).
+            // 4xx/5xx - бросаем для retry либо bubble up. Логируем тело
+            // для диагностики (но без api-key естественно).
             String snippet = response.body() != null && response.body().length() > 500
                     ? response.body().substring(0, 500) + "..." : response.body();
             log.warn("Anthropic API вернул HTTP {} - {}", status, snippet);
-            throw new AnthropicApiException(
+            throw new LlmApiException(
                     "Anthropic API ответил HTTP " + status, status);
         } catch (IOException e) {
             log.warn("Anthropic API IO error: {}", e.getMessage());
-            throw new AnthropicApiException(
+            throw new LlmApiException(
                     "Anthropic API недоступен: " + e.getMessage(), 0, e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new AnthropicApiException(
+            throw new LlmApiException(
                     "Anthropic API прерван: " + e.getMessage(), 0, e);
         }
     }
 
     /**
      * Сформировать JSON body для Messages API:
-     * {@code {model, max_tokens, messages: [{role: "user", content: ...}]}}.
-     * ObjectMapper used вместо ручной string concatenation -
-     * безопасно эскейпит arabic / специальные символы в prompt.
+     * {@code {model, max_tokens, [system,] messages: [{role:"user",...}]}}.
+     * ObjectMapper used вместо ручной string concatenation - безопасно
+     * эскейпит arabic / специальные символы в prompt. System поле
+     * добавляется top-level (не в messages) только если non-blank.
      */
-    private String buildRequestBody(String userPrompt) {
+    private String buildRequestBody(String systemPrompt, String userPrompt) {
         try {
-            Map<String, Object> payload = Map.of(
-                    "model", model,
-                    "max_tokens", maxTokens,
-                    "messages", List.of(Map.of(
-                            "role", "user",
-                            "content", userPrompt
-                    ))
-            );
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("model", model);
+            payload.put("max_tokens", maxTokens);
+            if (systemPrompt != null && !systemPrompt.isBlank()) {
+                payload.put("system", systemPrompt);
+            }
+            payload.put("messages", List.of(Map.of(
+                    "role", "user",
+                    "content", userPrompt
+            )));
             return objectMapper.writeValueAsString(payload);
         } catch (Exception e) {
             throw new IllegalStateException(
@@ -201,16 +196,15 @@ public class AnthropicClient {
 
     /**
      * Извлечь text из ответа Anthropic. Структура:
-     * {@code {content: [{type: "text", text: "..."}], ...}}.
-     * Берём первый text block. Если content пустой / нет text block -
-     * AnthropicApiException (LLM вернул что-то нестандартное).
+     * {@code {content: [{type:"text", text:"..."}], ...}}. Берём первый
+     * text block. Если content пустой / нет text block - LlmApiException.
      */
     private String extractText(String responseBody) {
         try {
             JsonNode root = objectMapper.readTree(responseBody);
             JsonNode content = root.get("content");
             if (content == null || !content.isArray() || content.isEmpty()) {
-                throw new AnthropicApiException(
+                throw new LlmApiException(
                         "Anthropic response без content array", 200);
             }
             for (JsonNode block : content) {
@@ -219,10 +213,10 @@ public class AnthropicClient {
                     return block.path("text").asText();
                 }
             }
-            throw new AnthropicApiException(
+            throw new LlmApiException(
                     "Anthropic response без text block в content", 200);
         } catch (IOException e) {
-            throw new AnthropicApiException(
+            throw new LlmApiException(
                     "не удалось распарсить Anthropic response: " + e.getMessage(),
                     200, e);
         }

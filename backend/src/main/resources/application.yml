@@ -149,17 +149,24 @@ audit:
     # 02:00 ежедневно - после ночных backup'ов, до orphan janitor (03:00)
     cron: ${AUDIT_RETENTION_CRON:0 0 2 * * *}
 
-# AI editing pass (ADR-042, Этап 17.e). Anthropic Claude как
-# single-provider LLM для преобразования OCR raw text в structured
-# ProseMirror JSON. По умолчанию disabled - endpoint вернёт 503 пока
-# не установлен ANTHROPIC_API_KEY. Установка ключа:
-#   export ANTHROPIC_API_KEY=sk-ant-api-...
-# Получить ключ - https://console.anthropic.com/settings/keys.
+# LLM-конфиг (ADR-042 + ADR-058). Swappable provider: один LlmClient
+# обслуживает AI editing (OCR text → ProseMirror JSON) и извлечение
+# био-метаданных книг. По умолчанию provider=anthropic + key=disabled -
+# AI-фичи отдают 503 / graceful fallback пока ключ не установлен:
+#   export ANTHROPIC_API_KEY=sk-ant-api-...     (provider=anthropic)
+#   export AI_PROVIDER=openai OPENAI_API_KEY=sk-...
+#   export AI_PROVIDER=deepseek DEEPSEEK_API_KEY=sk-...
+# Anthropic key - https://console.anthropic.com/settings/keys.
 ai:
-  # Сейчас один provider, future: openai / google / local
-  provider: anthropic
+  # Swappable LLM provider (ADR-058). Выбирает активный LlmClient bean
+  # через @ConditionalOnProperty(ai.provider): anthropic (default) /
+  # openai / deepseek. Переключение = смена env AI_PROVIDER, без правки
+  # кода. Ровно ОДИН клиент-бин активен (conditionals взаимоисключающие,
+  # anthropic - matchIfMissing). Каждый провайдер читает свой блок ниже.
+  provider: ${AI_PROVIDER:anthropic}
   anthropic:
-    # Sentinel "disabled" = AI editing endpoint вернёт 503.
+    # Sentinel "disabled" = LlmClient.isEnabled()=false → AI endpoint
+    # вернёт 503, BookMetadataExtraction вернёт empty (graceful fallback).
     # Real key получить на https://console.anthropic.com/settings/keys
     api-key: ${ANTHROPIC_API_KEY:disabled}
     # Anthropic Messages API. Override для тестов / mock server.
@@ -168,12 +175,28 @@ ai:
     # Haiku - дешевле но качество хуже на классическом arabic.
     # Opus - дороже на 5x, качество marginal лучше на тахкике.
     model: ${ANTHROPIC_MODEL:claude-sonnet-4-6}
-    # ProseMirror JSON может быть длинным (~1000-2000 tokens per page),
-    # 4096 даёт запас. Anthropic billing per output token.
+    # Output JSON может быть длинным (~1000-2000 tokens per page),
+    # 4096 даёт запас. Billing per output token.
     max-tokens: ${ANTHROPIC_MAX_TOKENS:4096}
     # 60s достаточно для cold start + сложной arabic page. Превышение
     # → IOException → Resilience4j retry либо fail.
     timeout-seconds: ${ANTHROPIC_TIMEOUT_SECONDS:60}
+  # OpenAI Chat Completions API (активен при AI_PROVIDER=openai).
+  # Тот же sentinel/timeout/max-tokens контракт что и anthropic.
+  openai:
+    api-key: ${OPENAI_API_KEY:disabled}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+    model: ${OPENAI_MODEL:gpt-4o}
+    max-tokens: ${OPENAI_MAX_TOKENS:4096}
+    timeout-seconds: ${OPENAI_TIMEOUT_SECONDS:60}
+  # DeepSeek (OpenAI-совместимый wire-формат, активен при
+  # AI_PROVIDER=deepseek). Дешевле, отдельный endpoint/модель.
+  deepseek:
+    api-key: ${DEEPSEEK_API_KEY:disabled}
+    base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+    model: ${DEEPSEEK_MODEL:deepseek-chat}
+    max-tokens: ${DEEPSEEK_MAX_TOKENS:4096}
+    timeout-seconds: ${DEEPSEEK_TIMEOUT_SECONDS:60}
 
 # Конфиг интеграции с shamela.ws через её desktop-API (ADR-020).
 # Реверс-инжиниринг выполнен в параллельной сессии через mitmproxy на
@@ -259,17 +282,18 @@ resilience4j:
           - ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgException
           - java.io.IOException
           - java.util.concurrent.TimeoutException
-  # Retry для Anthropic API (ADR-042, Этап 17.e). 3 попытки на
-  # transient failures (429 rate limit, 5xx server error, IOException),
-  # exponential backoff между попытками. После исчерпания - exception
-  # bubble up до AiEditService, page помечается FAILED.
+  # Retry для LLM API (ADR-042 + ADR-058, провайдер-агностично).
+  # 3 попытки на transient failures (429 rate limit, 5xx server error,
+  # IOException), exponential backoff между попытками. После исчерпания -
+  # exception bubble up до caller (AiEditService → page FAILED;
+  # BookMetadataExtractionService → empty fallback).
   retry:
     instances:
-      anthropicApi:
+      llmApi:
         max-attempts: 3
         wait-duration: 2s
-        # Exponential: 2s, 4s, 8s между попытками. Anthropic 429 rate
-        # limit обычно очищается за <5 секунд.
+        # Exponential: 2s, 4s, 8s между попытками. 429 rate limit обычно
+        # очищается за <5 секунд.
         enable-exponential-backoff: true
         exponential-backoff-multiplier: 2
         # Какие ошибки считать transient (retry) против permanent (не
@@ -279,8 +303,8 @@ resilience4j:
         # 401 invalid key, 403, 404) НЕ повторяются - повтор только множит
         # cost+latency и оттягивает FAILED, шанса на успех нет.
         # Predicate приоритетнее retry-exceptions (последний бы матчил
-        # любой AnthropicApiException включая 4xx).
-        retry-exception-predicate: ru.basnukaev.argumentmap.library.imports.AnthropicTransientFailurePredicate
+        # любой LlmApiException включая 4xx).
+        retry-exception-predicate: ru.basnukaev.argumentmap.ai.LlmTransientFailurePredicate
 
   # Metrics через actuator (см. management.endpoints.web ниже).
   metrics:

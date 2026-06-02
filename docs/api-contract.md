@@ -2214,14 +2214,16 @@ machine.
 
 Ошибки:
 - 404 `page-not-found` - pageId не существует
-- 503 `ai-edit-not-configured` - `ANTHROPIC_API_KEY=disabled`.
-  Detail: «AI editing не настроен - установите ANTHROPIC_API_KEY
-  env var»
-- 502 `anthropic-api-error` - Anthropic API вернул не-2xx (после 3
-  retry попыток через Resilience4j). Property `upstreamStatus` -
-  HTTP-код от Anthropic
-- 503 `anthropic-api-error` - IOException/timeout при connection к
-  Anthropic (statusCode=0 в Exception)
+- 503 `ai-edit-not-configured` - активный LLM-провайдер disabled
+  (API key = "disabled", default; см. `AI_PROVIDER`, ADR-058).
+  Detail: «AI editing не настроен - установите API key активного
+  LLM-провайдера ... и перезапустите backend»
+- 502 `llm-api-error` - LLM API вернул не-2xx (после 3 retry попыток
+  через Resilience4j). Property `upstreamStatus` - HTTP-код от
+  провайдера (ADR-058: тип ошибки провайдер-агностичен, был
+  `anthropic-api-error`)
+- 503 `llm-api-error` - IOException/timeout при connection к LLM
+  провайдеру (statusCode=0 в Exception)
 
 ### GET /api/v1/library/pages/{pageId}/ai-edit - статус AI edit (Этап 17.e)
 

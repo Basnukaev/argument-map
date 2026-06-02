@@ -1,4 +1,4 @@
-package ru.basnukaev.argumentmap.library.imports;
+package ru.basnukaev.argumentmap.ai;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -26,7 +26,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
  *
  * <p>Стоимость одного прогона - ~$0.01 (короткий prompt + короткий
  * response). Запускать только при изменении prompt template / model /
- * AnthropicClient логики - не на каждом verify.
+ * AnthropicLlmClient логики - не на каждом verify.
  */
 @Tag("live")
 @EnabledIfEnvironmentVariable(named = "ANTHROPIC_API_KEY",
@@ -39,7 +39,7 @@ class AiEditServiceLiveIT {
         String apiKey = System.getenv("ANTHROPIC_API_KEY");
         HttpClient httpClient = HttpClient.newHttpClient();
         ObjectMapper objectMapper = new ObjectMapper();
-        AnthropicClient client = new AnthropicClient(
+        AnthropicLlmClient client = new AnthropicLlmClient(
                 httpClient, objectMapper,
                 apiKey,
                 "https://api.anthropic.com",

@@ -14,6 +14,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
+import ru.basnukaev.argumentmap.ai.LlmApiException;
+import ru.basnukaev.argumentmap.ai.LlmClient;
 import ru.basnukaev.argumentmap.library.domain.AiEditStatus;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookVisibility;
@@ -25,26 +27,26 @@ import ru.basnukaev.argumentmap.library.repository.PageRepository;
 /**
  * IT для {@link AiEditService} (Этап 17.e, ADR-042).
  *
- * <p>Использует {@link MockBean AnthropicClient mock} (Spring Boot
+ * <p>Использует {@link MockBean LlmClient mock} (Spring Boot
  * автоматически инжектит mock вместо реального bean'а) - проверяем
  * end-to-end: state machine UPDATE'ы, JSON валидация, fence stripping
- * - **без** реальных вызовов в Anthropic API.
+ * - **без** реальных вызовов в LLM API.
  *
- * <p>Реальная интеграция с Anthropic Messages API проверяется через
+ * <p>Реальная интеграция с LLM API проверяется через
  * {@link AiEditServiceLiveIT} (отдельный класс с @Tag("live")) -
  * запускается опционально по env var ANTHROPIC_API_KEY и не входит
  * в обычный verify.
  *
- * <p>JDK HttpServer для имитации Anthropic API (не WireMock) - тот же
- * подход что и в {@code HttpClientPdfFetcherRangeStreamingIT}. Нет
- * runtime dependency, достаточно для contract-level coverage.
+ * <p>JDK HttpServer для имитации LLM API (не WireMock) - тот же подход
+ * что и в {@code HttpClientPdfFetcherRangeStreamingIT}. Нет runtime
+ * dependency, достаточно для contract-level coverage.
  */
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
 class AiEditServiceIT {
 
     @MockBean
-    private AnthropicClient anthropicClient;
+    private LlmClient llmClient;
 
     @Autowired
     private AiEditService service;
@@ -77,7 +79,7 @@ class AiEditServiceIT {
 
         // По умолчанию client enabled - тесты которым нужен disabled
         // делают org.mockito.Mockito.when(...) в test body
-        org.mockito.Mockito.when(anthropicClient.isEnabled()).thenReturn(true);
+        org.mockito.Mockito.when(llmClient.isEnabled()).thenReturn(true);
     }
 
     @Test
@@ -85,7 +87,7 @@ class AiEditServiceIT {
         String llmResponse = "{\"type\":\"doc\",\"content\":["
                 + "{\"type\":\"paragraph\",\"content\":["
                 + "{\"type\":\"text\",\"text\":\"بسم الله\"}]}]}";
-        org.mockito.Mockito.when(anthropicClient.complete(org.mockito.ArgumentMatchers.anyString()))
+        org.mockito.Mockito.when(llmClient.complete(org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(llmResponse);
 
         Page page = savePage("بسم الله الرحمن الرحيم");
@@ -102,7 +104,7 @@ class AiEditServiceIT {
 
     @Test
     void enhance_invalidJsonResponse_marksFailed() {
-        org.mockito.Mockito.when(anthropicClient.complete(org.mockito.ArgumentMatchers.anyString()))
+        org.mockito.Mockito.when(llmClient.complete(org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn("not even json {broken");
 
         Page page = savePage("some arabic text");
@@ -119,7 +121,7 @@ class AiEditServiceIT {
     @Test
     void enhance_markdownFenceWrappedResponse_strippedAndSaved() {
         String fenced = "```json\n{\"type\":\"doc\",\"content\":[]}\n```";
-        org.mockito.Mockito.when(anthropicClient.complete(org.mockito.ArgumentMatchers.anyString()))
+        org.mockito.Mockito.when(llmClient.complete(org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(fenced);
 
         Page page = savePage("text");
@@ -146,15 +148,15 @@ class AiEditServiceIT {
 
         Page after = pageRepository.findById(page.id()).orElseThrow();
         assertThat(after.aiEditStatus()).isEqualTo(AiEditStatus.FAILED);
-        // anthropicClient не должен был быть вызван
-        org.mockito.Mockito.verify(anthropicClient,
+        // llmClient не должен был быть вызван
+        org.mockito.Mockito.verify(llmClient,
                 org.mockito.Mockito.never()).complete(org.mockito.ArgumentMatchers.anyString());
     }
 
     @Test
     void enhance_anthropicThrows_marksFailed() {
-        org.mockito.Mockito.when(anthropicClient.complete(org.mockito.ArgumentMatchers.anyString()))
-                .thenThrow(new AnthropicApiException("API down", 500));
+        org.mockito.Mockito.when(llmClient.complete(org.mockito.ArgumentMatchers.anyString()))
+                .thenThrow(new LlmApiException("API down", 500));
 
         Page page = savePage("some text");
 
@@ -169,7 +171,7 @@ class AiEditServiceIT {
     void enhance_alreadyProcessing_skipsSecondPaidCall() {
         // Защита от check-then-act гонки: страница уже PROCESSING (другой
         // вызов в полёте) - второй enhance не должен дёргать платный API.
-        org.mockito.Mockito.when(anthropicClient.complete(org.mockito.ArgumentMatchers.anyString()))
+        org.mockito.Mockito.when(llmClient.complete(org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn("{\"type\":\"doc\",\"content\":[]}");
         Page page = savePage("some text");
         // эмулируем что concurrent вызов уже застолбил PROCESSING
@@ -179,7 +181,7 @@ class AiEditServiceIT {
         service.enhance(page.id());
 
         // tryClaim вернул false → complete() не вызван
-        org.mockito.Mockito.verify(anthropicClient,
+        org.mockito.Mockito.verify(llmClient,
                 org.mockito.Mockito.never()).complete(org.mockito.ArgumentMatchers.anyString());
         // статус остался PROCESSING (не перезаписан)
         Page after = pageRepository.findById(page.id()).orElseThrow();
@@ -188,7 +190,7 @@ class AiEditServiceIT {
 
     @Test
     void enhance_clientDisabled_marksFailedWithoutCall() {
-        org.mockito.Mockito.when(anthropicClient.isEnabled()).thenReturn(false);
+        org.mockito.Mockito.when(llmClient.isEnabled()).thenReturn(false);
 
         Page page = savePage("some text");
 
@@ -196,7 +198,7 @@ class AiEditServiceIT {
 
         Page after = pageRepository.findById(page.id()).orElseThrow();
         assertThat(after.aiEditStatus()).isEqualTo(AiEditStatus.FAILED);
-        org.mockito.Mockito.verify(anthropicClient,
+        org.mockito.Mockito.verify(llmClient,
                 org.mockito.Mockito.never()).complete(org.mockito.ArgumentMatchers.anyString());
     }
 

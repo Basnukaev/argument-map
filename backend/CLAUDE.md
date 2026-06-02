@@ -23,6 +23,7 @@ library - фундамент, argument-map / Q&A / будущие приложе
 
 ```
 ru.basnukaev.argumentmap/
+├── ai                  LlmClient abstraction (ADR-058): Anthropic/OpenAI/DeepSeek
 ├── config              Spring-конфигурация
 ├── domain              records предметной области
 ├── repository          JDBC-репозитории
@@ -200,17 +201,28 @@ issues не зафиксированные в backlog.
   на проекте JDBC Template, не плодим dep'ы. Простой record-helper
   достаточен
 
-### AI editing (ADR-042, Этап 17.e)
+### AI editing + LLM abstraction (ADR-042, Этап 17.e; ADR-058)
 
 LLM расставляет структуру (хадис-боксы, ayah-боксы, headings) поверх
-text_content через Anthropic Claude. Optional enhancement — без ключа
-платформа работает (formatted_content=null). Tesseract OCR удалён
-(ADR-057) — image-сканы хранятся как субстрат для будущего AI-recognition.
+text_content. Optional enhancement — без ключа платформа работает
+(formatted_content=null). Tesseract OCR удалён (ADR-057) — image-сканы
+хранятся как субстрат для будущего AI-recognition.
 
-**Детали:** `backend/docs/ai-editing.md` (env vars config, async
-pipeline `aiEditTaskExecutor`, retry policy Resilience4j, state machine
-в `lib_pages.ai_edit_status`, prompt template, graceful degradation,
-live IT тест).
+**Swappable provider (ADR-058):** прикладные сервисы инжектят
+интерфейс `ru.basnukaev.argumentmap.ai.LlmClient` (НЕ конкретный
+клиент). Реализация выбирается через `ai.provider` (env `AI_PROVIDER`):
+`anthropic` (default) / `openai` / `deepseek` — `@Component` +
+`@ConditionalOnProperty`, ровно ОДИН bean активен. Retry-инстанс
+`llmApi`, исключение `LlmApiException`. `BookMetadataExtractionService`
+использует тот же `LlmClient` для извлечения био-метаданных книг
+(graceful fallback на пустой Optional). При добавлении нового
+провайдера — новый `@Component @ConditionalOnProperty` + блок
+`ai.<provider>.*` в `application.yml`.
+
+**Детали:** `backend/docs/ai-editing.md` (provider switch, env vars
+config, async pipeline `aiEditTaskExecutor`, retry policy Resilience4j,
+state machine в `lib_pages.ai_edit_status`, prompt template, graceful
+degradation, live IT тест).
 
 ### Security (ADR-040)
 

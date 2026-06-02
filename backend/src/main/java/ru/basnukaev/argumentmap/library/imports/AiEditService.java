@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import ru.basnukaev.argumentmap.ai.LlmApiException;
+import ru.basnukaev.argumentmap.ai.LlmClient;
 import ru.basnukaev.argumentmap.exception.PageNotFoundException;
 import ru.basnukaev.argumentmap.library.domain.AiEditStatus;
 import ru.basnukaev.argumentmap.library.domain.Page;
@@ -21,8 +23,9 @@ import ru.basnukaev.argumentmap.library.repository.PageRepository;
 
 /**
  * AI editing pass (ADR-042, Этап 17.e). Преобразует OCR raw text из
- * {@link Page#textContent()} в structured ProseMirror JSON через
- * Anthropic Claude и сохраняет в {@link Page#formattedContent()}.
+ * {@link Page#textContent()} в structured ProseMirror JSON через LLM
+ * ({@link LlmClient}, провайдер выбирается ai.provider - ADR-058) и
+ * сохраняет в {@link Page#formattedContent()}.
  *
  * <p>Async через {@code @Async("aiEditTaskExecutor")} - REST endpoint
  * возвращает 202 Accepted сразу, тяжёлая LLM работа (5-15с) идёт в
@@ -33,7 +36,7 @@ import ru.basnukaev.argumentmap.library.repository.PageRepository;
  *   <li>Load page + проверка наличия text_content (precondition)</li>
  *   <li>State PENDING/FAILED/DONE → PROCESSING + started_at=now</li>
  *   <li>Загрузить prompt template (cached), substitute %%OCR_TEXT%%</li>
- *   <li>{@link AnthropicClient#complete(String)} → raw JSON string</li>
+ *   <li>{@link LlmClient#complete(String)} → raw JSON string</li>
  *   <li>Базовая валидация: распарсить JSON + проверить {@code type=doc}
  *       + {@code content[]} array</li>
  *   <li>Save через {@link PageRepository#updateFormattedContentAndMarkAiEditDone}
@@ -42,8 +45,8 @@ import ru.basnukaev.argumentmap.library.repository.PageRepository;
  *   <li>На exception: ai_edit_status=FAILED + log.error</li>
  * </ol>
  *
- * <p>{@code AnthropicClient.isEnabled()} - precondition. Если ключа нет,
- * {@link #recognizeAsync} сразу bypass + page FAILED. Controller
+ * <p>{@code LlmClient.isEnabled()} - precondition. Если ключа нет,
+ * {@link #enhanceAsync} сразу bypass + page FAILED. Controller
  * проверяет isEnabled() до триггера и возвращает 503 синхронно вместо
  * background failure.
  */
@@ -62,7 +65,7 @@ public class AiEditService {
     private static final String PROMPT_RESOURCE_PATH = "prompts/ai-edit-tahqiq.txt";
 
     private final PageRepository pageRepository;
-    private final AnthropicClient anthropicClient;
+    private final LlmClient llmClient;
     private final ObjectMapper objectMapper;
 
     /**
@@ -73,10 +76,10 @@ public class AiEditService {
     private volatile String promptTemplate;
 
     public AiEditService(PageRepository pageRepository,
-                          AnthropicClient anthropicClient,
+                          LlmClient llmClient,
                           ObjectMapper objectMapper) {
         this.pageRepository = pageRepository;
-        this.anthropicClient = anthropicClient;
+        this.llmClient = llmClient;
         this.objectMapper = objectMapper;
     }
 
@@ -117,10 +120,10 @@ public class AiEditService {
             return;
         }
 
-        if (!anthropicClient.isEnabled()) {
+        if (!llmClient.isEnabled()) {
             // Не должны попасть сюда если controller проверил isEnabled
             // заранее. Но safety net - помечаем FAILED.
-            log.warn("AI edit пропущен для page {} - AnthropicClient disabled",
+            log.warn("AI edit пропущен для page {} - LlmClient disabled",
                     pageId);
             pageRepository.updateAiEditStatus(pageId, AiEditStatus.FAILED,
                     Instant.now(), Instant.now());
@@ -128,7 +131,7 @@ public class AiEditService {
         }
 
         // Атомарный claim PROCESSING: если другой concurrent вызов уже в
-        // PROCESSING - не делаем второй платный Anthropic-запрос. Защита от
+        // PROCESSING - не делаем второй платный LLM-запрос. Защита от
         // double-submit / retry-в-полёте (check-then-act гонка).
         boolean claimed = pageRepository.tryClaimAiEditProcessing(
                 pageId, AiEditStatus.PROCESSING, Instant.now());
@@ -141,7 +144,7 @@ public class AiEditService {
         try {
             String prompt = loadPromptTemplate().replace(PROMPT_PLACEHOLDER,
                     page.textContent());
-            String rawResponse = anthropicClient.complete(prompt);
+            String rawResponse = llmClient.complete(prompt);
             String validJson = validateProseMirrorJson(rawResponse);
 
             pageRepository.updateFormattedContentAndMarkAiEditDone(
@@ -150,7 +153,7 @@ public class AiEditService {
                     pageId, validJson.length());
 
         } catch (RuntimeException e) {
-            // AnthropicApiException extends RuntimeException, ловится здесь
+            // LlmApiException extends RuntimeException, ловится здесь
             log.error("AI edit FAILED для page {}: {}",
                     pageId, e.getMessage(), e);
             pageRepository.updateAiEditStatus(pageId, AiEditStatus.FAILED,
@@ -175,8 +178,8 @@ public class AiEditService {
      * вокруг JSON (```json ... ```), preface комментарии. Strip их.
      *
      * @return оригинальный JSON если валиден (либо очищенный от fence)
-     * @throws AnthropicApiException если невалидный JSON либо неверная
-     *                               root structure
+     * @throws LlmApiException если невалидный JSON либо неверная root
+     *                         structure
      */
     String validateProseMirrorJson(String rawResponse) {
         String cleaned = stripMarkdownFence(rawResponse);
@@ -184,18 +187,18 @@ public class AiEditService {
             JsonNode root = objectMapper.readTree(cleaned);
             String type = root.path("type").asText();
             if (!"doc".equals(type)) {
-                throw new AnthropicApiException(
+                throw new LlmApiException(
                         "LLM response не ProseMirror doc (type=" + type + ")",
                         200);
             }
             JsonNode content = root.get("content");
             if (content == null || !content.isArray()) {
-                throw new AnthropicApiException(
+                throw new LlmApiException(
                         "LLM response без content array", 200);
             }
             return cleaned;
         } catch (IOException e) {
-            throw new AnthropicApiException(
+            throw new LlmApiException(
                     "LLM вернул невалидный JSON: " + e.getMessage(), 200, e);
         }
     }

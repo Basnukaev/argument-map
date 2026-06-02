@@ -6201,3 +6201,63 @@ archive.org OCR-слой — их `_text` уже содержит текст). I
 **Rejected alternatives.** Замена Tesseract на другой OCR (PaddleOCR,
 GCV) — YAGNI: если нужно OCR, лучше сразу LLM-vision без
 промежуточного plain-text этапа.
+
+## ADR-058: Swappable LLM provider abstraction (пакет `ai`)
+
+**Контекст.** AI editing (ADR-042) был жёстко привязан к одному
+`AnthropicClient` (concrete @Component). Property `ai.provider` в
+`application.yml` существовал, но был мёртвым — нигде не читался.
+Абдула хочет пробовать разные LLM API (Anthropic / DeepSeek / OpenAI)
+без переписывания кода, плюс появляется новый use-case — извлечение
+библиографических метаданных арабских книг через LLM.
+
+**Решение.** Ввести провайдер-агностичную абстракцию в новом пакете
+`ru.basnukaev.argumentmap.ai`:
+
+- **`LlmClient`** — интерфейс: `boolean isEnabled()`,
+  `String complete(String systemPrompt, String userPrompt)` +
+  default-перегрузка `complete(userPrompt)`. Добавлена поддержка
+  system-промпта (которой не было у старого клиента).
+- **Реализации** через `@Component` + `@ConditionalOnProperty(name="ai.provider")`:
+  - `AnthropicLlmClient` — `havingValue="anthropic", matchIfMissing=true`
+    (default). Messages API, system как top-level поле.
+  - `OpenAiCompatibleLlmClient` — `havingValue="openai"`. Chat
+    Completions API, `Authorization: Bearer`, system как первое message.
+  - `DeepSeekLlmClient extends OpenAiCompatibleLlmClient` —
+    `havingValue="deepseek"` (DeepSeek OpenAI-совместим, тонкий subclass
+    лишь меняет конфиг `ai.deepseek.*`).
+- **`@Component`+`@ConditionalOnProperty`, НЕ @Bean-фабрика** —
+  Resilience4j `@Retry` AOP надёжно оборачивает @Component-бины;
+  @Bean-инстанцированные объекты proxy-неопределённы. Conditionals
+  взаимоисключающие → ровно ОДИН `LlmClient` bean активен, прикладные
+  сервисы инжектят `LlmClient` без неоднозначности.
+- **Retry-инстанс переименован** `anthropicApi` → `llmApi`;
+  `AnthropicApiException` → `LlmApiException`,
+  `AnthropicTransientFailurePredicate` → `LlmTransientFailurePredicate`
+  (логика идентична — retry только на transient: IOException, 0/429/5xx).
+- **`AiEditService`** теперь инжектит `LlmClient` вместо
+  `AnthropicClient`. Старые `Anthropic*` классы из `library/imports`
+  удалены (мигрированы в `ai`).
+- **`BookMetadataExtractionService`** (новый, `library/imports`) — LLM
+  превращает сырое описание книги (HTML/text) в структурированные
+  био-поля (`ExtractedBookMetadata`: titleAr, authors, publisher,
+  place, editionText/Number, yearHijri/Gregorian, volumes). Graceful
+  fallback: disabled/garbage/исключение → `Optional.empty()` (НЕ
+  бросает), caller откатывается на regex-парсер. Пока НЕ wired в
+  archive.org pipeline (отдельная фаза).
+- **GlobalExceptionHandler** error type `anthropic-api-error` →
+  `llm-api-error` (502/503 mapping без изменений).
+
+**Последствия.** Переключение провайдера = одна env-переменная
+`AI_PROVIDER` (+ соответствующий `*_API_KEY`). Per-provider блоки
+`ai.{anthropic,openai,deepseek}.*` в `application.yml` (одинаковый
+контракт: api-key sentinel "disabled", base-url, model, max-tokens,
+timeout-seconds). Тип ошибки `llm-api-error` — breaking для клиентов
+которые матчили старую строку (solo-проект, frontend не зависел).
+
+**Rejected alternatives.** (1) @Bean-фабрика, выбирающая impl по
+property — proxy-неопределённость с Resilience4j AOP. (2) Оставить
+один Anthropic-клиент + ручной branching внутри — не масштабируется,
+смешивает HTTP-логику разных wire-форматов. (3) LangChain4j / Spring AI
+— heavy dep ради 2 endpoint'ов с простым JSON, против правила «без
+тяжёлых зависимостей».

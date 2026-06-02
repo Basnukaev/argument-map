@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import ru.basnukaev.argumentmap.ai.LlmApiException;
+import ru.basnukaev.argumentmap.ai.LlmClient;
 import ru.basnukaev.argumentmap.library.repository.PageRepository;
 
 /**
@@ -17,8 +19,8 @@ import ru.basnukaev.argumentmap.library.repository.PageRepository;
  * невалидных responses (Этап 17.e, ADR-042).
  *
  * <p>Не SpringBootTest - testing pure parsing logic без БД и HTTP.
- * AnthropicClient и PageRepository моки (вызовы не делаются в этих
- * тестах validate).
+ * LlmClient и PageRepository моки (вызовы не делаются в этих тестах
+ * validate).
  */
 class AiEditServiceValidationTest {
 
@@ -28,7 +30,7 @@ class AiEditServiceValidationTest {
     void setUp() {
         service = new AiEditService(
                 mock(PageRepository.class),
-                mock(AnthropicClient.class),
+                mock(LlmClient.class),
                 new ObjectMapper());
     }
 
@@ -74,7 +76,7 @@ class AiEditServiceValidationTest {
         String json = "{\"type\":\"paragraph\",\"content\":[]}";
 
         assertThatThrownBy(() -> service.validateProseMirrorJson(json))
-                .isInstanceOf(AnthropicApiException.class)
+                .isInstanceOf(LlmApiException.class)
                 .hasMessageContaining("не ProseMirror doc");
     }
 
@@ -83,7 +85,7 @@ class AiEditServiceValidationTest {
         String json = "{\"type\":\"doc\"}";
 
         assertThatThrownBy(() -> service.validateProseMirrorJson(json))
-                .isInstanceOf(AnthropicApiException.class)
+                .isInstanceOf(LlmApiException.class)
                 .hasMessageContaining("без content array");
     }
 
@@ -92,7 +94,7 @@ class AiEditServiceValidationTest {
         String broken = "{\"type\":\"doc\", invalid";
 
         assertThatThrownBy(() -> service.validateProseMirrorJson(broken))
-                .isInstanceOf(AnthropicApiException.class)
+                .isInstanceOf(LlmApiException.class)
                 .hasMessageContaining("невалидный JSON");
     }
 
@@ -101,7 +103,7 @@ class AiEditServiceValidationTest {
         String json = "{\"type\":\"doc\",\"content\":\"string-not-array\"}";
 
         assertThatThrownBy(() -> service.validateProseMirrorJson(json))
-                .isInstanceOf(AnthropicApiException.class)
+                .isInstanceOf(LlmApiException.class)
                 .hasMessageContaining("без content array");
     }
 
