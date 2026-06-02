@@ -27,8 +27,9 @@ import ru.basnukaev.argumentmap.exception.AdminOnlyException;
  *       circuit breaker open).</li>
  * </ul>
  *
- * <p>{@code import} синхронный. Извлечение текста (если запрошено) -
- * тоже синхронно в рамках запроса; полный async-job - итерация.
+ * <p>{@code import} синхронный. Текст из archive.org не извлекается -
+ * книги FILE_ONLY (ADR-056 amendment b). {@code preview} при настроенном
+ * LLM может занять 5-15с (AI-извлечение метаданных, ADR-058).
  */
 @RestController
 @RequestMapping("/api/v1/admin/archive-org")
@@ -47,7 +48,7 @@ public class ArchiveOrgAdminController {
         return importService.preview(url);
     }
 
-    /** Импорт книги в lib_books (+ pdf_links, cover_url, опц. текст). */
+    /** Импорт книги в lib_books (+ pdf_links только original, cover_url). */
     @PostMapping("/import")
     public ArchiveOrgImportResponse importBook(@Valid @RequestBody ArchiveOrgImportRequest request) {
         requireAdmin();

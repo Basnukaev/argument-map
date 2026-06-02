@@ -6,10 +6,10 @@ import jakarta.validation.constraints.NotBlank;
  * Тело {@code POST /api/v1/admin/archive-org/import} (ADR-056).
  *
  * <p>Подтверждённые админом «наши» поля (после gap-aware enrichment во
- * фронте) + выбор обложки + флаги извлечения текста. Группировка
- * PDF в тома НЕ передаётся клиентом - сервис заново детерминированно
- * группирует по свежим metadata (single source of truth, нельзя
- * подделать список файлов).
+ * фронте) + выбор обложки. Группировка PDF в тома НЕ передаётся клиентом -
+ * сервис заново детерминированно группирует по свежим metadata (single
+ * source of truth, нельзя подделать список файлов). Текст из archive.org
+ * не извлекается (FILE_ONLY, ADR-056 amendment b) - флагов извлечения нет.
  *
  * @param url             archive.org URL либо bare identifier (обязателен)
  * @param title           подтверждённый заголовок (null → берём из источника)
@@ -27,10 +27,6 @@ import jakarta.validation.constraints.NotBlank;
  *                        (null → thumbnail по умолчанию)
  * @param coverUrl        явный URL обложки (для kind=upload; иначе сервис
  *                        выводит сам из identifier)
- * @param extractText     извлекать ли текст из OCR-PDF в lib_pages
- *                        (MVP синхронно). Default false (быстро).
- * @param testModePages   если задан N>0 и extractText=true - извлечь
- *                        только первые N страниц на том (для отладки)
  */
 public record ArchiveOrgImportRequest(
         @NotBlank String url,
@@ -45,8 +41,6 @@ public record ArchiveOrgImportRequest(
         Integer yearHijri,
         Integer yearGregorian,
         String coverKind,
-        String coverUrl,
-        boolean extractText,
-        Integer testModePages
+        String coverUrl
 ) {
 }

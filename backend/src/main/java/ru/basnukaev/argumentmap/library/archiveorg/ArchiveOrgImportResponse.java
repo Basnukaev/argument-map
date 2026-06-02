@@ -9,7 +9,8 @@ import java.util.UUID;
  * @param archiveOrgId       natural key
  * @param volumesRegistered  число томов записанных в pdf_links (без обложки)
  * @param coverSet           была ли установлена cover_url
- * @param pagesExtracted     сколько lib_pages создано (0 если extractText=false)
+ * @param pagesExtracted     устаревшее поле - всегда 0 (archive.org-книги
+ *                           FILE_ONLY, lib_pages не создаются, ADR-056 amendment b)
  * @param alreadyExisted     true если книга уже была импортирована (idempotent hit)
  */
 public record ArchiveOrgImportResponse(

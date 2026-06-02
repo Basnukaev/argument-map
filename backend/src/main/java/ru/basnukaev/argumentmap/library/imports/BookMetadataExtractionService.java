@@ -74,7 +74,10 @@ public class BookMetadataExtractionService {
             return Optional.empty();
         }
 
-        String cleaned = stripHtmlTags(rawDescription);
+        String cleaned = HtmlText.stripTags(rawDescription);
+        if (cleaned == null) {
+            return Optional.empty();
+        }
         String userPrompt = buildUserPrompt(cleaned);
 
         String rawResponse;
@@ -204,19 +207,6 @@ public class BookMetadataExtractionService {
             }
         }
         return result;
-    }
-
-    /**
-     * Снять HTML-теги простым regex для экономии токенов. LLM справился
-     * бы и с HTML, но plain text дешевле. {@code <br/>} превращаем в
-     * перенос строки чтобы поля не слипались.
-     */
-    private String stripHtmlTags(String raw) {
-        return raw
-                .replaceAll("(?i)<br\\s*/?>", "\n")
-                .replaceAll("<[^>]+>", " ")
-                .replaceAll("[ \\t]+", " ")
-                .trim();
     }
 
     /**

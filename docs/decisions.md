@@ -6159,6 +6159,43 @@ citation), ADR-035 (PDF upload), ADR-054 (системный пользоват�
   letter-avatar когда обложки нет. «Рендеринг cover_url в API-ответах +
   BookListPage/Reader — итерация» (конец блока миграции 67) — **сделано**.
 
+### Amendment 2026-06-03 — archive.org книги = FILE_ONLY, dual-variant модель отменена
+
+Бэкенд-оверхол импорта archive.org. Исходная dual-variant модель pdf_links
+(`original` + `ocr` на том) **отменена**, текст-извлечение **удалено**:
+
+- **Только `original` Image-Container PDF.** OCR-варианты archive.org
+  (`*_text.pdf`, format `Additional Text PDF`) — это их собственный
+  Tesseract-слой, который **портит арабский** (источник «абракадабры» в
+  reader'е). `ArchiveOrgMetadataMapper.groupPdfs` теперь отбрасывает их
+  целиком; в `pdf_links.files[]` идут только original (cover=`{id}0.pdf`,
+  тома `{id}1/2/3.pdf`). Поле `variant` всегда `original` (оставлено для
+  forward-compat `PdfLinksSourceProvider`), `volumeNo` — для будущей
+  per-volume навигации.
+- **`content_kind = FILE_ONLY` всегда.** Текст не извлекаем (мост к ADR-057,
+  где удалён наш Tesseract). archive.org-книги читаются как сканы; `lib_pages`
+  не создаются. `ArchiveOrgImportService.extractText()` / `extractVolume()` /
+  `ExtractionResult` удалены, как и зависимости PDFBox / `PdfFetcher` /
+  `PageRepository` из сервиса.
+- **Поля `extractText` / `testModePages` убраны** из `ArchiveOrgImportRequest`.
+- **`description` сохраняется plain-text** (HTML снят через новый общий
+  util `library/imports/HtmlText.stripTags`, который теперь использует и
+  `BookMetadataExtractionService`). Reader иначе показывал буквальные `<div>`
+  теги.
+- **AI-извлечение метаданных (ADR-058) wired в `preview()` как primary,
+  regex — fallback.** Для каждого gap-поля
+  (author/publisher/place/edition/hijri/greg/volumes) предпочитается
+  AI-значение, иначе regex (`ArchiveOrgDescriptionParser` сохранён). Provenance
+  остаётся `archive_org` (и AI, и regex берут данные из того же описания) —
+  нового значения провенанса не вводим. При отсутствии ключа (LlmClient
+  disabled) — мгновенный regex-only; при настроенном ключе preview может
+  занять 5-15с (вызов LLM) — приемлемо для admin-preview.
+
+Превью DTO (`ArchiveOrgPreview.VolumeGroup`) изменено: вместо
+`{role, volumeNo, original: PdfFileRef, ocr: PdfFileRef}` теперь
+`{role, volumeNo, name, label, sizeBytes, downloadUrl}` (одна запись = один
+original PDF). Record `PdfFileRef` удалён.
+
 ---
 
 ## ADR-057: Удаление Tesseract OCR (миграция 68)

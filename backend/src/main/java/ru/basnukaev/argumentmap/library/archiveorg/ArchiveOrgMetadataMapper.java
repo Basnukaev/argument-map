@@ -12,9 +12,9 @@ import org.springframework.stereotype.Component;
 import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgDescriptionParser.ParsedDescription;
 import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgMetadata.FileEntry;
 import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgPreview.CoverOption;
-import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgPreview.PdfFileRef;
 import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgPreview.ProvenanceField;
 import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgPreview.VolumeGroup;
+import ru.basnukaev.argumentmap.library.imports.HtmlText;
 
 /**
  * Чистый маппер (без сети) сырых archive.org-метаданных
@@ -28,21 +28,21 @@ import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgPreview.VolumeGroup
  * ({@code archive_org}, т.к. значение всё равно из источника) → {@code
  * missing}. {@code rawDescription} отдаётся всегда (admin видит оригинал).
  *
- * <h2>Группировка PDF в тома</h2>
- * PDF-форматы archive.org: {@code Image Container PDF}/{@code Text PDF}
- * (source=original, скан) и {@code Additional Text PDF} (source=derivative,
- * OCR-слой, имя {@code *_text.pdf}).
+ * <h2>Группировка PDF в тома (ADR-056 amendment b)</h2>
+ * Регистрируем ТОЛЬКО original Image-Container PDF. OCR-варианты
+ * archive.org ({@code *_text.pdf}, format {@code Additional Text PDF}) -
+ * это их собственный Tesseract-слой, который портит арабский (источник
+ * «абракадабры»); их мы полностью отбрасываем. archive.org-книги читаются
+ * как сканы (FILE_ONLY), текст не извлекаем (согласовано с удалением
+ * нашего OCR в ADR-057).
  *
- * <p>Соглашение об именах (пример fmhji): {@code {id}0[_text].pdf} = обложка
- * (1 страница), {@code {id}1/2/3[_text].pdf} = тома. Группируем по
- * «basename без {@code _text} без расширения»:
+ * <p>Соглашение об именах (пример fmhji): {@code {id}0.pdf} = обложка
+ * (1 страница), {@code {id}1/2/3.pdf} = тома:
  * <ul>
  *   <li>{@code {id}{N}} с N=0 → роль {@code cover};</li>
  *   <li>{@code {id}{N}} с N≥1 → роль {@code volume}, volumeNo=N;</li>
  *   <li>файл не матчит {@code {id}{N}} (одиночный PDF с произвольным
- *       именем) → один том volumeNo=1, без обложки;</li>
- *   <li>в группе original = без {@code _text}, ocr = {@code *_text.pdf};</li>
- *   <li>нет {@code _text}-варианта → {@code ocr==null} (флаг «только скан»).</li>
+ *       именем) → один том volumeNo=1, без обложки.</li>
  * </ul>
  */
 @Component
@@ -71,9 +71,14 @@ public class ArchiveOrgMetadataMapper {
 
         // Парсим арабский description: издатель/год/тома/издание/автор/место
         // чаще лежат там, не в чистых полях. Приоритет - чистое metadata-поле,
-        // затем parsed (всё равно archive_org), затем missing.
-        String description = scalar(m, "description");
-        ParsedDescription parsed = descriptionParser.parse(description);
+        // затем parsed (всё равно archive_org), затем missing. Парсер сам
+        // снимает HTML, поэтому передаём сырое описание.
+        String rawDescription = scalar(m, "description");
+        ParsedDescription parsed = descriptionParser.parse(rawDescription);
+
+        // В превью и в БД отдаём description plain-text (HTML снят): reader
+        // иначе показывает буквальные <div> теги (ADR-056 amendment b).
+        String description = HtmlText.stripTags(rawDescription);
 
         return new ArchiveOrgPreview(
                 identifier,
@@ -116,32 +121,32 @@ public class ArchiveOrgMetadataMapper {
         if (files == null) {
             return List.of();
         }
-        // Сохраняем порядок появления групп (LinkedHashMap), сортируем потом
-        Map<String, GroupAccumulator> byKey = new LinkedHashMap<>();
+        // Регистрируем только original Image-Container PDF. OCR-варианты
+        // archive.org (*_text.pdf) полностью отбрасываем - их Tesseract-слой
+        // портит арабский (ADR-056 amendment b). Дедуп по stem на случай
+        // дублей. Сохраняем порядок появления (LinkedHashMap), сортируем потом.
+        Map<String, RawPdf> byStem = new LinkedHashMap<>();
         for (FileEntry f : files) {
             if (!isPdf(f)) {
                 continue;
             }
             String name = f.name();
-            String basename = stripPdfExt(name);
-            boolean isOcr = basename.toLowerCase(Locale.ROOT).endsWith(TEXT_SUFFIX);
-            String stem = isOcr
-                    ? basename.substring(0, basename.length() - TEXT_SUFFIX.length())
-                    : basename;
-
-            byKey.computeIfAbsent(stem, k -> new GroupAccumulator())
-                    .add(isOcr, new PdfFileRef(name, f.sizeBytes(), downloadUrl(base, identifier, name)));
+            String stem = stripPdfExt(name);
+            if (stem.toLowerCase(Locale.ROOT).endsWith(TEXT_SUFFIX)) {
+                continue; // OCR-слой archive.org - не регистрируем
+            }
+            byStem.putIfAbsent(stem, new RawPdf(name, f.sizeBytes()));
         }
-        if (byKey.isEmpty()) {
+        if (byStem.isEmpty()) {
             return List.of();
         }
 
-        List<VolumeGroup> result = new ArrayList<>(byKey.size());
+        // Сначала определяем роли/номера, затем формируем метки (число томов
+        // влияет на «Том N» vs «Книга»).
+        List<Resolved> resolved = new ArrayList<>(byStem.size());
         int fallbackVolumeNo = 1;
-        for (Map.Entry<String, GroupAccumulator> e : byKey.entrySet()) {
-            String stem = e.getKey();
-            GroupAccumulator acc = e.getValue();
-            Integer parsedNo = parseVolumeNumber(identifier, stem);
+        for (Map.Entry<String, RawPdf> e : byStem.entrySet()) {
+            Integer parsedNo = parseVolumeNumber(identifier, e.getKey());
             String role;
             int volumeNo;
             if (parsedNo == null) {
@@ -156,7 +161,22 @@ public class ArchiveOrgMetadataMapper {
                 role = VolumeGroup.ROLE_VOLUME;
                 volumeNo = parsedNo;
             }
-            result.add(new VolumeGroup(role, volumeNo, acc.original, acc.ocr));
+            resolved.add(new Resolved(role, volumeNo, e.getValue()));
+        }
+
+        long volumeCount = resolved.stream()
+                .filter(r -> VolumeGroup.ROLE_VOLUME.equals(r.role()))
+                .count();
+
+        List<VolumeGroup> result = new ArrayList<>(resolved.size());
+        for (Resolved r : resolved) {
+            String label = VolumeGroup.ROLE_COVER.equals(r.role())
+                    ? "Обложка"
+                    : (volumeCount > 1 ? "Том " + r.volumeNo() : "Книга");
+            result.add(new VolumeGroup(
+                    r.role(), r.volumeNo(),
+                    r.pdf().name(), label, r.pdf().size(),
+                    downloadUrl(base, identifier, r.pdf().name())));
         }
 
         // Детерминированный порядок: cover (volumeNo=0) первым, дальше по номеру.
@@ -218,22 +238,12 @@ public class ArchiveOrgMetadataMapper {
         return base + "/download/" + identifier + "/" + name;
     }
 
-    /** Аккумулятор original/ocr ветвей внутри одной группы (mutable, локальный). */
-    private static final class GroupAccumulator {
-        private PdfFileRef original;
-        private PdfFileRef ocr;
+    /** Сырой original PDF (имя + размер) до резолва роли/метки. */
+    private record RawPdf(String name, Long size) {
+    }
 
-        void add(boolean isOcr, PdfFileRef ref) {
-            if (isOcr) {
-                if (ocr == null) {
-                    ocr = ref;
-                }
-            } else {
-                if (original == null) {
-                    original = ref;
-                }
-            }
-        }
+    /** PDF с уже определённой ролью и номером тома (до формирования метки). */
+    private record Resolved(String role, int volumeNo, RawPdf pdf) {
     }
 
     // ---------------- cover options ----------------

@@ -23,8 +23,11 @@ import java.util.List;
  * @param yearGregorian   год григорианский (обычно missing)
  * @param volumes         число томов (обычно missing - в description)
  * @param language        язык (нормализованный ISO-код)
- * @param rawDescription  сырое HTML-описание (арабское) для копипасты
- * @param files           сгруппированные тома (cover/volume × original/ocr)
+ * @param rawDescription  описание (plain text - HTML снят) для копипасты
+ * @param files           PDF-тома (только original Image-Container PDF;
+ *                        OCR {@code _text} варианты отброшены - ADR-056
+ *                        amendment b). files[0] - обложка ({@code role=cover},
+ *                        если есть {id}0), остальные - тома по номеру
  * @param coverOptions    варианты обложки (thumbnail/cover_pdf_page/upload)
  * @param hasPdf          false если у item'а нет ни одного PDF
  */
@@ -74,26 +77,26 @@ public record ArchiveOrgPreview(
 
     /**
      * Один том (или обложка) после авто-группировки PDF по {@code {id}{N}}.
-     * {@code original} - Image-PDF (точный просмотр скана); {@code ocr} -
-     * {@code *_text.pdf} (источник текста). Любая ветвь nullable:
-     * только-скан без OCR → {@code ocr==null}; редкий случай только-OCR →
-     * {@code original==null}.
+     * Только original Image-Container PDF - OCR {@code _text.pdf} варианты
+     * archive.org мы НЕ регистрируем (их Tesseract-слой портит арабский,
+     * ADR-056 amendment b; archive.org-книги читаются как сканы, FILE_ONLY).
      *
      * @param role      {@code cover} ({id}0) либо {@code volume}
      * @param volumeNo  номер тома (1-based); для cover - 0
+     * @param name      имя PDF-файла (например {@code fmhji1.pdf})
+     * @param label     человекочитаемая метка («Том 1» / «Обложка» / «Книга»)
+     * @param sizeBytes размер файла в байтах (nullable)
      */
     public record VolumeGroup(
             String role,
             int volumeNo,
-            PdfFileRef original,
-            PdfFileRef ocr
+            String name,
+            String label,
+            Long sizeBytes,
+            String downloadUrl
     ) {
         public static final String ROLE_COVER = "cover";
         public static final String ROLE_VOLUME = "volume";
-    }
-
-    /** Ссылка на конкретный PDF-файл с готовым download-URL. */
-    public record PdfFileRef(String name, Long size, String downloadUrl) {
     }
 
     /**

@@ -2505,13 +2505,15 @@ interface без изменения API.
 
 - **legacy string** — `"name.pdf"` либо `"name.pdf|label"` (label через
   pipe). Shamela / user-upload книги.
-- **object** — `{ "name": "fmhji1_text.pdf", "label": "Том 1 (OCR)",
-  "variant": "original"|"ocr", "volumeNo": 1, "size": 25286151 }`.
-  archive.org-импорт пишет именно эту форму, чтобы хранить **обе** ветви
-  тома (оригинал-скан + OCR-слой) в одном `pdf_links`. `PdfLinksSourceProvider`
-  парсит обе формы; `cover:1` → `files[0]` помечается обложкой в любой форме.
-  `variant`/`volumeNo` reader-фронт использует для dual-view dropdown
-  (итерация); провайдер их пока игнорирует.
+- **object** — `{ "name": "fmhji1.pdf", "label": "Том 1",
+  "variant": "original", "volumeNo": 1, "size": 19518609 }`.
+  archive.org-импорт пишет именно эту форму. **ADR-056 amendment 2026-06-03:**
+  регистрируются ТОЛЬКО `original` Image-Container PDF — OCR-варианты
+  archive.org (`*_text.pdf`) отброшены (их Tesseract-слой портит арабский,
+  мост к ADR-057). `variant` поэтому всегда `original` (оставлено для
+  forward-compat). `PdfLinksSourceProvider` парсит обе формы; `cover:1` →
+  `files[0]` помечается обложкой. `volumeNo` reader-фронт использует для
+  per-volume навигации (итерация); провайдер его пока игнорирует.
 
 Колонка **`lib_books.cover_url`** (миграция 67) — прямая ссылка на обложку
 (archive.org thumbnail `/services/img/{id}` / cover-PDF / upload). Nullable;
@@ -2625,7 +2627,10 @@ item не найден → **404** `archive-org-item-not-found`; archive.org
 полный URL (`archive.org/details/{id}/...`) либо bare identifier.
 
 Response 200 — `ArchiveOrgPreview` (fmhji: gap-поля распарсены из
-арабского `description` — ADR-056):
+арабского `description` — ADR-056). **ADR-056 amendment 2026-06-03:**
+`files[]` несут только original PDF (OCR `_text` отброшены); `rawDescription`
+plain-text (HTML снят); метаданные обогащаются AI (ADR-058) как primary,
+regex — fallback.
 ```json
 {
   "archiveOrgId": "fmhji",
@@ -2639,14 +2644,14 @@ Response 200 — `ArchiveOrgPreview` (fmhji: gap-поля распарсены �
   "yearGregorian": { "value": "2012", "source": "archive_org" },
   "volumes": { "value": "3", "source": "archive_org" },
   "language": { "value": "ar", "source": "archive_org" },
-  "rawDescription": "<div>...المؤلف...الناشر...عدد المجلدات...</div>",
+  "rawDescription": "...المؤلف...الناشر...عدد المجلدات...",
   "files": [
-    { "role": "cover", "volumeNo": 0,
-      "original": { "name": "fmhji0.pdf", "size": 201358,
-                    "downloadUrl": "https://archive.org/download/fmhji/fmhji0.pdf" },
-      "ocr": { "name": "fmhji0_text.pdf", "size": 130728,
-               "downloadUrl": "https://archive.org/download/fmhji/fmhji0_text.pdf" } },
-    { "role": "volume", "volumeNo": 1, "original": {...}, "ocr": {...} }
+    { "role": "cover", "volumeNo": 0, "name": "fmhji0.pdf", "label": "Обложка",
+      "sizeBytes": 201358,
+      "downloadUrl": "https://archive.org/download/fmhji/fmhji0.pdf" },
+    { "role": "volume", "volumeNo": 1, "name": "fmhji1.pdf", "label": "Том 1",
+      "sizeBytes": 19518609,
+      "downloadUrl": "https://archive.org/download/fmhji/fmhji1.pdf" }
   ],
   "coverOptions": [
     { "kind": "thumbnail", "url": "https://archive.org/services/img/fmhji" },
@@ -2657,32 +2662,41 @@ Response 200 — `ArchiveOrgPreview` (fmhji: gap-поля распарсены �
 }
 ```
 
+`files[]` записи: `{ role, volumeNo, name, label, sizeBytes, downloadUrl }`.
+`role` = `cover` (`{id}0.pdf`) либо `volume`. `label` — «Обложка» / «Том N»
+(если томов >1) / «Книга» (единственный том). Старые поля `original`/`ocr`
+(record `PdfFileRef`) **удалены** — теперь одна запись = один original PDF.
+
 **Провенанс** (`source`): `archive_org` — взято из источника (prefilled);
 `missing` — нет в источнике (фронт подсвечивает «дообогати»). archive.org
 чисто отдаёт title/creator(→author)/language. Издатель/год/тома/издание/
-автор чаще лежат только в арабском HTML `description` — их вытягивает
-`ArchiveOrgDescriptionParser` (метки `المؤلف:`/`تأليف:` → author,
-`الناشر:`/`دار النشر:` → publisher, `مكان النشر:` → place, `سنة النشر:`/
-`عام النشر:` → year(s) (`1433 - 2012` → hijri 1433 + gregorian 2012),
-`عدد المجلدات:` → volumes, `رقم الطبعة:`/`الطبعة:` → edition (arabic ordinal
-best-effort, `الثالثة عشر`=13)). Приоритет: чистое metadata-поле → парсинг
-description (тоже `archive_org`, значение из источника) → `missing`. Метка
-отсутствует/нечитаема → поле остаётся `missing`. `rawDescription`
-отдаётся всегда (admin видит оригинал).
+автор чаще лежат только в арабском HTML `description`. Их извлекают **два**
+механизма: AI (`BookMetadataExtractionService`, ADR-058) как primary +
+regex (`ArchiveOrgDescriptionParser`) как fallback. Для каждого gap-поля
+предпочитается AI-значение (если непустое), иначе regex-значение, иначе
+`missing`. И AI, и regex берут данные из того же описания, поэтому
+заполненное поле помечается `archive_org` (нового значения провенанса
+**нет**). При отсутствии LLM-ключа (LlmClient disabled) preview мгновенный
+(regex-only); при настроенном ключе preview может занять **5-15с** (вызов
+LLM) — приемлемо для admin-preview. `rawDescription` (plain-text) отдаётся
+всегда.
 
-**Группировка** robustна: нет `_text.pdf` → `ocr: null` («только скан»);
+**Группировка** robustна: OCR-варианты (`*_text.pdf`) отбрасываются всегда;
 один PDF без `{id}{N}` → один том без обложки; нет `{id}0` → без обложки;
 нет PDF вовсе → `hasPdf: false`.
 
 ### POST /api/v1/admin/archive-org/import
 
 Создаёт `lib_books` (BOOK, PUBLIC, `created_by`=системный
-`00000000-…-0002`) + `metadata.pdf_links` (object-form original+OCR на том)
-+ `metadata.archive_org_id` + `cover_url` + academic поля (findOrCreate).
-**Идемпотентно** по `archive_org_id` (повторный импорт возвращает
-существующую книгу). PDF ленивые. Опционально синхронно извлекает текст.
+`00000000-…-0002`) + `metadata.pdf_links` (object-form, **только original**
+PDF) + `metadata.archive_org_id` + `cover_url` + academic поля (findOrCreate).
+**`content_kind=FILE_ONLY` всегда** — текст не извлекаем, `lib_pages` не
+создаются (ADR-056 amendment 2026-06-03; archive.org-книги читаются как
+сканы). `description` сохраняется plain-text (HTML снят). **Идемпотентно**
+по `archive_org_id`. PDF ленивые.
 
-Request body — `ArchiveOrgImportRequest`:
+Request body — `ArchiveOrgImportRequest` (поля `extractText`/`testModePages`
+**удалены**):
 ```json
 {
   "url": "https://archive.org/details/fmhji",
@@ -2690,16 +2704,13 @@ Request body — `ArchiveOrgImportRequest`:
   "muhaqqiqName": null, "publisherName": null, "placeName": null,
   "editionNumber": null, "yearHijri": null, "yearGregorian": null,
   "coverKind": "thumbnail",
-  "coverUrl": null,
-  "extractText": false,
-  "testModePages": null
+  "coverUrl": null
 }
 ```
 `url` обязателен (NotBlank → 400). Null-поля → берутся из источника
 (title/language/description) либо остаются null. `coverKind` —
 `thumbnail` (default) / `cover_pdf_page` / `upload` (для upload — явный
-`coverUrl`). `extractText=true` + `testModePages=N` — извлечь N страниц
-на том (отладка); полное фоновое извлечение — итерация.
+`coverUrl`).
 
 Response 200 — `ArchiveOrgImportResponse`:
 ```json
@@ -2712,11 +2723,14 @@ Response 200 — `ArchiveOrgImportResponse`:
   "alreadyExisted": false
 }
 ```
+`pagesExtracted` — устаревшее поле, всегда `0` (archive.org-книги FILE_ONLY,
+текст не извлекается).
 
 ### Что **не** реализовано в archive.org admin
 
-- Полное фоновое извлечение текста всех томов (+ Tesseract для скан-only) —
-  сейчас синхронно за флагом `extractText`/`testModePages`.
+- Извлечение текста archive.org-книг **намеренно удалено** (FILE_ONLY,
+  ADR-056 amendment 2026-06-03): их OCR-PDF портят арабский, а наш OCR
+  удалён (ADR-057). Книги читаются как сканы.
 - Volume-dropdown в reader (`cover_url` уже отдаётся в book-list /
   book-detail ответах через `coverUrl`).
 - Парсинг `мухаккык` из `description` (нет стабильной метки у archive.org)

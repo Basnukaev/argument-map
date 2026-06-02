@@ -1,18 +1,9 @@
 package ru.basnukaev.argumentmap.library.archiveorg;
 
-import java.io.IOException;
-import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.text.PDFTextStripper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -23,30 +14,37 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgPreview.CoverOption;
-import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgPreview.PdfFileRef;
+import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgPreview.ProvenanceField;
 import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgPreview.VolumeGroup;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookContentKind;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.BookVisibility;
-import ru.basnukaev.argumentmap.library.domain.Page;
-import ru.basnukaev.argumentmap.library.pdf.service.PdfFetcher;
+import ru.basnukaev.argumentmap.library.imports.BookMetadataExtractionService;
+import ru.basnukaev.argumentmap.library.imports.ExtractedBookMetadata;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
-import ru.basnukaev.argumentmap.library.repository.PageRepository;
 import ru.basnukaev.argumentmap.library.service.BookService;
 
 /**
- * Импорт книги из archive.org (ADR-056). Две операции:
+ * Импорт книги из archive.org (ADR-056, amendment b). Две операции:
  * <ul>
  *   <li>{@link #preview(String)} - распарсить metadata + сгруппировать
- *       PDF, без записи в БД;</li>
+ *       PDF, без записи в БД. Метаданные обогащаются LLM
+ *       ({@link BookMetadataExtractionService}, ADR-058) как primary,
+ *       regex-парсер описания - fallback;</li>
  *   <li>{@link #importBook(ArchiveOrgImportRequest)} - создать
  *       {@code lib_books} (тип BOOK, PUBLIC, владелец - системный
- *       пользователь) с {@code metadata.pdf_links} (object-form
- *       original+OCR на том), {@code metadata.archive_org_id}, cover_url,
+ *       пользователь) с {@code metadata.pdf_links} (только original
+ *       Image-Container PDF), {@code metadata.archive_org_id}, cover_url,
  *       академ. полями (findOrCreate). PDF ленивые (только URL в
- *       pdf_links). Опционально синхронно извлекает текст из OCR-PDF.</li>
+ *       pdf_links). content_kind всегда FILE_ONLY.</li>
  * </ul>
+ *
+ * <p><b>FILE_ONLY (ADR-056 amendment b):</b> текст из archive.org мы НЕ
+ * извлекаем. Их OCR-PDF ({@code *_text.pdf}) портят арабский (источник
+ * «абракадабры»), а наш собственный OCR удалён (ADR-057). archive.org-книги
+ * читаются как сканы → {@code content_kind=FILE_ONLY}, {@code lib_pages}
+ * не создаются.
  *
  * <p><b>created_by:</b> archive.org-импорт - admin tooling без
  * пользовательского контента, владелец - фиксированный системный
@@ -55,11 +53,6 @@ import ru.basnukaev.argumentmap.library.service.BookService;
  *
  * <p><b>Идемпотентность:</b> lookup по {@code metadata->>'archive_org_id'};
  * повторный импорт того же identifier возвращает существующую книгу.
- *
- * <p><b>Извлечение текста (MVP синхронно):</b> при {@code extractText=true}
- * качаем OCR-PDF тома → PDFBox → {@code lib_pages}. {@code testModePages=N}
- * ограничивает N страниц на том (отладка). Полное фоновое извлечение
- * всех томов (+ Tesseract для скан-only) - итерация.
  */
 @Service
 public class ArchiveOrgImportService {
@@ -69,40 +62,112 @@ public class ArchiveOrgImportService {
     /** Системный пользователь-владелец admin-импортированных книг (миграция 65). */
     static final UUID SYSTEM_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000002");
 
+    /** Разделитель авторов для single-string поля превью (арабская запятая). */
+    private static final String AUTHOR_JOINER = " ، ";
+
     private final ArchiveOrgClient client;
     private final ArchiveOrgMetadataMapper mapper;
+    private final BookMetadataExtractionService metadataExtractionService;
     private final BookService bookService;
     private final BookRepository bookRepository;
-    private final PageRepository pageRepository;
-    private final PdfFetcher pdfFetcher;
     private final ObjectMapper objectMapper;
 
     public ArchiveOrgImportService(ArchiveOrgClient client,
                                    ArchiveOrgMetadataMapper mapper,
+                                   BookMetadataExtractionService metadataExtractionService,
                                    BookService bookService,
                                    BookRepository bookRepository,
-                                   PageRepository pageRepository,
-                                   PdfFetcher pdfFetcher,
                                    ObjectMapper objectMapper) {
         this.client = client;
         this.mapper = mapper;
+        this.metadataExtractionService = metadataExtractionService;
         this.bookService = bookService;
         this.bookRepository = bookRepository;
-        this.pageRepository = pageRepository;
-        this.pdfFetcher = pdfFetcher;
         this.objectMapper = objectMapper;
     }
 
-    /** Превью без записи в БД. */
+    /**
+     * Превью без записи в БД. Поверх regex-baseline (мгновенный) при
+     * включённом LLM прогоняем AI-извлечение метаданных и предпочитаем его
+     * значения. ВНИМАНИЕ: при настроенном ключе превью может занять 5-15с
+     * (вызов LLM); default (ключ "disabled") - мгновенный regex.
+     */
     public ArchiveOrgPreview preview(String url) {
         String id = client.extractIdentifier(url);
         ArchiveOrgMetadata raw = client.fetchMetadata(id);
-        return mapper.toPreview(id, raw);
+        ArchiveOrgPreview base = mapper.toPreview(id, raw);
+        return enrichWithAi(base);
+    }
+
+    /**
+     * Накладывает AI-извлечённые метаданные (ADR-058) поверх regex-baseline.
+     * Для каждого gap-поля предпочитаем AI-значение (если непустое), иначе
+     * оставляем regex-значение. Provenance не меняется: и AI, и regex берут
+     * данные из того же archive.org-описания, поэтому заполненное поле
+     * остаётся {@code archive_org}; только реально отсутствующие - missing.
+     * Graceful: если LLM disabled/упал - {@code extract} вернёт empty и
+     * превью останется regex-only.
+     */
+    private ArchiveOrgPreview enrichWithAi(ArchiveOrgPreview base) {
+        Optional<ExtractedBookMetadata> aiOpt =
+                metadataExtractionService.extract(base.rawDescription());
+        if (aiOpt.isEmpty()) {
+            return base;
+        }
+        ExtractedBookMetadata ai = aiOpt.get();
+        return new ArchiveOrgPreview(
+                base.archiveOrgId(),
+                prefer(ai.titleAr(), base.title()),
+                prefer(joinAuthors(ai.authors()), base.author()),
+                prefer(ai.publisher(), base.publisher()),
+                prefer(ai.place(), base.place()),
+                base.muhaqqiq(), // мухаккык AI отдельно не извлекает
+                prefer(editionValue(ai), base.edition()),
+                prefer(toStr(ai.yearHijri()), base.yearHijri()),
+                prefer(toStr(ai.yearGregorian()), base.yearGregorian()),
+                prefer(toStr(ai.volumes()), base.volumes()),
+                base.language(), // язык - чистое metadata-поле, AI не нужен
+                base.rawDescription(),
+                base.files(),
+                base.coverOptions(),
+                base.hasPdf());
+    }
+
+    /**
+     * AI-значение в приоритете: если непустое - {@code archive_org}, иначе
+     * fallback на regex-поле (оно само уже archive_org либо missing).
+     */
+    private static ProvenanceField prefer(String aiValue, ProvenanceField regexField) {
+        if (aiValue != null && !aiValue.isBlank()) {
+            return ProvenanceField.of(aiValue);
+        }
+        return regexField;
+    }
+
+    /** Номер издания цифрой, иначе текст издания (LLM мог вернуть строку). */
+    private static String editionValue(ExtractedBookMetadata ai) {
+        if (ai.editionNumber() != null) {
+            return String.valueOf(ai.editionNumber());
+        }
+        return ai.editionText();
+    }
+
+    /** Список авторов → одна строка через арабскую запятую (форма поля превью). */
+    private static String joinAuthors(List<String> authors) {
+        if (authors == null || authors.isEmpty()) {
+            return null;
+        }
+        return String.join(AUTHOR_JOINER, authors);
+    }
+
+    private static String toStr(Integer value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     /**
      * Импорт книги. Идемпотентно по archive_org_id. Возвращает результат
-     * с числом томов, флагом обложки и числом извлечённых страниц.
+     * с числом томов и флагом обложки. content_kind всегда FILE_ONLY,
+     * lib_pages не создаются.
      */
     @Transactional
     public ArchiveOrgImportResponse importBook(ArchiveOrgImportRequest request) {
@@ -113,8 +178,7 @@ public class ArchiveOrgImportService {
             Book book = existing.get();
             log.info("archive.org import idempotent hit: identifier={} bookId={}", id, book.id());
             return new ArchiveOrgImportResponse(
-                    book.id(), id, 0, book.coverUrl() != null,
-                    0, true);
+                    book.id(), id, 0, book.coverUrl() != null, 0, true);
         }
 
         ArchiveOrgMetadata raw = client.fetchMetadata(id);
@@ -165,24 +229,14 @@ public class ArchiveOrgImportService {
             coverSet = true;
         }
 
-        int pagesExtracted = 0;
-        boolean hasNonBlankText = false;
-        if (request.extractText()) {
-            ExtractionResult extraction = extractText(book.id(), volumes, request.testModePages());
-            pagesExtracted = extraction.pageCount();
-            hasNonBlankText = extraction.hasNonBlankText();
-        }
+        // content_kind всегда FILE_ONLY: pdf_links непуст (hasPdf проверен),
+        // текст не извлекаем (ADR-056 amendment b). of(false, true) = FILE_ONLY.
+        bookRepository.updateContentKind(book.id(), BookContentKind.of(false, true));
 
-        // content_kind: hasFile всегда true (preview.hasPdf() уже проверен
-        // выше → pdf_links непуст). hasText = извлекли хотя бы одну страницу
-        // с НЕпустым текстом (скан-PDF пишет пустые строки-плейсхолдеры —
-        // они не считаются). Без extractText → FILE_ONLY.
-        bookRepository.updateContentKind(book.id(), BookContentKind.of(hasNonBlankText, true));
-
-        log.info("archive.org import: bookId={} identifier={} volumes={} coverSet={} pages={}",
-                book.id(), id, volumes.size(), coverSet, pagesExtracted);
+        log.info("archive.org import: bookId={} identifier={} volumes={} coverSet={}",
+                book.id(), id, volumes.size(), coverSet);
         return new ArchiveOrgImportResponse(
-                book.id(), id, volumes.size(), coverSet, pagesExtracted, false);
+                book.id(), id, volumes.size(), coverSet, 0, false);
     }
 
     // ---------------- cover ----------------
@@ -193,8 +247,8 @@ public class ArchiveOrgImportService {
             case CoverOption.KIND_UPLOAD -> request.coverUrl(); // явный URL загруженной обложки
             case CoverOption.KIND_COVER_PDF_PAGE ->
                 // cover-PDF как обложка: ссылка на скан-PDF обложки (фронт рендерит первую страницу)
-                    cover != null && cover.original() != null
-                            ? cover.original().downloadUrl()
+                    cover != null
+                            ? cover.downloadUrl()
                             : client.baseUrl() + "/services/img/" + id;
             default -> client.baseUrl() + "/services/img/" + id; // thumbnail
         };
@@ -203,11 +257,12 @@ public class ArchiveOrgImportService {
     // ---------------- pdf_links (object-form) ----------------
 
     /**
-     * Строит {@code metadata} jsonb: {@code pdf_links} (object-form
-     * files[] с variant original/ocr + volumeNo) + {@code archive_org_id}.
-     * Обложка (если есть) идёт первым элементом с {@code cover:1} на
-     * уровне pdf_links - совместимо с {@code PdfLinksSourceProvider}
-     * ({@code cover:1} → files[0] исключается из чтения).
+     * Строит {@code metadata} jsonb: {@code pdf_links} (object-form files[]
+     * с volumeNo, только original PDF) + {@code archive_org_id}. Обложка
+     * (если есть) идёт первым элементом с {@code cover:1} на уровне
+     * pdf_links - совместимо с {@code PdfLinksSourceProvider}
+     * ({@code cover:1} → files[0] исключается из чтения). OCR-варианты НЕ
+     * пишутся (ADR-056 amendment b).
      */
     private String buildMetadataJson(String id, String base,
                                      VolumeGroup cover, List<VolumeGroup> volumes) {
@@ -218,23 +273,13 @@ public class ArchiveOrgImportService {
         pdfLinks.put("root", base + "/download/" + id + "/");
 
         ArrayNode files = pdfLinks.putArray("files");
-        boolean hasCover = cover != null && cover.original() != null;
-        if (hasCover) {
+        if (cover != null) {
             // обложка первым элементом + cover:1 - конвенция PdfLinksSourceProvider
             pdfLinks.put("cover", 1);
-            appendFile(files, cover.original(), "original", 0, "Обложка");
-            if (cover.ocr() != null) {
-                appendFile(files, cover.ocr(), "ocr", 0, "Обложка (OCR)");
-            }
+            appendFile(files, cover);
         }
         for (VolumeGroup v : volumes) {
-            String label = volumes.size() > 1 ? "Том " + v.volumeNo() : "Книга";
-            if (v.original() != null) {
-                appendFile(files, v.original(), "original", v.volumeNo(), label);
-            }
-            if (v.ocr() != null) {
-                appendFile(files, v.ocr(), "ocr", v.volumeNo(), label + " (OCR)");
-            }
+            appendFile(files, v);
         }
         try {
             return objectMapper.writeValueAsString(root);
@@ -243,104 +288,25 @@ public class ArchiveOrgImportService {
         }
     }
 
-    private static void appendFile(ArrayNode files, PdfFileRef ref,
-                                   String variant, int volumeNo, String label) {
+    /**
+     * Один файл pdf_links. {@code variant} всегда {@code original} (OCR
+     * отброшены) - оставлен для forward-compat с PdfLinksSourceProvider.
+     * {@code volumeNo} использует более поздняя фаза (per-volume навигация).
+     */
+    private static void appendFile(ArrayNode files, VolumeGroup v) {
         ObjectNode node = files.addObject();
-        node.put("name", ref.name());
-        node.put("label", label);
-        node.put("variant", variant);
-        node.put("volumeNo", volumeNo);
-        if (ref.size() != null) {
-            node.put("size", ref.size());
+        node.put("name", v.name());
+        node.put("label", v.label());
+        node.put("variant", "original");
+        node.put("volumeNo", v.volumeNo());
+        if (v.sizeBytes() != null) {
+            node.put("size", v.sizeBytes());
         }
-    }
-
-    // ---------------- text extraction (MVP синхронно) ----------------
-
-    /**
-     * Извлекает текст из OCR-PDF каждого тома в {@code lib_pages}. Если у
-     * тома нет OCR-ветви - берём original (скан-PDF может иметь текстовый
-     * слой). Если {@code testModePages>0} - максимум N страниц на том.
-     * Зеркалит page-creation из {@code FileImportService}.
-     *
-     * @return число созданных страниц + флаг наличия НЕпустого текста
-     */
-    private ExtractionResult extractText(UUID bookId, List<VolumeGroup> volumes, Integer testModePages) {
-        int limit = (testModePages != null && testModePages > 0) ? testModePages : Integer.MAX_VALUE;
-        int pageCounter = 0;
-        boolean anyNonBlankText = false;
-        for (VolumeGroup v : volumes) {
-            PdfFileRef src = v.ocr() != null ? v.ocr() : v.original();
-            if (src == null) {
-                continue;
-            }
-            ExtractionResult volResult = extractVolume(bookId, v.volumeNo(), src, limit, pageCounter);
-            pageCounter = volResult.pageCount();
-            anyNonBlankText |= volResult.hasNonBlankText();
-        }
-        return new ExtractionResult(pageCounter, anyNonBlankText);
-    }
-
-    private ExtractionResult extractVolume(UUID bookId, int volumeNo, PdfFileRef src,
-                                           int limit, int pageCounterStart) {
-        Path temp = null;
-        int pageCounter = pageCounterStart;
-        boolean anyNonBlankText = false;
-        try {
-            temp = Files.createTempFile("archiveorg-extract-", ".pdf");
-            pdfFetcher.fetch(URI.create(src.downloadUrl()), temp);
-            try (PDDocument doc = Loader.loadPDF(temp.toFile())) {
-                int numPages = Math.min(doc.getNumberOfPages(), limit);
-                PDFTextStripper stripper = new PDFTextStripper();
-                for (int i = 0; i < numPages; i++) {
-                    stripper.setStartPage(i + 1);
-                    stripper.setEndPage(i + 1);
-                    String text = stripper.getText(doc);
-                    anyNonBlankText |= text != null && !text.isBlank();
-                    pageCounter++;
-                    Instant now = Instant.now();
-                    Page page = new Page(
-                            UUID.randomUUID(),
-                            bookId,
-                            null,                       // chapterId - без outline
-                            pageCounter,                // pageNumber - сквозной по томам
-                            null,                       // printedPage
-                            "Том " + volumeNo,          // part - том
-                            i + 1,                      // pdfPageNumber - phys в томе
-                            text != null ? text : "",   // CHECK: text_content NOT NULL
-                            null,                       // imageUrl
-                            null,                       // formattedContent
-                            now, now
-                    );
-                    pageRepository.save(page);
-                }
-            }
-            return new ExtractionResult(pageCounter, anyNonBlankText);
-        } catch (IOException e) {
-            throw new ArchiveOrgException(
-                    "не удалось извлечь текст из тома " + volumeNo + " (" + src.downloadUrl() + ")", e);
-        } finally {
-            if (temp != null) {
-                try {
-                    Files.deleteIfExists(temp);
-                } catch (IOException ignored) {
-                    // best-effort cleanup
-                }
-            }
-        }
-    }
-
-    /**
-     * Результат извлечения текста: сколько страниц создано и был ли среди
-     * них хотя бы один НЕпустой текст (для определения content_kind —
-     * скан-PDF создаёт страницы с пустыми text_content).
-     */
-    private record ExtractionResult(int pageCount, boolean hasNonBlankText) {
     }
 
     // ---------------- helpers ----------------
 
-    private static String valueOf(ArchiveOrgPreview.ProvenanceField f) {
+    private static String valueOf(ProvenanceField f) {
         return f != null ? f.value() : null;
     }
 

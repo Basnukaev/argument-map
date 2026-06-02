@@ -15,11 +15,15 @@ import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgPreview.VolumeGroup
  * реальных metadata.json (ADR-056): провенанс полей + авто-группировка
  * PDF + edge cases. Без Spring и без сети.
  *
+ * <p>Регистрируются ТОЛЬКО original Image-Container PDF - OCR
+ * {@code _text.pdf} варианты отброшены (ADR-056 amendment b).
+ *
  * <p>Фикстуры (src/test/resources/archiveorg/):
  * <ul>
- *   <li>{@code fmhji.json} - multi-volume (обложка + 3 тома), каждый
- *       original + OCR; creator=null (автор в description);</li>
- *   <li>{@code sahih-bukhari-arabic.json} - single-volume original+OCR,
+ *   <li>{@code fmhji.json} - multi-volume (обложка + 3 тома), у каждого
+ *       тома есть OCR-вариант, но он не должен попасть в группы;
+ *       creator=null (автор в description);</li>
+ *   <li>{@code sahih-bukhari-arabic.json} - single-volume,
  *       имя файла НЕ матчит {id}{N} (99184.pdf), creator присутствует;</li>
  *   <li>{@code kitab-al-tawhid.json} - один PDF без OCR (scan-only).</li>
  * </ul>
@@ -76,8 +80,26 @@ class ArchiveOrgMetadataMapperTest {
         // мухаккык в archive.org description отсутствует → missing
         assertThat(p.muhaqqiq().source()).isEqualTo(ProvenanceSource.missing);
 
-        // rawDescription отдаётся для копипасты админом (оригинал всегда)
+        // rawDescription отдаётся для копипасты админом, но уже plain-text:
+        // HTML-теги сняты (reader иначе показывал бы буквальные <div>)
         assertThat(p.rawDescription()).contains("الناشر").contains("عدد المجلدات");
+        assertThat(p.rawDescription()).doesNotContain("<").doesNotContain("/>");
+    }
+
+    @Test
+    void description_htmlStripped_plainTextStored() {
+        ArchiveOrgMetadata raw = new ArchiveOrgMetadata(
+                java.util.Map.of(
+                        "title", "كتاب",
+                        "language", "ar",
+                        "description", "<div>سطر أول</div><br/><p>سطر ثاني</p>"),
+                java.util.List.of(new ArchiveOrgMetadata.FileEntry(
+                        "book.pdf", "Image Container PDF", "original", "1000")));
+
+        ArchiveOrgPreview p = mapper.toPreview("htmltest", raw);
+
+        assertThat(p.rawDescription()).doesNotContain("<div>").doesNotContain("<p>");
+        assertThat(p.rawDescription()).contains("سطر أول").contains("سطر ثاني");
     }
 
     // ---------------- description parsing edge cases ----------------
@@ -150,31 +172,33 @@ class ArchiveOrgMetadataMapperTest {
     }
 
     @Test
-    void fmhji_grouping_coverPlusThreeVolumes_eachOriginalAndOcr() throws Exception {
+    void fmhji_grouping_coverPlusThreeVolumes_originalsOnly_noOcr() throws Exception {
         ArchiveOrgPreview p = mapper.toPreview("fmhji", load("fmhji.json"));
 
         assertThat(p.hasPdf()).isTrue();
-        assertThat(p.files()).hasSize(4); // обложка + 3 тома
+        assertThat(p.files()).hasSize(4); // обложка + 3 тома (OCR отброшены)
 
         VolumeGroup cover = p.files().get(0);
         assertThat(cover.role()).isEqualTo(VolumeGroup.ROLE_COVER);
         assertThat(cover.volumeNo()).isZero();
-        assertThat(cover.original().name()).isEqualTo("fmhji0.pdf");
-        assertThat(cover.ocr().name()).isEqualTo("fmhji0_text.pdf");
+        assertThat(cover.name()).isEqualTo("fmhji0.pdf");
+        assertThat(cover.label()).isEqualTo("Обложка");
 
         VolumeGroup vol1 = p.files().get(1);
         assertThat(vol1.role()).isEqualTo(VolumeGroup.ROLE_VOLUME);
         assertThat(vol1.volumeNo()).isEqualTo(1);
-        assertThat(vol1.original().name()).isEqualTo("fmhji1.pdf");
-        assertThat(vol1.original().downloadUrl())
+        assertThat(vol1.name()).isEqualTo("fmhji1.pdf");
+        assertThat(vol1.label()).isEqualTo("Том 1");
+        assertThat(vol1.downloadUrl())
                 .isEqualTo("https://archive.org/download/fmhji/fmhji1.pdf");
-        assertThat(vol1.original().size()).isEqualTo(19518609L);
-        assertThat(vol1.ocr().name()).isEqualTo("fmhji1_text.pdf");
-        assertThat(vol1.ocr().size()).isEqualTo(25286151L);
+        assertThat(vol1.sizeBytes()).isEqualTo(19518609L);
 
         assertThat(p.files().get(3).volumeNo()).isEqualTo(3);
         // тома отсортированы по номеру детерминированно
         assertThat(p.files().stream().map(VolumeGroup::volumeNo)).containsExactly(0, 1, 2, 3);
+        // НИ одного _text.pdf не должно протечь в группы
+        assertThat(p.files().stream().map(VolumeGroup::name))
+                .noneMatch(n -> n.contains("_text"));
     }
 
     @Test
@@ -190,7 +214,7 @@ class ArchiveOrgMetadataMapperTest {
     // ---------------- sahih-bukhari: single volume, no {id}{N} match ----------------
 
     @Test
-    void sahihBukhari_singleVolume_originalAndOcr_noCover() throws Exception {
+    void sahihBukhari_singleVolume_originalOnly_noCover() throws Exception {
         ArchiveOrgPreview p = mapper.toPreview("sahih-bukhari-arabic",
                 load("sahih-bukhari-arabic.json"));
 
@@ -199,8 +223,11 @@ class ArchiveOrgMetadataMapperTest {
         VolumeGroup g = p.files().get(0);
         assertThat(g.role()).isEqualTo(VolumeGroup.ROLE_VOLUME);
         assertThat(g.volumeNo()).isEqualTo(1);
-        assertThat(g.original().name()).isEqualTo("99184.pdf");
-        assertThat(g.ocr().name()).isEqualTo("99184_text.pdf");
+        assertThat(g.name()).isEqualTo("99184.pdf");
+        assertThat(g.label()).isEqualTo("Книга"); // единственный том → «Книга»
+        // OCR-вариант 99184_text.pdf отброшен
+        assertThat(p.files().stream().map(VolumeGroup::name))
+                .noneMatch(n -> n.contains("_text"));
 
         // нет обложки → coverOptions без cover_pdf_page
         assertThat(p.coverOptions()).extracting("kind")
@@ -223,8 +250,8 @@ class ArchiveOrgMetadataMapperTest {
         assertThat(p.files()).hasSize(1);
         VolumeGroup g = p.files().get(0);
         assertThat(g.role()).isEqualTo(VolumeGroup.ROLE_VOLUME);
-        assertThat(g.original().name()).isEqualTo("kitab al-tawhid.pdf");
-        assertThat(g.ocr()).as("нет _text.pdf → scan-only").isNull();
+        assertThat(g.name()).isEqualTo("kitab al-tawhid.pdf");
+        assertThat(g.label()).isEqualTo("Книга");
 
         assertThat(p.coverOptions()).extracting("kind")
                 .containsExactly("thumbnail", "upload");

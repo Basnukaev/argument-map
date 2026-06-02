@@ -77,11 +77,10 @@ class ArchiveOrgAdminControllerIT {
                 ProvenanceField.missing(),
                 ProvenanceField.missing(),
                 ProvenanceField.of("ar"),
-                "<div>описание</div>",
+                "описание", // plain-text (HTML снят)
                 List.of(new VolumeGroup("volume", 1,
-                        new ArchiveOrgPreview.PdfFileRef("fmhji1.pdf", 100L,
-                                "https://archive.org/download/fmhji/fmhji1.pdf"),
-                        null)),
+                        "fmhji1.pdf", "Книга", 100L,
+                        "https://archive.org/download/fmhji/fmhji1.pdf")),
                 List.of(new CoverOption("thumbnail", "https://archive.org/services/img/fmhji")),
                 true);
     }
