@@ -1,23 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
-import type { MouseEvent as ReactMouseEvent } from 'react';
 import { Link } from 'react-router';
 import {
   AlertCircle,
+  ArrowLeft,
   BookOpen,
   CheckCircle2,
   Download,
   ExternalLink,
   FileUp,
   Loader2,
-  MoreHorizontal,
   RefreshCw,
   Search,
   Settings,
-  ShieldCheck,
 } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
-import IconButton from '@/shared/components/ui/IconButton';
-import ContextMenu from '@/shared/components/ui/ContextMenu';
 import Header from '@/shared/components/layout/Header';
 import { apiGetRaw, apiPostRaw, ApiError } from '@/shared/api/client';
 import type { components } from '@/shared/api/types';
@@ -55,7 +51,6 @@ function AdminShamelaPage() {
   const [reloadStatusToken, setReloadStatusToken] = useState(0);
   const [backfilling, setBackfilling] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
 
   // Все setState идут в Promise-callbacks - lint react-hooks/set-state-in-effect
   // запрещает только sync setState в теле эффекта. reloadStatusToken
@@ -197,14 +192,6 @@ function AdminShamelaPage() {
     }
   };
 
-  const openHeaderMenu = (e: ReactMouseEvent<HTMLButtonElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    // ••• теперь слева от primary кнопок - меню разворачивается
-    // вправо от кнопки. Прижимаем левый край меню к левому краю
-    // кнопки, размещаем сразу под (bottom + 4px зазор)
-    setMenuPos({ x: rect.left, y: rect.bottom + 4 });
-  };
-
   const catalogReady = (status?.booksCount ?? 0) > 0;
   const showEmptyHero = !statusLoading && !statusError && status !== null && !catalogReady;
   const showSearchUI = catalogReady;
@@ -214,6 +201,13 @@ function AdminShamelaPage() {
       <Header />
 
       <div className="mx-auto max-w-[1380px] px-3 py-6 sm:px-6 sm:py-8">
+        <div className="mb-4">
+          <Link to="/admin" className="text-sm text-ink-500 hover:text-accent-700">
+            <span className="inline-flex items-center gap-1">
+              <ArrowLeft size={14} aria-hidden /> {t('admin.dashboard.back_link')}
+            </span>
+          </Link>
+        </div>
         {/* === Editorial header: eyebrow + serif h1 + descriptor === */}
         <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0 flex-1">
@@ -228,16 +222,21 @@ function AdminShamelaPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {/* Порядок: overflow → secondary → primary. Primary CTA
-                всегда anchored к правому краю - это конвенция admin
-                tools (gmail/github/notion). •••с дополнительными
-                действиями уходит влево, как secondary entry point */}
-            <IconButton
-              icon={MoreHorizontal}
-              label={t('admin.menu.more_actions')}
-              size="md"
-              onClick={openHeaderMenu}
-            />
+            {/* Порядок: вторичные → primary. Primary CTA (sync) anchored
+                к правому краю - конвенция admin tools. Backfill metadata -
+                shamela-специфичное действие, видно когда каталог готов.
+                PDF-импорт и audit теперь first-class на /admin дашборде,
+                поэтому буферное ••• overflow-меню убрано. */}
+            {catalogReady && (
+              <Button
+                variant="ghost"
+                icon={Settings}
+                onClick={onBackfillBibliography}
+                disabled={backfilling}
+              >
+                {t('admin.backfill_action')}
+              </Button>
+            )}
             <Button
               variant="secondary"
               icon={FileUp}
@@ -322,43 +321,7 @@ function AdminShamelaPage() {
             importingId={importingId}
           />
         )}
-
-        {/* === Activity log === */}
-        {catalogReady && <ActivityLog />}
       </div>
-
-      {/* === Overflow menu (rare admin actions) === */}
-      {menuPos && (
-        <ContextMenu
-          x={menuPos.x}
-          y={menuPos.y}
-          onClose={() => setMenuPos(null)}
-          items={[
-            {
-              id: 'audit',
-              label: t('admin.audit.nav_link'),
-              icon: ShieldCheck,
-              onClick: () => {
-                setMenuPos(null);
-                // window.location ради простоты в shamela-странице - переход
-                // редкий, лишний useNavigate не оправдан. Альтернатива - <Link>
-                // wrap, но ContextMenu items это `onClick`, не node-renderer
-                window.location.assign('/admin/audit');
-              },
-            },
-            {
-              id: 'backfill',
-              label: t('admin.backfill_action'),
-              icon: Settings,
-              disabled: backfilling,
-              onClick: () => {
-                setMenuPos(null);
-                void onBackfillBibliography();
-              },
-            },
-          ]}
-        />
-      )}
 
       {uploadOpen && (
         <FileUploadModal
@@ -611,58 +574,6 @@ function EmptyCatalogHero({ onSync, syncing }: EmptyCatalogHeroProps) {
       <Button icon={RefreshCw} size="lg" onClick={onSync} disabled={syncing}>
         {syncing ? t('admin.sync_in_progress') : t('admin.empty_catalog_hero.action')}
       </Button>
-    </section>
-  );
-}
-
-/**
- * Activity log - компактный console-style timeline последних admin-операций.
- * Backend пока не отдаёт реальный лог, placeholder со структурой формата
- */
-function ActivityLog() {
-  const t = useT();
-  const items: ReadonlyArray<{
-    time: string;
-    kind: 'ok' | 'warn' | 'err';
-    message: string;
-  }> = [
-    { time: '14:22:08', kind: 'ok', message: 'sync-master: ничего нового (v 8517)' },
-    { time: '14:18:45', kind: 'ok', message: 'import-book/1503 → 4720 стр., 239 глав' },
-    { time: '14:18:45', kind: 'ok', message: 'map-book/1503 → lib_books/02bcfa43-d269…' },
-    { time: '14:12:11', kind: 'warn', message: 'import-book/23901 → 6 страниц без printedPage' },
-    { time: '14:02:54', kind: 'err', message: 'import-book/77810 → 422: PDF не найден на archive.org' },
-  ];
-  const kindClass: Record<'ok' | 'warn' | 'err', string> = {
-    ok: 'text-ok-700 bg-ok-100',
-    warn: 'text-warn-700 bg-warn-100',
-    err: 'text-err-700 bg-err-100',
-  };
-  const kindLabel: Record<'ok' | 'warn' | 'err', string> = {
-    ok: 'OK',
-    warn: 'WARN',
-    err: 'ERR',
-  };
-  return (
-    <section>
-      <h2 className="mb-2 text-sm font-semibold text-ink-900">{t('admin.activity_log')}</h2>
-      <div className="max-h-[200px] overflow-auto rounded-lg border border-border bg-elevated">
-        <ul className="divide-y divide-border font-mono text-[11px]">
-          {items.map((it, i) => (
-            <li key={i} className="flex items-baseline gap-3 px-3 py-1.5 text-ink-800">
-              <span className="text-ink-500 tabular-nums">{it.time}</span>
-              <span
-                className={`inline-flex h-[18px] min-w-[40px] items-center justify-center rounded-sm px-1 text-[10px] font-bold uppercase ${kindClass[it.kind]}`}
-              >
-                {kindLabel[it.kind]}
-              </span>
-              <span className="flex-1 break-all">{it.message}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <p className="mt-2 text-[11px] text-ink-400">
-        {t('admin.activity_log_placeholder_hint')}
-      </p>
     </section>
   );
 }

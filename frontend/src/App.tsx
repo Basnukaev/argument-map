@@ -38,7 +38,9 @@ const HadithDetailPage = lazy(() => import('@/apps/hadith/pages/HadithDetailPage
 const NarratorListPage = lazy(() => import('@/apps/hadith/pages/NarratorListPage'));
 const NarratorDetailPage = lazy(() => import('@/apps/hadith/pages/NarratorDetailPage'));
 const BookReaderPage = lazy(() => import('@/apps/library/pages/BookReaderPage'));
+const AdminDashboardPage = lazy(() => import('@/apps/admin/pages/AdminDashboardPage'));
 const AdminShamelaPage = lazy(() => import('@/apps/admin/pages/AdminShamelaPage'));
+const AdminSunnahPage = lazy(() => import('@/apps/admin/pages/AdminSunnahPage'));
 const AdminPageEditorPage = lazy(() => import('@/apps/admin/pages/AdminPageEditorPage'));
 const AdminAuditPage = lazy(() => import('@/apps/admin/pages/AdminAuditPage'));
 const QuestionListPage = lazy(() => import('@/apps/qa/pages/QuestionListPage'));
@@ -152,10 +154,26 @@ function App() {
           <Route path="/hadith/narrators" element={<NarratorListPage />} />
           <Route path="/hadith/narrators/:id" element={<NarratorDetailPage />} />
           <Route
+            path="/admin"
+            element={
+              <ProtectedRoute requireRole="ADMIN">
+                <AdminDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/admin/shamela"
             element={
               <ProtectedRoute requireRole="ADMIN">
                 <AdminShamelaPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/sunnah"
+            element={
+              <ProtectedRoute requireRole="ADMIN">
+                <AdminSunnahPage />
               </ProtectedRoute>
             }
           />
