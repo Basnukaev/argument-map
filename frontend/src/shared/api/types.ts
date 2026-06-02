@@ -2393,6 +2393,7 @@ export interface components {
             /** Format: date-time */
             updatedAt?: string;
             visibility?: string;
+            coverUrl?: string;
         };
         PageResponse: {
             /** Format: uuid */
@@ -2746,6 +2747,7 @@ export interface components {
             thesisDegree?: string;
             thesisSupervisor?: string;
             thesisInstitution?: string;
+            coverUrl?: string;
         };
         ChapterResponse: {
             /** Format: uuid */
@@ -2885,6 +2887,7 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
             visibility?: string;
+            coverUrl?: string;
         };
         PagedResponseBookSummaryResponse: {
             items?: components["schemas"]["BookSummaryResponse"][];
