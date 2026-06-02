@@ -384,4 +384,31 @@ public class BookRepository {
         jdbcTemplate.update(
                 "UPDATE lib_books SET view_count = view_count + 1 WHERE id = ?", bookId);
     }
+
+    /**
+     * Обновить cover_url (миграция 67, ADR-056). Прямая ссылка на
+     * обложку - archive.org thumbnail / cover-PDF / upload. Возвращает
+     * true если строка обновлена.
+     */
+    public boolean updateCoverUrl(UUID bookId, String coverUrl) {
+        int rows = jdbcTemplate.update(
+                "UPDATE lib_books SET cover_url = ?, updated_at = now() WHERE id = ?",
+                coverUrl, bookId);
+        return rows > 0;
+    }
+
+    /**
+     * Поиск книги по {@code metadata->>'archive_org_id'} - natural key
+     * идемпотентности импорта из archive.org (ADR-056). Повторный импорт
+     * того же identifier находит существующую книгу вместо дубля. GIN-индекс
+     * на metadata уже есть (миграция 16), как у {@link #findByShamelaBookId}.
+     */
+    public Optional<Book> findByArchiveOrgId(String archiveOrgId) {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM lib_books "
+                        + "WHERE metadata->>'archive_org_id' = ?",
+                ROW_MAPPER,
+                archiveOrgId
+        ).stream().findFirst();
+    }
 }

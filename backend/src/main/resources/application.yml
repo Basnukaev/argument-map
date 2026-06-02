@@ -205,6 +205,14 @@ shamela:
   # если сеть недоступна вообще, а не висим на полминуты).
   connect-timeout-seconds: 10
 
+# Импорт книг из archive.org (ADR-056). Публичный metadata-API без авторизации.
+# base-url вынесен в property чтобы IT-тесты могли указать на локальный
+# HttpServer-stub (тот же приём что shamela.metadataScheme=http).
+archiveorg:
+  base-url: ${ARCHIVE_ORG_BASE_URL:https://archive.org}
+  request-timeout-seconds: 30
+  connect-timeout-seconds: 10
+
 # Импорт дампа sunnah.com (ADR-052, Phase 5 шаг 2.d). По умолчанию выключен —
 # reader-бин не создаётся, admin-endpoint /api/v1/admin/sunnah отвечает 503.
 # Включается отдельным MySQL с загруженным db/00-samplegitdb.sql:
@@ -242,6 +250,23 @@ resilience4j:
         # wrapper для HTTP 5xx/IO от archive.org.
         record-exceptions:
           - ru.basnukaev.argumentmap.library.shamela.api.ShamelaApiException
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+      # archiveOrg (ADR-056) - metadata API archive.org. Тот же профиль что
+      # pdfDownload: при >50% ошибок за окно из 10 запросов circuit
+      # открывается на 30с, далее fail-fast → 502. 404 (item не найден)
+      # НЕ считается сбоем - исключён из record-exceptions (ArchiveOrgException
+      # это технический сбой канала, ArchiveOrgItemNotFoundException - валидный 404).
+      archiveOrg:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        record-exceptions:
+          - ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgException
           - java.io.IOException
           - java.util.concurrent.TimeoutException
   # Retry для Anthropic API (ADR-042, Этап 17.e). 3 попытки на

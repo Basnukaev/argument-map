@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        ADR-056 (импорт из archive.org). Колонка lib_books.cover_url -
+        прямая ссылка на обложку книги: archive.org thumbnail
+        (https://archive.org/services/img/{id}), либо первая страница
+        cover-PDF, либо загруженная пользователем картинка. BookListPage/
+        BookReader рендерят cover_url, fallback - текущий letter-avatar.
+
+        Nullable: подавляющее большинство существующих книг (shamela ETL,
+        user-uploads) обложки не имеют. Backfill из pdf_links.cover для MVP
+        пропущен (dev DB пустая, см. spec §9).
+    -->
+    <changeSet id="20260602-67-lib-books-cover-url" author="Abdula Basnukaev">
+        <comment>lib_books.cover_url - ссылка на обложку (archive.org thumbnail / cover-PDF / upload)</comment>
+        <addColumn tableName="lib_books">
+            <column name="cover_url" type="TEXT"/>
+        </addColumn>
+        <rollback>
+            <dropColumn tableName="lib_books" columnName="cover_url"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

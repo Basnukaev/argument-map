@@ -6074,3 +6074,71 @@ saveIgnoreConflict` = `INSERT ... ON CONFLICT (name) DO NOTHING` + re-select →
 муhaккик/год; при необходимости позже natural key расширить).
 
 **Связанные:** ADR-028 (academic citation metadata), бэк-хант Сессии 52.
+
+## ADR-056: Импорт PDF-книг из archive.org + dual-variant модель pdf_links (миграция 67)
+
+**Контекст.** Админ-инструмент импорта книг из archive.org (спека
+`docs/superpowers/specs/2026-06-02-archive-org-pdf-import-design.md`). archive.org
+отдаёт книгу как набор PDF: оригинал-скан (`Image Container PDF`,
+source=original) + OCR-слой (`Additional Text PDF`, `*_text.pdf`,
+source=derivative), сгруппированных по именам `{id}{N}` (`{id}0` = обложка,
+`{id}1/2/3` = тома). Метаданные — один публичный вызов
+`GET https://archive.org/metadata/{identifier}` без авторизации. Нужно:
+распарсить + сгруппировать, показать превью с провенансом полей, импортировать
+с переиспользованием существующей инфры (`PdfLinksSourceProvider`, MinIO-кэш,
+academic find-or-create).
+
+**Решения (разрешённые открытые вопросы спеки §13):**
+
+1. **Dual original+OCR в pdf_links — расширили элемент `files[]`, не второй
+   набор.** Legacy форма — строка `"name.pdf|label"`; новая (archive.org) —
+   объект `{ name, label, variant: "original"|"ocr", volumeNo, size }`.
+   `PdfLinksSourceProvider.getMetadata` парсит **обе** формы (ветка
+   `element.isObject()` + legacy string-ветка) — существующие shamela/upload
+   книги не ломаются. `cover:1` → `files[0]` исключается из чтения (та же
+   конвенция). `variant`/`volumeNo` провайдером пока не используются (читаются
+   reader-фронтом для dual-view dropdown — итерация).
+
+2. **Идемпотентный natural key — `metadata->>'archive_org_id'`.** Импорт пишет
+   identifier в jsonb; `BookRepository.findByArchiveOrgId` (GIN-индекс из
+   миграции 16) находит существующую книгу при повторном импорте — возвращает её
+   вместо дубля. Зеркалит `findByShamelaBookId`.
+
+3. **created_by — системный пользователь `00000000-…-0002`** (тот же что у
+   hd_collections bridge, миграция 65). archive.org-импорт — admin tooling без
+   пользовательского контента; visibility=PUBLIC (open library, как shamela).
+
+4. **Провенанс полей (gap-aware enrichment).** Каждое «наше» поле в
+   `ArchiveOrgPreview` несёт `{ value, source: archive_org|missing }`. archive.org
+   чисто отдаёт только title / creator(→author) / language; издатель/год/тома/
+   мухаккык чаще лежат в арабском HTML `description` — для MVP **не парсим**
+   description (over-parsing хрупок), помечаем `missing` и отдаём `rawDescription`
+   для копипасты админом. Обобщаемый паттерн для будущих источников.
+
+5. **Извлечение текста — синхронно, за флагом `extractText` + `testModePages`.**
+   При `extractText=true` качаем OCR-PDF тома (через `PdfFetcher`, circuit-breaker)
+   → PDFBox → `lib_pages` (зеркалит `FileImportService`). `testModePages=N`
+   ограничивает N страниц на том (отладка, чтоб не висеть на ГБ-PDF). Полное
+   фоновое извлечение всех томов (+ Tesseract для скан-only) — **отложено в
+   итерацию**.
+
+**Миграция 67** — `lib_books ADD COLUMN cover_url TEXT NULL` (ссылка на обложку:
+archive.org thumbnail `/services/img/{id}` / cover-PDF / upload). Не в Book record
+(избегаем правки 36 call-site'ов) — отдельный `BookRepository.updateCoverUrl`
+(паттерн `updateVisibility`/`updateThesisMetadata`). Backfill пропущен (dev DB
+пуста). Рендеринг cover_url в API-ответах + BookListPage/Reader — итерация.
+
+**Инфра.** `ArchiveOrgClient` (resilience4j CB `archiveOrg`, base-url
+configurable для IT-stub) + `ArchiveOrgMetadataMapper` (чистый, фикстуры реальных
+metadata.json) + `ArchiveOrgImportService` + `ArchiveOrgAdminController`
+(ADMIN-only, mirror Shamela/Sunnah guard). Ошибки: invalid URL → 400, item not
+found → 404, archive.org down / CB open → 502.
+
+**Trade-offs:** + переиспользование PdfLinksSourceProvider/MinIO/academic на ~80%,
+dual-view готов на уровне данных; − синхронное извлечение блокирует запрос на
+больших книгах (за флагом, дефолт off), description-поля требуют ручного
+дообогащения админом.
+
+**Связанные:** ADR-023 (PdfSourceProvider), ADR-024 (MinIO), ADR-028 (academic
+citation), ADR-035 (PDF upload), ADR-054 (системный пользователь / bridge
+паттерн), Этап 17 (OCR/AI-edit).

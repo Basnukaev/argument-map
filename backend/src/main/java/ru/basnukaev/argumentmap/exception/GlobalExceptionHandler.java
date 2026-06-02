@@ -22,6 +22,9 @@ import ru.basnukaev.argumentmap.library.pdf.service.PdfNotAvailableException;
 import ru.basnukaev.argumentmap.library.pdf.service.RangeNotSatisfiableException;
 import ru.basnukaev.argumentmap.hadith.sunnah.service.SunnahHadithNotFoundException;
 import ru.basnukaev.argumentmap.hadith.sunnah.web.SunnahDumpNotConfiguredException;
+import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgException;
+import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgItemNotFoundException;
+import ru.basnukaev.argumentmap.library.archiveorg.InvalidArchiveOrgUrlException;
 import ru.basnukaev.argumentmap.library.shamela.api.ShamelaApiException;
 import ru.basnukaev.argumentmap.library.shamela.etl.ShamelaArchiveException;
 import ru.basnukaev.argumentmap.library.shamela.etl.ShamelaReaderException;
@@ -288,6 +291,27 @@ public class GlobalExceptionHandler {
                 "Этот endpoint доступен только пользователям с ролью ADMIN");
         pd.setProperty("userId", ex.getUserId().toString());
         return pd;
+    }
+
+    // ---- archive.org import (ADR-056) ----
+
+    @ExceptionHandler(InvalidArchiveOrgUrlException.class)
+    public ProblemDetail handleInvalidArchiveOrgUrl(InvalidArchiveOrgUrlException ex) {
+        return problem(HttpStatus.BAD_REQUEST,
+                "Некорректный archive.org URL", "invalid-archive-org-url", ex.getMessage());
+    }
+
+    @ExceptionHandler(ArchiveOrgItemNotFoundException.class)
+    public ProblemDetail handleArchiveOrgItemNotFound(ArchiveOrgItemNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND,
+                "archive.org item не найден", "archive-org-item-not-found", ex.getMessage());
+    }
+
+    @ExceptionHandler(ArchiveOrgException.class)
+    public ProblemDetail handleArchiveOrg(ArchiveOrgException ex) {
+        log.error("archive.org error", ex);
+        return problem(HttpStatus.BAD_GATEWAY,
+                "archive.org недоступен", "archive-org-error", ex.getMessage());
     }
 
     @ExceptionHandler(SunnahDumpNotConfiguredException.class)

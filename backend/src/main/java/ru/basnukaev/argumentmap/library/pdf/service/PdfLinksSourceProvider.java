@@ -130,11 +130,20 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
         }
         List<PdfFileInfo> files = new ArrayList<>(filesNode.size());
         for (int i = 0; i < filesNode.size(); i++) {
-            String raw = textOrNull(filesNode.get(i));
+            JsonNode element = filesNode.get(i);
+            boolean cover = hasCover && i == 0;
+            if (element != null && element.isObject()) {
+                // Object-form (ADR-056, archive.org): {name, label, variant, volumeNo, size}
+                PdfFileInfo info = parseObjectEntry(i, element, cover);
+                if (info != null) {
+                    files.add(info);
+                }
+                continue;
+            }
+            String raw = textOrNull(element);
             if (raw == null) {
                 continue;
             }
-            boolean cover = hasCover && i == 0;
             files.add(parseFileEntry(i, raw, cover));
         }
         return new PdfMetadata(root, hasCover, totalSize, Collections.unmodifiableList(files));
@@ -412,6 +421,30 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
             label = stripExtension(filename);
         }
         return new PdfFileInfo(index, filename, label, isCover, null, null);
+    }
+
+    /**
+     * Разбирает object-form запись из {@code files} (ADR-056, archive.org):
+     * <pre>{@code {"name":"fmhji1_text.pdf","label":"Том 1 (OCR)",
+     *            "variant":"ocr","volumeNo":1,"size":25286151}}</pre>
+     * Обязателен только {@code name}; {@code label} fallback - basename
+     * без расширения; {@code variant}/{@code volumeNo} провайдером пока
+     * не используются (читаются reader-фронтом для dual-view dropdown),
+     * но {@code size} пробрасывается в {@link PdfFileInfo} если есть.
+     * Возвращает null если {@code name} отсутствует/пустой.
+     */
+    private static PdfFileInfo parseObjectEntry(int index, JsonNode node, boolean isCover) {
+        String name = textOrNull(node.get("name"));
+        if (name == null || name.isBlank()) {
+            return null;
+        }
+        String label = textOrNull(node.get("label"));
+        if (label == null || label.isBlank()) {
+            label = stripExtension(name.trim());
+        }
+        JsonNode sizeNode = node.get("size");
+        Long size = (sizeNode != null && sizeNode.canConvertToLong()) ? sizeNode.asLong() : null;
+        return new PdfFileInfo(index, name.trim(), label.trim(), isCover, size, null);
     }
 
     private static String stripExtension(String filename) {

@@ -203,6 +203,67 @@ class PdfLinksSourceProviderIT {
         assertThat(provider.supports(book)).isTrue();
     }
 
+    // ---- object-form files[] (ADR-056, archive.org dual original+OCR) ----
+
+    @Test
+    void getMetadata_objectFormFiles_parsesNameLabelSizeAndCover() {
+        // archive.org-стиль: object-form элементы {name,label,variant,volumeNo,size}.
+        // cover:1 → files[0] помечается обложкой. Сосуществует с legacy string-form.
+        String metadataJson = "{\"archive_org_id\":\"fmhji\",\"pdf_links\":{"
+                + "\"root\":\"https://archive.org/download/fmhji/\","
+                + "\"cover\":1,"
+                + "\"files\":["
+                + "{\"name\":\"fmhji0.pdf\",\"label\":\"Обложка\",\"variant\":\"original\",\"volumeNo\":0,\"size\":201358},"
+                + "{\"name\":\"fmhji1.pdf\",\"label\":\"Том 1\",\"variant\":\"original\",\"volumeNo\":1,\"size\":19518609},"
+                + "{\"name\":\"fmhji1_text.pdf\",\"label\":\"Том 1 (OCR)\",\"variant\":\"ocr\",\"volumeNo\":1,\"size\":25286151}"
+                + "]}}";
+        Book book = saveBookWithMetadata(metadataJson);
+
+        var meta = provider.getMetadata(book);
+
+        assertThat(meta.root()).isEqualTo("https://archive.org/download/fmhji/");
+        assertThat(meta.hasCover()).isTrue();
+        assertThat(meta.files()).hasSize(3);
+        assertThat(meta.files().get(0).filename()).isEqualTo("fmhji0.pdf");
+        assertThat(meta.files().get(0).label()).isEqualTo("Обложка");
+        assertThat(meta.files().get(0).isCover()).isTrue();
+        assertThat(meta.files().get(0).sizeBytes()).isEqualTo(201358L);
+        assertThat(meta.files().get(1).filename()).isEqualTo("fmhji1.pdf");
+        assertThat(meta.files().get(1).isCover()).isFalse();
+        assertThat(meta.files().get(2).filename()).isEqualTo("fmhji1_text.pdf");
+        assertThat(meta.files().get(2).label()).isEqualTo("Том 1 (OCR)");
+    }
+
+    @Test
+    void getMetadata_objectFormFiles_labelFallbackToBasename_whenMissing() {
+        String metadataJson = "{\"pdf_links\":{"
+                + "\"root\":\"https://archive.org/download/x/\","
+                + "\"files\":[{\"name\":\"vol1.pdf\",\"variant\":\"original\",\"volumeNo\":1}]}}";
+        Book book = saveBookWithMetadata(metadataJson);
+
+        var meta = provider.getMetadata(book);
+
+        assertThat(meta.files()).hasSize(1);
+        // label отсутствует → basename без расширения
+        assertThat(meta.files().get(0).label()).isEqualTo("vol1");
+    }
+
+    @Test
+    void getMetadata_objectFormFile_resolvesToRootPlusFilename_archiveOrgStyle() {
+        // root+filename → download/{id}/{file}; locateFile дёрнет upstream (mock)
+        String metadataJson = "{\"pdf_links\":{"
+                + "\"root\":\"https://archive.org/download/fmhji/\","
+                + "\"files\":[{\"name\":\"fmhji1_text.pdf\",\"label\":\"Том 1\",\"variant\":\"ocr\",\"volumeNo\":1}]}}";
+        Book book = saveBookWithMetadata(metadataJson);
+
+        provider.locateFile(book, 0);
+
+        ArgumentCaptor<URI> urlCaptor = ArgumentCaptor.forClass(URI.class);
+        verify(pdfFetcher).fetch(urlCaptor.capture(), any(Path.class));
+        assertThat(urlCaptor.getValue())
+                .isEqualTo(URI.create("https://archive.org/download/fmhji/fmhji1_text.pdf"));
+    }
+
     @Test
     void openStream_cacheHit_streamsFromMinIO_noUpstreamCall() throws Exception {
         Book book = saveShamelaBook(6, "01_book.pdf");
