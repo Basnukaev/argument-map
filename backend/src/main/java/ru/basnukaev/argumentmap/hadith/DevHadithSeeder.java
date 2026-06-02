@@ -10,6 +10,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -47,9 +48,15 @@ import ru.basnukaev.argumentmap.hadith.repository.SanadRepository;
  * литература), reference - {@code scripts/hadith-seed-research.json}.
  * Idempotent: пропускается если хадисы уже есть. Не должен ронять
  * backend - все ошибки логируются как warn.
+ *
+ * <p><b>Opt-in</b> (Сессия 54+): сидинг выключен по умолчанию, чтобы чистая БД
+ * не пере-наполнялась эталонными хадисами при каждом рестарте (Абдула просил
+ * «полностью чистую БД» для ручного наполнения). Включить:
+ * {@code DEV_SEED_HADITH=true} (property {@code dev.seed-hadith}).
  */
 @Component
 @Profile({"local", "dev"})
+@ConditionalOnProperty(name = "dev.seed-hadith", havingValue = "true")
 public class DevHadithSeeder implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DevHadithSeeder.class);
