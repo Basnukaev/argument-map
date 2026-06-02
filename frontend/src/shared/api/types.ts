@@ -756,6 +756,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/archive-org/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importBook_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/{id}/role": {
         parameters: {
             query?: never;
@@ -1580,6 +1596,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["listBooks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/archive-org/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["preview_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2572,6 +2604,38 @@ export interface components {
             /** Format: int32 */
             skipped?: number;
         };
+        ArchiveOrgImportRequest: {
+            url: string;
+            title?: string;
+            author?: string;
+            language?: string;
+            description?: string;
+            muhaqqiqName?: string;
+            publisherName?: string;
+            placeName?: string;
+            /** Format: int32 */
+            editionNumber?: number;
+            /** Format: int32 */
+            yearHijri?: number;
+            /** Format: int32 */
+            yearGregorian?: number;
+            coverKind?: string;
+            coverUrl?: string;
+            extractText?: boolean;
+            /** Format: int32 */
+            testModePages?: number;
+        };
+        ArchiveOrgImportResponse: {
+            /** Format: uuid */
+            bookId?: string;
+            archiveOrgId?: string;
+            /** Format: int32 */
+            volumesRegistered?: number;
+            coverSet?: boolean;
+            /** Format: int32 */
+            pagesExtracted?: number;
+            alreadyExisted?: boolean;
+        };
         ChangeRoleRequest: {
             /**
              * @description Новая роль пользователя - whitelist из 4 значений
@@ -3191,6 +3255,45 @@ export interface components {
             totalPages?: number;
             hasNext?: boolean;
             hasPrev?: boolean;
+        };
+        ArchiveOrgPreview: {
+            archiveOrgId?: string;
+            title?: components["schemas"]["ProvenanceField"];
+            author?: components["schemas"]["ProvenanceField"];
+            publisher?: components["schemas"]["ProvenanceField"];
+            place?: components["schemas"]["ProvenanceField"];
+            muhaqqiq?: components["schemas"]["ProvenanceField"];
+            edition?: components["schemas"]["ProvenanceField"];
+            yearHijri?: components["schemas"]["ProvenanceField"];
+            yearGregorian?: components["schemas"]["ProvenanceField"];
+            volumes?: components["schemas"]["ProvenanceField"];
+            language?: components["schemas"]["ProvenanceField"];
+            rawDescription?: string;
+            files?: components["schemas"]["VolumeGroup"][];
+            coverOptions?: components["schemas"]["CoverOption"][];
+            hasPdf?: boolean;
+        };
+        CoverOption: {
+            kind?: string;
+            url?: string;
+        };
+        PdfFileRef: {
+            name?: string;
+            /** Format: int64 */
+            size?: number;
+            downloadUrl?: string;
+        };
+        ProvenanceField: {
+            value?: string;
+            /** @enum {string} */
+            source?: "archive_org" | "missing";
+        };
+        VolumeGroup: {
+            role?: string;
+            /** Format: int32 */
+            volumeNo?: number;
+            original?: components["schemas"]["PdfFileRef"];
+            ocr?: components["schemas"]["PdfFileRef"];
         };
         BulkDeleteNodesRequest: {
             nodeIds: string[];
@@ -4955,6 +5058,30 @@ export interface operations {
             };
         };
     };
+    importBook_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArchiveOrgImportRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ArchiveOrgImportResponse"];
+                };
+            };
+        };
+    };
     updateRole: {
         parameters: {
             query: {
@@ -6669,6 +6796,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["PagedResponseStagingBookSearchResponse"];
+                };
+            };
+        };
+    };
+    preview_1: {
+        parameters: {
+            query: {
+                url: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ArchiveOrgPreview"];
                 };
             };
         };
