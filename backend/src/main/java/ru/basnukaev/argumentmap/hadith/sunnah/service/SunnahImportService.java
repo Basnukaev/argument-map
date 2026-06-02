@@ -16,6 +16,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import ru.basnukaev.argumentmap.hadith.domain.Collection;
 import ru.basnukaev.argumentmap.hadith.domain.Hadith;
 import ru.basnukaev.argumentmap.hadith.domain.Matn;
+import ru.basnukaev.argumentmap.hadith.isnad.ExtractedIsnad;
+import ru.basnukaev.argumentmap.hadith.isnad.IsnadExtractionService;
+import ru.basnukaev.argumentmap.hadith.isnad.IsnadPersistenceService;
 import ru.basnukaev.argumentmap.hadith.repository.CollectionRepository;
 import ru.basnukaev.argumentmap.hadith.repository.HadithRepository;
 import ru.basnukaev.argumentmap.hadith.repository.MatnRepository;
@@ -67,6 +70,8 @@ public class SunnahImportService {
     private final MatnRepository matnRepository;
     private final ObjectMapper objectMapper;
     private final BookCollectionBridgeService bookCollectionBridgeService;
+    private final IsnadExtractionService isnadExtractionService;
+    private final IsnadPersistenceService isnadPersistenceService;
 
     public SunnahImportService(SunnahCollectionDao collectionDao,
                                SunnahBookDao bookDao,
@@ -77,7 +82,9 @@ public class SunnahImportService {
                                HadithRepository hadithRepository,
                                MatnRepository matnRepository,
                                ObjectMapper objectMapper,
-                               BookCollectionBridgeService bookCollectionBridgeService) {
+                               BookCollectionBridgeService bookCollectionBridgeService,
+                               IsnadExtractionService isnadExtractionService,
+                               IsnadPersistenceService isnadPersistenceService) {
         this.collectionDao = collectionDao;
         this.bookDao = bookDao;
         this.chapterDao = chapterDao;
@@ -88,18 +95,39 @@ public class SunnahImportService {
         this.matnRepository = matnRepository;
         this.objectMapper = objectMapper;
         this.bookCollectionBridgeService = bookCollectionBridgeService;
+        this.isnadExtractionService = isnadExtractionService;
+        this.isnadPersistenceService = isnadPersistenceService;
+    }
+
+    /**
+     * Импортирует один сборник целиком БЕЗ извлечения иснада (bulk default).
+     * Перегрузка-удобство для internal callers и существующих тестов.
+     *
+     * @throws IllegalArgumentException если сборника нет в источнике
+     */
+    public SunnahMappingResult importCollection(SunnahDataSource source, String collectionName) {
+        return importCollection(source, collectionName, false);
     }
 
     /**
      * Импортирует один сборник целиком: читает из источника, наполняет
      * staging, затем переносит в hd_* маппером.
      *
+     * <p>{@code extractIsnad} — opt-in (default false для bulk: LLM-вызов на
+     * каждый хадис дорог). При true И сконфигурированном LLM для каждого
+     * импортированного/уже импортированного хадиса извлекается и персистится
+     * иснад (ADR-059 amendment). При выключенном LLM — тихо пропускается.
+     *
      * @throws IllegalArgumentException если сборника нет в источнике
      */
-    public SunnahMappingResult importCollection(SunnahDataSource source, String collectionName) {
+    public SunnahMappingResult importCollection(SunnahDataSource source,
+                                                String collectionName, boolean extractIsnad) {
         stageCollection(source, collectionName);
         SunnahMappingResult result = mapper.mapCollection(collectionName);
         ensureLibraryBook(collectionName);
+        if (extractIsnad && isnadExtractionService.isLlmEnabled()) {
+            persistIsnadForCollection(collectionName);
+        }
         return result;
     }
 
@@ -118,6 +146,11 @@ public class SunnahImportService {
         stageCollection(source, collectionName);
         SunnahMappingResult result = mapper.mapSingle(collectionName, number);
         ensureLibraryBook(collectionName);
+        // Иснад на single-import — default ON (верифицируемый путь). При
+        // выключенном LLM тихо пропускается (ADR-059 amendment).
+        if (isnadExtractionService.isLlmEnabled()) {
+            persistIsnadForHadith(collectionName, number);
+        }
         return result;
     }
 
@@ -204,6 +237,66 @@ public class SunnahImportService {
     private void ensureLibraryBook(String collectionName) {
         collectionRepository.findBySlug(collectionName)
                 .ifPresent(bookCollectionBridgeService::ensureLibraryBookForCollectionQuietly);
+    }
+
+    /**
+     * Извлекает и персистит иснад для каждого импортированного хадиса сборника
+     * (ADR-059 amendment, bulk opt-in). Per-hadith ошибка извлечения/персиста
+     * не валит весь импорт — иснад опционален, хадис уже сохранён.
+     */
+    private void persistIsnadForCollection(String collectionName) {
+        Optional<Collection> collection = collectionRepository.findBySlug(collectionName);
+        if (collection.isEmpty()) {
+            return;
+        }
+        Collection c = collection.get();
+        List<Hadith> hadiths = hadithRepository.findPage(null, null, c.id(),
+                Integer.MAX_VALUE, 0);
+        for (Hadith h : hadiths) {
+            extractAndPersistIsnad(c, h);
+        }
+    }
+
+    /** Извлекает и персистит иснад для одного только что импортированного хадиса. */
+    private void persistIsnadForHadith(String collectionName, String number) {
+        Integer parsed = parseNumber(number);
+        if (parsed == null) {
+            return;
+        }
+        Optional<Collection> collection = collectionRepository.findBySlug(collectionName);
+        if (collection.isEmpty()) {
+            return;
+        }
+        Collection c = collection.get();
+        hadithRepository.findByCollectionIdAndPrimaryNumber(c.id(), parsed)
+                .ifPresent(h -> extractAndPersistIsnad(c, h));
+    }
+
+    /**
+     * Общий путь: берёт арабский матн хадиса, извлекает иснад через LLM,
+     * персистит. Graceful: пустой матн / не извлеклось / не найдено → no-op.
+     * Любая ошибка извлечения логируется и проглатывается (иснад опционален).
+     */
+    private void extractAndPersistIsnad(Collection c, Hadith h) {
+        List<Matn> matns = matnRepository.findByHadithId(h.id());
+        if (matns.isEmpty()) {
+            return;
+        }
+        String matnAr = matns.get(0).textAr();
+        if (matnAr == null || matnAr.isBlank()) {
+            return;
+        }
+        try {
+            Optional<ExtractedIsnad> extracted = isnadExtractionService.extract(matnAr);
+            if (extracted.isEmpty() || !extracted.get().isnadFound()) {
+                return;
+            }
+            isnadPersistenceService.persist(
+                    h.id(), extracted.get(), c.bookId(), c.nameAr(), c.nameRu());
+        } catch (RuntimeException e) {
+            log.warn("Персист иснада хадиса {}/{} не удался: {}",
+                    c.slug(), h.primaryNumber(), e.getMessage());
+        }
     }
 
     private void stageCollection(SunnahDataSource source, String collectionName) {

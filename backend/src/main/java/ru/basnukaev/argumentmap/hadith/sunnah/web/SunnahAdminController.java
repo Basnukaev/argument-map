@@ -115,12 +115,22 @@ public class SunnahAdminController {
         return importService.previewSingle(source(), collection, number);
     }
 
-    /** Импорт одного сборника: источник → staging → hd_*. Идемпотентно. */
+    /**
+     * Импорт одного сборника: источник → staging → hd_*. Идемпотентно.
+     *
+     * <p>{@code extractIsnad} (default false) — opt-in извлечение+персист
+     * иснада LLM для каждого хадиса (ADR-059 amendment). Дорого для bulk
+     * (LLM-вызов на хадис), поэтому выключено по умолчанию. При выключенном
+     * LLM флаг no-op.
+     */
     @PostMapping("/import/{collection}")
-    public SunnahImportResponse importCollection(@PathVariable String collection,
-                                                 @CurrentUser UUID currentUserId) {
+    public SunnahImportResponse importCollection(
+            @PathVariable String collection,
+            @RequestParam(required = false, defaultValue = "false") boolean extractIsnad,
+            @CurrentUser UUID currentUserId) {
         requireAdmin(currentUserId);
-        SunnahMappingResult result = importService.importCollection(source(), collection);
+        SunnahMappingResult result =
+                importService.importCollection(source(), collection, extractIsnad);
         return SunnahImportResponse.from(result);
     }
 
@@ -128,6 +138,10 @@ public class SunnahAdminController {
      * Импорт ровно ОДНОГО хадиса по номеру (фазовый/верифицируемый путь,
      * ADR-052). Идемпотентно по (collection, primaryNumber). 404 если хадиса
      * нет в источнике.
+     *
+     * <p>Иснад извлекается и персистится <b>по умолчанию</b> (single-import —
+     * верифицируемый путь, ADR-059 amendment) если LLM сконфигурирован; при
+     * выключенном LLM — тихо пропускается (импорт хадиса не ломается).
      */
     @PostMapping("/import/{collection}/{number}")
     public SunnahImportResponse importSingle(@PathVariable String collection,

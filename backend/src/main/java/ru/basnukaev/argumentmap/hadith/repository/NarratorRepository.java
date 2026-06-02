@@ -73,6 +73,25 @@ public class NarratorRepository {
     }
 
     /**
+     * Lookup по нормализованному арабскому имени — дедуп нарраторов на
+     * персисте извлечённого иснада (ADR-059 amendment). На name_ar_normalized
+     * сознательно НЕТ unique-constraint: разные исторические личности могут
+     * иметь одинаковую нормализованную форму (омонимы), так что это MVP-дедуп
+     * find-then-save, не строгий natural key. LIMIT 1 — берём первого
+     * совпавшего (детерминированно по created_at, старейший).
+     */
+    public Optional<Narrator> findByNameArNormalized(String normalized) {
+        if (normalized == null || normalized.isBlank()) {
+            return Optional.empty();
+        }
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM hd_narrators "
+                        + "WHERE name_ar_normalized = ? ORDER BY created_at ASC LIMIT 1",
+                ROW_MAPPER, normalized
+        ).stream().findFirst();
+    }
+
+    /**
      * Bulk fetch narrator'ов по списку id одной волной (избегаем N+1
      * при сборке sanad-графа, где один граф ссылается на 5-10 narrator'ов).
      */

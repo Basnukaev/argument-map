@@ -219,8 +219,9 @@ tsc ✓ / eslint **0 проблем** / **vitest 708/0/0**.
    archive.org импорт (FILE_ONLY ридер), content_kind кнопки, hadith превью/иснад, bbox.
 2. **AI-ключ для живой проверки** — задать `ai.provider` (anthropic/openai/deepseek) + ключ
    в env, проверить AI-метаданные книг + извлечение иснада вживую.
-3. **Isnad persistence-on-import + rijal-дедуп** (backlog) — сейчас иснад эфемерный preview;
-   персистить hd_sanads/hd_narrators/hd_sanad_narrators на импорте (дедуп по норм. имени).
+3. **Rijal-обогащение нарраторов** — persistence сделана (Фаза 9: hd_sanads/narrators/
+   sanad_narrators на импорте, дедуп по норм. имени). Осталось: био/надёжность нарраторов
+   из authoritative rijal-источника (alminasa future) + улучшить дедуп (false-merge гомонимов).
 4. **bbox-citation CREATION для FILE_ONLY** (roadmap 25.f) — CitationPicker PDF-режим
    (выбор страницы + рисование bbox через react-image-crop). Display уже готов.
 5. **Полный дамп sunnah.com** (контент-ops) — сейчас только bukhari (100 строк).

@@ -324,19 +324,29 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
 
 ## Бэк - бэклог
 
-- [ ] **Isnad persistence-on-import + rijal narrator dedup** (следующий
-      шаг после ADR-059). Сейчас извлечённый из матна иснад — эфемерное
-      превью (`POST /admin/sunnah/extract-isnad`, in-memory граф). Шаг:
-      на импорте хадиса персистить извлечённый иснад в
-      `hd_sanads`/`hd_narrators`/`hd_sanad_narrators` с **дедупом
-      нарраторов по normalized-name** (`ArabicTextNormalizer`) —
-      один передатчик = одна строка `hd_narrators`, переиспользуемая
-      между хадисами/цепями (иначе дубли). Обогащение био передатчиков
-      (даты, надёжность, поколение, kunya/laqab) — из rijal-источника
-      (alminasa / иной справочник передатчиков), сейчас узлы несут
-      только арабское имя. Учесть идемпотентность повторного импорта и
-      вариативность написания имён (الحميدي / عبد الله بن الزبير
-      الحميدي — это один передатчик).
+- [x] **Isnad persistence-on-import** — закрыто 2026-06-03 (ADR-059
+      amendment). Иснад теперь ПЕРСИСТИТСЯ на импорте в
+      `hd_sanads`/`hd_narrators`/`hd_sanad_narrators` (single-import —
+      default ON; bulk — opt-in `?extractIsnad=true`). Дедуп нарраторов
+      по normalized-name (`ArabicTextNormalizer` +
+      `NarratorRepository.findByNameArNormalized`), один передатчик =
+      одна строка `hd_narrators`, переиспользуемая между хадисами/цепями.
+      Идемпотентность повторного импорта — delete-recreate per hadith
+      (`SanadRepository.deleteByHadithId`). Реальный `/hadith`-explorer
+      (`SanadGraphService.buildGraph`) теперь показывает граф для
+      импортированных хадисов. `IsnadPersistenceService` +
+      `IsnadPersistenceServiceTest`/`IsnadPersistenceIT`.
+
+- [ ] **Rijal narrator dedup + bio enrichment** (follow-up к ADR-059
+      amendment). Дедуп по normalized-name — MVP, несовершенен:
+      **омонимы** (разные исторические личности с одинаковой
+      нормализованной формой) ложно сольются, а **вариативность
+      написания** (الحميدي / عبد الله بن الزبير الحميدي — это один
+      передатчик) наоборот раздвоит. Шаг: настоящая rijal-резолюция через
+      авторитетный справочник передатчиков (alminasa / иной) — маппинг
+      имени на каноничную личность + обогащение био (даты рождения/смерти
+      по хиджре, надёжность, поколение, kunya/laqab). Сейчас узлы
+      импортированного иснада несут только арабское имя.
 
 - [x] **Пагинация + фильтрация для всех GET-list endpoints** -
       закрыто 2026-05-18. Все 5 endpoints (`/sources`,

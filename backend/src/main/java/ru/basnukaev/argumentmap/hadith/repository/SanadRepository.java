@@ -66,6 +66,24 @@ public class SanadRepository {
         );
     }
 
+    /**
+     * Удаляет все цепи хадиса и их линковки на нарраторов — для
+     * delete-recreate идемпотентного персиста извлечённого иснада (ADR-059
+     * amendment): повторный импорт хадиса обновляет цепь, а не плодит дубли.
+     *
+     * <p>Линковки сносим явно (хотя FK {@code fk_hd_sn_sanad} с ON DELETE
+     * CASCADE подхватил бы их сам) — порядок FK очевиден и не зависим от
+     * каскада. Сами нарраторы (hd_narrators) НЕ трогаем: они шарятся между
+     * хадисами/цепями (дедуп по normalized-name), удалять опасно.
+     */
+    public void deleteByHadithId(UUID hadithId) {
+        jdbcTemplate.update(
+                "DELETE FROM hd_sanad_narrators WHERE sanad_id IN "
+                        + "(SELECT id FROM hd_sanads WHERE hadith_id = ?)",
+                hadithId);
+        jdbcTemplate.update("DELETE FROM hd_sanads WHERE hadith_id = ?", hadithId);
+    }
+
     public void saveNarratorLink(SanadNarrator link) {
         jdbcTemplate.update(
                 "INSERT INTO hd_sanad_narrators (sanad_id, position, narrator_id, transmission_phrase) "

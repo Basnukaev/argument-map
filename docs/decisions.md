@@ -6350,3 +6350,73 @@ cleanedMatn)`.
 `prophetNode()`). (3) Сразу персистить извлечённый иснад на импорте —
 без дедупа нарраторов из rijal завёл бы дубликаты передатчиков; превью
 сначала, персист отдельным шагом.
+
+### ADR-059 amendment: иснад ПЕРСИСТИТСЯ на импорте
+
+**Контекст.** Превью-граф (выше) был эфемерным — на импорте иснад в БД
+не писался, и реальный `/hadith`-explorer (через
+`SanadGraphService.buildGraph(hadithId)`, читающий
+`hd_sanads`/`hd_narrators`/`hd_sanad_narrators`) показывал пустой граф
+для импортированных хадисов. Следующий шаг — персист.
+
+**Решение.** Новый `IsnadPersistenceService` (`hadith.isnad`,
+`@Transactional`) `persist(hadithId, isnad, collectionBookId,
+collectionAr, collectionRu)`:
+
+- **Дедуп нарраторов по normalized-name** (MVP). Новый
+  `NarratorRepository.findByNameArNormalized` (на `name_ar_normalized`
+  сознательно НЕТ unique-constraint — омонимы могут совпасть; дедуп
+  find-then-save в сервисе, TOCTOU допустим для последовательного
+  admin single-import). `ArabicTextNormalizer.normalize` даёт ключ; есть
+  один передатчик = одна строка `hd_narrators`, переиспользуемая между
+  хадисами/цепями. In-call кэш на повторяющиеся имена в одной цепи.
+  Новый narrator несёт только арабское имя + нормализованную форму, био
+  пусто, `metadata={"source":"ai_isnad_extraction"}`.
+- **Идемпотентность — delete-recreate per hadith.** Новый
+  `SanadRepository.deleteByHadithId` (сносит `hd_sanad_narrators` затем
+  `hd_sanads` хадиса — нарраторы НЕ трогаем, шарятся). Повторный импорт
+  обновляет цепь свежим извлечением, без дублей.
+- **Маппинг позиций** зеркалит `buildGraph`/`buildGraphFromExtracted`:
+  извлечённая цепь top→companion реверсится, position 0 = сподвижник;
+  `transmission_phrase` на позиции i = формула получения нарратора i от
+  i-1 (в сторону Пророка), что совпадает с `ExtractedNarrator.transmission`
+  после реверса. Обрезка под `varchar(40)`.
+- **Одна цепь** (`primary_chain=true`), `compiled_in_book_id =
+  collectionBookId` (FK на lib_books-представление сборника),
+  `compiled_by_id=null` (составитель/книга не звено цепи),
+  `chain_grade=null`, `metadata` с `collectionAr/Ru` + source-маркером.
+- **Graceful no-op** если `isnad` null / `!isnadFound` / пустые
+  narrators — пустую цепь не создаём.
+
+**Где вшито в импорт.** `SunnahImportService`:
+
+- `importSingle` — **default ON** (верифицируемый путь): после
+  персиста хадиса резолвит hadithId + матн + book_id сборника, если
+  `isnadExtractionService.isLlmEnabled()` → extract + persist. При
+  выключенном LLM тихо пропускается (импорт хадиса не ломается).
+  Per-hadith ошибка извлечения логируется и проглатывается.
+- `importCollection` — новый параметр `boolean extractIsnad` (**default
+  false** — bulk LLM-вызов на хадис дорог). При true И enabled LLM —
+  extract+persist на каждый хадис. Старая 2-арг перегрузка делегирует
+  `false` (internal callers/тесты не ломаются).
+- `SunnahAdminController`: `POST /import/{collection}` получил
+  `?extractIsnad=true` (default false); `POST /import/{collection}/{number}`
+  без нового параметра (иснад по умолчанию когда LLM настроен).
+
+**Последствия.** Реальный `/hadith`-explorer показывает граф иснада для
+импортированных хадисов. Дедуп несовершенен: омонимы ложно сольются, а
+вариативность написания (`الحميدي` / `عبد الله بن الزبير الحميدي`) —
+раздвоит; настоящая rijal-резолюция + обогащение био (alminasa) остаётся
+follow-up (см. backlog). Тесты: `IsnadPersistenceServiceTest` (unit,
+дедуп/реверс/idempotent/no-op), `IsnadPersistenceIT` (Testcontainers
+двухконтейнерный + fake `@Primary LlmClient`: single/bulk персист,
+cross-hadith дедуп, `buildGraph` end-to-end, re-import idempotent, LLM
+disabled graceful).
+
+**Rejected alternatives.** (1) DB unique-constraint на
+`name_ar_normalized` — омонимы (разные личности, одинаковая нормализация)
+легитимно совпадают; дедуп в сервисе, не в схеме. (2) Skip-if-exists
+вместо delete-recreate — re-extract не обновил бы цепь; delete-recreate
+чище. (3) `compiled_by_id` = составитель сборника как нарратор —
+составитель не звено иснада, граф показывает его синтетическим COLLECTOR
+по `collectionBookId`/metadata.

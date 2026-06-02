@@ -34,8 +34,12 @@
    скролл превью-панели, alminasa-карточка переформулирована.
 7. **AI-иснад** (ADR-059): `IsnadExtractionService` (LLM парсит цепочку из матна) +
    in-memory `SanadGraphResponse` (reuse Hadith Explorer viz) + `POST /admin/sunnah/
-   extract-isnad` + кнопка «Извлечь иснад (ИИ)» в превью. **Эфемерный preview** (без
-   персистенции в hd_*).
+   extract-isnad` + кнопка «Извлечь иснад (ИИ)» в превью.
+8. **Иснад persistence-on-import** (Фаза 9, ADR-059 amend): `IsnadPersistenceService` —
+   на импорте (single default-on, bulk `?extractIsnad=true`) извлечённая цепочка пишется
+   в hd_sanads/hd_narrators/hd_sanad_narrators (дедуп нарраторов по нормализованному
+   имени — MVP, возможен false-merge гомонимов; idempotent delete-recreate). Теперь
+   `/hadith` explorer показывает иснад импортированных хадисов (не только preview). +39 тестов.
 
 ### Решения
 - ADR-057 (OCR removed), ADR-058 (swappable LLM), ADR-059 (AI-иснад), ADR-056 amendment
@@ -67,9 +71,9 @@ extract-isnad → `{llmEnabled:false}` (graceful без ключа).
 
 ### Следующий шаг
 **Тёплый путь (после ручной проверки UI):**
-1. **Isnad persistence-on-import + rijal-дедуп нарраторов** (backlog) — сейчас иснад
-   эфемерный preview; персистить extracted hd_sanads/hd_narrators/hd_sanad_narrators на
-   импорте (дедуп по нормализованному имени), обогащать био из rijal-источника/alminasa.
+1. **Rijal-обогащение нарраторов** — иснад persistence сделан (Фаза 9), но нарраторы
+   без био (имя+нормализованное). Обогащать био/надёжность из authoritative rijal-источника
+   (alminasa future); улучшить дедуп (сейчас по норм. имени — false-merge гомонимов).
 2. **bbox-citation CREATION для FILE_ONLY** (roadmap 25.f) — CitationPicker PDF-режим
    (выбор страницы + рисование bbox на скане через react-image-crop). Display готов.
 3. **Полный дамп sunnah.com** (контент-ops) — сейчас только bukhari.

@@ -3555,7 +3555,15 @@ mapper и идемпотентность по `(collection_id, primary_number)`,
 skippedInvalid }` (для одного хадиса — суммы 0/1). 404 `sunnah-hadith-not-found`
 если хадиса нет в источнике; 400 `illegal-argument` если сборника нет.
 
-### POST /api/v1/admin/sunnah/import/{collection}
+**Персист иснада — по умолчанию ВКЛ** (ADR-059 amendment, single-import —
+верифицируемый путь): если LLM сконфигурирован (`ai.<provider>.api-key` не
+`disabled`), после импорта хадиса извлекается иснад из арабского матна и
+персистится в `hd_sanads`/`hd_narrators`/`hd_sanad_narrators` (дедуп
+нарраторов по normalized-name, delete-recreate per hadith). После этого
+реальный `/hadith`-explorer (`GET .../sanad-graph`) показывает граф. При
+выключенном LLM шаг тихо пропускается — импорт хадиса не ломается.
+
+### POST /api/v1/admin/sunnah/import/{collection}?extractIsnad=
 
 Импорт одного сборника: источник → `sn_staging_*` → `SunnahToHadithMapper`
 → `hd_collections`/`hd_hadiths`/`hd_matns`. **Идемпотентно** (по
@@ -3566,16 +3574,23 @@ skippedInvalid }` (для одного хадиса — суммы 0/1). 404 `su
 
 Импортированные хадисы — `status=VARIANT` (не выдаются за канон); текст ar/en
 в `hd_matns`, grades (если есть) в `hd_hadiths.metadata`, структура книга/глава
-в `hd_matns.metadata`. Структурный иснад НЕ извлекается на импорте (sunnah
-даёт matn+isnad блобом) — извлекается отдельно через AI, см. ниже
-`POST /extract-isnad` (превью, без персиста).
+в `hd_matns.metadata`.
+
+Query-параметр `extractIsnad` (boolean, **default false** — bulk LLM-вызов
+на хадис дорог): при `true` И сконфигурированном LLM для каждого хадиса
+извлекается+персистится иснад (как в single-import выше). При `false` или
+выключенном LLM — иснад не пишется (sunnah даёт matn+isnad блобом, можно
+извлечь позже через `POST /extract-isnad` превью либо re-import с
+`?extractIsnad=true`).
 
 ### POST /api/v1/admin/sunnah/extract-isnad (ADR-059)
 
 Извлечь иснад (цепочку передатчиков) из арабского матна хадиса через
 swappable LLM (ADR-058) и построить граф под React Flow. **Превью** —
-НИЧЕГО не пишется в БД (персист-на-импорте + дедуп нарраторов из rijal —
-отложенный следующий шаг). **Latency 5-15с** (вызов LLM).
+НИЧЕГО не пишется в БД (эфемерный in-memory граф). Персист на импорте
+теперь делается отдельно — см. `POST /import/...` выше (ADR-059
+amendment); обогащение био нарраторов из rijal остаётся follow-up.
+**Latency 5-15с** (вызов LLM).
 
 ADMIN-only (403 `forbidden-admin-only`). Матн берётся сервером из
 источника (preview-путь), не из клиентского тела.
