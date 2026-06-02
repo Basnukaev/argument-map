@@ -8,12 +8,14 @@ import ProtectedRoute from '@/shared/components/auth/ProtectedRoute';
 import Toaster from '@/shared/components/ui/Toaster';
 import ConfirmDialog from '@/shared/components/ui/ConfirmDialog';
 import SourceDetailPanel from '@/shared/components/citation/SourceDetailPanel';
+import SettingsDrawer from '@/shared/components/layout/SettingsDrawer';
 // OnboardingChecklist выключен временно (2026-05-20) - будет переделан под
 // guests-only с фиксацией первого визита в localStorage. Файлы компонента и
 // хука useOnboardingProgress остаются на месте.
 // Lazy: только грузим chunk при первом открытии Alt+K palette
 const CommandPalette = lazy(() => import('@/shared/components/layout/CommandPalette'));
 import { usePaletteStore } from '@/shared/stores/paletteStore';
+import { useSettingsDrawerStore } from '@/shared/stores/settingsDrawerStore';
 import { useHotkey } from '@/shared/hooks/useHotkey';
 import { useAuthStore } from '@/shared/stores/authStore';
 import ErrorBoundary from '@/shared/components/ErrorBoundary';
@@ -73,6 +75,12 @@ function App() {
   const paletteOpen = usePaletteStore((s) => s.open);
   const closePalette = usePaletteStore((s) => s.hide);
 
+  // Settings drawer - глобальный slide-over (баг #1). Listener живёт в
+  // App чтобы работать на любом route, включая TopicGraphPage без Header.
+  const toggleSettings = useSettingsDrawerStore((s) => s.toggle);
+  const settingsOpen = useSettingsDrawerStore((s) => s.open);
+  const closeSettings = useSettingsDrawerStore((s) => s.hide);
+
   // Alt+K не открывает palette на auth страницах (/login, /register) -
   // там нет авторизованных команд, и palette вводила бы в заблуждение
   const { pathname } = useLocation();
@@ -83,6 +91,15 @@ function App() {
     togglePalette();
   }, { enableOnFormTags: true }, [isAuthPage, togglePalette]);
 
+  // Alt+, открывает Settings drawer (стандартный «настройки» shortcut в
+  // macOS/desktop apps это Cmd+,, мы держим Alt+ для layout-independence
+  // и чтобы не конфликтовать с браузерными accelerators). Comma клавиша
+  // редко перехватывается браузером, low-risk
+  useHotkey('alt+comma', () => {
+    if (isAuthPage) return;
+    toggleSettings();
+  }, { enableOnFormTags: true }, [isAuthPage, toggleSettings]);
+
   // Force-close palette если route стал auth-page. Edge case: user открыл
   // palette на /topics, потом logout → redirect на /login. Без сброса
   // palette продолжал бы рендериться поверх login form
@@ -91,6 +108,14 @@ function App() {
       closePalette();
     }
   }, [isAuthPage, paletteOpen, closePalette]);
+
+  // Тот же edge case для settings drawer: open на /topics → logout →
+  // /login. Закрываем чтобы не рендерился поверх login form
+  useEffect(() => {
+    if (isAuthPage && settingsOpen) {
+      closeSettings();
+    }
+  }, [isAuthPage, settingsOpen, closeSettings]);
 
   // На mount - bootstrap auth (попытка refresh + /me). Запускается один раз
   // даже в StrictMode dev double-render (initialized флаг защищает от
@@ -217,6 +242,7 @@ function App() {
         </Suspense>
       )}
       <SourceDetailPanel />
+      <SettingsDrawer />
       <ConfirmDialog />
       <Toaster />
     </ErrorBoundary>

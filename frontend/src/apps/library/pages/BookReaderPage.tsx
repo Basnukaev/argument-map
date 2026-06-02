@@ -10,6 +10,7 @@ import BookHeader from '@/shared/components/reader/BookHeader';
 import ReaderModeSwitch from '@/shared/components/reader/ReaderModeSwitch';
 import ChapterList, { type Chapter } from '@/shared/components/reader/ChapterList';
 import PageJump from '@/shared/components/reader/PageJump';
+import ReaderFontControls from '@/shared/components/reader/ReaderFontControls';
 import PageView, { type PageContentState, type PageDetail } from '@/shared/components/reader/PageView';
 import { type ReaderMode } from '@/shared/components/reader/utils';
 import VisibilityBadge from '@/shared/components/visibility/VisibilityBadge';
@@ -722,6 +723,11 @@ function BookReaderPage() {
           />
         </Modal>
       )}
+
+      {/* Плавающие quick-controls шрифта чтения - «примерить шрифты прямо
+          во время чтения» (баг #1). Показываем только когда книга
+          загружена, чтобы не плавали над loading/error экранами */}
+      {state.kind === 'success' && <ReaderFontControls />}
     </main>
   );
 }

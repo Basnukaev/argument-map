@@ -20,6 +20,7 @@ import {
   FONT_PAIRS,
   useFontPairStore,
 } from '@/shared/stores/fontPairStore';
+import { useSettingsDrawerStore } from '@/shared/stores/settingsDrawerStore';
 import Kbd from '@/shared/components/ui/Kbd';
 import { useHotkey } from '@/shared/hooks/useHotkey';
 
@@ -59,6 +60,7 @@ function CommandPaletteBody({ onClose }: { onClose: () => void }) {
   const theme = useThemeStore((s) => s.theme);
   const setPair = useFontPairStore((s) => s.setPair);
   const setArabicFont = useFontPairStore((s) => s.setArabicFont);
+  const showSettings = useSettingsDrawerStore((s) => s.show);
   const [query, setQuery] = useState('');
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -113,11 +115,11 @@ function CommandPaletteBody({ onClose }: { onClose: () => void }) {
       run: () => navigate('/admin/shamela'),
     },
     {
-      id: 'goto-settings',
-      label: t('palette.open_settings'),
-      hint: '/settings',
+      id: 'open-settings',
+      label: t('settings.open_command'),
+      hint: 'Alt+,',
       Icon: Settings,
-      run: () => navigate('/settings'),
+      run: showSettings,
     },
     {
       id: 'toggle-theme',

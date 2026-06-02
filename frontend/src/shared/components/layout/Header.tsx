@@ -13,6 +13,7 @@ import Modal from '@/shared/components/ui/Modal';
 import { useT, type DictKey } from '@/shared/i18n';
 import { useIsMobile } from '@/shared/hooks/useViewport';
 import { usePaletteStore } from '@/shared/stores/paletteStore';
+import { useSettingsDrawerStore } from '@/shared/stores/settingsDrawerStore';
 
 interface NavItem {
   to: string;
@@ -54,6 +55,7 @@ function Header() {
   // Alt+K listener живёт в App.tsx (см. paletteStore docstring) -
   // Header только триггерит открытие через store.show().
   const showPalette = usePaletteStore((s) => s.show);
+  const showSettings = useSettingsDrawerStore((s) => s.show);
   const isMobile = useIsMobile();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -198,13 +200,16 @@ function Header() {
                 <Search size={15} aria-hidden />
                 <span>{t('common.search')}</span>
               </button>
-              <Link
-                to="/settings"
-                onClick={() => setMenuOpen(false)}
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  showSettings();
+                }}
                 className="inline-flex h-10 items-center gap-2 px-3 rounded-sm text-sm text-ink-700 hover:bg-ink-100 hover:text-ink-900 transition-colors"
               >
                 <span>{t('settings.link.title')}</span>
-              </Link>
+              </button>
             </div>
           </nav>
         </Modal>

@@ -1062,6 +1062,39 @@ export const DICTIONARY = {
     'settings.reset_confirm.body':
       'Язык, тема, шрифты, размер текста, огласовки, транслитерация - всё вернётся к дефолтам',
 
+    // Settings drawer (slide-over - контекст не теряется, баг #1)
+    'settings.drawer.title': 'Настройки',
+    'settings.drawer.close': 'Закрыть настройки',
+    'settings.drawer.open_aria': 'Открыть настройки',
+    'settings.open_command': 'Настройки',
+
+    // Settings - группирующие заголовки секций (реорганизация FontSettings)
+    'settings.group.theme': 'Тема',
+    'settings.group.fonts': 'Шрифты',
+    'settings.group.size': 'Размер',
+    'settings.group.weights': 'Насыщенность',
+
+    // UI scale (масштаб интерфейса, баг #2 - глобальный zoom с rollback)
+    'settings.section.uiScale': 'Масштаб интерфейса',
+    'settings.section.uiScale.hint':
+      'Масштабирует весь интерфейс: навигацию, карточки, граф и reader. Базовый - 100%',
+    'settings.uiScale.compact': 'Компактный (90%)',
+    'settings.uiScale.standard': 'Стандартный (базовый)',
+    'settings.uiScale.comfortable': 'Просторный (110%)',
+    'settings.uiScale.aria': 'Масштаб интерфейса',
+    'settings.reset.uiScale_note':
+      'Масштаб интерфейса тоже вернётся к компактному (90%)',
+
+    // Reader quick-controls (примерить шрифты прямо во время чтения, баг #1)
+    'reader.fonts.button_aria': 'Настройки шрифта чтения',
+    'reader.fonts.title': 'Шрифт чтения',
+    'reader.fonts.hint': 'Применяется сразу к тексту страницы',
+    'reader.fonts.arabic_label': 'Арабский шрифт',
+    'reader.fonts.density_label': 'Плотность текста',
+    'reader.fonts.pair_label': 'Шрифт интерфейса и заголовков',
+    'reader.fonts.open_full': 'Все настройки',
+    'reader.fonts.close': 'Закрыть',
+
     // Settings - bilingual node cards (миграция 44)
     'settings.section.bilingual': 'Двуязычный режим узлов',
     'settings.section.bilingual.hint':
@@ -2404,6 +2437,38 @@ export const DICTIONARY = {
     'settings.reset_confirm': 'إعادة ضبط جميع الإعدادات؟',
     'settings.reset_confirm.body':
       'اللغة والمظهر والخطوط وحجم النص والحركات والنقحرة - كلّها ستعود للقيم الافتراضية',
+
+    // Settings drawer (لوحة منزلقة - لا يُفقد السياق)
+    'settings.drawer.title': 'الإعدادات',
+    'settings.drawer.close': 'إغلاق الإعدادات',
+    'settings.drawer.open_aria': 'فتح الإعدادات',
+    'settings.open_command': 'الإعدادات',
+
+    // Settings - عناوين تجميع الأقسام
+    'settings.group.theme': 'المظهر',
+    'settings.group.fonts': 'الخطوط',
+    'settings.group.size': 'الحجم',
+    'settings.group.weights': 'سُمك الخط',
+
+    // UI scale (مقياس الواجهة - تكبير شامل مع إمكانية الرجوع)
+    'settings.section.uiScale': 'مقياس الواجهة',
+    'settings.section.uiScale.hint':
+      'يُكبّر الواجهة بالكامل: التنقّل والبطاقات والرسم البياني والقارئ. الأساسي - 100%',
+    'settings.uiScale.compact': 'مُحكم (90%)',
+    'settings.uiScale.standard': 'قياسي (الأساسي)',
+    'settings.uiScale.comfortable': 'فسيح (110%)',
+    'settings.uiScale.aria': 'مقياس الواجهة',
+    'settings.reset.uiScale_note': 'سيعود مقياس الواجهة أيضًا إلى المُحكم (90%)',
+
+    // Reader quick-controls (تجربة الخطوط أثناء القراءة)
+    'reader.fonts.button_aria': 'إعدادات خط القراءة',
+    'reader.fonts.title': 'خط القراءة',
+    'reader.fonts.hint': 'يُطبَّق فورًا على نص الصفحة',
+    'reader.fonts.arabic_label': 'الخطّ العربي',
+    'reader.fonts.density_label': 'كثافة النص',
+    'reader.fonts.pair_label': 'خط الواجهة والعناوين',
+    'reader.fonts.open_full': 'كل الإعدادات',
+    'reader.fonts.close': 'إغلاق',
 
     // Settings - bilingual node cards (миграция 44)
     'settings.section.bilingual': 'الوضع ثنائي اللغة للعقد',
