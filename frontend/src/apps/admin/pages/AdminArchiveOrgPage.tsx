@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { useNavigate } from 'react-router';
 import {
   AlertCircle,
   ArrowRight,
@@ -12,7 +12,7 @@ import {
   Image as ImageIcon,
   Layers,
   Loader2,
-  ScanLine,
+  RotateCcw,
   Upload,
 } from 'lucide-react';
 import Header from '@/shared/components/layout/Header';
@@ -80,21 +80,21 @@ const EMPTY_FORM: FormState = {
  * sunnah/alminasa).
  *
  * Flow: URL-инпут → GET preview (без записи) → редактируемые метаданные с
- * провенанс-бейджами + список томов (оригинал/OCR) + выбор обложки +
- * test-mode извлечения → POST import → success toast + ссылка на книгу.
+ * провенанс-бейджами + список томов (PDF, по одному файлу на том) + выбор
+ * обложки → POST import → success-карточка (форма блокируется, нельзя
+ * редактировать/реимпортировать) с переходом на книгу или «импортировать ещё».
  */
 function AdminArchiveOrgPage() {
   const t = useT();
+  const navigate = useNavigate();
   const [url, setUrl] = useState('');
   const [state, setState] = useState<PreviewState>({ kind: 'idle' });
 
-  // Форма + выбор обложки + test-mode живут на уровне страницы, инициализируются
+  // Форма + выбор обложки живут на уровне страницы, инициализируются
   // когда приходит успешное превью (через ремонт PreviewSection по key).
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [coverKind, setCoverKind] = useState<string>('thumbnail');
   const [coverUrl, setCoverUrl] = useState<string | undefined>(undefined);
-  const [extractText, setExtractText] = useState(false);
-  const [testModePages, setTestModePages] = useState('');
 
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResponse | null>(null);
@@ -116,11 +116,19 @@ function AdminArchiveOrgPage() {
       const thumb = opts.find((o) => o.kind === 'thumbnail') ?? opts[0];
       setCoverKind(thumb?.kind ?? 'thumbnail');
       setCoverUrl(thumb?.url ?? undefined);
-      setExtractText(false);
-      setTestModePages('');
     } catch (e) {
       setState({ kind: 'error', message: formatArchiveError(e, t) });
     }
+  };
+
+  /** Полный сброс на стартовый экран URL-инпута («Импортировать ещё»). */
+  const resetAll = () => {
+    setUrl('');
+    setState({ kind: 'idle' });
+    setForm(EMPTY_FORM);
+    setCoverKind('thumbnail');
+    setCoverUrl(undefined);
+    setImportResult(null);
   };
 
   const doImport = async () => {
@@ -141,11 +149,6 @@ function AdminArchiveOrgPage() {
         yearGregorian: parseIntOrUndefined(form.yearGregorian),
         coverKind,
         coverUrl,
-        extractText,
-        testModePages:
-          extractText && testModePages.trim() !== ''
-            ? parseIntOrUndefined(testModePages)
-            : undefined,
       };
       const res = await apiPostRaw<ImportResponse>('/api/v1/admin/archive-org/import', body);
       setImportResult(res);
@@ -183,73 +186,84 @@ function AdminArchiveOrgPage() {
           </p>
         </header>
 
-        {/* URL input row */}
-        <section className="mb-6">
-          <form
-            className="flex flex-col gap-2 sm:flex-row sm:items-end"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void loadPreview();
-            }}
-          >
-            <div className="min-w-0 flex-1">
-              <Field label={t('admin.archiveorg.url_label')} hint={t('admin.archiveorg.url_hint')}>
-                <Field.Input
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://archive.org/details/fmhji"
-                  dir="ltr"
-                  inputMode="url"
-                />
-              </Field>
-            </div>
-            <div className="shrink-0">
-              <Button
-                type="submit"
-                icon={state.kind === 'loading' ? undefined : Download}
-                disabled={url.trim() === '' || state.kind === 'loading'}
-              >
-                {state.kind === 'loading' && (
-                  <Loader2 size={15} className="animate-spin" aria-hidden />
-                )}
-                {t('admin.archiveorg.load_preview')}
-              </Button>
-            </div>
-          </form>
-        </section>
-
-        {state.kind === 'error' && (
-          <Card className="mb-5 border-err-500/40 bg-err-100 p-5">
-            <div className="flex items-start gap-3 text-err-700">
-              <AlertCircle size={20} className="mt-0.5 shrink-0" aria-hidden />
-              <div className="text-sm">{state.message}</div>
-            </div>
-          </Card>
-        )}
-
-        {state.kind === 'success' && !state.data.hasPdf && <NoPdfState />}
-
-        {state.kind === 'success' && state.data.hasPdf && (
-          <PreviewSection
-            // key — пересоздать секцию (и сбросить collapsible-состояние)
-            // при загрузке нового item.
-            key={state.data.archiveOrgId ?? url}
-            data={state.data}
-            form={form}
-            onFormChange={setForm}
-            coverKind={coverKind}
-            onCoverChange={(kind, u) => {
-              setCoverKind(kind);
-              setCoverUrl(u);
-            }}
-            extractText={extractText}
-            onExtractTextChange={setExtractText}
-            testModePages={testModePages}
-            onTestModePagesChange={setTestModePages}
-            importing={importing}
-            importResult={importResult}
-            onImport={doImport}
+        {/* После успешного импорта форма блокируется: показываем ТОЛЬКО
+            success-карточку, без URL-инпута и редактируемого превью —
+            гарантия что нельзя отредактировать/реимпортировать. */}
+        {importResult ? (
+          <ImportResultView
+            result={importResult}
+            onOpenBook={(bookId) => navigate(`/books/${bookId}`)}
+            onImportAnother={resetAll}
           />
+        ) : (
+          <>
+            {/* URL input row */}
+            <section className="mb-6">
+              <form
+                className="flex flex-col gap-2 sm:flex-row sm:items-end"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void loadPreview();
+                }}
+              >
+                <div className="min-w-0 flex-1">
+                  <Field
+                    label={t('admin.archiveorg.url_label')}
+                    hint={t('admin.archiveorg.url_hint')}
+                  >
+                    <Field.Input
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      placeholder="https://archive.org/details/fmhji"
+                      dir="ltr"
+                      inputMode="url"
+                    />
+                  </Field>
+                </div>
+                <div className="shrink-0">
+                  <Button
+                    type="submit"
+                    icon={state.kind === 'loading' ? undefined : Download}
+                    disabled={url.trim() === '' || state.kind === 'loading'}
+                  >
+                    {state.kind === 'loading' && (
+                      <Loader2 size={15} className="animate-spin" aria-hidden />
+                    )}
+                    {t('admin.archiveorg.load_preview')}
+                  </Button>
+                </div>
+              </form>
+            </section>
+
+            {state.kind === 'error' && (
+              <Card className="mb-5 border-err-500/40 bg-err-100 p-5">
+                <div className="flex items-start gap-3 text-err-700">
+                  <AlertCircle size={20} className="mt-0.5 shrink-0" aria-hidden />
+                  <div className="text-sm">{state.message}</div>
+                </div>
+              </Card>
+            )}
+
+            {state.kind === 'success' && !state.data.hasPdf && <NoPdfState />}
+
+            {state.kind === 'success' && state.data.hasPdf && (
+              <PreviewSection
+                // key — пересоздать секцию (и сбросить collapsible-состояние)
+                // при загрузке нового item.
+                key={state.data.archiveOrgId ?? url}
+                data={state.data}
+                form={form}
+                onFormChange={setForm}
+                coverKind={coverKind}
+                onCoverChange={(kind, u) => {
+                  setCoverKind(kind);
+                  setCoverUrl(u);
+                }}
+                importing={importing}
+                onImport={doImport}
+              />
+            )}
+          </>
         )}
       </div>
     </main>
@@ -266,12 +280,7 @@ interface PreviewSectionProps {
   onFormChange: (next: FormState) => void;
   coverKind: string;
   onCoverChange: (kind: string, url: string | undefined) => void;
-  extractText: boolean;
-  onExtractTextChange: (next: boolean) => void;
-  testModePages: string;
-  onTestModePagesChange: (next: string) => void;
   importing: boolean;
-  importResult: ImportResponse | null;
   onImport: () => void;
 }
 
@@ -281,12 +290,7 @@ function PreviewSection({
   onFormChange,
   coverKind,
   onCoverChange,
-  extractText,
-  onExtractTextChange,
-  testModePages,
-  onTestModePagesChange,
   importing,
-  importResult,
   onImport,
 }: PreviewSectionProps) {
   const t = useT();
@@ -397,57 +401,12 @@ function PreviewSection({
         </div>
       </section>
 
-      {/* Test-mode извлечение текста */}
-      <section className="overflow-hidden rounded-lg border border-border bg-elevated">
-        <SectionHeader icon={ScanLine} title={t('admin.archiveorg.section_extract')} />
-        <div className="flex flex-col gap-3 px-4 py-4">
-          <label className="flex items-start gap-2.5">
-            <input
-              type="checkbox"
-              checked={extractText}
-              onChange={(e) => onExtractTextChange(e.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-accent-600"
-            />
-            <span className="text-sm">
-              <span className="font-semibold text-ink-900">
-                {t('admin.archiveorg.extract_toggle')}
-              </span>
-              <span className="block text-xs text-ink-500">
-                {t('admin.archiveorg.extract_hint')}
-              </span>
-            </span>
-          </label>
-          {extractText && (
-            <div className="ms-7 max-w-[280px]">
-              <Field
-                label={t('admin.archiveorg.test_pages_label')}
-                hint={t('admin.archiveorg.test_pages_hint')}
-              >
-                <Field.Input
-                  type="number"
-                  min={1}
-                  max={9999}
-                  value={testModePages}
-                  onChange={(e) => onTestModePagesChange(e.target.value)}
-                  placeholder="5"
-                  dir="ltr"
-                />
-              </Field>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Import CTA + result */}
+      {/* Import CTA */}
       <section className="rounded-lg border border-border bg-elevated px-4 py-4">
-        {importResult ? (
-          <ImportResultView result={importResult} />
-        ) : (
-          <Button icon={importing ? undefined : Download} full disabled={importing} onClick={onImport}>
-            {importing && <Loader2 size={15} className="animate-spin" aria-hidden />}
-            {importing ? t('admin.archiveorg.importing') : t('admin.archiveorg.import_cta')}
-          </Button>
-        )}
+        <Button icon={importing ? undefined : Download} full disabled={importing} onClick={onImport}>
+          {importing && <Loader2 size={15} className="animate-spin" aria-hidden />}
+          {importing ? t('admin.archiveorg.importing') : t('admin.archiveorg.import_cta')}
+        </Button>
       </section>
     </div>
   );
@@ -596,57 +555,36 @@ function VolumeRow({ group }: VolumeRowProps) {
   const t = useT();
   const formatNumber = useNumberFormat();
   const isCover = group.role === 'cover';
-  const label = isCover
-    ? t('admin.archiveorg.role_cover')
-    : t('admin.archiveorg.volume_label').replace('{n}', String(group.volumeNo ?? '?'));
-
-  const hasOriginal = group.original != null;
-  const hasOcr = group.ocr != null;
+  // label вычисляется сервером ("Обложка" / "Том N"); fallback на локальные
+  // ключи если по какой-то причине пусто.
+  const label =
+    group.label ??
+    (isCover
+      ? t('admin.archiveorg.role_cover')
+      : t('admin.archiveorg.volume_label').replace('{n}', String(group.volumeNo ?? '?')));
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-md border border-border bg-sunken px-3 py-2.5">
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 rounded-md border border-border bg-sunken px-3 py-2.5">
       <span className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
         {isCover ? <ImageIcon size={14} aria-hidden /> : <FileText size={14} aria-hidden />}
         {label}
       </span>
-      <div className="flex flex-wrap items-center gap-2">
-        {hasOriginal && (
-          <FileChip
-            label={t('admin.archiveorg.variant_original')}
-            size={group.original?.size ?? undefined}
-            formatNumber={formatNumber}
-          />
-        )}
-        {hasOcr && (
-          <FileChip
-            label={t('admin.archiveorg.variant_ocr')}
-            size={group.ocr?.size ?? undefined}
-            formatNumber={formatNumber}
-          />
-        )}
-        {!hasOcr && hasOriginal && (
-          <span className="inline-flex items-center gap-1 rounded-sm bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">
-            <ScanLine size={11} aria-hidden /> {t('admin.archiveorg.scan_only')}
-          </span>
-        )}
-      </div>
+      {group.sizeBytes != null && (
+        <FileChip size={group.sizeBytes} formatNumber={formatNumber} />
+      )}
     </div>
   );
 }
 
 interface FileChipProps {
-  label: string;
-  size: number | undefined;
+  size: number;
   formatNumber: (n: number | undefined | null) => string;
 }
 
-function FileChip({ label, size, formatNumber }: FileChipProps) {
+function FileChip({ size, formatNumber }: FileChipProps) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-elevated px-2 py-0.5 text-xs text-ink-700">
-      <span className="font-semibold">{label}</span>
-      {size != null && (
-        <span className="tabular-nums text-ink-500">{formatBytes(size, formatNumber)}</span>
-      )}
+      <span className="tabular-nums text-ink-500">{formatBytes(size, formatNumber)}</span>
     </span>
   );
 }
@@ -736,31 +674,53 @@ function CoverOptionView({ option, selected, onSelect }: CoverOptionViewProps) {
 
 interface ImportResultViewProps {
   result: ImportResponse;
+  onOpenBook: (bookId: string) => void;
+  onImportAnother: () => void;
 }
 
-function ImportResultView({ result }: ImportResultViewProps) {
+/**
+ * Терминальная success-карточка: появляется ВМЕСТО редактируемого превью после
+ * импорта, блокируя любую правку/реимпорт. Две действия — открыть книгу и
+ * импортировать ещё (полный сброс на стартовый экран).
+ */
+function ImportResultView({ result, onOpenBook, onImportAnother }: ImportResultViewProps) {
   const t = useT();
+  const formatNumber = useNumberFormat();
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-start gap-2.5 text-emerald-700">
-        <CheckCircle2 size={20} className="mt-0.5 shrink-0" aria-hidden />
-        <div className="text-sm">
+    <div className="mx-auto flex max-w-[560px] flex-col items-center gap-5 rounded-lg border border-border bg-elevated px-6 py-10 text-center">
+      <span className="grid h-14 w-14 place-items-center rounded-full bg-emerald-100 text-emerald-700">
+        <CheckCircle2 size={26} aria-hidden />
+      </span>
+      <div>
+        <h2 className="font-serif text-xl font-semibold text-ink-900">
           {result.alreadyExisted
-            ? t('admin.archiveorg.result_already_existed')
-            : t('admin.archiveorg.result_done')
-                .replace('{volumes}', String(result.volumesRegistered ?? 0))
-                .replace('{pages}', String(result.pagesExtracted ?? 0))}
-        </div>
+            ? t('admin.archiveorg.already_imported')
+            : t('admin.archiveorg.result_done').replace(
+                '{volumes}',
+                formatNumber(result.volumesRegistered ?? 0),
+              )}
+        </h2>
+        {!result.alreadyExisted && (
+          <p className="mt-1.5 text-sm text-ink-500">
+            {t('admin.archiveorg.imported_file_only')}
+          </p>
+        )}
       </div>
-      {result.bookId && (
-        <Link
-          to={`/books/${result.bookId}`}
-          className="inline-flex items-center gap-1.5 self-start rounded-sm bg-accent-600 px-3 py-1.5 text-sm font-medium text-ink-0 transition-colors hover:bg-accent-cta-hover"
-        >
-          {t('admin.archiveorg.open_book')}
-          <ArrowRight size={15} aria-hidden />
-        </Link>
-      )}
+      <div className="flex flex-col items-center gap-2.5 sm:flex-row">
+        {result.bookId && (
+          <Button
+            iconRight={ArrowRight}
+            onClick={() => {
+              if (result.bookId) onOpenBook(result.bookId);
+            }}
+          >
+            {t('admin.archiveorg.open_book')}
+          </Button>
+        )}
+        <Button variant="ghost" icon={RotateCcw} onClick={onImportAnother}>
+          {t('admin.archiveorg.import_another')}
+        </Button>
+      </div>
     </div>
   );
 }

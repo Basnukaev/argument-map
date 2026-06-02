@@ -2593,9 +2593,6 @@ export interface components {
             yearGregorian?: number;
             coverKind?: string;
             coverUrl?: string;
-            extractText?: boolean;
-            /** Format: int32 */
-            testModePages?: number;
         };
         ArchiveOrgImportResponse: {
             /** Format: uuid */
@@ -3255,12 +3252,6 @@ export interface components {
             kind?: string;
             url?: string;
         };
-        PdfFileRef: {
-            name?: string;
-            /** Format: int64 */
-            size?: number;
-            downloadUrl?: string;
-        };
         ProvenanceField: {
             value?: string;
             /** @enum {string} */
@@ -3270,8 +3261,11 @@ export interface components {
             role?: string;
             /** Format: int32 */
             volumeNo?: number;
-            original?: components["schemas"]["PdfFileRef"];
-            ocr?: components["schemas"]["PdfFileRef"];
+            name?: string;
+            label?: string;
+            /** Format: int64 */
+            sizeBytes?: number;
+            downloadUrl?: string;
         };
         BulkDeleteNodesRequest: {
             nodeIds: string[];

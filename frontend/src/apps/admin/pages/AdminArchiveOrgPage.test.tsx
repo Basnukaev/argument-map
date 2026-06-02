@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
 import { waitForApi } from '@/test/asyncHelpers';
@@ -22,6 +22,8 @@ const ADMIN_USER = {
   createdAt: '2026-01-01T00:00:00Z',
 };
 
+/** Превью в НОВОЙ форме VolumeGroup: один файл на том (role/label/sizeBytes),
+ *  без original/ocr — archive.org книги теперь PDF-only (FILE_ONLY). */
 function preview() {
   return {
     archiveOrgId: 'fmhji',
@@ -37,12 +39,21 @@ function preview() {
     language: { value: 'Arabic', source: 'archive_org' },
     rawDescription: 'المؤلف: عبد الرحمن بن حسن · عدد المجلدات: ٣',
     files: [
-      { role: 'cover', volumeNo: 0, original: { name: 'fmhji0.pdf', size: 130000, downloadUrl: 'x' } },
+      {
+        role: 'cover',
+        volumeNo: 0,
+        name: 'fmhji0.pdf',
+        label: 'Обложка',
+        sizeBytes: 130000,
+        downloadUrl: 'x',
+      },
       {
         role: 'volume',
         volumeNo: 1,
-        original: { name: 'fmhji1.pdf', size: 19000000, downloadUrl: 'x' },
-        ocr: { name: 'fmhji1_text.pdf', size: 25000000, downloadUrl: 'x' },
+        name: 'fmhji1.pdf',
+        label: 'Том 1',
+        sizeBytes: 19000000,
+        downloadUrl: 'x',
       },
     ],
     coverOptions: [
@@ -54,9 +65,16 @@ function preview() {
   };
 }
 
+/** Зеркало текущего pathname — для проверки навигации после «Открыть книгу». */
+function LocationProbe() {
+  const loc = useLocation();
+  return <div data-testid="location">{loc.pathname}</div>;
+}
+
 function renderPage() {
   return render(
     <MemoryRouter>
+      <LocationProbe />
       <AdminArchiveOrgPage />
       <Toaster />
     </MemoryRouter>,
@@ -96,12 +114,12 @@ describe('AdminArchiveOrgPage', () => {
     expect(screen.getAllByText(/из archive\.org/i).length).toBeGreaterThan(0);
     // жёлтые бейджи «нет в источнике» (publisher/place/muhaqqiq/edition/years)
     expect(screen.getAllByText(/нет в источнике/i).length).toBeGreaterThan(0);
-    // том 1 показывает оригинал + OCR
+    // том 1 показывает label из сервера (один файл на том, без OCR)
     expect(screen.getByText('Том 1')).toBeInTheDocument();
-    expect(screen.getByText('OCR')).toBeInTheDocument();
+    expect(screen.queryByText('OCR')).toBeNull();
   });
 
-  it('импорт вызывает POST и показывает success toast + ссылку на книгу', async () => {
+  it('импорт вызывает POST и блокирует форму success-карточкой; «Импортировать ещё» возвращает на стартовый экран', async () => {
     let imported = false;
     server.use(
       http.get(PREVIEW_URL, () => HttpResponse.json(preview())),
@@ -121,18 +139,84 @@ describe('AdminArchiveOrgPage', () => {
 
     await enterUrlAndLoad();
 
-    const importBtn = await screen.findByRole('button', { name: /Импортировать/i });
+    const importBtn = await screen.findByRole('button', { name: /^Импортировать$/i });
     await userEvent.click(importBtn);
 
     await waitForApi(() => {
       expect(imported).toBe(true);
     });
-    expect(await screen.findByText(/Импортировано, томов 3/i)).toBeInTheDocument();
-    // ссылка на созданную книгу
-    expect(screen.getByRole('link', { name: /Открыть книгу/i })).toHaveAttribute(
-      'href',
+
+    // success-карточка: томов 3 + тип FILE_ONLY
+    expect(await screen.findByText(/Импортировано: томов 3/i)).toBeInTheDocument();
+    expect(screen.getByText(/только PDF/i)).toBeInTheDocument();
+
+    // форма заблокирована: ни URL-инпута, ни редактируемых метаданных, ни кнопки превью
+    expect(screen.queryByRole('textbox', { name: /Ссылка на archive\.org/i })).toBeNull();
+    expect(screen.queryByText('Метаданные')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Загрузить превью/i })).toBeNull();
+
+    // две action-кнопки
+    const openBook = screen.getByRole('button', { name: /Открыть книгу/i });
+    expect(openBook).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Импортировать ещё/i })).toBeInTheDocument();
+
+    // «Импортировать ещё» → возврат на стартовый экран URL-инпута
+    await userEvent.click(screen.getByRole('button', { name: /Импортировать ещё/i }));
+    expect(screen.getByRole('textbox', { name: /Ссылка на archive\.org/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Открыть книгу/i })).toBeNull();
+  });
+
+  it('«Открыть книгу» навигирует на страницу созданной книги', async () => {
+    server.use(
+      http.get(PREVIEW_URL, () => HttpResponse.json(preview())),
+      http.post(IMPORT_URL, () =>
+        HttpResponse.json({
+          bookId: '11111111-1111-1111-1111-111111111111',
+          archiveOrgId: 'fmhji',
+          volumesRegistered: 3,
+          coverSet: true,
+          pagesExtracted: 0,
+          alreadyExisted: false,
+        }),
+      ),
+    );
+    renderPage();
+
+    await enterUrlAndLoad();
+    await userEvent.click(await screen.findByRole('button', { name: /^Импортировать$/i }));
+
+    const openBook = await screen.findByRole('button', { name: /Открыть книгу/i });
+    await userEvent.click(openBook);
+
+    expect(screen.getByTestId('location')).toHaveTextContent(
       '/books/11111111-1111-1111-1111-111111111111',
     );
+  });
+
+  it('alreadyExisted показывает «уже была импортирована» с переходом на книгу', async () => {
+    server.use(
+      http.get(PREVIEW_URL, () => HttpResponse.json(preview())),
+      http.post(IMPORT_URL, () =>
+        HttpResponse.json({
+          bookId: '22222222-2222-2222-2222-222222222222',
+          archiveOrgId: 'fmhji',
+          volumesRegistered: 0,
+          coverSet: false,
+          pagesExtracted: 0,
+          alreadyExisted: true,
+        }),
+      ),
+    );
+    renderPage();
+
+    await enterUrlAndLoad();
+    await userEvent.click(await screen.findByRole('button', { name: /^Импортировать$/i }));
+
+    // заголовок success-карточки (h2) — не путать с транзиентным toast
+    expect(
+      await screen.findByRole('heading', { name: /Эта книга уже была импортирована$/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Открыть книгу/i })).toBeInTheDocument();
   });
 
   it('hasPdf=false показывает «в этом item нет PDF»', async () => {
@@ -162,25 +246,5 @@ describe('AdminArchiveOrgPage', () => {
     await waitForApi(() => {
       expect(screen.getByText(/Item не найден на archive\.org/i)).toBeInTheDocument();
     });
-  });
-
-  it('test-mode: чекбокс «извлечь текст» открывает поле числа страниц', async () => {
-    server.use(http.get(PREVIEW_URL, () => HttpResponse.json(preview())));
-    renderPage();
-
-    await enterUrlAndLoad();
-
-    await waitForApi(() => {
-      expect(screen.getByText('Извлечение текста')).toBeInTheDocument();
-    });
-
-    // поле числа страниц скрыто пока extractText выключен
-    expect(screen.queryByRole('spinbutton', { name: /Только N страниц/i })).toBeNull();
-
-    await userEvent.click(screen.getByRole('checkbox', { name: /Извлечь текст/i }));
-
-    expect(
-      screen.getByRole('spinbutton', { name: /Только N страниц/i }),
-    ).toBeInTheDocument();
   });
 });
