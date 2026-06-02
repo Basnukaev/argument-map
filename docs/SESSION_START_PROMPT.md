@@ -235,10 +235,12 @@ title-weight ар, импорт-страницы показывают конте
 **Инфра:** Docker (postgres+minio) up + **`sunnah-mysql` :3307** (root/root,
 БД `sunnah`; дамп `db/00-samplegitdb.sql` в контейнере, host-копия `/tmp/sunnah.sql`,
 re-fetch: `curl -sL raw.githubusercontent.com/sunnah-com/api/master/db/00-samplegitdb.sql`).
-Backend :9090 перезапущен **с `SUNNAH_DUMP_*` env** + JDWP :5005 (без env
-импорт-endpoint → 503). Команда рестарта — в разделе «Команды» CLAUDE.md.
-migrations через 64 применены (60 drop node_votes, 61 topic_votes, 62
-question_votes, 63 drop user_preferences, 64 answer_votes). **Дев-Postgres
+Backend :9090 + JDWP :5005. **ВАЖНО (батч 3): sunnah-конфиг передавать через
+`-Dspring-boot.run.arguments`, НЕ env** — fork `spring-boot:run` теряет env-vars
+(симптом: импорт хадисов «не настроен» / 503). Рабочая команда рестарта:
+`./mvnw spring-boot:run -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005" -Dspring-boot.run.arguments="--sunnah.dump.enabled=true --sunnah.dump.url=jdbc:mysql://localhost:3307/sunnah?allowPublicKeyRetrieval=true&useSSL=false --sunnah.dump.username=root --sunnah.dump.password=root"`
+migrations через 65 применены (60 drop node_votes, 61 topic_votes, 62
+question_votes, 63 drop user_preferences, 64 answer_votes, 65 hd_collections.book_id). **Дев-Postgres
 ПОЛНОСТЬЮ ОЧИЩЕН** (батч 2 #11): весь контент=0, остались только admin-юзер +
 схема + shamela master-каталог (`lib_shamela_book`=8589, источник импорта).
 DevHadithSeeder теперь opt-in (`DEV_SEED_HADITH=true` чтобы вернуть 3 эталона).

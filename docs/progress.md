@@ -8,6 +8,36 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
+## 2026-06-02 - Сессия 54 (батч 3) - баги из ручного тестирования Абдулы (6 фиксов)
+
+Абдула прогнал руками → список багов со скринами. Все 6 закрыты (~5 коммитов).
+
+1. **Обновление статусов узлов не работало** («Не удалось обновить ни один узел»):
+   PATCH /nodes/{id} не принимал `status` (только content/pos/lang) → 400. Добавлен
+   `status` в UpdateNodeRequest + `NodeService.updateStatus` (assertCanWrite, валидация
+   enum, audit). Персистит для узлов без влияющих рёбер (StatusCalc MVP пересчитывает
+   только при изменении рёбер). **Проверено живьём: 200 + узел STANDING.**
+2. **Импорт хадисов «не настроен»** (503): backend терял `SUNNAH_DUMP_*` env при
+   рестарте (fork spring-boot:run не наследовал env). Фикс — запускать с
+   **`-Dspring-boot.run.arguments="--sunnah.dump.enabled=true --sunnah.dump.url=... ..."`**
+   (детерминированно, не зависит от env-наследования). **Проверено: /collections +
+   /preview → 200.**
+3. **PDF shamela не грузился** (`pdf_links.root отсутствует`): code gap — shamela-native
+   `pdf_links` без `root` (относит. пути) не резолвились. Фикс: резолв против shamela
+   CDN. +IT.
+4. **Shamela sync `category.sqlite отсутствует`**: environmental/upstream (структура
+   архива/сеть). Сделан рекурсивный fallback + actionable ошибка + gotcha (не хак).
+5. **Миникарта**: синий прямоугольник вьюпорта при zoom-out наезжал на header/footer
+   → overflow-hidden на области карты.
+6. **Ребро RESPONDS_TO**: иконка ↩ (влево, против хода) путала направление → ↳ (вперёд).
+   **+ чип типа узла**: текст касался границ → padding + зазор до контента.
+
+**Проблемы/known:** shamela-admin endpoints без ADMIN-guard (security-backlog, см. батч 2);
+shamela sync category.sqlite зависит от живого shamela.ws (env). bulkActions d3-шум.
+
+**Инфра ВАЖНО:** backend запускать с `-Dspring-boot.run.arguments="--sunnah.dump.*"`
+(НЕ env — fork их теряет). См. SESSION_START «Инфра». DB чистая, сидер opt-in.
+
 ## 2026-06-02 - Сессия 54 (батч 2) - баг-фиксы + чистка мусора + answer_votes + DB cleanup
 
 **Продолжение Сессии 54** (тот же автономный заход). Абдула дал второй батч:
