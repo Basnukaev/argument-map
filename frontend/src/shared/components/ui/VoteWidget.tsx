@@ -1,16 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
-import { useT } from '@/shared/i18n/useT';
+import { useT } from '@/shared/i18n';
 import { apiDeleteRaw, apiPostRaw, formatApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useAuthStore } from '@/shared/stores/authStore';
-import type { components } from '@/shared/api/types';
 
-type TopicVoteStats = components['schemas']['TopicVoteStatsResponse'];
+interface VoteStatsLike {
+  score?: number;
+  userVote?: number;
+}
 
-export interface TopicVoteWidgetProps {
-  topicId: string;
-  /** Текущий счёт темы (TopicResponse.voteScore) */
+export interface VoteWidgetProps {
+  /**
+   * Базовый URL голосования, например `/api/v1/topics/{id}/vote` или
+   * `/api/v1/questions/{id}/vote`. POST {weight} ставит/меняет голос,
+   * DELETE снимает. Виджету не нужен GET - score/userVote приходят props'ами.
+   */
+  voteUrl: string;
+  /** Текущий агрегированный счёт сущности */
   score: number;
   /** -1 / +1 / null. null - текущий user не голосовал */
   userVote: number | null;
@@ -18,31 +25,39 @@ export interface TopicVoteWidgetProps {
   onVoteChanged?: (stats: { score: number; userVote: number | null }) => void;
   /** stopPropagation на контейнере - нужно когда виджет внутри clickable-карточки */
   stopPropagation?: boolean;
+  /** aria-label контейнера (по умолчанию generic «Виджет голосования») */
+  ariaLabel?: string;
+  /** aria-label/title кнопки upvote (по умолчанию generic «Проголосовать за») */
+  upvoteLabel?: string;
+  /** aria-label/title кнопки downvote (по умолчанию generic «Проголосовать против») */
+  downvoteLabel?: string;
   className?: string;
 }
 
 /**
- * Компактный виджет голосования за тему. Upvote/downvote с toggle:
+ * Entity-agnostic компактный виджет голосования. Upvote/downvote с toggle:
  * клик по уже-активному голосу - снимает его (DELETE), клик по противоположному -
  * меняет (POST с другим weight). Optimistic UI с revert при error.
  *
- * Голосование перенесено с узлов графа на уровень темы: теперь голос отражает
- * отношение пользователя к теме целиком. В отличие от старого node-виджета
- * topic-ответы (TopicResponse) несут только агрегированный score + userVote
- * (не отдельные upvotes/downvotes), поэтому локальное состояние - score+userVote;
- * точный score после мутации берём из TopicVoteStatsResponse.
+ * Сущность задаётся через `voteUrl` (базовый URL без `s`-суффикса для GET -
+ * виджет делает только POST/DELETE). Используется для тем и вопросов;
+ * локальное состояние - только score+userVote (агрегаты), точный score после
+ * мутации берётся из *VoteStatsResponse.
  *
- * Анонимный user видит цифры но клик показывает toast "Войдите чтобы голосовать"
- * (не block - просто signal что нужен login).
+ * Анонимный user видит цифры, но клик показывает toast «Войдите чтобы
+ * голосовать» (не block - просто signal что нужен login).
  */
-function TopicVoteWidget({
-  topicId,
+function VoteWidget({
+  voteUrl,
   score,
   userVote,
   onVoteChanged,
   stopPropagation = false,
+  ariaLabel,
+  upvoteLabel,
+  downvoteLabel,
   className = '',
-}: TopicVoteWidgetProps) {
+}: VoteWidgetProps) {
   const t = useT();
   const user = useAuthStore((s) => s.user);
   const [pending, setPending] = useState(false);
@@ -51,10 +66,10 @@ function TopicVoteWidget({
   const [local, setLocal] = useState({ score, userVote });
 
   // Синхронизируем props → local ТОЛЬКО когда входящие props реально
-  // изменились (parent перезагрузил тему), а не просто потому что pending
+  // изменились (parent перезагрузил сущность), а не просто потому что pending
   // переключился. Иначе после успешного голоса pending→false перезатёр бы
-  // оптимистичный local устаревшими props (TopicListPage рендерит виджет
-  // без onVoteChanged → props не обновляются → счёт «отскакивал» назад).
+  // оптимистичный local устаревшими props (списки рендерят виджет без
+  // onVoteChanged → props не обновляются → счёт «отскакивал» назад).
   // prevPropsRef помнит последние увиденные props; setLocal только при
   // отличии от них. useEffect (не render-phase setState) - React 19 запрет.
   const prevPropsRef = useRef({ score, userVote });
@@ -77,19 +92,17 @@ function TopicVoteWidget({
     const newIsToggleOff = wasVote === weight; // тот же weight - снимаем
 
     // Оптимистичное обновление
-    const optimistic = computeOptimisticTopic(local, weight, newIsToggleOff);
+    const optimistic = computeOptimisticVote(local, weight, newIsToggleOff);
     setLocal(optimistic);
     setPending(true);
 
     try {
       if (newIsToggleOff) {
-        await apiDeleteRaw(`/api/v1/topics/${topicId}/vote`);
+        await apiDeleteRaw(voteUrl);
         onVoteChanged?.(optimistic);
         toast.success(t('vote.removed'));
       } else {
-        const stats = await apiPostRaw<TopicVoteStats>(`/api/v1/topics/${topicId}/vote`, {
-          weight,
-        });
+        const stats = await apiPostRaw<VoteStatsLike>(voteUrl, { weight });
         const next = {
           score: stats.score ?? 0,
           userVote: stats.userVote ?? null,
@@ -109,17 +122,19 @@ function TopicVoteWidget({
 
   const upActive = local.userVote === 1;
   const downActive = local.userVote === -1;
+  const upLabel = upvoteLabel ?? t('vote.upvote_action');
+  const downLabel = downvoteLabel ?? t('vote.downvote_action');
 
   return (
     <div
       className={`inline-flex items-center gap-0.5 rounded border border-border bg-surface/60 px-1 py-0.5 text-xs ${className}`}
-      aria-label={t('vote.topic.aria_widget')}
+      aria-label={ariaLabel ?? t('vote.aria_widget')}
       onClick={stopPropagation ? (e) => e.stopPropagation() : undefined}
     >
       <button
         type="button"
-        aria-label={t('vote.topic.upvote_tooltip')}
-        title={t('vote.topic.upvote_tooltip')}
+        aria-label={upLabel}
+        title={upLabel}
         aria-pressed={upActive}
         disabled={pending}
         onClick={(e) => {
@@ -148,8 +163,8 @@ function TopicVoteWidget({
       </span>
       <button
         type="button"
-        aria-label={t('vote.topic.downvote_tooltip')}
-        title={t('vote.topic.downvote_tooltip')}
+        aria-label={downLabel}
+        title={downLabel}
         aria-pressed={downActive}
         disabled={pending}
         onClick={(e) => {
@@ -173,7 +188,7 @@ function TopicVoteWidget({
  * легко покрывается unit-тестами без рендера. score меняется на дельту голоса:
  * снятие старого (+/-1) и применение нового (+/-1).
  */
-function computeOptimisticTopic(
+function computeOptimisticVote(
   current: { score: number; userVote: number | null },
   weight: 1 | -1,
   isToggleOff: boolean,
@@ -193,9 +208,9 @@ function computeOptimisticTopic(
   return { score, userVote: next };
 }
 
-export default TopicVoteWidget;
-// computeOptimisticTopic экспортируется ради unit-тестирования pure logic без
-// рендера компонента. Нужна только TopicVoteWidget'у - выносить в отдельный
-// файл не оправдано.
+export default VoteWidget;
+// computeOptimisticVote экспортируется ради unit-тестирования pure logic без
+// рендера компонента. Нужна только VoteWidget'у - выносить в отдельный файл
+// не оправдано.
 // eslint-disable-next-line react-refresh/only-export-components
-export { computeOptimisticTopic };
+export { computeOptimisticVote };

@@ -16,6 +16,7 @@ import FilterChips from '@/shared/components/ui/FilterChips';
 import SortSelect from '@/shared/components/ui/SortSelect';
 import LoadMoreButton from '@/shared/components/ui/LoadMoreButton';
 import QuestionStatusBadge from '@/apps/qa/components/QuestionStatusBadge';
+import VoteWidget from '@/shared/components/ui/VoteWidget';
 import { usePagedSearch } from '@/shared/hooks/usePagedSearch';
 import { useT, useFormatDate, hasArabicScript, type DictKey } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
@@ -204,12 +205,16 @@ function QuestionListPage() {
                           </p>
                         )}
 
-                        {/* Meta line: дата активности + accepted-индикатор.
-                            updatedAt = last activity (полезнее createdAt при
-                            скане списка обсуждений). acceptedAnswerId marker -
-                            быстрый сигнал «есть принятый ответ». mt-auto
-                            прижимает meta к низу для равной высоты карточек */}
-                        <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-ink-400">
+                        {/* Meta line: дата активности + accepted-индикатор +
+                            виджет голосования. updatedAt = last activity
+                            (полезнее createdAt при скане списка обсуждений).
+                            acceptedAnswerId marker - быстрый сигнал «есть
+                            принятый ответ». mt-auto прижимает meta к низу для
+                            равной высоты карточек. VoteWidget прижат к end
+                            (ms-auto); голосование не должно навигировать -
+                            preventDefault на обёртке (Link) + stopPropagation
+                            в самом виджете, как в TopicListPage. */}
+                        <div className="mt-auto flex flex-wrap items-center gap-x-2.5 gap-y-1 pt-3 text-xs text-ink-400">
                           <bdi dir="ltr">
                             {qn.updatedAt
                               ? `${t('qa.list.card.updated_prefix')} ${formatDate(qn.updatedAt, 'short')}`
@@ -226,6 +231,20 @@ function QuestionListPage() {
                               </span>
                             </>
                           )}
+                          <div
+                            className="ms-auto"
+                            onClick={(e) => e.preventDefault()}
+                          >
+                            <VoteWidget
+                              voteUrl={`/api/v1/questions/${qn.id}/vote`}
+                              score={qn.voteScore ?? 0}
+                              userVote={qn.userVote ?? null}
+                              stopPropagation
+                              ariaLabel={t('vote.question.aria_widget')}
+                              upvoteLabel={t('vote.question.upvote_tooltip')}
+                              downvoteLabel={t('vote.question.downvote_tooltip')}
+                            />
+                          </div>
                         </div>
                       </Card>
                     </Link>

@@ -15,7 +15,7 @@ import IconButton from '@/shared/components/ui/IconButton';
 import Header from '@/shared/components/layout/Header';
 import GraphCanvas from '@/apps/argument-map/components/graph/GraphCanvas';
 import VisibilityBadge from '@/apps/argument-map/components/VisibilityBadge';
-import TopicVoteWidget from '@/apps/argument-map/components/TopicVoteWidget';
+import VoteWidget from '@/shared/components/ui/VoteWidget';
 import TopicSettingsDrawer from '@/apps/argument-map/components/TopicSettingsDrawer';
 import type { TopicVisibility } from '@/apps/argument-map/components/VisibilityRadioGroup';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
@@ -147,11 +147,14 @@ function TopicGraphPage() {
         {state.kind === 'success' && (
           <div className="ms-auto flex items-center gap-2">
             {topic?.id && (
-              <TopicVoteWidget
-                topicId={topic.id}
+              <VoteWidget
+                voteUrl={`/api/v1/topics/${topic.id}/vote`}
                 score={topic.voteScore ?? 0}
                 userVote={topic.userVote ?? null}
                 onVoteChanged={refetch}
+                ariaLabel={t('vote.topic.aria_widget')}
+                upvoteLabel={t('vote.topic.upvote_tooltip')}
+                downvoteLabel={t('vote.topic.downvote_tooltip')}
               />
             )}
             {!canWriteOptimistic && (

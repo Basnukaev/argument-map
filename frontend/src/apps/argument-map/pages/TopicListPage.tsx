@@ -28,7 +28,7 @@ import { useT, useFormatDate } from '@/shared/i18n';
 import { toast } from '@/shared/stores/toastStore';
 import type { components } from '@/shared/api/types';
 import VisibilityBadge from '@/apps/argument-map/components/VisibilityBadge';
-import TopicVoteWidget from '@/apps/argument-map/components/TopicVoteWidget';
+import VoteWidget from '@/shared/components/ui/VoteWidget';
 
 type Topic = components['schemas']['TopicResponse'];
 type TopicImportResponse = components['schemas']['TopicImportResponse'];
@@ -383,11 +383,14 @@ function TopicCard({ topic }: TopicCardProps) {
               в самом widget'е не нужен: stopPropagation на onClick блокирует
               всплытие до Link. */}
           <div className="mt-2 flex justify-end" onClick={(e) => e.preventDefault()}>
-            <TopicVoteWidget
-              topicId={topic.id}
+            <VoteWidget
+              voteUrl={`/api/v1/topics/${topic.id}/vote`}
               score={topic.voteScore ?? 0}
               userVote={topic.userVote ?? null}
               stopPropagation
+              ariaLabel={t('vote.topic.aria_widget')}
+              upvoteLabel={t('vote.topic.upvote_tooltip')}
+              downvoteLabel={t('vote.topic.downvote_tooltip')}
             />
           </div>
         </Card.Body>

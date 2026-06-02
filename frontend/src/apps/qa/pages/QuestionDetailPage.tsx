@@ -7,6 +7,7 @@ import Header from '@/shared/components/layout/Header';
 import OverflowMenu from '@/shared/components/ui/OverflowMenu';
 import type { ContextMenuItem } from '@/shared/components/ui/ContextMenu';
 import QuestionStatusBadge from '@/apps/qa/components/QuestionStatusBadge';
+import VoteWidget from '@/shared/components/ui/VoteWidget';
 import QuestionCitationsSection from '@/apps/qa/components/QuestionCitationsSection';
 import AnswersSection from '@/apps/qa/components/AnswersSection';
 import {
@@ -225,7 +226,9 @@ function Detail({ question, updating, onStatusChange, onDelete, onRefetchQuestio
           {question.title}
         </h1>
 
-        {/* Meta-строка: дата постановки + последняя активность */}
+        {/* Meta-строка: дата постановки + последняя активность + голосование.
+            VoteWidget прижат к end (ms-auto). onVoteChanged рефетчит вопрос -
+            подтягивает свежие voteScore/userVote (и любые серверные изменения). */}
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500">
           {question.createdAt && (
             <span className="inline-flex items-center gap-1">
@@ -240,6 +243,19 @@ function Detail({ question, updating, onStatusChange, onDelete, onRefetchQuestio
               {t('qa.detail.updated_prefix')}{' '}
               <bdi dir="ltr">{formatDate(question.updatedAt, 'short')}</bdi>
             </span>
+          )}
+          {question.id && (
+            <div className="ms-auto">
+              <VoteWidget
+                voteUrl={`/api/v1/questions/${question.id}/vote`}
+                score={question.voteScore ?? 0}
+                userVote={question.userVote ?? null}
+                onVoteChanged={onRefetchQuestion}
+                ariaLabel={t('vote.question.aria_widget')}
+                upvoteLabel={t('vote.question.upvote_tooltip')}
+                downvoteLabel={t('vote.question.downvote_tooltip')}
+              />
+            </div>
           )}
         </div>
       </header>

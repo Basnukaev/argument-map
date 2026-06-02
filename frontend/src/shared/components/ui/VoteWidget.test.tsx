@@ -5,10 +5,15 @@ import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
 import { waitForApi } from '@/test/asyncHelpers';
 import { useAuthStore } from '@/shared/stores/authStore';
-import TopicVoteWidget, { computeOptimisticTopic } from './TopicVoteWidget';
+import VoteWidget, { computeOptimisticVote } from './VoteWidget';
 
 const BASE = 'http://test.local';
 const TOPIC_ID = 'topic-1';
+const VOTE_URL = `/api/v1/topics/${TOPIC_ID}/vote`;
+// generic кнопки используют дефолтные generic-лейблы (vote.upvote_action /
+// vote.downvote_action), т.к. рендерим без upvoteLabel/downvoteLabel.
+const UP = 'Проголосовать за';
+const DOWN = 'Проголосовать против';
 
 function setLoggedIn() {
   useAuthStore.setState({
@@ -22,45 +27,60 @@ function setLoggedOut() {
   useAuthStore.setState({ user: null, initialized: true });
 }
 
-describe('computeOptimisticTopic', () => {
+describe('computeOptimisticVote', () => {
   it('первый upvote - score+1, userVote=1', () => {
-    const r = computeOptimisticTopic({ score: 0, userVote: null }, 1, false);
+    const r = computeOptimisticVote({ score: 0, userVote: null }, 1, false);
     expect(r).toEqual({ score: 1, userVote: 1 });
   });
 
   it('повторный upvote = toggle off, score-1, userVote=null', () => {
-    const r = computeOptimisticTopic({ score: 2, userVote: 1 }, 1, true);
+    const r = computeOptimisticVote({ score: 2, userVote: 1 }, 1, true);
     expect(r).toEqual({ score: 1, userVote: null });
   });
 
   it('смена upvote → downvote: score-2 (снять +1, добавить -1)', () => {
-    const r = computeOptimisticTopic({ score: 3, userVote: 1 }, -1, false);
+    const r = computeOptimisticVote({ score: 3, userVote: 1 }, -1, false);
     expect(r).toEqual({ score: 1, userVote: -1 });
   });
 
   it('первый downvote: score-1', () => {
-    const r = computeOptimisticTopic({ score: 0, userVote: null }, -1, false);
+    const r = computeOptimisticVote({ score: 0, userVote: null }, -1, false);
     expect(r).toEqual({ score: -1, userVote: -1 });
   });
 });
 
-describe('TopicVoteWidget', () => {
+describe('VoteWidget', () => {
   beforeEach(() => {
     setLoggedIn();
   });
 
   it('рендерит upvote и downvote кнопки + текущий счёт', () => {
-    render(<TopicVoteWidget topicId={TOPIC_ID} score={2} userVote={null} />);
+    render(<VoteWidget voteUrl={VOTE_URL} score={2} userVote={null} />);
+
+    expect(screen.getByRole('button', { name: UP })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: DOWN })).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+  });
+
+  it('кастомные лейблы кнопок (upvoteLabel/downvoteLabel) переопределяют дефолт', () => {
+    render(
+      <VoteWidget
+        voteUrl={VOTE_URL}
+        score={0}
+        userVote={null}
+        upvoteLabel="Голос за тему"
+        downvoteLabel="Голос против темы"
+      />,
+    );
 
     expect(screen.getByRole('button', { name: 'Голос за тему' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Голос против темы' })).toBeInTheDocument();
-    expect(screen.getByText('2')).toBeInTheDocument();
   });
 
   it('upvote click - POST /vote с weight=1 + onVoteChanged', async () => {
     let received: { weight?: number } | null = null;
     server.use(
-      http.post(`${BASE}/api/v1/topics/${TOPIC_ID}/vote`, async ({ request }) => {
+      http.post(`${BASE}${VOTE_URL}`, async ({ request }) => {
         received = (await request.json()) as { weight?: number };
         return HttpResponse.json(
           { topicId: TOPIC_ID, upvotes: 3, downvotes: 0, score: 3, userVote: 1 },
@@ -71,15 +91,10 @@ describe('TopicVoteWidget', () => {
 
     const onChange = vi.fn();
     render(
-      <TopicVoteWidget
-        topicId={TOPIC_ID}
-        score={2}
-        userVote={null}
-        onVoteChanged={onChange}
-      />,
+      <VoteWidget voteUrl={VOTE_URL} score={2} userVote={null} onVoteChanged={onChange} />,
     );
 
-    await userEvent.click(screen.getByRole('button', { name: 'Голос за тему' }));
+    await userEvent.click(screen.getByRole('button', { name: UP }));
     await waitForApi(() => {
       expect(onChange.mock.calls.length).toBeGreaterThan(0);
     });
@@ -93,7 +108,7 @@ describe('TopicVoteWidget', () => {
   it('повторный click по уже-upvoted - DELETE /vote (toggle off)', async () => {
     let deleted = false;
     server.use(
-      http.delete(`${BASE}/api/v1/topics/${TOPIC_ID}/vote`, () => {
+      http.delete(`${BASE}${VOTE_URL}`, () => {
         deleted = true;
         return new HttpResponse(null, { status: 204 });
       }),
@@ -101,15 +116,10 @@ describe('TopicVoteWidget', () => {
 
     const onChange = vi.fn();
     render(
-      <TopicVoteWidget
-        topicId={TOPIC_ID}
-        score={2}
-        userVote={1}
-        onVoteChanged={onChange}
-      />,
+      <VoteWidget voteUrl={VOTE_URL} score={2} userVote={1} onVoteChanged={onChange} />,
     );
 
-    await userEvent.click(screen.getByRole('button', { name: 'Голос за тему' }));
+    await userEvent.click(screen.getByRole('button', { name: UP }));
     await waitForApi(() => {
       expect(deleted).toBe(true);
     });
@@ -121,12 +131,12 @@ describe('TopicVoteWidget', () => {
   });
 
   it('без onVoteChanged: после голоса счёт держится на серверном значении (не отскакивает к stale props)', async () => {
-    // Регрессия: TopicListPage рендерит виджет БЕЗ onVoteChanged → props
+    // Регрессия: списки рендерят виджет БЕЗ onVoteChanged → props
     // score/userVote никогда не обновляются. Раньше эффект синхронизации
     // props→local перефайривался когда pending → false и затирал
     // оптимистичный local устаревшими props → счёт «отскакивал» к 2.
     server.use(
-      http.post(`${BASE}/api/v1/topics/${TOPIC_ID}/vote`, () =>
+      http.post(`${BASE}${VOTE_URL}`, () =>
         HttpResponse.json(
           { topicId: TOPIC_ID, upvotes: 3, downvotes: 0, score: 3, userVote: 1 },
           { status: 201 },
@@ -134,9 +144,9 @@ describe('TopicVoteWidget', () => {
       ),
     );
 
-    render(<TopicVoteWidget topicId={TOPIC_ID} score={2} userVote={null} />);
+    render(<VoteWidget voteUrl={VOTE_URL} score={2} userVote={null} />);
 
-    const upBtn = screen.getByRole('button', { name: 'Голос за тему' });
+    const upBtn = screen.getByRole('button', { name: UP });
     await userEvent.click(upBtn);
 
     // POST вернул score=3 → отображается 3 и держится (не возвращается к 2).
@@ -154,15 +164,15 @@ describe('TopicVoteWidget', () => {
     setLoggedOut();
     let calledApi = false;
     server.use(
-      http.post(`${BASE}/api/v1/topics/${TOPIC_ID}/vote`, () => {
+      http.post(`${BASE}${VOTE_URL}`, () => {
         calledApi = true;
         return HttpResponse.json({}, { status: 201 });
       }),
     );
 
-    render(<TopicVoteWidget topicId={TOPIC_ID} score={0} userVote={null} />);
+    render(<VoteWidget voteUrl={VOTE_URL} score={0} userVote={null} />);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Голос за тему' }));
+    await userEvent.click(screen.getByRole('button', { name: UP }));
     // даём msw шанс сработать (отрицательный тест) - но запроса быть не должно
     await new Promise((r) => setTimeout(r, 50));
     expect(calledApi).toBe(false);
