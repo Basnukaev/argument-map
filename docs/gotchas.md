@@ -1982,3 +1982,63 @@ frontend — `server.resetHandlers()` + `vi.useRealTimers()` в afterEach
 **Узнано:** Сессия 52 (2026-06-01), multi-agent багоохота + Tier-1/2
 fix-волна. 1085 backend тестов 0 failures (2 errors = ShamelaApiClientLiveIT
 live-network, отдельно); 623 frontend 620 pass соло-зелёные.
+
+---
+
+## d3-drag + jsdom: `event.view === null` → uncaught TypeError в graph-тестах
+
+**Симптом:** `npx vitest run` (полный прогон) интермиттентно показывает
+`Errors 10` и иногда 1 failed file, всё из
+`bulkActions.test.tsx`. Стектрейс:
+
+```
+TypeError: Cannot read properties of null (reading 'document')
+ ❯ default node_modules/d3-drag/src/nodrag.js:5:19
+ ❯ HTMLDivElement.mousedowned node_modules/d3-drag/src/drag.js:57:5
+ ❯ ... d3-selection ... @testing-library/user-event/.../dispatchEvent.js
+```
+
+Тесты при этом **проходят** (`5 passed`), но vitest считает uncaught-
+исключения и **order-зависимо** помечает файл как failed (в изоляции
+тоже 10 errors, просто не всегда атрибутируется в red).
+
+**Причина:** React Flow (`@xyflow/system` → `XYDrag`) навешивает
+`mousedown.drag` listener через `d3-drag`. При клике
+`@testing-library/user-event` диспатчит `MouseEvent`, но в jsdom
+`event.view` равен `null` (user-event `initUIEvent` → `assignProps`
+возвращает `null` для отсутствующего `view`). d3-drag в `mousedowned`
+зовёт `nodrag(event.view)`, который делает `view.document` → `null.document`
+→ TypeError в фоновом event-handler'е. В реальном браузере `event.view`
+всегда = `window`, поэтому это чисто jsdom-гэп.
+
+**Решение (тест-only):** мокаем `d3-drag` no-op'ом в
+`frontend/src/test-setup.ts`. `drag()` остаётся chainable builder'ом
+(`.on/.filter/.clickDistance/...` → возвращают себя), но при
+`selection.call(instance)` НЕ навешивает `mousedown.drag` — значит
+`nodrag()` никогда не вызывается. Drag-to-reposition узлов отключается,
+но в jsdom он всё равно не работает; selection/клики RF обрабатывает сам
+(не через d3-drag), поэтому bulk-тесты (которые проверяют bulk-действия,
+не перетаскивание) сохраняют поведение.
+
+**Ключевая ловушка:** `vi.mock('d3-drag')` сам по себе НЕ срабатывает,
+т.к. `@xyflow/react`/`@xyflow/system` поставляются как pre-bundled ESM в
+node_modules, а vitest их по умолчанию НЕ трансформирует — внутренний
+`import { drag } from 'd3-drag'` идёт мимо мока. Нужно инлайнить ВСЮ
+цепочку в `vite.config.ts`:
+
+```typescript
+test: {
+  server: { deps: { inline: ['@xyflow/react', '@xyflow/system'] } },
+}
+```
+
+Инлайна одного `@xyflow/system` мало: `@xyflow/react` (не инлайненный)
+тянет externalized-копию system с настоящим d3-drag.
+
+**Альтернативы (отвергнуто):** (a) чинить `event.view` — user-event
+жёстко переопределяет `view` getter'ом в `null`, обойти можно только
+патчем internals; (b) мокать весь `@xyflow/react` lightweight-стабом —
+снижает fidelity graph-тестов. No-op d3-drag — самый хирургичный.
+
+**Применено:** 2026-06-02. Полный прогон 105 files / 665 tests pass,
+**0 errors** (стабильно 3 прогона подряд). tsc + lint чисто.

@@ -41,6 +41,18 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
     css: true,
+    server: {
+      deps: {
+        // @xyflow/react → @xyflow/system → `import { drag } from 'd3-drag'`.
+        // По умолчанию vitest НЕ трансформирует node_modules, поэтому этот
+        // внутренний импорт d3-drag идёт мимо vi.mock('d3-drag') из
+        // test-setup.ts. Инлайним всю цепочку (react И system), чтобы vitest
+        // обработал модули и перехватил импорт d3-drag — иначе мок не
+        // применяется и d3-drag крашит на event.view === null в jsdom
+        // (см. test-setup.ts + docs/gotchas.md «d3-drag + jsdom»).
+        inline: ['@xyflow/react', '@xyflow/system'],
+      },
+    },
     // E2E tests (Playwright) живут в /e2e и используют расширение
     // *.spec.ts. Не пускаем vitest туда - там другой runtime (browser),
     // другой API (@playwright/test), tsc/jsdom не справятся

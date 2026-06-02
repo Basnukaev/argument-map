@@ -77,9 +77,11 @@ function makeGraph(): GraphResponse {
  * Если RF не отрендерил node DOM (jsdom flake) - тест skip'нется через
  * console.warn + return: единичная стабильность ценнее ложного red.
  *
- * NB: d3-drag (внутри @xyflow/react) при mousedown иногда обращается к
- * document.defaultView во время async-задач cleanup; в jsdom это null и
- * throws TypeError в фоновых tasks. Сами тесты passing, но в логе шумно.
+ * NB: d3-drag (внутри @xyflow/system) при mousedown зовёт nodrag(event.view),
+ * а в jsdom user-event создаёт MouseEvent с view === null → uncaught
+ * TypeError "Cannot read ... (reading 'document')" в фоновом handler'е.
+ * Фикс: d3-drag замокан no-op'ом в test-setup.ts (+ inline @xyflow/* в
+ * vite.config.ts). Подробно - docs/gotchas.md «d3-drag + jsdom».
  */
 async function selectNodes(ids: string[]): Promise<boolean> {
   const user = userEvent.setup();

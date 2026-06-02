@@ -3,6 +3,49 @@ import { afterAll, afterEach, beforeAll, vi } from 'vitest';
 import { server } from '@/test/server';
 import { invalidateCache } from '@/shared/hooks/queryCache';
 
+// React Flow (@xyflow/system) использует d3-drag для перетаскивания узлов.
+// При mousedown d3-drag вызывает nodrag(event.view) -> view.document, но в
+// jsdom @testing-library/user-event создаёт MouseEvent с view === null
+// (initUIEvent → assignProps возвращает null для отсутствующего view).
+// Итог: uncaught TypeError "Cannot read properties of null (reading
+// 'document')" в фоновом event-handler'е во ВСЕХ graph-тестах, кликающих по
+// .react-flow__node (bulkActions.test.tsx и др.). Тесты при этом проходят
+// (drag нам не нужен — проверяем bulk-действия, не перетаскивание), но
+// vitest считает uncaught-исключения и order-зависимо помечает суите как
+// failed ("Errors N").
+//
+// Fix (тест-only): мокаем d3-drag no-op'ом. drag() остаётся chainable
+// builder'ом (.on/.filter/.clickDistance/... → возвращают себя), но при
+// selection.call(instance) НЕ навешивает mousedown.drag listener'ы — значит
+// nodrag() никогда не вызывается. Поведение узлов/selection в RF не зависит
+// от d3-drag (RF сам обрабатывает pointer-события для выделения), только
+// drag-to-reposition отключается — в jsdom он всё равно не работает.
+// dragDisable/dragEnable (nodrag/yesdrag) тоже no-op на случай прямого вызова.
+// См. docs/gotchas.md «d3-drag + jsdom: event.view === null».
+vi.mock('d3-drag', () => {
+  function drag() {
+    // Chainable builder: selection-decorator, который ничего не навешивает.
+    const instance = (() => instance) as unknown as Record<string, unknown> & (() => unknown);
+    const chainable = () => instance;
+    for (const method of [
+      'on',
+      'filter',
+      'container',
+      'subject',
+      'touchable',
+      'clickDistance',
+    ]) {
+      instance[method] = chainable;
+    }
+    return instance;
+  }
+  return {
+    drag,
+    dragDisable: () => {},
+    dragEnable: () => {},
+  };
+});
+
 vi.stubEnv('VITE_API_URL', 'http://test.local');
 vi.stubEnv('VITE_DEV_USER_ID', '00000000-0000-0000-0000-000000000001');
 
