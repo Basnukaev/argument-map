@@ -2624,6 +2624,7 @@ export interface components {
             /** Format: double */
             posY?: number;
             originalLang?: string;
+            status?: string;
         };
         UpdateNodeTranslationRequest: {
             translatorName?: string;
