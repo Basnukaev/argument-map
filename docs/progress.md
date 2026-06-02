@@ -104,16 +104,17 @@ shamela sync category.sqlite зависит от живого shamela.ws (env). 
 ленивый `BookCollectionBridgeService` (создаёт lib_books HADITH_COLLECTION при
 импорте, system-user owner 0002) + двусторонние линки (`CollectionResponse.bookId`
 + `GET /hadith/collections/by-book/{bookId}`). 49 IT.
-**Остаток hd_collections (follow-up, backlog):**
-1. **Полный рендеринг hadith-сборника как книги** — книга-представление сейчас
-   «тонкая» (страницы хадиса в `hd_*`, не `lib_pages`); открыть в BookReader =
-   пусто. Нужен BookReader-mode для HADITH_COLLECTION (листать хадисы вместо
-   lib_pages) ЛИБО редирект на hd-представление.
-2. **Frontend кросс-линки** — отложены до (1): «открыть в библиотеке» с hd-стороны
-   вело бы в тонкую книгу. После (1) добавить линки в обе стороны (bookId уже в API).
-
-Прочее опц.: ADMIN-guard на shamela-admin (security); визуальная playwright-
-проверка всех изменений (env-blocked, см. ниже).
+**hd_collections UI — СДЕЛАНО** (батч 4 «го дальше»): обошёл проблему «тонкой
+книги» через **редирект** — книга `HADITH_COLLECTION` в библиотеке получает бейдж
+«Сборник хадисов» и при клике резолвит коллекцию (`by-book`) → ведёт в
+`/hadith?collectionId=` (реальный контент, не пустой BookReader). HadithListPage
+читает `?collectionId=` из URL. Мост #3 теперь видим end-to-end.
+**ADMIN-guard на shamela-admin — СДЕЛАНО** (батч 4): все 7 endpoints ADMIN-only
+(mirror Sunnah), проверено живьём (admin 200 / non-admin 403). Security-гэп закрыт.
+**Остаток (опц., backlog):** полный in-place рендеринг hadith-сборника как книги
+в BookReader (листать хадисы вместо lib_pages) — сейчас решено редиректом, что
+достаточно; визуальная playwright-проверка (env-blocked); IsnadExtraction (AI,
+контент, отложено); shamela category.sqlite (зависит от живого shamela.ws).
 
 ## 2026-06-02 - Сессия 54 - Крупный предпрод UX-overhaul + content-tooling (8 фаз, 17 коммитов)
 
