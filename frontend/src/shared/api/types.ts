@@ -180,6 +180,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/questions/{questionId}/vote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["vote_1"];
+        delete: operations["removeVote_1"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/questions/{questionId}/views": {
         parameters: {
             query?: never;
@@ -1092,6 +1108,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/questions/{questionId}/votes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getStats_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/questions/{questionId}/sources": {
         parameters: {
             query?: never;
@@ -1936,6 +1968,26 @@ export interface components {
             createdAt?: string;
             /** Format: date-time */
             updatedAt?: string;
+            /** Format: int32 */
+            voteScore?: number;
+            /** Format: int32 */
+            userVote?: number;
+        };
+        CreateQuestionVoteRequest: {
+            /** Format: int32 */
+            weight: number;
+        };
+        QuestionVoteStatsResponse: {
+            /** Format: uuid */
+            questionId?: string;
+            /** Format: int32 */
+            upvotes?: number;
+            /** Format: int32 */
+            downvotes?: number;
+            /** Format: int32 */
+            score?: number;
+            /** Format: int32 */
+            userVote?: number;
         };
         CitationRequest: {
             /** Format: uuid */
@@ -3609,6 +3661,58 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["QuestionResponse"];
                 };
+            };
+        };
+    };
+    vote_1: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateQuestionVoteRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["QuestionVoteStatsResponse"];
+                };
+            };
+        };
+    };
+    removeVote_1: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -5808,6 +5912,28 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    getStats_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["QuestionVoteStatsResponse"];
+                };
             };
         };
     };
