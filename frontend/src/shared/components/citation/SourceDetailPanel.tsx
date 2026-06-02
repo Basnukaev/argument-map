@@ -118,7 +118,7 @@ function SourceDetailPanelContent({ citation }: ContentProps) {
   return (
     <>
       <div
-        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px]"
+        className="fixed inset-x-0 bottom-0 top-12 z-40 bg-black/40"
         onClick={close}
         data-testid="source-detail-backdrop"
         aria-hidden="true"
@@ -128,7 +128,7 @@ function SourceDetailPanelContent({ citation }: ContentProps) {
         aria-modal="true"
         aria-labelledby="source-detail-title"
         data-testid="source-detail-panel"
-        className={`fixed inset-y-0 end-0 z-50 flex ${panelWidthClass} flex-col border-s border-border bg-bg shadow-sh4`}
+        className={`fixed bottom-0 end-0 top-12 z-50 flex ${panelWidthClass} flex-col border-s border-border bg-bg shadow-sh4`}
       >
         <PanelHeader onClose={close} />
         <div className="flex-1 overflow-y-auto px-6 py-5">
