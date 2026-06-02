@@ -99,6 +99,33 @@ describe('HadithListPage', () => {
     });
   });
 
+  it('honors ?collectionId= из URL: предвыбирает сборник и сразу фильтрует список', async () => {
+    const collectionIds: (string | null)[] = [];
+    server.use(
+      http.get(`${BASE}/api/v1/hadith/collections`, () => HttpResponse.json(COLLECTIONS)),
+      http.get(`${BASE}/api/v1/hadith/hadiths`, ({ request }) => {
+        collectionIds.push(new URL(request.url).searchParams.get('collectionId'));
+        return HttpResponse.json(paged([hadith('h1', 1, 'متن', 'c1')]));
+      }),
+    );
+    render(
+      <MemoryRouter initialEntries={['/hadith?collectionId=c1']}>
+        <HadithListPage />
+      </MemoryRouter>,
+    );
+    // первый же запрос списка уже идёт с collectionId=c1 (param honored на load)
+    await waitFor(() => {
+      expect(collectionIds[0]).toBe('c1');
+    });
+    // чип сборника предвыбран (aria-pressed)
+    await waitForApi(() => {
+      expect(screen.getByRole('button', { name: /Сахих аль-Бухари/ })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+    });
+  });
+
   it('смена сортировки шлёт sort param (default number → alphabetical)', async () => {
     const sorts: (string | null)[] = [];
     server.use(

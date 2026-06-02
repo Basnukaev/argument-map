@@ -59,6 +59,8 @@ export const DICTIONARY = {
     'book.type.HADITH_COLLECTION': 'Сборник хадисов',
     'book.type.ARTICLE': 'Статья',
     'book.type.MANUSCRIPT': 'Рукопись',
+    // hadith-collection book → открывается в обозревателе хадисов, а не в ридере
+    'book.open_hadith_explorer': 'Открыть в обозревателе хадисов',
 
     // header navigation
     'nav.home_aria': 'На главную',
@@ -1438,6 +1440,7 @@ export const DICTIONARY = {
     'book.type.HADITH_COLLECTION': 'مجموعة أحاديث',
     'book.type.ARTICLE': 'مقالة',
     'book.type.MANUSCRIPT': 'مخطوطة',
+    'book.open_hadith_explorer': 'افتح في مستعرض الأحاديث',
 
     'nav.home_aria': 'إلى الصفحة الرئيسية',
     'nav.topics': 'المواضيع',

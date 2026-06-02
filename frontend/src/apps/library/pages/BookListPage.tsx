@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import {
   BookOpen,
   AlertCircle,
@@ -33,6 +33,7 @@ type BookDetailResponse = components['schemas']['BookDetailResponse'];
 type PagedBooks = components['schemas']['PagedResponseBookSummaryResponse'];
 type AuthorityResponse = components['schemas']['AuthorityResponse'];
 type PagedAuthorities = components['schemas']['PagedResponseAuthorityResponse'];
+type CollectionResponse = components['schemas']['CollectionResponse'];
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -104,6 +105,7 @@ type SortKey = 'recent' | 'popular' | 'alphabetical';
 
 function BookListPage() {
   const t = useT();
+  const navigate = useNavigate();
   const [state, setState] = useState<AsyncState<BooksAccum>>({ kind: 'loading' });
   const [searchInput, setSearchInput] = useState('');
   const [searchQ, setSearchQ] = useState('');
@@ -120,6 +122,12 @@ function BookListPage() {
   // Vision 49d Section 2.2 — Set bookIds в default коллекции "Избранное"
   const [favBookIds, setFavBookIds] = useState<Set<string>>(new Set());
   const [favLoadingId, setFavLoadingId] = useState<string | null>(null);
+  // Под-проект #2.B: книга-сборник хадисов (bookType=HADITH_COLLECTION) - это
+  // вторая «репрезентация» сборника. Открывается не в ридере (lib_pages пустые,
+  // контент в hd_*), а в обозревателе хадисов. По клику резолвим collection.id
+  // через мост Source и навигируем в /hadith?collectionId=. resolvingBookId -
+  // book.id у которого by-book запрос in-flight (показывает спиннер).
+  const [resolvingBookId, setResolvingBookId] = useState<string | null>(null);
 
   // Initial fetch favorites - один раз на mount
   useEffect(() => {
@@ -159,6 +167,34 @@ function BookListPage() {
       setFavLoadingId(null);
     }
   }, [t]);
+
+  /** HADITH_COLLECTION книга → обозреватель хадисов. Резолвим collection.id
+   * через GET /hadith/collections/by-book/{bookId} (мост Source) и навигируем
+   * в /hadith?collectionId=. На 404 (или любой ошибке) - defensive fallback в
+   * обычный ридер /books/{bookId}. Запрос только по клику, не для каждой карточки. */
+  const handleOpenHadithCollection = useCallback(
+    async (bookId: string) => {
+      if (resolvingBookId) return;
+      setResolvingBookId(bookId);
+      try {
+        const collection = await apiGetRaw<CollectionResponse>(
+          `/api/v1/hadith/collections/by-book/${bookId}`,
+        );
+        if (collection.id) {
+          navigate(`/hadith?collectionId=${collection.id}`);
+        } else {
+          // мост есть, но id нет (неожиданно) - fallback в ридер
+          navigate(`/books/${bookId}`);
+        }
+      } catch {
+        // 404 = моста нет, либо иная ошибка - открываем обычный ридер
+        navigate(`/books/${bookId}`);
+      } finally {
+        setResolvingBookId(null);
+      }
+    },
+    [navigate, resolvingBookId],
+  );
 
   /** Debounced search - после 300ms простоя sync'аем searchInput → searchQ.
    * searchQ - триггер refetch'а через useEffect ниже. UX: юзер печатает
@@ -428,6 +464,8 @@ function BookListPage() {
                       isFavorite={favBookIds.has(book.id)}
                       onToggleFavorite={handleToggleFavorite}
                       favLoading={favLoadingId === book.id}
+                      onOpenHadithCollection={handleOpenHadithCollection}
+                      resolving={resolvingBookId === book.id}
                     />
                   </li>
                 ))}
@@ -672,14 +710,71 @@ interface BookCardProps {
   isFavorite: boolean;
   onToggleFavorite: (bookId: string, currentlyFav: boolean) => void;
   favLoading: boolean;
+  /** Под-проект #2.B: открыть сборник хадисов в обозревателе (резолв collection
+   * через by-book мост + навигация в /hadith?collectionId=). */
+  onOpenHadithCollection: (bookId: string) => void;
+  /** by-book запрос для этой книги in-flight - карточка показывает спиннер. */
+  resolving: boolean;
 }
 
-function BookCard({ book, onEdit, editLoading, isFavorite, onToggleFavorite, favLoading }: BookCardProps) {
+function BookCard({
+  book,
+  onEdit,
+  editLoading,
+  isFavorite,
+  onToggleFavorite,
+  favLoading,
+  onOpenHadithCollection,
+  resolving,
+}: BookCardProps) {
   const t = useT();
   const bookType = book.bookType ?? 'BOOK';
   const fallbackTitle = t('reader.no_book_title');
   const title = book.title ?? fallbackTitle;
   const initialLetter = title.charAt(0).toUpperCase() || '?';
+  // HADITH_COLLECTION = вторая репрезентация сборника: контент в hd_*, не в
+  // lib_pages, поэтому ридер был бы пуст. Карточка ведёт в обозреватель хадисов.
+  const isHadithCollection = bookType === 'HADITH_COLLECTION';
+
+  const cardInner = (
+    <Card interactive className="flex h-full flex-col overflow-hidden">
+      <Card.Cover color={coverColorFor(book.id)}>
+        {resolving ? <Loader2 size={28} className="animate-spin" aria-hidden /> : initialLetter}
+      </Card.Cover>
+      {/* flex-1 чтобы body тянул карточку до равной высоты; meta
+          прижат к низу через mt-auto - id-строка всегда на одной
+          базовой линии у всех карточек ряда */}
+      <Card.Body className="flex-1">
+        {/* flex-wrap: при узкой карточке chips переносятся аккуратно,
+            не выходя за края eyebrow-строки */}
+        <Card.Eyebrow>
+          <div className="flex flex-wrap items-center gap-1">
+            <span
+              className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider ${BOOK_TYPE_BADGE[bookType]}`}
+            >
+              {t(BOOK_TYPE_DICT_KEY[bookType])}
+            </span>
+            {book.language && (
+              <span className="inline-flex items-center rounded-sm bg-ink-100 px-1.5 py-0.5 text-xs font-mono uppercase text-ink-600">
+                <bdi dir="ltr">{book.language}</bdi>
+              </span>
+            )}
+            <VisibilityBadge
+              visibility={book.visibility}
+              labelPrefix="book.visibility"
+              compact
+            />
+          </div>
+        </Card.Eyebrow>
+        <Card.Title clamp>{title}</Card.Title>
+        <Card.Meta className="mt-auto pt-1">
+          <span className="font-mono text-xs">
+            <bdi dir="ltr">{book.id.slice(0, 8)}</bdi>
+          </span>
+        </Card.Meta>
+      </Card.Body>
+    </Card>
+  );
 
   return (
     <div className="relative h-full">
@@ -724,47 +819,28 @@ function BookCard({ book, onEdit, editLoading, isFavorite, onToggleFavorite, fav
           <Pencil size={13} aria-hidden />
         )}
       </button>
-      <Link
-        to={`/books/${book.id}`}
-        aria-label={title}
-        className="group block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bg rounded-md"
-      >
-        <Card interactive className="flex h-full flex-col overflow-hidden">
-          <Card.Cover color={coverColorFor(book.id)}>{initialLetter}</Card.Cover>
-          {/* flex-1 чтобы body тянул карточку до равной высоты; meta
-              прижат к низу через mt-auto - id-строка всегда на одной
-              базовой линии у всех карточек ряда */}
-          <Card.Body className="flex-1">
-            {/* flex-wrap: при узкой карточке chips переносятся аккуратно,
-                не выходя за края eyebrow-строки */}
-            <Card.Eyebrow>
-              <div className="flex flex-wrap items-center gap-1">
-                <span
-                  className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider ${BOOK_TYPE_BADGE[bookType]}`}
-                >
-                  {t(BOOK_TYPE_DICT_KEY[bookType])}
-                </span>
-                {book.language && (
-                  <span className="inline-flex items-center rounded-sm bg-ink-100 px-1.5 py-0.5 text-xs font-mono uppercase text-ink-600">
-                    <bdi dir="ltr">{book.language}</bdi>
-                  </span>
-                )}
-                <VisibilityBadge
-                  visibility={book.visibility}
-                  labelPrefix="book.visibility"
-                  compact
-                />
-              </div>
-            </Card.Eyebrow>
-            <Card.Title clamp>{title}</Card.Title>
-            <Card.Meta className="mt-auto pt-1">
-              <span className="font-mono text-xs">
-                <bdi dir="ltr">{book.id.slice(0, 8)}</bdi>
-              </span>
-            </Card.Meta>
-          </Card.Body>
-        </Card>
-      </Link>
+      {isHadithCollection ? (
+        // Сборник хадисов: <button>, не <Link> - таргет резолвится по клику
+        // (by-book → collectionId), поэтому статичного href нет.
+        <button
+          type="button"
+          onClick={() => onOpenHadithCollection(book.id)}
+          disabled={resolving}
+          aria-label={t('book.open_hadith_explorer')}
+          title={t('book.open_hadith_explorer')}
+          className="group block h-full w-full text-start focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bg rounded-md disabled:cursor-wait"
+        >
+          {cardInner}
+        </button>
+      ) : (
+        <Link
+          to={`/books/${book.id}`}
+          aria-label={title}
+          className="group block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bg rounded-md"
+        >
+          {cardInner}
+        </Link>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { BookOpen, Loader2, Users, Info } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
@@ -41,8 +41,14 @@ function statusClass(status: string | undefined): string {
  */
 function HadithListPage() {
   const t = useT();
+  // Под-проект #2.B: библиотека → обозреватель. Карточка книги-сборника
+  // навигирует в /hadith?collectionId=<id>; читаем param на load и
+  // предвыбираем сборник (фильтр-чип). Дальше чипы управляют state как обычно
+  // (param только начальное значение, не source of truth).
+  const [searchParams] = useSearchParams();
+  const initialCollectionId = searchParams.get('collectionId');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
-  const [collectionId, setCollectionId] = useState<string | null>(null);
+  const [collectionId, setCollectionId] = useState<string | null>(initialCollectionId);
   const [sort, setSort] = useState<SortKey>('number');
 
   const collectionsState = useApiQuery<CollectionItem[]>('/api/v1/hadith/collections');

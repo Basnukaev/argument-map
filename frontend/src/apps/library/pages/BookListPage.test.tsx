@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { waitForApi } from '@/test/asyncHelpers';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
 import BookListPage from './BookListPage';
@@ -14,6 +14,27 @@ function renderPage() {
   return render(
     <MemoryRouter>
       <BookListPage />
+    </MemoryRouter>,
+  );
+}
+
+/** Показывает текущий pathname+search - для проверки навигации после клика. */
+function LocationProbe() {
+  const loc = useLocation();
+  return <div data-testid="location">{loc.pathname + loc.search}</div>;
+}
+
+/** Рендерит BookListPage на /books и зеркало location - для проверки
+ * куда уводит карточка (reader vs обозреватель хадисов). */
+function renderWithRoutes() {
+  return render(
+    <MemoryRouter initialEntries={['/books']}>
+      <LocationProbe />
+      <Routes>
+        <Route path="/books" element={<BookListPage />} />
+        <Route path="/books/:bookId" element={<div>READER</div>} />
+        <Route path="/hadith" element={<div>HADITH EXPLORER</div>} />
+      </Routes>
     </MemoryRouter>,
   );
 }
@@ -115,8 +136,14 @@ describe('BookListPage / Library overview', () => {
     });
     expect(screen.getByText('Personal Notes')).toBeInTheDocument();
 
-    const link = screen.getByRole('link', { name: /صحيح البخاري/i });
-    expect(link).toHaveAttribute('href', '/books/b1');
+    // обычная книга (BOOK) ведёт в ридер через статичный link
+    const link = screen.getByRole('link', { name: /Personal Notes/i });
+    expect(link).toHaveAttribute('href', '/books/b2');
+    // HADITH_COLLECTION (под-проект #2.B) - не link в ридер, а кнопка-обозреватель
+    expect(screen.queryByRole('link', { name: /صحيح البخاري/i })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Открыть в обозревателе хадисов/i }),
+    ).toBeInTheDocument();
   });
 
   it('debounced search триггерит refetch с ?q=', async () => {
@@ -286,5 +313,78 @@ describe('BookListPage / Library overview', () => {
     });
     expect(screen.getByText('First Book')).toBeInTheDocument();
     expect(callCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('HADITH_COLLECTION карточка показывает бейдж «Сборник хадисов» и это кнопка, не link', async () => {
+    server.use(
+      http.get(`${BASE}/api/v1/library/books`, () =>
+        HttpResponse.json(
+          paged([{ id: 'b1', title: 'صحيح البخاري', bookType: 'HADITH_COLLECTION', visibility: 'PUBLIC' }]),
+        ),
+      ),
+    );
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByText('صحيح البخاري')).toBeInTheDocument();
+    });
+    // карточка = button (резолв таргета по клику), не статичный link на ридер
+    const card = screen.getByRole('button', { name: /Открыть в обозревателе хадисов/i });
+    // бейдж типа внутри карточки («Сборник хадисов» также есть в type-чипе,
+    // поэтому скоупим к карточке через within)
+    expect(within(card).getByText('Сборник хадисов')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /صحيح البخاري/i })).not.toBeInTheDocument();
+  });
+
+  it('клик по HADITH_COLLECTION резолвит by-book и навигирует в /hadith?collectionId=', async () => {
+    server.use(
+      http.get(`${BASE}/api/v1/library/books`, () =>
+        HttpResponse.json(
+          paged([{ id: 'b1', title: 'Bukhari', bookType: 'HADITH_COLLECTION', visibility: 'PUBLIC' }]),
+        ),
+      ),
+      http.get(`${BASE}/api/v1/hadith/collections/by-book/b1`, () =>
+        HttpResponse.json({ id: 'col-99', slug: 'bukhari', bookId: 'b1' }),
+      ),
+    );
+    renderWithRoutes();
+    await waitForApi(() => {
+      expect(screen.getByText('Bukhari')).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Открыть в обозревателе хадисов/i }));
+
+    await waitForApi(() => {
+      expect(screen.getByText('HADITH EXPLORER')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('location')).toHaveTextContent('/hadith?collectionId=col-99');
+  });
+
+  it('HADITH_COLLECTION с 404 by-book - defensive fallback в обычный ридер', async () => {
+    server.use(
+      http.get(`${BASE}/api/v1/library/books`, () =>
+        HttpResponse.json(
+          paged([{ id: 'b1', title: 'No Bridge', bookType: 'HADITH_COLLECTION', visibility: 'PUBLIC' }]),
+        ),
+      ),
+      http.get(`${BASE}/api/v1/hadith/collections/by-book/b1`, () =>
+        HttpResponse.json(
+          { type: 'about:blank', title: 'Not Found', status: 404 },
+          { status: 404 },
+        ),
+      ),
+    );
+    renderWithRoutes();
+    await waitForApi(() => {
+      expect(screen.getByText('No Bridge')).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Открыть в обозревателе хадисов/i }));
+
+    await waitForApi(() => {
+      expect(screen.getByText('READER')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('location')).toHaveTextContent('/books/b1');
   });
 });
