@@ -105,9 +105,22 @@ function AdminSunnahPage() {
       }));
   }, [collectionsState]);
 
-  // Авто-выбор первого сборника когда список загрузился и ничего не выбрано.
+  // Первый сборник по умолчанию: список листается сразу после загрузки
+  // сборников, без blank-state «пока не кликнул чип». effectiveCollection —
+  // single source of truth для рендера (BrowseList + FilterChips value).
   const effectiveCollection =
     collection ?? (collectionChips.length > 0 ? collectionChips[0]!.value : null);
+
+  // Когда сборники загрузились и ни один не выбран — фиксируем первый в
+  // state, чтобы collection не оставался null (иначе UI показывает первый
+  // чип выбранным, но state рассинхронизирован). setState в effect (не в
+  // render-фазе) — идиома проекта, обходит react-hooks/set-state-in-effect.
+  useEffect(() => {
+    if (collection === null && collectionChips.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCollection(collectionChips[0]!.value);
+    }
+  }, [collection, collectionChips]);
 
   const openPreview = async (number: string) => {
     if (!effectiveCollection) return;

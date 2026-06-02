@@ -12,6 +12,7 @@ import {
 import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
 import Field from '@/shared/components/ui/Field';
+import VoteWidget from '@/shared/components/ui/VoteWidget';
 import {
   apiDeleteRaw,
   apiGetRaw,
@@ -151,6 +152,22 @@ function AnswersSection({ questionId, askedBy, acceptedAnswerId, onAcceptanceCha
     }
   }
 
+  // Голос обновляет локальный счёт конкретного ответа (виджет оптимистичен,
+  // здесь синхронизируем точный score/userVote с бэка после мутации).
+  function handleVoteChanged(answerId: string, stats: { score: number; userVote: number | null }) {
+    setState((prev) => {
+      if (prev.kind !== 'success') return prev;
+      return {
+        kind: 'success',
+        answers: prev.answers.map((a) =>
+          a.id === answerId
+            ? { ...a, voteScore: stats.score, userVote: stats.userVote ?? undefined }
+            : a,
+        ),
+      };
+    });
+  }
+
   // Принятый ответ закрепляем сверху - distinct ribbon + видимость без скролла.
   const sortedAnswers =
     state.kind === 'success'
@@ -206,6 +223,7 @@ function AnswersSection({ questionId, askedBy, acceptedAnswerId, onAcceptanceCha
               onAccept={() => a.id && handleAccept(a.id)}
               onRevoke={handleRevoke}
               onDelete={() => a.id && handleDelete(a.id)}
+              onVoteChanged={(stats) => a.id && handleVoteChanged(a.id, stats)}
               formatDate={formatDate}
             />
           ))}
@@ -251,6 +269,7 @@ interface CardProps {
   onAccept: () => void;
   onRevoke: () => void;
   onDelete: () => void;
+  onVoteChanged: (stats: { score: number; userVote: number | null }) => void;
   formatDate: (iso: string | undefined, style?: 'full' | 'short') => string;
 }
 
@@ -262,6 +281,7 @@ function AnswerCard({
   onAccept,
   onRevoke,
   onDelete,
+  onVoteChanged,
   formatDate,
 }: CardProps) {
   const t = useT();
@@ -321,7 +341,18 @@ function AnswerCard({
               ? t('qa.answers.sources_hide')
               : t('qa.answers.sources_show')}
           </Button>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {answer.id && (
+              <VoteWidget
+                voteUrl={`/api/v1/answers/${answer.id}/vote`}
+                score={answer.voteScore ?? 0}
+                userVote={answer.userVote ?? null}
+                onVoteChanged={onVoteChanged}
+                ariaLabel={t('vote.answer.aria_widget')}
+                upvoteLabel={t('vote.answer.upvote_tooltip')}
+                downvoteLabel={t('vote.answer.downvote_tooltip')}
+              />
+            )}
             {isAsker && !accepted && (
               <Button
                 type="button"

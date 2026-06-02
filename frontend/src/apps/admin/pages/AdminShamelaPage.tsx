@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import {
   AlertCircle,
@@ -7,19 +7,20 @@ import {
   CheckCircle2,
   Download,
   ExternalLink,
-  FileUp,
   Loader2,
   RefreshCw,
-  Search,
   Settings,
 } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import Header from '@/shared/components/layout/Header';
+import ListToolbar from '@/shared/components/ui/ListToolbar';
+import SearchInput from '@/shared/components/ui/SearchInput';
+import LoadMoreButton from '@/shared/components/ui/LoadMoreButton';
 import { apiGetRaw, apiPostRaw, ApiError } from '@/shared/api/client';
+import { usePagedSearch } from '@/shared/hooks/usePagedSearch';
 import type { components } from '@/shared/api/types';
 import { toast } from '@/shared/stores/toastStore';
 import { hasArabicScript, useT, useFormatDate, useNumberFormat } from '@/shared/i18n';
-import FileUploadModal from '@/apps/admin/components/FileUploadModal';
 
 type SyncStatus = components['schemas']['SyncStatusResponse'];
 type SearchResult = components['schemas']['StagingBookSearchResponse'];
@@ -28,7 +29,7 @@ type MapBookResponse = components['schemas']['MapBookResponse'];
 type SyncMasterResponse = components['schemas']['SyncMasterResponse'];
 type BackfillResponse = components['schemas']['BackfillBibliographyResponse'];
 
-const SEARCH_DEBOUNCE_MS = 300;
+const PAGE_SIZE = 50;
 
 function AdminShamelaPage() {
   const t = useT();
@@ -41,16 +42,12 @@ function AdminShamelaPage() {
   const [statusLoading, setStatusLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
   const [importingId, setImportingId] = useState<number | null>(null);
+  /** Локально помеченные импортированными (bookId) — апдейт без рефетча. */
+  const [importedLocal, setImportedLocal] = useState<Set<number>>(new Set());
 
-  const debounceRef = useRef<number | null>(null);
   const [reloadStatusToken, setReloadStatusToken] = useState(0);
   const [backfilling, setBackfilling] = useState(false);
-  const [uploadOpen, setUploadOpen] = useState(false);
 
   // Все setState идут в Promise-callbacks - lint react-hooks/set-state-in-effect
   // запрещает только sync setState в теле эффекта. reloadStatusToken
@@ -72,50 +69,9 @@ function AdminShamelaPage() {
     return () => controller.abort();
   }, [reloadStatusToken, t]);
 
-  // Debounced search: пустой query → results просто не рендерятся (derived
-  // state), не нужен синхронный setState reset в теле эффекта
-  useEffect(() => {
-    if (query.trim().length === 0) {
-      return;
-    }
-    const controller = new AbortController();
-    if (debounceRef.current !== null) {
-      window.clearTimeout(debounceRef.current);
-    }
-    debounceRef.current = window.setTimeout(() => {
-      const url = `/api/v1/admin/shamela/search?q=${encodeURIComponent(query.trim())}&limit=50`;
-      apiGetRaw<SearchResult[]>(url, { signal: controller.signal })
-        .then((rows) => {
-          setResults(rows ?? []);
-          setSearchError(null);
-          setSearchLoading(false);
-        })
-        .catch((e: unknown) => {
-          if (controller.signal.aborted) return;
-          setSearchError(formatError(e, t('admin.search_failed')));
-          setResults([]);
-          setSearchLoading(false);
-        });
-    }, SEARCH_DEBOUNCE_MS);
-
-    return () => {
-      controller.abort();
-      if (debounceRef.current !== null) {
-        window.clearTimeout(debounceRef.current);
-      }
-    };
-  }, [query, t]);
-
-  const onQueryChange = (value: string) => {
-    setQuery(value);
-    setSearchError(null);
-    if (value.trim().length === 0) {
-      setResults([]);
-      setSearchLoading(false);
-    } else {
-      setSearchLoading(true);
-    }
-  };
+  const catalogReady = (status?.booksCount ?? 0) > 0;
+  const showEmptyHero = !statusLoading && !statusError && status !== null && !catalogReady;
+  const showCatalog = catalogReady;
 
   const onBackfillBibliography = async () => {
     setBackfilling(true);
@@ -181,9 +137,8 @@ function AdminShamelaPage() {
           .replace('{titles}', String(imported.titlesCount ?? 0))
           .replace('{id}', mapped.bookId?.slice(0, 8) ?? ''),
       );
-      setResults((prev) =>
-        prev.map((r) => (r.bookId === bookId ? { ...r, isMapped: true } : r)),
-      );
+      // Помечаем локально импортированной — апдейт бейджа без рефетча списка.
+      setImportedLocal((prev) => new Set(prev).add(bookId));
       setReloadStatusToken((n) => n + 1);
     } catch (e) {
       toast.error(formatError(e, `${t('admin.import_failed')}: ${bookId}`));
@@ -191,10 +146,6 @@ function AdminShamelaPage() {
       setImportingId(null);
     }
   };
-
-  const catalogReady = (status?.booksCount ?? 0) > 0;
-  const showEmptyHero = !statusLoading && !statusError && status !== null && !catalogReady;
-  const showSearchUI = catalogReady;
 
   return (
     <main className="min-h-screen bg-bg">
@@ -225,8 +176,7 @@ function AdminShamelaPage() {
             {/* Порядок: вторичные → primary. Primary CTA (sync) anchored
                 к правому краю - конвенция admin tools. Backfill metadata -
                 shamela-специфичное действие, видно когда каталог готов.
-                PDF-импорт и audit теперь first-class на /admin дашборде,
-                поэтому буферное ••• overflow-меню убрано. */}
+                PDF-импорт и audit теперь first-class на /admin дашборде. */}
             {catalogReady && (
               <Button
                 variant="ghost"
@@ -237,13 +187,6 @@ function AdminShamelaPage() {
                 {t('admin.backfill_action')}
               </Button>
             )}
-            <Button
-              variant="secondary"
-              icon={FileUp}
-              onClick={() => setUploadOpen(true)}
-            >
-              {t('admin.file_upload.section_action_short')}
-            </Button>
             <Button icon={RefreshCw} onClick={onSyncMaster} disabled={syncing}>
               {syncing ? t('admin.sync_in_progress') : t('admin.sync_button')}
             </Button>
@@ -280,56 +223,16 @@ function AdminShamelaPage() {
           />
         )}
 
-        {/* === Hero search === */}
-        {showSearchUI && (
-          <section className="mb-5">
-            {/* Без иконки в h2: одна иконка в input уже служит visual
-                anchor'ом секции. попытка align'нуть h2-icon с input-icon
-                ловит micro-delta (разный размер + 1px border input'а) и
-                читается как «почти-выровнено», что хуже чем чистая
-                типографика без шума */}
-            <h2 className="mb-2 text-sm font-semibold text-ink-900">
-              {t('admin.search_in_catalog')}
-            </h2>
-            <HeroSearchInput
-              query={query}
-              onQueryChange={onQueryChange}
-              searchLoading={searchLoading}
-              matchCount={results.length}
-              hint={t('admin.search_placeholder')}
-              ariaLabel={t('admin.search_aria')}
-              matchCountTemplate={t('admin.hero.match_count')}
-            />
-          </section>
-        )}
-
-        {/* === Search results / error / not-found === */}
-        {searchError && (
-          <div className="mb-8 rounded-lg border border-err-500/40 bg-err-100 px-4 py-3 text-sm text-err-700">
-            {searchError}
-          </div>
-        )}
-
-        {!searchError && query.trim().length > 0 && results.length === 0 && !searchLoading && (
-          <p className="mb-8 text-sm text-ink-500">{t('topic.list.not_found')}</p>
-        )}
-
-        {results.length > 0 && (
-          <ResultsTable
-            results={results}
+        {/* === Catalog: показывает ВСЕ книги по умолчанию (пустой query),
+            поиск фильтрует, Load-More пагинация === */}
+        {showCatalog && (
+          <CatalogSection
             onImport={onImport}
             importingId={importingId}
+            importedLocal={importedLocal}
           />
         )}
       </div>
-
-      {uploadOpen && (
-        <FileUploadModal
-          open
-          onClose={() => setUploadOpen(false)}
-          onUploaded={() => setReloadStatusToken((n) => n + 1)}
-        />
-      )}
     </main>
   );
 }
@@ -337,6 +240,91 @@ function AdminShamelaPage() {
 // ====================================================================
 //                          Sub-components
 // ====================================================================
+
+interface CatalogSectionProps {
+  onImport: (bookId: number) => void;
+  importingId: number | null;
+  importedLocal: ReadonlySet<number>;
+}
+
+/**
+ * Каталог staged-книг shamela: пагинированный список через usePagedSearch
+ * над GET /api/v1/admin/shamela/books?page=&size=&q=. По умолчанию (пустой
+ * query) показывает ВСЕ книги; поиск фильтрует серверно. Зеркалит
+ * HadithListPage: ListToolbar + SearchInput + LoadMoreButton.
+ */
+function CatalogSection({ onImport, importingId, importedLocal }: CatalogSectionProps) {
+  const t = useT();
+
+  const buildUrl = useCallback((page: number, q: string): string => {
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('size', String(PAGE_SIZE));
+    if (q) params.set('q', q);
+    return `/api/v1/admin/shamela/books?${params.toString()}`;
+  }, []);
+
+  const { state, searchInput, setSearchInput, loadMore, loadingMore } =
+    usePagedSearch<SearchResult>({
+      buildUrl,
+      fallbackError: t('admin.browse_load_failed'),
+    });
+
+  const isFiltered = searchInput.trim().length > 0;
+
+  return (
+    <section className="mb-5">
+      <ListToolbar
+        className="mb-3"
+        search={
+          <SearchInput
+            value={searchInput}
+            onChange={setSearchInput}
+            placeholder={t('admin.catalog_search_placeholder')}
+            ariaLabel={t('admin.search_aria')}
+            className="w-full"
+          />
+        }
+      />
+
+      {state.kind === 'loading' && (
+        <div className="flex items-center gap-2 py-12 text-sm text-ink-500">
+          <Loader2 size={16} className="animate-spin" aria-hidden /> {t('common.loading')}
+        </div>
+      )}
+
+      {state.kind === 'error' && (
+        <div className="rounded-lg border border-err-500/40 bg-err-100 px-4 py-3 text-sm text-err-700">
+          {state.message}
+        </div>
+      )}
+
+      {state.kind === 'success' && (
+        <>
+          {state.data.items.length === 0 ? (
+            <p className="py-8 text-center text-sm text-ink-500">
+              {isFiltered ? t('admin.catalog_empty_filtered') : t('topic.list.not_found')}
+            </p>
+          ) : (
+            <ResultsTable
+              results={state.data.items}
+              onImport={onImport}
+              importingId={importingId}
+              importedLocal={importedLocal}
+            />
+          )}
+          <LoadMoreButton
+            onClick={loadMore}
+            loading={loadingMore}
+            hasNext={state.data.hasNext}
+            shownCount={state.data.items.length}
+            totalCount={state.data.totalElements}
+          />
+        </>
+      )}
+    </section>
+  );
+}
 
 interface StatusStripProps {
   status: SyncStatus;
@@ -387,71 +375,21 @@ function StatusStrip({ status, formatNumber, formatDateTime }: StatusStripProps)
   );
 }
 
-interface HeroSearchInputProps {
-  query: string;
-  onQueryChange: (v: string) => void;
-  searchLoading: boolean;
-  matchCount: number;
-  hint: string;
-  ariaLabel: string;
-  matchCountTemplate: string;
-}
-
-function HeroSearchInput({
-  query,
-  onQueryChange,
-  searchLoading,
-  matchCount,
-  hint,
-  ariaLabel,
-  matchCountTemplate,
-}: HeroSearchInputProps) {
-  const active = query.trim().length > 0;
-  return (
-    <div
-      className={`flex h-10 max-w-2xl items-center rounded-md bg-elevated transition-all ${
-        active
-          ? 'border-[1.5px] border-accent-500 shadow-[0_0_0_3px_color-mix(in_srgb,var(--c-accent-500)_15%,transparent)]'
-          : 'border border-border-strong focus-within:border-accent-500 focus-within:ring-2 focus-within:ring-accent-500/20'
-      }`}
-    >
-      <Search size={15} className="ms-3 text-ink-400" aria-hidden="true" />
-      <input
-        type="search"
-        value={query}
-        onChange={(e) => onQueryChange(e.target.value)}
-        placeholder={hint}
-        className="flex-1 bg-transparent px-3 text-sm text-ink-900 outline-none placeholder:text-ink-400"
-        aria-label={ariaLabel}
-      />
-      {searchLoading ? (
-        <Loader2 size={14} className="me-3 animate-spin text-ink-400" aria-hidden="true" />
-      ) : (
-        active &&
-        matchCount > 0 && (
-          <span className="me-3 font-mono text-xs tabular-nums text-ink-500">
-            {matchCountTemplate.replace('{n}', String(matchCount))}
-          </span>
-        )
-      )}
-    </div>
-  );
-}
-
 interface ResultsTableProps {
   results: SearchResult[];
   onImport: (bookId: number) => void;
   importingId: number | null;
+  importedLocal: ReadonlySet<number>;
 }
 
-function ResultsTable({ results, onImport, importingId }: ResultsTableProps) {
+function ResultsTable({ results, onImport, importingId, importedLocal }: ResultsTableProps) {
   const t = useT();
   // grid template одинаков для header и row - sync через CSS variable не нужен,
   // inline style гарантирует выравнивание колонок. Min 668px - на mobile
   // <668px скроллируется горизонтально внутри parent overflow-x-auto
   const gridCols = '88px 1fr 220px 80px 200px';
   return (
-    <div className="mb-8 overflow-x-auto rounded-lg border border-border bg-elevated">
+    <div className="overflow-x-auto rounded-lg border border-border bg-elevated">
       <div className="min-w-[668px]">
         <div
           className="sticky top-0 z-[1] grid items-center gap-3 border-b border-border bg-sunken px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-500"
@@ -474,6 +412,7 @@ function ResultsTable({ results, onImport, importingId }: ResultsTableProps) {
               result={r}
               onImport={onImport}
               isImporting={importingId === r.bookId}
+              importedLocal={importedLocal}
               gridCols={gridCols}
             />
           ))}
@@ -487,15 +426,24 @@ interface SearchResultRowProps {
   result: SearchResult;
   onImport: (bookId: number) => void;
   isImporting: boolean;
+  importedLocal: ReadonlySet<number>;
   gridCols: string;
 }
 
-function SearchResultRow({ result, onImport, isImporting, gridCols }: SearchResultRowProps) {
+function SearchResultRow({
+  result,
+  onImport,
+  isImporting,
+  importedLocal,
+  gridCols,
+}: SearchResultRowProps) {
   const t = useT();
   // dir="auto" - браузер сам определит направление по первому сильному символу.
   // hasArabicScript для переключения font-naskh (dir="auto" шрифт не меняет)
   const arabicName = hasArabicScript(result.name ?? undefined);
   const arabicAuthor = hasArabicScript(result.authorName ?? undefined);
+  const mapped =
+    Boolean(result.isMapped) || (result.bookId != null && importedLocal.has(result.bookId));
 
   return (
     <li>
@@ -526,7 +474,7 @@ function SearchResultRow({ result, onImport, isImporting, gridCols }: SearchResu
           <bdi dir="ltr">v{result.majorRelease}</bdi>
         </div>
         <div className="flex justify-end">
-          {result.isMapped ? (
+          {mapped ? (
             // Чип «Импортирована» + кнопка «В библиотеке» = дублирование:
             // обе сущности говорят «книга уже у нас». достаточно одной
             // кнопки с галкой - и status marker (✓) и actionable navigation

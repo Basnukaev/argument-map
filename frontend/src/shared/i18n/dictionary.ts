@@ -634,7 +634,10 @@ export const DICTIONARY = {
     'admin.mapped_count': 'Замаплено',
     'admin.search_in_catalog': 'Поиск в каталоге shamela',
     'admin.search_placeholder': 'Поиск по названию или id · до 50 результатов',
+    'admin.catalog_search_placeholder': 'Поиск по названию или id книги',
     'admin.search_aria': 'Поиск книг shamela',
+    'admin.catalog_empty_filtered': 'Ничего не найдено по запросу',
+    'admin.browse_load_failed': 'Не удалось загрузить каталог',
     'admin.empty_catalog_hint': 'Каталог пуст. Сначала запусти',
     'admin.empty_catalog_hint_2': 'чтобы загрузить ~8500 книг в staging',
     'admin.sync_action_link': 'синхронизацию',
@@ -1332,6 +1335,10 @@ export const DICTIONARY = {
     'vote.question.downvote_tooltip': 'Голос против вопроса',
     'vote.question.aria_widget': 'Голосов за вопрос',
 
+    'vote.answer.upvote_tooltip': 'Голос за ответ',
+    'vote.answer.downvote_tooltip': 'Голос против ответа',
+    'vote.answer.aria_widget': 'Голосов за ответ',
+
     // Onboarding 4-step checklist (floating widget bottom-end)
     'onboarding.title': 'Начни работу',
     'onboarding.subtitle': 'Освой граф за 4 шага',
@@ -1977,7 +1984,10 @@ export const DICTIONARY = {
     'admin.mapped_count': 'مستوردة',
     'admin.search_in_catalog': 'البحث في كتالوج shamela',
     'admin.search_placeholder': 'بحث بالعنوان أو المعرّف · حتى 50 نتيجة',
+    'admin.catalog_search_placeholder': 'بحث بعنوان الكتاب أو المعرّف',
     'admin.search_aria': 'بحث كتب shamela',
+    'admin.catalog_empty_filtered': 'لا توجد نتائج مطابقة للبحث',
+    'admin.browse_load_failed': 'تعذّر تحميل الكتالوج',
     'admin.empty_catalog_hint': 'الكتالوج فارغ. شغّل أولاً',
     'admin.empty_catalog_hint_2': 'لتحميل ~8500 كتاب إلى staging',
     'admin.sync_action_link': 'المزامنة',
@@ -2659,6 +2669,10 @@ export const DICTIONARY = {
     'vote.question.upvote_tooltip': 'صوّت للسؤال',
     'vote.question.downvote_tooltip': 'صوّت ضد السؤال',
     'vote.question.aria_widget': 'أصوات السؤال',
+
+    'vote.answer.upvote_tooltip': 'صوّت للإجابة',
+    'vote.answer.downvote_tooltip': 'صوّت ضد الإجابة',
+    'vote.answer.aria_widget': 'أصوات الإجابة',
 
     // Onboarding (الإعداد الأولي - قائمة الخطوات الأربع)
     'onboarding.title': 'لنبدأ',
