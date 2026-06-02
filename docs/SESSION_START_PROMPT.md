@@ -217,21 +217,22 @@ title-weight ар, импорт-страницы показывают конте
 ответах (migration 64), **полная чистка БД** (контент=0, admin+схема+shamela-
 каталог 8589 сохранены, DevHadithSeeder→opt-in).
 
-**СЛЕДУЮЩИЙ ШАГ (приоритет):**
-1. **hd_collections ↔ библ. «Сборник хадисов» (#2/под-проект #3) — ГЛАВНЫЙ next,
-   НЕ начат** (архитектурно). Рекомендация: FK `hd_collections.book_id →
-   lib_books(id)` + UI кросс-линки (сборник в библиотеке как книга, иснады/хадисы
-   как hd-представление). Детали — progress.md «Следующий шаг» батч 2. ~1 сессия.
-2. **Backlog SECURITY — СДЕЛАНО:** shamela-admin endpoints теперь ADMIN-only
-   (все 7 endpoint, `requireAdmin()` mirror Sunnah; non-admin→403 forbidden-admin-only;
-   `ShamelaAdminControllerIT` 32/32). Consistency с Sunnah-admin закрыта.
-3. **Визуальная проверка руками** на :5173 — playwright env-blocked (нет Chromium).
-   Особо: масштаб 0.9 (откат «Стандартный»); все редизайны батча 1; голоса
-   тем/вопросов/ответов (клик НЕ должен разлогинивать — баг починен); импорт-
-   страницы (контент по умолчанию). БД ПУСТА — наполнять через /admin tools.
-4. Опц.: IsnadExtraction (AI matn→hd_sanads, КОНТЕНТ, отложено Абдулой); step 4
-   SunnahApiClient/полный корпус; alminasa.ai import-tool (заглушка готова);
-   d3-drag bulkActions test-шум; `git stash@{0}` (избыточен — `git stash drop`).
+**Батч 3 (6 багов из ручного теста) + батч 4 («го дальше») ТОЖЕ закрыты** (см.
+progress.md батч 3/4): статус-узла PATCH+status, sunnah «не настроен» (→ запуск
+через `run.arguments`), shamela PDF resolve, миникарта/ребро/чип; **hd_collections
+UI** (книга-сборник→hadith-explorer), **shamela ADMIN-guard**, **code-review
+батчей 2-4** (8 fixes, 0 Critical), **d3-drag флак убран → CI ПОЛНОСТЬЮ ЗЕЛЁНЫЙ**
+(frontend 665/0/0, backend BUILD SUCCESS).
+
+**СЛЕДУЮЩИЙ ШАГ — все явные запросы + бэклог ЗАКРЫТЫ.** Остаётся опц./отложенное:
+1. **Визуальная проверка руками** на :5173 (playwright env-blocked — нет Chromium):
+   все редизайны, голоса (клик не разлогинивает), импорт-страницы, масштаб 0.9
+   (откат «Стандартный»). **БД пуста — наполнять через /admin tools.**
+2. Опц.: IsnadExtraction (AI matn→hd_sanads, КОНТЕНТ, отложено Абдулой); полный
+   in-place рендеринг hadith-сборника как книги (сейчас редирект достаточен);
+   step 4 SunnahApiClient/полный корпус; alminasa.ai import-tool (заглушка готова);
+   shamela `category.sqlite` sync (зависит от живого shamela.ws);
+   `git stash@{0}` (избыточен — `git stash drop`).
 
 **Инфра:** Docker (postgres+minio) up + **`sunnah-mysql` :3307** (root/root,
 БД `sunnah`; дамп `db/00-samplegitdb.sql` в контейнере, host-копия `/tmp/sunnah.sql`,

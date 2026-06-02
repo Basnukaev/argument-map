@@ -8,6 +8,45 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
+## 2026-06-02 - Сессия 54 (батч 4) - «го дальше»: hd_collections UI + shamela guard + review + зелёный CI
+
+Продолжение по бэклогу после батча 3. ~7 коммитов.
+
+### Сделано
+1. **hd_collections UI** (мост #3 виден end-to-end): книга `HADITH_COLLECTION` в
+   библиотеке → бейдж «Сборник хадисов» + клик резолвит коллекцию (`by-book`) →
+   `/hadith?collectionId=` (реальный контент, обходит «тонкую книгу»).
+   HadithListPage читает `?collectionId=`. **Проверено живьём.**
+2. **shamela-admin ADMIN-guard**: все 7 endpoints ADMIN-only (mirror Sunnah).
+   **Живьём: admin 200 / non-admin 403.** Security-гэп закрыт.
+3. **Multi-agent code review батчей 2-4** (Workflow, 19 агентов, 6 измерений +
+   adversarial verify): 13 raw → **8 confirmed, 0 Critical**. Закрыты: Important
+   (migration 65 rollback падал по FK при удалении system-user-owner lib_books →
+   DELETE lib_books первым; md5sum обнулён для recompute) + 7 Minor (system-user
+   ON CONFLICT→WHERE NOT EXISTS, ShamelaBookDao javadoc, vote-service javadoc
+   422→400, VoteWidget мёртвый eslint-disable, BookListPage aria-label с title,
+   4 orphaned dict-ключа).
+4. **Регрессия TypeChip-теста починена**: chip-padding фикс (батч 3) сменил
+   h-5/h-6 на padding-based, но TypeChip.test ассертил старое (проскочил т.к.
+   гонялся scope'ом src/apps/argument-map, а тест в shared/). Обновлены ассерты.
+5. **d3-drag jsdom-флак убран → ПОЛНОСТЬЮ ЗЕЛЁНЫЙ `npm test`**: bulkActions «2
+   failed/10 errors» в full-suite (корень: user-event MouseEvent view=null →
+   React-Flow d3-drag nodrag(null)). Фикс: мок d3-drag в test-setup + inline
+   @xyflow/* в vite.config. Full suite: 105 файлов / 665 тестов / **0 failed**.
+
+### Верификация (КУМУЛЯТИВНО, финал)
+- Backend `./mvnw verify` → **BUILD SUCCESS** (полный сьют).
+- Frontend `npx vitest run` → **665 pass / 0 failed / 0 errors** (стабильно 4×) +
+  build ✓ + tsc ✓ + lint 0 err. **CI полностью зелёный впервые за сессию.**
+
+### Следующий шаг
+Все явные запросы Абдулы (3 батча) + бэклог (answer_votes, hd_collections backend+UI,
+shamela guard) + 6 ручных багов + код-ревью + флак — **ЗАКРЫТЫ**. Остаётся
+ОПЦИОНАЛЬНОЕ/отложенное: IsnadExtraction (AI, контент — Абдула отложил); полный
+in-place рендеринг hadith-сборника как книги (сейчас редирект достаточен); shamela
+`category.sqlite` sync (зависит от живого shamela.ws); визуальная playwright-проверка
+(env-blocked, Chromium отсутствует). **БД пуста — наполнять через /admin tools.**
+
 ## 2026-06-02 - Сессия 54 (батч 3) - баги из ручного тестирования Абдулы (6 фиксов)
 
 Абдула прогнал руками → список багов со скринами. Все 6 закрыты (~5 коммитов).
