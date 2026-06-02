@@ -676,6 +676,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/sunnah/extract-isnad": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["extractIsnad"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/shamela/sync-master": {
         parameters: {
             query?: never;
@@ -2532,6 +2548,66 @@ export interface components {
             /** Format: int32 */
             skippedInvalid?: number;
         };
+        IsnadExtractionRequest: {
+            collection: string;
+            /** Format: int32 */
+            number: number;
+        };
+        GraphEdge: {
+            id?: string;
+            source?: string;
+            target?: string;
+            data?: components["schemas"]["EdgeData"];
+        };
+        GraphNode: {
+            id?: string;
+            role?: string;
+            data?: components["schemas"]["NarratorData"];
+        };
+        IsnadExtractionResponse: {
+            llmEnabled?: boolean;
+            isnadFound?: boolean;
+            graph?: components["schemas"]["SanadGraphResponse"];
+            cleanedMatn?: string;
+        };
+        NarratorData: {
+            /** Format: uuid */
+            narratorId?: string;
+            nameAr?: string;
+            nameLatin?: string;
+            nameRu?: string;
+            kunya?: string;
+            laqab?: string;
+            /** Format: int32 */
+            yearBirthHijri?: number;
+            /** Format: int32 */
+            yearDeathHijri?: number;
+            birthplace?: string;
+            primaryResidence?: string;
+            deathPlace?: string;
+            reliabilityGrade?: string;
+            reliabilityComment?: string;
+            generation?: string;
+            collection?: string;
+            /** Format: int32 */
+            tier?: number;
+        };
+        SanadGraphResponse: {
+            /** Format: uuid */
+            hadithId?: string;
+            nodes?: components["schemas"]["GraphNode"][];
+            edges?: components["schemas"]["GraphEdge"][];
+            sanads?: components["schemas"]["SanadSummary"][];
+        };
+        SanadSummary: {
+            /** Format: uuid */
+            id?: string;
+            collectionRu?: string;
+            collectionAr?: string;
+            chainGrade?: string;
+            primaryChain?: boolean;
+            collectorNodeId?: string;
+        };
         SyncMasterResponse: {
             changed?: boolean;
             /** Format: int32 */
@@ -2966,55 +3042,6 @@ export interface components {
             totalPages?: number;
             hasNext?: boolean;
             hasPrev?: boolean;
-        };
-        GraphEdge: {
-            id?: string;
-            source?: string;
-            target?: string;
-            data?: components["schemas"]["EdgeData"];
-        };
-        GraphNode: {
-            id?: string;
-            role?: string;
-            data?: components["schemas"]["NarratorData"];
-        };
-        NarratorData: {
-            /** Format: uuid */
-            narratorId?: string;
-            nameAr?: string;
-            nameLatin?: string;
-            nameRu?: string;
-            kunya?: string;
-            laqab?: string;
-            /** Format: int32 */
-            yearBirthHijri?: number;
-            /** Format: int32 */
-            yearDeathHijri?: number;
-            birthplace?: string;
-            primaryResidence?: string;
-            deathPlace?: string;
-            reliabilityGrade?: string;
-            reliabilityComment?: string;
-            generation?: string;
-            collection?: string;
-            /** Format: int32 */
-            tier?: number;
-        };
-        SanadGraphResponse: {
-            /** Format: uuid */
-            hadithId?: string;
-            nodes?: components["schemas"]["GraphNode"][];
-            edges?: components["schemas"]["GraphEdge"][];
-            sanads?: components["schemas"]["SanadSummary"][];
-        };
-        SanadSummary: {
-            /** Format: uuid */
-            id?: string;
-            collectionRu?: string;
-            collectionAr?: string;
-            chainGrade?: string;
-            primaryChain?: boolean;
-            collectorNodeId?: string;
         };
         GradeDto: {
             scholar?: string;
@@ -4890,6 +4917,35 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["SunnahImportResponse"];
+                };
+            };
+        };
+    };
+    extractIsnad: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IsnadExtractionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["IsnadExtractionResponse"];
                 };
             };
         };

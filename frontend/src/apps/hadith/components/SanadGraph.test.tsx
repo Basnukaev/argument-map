@@ -35,6 +35,57 @@ describe('SanadGraph', () => {
     });
   });
 
+  it('controlled-режим: рендерит переданный graph без fetch по hadithId', async () => {
+    let fetched = false;
+    server.use(
+      http.get(GRAPH_URL, () => {
+        fetched = true;
+        return HttpResponse.json({ hadithId: 'h1', nodes: [], edges: [], sanads: [] });
+      }),
+    );
+    const graph = {
+      hadithId: 'h-preview',
+      nodes: [
+        { id: 'prophet', role: 'PROPHET' as const, data: { narratorId: null, nameAr: 'النبي محمد ﷺ', tier: 0 } },
+        {
+          id: 'narrator-1',
+          role: 'NARRATOR' as const,
+          data: {
+            narratorId: '1',
+            nameAr: 'أبو هريرة',
+            nameRu: 'Абу Хурайра',
+            reliabilityGrade: 'SAHABI' as const,
+            tier: 1,
+          },
+        },
+      ],
+      edges: [],
+      sanads: [],
+    };
+    // graph как unknown — тест передаёт частичную форму NarratorData (как и
+    // остальные кейсы в этом файле), полные поля рантайму не нужны.
+    render(<SanadGraph graph={graph as unknown as never} />);
+
+    // Узел из переданного графа отрендерился сразу, без сетевого запроса
+    expect(await screen.findByText('Абу Хурайра')).toBeInTheDocument();
+    expect(fetched).toBe(false);
+  });
+
+  it('controlled-режим: пустой/null граф показывает empty-state без fetch', async () => {
+    let fetched = false;
+    server.use(
+      http.get(GRAPH_URL, () => {
+        fetched = true;
+        return HttpResponse.json({ hadithId: 'h1', nodes: [], edges: [], sanads: [] });
+      }),
+    );
+    render(<SanadGraph graph={null} />);
+    expect(
+      await screen.findByText('Для этого хадиса иснад ещё не задокументирован'),
+    ).toBeInTheDocument();
+    expect(fetched).toBe(false);
+  });
+
   it('рендерит узлы и легенду цепей при успешном ответе', async () => {
     server.use(
       http.get(GRAPH_URL, () =>

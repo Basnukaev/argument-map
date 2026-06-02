@@ -25,38 +25,60 @@ const nodeTypes = { sanad: SanadGraphNode };
 const LEGEND_GRADES: ReliabilityGrade[] = ['SAHABI', 'THIQA', 'SADUQ', 'DAIF'];
 
 interface SanadGraphProps {
-  hadithId: string;
+  /**
+   * Self-fetch режим: компонент сам запрашивает граф по hadithId. Игнорируется,
+   * если передан проп `graph` (controlled-режим).
+   */
+  hadithId?: string;
+  /**
+   * Controlled-режим: готовый граф передаётся снаружи (admin-превью извлечённого
+   * ИИ иснада). Если проп присутствует (даже `null`) — внутренний fetch
+   * отключается; `null`/пустые узлы трактуются как empty-state.
+   */
+  graph?: SanadGraphResponse | null;
 }
 
 /**
  * Read-only визуализация иснада через React Flow. Граф строится бэкендом
  * (дедуплицированные узлы + синтетический Пророк ﷺ), раскладка — dagre TB.
  * Клик на передатчике открывает биографию в боковой панели.
+ *
+ * Два режима:
+ *  - self-fetch (`hadithId` задан, `graph` НЕ передан) — как на странице хадиса;
+ *  - controlled (`graph` передан) — рендер переданных данных без fetch
+ *    (admin-превью извлечённого ИИ иснада).
  */
-function SanadGraph({ hadithId }: SanadGraphProps) {
+function SanadGraph({ hadithId, graph: graphProp }: SanadGraphProps) {
   const t = useT();
-  const [graph, setGraph] = useState<SanadGraphResponse | null>(null);
+  // Controlled-режим определяется по присутствию пропа `graph` (даже `null`).
+  const controlled = graphProp !== undefined;
+  const [fetchedGraph, setFetchedGraph] = useState<SanadGraphResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SanadFlowNodeData | null>(null);
 
+  // В controlled-режиме источник данных — проп; иначе результат внутреннего fetch.
+  const graph = controlled ? graphProp : fetchedGraph;
+
   useEffect(() => {
+    // Fetch только в self-fetch режиме: проп `graph` не передан и есть hadithId.
+    if (controlled || !hadithId) return;
     const controller = new AbortController();
     // Сброс состояния при смене hadithId: новый граф = чистый старт
     // (loading-плейсхолдер без stale-данных предыдущего хадиса).
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setGraph(null);
+    setFetchedGraph(null);
     setError(null);
     setSelected(null);
     apiGetRaw<SanadGraphResponse>(`/api/v1/hadith/hadiths/${hadithId}/sanad-graph`, {
       signal: controller.signal,
     })
-      .then(setGraph)
+      .then(setFetchedGraph)
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;
         setError(e instanceof ApiError ? e.problem.title : String(e));
       });
     return () => controller.abort();
-  }, [hadithId]);
+  }, [controlled, hadithId]);
 
   // dagre-раскладка + маппинг дорогие, а React Flow перерисовывается часто
   // при pan/zoom — memo по graph (реальная перф-проблема, не превентивный memo).
@@ -100,14 +122,16 @@ function SanadGraph({ hadithId }: SanadGraphProps) {
       </div>
     );
   }
-  if (!graph) {
+  // Loading-плейсхолдер — только в self-fetch режиме (ждём ответ). В controlled
+  // режиме `null`/пустой граф = сразу empty-state (нечего ждать).
+  if (!controlled && !graph) {
     return (
       <div className="flex h-full items-center justify-center gap-2 text-sm text-ink-500">
         <Loader2 size={16} className="animate-spin" aria-hidden /> {t('hadith.graph.loading')}
       </div>
     );
   }
-  if (graph.nodes.length === 0) {
+  if (!graph || graph.nodes.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-ink-500">
         <Network size={28} className="text-ink-300" aria-hidden />

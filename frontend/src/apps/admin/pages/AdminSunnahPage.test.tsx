@@ -14,6 +14,7 @@ const COLLECTIONS_URL = `${BASE}/api/v1/admin/sunnah/collections`;
 const HADITHS_URL = `${BASE}/api/v1/admin/sunnah/collections/bukhari/hadiths`;
 const PREVIEW_URL = `${BASE}/api/v1/admin/sunnah/preview/bukhari/1`;
 const IMPORT_URL = `${BASE}/api/v1/admin/sunnah/import/bukhari/1`;
+const EXTRACT_URL = `${BASE}/api/v1/admin/sunnah/extract-isnad`;
 
 const ADMIN_USER = {
   id: '00000000-0000-0000-0000-000000000001',
@@ -137,9 +138,9 @@ describe('AdminSunnahPage', () => {
     expect(screen.getByText(/Actions are judged by intentions/i)).toBeInTheDocument();
     expect(screen.getByText('al-Bukhari')).toBeInTheDocument();
     expect(screen.getByText('SAHIH')).toBeInTheDocument();
-    // placeholder графа иснада
+    // вместо старого placeholder'а — кнопка извлечения иснада через ИИ
     expect(
-      screen.getByText(/Граф иснада будет извлечён на следующем этапе/i),
+      screen.getByRole('button', { name: /Извлечь иснад/i }),
     ).toBeInTheDocument();
   });
 
@@ -173,6 +174,93 @@ describe('AdminSunnahPage', () => {
       expect(imported).toBe(true);
     });
     expect(await screen.findByText(/Хадис импортирован/i)).toBeInTheDocument();
+  });
+
+  it('извлечение иснада без настроенного AI показывает note «AI не настроен»', async () => {
+    server.use(
+      http.get(COLLECTIONS_URL, () => HttpResponse.json(collections())),
+      http.get(HADITHS_URL, () => HttpResponse.json(browsePage())),
+      http.get(PREVIEW_URL, () => HttpResponse.json(preview())),
+      http.post(EXTRACT_URL, () =>
+        HttpResponse.json({ llmEnabled: false, isnadFound: false, graph: null, cleanedMatn: null }),
+      ),
+    );
+    renderPage();
+
+    await waitForApi(() => {
+      expect(screen.getByText('№1')).toBeInTheDocument();
+    });
+    await userEvent.click(screen.getByText('№1'));
+
+    const extractBtn = await screen.findByRole('button', { name: /Извлечь иснад/i });
+    await userEvent.click(extractBtn);
+
+    // note вместо краша/тоста
+    expect(await screen.findByText(/AI не настроен/i)).toBeInTheDocument();
+  });
+
+  it('извлечение иснада с графом рендерит SanadGraph (узлы видны)', async () => {
+    server.use(
+      http.get(COLLECTIONS_URL, () => HttpResponse.json(collections())),
+      http.get(HADITHS_URL, () => HttpResponse.json(browsePage())),
+      http.get(PREVIEW_URL, () => HttpResponse.json(preview())),
+      http.post(EXTRACT_URL, () =>
+        HttpResponse.json({
+          llmEnabled: true,
+          isnadFound: true,
+          cleanedMatn: 'إنما الأعمال بالنيات',
+          graph: {
+            hadithId: 'preview',
+            nodes: [
+              { id: 'prophet', role: 'PROPHET', data: { narratorId: null, nameAr: 'النبي محمد ﷺ', tier: 0 } },
+              {
+                id: 'n1',
+                role: 'NARRATOR',
+                data: {
+                  narratorId: '1',
+                  nameAr: 'أبو هريرة',
+                  nameRu: 'Абу Хурайра',
+                  reliabilityGrade: 'SAHABI',
+                  tier: 1,
+                },
+              },
+            ],
+            edges: [
+              {
+                id: 'e0',
+                source: 'prophet',
+                target: 'n1',
+                data: { transmissionPhrase: 'عن', chainGrade: 'SAHIH', onPrimaryChain: true, sanadCount: 1 },
+              },
+            ],
+            sanads: [
+              {
+                id: 's1',
+                collectionRu: 'Сахих аль-Бухари',
+                collectionAr: 'صحيح البخاري',
+                chainGrade: 'SAHIH',
+                primaryChain: true,
+                collectorNodeId: 'n1',
+              },
+            ],
+          },
+        }),
+      ),
+    );
+    renderPage();
+
+    await waitForApi(() => {
+      expect(screen.getByText('№1')).toBeInTheDocument();
+    });
+    await userEvent.click(screen.getByText('№1'));
+
+    const extractBtn = await screen.findByRole('button', { name: /Извлечь иснад/i });
+    await userEvent.click(extractBtn);
+
+    // SanadGraph отрендерил узел передатчика из извлечённого графа
+    expect(await screen.findByText('Абу Хурайра')).toBeInTheDocument();
+    // и cleanedMatn под графом
+    expect(screen.getByText(/Текст матна \(без иснада\)/i)).toBeInTheDocument();
   });
 
   it('503 показывает дружелюбный экран «Импорт Sunnah не настроен»', async () => {

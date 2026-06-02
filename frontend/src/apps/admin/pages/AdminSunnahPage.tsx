@@ -4,12 +4,16 @@ import {
   BookOpen,
   CheckCircle2,
   Download,
+  Info,
   Loader2,
   Network,
   ScrollText,
   ServerCrash,
+  Sparkles,
   X,
 } from 'lucide-react';
+import SanadGraph from '@/apps/hadith/components/SanadGraph';
+import type { SanadGraphResponse } from '@/apps/hadith/types';
 import Header from '@/shared/components/layout/Header';
 import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
@@ -28,6 +32,16 @@ type CollectionPreview = components['schemas']['SunnahCollectionPreview'];
 type BrowseItem = components['schemas']['SunnahHadithBrowseItem'];
 type HadithPreview = components['schemas']['SunnahHadithPreview'];
 type ImportResponse = components['schemas']['SunnahImportResponse'];
+type IsnadExtractionResponse = components['schemas']['IsnadExtractionResponse'];
+
+/** Локальное состояние извлечения иснада в превью (per-hadith). */
+type ExtractState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'no_ai' }
+  | { kind: 'not_found' }
+  | { kind: 'graph'; graph: SanadGraphResponse; cleanedMatn: string | null }
+  | { kind: 'error'; message: string };
 
 const PAGE_SIZE = 20;
 
@@ -279,6 +293,9 @@ function AdminSunnahPage() {
           title={t('admin.sunnah.preview_title').replace('{number}', preview.number)}
         >
           <PreviewBody
+            // key — ремонтировать тело при смене хадиса, сбросив локальный
+            // extract-state (stale-граф иснада прошлого хадиса не подмешивается)
+            key={`${preview.collection}/${preview.number}`}
             preview={preview}
             importing={importingKey === `${preview.collection}/${preview.number}`}
             onImport={doImport}
@@ -468,6 +485,9 @@ function PreviewPanel({ preview, importing, onImport, onClose, locallyImported }
       </header>
       <div className="px-4 py-4">
         <PreviewBody
+          // key — ремонтировать тело при смене хадиса, сбросив локальный
+          // extract-state (stale-граф иснада прошлого хадиса не подмешивается)
+          key={`${preview.collection}/${preview.number}`}
           preview={preview}
           importing={importing}
           onImport={onImport}
@@ -487,6 +507,39 @@ interface PreviewBodyProps {
 
 function PreviewBody({ preview, importing, onImport, locallyImported }: PreviewBodyProps) {
   const t = useT();
+  // Извлечение иснада — локальный per-hadith state. Компонент ремонтируется
+  // через key=`${collection}/${number}` при смене превью, поэтому stale-граф
+  // прошлого хадиса не подмешивается (идиома проекта вместо reset-эффекта).
+  const [extract, setExtract] = useState<ExtractState>({ kind: 'idle' });
+
+  const runExtract = async () => {
+    setExtract({ kind: 'loading' });
+    try {
+      const res = await apiPostRaw<IsnadExtractionResponse>('/api/v1/admin/sunnah/extract-isnad', {
+        collection: preview.collection,
+        number: Number(preview.number),
+      });
+      if (!res.llmEnabled) {
+        setExtract({ kind: 'no_ai' });
+      } else if (!res.isnadFound || !res.graph || (res.graph.nodes?.length ?? 0) === 0) {
+        setExtract({ kind: 'not_found' });
+      } else {
+        // Бэкенд отдаёт ту же форму графа что и hadith sanad-graph endpoint;
+        // generated-тип имеет optional-поля, hadith-тип — required. Приводим
+        // через unknown (рантайм-форма совпадает, нормализация на бэке).
+        setExtract({
+          kind: 'graph',
+          graph: res.graph as unknown as SanadGraphResponse,
+          cleanedMatn: res.cleanedMatn ?? null,
+        });
+      }
+    } catch (e) {
+      const message =
+        e instanceof ApiError ? formatSunnahError(e, t) : t('admin.sunnah.import_failed');
+      toast.error(message);
+      setExtract({ kind: 'idle' });
+    }
+  };
 
   if (preview.state.kind === 'loading') {
     return (
@@ -620,14 +673,68 @@ function PreviewBody({ preview, importing, onImport, locallyImported }: PreviewB
         </div>
       )}
 
-      {/* Isnad graph placeholder (isnad === null for now) */}
+      {/* Isnad graph — извлекается ИИ по запросу (5–15 сек) */}
       <div>
         <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-500">
           <Network size={12} aria-hidden /> {t('admin.sunnah.preview_isnad')}
         </div>
-        <div className="rounded-md border border-dashed border-border-strong bg-sunken px-3 py-4 text-center text-xs text-ink-500">
-          {t('admin.sunnah.preview_isnad_placeholder')}
-        </div>
+
+        {extract.kind === 'idle' && (
+          <Button
+            variant="secondary"
+            icon={Sparkles}
+            full
+            onClick={() => {
+              void runExtract();
+            }}
+          >
+            {t('admin.sunnah.extract_isnad')}
+          </Button>
+        )}
+
+        {extract.kind === 'loading' && (
+          <div className="flex items-center justify-center gap-2 rounded-md border border-dashed border-border-strong bg-sunken px-3 py-6 text-xs text-ink-500">
+            <Loader2 size={14} className="animate-spin" aria-hidden />
+            {t('admin.sunnah.extract_isnad_loading')}
+          </div>
+        )}
+
+        {extract.kind === 'no_ai' && (
+          <div className="flex items-start gap-2 rounded-md border border-border bg-sunken px-3 py-3 text-xs text-ink-600">
+            <Info size={14} className="mt-0.5 shrink-0 text-ink-400" aria-hidden />
+            <span>{t('admin.sunnah.extract_isnad_no_ai')}</span>
+          </div>
+        )}
+
+        {extract.kind === 'not_found' && (
+          <div className="flex items-start gap-2 rounded-md border border-border bg-sunken px-3 py-3 text-xs text-ink-600">
+            <Info size={14} className="mt-0.5 shrink-0 text-ink-400" aria-hidden />
+            <span>{t('admin.sunnah.extract_isnad_not_found')}</span>
+          </div>
+        )}
+
+        {extract.kind === 'graph' && (
+          <div className="flex flex-col gap-2">
+            <div className="h-[420px] overflow-hidden rounded-md border border-border bg-sunken">
+              <SanadGraph graph={extract.graph} />
+            </div>
+            {extract.cleanedMatn && (
+              <div>
+                <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-500">
+                  {t('admin.sunnah.extract_isnad_cleaned_matn')}
+                </div>
+                <p
+                  dir={hasArabicScript(extract.cleanedMatn) ? 'rtl' : 'auto'}
+                  className={`rounded-md border border-border bg-sunken px-3 py-2 text-sm leading-relaxed text-ink-600 ${
+                    hasArabicScript(extract.cleanedMatn) ? 'font-arabic' : ''
+                  }`}
+                >
+                  {extract.cleanedMatn}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Import CTA */}
