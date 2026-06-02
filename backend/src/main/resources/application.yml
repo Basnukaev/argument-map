@@ -257,11 +257,15 @@ resilience4j:
         # limit обычно очищается за <5 секунд.
         enable-exponential-backoff: true
         exponential-backoff-multiplier: 2
-        # Какие exceptions считать transient (retry). 4xx 401/403
-        # (invalid key) - не retry, постоянная проблема.
-        retry-exceptions:
-          - ru.basnukaev.argumentmap.library.imports.AnthropicApiException
-          - java.io.IOException
+        # Какие ошибки считать transient (retry) против permanent (не
+        # retry). retry-exception-predicate даёт per-statusCode контроль:
+        # retry ТОЛЬКО на transient (IOException, 429 rate limit, 5xx, либо
+        # statusCode=0 connection/timeout). Permanent 4xx (400 bad request,
+        # 401 invalid key, 403, 404) НЕ повторяются - повтор только множит
+        # cost+latency и оттягивает FAILED, шанса на успех нет.
+        # Predicate приоритетнее retry-exceptions (последний бы матчил
+        # любой AnthropicApiException включая 4xx).
+        retry-exception-predicate: ru.basnukaev.argumentmap.library.imports.AnthropicTransientFailurePredicate
 
   # Metrics через actuator (см. management.endpoints.web ниже).
   metrics:

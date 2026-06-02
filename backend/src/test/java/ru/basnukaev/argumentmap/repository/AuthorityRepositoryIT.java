@@ -106,6 +106,59 @@ class AuthorityRepositoryIT {
         assertThat(authorityRepository.findById(a.id())).isEmpty();
     }
 
+    // Bug-hunt Tier-3 #2: UNIQUE(name) + idempotent saveIgnoreConflict
+
+    @Test
+    void saveIgnoreConflict_secondInsertSameName_returnsCanonicalNoDuplicate() {
+        // Эмуляция find-then-insert гонки: два «вызова» вставляют одно имя.
+        // saveIgnoreConflict (ON CONFLICT name DO NOTHING + re-select) делает
+        // второй no-op и возвращает уже существующую (каноническую) строку.
+        String name = "Идемпотентный-" + UUID.randomUUID();
+        Authority first = new Authority(UUID.randomUUID(), name, "bio-1",
+                null, null, null, Instant.now(), null, null, null);
+        Authority second = new Authority(UUID.randomUUID(), name, "bio-2",
+                null, null, null, Instant.now(), null, null, null);
+
+        Authority r1 = authorityRepository.saveIgnoreConflict(first);
+        Authority r2 = authorityRepository.saveIgnoreConflict(second);
+
+        // оба вернули одну и ту же (первую) строку - дубля нет
+        assertThat(r1.id()).isEqualTo(first.id());
+        assertThat(r2.id()).isEqualTo(first.id());
+        assertThat(r2.bio()).isEqualTo("bio-1"); // вторая вставка - no-op
+        // в БД ровно одна строка под этим именем
+        assertThat(authorityRepository.findByName(name)).get()
+                .extracting(Authority::id).isEqualTo(first.id());
+    }
+
+    @Test
+    void save_duplicateName_violatesUniqueConstraint() {
+        // прямой save (без ON CONFLICT) на дубль имени - падает на UNIQUE
+        // index (миграция 66). Это страховка БД даже если код обойдёт resolver.
+        String name = "Уникальный-" + UUID.randomUUID();
+        authorityRepository.save(new Authority(UUID.randomUUID(), name, null,
+                null, null, null, Instant.now(), null, null, null));
+
+        Authority dup = new Authority(UUID.randomUUID(), name, null,
+                null, null, null, Instant.now(), null, null, null);
+
+        assertThatThrownBy(() -> authorityRepository.save(dup))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void saveIgnoreConflict_newName_insertsRow() {
+        String name = "Новый-" + UUID.randomUUID();
+        Authority a = new Authority(UUID.randomUUID(), name, "новый",
+                null, null, null, Instant.now(), null, null, null);
+
+        Authority result = authorityRepository.saveIgnoreConflict(a);
+
+        assertThat(result.id()).isEqualTo(a.id());
+        assertThat(authorityRepository.findById(a.id())).get()
+                .extracting(Authority::bio).isEqualTo("новый");
+    }
+
     // ADR-028: academic citation fields
 
     @Test

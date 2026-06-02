@@ -73,6 +73,47 @@ public class AuthorityRepository {
         );
     }
 
+    /**
+     * Идемпотентный insert authority с дедупликацией по {@code name}
+     * (UNIQUE index, миграция 66). Закрывает find-then-insert гонку:
+     * два concurrent вызова на одно имя оба проходили бы findByName
+     * (пусто) и оба делали save → дубли. {@code ON CONFLICT (name) DO
+     * NOTHING} делает вставку no-op при гонке, после чего возврат -
+     * всегда существующая каноническая строка через re-select по имени.
+     *
+     * <p>Возвращает row которая ФАКТИЧЕСКИ в БД под этим именем (либо
+     * только что вставленная нами, либо вставленная concurrent-winner'ом).
+     * Вызывающий должен использовать {@code .id()} результата, а НЕ id из
+     * переданного {@code authority} - при проигрыше гонки они различаются.
+     *
+     * @return authority под этим именем из БД (никогда не пустой -
+     *         либо insert прошёл, либо строка уже была)
+     */
+    public Authority saveIgnoreConflict(Authority authority) {
+        String type = authority.type() == null ? AuthorityType.SCHOLAR : authority.type();
+        jdbcTemplate.update(
+                "INSERT INTO authorities (" + COLUMNS + ") "
+                        + "VALUES (?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?) "
+                        + "ON CONFLICT (name) DO NOTHING",
+                authority.id(),
+                authority.name(),
+                authority.bio(),
+                authority.era(),
+                authority.madhab(),
+                authority.metadata(),
+                odt(authority.createdAt()),
+                authority.fullName(),
+                authority.deathYearHijri(),
+                type
+        );
+        // re-select - вернуть строку которая реально в БД (наша или
+        // вставленная concurrent-winner'ом при проигрыше гонки)
+        return findByName(authority.name()).orElseThrow(() ->
+                new IllegalStateException(
+                        "authority с name=" + authority.name()
+                                + " отсутствует после ON CONFLICT insert"));
+    }
+
     public Optional<Authority> findById(UUID id) {
         return jdbcTemplate.query(
                 "SELECT " + COLUMNS + " FROM authorities WHERE id = ?",
@@ -151,8 +192,9 @@ public class AuthorityRepository {
      * Точное совпадение по имени (без LIKE-маски). Используется ETL-импортом
      * shamela ({@code ShamelaToLibraryMapper}) для дедупликации авторов:
      * имя нормализуется (trim + collapse whitespace) на стороне маппера,
-     * затем ищется один-в-один. Возвращает первого найденного - в схеме
-     * нет UNIQUE на name, при коллизии берём самого старого.
+     * затем ищется один-в-один. С миграции 66 на name есть UNIQUE index -
+     * максимум одна строка. {@code ORDER BY created_at LIMIT 1} оставлен
+     * как defensive (исторический инвариант), хотя при UNIQUE избыточен.
      */
     public Optional<Authority> findByName(String name) {
         return jdbcTemplate.query(

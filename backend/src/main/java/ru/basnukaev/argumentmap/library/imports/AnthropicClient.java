@@ -29,8 +29,11 @@ import io.github.resilience4j.retry.annotation.Retry;
  * streaming responses / batch API - переехать на SDK.
  *
  * <p>Защищён Resilience4j {@code @Retry(name="anthropicApi")} - max
- * 3 попытки на transient errors (429 rate limit, 5xx server error,
- * IOException). Конфиг в {@code application.yml} {@code
+ * 3 попытки ТОЛЬКО на transient errors (429 rate limit, 5xx server
+ * error, IOException/timeout). Permanent 4xx (400/401/403/404) НЕ
+ * повторяются - повтор только множит cost+latency. Решает
+ * {@link AnthropicTransientFailurePredicate}. Конфиг в
+ * {@code application.yml} {@code
  * resilience4j.retry.instances.anthropicApi}.
  *
  * <p>Disabled mode - если {@code ai.anthropic.api-key=disabled}
@@ -117,9 +120,11 @@ public class AnthropicClient {
      * Отправить user prompt в Claude Messages API + извлечь text из
      * первого content block ответа.
      *
-     * <p>Retry через Resilience4j (3 attempts, exponential backoff)
-     * на transient failures - 429/5xx → {@link AnthropicApiException},
-     * IOException, InterruptedException.
+     * <p>Retry через Resilience4j (до 3 attempts, exponential backoff)
+     * ТОЛЬКО на transient failures - 429/5xx → {@link AnthropicApiException},
+     * IOException/timeout (statusCode=0). Permanent 4xx (400/401/403/404)
+     * пробрасываются сразу без повтора (см.
+     * {@link AnthropicTransientFailurePredicate}).
      *
      * @param userPrompt полный текст user message (включая prompt
      *                   template + raw arabic text)

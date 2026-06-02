@@ -6050,3 +6050,27 @@ BookReader как полноценной книги — отдельная за�
 **Связанные:** ADR-050 (выделенная `hd_collections`), ADR-052 (sunnah
 import), ADR-028 (мост Source для citation — тот же ленивый паттерн),
 ADR-043 Amendment (book visibility default PUBLIC).
+
+## ADR-055: UNIQUE на authorities.name + идемпотентный find-or-create (миграция 66)
+
+**Контекст.** `ShamelaAuthorityResolver` (и др. find-or-create авторитетов)
+делали `findByName` → если нет, `insert` — двухшаговый паттерн. При
+конкурентных импортах (две книги одного автора) гонка создавала дубликаты
+authority-строк. На `authorities.name` был только не-уникальный B-tree индекс.
+(Bug-hunt Tier-3 Сессии 52.)
+
+**Решение.** **Миграция 66** — UNIQUE-индекс на `authorities(name)` + защитный
+in-migration дедуп: перед созданием индекса схлопывает существующие дубли,
+перенаправляя живые FK (`sources.authority_id`, `hadith_grades.scholar_id`,
+`lib_books.authority_id`) на канонную строку. `AuthorityRepository.
+saveIgnoreConflict` = `INSERT ... ON CONFLICT (name) DO NOTHING` + re-select →
+возвращает канонную строку даже если конкурент вставил первым. `resolve`/
+`resolveAnonymous` переведены на него. Дев-БД пуста (после чистки Сессии 54) —
+индекс лёг чисто, без дедупа.
+
+**Trade-offs:** + конкурентный импорт идемпотентен, нет дубликатов авторитетов;
+− `name`-уникальность означает что два разных автора с идентичным именем
+схлопнутся (приемлемо — academic citation metadata различает их доп. полями
+муhaккик/год; при необходимости позже natural key расширить).
+
+**Связанные:** ADR-028 (academic citation metadata), бэк-хант Сессии 52.

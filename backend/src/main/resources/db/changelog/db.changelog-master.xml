@@ -70,5 +70,6 @@
     <include file="db/changelog/changes/20260602-63-drop-user-preferences.xml"/>
     <include file="db/changelog/changes/20260602-64-create-answer-votes.xml"/>
     <include file="db/changelog/changes/20260602-65-hd-collections-book-bridge.xml"/>
+    <include file="db/changelog/changes/20260602-66-authorities-name-unique.xml"/>
 
 </databaseChangeLog>

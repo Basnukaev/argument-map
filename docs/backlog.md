@@ -493,18 +493,52 @@ Security hardening:
       unbounded (anti-spam dedup отложен Phase 2.b). `BookController.java:113`.
 
 Concurrency (применить tryClaim-паттерн как в AI-edit #10 / refresh #4):
-- [ ] **OCR re-trigger concurrent** — нет check-then-act guard → duplicate
+- [x] **OCR re-trigger concurrent** — нет check-then-act guard → duplicate
       OCR, last-write-wins. `OcrController.java:73` + `OcrService.java:127`.
-- [ ] **ShamelaAuthorityResolver find-then-insert** — без uniqueness guard
+      **Закрыто:** атомарный claim `PageRepository.tryClaimOcrProcessing`
+      (зеркало `tryClaimAiEditProcessing`) — conditional UPDATE
+      `SET ocr_status=PROCESSING WHERE ocr_status IS DISTINCT FROM PROCESSING`,
+      возвращает rows==1 только winner'у. `OcrService.recognize` после
+      precondition'ов вызывает claim; loser выходит не запуская Tesseract.
+      Tests: `OcrServiceConcurrencyIT` (2: already-PROCESSING → bail без
+      перезаписи; no-image → FAILED до claim) + `PageRepositoryIT`
+      (first wins / second loses).
+- [x] **ShamelaAuthorityResolver find-then-insert** — без uniqueness guard
       → дубли authorities при concurrent import. `ShamelaAuthorityResolver.java:69`.
-- [ ] **AnthropicClient retry на permanent 4xx** — multiplies cost +
+      **Закрыто:** миграция 66 — UNIQUE index на `authorities(name)`
+      (натуральный ключ дедупликации; заменил non-unique idx, dedup
+      существующих перед constraint с repoint живых FK sources/hadith_grades/
+      lib_books). `AuthorityRepository.saveIgnoreConflict` —
+      `INSERT ... ON CONFLICT (name) DO NOTHING` + re-select → возвращает
+      каноническую строку при проигрыше гонки. Resolver (resolve +
+      resolveAnonymous) использует его вместо `save`. Tests:
+      `AuthorityRepositoryIT` (3: idempotent re-insert, UNIQUE violation на
+      прямом save, new insert) + `ShamelaToLibraryMapperIT` (2: resolve/
+      anonymous дважды → один row).
+- [x] **AnthropicClient retry на permanent 4xx** — multiplies cost +
       stall FAILED signal. `AnthropicClient.java:133`.
+      **Закрыто:** retry-политика через `retry-exception-predicate`
+      (`AnthropicTransientFailurePredicate`) вместо `retry-exceptions`:
+      retry ТОЛЬКО на transient (IOException, statusCode 0=connection/timeout,
+      429, 5xx); permanent 4xx (400/401/403/404) и невалидный LLM JSON
+      (mapped 200) НЕ повторяются. `application.yml`
+      `resilience4j.retry.instances.anthropicApi`. Test:
+      `AnthropicTransientFailurePredicateTest` (7: 5xx/429/IO/timeout → retry;
+      400/401/403/404/409/422/200 → no retry).
 
 Logic:
 - [ ] **OcrService NULL→FAILED** для страниц без скана (not-applicable
-      перезаписывается FAILED). `OcrService.java:121`.
-- [ ] **updateOcrStatus COALESCE** preserves stale ocr_completed_at при
-      re-run DONE/FAILED. `PageRepository.java:205`.
+      перезаписывается FAILED). `OcrService.java:121`. **Отложено:** корректный
+      фикс требует нового статуса (NOT_APPLICABLE/SKIPPED) → миграция CHECK
+      constraint (34) + frontend handling — не low-effort, не форсируем.
+      FAILED для страницы без скана пока приемлемо (re-OCR не поможет, но и
+      вреда нет).
+- [x] **updateOcrStatus COALESCE** preserves stale ocr_completed_at при
+      re-run DONE/FAILED. `PageRepository.java:205`. **Закрыто** заодно с #1:
+      `tryClaimOcrProcessing` при claim PROCESSING явно ставит
+      `ocr_completed_at = NULL` (не COALESCE) — re-OCR ранее завершённой
+      страницы больше не показывает stale «завершено» пока статус PROCESSING.
+      Test: `PageRepositoryIT.tryClaimOcrProcessing_clearsStaleCompletedAt`.
 - [ ] **ShamelaChapterMapper** silently drops главы в parent-ref cycle
       (no error/log). `ShamelaChapterMapper.java:67`.
 - [ ] **ShamelaBibliographyParser** dash-split mis-routes publisher →

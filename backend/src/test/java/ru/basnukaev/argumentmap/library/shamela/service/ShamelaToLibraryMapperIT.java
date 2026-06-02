@@ -41,6 +41,7 @@ import ru.basnukaev.argumentmap.repository.AuthorityRepository;
 class ShamelaToLibraryMapperIT {
 
     @Autowired private ShamelaToLibraryMapper mapper;
+    @Autowired private ru.basnukaev.argumentmap.library.shamela.service.mapper.ShamelaAuthorityResolver authorityResolver;
     @Autowired private ShamelaBookDao shamelaBookDao;
     @Autowired private ShamelaAuthorDao shamelaAuthorDao;
     @Autowired private ShamelaTitleDao shamelaTitleDao;
@@ -212,6 +213,35 @@ class ShamelaToLibraryMapperIT {
         assertThat(authority.name()).isEqualTo("Ибн Таймия");
         // в БД ровно одна Authority - переиспользована
         assertThat(authorityRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    void resolve_calledTwiceForSameAuthor_idempotentNoDuplicate() {
+        // Bug-hunt Tier-3 #2: find-then-insert через saveIgnoreConflict.
+        // Повторный resolve того же shamela-автора (эмуляция concurrent
+        // import дошедшего до save дважды) возвращает тот же authority id,
+        // в БД ровно одна строка - UNIQUE(name) + ON CONFLICT DO NOTHING.
+        seedAuthor(100L, "Ибн Касир", "автор");
+
+        UUID first = authorityResolver.resolve(100L);
+        UUID second = authorityResolver.resolve(100L);
+
+        assertThat(first).isEqualTo(second);
+        assertThat(authorityRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    void resolve_anonymousCalledTwice_idempotentNoDuplicate() {
+        // null author_id → anonymous-fallback. Повторный resolve не плодит
+        // дубли shamela:anonymous (concurrent import без автора).
+        UUID first = authorityResolver.resolve(null);
+        UUID second = authorityResolver.resolve(null);
+
+        assertThat(first).isEqualTo(second);
+        List<Authority> all = authorityRepository.findAll();
+        assertThat(all).hasSize(1);
+        assertThat(all.get(0).name())
+                .isEqualTo(ShamelaToLibraryMapper.ANONYMOUS_AUTHORITY_NAME);
     }
 
     @Test

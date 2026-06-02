@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        UNIQUE на authorities(name) - закрывает find-then-insert гонку в
+        ShamelaAuthorityResolver (Bug-hunt Tier-3 #2). Два concurrent
+        импорта на одного автора оба проходили findByName (пусто) и оба
+        делали save → дубли authority-строк. name - натуральный ключ
+        дедупликации: весь resolver (и ETL-импорт) опирается на reuse по
+        нормализованному имени (ShamelaToLibraryMapperIT
+        reuses_existing_authority_with_same_normalized_name). UNIQUE даёт
+        атомарный idempotent insert через ON CONFLICT (name) DO NOTHING +
+        re-select в AuthorityRepository.saveIgnoreConflict.
+
+        Дедупликация перед constraint (defensive): прод-схема дублей по
+        name не имеет (единственные программные создатели - resolver +
+        user/topic-import, все keyed на name; data-seed'ов authorities нет),
+        но если они существуют - сливаем в самую старую строку:
+          1) repoint все 3 живых FK на authorities(id): sources.authority_id,
+             hadith_grades.scholar_id, lib_books.authority_id (таблица
+             node_authorities дропнута миграцией 15 - привязка теперь через
+             sources.authority_id);
+          2) удалить дубли. hadith_grades имеет UNIQUE(source_id, scholar_id)
+             - после repoint возможны дубли пары, чистим их ДО repoint'а.
+        После - DROP старого non-unique idx_authorities_name (UNIQUE index
+        его заменяет, B-tree lookup тот же).
+    -->
+    <changeSet id="20260602-66-authorities-name-unique" author="Abdula Basnukaev">
+        <comment>UNIQUE authorities(name) - idempotent authority resolve, защита от find-then-insert гонки</comment>
+        <sql><![CDATA[
+            -- Канон каждого имени = самая старая строка (минимальный created_at,
+            -- tie-break по id). Маппинг dup_id -> canonical_id.
+            CREATE TEMP TABLE authority_canon AS
+            SELECT a.id AS dup_id, c.canonical_id
+            FROM authorities a
+            JOIN (
+                SELECT name, (
+                    SELECT id FROM authorities a2
+                    WHERE a2.name = a1.name
+                    ORDER BY created_at, id
+                    LIMIT 1
+                ) AS canonical_id
+                FROM authorities a1
+                GROUP BY name
+            ) c ON a.name = c.name
+            WHERE a.id <> c.canonical_id;
+
+            -- Чистим дубли-пары в hadith_grades (UNIQUE(source_id, scholar_id))
+            -- ДО repoint, иначе repoint нарушил бы constraint.
+            DELETE FROM hadith_grades hg
+            USING authority_canon ac
+            WHERE hg.scholar_id = ac.dup_id
+              AND EXISTS (
+                SELECT 1 FROM hadith_grades hg2
+                WHERE hg2.source_id = hg.source_id
+                  AND hg2.scholar_id = ac.canonical_id
+              );
+
+            -- Repoint оставшихся FK на канон.
+            UPDATE hadith_grades hg SET scholar_id = ac.canonical_id
+            FROM authority_canon ac WHERE hg.scholar_id = ac.dup_id;
+
+            UPDATE sources s SET authority_id = ac.canonical_id
+            FROM authority_canon ac WHERE s.authority_id = ac.dup_id;
+
+            UPDATE lib_books b SET authority_id = ac.canonical_id
+            FROM authority_canon ac WHERE b.authority_id = ac.dup_id;
+
+            -- Удалить дубли-authorities (FK уже перенаправлены).
+            DELETE FROM authorities a USING authority_canon ac WHERE a.id = ac.dup_id;
+
+            DROP TABLE authority_canon;
+
+            -- UNIQUE index заменяет старый non-unique (lookup идентичен).
+            DROP INDEX IF EXISTS idx_authorities_name;
+            CREATE UNIQUE INDEX idx_authorities_name ON authorities(name);
+        ]]></sql>
+        <rollback><![CDATA[
+            DROP INDEX IF EXISTS idx_authorities_name;
+            CREATE INDEX idx_authorities_name ON authorities(name);
+        ]]></rollback>
+    </changeSet>
+
+</databaseChangeLog>

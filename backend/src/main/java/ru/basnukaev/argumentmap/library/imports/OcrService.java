@@ -123,9 +123,17 @@ public class OcrService {
             return;
         }
 
-        // PENDING/FAILED/DONE -> PROCESSING
-        pageRepository.updateOcrStatus(pageId, OcrStatus.PROCESSING,
-                Instant.now(), null);
+        // Атомарный claim PROCESSING: если другой concurrent вызов уже в
+        // PROCESSING - не запускаем второй Tesseract recognize. Защита от
+        // double-submit / re-trigger в полёте (check-then-act гонка, тот же
+        // паттерн что у AiEditService).
+        boolean claimed = pageRepository.tryClaimOcrProcessing(
+                pageId, OcrStatus.PROCESSING, Instant.now());
+        if (!claimed) {
+            log.info("OCR пропущен для page {} - уже PROCESSING "
+                    + "(concurrent trigger), второй recognize не запускаем", pageId);
+            return;
+        }
 
         Path tempFile = null;
         try {

@@ -71,7 +71,10 @@ public class ShamelaAuthorityResolver {
             return existing.get().id();
         }
         // shamela импортирует авторов книг - type=AUTHOR. До миграции 47
-        // эти rows получали бы default SCHOLAR (через DB), теперь явно
+        // эти rows получали бы default SCHOLAR (через DB), теперь явно.
+        // saveIgnoreConflict (ON CONFLICT name DO NOTHING + re-select):
+        // защита от concurrent find-then-insert гонки - при проигрыше
+        // возвращается каноническая строка, не дубль (Bug-hunt Tier-3 #2).
         Authority created = new Authority(
                 UUID.randomUUID(),
                 normalized,
@@ -83,8 +86,7 @@ public class ShamelaAuthorityResolver {
                 null, null,
                 AuthorityType.AUTHOR
         );
-        authorityRepository.save(created);
-        return created.id();
+        return authorityRepository.saveIgnoreConflict(created).id();
     }
 
     private UUID resolveAnonymous() {
@@ -92,7 +94,9 @@ public class ShamelaAuthorityResolver {
         if (existing.isPresent()) {
             return existing.get().id();
         }
-        // anonymous-fallback также AUTHOR (книжный контекст)
+        // anonymous-fallback также AUTHOR (книжный контекст). Тот же
+        // idempotent insert что и в resolve() - concurrent импорты без
+        // автора иначе плодили бы дубли shamela:anonymous.
         Authority created = new Authority(
                 UUID.randomUUID(),
                 ANONYMOUS_AUTHORITY_NAME,
@@ -104,7 +108,6 @@ public class ShamelaAuthorityResolver {
                 null, null,
                 AuthorityType.AUTHOR
         );
-        authorityRepository.save(created);
-        return created.id();
+        return authorityRepository.saveIgnoreConflict(created).id();
     }
 }

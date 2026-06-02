@@ -214,6 +214,45 @@ public class PageRepository {
     }
 
     /**
+     * Атомарный compare-and-set для OCR pipeline: переводит страницу в
+     * {@code processingStatus} только если она ещё НЕ в этом статусе
+     * ({@code ocr_status IS DISTINCT FROM ?} - корректно обрабатывает
+     * NULL/PENDING/DONE/FAILED). Возвращает true если ИМЕННО ЭТОТ вызов
+     * выиграл переход (rows==1), false если другой concurrent вызов уже
+     * застолбил PROCESSING либо page не найден.
+     *
+     * <p>Защита от check-then-act гонки (тот же паттерн что и
+     * {@link #tryClaimAiEditProcessing}): два параллельных
+     * POST /pages/{id}/ocr для одной страницы (double-submit / re-trigger)
+     * иначе оба запустили бы Tesseract recognize - дублирующая тяжёлая
+     * работа и last-write-wins на text_content. Только winner транзакции
+     * делает doOcr(). Status передаётся строкой - repository не coupled к
+     * OcrStatus (как и updateOcrStatus).
+     *
+     * <p>{@code ocr_completed_at = NULL} при claim: re-OCR ранее
+     * завершённой (DONE/FAILED) страницы иначе оставил бы stale
+     * completed_at от предыдущего прогона, пока статус PROCESSING -
+     * фронт показывал бы «завершено» у обрабатывающейся страницы
+     * (Bug-hunt Tier-3 COALESCE-баг). started_at перетираем на now.
+     */
+    public boolean tryClaimOcrProcessing(UUID id, String processingStatus,
+                                          Instant startedAt) {
+        int rows = jdbcTemplate.update(
+                "UPDATE lib_pages SET ocr_status = ?, "
+                        + "ocr_started_at = ?, "
+                        + "ocr_completed_at = NULL, "
+                        + "updated_at = now() "
+                        + "WHERE id = ? "
+                        + "AND ocr_status IS DISTINCT FROM ?",
+                processingStatus,
+                odt(startedAt),
+                id,
+                processingStatus
+        );
+        return rows == 1;
+    }
+
+    /**
      * Перезаписать text_content с результатом OCR + бамп updated_at +
      * установить ocr_status=DONE и completed_at=now. Атомарная транзакция -
      * либо весь успех, либо вся ошибка. Используется {@code OcrService}
