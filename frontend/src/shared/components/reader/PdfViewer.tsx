@@ -68,6 +68,18 @@ interface PdfViewerProps {
    * пересекается с overlay-структурой — передавать false.
    */
   stickyToolbar?: boolean;
+  /**
+   * Нормализованный прямоугольник bbox-цитаты `[x, y, width, height]`,
+   * каждое значение 0..1 (доля от размера PDF-страницы; x,y = верхний
+   * левый угол). При переходе по deep-link citation подсвечиваем эту
+   * область поверх PDF-страницы. Подсветка показывается ТОЛЬКО на той
+   * странице, на которую вёл deep-link (initialPrintedPage / startPage);
+   * при навигации prev/next она скрывается. null → подсветки нет.
+   *
+   * <p>DISPLAY-only: рисование/выбор bbox (CREATION) — отдельный этап
+   * (roadmap 25.f).
+   */
+  initialBbox?: [number, number, number, number] | null;
 }
 
 type LoadState =
@@ -142,7 +154,13 @@ function findFileIndexForPart(
   return null;
 }
 
-function PdfViewer({ bookId, initialPart, initialPrintedPage, stickyToolbar = true }: PdfViewerProps) {
+function PdfViewer({
+  bookId,
+  initialPart,
+  initialPrintedPage,
+  stickyToolbar = true,
+  initialBbox = null,
+}: PdfViewerProps) {
   const locale = useLocaleStore((s) => s.locale);
   const t = useT();
   // Toolbar (стрелки, направление flex) - по локали интерфейса
@@ -289,6 +307,16 @@ function PdfViewer({ bookId, initialPart, initialPrintedPage, stickyToolbar = tr
   // арабский (U+0600-U+06FF), цифры. Всё остальное (точки, пробелы, пунктуация) → _
   const sanitizedLabel = currentLabel?.replace(/[^A-Za-zА-Яа-яёЁ0-9؀-ۿ]+/g, '_').replace(/^_+|_+$/g, '');
   const downloadFilename = `${bookId}-${activeFileIndex}${sanitizedLabel ? `-${sanitizedLabel}` : ''}.pdf`;
+
+  // Bbox-подсветка цитаты. Показываем только на той странице, на которую
+  // вёл deep-link (startPage), и только пока юзер с неё не ушёл prev/next.
+  // startPage clamp'ится в onLoadSuccess к numPages (deep-link мог указывать
+  // printed_page > числа PDF-страниц) — поэтому сверяем с уже clamp'нутым
+  // pageNumber через min(startPage, numPages). Overlay позиционируется в %
+  // от обёртки <Page> → масштабируется вместе с zoom (scale меняет размер
+  // обёртки, проценты остаются те же).
+  const deepLinkPage = numPages ? Math.min(startPage, numPages) : startPage;
+  const showBbox = initialBbox != null && pageNumber === deepLinkPage;
 
   const goPrev = () => {
     if (pageNumber > 1) changePage(pageNumber - 1);
@@ -500,15 +528,36 @@ function PdfViewer({ bookId, initialPart, initialPrintedPage, stickyToolbar = tr
           >
             {/* loading={null} - не показываем спиннер на каждый prev/next,
                 react-pdf оставляет предыдущую страницу видимой пока новая
-                рендерится. Сильно убирает flicker на быстрых клик-паттернах */}
-            <Page
-              pageNumber={pageNumber}
-              scale={scale}
-              className="shadow-lg"
-              loading={null}
-              renderTextLayer
-              renderAnnotationLayer={false}
-            />
+                рендерится. Сильно убирает flicker на быстрых клик-паттернах.
+
+                Обёртка `relative inline-block` плотно облегает canvas <Page>
+                (inline-block ужимается до его размера), поэтому absolute-
+                overlay с процентными координатами якорится точно к странице
+                и масштабируется вместе с zoom (scale → меняется размер
+                canvas → меняется размер обёртки → проценты те же). */}
+            <div className="relative inline-block">
+              <Page
+                pageNumber={pageNumber}
+                scale={scale}
+                className="shadow-lg"
+                loading={null}
+                renderTextLayer
+                renderAnnotationLayer={false}
+              />
+              {showBbox && initialBbox && (
+                <div
+                  data-testid="pdf-bbox-highlight"
+                  aria-hidden="true"
+                  className="pointer-events-none absolute rounded-sm bg-amber-300/20 ring-2 ring-amber-400/80"
+                  style={{
+                    left: `${initialBbox[0] * 100}%`,
+                    top: `${initialBbox[1] * 100}%`,
+                    width: `${initialBbox[2] * 100}%`,
+                    height: `${initialBbox[3] * 100}%`,
+                  }}
+                />
+              )}
+            </div>
           </Document>
         </div>
       </div>

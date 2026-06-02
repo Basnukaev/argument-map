@@ -93,6 +93,7 @@ export const DICTIONARY = {
     'reader.mode.pdf': 'PDF',
     'reader.page_loading': 'Загрузка страницы',
     'reader.page_empty': 'Страница пустая',
+    'reader.no_pages': 'В этой книге пока нет страниц',
     'reader.open_pdf_page_title': 'Открыть PDF оригинала на этой странице',
 
     // topic list page
@@ -1530,6 +1531,7 @@ export const DICTIONARY = {
     'reader.mode.pdf': 'PDF',
     'reader.page_loading': 'جارٍ تحميل الصفحة',
     'reader.page_empty': 'الصفحة فارغة',
+    'reader.no_pages': 'لا توجد صفحات في هذا الكتاب بعد',
     'reader.open_pdf_page_title': 'افتح PDF الأصلي في هذه الصفحة',
 
     'topic.list.eyebrow': 'الحجاج · المواضيع',

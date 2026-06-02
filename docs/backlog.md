@@ -141,6 +141,17 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
 - [ ] **Source picker для книг** - таб «Книги» с навигацией том /
       страница, интеграция с shamela.ws. Самая большая работа
       из source pickers _(SourcePickerBooks)_
+- [ ] **FILE_ONLY bbox-citation CREATION (roadmap 25.f, region
+      selection)** — `CitationPicker` сейчас цитирует только
+      text-страницы (`bookState.pages`); для FILE_ONLY книг
+      (archive.org сканы, 0 текстовых страниц) нужен PDF-режим
+      выбора: показать PDF-страницу + нарисовать bbox
+      (react-image-crop) → создать citation с pdf-локацией
+      `{fileId, pageNumber, bbox}`. **DISPLAY-сторона** (подсветка
+      bbox при переходе по deep-link `?bbox=x,y,width,height` —
+      overlay поверх PDF-страницы в `PdfViewer`) **сделана в
+      Сессии 55**; остаётся CREATION (рисование/выбор области)
+      _(CitationPickerPdfRegion)_
 - [x] **Source detail panel** - закрыто 2026-05-18. 800px параллельная
       боковая панель (fullscreen на mobile) с полным содержанием
       цитируемого источника. Архитектура: `useSourceDetailPanelStore`

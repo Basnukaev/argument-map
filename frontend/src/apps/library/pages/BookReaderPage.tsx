@@ -206,6 +206,27 @@ function BookReaderPage() {
     return [s, e];
   }, [searchParams]);
 
+  // Bbox из ?bbox=x,y,width,height - нормализованный (0..1) прямоугольник
+  // области PDF-цитаты (см. NodeCitationsSection.buildDeepLink). Передаём в
+  // PdfViewer для подсветки области поверх страницы. Зеркалит паттерн
+  // highlightRange: silent fallback при corrupted значениях (NaN / не 4
+  // числа), не падаем. Координаты держим в широком диапазоне (slack за 0..1
+  // допускаем — overlay сам clamp'ится визуально через overflow страницы),
+  // отсекаем только нечисловые / неполные значения.
+  const initialBbox = useMemo<[number, number, number, number] | null>(() => {
+    const param = searchParams.get('bbox');
+    if (!param) return null;
+    const parts = param.split(',');
+    if (parts.length !== 4) return null;
+    const nums = parts.map((p) => Number(p.trim()));
+    if (nums.some((n) => !Number.isFinite(n))) return null;
+    const [x, y, w, h] = nums as [number, number, number, number];
+    // width/height должны быть положительны - иначе невидимый/инвертированный
+    // прямоугольник, считаем malformed.
+    if (w <= 0 || h <= 0) return null;
+    return [x, y, w, h];
+  }, [searchParams]);
+
   // Загрузка контента текущей страницы. Loading state выставляется в
   // event handlers (goPrev/goNext) и initial useState, не в effect - это
   // правило react-hooks/set-state-in-effect (см. gotchas)
@@ -515,7 +536,19 @@ function BookReaderPage() {
                   </div>
                 </BookHeader>
               </Card>
-              {effectiveMode === 'text' && (
+              {/* 0-page guard: TEXT_ONLY / legacy / TEXT_AND_FILE книга без
+                  единой текстовой страницы (defensive — не должно случаться,
+                  но если случилось: page-content effect рано выходит при
+                  отсутствии target.id → pageContent застревает в 'loading'
+                  → вечный спиннер «Загрузка страницы»). Показываем пустое
+                  состояние вместо спиннера. FILE_ONLY сюда не попадает —
+                  для него effectiveMode='pdf'. */}
+              {effectiveMode === 'text' && totalPages === 0 && (
+                <Card className="p-12 text-center">
+                  <p className="text-sm text-ink-400">{t('reader.no_pages')}</p>
+                </Card>
+              )}
+              {effectiveMode === 'text' && totalPages > 0 && (
                 <>
                   {/* Toolbar: prev/next + page jump + reader mode switch.
                       Desktop: sticky top-12 (= h-12 глобального Header'а,
@@ -635,6 +668,7 @@ function BookReaderPage() {
                 bookId={bookId}
                 initialPart={currentPart}
                 initialPrintedPage={pdfDeepLinkPage ?? currentPrintedPage}
+                initialBbox={initialBbox}
               />
                   </Suspense>
                 </>
@@ -714,6 +748,7 @@ function BookReaderPage() {
                 initialPart={currentPart}
                 initialPrintedPage={currentPrintedPage}
                 stickyToolbar={false}
+                initialBbox={initialBbox}
               />
             </Suspense>
           </div>

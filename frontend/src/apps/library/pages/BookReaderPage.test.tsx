@@ -10,9 +10,14 @@ const BASE = 'http://test.local';
 
 // PdfViewer lazy-грузит react-pdf + pdfjs-dist (тяжёлые, не работают в jsdom).
 // Мокаем компонент простым маркером - нам важно лишь что PDF-панель смонтирована,
-// а не реальный рендеринг страниц.
+// а не реальный рендеринг страниц. initialBbox сериализуем в data-атрибут,
+// чтобы тест мог проверить что deep-link ?bbox распарсился и долетел до prop.
 vi.mock('@/shared/components/reader/PdfViewer', () => ({
-  default: () => <div data-testid="pdf-viewer">PDF VIEWER</div>,
+  default: ({ initialBbox }: { initialBbox?: [number, number, number, number] | null }) => (
+    <div data-testid="pdf-viewer" data-bbox={initialBbox ? initialBbox.join(',') : ''}>
+      PDF VIEWER
+    </div>
+  ),
 }));
 
 type ContentKind = 'TEXT_ONLY' | 'TEXT_AND_FILE' | 'FILE_ONLY';
@@ -61,9 +66,9 @@ function mockBook(opts: BookFixtureOpts = {}) {
   );
 }
 
-function renderReader() {
+function renderReader(entry = '/books/bk-1') {
   return render(
-    <MemoryRouter initialEntries={['/books/bk-1']}>
+    <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route path="/books/:bookId" element={<BookReaderPage />} />
       </Routes>
@@ -128,5 +133,34 @@ describe('BookReaderPage / content_kind режимы reader', () => {
     });
     expect(screen.getByRole('button', { name: 'Текст' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'PDF' }).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('deep-link ?pdf=1&bbox=... парсится и передаётся в PdfViewer как initialBbox', async () => {
+    // FILE_ONLY → сразу PDF-режим; ?bbox распарсится в [0.1,0.2,0.3,0.4]
+    // и долетит до prop PdfViewer (мок сериализует его в data-bbox).
+    mockBook({ contentKind: 'FILE_ONLY', pageCount: 0 });
+    renderReader('/books/bk-1?pdf=1&pdfPageNumber=3&bbox=0.1,0.2,0.3,0.4');
+
+    const viewer = await screen.findByTestId('pdf-viewer');
+    expect(viewer).toHaveAttribute('data-bbox', '0.1,0.2,0.3,0.4');
+  });
+
+  it('без ?bbox - initialBbox в PdfViewer пустой (null)', async () => {
+    mockBook({ contentKind: 'FILE_ONLY', pageCount: 0 });
+    renderReader('/books/bk-1?pdf=1&pdfPageNumber=3');
+
+    const viewer = await screen.findByTestId('pdf-viewer');
+    expect(viewer).toHaveAttribute('data-bbox', '');
+  });
+
+  it('TEXT_ONLY с 0 страниц - показывает пустое состояние «Нет страниц», а не вечный спиннер', async () => {
+    mockBook({ contentKind: 'TEXT_ONLY', pageCount: 0 });
+    renderReader();
+
+    await waitForUi(() => {
+      expect(screen.getByText(/В этой книге пока нет страниц/i)).toBeInTheDocument();
+    });
+    // спиннер «Загрузка страницы» НЕ висит
+    expect(screen.queryByText(/Загрузка страницы/i)).not.toBeInTheDocument();
   });
 });
