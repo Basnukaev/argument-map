@@ -63,3 +63,4 @@ frontend/playwright-report/
 *:Zone.Identifier
 /package.json
 /package-lock.json
+*.har

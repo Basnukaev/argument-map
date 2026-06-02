@@ -9,6 +9,36 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
+## 2026-06-02 - Сессия 54 (батч 5) - archive.org PDF-импорт MVP (новый инструмент)
+
+Запрос Абдулы: админ-инструмент импорта книг из archive.org по URL (parser +
+preview + gap-aware enrichment + выбор обложки/томов). Brainstorm→спека
+(`docs/superpowers/specs/2026-06-02-archive-org-pdf-import-design.md`, одобрена)
+→ реализация 2 субагентами (backend+frontend). ADR-056, migration 67. ~3 коммита.
+
+### Сделано (MVP)
+- **Backend** (ADR-056): `ArchiveOrgClient` (metadata API, extractIdentifier, CB) +
+  `ArchiveOrgMetadataMapper` (provenance archive_org/missing + авто-группировка
+  cover/volumes original+OCR, устойчиво к вариативности) + `ArchiveOrgImportService`
+  (preview no-write + import: lib_books + pdf_links **dual-variant object-form** +
+  cover_url + академ.поля + lazy PDF + test-mode N страниц + идемпотентность по
+  metadata.archive_org_id) + `ArchiveOrgAdminController` (ADMIN-only). migration 67
+  cover_url. PdfLinksSourceProvider backward-compat (legacy string + object form).
+  +45 IT, реальные фикстуры.
+- **Frontend**: `AdminArchiveOrgPage` (/admin/archive-org) URL→preview с gap-бейджами
+  (зелёный из источника / жёлтый «нет, заполни») + raw arabic description + список
+  томов (original/OCR/«только скан») + cover-picker + test-mode тумблер → импорт.
+  Dashboard-карточка. +5 тестов (27 pass).
+- **Live-smoke прошёл**: `/admin/archive-org/preview?url=...fmhji` → реальные
+  метаданные, title+language=archive_org, остальное=missing (как задумано).
+
+### Следующий шаг (итерации archive.org, в тестовой эксплуатации)
+Полное фоновое извлечение всех томов (+Tesseract scan-only); **`BookResponse.coverUrl`
++ рендер обложки на карточке/reader** (backend SET'ит cover_url, но не отдаёт —
+мелкий backend follow-up); volume-dropdown в reader; eager-download UI; relabel/
+reassign томов в preview; парсинг arabic description для publisher/year/volumes;
+provenance-enrichment как общий паттерн для shamela/sunnah/alminasa. Детали — спека §10.
+
 ## 2026-06-02 - Сессия 54 (батч 4) - «го дальше»: hd_collections UI + shamela guard + review + зелёный CI
 
 Продолжение по бэклогу после батча 3. ~7 коммитов.
