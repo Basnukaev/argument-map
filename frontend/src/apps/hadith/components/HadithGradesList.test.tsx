@@ -16,8 +16,8 @@ describe('HadithGradesList', () => {
     expect(screen.getByText('Гариб, но сахих')).toBeInTheDocument();
   });
 
-  it('ничего не рендерит при пустом списке', () => {
-    const { container } = render(<HadithGradesList grades={[]} />);
-    expect(container).toBeEmptyDOMElement();
+  it('показывает дружелюбный empty-state при пустом списке', () => {
+    render(<HadithGradesList grades={[]} />);
+    expect(screen.getByText('Оценки учёных пока не добавлены')).toBeInTheDocument();
   });
 });

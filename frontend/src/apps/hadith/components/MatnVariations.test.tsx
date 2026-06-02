@@ -23,7 +23,7 @@ function matn(p: Partial<MatnDto>): MatnDto {
 const SHOW = 'Показать отличия от основной редакции';
 
 describe('MatnVariations', () => {
-  it('кнопка diff есть только у НЕ-основной редакции', () => {
+  it('основная редакция раскрыта по умолчанию, остальные свёрнуты', () => {
     render(
       <MatnVariations
         matns={[
@@ -32,8 +32,24 @@ describe('MatnVariations', () => {
         ]}
       />,
     );
+    // primary раскрыт → его текст виден; вариант свёрнут → кнопки diff ещё нет
     expect(screen.getByText('الأعمال بالنيات')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: SHOW })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: SHOW })).not.toBeInTheDocument();
+  });
+
+  it('кнопка diff появляется после раскрытия НЕ-основной редакции', async () => {
+    render(
+      <MatnVariations
+        matns={[
+          matn({ id: 'p', textAr: 'الأعمال بالنيات', isPrimary: true }),
+          matn({ id: 'v', textAr: 'الأعمال بالنية' }),
+        ]}
+      />,
+    );
+    // раскрываем вариант (его шапка содержит № — но проще по preview-тексту)
+    const headers = screen.getAllByRole('button', { expanded: false });
+    await userEvent.click(headers[0]!);
+    expect(screen.getByRole('button', { name: SHOW })).toBeInTheDocument();
   });
 
   it('toggle раскрывает пословный diff (легенда + кнопка скрытия)', async () => {
@@ -45,6 +61,8 @@ describe('MatnVariations', () => {
         ]}
       />,
     );
+    const headers = screen.getAllByRole('button', { expanded: false });
+    await userEvent.click(headers[0]!);
     await userEvent.click(screen.getByRole('button', { name: SHOW }));
     expect(screen.getByText(/зелёным/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Скрыть отличия' })).toBeInTheDocument();
