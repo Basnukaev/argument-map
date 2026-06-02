@@ -151,7 +151,17 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       bbox при переходе по deep-link `?bbox=x,y,width,height` —
       overlay поверх PDF-страницы в `PdfViewer`) **сделана в
       Сессии 55**; остаётся CREATION (рисование/выбор области)
-      _(CitationPickerPdfRegion)_
+      _(CitationPickerPdfRegion)_.
+      **⚠️ АРХИТЕКТУРНЫЙ БЛОКЕР (найдено Сессией 55):** `CitationRequest.pdfFileId`
+      — это UUID FK на `library_files(file_id)`. Но archive.org FILE_ONLY книги
+      хранят PDF в `metadata.pdf_links`, а НЕ в `library_files` (там только
+      USER_UPLOAD). → для archive.org книг нет `pdfFileId`, pdf-локационную
+      цитату создать нельзя. Нужно **решение по модели** прежде чем делать UI:
+      либо (а) расширить citation-модель ссылаться на pdf_links по `fileIndex`
+      (новая колонка/режим в node_sources + CHECK), либо (б) регистрировать
+      archive.org тома в `library_files` при импорте. Это design-задача (нужен
+      выбор Абдулы), не быстрый фронт-фикс. Плюс сама UX рисования bbox требует
+      визуальной итерации (playwright env-blocked). Поэтому отложено осознанно.
 - [x] **Source detail panel** - закрыто 2026-05-18. 800px параллельная
       боковая панель (fullscreen на mobile) с полным содержанием
       цитируемого источника. Архитектура: `useSourceDetailPanelStore`

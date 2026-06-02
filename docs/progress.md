@@ -41,6 +41,16 @@
    имени — MVP, возможен false-merge гомонимов; idempotent delete-recreate). Теперь
    `/hadith` explorer показывает иснад импортированных хадисов (не только preview). +39 тестов.
 
+### Бонус — Tier-3 фиксы из бэклога (Фазы 10-12, после основного scope)
+- **Фаза 10 (backend):** ShamelaChapterMapper cycle-detect+log (главы не пропадают молча),
+  ShamelaBibliographyParser word-count guard (страна не вклеивается в издателя),
+  HadithController.getDetail O(sanads×links)→groupingBy.
+- **Фаза 11 (frontend):** QuestionDetailPage delete-gating (author+ADMIN), AnswersSection
+  per-answer busyIds, QuestionListPage proper load-error, AdminUsersPage locale-aware дата.
+- **Фаза 12 (backend):** AI-edit liveness-escape (stale PROCESSING re-claim, property
+  `ai.edit.processing-timeout-minutes`), HttpClientPdfFetcher negative Content-Length guard.
+- Итого ~9 Tier-3 пунктов бэклога закрыты. backend BUILD SUCCESS, frontend 716 тестов.
+
 ### Решения
 - ADR-057 (OCR removed), ADR-058 (swappable LLM), ADR-059 (AI-иснад), ADR-056 amendment
   (archive.org FILE_ONLY). content_kind vs book_type — две ортогональные оси.
