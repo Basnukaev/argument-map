@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.domain.Authority;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookContentKind;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.Chapter;
 import ru.basnukaev.argumentmap.library.domain.Page;
@@ -150,6 +151,37 @@ class ShamelaToLibraryMapperIT {
         assertThat(metadata.get("shamela_book_id").asLong()).isEqualTo(shamelaBookId);
         assertThat(metadata.get("shamela_major_release").asInt()).isEqualTo(7);
         assertThat(metadata.get("pdf_links").get("files").get(0).asText()).isEqualTo("/1/41557.pdf");
+    }
+
+    @Test
+    void mapBook_withPagesAndPdfLinksFiles_setsContentKindTextAndFile() {
+        long shamelaBookId = 41557L;
+        seedAuthor(100L, "Автор", null);
+        // object-form pdf_links (реальный shamela формат) + страницы с текстом
+        seedBookWithPdfLinks(shamelaBookId, "книга с текстом и PDF", 100L, 7,
+                "{\"files\":[\"/1/41557.pdf\"]}");
+        seedPage(shamelaBookId, 1, "<p>реальный контент</p>");
+
+        MappedBookResult result = mapper.mapBook(shamelaBookId, testUserId);
+
+        assertThat(result.pagesCount()).isEqualTo(1);
+        assertThat(bookRepository.findById(result.bookId()).orElseThrow().contentKind())
+                .isEqualTo(BookContentKind.TEXT_AND_FILE);
+    }
+
+    @Test
+    void mapBook_pdfLinksFilesButNoPages_setsContentKindFileOnly() {
+        long shamelaBookId = 41558L;
+        seedAuthor(100L, "Автор", null);
+        // есть файл, страниц нет (текст не извлечён) → FILE_ONLY
+        seedBookWithPdfLinks(shamelaBookId, "только PDF", 100L, 7,
+                "{\"files\":[\"/1/41558.pdf\"]}");
+
+        MappedBookResult result = mapper.mapBook(shamelaBookId, testUserId);
+
+        assertThat(result.pagesCount()).isZero();
+        assertThat(bookRepository.findById(result.bookId()).orElseThrow().contentKind())
+                .isEqualTo(BookContentKind.FILE_ONLY);
     }
 
     // ---------------- re-import idempotency ----------------

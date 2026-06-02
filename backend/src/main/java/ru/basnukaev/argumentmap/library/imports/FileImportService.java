@@ -16,11 +16,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookContentKind;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.LibraryFile;
 import ru.basnukaev.argumentmap.library.domain.LibraryFileSourceType;
 import ru.basnukaev.argumentmap.library.domain.Page;
+import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.repository.PageRepository;
 import ru.basnukaev.argumentmap.library.service.BookService;
 import ru.basnukaev.argumentmap.library.storage.ObjectStorageProperties;
@@ -71,15 +73,18 @@ public class FileImportService {
     private static final String EMPTY_PAGE_PLACEHOLDER = "";
 
     private final BookService bookService;
+    private final BookRepository bookRepository;
     private final PageRepository pageRepository;
     private final ObjectStorageService objectStorageService;
     private final ObjectStorageProperties storageProperties;
 
     public FileImportService(BookService bookService,
+                             BookRepository bookRepository,
                              PageRepository pageRepository,
                              ObjectStorageService objectStorageService,
                              ObjectStorageProperties storageProperties) {
         this.bookService = bookService;
+        this.bookRepository = bookRepository;
         this.pageRepository = pageRepository;
         this.objectStorageService = objectStorageService;
         this.storageProperties = storageProperties;
@@ -166,6 +171,7 @@ public class FileImportService {
             // page-by-page extraction. PDFTextStripper'у задаём диапазон
             // [i+1, i+1] для одной страницы (API 1-based)
             PDFTextStripper stripper = new PDFTextStripper();
+            boolean anyNonBlankText = false;
             for (int i = 0; i < numPages; i++) {
                 stripper.setStartPage(i + 1);
                 stripper.setEndPage(i + 1);
@@ -176,6 +182,7 @@ public class FileImportService {
                     throw new FileImportException(
                             "не удалось извлечь текст со страницы " + (i + 1), e);
                 }
+                anyNonBlankText |= pageText != null && !pageText.isBlank();
                 Instant now = Instant.now();
                 Page page = new Page(
                         UUID.randomUUID(),
@@ -211,6 +218,13 @@ public class FileImportService {
                     "application/pdf",
                     book.id(), null, LibraryFileSourceType.USER_UPLOAD,
                     null, null);
+
+            // content_kind после записи страниц + регистрации файла:
+            // hasFile всегда true (USER_UPLOAD library_files); hasText =
+            // хотя бы одна страница с НЕпустым текстом (scanned-image PDF
+            // даёт пустые плейсхолдеры → FILE_ONLY).
+            bookRepository.updateContentKind(book.id(),
+                    BookContentKind.of(anyNonBlankText, true));
 
             log.info("PDF импорт завершён: book={} pages={} bucket={} key={} sha256={}",
                     book.id(), numPages, bucket, storageKey, registered.contentHash());

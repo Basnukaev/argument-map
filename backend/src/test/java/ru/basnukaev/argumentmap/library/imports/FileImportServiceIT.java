@@ -25,10 +25,12 @@ import org.springframework.test.context.DynamicPropertySource;
 
 import ru.basnukaev.argumentmap.SharedMinioContainer;
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
+import ru.basnukaev.argumentmap.library.domain.BookContentKind;
 import ru.basnukaev.argumentmap.library.domain.LibraryFile;
 import ru.basnukaev.argumentmap.library.domain.LibraryFileSourceType;
 import ru.basnukaev.argumentmap.library.domain.Page;
 import ru.basnukaev.argumentmap.library.imports.FileImportService.ImportResult;
+import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.repository.LibraryFileRepository;
 import ru.basnukaev.argumentmap.library.repository.MuhaqqiqRepository;
 import ru.basnukaev.argumentmap.library.repository.PageRepository;
@@ -70,6 +72,9 @@ class FileImportServiceIT {
 
     @Autowired
     private PageRepository pageRepository;
+
+    @Autowired
+    private BookRepository bookRepository;
 
     @Autowired
     private MuhaqqiqRepository muhaqqiqRepository;
@@ -303,6 +308,31 @@ class FileImportServiceIT {
         assertThat(result.book().publishedYearGregorian()).isNull();
     }
 
+    @Test
+    void importPdf_withText_setsContentKindTextAndFile() {
+        // PDF с извлекаемым текстом + USER_UPLOAD файл → TEXT_AND_FILE
+        byte[] pdfBytes = buildPdf(List.of("real text content"), null);
+
+        ImportResult result = service.importPdf(pdfBytes, "with-text.pdf",
+                ImportMetadata.empty(), userId);
+
+        assertThat(bookRepository.findById(result.book().id()).orElseThrow().contentKind())
+                .isEqualTo(BookContentKind.TEXT_AND_FILE);
+    }
+
+    @Test
+    void importPdf_scannedNoText_setsContentKindFileOnly() {
+        // PDF из пустых страниц без текстового слоя (имитация скана):
+        // PDFTextStripper вернёт пустые строки → hasText=false → FILE_ONLY
+        byte[] pdfBytes = buildBlankPdf(2);
+
+        ImportResult result = service.importPdf(pdfBytes, "scanned.pdf",
+                ImportMetadata.empty(), userId);
+
+        assertThat(bookRepository.findById(result.book().id()).orElseThrow().contentKind())
+                .isEqualTo(BookContentKind.FILE_ONLY);
+    }
+
     /**
      * Генерирует валидный PDF с указанными текстами на страницах.
      * Опционально устанавливает title в PDF document information.
@@ -325,6 +355,23 @@ class FileImportServiceIT {
                     stream.showText(text);
                     stream.endText();
                 }
+            }
+            doc.save(out);
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new IllegalStateException("test fixture build failed", e);
+        }
+    }
+
+    /**
+     * PDF из N пустых страниц без текстового слоя - имитация чистого скана.
+     * PDFTextStripper вернёт пустой текст для каждой страницы.
+     */
+    private static byte[] buildBlankPdf(int pageCount) {
+        try (PDDocument doc = new PDDocument();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            for (int i = 0; i < pageCount; i++) {
+                doc.addPage(new PDPage(PDRectangle.A4));
             }
             doc.save(out);
             return out.toByteArray();

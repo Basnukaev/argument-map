@@ -9,7 +9,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookContentKind;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
@@ -76,6 +80,8 @@ public class ShamelaToLibraryMapper {
 
     private static final String SHAMELA_LANGUAGE = "ar";
 
+    private static final ObjectMapper JSON = new ObjectMapper();
+
     private static final Logger log = LoggerFactory.getLogger(ShamelaToLibraryMapper.class);
 
     private final ShamelaBookDao shamelaBookDao;
@@ -137,6 +143,7 @@ public class ShamelaToLibraryMapper {
 
         Instant now = Instant.now();
         UUID bookUuid = UUID.randomUUID();
+        String metadataJson = metadataBuilder.build(shamelaBook);
         Book book = new Book(
                 bookUuid,
                 BookType.BOOK,
@@ -144,7 +151,7 @@ public class ShamelaToLibraryMapper {
                 authorityId,
                 SHAMELA_LANGUAGE,
                 blankToNull(shamelaBook.bibliography()),
-                metadataBuilder.build(shamelaBook),
+                metadataJson,
                 createdBy,
                 now,
                 now,
@@ -164,6 +171,14 @@ public class ShamelaToLibraryMapper {
         int chaptersCount = chapterMapper.mapChapters(bookUuid, shamelaBookId, now);
         int pagesCount = pageMapper.mapPages(bookUuid, shamelaBookId, now);
 
+        // content_kind уточняется ПОСЛЕ записи страниц (createBook/save
+        // ставит провизорный TEXT_ONLY). hasText = страницы есть, hasFile =
+        // metadata.pdf_links.files непустой (shamela всегда строит pdf_links
+        // если каталог отдал ссылки).
+        boolean hasText = pagesCount > 0;
+        boolean hasFile = hasPdfLinksFiles(metadataJson);
+        bookRepository.updateContentKind(bookUuid, BookContentKind.of(hasText, hasFile));
+
         log.info("shamela mapped: shamelaBookId={} -> lib_books={} chapters={} pages={} authority={}",
                 shamelaBookId, bookUuid, chaptersCount, pagesCount, authorityId);
         return MappedBookResult.freshlyCreated(bookUuid, shamelaBookId, authorityId,
@@ -179,5 +194,24 @@ public class ShamelaToLibraryMapper {
 
     private static String blankToNull(String s) {
         return (s == null || s.isBlank()) ? null : s;
+    }
+
+    /**
+     * Зеркалит SQL-предикат HAS_FILE: {@code metadata->'pdf_links'->'files'}
+     * непустой массив. Невалидный/отсутствующий JSON → false (книга без
+     * файла). Парс-ошибку не пробрасываем — content_kind не критичен для
+     * самого импорта.
+     */
+    private static boolean hasPdfLinksFiles(String metadataJson) {
+        if (metadataJson == null || metadataJson.isBlank()) {
+            return false;
+        }
+        try {
+            JsonNode files = JSON.readTree(metadataJson).path("pdf_links").path("files");
+            return files.isArray() && !files.isEmpty();
+        } catch (Exception e) {
+            log.warn("не удалось распарсить metadata для content_kind: {}", e.getMessage());
+            return false;
+        }
     }
 }

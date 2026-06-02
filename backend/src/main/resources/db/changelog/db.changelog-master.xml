@@ -73,5 +73,6 @@
     <include file="db/changelog/changes/20260602-66-authorities-name-unique.xml"/>
     <include file="db/changelog/changes/20260602-67-lib-books-cover-url.xml"/>
     <include file="db/changelog/changes/20260602-68-drop-ocr-columns.xml"/>
+    <include file="db/changelog/changes/20260602-69-lib-books-content-kind.xml"/>
 
 </databaseChangeLog>

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260602-69-lib-books-content-kind" author="Abdula Basnukaev">
+        <comment>
+            Ортогональная классификация availability книги content_kind
+            (отдельно от book_type — тот про ЖАНР: QURAN/HADITH_COLLECTION/
+            BOOK/ARTICLE/MANUSCRIPT). content_kind отвечает на вопрос «что
+            доступно для чтения»:
+
+              TEXT_ONLY      — есть текст страниц, нет PDF-файла
+              TEXT_AND_FILE  — есть и текст, и файл (PDF)
+              FILE_ONLY      — есть файл, но текст ещё не извлечён (скан)
+
+            Предикат (единственный источник истины):
+
+              HAS_TEXT — существует lib_pages-строка книги с НЕпустым
+                         text_content (btrim(text_content) &lt;&gt; ''). Scanned
+                         PDF при импорте пишут пустую строку-плейсхолдер —
+                         она НЕ считается за текст.
+              HAS_FILE — metadata-&gt;'pdf_links'-&gt;'files' непустой JSON-массив,
+                         ЛИБО есть активная (deleted_at IS NULL) запись
+                         library_files c source_type='USER_UPLOAD'.
+
+            Маппинг: text+file→TEXT_AND_FILE, text→TEXT_ONLY,
+            file→FILE_ONLY, ничего→TEXT_ONLY (безопасный default; покрывает
+            HADITH_COLLECTION-книги-мосты, которые маршрутизируются в /hadith
+            и никогда не открывают reader).
+
+            Колонка добавляется nullable, backfill по предикату, затем
+            DEFAULT 'TEXT_ONLY' + NOT NULL + CHECK + индекс.
+        </comment>
+        <sql><![CDATA[
+            ALTER TABLE lib_books ADD COLUMN content_kind VARCHAR(20);
+
+            UPDATE lib_books b SET content_kind = CASE
+                WHEN EXISTS(SELECT 1 FROM lib_pages p
+                            WHERE p.book_id = b.id
+                              AND p.text_content IS NOT NULL
+                              AND btrim(p.text_content) <> '')
+                     AND ( (b.metadata->'pdf_links'->'files') IS NOT NULL
+                           AND jsonb_array_length(b.metadata->'pdf_links'->'files') > 0
+                           OR EXISTS(SELECT 1 FROM library_files f
+                                     WHERE f.book_id = b.id
+                                       AND f.source_type = 'USER_UPLOAD'
+                                       AND f.deleted_at IS NULL) )
+                    THEN 'TEXT_AND_FILE'
+                WHEN EXISTS(SELECT 1 FROM lib_pages p
+                            WHERE p.book_id = b.id
+                              AND p.text_content IS NOT NULL
+                              AND btrim(p.text_content) <> '')
+                    THEN 'TEXT_ONLY'
+                WHEN ( (b.metadata->'pdf_links'->'files') IS NOT NULL
+                       AND jsonb_array_length(b.metadata->'pdf_links'->'files') > 0
+                       OR EXISTS(SELECT 1 FROM library_files f
+                                 WHERE f.book_id = b.id
+                                   AND f.source_type = 'USER_UPLOAD'
+                                   AND f.deleted_at IS NULL) )
+                    THEN 'FILE_ONLY'
+                ELSE 'TEXT_ONLY' END;
+
+            ALTER TABLE lib_books ALTER COLUMN content_kind SET DEFAULT 'TEXT_ONLY';
+            ALTER TABLE lib_books ALTER COLUMN content_kind SET NOT NULL;
+            ALTER TABLE lib_books ADD CONSTRAINT lib_books_content_kind_check
+                CHECK (content_kind IN ('TEXT_ONLY','TEXT_AND_FILE','FILE_ONLY'));
+
+            CREATE INDEX idx_lib_books_content_kind ON lib_books(content_kind);
+        ]]></sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_lib_books_content_kind;
+                ALTER TABLE lib_books DROP COLUMN content_kind;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

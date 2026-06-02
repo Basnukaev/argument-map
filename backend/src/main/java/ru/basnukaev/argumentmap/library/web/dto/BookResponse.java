@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import ru.basnukaev.argumentmap.library.domain.BookContentKind;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 
 public record BookResponse(
@@ -21,6 +22,10 @@ public record BookResponse(
         String visibility,
         // Ссылка на обложку (миграция 67, ADR-056) - nullable. Фронт
         // рендерит её на карточке книги; null → letter-avatar fallback.
-        String coverUrl
+        String coverUrl,
+        // Availability-классификация (миграция 69) - ортогональна bookType
+        // (жанр). TEXT_ONLY/TEXT_AND_FILE/FILE_ONLY. Фронт по ней решает
+        // какой режим reader открыть (текст / PDF).
+        BookContentKind contentKind
 ) {
 }

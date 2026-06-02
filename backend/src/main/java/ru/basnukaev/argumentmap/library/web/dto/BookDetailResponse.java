@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import ru.basnukaev.argumentmap.library.domain.BookContentKind;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.web.dto.AuthorityCitationRef;
 import ru.basnukaev.argumentmap.web.dto.MuhaqqiqRef;
@@ -43,6 +44,9 @@ public record BookDetailResponse(
         String thesisInstitution,
         // Ссылка на обложку (миграция 67, ADR-056) - nullable. null →
         // letter-avatar fallback на фронте.
-        String coverUrl
+        String coverUrl,
+        // Availability-классификация (миграция 69) - ортогональна bookType.
+        // TEXT_ONLY/TEXT_AND_FILE/FILE_ONLY.
+        BookContentKind contentKind
 ) {
 }

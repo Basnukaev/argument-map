@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.domain.Authority;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookContentKind;
 import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.repository.AuthorityRepository;
@@ -68,6 +69,34 @@ class BookRepositoryIT {
         assertThat(reloaded.metadata()).contains("\"volumes\"").contains("37");
         assertThat(reloaded.createdAt()).isEqualTo(now);
         assertThat(reloaded.updatedAt()).isEqualTo(now);
+    }
+
+    @Test
+    void save_defaultsContentKindToTextOnly_rowMapperReadsIt() {
+        // 17-арг compat-конструктор дефолтит contentKind=TEXT_ONLY -
+        // ROW_MAPPER читает content_kind и не возвращает null
+        Book book = bookRepository.save(book("книга без content_kind override"));
+
+        Book reloaded = bookRepository.findById(book.id()).orElseThrow();
+        assertThat(reloaded.contentKind()).isEqualTo(BookContentKind.TEXT_ONLY);
+    }
+
+    @Test
+    void updateContentKind_changesValue_andRowMapperReflectsIt() {
+        Book book = bookRepository.save(book("книга для updateContentKind"));
+        assertThat(book.contentKind()).isEqualTo(BookContentKind.TEXT_ONLY);
+
+        int updated = bookRepository.updateContentKind(book.id(), BookContentKind.TEXT_AND_FILE);
+
+        assertThat(updated).isOne();
+        assertThat(bookRepository.findById(book.id()).orElseThrow().contentKind())
+                .isEqualTo(BookContentKind.TEXT_AND_FILE);
+    }
+
+    @Test
+    void updateContentKind_whenBookNotExists_returnsZero() {
+        assertThat(bookRepository.updateContentKind(UUID.randomUUID(), BookContentKind.FILE_ONLY))
+                .isZero();
     }
 
     @Test

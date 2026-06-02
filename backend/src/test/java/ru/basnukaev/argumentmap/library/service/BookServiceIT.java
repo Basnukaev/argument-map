@@ -21,6 +21,7 @@ import ru.basnukaev.argumentmap.exception.AuthorityNotFoundException;
 import ru.basnukaev.argumentmap.exception.BookNotFoundException;
 import ru.basnukaev.argumentmap.exception.PageNotFoundException;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookContentKind;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.Chapter;
 import ru.basnukaev.argumentmap.library.domain.ImageRegion;
@@ -90,6 +91,8 @@ class BookServiceIT {
         assertThat(created.authorityId()).isEqualTo(author.id());
         assertThat(created.createdBy()).isEqualTo(userId);
         assertThat(created.createdAt()).isEqualTo(created.updatedAt());
+        // createBook ставит провизорный TEXT_ONLY (страниц/файлов ещё нет)
+        assertThat(created.contentKind()).isEqualTo(BookContentKind.TEXT_ONLY);
     }
 
     @Test

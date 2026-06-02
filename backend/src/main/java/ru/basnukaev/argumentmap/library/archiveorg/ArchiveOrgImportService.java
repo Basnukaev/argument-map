@@ -26,6 +26,7 @@ import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgPreview.CoverOption
 import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgPreview.PdfFileRef;
 import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgPreview.VolumeGroup;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookContentKind;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.Page;
@@ -165,9 +166,18 @@ public class ArchiveOrgImportService {
         }
 
         int pagesExtracted = 0;
+        boolean hasNonBlankText = false;
         if (request.extractText()) {
-            pagesExtracted = extractText(book.id(), volumes, request.testModePages());
+            ExtractionResult extraction = extractText(book.id(), volumes, request.testModePages());
+            pagesExtracted = extraction.pageCount();
+            hasNonBlankText = extraction.hasNonBlankText();
         }
+
+        // content_kind: hasFile всегда true (preview.hasPdf() уже проверен
+        // выше → pdf_links непуст). hasText = извлекли хотя бы одну страницу
+        // с НЕпустым текстом (скан-PDF пишет пустые строки-плейсхолдеры —
+        // они не считаются). Без extractText → FILE_ONLY.
+        bookRepository.updateContentKind(book.id(), BookContentKind.of(hasNonBlankText, true));
 
         log.info("archive.org import: bookId={} identifier={} volumes={} coverSet={} pages={}",
                 book.id(), id, volumes.size(), coverSet, pagesExtracted);
@@ -253,25 +263,29 @@ public class ArchiveOrgImportService {
      * слой). Если {@code testModePages>0} - максимум N страниц на том.
      * Зеркалит page-creation из {@code FileImportService}.
      *
-     * @return суммарное число созданных страниц
+     * @return число созданных страниц + флаг наличия НЕпустого текста
      */
-    private int extractText(UUID bookId, List<VolumeGroup> volumes, Integer testModePages) {
+    private ExtractionResult extractText(UUID bookId, List<VolumeGroup> volumes, Integer testModePages) {
         int limit = (testModePages != null && testModePages > 0) ? testModePages : Integer.MAX_VALUE;
         int pageCounter = 0;
+        boolean anyNonBlankText = false;
         for (VolumeGroup v : volumes) {
             PdfFileRef src = v.ocr() != null ? v.ocr() : v.original();
             if (src == null) {
                 continue;
             }
-            pageCounter = extractVolume(bookId, v.volumeNo(), src, limit, pageCounter);
+            ExtractionResult volResult = extractVolume(bookId, v.volumeNo(), src, limit, pageCounter);
+            pageCounter = volResult.pageCount();
+            anyNonBlankText |= volResult.hasNonBlankText();
         }
-        return pageCounter;
+        return new ExtractionResult(pageCounter, anyNonBlankText);
     }
 
-    private int extractVolume(UUID bookId, int volumeNo, PdfFileRef src,
-                              int limit, int pageCounterStart) {
+    private ExtractionResult extractVolume(UUID bookId, int volumeNo, PdfFileRef src,
+                                           int limit, int pageCounterStart) {
         Path temp = null;
         int pageCounter = pageCounterStart;
+        boolean anyNonBlankText = false;
         try {
             temp = Files.createTempFile("archiveorg-extract-", ".pdf");
             pdfFetcher.fetch(URI.create(src.downloadUrl()), temp);
@@ -282,6 +296,7 @@ public class ArchiveOrgImportService {
                     stripper.setStartPage(i + 1);
                     stripper.setEndPage(i + 1);
                     String text = stripper.getText(doc);
+                    anyNonBlankText |= text != null && !text.isBlank();
                     pageCounter++;
                     Instant now = Instant.now();
                     Page page = new Page(
@@ -300,7 +315,7 @@ public class ArchiveOrgImportService {
                     pageRepository.save(page);
                 }
             }
-            return pageCounter;
+            return new ExtractionResult(pageCounter, anyNonBlankText);
         } catch (IOException e) {
             throw new ArchiveOrgException(
                     "не удалось извлечь текст из тома " + volumeNo + " (" + src.downloadUrl() + ")", e);
@@ -313,6 +328,14 @@ public class ArchiveOrgImportService {
                 }
             }
         }
+    }
+
+    /**
+     * Результат извлечения текста: сколько страниц создано и был ли среди
+     * них хотя бы один НЕпустой текст (для определения content_kind —
+     * скан-PDF создаёт страницы с пустыми text_content).
+     */
+    private record ExtractionResult(int pageCount, boolean hasNonBlankText) {
     }
 
     // ---------------- helpers ----------------

@@ -15,6 +15,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookContentKind;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 
 @Repository
@@ -27,7 +28,7 @@ public class BookRepository {
             + "edition_number, published_year_hijri, published_year_gregorian, "
             + "visibility, "
             + "thesis_degree, thesis_supervisor, thesis_institution, "
-            + "cover_url";
+            + "cover_url, content_kind";
 
     private static final RowMapper<Book> ROW_MAPPER = (rs, rn) -> {
         int edition = rs.getInt("edition_number");
@@ -58,7 +59,8 @@ public class BookRepository {
                 rs.getString("thesis_degree"),
                 rs.getString("thesis_supervisor"),
                 rs.getString("thesis_institution"),
-                rs.getString("cover_url")
+                rs.getString("cover_url"),
+                BookContentKind.valueOf(rs.getString("content_kind"))
         );
     };
 
@@ -71,7 +73,7 @@ public class BookRepository {
     public Book save(Book book) {
         jdbcTemplate.update(
                 "INSERT INTO lib_books (" + COLUMNS + ") "
-                        + "VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 book.id(),
                 book.bookType().name(),
                 book.title(),
@@ -92,7 +94,8 @@ public class BookRepository {
                 book.thesisDegree(),
                 book.thesisSupervisor(),
                 book.thesisInstitution(),
-                book.coverUrl()
+                book.coverUrl(),
+                book.contentKind().name()
         );
         return book;
     }
@@ -398,6 +401,18 @@ public class BookRepository {
                 "UPDATE lib_books SET cover_url = ?, updated_at = now() WHERE id = ?",
                 coverUrl, bookId);
         return rows > 0;
+    }
+
+    /**
+     * Обновить content_kind (миграция 69) - availability-классификация.
+     * Импортёры вызывают это ПОСЛЕ записи страниц/файлов (createBook
+     * ставит провизорный TEXT_ONLY до того как страницы существуют).
+     * Возвращает число обновлённых строк (для отладки/проверки).
+     */
+    public int updateContentKind(UUID bookId, BookContentKind kind) {
+        return jdbcTemplate.update(
+                "UPDATE lib_books SET content_kind = ?, updated_at = now() WHERE id = ?",
+                kind.name(), bookId);
     }
 
     /**

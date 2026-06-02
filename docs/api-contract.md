@@ -1681,7 +1681,8 @@ Request body:
 - `metadata` (optional): произвольный JSON для тип-специфики
 
 Response 201, body - полный `BookResponse` (ADR-043 Amendment добавил
-`visibility`; ADR-056 / миграция 67 добавили `coverUrl`):
+`visibility`; ADR-056 / миграция 67 добавили `coverUrl`; миграция 69
+добавила `contentKind`):
 ```json
 {
   "id": "...",
@@ -1695,7 +1696,8 @@ Response 201, body - полный `BookResponse` (ADR-043 Amendment добави
   "createdAt": "ISO-8601",
   "updatedAt": "ISO-8601",
   "visibility": "PUBLIC",
-  "coverUrl": null
+  "coverUrl": null,
+  "contentKind": "TEXT_ONLY"
 }
 ```
 Header `Location: /api/v1/library/books/{id}`.
@@ -1704,6 +1706,15 @@ Header `Location: /api/v1/library/books/{id}`.
 (archive.org thumbnail / первая страница cover-PDF / upload). Заполняется
 только archive.org-импортом; обычные книги (shamela ETL, REST create,
 user-upload) → `null` → фронт показывает letter-avatar.
+
+**contentKind** (миграция 69): availability-классификация,
+**ортогональная `bookType`** (тот — про ЖАНР: QURAN / HADITH_COLLECTION /
+BOOK / ARTICLE / MANUSCRIPT). Значения: `TEXT_ONLY` (есть текст страниц,
+нет PDF) / `TEXT_AND_FILE` (есть и текст, и PDF) / `FILE_ONLY` (есть PDF,
+но текст ещё не извлечён — скан). Фронт решает по нему какой режим reader
+открыть. REST create → `TEXT_ONLY` (страниц ещё нет); импортёры (shamela /
+archive.org / file-upload) уточняют после записи страниц/файлов. Scanned
+PDF (пустые text_content) → НЕ считаются за текст.
 
 **visibility** (ADR-043 Amendment, Этап 22.c):
 - REST POST устанавливает `PUBLIC` по умолчанию (open library)
@@ -1734,8 +1745,8 @@ Query:
 PRIVATE + SHARED где он member. ADMIN видит все.
 
 Response 200 - `PagedResponse<BookSummary>` (без description, metadata,
-updatedAt - они в детальном GET; включает `createdBy`, `visibility` и
-`coverUrl`):
+updatedAt - они в детальном GET; включает `createdBy`, `visibility`,
+`coverUrl` и `contentKind`):
 ```json
 {
   "items": [
@@ -1748,7 +1759,8 @@ updatedAt - они в детальном GET; включает `createdBy`, `vis
       "createdBy": "...",
       "createdAt": "...",
       "visibility": "PUBLIC",
-      "coverUrl": null
+      "coverUrl": null,
+      "contentKind": "TEXT_ONLY"
     }
   ],
   "page": 0, "size": 20, "totalElements": 42, "totalPages": 3,
@@ -1763,7 +1775,8 @@ updatedAt - они в детальном GET; включает `createdBy`, `vis
 ### GET /api/v1/library/books/{id} - книга с деревом chapters
 
 Response 200 - `BookDetailResponse` (поля как в `BookResponse`, включая
-nullable `coverUrl` ADR-056, + поле `chapters`, рекурсивное дерево):
+nullable `coverUrl` ADR-056 и `contentKind` миграция 69, + поле
+`chapters`, рекурсивное дерево):
 ```json
 {
   "id": "...",
@@ -1777,6 +1790,7 @@ nullable `coverUrl` ADR-056, + поле `chapters`, рекурсивное де�
   "createdAt": "...",
   "updatedAt": "...",
   "coverUrl": null,
+  "contentKind": "TEXT_AND_FILE",
   "chapters": [
     {
       "id": "...",
@@ -3865,6 +3879,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-06-02 | v1 | **Ортогональная классификация `contentKind` для книг (миграция 69).** ALTER `lib_books` ADD `content_kind VARCHAR(20) NOT NULL DEFAULT 'TEXT_ONLY'` (CHECK IN TEXT_ONLY/TEXT_AND_FILE/FILE_ONLY) + индекс `idx_lib_books_content_kind`. **Отдельная** от `book_type` (тот про ЖАНР: QURAN/HADITH_COLLECTION/BOOK/ARTICLE/MANUSCRIPT) — `content_kind` про availability «что доступно для чтения». Backfill по предикату: HAS_TEXT = есть `lib_pages` с НЕпустым `text_content` (`btrim(text_content)<>''` — scanned-PDF пустые плейсхолдеры не считаются); HAS_FILE = `metadata->'pdf_links'->'files'` непустой массив ИЛИ активная `library_files` (`source_type='USER_UPLOAD'`, `deleted_at IS NULL`). Маппинг: text+file→TEXT_AND_FILE, text→TEXT_ONLY, file→FILE_ONLY, ничего→TEXT_ONLY (default; покрывает HADITH_COLLECTION-книги-мосты → /hadith). `BookResponse`/`BookSummaryResponse`/`BookDetailResponse` расширены полем `contentKind` (enum). `Book` record получил поле + дефолт TEXT_ONLY в обоих backward-compat конструкторах. Импортёры уточняют `content_kind` ПОСЛЕ записи страниц/файлов через новый `BookRepository.updateContentKind`: `ShamelaToLibraryMapper` (pages>0 + pdf_links.files), `ArchiveOrgImportService` (hasFile всегда true, hasText = извлекли НЕпустой текст), `FileImportService` (USER_UPLOAD + НЕпустой текст), `BookCollectionBridgeService` (TEXT_ONLY explicit) | Книга может одновременно иметь текст и PDF, либо только скан без текста. `book_type` (жанр) не отвечал на вопрос «что показать в reader». Ортогональная ось `content_kind` позволяет фронту выбрать режим чтения (текст / PDF) без эвристик. Default TEXT_ONLY безопасен для книг-мостов сборников хадисов |
 | 2026-06-02 | v1 | **OCR endpoints удалены (ADR-057, Сессия 55).** `POST /api/v1/library/pages/{pageId}/ocr` (триггер Tesseract OCR) и `GET /api/v1/library/pages/{pageId}/ocr` (статус-polling) удалены. `OcrJobResponse` DTO удалён. `PageResponse` потерял 3 поля: `ocrStatus`, `ocrStartedAt`, `ocrCompletedAt`. Tesseract OCR удалён (ara плохо парсится); image upload (`POST /books/{id}/pages`) сохранён как субстрат для будущего AI-recognition | ADR-057: Tesseract OCR выпилен. Будущее распознавание — AI-based (LLM-vision) |
 | 2026-06-02 | v1 | **Security: shamela-admin endpoints теперь ADMIN-only (закрытие role-check дыры).** Все 7 endpoint под `/api/v1/admin/shamela/*` (`POST /sync-master`, `POST /import-book/{id}`, `POST /map-book/{id}`, `GET /search`, `GET /books`, `POST /backfill-bibliography`, `GET /sync-status`) раньше были без role-check («на MVP - без role-check»), в отличие от Sunnah-admin (ADMIN-only). Теперь консистентно: добавлен `requireAdmin()` гвард (mirror `SunnahAdminController.requireAdmin` — `SecurityContextUtils.currentRoleOrAnonymous()` + `AdminOnlyException`). non-ADMIN authenticated user → 403 `forbidden-admin-only`; anonymous на `map-book` (с `@CurrentUser`) → 401 `invalid-token` (резолвер отсекает раньше гварда). `X-User-Id` в `map-book` по-прежнему даёт `created_by`. Без изменения схемы БД / DTO / маршрутов — только permission-check. IT: `ShamelaAdminControllerIT` (+7 negative-authz кейсов non-admin→403; existing happy-path стали слать `X-User-Id` ADMIN-пользователя), 32/32 green | Багоохота / security-аудит: shamela-admin был единственным admin-контроллером без role-check (Sunnah-admin и audit-admin уже ADMIN-only). Канон тот же что у Sunnah: гвард в начале каждого метода контроллера через `SecurityContextUtils.currentRoleOrAnonymous()` + `AdminOnlyException` |
 | 2026-06-02 | v1 | **Голосование за вопросы Q&A (зеркалит topic-vote stack).** Миграция 62 CREATE `question_votes (id UUID PK gen_random_uuid, question_id FK CASCADE, user_id FK CASCADE, weight SMALLINT CHECK IN (-1,1), voted_at TIMESTAMPTZ, UNIQUE(question_id, user_id))` + 2 индекса (question_id, user_id). **Добавлены** 3 question-vote endpoint под `/api/v1/questions/{questionId}` (`POST /vote` → 201 `QuestionVoteStatsResponse{questionId, upvotes, downvotes, score, userVote}` upsert ON CONFLICT, `DELETE /vote` → 204 идемпотентен, `GET /votes` → `QuestionVoteStatsResponse`, открыт для anonymous). DTO `CreateQuestionVoteRequest{weight}`. `QuestionResponse` расширен `voteScore` (int) + `userVote` (Integer nullable) — bulk-load из `question_votes` на list (2 SQL на страницу: getStatsForQuestions + getUserVotesForQuestions) и detail (точечно), default 0/null на mutating endpoint'ах (create/update/accept/revoke answer). Ошибки `400 invalid-vote` / `404 question-not-found`. **Permission: НЕТ visibility/read-write check** — questions это open discussion (ADR-043 «Q&A guards»): голосовать может любой authenticated user; POST/DELETE требуют принципала (anonymous → 401), GET открыт. Переиспользованы `VoteStats` + `InvalidVoteException` (generic). Пакет `qa.{domain,repository,service,web.{controller,dto}}`. IT: `QuestionVoteServiceIT` (12) + `QuestionVoteControllerIT` (16); `QuestionControllerIT` адаптирован под новые поля | Product: community-сигнал популярности «за тему вцелом ИЛИ за вопрос&ответ» — topic-vote сторона уже была, добавлена Q&A сторона. Mirror того же стека, но без permission-модели (questions открыты по дизайну, в отличие от тем с visibility) |

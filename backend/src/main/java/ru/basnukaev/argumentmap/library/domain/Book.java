@@ -38,7 +38,12 @@ public record Book(
         // первая страница cover-PDF / загруженная картинка. Nullable:
         // shamela ETL и старые user-uploads обложки не имеют (фронт
         // показывает letter-avatar). Заполняется archive.org-импортом.
-        String coverUrl
+        String coverUrl,
+        // Availability-классификация (миграция 69) - ортогональна bookType
+        // (жанр). NOT NULL в БД с DEFAULT TEXT_ONLY. createBook ставит
+        // провизорный TEXT_ONLY, импортёры уточняют через
+        // updateContentKind после записи страниц/файлов.
+        BookContentKind contentKind
 ) {
     /**
      * Backward-compat конструктор без thesis-полей (17 аргументов).
@@ -56,7 +61,8 @@ public record Book(
         this(id, bookType, title, authorityId, language, description, metadata,
                 createdBy, createdAt, updatedAt, muhaqqiqId, publisherId,
                 publicationPlaceId, editionNumber, publishedYearHijri,
-                publishedYearGregorian, visibility, null, null, null, null);
+                publishedYearGregorian, visibility, null, null, null, null,
+                BookContentKind.TEXT_ONLY);
     }
 
     /**
@@ -77,6 +83,7 @@ public record Book(
                 createdBy, createdAt, updatedAt, muhaqqiqId, publisherId,
                 publicationPlaceId, editionNumber, publishedYearHijri,
                 publishedYearGregorian, visibility,
-                thesisDegree, thesisSupervisor, thesisInstitution, null);
+                thesisDegree, thesisSupervisor, thesisInstitution, null,
+                BookContentKind.TEXT_ONLY);
     }
 }

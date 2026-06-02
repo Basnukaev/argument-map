@@ -26,6 +26,7 @@ import org.springframework.test.context.DynamicPropertySource;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookContentKind;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 
 /**
@@ -148,6 +149,8 @@ class ArchiveOrgImportServiceIT {
         assertThat(book.coverUrl()).isEqualTo(coverUrl);
         // pages не извлечены
         assertThat(pageCount(resp.bookId())).isZero();
+        // content_kind: файл есть (pdf_links), текста нет (extractText=false)
+        assertThat(book.contentKind()).isEqualTo(BookContentKind.FILE_ONLY);
     }
 
     @Test
@@ -158,6 +161,9 @@ class ArchiveOrgImportServiceIT {
         // 2 тома × 2 страницы (testModePages=2, PDF имеет 5)
         assertThat(resp.pagesExtracted()).isEqualTo(4);
         assertThat(pageCount(resp.bookId())).isEqualTo(4);
+        // content_kind: файл + извлечён НЕпустой текст ("Page number N") → TEXT_AND_FILE
+        assertThat(bookRepository.findById(resp.bookId()).orElseThrow().contentKind())
+                .isEqualTo(BookContentKind.TEXT_AND_FILE);
     }
 
     @Test

@@ -10,8 +10,10 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.basnukaev.argumentmap.hadith.domain.Collection;
 import ru.basnukaev.argumentmap.hadith.repository.CollectionRepository;
 import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookContentKind;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.BookVisibility;
+import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.service.BookService;
 
 /**
@@ -41,11 +43,14 @@ public class BookCollectionBridgeService {
 
     private final CollectionRepository collectionRepository;
     private final BookService bookService;
+    private final BookRepository bookRepository;
 
     public BookCollectionBridgeService(CollectionRepository collectionRepository,
-                                       BookService bookService) {
+                                       BookService bookService,
+                                       BookRepository bookRepository) {
         this.collectionRepository = collectionRepository;
         this.bookService = bookService;
+        this.bookRepository = bookRepository;
     }
 
     /**
@@ -71,6 +76,9 @@ public class BookCollectionBridgeService {
                 null, null, null, null, null, null,
                 BookVisibility.PUBLIC
         );
+        // Книга-мост: ни страниц, ни файла — маршрутизируется в /hadith,
+        // reader не открывается. TEXT_ONLY явно (совпадает с default).
+        bookRepository.updateContentKind(book.id(), BookContentKind.TEXT_ONLY);
         collectionRepository.updateBookId(collection.id(), book.id());
         return book.id();
     }
