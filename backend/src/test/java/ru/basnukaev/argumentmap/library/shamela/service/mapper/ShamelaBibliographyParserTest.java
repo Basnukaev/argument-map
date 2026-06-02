@@ -109,6 +109,36 @@ class ShamelaBibliographyParserTest {
     }
 
     @Test
+    void splitsShortPublisherFromLongCountryName() {
+        // Регрессия: короткий издатель «دار طيبة» + длинное название страны
+        // «المملكة العربية السعودية» после « - ». Старый char-length-ratio
+        // guard НЕ резал (24 ≥ 18) - место издания молча оставалось приклеенным
+        // к publisher. Word-count guard (≤5 слов) разделяет корректно.
+        String biblio = "الناشر: دار طيبة - المملكة العربية السعودية"
+                + "\\rالطبعة: الأولى، ١٤٣٠ هـ";
+
+        ParsedBibliography parsed = parser.parse(biblio);
+
+        assertThat(parsed.publisher()).isEqualTo("دار طيبة");
+        assertThat(parsed.publicationPlace()).isEqualTo("المملكة العربية السعودية");
+        assertThat(parsed.editionNumber()).isEqualTo(1);
+        assertThat(parsed.publishedYearHijri()).isEqualTo(1430);
+    }
+
+    @Test
+    void doesNotSplitPublisherWhenTailIsLongClause() {
+        // Защита word-count guard: хвост после « - » из >5 слов - не топоним,
+        // а часть имени/клаузы издателя → НЕ режем (место остаётся null).
+        String biblio = "الناشر: دار النشر - للطباعة والنشر والتوزيع وكل ما يتعلق بذلك من خدمات";
+
+        ParsedBibliography parsed = parser.parse(biblio);
+
+        assertThat(parsed.publisher())
+                .isEqualTo("دار النشر - للطباعة والنشر والتوزيع وكل ما يتعلق بذلك من خدمات");
+        assertThat(parsed.publicationPlace()).isNull();
+    }
+
+    @Test
     void doesNotSplitPublisherWhenDashIsInsideName() {
         // Кейс: publisher содержит " - " в середине, не в конце как разделитель
         String biblio = "الناشر: مؤسسة الرسالة";

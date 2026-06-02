@@ -1,9 +1,11 @@
 package ru.basnukaev.argumentmap.hadith.web;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -98,12 +100,20 @@ public class HadithController {
         // Bulk fetch narrators avoiding N+1
         List<SanadNarrator> allLinks = sanadRepository.findNarratorsBySanadIds(sanadIds);
 
+        // Группируем narrator-links по sanadId ОДИН раз вместо линейного
+        // скана allLinks на каждый sanad (был O(sanads × links)). Внутри
+        // группы сортируем по position - порядок звеньев иснада значим
+        // (position 0 = ближайший к Пророку ﷺ), а bulk-fetch не гарантирует
+        // input-order по каждому sanad.
+        Map<UUID, List<SanadNarrator>> linksBySanad = allLinks.stream()
+                .collect(Collectors.groupingBy(SanadNarrator::sanadId));
+
         List<HadithDetailResponse.SanadDto> sanadDtos = sanads.stream()
                 .map(s -> new HadithDetailResponse.SanadDto(
                         s.id(), s.chainGrade(), s.compiledById(),
                         s.compiledInBookId(), s.primaryChain(),
-                        allLinks.stream()
-                                .filter(l -> l.sanadId().equals(s.id()))
+                        linksBySanad.getOrDefault(s.id(), List.of()).stream()
+                                .sorted(Comparator.comparingInt(SanadNarrator::position))
                                 .map(l -> new HadithDetailResponse.NarratorLinkDto(
                                         l.position(), l.narratorId(), l.transmissionPhrase()
                                 ))

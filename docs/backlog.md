@@ -578,10 +578,24 @@ Logic:
       `ocr_completed_at = NULL` (не COALESCE) — re-OCR ранее завершённой
       страницы больше не показывает stale «завершено» пока статус PROCESSING.
       Test: `PageRepositoryIT.tryClaimOcrProcessing_clearsStaleCompletedAt`.
-- [ ] **ShamelaChapterMapper** silently drops главы в parent-ref cycle
-      (no error/log). `ShamelaChapterMapper.java:67`.
-- [ ] **ShamelaBibliographyParser** dash-split mis-routes publisher →
-      publication place. `ShamelaBibliographyParser.java:95`.
+- [x] **ShamelaChapterMapper** silently drops главы в parent-ref cycle
+      (no error/log). `ShamelaChapterMapper.java:67`. **Закрыто (Сессия 55
+      Фаза 10):** после BFS детектим непрозвавшиеся title (застрявшие в
+      цикле A→B/B→A или самореференции) → `log.warn` с id/title + причиной,
+      привязываем к root как fallback (книга импортируется целиком, потеря
+      наблюдаема). Test: `ShamelaChapterMapperTest` (4: чистое дерево без warn,
+      2-node цикл, non-existent parent = orphan-as-root без warn,
+      самореференция).
+- [x] **ShamelaBibliographyParser** dash-split mis-routes publisher →
+      publication place. `ShamelaBibliographyParser.java:95`. **Закрыто
+      (Сессия 55 Фаза 10):** брутальный char-length-ratio guard
+      (`candidate.length() < publisher.length()/2 + 1`) молча НЕ резал
+      короткого издателя с длинным топонимом («دار طيبة - المملكة العربية
+      السعودية»: 24 ≥ 18) — место издания оставалось приклеенным к publisher.
+      Заменён на word-count guard (топоним ≤5 слов даже когда длинный в
+      символах). Минимальная правка, 12 (→15) существующих фикстур зелёные.
+      Test: `ShamelaBibliographyParserTest` +2 (короткий издатель + длинная
+      страна разделяются; длинная клауза >5 слов НЕ режется).
 - [x] **QuestionService updateQuestion** body="" вместо NULL (contra
       документированной clear-to-null семантики). `QuestionService.java:156`.
       **Закрыто:** blank body теперь очищается в `NULL` (не `""`) через новый
@@ -602,8 +616,15 @@ Logic:
       `collectionId`). Сейчас в hadith-контроллерах нет ни одного stale
       `bookId` `@RequestParam` (grep подтвердил). Кода/тестов менять не нужно —
       `HadithControllerIT` (7) зелёный.
-- [ ] **getDetail O(sanads×links)** per-sanad linear scan narrator links.
-      `HadithController.java:101`.
+- [x] **getDetail O(sanads×links)** per-sanad linear scan narrator links.
+      `HadithController.java:101`. **Закрыто (Сессия 55 Фаза 10):** вложенный
+      `allLinks.stream().filter(sanadId==)` на каждый sanad заменён на
+      `groupingBy(SanadNarrator::sanadId)` ОДИН раз + lookup O(1). Внутри
+      группы defensive-sort по position (bulk-query уже `ORDER BY sanad_id,
+      position`, поведение идентичное). Чистый perf-рефакторинг. Test:
+      `HadithControllerGetDetailTest` (multi-sanad × multi-narrator —
+      группировка не протекает между sanad'ами, порядок position сохранён) +
+      `HadithControllerIT` getDetail (7) зелёный.
 - [x] **TopicListPage post-import refetch** теряет active sort order.
       `TopicListPage.tsx:155`. Закрыто Tier-3 batch: миграция на
       `usePagedSearch` (`buildUrl` замыкает `sort`, `deps:[sort,refreshKey]`)

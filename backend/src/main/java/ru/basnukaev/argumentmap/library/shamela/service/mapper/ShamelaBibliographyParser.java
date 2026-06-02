@@ -102,8 +102,21 @@ public class ShamelaBibliographyParser {
         if (publisher != null && publicationPlace == null) {
             int dashIdx = publisher.lastIndexOf(" - ");
             if (dashIdx > 0) {
+                // Часть ПОСЛЕ последнего « - » - место издания (город/страна),
+                // часть ДО - издатель (дар/издательство). Shamela pattern
+                // «الناشر: دار ... - المدينة».
                 String candidate = publisher.substring(dashIdx + 3).trim();
-                if (!candidate.isEmpty() && candidate.length() < publisher.length() / 2 + 1) {
+                // Раньше здесь стоял char-length-ratio guard
+                // (candidate.length() < publisher.length()/2 + 1) - он
+                // молча НЕ резал короткого издателя с длинным названием
+                // страны («دار طيبة - المملكة العربية السعودية»: 24 ≥ 18),
+                // оставляя место издания приклеенным к publisher. Place -
+                // топоним из 1-5 слов даже когда длинный в символах; именно
+                // word-count, а не char-length, отделяет место от издателя.
+                int candidateWords = candidate.isEmpty()
+                        ? 0
+                        : candidate.split("\\s+").length;
+                if (!candidate.isEmpty() && candidateWords <= 5) {
                     publicationPlace = candidate;
                     publisher = publisher.substring(0, dashIdx).trim();
                 }
