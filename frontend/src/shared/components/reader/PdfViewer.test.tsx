@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { waitForUi } from '@/test/asyncHelpers';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
@@ -54,7 +55,29 @@ function mockPdfInfo() {
   );
 }
 
+/** Два не-cover тома - чтобы появился volume selector (multi-volume). */
+function mockMultiVolumePdfInfo() {
+  server.use(
+    http.get(`${BASE}/api/v1/library/books/bk-1/pdf/info`, () =>
+      HttpResponse.json({
+        hasCover: false,
+        files: [
+          { index: 0, label: '01_123', isCover: false, pageCount: 10 },
+          { index: 1, label: '02_456', isCover: false, pageCount: 10 },
+        ],
+      }),
+    ),
+  );
+}
+
 describe('PdfViewer / bbox-подсветка цитаты', () => {
+  // jsdom не реализует Element.scrollIntoView - нужен для volume Select.
+  beforeAll(() => {
+    if (!Element.prototype.scrollIntoView) {
+      Element.prototype.scrollIntoView = function () {};
+    }
+  });
+
   beforeEach(() => {
     server.resetHandlers();
   });
@@ -89,5 +112,32 @@ describe('PdfViewer / bbox-подсветка цитаты', () => {
       expect(screen.getByTestId('pdf-page')).toBeInTheDocument();
     });
     expect(screen.queryByTestId('pdf-bbox-highlight')).not.toBeInTheDocument();
+  });
+
+  it('подсветка исчезает после смены тома (не всплывает на стр.1 чужого тома)', async () => {
+    // deepLinkPage=1 (initialPrintedPage=1): подсветка видна на стр.1 тома 1.
+    // После смены тома changePage(1) оставляет pageNumber=1=deepLinkPage,
+    // но bbox принадлежит исходному тому → не должна всплыть снова.
+    mockMultiVolumePdfInfo();
+    render(
+      <PdfViewer
+        bookId="bk-1"
+        initialPrintedPage={1}
+        initialBbox={[0.1, 0.2, 0.3, 0.4]}
+      />,
+    );
+
+    // Подсветка видна на стр.1 первого тома.
+    expect(await screen.findByTestId('pdf-bbox-highlight')).toBeInTheDocument();
+
+    // Переключаем том: открываем Select и кликаем «Том 2».
+    // Внутри role=option лежит <button> с onClick - кликаем по тексту.
+    await userEvent.click(screen.getByRole('button', { name: 'Выбор тома' }));
+    await userEvent.click(await screen.findByText('Том 2'));
+
+    // Подсветка исчезла, хотя страница снова стр.1 (=deepLinkPage).
+    await waitForUi(() => {
+      expect(screen.queryByTestId('pdf-bbox-highlight')).not.toBeInTheDocument();
+    });
   });
 });

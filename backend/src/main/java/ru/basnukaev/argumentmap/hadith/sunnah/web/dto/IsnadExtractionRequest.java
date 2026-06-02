@@ -1,7 +1,6 @@
 package ru.basnukaev.argumentmap.hadith.sunnah.web.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 
 /**
  * Запрос на извлечение иснада из матна хадиса (ADR-059). Принимаем
@@ -9,10 +8,14 @@ import jakarta.validation.constraints.NotNull;
  * достаёт матн из источника (preview-путь), не доверяя клиентскому
  * тексту.
  *
+ * <p>{@code number} — строка (а не int): номера хадисов хранятся как
+ * varchar и допускают суффиксы вроде "1a" (см. {@code
+ * SunnahHadithBrowseItem}). Зеркалит string-идентичность import-эндпоинта.
+ *
  * @param collection slug сборника (bukhari/muslim…)
- * @param number     числовой номер хадиса в сборнике
+ * @param number     номер хадиса в сборнике (string, допускает "1a")
  */
 public record IsnadExtractionRequest(
         @NotBlank String collection,
-        @NotNull Integer number) {
+        @NotBlank String number) {
 }

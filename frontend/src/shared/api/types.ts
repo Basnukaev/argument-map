@@ -2550,8 +2550,7 @@ export interface components {
         };
         IsnadExtractionRequest: {
             collection: string;
-            /** Format: int32 */
-            number: number;
+            number: string;
         };
         GraphEdge: {
             id?: string;

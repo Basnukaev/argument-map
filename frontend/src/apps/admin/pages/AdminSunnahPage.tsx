@@ -40,8 +40,7 @@ type ExtractState =
   | { kind: 'loading' }
   | { kind: 'no_ai' }
   | { kind: 'not_found' }
-  | { kind: 'graph'; graph: SanadGraphResponse; cleanedMatn: string | null }
-  | { kind: 'error'; message: string };
+  | { kind: 'graph'; graph: SanadGraphResponse; cleanedMatn: string | null };
 
 const PAGE_SIZE = 20;
 
@@ -517,7 +516,7 @@ function PreviewBody({ preview, importing, onImport, locallyImported }: PreviewB
     try {
       const res = await apiPostRaw<IsnadExtractionResponse>('/api/v1/admin/sunnah/extract-isnad', {
         collection: preview.collection,
-        number: Number(preview.number),
+        number: preview.number,
       });
       if (!res.llmEnabled) {
         setExtract({ kind: 'no_ai' });

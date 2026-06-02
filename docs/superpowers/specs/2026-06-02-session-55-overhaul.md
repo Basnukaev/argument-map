@@ -1,6 +1,6 @@
 # Сессия 55 — overhaul: OCR-removal, swappable AI, типы книг, archive.org/reader/hadith фиксы, AI-иснад
 
-**Статус:** в работе (автономный марафон). Дата: 2026-06-02.
+**Статус:** реализовано (Сессия 55). Дата: 2026-06-02.
 **Контекст:** запрос Абдулы (10 пунктов + скриншоты img*.png + HAR archive.org/alminasa).
 Карта кода — multi-agent workflow `understand-session55` (6 агентов, находки ниже
 встроены). Все решения приняты автономно (Абдула: «не задавай вопросов, решай сам»).
@@ -129,3 +129,12 @@ position 0 = ближе к Пророку). Живой preview-граф в Admin
 - Полный дамп sunnah.com (контент-ops, не код) — пустые сборники до загрузки.
 - alminasa narrator-enrichment — будущее.
 - bbox deep-link для FILE_ONLY — если PDF не несёт text-layer координат, deep-link по странице.
+- **D8 (AI-иснад) реализован PREVIEW-ONLY** — извлечение строит граф
+  in-memory, БЕЗ персиста в `hd_*`. Персист-на-импорте + дедуп
+  нарраторов из rijal отложены (см. `backlog.md` «Isnad
+  persistence-on-import»).
+- **D6 (Reader/PDF) реализована только bbox-половина** —
+  non-Range slow-path / Range-прокси через Vite / ослабление
+  circuit-breaker НЕ сделаны (отложены). Текущий Range-путь PDF
+  работает адекватно: suffix-range 416 намеренный, Content-Length
+  присутствует → PDF.js использует explicit-ranges.

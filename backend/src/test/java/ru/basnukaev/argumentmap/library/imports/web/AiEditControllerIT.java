@@ -81,7 +81,7 @@ class AiEditControllerIT {
     void POST_aiEdit_enabledClient_returns202() throws Exception {
         Mockito.when(llmClient.isEnabled()).thenReturn(true);
         // complete() будет вызван в background async - не ждём результата
-        Mockito.when(llmClient.complete(ArgumentMatchers.anyString()))
+        Mockito.when(llmClient.complete(ArgumentMatchers.isNull(), ArgumentMatchers.anyString()))
                 .thenReturn("{\"type\":\"doc\",\"content\":[]}");
 
         Page page = savePage("text");

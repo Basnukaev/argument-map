@@ -76,7 +76,7 @@ class AnthropicLlmClientStubIT {
         client = new AnthropicLlmClient(httpClient, new ObjectMapper(),
                 "test-key", baseUrl, "claude-test", 1024, 30);
 
-        String result = client.complete("test prompt");
+        String result = client.complete(null, "test prompt");
 
         assertThat(result).isEqualTo("hello from stub");
         // без systemPrompt - top-level system отсутствует в body
@@ -153,7 +153,7 @@ class AnthropicLlmClientStubIT {
         client = new AnthropicLlmClient(httpClient, new ObjectMapper(),
                 "test-key", baseUrl, "claude-test", 1024, 30);
 
-        assertThatThrownBy(() -> client.complete("prompt"))
+        assertThatThrownBy(() -> client.complete(null, "prompt"))
                 .isInstanceOf(LlmApiException.class)
                 .hasMessageContaining("HTTP 500");
     }
@@ -174,7 +174,7 @@ class AnthropicLlmClientStubIT {
         client = new AnthropicLlmClient(httpClient, new ObjectMapper(),
                 "test-key", baseUrl, "claude-test", 1024, 30);
 
-        assertThatThrownBy(() -> client.complete("prompt"))
+        assertThatThrownBy(() -> client.complete(null, "prompt"))
                 .isInstanceOf(LlmApiException.class)
                 .hasMessageContaining("без text block");
     }
@@ -185,7 +185,7 @@ class AnthropicLlmClientStubIT {
                 "disabled", "http://nowhere", "claude-test", 1024, 30);
 
         assertThat(client.isEnabled()).isFalse();
-        assertThatThrownBy(() -> client.complete("prompt"))
+        assertThatThrownBy(() -> client.complete(null, "prompt"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("disabled");
     }

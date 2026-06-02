@@ -4485,7 +4485,7 @@ collaborative editor) - Tiptap имеет лучше ROI на extension рабо
 
 ## ADR-041: OCR через Tess4j (Tesseract Java wrapper) для image-сканов
 **Дата:** 2026-05-17
-**Статус:** принято
+**Статус:** отменено (заменено ADR-057, Сессия 55)
 **Реализовано:** Сессия 42, миграция 34 + library.imports.OcrService/PageImageService
 
 **Контекст:** Этап 17 - третий способ внести страницы в библиотеку
@@ -6230,10 +6230,11 @@ original PDF). Record `PdfFileRef` удалён.
 - `ImageRegion` — bbox-разметка на сканах
 
 **Последствия.** `lib_pages` теряет OCR state machine. AI-edit работает
-непосредственно на `text_content` (shamela plain text, PDF extraction,
-archive.org OCR-слой — их `_text` уже содержит текст). Image-only страницы
-(сканы без text layer) получают пустой `text_content` — AI-edit для них
-недоступен до появления AI-recognition pipeline.
+непосредственно на `text_content` (shamela plain text + PDFBox text
+extraction). archive.org-книги — FILE_ONLY: текст из них не извлекается
+(ADR-056 amendment). Image-only страницы (сканы без text layer) получают
+пустой `text_content` — AI-edit для них недоступен до появления
+AI-recognition pipeline.
 
 **Rejected alternatives.** Замена Tesseract на другой OCR (PaddleOCR,
 GCV) — YAGNI: если нужно OCR, лучше сразу LLM-vision без
@@ -6252,9 +6253,12 @@ GCV) — YAGNI: если нужно OCR, лучше сразу LLM-vision без
 `ru.basnukaev.argumentmap.ai`:
 
 - **`LlmClient`** — интерфейс: `boolean isEnabled()`,
-  `String complete(String systemPrompt, String userPrompt)` +
-  default-перегрузка `complete(userPrompt)`. Добавлена поддержка
-  system-промпта (которой не было у старого клиента).
+  `String complete(String systemPrompt, String userPrompt)`. Добавлена
+  поддержка system-промпта (которой не было у старого клиента).
+  Одноаргументная default-перегрузка `complete(userPrompt)` удалена в
+  Сессии 55: она была self-invoke на raw target и обходила Spring-прокси
+  → `@Retry`-advice не срабатывал на AI-edit пути. Callers без
+  system-промпта передают `complete(null, userPrompt)`.
 - **Реализации** через `@Component` + `@ConditionalOnProperty(name="ai.provider")`:
   - `AnthropicLlmClient` — `havingValue="anthropic", matchIfMissing=true`
     (default). Messages API, system как top-level поле.
@@ -6280,8 +6284,9 @@ GCV) — YAGNI: если нужно OCR, лучше сразу LLM-vision без
   био-поля (`ExtractedBookMetadata`: titleAr, authors, publisher,
   place, editionText/Number, yearHijri/Gregorian, volumes). Graceful
   fallback: disabled/garbage/исключение → `Optional.empty()` (НЕ
-  бросает), caller откатывается на regex-парсер. Пока НЕ wired в
-  archive.org pipeline (отдельная фаза).
+  бросает), caller откатывается на regex-парсер. Wired в archive.org
+  preview() как primary (regex — fallback) в рамках ADR-056 amendment
+  2026-06-03.
 - **GlobalExceptionHandler** error type `anthropic-api-error` →
   `llm-api-error` (502/503 mapping без изменений).
 

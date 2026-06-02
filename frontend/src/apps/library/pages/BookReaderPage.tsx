@@ -171,7 +171,6 @@ function BookReaderPage() {
         // pdfPageNumber → отдельный pdfDeepLinkPage (НЕ pageNumber), чтобы
         // не сломать текстовый стейт / prev-next индекс. PdfViewer получит
         // его как initialPrintedPage и сам clamp'нет к numPages.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (Number.isFinite(n) && n >= 1) setPdfDeepLinkPage(n);
       }
       return;

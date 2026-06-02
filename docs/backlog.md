@@ -405,6 +405,15 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
 
 ## Tech debt / performance optimization
 
+### Code-review findings (Сессия 55, 2026-06-03) — deferred Minor
+
+- [ ] **migration 69 (content_kind) HAS_FILE предикат** использует
+  `jsonb_array_length` без `jsonb_typeof(...)='array'` guard — латентная
+  хрупкость (не сработала, все live-данные = array). Нельзя править
+  применённый changeset (checksum); затянуть
+  `jsonb_typeof(...)='array' AND ...` при следующем касании файла /
+  в новой миграции если понадобится.
+
 ### Code-review findings (Сессия 53, 2026-06-01) — Phase 5 ETL шаг 2 deferred Minor
 
 Из multi-agent review (5 измерений → adversarial verify, 0 Critical, все 6

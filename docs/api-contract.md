@@ -2824,9 +2824,11 @@ fix Сессия 38) через существующие PDF endpoints:
   только `application/pdf`
 - **Password-protected PDF decrypt** - encrypted PDF возвращают 422.
   Decrypt с password добавим если будет запрос
-- **OCR для scanned-images PDF** - страницы без extractable text
-  получают пустую `text_content`. OCR pipeline планируется в
-  Этапе 17 (image-сканы)
+- **Scanned-image PDF (без text layer)** - страницы без extractable
+  text получают пустую `text_content` как субстрат для будущего
+  AI-recognition (LLM-vision). OCR-pipeline (Tesseract) удалён в
+  ADR-057 (Сессия 55) - LLM-vision вместо промежуточного plain-text
+  OCR-этапа
 - **Auto-chapter detection** - PDF outline (bookmarks) не парсится.
   Все pages создаются с `chapter_id=null`. Будущая фича когда
   понадобится navigation tree из PDF
@@ -3580,8 +3582,12 @@ ADMIN-only (403 `forbidden-admin-only`). Матн берётся серверо�
 
 Request:
 ```json
-{ "collection": "bukhari", "number": 1 }
+{ "collection": "bukhari", "number": "1" }
 ```
+
+`number` — string (а не int): номера хадисов хранятся как varchar и
+допускают суффиксы вроде `"1a"`. Зеркалит string-идентичность
+import-эндпоинтов.
 
 Response `IsnadExtractionResponse`:
 ```json

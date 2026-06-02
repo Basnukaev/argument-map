@@ -87,7 +87,7 @@ class AiEditServiceIT {
         String llmResponse = "{\"type\":\"doc\",\"content\":["
                 + "{\"type\":\"paragraph\",\"content\":["
                 + "{\"type\":\"text\",\"text\":\"بسم الله\"}]}]}";
-        org.mockito.Mockito.when(llmClient.complete(org.mockito.ArgumentMatchers.anyString()))
+        org.mockito.Mockito.when(llmClient.complete(org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(llmResponse);
 
         Page page = savePage("بسم الله الرحمن الرحيم");
@@ -104,7 +104,7 @@ class AiEditServiceIT {
 
     @Test
     void enhance_invalidJsonResponse_marksFailed() {
-        org.mockito.Mockito.when(llmClient.complete(org.mockito.ArgumentMatchers.anyString()))
+        org.mockito.Mockito.when(llmClient.complete(org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn("not even json {broken");
 
         Page page = savePage("some arabic text");
@@ -121,7 +121,7 @@ class AiEditServiceIT {
     @Test
     void enhance_markdownFenceWrappedResponse_strippedAndSaved() {
         String fenced = "```json\n{\"type\":\"doc\",\"content\":[]}\n```";
-        org.mockito.Mockito.when(llmClient.complete(org.mockito.ArgumentMatchers.anyString()))
+        org.mockito.Mockito.when(llmClient.complete(org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(fenced);
 
         Page page = savePage("text");
@@ -150,12 +150,12 @@ class AiEditServiceIT {
         assertThat(after.aiEditStatus()).isEqualTo(AiEditStatus.FAILED);
         // llmClient не должен был быть вызван
         org.mockito.Mockito.verify(llmClient,
-                org.mockito.Mockito.never()).complete(org.mockito.ArgumentMatchers.anyString());
+                org.mockito.Mockito.never()).complete(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
     void enhance_anthropicThrows_marksFailed() {
-        org.mockito.Mockito.when(llmClient.complete(org.mockito.ArgumentMatchers.anyString()))
+        org.mockito.Mockito.when(llmClient.complete(org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.anyString()))
                 .thenThrow(new LlmApiException("API down", 500));
 
         Page page = savePage("some text");
@@ -171,7 +171,7 @@ class AiEditServiceIT {
     void enhance_alreadyProcessing_skipsSecondPaidCall() {
         // Защита от check-then-act гонки: страница уже PROCESSING (другой
         // вызов в полёте) - второй enhance не должен дёргать платный API.
-        org.mockito.Mockito.when(llmClient.complete(org.mockito.ArgumentMatchers.anyString()))
+        org.mockito.Mockito.when(llmClient.complete(org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn("{\"type\":\"doc\",\"content\":[]}");
         Page page = savePage("some text");
         // эмулируем что concurrent вызов уже застолбил PROCESSING
@@ -182,7 +182,7 @@ class AiEditServiceIT {
 
         // tryClaim вернул false → complete() не вызван
         org.mockito.Mockito.verify(llmClient,
-                org.mockito.Mockito.never()).complete(org.mockito.ArgumentMatchers.anyString());
+                org.mockito.Mockito.never()).complete(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         // статус остался PROCESSING (не перезаписан)
         Page after = pageRepository.findById(page.id()).orElseThrow();
         assertThat(after.aiEditStatus()).isEqualTo(AiEditStatus.PROCESSING);
@@ -199,7 +199,7 @@ class AiEditServiceIT {
         Page after = pageRepository.findById(page.id()).orElseThrow();
         assertThat(after.aiEditStatus()).isEqualTo(AiEditStatus.FAILED);
         org.mockito.Mockito.verify(llmClient,
-                org.mockito.Mockito.never()).complete(org.mockito.ArgumentMatchers.anyString());
+                org.mockito.Mockito.never()).complete(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
     private Page savePage(String textContent) {

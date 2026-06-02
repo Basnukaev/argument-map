@@ -107,7 +107,7 @@ class OpenAiCompatibleLlmClientStubIT {
         client = new OpenAiCompatibleLlmClient(httpClient, new ObjectMapper(),
                 "sk-test", baseUrl, "gpt-test", 1024, 30);
 
-        client.complete("user only");
+        client.complete(null, "user only");
 
         JsonNode sent = new ObjectMapper().readTree(capturedBody.get());
         JsonNode messages = sent.path("messages");
@@ -129,7 +129,7 @@ class OpenAiCompatibleLlmClientStubIT {
         client = new OpenAiCompatibleLlmClient(httpClient, new ObjectMapper(),
                 "sk-test", baseUrl, "gpt-test", 1024, 30);
 
-        assertThatThrownBy(() -> client.complete("prompt"))
+        assertThatThrownBy(() -> client.complete(null, "prompt"))
                 .isInstanceOf(LlmApiException.class)
                 .hasMessageContaining("HTTP 500");
     }
@@ -149,7 +149,7 @@ class OpenAiCompatibleLlmClientStubIT {
         client = new OpenAiCompatibleLlmClient(httpClient, new ObjectMapper(),
                 "sk-test", baseUrl, "gpt-test", 1024, 30);
 
-        assertThatThrownBy(() -> client.complete("prompt"))
+        assertThatThrownBy(() -> client.complete(null, "prompt"))
                 .isInstanceOf(LlmApiException.class)
                 .hasMessageContaining("без choices");
     }
@@ -160,7 +160,7 @@ class OpenAiCompatibleLlmClientStubIT {
                 new ObjectMapper(), "disabled", "http://nowhere", "m", 1, 1);
 
         assertThat(client.isEnabled()).isFalse();
-        assertThatThrownBy(() -> client.complete("prompt"))
+        assertThatThrownBy(() -> client.complete(null, "prompt"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("disabled");
     }

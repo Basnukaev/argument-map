@@ -134,7 +134,7 @@ class SunnahAdminControllerIT {
         mockMvc.perform(post("/api/v1/admin/sunnah/extract-isnad")
                         .header("X-User-Id", userId.toString())
                         .contentType("application/json")
-                        .content("{\"collection\":\"bukhari\",\"number\":1}"))
+                        .content("{\"collection\":\"bukhari\",\"number\":\"1\"}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.type", containsString("forbidden-admin-only")));
     }
@@ -146,7 +146,7 @@ class SunnahAdminControllerIT {
         mockMvc.perform(post("/api/v1/admin/sunnah/extract-isnad")
                         .header("X-User-Id", adminId.toString())
                         .contentType("application/json")
-                        .content("{\"collection\":\"bukhari\",\"number\":1}"))
+                        .content("{\"collection\":\"bukhari\",\"number\":\"1\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.llmEnabled").value(false))
                 .andExpect(jsonPath("$.isnadFound").value(false))

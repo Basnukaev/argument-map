@@ -157,7 +157,7 @@ public class SunnahAdminController {
 
         SunnahDataSource src = source();
         String collection = request.collection();
-        String number = String.valueOf(request.number());
+        String number = request.number();
         SunnahHadithPreview preview = importService.previewSingle(src, collection, number);
         String matn = preview.matnAr();
         if (matn == null || matn.isBlank()) {

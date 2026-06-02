@@ -31,18 +31,17 @@ public interface LlmClient {
      * Отправить запрос в LLM с system + user промптами и вернуть text
      * ответа.
      *
+     * <p>Только этот двухаргументный метод - нет одноаргументной
+     * перегрузки. Раньше существовал {@code default complete(String)},
+     * но он был ловушкой: default-метод интерфейса self-invoke на raw
+     * target обходил Spring-прокси, из-за чего {@code @Retry}-advice на
+     * реализации не срабатывал. Callers без system-промпта передают
+     * {@code complete(null, userPrompt)}.
+     *
      * @param systemPrompt системная инструкция (роль/правила); если
      *                     null или blank - не отправляется
      * @param userPrompt   текст user message
      * @return raw text ответа (валидация - на стороне caller)
      */
     String complete(String systemPrompt, String userPrompt);
-
-    /**
-     * Удобная перегрузка без system промпта - делегирует в
-     * {@link #complete(String, String)} с {@code systemPrompt = null}.
-     */
-    default String complete(String userPrompt) {
-        return complete(null, userPrompt);
-    }
 }

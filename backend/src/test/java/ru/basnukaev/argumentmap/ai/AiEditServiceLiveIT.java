@@ -54,7 +54,7 @@ class AiEditServiceLiveIT {
 
                 Текст: %s""".formatted("بسم الله الرحمن الرحيم");
 
-        String response = client.complete(shortPrompt);
+        String response = client.complete(null, shortPrompt);
 
         // Распарсить и проверить базовую структуру
         JsonNode root = objectMapper.readTree(response.trim()

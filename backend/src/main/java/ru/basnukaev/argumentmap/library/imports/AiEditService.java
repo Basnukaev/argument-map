@@ -144,7 +144,11 @@ public class AiEditService {
         try {
             String prompt = loadPromptTemplate().replace(PROMPT_PLACEHOLDER,
                     page.textContent());
-            String rawResponse = llmClient.complete(prompt);
+            // Двухаргументный complete(null, prompt) — чтобы @Retry advice
+            // на прокси LlmClient применился. Одноаргументная перегрузка
+            // была default-методом интерфейса и self-invoke на raw target
+            // обходила Spring-прокси (retry не срабатывал).
+            String rawResponse = llmClient.complete(null, prompt);
             String validJson = validateProseMirrorJson(rawResponse);
 
             pageRepository.updateFormattedContentAndMarkAiEditDone(

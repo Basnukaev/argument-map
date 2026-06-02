@@ -172,6 +172,10 @@ function PdfViewer({
   const [pageInput, setPageInput] = useState<string>(String(startPage));
   const [numPages, setNumPages] = useState<number | null>(null);
   const [scale, setScale] = useState(1.2);
+  // Deep-link bbox-подсветка одноразова: после смены тома страница 1
+  // нового файла может совпасть с deepLinkPage и подсветка ошибочно
+  // всплыла бы поверх чужого тома. Дисмиссим её при переключении тома.
+  const [bboxDismissed, setBboxDismissed] = useState(false);
 
   /** Меняем pageNumber + sync input одной парой. Используется во всех
    * местах где меняется страница не через input (prev/next/volume/submit) */
@@ -316,7 +320,7 @@ function PdfViewer({
   // от обёртки <Page> → масштабируется вместе с zoom (scale меняет размер
   // обёртки, проценты остаются те же).
   const deepLinkPage = numPages ? Math.min(startPage, numPages) : startPage;
-  const showBbox = initialBbox != null && pageNumber === deepLinkPage;
+  const showBbox = initialBbox != null && pageNumber === deepLinkPage && !bboxDismissed;
 
   const goPrev = () => {
     if (pageNumber > 1) changePage(pageNumber - 1);
@@ -342,6 +346,9 @@ function PdfViewer({
     if (newIndex === activeFileIndex) return;
     setFileIndex(newIndex);
     changePage(1);
+    // Deep-link bbox принадлежит исходному тому - после смены тома
+    // больше не показываем (иначе всплывёт на стр.1 чужого тома).
+    setBboxDismissed(true);
     // numPages намеренно НЕ сбрасываем - чтобы counter `X / Y` не показывал
     // "1 / …" пока новый PDF грузится. Старое numPages корректно обновится
     // в onLoadSuccess через ~1-2 сек, а до того юзер видит привычное
