@@ -129,7 +129,7 @@ function VoteWidget({
     <div
       className={`inline-flex items-center gap-0.5 rounded border border-border bg-surface/60 px-1 py-0.5 text-xs ${className}`}
       aria-label={ariaLabel ?? t('vote.aria_widget')}
-      onClick={stopPropagation ? (e) => e.stopPropagation() : undefined}
+      onClick={stopPropagation ? (e) => { e.preventDefault(); e.stopPropagation(); } : undefined}
     >
       <button
         type="button"
@@ -138,7 +138,9 @@ function VoteWidget({
         aria-pressed={upActive}
         disabled={pending}
         onClick={(e) => {
-          if (stopPropagation) e.stopPropagation();
+          // preventDefault обязателен: виджет внутри React-Router <Link> —
+          // без него нативная навигация по <a href> срабатывает (full reload).
+          if (stopPropagation) { e.preventDefault(); e.stopPropagation(); }
           void handleVote(1);
         }}
         className={`flex h-5 w-5 items-center justify-center rounded transition-colors ${
@@ -168,7 +170,7 @@ function VoteWidget({
         aria-pressed={downActive}
         disabled={pending}
         onClick={(e) => {
-          if (stopPropagation) e.stopPropagation();
+          if (stopPropagation) { e.preventDefault(); e.stopPropagation(); }
           void handleVote(-1);
         }}
         className={`flex h-5 w-5 items-center justify-center rounded transition-colors ${
