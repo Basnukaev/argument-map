@@ -165,19 +165,40 @@ public class QuestionRepository {
     }
 
     /**
+     * Backward-compat overload без явного clear-body флага: {@code null} body =
+     * no change (нельзя выразить clear-to-null). Оставлен для callers, которым
+     * не нужна семантика очистки.
+     */
+    public boolean update(UUID id, String title, String body, QuestionStatus status) {
+        return update(id, title, body, status, false);
+    }
+
+    /**
      * Partial update - title/body/status. Updates {@code updated_at = now()}
      * автоматически. {@code null} значения = no change в соответствующем поле.
      *
+     * <p>Баг #6 Tier-3: {@code null} body нельзя было отличить от "очистить в
+     * NULL" - оба превращались в no-change, а сервис обходил это, записывая
+     * пустую строку {@code ''} (что противоречит документированной clear-to-null
+     * семантике). Теперь явный {@code clearBody=true} ставит {@code body = NULL}
+     * (взаимоисключающе с непустым {@code body}).
+     *
+     * @param clearBody если {@code true} - {@code body} принудительно
+     *                  устанавливается в {@code NULL} (PATCH clear-to-null);
+     *                  параметр {@code body} при этом игнорируется
      * @return {@code true} если row обновлён (question найден)
      */
-    public boolean update(UUID id, String title, String body, QuestionStatus status) {
+    public boolean update(UUID id, String title, String body, QuestionStatus status,
+                          boolean clearBody) {
         StringBuilder sql = new StringBuilder("UPDATE questions SET updated_at = now()");
         List<Object> args = new ArrayList<>();
         if (title != null) {
             sql.append(", title = ?");
             args.add(title);
         }
-        if (body != null) {
+        if (clearBody) {
+            sql.append(", body = NULL");
+        } else if (body != null) {
             sql.append(", body = ?");
             args.add(body);
         }

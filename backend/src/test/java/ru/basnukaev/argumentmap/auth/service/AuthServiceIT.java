@@ -90,6 +90,42 @@ class AuthServiceIT {
                 .isInstanceOf(InvalidCredentialsException.class);
     }
 
+    /**
+     * Баг #1 Tier-3: not-found путь должен прогонять РЕАЛЬНЫЙ bcrypt против
+     * валидного dummy-хэша (а не короткозамыкаться на malformed-хэше). Проверяем
+     * это косвенно: not-found, wrong-password и disabled - все три бросают ровно
+     * один и тот же тип с одинаковым generic-сообщением (timing- и
+     * message-неотличимость). Прямой timing-замер в IT флакрозен, поэтому
+     * валидность dummy-хэша покрыта unit-тестом AuthServiceDummyHashTest.
+     */
+    @Test
+    void login_notFoundWrongAndDisabled_returnSameGenericMessage() {
+        User active = userService.register("ivy@example.com", "ivy1", "password1");
+        User disabled = userService.register("jane@example.com", "jane1", "password1");
+        userRepository.setEnabled(disabled.id(), false);
+
+        String unknown = catchInvalidCredentialsMessage(
+                () -> authService.login("nobody@example.com", "password1"));
+        String wrongPassword = catchInvalidCredentialsMessage(
+                () -> authService.login("ivy@example.com", "wrongpass"));
+        String disabledMsg = catchInvalidCredentialsMessage(
+                () -> authService.login("jane@example.com", "password1"));
+
+        // Баг #2 Tier-3: disabled не должен отличаться от wrong-password/not-found
+        assertThat(unknown).isEqualTo(wrongPassword);
+        assertThat(disabledMsg).isEqualTo(wrongPassword);
+        assertThat(active).isNotNull(); // активный аккаунт логинится (login_validCredentials)
+    }
+
+    private static String catchInvalidCredentialsMessage(Runnable r) {
+        try {
+            r.run();
+        } catch (InvalidCredentialsException e) {
+            return e.getMessage();
+        }
+        throw new AssertionError("Ожидался InvalidCredentialsException");
+    }
+
     @Test
     void refresh_validRefreshToken_returnsNewPair() {
         userService.register("grace@example.com", "grace1", "password1");

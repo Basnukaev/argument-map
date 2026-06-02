@@ -48,6 +48,23 @@ public class AuthService {
 
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
+    /**
+     * Валидный BCrypt-хэш ($2a$10$, 22-символьная соль) для timing-protection.
+     * Когда email не найден (или у пользователя нет пароля), мы всё равно
+     * прогоняем {@code passwordEncoder.matches} против этой константы - bcrypt
+     * KDF отрабатывает столько же времени, сколько и для существующего user'а.
+     * <p><b>Важно:</b> хэш должен быть синтаксически корректным, иначе
+     * {@code BCryptPasswordEncoder.matches} логирует warning и возвращается
+     * мгновенно <b>без</b> запуска KDF - тогда timing-leak (user-enumeration по
+     * времени ответа) сохраняется. Прежняя константа была malformed (баг #1
+     * Tier-3). Это хэш произвольного пароля - сравнение всегда даёт false.
+     */
+    private static final String DUMMY_BCRYPT_HASH =
+            "$2a$10$b75ZOcsmayKEZ6ySLD4bs.mW56WX/mIq7kmFpEOp2S0.djRt86LnG";
+
+    /** Единое сообщение для всех login-неудач - не leak'аем что именно неверно. */
+    private static final String INVALID_CREDENTIALS_MESSAGE = "Неверный email или пароль";
+
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
@@ -65,23 +82,25 @@ public class AuthService {
 
     @Transactional
     public AuthTokens login(String email, String rawPassword) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> {
-                    // Сравним hash с любой константой чтобы не дать timing-leak
-                    // "email не зарегистрирован" vs "пароль неверный"
-                    passwordEncoder.matches(rawPassword, "$2a$10$DummyHashForTimingProtectionOnly");
-                    return new InvalidCredentialsException("Неверный email или пароль");
-                });
+        User user = userRepository.findByEmail(email).orElse(null);
 
-        if (user.passwordHash() == null) {
-            // legacy X-User-Id user без password (см. ADR-040 transitional)
-            throw new InvalidCredentialsException("Пароль не установлен для пользователя");
+        // Баг #1 Tier-3: email не найден ИЛИ у user'а нет пароля (legacy
+        // X-User-Id, ADR-040 transitional) - в обоих случаях прогоняем bcrypt
+        // против валидного dummy-хэша, чтобы время ответа не зависело от факта
+        // существования аккаунта (защита от user-enumeration по timing).
+        if (user == null || user.passwordHash() == null) {
+            passwordEncoder.matches(rawPassword, DUMMY_BCRYPT_HASH);
+            throw new InvalidCredentialsException(INVALID_CREDENTIALS_MESSAGE);
         }
         if (!passwordEncoder.matches(rawPassword, user.passwordHash())) {
-            throw new InvalidCredentialsException("Неверный email или пароль");
+            throw new InvalidCredentialsException(INVALID_CREDENTIALS_MESSAGE);
         }
+        // Баг #2 Tier-3: disabled-аккаунт раньше бросал ОТДЕЛЬНОЕ сообщение
+        // ("Аккаунт деактивирован") - это раскрывало, что аккаунт существует
+        // (enabled vs disabled). Теперь то же generic invalid-credentials, что
+        // и для неверного пароля - не различаем enabled/disabled наружу.
         if (!user.enabled()) {
-            throw new InvalidCredentialsException("Аккаунт деактивирован");
+            throw new InvalidCredentialsException(INVALID_CREDENTIALS_MESSAGE);
         }
 
         return issueTokenPair(user).tokens();

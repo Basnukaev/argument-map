@@ -13,10 +13,12 @@ import ru.basnukaev.argumentmap.service.PermissionService;
 import ru.basnukaev.argumentmap.domain.AuditEntityType;
 import ru.basnukaev.argumentmap.exception.AnswerNotFoundException;
 import ru.basnukaev.argumentmap.exception.AnswerWriteAccessDeniedException;
+import ru.basnukaev.argumentmap.exception.QuestionClosedException;
 import ru.basnukaev.argumentmap.exception.QuestionNotFoundException;
 import ru.basnukaev.argumentmap.exception.QuestionWriteAccessDeniedException;
 import ru.basnukaev.argumentmap.qa.domain.Answer;
 import ru.basnukaev.argumentmap.qa.domain.Question;
+import ru.basnukaev.argumentmap.qa.domain.QuestionStatus;
 import ru.basnukaev.argumentmap.qa.repository.AnswerRepository;
 import ru.basnukaev.argumentmap.qa.repository.QuestionRepository;
 import ru.basnukaev.argumentmap.service.AuditLogService;
@@ -208,8 +210,16 @@ public class AnswerService {
      */
     @Transactional
     public Question acceptAnswer(UUID questionId, UUID answerId) {
-        questionRepository.findById(questionId)
+        Question question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new QuestionNotFoundException(questionId));
+        // Баг #4 Tier-3: CLOSED - терминальное модераторское состояние
+        // (duplicate/spam/off-topic). setAcceptedAnswer безусловно ставит
+        // status=ANSWERED, поэтому принятие ответа молча возвращало бы закрытый
+        // вопрос в жизненный цикл, обходя модерацию. Отклоняем явной ошибкой -
+        // чтобы переоткрыть вопрос, нужно сначала изменить его статус.
+        if (question.status() == QuestionStatus.CLOSED) {
+            throw new QuestionClosedException(questionId);
+        }
         Answer a = answerRepository.findById(answerId)
                 .orElseThrow(() -> new AnswerNotFoundException(answerId));
         if (!a.questionId().equals(questionId)) {

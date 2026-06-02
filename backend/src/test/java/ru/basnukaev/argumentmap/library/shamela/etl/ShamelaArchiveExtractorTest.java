@@ -111,6 +111,82 @@ class ShamelaArchiveExtractorTest {
                 .hasMessageContaining("не существует");
     }
 
+    // ---- decompression-bomb guard (баг #3 Tier-3) ----
+
+    @Test
+    void extract_blocks_entry_exceeding_per_entry_limit(@TempDir Path tmp) throws IOException {
+        // per-entry лимит 1 КБ; entry на 4 КБ должна оборваться и удалить partial
+        ShamelaArchiveExtractor limited =
+                new ShamelaArchiveExtractor(1024, 100 * 1024, 100);
+        Path zip = tmp.resolve("bomb-entry.zip");
+        try (OutputStream fos = Files.newOutputStream(zip);
+             ZipOutputStream zos = new ZipOutputStream(fos)) {
+            putEntry(zos, "big.sqlite", "x".repeat(4096));
+        }
+        Path dest = tmp.resolve("dest");
+
+        assertThatThrownBy(() -> limited.extract(zip, dest))
+                .isInstanceOf(ShamelaArchiveException.class)
+                .hasMessageContaining("per-entry лимит");
+        // частично записанный файл должен быть удалён (abort cleanup)
+        assertThat(dest.resolve("big.sqlite")).doesNotExist();
+    }
+
+    @Test
+    void extract_blocks_total_size_exceeded_across_entries(@TempDir Path tmp) throws IOException {
+        // per-entry 4 КБ (ОК для каждой), но суммарный лимит 5 КБ → вторая
+        // entry перевалит общий лимит
+        ShamelaArchiveExtractor limited =
+                new ShamelaArchiveExtractor(4096, 5 * 1024, 100);
+        Path zip = tmp.resolve("bomb-total.zip");
+        try (OutputStream fos = Files.newOutputStream(zip);
+             ZipOutputStream zos = new ZipOutputStream(fos)) {
+            putEntry(zos, "a.sqlite", "a".repeat(4096));
+            putEntry(zos, "b.sqlite", "b".repeat(4096));
+        }
+        Path dest = tmp.resolve("dest");
+
+        assertThatThrownBy(() -> limited.extract(zip, dest))
+                .isInstanceOf(ShamelaArchiveException.class)
+                .hasMessageContaining("суммарный распакованный объём");
+    }
+
+    @Test
+    void extract_blocks_entry_count_exceeded(@TempDir Path tmp) throws IOException {
+        // лимит 2 entry; кладём 3 → обрыв
+        ShamelaArchiveExtractor limited =
+                new ShamelaArchiveExtractor(1024 * 1024, 1024 * 1024, 2);
+        Path zip = tmp.resolve("bomb-count.zip");
+        try (OutputStream fos = Files.newOutputStream(zip);
+             ZipOutputStream zos = new ZipOutputStream(fos)) {
+            putEntry(zos, "1.txt", "a");
+            putEntry(zos, "2.txt", "b");
+            putEntry(zos, "3.txt", "c");
+        }
+        Path dest = tmp.resolve("dest");
+
+        assertThatThrownBy(() -> limited.extract(zip, dest))
+                .isInstanceOf(ShamelaArchiveException.class)
+                .hasMessageContaining("лимит количества записей");
+    }
+
+    @Test
+    void extract_allows_archive_within_limits(@TempDir Path tmp) throws IOException {
+        // нормальный архив в пределах лимитов проходит без ошибок
+        ShamelaArchiveExtractor limited =
+                new ShamelaArchiveExtractor(1024 * 1024, 4 * 1024 * 1024, 100);
+        Path zip = tmp.resolve("ok.zip");
+        try (OutputStream fos = Files.newOutputStream(zip);
+             ZipOutputStream zos = new ZipOutputStream(fos)) {
+            putEntry(zos, "ok.sqlite", "y".repeat(2048));
+        }
+        Path dest = tmp.resolve("dest");
+
+        limited.extract(zip, dest);
+        assertThat(dest.resolve("ok.sqlite")).isRegularFile();
+        assertThat(Files.readString(dest.resolve("ok.sqlite"))).hasSize(2048);
+    }
+
     private static void putEntry(ZipOutputStream zos, String name, String content) throws IOException {
         zos.putNextEntry(new ZipEntry(name));
         zos.write(content.getBytes(StandardCharsets.UTF_8));

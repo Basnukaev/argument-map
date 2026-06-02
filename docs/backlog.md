@@ -470,14 +470,25 @@ medium закрыты в Сессии 52, см. `docs/superpowers/audits/2026-06
 Остаток — low severity, ни один не критичен. Канон фиксов — в handoff'е.
 
 Security hardening:
-- [ ] **AuthService login timing side-channel** — malformed dummy bcrypt
+- [x] **AuthService login timing side-channel** — malformed dummy bcrypt
       hash в timing-protection path → email-enumeration по времени ответа
-      остаётся. `AuthService.java:72`.
-- [ ] **Disabled-account login leak** — отдельное error-сообщение +
+      остаётся. `AuthService.java:72`. **Закрыто:** заменён на валидный
+      `DUMMY_BCRYPT_HASH` (malformed → KDF не запускался); not-found И
+      null-password пути теперь прогоняют bcrypt против него (constant-time).
+      Tests: `AuthServiceDummyHashTest` (2 unit) + `AuthServiceIT.login_notFoundWrongAndDisabled_returnSameGenericMessage`.
+- [x] **Disabled-account login leak** — отдельное error-сообщение +
       проверка после password check → утечка валидности credentials.
-      `AuthService.java:83`.
-- [ ] **ShamelaArchiveExtractor decompression bomb** — нет per-entry /
+      `AuthService.java:83`. **Закрыто:** disabled → тот же generic
+      `INVALID_CREDENTIALS_MESSAGE` что и wrong-password (не различаем
+      enabled/disabled). Tests: `AuthControllerIT.POST_login_disabledAccount_returnsSameGeneric401AsWrongPassword`
+      (тот же type+detail) + service-level выше.
+- [x] **ShamelaArchiveExtractor decompression bomb** — нет per-entry /
       total size cap → возможно disk exhaustion. `ShamelaArchiveExtractor.java:59`.
+      **Закрыто:** per-entry (2 ГБ) + total (8 ГБ) + entry-count (10k) caps,
+      считаем фактически записанные байты (не доверяем `getSize`), partial-файл
+      удаляется при abort. Лимиты инжектятся через конструктор для тестов.
+      Tests: 4 новых в `ShamelaArchiveExtractorTest` (per-entry / total / count /
+      within-limits passes).
 - [ ] **View-count inflation** — `POST /books/{id}/views` unauthenticated +
       unbounded (anti-spam dedup отложен Phase 2.b). `BookController.java:113`.
 
@@ -498,26 +509,56 @@ Logic:
       (no error/log). `ShamelaChapterMapper.java:67`.
 - [ ] **ShamelaBibliographyParser** dash-split mis-routes publisher →
       publication place. `ShamelaBibliographyParser.java:95`.
-- [ ] **QuestionService updateQuestion** body="" вместо NULL (contra
+- [x] **QuestionService updateQuestion** body="" вместо NULL (contra
       документированной clear-to-null семантики). `QuestionService.java:156`.
-- [ ] **acceptAnswer на CLOSED вопросе** silently reopens lifecycle →
-      ANSWERED. `AnswerService.java:194`.
-- [ ] **HadithController stale `bookId` query param** после Phase 5
-      collection rename. `HadithController.java:62`.
+      **Закрыто:** blank body теперь очищается в `NULL` (не `""`) через новый
+      `clearBody` флаг в `QuestionRepository.update(...)` 5-арг overload
+      (4-арг сохранён для internal). Tests: `QuestionServiceIT` (4 новых:
+      empty/whitespace → NULL в БД, null = no-change, non-blank = trimmed).
+- [x] **acceptAnswer на CLOSED вопросе** silently reopens lifecycle →
+      ANSWERED. `AnswerService.java:194`. **Закрыто:** выбрана семантика
+      **reject** (CLOSED — терминальное модераторское состояние; принятие
+      обходило бы модерацию). Новый `QuestionClosedException` → `409
+      question-closed`. Guard в `acceptAnswer` legacy overload (role-overload
+      делегирует). api-contract обновлён. Tests: 2 новых в `AnswerServiceIT`
+      (не reopen + role-overload тоже blocked).
+- [x] **HadithController stale `bookId` query param** после Phase 5
+      collection rename. `HadithController.java:62`. **Уже исправлено** ранее
+      commit `94309dc` (под-проект #1.B): `bookId` query param переименован в
+      `collectionId` (repository + controller + frontend + api-contract все на
+      `collectionId`). Сейчас в hadith-контроллерах нет ни одного stale
+      `bookId` `@RequestParam` (grep подтвердил). Кода/тестов менять не нужно —
+      `HadithControllerIT` (7) зелёный.
 - [ ] **getDetail O(sanads×links)** per-sanad linear scan narrator links.
       `HadithController.java:101`.
-- [ ] **TopicListPage post-import refetch** теряет active sort order.
-      `TopicListPage.tsx:155`.
+- [x] **TopicListPage post-import refetch** теряет active sort order.
+      `TopicListPage.tsx:155`. Закрыто Tier-3 batch: миграция на
+      `usePagedSearch` (`buildUrl` замыкает `sort`, `deps:[sort,refreshKey]`)
+      гарантирует что post-import refetch (bump `refreshKey`) несёт
+      активный sort. Тест: смена sort→popular + импорт → refetch URL
+      сохраняет `sort=popular`.
 - [ ] **MinimapCard drag/clamp** использует content bounds без padding →
       drag snaps inconsistently. `MinimapCard.tsx:317`.
-- [ ] **useViewTracking** marks view sent до resolve POST → failed first
-      POST не retry. `useViewTracking.ts:29`.
+- [x] **useViewTracking** marks view sent до resolve POST → failed first
+      POST не retry. `useViewTracking.ts:29`. Закрыто Tier-3 batch:
+      dedup-флаг `sessionStorage` ставится теперь ТОЛЬКО в `.then()`
+      успешного POST (был до запроса). Упавший POST не блокирует retry
+      на следующем визите. Cancelled-guard на unmount. Тесты: failed
+      first POST → нет флага → retry на следующем mount; success → флаг.
 
 Accessibility / UX:
-- [ ] **ContextMenu off-screen** near canvas edges (нет viewport clamp) +
-      нет keyboard-nav. `ContextMenu.tsx:52,54`.
-- [ ] **Toaster error toasts** 'polite' вместо 'assertive' aria-live.
-      `Toaster.tsx:74`.
+- [x] **ContextMenu off-screen** near canvas edges (нет viewport clamp).
+      `ContextMenu.tsx:52,54`. Закрыто Tier-3 batch: `useLayoutEffect`
+      измеряет меню после mount и зажимает позицию через чистую
+      `clampMenuPosition()` (вынесена в `contextMenuPosition.ts`) — сдвиг
+      внутрь viewport при overflow у правого/нижнего края, минимум =
+      margin (8px). Тесты на clamp-логику. **Keyboard-nav (arrow keys)
+      не сделан** — остаётся отдельным улучшением.
+- [x] **Toaster error toasts** 'polite' вместо 'assertive' aria-live.
+      `Toaster.tsx:74`. Закрыто Tier-3 batch: per-toast aria-live —
+      error/warning → `assertive` + `role=alert`, info/success → `polite`
+      + `role=status`. aria-live снят с обёртки (иначе перебивал бы
+      per-toast assertive). Тесты на aria-live/role по типу.
 - [ ] **QuestionDetailPage delete-кнопка** видна всем (нет ownership
       gating, inconsistent с answer-level). `QuestionDetailPage.tsx:248`.
 - [ ] **AnswersSection** single busyAnswerId mishandles concurrent

@@ -148,16 +148,20 @@ public class QuestionService {
         } else {
             normalizedTitle = title.trim();
         }
+        // Баг #6 Tier-3: blank body = clear-to-NULL, не пустая строка "".
+        // null body = no change. Раньше blank писалось как "" - контра
+        // документированной clear-to-null семантике (см. Javadoc выше).
         String normalizedBody;
+        boolean clearBody = false;
         if (body == null) {
             normalizedBody = null;
         } else if (body.isBlank()) {
-            // Empty/blank body = clear (body nullable в schema)
-            normalizedBody = "";
+            normalizedBody = null;
+            clearBody = true;
         } else {
             normalizedBody = body.trim();
         }
-        repository.update(id, normalizedTitle, normalizedBody, status);
+        repository.update(id, normalizedTitle, normalizedBody, status, clearBody);
         return repository.findById(id).orElseThrow();
     }
 

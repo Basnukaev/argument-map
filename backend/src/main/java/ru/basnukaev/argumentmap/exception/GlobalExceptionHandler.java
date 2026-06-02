@@ -113,6 +113,14 @@ public class GlobalExceptionHandler {
                 "answer-not-found", ex.getMessage());
     }
 
+    @ExceptionHandler(QuestionClosedException.class)
+    public ProblemDetail handleQuestionClosed(QuestionClosedException ex) {
+        ProblemDetail pd = problem(HttpStatus.CONFLICT, "Вопрос закрыт",
+                "question-closed", ex.getMessage());
+        pd.setProperty("questionId", ex.getQuestionId().toString());
+        return pd;
+    }
+
     @ExceptionHandler(PageNotFoundException.class)
     public ProblemDetail handlePageNotFound(PageNotFoundException ex) {
         return problem(HttpStatus.NOT_FOUND, "Страница не найдена",

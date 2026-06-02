@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
+import ru.basnukaev.argumentmap.auth.repository.UserRepository;
 import ru.basnukaev.argumentmap.auth.web.dto.LoginRequest;
 import ru.basnukaev.argumentmap.auth.web.dto.RegisterRequest;
 
@@ -35,6 +36,7 @@ class AuthControllerIT {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private UserRepository userRepository;
 
     @Test
     void POST_register_validInput_returns201WithTokenAndCookie() throws Exception {
@@ -119,6 +121,42 @@ class AuthControllerIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void POST_login_disabledAccount_returnsSameGeneric401AsWrongPassword() throws Exception {
+        // Баг #2 Tier-3: disabled-аккаунт не должен отличаться от wrong-password.
+        // Тот же status 401 + тот же problem-type invalid-credentials + тот же
+        // detail - наружу не видно, что аккаунт существует, но деактивирован.
+        registerUser("disabled@example.com", "disableduser", "password1");
+        userRepository.findByEmail("disabled@example.com")
+                .ifPresent(u -> userRepository.setEnabled(u.id(), false));
+
+        var disabledReq = new LoginRequest("disabled@example.com", "password1");
+        MvcResult disabledResult = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(disabledReq)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.type").value(containsString("invalid-credentials")))
+                .andReturn();
+
+        // wrong-password baseline на другом (активном) аккаунте
+        registerUser("active2@example.com", "active2user", "password1");
+        var wrongReq = new LoginRequest("active2@example.com", "wrongpw");
+        MvcResult wrongResult = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(wrongReq)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.type").value(containsString("invalid-credentials")))
+                .andReturn();
+
+        JsonNode disabledBody = objectMapper.readTree(disabledResult.getResponse().getContentAsString());
+        JsonNode wrongBody = objectMapper.readTree(wrongResult.getResponse().getContentAsString());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                wrongBody.get("detail").asText(), disabledBody.get("detail").asText(),
+                "disabled и wrong-password должны давать одинаковый detail");
+        org.junit.jupiter.api.Assertions.assertEquals(
+                wrongBody.get("type").asText(), disabledBody.get("type").asText());
     }
 
     @Test

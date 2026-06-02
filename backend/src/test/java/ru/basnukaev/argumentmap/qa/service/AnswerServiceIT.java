@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.exception.AnswerNotFoundException;
+import ru.basnukaev.argumentmap.exception.QuestionClosedException;
 import ru.basnukaev.argumentmap.exception.QuestionNotFoundException;
 import ru.basnukaev.argumentmap.exception.QuestionWriteAccessDeniedException;
 import ru.basnukaev.argumentmap.qa.domain.Answer;
@@ -198,6 +199,33 @@ class AnswerServiceIT {
         UUID missing = UUID.randomUUID();
         assertThatThrownBy(() -> answerService.acceptAnswer(questionId, missing))
                 .isInstanceOf(AnswerNotFoundException.class);
+    }
+
+    @Test
+    void acceptAnswer_onClosedQuestion_throwsAndDoesNotReopen() {
+        // Баг #4 Tier-3: CLOSED - терминальное модераторское состояние.
+        // Принятие ответа НЕ должно молча вернуть вопрос в ANSWERED.
+        Answer a = answerService.createAnswer(questionId, "ответ", userId);
+        jdbcTemplate.update("UPDATE questions SET status = 'CLOSED' WHERE id = ?", questionId);
+
+        assertThatThrownBy(() -> answerService.acceptAnswer(questionId, a.id()))
+                .isInstanceOf(QuestionClosedException.class);
+
+        // вопрос остался CLOSED, accepted_answer_id не выставлен
+        Question q = questionRepository.findById(questionId).orElseThrow();
+        assertThat(q.status()).isEqualTo(QuestionStatus.CLOSED);
+        assertThat(q.acceptedAnswerId()).isNull();
+    }
+
+    @Test
+    void acceptAnswer_onClosedQuestion_viaRoleOverload_alsoBlocked() {
+        // guard срабатывает и через role-aware overload (даже у автора/ADMIN)
+        Answer a = answerService.createAnswer(questionId, "ответ", userId);
+        jdbcTemplate.update("UPDATE questions SET status = 'CLOSED' WHERE id = ?", questionId);
+
+        assertThatThrownBy(() ->
+                answerService.acceptAnswer(questionId, a.id(), userId, UserRole.ADMIN))
+                .isInstanceOf(QuestionClosedException.class);
     }
 
     @Test

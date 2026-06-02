@@ -2931,6 +2931,10 @@ Detail вопроса. Ошибка `404 question-not-found`.
 Partial update title/body/status. `null` поля = no change. Валидация
 размеров та же что в Create.
 
+**Семантика пустых строк:** `title` пустая/whitespace → `400` (title
+обязателен, нельзя очистить). `body` пустая/whitespace = clear → хранится
+как `NULL` (не `""`); `null` = no change.
+
 **Заголовки:** `X-User-Id: <uuid>` (обязательно с 22.c для author/admin guard)
 
 **Permission** (ADR-043 Amendment, Этап 22.c): только автор вопроса
@@ -3106,6 +3110,12 @@ default `0`/`null` на mutating endpoint'ах (create/update). См. секци
 Принять ответ как accepted. Атомарно обновляет
 `questions.accepted_answer_id = answerId` + `status = 'ANSWERED'`.
 
+**Запрещено на `CLOSED` вопросе:** `CLOSED` - терминальное модераторское
+состояние (duplicate/spam/off-topic). Принятие ответа НЕ переоткрывает
+вопрос (раньше молча возвращало его в `ANSWERED`, обходя модерацию) → `409
+question-closed`. Чтобы принять ответ, сначала смените статус вопроса через
+PATCH.
+
 Ответ `200 OK` - обновлённый `QuestionResponse` (с
 `acceptedAnswerId` и `status = 'ANSWERED'`).
 
@@ -3113,6 +3123,8 @@ default `0`/`null` на mutating endpoint'ах (create/update). См. секци
 - `404 question-not-found` / `404 answer-not-found`
 - `400 illegal-argument` - ответ принадлежит другому вопросу
   (`Ответ X не принадлежит вопросу Y`)
+- `409 question-closed` - вопрос в статусе `CLOSED` (поле `questionId` в
+  problem-detail)
 
 ### DELETE /api/v1/questions/{questionId}/accepted-answer
 
