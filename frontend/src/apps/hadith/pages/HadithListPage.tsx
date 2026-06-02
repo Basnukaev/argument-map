@@ -1,8 +1,13 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { BookOpen, Search, Loader2, Users } from 'lucide-react';
+import { BookOpen, Loader2, Users, Info } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
+import ListToolbar from '@/shared/components/ui/ListToolbar';
+import SearchInput from '@/shared/components/ui/SearchInput';
+import FilterChips from '@/shared/components/ui/FilterChips';
+import SortSelect from '@/shared/components/ui/SortSelect';
+import LoadMoreButton from '@/shared/components/ui/LoadMoreButton';
 import { useT } from '@/shared/i18n';
 import { usePagedSearch } from '@/shared/hooks/usePagedSearch';
 import { useApiQuery } from '@/shared/hooks/useApiQuery';
@@ -53,6 +58,42 @@ function HadithListPage() {
     return map;
   }, [collections]);
 
+  /** Чипы-сборники: «Все» (value `ALL`) + по одному на сборник с
+   *  hadithCount > 0. value `ALL` мапится на collectionId=null. */
+  const collectionChips = useMemo(
+    () => [
+      { value: 'ALL', label: t('hadith.collections.all') },
+      ...collections
+        .filter((c) => c.id && (c.hadithCount ?? 0) > 0)
+        .map((c) => ({
+          value: c.id as string,
+          label: c.nameRu || c.nameEn || c.slug || (c.id as string),
+          count: c.hadithCount ?? undefined,
+        })),
+    ],
+    [collections, t],
+  );
+
+  const statusChips = useMemo(
+    () => [
+      { value: 'ALL', label: t('hadith.filter.all') },
+      { value: 'CANONICAL', label: t('hadith.filter.canonical') },
+      { value: 'VARIANT', label: t('hadith.filter.variant') },
+      { value: 'WEAK', label: t('hadith.filter.weak') },
+      { value: 'FABRICATED', label: t('hadith.filter.fabricated') },
+    ],
+    [t],
+  );
+
+  const sortOptions = useMemo(
+    () => [
+      { value: 'number', label: t('hadith.sort.number') },
+      { value: 'alphabetical', label: t('hadith.sort.alphabetical') },
+      { value: 'recent', label: t('hadith.sort.recent') },
+    ],
+    [t],
+  );
+
   const buildUrl = useCallback(
     (page: number, q: string): string => {
       const params = new URLSearchParams();
@@ -90,63 +131,45 @@ function HadithListPage() {
           </Link>
         </header>
 
-        {/* поиск */}
-        <div className="mb-3 flex h-9 items-center rounded-md border border-border-strong bg-elevated focus-within:border-accent-500">
-          <Search size={15} className="ms-3 text-ink-400" aria-hidden />
-          <input
-            type="search"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder={t('hadith.search_placeholder')}
-            dir="auto"
-            className="flex-1 bg-transparent px-3 text-sm text-ink-900 outline-none"
-          />
-        </div>
-
-        {/* чипы-сборники */}
-        <div className="mb-3 flex flex-wrap gap-2">
-          <ChipButton active={collectionId === null} onClick={() => setCollectionId(null)}>
-            {t('hadith.collections.all')}
-          </ChipButton>
-          {collections
-            .filter((c) => c.id && (c.hadithCount ?? 0) > 0)
-            .map((c) => (
-              <ChipButton
-                key={c.id}
-                active={collectionId === c.id}
-                onClick={() => setCollectionId(c.id ?? null)}
-              >
-                {c.nameRu || c.nameEn || c.slug}
-                <span className="ms-1.5 text-xs opacity-60">{c.hadithCount}</span>
-              </ChipButton>
-            ))}
-        </div>
-
-        {/* сортировка + статус */}
-        <div className="mb-5 flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-xs text-ink-500">
-            {t('hadith.sort.label')}
-            <select
+        {/* единый бар: поиск + сборники + сортировка */}
+        <ListToolbar
+          className="mb-3"
+          search={
+            <SearchInput
+              value={searchInput}
+              onChange={setSearchInput}
+              placeholder={t('hadith.search_placeholder')}
+              ariaLabel={t('common.search')}
+              className="w-full"
+            />
+          }
+          filters={
+            <FilterChips
+              options={collectionChips}
+              value={collectionId ?? 'ALL'}
+              onChange={(v) => setCollectionId(v === 'ALL' ? null : v)}
+              ariaLabel={t('hadith.collections.all')}
+            />
+          }
+          sort={
+            <SortSelect
               value={sort}
-              onChange={(e) => setSort(e.target.value as SortKey)}
-              className="h-8 rounded-md border border-border-strong bg-elevated px-2 text-sm text-ink-900 outline-none focus:border-accent-500"
-            >
-              <option value="number">{t('hadith.sort.number')}</option>
-              <option value="alphabetical">{t('hadith.sort.alphabetical')}</option>
-              <option value="recent">{t('hadith.sort.recent')}</option>
-            </select>
-          </label>
-          <select
+              onChange={(v) => setSort(v as SortKey)}
+              options={sortOptions}
+            />
+          }
+        />
+
+        {/* фильтр по статусу + легенда (статусы непрозрачны без подсказки) */}
+        <div className="mb-5 flex items-center gap-2">
+          <FilterChips
+            options={statusChips}
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-            className="h-8 rounded-md border border-border-strong bg-elevated px-2 text-sm text-ink-900 outline-none focus:border-accent-500"
-          >
-            <option value="ALL">{t('hadith.filter.all')}</option>
-            <option value="CANONICAL">{t('hadith.filter.canonical')}</option>
-            <option value="VARIANT">{t('hadith.filter.variant')}</option>
-            <option value="WEAK">{t('hadith.filter.weak')}</option>
-            <option value="FABRICATED">{t('hadith.filter.fabricated')}</option>
-          </select>
+            onChange={(v) => setStatusFilter(v as StatusFilter)}
+            ariaLabel={t('hadith.filter.all')}
+            className="min-w-0 flex-1"
+          />
+          <StatusLegend />
         </div>
 
         {state.kind === 'loading' && (
@@ -203,22 +226,13 @@ function HadithListPage() {
                 ))}
               </ul>
             )}
-            <div className="mt-4 text-xs text-ink-500">
-              {t('hadith.total').replace('{count}', String(state.data.totalElements))}
-            </div>
-            {state.data.hasNext && (
-              <div className="mt-4 flex justify-center">
-                <button
-                  type="button"
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  className="inline-flex items-center gap-2 rounded-md border border-border-strong bg-elevated px-4 py-2 text-sm font-medium text-ink-700 hover:bg-ink-100 disabled:opacity-50"
-                >
-                  {loadingMore && <Loader2 size={14} className="animate-spin" />}
-                  {t('common.load_more')}
-                </button>
-              </div>
-            )}
+            <LoadMoreButton
+              onClick={loadMore}
+              loading={loadingMore}
+              hasNext={state.data.hasNext}
+              shownCount={state.data.items.length}
+              totalCount={state.data.totalElements}
+            />
           </>
         )}
       </div>
@@ -226,27 +240,58 @@ function HadithListPage() {
   );
 }
 
-function ChipButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
+/**
+ * StatusLegend - info-поповер расшифровывающий статусы хадиса
+ * (CANONICAL / VARIANT / WEAK / FABRICATED). Юзер жаловался что
+ * статусы непонятны - короткая инлайн-легенда по клику на (i).
+ * Toggle-кнопка + dropdown-панель, закрывается повторным кликом /
+ * blur. Цветные точки совпадают с statusClass карточек.
+ */
+function StatusLegend() {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const items: ReadonlyArray<{ key: string; dot: string; text: string }> = [
+    { key: 'CANONICAL', dot: 'bg-emerald-500', text: t('hadith.legend.canonical') },
+    { key: 'VARIANT', dot: 'bg-ink-400', text: t('hadith.legend.variant') },
+    { key: 'WEAK', dot: 'bg-amber-500', text: t('hadith.legend.weak') },
+    { key: 'FABRICATED', dot: 'bg-rose-500', text: t('hadith.legend.fabricated') },
+  ];
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center rounded-full border px-3 py-1 text-sm transition-colors ${
-        active
-          ? 'border-accent-500 bg-accent-100 font-medium text-accent-700'
-          : 'border-border-strong bg-elevated text-ink-700 hover:bg-ink-100'
-      }`}
-    >
-      {children}
-    </button>
+    <div className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        onBlur={() => setOpen(false)}
+        aria-expanded={open}
+        aria-label={t('hadith.legend.title')}
+        title={t('hadith.legend.title')}
+        className={`grid h-8 w-8 place-items-center rounded-full border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/40 ${
+          open
+            ? 'border-accent-500 bg-accent-50 text-accent-700'
+            : 'border-border-strong bg-elevated text-ink-500 hover:bg-ink-100 hover:text-ink-700'
+        }`}
+      >
+        <Info size={15} aria-hidden />
+      </button>
+      {open && (
+        <div className="absolute end-0 z-30 mt-1.5 w-72 rounded-md border border-border bg-elevated p-3 shadow-sh3">
+          <p className="mb-2 text-xs font-semibold text-ink-900">
+            {t('hadith.legend.title')}
+          </p>
+          <ul className="space-y-1.5">
+            {items.map((it) => (
+              <li key={it.key} className="flex items-start gap-2 text-xs text-ink-600">
+                <span
+                  className={`mt-1 h-2 w-2 shrink-0 rounded-full ${it.dot}`}
+                  aria-hidden
+                />
+                <span>{it.text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
 

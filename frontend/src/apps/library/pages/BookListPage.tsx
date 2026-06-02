@@ -2,11 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import {
   BookOpen,
-  Search,
   AlertCircle,
   Loader2,
   Download,
-  ChevronDown,
   Pencil,
   X,
   Heart,
@@ -14,6 +12,11 @@ import {
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import Button from '@/shared/components/ui/Button';
+import ListToolbar from '@/shared/components/ui/ListToolbar';
+import SearchInput from '@/shared/components/ui/SearchInput';
+import FilterChips from '@/shared/components/ui/FilterChips';
+import SortSelect from '@/shared/components/ui/SortSelect';
+import LoadMoreButton from '@/shared/components/ui/LoadMoreButton';
 import BookEditModal from '@/shared/components/library/BookEditModal';
 import VisibilityBadge from '@/shared/components/visibility/VisibilityBadge';
 import { apiGetRaw, apiPostRaw, apiDeleteRaw, ApiError, formatApiError } from '@/shared/api/client';
@@ -283,6 +286,44 @@ function BookListPage() {
    * скрыты client-side фильтром, юзер не поймёт */
   const localFilterActive = libraryFilter !== 'ALL';
 
+  /** Чипы видимости (ALL/MINE/SHARED/PUBLIC) - client-side фильтр. */
+  const visibilityChips = useMemo(
+    () =>
+      LIBRARY_FILTERS.map((value) => ({
+        value,
+        label:
+          value === 'ALL'
+            ? t('library.overview.filter.all')
+            : value === 'MINE'
+              ? t('library.overview.filter.my')
+              : value === 'SHARED'
+                ? t('library.overview.filter.shared')
+                : t('library.overview.filter.public'),
+      })),
+    [t],
+  );
+
+  /** Чипы типа книги (server-side ?type=). */
+  const typeChips = useMemo(
+    () =>
+      (['ALL', 'BOOK', 'HADITH_COLLECTION', 'QURAN', 'ARTICLE', 'MANUSCRIPT'] as ReadonlyArray<BookType | 'ALL'>).map(
+        (value) => ({
+          value,
+          label: value === 'ALL' ? t('book.list.filter_all') : t(BOOK_TYPE_DICT_KEY[value]),
+        }),
+      ),
+    [t],
+  );
+
+  const sortOptions = useMemo(
+    () => [
+      { value: 'recent', label: t('common.sort.recent') },
+      { value: 'popular', label: t('common.sort.popular') },
+      { value: 'alphabetical', label: t('common.sort.alphabetical') },
+    ],
+    [t],
+  );
+
   return (
     <main className="min-h-screen bg-bg">
       <Header />
@@ -293,106 +334,49 @@ function BookListPage() {
         />
 
         <div className="mb-6 space-y-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex h-9 max-w-md flex-1 items-center rounded-md border border-border-strong bg-elevated transition-all focus-within:border-accent-500 focus-within:ring-2 focus-within:ring-accent-500/20">
-              <Search size={15} className="ms-3 text-ink-400" aria-hidden />
-              <input
-                type="search"
+          {/* Главный бар: поиск (растягивается) + видимость + сортировка +
+              authority autocomplete как action в конце */}
+          <ListToolbar
+            search={
+              <SearchInput
                 value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
+                onChange={setSearchInput}
                 placeholder={t('library.overview.search_placeholder')}
-                className="flex-1 bg-transparent px-3 text-sm text-ink-900 outline-none placeholder:text-ink-400"
-                aria-label={t('common.search')}
+                ariaLabel={t('common.search')}
+                className="w-full"
               />
-              {searchInput && (
-                <button
-                  type="button"
-                  onClick={() => setSearchInput('')}
-                  title={t('library.overview.search_clear')}
-                  aria-label={t('library.overview.search_clear')}
-                  className="me-2 grid h-6 w-6 place-items-center rounded-sm text-ink-400 hover:bg-ink-100 hover:text-ink-700"
-                >
-                  <X size={12} aria-hidden />
-                </button>
-              )}
-            </div>
+            }
+            filters={
+              <FilterChips
+                options={visibilityChips}
+                value={libraryFilter}
+                onChange={(v) => setLibraryFilter(v as LibraryFilter)}
+                ariaLabel={t('library.overview.filter.all')}
+              />
+            }
+            sort={
+              <SortSelect
+                value={sortBy}
+                onChange={(v) => setSortBy(v as SortKey)}
+                options={sortOptions}
+                label={t('library.overview.sort.label')}
+              />
+            }
+            actions={
+              <AuthorityFilter
+                selected={authorityFilter}
+                onChange={setAuthorityFilter}
+              />
+            }
+          />
 
-            <AuthorityFilter
-              selected={authorityFilter}
-              onChange={setAuthorityFilter}
-            />
-
-            <label className="ms-auto inline-flex items-center gap-2 text-xs text-ink-500">
-              {t('library.overview.sort.label')}
-              <span className="relative inline-flex items-center">
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as SortKey)}
-                  className="h-9 appearance-none rounded-sm border border-ink-200 bg-elevated ps-3 pe-7 text-xs font-medium text-ink-900 outline-none focus:border-accent-500"
-                >
-                  <option value="recent">{t('common.sort.recent')}</option>
-                  <option value="popular">{t('common.sort.popular')}</option>
-                  <option value="alphabetical">{t('common.sort.alphabetical')}</option>
-                </select>
-                <ChevronDown
-                  size={12}
-                  aria-hidden
-                  className="pointer-events-none absolute end-2 text-ink-400"
-                />
-              </span>
-            </label>
-          </div>
-
-          {/* Library filter chips - ALL/MINE/SHARED/PUBLIC. MINE - strict
-              owner check (createdBy === currentUser.id), остальные - по
-              book.visibility. Mobile: overflow-x scroll для wrap'а */}
-          <div className="-mx-3 flex overflow-x-auto px-3 sm:mx-0 sm:overflow-visible sm:px-0">
-            <div className="flex items-center gap-1 rounded-sm border border-ink-200 bg-elevated p-1 shrink-0">
-              {LIBRARY_FILTERS.map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setLibraryFilter(value)}
-                  className={
-                    libraryFilter === value
-                      ? 'rounded-sm bg-accent-600 px-2.5 py-1 text-xs font-medium text-ink-0 whitespace-nowrap'
-                      : 'rounded-sm px-2.5 py-1 text-xs text-ink-600 hover:bg-ink-100 hover:text-ink-900 transition-colors whitespace-nowrap'
-                  }
-                >
-                  {value === 'ALL'
-                    ? t('library.overview.filter.all')
-                    : value === 'MINE'
-                      ? t('library.overview.filter.my')
-                      : value === 'SHARED'
-                        ? t('library.overview.filter.shared')
-                        : t('library.overview.filter.public')}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Type filter - сохранён в виде secondary row для backward compat
-              после рефакторинга. Может быть скрыт в backlog upgrade */}
-          <div className="-mx-3 flex overflow-x-auto px-3 sm:mx-0 sm:overflow-visible sm:px-0">
-            <div className="flex items-center gap-1 rounded-sm border border-ink-200 bg-elevated p-1 shrink-0">
-              {(['ALL', 'BOOK', 'HADITH_COLLECTION', 'QURAN', 'ARTICLE', 'MANUSCRIPT'] as ReadonlyArray<BookType | 'ALL'>).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setTypeFilter(value)}
-                  className={
-                    typeFilter === value
-                      ? 'rounded-sm bg-accent-600 px-2.5 py-1 text-xs font-medium text-ink-0 whitespace-nowrap'
-                      : 'rounded-sm px-2.5 py-1 text-xs text-ink-600 hover:bg-ink-100 hover:text-ink-900 transition-colors whitespace-nowrap'
-                  }
-                >
-                  {value === 'ALL'
-                    ? t('book.list.filter_all')
-                    : t(BOOK_TYPE_DICT_KEY[value])}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* Type filter - вторичный ряд чипов (server-side ?type=) */}
+          <FilterChips
+            options={typeChips}
+            value={typeFilter}
+            onChange={(v) => setTypeFilter(v as BookType | 'ALL')}
+            ariaLabel={t('book.list.filter_all')}
+          />
         </div>
 
         {state.kind === 'loading' && (
@@ -449,19 +433,14 @@ function BookListPage() {
                 ))}
             </ul>
 
-            {state.data.hasNext && !localFilterActive && (
-              <div className="mt-6 flex justify-center">
-                <Button
-                  variant="ghost"
-                  onClick={handleLoadMore}
-                  disabled={loadingMore}
-                  icon={loadingMore ? Loader2 : undefined}
-                >
-                  {loadingMore
-                    ? t('common.loading')
-                    : t('library.overview.load_more')}
-                </Button>
-              </div>
+            {!localFilterActive && (
+              <LoadMoreButton
+                onClick={handleLoadMore}
+                loading={loadingMore}
+                hasNext={state.data.hasNext}
+                shownCount={displayedBooks.length}
+                totalCount={state.data.totalElements}
+              />
             )}
           </>
         )}

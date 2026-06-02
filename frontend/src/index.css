@@ -335,3 +335,19 @@
     white-space: pre-line;
   }
 }
+
+/*
+ * scrollbar-hide - прячет нативный скроллбар, оставляя скролл
+ * рабочим (overflow по-прежнему скроллится тач/колесом). Используется
+ * в горизонтально-скроллящихся рядах фильтр-чипов (FilterChips,
+ * ListToolbar mobile) - на десктопе ряд просто wraps, на mobile
+ * скроллится без визуально-шумной полосы. Tailwind v4 @utility - даёт
+ * variant-совместимую утилиту (можно sm:scrollbar-hide и т.п.).
+ */
+@utility scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

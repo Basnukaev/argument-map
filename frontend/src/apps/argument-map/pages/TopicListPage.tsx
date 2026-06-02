@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
   Network,
   Plus,
-  Search,
   Calendar,
   AlertCircle,
   Loader2,
@@ -13,6 +12,10 @@ import {
 import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
+import ListToolbar from '@/shared/components/ui/ListToolbar';
+import SearchInput from '@/shared/components/ui/SearchInput';
+import SortSelect from '@/shared/components/ui/SortSelect';
+import LoadMoreButton from '@/shared/components/ui/LoadMoreButton';
 import {
   apiGetRaw,
   apiPostMultipart,
@@ -20,101 +23,45 @@ import {
   ApiError,
   formatApiError,
 } from '@/shared/api/client';
+import { usePagedSearch } from '@/shared/hooks/usePagedSearch';
 import { useT, useFormatDate } from '@/shared/i18n';
 import { toast } from '@/shared/stores/toastStore';
-import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
 import VisibilityBadge from '@/apps/argument-map/components/VisibilityBadge';
 
 type Topic = components['schemas']['TopicResponse'];
 type TopicImportResponse = components['schemas']['TopicImportResponse'];
-type PagedTopics = components['schemas']['PagedResponseTopicResponse'];
+type SortKey = 'recent' | 'popular' | 'alphabetical';
 
 const PAGE_SIZE = 20;
-
-interface TopicsAccum {
-  topics: Topic[];
-  page: number;
-  hasNext: boolean;
-  totalElements: number;
-}
 
 function TopicListPage() {
   const t = useT();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [state, setState] = useState<AsyncState<TopicsAccum>>({ kind: 'loading' });
+  // Поиск client-side по уже загруженной выборке: бэк /api/v1/topics не
+  // поддерживает ?q= (см. api-contract). Отдельное state, НЕ через
+  // usePagedSearch.searchInput - иначе ввод сбрасывал бы пагинацию на
+  // page 0 (hook рефетчит page 0 на смену debouncedQuery).
   const [search, setSearch] = useState('');
   const [importBusy, setImportBusy] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
   // Vision 49d Section 2.1 - sort через server-side ?sort= param
-  const [sort, setSort] = useState<'recent' | 'popular' | 'alphabetical'>('recent');
+  const [sort, setSort] = useState<SortKey>('recent');
+  // Bump'ается после импорта темы - принудительный refetch page 0 (hook
+  // не экспонирует refetch, deps-смена = единственный способ).
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    // Намеренный loading-переход при смене sort: новый запрос = новое
-    // loading (idiom как в useApiQuery), а не cosmetic setState.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setState({ kind: 'loading' });
-    // apiGetRaw используется т.к. query-params не входят в keyof paths
-    // из openapi-typescript. sort param добавлен в Vision 49d Phase 1.
-    apiGetRaw<PagedTopics>(
-      `/api/v1/topics?page=0&size=${PAGE_SIZE}&sort=${sort}`,
-      { signal: controller.signal },
-    )
-      .then((paged) => {
-        setState({
-          kind: 'success',
-          data: {
-            topics: paged.items ?? [],
-            page: paged.page ?? 0,
-            hasNext: paged.hasNext ?? false,
-            totalElements: paged.totalElements ?? 0,
-          },
-        });
-      })
-      .catch((e: unknown) => {
-        if (controller.signal.aborted) return;
-        const message =
-          e instanceof ApiError
-            ? `${e.problem.title}${e.problem.detail ? ': ' + e.problem.detail : ''}`
-            : e instanceof Error
-              ? e.message
-              : 'Не удалось загрузить темы';
-        setState({ kind: 'error', message });
-      });
-    return () => controller.abort();
-  }, [sort]);
+  const buildUrl = useCallback(
+    (page: number): string =>
+      `/api/v1/topics?page=${page}&size=${PAGE_SIZE}&sort=${sort}`,
+    [sort],
+  );
 
-  /**
-   * Load More - подгружает следующую страницу, аппендит к existing list.
-   * Page+1 берётся из текущего state, hasNext контролирует видимость кнопки.
-   * Ошибка - toast, не разрушаем existing list.
-   */
-  const handleLoadMore = async () => {
-    if (state.kind !== 'success' || !state.data.hasNext || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const nextPage = state.data.page + 1;
-      const resp = await apiGetRaw<PagedTopics>(
-        `/api/v1/topics?page=${nextPage}&size=${PAGE_SIZE}&sort=${sort}`,
-      );
-      const nextItems = resp.items ?? [];
-      setState({
-        kind: 'success',
-        data: {
-          topics: [...state.data.topics, ...nextItems],
-          page: resp.page ?? nextPage,
-          hasNext: resp.hasNext ?? false,
-          totalElements: resp.totalElements ?? state.data.totalElements,
-        },
-      });
-    } catch (e: unknown) {
-      toast.error(formatApiError(e, t('topic.list.subtitle_active')));
-    } finally {
-      setLoadingMore(false);
-    }
-  };
+  const { state, loadMore, loadingMore } = usePagedSearch<Topic>({
+    buildUrl,
+    deps: [sort, refreshKey],
+    fallbackError: 'Не удалось загрузить темы',
+  });
 
   /**
    * Trigger native file picker. `<input type="file">` стилизуется плохо -
@@ -151,19 +98,9 @@ function TopicListPage() {
         label: t('topic.import.open'),
         onClick: () => navigate(`/topics/${response.topicId}`),
       });
-      // refetch topic list - новая тема должна появиться в каталоге
-      const refetched = await apiGetRaw<PagedTopics>(
-        `/api/v1/topics?page=0&size=${PAGE_SIZE}`,
-      );
-      setState({
-        kind: 'success',
-        data: {
-          topics: refetched.items ?? [],
-          page: refetched.page ?? 0,
-          hasNext: refetched.hasNext ?? false,
-          totalElements: refetched.totalElements ?? 0,
-        },
-      });
+      // refetch topic list - новая тема должна появиться в каталоге.
+      // Bump refreshKey (в deps usePagedSearch) → hook рефетчит page 0.
+      setRefreshKey((k) => k + 1);
     } catch (err: unknown) {
       if (err instanceof ApiError && err.is('unsupported-format-version')) {
         toast.error(t('topic.import.error_format'));
@@ -177,14 +114,23 @@ function TopicListPage() {
 
   const filteredTopics = useMemo(() => {
     if (state.kind !== 'success') return [];
-    if (!search.trim()) return state.data.topics;
+    if (!search.trim()) return state.data.items;
     const q = search.trim().toLowerCase();
-    return state.data.topics.filter(
+    return state.data.items.filter(
       (t) =>
         (t.title ?? '').toLowerCase().includes(q) ||
         (t.description ?? '').toLowerCase().includes(q),
     );
   }, [state, search]);
+
+  const sortOptions = useMemo(
+    () => [
+      { value: 'recent', label: t('common.sort.recent') },
+      { value: 'popular', label: t('common.sort.popular') },
+      { value: 'alphabetical', label: t('common.sort.alphabetical') },
+    ],
+    [t],
+  );
 
   return (
     <main className="min-h-screen bg-bg">
@@ -235,33 +181,25 @@ function TopicListPage() {
           </div>
         </header>
 
-        <div className="mb-6 flex flex-wrap items-center gap-3">
-          <div className="flex h-9 max-w-md flex-1 items-center rounded-md border border-border-strong bg-elevated transition-all focus-within:border-accent-500 focus-within:ring-2 focus-within:ring-accent-500/20">
-            <Search size={15} className="ms-3 text-ink-400" aria-hidden />
-            <input
-              type="search"
+        <ListToolbar
+          className="mb-6"
+          search={
+            <SearchInput
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={setSearch}
               placeholder={t('topic.list.search_placeholder')}
-              className="flex-1 bg-transparent px-3 text-sm text-ink-900 outline-none placeholder:text-ink-400"
-              aria-label={t('common.search')}
+              ariaLabel={t('common.search')}
+              className="w-full"
             />
-          </div>
-          {/* Vision 49d Section 2.1 - sort dropdown */}
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-ink-500">{t('common.sort_by')}</span>
-            <select
+          }
+          sort={
+            <SortSelect
               value={sort}
-              onChange={(e) => setSort(e.target.value as typeof sort)}
-              className="h-9 rounded-md border border-border-strong bg-elevated px-2 text-sm text-ink-900 outline-none focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
-              aria-label={t('common.sort_by')}
-            >
-              <option value="recent">{t('common.sort.recent')}</option>
-              <option value="popular">{t('common.sort.popular')}</option>
-              <option value="alphabetical">{t('common.sort.alphabetical')}</option>
-            </select>
-          </div>
-        </div>
+              onChange={(v) => setSort(v as SortKey)}
+              options={sortOptions}
+            />
+          }
+        />
 
         {state.kind === 'loading' && (
           <div className="flex items-center justify-center gap-2 py-20 text-sm text-ink-500">
@@ -286,7 +224,7 @@ function TopicListPage() {
           </Card>
         )}
 
-        {state.kind === 'success' && state.data.topics.length === 0 && (
+        {state.kind === 'success' && state.data.items.length === 0 && (
           <Card className="mx-auto max-w-2xl p-12 text-center">
             <p className="text-base text-ink-700">{t('topic.list.empty')}</p>
             <Link to="/topics/new" className="mt-4 inline-block">
@@ -296,7 +234,7 @@ function TopicListPage() {
         )}
 
         {state.kind === 'success' &&
-          state.data.topics.length > 0 &&
+          state.data.items.length > 0 &&
           filteredTopics.length === 0 && (
             <p className="text-center text-sm text-ink-500">
               {t('topic.list.not_found')}
@@ -316,24 +254,19 @@ function TopicListPage() {
             </ul>
 
             {/*
-              Load More - подгружает следующую страницу. Кнопка только если
-              на бэке ещё есть hasNext И мы не в режиме client-side search
-              (фильтрация по текущей загруженной выборке - не имеет смысла
-              грузить ещё страницы пока выборка отфильтрована, всё равно
-              skip'нем не подходящие). Реальная server-side фильтрация по
-              search через ?q= - upgrade для backlog
+              Load More скрыт при активном client-side search: фильтрация
+              по текущей выборке - грузить ещё страницы пока выборка
+              отфильтрована не имеет смысла (server-side ?q= - backlog).
+              Без search показываем кнопку + счётчик «Показано N из M».
             */}
-            {state.data.hasNext && !search.trim() && (
-              <div className="mt-6 flex justify-center">
-                <Button
-                  variant="ghost"
-                  onClick={handleLoadMore}
-                  disabled={loadingMore}
-                  icon={loadingMore ? Loader2 : undefined}
-                >
-                  {loadingMore ? t('common.loading') : t('common.load_more')}
-                </Button>
-              </div>
+            {!search.trim() && (
+              <LoadMoreButton
+                onClick={loadMore}
+                loading={loadingMore}
+                hasNext={state.data.hasNext}
+                shownCount={state.data.items.length}
+                totalCount={state.data.totalElements}
+              />
             )}
           </>
         )}

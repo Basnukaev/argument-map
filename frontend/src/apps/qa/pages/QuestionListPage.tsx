@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import {
   AlertCircle,
@@ -6,29 +6,24 @@ import {
   HelpCircle,
   Loader2,
   Plus,
-  Search,
 } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
-import { apiGetRaw, ApiError, formatApiError } from '@/shared/api/client';
-import { toast } from '@/shared/stores/toastStore';
+import ListToolbar from '@/shared/components/ui/ListToolbar';
+import SearchInput from '@/shared/components/ui/SearchInput';
+import FilterChips from '@/shared/components/ui/FilterChips';
+import SortSelect from '@/shared/components/ui/SortSelect';
+import LoadMoreButton from '@/shared/components/ui/LoadMoreButton';
+import { usePagedSearch } from '@/shared/hooks/usePagedSearch';
 import { useT, useFormatDate, hasArabicScript, type DictKey } from '@/shared/i18n';
-import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
 
 type Question = components['schemas']['QuestionResponse'];
 type Status = NonNullable<Question['status']>;
-type PagedQuestions = components['schemas']['PagedResponseQuestionResponse'];
+type SortKey = 'recent' | 'popular' | 'alphabetical';
 
 const PAGE_SIZE = 20;
-
-interface QuestionsAccum {
-  questions: Question[];
-  page: number;
-  hasNext: boolean;
-  totalElements: number;
-}
 
 const STATUS_BADGE: Record<Status, string> = {
   OPEN: 'bg-ok-100 text-ok-700',
@@ -52,92 +47,53 @@ const FILTER_LABEL: Record<'ALL' | Status, DictKey> = {
 function QuestionListPage() {
   const t = useT();
   const formatDate = useFormatDate();
-  const [state, setState] = useState<AsyncState<QuestionsAccum>>({ kind: 'loading' });
-  const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<Status | 'ALL'>('ALL');
-  const [loadingMore, setLoadingMore] = useState(false);
   // Vision 49d Section 2.1 - server-side sort
-  const [sort, setSort] = useState<'recent' | 'popular' | 'alphabetical'>('recent');
+  const [sort, setSort] = useState<SortKey>('recent');
 
   /**
-   * Backend поддерживает server-side ?status= фильтр. При смене filter
-   * сбрасываем page=0 и перезапрашиваем - это правильный путь для
-   * server-side фильтра (см. api-contract). Search query - client-side
-   * по уже загруженной выборке (поиск pertopic в backlog)
+   * Backend поддерживает server-side ?status=, ?q= и ?sort= (см.
+   * api-contract). usePagedSearch владеет search-инпутом (debounced →
+   * ?q=) и пагинацией; статус/сорт передаются через deps - смена любого
+   * рефетчит page 0. SWR-кэш: возврат на страницу не перезагружает.
    */
-  useEffect(() => {
-    const controller = new AbortController();
-    // Намеренный loading-переход при смене status/sort: новый запрос =
-    // новое loading (idiom как в useApiQuery), а не cosmetic setState.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setState({ kind: 'loading' });
-    const statusParam = statusFilter === 'ALL' ? '' : `&status=${statusFilter}`;
-    apiGetRaw<PagedQuestions>(
-      `/api/v1/questions?page=0&size=${PAGE_SIZE}${statusParam}&sort=${sort}`,
-      { signal: controller.signal },
-    )
-      .then((paged) => {
-        setState({
-          kind: 'success',
-          data: {
-            questions: paged.items ?? [],
-            page: paged.page ?? 0,
-            hasNext: paged.hasNext ?? false,
-            totalElements: paged.totalElements ?? 0,
-          },
-        });
-      })
-      .catch((e: unknown) => {
-        if (controller.signal.aborted) return;
-        const message =
-          e instanceof ApiError
-            ? `${e.problem.title}${e.problem.detail ? ': ' + e.problem.detail : ''}`
-            : e instanceof Error
-              ? e.message
-              : 'failed';
-        setState({ kind: 'error', message });
-      });
-    return () => controller.abort();
-  }, [statusFilter, sort]);
+  const buildUrl = useCallback(
+    (page: number, q: string): string => {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('size', String(PAGE_SIZE));
+      params.set('sort', sort);
+      if (q) params.set('q', q);
+      if (statusFilter !== 'ALL') params.set('status', statusFilter);
+      return `/api/v1/questions?${params.toString()}`;
+    },
+    [statusFilter, sort],
+  );
 
-  /**
-   * Load More - подгружает следующую страницу с тем же statusFilter
-   */
-  const handleLoadMore = async () => {
-    if (state.kind !== 'success' || !state.data.hasNext || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const nextPage = state.data.page + 1;
-      const statusParam = statusFilter === 'ALL' ? '' : `&status=${statusFilter}`;
-      const resp = await apiGetRaw<PagedQuestions>(
-        `/api/v1/questions?page=${nextPage}&size=${PAGE_SIZE}${statusParam}&sort=${sort}`,
-      );
-      const nextItems = resp.items ?? [];
-      setState({
-        kind: 'success',
-        data: {
-          questions: [...state.data.questions, ...nextItems],
-          page: resp.page ?? nextPage,
-          hasNext: resp.hasNext ?? false,
-          totalElements: resp.totalElements ?? state.data.totalElements,
-        },
-      });
-    } catch (e: unknown) {
-      toast.error(formatApiError(e, t('qa.list.subtitle')));
-    } finally {
-      setLoadingMore(false);
-    }
-  };
-
-  const filtered = useMemo(() => {
-    if (state.kind !== 'success') return [];
-    const q = search.trim().toLowerCase();
-    // statusFilter уже применён server-side, фильтруем только по search
-    return state.data.questions.filter((qn) => {
-      if (!q) return true;
-      return (qn.title ?? '').toLowerCase().includes(q);
+  const { state, searchInput, setSearchInput, loadMore, loadingMore } =
+    usePagedSearch<Question>({
+      buildUrl,
+      deps: [statusFilter, sort],
+      fallbackError: t('qa.list.subtitle'),
     });
-  }, [state, search]);
+
+  const statusChips = useMemo(
+    () =>
+      (['ALL', 'OPEN', 'ANSWERED', 'CLOSED'] as const).map((s) => ({
+        value: s,
+        label: t(FILTER_LABEL[s]),
+      })),
+    [t],
+  );
+
+  const sortOptions = useMemo(
+    () => [
+      { value: 'recent', label: t('common.sort.recent') },
+      { value: 'popular', label: t('common.sort.popular') },
+      { value: 'alphabetical', label: t('common.sort.alphabetical') },
+    ],
+    [t],
+  );
 
   return (
     <main className="min-h-screen bg-bg">
@@ -165,54 +121,33 @@ function QuestionListPage() {
           </Link>
         </header>
 
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <div className="flex h-9 max-w-md flex-1 items-center rounded-md border border-border-strong bg-elevated transition-all focus-within:border-accent-500 focus-within:ring-2 focus-within:ring-accent-500/20">
-            <Search size={15} className="ms-3 text-ink-400" aria-hidden />
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+        <ListToolbar
+          className="mb-4"
+          search={
+            <SearchInput
+              value={searchInput}
+              onChange={setSearchInput}
               placeholder={t('qa.list.search_placeholder')}
-              className="h-full flex-1 bg-transparent px-3 text-sm text-ink-900 outline-none placeholder:text-ink-400"
-              dir="auto"
+              ariaLabel={t('common.search')}
+              className="w-full"
             />
-          </div>
-          {/* Filter chips - на mobile overflow-x scroll если не помещаются.
-              4 chip обычно укладываются в 375px (~280px ширины), но при
-              длинных локализациях arabic могут вылезти - safety net */}
-          <div className="-mx-3 flex overflow-x-auto px-3 sm:mx-0 sm:overflow-visible sm:px-0">
-            <div className="flex gap-1 shrink-0">
-              {(['ALL', 'OPEN', 'ANSWERED', 'CLOSED'] as const).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setStatusFilter(s)}
-                  className={`inline-flex h-7 items-center rounded-sm px-3 text-xs font-medium transition-colors whitespace-nowrap ${
-                    statusFilter === s
-                      ? 'bg-accent-50 text-accent-700'
-                      : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900'
-                  }`}
-                >
-                  {t(FILTER_LABEL[s])}
-                </button>
-              ))}
-            </div>
-          </div>
-          {/* Vision 49d Section 2.1 - sort dropdown */}
-          <div className="flex items-center gap-2 text-sm ms-auto">
-            <span className="text-ink-500">{t('common.sort_by')}</span>
-            <select
+          }
+          filters={
+            <FilterChips
+              options={statusChips}
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v as Status | 'ALL')}
+              ariaLabel={t('qa.list.filter_all')}
+            />
+          }
+          sort={
+            <SortSelect
               value={sort}
-              onChange={(e) => setSort(e.target.value as typeof sort)}
-              className="h-9 rounded-md border border-border-strong bg-elevated px-2 text-sm text-ink-900 outline-none focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
-              aria-label={t('common.sort_by')}
-            >
-              <option value="recent">{t('common.sort.recent')}</option>
-              <option value="popular">{t('common.sort.popular')}</option>
-              <option value="alphabetical">{t('common.sort.alphabetical')}</option>
-            </select>
-          </div>
-        </div>
+              onChange={(v) => setSort(v as SortKey)}
+              options={sortOptions}
+            />
+          }
+        />
 
         {state.kind === 'loading' && (
           <div className="flex items-center gap-2 text-sm text-ink-500">
@@ -233,27 +168,23 @@ function QuestionListPage() {
           </Card>
         )}
 
-        {state.kind === 'success' && state.data.questions.length === 0 && (
+        {state.kind === 'success' && state.data.items.length === 0 && (
           <Card className="mx-auto max-w-2xl p-12 text-center">
             <HelpCircle
               size={32}
               className="mx-auto mb-3 text-ink-300"
               aria-hidden
             />
-            <p className="text-sm text-ink-500">{t('qa.list.empty')}</p>
+            <p className="text-sm text-ink-500">
+              {searchInput.trim() ? t('topic.list.not_found') : t('qa.list.empty')}
+            </p>
           </Card>
         )}
 
-        {state.kind === 'success' && state.data.questions.length > 0 && filtered.length === 0 && (
-          <p className="text-center text-sm text-ink-500">
-            {t('topic.list.not_found')}
-          </p>
-        )}
-
-        {state.kind === 'success' && filtered.length > 0 && (
+        {state.kind === 'success' && state.data.items.length > 0 && (
           <>
           <ul className="flex flex-col gap-2">
-            {filtered
+            {state.data.items
               .filter((q): q is Question & { id: string } => Boolean(q.id))
               .map((qn) => {
                 const isArabic = qn.title ? hasArabicScript(qn.title) : false;
@@ -318,25 +249,15 @@ function QuestionListPage() {
               })}
           </ul>
 
-          {/*
-            Load More - подгружает следующую страницу backend. Скрыт при
-            активном search query (client-side фильтр): новые items
-            прилетят но скроются фильтром, что создаёт впечатление будто
-            кнопка «не работает». statusFilter в URL params, новые items
-            приходят уже отфильтрованные server-side - search не мешает
-          */}
-          {state.data.hasNext && !search.trim() && (
-            <div className="mt-6 flex justify-center">
-              <Button
-                variant="ghost"
-                onClick={handleLoadMore}
-                disabled={loadingMore}
-                icon={loadingMore ? Loader2 : undefined}
-              >
-                {loadingMore ? t('common.loading') : t('common.load_more')}
-              </Button>
-            </div>
-          )}
+          {/* Search теперь server-side (?q=) - load-more работает с любым
+              query, новые items приходят уже отфильтрованные бэком. */}
+          <LoadMoreButton
+            onClick={loadMore}
+            loading={loadingMore}
+            hasNext={state.data.hasNext}
+            shownCount={state.data.items.length}
+            totalCount={state.data.totalElements}
+          />
           </>
         )}
       </div>
