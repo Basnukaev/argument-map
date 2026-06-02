@@ -13,6 +13,19 @@ type NodeDto = components['schemas']['NodeResponse'];
 const BASE = 'http://test.local';
 const NODE_ID = '11111111-1111-1111-1111-111111111111';
 
+// /api/v1/sources и /api/v1/authorities возвращают PagedResponse (backend contract).
+// Компонент читает .items - моки должны отдавать paged-форму, не голый массив.
+function paged<T>(items: T[]) {
+  return {
+    items,
+    page: 0,
+    size: 100,
+    totalElements: items.length,
+    totalPages: items.length ? 1 : 0,
+    hasNext: false,
+  };
+}
+
 beforeAll(() => {
   // VITE_API_URL для тестов задан в setup.ts
 });
@@ -266,11 +279,11 @@ describe('NodeDetailsPanel', () => {
         }),
         http.get(`${BASE}/api/v1/sources`, () => {
           called = true;
-          return HttpResponse.json([]);
+          return HttpResponse.json(paged([]));
         }),
         http.get(`${BASE}/api/v1/authorities`, () => {
           called = true;
-          return HttpResponse.json([]);
+          return HttpResponse.json(paged([]));
         }),
       );
       renderPanel();
@@ -292,25 +305,29 @@ describe('NodeDetailsPanel', () => {
           ]),
         ),
         http.get(`${BASE}/api/v1/sources`, () =>
-          HttpResponse.json([
-            {
-              id: SOURCE_ID,
-              sourceType: 'HADITH',
-              title: 'Сахих Муслим, №1162',
-              citation: 'Муслим 1162',
-              authorityId: AUTHORITY_ID,
-            },
-          ]),
+          HttpResponse.json(
+            paged([
+              {
+                id: SOURCE_ID,
+                sourceType: 'HADITH',
+                title: 'Сахих Муслим, №1162',
+                citation: 'Муслим 1162',
+                authorityId: AUTHORITY_ID,
+              },
+            ]),
+          ),
         ),
         http.get(`${BASE}/api/v1/authorities`, () =>
-          HttpResponse.json([
-            {
-              id: AUTHORITY_ID,
-              name: 'Имам Муслим',
-              era: 'III в.х.',
-              madhab: 'муджтахид',
-            },
-          ]),
+          HttpResponse.json(
+            paged([
+              {
+                id: AUTHORITY_ID,
+                name: 'Имам Муслим',
+                era: 'III в.х.',
+                madhab: 'муджтахид',
+              },
+            ]),
+          ),
         ),
       );
       renderPanel();
@@ -331,11 +348,11 @@ describe('NodeDetailsPanel', () => {
           HttpResponse.json([{ nodeId: NODE_ID, sourceId: SOURCE_ID }]),
         ),
         http.get(`${BASE}/api/v1/sources`, () =>
-          HttpResponse.json([
-            { id: SOURCE_ID, sourceType: 'QURAN', title: 'Коран 2:255' },
-          ]),
+          HttpResponse.json(
+            paged([{ id: SOURCE_ID, sourceType: 'QURAN', title: 'Коран 2:255' }]),
+          ),
         ),
-        http.get(`${BASE}/api/v1/authorities`, () => HttpResponse.json([])),
+        http.get(`${BASE}/api/v1/authorities`, () => HttpResponse.json(paged([]))),
       );
       renderPanel();
       await userEvent.click(screen.getByRole('button', { name: /Опора/ }));
@@ -356,9 +373,9 @@ describe('NodeDetailsPanel', () => {
           ]),
         ),
         http.get(`${BASE}/api/v1/sources`, () =>
-          HttpResponse.json([{ id: SOURCE_ID, sourceType: 'HADITH', title: 'Бухари 1' }]),
+          HttpResponse.json(paged([{ id: SOURCE_ID, sourceType: 'HADITH', title: 'Бухари 1' }])),
         ),
-        http.get(`${BASE}/api/v1/authorities`, () => HttpResponse.json([])),
+        http.get(`${BASE}/api/v1/authorities`, () => HttpResponse.json(paged([]))),
       );
       renderPanel();
       await userEvent.click(screen.getByRole('button', { name: /Опора/ }));
@@ -371,8 +388,8 @@ describe('NodeDetailsPanel', () => {
     it('пустой список показывает плейсхолдер', async () => {
       server.use(
         http.get(`${BASE}/api/v1/nodes/${NODE_ID}/sources`, () => HttpResponse.json([])),
-        http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json([])),
-        http.get(`${BASE}/api/v1/authorities`, () => HttpResponse.json([])),
+        http.get(`${BASE}/api/v1/sources`, () => HttpResponse.json(paged([]))),
+        http.get(`${BASE}/api/v1/authorities`, () => HttpResponse.json(paged([]))),
       );
       renderPanel();
       await userEvent.click(screen.getByRole('button', { name: /Опора/ }));
@@ -391,9 +408,9 @@ describe('NodeDetailsPanel', () => {
           HttpResponse.json([{ id: NODE_SOURCE_ID, nodeId: NODE_ID, sourceId: SOURCE_ID }]),
         ),
         http.get(`${BASE}/api/v1/sources`, () =>
-          HttpResponse.json([{ id: SOURCE_ID, sourceType: 'BOOK', title: 'Какая-то книга' }]),
+          HttpResponse.json(paged([{ id: SOURCE_ID, sourceType: 'BOOK', title: 'Какая-то книга' }])),
         ),
-        http.get(`${BASE}/api/v1/authorities`, () => HttpResponse.json([])),
+        http.get(`${BASE}/api/v1/authorities`, () => HttpResponse.json(paged([]))),
         http.delete(`${BASE}/api/v1/nodes/${NODE_ID}/sources/${NODE_SOURCE_ID}`, () => {
           deleteCalledFor = NODE_SOURCE_ID;
           return new HttpResponse(null, { status: 204 });
