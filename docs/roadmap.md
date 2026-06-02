@@ -166,6 +166,16 @@
   gap-aware preview + import + dual-variant pdf_links + обложки + парсинг arabic
   description. **Итерации archive.org** (фоновое извлечение всех томов,
   volume-dropdown, eager-UI, relabel) — open, спека §10. migrations через 67.
+- **Сессия 55 — overhaul (7 фаз + code-review, ~14 коммитов)** — спека
+  `docs/superpowers/specs/2026-06-02-session-55-overhaul.md`. **OCR выпилен полностью**
+  (ADR-057, migration 68; Этап 17 OCR-часть отменена, AiEdit+image-upload сохранены);
+  **swappable LLM** (ADR-058, пакет `ai/`, anthropic/openai/deepseek + BookMetadataExtraction);
+  **content_kind** (migration 69, TEXT_ONLY/TEXT_AND_FILE/FILE_ONLY — ось доступности
+  ортогональна book_type); **archive.org→FILE_ONLY** (drop `_text`, HTML-стрип, AI-метаданные,
+  лок формы; ADR-056 amend); **reader** bbox-подсветка + 0-page guard; **hadith** availableHadith
+  + panel scroll + alminasa reframe; **AI-иснад** (ADR-059, IsnadExtractionService + live
+  preview-граф, эфемерный). Code-review 0 Critical / 1 Important (@Retry bypass) + 9 Minor закрыты.
+  backend BUILD SUCCESS, frontend 708/0/0. migrations через **69**.
 
 ---
 

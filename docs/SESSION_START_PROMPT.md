@@ -190,57 +190,53 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 И двигаемся по приоритету (Critical → Important → Minor)
 
-### ⭐ АКТУАЛЬНО — entry Сессии 55 (старт после марафона Сессии 54)
+### ⭐ АКТУАЛЬНО — entry Сессии 56 (старт после марафона Сессии 55)
 
-**Сессия 54 — огромный автономный марафон (62 коммита `1102d27..HEAD`).** Полностью
-закрыты, детали — `docs/progress.md` (батчи 1-6) + спеки `2026-06-02-*`:
-- Продуктовый UX-overhaul (13 болей, 8 фаз): SWR-кэш, ListControls, redesign
-  чтения хадиса/Q&A, settings drawer + UI-scale (дефолт 0.9, откат), голосование
-  node→topic→question→answer, overhaul админки + Sunnah import-preview, и др.
-- 6 багов из ручного теста (статус узлов, sunnah-config, shamela PDF, миникарта…).
-- Бэклог: hd_collections (мост ADR-054 + UI), shamela ADMIN-guard, 14 Tier-3
-  (security/correctness/concurrency: auth timing, decompression bomb, OCR claim,
-  authority UNIQUE…), d3-drag флак → **CI ПОЛНОСТЬЮ ЗЕЛЁНЫЙ**.
-- 2 code-review (multi-agent, 0 Critical), все находки закрыты.
-- **НОВЫЙ инструмент: archive.org PDF-импорт** (спека `2026-06-02-archive-org-pdf-
-  import-design.md`, ADR-056): backend (parser+preview+import, dual-variant
-  pdf_links, idempotency) + frontend `AdminArchiveOrgPage` (gap-aware enrichment) +
-  **обложки** (coverUrl → `<img>` на карточке/reader) + **парсинг arabic description**
-  (издатель/год/тома/издание из текста). Live-smoke прошёл.
+**Сессия 55 — крупный автономный overhaul (7 фаз + code-review, ~14 коммитов
+`9a766cc..HEAD`).** Детали — `docs/progress.md` (запись Сессии 55) + спека
+`docs/superpowers/specs/2026-06-02-session-55-overhaul.md`. По 10 запросам Абдулы:
+- **OCR выпилен полностью** (ADR-057, migration 68) — Tesseract плохо парсил арабский.
+  AiEditService + image-scan upload сохранены как субстрат для будущего AI-распознавания.
+- **Swappable LLM** (ADR-058): пакет `ai/` — `LlmClient` + Anthropic/OpenAI/DeepSeek через
+  `@ConditionalOnProperty(ai.provider)` + `BookMetadataExtractionService`.
+- **content_kind** (migration 69) — ось доступности TEXT_ONLY/TEXT_AND_FILE/FILE_ONLY
+  (ортогональна `book_type`=жанр). Ридер по типу.
+- **archive.org overhaul**: FILE_ONLY, drop `_text` OCR-варианты, HTML-стрип, AI-метаданные,
+  лок формы после импорта. Закрыло баги обложки-как-тома/абракадабры/сырого-HTML/спиннера.
+- **Reader**: bbox-подсветка PDF-цитат, 0-page guard.
+- **Hadith**: `availableHadith` честный счётчик (дамп=bukhari-only!), скролл превью-панели,
+  alminasa переформулирована.
+- **AI-иснад** (ADR-059): `IsnadExtractionService` (LLM из матна) + live preview-граф в
+  AdminSunnahPage (кнопка «Извлечь иснад (ИИ)»). Эфемерный (без персистенции в hd_*).
+- **Code-review** (multi-agent): 0 Critical, 1 Important (`@Retry` bypass на AI-edit — фикс +
+  `LlmClientRetryIT`) + 9 Minor закрыты.
 
-**Верификация (финал):** backend `./mvnw verify` → **BUILD SUCCESS**; frontend
-build ✓ / tsc ✓ / eslint 0err / **vitest 678/0/0**.
+**Верификация (финал):** backend `./mvnw verify` → **BUILD SUCCESS**; frontend build ✓ /
+tsc ✓ / eslint **0 проблем** / **vitest 708/0/0**.
 
-**СЛЕДУЮЩИЙ ШАГ (тёплый путь) — итерации archive.org-инструмента** (спека §10):
-1. Полное **фоновое** извлечение всех томов (+Tesseract для scan-only; сейчас sync
-   за флагами `extractText`/`testModePages`).
-2. **volume-dropdown** в ридере (мульти-том навигация — `PdfInfoResponse.files`
-   уже отдаёт список, нет UI-селектора).
-3. **eager-download** UI (кнопка скачать тома в MinIO).
-4. **relabel/reassign** томов в preview (нужен `ImportRequest.fileMapping` на бэке).
-5. place/muhaqqiq split из description; provenance-enrichment как общий паттерн
-   для shamela/sunnah/alminasa.
+**СЛЕДУЮЩИЙ ШАГ (тёплый путь):**
+1. **🖐️ РУЧНАЯ ПРОВЕРКА UI** всего overhaul'а Абдулой (playwright env-blocked, нет Chromium) —
+   archive.org импорт (FILE_ONLY ридер), content_kind кнопки, hadith превью/иснад, bbox.
+2. **AI-ключ для живой проверки** — задать `ai.provider` (anthropic/openai/deepseek) + ключ
+   в env, проверить AI-метаданные книг + извлечение иснада вживую.
+3. **Isnad persistence-on-import + rijal-дедуп** (backlog) — сейчас иснад эфемерный preview;
+   персистить hd_sanads/hd_narrators/hd_sanad_narrators на импорте (дедуп по норм. имени).
+4. **bbox-citation CREATION для FILE_ONLY** (roadmap 25.f) — CitationPicker PDF-режим
+   (выбор страницы + рисование bbox через react-image-crop). Display уже готов.
+5. **Полный дамп sunnah.com** (контент-ops) — сейчас только bukhari (100 строк).
 
-**Прочее опц./отложенное:** **визуальная проверка руками** всего (playwright
-env-blocked — нет Chromium); IsnadExtraction (AI, контент, отложено Абдулой);
-SunnahApiClient/полный корпус; alminasa.ai (заглушка готова); shamela
-`category.sqlite` sync (живой shamela.ws); `git stash@{0}` (избыточен — `git stash drop`).
-Tier-3 low-severity: shamela chapter-cycle, bibliography dash-split, getDetail perf,
-OcrService NULL→FAILED (нужен новый статус). См. `docs/backlog.md`.
+**Прочее отложенное:** migration 69 jsonb-guard hardening (backlog); shamela chapter-cycle,
+bibliography dash-split, getDetail perf (Tier-3 backlog). См. `docs/backlog.md`.
 
-**Инфра:** Docker (postgres+minio) up + **`sunnah-mysql` :3307** (root/root, БД
-`sunnah`; дамп `db/00-samplegitdb.sql` в контейнере, host `/tmp/sunnah.sql`).
-Backend :9090 + JDWP :5005. **ВАЖНО: sunnah-конфиг — через
-`-Dspring-boot.run.arguments`, НЕ env** (fork `spring-boot:run` теряет env →
-импорт «не настроен»/503). Команда рестарта:
+**Инфра:** Docker (postgres+minio) up + **`sunnah-mysql` :3307** (root/root, БД `sunnah`;
+дамп = только bukhari). Backend :9090 + JDWP :5005. **ВАЖНО: sunnah-конфиг — через
+`-Dspring-boot.run.arguments`, НЕ env.** Команда рестарта:
 `./mvnw spring-boot:run -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005" -Dspring-boot.run.arguments="--sunnah.dump.enabled=true --sunnah.dump.url=jdbc:mysql://localhost:3307/sunnah?allowPublicKeyRetrieval=true&useSSL=false --sunnah.dump.username=root --sunnah.dump.password=root"`
-migrations через **67** (60 drop node_votes, 61 topic_votes, 62 question_votes,
-63 drop user_preferences, 64 answer_votes, 65 hd_collections.book_id, 66
-authorities.name UNIQUE, 67 lib_books.cover_url). **Дев-Postgres ОЧИЩЕН**: контент=0,
-остались admin-юзер + схема + shamela-каталог (`lib_shamela_book`=8589).
-**DevHadithSeeder opt-in** (`DEV_SEED_HADITH=true` для 3 эталонов). frontend :5173.
-Admin для curl/тестов: `00000000-0000-0000-0000-000000000001`. HAR-файлы archive.org
-в gitignore (`*.har`).
+**Для AI-фич:** добавить `--ai.provider=deepseek --ai.deepseek.api-key=...` (или anthropic/openai).
+migrations через **69** (68 drop ocr-columns, 69 lib_books.content_kind). **Psql роль `argmap`**
+(не postgres): `docker exec argumentmap-postgres psql -U argmap -d argumentmap`. frontend :5173.
+Admin для curl/тестов: `00000000-0000-0000-0000-000000000001`. HAR archive.org в gitignore.
+**Дев-данные:** fmhji переимпортирован чисто (FILE_ONLY, 4 файла); bukhari hd_* 1 хадис.
 
 ### Историч. снапшоты (Сессии 47/49d/49c) — сжаты
 

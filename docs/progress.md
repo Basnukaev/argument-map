@@ -9,6 +9,73 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
+## 2026-06-02/03 - Сессия 55 - крупный автономный overhaul (7 фаз + code-review)
+
+Запрос Абдулы: 10 пунктов + скриншоты `img*.png` + HAR (archive.org/alminasa).
+Полностью автономный марафон. Спека `docs/superpowers/specs/2026-06-02-session-55-overhaul.md`.
+Карта кода — multi-agent workflow (6 агентов). ~14 коммитов.
+
+### Сделано (7 фаз)
+1. **Выпил Tesseract OCR** (ADR-057, migration 68 drop `lib_pages.ocr_*`). Удалены
+   OcrService/Config/Controller/Status/JobResponse + Tess4j + frontend-OCR. `@EnableAsync`
+   перенесён OcrConfig→AiEditConfig. Сохранён AiEditService + image-scan upload (субстрат
+   для будущего AI-распознавания).
+2. **Swappable LLM** (ADR-058): пакет `ai/` — `LlmClient` интерфейс + AnthropicLlmClient/
+   OpenAiCompatibleLlmClient/DeepSeekLlmClient через `@ConditionalOnProperty(ai.provider)`,
+   retry-инстанс `llmApi`. `BookMetadataExtractionService` (LLM→био-поля, graceful fallback).
+3. **content_kind** (migration 69) — НОВАЯ ось доступности TEXT_ONLY/TEXT_AND_FILE/
+   FILE_ONLY, ортогональна `book_type` (жанр). Импортёры выставляют через updateContentKind.
+   Frontend: ридер по типу (FILE_ONLY→PDF сразу, TEXT_ONLY→без PDF).
+4. **archive.org overhaul** (ADR-056 amend): FILE_ONLY, drop `_text` OCR-варианты (это и
+   была абракадабра), HTML-стрип описания, AI-метаданные (regex fallback), лок формы после
+   импорта. Закрыло баги обложки-как-тома, OCR-интерливинга, сырого HTML, дефолта-на-cover.
+5. **Reader**: bbox-подсветка при PDF-цитате (display; creation=roadmap 25.f), 0-page guard.
+6. **Hadith**: `availableHadith` честный счётчик (дамп = bukhari-only сэмпл!), независимый
+   скролл превью-панели, alminasa-карточка переформулирована.
+7. **AI-иснад** (ADR-059): `IsnadExtractionService` (LLM парсит цепочку из матна) +
+   in-memory `SanadGraphResponse` (reuse Hadith Explorer viz) + `POST /admin/sunnah/
+   extract-isnad` + кнопка «Извлечь иснад (ИИ)» в превью. **Эфемерный preview** (без
+   персистенции в hd_*).
+
+### Решения
+- ADR-057 (OCR removed), ADR-058 (swappable LLM), ADR-059 (AI-иснад), ADR-056 amendment
+  (archive.org FILE_ONLY). content_kind vs book_type — две ортогональные оси.
+- **Стратегия источников хадисов**: sunnah дамп primary, иснад AI из матна (без внешней
+  зависимости), alminasa.ai = проприетарный ES → НЕ скрейпим, оставлен как будущее
+  обогащение риджаль-данными.
+
+### Code-review (multi-agent, 5 измерений + adversarial verify)
+14 raw → 11 confirmed, **0 Critical, 1 Important, 10 Minor**. Important + 9 Minor закрыты:
+- **Important:** `@Retry` перестал применяться к AI-edit (single-arg `complete` = default-метод
+  без @Retry → self-invocation мимо proxy). Фикс: AiEditService зовёт two-arg `complete(null,
+  prompt)`, default-метод удалён, +`LlmClientRetryIT` (503/503/200 через proxy → 3 запроса).
+- **Minor:** IsnadExtractionRequest.number Integer→String («1a»), bbox wrong-volume guard,
+  dead i18n/union, 5 doc-фиксов (ADR-058/057/041 статусы, api-contract OCR, spec divergences).
+- **Отложено:** migration 69 jsonb guard (нельзя править applied changeset; backlog).
+
+### Верификация (финал)
+Backend `./mvnw verify` → **BUILD SUCCESS** (см. progress). Frontend: tsc clean, eslint
+**0 проблем** (убран pre-existing unused-disable), build ✓, **vitest 708/708** (109 файлов).
+Live-smoke: archive.org re-import fmhji → FILE_ONLY, 4 файла (no `_text`), описание plain-text;
+extract-isnad → `{llmEnabled:false}` (graceful без ключа).
+
+### Проблемы/known
+- AI-фичи (метаданные книг, иснад) работают только с реальным LLM-ключом (`ai.provider`
+  + `*_API_KEY` env); без ключа graceful (regex fallback / `llmEnabled:false`).
+- Дамп sunnah = только bukhari (100 строк); полный корпус — контент-ops.
+- **Весь UI требует ручной проверки** (playwright env-blocked, нет Chromium).
+
+### Следующий шаг
+**Тёплый путь (после ручной проверки UI):**
+1. **Isnad persistence-on-import + rijal-дедуп нарраторов** (backlog) — сейчас иснад
+   эфемерный preview; персистить extracted hd_sanads/hd_narrators/hd_sanad_narrators на
+   импорте (дедуп по нормализованному имени), обогащать био из rijal-источника/alminasa.
+2. **bbox-citation CREATION для FILE_ONLY** (roadmap 25.f) — CitationPicker PDF-режим
+   (выбор страницы + рисование bbox на скане через react-image-crop). Display готов.
+3. **Полный дамп sunnah.com** (контент-ops) — сейчас только bukhari.
+4. **AI-ключ для живой проверки** метаданных + иснада (попробовать deepseek/openai/claude
+   через `ai.provider`).
+
 ## 2026-06-02 - Сессия 54 (батч 5) - archive.org PDF-импорт MVP (новый инструмент)
 
 Запрос Абдулы: админ-инструмент импорта книг из archive.org по URL (parser +
