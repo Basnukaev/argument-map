@@ -1,9 +1,9 @@
 package ru.basnukaev.argumentmap.library.domain;
 
 /**
- * State machine AI editing pass (ADR-042, Этап 17.e). Структурно
- * совпадает с {@link OcrStatus} - PENDING/PROCESSING/DONE/FAILED.
- * Хранится в БД как VARCHAR (CHECK constraint миграции 35).
+ * State machine AI editing pass (ADR-042, Этап 17.e). 4-state machine
+ * PENDING/PROCESSING/DONE/FAILED. Хранится в БД как VARCHAR (CHECK
+ * constraint миграции 35).
  *
  * <ul>
  *   <li>{@code PENDING} - AI edit запрошен, ожидает worker thread.

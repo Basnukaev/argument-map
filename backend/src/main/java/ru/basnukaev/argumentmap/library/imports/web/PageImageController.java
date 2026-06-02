@@ -38,15 +38,10 @@ import ru.basnukaev.argumentmap.web.CurrentUser;
  * </ul>
  *
  * <p>Возвращает {@link PageResponse} с обновлёнными полями
- * {@code imageBucket}/{@code imageStorageKey}/{@code ocrStatus=PENDING}.
+ * {@code imageBucket}/{@code imageStorageKey}/{@code imageUploadedAt}.
  * Размер до 20MB enforce'ится Spring multipart parser'ом - превышение
  * даёт {@code MaxUploadSizeExceededException} → 413 Payload Too Large
  * (handler в {@code GlobalExceptionHandler}).
- *
- * <p>OCR не запускается автоматически - см. отдельный
- * {@code POST /api/v1/library/pages/{pageId}/ocr} endpoint (Этап 17.b).
- * Это позволяет batch-uploader сначала залить все страницы и потом
- * триггерить OCR пачкой.
  */
 @RestController
 @RequestMapping("/api/v1/library/books")
@@ -75,9 +70,8 @@ public class PageImageController {
         validateFile(file);
 
         // ADR-043 Amendment: write-guard - upload перезаписывает image
-        // страницы + сбрасывает ocr_status, поэтому требует write-доступ
-        // к книге. Раньше шло без проверки (любой мог затереть чужую
-        // PRIVATE книгу).
+        // страницы, поэтому требует write-доступ к книге. Раньше шло
+        // без проверки (любой мог затереть чужую PRIVATE книгу).
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         bookService.assertCanWriteBook(bookId, currentUserId, role);
 

@@ -12,8 +12,7 @@ import jakarta.validation.constraints.NotNull;
  *
  * <p>{@code extractedText} опционально - может быть заполнен сразу
  * клиентом если пользователь вручную ввёл текст для региона, либо
- * оставлен null для последующего OCR через {@code OcrService} на
- * cropped image.
+ * оставлен null для последующего AI-recognition pipeline (ADR-057).
  *
  * <p>Валидация бизнес-правила {@code x+width <= 1 AND y+height <= 1}
  * обеспечивается CHECK constraint в БД (см. миграцию 16). Здесь только

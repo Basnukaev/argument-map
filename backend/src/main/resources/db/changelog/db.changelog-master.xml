@@ -72,5 +72,6 @@
     <include file="db/changelog/changes/20260602-65-hd-collections-book-bridge.xml"/>
     <include file="db/changelog/changes/20260602-66-authorities-name-unique.xml"/>
     <include file="db/changelog/changes/20260602-67-lib-books-cover-url.xml"/>
+    <include file="db/changelog/changes/20260602-68-drop-ocr-columns.xml"/>
 
 </databaseChangeLog>

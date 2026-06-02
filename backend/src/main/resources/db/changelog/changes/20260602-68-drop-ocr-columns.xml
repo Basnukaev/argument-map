@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        ADR-057: удаление Tesseract OCR pipeline.
+
+        Tesseract плохо парсит арабский; будущее распознавание сканов —
+        AI-based (LLM-vision). Удаляем 3 OCR-колонки добавленные
+        миграцией 34 (ADR-041): ocr_status (VARCHAR(20) с CHECK
+        constraint), ocr_started_at, ocr_completed_at. Индекс
+        idx_lib_pages_ocr_status тоже удаляется.
+
+        image_bucket / image_storage_key / image_uploaded_at остаются —
+        субстрат для будущего AI-recognition pipeline.
+        ai_edit_status / ai_edit_started_at / ai_edit_completed_at (миг. 35)
+        остаются — AiEditService продолжает работать.
+    -->
+    <changeSet id="20260602-68-drop-ocr-columns" author="Abdula Basnukaev">
+        <comment>ADR-057: удалить OCR pipeline колонки из lib_pages (ocr_status, ocr_started_at, ocr_completed_at) и индекс idx_lib_pages_ocr_status</comment>
+        <sql>
+            DROP INDEX IF EXISTS idx_lib_pages_ocr_status;
+            ALTER TABLE lib_pages
+                DROP COLUMN IF EXISTS ocr_status,
+                DROP COLUMN IF EXISTS ocr_started_at,
+                DROP COLUMN IF EXISTS ocr_completed_at;
+        </sql>
+        <rollback>
+            <sql>
+                ALTER TABLE lib_pages
+                    ADD COLUMN ocr_status       VARCHAR(20)  NULL
+                        CHECK (ocr_status IN ('PENDING', 'PROCESSING', 'DONE', 'FAILED')),
+                    ADD COLUMN ocr_started_at   TIMESTAMPTZ NULL,
+                    ADD COLUMN ocr_completed_at TIMESTAMPTZ NULL;
+
+                CREATE INDEX idx_lib_pages_ocr_status ON lib_pages(ocr_status)
+                    WHERE ocr_status IS NOT NULL;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

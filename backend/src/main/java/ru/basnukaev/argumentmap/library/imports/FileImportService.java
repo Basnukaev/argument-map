@@ -66,7 +66,7 @@ public class FileImportService {
      * {@code text_content} пустую строку - CHECK constraint
      * {@code lib_pages_content_present} требует {@code text_content
      * IS NOT NULL OR image_url IS NOT NULL}, пустая строка не NULL.
-     * В будущем (Этап 17) можно вызывать OCR для таких страниц.
+     * Текст таких страниц заполнится через будущий AI-recognition pipeline.
      */
     private static final String EMPTY_PAGE_PLACEHOLDER = "";
 

@@ -6158,3 +6158,46 @@ citation), ADR-035 (PDF upload), ADR-054 (системный пользоват�
   `<img>` на карточке в `BookListPage` и в шапке reader'а, с фолбэком на
   letter-avatar когда обложки нет. «Рендеринг cover_url в API-ответах +
   BookListPage/Reader — итерация» (конец блока миграции 67) — **сделано**.
+
+---
+
+## ADR-057: Удаление Tesseract OCR (миграция 68)
+
+**Контекст.** Tesseract OCR (Tess4j wrapper, ADR-041, Этап 17.b) был
+добавлен для распознавания текста из image-сканов рукописей (ara+rus+eng).
+Практика показала: качество Arabic OCR недостаточное — Tesseract плохо
+справляется с рукописным и диакритированным арабским (тематика платформы).
+Дальнейшее развитие — AI-based recognition (LLM-vision), которое не
+требует OCR pipeline как промежуточного слоя.
+
+**Решение.** Удалить Tesseract OCR pipeline полностью:
+
+- Удалены: `OcrService.java`, `OcrConfig.java`, `OcrController.java`,
+  `OcrStatus.java`, `OcrJobResponse.java`, `OcrServiceIT.java`,
+  `OcrServiceConcurrencyIT.java`
+- Удалена зависимость Tess4j 5.13.0 из `pom.xml`
+- Удалены OCR-колонки из `lib_pages`: `ocr_status`, `ocr_started_at`,
+  `ocr_completed_at` (миграция 68). Удалён индекс `idx_lib_pages_ocr_status`
+- Удалены OCR-поля из `Page.java`, `PageRepository.java`, `PageResponse.java`
+- Удалён конфиг `ocr:` из `application.yml`
+- `@EnableAsync` перенесён с `OcrConfig` на `AiEditConfig`
+
+**Сохранены:**
+
+- `AiEditService`, `AiEditConfig`, `AiEditStatus` — AI editing pipeline
+  работает на `text_content` от импортёров (shamela/PDF/archive.org)
+- `PageImageService`, `PageImageController` — upload image-сканов в MinIO
+  остаётся как субстрат для будущего AI-recognition
+- `image_bucket`, `image_storage_key`, `image_uploaded_at` — pointer на
+  uploaded скан в `lib_pages`
+- `ImageRegion` — bbox-разметка на сканах
+
+**Последствия.** `lib_pages` теряет OCR state machine. AI-edit работает
+непосредственно на `text_content` (shamela plain text, PDF extraction,
+archive.org OCR-слой — их `_text` уже содержит текст). Image-only страницы
+(сканы без text layer) получают пустой `text_content` — AI-edit для них
+недоступен до появления AI-recognition pipeline.
+
+**Rejected alternatives.** Замена Tesseract на другой OCR (PaddleOCR,
+GCV) — YAGNI: если нужно OCR, лучше сразу LLM-vision без
+промежуточного plain-text этапа.

@@ -148,7 +148,6 @@ public final class LibraryDtoMappers {
                 page.textContent(), page.imageUrl(),
                 jsonFromString(page.formattedContent()),
                 page.imageBucket(), page.imageStorageKey(), page.imageUploadedAt(),
-                page.ocrStatus(), page.ocrStartedAt(), page.ocrCompletedAt(),
                 regions, page.createdAt(), page.updatedAt()
         );
     }

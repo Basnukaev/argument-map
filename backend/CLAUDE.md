@@ -200,21 +200,12 @@ issues не зафиксированные в backlog.
   на проекте JDBC Template, не плодим dep'ы. Простой record-helper
   достаточен
 
-### OCR (ADR-041)
-
-Pipeline извлечения текста из сканов через Tesseract. Async,
-`lib_pages.ocr_status` state machine, graceful degradation если
-tesseract не установлен.
-
-**Детали:** `backend/docs/ocr-pipeline.md` (Tess4j config, async
-TaskExecutor, state machine PENDING→PROCESSING→DONE/FAILED, IT тест
-с `@EnabledIf`).
-
 ### AI editing (ADR-042, Этап 17.e)
 
 LLM расставляет структуру (хадис-боксы, ayah-боксы, headings) поверх
-OCR raw text через Anthropic Claude. Optional enhancement — без ключа
-платформа работает (formatted_content=null).
+text_content через Anthropic Claude. Optional enhancement — без ключа
+платформа работает (formatted_content=null). Tesseract OCR удалён
+(ADR-057) — image-сканы хранятся как субстрат для будущего AI-recognition.
 
 **Детали:** `backend/docs/ai-editing.md` (env vars config, async
 pipeline `aiEditTaskExecutor`, retry policy Resilience4j, state machine

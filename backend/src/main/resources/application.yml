@@ -149,16 +149,6 @@ audit:
     # 02:00 ежедневно - после ночных backup'ов, до orphan janitor (03:00)
     cron: ${AUDIT_RETENTION_CRON:0 0 2 * * *}
 
-# OCR pipeline (ADR-041, Этап 17.b). Tess4j wrapper над system Tesseract.
-# Tesseract сам - НЕ Maven dependency, нужно установить на host:
-#   sudo apt install tesseract-ocr tesseract-ocr-ara tesseract-ocr-rus
-# (см. backend/CLAUDE.md раздел OCR).
-ocr:
-  tessdata:
-    # Path к .traineddata файлам. Debian/WSL2 default - /usr/share/tesseract-ocr/4.00/tessdata
-    # macOS Homebrew - /opt/homebrew/share/tessdata
-    path: ${OCR_TESSDATA_PATH:/usr/share/tesseract-ocr/4.00/tessdata}
-
 # AI editing pass (ADR-042, Этап 17.e). Anthropic Claude как
 # single-provider LLM для преобразования OCR raw text в structured
 # ProseMirror JSON. По умолчанию disabled - endpoint вернёт 503 пока

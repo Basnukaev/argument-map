@@ -527,12 +527,7 @@ Concurrency (применить tryClaim-паттерн как в AI-edit #10 / 
       400/401/403/404/409/422/200 → no retry).
 
 Logic:
-- [ ] **OcrService NULL→FAILED** для страниц без скана (not-applicable
-      перезаписывается FAILED). `OcrService.java:121`. **Отложено:** корректный
-      фикс требует нового статуса (NOT_APPLICABLE/SKIPPED) → миграция CHECK
-      constraint (34) + frontend handling — не low-effort, не форсируем.
-      FAILED для страницы без скана пока приемлемо (re-OCR не поможет, но и
-      вреда нет).
+- ~~[ ] **OcrService NULL→FAILED**~~ — **(удалено в Сессии 55, ADR-057 — OCR выпилен)**
 - [x] **updateOcrStatus COALESCE** preserves stale ocr_completed_at при
       re-run DONE/FAILED. `PageRepository.java:205`. **Закрыто** заодно с #1:
       `tryClaimOcrProcessing` при claim PROCESSING явно ставит

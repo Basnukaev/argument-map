@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 /**
@@ -13,21 +14,22 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  *
  * <p>{@code aiEditTaskExecutor} - bounded thread pool для async вызовов
  * Anthropic API. LLM запрос - это I/O-bound work (~5-15с латентность,
- * 95% времени ждём response), поэтому pool может быть чуть шире OCR
- * (core 2, max 4) но всё равно небольшой - API rate limits и cost
- * controls. На больше workers нет смысла - rate limit Anthropic API
- * для большинства tier'ов ~50 req/min, при N=4 параллельно мы упрёмся
- * быстро.
+ * 95% времени ждём response), поэтому pool небольшой - API rate limits
+ * и cost controls. На больше workers нет смысла - rate limit Anthropic
+ * API для большинства tier'ов ~50 req/min, при N=4 параллельно мы
+ * упрёмся быстро.
  *
- * <p>Queue 50 - меньше OCR (100) потому что AI edit задачи каждая
- * дороже (cost + latency), не хотим накопить большой backlog. При
- * overflow - {@code CallerRunsPolicy} - HTTP-thread выполнит сам,
- * сделает backpressure ощутимым для admin'а который наполняет очередь.
+ * <p>Queue 50 - AI edit задачи каждая дороже (cost + latency), не
+ * хотим накопить большой backlog. При overflow - {@code CallerRunsPolicy}
+ * - HTTP-thread выполнит сам, сделает backpressure ощутимым для
+ * admin'а который наполняет очередь.
  *
- * <p>{@code @EnableAsync} включается через {@link OcrConfig} - один
- * раз достаточно для всего приложения.
+ * <p>{@code @EnableAsync} включает {@code @Async} processing - Spring
+ * проксирует методы аннотированные {@code @Async("aiEditTaskExecutor")}
+ * и отправляет в указанный executor вместо синхронного вызова.
  */
 @Configuration
+@EnableAsync
 public class AiEditConfig {
 
     private static final Logger log = LoggerFactory.getLogger(AiEditConfig.class);

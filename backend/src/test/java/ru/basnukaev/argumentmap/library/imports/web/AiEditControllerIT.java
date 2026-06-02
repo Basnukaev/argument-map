@@ -167,9 +167,6 @@ class AiEditControllerIT {
                 UUID.randomUUID(), book.id(), null, 1,
                 null, null, null,
                 textContent, null, null,
-                null, null, null,
-                null, null, null,
-                null, null, null,
                 now, now
         ));
     }

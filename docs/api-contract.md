@@ -2100,9 +2100,10 @@ fallback render. `updated_at` bump.
 
 ### POST /api/v1/library/books/{bookId}/pages - upload page image (Этап 17.a)
 
-ADR-041 (OCR pipeline). Третий способ внести страницу в библиотеку
-после shamela ETL и file import PDF. Image-сканы для рукописей и
-редких книг где text layer отсутствует. Один файл - одна страница.
+ADR-041. Третий способ внести страницу в библиотеку после shamela ETL
+и file import PDF. Image-сканы для рукописей и редких книг где text
+layer отсутствует. Один файл - одна страница. Субстрат для будущего
+AI-recognition (OCR-endpoint удалён в ADR-057, Сессия 55).
 
 Multipart/form-data:
 - `file` (required) - image binary. Content-type whitelist:
@@ -2116,7 +2117,7 @@ Multipart/form-data:
 
 Header: `X-User-Id` (или Bearer JWT в prod) - mutating endpoint.
 
-`200 OK` - `PageResponse` (расширен 6 image/OCR полями - см. ниже):
+`200 OK` - `PageResponse` (расширен 3 image полями):
 ```json
 {
   "id": "uuid",
@@ -2125,14 +2126,9 @@ Header: `X-User-Id` (или Bearer JWT в prod) - mutating endpoint.
   "imageBucket": "library-page-images",
   "imageStorageKey": "{bookId}/page-1.jpg",
   "imageUploadedAt": "2026-05-17T22:00:00Z",
-  "ocrStatus": "PENDING",
   ...
 }
 ```
-
-После upload OCR **не** запускается автоматически - триггер отдельный
-endpoint (см. ниже). Это позволяет batch-uploader залить все страницы
-рукописи + затем триггерить OCR пачкой.
 
 Ошибки:
 - 404 `book-not-found` - bookId не существует
@@ -2140,45 +2136,8 @@ endpoint (см. ниже). Это позволяет batch-uploader залить
 - 415 `unsupported-media-type` - MIME вне whitelist
 - 422 `page-image-error` - pageNumber<=0, пустой файл, чтение из stream
 
-### POST /api/v1/library/pages/{pageId}/ocr - триггер async OCR (Этап 17.b)
-
-ADR-041. Запускает Tesseract OCR через `OcrService.recognizeAsync` -
-работа уходит в bounded `ocrTaskExecutor` (core=2, max=4). Frontend
-получает 202 Accepted сразу, опрашивает GET endpoint для статуса.
-
-Тело: пустое.
-
-`202 Accepted` - `OcrJobResponse`:
-```json
-{
-  "pageId": "uuid",
-  "status": "PENDING",
-  "startedAt": null,
-  "completedAt": null,
-  "hasImage": true
-}
-```
-
-`status` на момент response - текущее значение `lib_pages.ocr_status`.
-Реальное PROCESSING может быть выставлено async через миллисекунду.
-Polling endpoint показывает актуальное значение. Re-trigger допустим
-(полезно для зависших PROCESSING при рестарте backend'а).
-
-Ошибки:
-- 404 `page-not-found` - pageId не существует
-
-### GET /api/v1/library/pages/{pageId}/ocr - статус OCR (Этап 17.b)
-
-ADR-041. Polling endpoint для статуса. Frontend опрашивает каждые
-2-3 сек пока `status=PROCESSING`, переключается на DONE/FAILED →
-стопает polling.
-
-`200 OK` - `OcrJobResponse` (см. выше). `hasImage=false` означает что
-у страницы нет scan upload - precondition OCR не выполнен. Frontend
-может скрыть кнопку «Запустить OCR».
-
-Ошибки:
-- 404 `page-not-found`
+~~POST /api/v1/library/pages/{pageId}/ocr~~ — **удалён** (ADR-057, Сессия 55).
+~~GET /api/v1/library/pages/{pageId}/ocr~~ — **удалён** (ADR-057, Сессия 55).
 
 ### POST /api/v1/library/pages/{pageId}/regions - создать ImageRegion (Этап 17.c)
 
@@ -2271,7 +2230,7 @@ ADR-042. Polling endpoint. Frontend опрашивает каждые 2-3 сек
 
 `200 OK` - `AiEditJobResponse` (см. выше). `hasTextContent=false`
 означает что у страницы нет text_content - precondition AI edit не
-выполнен (например image-page без OCR пока). Frontend может скрыть
+выполнен (image-only скан без text layer). Frontend может скрыть
 кнопку.
 
 При `status="DONE"` - `formatted_content` страницы заполнен валидным
@@ -2281,11 +2240,11 @@ ProseMirror JSON. Чтение через `GET /pages/{id}` либо
 Ошибки:
 - 404 `page-not-found`
 
-### Что **не** реализовано в Этапе 17
+### Что **не** реализовано / было удалено в Этапе 17
 
-- re-OCR endpoint (17.d) - перезапустить OCR на DONE/FAILED странице
-  через тот же `POST /pages/{id}/ocr` (idempotent на уровне state
-  machine), отдельный resource path не нужен
+- ~~re-OCR endpoint (17.d)~~ — удалён вместе с OCR pipeline (ADR-057,
+  Сессия 55). `POST /pages/{id}/ocr` и `GET /pages/{id}/ocr` более не
+  существуют
 - ~~AI editing pass (17.e)~~ - **реализовано в Сессии 43**: ADR-042
   Anthropic Claude single-provider + миграция 35 + POST/GET
   `/pages/{id}/ai-edit` (см. выше)
@@ -3904,6 +3863,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-06-02 | v1 | **OCR endpoints удалены (ADR-057, Сессия 55).** `POST /api/v1/library/pages/{pageId}/ocr` (триггер Tesseract OCR) и `GET /api/v1/library/pages/{pageId}/ocr` (статус-polling) удалены. `OcrJobResponse` DTO удалён. `PageResponse` потерял 3 поля: `ocrStatus`, `ocrStartedAt`, `ocrCompletedAt`. Tesseract OCR удалён (ara плохо парсится); image upload (`POST /books/{id}/pages`) сохранён как субстрат для будущего AI-recognition | ADR-057: Tesseract OCR выпилен. Будущее распознавание — AI-based (LLM-vision) |
 | 2026-06-02 | v1 | **Security: shamela-admin endpoints теперь ADMIN-only (закрытие role-check дыры).** Все 7 endpoint под `/api/v1/admin/shamela/*` (`POST /sync-master`, `POST /import-book/{id}`, `POST /map-book/{id}`, `GET /search`, `GET /books`, `POST /backfill-bibliography`, `GET /sync-status`) раньше были без role-check («на MVP - без role-check»), в отличие от Sunnah-admin (ADMIN-only). Теперь консистентно: добавлен `requireAdmin()` гвард (mirror `SunnahAdminController.requireAdmin` — `SecurityContextUtils.currentRoleOrAnonymous()` + `AdminOnlyException`). non-ADMIN authenticated user → 403 `forbidden-admin-only`; anonymous на `map-book` (с `@CurrentUser`) → 401 `invalid-token` (резолвер отсекает раньше гварда). `X-User-Id` в `map-book` по-прежнему даёт `created_by`. Без изменения схемы БД / DTO / маршрутов — только permission-check. IT: `ShamelaAdminControllerIT` (+7 negative-authz кейсов non-admin→403; existing happy-path стали слать `X-User-Id` ADMIN-пользователя), 32/32 green | Багоохота / security-аудит: shamela-admin был единственным admin-контроллером без role-check (Sunnah-admin и audit-admin уже ADMIN-only). Канон тот же что у Sunnah: гвард в начале каждого метода контроллера через `SecurityContextUtils.currentRoleOrAnonymous()` + `AdminOnlyException` |
 | 2026-06-02 | v1 | **Голосование за вопросы Q&A (зеркалит topic-vote stack).** Миграция 62 CREATE `question_votes (id UUID PK gen_random_uuid, question_id FK CASCADE, user_id FK CASCADE, weight SMALLINT CHECK IN (-1,1), voted_at TIMESTAMPTZ, UNIQUE(question_id, user_id))` + 2 индекса (question_id, user_id). **Добавлены** 3 question-vote endpoint под `/api/v1/questions/{questionId}` (`POST /vote` → 201 `QuestionVoteStatsResponse{questionId, upvotes, downvotes, score, userVote}` upsert ON CONFLICT, `DELETE /vote` → 204 идемпотентен, `GET /votes` → `QuestionVoteStatsResponse`, открыт для anonymous). DTO `CreateQuestionVoteRequest{weight}`. `QuestionResponse` расширен `voteScore` (int) + `userVote` (Integer nullable) — bulk-load из `question_votes` на list (2 SQL на страницу: getStatsForQuestions + getUserVotesForQuestions) и detail (точечно), default 0/null на mutating endpoint'ах (create/update/accept/revoke answer). Ошибки `400 invalid-vote` / `404 question-not-found`. **Permission: НЕТ visibility/read-write check** — questions это open discussion (ADR-043 «Q&A guards»): голосовать может любой authenticated user; POST/DELETE требуют принципала (anonymous → 401), GET открыт. Переиспользованы `VoteStats` + `InvalidVoteException` (generic). Пакет `qa.{domain,repository,service,web.{controller,dto}}`. IT: `QuestionVoteServiceIT` (12) + `QuestionVoteControllerIT` (16); `QuestionControllerIT` адаптирован под новые поля | Product: community-сигнал популярности «за тему вцелом ИЛИ за вопрос&ответ» — topic-vote сторона уже была, добавлена Q&A сторона. Mirror того же стека, но без permission-модели (questions открыты по дизайну, в отличие от тем с visibility) |
 | 2026-06-02 | v1 | **Голосование перенесено с узлов на темы (ADR voting node→topic).** Миграция 60 DROP `node_votes`, миграция 61 CREATE `topic_votes (id UUID PK, topic_id FK CASCADE, user_id FK CASCADE, weight SMALLINT CHECK IN (-1,1), voted_at TIMESTAMPTZ, UNIQUE(topic_id, user_id))` + 2 индекса. **Удалены** 3 node-vote endpoint (`POST/DELETE /api/v1/nodes/{id}/vote`, `GET /api/v1/nodes/{id}/votes`), `NodeVoteStatsResponse`, `CreateNodeVoteRequest`, и 4 vote-поля из `NodeResponse` (`voteUpvotes`/`voteDownvotes`/`voteScore`/`userVote`) — граф больше не несёт голосов на узлах. **Добавлены** 3 topic-vote endpoint под `/api/v1/topics/{topicId}` (`POST /vote` → 201 `TopicVoteStatsResponse{topicId, upvotes, downvotes, score, userVote}` upsert ON CONFLICT, `DELETE /vote` → 204 идемпотентен, `GET /votes` → `TopicVoteStatsResponse`). `TopicResponse` расширен `voteScore` (int) + `userVote` (Integer nullable) — bulk-load из `topic_votes` на list (2 SQL на страницу) и detail (точечно), default 0/null. Ошибка `400 invalid-vote` сохранена. Permission: vote требует `canReadTopic` (видишь тему — можешь vote, ADMIN bypass). IT: `TopicVoteServiceIT` + `TopicVoteControllerIT`; `NodeProjectionService` упрощён (votes убраны, остались citations+translations) | Product-решение: узлы — curated expert data, голосование за них семантически неверно. Голоса принадлежат уровню тем как community-сигнал популярности (сообщество видит какие темы интересны). Голоса узлов не были источником истины ни для чего (ортогональны StatusCalculation), поэтому drop без миграции данных |

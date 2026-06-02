@@ -21,7 +21,6 @@ public class PageRepository {
             "id, book_id, chapter_id, page_number, printed_page, part, pdf_page_number, "
             + "text_content, image_url, formatted_content, "
             + "image_bucket, image_storage_key, image_uploaded_at, "
-            + "ocr_status, ocr_started_at, ocr_completed_at, "
             + "ai_edit_status, ai_edit_started_at, ai_edit_completed_at, "
             + "created_at, updated_at";
 
@@ -42,9 +41,6 @@ public class PageRepository {
                 rs.getString("image_bucket"),
                 rs.getString("image_storage_key"),
                 instant(rs, "image_uploaded_at"),
-                rs.getString("ocr_status"),
-                instant(rs, "ocr_started_at"),
-                instant(rs, "ocr_completed_at"),
                 rs.getString("ai_edit_status"),
                 instant(rs, "ai_edit_started_at"),
                 instant(rs, "ai_edit_completed_at"),
@@ -67,7 +63,7 @@ public class PageRepository {
         jdbcTemplate.update(
                 "INSERT INTO lib_pages (" + COLUMNS + ") "
                         + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, "
-                        + "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        + "?, ?, ?, ?, ?, ?, ?, ?)",
                 page.id(),
                 page.bookId(),
                 page.chapterId(),
@@ -81,9 +77,6 @@ public class PageRepository {
                 page.imageBucket(),
                 page.imageStorageKey(),
                 odt(page.imageUploadedAt()),
-                page.ocrStatus(),
-                odt(page.ocrStartedAt()),
-                odt(page.ocrCompletedAt()),
                 page.aiEditStatus(),
                 odt(page.aiEditStartedAt()),
                 odt(page.aiEditCompletedAt()),
@@ -164,111 +157,21 @@ public class PageRepository {
     /**
      * Установить или обновить pointer на uploaded image страницы
      * (миграция 34, ADR-041). Используется {@code PageImageService}
-     * после успешного S3 put. {@code ocr_status} переводится в
-     * {@code PENDING} - signal для downstream OCR pipeline что
-     * страница ждёт обработки.
+     * после успешного S3 put. После миграции 68 OCR-колонки удалены
+     * (ADR-057) - метод обновляет только image pointer.
      *
      * @return true если row updated, false если page id не найден
      */
     public boolean updateImagePointer(UUID id, String bucket, String storageKey,
-                                       Instant uploadedAt, String ocrStatus) {
+                                       Instant uploadedAt) {
         int rows = jdbcTemplate.update(
                 "UPDATE lib_pages SET "
                         + "image_bucket = ?, image_storage_key = ?, image_uploaded_at = ?, "
-                        + "ocr_status = ?, updated_at = now() "
+                        + "updated_at = now() "
                         + "WHERE id = ?",
                 bucket,
                 storageKey,
                 odt(uploadedAt),
-                ocrStatus,
-                id
-        );
-        return rows > 0;
-    }
-
-    /**
-     * Обновить OCR state machine - текущий status + opt timestamps
-     * (started/completed). Используется {@code OcrService} для перевода
-     * page между состояниями pipeline.
-     *
-     * <p>Все поля кроме {@code id}/{@code ocrStatus} nullable - можно
-     * обновить только status (например на PROCESSING без completed_at).
-     *
-     * @return true если row updated, false если page id не найден
-     */
-    public boolean updateOcrStatus(UUID id, String ocrStatus,
-                                    Instant ocrStartedAt,
-                                    Instant ocrCompletedAt) {
-        int rows = jdbcTemplate.update(
-                "UPDATE lib_pages SET ocr_status = ?, "
-                        + "ocr_started_at = COALESCE(?, ocr_started_at), "
-                        + "ocr_completed_at = COALESCE(?, ocr_completed_at), "
-                        + "updated_at = now() "
-                        + "WHERE id = ?",
-                ocrStatus,
-                odt(ocrStartedAt),
-                odt(ocrCompletedAt),
-                id
-        );
-        return rows > 0;
-    }
-
-    /**
-     * Атомарный compare-and-set для OCR pipeline: переводит страницу в
-     * {@code processingStatus} только если она ещё НЕ в этом статусе
-     * ({@code ocr_status IS DISTINCT FROM ?} - корректно обрабатывает
-     * NULL/PENDING/DONE/FAILED). Возвращает true если ИМЕННО ЭТОТ вызов
-     * выиграл переход (rows==1), false если другой concurrent вызов уже
-     * застолбил PROCESSING либо page не найден.
-     *
-     * <p>Защита от check-then-act гонки (тот же паттерн что и
-     * {@link #tryClaimAiEditProcessing}): два параллельных
-     * POST /pages/{id}/ocr для одной страницы (double-submit / re-trigger)
-     * иначе оба запустили бы Tesseract recognize - дублирующая тяжёлая
-     * работа и last-write-wins на text_content. Только winner транзакции
-     * делает doOcr(). Status передаётся строкой - repository не coupled к
-     * OcrStatus (как и updateOcrStatus).
-     *
-     * <p>{@code ocr_completed_at = NULL} при claim: re-OCR ранее
-     * завершённой (DONE/FAILED) страницы иначе оставил бы stale
-     * completed_at от предыдущего прогона, пока статус PROCESSING -
-     * фронт показывал бы «завершено» у обрабатывающейся страницы
-     * (Bug-hunt Tier-3 COALESCE-баг). started_at перетираем на now.
-     */
-    public boolean tryClaimOcrProcessing(UUID id, String processingStatus,
-                                          Instant startedAt) {
-        int rows = jdbcTemplate.update(
-                "UPDATE lib_pages SET ocr_status = ?, "
-                        + "ocr_started_at = ?, "
-                        + "ocr_completed_at = NULL, "
-                        + "updated_at = now() "
-                        + "WHERE id = ? "
-                        + "AND ocr_status IS DISTINCT FROM ?",
-                processingStatus,
-                odt(startedAt),
-                id,
-                processingStatus
-        );
-        return rows == 1;
-    }
-
-    /**
-     * Перезаписать text_content с результатом OCR + бамп updated_at +
-     * установить ocr_status=DONE и completed_at=now. Атомарная транзакция -
-     * либо весь успех, либо вся ошибка. Используется {@code OcrService}
-     * при успешном завершении recognize.
-     *
-     * @return true если row updated, false если page id не найден
-     */
-    public boolean updateTextContentAndMarkDone(UUID id, String textContent,
-                                                  Instant completedAt) {
-        int rows = jdbcTemplate.update(
-                "UPDATE lib_pages SET "
-                        + "text_content = ?, ocr_status = 'DONE', "
-                        + "ocr_completed_at = ?, updated_at = now() "
-                        + "WHERE id = ?",
-                textContent,
-                odt(completedAt),
                 id
         );
         return rows > 0;

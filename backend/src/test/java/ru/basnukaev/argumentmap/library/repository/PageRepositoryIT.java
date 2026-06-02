@@ -191,64 +191,6 @@ class PageRepositoryIT {
     }
 
     @Test
-    void tryClaimOcrProcessing_firstWinsSecondLoses() {
-        // Compare-and-set: первый claim переводит PENDING->PROCESSING (true),
-        // повторный claim на уже-PROCESSING странице проигрывает (false).
-        // Это атомарная защита от concurrent re-trigger - только winner
-        // запускает OCR (Bug-hunt Tier-3 #1).
-        Instant now = Instant.now();
-        Page page = pageRepository.save(new Page(
-                UUID.randomUUID(), book.id(), null, 1,
-                null, null, null,
-                "x", null, null,
-                "bucket", "key", now,
-                ru.basnukaev.argumentmap.library.domain.OcrStatus.PENDING, null, null,
-                null, null, null,
-                now, now
-        ));
-
-        boolean first = pageRepository.tryClaimOcrProcessing(page.id(),
-                ru.basnukaev.argumentmap.library.domain.OcrStatus.PROCESSING, Instant.now());
-        boolean second = pageRepository.tryClaimOcrProcessing(page.id(),
-                ru.basnukaev.argumentmap.library.domain.OcrStatus.PROCESSING, Instant.now());
-
-        assertThat(first).isTrue();
-        assertThat(second).isFalse();
-        Page after = pageRepository.findById(page.id()).orElseThrow();
-        assertThat(after.ocrStatus())
-                .isEqualTo(ru.basnukaev.argumentmap.library.domain.OcrStatus.PROCESSING);
-    }
-
-    @Test
-    void tryClaimOcrProcessing_clearsStaleCompletedAt() {
-        // re-OCR ранее завершённой (DONE) страницы: claim PROCESSING должен
-        // обнулить ocr_completed_at от прошлого прогона, иначе фронт показал
-        // бы «завершено» у обрабатывающейся страницы (COALESCE-баг Tier-3).
-        Instant now = Instant.now();
-        Page page = pageRepository.save(new Page(
-                UUID.randomUUID(), book.id(), null, 1,
-                null, null, null,
-                "x", null, null,
-                "bucket", "key", now,
-                ru.basnukaev.argumentmap.library.domain.OcrStatus.DONE, now, now,
-                null, null, null,
-                now, now
-        ));
-        assertThat(pageRepository.findById(page.id()).orElseThrow().ocrCompletedAt())
-                .isNotNull();
-
-        boolean claimed = pageRepository.tryClaimOcrProcessing(page.id(),
-                ru.basnukaev.argumentmap.library.domain.OcrStatus.PROCESSING, Instant.now());
-
-        assertThat(claimed).isTrue();
-        Page after = pageRepository.findById(page.id()).orElseThrow();
-        assertThat(after.ocrStatus())
-                .isEqualTo(ru.basnukaev.argumentmap.library.domain.OcrStatus.PROCESSING);
-        assertThat(after.ocrCompletedAt()).isNull();
-        assertThat(after.ocrStartedAt()).isNotNull();
-    }
-
-    @Test
     void findDistinctPartsByBookId_returnsUniqueOrderedParts() {
         pageRepository.save(new Page(
                 UUID.randomUUID(), book.id(), null, 1,

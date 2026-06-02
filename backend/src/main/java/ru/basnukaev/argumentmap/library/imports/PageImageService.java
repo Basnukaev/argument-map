@@ -14,7 +14,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import ru.basnukaev.argumentmap.exception.BookNotFoundException;
-import ru.basnukaev.argumentmap.library.domain.OcrStatus;
 import ru.basnukaev.argumentmap.library.domain.Page;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.repository.PageRepository;
@@ -39,8 +38,8 @@ import ru.basnukaev.argumentmap.library.storage.ObjectStorageService;
  *   <li>S3 put в {@code library-page-images} bucket, ключ
  *       {@code {bookId}/page-{pageNumber}.{ext}}. Один файл на страницу;
  *       re-upload overwrites previous (S3 versioning сохранит историю)</li>
- *   <li>Обновление {@code Page} с image_bucket/key/uploaded_at +
- *       {@code ocr_status=PENDING} - signal для downstream OCR pipeline</li>
+ *   <li>Обновление {@code Page} с image_bucket/key/uploaded_at (ADR-057:
+ *       OCR pipeline удалён - субстрат для будущего AI-recognition)</li>
  * </ol>
  *
  * <p>Транзакционно: создание/обновление {@code Page} row + S3 put в
@@ -73,7 +72,7 @@ public class PageImageService {
      * {@code lib_pages_content_present} (text_content IS NOT NULL OR
      * image_url IS NOT NULL) без необходимости заполнения image_url -
      * который остаётся NULL, фронт читает image_bucket/storage_key.
-     * После OCR (Этап 17.b) сюда пишется распознанный текст.
+     * Реальный text заполнится через будущий AI-recognition pipeline.
      */
     private static final String EMPTY_TEXT_PLACEHOLDER = "";
 
@@ -101,7 +100,7 @@ public class PageImageService {
      * @param pageNumber внутренний номер страницы (1-based, > 0)
      * @param file multipart file с изображением. Validation MIME и
      *             non-empty - в caller'е (controller)
-     * @return обновлённая {@code Page} с image pointer + ocr_status=PENDING
+     * @return обновлённая {@code Page} с image pointer
      * @throws BookNotFoundException 404 если bookId не существует
      * @throws PageImageException 422 при ошибке чтения/записи
      */
@@ -132,7 +131,7 @@ public class PageImageService {
         }
 
         boolean updated = pageRepository.updateImagePointer(
-                page.id(), bucket, storageKey, uploadedAt, OcrStatus.PENDING);
+                page.id(), bucket, storageKey, uploadedAt);
         if (!updated) {
             // race: page была удалена между findByBookAndPageNumber и update.
             // Не должен происходить в @Transactional, но защищаемся.
@@ -148,7 +147,7 @@ public class PageImageService {
     /**
      * Создать placeholder Page для image-only upload. {@code text_content=""}
      * пустая строка (не NULL) удовлетворяет CHECK constraint. Реальный
-     * text появится после OCR (Этап 17.b).
+     * text появится через будущий AI-recognition pipeline (ADR-057).
      */
     private Page createPlaceholderPage(UUID bookId, int pageNumber) {
         Instant now = Instant.now();

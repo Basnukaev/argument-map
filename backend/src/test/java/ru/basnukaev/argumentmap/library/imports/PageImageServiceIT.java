@@ -29,7 +29,6 @@ import ru.basnukaev.argumentmap.exception.BookNotFoundException;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
-import ru.basnukaev.argumentmap.library.domain.OcrStatus;
 import ru.basnukaev.argumentmap.library.domain.Page;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.repository.PageRepository;
@@ -112,7 +111,6 @@ class PageImageServiceIT {
         assertThat(page.imageBucket()).isEqualTo(imagesBucket);
         assertThat(page.imageStorageKey()).isEqualTo(book.id() + "/page-1.jpg");
         assertThat(page.imageUploadedAt()).isNotNull();
-        assertThat(page.ocrStatus()).isEqualTo(OcrStatus.PENDING);
         // text_content is placeholder empty string - CHECK constraint satisfied
         assertThat(page.textContent()).isEqualTo("");
     }
@@ -135,7 +133,6 @@ class PageImageServiceIT {
         assertThat(page.id()).isEqualTo(existing.id());
         assertThat(page.imageBucket()).isEqualTo(imagesBucket);
         assertThat(page.imageStorageKey()).isEqualTo(book.id() + "/page-5.jpg");
-        assertThat(page.ocrStatus()).isEqualTo(OcrStatus.PENDING);
         // text_content сохраняется - upload image не стирает existing text
         assertThat(page.textContent()).isEqualTo("pre-existing PDF text");
     }
@@ -215,7 +212,6 @@ class PageImageServiceIT {
 
         assertThat(second.id()).isEqualTo(first.id());
         assertThat(second.imageUploadedAt()).isAfter(firstTs);
-        assertThat(second.ocrStatus()).isEqualTo(OcrStatus.PENDING);
     }
 
     /**
