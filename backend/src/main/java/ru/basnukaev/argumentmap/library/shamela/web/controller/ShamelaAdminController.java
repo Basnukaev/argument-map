@@ -30,6 +30,8 @@ import ru.basnukaev.argumentmap.library.shamela.web.dto.SyncMasterResponse;
 import ru.basnukaev.argumentmap.library.shamela.web.dto.SyncStatusResponse;
 import ru.basnukaev.argumentmap.library.shamela.web.mapper.ShamelaAdminMappers;
 import ru.basnukaev.argumentmap.web.CurrentUser;
+import ru.basnukaev.argumentmap.web.dto.PageRequest;
+import ru.basnukaev.argumentmap.web.dto.PagedResponse;
 
 /**
  * Admin REST endpoints для shamela ETL pipeline (Этап 15.6).
@@ -157,6 +159,47 @@ public class ShamelaAdminController {
                         view.isMapped()
                 ))
                 .toList();
+    }
+
+    /**
+     * Пагинированный листинг staging-каталога shamela. В отличие от
+     * {@code /search} (требует {@code q}, non-paged) - возвращает ВСЕ
+     * staged книги по умолчанию, чтобы admin-страница показывала каталог
+     * сразу, а не пустой экран до ввода поискового запроса. {@code q}
+     * опционален: при наличии - тот же name/id-матчинг что в {@code /search}
+     * но paged.
+     *
+     * <p>Возвращает {@link PagedResponse} с обогащёнными записями
+     * {@link StagingBookSearchResponse} (имя автора + флаг {@code isMapped}).
+     * Сортировка детерминированная для стабильной пагинации (по id, либо
+     * по релевантности+id при поиске).
+     *
+     * <p>Авторизация консистентна с остальными admin-endpoint этого
+     * контроллера (sync-master/import-book/search) - на MVP без role-check
+     * (см. class-level javadoc; Spring Security admin-role - future task).
+     *
+     * @param page - 0-based номер страницы (default 0)
+     * @param size - размер страницы (default 20, max 100 - clamp в PageRequest)
+     * @param q    - опциональная подстрока для поиска по name/id
+     */
+    @GetMapping("/books")
+    public PagedResponse<StagingBookSearchResponse> listBooks(
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size,
+            @RequestParam(value = "q", required = false) String q) {
+        PageRequest pr = PageRequest.from(page, size);
+        List<StagingBookSearchResponse> items = shamelaBookDao
+                .findPage(q, pr.size(), pr.offset()).stream()
+                .map(view -> new StagingBookSearchResponse(
+                        view.id(),
+                        view.name(),
+                        view.authorName(),
+                        view.majorRelease(),
+                        view.isMapped()
+                ))
+                .toList();
+        long total = shamelaBookDao.countFiltered(q);
+        return PagedResponse.of(items, pr.page(), pr.size(), total);
     }
 
     /**

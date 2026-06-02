@@ -211,6 +211,106 @@ public class ShamelaBookDao {
     }
 
     /**
+     * Общий SELECT с обогащением (author JOIN + isMapped EXISTS) для
+     * paged-листинга и поиска. {@code <WHERE>} подставляется вызывающим -
+     * один источник истины для строки выборки между findPage/searchByName.
+     */
+    private static final String ENRICHED_SELECT = """
+            SELECT b.id, b.name, b.major_release, b.deleted_at,
+                   a.name AS author_name,
+                   EXISTS(
+                       SELECT 1 FROM lib_books lb
+                       WHERE lb.metadata->>'shamela_book_id' = b.id::text
+                   ) AS is_mapped
+            FROM lib_shamela_book b
+            LEFT JOIN lib_shamela_author a ON a.id = b.author_id AND a.deleted_at IS NULL
+            """;
+
+    private static final RowMapper<ShamelaStagingBookView> VIEW_MAPPER = (rs, rn) -> new ShamelaStagingBookView(
+            rs.getLong("id"),
+            rs.getString("name"),
+            rs.getString("author_name"),
+            rs.getInt("major_release"),
+            rs.getBoolean("is_mapped")
+    );
+
+    /**
+     * WHERE-clause для paged-листинга - один источник истины, чтобы
+     * count не разъезжался с select. Если {@code q} null/blank - только
+     * фильтр tombstoned (все живые книги). Иначе - name ILIKE substring
+     * ИЛИ точное id-совпадение (если q это число).
+     *
+     * <p>Аргументы добавляются в {@code params} в порядке появления
+     * плейсхолдеров в WHERE.
+     */
+    private static String appendListFilters(StringBuilder sql, List<Object> params, String q) {
+        sql.append(" WHERE b.deleted_at IS NULL");
+        if (q != null && !q.isBlank()) {
+            String trimmed = q.trim();
+            sql.append(" AND (b.name ILIKE ? OR b.id::text = ?)");
+            params.add("%" + trimmed + "%");
+            params.add(trimmed);
+        }
+        return q == null ? null : q.trim();
+    }
+
+    /**
+     * Пагинированный листинг staging-каталога shamela для admin-страницы.
+     * При {@code q} null/blank возвращает ВСЕ живые книги (paged) - чтобы
+     * каталог был виден по умолчанию, не blank-until-search. При наличии
+     * {@code q} - тот же name/id-матчинг что у {@link #searchByName} но
+     * paged.
+     *
+     * <p>Сортировка детерминированная для стабильной пагинации: точное
+     * id-совпадение → точное name-совпадение → по {@code LENGTH(name)} →
+     * по {@code b.id}. id - tiebreaker (уникален), поэтому порядок
+     * стабилен между страницами.
+     *
+     * <p>Tombstoned записи ({@code deleted_at IS NOT NULL}) исключаются -
+     * тот же фильтр что в {@link #countFiltered}.
+     */
+    public List<ShamelaStagingBookView> findPage(String q, int limit, int offset) {
+        StringBuilder sql = new StringBuilder(ENRICHED_SELECT);
+        List<Object> params = new java.util.ArrayList<>();
+        String trimmed = appendListFilters(sql, params, q);
+        if (trimmed != null && !trimmed.isEmpty()) {
+            // приоритет релевантности при поиске; повторяем trimmed для CASE
+            sql.append("""
+                    ORDER BY
+                        CASE
+                            WHEN b.id::text = ? THEN 0
+                            WHEN b.name ILIKE ? THEN 1
+                            ELSE 2
+                        END,
+                        LENGTH(b.name),
+                        b.id
+                    """);
+            params.add(trimmed);
+            params.add("%" + trimmed + "%");
+        } else {
+            // листинг без поиска - стабильный детерминированный порядок по id
+            sql.append(" ORDER BY b.id");
+        }
+        sql.append(" LIMIT ? OFFSET ?");
+        params.add(limit);
+        params.add(offset);
+        return jdbcTemplate.query(sql.toString(), VIEW_MAPPER, params.toArray());
+    }
+
+    /**
+     * Количество строк подходящих под фильтр {@code q} - тот же
+     * WHERE-источник что у {@link #findPage}, чтобы total совпадал с
+     * количеством реально отдаваемых строк.
+     */
+    public int countFiltered(String q) {
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM lib_shamela_book b");
+        List<Object> params = new java.util.ArrayList<>();
+        appendListFilters(sql, params, q);
+        Integer count = jdbcTemplate.queryForObject(sql.toString(), Integer.class, params.toArray());
+        return count == null ? 0 : count;
+    }
+
+    /**
      * View-record для поисковых результатов админ-страницы. Не
      * соответствует физической структуре staging-таблицы (это JOIN
      * staging book + author + EXISTS на lib_books), поэтому не

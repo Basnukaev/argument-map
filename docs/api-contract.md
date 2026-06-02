@@ -930,6 +930,71 @@ Upsert голоса вызывающего user'а. Идемпотентен - �
 **Ошибки:**
 - `404 question-not-found`
 
+### Голосование за ответы Q&A
+
+Голоса за отдельные ответы (community-сигнал качества конкретного
+ответа). Зеркалит голосование за вопросы, но на уровне ответов.
+Миграция 64 (`answer_votes`). 1 user - 1 голос на 1 ответ. weight ∈
+{-1, +1}. Permission: answers это open discussion (без visibility
+model, ADR-043 «Q&A guards») - голосовать может любой authenticated
+user; POST/DELETE требуют принципала (anonymous → 401), GET открыт.
+
+#### POST /api/v1/answers/{answerId}/vote
+
+Upsert голоса вызывающего user'а (ON CONFLICT (answer_id, user_id)).
+Идемпотентен.
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+**Запрос:**
+```json
+{ "weight": 1 }
+```
+- `weight`: int, обязательно. Допустимые значения: `1` или `-1`.
+
+**Ответ (201 Created):** `AnswerVoteStatsResponse`
+```json
+{
+  "answerId": "uuid",
+  "upvotes": 4,
+  "downvotes": 1,
+  "score": 3,
+  "userVote": 1
+}
+```
+
+**Ошибки:**
+- `400 invalid-vote` - weight не из `{-1, +1}`
+- `400` - validation (weight отсутствует)
+- `404 answer-not-found` - ответа нет
+- `401` - анонимный (нет принципала)
+
+#### DELETE /api/v1/answers/{answerId}/vote
+
+Снять голос. Идемпотентен - если голоса не было, возвращает 204 без
+ошибки.
+
+**Заголовки:** `X-User-Id: <uuid>` (обязательно)
+
+**Ответ:** `204 No Content`
+
+**Ошибки:**
+- `404 answer-not-found` - ответа нет
+- `401` - анонимный
+
+#### GET /api/v1/answers/{answerId}/vote
+
+Текущая статистика голосов + персональный голос вызывающего user'а.
+Открыт (auth опционален - answers это open discussion).
+
+**Заголовки:** `X-User-Id: <uuid>` (опционально - для `userVote`)
+
+**Ответ (200 OK):** `AnswerVoteStatsResponse` - та же схема что у POST.
+`userVote` = `null` если вызывающий user не голосовал либо anonymous.
+
+**Ошибки:**
+- `404 answer-not-found`
+
 ### Рёбра (Edges)
 
 #### POST /api/v1/edges
@@ -2358,6 +2423,48 @@ match на `name` через ILIKE с обогащением: имя автор�
 Ошибки:
 - `400 illegal-argument` - q пустой/отсутствует
 
+### GET /api/v1/admin/shamela/books?page={n}&size={n}&q={query}
+
+Пагинированный листинг staging-каталога shamela для admin-страницы.
+В отличие от `/search` (требует `q`, non-paged) - **по умолчанию
+возвращает ВСЕ staged книги** (paged), чтобы каталог был виден сразу,
+а не пустой экран до ввода поискового запроса.
+
+Параметры:
+- `page` (опциональный, 0-based, default 0)
+- `size` (опциональный, default 20, max 100 - clamp)
+- `q` (опциональный) - если задан, тот же name/id-матчинг что в
+  `/search`, но paged; если null/blank - все живые книги
+
+`200 OK`: `PagedResponse<StagingBookSearchResponse>`
+```json
+{
+  "items": [
+    {
+      "bookId": 41557,
+      "name": "صحيح البخاري",
+      "authorName": "Аль-Бухари",
+      "majorRelease": 4,
+      "isMapped": true
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 8500,
+  "totalPages": 425,
+  "hasNext": true,
+  "hasPrev": false
+}
+```
+
+Сортировка детерминированная для стабильной пагинации: при пустом `q`
+- по `b.id` ASC; при наличии `q` - по релевантности (точное
+id-совпадение → точное name-совпадение → `LENGTH(name)`) с tiebreaker
+по `id`. Один WHERE-источник истины для select/count (`countFiltered`
+совпадает с `findPage`). Tombstoned записи (`deleted_at IS NOT NULL`)
+исключаются. Авторизация консистентна с остальными admin-endpoint
+этого контроллера (MVP без role-check).
+
 ### GET /api/v1/admin/shamela/sync-status
 
 Состояние ETL для admin dashboard. Без параметров.
@@ -2918,12 +3025,21 @@ Response `204 No Content`. Ошибка `400 invalid-citation` если link н�
   "authorId": "uuid",
   "createdAt": "iso8601",
   "updatedAt": "iso8601",
-  "accepted": false
+  "accepted": false,
+  "voteScore": 0,
+  "userVote": null
 }
 ```
 
 Поле `accepted` - derived, рассчитывается сравнением `answer.id ==
 question.acceptedAnswerId`. На новом ответе всегда `false`.
+
+Поля `voteScore` (int) + `userVote` (Integer nullable, ∈ `{-1, +1,
+null}`) - голосование за ответы (миграция 64). `voteScore` =
+`upvotes - downvotes`. Bulk-load из `answer_votes` на GET list
+(2 SQL на список: `getStatsForAnswers` + `getUserVotesForAnswers`),
+default `0`/`null` на mutating endpoint'ах (create/update). См. секцию
+«Голосование за ответы Q&A».
 
 Ошибки:
 - `404 question-not-found` - вопрос не существует
@@ -3010,7 +3126,8 @@ default `0`/`null` на mutating endpoint'ах. См. секцию «Голос�
 
 ### Что **не** реализовано в Этапе 19.c
 
-- Voting на answers (up/down votes) - откладывается на отдельный этап
+- ~~Voting на answers (up/down votes)~~ - **реализовано** (миграция 64,
+  см. секцию «Голосование за ответы Q&A»)
 - Comments на answers - откладывается на отдельный этап
 - Nested answers / threading - не в скоупе MVP
 - Edit history / revisions для answers (как для nodes есть revisions)

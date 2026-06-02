@@ -2,6 +2,7 @@ package ru.basnukaev.argumentmap.qa.web.controller;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -17,8 +18,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
+import ru.basnukaev.argumentmap.domain.VoteStats;
 import ru.basnukaev.argumentmap.qa.domain.Answer;
 import ru.basnukaev.argumentmap.qa.domain.Question;
+import ru.basnukaev.argumentmap.qa.repository.AnswerVoteRepository;
 import ru.basnukaev.argumentmap.qa.service.AnswerService;
 import ru.basnukaev.argumentmap.qa.service.QuestionService;
 import ru.basnukaev.argumentmap.qa.web.dto.AnswerResponse;
@@ -44,10 +47,13 @@ public class AnswerController {
 
     private final AnswerService answerService;
     private final QuestionService questionService;
+    private final AnswerVoteRepository answerVoteRepository;
 
-    public AnswerController(AnswerService answerService, QuestionService questionService) {
+    public AnswerController(AnswerService answerService, QuestionService questionService,
+                           AnswerVoteRepository answerVoteRepository) {
         this.answerService = answerService;
         this.questionService = questionService;
+        this.answerVoteRepository = answerVoteRepository;
     }
 
     @PostMapping("/questions/{questionId}/answers")
@@ -59,9 +65,10 @@ public class AnswerController {
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         Answer created = answerService.createAnswer(questionId, request.body(), currentUserId, role);
         Question parent = questionService.getQuestion(questionId);
+        // свежий ответ не имеет голосов - voteScore=0, userVote=null
         return ResponseEntity
                 .created(URI.create("/api/v1/answers/" + created.id()))
-                .body(toResponse(created, parent.acceptedAnswerId()));
+                .body(toResponse(created, parent.acceptedAnswerId(), 0, null));
     }
 
     @GetMapping("/questions/{questionId}/answers")
@@ -70,8 +77,18 @@ public class AnswerController {
         List<Answer> answers = answerService.getAnswersForQuestion(questionId);
         Question parent = questionService.getQuestion(questionId);
         UUID acceptedId = parent.acceptedAnswerId();
+        // Bulk-load голосов: 2 SQL на весь список, не N+1. answers это open
+        // discussion - GET без обязательного auth, userVote резолвим опционально
+        // (null если anonymous). voteScore = upvotes-downvotes
+        UUID currentUserId = SecurityContextUtils.currentUserIdOrNull();
+        List<UUID> answerIds = answers.stream().map(Answer::id).toList();
+        Map<UUID, VoteStats> statsByAnswer = answerVoteRepository.getStatsForAnswers(answerIds);
+        Map<UUID, Integer> userVotesByAnswer =
+                answerVoteRepository.getUserVotesForAnswers(answerIds, currentUserId);
         return answers.stream()
-                .map(a -> toResponse(a, acceptedId))
+                .map(a -> toResponse(a, acceptedId,
+                        statsByAnswer.getOrDefault(a.id(), VoteStats.EMPTY).score(),
+                        userVotesByAnswer.get(a.id())))
                 .toList();
     }
 
@@ -85,7 +102,8 @@ public class AnswerController {
         Answer updated = answerService.updateAnswer(answerId, request.body(),
                 currentUserId, role);
         Question parent = questionService.getQuestion(updated.questionId());
-        return toResponse(updated, parent.acceptedAnswerId());
+        // PATCH-ответ не несёт vote-данных (mutating endpoint) - default 0/null
+        return toResponse(updated, parent.acceptedAnswerId(), 0, null);
     }
 
     @DeleteMapping("/answers/{answerId}")
@@ -121,7 +139,8 @@ public class AnswerController {
         return toQuestionResponse(updated);
     }
 
-    private static AnswerResponse toResponse(Answer a, UUID acceptedAnswerId) {
+    private static AnswerResponse toResponse(Answer a, UUID acceptedAnswerId,
+                                             int voteScore, Integer userVote) {
         return new AnswerResponse(
                 a.id(),
                 a.questionId(),
@@ -129,7 +148,9 @@ public class AnswerController {
                 a.authorId(),
                 a.createdAt(),
                 a.updatedAt(),
-                Objects.equals(a.id(), acceptedAnswerId)
+                Objects.equals(a.id(), acceptedAnswerId),
+                voteScore,
+                userVote
         );
     }
 

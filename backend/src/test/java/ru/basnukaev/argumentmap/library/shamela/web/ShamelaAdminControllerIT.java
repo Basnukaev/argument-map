@@ -355,6 +355,160 @@ class ShamelaAdminControllerIT {
                 .andExpect(jsonPath("$[0].majorRelease").value(6));
     }
 
+    // ---------------- books (paged listing) ----------------
+
+    @Test
+    void books_noQuery_returnsAllPaged() throws Exception {
+        bookDao.upsertAll(java.util.List.of(
+                new ShamelaBookRow(1L, "книга один", null, null, null, null, null,
+                        1, 0, null, null, null, null, false),
+                new ShamelaBookRow(2L, "книга два", null, null, null, null, null,
+                        1, 0, null, null, null, null, false),
+                new ShamelaBookRow(3L, "книга три", null, null, null, null, null,
+                        1, 0, null, null, null, null, false)
+        ));
+
+        mockMvc.perform(get("/api/v1/admin/shamela/books"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(3))
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                // детерминированный порядок по id при пустом q
+                .andExpect(jsonPath("$.items[0].bookId").value(1))
+                .andExpect(jsonPath("$.items[1].bookId").value(2))
+                .andExpect(jsonPath("$.items[2].bookId").value(3));
+    }
+
+    @Test
+    void books_noQuery_excludesTombstoned() throws Exception {
+        bookDao.upsertAll(java.util.List.of(
+                new ShamelaBookRow(1L, "живая", null, null, null, null, null,
+                        1, 0, null, null, null, null, false),
+                new ShamelaBookRow(2L, "удалённая", null, null, null, null, null,
+                        1, 0, null, null, null, null, true)
+        ));
+
+        mockMvc.perform(get("/api/v1/admin/shamela/books"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.items[0].bookId").value(1));
+    }
+
+    @Test
+    void books_withQuery_filters() throws Exception {
+        authorDao.upsertAll(java.util.List.of(
+                new ShamelaAuthorRow(100L, "Аль-Бухари", "имам", 256, false)
+        ));
+        bookDao.upsertAll(java.util.List.of(
+                new ShamelaBookRow(BOOK_ID_SAHIH_AL_BUKHARI, "صحيح البخاري", null, 100L, null, null, null,
+                        4, 0, null, null, null, null, false),
+                new ShamelaBookRow(41559L, "صحيح مسلم", null, null, null, null, null,
+                        3, 0, null, null, null, null, false)
+        ));
+
+        mockMvc.perform(get("/api/v1/admin/shamela/books").param("q", "البخاري"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.items[0].bookId").value(41557))
+                .andExpect(jsonPath("$.items[0].authorName").value("Аль-Бухари"))
+                .andExpect(jsonPath("$.items[0].majorRelease").value(4));
+    }
+
+    @Test
+    void books_withQuery_findsByExactId() throws Exception {
+        bookDao.upsertAll(java.util.List.of(
+                new ShamelaBookRow(1681L, "صحيح البخاري - ط السلطانية", null, null, null, null, null,
+                        6, 0, null, null, null, null, false),
+                new ShamelaBookRow(2L, "случайная книга", null, null, null, null, null,
+                        1, 0, null, null, null, null, false)
+        ));
+
+        mockMvc.perform(get("/api/v1/admin/shamela/books").param("q", "1681"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.items[0].bookId").value(1681));
+    }
+
+    @Test
+    void books_paginated_page1() throws Exception {
+        for (int i = 1; i <= 5; i++) {
+            bookDao.upsertAll(java.util.List.of(new ShamelaBookRow(
+                    (long) i, "книга " + i, null, null, null, null, null,
+                    1, 0, null, null, null, null, false
+            )));
+        }
+
+        // page 0, size 2 → первые 2 по id (1, 2)
+        mockMvc.perform(get("/api/v1/admin/shamela/books")
+                        .param("page", "0").param("size", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.totalElements").value(5))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.hasPrev").value(false))
+                .andExpect(jsonPath("$.items[0].bookId").value(1))
+                .andExpect(jsonPath("$.items[1].bookId").value(2));
+
+        // page 1, size 2 → следующие 2 (3, 4) - стабильная пагинация
+        mockMvc.perform(get("/api/v1/admin/shamela/books")
+                        .param("page", "1").param("size", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.hasPrev").value(true))
+                .andExpect(jsonPath("$.items[0].bookId").value(3))
+                .andExpect(jsonPath("$.items[1].bookId").value(4));
+    }
+
+    @Test
+    void books_sizeOverMax_clampsTo100() throws Exception {
+        bookDao.upsertAll(java.util.List.of(
+                new ShamelaBookRow(1L, "книга", null, null, null, null, null,
+                        1, 0, null, null, null, null, false)
+        ));
+
+        mockMvc.perform(get("/api/v1/admin/shamela/books").param("size", "10000"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size").value(100));
+    }
+
+    @Test
+    void books_includesMappedFlagAndAuthor() throws Exception {
+        authorDao.upsertAll(java.util.List.of(
+                new ShamelaAuthorRow(100L, "Аль-Бухари", "имам", 256, false)
+        ));
+        bookDao.upsertAll(java.util.List.of(
+                new ShamelaBookRow(BOOK_ID_SAHIH_AL_BUKHARI, "صحيح البخاري", null, 100L, null, null, null,
+                        4, 0, null, null, null, null, false)
+        ));
+        bookRepository.save(new Book(
+                UUID.randomUUID(), BookType.BOOK, "صحيح البخاري", null, "ar",
+                null, "{\"shamela_book_id\":41557}", testUserId,
+                Instant.now(), Instant.now(),
+                null, null, null, null, null, null
+        , BookVisibility.PUBLIC));
+
+        mockMvc.perform(get("/api/v1/admin/shamela/books"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].bookId").value(41557))
+                .andExpect(jsonPath("$.items[0].authorName").value("Аль-Бухари"))
+                .andExpect(jsonPath("$.items[0].isMapped").value(true));
+    }
+
+    @Test
+    void books_emptyDb_returnsEmptyPage() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/shamela/books"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(0))
+                .andExpect(jsonPath("$.totalElements").value(0))
+                .andExpect(jsonPath("$.totalPages").value(1));
+    }
+
     // ---------------- sync-status ----------------
 
     @Test

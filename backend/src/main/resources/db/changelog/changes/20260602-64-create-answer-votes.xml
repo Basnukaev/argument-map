@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Голосование за отдельные ответы Q&amp;A (community-сигнал качества
+        конкретного ответа). 1 user может проголосовать за 1 ответ ровно 1
+        раз - upvote (+1) или downvote (-1). 0 не сохраняется отдельным
+        значением - снять голос = DELETE row.
+
+        Зеркалит question_votes (миграция 62), но на уровне ответов. См. ADR
+        в docs/decisions.md.
+
+        Permission: ответы это open discussion (без visibility model, см.
+        backend/CLAUDE.md «Q&amp;A guards»). Голосовать может любой
+        authenticated user - не нужен read/write access check. Достаточно
+        чтобы ответ существовал.
+    -->
+    <changeSet id="20260602-64-create-answer-votes" author="Abdula Basnukaev">
+        <comment>Таблица answer_votes для голосования за ответы (качество ответа)</comment>
+        <sql>
+            CREATE TABLE answer_votes (
+                id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                answer_id  UUID NOT NULL REFERENCES answers(id) ON DELETE CASCADE,
+                user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                weight     SMALLINT NOT NULL,
+                voted_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                CONSTRAINT answer_votes_weight_check CHECK (weight IN (-1, 1)),
+                CONSTRAINT answer_votes_unique UNIQUE (answer_id, user_id)
+            );
+
+            CREATE INDEX idx_answer_votes_answer ON answer_votes(answer_id);
+            CREATE INDEX idx_answer_votes_user ON answer_votes(user_id);
+        </sql>
+        <rollback>
+            <sql>
+                DROP INDEX IF EXISTS idx_answer_votes_user;
+                DROP INDEX IF EXISTS idx_answer_votes_answer;
+                DROP TABLE IF EXISTS answer_votes;
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
