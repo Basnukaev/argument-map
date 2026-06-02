@@ -30,6 +30,7 @@ import ru.basnukaev.argumentmap.library.pdf.domain.PdfStreamingResult;
 import ru.basnukaev.argumentmap.library.pdf.domain.RangeSpec;
 import ru.basnukaev.argumentmap.library.repository.LibraryFileRepository;
 import ru.basnukaev.argumentmap.library.shamela.api.ShamelaApiException;
+import ru.basnukaev.argumentmap.library.shamela.api.ShamelaApiProperties;
 import ru.basnukaev.argumentmap.library.storage.ObjectStorageProperties;
 import ru.basnukaev.argumentmap.library.storage.ObjectStorageService;
 
@@ -87,17 +88,20 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
     private final ObjectStorageService objectStorageService;
     private final ObjectStorageProperties storageProperties;
     private final LibraryFileRepository libraryFileRepository;
+    private final ShamelaApiProperties shamelaProperties;
 
     public PdfLinksSourceProvider(ObjectMapper objectMapper,
                                   PdfFetcher pdfFetcher,
                                   ObjectStorageService objectStorageService,
                                   ObjectStorageProperties storageProperties,
-                                  LibraryFileRepository libraryFileRepository) {
+                                  LibraryFileRepository libraryFileRepository,
+                                  ShamelaApiProperties shamelaProperties) {
         this.objectMapper = objectMapper;
         this.pdfFetcher = pdfFetcher;
         this.objectStorageService = objectStorageService;
         this.storageProperties = storageProperties;
         this.libraryFileRepository = libraryFileRepository;
+        this.shamelaProperties = shamelaProperties;
     }
 
     @Override
@@ -247,38 +251,56 @@ public class PdfLinksSourceProvider implements PdfSourceProvider {
     }
 
     /**
-     * Resolves upstream URL для скачивания файла. Поддерживает два формата
-     * shamela {@code pdf_links}:
+     * Resolves upstream URL для скачивания файла. Поддерживает три формата
+     * {@code pdf_links.files}:
      * <ul>
-     *   <li><b>shamela CDN style</b> - {@code root + filename}: например
-     *       {@code root="https://archive.org/download/foo/"} +
-     *       {@code filename="01_113015.pdf"} → один URL</li>
      *   <li><b>direct absolute URL style</b> - {@code filename} уже
      *       полный URL (типичный case когда shamela ссылается на
      *       archive.org напрямую без CDN-mirror'а). {@code root} пустой
-     *       или отсутствует</li>
+     *       или отсутствует. Различается по prefix {@code http(s)://}.</li>
+     *   <li><b>root + relative style</b> - {@code root + filename}: например
+     *       {@code root="https://archive.org/download/foo/"} +
+     *       {@code filename="01_113015.pdf"} → один URL (archive.org-style
+     *       книги, где shamela кладёт явный root).</li>
+     *   <li><b>shamela CDN style (native)</b> - {@code root} отсутствует,
+     *       {@code filename} относительный вида {@code "/1/41557.pdf"}.
+     *       Реальный shamela master-каталог хранит pdf_links именно так
+     *       ({@code {"files":["/1/41557.pdf"]}}, без root - см.
+     *       ShamelaMasterReaderTest). Такие пути резолвятся против
+     *       shamela files-CDN: {@code https://{filesHost}/pdf{path}} -
+     *       та же конвенция что и в {@code ShamelaApiClient.downloadPdf}.
+     *       Применяется только для shamela-книг (есть
+     *       {@code shamela_major_release} в metadata), чтобы не ломать
+     *       не-shamela книги с битым pdf_links.</li>
      * </ul>
-     * Различаются по prefix {@code http://}/{@code https://} в filename.
-     * Если filename относительный, а root отсутствует - бросаем
-     * {@link ShamelaApiException} с диагностикой.
+     * Если filename относительный, root отсутствует И книга не shamela -
+     * бросаем {@link ShamelaApiException} с диагностикой (битый metadata).
      */
-    private static URI resolveUpstreamUrl(PdfMetadata meta, PdfFileInfo file, Book book) {
+    private URI resolveUpstreamUrl(PdfMetadata meta, PdfFileInfo file, Book book) {
         String filename = file.filename();
         if (isAbsoluteUrl(filename)) {
             return URI.create(filename);
         }
-        if (meta.root() == null || meta.root().isBlank()) {
-            throw new ShamelaApiException(
-                    "pdf_links.root отсутствует для книги " + book.id()
-                            + " (filename '" + filename + "' относительный)");
+        if (meta.root() != null && !meta.root().isBlank()) {
+            // Защита от двойного слеша: если root заканчивается на '/' и
+            // filename начинается с '/', склейка дала бы `//`. URI.create
+            // не валится, но archive.org/CDN мирор может redirect'ить или
+            // вернуть 404. Strip leading slash у filename - оба варианта
+            // shamela ("01.pdf" и "/01.pdf") дают канонический URL
+            String tail = filename.startsWith("/") ? filename.substring(1) : filename;
+            return URI.create(meta.root() + tail);
         }
-        // Защита от двойного слеша: если root заканчивается на '/' и
-        // filename начинается с '/', склейка дала бы `//`. URI.create
-        // не валится, но archive.org/CDN мирор может redirect'ить или
-        // вернуть 404. Strip leading slash у filename - оба варианта
-        // shamela ("01.pdf" и "/01.pdf") дают канонический URL
-        String tail = filename.startsWith("/") ? filename.substring(1) : filename;
-        return URI.create(meta.root() + tail);
+        // root отсутствует. Для shamela-книги (есть shamela_major_release)
+        // relative path - это native shamela CDN convention: резолвим против
+        // ready.shamela.ws/pdf{path} как ShamelaApiClient.downloadPdf
+        if (readShamelaMajorRelease(book) != null) {
+            String path = filename.startsWith("/") ? filename : "/" + filename;
+            return URI.create("https://" + shamelaProperties.filesHost() + "/pdf" + path);
+        }
+        throw new ShamelaApiException(
+                "pdf_links.root отсутствует для книги " + book.id()
+                        + " (filename '" + filename + "' относительный, и книга не из shamela "
+                        + "- невозможно резолвить upstream URL)");
     }
 
     private static boolean isAbsoluteUrl(String filename) {

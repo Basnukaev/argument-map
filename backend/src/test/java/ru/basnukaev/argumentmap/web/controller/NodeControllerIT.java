@@ -102,7 +102,7 @@ class NodeControllerIT {
     @Test
     void updateContent_returns200_andWritesRevision() throws Exception {
         UUID nodeId = createNode("старый");
-        var req = new UpdateNodeRequest("новый", null, null, null);
+        var req = new UpdateNodeRequest("новый", null, null, null, null);
 
         mockMvc.perform(patch("/api/v1/nodes/{id}", nodeId)
                         .header("X-User-Id", userId.toString())
@@ -121,7 +121,7 @@ class NodeControllerIT {
 
     @Test
     void updateContent_whenNodeMissing_returns404() throws Exception {
-        var req = new UpdateNodeRequest("x", null, null, null);
+        var req = new UpdateNodeRequest("x", null, null, null, null);
 
         mockMvc.perform(patch("/api/v1/nodes/{id}", UUID.randomUUID())
                         .header("X-User-Id", userId.toString())
@@ -134,7 +134,7 @@ class NodeControllerIT {
     @Test
     void updatePosition_returns200_andPersists_andDoesNotWriteRevision() throws Exception {
         UUID nodeId = createNode("x");
-        var req = new UpdateNodeRequest(null, 100.5, -42.0, null);
+        var req = new UpdateNodeRequest(null, 100.5, -42.0, null, null);
 
         mockMvc.perform(patch("/api/v1/nodes/{id}", nodeId)
                         .header("X-User-Id", userId.toString())
@@ -154,13 +154,65 @@ class NodeControllerIT {
     @Test
     void updateNode_emptyBody_returns400() throws Exception {
         UUID nodeId = createNode("x");
-        var req = new UpdateNodeRequest(null, null, null, null);
+        var req = new UpdateNodeRequest(null, null, null, null, null);
 
         mockMvc.perform(patch("/api/v1/nodes/{id}", nodeId)
                         .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void patch_status_setsAndPersists() throws Exception {
+        UUID nodeId = createNode("тезис");
+        // свежий узел - UNVERIFIED; ставим STANDING вручную
+        var req = new UpdateNodeRequest(null, null, null, null, "STANDING");
+
+        mockMvc.perform(patch("/api/v1/nodes/{id}", nodeId)
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("STANDING"));
+
+        // персистентность: GET графа темы должен показать узел со STANDING
+        // (нет single-node GET endpoint - читаем через /topics/{id}/graph)
+        mockMvc.perform(get("/api/v1/topics/{id}/graph", topicId)
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nodes[?(@.id=='" + nodeId + "')].status")
+                        .value("STANDING"));
+    }
+
+    @Test
+    void patch_status_invalidValue_400() throws Exception {
+        UUID nodeId = createNode("тезис");
+        var req = new UpdateNodeRequest(null, null, null, null, "BOGUS");
+
+        mockMvc.perform(patch("/api/v1/nodes/{id}", nodeId)
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void patch_status_noPermission_403() throws Exception {
+        UUID nodeId = createNode("тезис");
+        // другой пользователь (не owner PRIVATE-темы) → 403 forbidden-topic-access
+        UUID stranger = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
+                stranger, "stranger-" + stranger, stranger + "@example.com"
+        );
+        var req = new UpdateNodeRequest(null, null, null, null, "STANDING");
+
+        mockMvc.perform(patch("/api/v1/nodes/{id}", nodeId)
+                        .header("X-User-Id", stranger.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden());
     }
 
     @Test

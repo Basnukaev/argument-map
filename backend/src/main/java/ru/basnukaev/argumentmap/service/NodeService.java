@@ -230,6 +230,75 @@ public class NodeService {
         return updateContent(nodeId, newContentBox, newOriginalLang, userId);
     }
 
+    /**
+     * Ручная установка статуса узла (STANDING/DISPUTED/REFUTED/UNVERIFIED).
+     * Не пишет revision (revision версионирует только content), но пишет
+     * audit UPDATE для поля status. Не меняет content / originalLang /
+     * позицию. Бросает {@link NodeNotFoundException} если узла нет,
+     * {@link IllegalArgumentException} (→ 400) если статус не из enum.
+     *
+     * <p><b>Persistence ручного статуса vs пересчёт.</b>
+     * {@link StatusCalculationService} запускается только на мутациях рёбер
+     * ({@link EdgeService}) и удалении узлов ({@link #deleteNode} /
+     * {@link #bulkDeleteNodes}) - НЕ на этом методе. Для алгоритма
+     * {@code MVP} (дефолт) узел без входящих влияющих рёбер
+     * (SUPPORTS/REFUTES/INVALIDATES от STANDING-источника) при пересчёте
+     * сохраняет текущий статус (см.
+     * {@link StatusCalculationService} computeStatus: ветка
+     * {@code !hasInfluencing}). Поэтому ручной статус на изолированном /
+     * листовом узле durable - переживает пересчёты пока на узел никто не
+     * ссылается влияющим ребром. Как только появляется влияющее ребро от
+     * STANDING-источника - алгоритм берёт верх (это by design: статус,
+     * выводимый из аргументации, важнее ручной пометки).
+     * Для алгоритма {@code DUNG_GROUNDED} пересчёт переразмечает ВСЕ узлы -
+     * там ручной статус не переживёт ближайшую мутацию рёбер.
+     */
+    @Transactional
+    public Node updateStatus(UUID nodeId, String newStatus, UUID userId, String role) {
+        NodeStatus parsed = parseStatus(newStatus);
+        Node existing = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new NodeNotFoundException(nodeId));
+        permissionService.assertCanWrite(existing.topicId(), userId, role);
+
+        Instant now = Instant.now();
+        nodeRepository.updateStatus(nodeId, parsed, now);
+
+        Map<String, AuditLogService.FieldDiff> diff = AuditLogService.diff()
+                .compare("status", existing.status().name(), parsed.name())
+                .build();
+        if (!diff.isEmpty()) {
+            auditLogService.logUpdate(AuditEntityType.NODE, nodeId,
+                    AuditEntityType.TOPIC, existing.topicId(), userId, diff);
+        }
+
+        return new Node(
+                existing.id(), existing.topicId(), existing.nodeType(),
+                existing.content(), parsed,
+                existing.posX(), existing.posY(), existing.zIndex(),
+                existing.createdBy(), existing.createdAt(), now,
+                existing.originalLang()
+        );
+    }
+
+    /**
+     * Парсинг строки статуса из REST DTO в {@link NodeStatus}. Невалидное
+     * значение → {@link IllegalArgumentException} (handler → 400), не
+     * NodeStatus.valueOf напрямую (тот бросил бы IllegalArgumentException
+     * с нечитаемым сообщением про enum constant).
+     */
+    private NodeStatus parseStatus(String value) {
+        if (value == null) {
+            throw new IllegalArgumentException("status не должен быть null");
+        }
+        try {
+            return NodeStatus.valueOf(value);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                    "Недопустимое значение status: '" + value
+                            + "'. Допустимые: STANDING, DISPUTED, REFUTED, UNVERIFIED");
+        }
+    }
+
     @Transactional
     public void deleteNode(UUID nodeId) {
         Node existing = nodeRepository.findById(nodeId)

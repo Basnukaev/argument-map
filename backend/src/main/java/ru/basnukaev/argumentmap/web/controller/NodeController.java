@@ -59,11 +59,12 @@ public class NodeController {
     }
 
     /**
-     * PATCH принимает opt content и/или opt posX+posY и/или opt originalLang.
-     * Если есть content - пишется revision. Если есть pos - меняются
-     * координаты без revision. originalLang - в одном transaction'е с
-     * content, без revision (это metadata). Можно несколько действий сразу.
-     * Пустой запрос (без полей) - 400 validation.
+     * PATCH принимает opt content и/или opt posX+posY и/или opt originalLang
+     * и/или opt status. Если есть content - пишется revision. Если есть pos -
+     * меняются координаты без revision. originalLang - в одном transaction'е
+     * с content, без revision (это metadata). status - ручная установка
+     * статуса узла (см. {@link NodeService#updateStatus}). Можно несколько
+     * действий сразу. Пустой запрос (без полей) - 400 validation.
      */
     @PatchMapping("/{nodeId}")
     public NodeResponse update(@PathVariable UUID nodeId,
@@ -72,9 +73,10 @@ public class NodeController {
         boolean hasContent = request.content() != null;
         boolean hasPosition = request.posX() != null && request.posY() != null;
         boolean hasOriginalLang = request.originalLang() != null;
-        if (!hasContent && !hasPosition && !hasOriginalLang) {
+        boolean hasStatus = request.status() != null;
+        if (!hasContent && !hasPosition && !hasOriginalLang && !hasStatus) {
             throw new IllegalArgumentException(
-                    "Хотя бы одно из полей (content, posX+posY, originalLang) должно быть указано"
+                    "Хотя бы одно из полей (content, posX+posY, originalLang, status) должно быть указано"
             );
         }
 
@@ -86,6 +88,9 @@ public class NodeController {
                     ? (request.originalLang().isEmpty() ? null : request.originalLang())
                     : NodeService.NoChange.INSTANCE;
             node = nodeService.updateContent(nodeId, contentBox, originalLangBox, userId, role);
+        }
+        if (hasStatus) {
+            node = nodeService.updateStatus(nodeId, request.status(), userId, role);
         }
         if (hasPosition) {
             node = nodeService.updatePosition(nodeId, request.posX(), request.posY(), userId, role);

@@ -354,6 +354,24 @@ class PdfLinksSourceProviderIT {
     }
 
     @Test
+    void locateFile_shamelaBookRelativeFilenameNoRoot_resolvesAgainstShamelaCdn() {
+        // реальный shamela master-каталог хранит pdf_links как
+        // {"files":["/1/41557.pdf"]} - relative path, без root. Это native
+        // shamela CDN convention: резолвится против ready.shamela.ws/pdf{path}.
+        // Книга помечена shamela (есть shamela_major_release).
+        Book book = saveBookWithMetadata(
+                "{\"shamela_book_id\":1,\"shamela_major_release\":6,"
+                        + "\"pdf_links\":{\"files\":[\"/1/41557.pdf\"]}}");
+
+        provider.locateFile(book, 0);
+
+        ArgumentCaptor<URI> urlCaptor = ArgumentCaptor.forClass(URI.class);
+        verify(pdfFetcher).fetch(urlCaptor.capture(), any(Path.class));
+        assertThat(urlCaptor.getValue().toString())
+                .isEqualTo("https://ready.shamela.ws/pdf/1/41557.pdf");
+    }
+
+    @Test
     void isAbsoluteUrl_caseInsensitive_acceptsUppercaseScheme() {
         // RFC 3986: schemes are case-insensitive. Защита от "HTTPS://..."
         // которые встречаются в некоторых ETL-источниках

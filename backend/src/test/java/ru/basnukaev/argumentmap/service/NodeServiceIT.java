@@ -236,6 +236,64 @@ class NodeServiceIT {
     }
 
     @Test
+    void updateStatus_setsStatus_andPersists() {
+        Node node = nodeService.createNode(topicId, NodeType.CLAIM, "тезис", userId);
+        assertThat(node.status()).isEqualTo(NodeStatus.UNVERIFIED);
+
+        Node updated = nodeService.updateStatus(node.id(), "STANDING", userId, UserRole.USER);
+
+        assertThat(updated.status()).isEqualTo(NodeStatus.STANDING);
+        assertThat(nodeRepository.findById(node.id()).orElseThrow().status())
+                .isEqualTo(NodeStatus.STANDING);
+        // ручной статус не пишет revision (revision версионирует только content)
+        assertThat(nodeService.getRevisions(node.id())).isEmpty();
+    }
+
+    @Test
+    void updateStatus_invalidValue_throwsIllegalArgument() {
+        Node node = nodeService.createNode(topicId, NodeType.CLAIM, "тезис", userId);
+
+        assertThatThrownBy(() -> nodeService.updateStatus(
+                node.id(), "BOGUS", userId, UserRole.USER
+        )).isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("status");
+    }
+
+    @Test
+    void updateStatus_noPermission_throwsAccessDenied() {
+        Node node = nodeService.createNode(topicId, NodeType.CLAIM, "тезис", userId);
+        UUID stranger = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
+                stranger, "stranger-" + stranger, stranger + "@example.com"
+        );
+
+        assertThatThrownBy(() -> nodeService.updateStatus(
+                node.id(), "STANDING", stranger, UserRole.USER
+        )).isInstanceOf(TopicAccessDeniedException.class);
+
+        // статус не изменился - permission check до записи
+        assertThat(nodeRepository.findById(node.id()).orElseThrow().status())
+                .isEqualTo(NodeStatus.UNVERIFIED);
+    }
+
+    @Test
+    void updateStatus_survivesRecalc_whenNodeHasNoInfluencingEdges() {
+        // ручной статус на изолированном (без влияющих рёбер) узле durable -
+        // MVP-пересчёт сохраняет current для узла без incoming SUPPORTS/REFUTES/
+        // INVALIDATES (см. StatusCalculationService.computeStatus !hasInfluencing)
+        Node isolated = nodeService.createNode(topicId, NodeType.CLAIM, "изолированный", userId);
+        nodeService.updateStatus(isolated.id(), "STANDING", userId, UserRole.USER);
+
+        // триггерим пересчёт через удаление другого (несвязанного) узла
+        Node throwaway = nodeService.createNode(topicId, NodeType.CLAIM, "лишний", userId);
+        nodeService.deleteNode(throwaway.id());
+
+        assertThat(nodeRepository.findById(isolated.id()).orElseThrow().status())
+                .isEqualTo(NodeStatus.STANDING);
+    }
+
+    @Test
     void deleteNode_triggersStatusRecalc_dependentNodesUpdated() {
         // standingSource (STANDING) → support → claim (DISPUTED через refuter)
         //                                       ← refute от refuter (STANDING)

@@ -807,6 +807,72 @@ fallback-walk - бросаем `ShamelaImportException` с диагностик�
 
 ---
 
+## Shamela `pdf_links` native-формат: relative path без `root` → CDN `ready.shamela.ws/pdf{path}`
+
+**Симптом:** загрузка PDF импортированной shamela-книги падает с
+`ShamelaApiException: pdf_links.root отсутствует для книги <uuid>
+(filename '/1/41557.pdf' относительный)` в
+`PdfLinksSourceProvider.resolveUpstreamUrl`.
+
+**Причина (code gap, не upstream):** реальный shamela master-каталог
+хранит `pdf_links` как `{"files":["/1/41557.pdf"]}` - относительные
+пути БЕЗ `root` (см. fixture в `ShamelaMasterReaderTest`). Эти пути -
+native shamela CDN convention: резолвятся против
+`https://ready.shamela.ws/pdf{path}` (та же конвенция что в
+`ShamelaApiClient.downloadPdf`). Import корректно сохраняет raw
+`pdf_links` как-есть (`ShamelaBookMetadataBuilder`), но
+`PdfLinksSourceProvider` исходно знал только два формата: absolute URL
+в filename, либо `root + filename` (archive.org-style). Для
+relative-path-без-root он бросал exception. Изначальные тесты всегда
+давали shamela-книгам `root` - поэтому регрессия не ловилась.
+
+**Решение:** `resolveUpstreamUrl` получил третью ветку - если `root`
+отсутствует, filename относительный, И книга shamela (есть
+`shamela_major_release` в metadata) - резолвим против
+`https://{shamela.files-host}/pdf{path}`. Не-shamela книги с битым
+pdf_links по-прежнему бросают `ShamelaApiException` (это реальный bug
+metadata). Тест:
+`PdfLinksSourceProviderIT.locateFile_shamelaBookRelativeFilenameNoRoot_resolvesAgainstShamelaCdn`.
+
+Зафиксировано на реальном flow при загрузке PDF книги id=1.
+
+---
+
+## Shamela master-sync: `requireSqlite` искал SQLite только плоско (top-level)
+
+**Симптом:** «Синхронизировать каталог» падает с `ShamelaImportException:
+ожидаемый SQLite-файл отсутствует в архиве: category.sqlite (распакован
+в /tmp/shamela/master-.../extracted)`. Архив скачан и распакован, но
+`category.sqlite` не найден.
+
+**Причина (environmental/upstream, не code defect сам по себе):**
+master-архив shamela ожидается с тремя SQLite в корне (`category.sqlite`
+/ `author.sqlite` / `book.sqlite`) - на основе fixture
+`ShamelaArchiveExtractorTest.extract_unpacks_master_like_zip`. Реальное
+расхождение возможно по причинам которые НЕ воспроизводятся без live
+shamela (нужен валидный `api_key` + сетевой доступ): (1) shamela
+обернула SQLite в подкаталог (`master-0-1261/category.sqlite`),
+(2) изменила имена файлов (schema/structure drift), (3) скачался не
+архив, а error-page. Исходный `requireSqlite` делал только плоский
+`extractedDir.resolve(fileName)` - в отличие от уже tolerant
+`findBookSqlite` (которое рекурсивно ищет).
+
+**Решение (robustness, не hack):** `requireSqlite` теперь зеркалит
+`findBookSqlite` - плоский путь → рекурсивный fallback по имени файла →
+если не найден, exception перечисляет что РЕАЛЬНО лежит в архиве
+(относительные пути, до 50 имён). Это авто-восстановит из случая (1)
+вложенности и делает (2)/(3) actionable (видно валидный ли архив и под
+какими именами SQLite). Если после этого всё равно падает - смотреть
+вывод exception: если архив пуст / содержит HTML - проблема в
+fetch/api_key (см. `shamela-parser-debug` skill раздел 3 Fetch); если
+SQLite под другими именами - schema drift, обновить константы
+`CATEGORY_SQLITE`/`AUTHOR_SQLITE`/`BOOK_SQLITE` в
+`ShamelaMasterSyncService`.
+
+Зафиксировано на реальном flow «Синхронизировать каталог».
+
+---
+
 ## Springdoc-openapi 2.x теряет self-referential property в schema
 
 **Симптом:** `ChapterResponse` имеет поле `List<ChapterResponse> children`
