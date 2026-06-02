@@ -218,7 +218,8 @@ drawer + UI-scale (дефолт compact 0.9, откат на 100%) + reader font
 2. **3 pre-existing fail** `NodeDetailsPanel.test.tsx > секция Опора` (findByText
    timeout ~1s) — СТРОГО проверено что НЕ регрессия 54 (падают и на 39f06ae);
    разобрать timing (MSW/async в WSL2 jsdom) отдельно.
-3. Опц.: голосование на questions/answers (сейчас только topic); answer_votes.
+3. Голосование на **вопросах** ✅ (migration 62 + обобщённый VoteWidget). Опц.
+   осталось answer_votes (низкий приоритет — accept-answer уже сигналит лучший).
 4. Опц.: alminasa.ai import-tool (карточка-заглушка в админке готова).
 5. **`git stash@{0}`** (осиротевший, BookListPage+dictionary, избыточен) —
    `git stash show -p stash@{0}`, при ненадобности `git stash drop`.

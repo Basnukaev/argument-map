@@ -66,6 +66,12 @@ memory `project_session_54_preprod` + 3 feedback-memory. Сделано **шир
   статус-бейдж с тултипом + действия в kebab; accepted-answer пришпилен с лентой;
   composer-карточка; карточки списка equal-height. shared statusTokens/
   QuestionStatusBadge/OverflowMenu.
+- **Бонус — голосование за вопросы** (завершение #13, после code review):
+  migration 62 `question_votes` (зеркало topic_votes) + qa-стек + POST/DELETE/GET
+  /questions/{id}/vote (open discussion, без visibility) + QuestionResponse
+  +voteScore/userVote. Frontend: TopicVoteWidget обобщён в shared `VoteWidget`
+  (entity-agnostic voteUrl, DRY), на карточках QuestionListPage + шапке
+  QuestionDetailPage. +28 IT, generate-api.
 
 ### Решения
 
@@ -114,7 +120,9 @@ memory `project_session_54_preprod` + 3 feedback-memory. Сделано **шир
    — если мелко, переключить «Стандартный (базовый)» в настройках) + прогнать
    playwright-smoke когда удобно.
 2. Разобрать 3 pre-existing `NodeDetailsPanel секция Опора` падения (timing).
-3. Опц.: голосование на questions/answers (сейчас только topic-level); answer_votes.
+3. ✅ Голосование на **вопросах** добавлено (Фаза 3b+, migration 62 question_votes
+   + обобщённый shared `VoteWidget`). Осталось опц.: answer_votes (голос за
+   отдельный ответ — accept-answer уже сигналит лучший, поэтому низкий приоритет).
 4. Опц.: alminasa.ai import-tool (заглушка-карточка в админке готова).
 5. Очистить `git stash@{0}` если не нужен.
 6. ✅ Code review проведён (multi-agent, 0 Critical, Important+Minor закрыты) —
