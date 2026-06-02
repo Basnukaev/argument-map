@@ -3066,8 +3066,9 @@ forbidden-topic-write (или forbidden-topic-access если read закрыт)
 hadith-not-found. **201** `HadithCitationResponse {nodeSourceId, nodeId,
 hadithId, sourceId}`. List/detach хадис-опор — через существующий
 `GET/DELETE /api/v1/nodes/{id}/sources` (хадис-опора = node_source с HADITH-
-источником). Рендер хадис-опоры на фронте (matn-сниппет + ссылка) — follow-up
-(обогащение source-списка `hadithId`/previewMatn).
+источником). Рендер хадис-опоры (matn-сниппет + бейдж + ссылка) обеспечивается
+полем `hadith` (HadithRef) в `NodeSourceResponse` — см. подсекцию
+«NodeSourceResponse (рефакторен в Этапе 20.a…)», обогащение batch'ем без N+1.
 
 ### GET /api/v1/hadith/hadiths/{id}/detail
 
@@ -3183,7 +3184,9 @@ matn+isnad единым блоком; `alreadyImported` — есть ли уже
 grades: [{ scholar, grade }], structure: { bookNumber, bookNameAr, bookNameEn,
 chapterId, chapterTitleAr, chapterTitleEn }, isnad, importable, alreadyImported }`.
 `primaryNumber` — распарсенный числовой (null если нечисловой → не был бы
-импортирован); `importable=false` если нечисловой номер / пустой арабский matn
+импортирован); `status` — всегда `VARIANT` для импорта sunnah (mapper эмитит
+`VARIANT`, не выдаём за канон — см. javadoc `SunnahHadithPreview`);
+`importable=false` если нечисловой номер / пустой арабский matn
 (хадис попал бы в `skippedInvalid`); `isnad` пока всегда `null` (sunnah даёт
 matn+isnad блобом — структурный иснад отдельной стадией IsnadExtraction).
 404 `sunnah-hadith-not-found` если хадиса нет в источнике; 400 `illegal-argument`

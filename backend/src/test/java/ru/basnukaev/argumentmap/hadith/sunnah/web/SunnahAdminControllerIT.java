@@ -73,6 +73,59 @@ class SunnahAdminControllerIT {
                 .andExpect(jsonPath("$.type", containsString("sunnah-dump-not-configured")));
     }
 
+    // ---- фазовые endpoints (ADR-052): browse / preview / single-import ----
+    // Те же два гварда что у bulk-импорта: ADMIN-only (403 для USER) +
+    // 503-gate несконфигурированного дампа (для ADMIN). Happy-path —
+    // SunnahPhasedImportControllerIT (dual-container).
+
+    @Test
+    void browse_hadiths_as_non_admin_returns_403() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/sunnah/collections/bukhari/hadiths")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type", containsString("forbidden-admin-only")));
+    }
+
+    @Test
+    void browse_hadiths_as_admin_without_source_returns_503() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/sunnah/collections/bukhari/hadiths")
+                        .header("X-User-Id", adminId.toString()))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.type", containsString("sunnah-dump-not-configured")));
+    }
+
+    @Test
+    void preview_as_non_admin_returns_403() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/sunnah/preview/bukhari/1")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type", containsString("forbidden-admin-only")));
+    }
+
+    @Test
+    void preview_as_admin_without_source_returns_503() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/sunnah/preview/bukhari/1")
+                        .header("X-User-Id", adminId.toString()))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.type", containsString("sunnah-dump-not-configured")));
+    }
+
+    @Test
+    void single_import_as_non_admin_returns_403() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/sunnah/import/bukhari/1")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type", containsString("forbidden-admin-only")));
+    }
+
+    @Test
+    void single_import_as_admin_without_source_returns_503() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/sunnah/import/bukhari/1")
+                        .header("X-User-Id", adminId.toString()))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.type", containsString("sunnah-dump-not-configured")));
+    }
+
     private UUID insertUser(String suffix, String role) {
         UUID id = UUID.randomUUID();
         jdbcTemplate.update(

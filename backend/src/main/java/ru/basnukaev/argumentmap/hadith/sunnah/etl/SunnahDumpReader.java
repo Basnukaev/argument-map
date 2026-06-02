@@ -146,10 +146,15 @@ public class SunnahDumpReader implements SunnahDataSource {
 
     @Override
     public List<SunnahHadithRow> readHadiths(String collectionName) {
+        // ORDER BY arabicURN — детерминированный порядок для in-memory пагинации
+        // browseHadiths (иначе строки дублируются/пропускаются между страницами).
+        // arabicURN — PRIMARY KEY HadithTable (int NOT NULL, всегда заполнен),
+        // последователен в дампе sunnah.com → даёт стабильное окно и естественный
+        // порядок хадисов. Для import-пути порядок безвреден (upsert идемпотентен).
         return jdbc.query(
                 "SELECT collection, bookNumber, babID, hadithNumber, arabicURN, englishURN, "
                         + "arabicText, englishText, arabicgrade1, englishgrade1 "
-                        + "FROM HadithTable WHERE collection = ?",
+                        + "FROM HadithTable WHERE collection = ? ORDER BY arabicURN",
                 hadithMapper, collectionName);
     }
 
