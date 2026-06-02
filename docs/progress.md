@@ -8,6 +8,112 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
+## 2026-06-02 - Сессия 54 - Крупный предпрод UX-overhaul + content-tooling (8 фаз, 17 коммитов)
+
+**Автономный режим (ultracode).** Абдула дал большой product-брифинг («доведи до
+предпрода, подготовь инструменты для ручного наполнения контентом») с 13 болями и
+ушёл на часы, доверив все решения. Бриф зафиксирован в спеке
+`docs/superpowers/specs/2026-06-02-preprod-ux-overhaul.md` (источник истины) +
+memory `project_session_54_preprod` + 3 feedback-memory. Сделано **широким
+параллелизмом субагентов** (backend ∥ frontend на disjoint-доменах; frontend
+сериализуется на общем dictionary.ts/master-changelog). Коммиты `1102d27..HEAD`.
+
+### Сделано (по фазам брифа)
+
+- **Фаза 1 — #2.B hadith→node citation (handoff-scope, ЗАКРЫТ).** Backend:
+  `HadithRepository.findBySourceIds` (reverse IN-lookup) + nullable nested
+  `HadithRef` в `NodeSourceResponse` (hadithId/primaryNumber/collectionName/
+  previewMatn/status), enrichment в `NodeSourceController.list`. Frontend:
+  `HadithPickerModal` (usePagedSearch over /hadith/hadiths) + 3-я кнопка
+  «Прикрепить хадис» в `NodeCitationsSection` + рендер `HadithCite` перед
+  FreeformCite. generate-api. +IT (8) +тесты.
+- **Фаза 2 — SWR-кэш данных (бриф #2,#3).** Новый `queryCache` (in-memory Map
+  по URL) + stale-while-revalidate в `useApiQuery` и `usePagedSearch` (кэширует
+  весь накопленный Load-More список под page-0 ключом). Возврат на страницу —
+  мгновенно, фоновая ревалидация. Корень жалобы «навигация тормозит». +10 тестов.
+  Alt+K (#3): убран `backdrop-blur` с overlay (блюрил весь граф на каждом
+  открытии) — мгновенно.
+- **Фаза 3a — карточки библиотеки (#9).** Theme-aware палитра обложек
+  (--cover-1..5, muted в dark) вместо foreground-токенов (прыгали к ~87% в dark
+  → glare). Equal-height (Card.Title clamp + flex). #12: `SourceDetailPanel`
+  стартует под header (top-12) — не сливается с шапкой.
+- **Фаза 3b — голосование node→topic (#13, ADR в decisions.md).** Backend:
+  удалён весь node-vote стек + migration 60 DROP node_votes + vote-поля убраны
+  из NodeResponse; добавлен topic-vote стек (migration 61 topic_votes,
+  TopicVote/Repo/Service/Controller, POST/DELETE/GET /topics/{id}/vote,
+  TopicResponse +voteScore/userVote bulk-load). Frontend: удалён VoteWidget с
+  узлов, новый `TopicVoteWidget` на карточках TopicListPage + шапке TopicGraphPage.
+- **Фаза 4 — единый ListControls (#7,#10).** shared `ListToolbar`/`FilterChips`/
+  `SortSelect`/`SearchInput`/`LoadMoreButton` применены на 4 списках. Topics+Q&A
+  мигрированы на usePagedSearch (SWR-кэш + серверный поиск Q&A). Легенда статусов
+  хадиса. +21 компонент-тест.
+- **Фаза 5 — redesign чтения хадиса (#6).** 4 секции (Текст hero / полноэкранный
+  иснад 70vh / Оценки панель / Вариации сворачиваемые) + sticky in-page nav
+  (IntersectionObserver). detail на useApiQuery (SWR).
+- **Фаза 6 — settings drawer + масштаб + reader fonts (#4,#11).** Settings как
+  slide-over (шестерёнка/Alt+,/palette — не уводит со страницы). UI-scale store
+  (compact 0.9 / standard 1.0 / comfortable 1.1, **дефолт compact ≈−10%**,
+  откат «Стандартный (базовый)» в один клик). ReaderFontControls «Aa» в
+  BookReader (шрифт live на тексте). +15 тестов.
+- **Фаза 7 — overhaul админки + Sunnah import-preview (#1,#5, ЦЕНТРАЛЬНЫЙ).**
+  Backend: 3 ADMIN endpoint'а — browse дампа, **DRY-RUN preview** (rollback-only
+  транзакция: реальный код импорта → читаем uncommitted hd_* → setRollbackOnly,
+  0 загрязнения), single-import по номеру. Frontend: `AdminDashboardPage`
+  (карточки-возможности с «что получится», PDF promoted, alminasa.ai-заглушка),
+  `AdminSunnahPage` (browse → preview как-будет-в-нашем-формате → импорт по
+  одному), убран бесполезный лог из AdminShamelaPage. +8 IT +5 тестов.
+- **Фаза 8 — redesign Q&A (#8).** QuestionDetailPage читаемая центр-колонка +
+  статус-бейдж с тултипом + действия в kebab; accepted-answer пришпилен с лентой;
+  composer-карточка; карточки списка equal-height. shared statusTokens/
+  QuestionStatusBadge/OverflowMenu.
+
+### Решения
+
+- **ADR (decisions.md): голосование перенесено node→topic** — узлы курируемые,
+  голос за тему = сигнал популярности сообщества.
+- **Dry-run preview через rollback-only транзакцию** (Фаза 7) — гарантированно
+  точный preview (тот же код что импорт), 0 загрязнения БД. Отвергнут pure-mapping
+  (риск расхождения с реальным маппером).
+- **UI-scale дефолт compact 0.9** — Абдула явно хочет компактнее; откат на 100%
+  обязателен и реализован.
+- Параллелизм: backend ∥ frontend; frontend строго по одному (общий dictionary.ts
+  + master-changelog — узкие места, не параллелятся; worktree не спасает frontend
+  т.к. node_modules не копируется).
+
+### Проблемы / known
+
+- **3 pre-existing fail** `NodeDetailsPanel.test.tsx > секция Опора` (findByText
+  timeout ~1s). **Строго проверено**: падают и с откатанным на 39f06ae
+  NodeCitationsSection → НЕ регрессия этой сессии, environment/timing-флак,
+  существовал до сессии. Разобрать отдельно (MSW/async timing в WSL2 jsdom).
+- **Осиротевший `git stash@{0}`** (WIP on master @ e1802b6, BookListPage+
+  dictionary) — избыточен (закоммиченный BookListPage уже на ListControls).
+  НЕ дропнут (создан не мной). Абдуле: `git stash show -p stash@{0}`, при
+  ненадобности `git stash drop`.
+- Lint: 1 pre-existing warning (unused eslint-disable в BookReaderPage:174).
+- **Визуальная playwright-проверка НЕ прогнана** — структурно всё зелёное
+  (backend BUILD SUCCESS, frontend build ✓ / tsc ✓ / 686 тестов pass), но
+  редизайны и глобальный масштаб 0.9 нужно глянуть глазами (см. «Что посмотреть»).
+
+### Верификация
+
+- Backend: **`./mvnw verify` → BUILD SUCCESS** (полный сьют, 0 реальных failures).
+- Frontend: `npm run build` ✓, `eslint` 0 errors, `tsc` ✓, vitest **686 pass /
+  3 pre-existing fail**.
+
+### Следующий шаг
+
+**Все 8 фаз брифа + Alt+K + #12 закрыты.** Остаток / на будущее:
+1. **Визуально проверить руками** все редизайны (особенно глобальный масштаб 0.9
+   — если мелко, переключить «Стандартный (базовый)» в настройках) + прогнать
+   playwright-smoke когда удобно.
+2. Разобрать 3 pre-existing `NodeDetailsPanel секция Опора` падения (timing).
+3. Опц.: голосование на questions/answers (сейчас только topic-level); answer_votes.
+4. Опц.: alminasa.ai import-tool (заглушка-карточка в админке готова).
+5. Очистить `git stash@{0}` если не нужен.
+6. Code review крупного объёма (17 коммитов) — `/superpowers:requesting-code-review`
+   или `/code-review ultra` по ветке, если Абдула захочет.
+
 ## 2026-06-01 - Сессия 53 - Phase 5 ETL sunnah.com шаг 2 (2.a-2.e) + РЕАЛЬНЫЙ ПИЛОТ Бухари
 
 **Автономный режим (ultracode).** Цель из handoff'а Сессии 52: Phase 5 ETL

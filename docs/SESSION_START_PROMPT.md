@@ -190,79 +190,53 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 И двигаемся по приоритету (Critical → Important → Minor)
 
-### ⭐ АКТУАЛЬНО — entry Сессии 53
+### ⭐ АКТУАЛЬНО — entry Сессии 54
 
-**Сессия 53 закрыла Phase 5 ETL шаг 2 ПОЛНОСТЬЮ (2.a-2.e) + прогнала реальный
-пилот** (~10 коммитов `2b24e76..HEAD`, см. progress.md): конвейер **дамп →
-`sn_staging_*` → mapper → `hd_*`** + прод-обвязка + admin REST. **98 хадисов
-Бухари импортированы из настоящего дампа** в hd_*. ~45 тестов + 2 multi-agent
-review (0 Critical обе) + de-flake BookRepositoryIT. Backend **0 реальных
-failures** (системная full-suite flakiness — в backlog, отдельная тест-гигиена).
+**Сессия 54 закрыла крупный предпрод UX-overhaul + content-tooling** (17 коммитов
+`1102d27..HEAD`, см. progress.md «Сессия 54»). Большой product-брифинг Абдулы
+(13 болей) зафиксирован в спеке `docs/superpowers/specs/2026-06-02-preprod-ux-
+overhaul.md`. **Все 8 фаз сделаны.** Верификация: backend `./mvnw verify` →
+**BUILD SUCCESS**; frontend build ✓ / tsc ✓ / eslint 0err / vitest 686 pass.
 
-**Phase 5 ETL** (спека `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md`
-§11). Эпик ~ещё 1 сессия:
-1. ✅ **step 1** (Сессия 51, ADR-050): migration 57 `hd_collections`.
-2. ✅ **step 2 (2.a-2.e)** (Сессия 53, ADR-051/052): staging + DAO + mapper +
-   normalizer + `SunnahDumpReader` (РЕАЛЬНАЯ денормализ. схема: 7 таблиц,
-   дробный babID → `chapter_id` varchar) + `SunnahImportService` + **прод-обвязка**
-   (`SunnahDumpProperties` + conditional MySQL DataSource + `SunnahAdminController`
-   ADMIN-only, bulk-policy gate). **Реальный пилот прогнан**: `POST /import/bukhari`
-   → 98 импортировано (2 курируемых победили). Дедуп вариаций + структурный иснад
-   — ОТЛОЖЕНЫ.
-3. ✅ **Под-проект #1 (просмотр/дебаг хадисов)** — СДЕЛАН (спека
-   `2026-06-01-hadith-viewing-tool-design.md`): `SunnahTextCleaner` (срез
-   markup, перечистка), `GET /hadith/collections` + sort + `previewMatn`
-   (диакритизированный), редизайн `HadithListPage` (чипы-сборники + sort +
-   чистые арабские карточки). ⚠️ Playwright НЕ прогнан (MCP chromium missing).
+**Закрыто (фазы):** #2.B hadith→node citation (HadithPickerModal + HadithRef
+enrichment); SWR-кэш данных (`queryCache` + useApiQuery/usePagedSearch —
+мгновенная навигация); Alt+K perf (убран backdrop-blur); карточки библиотеки
+(equal-height + muted dark обложки); голосование node→topic (удалён node-vote,
+добавлен topic-vote стек, ADR в decisions.md); единый ListControls (4 списка);
+redesign чтения хадиса (секции + sticky-nav + полноэкранный иснад); settings
+drawer + UI-scale (дефолт compact 0.9, откат на 100%) + reader font-controls;
+**overhaul админки + Sunnah import-preview** (AdminDashboardPage + AdminSunnahPage
+с dry-run preview по одному хадису — ЦЕНТРАЛЬНЫЙ запрос); redesign Q&A;
+#12 SourceDetailPanel не сливается с header.
 
-**ПИВОТ Абдулы (важно для приоритизации): контент — в последнюю очередь,
-строим ИНСТРУМЕНТЫ** (заполнение/просмотр/дебаг контента). Очередь под-проектов:
-4. **Под-проект #2 — линковка хадисов в узлы** (спека
-   `2026-06-01-hadith-node-citation-design.md`). **#2.A backend ✅** (`84a565e`):
-   `HadithCitationService` (мост `Hadith.sourceId`) + `POST /nodes/{id}/
-   hadith-citations` + IT. ← **СЛЕДУЮЩИЙ ШАГ — #2.B, порядок строгий:**
-   - **(a) #2.B.backend — обогащение source-списка (ещё НЕ сделано, это backend):**
-     `HadithRepository.findBySourceIds(List<UUID>)` (batch reverse-lookup) +
-     обогатить `GET /nodes/{id}/sources` для HADITH-источников полями
-     `hadithId`/`previewMatn`/`collectionName`/`primaryNumber` в `NodeSourceResponse`
-     (сейчас их нет — без них фронт не нарисует хадис-опору) + IT.
-   - **(b) рестарт backend** (с `SUNNAH_DUMP_*` env, команда ниже) → **`generate-api`**
-     (тогда в types.ts появятся И POST endpoint, И обогащённый NodeSourceResponse).
-   - **(c) #2.B.frontend — picker:** НЕ переиспользовать `HadithListPage` (это
-     full-page: Header + `<Link>`-навигация, нет onSelect/reusable export).
-     Сделать **новую `HadithPickerModal`** ({open && <Modal/>}), переиспользующую
-     хук `usePagedSearch` + `GET /api/v1/hadith/hadiths` (q/status/collectionId/
-     sort, `PagedResponse<HadithResponse>`, previewMatn на карточке), с
-     `onSelect(hadithId)` вместо Link. Структурный референс — `CitationPicker.tsx`.
-   - **(d) рендер + кнопка:** site = `NodeCitationsSection.tsx` (секция «Опора»).
-     Добавить 3-ю кнопку «прикрепить хадис» рядом с существующими; ветку
-     рендера HADITH-опоры (по `hadithId` из обогащённого ответа: сборник·№ +
-     matn-сниппет naskh + ссылка на `/hadith/{hadithId}`) ПЕРЕД FreeformCite
-     fallback. Контракты: `api-contract.md` GET /hadith/hadiths + POST
-     /nodes/{id}/hadith-citations.
-5. **Под-проект #3 — `hd_collections` ↔ библиотечный «Сборник хадисов»**
-   (book_type=HADITH): два представления одного сборника, архитектура.
-   + опц. frontend AdminSunnahPage (импорт без curl).
-6. **Под-проект #4 / Phase 5 step 3 `IsnadExtraction`** (КОНТЕНТ, отложено
-   Абдулой): matn+isnad блоб → AI (ADR-042) → hd_sanads + trust-level. step 4
-   `SunnahApiClient` + полный корпус (sample-дамп = только 100 хадисов Бухари).
+**СЛЕДУЮЩИЙ ШАГ (приоритет):**
+1. **Визуальная проверка руками** всех редизайнов на :5173 — playwright НЕ
+   прогнан (структурно всё зелёное, но глаза нужны). Особо: глобальный масштаб
+   **0.9 по умолчанию** (если мелко — настройки → «Стандартный (базовый)»);
+   AdminSunnahPage preview-flow (/admin/sunnah); чтение хадиса; голоса на темах;
+   Q&A detail; тёмная тема обложек библиотеки. Прогнать playwright-smoke когда удобно.
+2. **3 pre-existing fail** `NodeDetailsPanel.test.tsx > секция Опора` (findByText
+   timeout ~1s) — СТРОГО проверено что НЕ регрессия 54 (падают и на 39f06ae);
+   разобрать timing (MSW/async в WSL2 jsdom) отдельно.
+3. Опц.: голосование на questions/answers (сейчас только topic); answer_votes.
+4. Опц.: alminasa.ai import-tool (карточка-заглушка в админке готова).
+5. **`git stash@{0}`** (осиротевший, BookListPage+dictionary, избыточен) —
+   `git stash show -p stash@{0}`, при ненадобности `git stash drop`.
+6. Опц.: code review объёма (17 коммитов) — `/code-review ultra` по ветке.
 
-**Manual за Абдулой:** **НОВОЕ — глянуть `/hadith` на :5173** (редизайн +
-реальные данные Бухари, текст теперь чистый; Playwright не прогнан, нужен
-визуальный взгляд). Висит с Сессии 52: dark-theme primary Button hover,
-thesis-книга 15 рендер, минимап при detail-панели.
+**Очередь хадис-под-проектов (с прошлых сессий, не блокеры):** #3
+`hd_collections` ↔ библ. «Сборник хадисов» (2 представления); Phase 5 step 3
+`IsnadExtraction` (КОНТЕНТ, AI matn→hd_sanads, отложено Абдулой); step 4
+`SunnahApiClient` + полный корпус (sample-дамп = только 100 хадисов Бухари).
 
 **Инфра:** Docker (postgres+minio) up + **`sunnah-mysql` :3307** (root/root,
-БД `sunnah`; SQL-дамп лежит как `db/00-samplegitdb.sql` ВНУТРИ контейнера,
-host-копия — `/tmp/sunnah.sql`, re-fetch: `curl -sL raw.githubusercontent.com/
-sunnah-com/api/master/db/00-samplegitdb.sql`). Backend :9090 запущен **с
-`SUNNAH_DUMP_*` env** (см. progress.md «Инфра пилота») + JDWP :5005 — без этих
-env импорт-endpoint → 503. ⚠️ Работающий JVM стартовал ДО коммита #2.A
-(`84a565e`) — endpoint `/nodes/{id}/hadith-citations` НЕ в нём; перед
-`generate-api` нужен полный рестарт backend. migration 59 применена. Дев-
-Postgres: 101 hd_hadiths (3 CANONICAL сид + 98 VARIANT импорт Бухари),
-0 matns с markup. frontend :5173. Admin для curl:
-`00000000-0000-0000-0000-000000000001`.
+БД `sunnah`; дамп `db/00-samplegitdb.sql` в контейнере, host-копия `/tmp/sunnah.sql`,
+re-fetch: `curl -sL raw.githubusercontent.com/sunnah-com/api/master/db/00-samplegitdb.sql`).
+Backend :9090 перезапущен **с `SUNNAH_DUMP_*` env** + JDWP :5005 (без env
+импорт-endpoint → 503). Команда рестарта — в разделе «Команды» CLAUDE.md.
+migrations 60 (drop node_votes) + 61 (topic_votes) применены. Дев-Postgres:
+101 hd_hadiths (3 CANONICAL сид + 98 VARIANT Бухари). frontend :5173 (Vite HMR,
+PID жив). Admin для curl/тестов: `00000000-0000-0000-0000-000000000001`.
 
 ### Историч. снапшоты (Сессии 47/49d/49c) — сжаты
 

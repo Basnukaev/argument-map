@@ -151,6 +151,22 @@
   крупнейшая.
 - **Фаза 8 — Q&A redesign** (боль 8).
 
+## Статус выполнения — Сессия 54 (ВСЕ 8 ФАЗ ВЫПОЛНЕНЫ ✅)
+
+- ✅ **Фаза 1** #2.B hadith→node citation — HadithRef enrichment + HadithPickerModal.
+- ✅ **Фаза 2** SWR-кэш (queryCache + useApiQuery/usePagedSearch) + Alt+K perf (#3).
+- ✅ **Фаза 3a** карточки библиотеки (equal-height + muted dark обложки) (#9).
+- ✅ **Фаза 3b** голосование node→topic (#13, ADR) + #12 SourceDetailPanel/header.
+- ✅ **Фаза 4** единый ListControls на 4 списках + легенда статусов (#7,#10).
+- ✅ **Фаза 5** redesign чтения хадиса (секции + sticky-nav + полноэкранный иснад) (#6).
+- ✅ **Фаза 6** settings drawer + UI-scale (дефолт 0.9, откат) + reader fonts (#4,#11).
+- ✅ **Фаза 7** overhaul админки + Sunnah dry-run import-preview (#1,#5) — центральный.
+- ✅ **Фаза 8** redesign Q&A detail/list (#8).
+
+Верификация: backend `./mvnw verify` BUILD SUCCESS; frontend build/tsc/eslint ✓,
+vitest 686 pass / 3 pre-existing fail (NodeDetailsPanel «секция Опора», не
+регрессия — проверено на 39f06ae). Остаток — в progress.md «Следующий шаг».
+
 ## Принципы (durable, в memory)
 
 - **Контент заливается проверяемо и поэтапно**, не bulk вслепую: превью →

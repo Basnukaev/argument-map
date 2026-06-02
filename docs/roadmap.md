@@ -151,6 +151,13 @@
   StatusStrip col-span, CitationPicker 3-tab switcher, AcademicMetadata
   1-col grid, filter chips overflow-x-auto. 0 horizontal scroll на
   375px на всех тронутых страницах. 179 tests pass
+- **Предпрод UX-overhaul + content-tooling** (закрыт Сессия 54, 17 коммитов,
+  спека `docs/superpowers/specs/2026-06-02-preprod-ux-overhaul.md`) — 8 фаз по
+  13 болям Абдулы: SWR-кэш данных (мгновенная навигация), единый ListControls,
+  redesign чтения хадиса/Q&A, settings drawer + UI-scale (дефолт 0.9), карточки
+  библиотеки, голосование node→topic (ADR), **overhaul админки + Sunnah
+  dry-run import-preview** (поэтапное проверяемое наполнение), Alt+K/модалка perf.
+  backend BUILD SUCCESS, frontend build/tsc/686 tests ✓
 
 ---
 
@@ -481,9 +488,10 @@ design-specs создаются по мере приоритезации.
       настоящего дампа `db/00-samplegitdb.sql` в hd_*); ~45 тестов + 2
       multi-agent review (0 Critical обе). **Пивот Абдулы: контент в последнюю
       очередь, строим инструменты.** Под-проект #1 (просмотр хадисов: чистка
-      текста+навигация) ✅ Сессией 53. **next:** под-проект #2.B (линковка
-      хадисов в узлы — backend-обогащение + picker + рендер; #2.A backend done);
-      затем #3 (`hd_collections` ↔ библ. «Сборник хадисов»); **step 3
+      текста+навигация) ✅ Сессией 53. Под-проект #2 (линковка хадисов в узлы)
+      ✅ Сессией 54 (#2.A backend + #2.B обогащение/picker/рендер + Sunnah
+      import-preview tool в админке). **next:** #3 (`hd_collections` ↔ библ.
+      «Сборник хадисов»); **step 3
       IsnadExtraction** (AI, КОНТЕНТ — отложено) + step 4 SunnahApiClient/полный
       корпус; 🔴 sunnah.com не даёт структурный иснад
       → граф для любого хадиса через AI-извлечение, **Phase 6 слит в Phase 5**).
