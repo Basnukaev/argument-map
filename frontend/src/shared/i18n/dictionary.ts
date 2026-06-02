@@ -815,9 +815,9 @@ export const DICTIONARY = {
     'admin.dashboard.audit.cta': 'Открыть журнал',
     'admin.dashboard.alminasa.title': 'alminasa.ai',
     'admin.dashboard.alminasa.desc':
-      'Интеллектуальное извлечение и разметка контента через alminasa.ai. В разработке',
-    'admin.dashboard.alminasa.produces': 'Структурированный контент с авто-разметкой (план)',
-    'admin.dashboard.alminasa.cta': 'Скоро',
+      'Будущее обогащение хадисов риджаль-данными (биографии передатчиков, оценки иснадов) из alminasa.ai. Основной импорт — через «Импорт хадисов (Sunnah)»; иснад извлекается ИИ из текста матна.',
+    'admin.dashboard.alminasa.produces': 'Биографии передатчиков, детальные оценки иснадов',
+    'admin.dashboard.alminasa.cta': 'Планируется',
 
     // AdminSunnahPage - пофазный импорт хадисов из sunnah.com
     'admin.sunnah.eyebrow': 'Админ · хадисы',
@@ -829,6 +829,7 @@ export const DICTIONARY = {
     'admin.sunnah.collections_load_failed': 'Не удалось загрузить сборники',
     'admin.sunnah.browse_load_failed': 'Не удалось загрузить хадисы сборника',
     'admin.sunnah.browse_empty': 'В этом сборнике нет хадисов',
+    'admin.sunnah.browse_empty_partial_dump': 'Каталог сборника заявляет {total} хадисов, но в загруженном дампе их нет. Сейчас загружен частичный сэмпл (только Сахих аль-Бухари). Полный дамп sunnah.com — следующий шаг наполнения.',
     'admin.sunnah.badge_imported': 'импортирован',
     'admin.sunnah.badge_new': 'новый',
     'admin.sunnah.preview_title': 'Превью хадиса №{number}',
@@ -2219,9 +2220,9 @@ export const DICTIONARY = {
     'admin.dashboard.audit.produces': 'تسلسل زمني لإجراءات المستخدمين عبر المنصة',
     'admin.dashboard.audit.cta': 'فتح السجلّ',
     'admin.dashboard.alminasa.title': 'alminasa.ai',
-    'admin.dashboard.alminasa.desc': 'استخراج وتوسيم ذكي للمحتوى عبر alminasa.ai. قيد التطوير',
-    'admin.dashboard.alminasa.produces': 'محتوى منظَّم بتوسيم تلقائي (مخطط)',
-    'admin.dashboard.alminasa.cta': 'قريباً',
+    'admin.dashboard.alminasa.desc': 'إثراء مستقبلي للأحاديث ببيانات الرجال (تراجم الرواة، تقييمات الأسانيد) من alminasa.ai. الاستيراد الأساسي عبر «استيراد الأحاديث (Sunnah)»؛ يُستخرج الإسناد بالذكاء الاصطناعي من نص المتن.',
+    'admin.dashboard.alminasa.produces': 'تراجم الرواة، تقييمات تفصيلية للأسانيد',
+    'admin.dashboard.alminasa.cta': 'مخطط',
 
     // AdminSunnahPage - استيراد مرحلي للأحاديث من sunnah.com
     'admin.sunnah.eyebrow': 'الإدارة · الأحاديث',
@@ -2233,6 +2234,7 @@ export const DICTIONARY = {
     'admin.sunnah.collections_load_failed': 'تعذّر تحميل المجموعات',
     'admin.sunnah.browse_load_failed': 'تعذّر تحميل أحاديث المجموعة',
     'admin.sunnah.browse_empty': 'لا توجد أحاديث في هذه المجموعة',
+    'admin.sunnah.browse_empty_partial_dump': 'يُعلن فهرس المجموعة عن {total} حديث، غير أنها غير موجودة في الملف المُحمَّل. المُحمَّل حالياً عيّنة جزئية (صحيح البخاري فقط). الملف الكامل من sunnah.com — الخطوة التالية في إدخال المحتوى.',
     'admin.sunnah.badge_imported': 'مُستورد',
     'admin.sunnah.badge_new': 'جديد',
     'admin.sunnah.preview_title': 'معاينة الحديث رقم {number}',

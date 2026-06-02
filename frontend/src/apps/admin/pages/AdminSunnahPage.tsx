@@ -101,7 +101,7 @@ function AdminSunnahPage() {
       .map((c) => ({
         value: c.name as string,
         label: c.titleEn || c.titleAr || (c.name as string),
-        count: c.totalHadith ?? undefined,
+        count: c.availableHadith ?? 0,
       }));
   }, [collectionsState]);
 
@@ -110,6 +110,12 @@ function AdminSunnahPage() {
   // single source of truth для рендера (BrowseList + FilterChips value).
   const effectiveCollection =
     collection ?? (collectionChips.length > 0 ? collectionChips[0]!.value : null);
+
+  // Счётчики активного сборника для умного empty-state в BrowseList.
+  const activeCollectionData = useMemo(() => {
+    if (collectionsState.kind !== 'success' || !effectiveCollection) return null;
+    return collectionsState.data.find((c) => c.name === effectiveCollection) ?? null;
+  }, [collectionsState, effectiveCollection]);
 
   // Когда сборники загрузились и ни один не выбран — фиксируем первый в
   // state, чтобы collection не оставался null (иначе UI показывает первый
@@ -241,13 +247,15 @@ function AdminSunnahPage() {
                     importedLocal={importedLocal}
                     activeNumber={preview?.number ?? null}
                     onRowClick={openPreview}
+                    availableHadith={activeCollectionData?.availableHadith ?? 0}
+                    totalHadith={activeCollectionData?.totalHadith ?? 0}
                   />
                 )}
               </div>
 
               {preview && !isMobile && (
                 <aside className="min-w-0">
-                  <div className="sticky top-6">
+                  <div className="sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto">
                     <PreviewPanel
                       preview={preview}
                       importing={importingKey === `${preview.collection}/${preview.number}`}
@@ -293,6 +301,9 @@ interface BrowseListProps {
   importedLocal: ReadonlySet<string>;
   activeNumber: string | null;
   onRowClick: (number: string) => void;
+  /** Счётчики из каталога — для умного empty-state. */
+  availableHadith: number;
+  totalHadith: number;
 }
 
 /**
@@ -301,7 +312,7 @@ interface BrowseListProps {
  * на initial mount страницы не возникает. Родитель ремонтирует компонент
  * через `key={collection}` при смене сборника.
  */
-function BrowseList({ collection, importedLocal, activeNumber, onRowClick }: BrowseListProps) {
+function BrowseList({ collection, importedLocal, activeNumber, onRowClick, availableHadith, totalHadith }: BrowseListProps) {
   const t = useT();
 
   const buildUrl = useCallback(
@@ -346,9 +357,13 @@ function BrowseList({ collection, importedLocal, activeNumber, onRowClick }: Bro
   if (state.kind !== 'success') return null;
 
   if (state.data.items.length === 0) {
+    const isPartialDump = availableHadith === 0 && totalHadith > 0;
+    const emptyMessage = isPartialDump
+      ? t('admin.sunnah.browse_empty_partial_dump').replace('{total}', String(totalHadith))
+      : t('admin.sunnah.browse_empty');
     return (
       <div className="rounded-md border border-dashed border-border-strong bg-elevated/50 p-8 text-center text-sm text-ink-500">
-        {t('admin.sunnah.browse_empty')}
+        {emptyMessage}
       </div>
     );
   }

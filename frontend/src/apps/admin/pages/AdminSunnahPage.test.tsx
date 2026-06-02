@@ -26,7 +26,14 @@ const ADMIN_USER = {
 
 function collections() {
   return [
-    { name: 'bukhari', titleEn: 'Sahih al-Bukhari', titleAr: 'صحيح البخاري', totalHadith: 7563 },
+    { name: 'bukhari', titleEn: 'Sahih al-Bukhari', titleAr: 'صحيح البخاري', totalHadith: 7563, availableHadith: 100 },
+  ];
+}
+
+function collectionsWithPartialDump() {
+  return [
+    { name: 'bukhari', titleEn: 'Sahih al-Bukhari', titleAr: 'صحيح البخاري', totalHadith: 7563, availableHadith: 100 },
+    { name: 'nawawi40', titleEn: 'Nawawi 40', titleAr: 'الأربعون النووية', totalHadith: 42, availableHadith: 0 },
   ];
 }
 
@@ -209,5 +216,59 @@ describe('AdminSunnahPage', () => {
     // флаг «уже импортирован» в превью
     const flags = screen.getAllByText(/Уже импортирован/i);
     expect(flags.length).toBeGreaterThan(0);
+  });
+
+  it('чип показывает availableHadith, а не totalHadith', async () => {
+    server.use(
+      http.get(COLLECTIONS_URL, () => HttpResponse.json(collections())),
+      http.get(HADITHS_URL, () => HttpResponse.json(browsePage())),
+    );
+    renderPage();
+
+    // bukhari: availableHadith=100, totalHadith=7563
+    // чип должен показывать 100, а не 7563
+    await waitForApi(() => {
+      expect(screen.getByRole('button', { name: /Sahih al-Bukhari/i })).toBeInTheDocument();
+    });
+    const chip = screen.getByRole('button', { name: /Sahih al-Bukhari/i });
+    expect(chip).toHaveTextContent('100');
+    expect(chip).not.toHaveTextContent('7563');
+  });
+
+  it('сборник с availableHadith=0 и totalHadith>0 показывает partial-dump сообщение', async () => {
+    const nawawi40HadithsUrl = `${BASE}/api/v1/admin/sunnah/collections/nawawi40/hadiths`;
+    server.use(
+      http.get(COLLECTIONS_URL, () => HttpResponse.json(collectionsWithPartialDump())),
+      http.get(HADITHS_URL, () => HttpResponse.json(browsePage())),
+      http.get(nawawi40HadithsUrl, () =>
+        HttpResponse.json({
+          items: [],
+          page: 0,
+          size: 20,
+          totalElements: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        }),
+      ),
+    );
+    renderPage();
+
+    // Ждём загрузки чипов
+    await waitForApi(() => {
+      expect(screen.getByRole('button', { name: /Nawawi 40/i })).toBeInTheDocument();
+    });
+
+    // Кликаем на nawawi40 (availableHadith=0, totalHadith=42)
+    await userEvent.click(screen.getByRole('button', { name: /Nawawi 40/i }));
+
+    // Ждём empty-state с partial-dump сообщением
+    await waitForApi(() => {
+      expect(screen.getByText(/42 хадис/i)).toBeInTheDocument();
+    });
+    // Сообщение должно содержать упоминание Бухари и объяснение
+    expect(screen.getByText(/Сахих аль-Бухари/i)).toBeInTheDocument();
+    // Не должно показываться generic сообщение
+    expect(screen.queryByText(/В этом сборнике нет хадисов/i)).not.toBeInTheDocument();
   });
 });

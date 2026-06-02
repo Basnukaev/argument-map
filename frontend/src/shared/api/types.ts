@@ -3173,6 +3173,8 @@ export interface components {
             titleAr?: string;
             /** Format: int32 */
             totalHadith?: number;
+            /** Format: int32 */
+            availableHadith?: number;
             hasBooks?: boolean;
             hasChapters?: boolean;
         };
