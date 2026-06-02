@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiGetRaw, formatApiError } from '@/shared/api/client';
 import type { AsyncState } from '@/shared/types/async';
-import { getCached, setCached } from './queryCache';
+import { getCached, setCached, isFresh, DEFAULT_TTL_MS } from './queryCache';
 
 /**
  * Обёртка PagedResponse<T> с бэка (GET-list endpoints). Структурно
@@ -142,6 +142,17 @@ export function usePagedSearch<TItem>(options: Options): Result<TItem> {
     if (cached !== undefined) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setState({ kind: 'success', data: cached.data });
+      // Multi-page collapse fix: если кэш свежий (в пределах TTL) И
+      // охватывает несколько страниц (накоплено через loadMore, page > 0),
+      // пропускаем фоновую ревалидацию page-0 — иначе она заменила бы весь
+      // накопленный список одной первой страницей (~20 items), и
+      // подгруженные страницы исчезли бы. Tradeoff: на короткое окно (TTL)
+      // показываем потенциально слегка устаревший накопленный список вместо
+      // того чтобы схлопнуть его до page 0. Свежий single-page кэш (page 0)
+      // и устаревший кэш ревалидируем как обычно.
+      if (cached.data.page > 0 && isFresh(cached.ts, DEFAULT_TTL_MS)) {
+        return;
+      }
     }
     const controller = new AbortController();
     apiGetRaw<Paged<TItem>>(cacheKey, {
@@ -204,8 +215,12 @@ export function usePagedSearch<TItem>(options: Options): Result<TItem> {
         setState({ kind: 'error', message: formatApiError(e, fallbackError) });
       })
       .finally(() => {
+        // ВСЕГДА сбрасываем loadingMore, даже если поколение сменилось
+        // во время in-flight запроса. Иначе stale resolve пропускал бы
+        // setLoadingMore(false) → спиннер навсегда, Load More disabled.
+        // Мердж данных уже защищён generation-guard'ом в .then/.catch.
         loadingMoreRef.current = false;
-        if (issuedGeneration === generationRef.current) setLoadingMore(false);
+        setLoadingMore(false);
       });
   }, [fallbackError]);
 

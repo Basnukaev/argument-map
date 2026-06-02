@@ -63,4 +63,30 @@ describe('queryCache', () => {
     expect(getCached('/api/v1/a')).toBeUndefined();
     expect(getCached('/api/v1/b')).toBeUndefined();
   });
+
+  it('FIFO-эвикция: при превышении лимита выкидывает самый старый ключ', () => {
+    // Лимит 100 (MAX_ENTRIES в queryCache.ts). Пишем 101 уникальный ключ —
+    // первый (key-0) должен быть вытеснен, остальные остаться.
+    for (let i = 0; i < 101; i += 1) {
+      setCached(`/api/v1/item/${i}`, i);
+    }
+
+    expect(getCached('/api/v1/item/0')).toBeUndefined();
+    expect(getCached<number>('/api/v1/item/1')?.data).toBe(1);
+    expect(getCached<number>('/api/v1/item/100')?.data).toBe(100);
+  });
+
+  it('перезапись ключа обновляет его «возраст» (LRU-on-write, не вытесняется первым)', () => {
+    // Пишем ровно 100 ключей (на лимите), затем перезаписываем самый
+    // старый (key-0) → он становится новейшим. Добавление 101-го ключа
+    // теперь вытесняет key-1, а не обновлённый key-0.
+    for (let i = 0; i < 100; i += 1) {
+      setCached(`/api/v1/k/${i}`, i);
+    }
+    setCached('/api/v1/k/0', 'updated');
+    setCached('/api/v1/k/100', 100);
+
+    expect(getCached<string>('/api/v1/k/0')?.data).toBe('updated');
+    expect(getCached('/api/v1/k/1')).toBeUndefined();
+  });
 });

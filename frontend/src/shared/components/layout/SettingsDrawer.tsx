@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import IconButton from '@/shared/components/ui/IconButton';
 import FontSettings from '@/apps/settings/components/FontSettings';
@@ -23,12 +23,15 @@ import { useSettingsDrawerStore } from '@/shared/stores/settingsDrawerStore';
  *
  * Focus trap: drawer помечен `role="dialog" aria-modal="true"`,
  * автофокус уводится на close-кнопку через autoFocus, Escape закрывает.
+ * Tab/Shift+Tab зациклены внутри drawer'а (не убегают на underlying
+ * page), при закрытии фокус возвращается на элемент-триггер.
  * Underlying page не размонтируется - state не теряется.
  */
 function SettingsDrawerBody() {
   const t = useT();
   const isMobile = useIsMobile();
   const hide = useSettingsDrawerStore((s) => s.hide);
+  const asideRef = useRef<HTMLElement>(null);
 
   // Escape закрывает drawer. Слушатель на document - покрывает фокус
   // в любом месте внутри drawer'а (включая контролы шрифтов).
@@ -39,6 +42,53 @@ function SettingsDrawerBody() {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [hide]);
+
+  // Focus trap + restore. Нативный <dialog> даёт это из коробки, но drawer -
+  // кастомный <aside> (нужен end-side slide, не центр), поэтому реализуем
+  // вручную: Tab/Shift+Tab на крайних focusable-элементах зацикливаются
+  // внутрь, при unmount фокус возвращается на ранее сфокусированный элемент
+  // (триггер открытия drawer'а).
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const FOCUSABLE =
+      'a[href],area[href],input:not([disabled]),select:not([disabled]),' +
+      'textarea:not([disabled]),button:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const root = asideRef.current;
+      if (!root) return;
+      const focusable = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (el) => el.offsetParent !== null || el === document.activeElement,
+      );
+      if (focusable.length === 0) {
+        // Нет фокусируемых элементов - удерживаем фокус на самом drawer'е.
+        e.preventDefault();
+        return;
+      }
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      const active = document.activeElement;
+      if (e.shiftKey) {
+        if (active === first || !root.contains(active)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (active === last || !root.contains(active)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      // Возврат фокуса на триггер (если он ещё в DOM и фокусируем).
+      if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+        previouslyFocused.focus();
+      }
+    };
+  }, []);
 
   const widthClass = isMobile ? 'w-screen' : 'w-[440px] max-w-[92vw]';
 
@@ -51,6 +101,7 @@ function SettingsDrawerBody() {
         aria-hidden="true"
       />
       <aside
+        ref={asideRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-drawer-title"

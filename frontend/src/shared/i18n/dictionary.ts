@@ -439,7 +439,6 @@ export const DICTIONARY = {
     'palette.font_hint': 'шрифт',
     'palette.arabic_prefix': 'Арабский шрифт: ',
     'palette.arabic_hint': 'арабский',
-    'palette.open_settings': 'Открыть настройки',
 
     // notifications dropdown
     'notifications.empty': 'Пока нет новых уведомлений',
@@ -591,6 +590,7 @@ export const DICTIONARY = {
     'node.citations_empty': 'К узлу не привязано ни одной опоры',
     'node.citation_free_aria': 'Свободная',
     'node.citation_hadith_aria': 'Хадис',
+    'node.citation_hadith_label': 'Хадис',
     'node.citation_detach_aria': 'Отвязать опору',
     'node.citation_add_library': 'Привести источник',
     'node.citation_add_hadith': 'Прикрепить хадис',
@@ -984,7 +984,6 @@ export const DICTIONARY = {
     'common.unknown_error': 'Произошла ошибка',
 
     // settings page (Сессия 38 - Font Tweaker)
-    'settings.link.aria': 'Открыть настройки',
     'settings.link.title': 'Настройки',
     'settings.breadcrumb': 'Настройки',
     'settings.title': 'Настройки приложения',
@@ -1370,6 +1369,8 @@ export const DICTIONARY = {
     'hadith.matn.show_diff': 'Показать отличия от основной редакции',
     'hadith.matn.hide_diff': 'Скрыть отличия',
     'hadith.matn.diff_legend': 'зелёным — добавлено, красным — отсутствует в этой редакции',
+    'hadith.matn.vol': 'т.',
+    'hadith.matn.page': 'с.',
     'logout.label': 'Выйти',
     'logout.confirm': 'Выйти из аккаунта?',
     'logout.failed': 'Не удалось выйти',
@@ -1856,7 +1857,6 @@ export const DICTIONARY = {
     'palette.font_hint': 'خط',
     'palette.arabic_prefix': 'الخط العربي: ',
     'palette.arabic_hint': 'عربي',
-    'palette.open_settings': 'فتح الإعدادات',
 
     'notifications.empty': 'لا توجد إشعارات جديدة',
 
@@ -1998,6 +1998,7 @@ export const DICTIONARY = {
     'node.citations_empty': 'لا يوجد استناد مرتبط بهذه العقدة',
     'node.citation_free_aria': 'حرة',
     'node.citation_hadith_aria': 'حديث',
+    'node.citation_hadith_label': 'حديث',
     'node.citation_detach_aria': 'فصل الاستناد',
     'node.citation_add_library': 'إرفاق مصدر',
     'node.citation_add_hadith': 'إرفاق حديث',
@@ -2374,7 +2375,6 @@ export const DICTIONARY = {
     'common.unknown_error': 'حدث خطأ',
 
     // settings page (Сессия 38)
-    'settings.link.aria': 'فتح الإعدادات',
     'settings.link.title': 'الإعدادات',
     'settings.breadcrumb': 'الإعدادات',
     'settings.title': 'إعدادات التطبيق',
@@ -2758,6 +2758,8 @@ export const DICTIONARY = {
     'hadith.matn.show_diff': 'إظهار الفروق عن الرواية الأساسية',
     'hadith.matn.hide_diff': 'إخفاء الفروق',
     'hadith.matn.diff_legend': 'الأخضر مُضاف، الأحمر غير موجود في هذه الرواية',
+    'hadith.matn.vol': 'ج',
+    'hadith.matn.page': 'ص',
     'logout.label': 'خروج',
     'logout.confirm': 'هل تريد الخروج؟',
     'logout.failed': 'تعذّر تسجيل الخروج',

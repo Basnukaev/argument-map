@@ -120,6 +120,36 @@ describe('TopicVoteWidget', () => {
     );
   });
 
+  it('без onVoteChanged: после голоса счёт держится на серверном значении (не отскакивает к stale props)', async () => {
+    // Регрессия: TopicListPage рендерит виджет БЕЗ onVoteChanged → props
+    // score/userVote никогда не обновляются. Раньше эффект синхронизации
+    // props→local перефайривался когда pending → false и затирал
+    // оптимистичный local устаревшими props → счёт «отскакивал» к 2.
+    server.use(
+      http.post(`${BASE}/api/v1/topics/${TOPIC_ID}/vote`, () =>
+        HttpResponse.json(
+          { topicId: TOPIC_ID, upvotes: 3, downvotes: 0, score: 3, userVote: 1 },
+          { status: 201 },
+        ),
+      ),
+    );
+
+    render(<TopicVoteWidget topicId={TOPIC_ID} score={2} userVote={null} />);
+
+    const upBtn = screen.getByRole('button', { name: 'Голос за тему' });
+    await userEvent.click(upBtn);
+
+    // POST вернул score=3 → отображается 3 и держится (не возвращается к 2).
+    await waitForApi(() => {
+      expect(screen.getByText('3')).toBeInTheDocument();
+    });
+    // Запрос завершён, pending=false — счёт остаётся 3, стрелка активна.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.queryByText('2')).not.toBeInTheDocument();
+    expect(upBtn).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('без auth - не делает запрос, показывает toast info', async () => {
     setLoggedOut();
     let calledApi = false;

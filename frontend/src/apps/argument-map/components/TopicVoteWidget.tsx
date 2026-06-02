@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { useT } from '@/shared/i18n/useT';
 import { apiDeleteRaw, apiPostRaw, formatApiError } from '@/shared/api/client';
@@ -46,20 +46,25 @@ function TopicVoteWidget({
   const t = useT();
   const user = useAuthStore((s) => s.user);
   const [pending, setPending] = useState(false);
-  // Локальное состояние - оптимистичное обновление + база при ошибке
+  // Локальное состояние - оптимистичное обновление + база при ошибке.
+  // `local` - единственный источник истины для отображения.
   const [local, setLocal] = useState({ score, userVote });
 
-  // Синхронизируем local при изменении props (e.g. parent перезагрузил тему).
-  // useEffect вместо render-phase setState - React 19 запрещает setState во
-  // время рендера. pending check защищает от затирания optimistic update
-  // в момент in-flight запроса. eslint-disable ниже намеренный: это derived
-  // state sync (не side effect), аналог паттерна в useApiQuery.
+  // Синхронизируем props → local ТОЛЬКО когда входящие props реально
+  // изменились (parent перезагрузил тему), а не просто потому что pending
+  // переключился. Иначе после успешного голоса pending→false перезатёр бы
+  // оптимистичный local устаревшими props (TopicListPage рендерит виджет
+  // без onVoteChanged → props не обновляются → счёт «отскакивал» назад).
+  // prevPropsRef помнит последние увиденные props; setLocal только при
+  // отличии от них. useEffect (не render-phase setState) - React 19 запрет.
+  const prevPropsRef = useRef({ score, userVote });
   useEffect(() => {
-    if (!pending) {
+    if (prevPropsRef.current.score !== score || prevPropsRef.current.userVote !== userVote) {
+      prevPropsRef.current = { score, userVote };
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocal({ score, userVote });
     }
-  }, [score, userVote, pending]);
+  }, [score, userVote]);
 
   const handleVote = async (weight: 1 | -1) => {
     if (!user) {

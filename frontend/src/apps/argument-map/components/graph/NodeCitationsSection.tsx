@@ -390,7 +390,7 @@ function HadithCite({ link, onDetach, navigate }: HadithCiteProps) {
           aria-label={t('node.citation_hadith_aria')}
         >
           <ScrollText size={11} aria-hidden="true" />
-          Хадис
+          {t('node.citation_hadith_label')}
         </span>
         {h.collectionName && (
           <span className="truncate text-xs font-medium text-ink-600" dir="auto">

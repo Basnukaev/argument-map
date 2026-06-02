@@ -38,8 +38,18 @@ function MatnItem({ matn, primary }: { matn: MatnDto; primary: MatnDto | null })
             </span>
           )}
           {matn.printedNumber != null && <span className="font-mono">№{matn.printedNumber}</span>}
-          {matn.volume != null && <span>vol.{matn.volume}</span>}
-          {matn.pageNo != null && <span>p.{matn.pageNo}</span>}
+          {matn.volume != null && (
+            <span>
+              {t('hadith.matn.vol')}
+              {matn.volume}
+            </span>
+          )}
+          {matn.pageNo != null && (
+            <span>
+              {t('hadith.matn.page')}
+              {matn.pageNo}
+            </span>
+          )}
           {!open && (
             <span className="min-w-0 truncate font-arabic text-ink-400" dir="rtl">
               {preview}

@@ -32,6 +32,14 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 
 /**
+ * Максимум ключей в кэше. При превышении на set удаляется самый старый
+ * (FIFO, по порядку вставки — Map сохраняет insertion order). Защищает
+ * от неограниченного роста при долгой сессии с множеством уникальных
+ * query/фильтров. 100 — щедро для list-страниц.
+ */
+const MAX_ENTRIES = 100;
+
+/**
  * Дефолтный TTL "свежести" (мс). Используется `isFresh` для решения
  * можно ли пропустить фоновый refetch. По умолчанию SWR всё равно
  * ревалидирует на каждый mount — TTL даёт callerʼу опцию НЕ дёргать
@@ -53,7 +61,17 @@ export function getCached<T>(key: string): { data: T; ts: number } | undefined {
 
 /** Записывает (или перезаписывает) значение по ключу с текущим timestamp. */
 export function setCached(key: string, data: unknown): void {
+  // Перезапись существующего ключа не меняет insertion order в Map —
+  // удаляем+вставляем чтобы свежий ключ стал «новейшим» (LRU-on-write),
+  // иначе FIFO-эвикция могла бы выкинуть только что обновлённую запись.
+  if (cache.has(key)) cache.delete(key);
   cache.set(key, { data, ts: Date.now() });
+  // FIFO-эвикция: при превышении лимита удаляем самый старый ключ
+  // (первый в порядке вставки). Map.keys() итерирует в insertion order.
+  if (cache.size > MAX_ENTRIES) {
+    const oldest = cache.keys().next().value;
+    if (oldest !== undefined) cache.delete(oldest);
+  }
 }
 
 /**

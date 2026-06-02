@@ -35,9 +35,9 @@ function HadithGradesList({ grades }: Props) {
 
   return (
     <ul className="divide-y divide-border rounded-md border border-border-strong bg-elevated">
-      {grades.map((g) => (
+      {grades.map((g, i) => (
         <li
-          key={`${g.scholar ?? '?'}:${g.grade ?? '?'}`}
+          key={`${g.scholar ?? '?'}:${g.grade ?? '?'}:${i}`}
           className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3"
         >
           {g.scholar && (
