@@ -653,16 +653,30 @@ Accessibility / UX:
       error/warning → `assertive` + `role=alert`, info/success → `polite`
       + `role=status`. aria-live снят с обёртки (иначе перебивал бы
       per-toast assertive). Тесты на aria-live/role по типу.
-- [ ] **QuestionDetailPage delete-кнопка** видна всем (нет ownership
+- [x] **QuestionDetailPage delete-кнопка** видна всем (нет ownership
       gating, inconsistent с answer-level). `QuestionDetailPage.tsx:248`.
-- [ ] **AnswersSection** single busyAnswerId mishandles concurrent
-      accept/delete разных ответов. `AnswersSection.tsx:59`.
+      Закрыто Сессия 55 Фаза 11: overflow-меню (смена статуса + удаление)
+      теперь gated через `useAuthStore` — `user.id === question.askedBy ||
+      role === 'ADMIN'` (mirror HadithGradesSection/AnswerCard). DTO имеет
+      `askedBy` → полный author+ADMIN gating. Тесты: author/admin видят,
+      non-author/anon — нет.
+- [x] **AnswersSection** single busyAnswerId mishandles concurrent
+      accept/delete разных ответов. `AnswersSection.tsx:59`. Закрыто
+      Сессия 55 Фаза 11: `busyAnswerId: string|null` → `ReadonlySet<string>`
+      (markBusy/clearBusy с immutable `new Set(prev)`); accept/revoke/delete
+      разных ответов теперь независимы. Тест: конкурентный accept A+B держит
+      обе кнопки disabled (старый единый флаг сбрасывал A при старте B).
 - [ ] **PageView citation highlight** может теряться на AI-edited страницах
       (async render race). `PageView.tsx:148`.
-- [ ] **QuestionListPage Load More** использует label-строку как error
-      fallback message. `QuestionListPage.tsx:126`.
-- [ ] **AdminUsersPage createdAt** non-locale-aware toLocaleDateString.
-      `AdminUsersPage.tsx:182`.
+- [x] **QuestionListPage Load More** использует label-строку как error
+      fallback message. `QuestionListPage.tsx:126`. Закрыто Сессия 55
+      Фаза 11: `fallbackError` был `t('qa.list.subtitle')` («вопросов в
+      обсуждении») → новый i18n-ключ `qa.list.load_failed` (ru/ar).
+      Тест: сбой Load More показывает осмысленную ошибку, не подзаголовок.
+- [x] **AdminUsersPage createdAt** non-locale-aware toLocaleDateString.
+      `AdminUsersPage.tsx:182`. Закрыто Сессия 55 Фаза 11: `new
+      Date().toLocaleDateString()` → `useFormatDate()` `full` style в
+      `<bdi dir="ltr">` (mirror AdminAuditPage). Тест: дата по локали ru.
 - [ ] **PdfViewer initial page suffix-range / HttpClientPdfFetcher**
       negative Content-Length при upstream 206 без Content-Length.
       `HttpClientPdfFetcher.java:122`.

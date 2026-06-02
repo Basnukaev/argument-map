@@ -58,7 +58,21 @@ function AnswersSection({ questionId, askedBy, acceptedAnswerId, onAcceptanceCha
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [bodyInput, setBodyInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [busyAnswerId, setBusyAnswerId] = useState<string | null>(null);
+  // Per-answer busy set: каждая accept/revoke/delete операция трекается
+  // по своему answerId. Один busyAnswerId блокировал бы контролы ВСЕХ
+  // ответов при операции над одним - конкурентные операции над разными
+  // ответами теперь независимы.
+  const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set());
+
+  const markBusy = (id: string) =>
+    setBusyIds((prev) => new Set(prev).add(id));
+  const clearBusy = (id: string) =>
+    setBusyIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
 
   const isAsker = DEV_USER_ID && askedBy && DEV_USER_ID === askedBy;
 
@@ -104,7 +118,7 @@ function AnswersSection({ questionId, askedBy, acceptedAnswerId, onAcceptanceCha
   }
 
   async function handleAccept(answerId: string) {
-    setBusyAnswerId(answerId);
+    markBusy(answerId);
     try {
       await apiPostRaw(
         `/api/v1/questions/${questionId}/accepted-answer/${answerId}`,
@@ -115,12 +129,14 @@ function AnswersSection({ questionId, askedBy, acceptedAnswerId, onAcceptanceCha
     } catch (e) {
       toast.error(formatApiError(e, t('common.error')));
     } finally {
-      setBusyAnswerId(null);
+      clearBusy(answerId);
     }
   }
 
   async function handleRevoke() {
-    setBusyAnswerId(acceptedAnswerId ?? null);
+    if (!acceptedAnswerId) return;
+    const answerId = acceptedAnswerId;
+    markBusy(answerId);
     try {
       await apiDeleteRaw(`/api/v1/questions/${questionId}/accepted-answer`);
       toast.success(t('qa.answers.revoked'));
@@ -128,13 +144,13 @@ function AnswersSection({ questionId, askedBy, acceptedAnswerId, onAcceptanceCha
     } catch (e) {
       toast.error(formatApiError(e, t('common.error')));
     } finally {
-      setBusyAnswerId(null);
+      clearBusy(answerId);
     }
   }
 
   async function handleDelete(answerId: string) {
     if (!(await askConfirm({ message: t('qa.answers.delete_confirm'), danger: true }))) return;
-    setBusyAnswerId(answerId);
+    markBusy(answerId);
     try {
       await apiDeleteRaw(`/api/v1/answers/${answerId}`);
       setState((prev) => {
@@ -148,7 +164,7 @@ function AnswersSection({ questionId, askedBy, acceptedAnswerId, onAcceptanceCha
     } catch (e) {
       toast.error(formatApiError(e, t('common.error')));
     } finally {
-      setBusyAnswerId(null);
+      clearBusy(answerId);
     }
   }
 
@@ -219,7 +235,7 @@ function AnswersSection({ questionId, askedBy, acceptedAnswerId, onAcceptanceCha
               answer={a}
               isAsker={Boolean(isAsker)}
               isAuthor={Boolean(DEV_USER_ID && a.authorId === DEV_USER_ID)}
-              busy={busyAnswerId === a.id}
+              busy={a.id ? busyIds.has(a.id) : false}
               onAccept={() => a.id && handleAccept(a.id)}
               onRevoke={handleRevoke}
               onDelete={() => a.id && handleDelete(a.id)}

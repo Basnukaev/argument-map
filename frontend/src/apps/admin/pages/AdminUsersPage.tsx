@@ -4,7 +4,7 @@ import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import { apiGetRaw, apiPatchRaw, formatApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
-import { useT } from '@/shared/i18n';
+import { useT, useFormatDate } from '@/shared/i18n';
 import { ALL_ROLES } from '@/shared/stores/authStore';
 import type { AuthRole } from '@/shared/stores/authStore';
 import type { AsyncState } from '@/shared/types/async';
@@ -38,6 +38,7 @@ const PAGE_SIZE = 20;
  */
 function AdminUsersPage() {
   const t = useT();
+  const formatDate = useFormatDate();
   const [state, setState] = useState<AsyncState<UsersPage>>({ kind: 'loading' });
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<AuthRole | 'ALL'>('ALL');
@@ -179,7 +180,7 @@ function AdminUsersPage() {
                       </td>
                       <td className="px-3 py-2 text-ink-600">{u.enabled ? '✓' : '✗'}</td>
                       <td className="px-3 py-2 text-xs text-ink-500">
-                        {new Date(u.createdAt).toLocaleDateString()}
+                        <bdi dir="ltr">{formatDate(u.createdAt, 'full')}</bdi>
                       </td>
                     </tr>
                   ))

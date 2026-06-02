@@ -23,13 +23,12 @@ import {
 } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { askConfirm } from '@/shared/stores/confirmStore';
+import { useAuthStore } from '@/shared/stores/authStore';
 import { useT, useFormatDate, hasArabicScript } from '@/shared/i18n';
 import type { AsyncState } from '@/shared/types/async';
 import type { components } from '@/shared/api/types';
 
 type Question = components['schemas']['QuestionResponse'];
-
-const DEV_USER_ID = import.meta.env.VITE_DEV_USER_ID ?? '';
 
 function QuestionDetailPage() {
   const t = useT();
@@ -164,13 +163,20 @@ interface DetailProps {
 function Detail({ question, updating, onStatusChange, onDelete, onRefetchQuestion }: DetailProps) {
   const t = useT();
   const formatDate = useFormatDate();
+  const currentUser = useAuthStore((s) => s.user);
   const status = question.status ?? 'OPEN';
   const isTitleArabic = question.title ? hasArabicScript(question.title) : false;
   const isBodyArabic = question.body ? hasArabicScript(question.body) : false;
 
-  // Владелец вопроса (asker) видит overflow-меню: смена статуса + удаление.
-  // Сравнение по VITE_DEV_USER_ID - до Spring Security (как в AnswersSection).
-  const isAsker = Boolean(DEV_USER_ID && question.askedBy && DEV_USER_ID === question.askedBy);
+  // Владелец вопроса (asker) ИЛИ ADMIN видит overflow-меню: смена статуса +
+  // удаление. Бэк - источник истины (403 при несоответствии); здесь
+  // оптимистично прячем действие. Mirror answer-level gating
+  // (HadithGradesSection / AnswerCard): user.id === author || role ADMIN.
+  const canManage = Boolean(
+    currentUser &&
+      ((question.askedBy && currentUser.id === question.askedBy) ||
+        currentUser.role === 'ADMIN'),
+  );
 
   const hasActivity =
     question.updatedAt &&
@@ -178,7 +184,7 @@ function Detail({ question, updating, onStatusChange, onDelete, onRefetchQuestio
     question.updatedAt !== question.createdAt;
 
   // Пункты overflow-меню: переключение статуса (кроме текущего) + удаление.
-  const ownerMenuItems: ContextMenuItem[] = isAsker
+  const ownerMenuItems: ContextMenuItem[] = canManage
     ? [
         ...QUESTION_STATUS_ORDER.filter((s) => s !== status).map((s) => ({
           id: `status-${s}`,
@@ -212,7 +218,7 @@ function Detail({ question, updating, onStatusChange, onDelete, onRefetchQuestio
             </span>
             <QuestionStatusBadge status={status} size="md" />
           </div>
-          {isAsker && (
+          {canManage && (
             <OverflowMenu items={ownerMenuItems} label={t('qa.detail.actions')} size="sm" />
           )}
         </div>

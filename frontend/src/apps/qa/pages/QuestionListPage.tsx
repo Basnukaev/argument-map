@@ -64,7 +64,7 @@ function QuestionListPage() {
     usePagedSearch<Question>({
       buildUrl,
       deps: [statusFilter, sort],
-      fallbackError: t('qa.list.subtitle'),
+      fallbackError: t('qa.list.load_failed'),
     });
 
   const statusChips = useMemo(
