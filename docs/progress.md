@@ -68,15 +68,18 @@
 
 ### Следующий шаг
 
-**hd_collections ↔ библиотечный «Сборник хадисов» (#2, под-проект #3) — НЕ начат
-(отложен из-за архитектурности + бюджета контекста).** Дизайн-рекомендация:
-сейчас `hd_collections` (домен хадисов) и `lib_books` (book_type=HADITH) —
-независимы. Нужно «два представления одного сборника». Варианты: (a) FK
-`hd_collections.book_id → lib_books(id)` (collection ссылается на свою
-библиотечную книгу-обложку) + UI кросс-линки; (b) общий identity-мост через
-`Source`. Рекомендую (a) — минимальная миграция + сборник в библиотеке
-открывается как книга, а «граф иснадов/хадисы» — как hd-представление.
-Спека под-проекта — в roadmap 49.C. Объём ~1 сессия.
+**hd_collections ↔ библиотечный «Сборник хадисов» (#2, под-проект #3) — BACKEND
+МОСТ СДЕЛАН** (ADR-054, migration 65): `hd_collections.book_id → lib_books` +
+ленивый `BookCollectionBridgeService` (создаёт lib_books HADITH_COLLECTION при
+импорте, system-user owner 0002) + двусторонние линки (`CollectionResponse.bookId`
++ `GET /hadith/collections/by-book/{bookId}`). 49 IT.
+**Остаток hd_collections (follow-up, backlog):**
+1. **Полный рендеринг hadith-сборника как книги** — книга-представление сейчас
+   «тонкая» (страницы хадиса в `hd_*`, не `lib_pages`); открыть в BookReader =
+   пусто. Нужен BookReader-mode для HADITH_COLLECTION (листать хадисы вместо
+   lib_pages) ЛИБО редирект на hd-представление.
+2. **Frontend кросс-линки** — отложены до (1): «открыть в библиотеке» с hd-стороны
+   вело бы в тонкую книгу. После (1) добавить линки в обе стороны (bookId уже в API).
 
 Прочее опц.: ADMIN-guard на shamela-admin (security); визуальная playwright-
 проверка всех изменений (env-blocked, см. ниже).

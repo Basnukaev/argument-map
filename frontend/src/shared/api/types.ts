@@ -1380,6 +1380,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hadith/collections/by-book/{bookId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["byBook"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/me": {
         parameters: {
             query?: never;
@@ -3028,6 +3044,8 @@ export interface components {
             totalHadith?: number;
             /** Format: int64 */
             hadithCount?: number;
+            /** Format: uuid */
+            bookId?: string;
         };
         PagedResponseAuthorityResponse: {
             items?: components["schemas"]["AuthorityResponse"][];
@@ -6321,6 +6339,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["CollectionResponse"][];
+                };
+            };
+        };
+    };
+    byBook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CollectionResponse"];
                 };
             };
         };
