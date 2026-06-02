@@ -209,35 +209,41 @@ drawer + UI-scale (дефолт compact 0.9, откат на 100%) + reader font
 с dry-run preview по одному хадису — ЦЕНТРАЛЬНЫЙ запрос); redesign Q&A;
 #12 SourceDetailPanel не сливается с header.
 
-**СЛЕДУЮЩИЙ ШАГ (приоритет):**
-1. **Визуальная проверка руками** всех редизайнов на :5173 — playwright НЕ
-   прогнан (структурно всё зелёное, но глаза нужны). Особо: глобальный масштаб
-   **0.9 по умолчанию** (если мелко — настройки → «Стандартный (базовый)»);
-   AdminSunnahPage preview-flow (/admin/sunnah); чтение хадиса; голоса на темах;
-   Q&A detail; тёмная тема обложек библиотеки. Прогнать playwright-smoke когда удобно.
-2. ✅ 3 `NodeDetailsPanel секция Опора` падения ПОЧИНЕНЫ (были stale-mock: сырые
-   массивы вместо PagedResponse `.items`). Остаётся опц. d3-drag uncaught-шум в
-   `bulkActions.test.tsx` (React Flow teardown в jsdom — не test-failure).
-3. Голосование на **вопросах** ✅ (migration 62 + обобщённый VoteWidget). Опц.
-   осталось answer_votes (низкий приоритет — accept-answer уже сигналит лучший).
-4. Опц.: alminasa.ai import-tool (карточка-заглушка в админке готова).
-5. **`git stash@{0}`** (осиротевший, BookListPage+dictionary, избыточен) —
-   `git stash show -p stash@{0}`, при ненадобности `git stash drop`.
-6. Опц.: code review объёма (17 коммитов) — `/code-review ultra` по ветке.
+**Батч 2 (баг-фиксы + чистки, ~13 коммитов) ТОЖЕ закрыт** (см. progress.md
+«Сессия 54 (батч 2)»): vote-баг (разлогин+навигация на карточке), выпил всего
+user-preferences вертикаля (migration 63) + bilingual + tashkeel (мусор), фикс
+title-weight ар, импорт-страницы показывают контент по умолчанию (shamela
+`/books` paged + sunnah автовыбор сборника, убрана file-кнопка), голоса на
+ответах (migration 64), **полная чистка БД** (контент=0, admin+схема+shamela-
+каталог 8589 сохранены, DevHadithSeeder→opt-in).
 
-**Очередь хадис-под-проектов (с прошлых сессий, не блокеры):** #3
-`hd_collections` ↔ библ. «Сборник хадисов» (2 представления); Phase 5 step 3
-`IsnadExtraction` (КОНТЕНТ, AI matn→hd_sanads, отложено Абдулой); step 4
-`SunnahApiClient` + полный корпус (sample-дамп = только 100 хадисов Бухари).
+**СЛЕДУЮЩИЙ ШАГ (приоритет):**
+1. **hd_collections ↔ библ. «Сборник хадисов» (#2/под-проект #3) — ГЛАВНЫЙ next,
+   НЕ начат** (архитектурно). Рекомендация: FK `hd_collections.book_id →
+   lib_books(id)` + UI кросс-линки (сборник в библиотеке как книга, иснады/хадисы
+   как hd-представление). Детали — progress.md «Следующий шаг» батч 2. ~1 сессия.
+2. **Backlog SECURITY:** shamela-admin endpoints без role-check («на MVP») —
+   добавить ADMIN-guard на всю группу (Sunnah-admin уже ADMIN-only — consistency).
+3. **Визуальная проверка руками** на :5173 — playwright env-blocked (нет Chromium).
+   Особо: масштаб 0.9 (откат «Стандартный»); все редизайны батча 1; голоса
+   тем/вопросов/ответов (клик НЕ должен разлогинивать — баг починен); импорт-
+   страницы (контент по умолчанию). БД ПУСТА — наполнять через /admin tools.
+4. Опц.: IsnadExtraction (AI matn→hd_sanads, КОНТЕНТ, отложено Абдулой); step 4
+   SunnahApiClient/полный корпус; alminasa.ai import-tool (заглушка готова);
+   d3-drag bulkActions test-шум; `git stash@{0}` (избыточен — `git stash drop`).
 
 **Инфра:** Docker (postgres+minio) up + **`sunnah-mysql` :3307** (root/root,
 БД `sunnah`; дамп `db/00-samplegitdb.sql` в контейнере, host-копия `/tmp/sunnah.sql`,
 re-fetch: `curl -sL raw.githubusercontent.com/sunnah-com/api/master/db/00-samplegitdb.sql`).
 Backend :9090 перезапущен **с `SUNNAH_DUMP_*` env** + JDWP :5005 (без env
 импорт-endpoint → 503). Команда рестарта — в разделе «Команды» CLAUDE.md.
-migrations 60 (drop node_votes) + 61 (topic_votes) применены. Дев-Postgres:
-101 hd_hadiths (3 CANONICAL сид + 98 VARIANT Бухари). frontend :5173 (Vite HMR,
-PID жив). Admin для curl/тестов: `00000000-0000-0000-0000-000000000001`.
+migrations через 64 применены (60 drop node_votes, 61 topic_votes, 62
+question_votes, 63 drop user_preferences, 64 answer_votes). **Дев-Postgres
+ПОЛНОСТЬЮ ОЧИЩЕН** (батч 2 #11): весь контент=0, остались только admin-юзер +
+схема + shamela master-каталог (`lib_shamela_book`=8589, источник импорта).
+DevHadithSeeder теперь opt-in (`DEV_SEED_HADITH=true` чтобы вернуть 3 эталона).
+frontend :5173 (Vite HMR). Admin для curl/тестов:
+`00000000-0000-0000-0000-000000000001`.
 
 ### Историч. снапшоты (Сессии 47/49d/49c) — сжаты
 

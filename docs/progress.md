@@ -8,6 +8,79 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
+## 2026-06-02 - Сессия 54 (батч 2) - баг-фиксы + чистка мусора + answer_votes + DB cleanup
+
+**Продолжение Сессии 54** (тот же автономный заход). Абдула дал второй батч:
+«продолжай по бэклогу, голоса на ответы и hd_collections» + список багов/чисток.
+~13 коммитов поверх 27 из батча 1.
+
+### Сделано
+
+1. **fix vote-баг (КРИТ):** клик по голосу на карточке → разлогин + навигация.
+   Корень: VoteWidget внутри React-Router `<Link>` делал только `stopPropagation`
+   → onClick Link'а не срабатывал → не вызывался его preventDefault → браузер
+   делал НАТИВНУЮ навигацию по `<a href>` = **full page reload** (отсюда И
+   переход, И «разлогин»). Fix: `e.preventDefault()` в кнопках/контейнере.
+2. **Выпилен весь user-preferences вертикаль** (мусор/dead): backend
+   PreferencesController/Service/Repo/domain + 2 IT + **migration 63 DROP
+   user_preferences**; frontend preferencesStore + PreferencesEffect +
+   UserPreferencesSection. Это убрало: textSize (мёртвый `--text-size-scale`,
+   дублировал рабочий UI-scale), arabicFont-3opt (мёртвый `--font-arabic-pref`
+   дубль 10-опционного), tashkeel/transliteration/bilingual (junk).
+3. **bilingual node mode + tashkeel удалены полностью** (frontend): NodeCard
+   всегда рендерит content; Tashkeel tiptap-extension + stripTashkeel util +
+   reader/editor кнопки убраны. (NodeResponse.translations оставлен в API —
+   фронт игнорит, без regenerate-ripple.)
+4. **Фикс title-weight для арабского** (#5): `--title-weight` применяется к
+   арабским заголовкам (fixed-weight шрифты → браузер снапит 400/700, bold↔normal
+   работает; документировано).
+5. **Импорт-страницы показывают контент по умолчанию** (#9/#10): backend
+   `GET /admin/shamela/books` (paged, q-опционален) — AdminShamelaPage теперь
+   листает весь каталог по умолчанию + пагинация + фильтр, **убрана кнопка
+   «импорт из файла»** (PDF только на /admin). AdminSunnahPage — автовыбор
+   первого сборника → список хадисов виден сразу (был blank-until-filter).
+6. **Голосование за ответы** (#1, бэклог): migration 64 `answer_votes` (зеркало
+   question_votes) + AnswerVote стек + POST/DELETE/GET /api/v1/answers/{id}/vote
+   + AnswerResponse +voteScore/userVote. Frontend: обобщённый `VoteWidget` на
+   карточках ответов.
+7. **DB cleanup (#11):** truncate всего user-facing контента + sunnah-staging +
+   audit (topics/nodes/qa/lib_books+5915 pages/hd_*/sources/authorities/votes),
+   удалены 35 тестовых юзеров + 86 refresh_tokens. **Сохранены:** admin-юзер
+   (`00000000-...-0001`), схема, **shamela master-каталог lib_shamela_book=8589**
+   (источник импорта). `DevHadithSeeder` → **opt-in** (`dev.seed-hadith=true`,
+   по умолчанию выкл) чтобы чистая БД не пере-наполнялась при рестарте.
+
+### Решения
+
+- Весь preferences-вертикаль = мусор/dead → удалён целиком, не латали по полю.
+  Memory `feedback_no_junk_settings`.
+- DB cleanup: сохранить shamela-каталог (import source, нужен для наполнения) +
+  admin + схему; сидер хадисов opt-out.
+- vote внутри Link: `preventDefault` обязателен (не только stopPropagation).
+
+### Проблемы / known
+
+- **shamela-admin endpoints без role-check** («на MVP») — pre-existing
+  security-гэп (Sunnah-admin наоборот ADMIN-only). Frontend AdminRoute гейтит
+  UI, но backend endpoints не ADMIN-gated. **Backlog: добавить ADMIN-guard на
+  всю shamela-admin группу** (consistency с Sunnah).
+- bulkActions d3-drag uncaught-шум (pre-existing, тесты проходят).
+
+### Следующий шаг
+
+**hd_collections ↔ библиотечный «Сборник хадисов» (#2, под-проект #3) — НЕ начат
+(отложен из-за архитектурности + бюджета контекста).** Дизайн-рекомендация:
+сейчас `hd_collections` (домен хадисов) и `lib_books` (book_type=HADITH) —
+независимы. Нужно «два представления одного сборника». Варианты: (a) FK
+`hd_collections.book_id → lib_books(id)` (collection ссылается на свою
+библиотечную книгу-обложку) + UI кросс-линки; (b) общий identity-мост через
+`Source`. Рекомендую (a) — минимальная миграция + сборник в библиотеке
+открывается как книга, а «граф иснадов/хадисы» — как hd-представление.
+Спека под-проекта — в roadmap 49.C. Объём ~1 сессия.
+
+Прочее опц.: ADMIN-guard на shamela-admin (security); визуальная playwright-
+проверка всех изменений (env-blocked, см. ниже).
+
 ## 2026-06-02 - Сессия 54 - Крупный предпрод UX-overhaul + content-tooling (8 фаз, 17 коммитов)
 
 **Автономный режим (ultracode).** Абдула дал большой product-брифинг («доведи до
