@@ -42,11 +42,20 @@
 
 ### Следующий шаг
 Все явные запросы Абдулы (3 батча) + бэклог (answer_votes, hd_collections backend+UI,
-shamela guard) + 6 ручных багов + код-ревью + флак — **ЗАКРЫТЫ**. Остаётся
-ОПЦИОНАЛЬНОЕ/отложенное: IsnadExtraction (AI, контент — Абдула отложил); полный
-in-place рендеринг hadith-сборника как книги (сейчас редирект достаточен); shamela
-`category.sqlite` sync (зависит от живого shamela.ws); визуальная playwright-проверка
-(env-blocked, Chromium отсутствует). **БД пуста — наполнять через /admin tools.**
+shamela guard) + 6 ручных багов + 2 код-ревью (batch1 + batches2-4, 0 Critical) +
+d3-флак + **14 Tier-3 пунктов бэклога** (security: login timing/disabled-account/
+decompression-bomb; correctness: acceptAnswer-CLOSED/body-clear/updateQuestion;
+concurrency: OCR atomic-claim/authority-race migration 66+ADR-055/AnthropicClient
+transient-retry; UX: ContextMenu clamp/Toaster assertive/useViewTracking/sort) —
+**ЗАКРЫТЫ**. CI полностью зелёный (backend BUILD SUCCESS, frontend 678/0/0).
+
+Остаётся НИЗКОПРИОРИТЕТНОЕ Tier-3 (shamela chapter parent-cycle, bibliography
+dash-split, getDetail O(sanads×links) perf, OcrService NULL→FAILED — нужен новый
+статус+миграция+фронт) + ОТЛОЖЕННОЕ Абдулой: IsnadExtraction (AI, контент); полный
+in-place рендер hadith-сборника как книги (редирект достаточен); shamela
+`category.sqlite` sync (живой shamela.ws). **Наибольшая ценность сейчас —
+ВИЗУАЛЬНАЯ проверка руками** (playwright env-blocked, нет Chromium): весь
+UX-overhaul + content-tooling. **БД пуста — наполнять через /admin tools.**
 
 ## 2026-06-02 - Сессия 54 (батч 3) - баги из ручного тестирования Абдулы (6 фиксов)
 
