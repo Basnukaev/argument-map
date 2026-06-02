@@ -36,9 +36,15 @@ function ToastItem({ toast }: { toast: Toast }) {
   const dismiss = useToastStore((s) => s.dismiss);
   const meta = KIND_META[toast.kind];
   const Icon = meta.Icon;
+  // a11y: ошибки и предупреждения объявляются скринридером немедленно
+  // (assertive / role=alert), info и success — вежливо (polite / role=status),
+  // не перебивая текущую речь. Per-toast, т.к. в общем контейнере тип
+  // toast'а заранее неизвестен.
+  const assertive = toast.kind === 'error' || toast.kind === 'warning';
   return (
     <div
-      role="status"
+      role={assertive ? 'alert' : 'status'}
+      aria-live={assertive ? 'assertive' : 'polite'}
       data-testid={`toast-${toast.kind}`}
       className={`pointer-events-auto flex w-80 items-start gap-2 rounded-md border-2 p-3 shadow-sh3 ${meta.container}`}
     >
@@ -77,10 +83,11 @@ function Toaster() {
   const toasts = useToastStore((s) => s.toasts);
   if (toasts.length === 0) return null;
   return (
-    <div
-      className="pointer-events-none fixed bottom-4 end-4 z-50 flex flex-col-reverse gap-2"
-      aria-live="polite"
-    >
+    // Без aria-live на обёртке: каждый toast — собственный live-region
+    // (polite/assertive по типу). aria-live здесь сделал бы всю обёртку
+    // единым polite-регионом и перебил бы per-toast assertive для ошибок.
+    <div className="pointer-events-none fixed bottom-4 end-4 z-50 flex flex-col-reverse gap-2">
+      {/* контейнер чисто визуальный, позиционирование тостов */}
       {toasts.map((t) => (
         <ToastItem key={t.id} toast={t} />
       ))}

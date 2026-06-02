@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { waitForApi } from '@/test/asyncHelpers';
 import { MemoryRouter } from 'react-router';
 import { http, HttpResponse } from 'msw';
@@ -83,6 +84,48 @@ describe('TopicListPage', () => {
 
     const link = screen.getByRole('link', { name: /Дозволенность мавлида/i });
     expect(link).toHaveAttribute('href', '/topics/t1');
+  });
+
+  it('refetch после импорта сохраняет активную сортировку', async () => {
+    const sortParams: string[] = [];
+    server.use(
+      http.get(`${BASE}/api/v1/topics`, ({ request }) => {
+        const url = new URL(request.url);
+        sortParams.push(url.searchParams.get('sort') ?? '');
+        return HttpResponse.json(pagedEmpty);
+      }),
+      http.post(`${BASE}/api/v1/topics/import`, () =>
+        HttpResponse.json({ topicId: 'new-topic', warnings: [] }),
+      ),
+    );
+
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByText(/Пока нет тем/i)).toBeInTheDocument();
+    });
+    // дефолтный sort = recent
+    expect(sortParams[0]).toBe('recent');
+
+    // Пользователь меняет сортировку на popular
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Сортировка' }),
+      'popular',
+    );
+    await waitFor(() => expect(sortParams).toContain('popular'));
+    const beforeImport = sortParams.length;
+
+    // Импортируем тему через скрытый file input
+    const file = new File(['{}'], 'topic.json', { type: 'application/json' });
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    await userEvent.upload(input, file);
+
+    // post-import refetch должен случиться И нести активный sort=popular,
+    // а не сброситься на recent
+    await waitFor(() => expect(sortParams.length).toBeGreaterThan(beforeImport));
+    expect(sortParams.at(-1)).toBe('popular');
+    expect(sortParams.slice(beforeImport)).not.toContain('recent');
   });
 
   it('показывает ошибку при 5xx с Problem Details', async () => {

@@ -41,4 +41,36 @@ describe('Toaster', () => {
     expect(onClick).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
+
+  it('error-toast объявляется assertive (role=alert)', async () => {
+    toast.error('err');
+    render(<Toaster />);
+    const el = await screen.findByTestId('toast-error');
+    expect(el).toHaveAttribute('aria-live', 'assertive');
+    expect(el).toHaveAttribute('role', 'alert');
+  });
+
+  it('warning-toast объявляется assertive (role=alert)', async () => {
+    toast.warning('warn');
+    render(<Toaster />);
+    const el = await screen.findByTestId('toast-warning');
+    expect(el).toHaveAttribute('aria-live', 'assertive');
+    expect(el).toHaveAttribute('role', 'alert');
+  });
+
+  it('info-toast остаётся polite (role=status)', async () => {
+    toast.info('info');
+    render(<Toaster />);
+    const el = await screen.findByTestId('toast-info');
+    expect(el).toHaveAttribute('aria-live', 'polite');
+    expect(el).toHaveAttribute('role', 'status');
+  });
+
+  it('success-toast остаётся polite (role=status)', async () => {
+    toast.success('ok');
+    render(<Toaster />);
+    const el = await screen.findByTestId('toast-success');
+    expect(el).toHaveAttribute('aria-live', 'polite');
+    expect(el).toHaveAttribute('role', 'status');
+  });
 });

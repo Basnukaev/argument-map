@@ -23,19 +23,43 @@ export function useViewTracking(
 ): void {
   useEffect(() => {
     if (!id) return;
-    const sessionKey = `viewed:${entityType}:${id}`;
     if (typeof window === 'undefined') return;
+    const sessionKey = `viewed:${entityType}:${id}`;
+
+    // Dedup-check ДО POST: если view уже успешно засчитан в этой session —
+    // не шлём повторно (reload страницы). Read может бросить в private
+    // mode — тогда продолжаем без dedup.
     try {
       if (window.sessionStorage.getItem(sessionKey)) return;
-      window.sessionStorage.setItem(sessionKey, '1');
     } catch {
-      // sessionStorage недоступен (private mode etc) — продолжаем
-      // без dedup, повторный POST не сломает (idempotent counter
-      // увеличится несколько раз — acceptable trade-off)
+      // sessionStorage недоступен (private mode etc) — продолжаем без
+      // dedup, idempotent counter может увеличиться несколько раз
+      // (acceptable trade-off).
     }
-    // Fire-and-forget — не ждём response, не показываем errors
-    apiPostRaw(`/api/v1/${entityType}/${id}/views`, {}).catch(() => {
-      // silent fail - view tracking is best-effort
-    });
+
+    // Guard от двойного POST в пределах одного mount (StrictMode double-effect
+    // в dev, race до того как sessionStorage записан). Сбрасывается на cleanup.
+    let cancelled = false;
+
+    // Fire-and-forget по семантике UI (не ждём в render), но флаг "view
+    // засчитан" ставим ТОЛЬКО после успешного POST — иначе упавший первый
+    // POST навсегда заблокировал бы retry на следующем визите в этой session.
+    apiPostRaw(`/api/v1/${entityType}/${id}/views`, {})
+      .then(() => {
+        if (cancelled) return;
+        try {
+          window.sessionStorage.setItem(sessionKey, '1');
+        } catch {
+          // sessionStorage недоступен — пропускаем dedup-маркер
+        }
+      })
+      .catch(() => {
+        // silent fail — view tracking is best-effort. Флаг НЕ ставим,
+        // чтобы следующий визит в этой session повторил попытку.
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [entityType, id]);
 }

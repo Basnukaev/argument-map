@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ComponentType, ReactNode } from 'react';
 import { useHotkey } from '@/shared/hooks/useHotkey';
+import { clampMenuPosition } from './contextMenuPosition';
 
 export interface ContextMenuItem {
   /** уникальный id - используется как key */
@@ -32,6 +33,27 @@ interface Props {
  */
 function ContextMenu({ x, y, items, onClose, header }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  // Позиция после viewport-clamp. Старт с raw clientX/Y — затем
+  // useLayoutEffect измеряет реальные размеры меню и пересчитывает до
+  // paint (без визуального «прыжка»). Если меню у правого/нижнего края
+  // viewport — сдвигаем внутрь, чтобы оно не уехало off-screen.
+  const [pos, setPos] = useState<{ left: number; top: number }>({ left: x, top: y });
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setPos(
+      clampMenuPosition(
+        x,
+        y,
+        rect.width,
+        rect.height,
+        window.innerWidth,
+        window.innerHeight,
+      ),
+    );
+  }, [x, y, items, header]);
 
   useEffect(() => {
     function onPointerDown(event: PointerEvent) {
@@ -51,7 +73,7 @@ function ContextMenu({ x, y, items, onClose, header }: Props) {
     <div
       ref={ref}
       role="menu"
-      style={{ left: x, top: y }}
+      style={{ left: pos.left, top: pos.top }}
       className="fixed z-50 min-w-44 rounded-md border border-border bg-elevated py-1 shadow-sh3"
     >
       {header && (

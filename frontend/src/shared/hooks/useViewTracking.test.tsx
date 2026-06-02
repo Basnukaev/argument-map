@@ -77,4 +77,44 @@ describe('useViewTracking', () => {
     // No throw - just check that hook returned undefined (правильно)
     expect(result.current).toBeUndefined();
   });
+
+  it('упавший первый POST НЕ ставит dedup-флаг → следующий визит ретраит', async () => {
+    let postCount = 0;
+    server.use(
+      http.post(`${BASE}/api/v1/topics/${TOPIC_ID}/views`, () => {
+        postCount += 1;
+        // первый POST падает, второй — успешен
+        return postCount === 1
+          ? new HttpResponse(null, { status: 500 })
+          : new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    const { unmount } = renderHook(() => useViewTracking('topics', TOPIC_ID));
+    await vi.waitFor(() => expect(postCount).toBe(1));
+    // первый POST провалился — флаг НЕ должен быть выставлен
+    expect(window.sessionStorage.getItem(`viewed:topics:${TOPIC_ID}`)).toBeNull();
+    unmount();
+
+    // Второй визит в той же session — раз флаг не стоял, ретраим
+    renderHook(() => useViewTracking('topics', TOPIC_ID));
+    await vi.waitFor(() => expect(postCount).toBe(2));
+    // теперь успех — флаг выставлен
+    await vi.waitFor(() =>
+      expect(window.sessionStorage.getItem(`viewed:topics:${TOPIC_ID}`)).toBe('1'),
+    );
+  });
+
+  it('успешный POST ставит dedup-флаг', async () => {
+    server.use(
+      http.post(`${BASE}/api/v1/topics/${TOPIC_ID}/views`, () => {
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    renderHook(() => useViewTracking('topics', TOPIC_ID));
+    await vi.waitFor(() =>
+      expect(window.sessionStorage.getItem(`viewed:topics:${TOPIC_ID}`)).toBe('1'),
+    );
+  });
 });
