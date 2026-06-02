@@ -87,6 +87,24 @@ class SunnahPhasedImportControllerIT {
         adminId = insertUser(UserRole.ADMIN);
     }
 
+    // ---- 0. list collections — availableHadith ----
+
+    @Test
+    void list_collections_availableHadith_reflects_actual_HadithTable_rows() throws Exception {
+        // Фикстура: 4 хадиса bukhari, 0 muslim → bukhari.availableHadith=4,
+        // muslim.availableHadith=0; totalHadith — каталожный (не трогаем)
+        mockMvc.perform(get("/api/v1/admin/sunnah/collections")
+                        .header("X-User-Id", adminId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.name == 'bukhari')].availableHadith")
+                        .value(org.hamcrest.Matchers.contains(4)))
+                .andExpect(jsonPath("$[?(@.name == 'muslim')].availableHadith")
+                        .value(org.hamcrest.Matchers.contains(0)))
+                // totalHadith каталожный (из Collections таблицы) — не совпадает с actual
+                .andExpect(jsonPath("$[?(@.name == 'bukhari')].totalHadith")
+                        .value(org.hamcrest.Matchers.contains(7563)));
+    }
+
     // ---- 1. browse источника ----
 
     @Test

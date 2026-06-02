@@ -1,6 +1,7 @@
 package ru.basnukaev.argumentmap.hadith.sunnah.etl;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -156,6 +157,17 @@ public class SunnahDumpReader implements SunnahDataSource {
                         + "arabicText, englishText, arabicgrade1, englishgrade1 "
                         + "FROM HadithTable WHERE collection = ? ORDER BY arabicURN",
                 hadithMapper, collectionName);
+    }
+
+    @Override
+    public Map<String, Integer> readHadithCounts() {
+        Map<String, Integer> counts = new HashMap<>();
+        jdbc.query(
+                "SELECT collection, COUNT(*) AS cnt FROM HadithTable GROUP BY collection",
+                rs -> {
+                    counts.put(rs.getString("collection"), rs.getInt("cnt"));
+                });
+        return counts;
     }
 
     /** 'yes'/'no' (sunnah-флаги) → Boolean; иначе null. */

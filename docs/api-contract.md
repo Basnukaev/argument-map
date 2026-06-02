@@ -3491,8 +3491,16 @@ MySQL с загруженным `db/00-samplegitdb.sql`). Если не скон
 ### GET /api/v1/admin/sunnah/collections
 
 Превью каталога сборников из источника (до импорта). `List<SunnahCollectionPreview>`
-= `{ name, titleEn, titleAr, totalHadith, hasBooks, hasChapters }`. ADMIN-only
-(403 `forbidden-admin-only`). 503 если источник не настроен.
+= `{ name, titleEn, titleAr, totalHadith, availableHadith, hasBooks, hasChapters }`.
+ADMIN-only (403 `forbidden-admin-only`). 503 если источник не настроен.
+
+- `totalHadith` — каталожное значение (`Collections.totalhadith` в дампе sunnah.com),
+  отражает полный корпус сборника по версии sunnah.com (напр. nawawi40=42, bukhari=7563).
+- `availableHadith` — фактическое количество строк `HadithTable` для сборника в
+  загруженном дампе (0 если коллекция есть в каталоге, но её хадисов в дампе нет).
+  Вычисляется одним запросом `SELECT collection, COUNT(*) FROM HadithTable GROUP BY
+  collection`. UI должен использовать это поле для отображения честного состояния
+  загрузки (bukhari-only дамп: bukhari=100, nawawi40=0).
 
 ### Фазовый верифицируемый импорт (ADR-052)
 

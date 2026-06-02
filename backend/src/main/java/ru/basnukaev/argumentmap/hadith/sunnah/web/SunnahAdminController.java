@@ -1,6 +1,7 @@
 package ru.basnukaev.argumentmap.hadith.sunnah.web;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.beans.factory.ObjectProvider;
@@ -53,10 +54,14 @@ public class SunnahAdminController {
     @GetMapping("/collections")
     public List<SunnahCollectionPreview> listCollections(@CurrentUser UUID currentUserId) {
         requireAdmin(currentUserId);
-        return source().readCollections().stream()
+        SunnahDataSource src = source();
+        Map<String, Integer> hadithCounts = src.readHadithCounts();
+        return src.readCollections().stream()
                 .map(c -> new SunnahCollectionPreview(
                         c.name(), c.titleEn(), c.titleAr(),
-                        c.totalHadith(), c.hasBooks(), c.hasChapters()))
+                        c.totalHadith(),
+                        hadithCounts.getOrDefault(c.name(), 0),
+                        c.hasBooks(), c.hasChapters()))
                 .toList();
     }
 

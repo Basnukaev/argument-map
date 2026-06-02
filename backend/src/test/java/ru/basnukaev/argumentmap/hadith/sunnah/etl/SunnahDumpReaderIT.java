@@ -115,6 +115,16 @@ class SunnahDumpReaderIT {
         assertThat(h3.gradesJson()).isNull();
     }
 
+    @Test
+    void readHadithCounts_returns_actual_row_count_per_collection() {
+        // Фикстура: 4 хадиса bukhari, 0 muslim → muslim отсутствует в результате
+        Map<String, Integer> counts = reader.readHadithCounts();
+
+        assertThat(counts).containsEntry("bukhari", 4);
+        // muslim есть в Collections, но в HadithTable строк нет → не попадает в map
+        assertThat(counts).doesNotContainKey("muslim");
+    }
+
     private static <T> Map<String, T> index(List<T> rows, Function<T, String> key) {
         return rows.stream().collect(Collectors.toMap(key, Function.identity()));
     }

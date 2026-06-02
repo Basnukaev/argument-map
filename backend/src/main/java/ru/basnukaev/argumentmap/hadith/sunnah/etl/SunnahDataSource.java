@@ -1,6 +1,7 @@
 package ru.basnukaev.argumentmap.hadith.sunnah.etl;
 
 import java.util.List;
+import java.util.Map;
 
 import ru.basnukaev.argumentmap.hadith.sunnah.etl.dto.SunnahBookRow;
 import ru.basnukaev.argumentmap.hadith.sunnah.etl.dto.SunnahChapterRow;
@@ -34,4 +35,12 @@ public interface SunnahDataSource {
 
     /** Хадисы одного сборника (текст + grades, без структурного иснада). */
     List<SunnahHadithRow> readHadiths(String collectionName);
+
+    /**
+     * Фактическое количество строк {@code HadithTable} по каждому сборнику.
+     * Отражает объём загруженного дампа, а не каталожный {@code Collections.totalhadith}.
+     * Ключ — {@code collection}, значение — COUNT(*). Коллекции с нулевым
+     * количеством отсутствуют в результате.
+     */
+    Map<String, Integer> readHadithCounts();
 }
