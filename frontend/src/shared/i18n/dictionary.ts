@@ -416,6 +416,11 @@ export const DICTIONARY = {
     'library.collections.title': 'Мои коллекции',
     'library.collections.subtitle': 'Книги добавленные в избранное и тематические коллекции',
     'library.collections.empty': 'Коллекция пустая. Добавьте книги через ♥ на карточке',
+    // content_kind chip на карточке книги (BookListPage). FILE_ONLY -
+    // значимый сигнал «текста нет, только скан». TEXT_AND_FILE - резерв
+    // (сейчас chip не рендерится, но ключ держим для будущего использования).
+    'library.content_kind.file_only': 'Только PDF',
+    'library.content_kind.text_and_file': 'Текст + PDF',
     'common.notifications': 'Уведомления',
     'common.locale_switch': 'Локаль интерфейса',
     'common.load_more': 'Показать ещё',
@@ -1843,6 +1848,8 @@ export const DICTIONARY = {
     'library.collections.title': 'مجموعاتي',
     'library.collections.subtitle': 'الكتب المضافة إلى المفضلة والمجموعات الموضوعية',
     'library.collections.empty': 'المجموعة فارغة. أضف الكتب عبر ♥ على البطاقة',
+    'library.content_kind.file_only': 'PDF فقط',
+    'library.content_kind.text_and_file': 'نص + PDF',
     'common.notifications': 'الإشعارات',
     'common.locale_switch': 'لغة الواجهة',
     'common.load_more': 'عرض المزيد',

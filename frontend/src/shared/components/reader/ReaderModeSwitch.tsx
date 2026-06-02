@@ -5,6 +5,14 @@ import { useT, type DictKey } from '@/shared/i18n';
 interface Props {
   mode: ReaderMode;
   onChange: (mode: ReaderMode) => void;
+  /**
+   * Режимы которые реально доступны для книги (зависят от content_kind).
+   * По умолчанию оба - backward-compatible с legacy / undefined contentKind.
+   * Рендерятся только кнопки чьи `k` входят в список. При единственном
+   * доступном режиме родитель обычно вообще не монтирует switch (см.
+   * BookReaderPage), но компонент корректно отрисует и single-element массив.
+   */
+  availableModes?: ReaderMode[];
 }
 
 /**
@@ -12,12 +20,13 @@ interface Props {
  * platform_reader.jsx::PageToolbar - сегментированный switcher с
  * выделением активного через bg-elevated + shadow.
  */
-function ReaderModeSwitch({ mode, onChange }: Props) {
+function ReaderModeSwitch({ mode, onChange, availableModes = ['text', 'pdf'] }: Props) {
   const t = useT();
-  const options: { k: ReaderMode; labelKey: DictKey; icon: typeof FileText }[] = [
+  const allOptions: { k: ReaderMode; labelKey: DictKey; icon: typeof FileText }[] = [
     { k: 'text', labelKey: 'reader.mode.text', icon: FileText },
     { k: 'pdf', labelKey: 'reader.mode.pdf', icon: ImageIcon },
   ];
+  const options = allOptions.filter((o) => availableModes.includes(o.k));
   return (
     <div className="inline-flex items-center gap-0.5 rounded-md bg-ink-100 p-0.5">
       {options.map((o) => {

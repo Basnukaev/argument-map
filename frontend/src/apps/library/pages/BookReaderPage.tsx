@@ -211,6 +211,11 @@ function BookReaderPage() {
   // правило react-hooks/set-state-in-effect (см. gotchas)
   useEffect(() => {
     if (state.kind !== 'success') return;
+    // FILE_ONLY книги (archive.org сканы без OCR) не имеют текстовых страниц -
+    // text-загрузку не запускаем вовсе, иначе pageContent навсегда остаётся
+    // в 'loading' (нет target.id → бесконечный спиннер «Загрузка страницы»).
+    // Reader для них работает только в PDF-режиме (effectiveMode='pdf').
+    if (state.book.contentKind === 'FILE_ONLY') return;
     const target = state.pages.find((p) => p.pageNumber === pageNumber);
     if (!target?.id) return;
     const controller = new AbortController();
@@ -340,6 +345,24 @@ function BookReaderPage() {
   // formatPermissionError). UI hint - чтобы пользователь видел read-only
   // не сделав запрос. ADMIN - bypass'ит проверки на бэке, показываем кнопки
   const book = state.kind === 'success' ? state.book : undefined;
+
+  // content_kind управляет какие режимы reader'а доступны:
+  // - FILE_ONLY (напр. archive.org скан без OCR): только PDF, текстовых
+  //   страниц нет вовсе → effectiveMode='pdf', text-загрузка не запускается
+  //   (это и убирает бесконечный «Загрузка страницы» спиннер для 0-page книг)
+  // - TEXT_ONLY (напр. shamela без привязанного PDF): только текст
+  // - TEXT_AND_FILE / undefined (legacy): оба режима, выбор через switch,
+  //   эффективный режим = пользовательский readerMode (default 'text')
+  // effectiveMode - ДЕРИВИРОВАННОЕ значение (не state), поэтому не нужен
+  // set-state-in-effect: readerMode остаётся источником истины только для
+  // TEXT_AND_FILE, остальные kind'ы форсят режим вычислением.
+  const contentKind = book?.contentKind;
+  const effectiveMode: ReaderMode =
+    contentKind === 'FILE_ONLY' ? 'pdf' : contentKind === 'TEXT_ONLY' ? 'text' : readerMode;
+  // Switch показываем только когда есть реальный выбор (TEXT_AND_FILE или
+  // legacy/undefined). FILE_ONLY и TEXT_ONLY - один режим, switch скрыт.
+  const showModeSwitch = contentKind === 'TEXT_AND_FILE' || contentKind === undefined;
+
   const visibility: Visibility = (book?.visibility ?? 'PRIVATE') as Visibility;
   const isOwner = Boolean(
     currentUser && book?.createdBy && currentUser.id === book.createdBy,
@@ -492,7 +515,7 @@ function BookReaderPage() {
                   </div>
                 </BookHeader>
               </Card>
-              {readerMode === 'text' && (
+              {effectiveMode === 'text' && (
                 <>
                   {/* Toolbar: prev/next + page jump + reader mode switch.
                       Desktop: sticky top-12 (= h-12 глобального Header'а,
@@ -539,7 +562,15 @@ function BookReaderPage() {
                       onPrintedPageJump={handlePrintedPageJump}
                     />
                     <div className="flex items-center gap-2">
-                      <ReaderModeSwitch mode={readerMode} onChange={setReaderMode} />
+                      {/* Switch только для TEXT_AND_FILE / legacy - где есть выбор.
+                          TEXT_ONLY: PDF недоступен, switch скрыт (один режим). */}
+                      {showModeSwitch && (
+                        <ReaderModeSwitch
+                          mode={readerMode}
+                          onChange={setReaderMode}
+                          availableModes={['text', 'pdf']}
+                        />
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -554,15 +585,19 @@ function BookReaderPage() {
                   <PageView
                     state={pageContent}
                     bookLanguage={state.book.language}
-                    onOpenPdfPreview={() => setPdfPreviewOpen(true)}
+                    // inline «📕 PDF» preview-кнопку показываем только когда PDF
+                    // реально есть (TEXT_AND_FILE / legacy). TEXT_ONLY - PDF нет,
+                    // affordance не рендерим (PageView скрывает кнопку при undefined).
+                    onOpenPdfPreview={showModeSwitch ? () => setPdfPreviewOpen(true) : undefined}
                     highlightRange={highlightRange}
                   />
                 </>
               )}
-              {readerMode === 'pdf' && (
+              {effectiveMode === 'pdf' && (
                 <>
                   {/* В fullscreen PDF mode - кнопка "Назад к тексту" чтобы юзер
-                      мог вернуться к чтению с того места где был.
+                      мог вернуться к чтению с того места где был. Для FILE_ONLY
+                      текста нет вовсе (effectiveMode форсит pdf), кнопку прячем.
                       На mobile добавляем кнопку «Главы» которая открывает
                       drawer (т.к. inline sidebar скрыт на mobile) */}
                   <div className="mb-3 flex items-center justify-between gap-2">
@@ -575,15 +610,17 @@ function BookReaderPage() {
                     >
                       {t('reader.chapters')}
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      icon={ArrowLeft}
-                      onClick={() => setReaderMode('text')}
-                      className="ms-auto"
-                    >
-                      {t('reader.back_to_text')}
-                    </Button>
+                    {showModeSwitch && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={ArrowLeft}
+                        onClick={() => setReaderMode('text')}
+                        className="ms-auto"
+                      >
+                        {t('reader.back_to_text')}
+                      </Button>
+                    )}
                   </div>
                   <Suspense
                     fallback={

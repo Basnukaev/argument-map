@@ -54,6 +54,14 @@ const BOOK_TYPE_DICT_KEY: Record<BookType, DictKey> = {
   MANUSCRIPT: 'book.type.MANUSCRIPT',
 };
 
+/** content_kind → словарный ключ для chip'а доступности контента. Показываем
+ * только FILE_ONLY («Только PDF») - значимый сигнал что текста нет (archive.org
+ * сканы). TEXT_AND_FILE / TEXT_ONLY / undefined chip не получают: текст -
+ * ожидание по умолчанию, лишний шум на карточке не нужен. */
+const CONTENT_KIND_CHIP: Partial<Record<NonNullable<Book['contentKind']>, DictKey>> = {
+  FILE_ONLY: 'library.content_kind.file_only',
+};
+
 /** Toned chip-классы по типу книги. v2 design: единый ink chip кроме
  * Quran/Hadith (accent для отделения религиозного канона от обычных книг) */
 const BOOK_TYPE_BADGE: Record<BookType, string> = {
@@ -764,6 +772,14 @@ function BookCard({
             {book.language && (
               <span className="inline-flex items-center rounded-sm bg-ink-100 px-1.5 py-0.5 text-xs font-mono uppercase text-ink-600">
                 <bdi dir="ltr">{book.language}</bdi>
+              </span>
+            )}
+            {/* Content-kind hint - только для не-хадис книг. FILE_ONLY
+                («Только PDF») сигналит что читаемого текста нет, остальные
+                kind'ы chip не получают (см. CONTENT_KIND_CHIP). */}
+            {!isHadithCollection && book.contentKind && CONTENT_KIND_CHIP[book.contentKind] && (
+              <span className="inline-flex items-center rounded-sm bg-ink-100 px-1.5 py-0.5 text-xs font-medium text-ink-600">
+                {t(CONTENT_KIND_CHIP[book.contentKind]!)}
               </span>
             )}
             <VisibilityBadge

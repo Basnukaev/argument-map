@@ -48,6 +48,7 @@ interface PagedBookFixture {
     language?: string;
     createdBy?: string;
     coverUrl?: string;
+    contentKind?: 'TEXT_ONLY' | 'TEXT_AND_FILE' | 'FILE_ONLY';
   }>;
   page?: number;
   size?: number;
@@ -375,6 +376,55 @@ describe('BookListPage / Library overview', () => {
     // поэтому скоупим к карточке через within)
     expect(within(card).getByText('Сборник хадисов')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /صحيح البخاري/i })).not.toBeInTheDocument();
+  });
+
+  it('FILE_ONLY книга показывает chip «Только PDF»; TEXT_AND_FILE / TEXT_ONLY - нет', async () => {
+    server.use(
+      http.get(`${BASE}/api/v1/library/books`, () =>
+        HttpResponse.json(
+          paged(
+            [
+              {
+                id: 'b1',
+                title: 'Scan Only',
+                bookType: 'BOOK',
+                visibility: 'PUBLIC',
+                contentKind: 'FILE_ONLY',
+              },
+              {
+                id: 'b2',
+                title: 'Text And File',
+                bookType: 'BOOK',
+                visibility: 'PUBLIC',
+                contentKind: 'TEXT_AND_FILE',
+              },
+              {
+                id: 'b3',
+                title: 'Text Only',
+                bookType: 'BOOK',
+                visibility: 'PUBLIC',
+                contentKind: 'TEXT_ONLY',
+              },
+            ],
+            { totalElements: 3 },
+          ),
+        ),
+      ),
+    );
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByText('Scan Only')).toBeInTheDocument();
+    });
+
+    // chip «Только PDF» только у FILE_ONLY карточки
+    const fileOnlyCard = screen.getByRole('link', { name: /Scan Only/i });
+    expect(within(fileOnlyCard).getByText('Только PDF')).toBeInTheDocument();
+
+    const textAndFileCard = screen.getByRole('link', { name: /Text And File/i });
+    expect(within(textAndFileCard).queryByText('Только PDF')).not.toBeInTheDocument();
+
+    const textOnlyCard = screen.getByRole('link', { name: /Text Only/i });
+    expect(within(textOnlyCard).queryByText('Только PDF')).not.toBeInTheDocument();
   });
 
   it('клик по HADITH_COLLECTION резолвит by-book и навигирует в /hadith?collectionId=', async () => {

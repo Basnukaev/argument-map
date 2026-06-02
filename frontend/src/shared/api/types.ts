@@ -372,22 +372,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/library/pages/{pageId}/ocr": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["getOcrStatus"];
-        put?: never;
-        post: operations["triggerOcr"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/library/pages/{pageId}/ai-edit": {
         parameters: {
             query?: never;
@@ -2305,16 +2289,6 @@ export interface components {
             height?: number;
             extractedText?: string;
         };
-        OcrJobResponse: {
-            /** Format: uuid */
-            pageId?: string;
-            status?: string;
-            /** Format: date-time */
-            startedAt?: string;
-            /** Format: date-time */
-            completedAt?: string;
-            hasImage?: boolean;
-        };
         AiEditJobResponse: {
             /** Format: uuid */
             pageId?: string;
@@ -2394,6 +2368,8 @@ export interface components {
             updatedAt?: string;
             visibility?: string;
             coverUrl?: string;
+            /** @enum {string} */
+            contentKind?: "TEXT_ONLY" | "TEXT_AND_FILE" | "FILE_ONLY";
         };
         PageResponse: {
             /** Format: uuid */
@@ -2415,11 +2391,6 @@ export interface components {
             imageStorageKey?: string;
             /** Format: date-time */
             imageUploadedAt?: string;
-            ocrStatus?: string;
-            /** Format: date-time */
-            ocrStartedAt?: string;
-            /** Format: date-time */
-            ocrCompletedAt?: string;
             imageRegions?: components["schemas"]["ImageRegionResponse"][];
             /** Format: date-time */
             createdAt?: string;
@@ -2748,6 +2719,8 @@ export interface components {
             thesisSupervisor?: string;
             thesisInstitution?: string;
             coverUrl?: string;
+            /** @enum {string} */
+            contentKind?: "TEXT_ONLY" | "TEXT_AND_FILE" | "FILE_ONLY";
         };
         ChapterResponse: {
             /** Format: uuid */
@@ -2888,6 +2861,8 @@ export interface components {
             createdAt?: string;
             visibility?: string;
             coverUrl?: string;
+            /** @enum {string} */
+            contentKind?: "TEXT_ONLY" | "TEXT_AND_FILE" | "FILE_ONLY";
         };
         PagedResponseBookSummaryResponse: {
             items?: components["schemas"]["BookSummaryResponse"][];
@@ -4205,55 +4180,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ImageRegionResponse"];
-                };
-            };
-        };
-    };
-    getOcrStatus: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                pageId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["OcrJobResponse"];
-                };
-            };
-        };
-    };
-    triggerOcr: {
-        parameters: {
-            query: {
-                currentUserId: string;
-            };
-            header?: {
-                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
-                "X-User-Id"?: string;
-            };
-            path: {
-                pageId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["OcrJobResponse"];
                 };
             };
         };
