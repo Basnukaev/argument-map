@@ -1,14 +1,14 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
-import { http, HttpResponse } from 'msw';
-import { server } from '@/test/server';
 import SettingsPage from './SettingsPage';
-import { usePreferencesStore } from '@/shared/stores/preferencesStore';
-import { useAuthStore } from '@/shared/stores/authStore';
 
-const API = 'http://test.local';
+/**
+ * SettingsPage теперь рендерит единственную секцию - FontSettings
+ * (тема, пара шрифтов, арабский шрифт, масштаб, плотность, веса).
+ * Дублирующая/мёртвая UserPreferencesSection (язык, textSize,
+ * упрощённый арабский шрифт, tashkeel, транслит, bilingual) выпилена.
+ */
 
 function renderPage() {
   return render(
@@ -18,80 +18,26 @@ function renderPage() {
   );
 }
 
-function resetStores() {
-  if (typeof window !== 'undefined') {
-    window.localStorage.clear();
-  }
-  usePreferencesStore.setState({
-    locale: 'ru',
-    arabicFont: 'naskh',
-    textSize: 'medium',
-    hideTashkeelByDefault: false,
-    transliteration: false,
-    theme: 'system',
-    isLoading: false,
-    loaded: false,
-  });
-  useAuthStore.setState({
-    user: {
-      id: '00000000-0000-0000-0000-000000000001',
-      username: 'tester',
-      email: 'tester@test.local',
-      role: 'USER',
-    },
-    accessToken: 'fake.access.token',
-    isLoading: false,
-    initialized: true,
-  });
-}
-
 describe('SettingsPage', () => {
-  beforeEach(() => {
-    resetStores();
-  });
-
-  it('рендерит секции настроек включая язык, размер текста, tashkeel и транслит', () => {
+  it('рендерит секции FontSettings: тема, пара шрифтов, арабский шрифт', () => {
     renderPage();
 
-    expect(screen.getByText('Язык интерфейса')).toBeInTheDocument();
-    expect(screen.getByText('Размер текста')).toBeInTheDocument();
-    expect(
-      screen.getByText('Огласовки (Tashkeel)'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Транслитерация')).toBeInTheDocument();
+    expect(screen.getByText('Настройки приложения')).toBeInTheDocument();
+    // FontSettings контролы. «Тема» встречается дважды (группа + секция),
+    // поэтому getAllByText
+    expect(screen.getAllByText('Тема').length).toBeGreaterThan(0);
+    expect(screen.getByText('Пара шрифтов')).toBeInTheDocument();
+    expect(screen.getByText('Арабский шрифт')).toBeInTheDocument();
+    expect(screen.getByText('Вес заголовка')).toBeInTheDocument();
+    expect(screen.getByText('Плотность чтения')).toBeInTheDocument();
   });
 
-  it('клик на язык AR отправляет PUT на бэк и обновляет store', async () => {
-    let receivedBody: unknown = null;
-    server.use(
-      http.put(`${API}/api/v1/preferences/locale`, async ({ request }) => {
-        receivedBody = await request.json();
-        return HttpResponse.json({ locale: 'ar' });
-      }),
-    );
-
+  it('НЕ рендерит выпиленные дублирующие контролы (tashkeel / транслит / язык)', () => {
     renderPage();
 
-    const arButton = screen.getByRole('button', { name: 'العربية' });
-    await userEvent.click(arButton);
-
-    expect(receivedBody).toEqual({ value: 'ar' });
-    expect(usePreferencesStore.getState().locale).toBe('ar');
-  });
-
-  it('toggle транслитерации меняет state', async () => {
-    server.use(
-      http.put(
-        `${API}/api/v1/preferences/transliteration`,
-        () => HttpResponse.json({ transliteration: true }),
-      ),
-    );
-
-    renderPage();
-
-    const transCheckbox = screen.getByLabelText(/Показывать транслит/);
-    await userEvent.click(transCheckbox);
-
-    expect(usePreferencesStore.getState().transliteration).toBe(true);
+    expect(screen.queryByText('Огласовки (Tashkeel)')).not.toBeInTheDocument();
+    expect(screen.queryByText('Транслитерация')).not.toBeInTheDocument();
+    expect(screen.queryByText('Язык интерфейса')).not.toBeInTheDocument();
+    expect(screen.queryByText('Двуязычный режим узлов')).not.toBeInTheDocument();
   });
 });

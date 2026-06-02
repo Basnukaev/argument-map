@@ -2,14 +2,13 @@ import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import IconButton from '@/shared/components/ui/IconButton';
 import FontSettings from '@/apps/settings/components/FontSettings';
-import UserPreferencesSection from '@/apps/settings/components/UserPreferencesSection';
 import { useT } from '@/shared/i18n';
 import { useIsMobile } from '@/shared/hooks/useViewport';
 import { useSettingsDrawerStore } from '@/shared/stores/settingsDrawerStore';
 
 /**
  * Правый slide-over с настройками (баг #1). Рендерит тот же контент что
- * и /settings (FontSettings + UserPreferencesSection), но БЕЗ навигации -
+ * и /settings (FontSettings), но БЕЗ навигации -
  * закрытие возвращает пользователя ровно туда где он был (контекст
  * страницы, scroll, состояние графа/reader сохранены).
  *
@@ -126,7 +125,6 @@ function SettingsDrawerBody() {
 
         <div className="flex-1 overflow-y-auto px-5 py-5">
           <FontSettings />
-          <UserPreferencesSection />
         </div>
       </aside>
     </>

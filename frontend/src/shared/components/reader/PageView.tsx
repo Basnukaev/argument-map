@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { AlertCircle, FileImage, Loader2 } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import type { components } from '@/shared/api/types';
@@ -9,29 +9,25 @@ import {
   removeHighlights,
 } from '@/shared/components/reader/textRangeUtils';
 import RichTextRenderer from '@/shared/components/editor/RichTextRenderer';
-import { stripTashkeelText } from '@/shared/components/editor/utils/stripTashkeel';
 import { useT } from '@/shared/i18n';
 import { HadithBox } from '@/shared/components/editor/extensions/HadithBox';
 import { AyahBox } from '@/shared/components/editor/extensions/AyahBox';
 import { Marginalia } from '@/shared/components/editor/extensions/Marginalia';
 import { Footnote } from '@/shared/components/editor/extensions/Footnote';
 import { ColorHighlight } from '@/shared/components/editor/extensions/ColorHighlight';
-import { Tashkeel } from '@/shared/components/editor/extensions/Tashkeel';
 import { DecoratedHeading } from '@/shared/components/editor/extensions/DecoratedHeading';
 import { PageNumber } from '@/shared/components/editor/extensions/PageNumber';
 
 // Custom Tiptap extensions для read-only render. Список должен совпадать
 // с extensions в AdminPageEditorPage - иначе пользовательский HadithBox
-// упадёт на «unknown node type». Этап 17.0.c довёл его до **8 custom
-// extensions** (закрытие ADR-039): HadithBox / AyahBox / Marginalia /
-// Footnote / ColorHighlight / Tashkeel / DecoratedHeading / PageNumber
+// упадёт на «unknown node type»: HadithBox / AyahBox / Marginalia /
+// Footnote / ColorHighlight / DecoratedHeading / PageNumber
 const READER_EXTENSIONS = [
   HadithBox,
   AyahBox,
   Marginalia,
   Footnote,
   ColorHighlight,
-  Tashkeel,
   DecoratedHeading,
   PageNumber,
 ];
@@ -106,14 +102,6 @@ function PageView({
   const t = useT();
   const contentRef = useRef<HTMLElement>(null);
   const pageId = state.kind === 'success' ? state.page.id : null;
-  // toggle для скрытия tashkeel (огласовок) в reader. Реализация -
-  // functional transform ProseMirror JSON через `stripTashkeelFromDoc`
-  // в RichTextRenderer + raw text через `stripTashkeelText` в legacy
-  // path. Класс `.hide-tashkeel` оставлен на wrapper'е для CSS hook'ов
-  // (визуальные индикаторы / контекстные стили) - сам text меняется
-  // через JSON transform. См. ADR-039 + closed gotcha «Tashkeel full
-  // removal требует runtime text manipulation»
-  const [hideTashkeel, setHideTashkeel] = useState(false);
 
   useEffect(() => {
     if (!selectable || !onSelectionChange || !contentRef.current || !pageId) {
@@ -177,33 +165,14 @@ function PageView({
   const text = page.textContent ?? '';
   const isArabic = bookLanguage === 'ar' || isArabicText(text);
 
-  // article-классы: базовая типографика + опционально hide-tashkeel
-  // (CSS из tiptap.css). Toggle актуален только для арабского контента
-  // (других script'ов огласовки не касаются)
-  const articleClass = [
-    isArabic
-      ? 'book-content font-naskh text-md leading-[2] text-ink-900'
-      : 'book-content text-base leading-relaxed text-ink-900',
-    hideTashkeel ? 'hide-tashkeel' : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
+  // article-классы: базовая типографика для арабского / латиницы
+  const articleClass = isArabic
+    ? 'book-content font-naskh text-md leading-[2] text-ink-900'
+    : 'book-content text-base leading-relaxed text-ink-900';
 
   return (
     <Card className="relative px-8 pb-8 pt-14">
       <div className="absolute end-4 top-3 inline-flex items-center gap-2">
-        {isArabic && (
-          <button
-            type="button"
-            onClick={() => setHideTashkeel((v) => !v)}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 py-1 text-xs font-semibold text-ink-700 shadow-sm transition-colors hover:bg-ink-100"
-            title={hideTashkeel ? t('reader.tashkeel_show') : t('reader.tashkeel_hide')}
-            aria-label={hideTashkeel ? t('reader.tashkeel_show') : t('reader.tashkeel_hide')}
-            aria-pressed={hideTashkeel}
-          >
-            <span>{hideTashkeel ? t('reader.tashkeel_show') : t('reader.tashkeel_hide')}</span>
-          </button>
-        )}
         {onOpenPdfPreview && (
           <button
             type="button"
@@ -237,7 +206,6 @@ function PageView({
           <RichTextRenderer
             content={page.formattedContent}
             extensions={READER_EXTENSIONS}
-            hideTashkeel={hideTashkeel}
           />
         </article>
       ) : (
@@ -246,11 +214,10 @@ function PageView({
             ref={contentRef}
             className={articleClass}
             dir={isArabic ? 'rtl' : 'ltr'}
-            // Legacy path (NULL formatted_content): tashkeel убирается из
-            // raw text до sanitize. Sanitize чистит script/style теги,
-            // диакритики - text-level, regex отрабатывает корректно
+            // Legacy path (NULL formatted_content): sanitize чистит
+            // script/style теги перед DOM-injection
             dangerouslySetInnerHTML={{
-              __html: sanitizePageHtml(hideTashkeel ? stripTashkeelText(text) : text),
+              __html: sanitizePageHtml(text),
             }}
           />
         )

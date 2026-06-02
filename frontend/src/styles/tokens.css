@@ -418,6 +418,28 @@ body {
   font-weight: var(--title-weight, 600);
 }
 
+/* Title weight для арабских заголовков. Latin-заголовки (.book-title,
+   Source Serif) — variable-font, любой вес 300-900 рендерится плавно.
+   Арабские шрифты (Scheherazade New / Amiri / Noto Naskh) загружены
+   только в фиксированных начертаниях (400/700), поэтому браузер
+   «снапнет» --title-weight к ближайшему доступному (≥600 → 700 = bold,
+   <600 → 400 = normal). То есть для арабского реально работает только
+   bold ↔ normal, не плавная шкала — это известное ограничение
+   fixed-weight веб-шрифтов, best-effort а не perfection.
+   .book-content рендерит арабский контент в RTL reader (см. index.css),
+   .prose-arabic — арабская prose-типографика. */
+[dir='rtl'] .book-content [data-type='title'],
+[dir='rtl'] .book-content h1,
+[dir='rtl'] .book-content h2,
+[dir='rtl'] .book-content h3,
+[dir='rtl'] .book-content h4,
+.prose-arabic h1,
+.prose-arabic h2,
+.prose-arabic h3,
+.prose-arabic h4 {
+  font-weight: var(--title-weight, 700);
+}
+
 /* ── PROSE (reader article body) ─────────────────────────────── */
 .prose {
   font-family: var(--font-serif);

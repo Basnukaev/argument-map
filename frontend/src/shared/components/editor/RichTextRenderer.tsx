@@ -13,10 +13,8 @@
  * "<p>{text_content}</p>" путём, но через единый Tiptap pipeline
  * (можно прикрутить marks / highlights позже).
  */
-import { useMemo } from 'react';
 import RichTextEditor from '@/shared/components/editor/RichTextEditor';
 import type { Extension, Node, Mark } from '@tiptap/react';
-import { stripTashkeelFromDoc } from '@/shared/components/editor/utils/stripTashkeel';
 
 type TiptapExtension = Extension | Node | Mark;
 
@@ -37,15 +35,6 @@ interface Props {
   className?: string;
   /** RTL direction для арабского контента */
   dir?: 'rtl' | 'ltr' | 'auto';
-  /**
-   * Если true - реально удаляет арабские диакритические знаки
-   * (`U+064B`-`U+065F`, `U+0670`) из text-nodes ProseMirror JSON
-   * **перед** рендером. Используется в reader при toggle «Без
-   * огласовок». В admin editor НЕ применяется (автор должен видеть
-   * оригинал). Реализация - {@link stripTashkeelFromDoc} (functional
-   * transform JSON без DOM-walk)
-   */
-  hideTashkeel?: boolean;
 }
 
 /**
@@ -82,20 +71,11 @@ function RichTextRenderer({
   extensions = [],
   className,
   dir,
-  hideTashkeel = false,
 }: Props) {
-  // useMemo чтобы не пересчитывать transform на каждом re-render parent'а
-  // когда hideTashkeel/content не менялись. JSON.stringify-based check
-  // в RichTextEditor.useEffect сравнит результат с current editor state -
-  // если equal, setContent не вызывается (не мерцает)
-  const processedContent = useMemo(
-    () => stripTashkeelFromDoc(content, hideTashkeel),
-    [content, hideTashkeel],
-  );
   return (
     <div dir={dir}>
       <RichTextEditor
-        content={processedContent}
+        content={content}
         editable={false}
         extensions={extensions}
         className={className}

@@ -5,7 +5,6 @@ import App from '@/App';
 import { LocaleEffect } from '@/shared/i18n';
 import { ThemeEffect } from '@/shared/components/ThemeEffect';
 import { FontPairEffect } from '@/shared/components/FontPairEffect';
-import { PreferencesEffect } from '@/shared/components/PreferencesEffect';
 import { UiScaleEffect } from '@/shared/components/UiScaleEffect';
 import { installAuthBridge } from '@/shared/api/authBridge';
 import '@/index.css';
@@ -26,7 +25,6 @@ createRoot(rootElement).render(
       <LocaleEffect />
       <ThemeEffect />
       <FontPairEffect />
-      <PreferencesEffect />
       <UiScaleEffect />
       <App />
     </BrowserRouter>

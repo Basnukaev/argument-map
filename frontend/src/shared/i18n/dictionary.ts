@@ -89,8 +89,6 @@ export const DICTIONARY = {
     'reader.download_pdf': 'Скачать PDF целиком',
     'reader.mode.text': 'Текст',
     'reader.mode.pdf': 'PDF',
-    'reader.tashkeel_show': 'С огласовками',
-    'reader.tashkeel_hide': 'Без огласовок',
     'reader.page_loading': 'Загрузка страницы',
     'reader.page_empty': 'Страница пустая',
     'reader.open_pdf_page_title': 'Открыть PDF оригинала на этой странице',
@@ -1033,43 +1031,6 @@ export const DICTIONARY = {
     'settings.reset.confirm.cancel': 'Отмена',
 
     // Settings - user preferences (Сессия Settings screen)
-    'settings.section.language': 'Язык интерфейса',
-    'settings.section.language.hint':
-      'Язык всех меню, кнопок и подсказок. Контент (тексты книг, цитаты) остаётся на оригинальном языке',
-    'settings.language.ru': 'Русский',
-    'settings.language.ar': 'العربية',
-    'settings.language.en': 'English',
-    'settings.section.textSize': 'Размер текста',
-    'settings.section.textSize.hint':
-      'Базовый размер шрифта во всём UI. Влияет на узлы графа и тексты в reader',
-    'settings.textSize.small': 'Мелкий',
-    'settings.textSize.medium': 'Средний',
-    'settings.textSize.large': 'Крупный',
-    'settings.textSize.xl': 'Огромный',
-    'settings.textSize.preview': 'Образец текста для проверки размера',
-    'settings.section.arabicFont.pref': 'Арабский шрифт (упрощённый выбор)',
-    'settings.section.arabicFont.pref.hint':
-      'Naskh - классический наскх, Kufi - геометрический, Tahoma - системный',
-    'settings.arabicFont.naskh': 'Naskh',
-    'settings.arabicFont.kufi': 'Kufi',
-    'settings.arabicFont.tahoma': 'Tahoma',
-    'settings.section.tashkeel': 'Огласовки (Tashkeel)',
-    'settings.section.tashkeel.hint':
-      'Если включено - харакāт (фатха, кясра, дамма) скрываются по умолчанию в reader. Можно показать кнопкой на странице',
-    'settings.tashkeel.hide_default': 'Скрывать огласовки по умолчанию',
-    'settings.section.transliteration': 'Транслитерация',
-    'settings.section.transliteration.hint':
-      'Показывать латинскую транслитерацию рядом с арабскими словами',
-    'settings.transliteration.enable': 'Показывать транслит для арабского',
-    'settings.saved_toast': 'Настройка сохранена',
-    'settings.save_error_toast': 'Не удалось сохранить настройку',
-    'settings.reset_defaults': 'Сбросить все настройки',
-    'settings.reset_defaults.hint':
-      'Удалит все user-preferences с сервера и вернёт значения по умолчанию',
-    'settings.reset_confirm': 'Сбросить все настройки?',
-    'settings.reset_confirm.body':
-      'Язык, тема, шрифты, размер текста, огласовки, транслитерация - всё вернётся к дефолтам',
-
     // Settings drawer (slide-over - контекст не теряется, баг #1)
     'settings.drawer.title': 'Настройки',
     'settings.drawer.close': 'Закрыть настройки',
@@ -1102,33 +1063,6 @@ export const DICTIONARY = {
     'reader.fonts.pair_label': 'Шрифт интерфейса и заголовков',
     'reader.fonts.open_full': 'Все настройки',
     'reader.fonts.close': 'Закрыть',
-
-    // Settings - bilingual node cards (миграция 44)
-    'settings.section.bilingual': 'Двуязычный режим узлов',
-    'settings.section.bilingual.hint':
-      'Узлы могут иметь арабский оригинал и русский перевод. Выберите как показывать карточку. Переключатель доступен и из самой карточки',
-    'settings.bilingual.original': 'Оригинал',
-    'settings.bilingual.translation': 'Перевод',
-    'settings.bilingual.both': 'Оба',
-
-    // Node - bilingual controls (на самой карточке + в редакторе узла)
-    'node.bilingual.mode_label': 'Режим отображения',
-    'node.bilingual.mode.original': 'Только оригинал',
-    'node.bilingual.mode.translation': 'Только перевод',
-    'node.bilingual.mode.both': 'Оригинал и перевод',
-    'node.bilingual.translation_label_in_card': 'перевод',
-    'node.bilingual.field.translation': 'Перевод (необязательно)',
-    'node.bilingual.field.translation_lang': 'Язык перевода',
-    'node.bilingual.field.original_lang': 'Язык оригинала',
-    'node.bilingual.lang.ar': 'Арабский',
-    'node.bilingual.lang.ru': 'Русский',
-    'node.bilingual.lang.en': 'Английский',
-    'node.bilingual.lang.auto': 'Авто-определение',
-    'node.bilingual.toggle_aria': 'Переключить режим отображения перевода',
-
-    // Node - translator attribution (миграция 45, multi-translation 1:N)
-    'node.translations.dropdown_label': 'Выбрать переводчика',
-    'node.translations.dropdown_anonymous': 'Анонимный переводчик',
 
     // Admin page editor (Этап 17.0, ADR-039 - Tiptap rich text editor)
     'admin.page_editor.title': 'Редактор страницы',
@@ -1198,8 +1132,6 @@ export const DICTIONARY = {
     'admin.page_editor.highlight.yellow': 'Жёлтый',
     'admin.page_editor.highlight.purple': 'Фиолетовый',
 
-    // Этап 17.0.c - Tashkeel (3 финальных extensions, ADR-039)
-    'admin.page_editor.toolbar.tashkeel': 'Огласовки (tashkeel)',
     // Этап 17.0.c - DecoratedHeading
     'admin.page_editor.toolbar.decorated_heading': 'Декорированный заголовок',
     'admin.page_editor.toolbar.decorated_heading_remove': 'Снять декорированный заголовок',
@@ -1527,8 +1459,6 @@ export const DICTIONARY = {
     'reader.download_pdf': 'تنزيل PDF كاملاً',
     'reader.mode.text': 'نص',
     'reader.mode.pdf': 'PDF',
-    'reader.tashkeel_show': 'مع التشكيل',
-    'reader.tashkeel_hide': 'بدون تشكيل',
     'reader.page_loading': 'جارٍ تحميل الصفحة',
     'reader.page_empty': 'الصفحة فارغة',
     'reader.open_pdf_page_title': 'افتح PDF الأصلي في هذه الصفحة',
@@ -2430,43 +2360,6 @@ export const DICTIONARY = {
     'settings.reset.confirm.cancel': 'إلغاء',
 
     // Settings - user preferences (Settings screen)
-    'settings.section.language': 'لغة الواجهة',
-    'settings.section.language.hint':
-      'لغة جميع القوائم والأزرار. أمّا المحتوى (نصوص الكتب والاقتباسات) فيبقى بلغته الأصلية',
-    'settings.language.ru': 'Русский',
-    'settings.language.ar': 'العربية',
-    'settings.language.en': 'English',
-    'settings.section.textSize': 'حجم النص',
-    'settings.section.textSize.hint':
-      'الحجم الأساسي للخط في الواجهة. يؤثّر على عقد الرسم البياني ونصوص القارئ',
-    'settings.textSize.small': 'صغير',
-    'settings.textSize.medium': 'متوسّط',
-    'settings.textSize.large': 'كبير',
-    'settings.textSize.xl': 'كبير جدًّا',
-    'settings.textSize.preview': 'نموذج نصّ للتحقّق من الحجم',
-    'settings.section.arabicFont.pref': 'الخط العربي (اختيار مبسّط)',
-    'settings.section.arabicFont.pref.hint':
-      'النسخ كلاسيكيّ، الكوفي هندسيّ، تاهوما خطّ النظام',
-    'settings.arabicFont.naskh': 'نسخ',
-    'settings.arabicFont.kufi': 'كوفي',
-    'settings.arabicFont.tahoma': 'تاهوما',
-    'settings.section.tashkeel': 'الحركات (التشكيل)',
-    'settings.section.tashkeel.hint':
-      'عند التفعيل، تُخفى الحركات (فتحة، كسرة، ضمّة) افتراضيًّا في القارئ. يمكن إظهارها بزر في الصفحة',
-    'settings.tashkeel.hide_default': 'إخفاء الحركات افتراضيًّا',
-    'settings.section.transliteration': 'الكتابة اللاتينية',
-    'settings.section.transliteration.hint':
-      'إظهار النقحرة اللاتينية بجوار الكلمات العربية',
-    'settings.transliteration.enable': 'إظهار النقحرة للعربية',
-    'settings.saved_toast': 'تم حفظ الإعداد',
-    'settings.save_error_toast': 'تعذّر حفظ الإعداد',
-    'settings.reset_defaults': 'إعادة ضبط جميع الإعدادات',
-    'settings.reset_defaults.hint':
-      'سيُحذف جميع الإعدادات من الخادم وتُستعاد القيم الافتراضية',
-    'settings.reset_confirm': 'إعادة ضبط جميع الإعدادات؟',
-    'settings.reset_confirm.body':
-      'اللغة والمظهر والخطوط وحجم النص والحركات والنقحرة - كلّها ستعود للقيم الافتراضية',
-
     // Settings drawer (لوحة منزلقة - لا يُفقد السياق)
     'settings.drawer.title': 'الإعدادات',
     'settings.drawer.close': 'إغلاق الإعدادات',
@@ -2498,33 +2391,6 @@ export const DICTIONARY = {
     'reader.fonts.pair_label': 'خط الواجهة والعناوين',
     'reader.fonts.open_full': 'كل الإعدادات',
     'reader.fonts.close': 'إغلاق',
-
-    // Settings - bilingual node cards (миграция 44)
-    'settings.section.bilingual': 'الوضع ثنائي اللغة للعقد',
-    'settings.section.bilingual.hint':
-      'يمكن للعقد أن تحتوي على نصّ عربي أصلي وترجمة. اختر طريقة عرض البطاقة. المبدّل متاح أيضًا من نفس البطاقة',
-    'settings.bilingual.original': 'الأصل',
-    'settings.bilingual.translation': 'الترجمة',
-    'settings.bilingual.both': 'الاثنان',
-
-    // Node - bilingual controls
-    'node.bilingual.mode_label': 'وضع العرض',
-    'node.bilingual.mode.original': 'الأصل فقط',
-    'node.bilingual.mode.translation': 'الترجمة فقط',
-    'node.bilingual.mode.both': 'الأصل والترجمة',
-    'node.bilingual.translation_label_in_card': 'الترجمة',
-    'node.bilingual.field.translation': 'الترجمة (اختياري)',
-    'node.bilingual.field.translation_lang': 'لغة الترجمة',
-    'node.bilingual.field.original_lang': 'لغة الأصل',
-    'node.bilingual.lang.ar': 'العربية',
-    'node.bilingual.lang.ru': 'الروسية',
-    'node.bilingual.lang.en': 'الإنجليزية',
-    'node.bilingual.lang.auto': 'تحديد تلقائي',
-    'node.bilingual.toggle_aria': 'تبديل وضع عرض الترجمة',
-
-    // Node - translator attribution (миграция 45)
-    'node.translations.dropdown_label': 'اختيار المترجم',
-    'node.translations.dropdown_anonymous': 'مترجم مجهول',
 
     // Admin page editor (Этап 17.0, ADR-039)
     'admin.page_editor.title': 'محرّر الصفحة',
@@ -2594,8 +2460,6 @@ export const DICTIONARY = {
     'admin.page_editor.highlight.yellow': 'أصفر',
     'admin.page_editor.highlight.purple': 'بنفسجي',
 
-    // Этап 17.0.c - Tashkeel (3 финальных extensions, ADR-039)
-    'admin.page_editor.toolbar.tashkeel': 'التشكيل',
     // Этап 17.0.c - DecoratedHeading
     'admin.page_editor.toolbar.decorated_heading': 'عنوان مزخرف',
     'admin.page_editor.toolbar.decorated_heading_remove': 'إزالة العنوان المزخرف',

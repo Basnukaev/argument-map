@@ -54,7 +54,6 @@ import {
   HIGHLIGHT_COLORS,
   type HighlightColor,
 } from '@/shared/components/editor/extensions/ColorHighlight';
-import { Tashkeel } from '@/shared/components/editor/extensions/Tashkeel';
 import {
   DecoratedHeading,
   HEADING_LEVELS,
@@ -87,7 +86,6 @@ const EDITOR_EXTENSIONS = [
   Marginalia,
   Footnote,
   ColorHighlight,
-  Tashkeel,
   DecoratedHeading,
   PageNumber,
 ];
@@ -367,11 +365,6 @@ function AdminPageEditorPage() {
 
   const removeHighlight = () => {
     editor?.chain().focus().unsetColorHighlight().run();
-  };
-
-  // Tashkeel - простой toggle на выделенном тексте (mark без attrs)
-  const toggleTashkeel = () => {
-    editor?.chain().focus().toggleTashkeel().run();
   };
 
   // DecoratedHeading handlers
@@ -668,13 +661,6 @@ function AdminPageEditorPage() {
             />
           )}
           <ToolbarDivider />
-          {/* Tashkeel */}
-          <ToolbarButton
-            active={isActive('tashkeel')}
-            onClick={toggleTashkeel}
-            icon={<span className="text-xs font-semibold">َِّ</span>}
-            label={t('admin.page_editor.toolbar.tashkeel')}
-          />
           {/* DecoratedHeading */}
           <ToolbarButton
             active={isActive('decoratedHeading')}

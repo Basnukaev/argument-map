@@ -12,13 +12,10 @@ describe('clearUserStorage', () => {
     expect(window.localStorage.getItem('onboarding_dismissed')).toBeNull();
   });
 
-  it('удаляет app.preferences', () => {
-    window.localStorage.setItem(
-      'app.preferences',
-      JSON.stringify({ locale: 'ru' }),
-    );
+  it('НЕ удаляет app.fontPair (device-level pref оформления)', () => {
+    window.localStorage.setItem('app.fontPair', 'manrope-source');
     clearUserStorage();
-    expect(window.localStorage.getItem('app.preferences')).toBeNull();
+    expect(window.localStorage.getItem('app.fontPair')).toBe('manrope-source');
   });
 
   it('НЕ удаляет theme (ambient device pref)', () => {
