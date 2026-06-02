@@ -21,6 +21,10 @@ import java.util.UUID;
  * @param totalHadith число хадисов в сборнике (nullable, заполняется ETL)
  * @param metadata JSONB extensible
  * @param createdAt timestamp
+ * @param bookId nullable FK на lib_books — мост к библиотечному представлению
+ *        сборника (под-проект #3). Лениво заполняется
+ *        {@code BookCollectionBridgeService}; null пока книга-представление
+ *        ещё не создана
  */
 public record Collection(
         UUID id,
@@ -31,6 +35,21 @@ public record Collection(
         UUID compilerNarratorId,
         Integer totalHadith,
         String metadata,
-        Instant createdAt
+        Instant createdAt,
+        UUID bookId
 ) {
+    /**
+     * Backward-compat конструктор без {@code bookId} (9 аргументов) для
+     * существующих call-site'ов (ETL-маппер, seeder, IT-фикстуры) — мост
+     * заполняется отдельно через {@code BookCollectionBridgeService}, поэтому
+     * при создании сборника bookId всегда null.
+     */
+    public Collection(
+            UUID id, String slug, String nameAr, String nameEn, String nameRu,
+            UUID compilerNarratorId, Integer totalHadith, String metadata,
+            Instant createdAt
+    ) {
+        this(id, slug, nameAr, nameEn, nameRu, compilerNarratorId, totalHadith,
+                metadata, createdAt, null);
+    }
 }

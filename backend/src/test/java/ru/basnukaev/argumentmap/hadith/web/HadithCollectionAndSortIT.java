@@ -26,6 +26,11 @@ import ru.basnukaev.argumentmap.hadith.domain.Matn;
 import ru.basnukaev.argumentmap.hadith.repository.CollectionRepository;
 import ru.basnukaev.argumentmap.hadith.repository.HadithRepository;
 import ru.basnukaev.argumentmap.hadith.repository.MatnRepository;
+import ru.basnukaev.argumentmap.hadith.service.BookCollectionBridgeService;
+import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookType;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
+import ru.basnukaev.argumentmap.library.repository.BookRepository;
 
 /**
  * IT: GET /api/v1/hadith/collections (chip-фильтр) + sort param на списке
@@ -51,6 +56,9 @@ class HadithCollectionAndSortIT {
 
     @Autowired
     private MatnRepository matnRepository;
+
+    @Autowired
+    private BookRepository bookRepository;
 
     private UUID collectionId;
 
@@ -119,5 +127,45 @@ class HadithCollectionAndSortIT {
         mockMvc.perform(get("/api/v1/hadith/hadiths?collectionId=" + collectionId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(3));
+    }
+
+    @Test
+    void collections_endpoint_carries_book_id_when_bridged() throws Exception {
+        // под-проект #3: связываем сборник с книгой-представлением
+        UUID bookId = createHadithCollectionBook();
+        collectionRepository.updateBookId(collectionId, bookId);
+
+        mockMvc.perform(get("/api/v1/hadith/collections"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].bookId").value(bookId.toString()));
+    }
+
+    @Test
+    void by_book_reverse_lookup_returns_collection() throws Exception {
+        UUID bookId = createHadithCollectionBook();
+        collectionRepository.updateBookId(collectionId, bookId);
+
+        mockMvc.perform(get("/api/v1/hadith/collections/by-book/" + bookId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(collectionId.toString()))
+                .andExpect(jsonPath("$.slug").value("testcoll"))
+                .andExpect(jsonPath("$.bookId").value(bookId.toString()));
+    }
+
+    @Test
+    void by_book_returns_404_when_book_is_not_a_collection() throws Exception {
+        mockMvc.perform(get("/api/v1/hadith/collections/by-book/" + UUID.randomUUID()))
+                .andExpect(status().isNotFound());
+    }
+
+    /** Книга-представление сборника (как создаёт мост): HADITH_COLLECTION/PUBLIC/system. */
+    private UUID createHadithCollectionBook() {
+        Instant now = Instant.now();
+        Book book = new Book(
+                UUID.randomUUID(), BookType.HADITH_COLLECTION, "Test Coll", null,
+                "ar", null, null, BookCollectionBridgeService.SYSTEM_USER_ID,
+                now, now, null, null, null, null, null, null, BookVisibility.PUBLIC);
+        bookRepository.save(book);
+        return book.id();
     }
 }

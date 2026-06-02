@@ -19,6 +19,7 @@ import ru.basnukaev.argumentmap.hadith.domain.Matn;
 import ru.basnukaev.argumentmap.hadith.repository.CollectionRepository;
 import ru.basnukaev.argumentmap.hadith.repository.HadithRepository;
 import ru.basnukaev.argumentmap.hadith.repository.MatnRepository;
+import ru.basnukaev.argumentmap.hadith.service.BookCollectionBridgeService;
 import ru.basnukaev.argumentmap.hadith.sunnah.etl.SunnahDataSource;
 import ru.basnukaev.argumentmap.hadith.sunnah.etl.dto.SunnahCollectionRow;
 import ru.basnukaev.argumentmap.hadith.sunnah.etl.dto.SunnahHadithRow;
@@ -65,6 +66,7 @@ public class SunnahImportService {
     private final HadithRepository hadithRepository;
     private final MatnRepository matnRepository;
     private final ObjectMapper objectMapper;
+    private final BookCollectionBridgeService bookCollectionBridgeService;
 
     public SunnahImportService(SunnahCollectionDao collectionDao,
                                SunnahBookDao bookDao,
@@ -74,7 +76,8 @@ public class SunnahImportService {
                                CollectionRepository collectionRepository,
                                HadithRepository hadithRepository,
                                MatnRepository matnRepository,
-                               ObjectMapper objectMapper) {
+                               ObjectMapper objectMapper,
+                               BookCollectionBridgeService bookCollectionBridgeService) {
         this.collectionDao = collectionDao;
         this.bookDao = bookDao;
         this.chapterDao = chapterDao;
@@ -84,6 +87,7 @@ public class SunnahImportService {
         this.hadithRepository = hadithRepository;
         this.matnRepository = matnRepository;
         this.objectMapper = objectMapper;
+        this.bookCollectionBridgeService = bookCollectionBridgeService;
     }
 
     /**
@@ -94,7 +98,9 @@ public class SunnahImportService {
      */
     public SunnahMappingResult importCollection(SunnahDataSource source, String collectionName) {
         stageCollection(source, collectionName);
-        return mapper.mapCollection(collectionName);
+        SunnahMappingResult result = mapper.mapCollection(collectionName);
+        ensureLibraryBook(collectionName);
+        return result;
     }
 
     /**
@@ -110,7 +116,9 @@ public class SunnahImportService {
                                             String collectionName, String number) {
         requireHadithInSource(source, collectionName, number);
         stageCollection(source, collectionName);
-        return mapper.mapSingle(collectionName, number);
+        SunnahMappingResult result = mapper.mapSingle(collectionName, number);
+        ensureLibraryBook(collectionName);
+        return result;
     }
 
     /**
@@ -186,6 +194,17 @@ public class SunnahImportService {
     }
 
     // ---- внутреннее ----
+
+    /**
+     * Гарантирует библиотечное представление сборника (под-проект #3). Вызов
+     * ПОСЛЕ коммита маппер-транзакции (по slug резолвится только что
+     * созданный/переиспользованный сборник). Non-fatal: ошибка создания книги
+     * не ломает уже импортированные хадисы — мост ленивый и идемпотентный.
+     */
+    private void ensureLibraryBook(String collectionName) {
+        collectionRepository.findBySlug(collectionName)
+                .ifPresent(bookCollectionBridgeService::ensureLibraryBookForCollectionQuietly);
+    }
 
     private void stageCollection(SunnahDataSource source, String collectionName) {
         List<SunnahCollectionRow> collections = source.readCollections().stream()

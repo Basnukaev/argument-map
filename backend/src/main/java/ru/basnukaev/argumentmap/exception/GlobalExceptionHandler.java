@@ -359,6 +359,15 @@ public class GlobalExceptionHandler {
         return pd;
     }
 
+    @ExceptionHandler(ru.basnukaev.argumentmap.hadith.web.CollectionNotFoundException.class)
+    public ProblemDetail handleCollectionNotFound(
+            ru.basnukaev.argumentmap.hadith.web.CollectionNotFoundException ex) {
+        ProblemDetail pd = problem(HttpStatus.NOT_FOUND,
+                "Сборник хадисов не найден", "collection-not-found", ex.getMessage());
+        pd.setProperty("bookId", ex.getBookId().toString());
+        return pd;
+    }
+
     @ExceptionHandler(InvalidHadithGradeException.class)
     public ProblemDetail handleInvalidHadithGrade(InvalidHadithGradeException ex) {
         return problem(HttpStatus.BAD_REQUEST,

@@ -3201,7 +3201,19 @@ URL hierarchy сохраняет `answerId` под будущую авториз
 
 Список сборников `hd_collections` (под-проект #1, chip-фильтр). Возвращает
 `List<CollectionResponse>` = `{ id, slug, nameAr, nameEn, nameRu, totalHadith
-(заявленный объём), hadithCount (реально импортировано в hd_hadiths) }`.
+(заявленный объём), hadithCount (реально импортировано в hd_hadiths), bookId }`.
+`bookId` (под-проект #3, nullable) — id библиотечного представления сборника в
+`lib_books` (мост `hd_collections.book_id`). Фронт по нему даёт ссылку «открыть
+в библиотеке»; `null` пока книга-представление ещё не создана (лениво при
+импорте сборника, см. ADR ниже).
+
+### GET /api/v1/hadith/collections/by-book/{bookId}
+
+Обратный lookup моста (под-проект #3): по id книги (`lib_books.id`) вернуть
+соответствующий сборник хадисов. Один `CollectionResponse` (та же структура,
+что в списке). **404** `collection-not-found` (`{bookId}`) если книга не
+является представлением сборника. Выбран отдельный endpoint вместо расширения
+`BookDetailResponse` (lower-risk — не трогает контракт книги и его IT).
 
 ### GET /api/v1/hadith/hadiths
 

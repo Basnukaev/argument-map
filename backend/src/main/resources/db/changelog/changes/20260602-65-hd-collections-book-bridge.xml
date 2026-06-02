@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Под-проект #3: мост hd_collections ↔ lib_books — два представления
+        одного сборника. Сборник хадисов (Бухари, Муслим) живёт в
+        hd_collections (домен хадисов: иснад-граф, hd_hadiths/hd_matns) и
+        ОДНОВРЕМЕННО должен просматриваться как книга библиотеки (lib_books
+        с book_type=HADITH_COLLECTION). Мостовой FK hd_collections.book_id
+        делает навигацию между двумя представлениями возможной.
+
+        Решение (ADR в docs/decisions.md):
+          - Bridge FK на hd_collections (не на lib_books): сборник — primary,
+            книга — lazy-производное представление. ON DELETE SET NULL —
+            удаление книги-представления не сносит сам сборник.
+          - Никакой data-migration: book_id NULL во всём текущем seed'е,
+            заполняется лениво при импорте/обращении (BookCollectionBridgeService).
+          - book_type=HADITH_COLLECTION уже существует в CHECK constraint
+            lib_books (миграция 16) — новый тип НЕ нужен.
+
+        Системный пользователь (00000000-0000-0000-0000-000000000002):
+          lib_books.created_by NOT NULL + FK к users. Sunnah-импорт —
+          системный процесс без актора (в отличие от shamela-импорта, который
+          берёт created_by из @CurrentUser админа). Сеем фиксированного
+          системного пользователя как владельца книг-представлений сборников.
+          enabled=FALSE + password_hash=NULL — логин невозможен (служебная
+          запись, не реальный аккаунт). Идемпотентный insert (ON CONFLICT).
+    -->
+    <changeSet id="20260602-65-hd-collections-book-bridge" author="Abdula Basnukaev">
+        <comment>Мост hd_collections.book_id → lib_books + системный пользователь для книг-представлений сборников</comment>
+        <sql><![CDATA[
+            INSERT INTO users (id, username, email, password_hash, role, enabled, created_at, updated_at)
+            VALUES (
+                '00000000-0000-0000-0000-000000000002',
+                'system',
+                'system@argumentmap.local',
+                NULL,
+                'ADMIN',
+                FALSE,
+                now(),
+                now()
+            )
+            ON CONFLICT (id) DO NOTHING;
+
+            ALTER TABLE hd_collections
+                ADD COLUMN book_id uuid NULL REFERENCES lib_books(id) ON DELETE SET NULL;
+            CREATE INDEX idx_hd_collections_book ON hd_collections(book_id);
+        ]]></sql>
+        <rollback><![CDATA[
+            DROP INDEX idx_hd_collections_book;
+            ALTER TABLE hd_collections DROP COLUMN book_id;
+            DELETE FROM users WHERE id = '00000000-0000-0000-0000-000000000002';
+        ]]></rollback>
+    </changeSet>
+
+</databaseChangeLog>

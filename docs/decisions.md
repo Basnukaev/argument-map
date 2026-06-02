@@ -5975,3 +5975,78 @@ signal на community-уровне), граф остаётся экспертн�
 
 **Связанные:** миграция 38 (исходное node-voting, отменено), ADR-043
 (permission-модель — read→vote), ADR-016 (агрегаты в TopicResponse).
+
+## ADR-054: Мост hd_collections ↔ lib_books — два представления одного сборника (под-проект #3)
+
+**Контекст.** Сборник хадисов (Бухари, Муслим) живёт в `hd_collections`
+(домен хадисов: иснад-граф, `hd_hadiths`/`hd_matns`, оценки учёных). По
+ADR-050 это намеренно отдельная сущность, *не* `lib_books`. Но тот же
+сборник пользователь должен мочь открыть и как книгу библиотеки
+(`lib_books`, book_type=HADITH_COLLECTION) — пролистать, читать в
+BookReader. Нужна навигация между двумя представлениями в обе стороны.
+
+**Решение.** Мостовой FK `hd_collections.book_id → lib_books(id)` +
+ленивое создание книги-представления.
+
+- **Миграция 65** `ALTER TABLE hd_collections ADD COLUMN book_id uuid NULL
+  REFERENCES lib_books(id) ON DELETE SET NULL` + индекс. FK на стороне
+  `hd_collections` (сборник — primary, книга — производное представление);
+  `ON DELETE SET NULL` — удаление книги-представления не сносит сам
+  сборник. Никакой data-migration: `book_id` NULL во всём текущем seed'е.
+- **`book_type=HADITH_COLLECTION` уже существует** в CHECK constraint
+  `lib_books` (миграция 16) — новый тип НЕ добавляли. (В задании
+  упоминался «HADITH», но семантически корректное существующее значение —
+  `HADITH_COLLECTION`.)
+- **Системный пользователь** `00000000-0000-0000-0000-000000000002`
+  (seed в миграции 65, идемпотентный `ON CONFLICT`). `lib_books.created_by`
+  NOT NULL + FK к `users`; sunnah-импорт — системный процесс без актора
+  (в отличие от shamela-импорта, берущего `created_by` из `@CurrentUser`
+  админа). Системный пользователь: ADMIN, `enabled=FALSE`,
+  `password_hash=NULL` — логин невозможен, чисто служебная запись-владелец.
+  Не зависим от `DevUserSeeder` (он только local/dev — в тестах его нет;
+  системный юзер из миграции есть во всех профилях).
+- **`BookCollectionBridgeService.ensureLibraryBookForCollection`** —
+  ленивый идемпотентный мост (зеркалит
+  `HadithCitationService.ensureSourceForHadith`): если `book_id` уже
+  выставлен — вернуть его, иначе создать `lib_books`
+  (HADITH_COLLECTION, title nameRu→nameAr→slug, visibility=PUBLIC как у
+  shamela-книг, created_by=system) и проставить `hd_collections.book_id`.
+- **Точка интеграции** — `SunnahImportService.importCollection` /
+  `importSingle`, ПОСЛЕ коммита маппер-транзакции (не внутри неё). Так
+  ошибка создания книги не откатывает уже импортированные хадисы. Обёрнут
+  в `ensureLibraryBookForCollectionQuietly` (non-fatal: log.warn,
+  проглатывает RuntimeException — мост ленивый/идемпотентный, достроится
+  на следующем прогоне).
+- **Контракты в обе стороны:**
+  - Прямая: `CollectionResponse.bookId` (nullable) в
+    `GET /api/v1/hadith/collections` + `/by-book/{bookId}` — фронт даёт
+    ссылку «открыть в библиотеке».
+  - Обратная: `GET /api/v1/hadith/collections/by-book/{bookId}` →
+    `CollectionResponse` или 404 `collection-not-found`. Через
+    `CollectionRepository.findByBookId`.
+
+**Альтернатива (отвергнута): расширить `BookDetailResponse`/`BookResponse`
+полями `collectionId`/`collectionSlug`.** Инвазивно — трогает контракт
+книги и его многочисленные IT (49 `new Book(...)` фикстур + BookController
+IT). Отдельный read-only endpoint `by-book` — lower-risk и изолирован в
+hadith-домене.
+
+**Альтернатива (отвергнута): FK на стороне `lib_books`
+(`lib_books.collection_id`).** Размыл бы library-домен hadith-специфичным
+полем; book — производное представление, primary — сборник, поэтому мост
+естественнее держать на `hd_collections`.
+
+**Альтернатива (отвергнута): брать `created_by` = «первый ADMIN» в
+рантайме.** Fragile (может не быть админа на свежей БД), недетерминированно.
+Фиксированный системный юзер из миграции работает одинаково во всех
+профилях.
+
+**Trade-offs:** + навигация книга↔сборник в обе стороны, переиспользован
+ленивый-мост паттерн (как у Source↔Hadith), import не ломается при сбое
+создания книги; − книга-представление пока «тонкая» (без `lib_pages` —
+страницы хадисов живут в `hd_*`, не в library-pages); рендер сборника в
+BookReader как полноценной книги — отдельная задача (backlog).
+
+**Связанные:** ADR-050 (выделенная `hd_collections`), ADR-052 (sunnah
+import), ADR-028 (мост Source для citation — тот же ленивый паттерн),
+ADR-043 Amendment (book visibility default PUBLIC).

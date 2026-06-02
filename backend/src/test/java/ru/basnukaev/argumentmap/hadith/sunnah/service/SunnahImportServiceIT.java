@@ -3,6 +3,7 @@ package ru.basnukaev.argumentmap.hadith.sunnah.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,7 +27,12 @@ import ru.basnukaev.argumentmap.hadith.domain.Matn;
 import ru.basnukaev.argumentmap.hadith.repository.CollectionRepository;
 import ru.basnukaev.argumentmap.hadith.repository.HadithRepository;
 import ru.basnukaev.argumentmap.hadith.repository.MatnRepository;
+import ru.basnukaev.argumentmap.hadith.service.BookCollectionBridgeService;
 import ru.basnukaev.argumentmap.hadith.sunnah.etl.SunnahDumpReader;
+import ru.basnukaev.argumentmap.library.domain.Book;
+import ru.basnukaev.argumentmap.library.domain.BookType;
+import ru.basnukaev.argumentmap.library.domain.BookVisibility;
+import ru.basnukaev.argumentmap.library.repository.BookRepository;
 
 /**
  * End-to-end IT пилотного конвейера Phase 5: MySQL-дамп sunnah.com → reader →
@@ -56,6 +62,9 @@ class SunnahImportServiceIT {
     private MatnRepository matnRepository;
 
     @Autowired
+    private BookRepository bookRepository;
+
+    @Autowired
     private ObjectMapper objectMapper;
 
     @Autowired
@@ -69,6 +78,9 @@ class SunnahImportServiceIT {
         jdbcTemplate.update("DELETE FROM hd_sanads");
         jdbcTemplate.update("DELETE FROM hd_matns");
         jdbcTemplate.update("DELETE FROM hd_hadiths");
+        // под-проект #3: сначала развязать мост, потом снести книги-представления
+        jdbcTemplate.update("UPDATE hd_collections SET book_id = NULL");
+        jdbcTemplate.update("DELETE FROM lib_books WHERE book_type = 'HADITH_COLLECTION'");
         jdbcTemplate.update("DELETE FROM hd_collections");
         jdbcTemplate.update("DELETE FROM hd_narrators");
         jdbcTemplate.update("DELETE FROM sn_staging_hadith");
@@ -155,6 +167,46 @@ class SunnahImportServiceIT {
         return hadiths.stream()
                 .filter(h -> Integer.valueOf(primaryNumber).equals(h.primaryNumber()))
                 .findFirst().orElseThrow();
+    }
+
+    @Test
+    void import_creates_library_book_representation_and_sets_bridge() {
+        // под-проект #3: импорт сборника создаёт его представление в lib_books
+        // и проставляет hd_collections.book_id
+        importService.importCollection(reader, "bukhari");
+
+        Collection c = collectionRepository.findBySlug("bukhari").orElseThrow();
+        assertThat(c.bookId()).isNotNull();
+
+        Book book = bookRepository.findById(c.bookId()).orElseThrow();
+        assertThat(book.bookType()).isEqualTo(BookType.HADITH_COLLECTION);
+        assertThat(book.visibility()).isEqualTo(BookVisibility.PUBLIC);
+        assertThat(book.createdBy()).isEqualTo(BookCollectionBridgeService.SYSTEM_USER_ID);
+        assertThat(book.title()).isEqualTo("صحيح البخاري");
+    }
+
+    @Test
+    void bridge_is_idempotent_across_reruns_no_duplicate_book() {
+        importService.importCollection(reader, "bukhari");
+        UUID firstBookId = collectionRepository.findBySlug("bukhari").orElseThrow().bookId();
+
+        importService.importCollection(reader, "bukhari");
+        UUID secondBookId = collectionRepository.findBySlug("bukhari").orElseThrow().bookId();
+
+        assertThat(secondBookId).isEqualTo(firstBookId);
+        Integer hadithBooks = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM lib_books WHERE book_type = 'HADITH_COLLECTION'",
+                Integer.class);
+        assertThat(hadithBooks).isEqualTo(1);
+    }
+
+    @Test
+    void reverse_lookup_resolves_collection_from_book() {
+        importService.importCollection(reader, "bukhari");
+        Collection c = collectionRepository.findBySlug("bukhari").orElseThrow();
+
+        Collection viaBook = collectionRepository.findByBookId(c.bookId()).orElseThrow();
+        assertThat(viaBook.id()).isEqualTo(c.id());
     }
 
     @Test
