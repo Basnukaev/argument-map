@@ -141,8 +141,10 @@ describe('BookListPage / Library overview', () => {
     expect(link).toHaveAttribute('href', '/books/b2');
     // HADITH_COLLECTION (под-проект #2.B) - не link в ридер, а кнопка-обозреватель
     expect(screen.queryByRole('link', { name: /صحيح البخاري/i })).not.toBeInTheDocument();
+    // a11y: aria-label кнопки title-qualified (название сборника + действие),
+    // чтобы accessible name отличался между карточками
     expect(
-      screen.getByRole('button', { name: /Открыть в обозревателе хадисов/i }),
+      screen.getByRole('button', { name: /صحيح البخاري — Открыть в обозревателе хадисов/i }),
     ).toBeInTheDocument();
   });
 

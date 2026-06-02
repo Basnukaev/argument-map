@@ -76,7 +76,6 @@ function VoteWidget({
   useEffect(() => {
     if (prevPropsRef.current.score !== score || prevPropsRef.current.userVote !== userVote) {
       prevPropsRef.current = { score, userVote };
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocal({ score, userVote });
     }
   }, [score, userVote]);

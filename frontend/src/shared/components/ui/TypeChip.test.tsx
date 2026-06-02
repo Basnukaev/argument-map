@@ -18,13 +18,17 @@ describe('TypeChip', () => {
 
   it('применяет классы размера md по умолчанию', () => {
     render(<TypeChip type="CLAIM" />);
-    // md = h-6
-    expect(screen.getByTestId('type-chip').className).toContain('h-6');
+    // md = px-2.5 py-1 (padding-based sizing вместо фикс. h-6 — даёт отступ
+    // тексту со всех сторон, не касается границ chip)
+    expect(screen.getByTestId('type-chip').className).toContain('px-2.5');
+    expect(screen.getByTestId('type-chip').className).toContain('py-1');
   });
 
-  it('size=sm меняет классы высоты', () => {
+  it('size=sm меняет классы размера', () => {
     render(<TypeChip type="CLAIM" size="sm" />);
-    expect(screen.getByTestId('type-chip').className).toContain('h-5');
+    // sm = px-2 py-1 (уже md)
+    expect(screen.getByTestId('type-chip').className).toContain('px-2');
+    expect(screen.getByTestId('type-chip').className).toContain('py-1');
   });
 
   it('uppercase + tracking - семантика акцента типа', () => {

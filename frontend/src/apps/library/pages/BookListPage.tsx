@@ -826,7 +826,7 @@ function BookCard({
           type="button"
           onClick={() => onOpenHadithCollection(book.id)}
           disabled={resolving}
-          aria-label={t('book.open_hadith_explorer')}
+          aria-label={`${title} — ${t('book.open_hadith_explorer')}`}
           title={t('book.open_hadith_explorer')}
           className="group block h-full w-full text-start focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bg rounded-md disabled:cursor-wait"
         >
