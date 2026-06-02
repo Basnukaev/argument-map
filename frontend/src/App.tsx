@@ -43,6 +43,7 @@ const BookReaderPage = lazy(() => import('@/apps/library/pages/BookReaderPage'))
 const AdminDashboardPage = lazy(() => import('@/apps/admin/pages/AdminDashboardPage'));
 const AdminShamelaPage = lazy(() => import('@/apps/admin/pages/AdminShamelaPage'));
 const AdminSunnahPage = lazy(() => import('@/apps/admin/pages/AdminSunnahPage'));
+const AdminArchiveOrgPage = lazy(() => import('@/apps/admin/pages/AdminArchiveOrgPage'));
 const AdminPageEditorPage = lazy(() => import('@/apps/admin/pages/AdminPageEditorPage'));
 const AdminAuditPage = lazy(() => import('@/apps/admin/pages/AdminAuditPage'));
 const QuestionListPage = lazy(() => import('@/apps/qa/pages/QuestionListPage'));
@@ -199,6 +200,14 @@ function App() {
             element={
               <ProtectedRoute requireRole="ADMIN">
                 <AdminSunnahPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/archive-org"
+            element={
+              <ProtectedRoute requireRole="ADMIN">
+                <AdminArchiveOrgPage />
               </ProtectedRoute>
             }
           />

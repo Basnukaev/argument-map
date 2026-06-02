@@ -4,6 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   BookOpen,
   FileUp,
+  Globe,
   Library,
   ScrollText,
   ShieldCheck,
@@ -71,6 +72,15 @@ const CONTENT_CARDS: ReadonlyArray<ToolCard> = [
     producesKey: 'admin.dashboard.sunnah.produces',
     ctaKey: 'admin.dashboard.sunnah.cta',
     action: { kind: 'navigate', to: '/admin/sunnah' },
+  },
+  {
+    id: 'archiveorg',
+    icon: Globe,
+    titleKey: 'admin.dashboard.archiveorg.title',
+    descKey: 'admin.dashboard.archiveorg.desc',
+    producesKey: 'admin.dashboard.archiveorg.produces',
+    ctaKey: 'admin.dashboard.archiveorg.cta',
+    action: { kind: 'navigate', to: '/admin/archive-org' },
   },
   {
     id: 'alminasa',
