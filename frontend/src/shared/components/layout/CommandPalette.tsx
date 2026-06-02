@@ -191,7 +191,7 @@ function CommandPaletteBody({ onClose }: { onClose: () => void }) {
       role="dialog"
       aria-modal="true"
       aria-label={t('palette.aria')}
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 px-4 pt-[15vh] backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 pt-[15vh]"
       onClick={onClose}
     >
       <div
