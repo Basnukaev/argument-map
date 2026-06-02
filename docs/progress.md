@@ -32,11 +32,16 @@ preview + gap-aware enrichment + выбор обложки/томов). Brainsto
 - **Live-smoke прошёл**: `/admin/archive-org/preview?url=...fmhji` → реальные
   метаданные, title+language=archive_org, остальное=missing (как задумано).
 
-### Следующий шаг (итерации archive.org, в тестовой эксплуатации)
-Полное фоновое извлечение всех томов (+Tesseract scan-only); **`BookResponse.coverUrl`
-+ рендер обложки на карточке/reader** (backend SET'ит cover_url, но не отдаёт —
-мелкий backend follow-up); volume-dropdown в reader; eager-download UI; relabel/
-reassign томов в preview; парсинг arabic description для publisher/year/volumes;
+### Следующий шаг (итерации archive.org)
+**СДЕЛАНО (батч 6):** ✅ обложки — `coverUrl` в Book/BookResponse/Summary/Detail +
+рендер `<img>` на карточке (fallback letter-avatar при null/404) + thumbnail в
+reader-шапке; ✅ парсинг arabic `description` (`ArchiveOrgDescriptionParser`) —
+author/publisher/год(hijri+greg)/тома/издание из текста → gap-поля стали
+`archive_org` (fmhji парсит всё). migration 67.
+**ОСТАЁТСЯ (итерации, в тестовой эксплуатации):** полное фоновое извлечение всех
+томов (+Tesseract scan-only — сейчас sync за `extractText`/`testModePages`);
+volume-dropdown в reader; eager-download UI; relabel/reassign томов в preview
+(нужен `ImportRequest.fileMapping` — backend); place/muhaqqiq split из description;
 provenance-enrichment как общий паттерн для shamela/sunnah/alminasa. Детали — спека §10.
 
 ## 2026-06-02 - Сессия 54 (батч 4) - «го дальше»: hd_collections UI + shamela guard + review + зелёный CI
