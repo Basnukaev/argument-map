@@ -500,10 +500,13 @@ function MinimapCard({
         </button>
       </div>
 
-      {/* Canvas area (150px) */}
+      {/* Canvas area (150px). overflow-hidden клиппит viewport-rect / узлы /
+          рёбра строго в границах карты — при сильном zoom-out синий
+          прямоугольник вьюпорта раздувается, но больше не наезжает на
+          header («ОБЗОР») сверху и footer («99%» / счётчик) снизу. */}
       <div
         ref={canvasRef}
-        className="relative cursor-pointer"
+        className="relative cursor-pointer overflow-hidden"
         style={{
           height: CANVAS_H,
           backgroundColor: 'var(--bg-canvas)',

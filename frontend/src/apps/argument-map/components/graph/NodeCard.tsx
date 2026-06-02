@@ -88,7 +88,7 @@ function NodeCard({ data, selected }: NodeProps<NodeCardNode>) {
       <Handle type="source" position={Position.Left} id="left" className={handleClass} />
 
       <div className="pl-4 pr-3 py-3">
-        <div className="mb-1.5 flex items-center gap-2">
+        <div className="mb-2.5 flex items-center gap-2">
           <TypeChip type={nodeType} size="sm" />
           <span className="flex-1" />
           <StatusBadge status={status} size="sm" />

@@ -9,9 +9,13 @@ interface Props {
   className?: string;
 }
 
+// Вертикальный размер задаём через py-*, а не фиксированный h-*, чтобы текст
+// не упирался в границы плашки (баг: метка касалась краёв rect). px/py дают
+// гарантированный отступ внутри chip со всех сторон. leading-none убирает
+// лишний line-box у uppercase-текста.
 const SIZE_CLASSES: Record<Size, string> = {
-  sm: 'h-5 px-1.5 text-xs gap-1 rounded',
-  md: 'h-6 px-2 text-xs gap-1 rounded',
+  sm: 'px-2 py-1 text-xs gap-1 leading-none rounded',
+  md: 'px-2.5 py-1 text-xs gap-1.5 leading-none rounded',
 };
 
 const ICON_SIZE: Record<Size, number> = { sm: 11, md: 12 };

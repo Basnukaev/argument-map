@@ -7,7 +7,7 @@ import {
   X,
   Ban,
   ChevronsRight,
-  Reply,
+  CornerDownRight,
   type LucideIcon,
 } from 'lucide-react';
 import type { components } from '@/shared/api/types';
@@ -173,5 +173,9 @@ export const EDGE_TYPE_META: Record<
   REFUTES: { labelKey: 'edge.type.REFUTES', hintKey: 'edge.type.REFUTES.hint', Icon: X, colorClass: 'text-edge-refutes' },
   INVALIDATES: { labelKey: 'edge.type.INVALIDATES', hintKey: 'edge.type.INVALIDATES.hint', Icon: Ban, colorClass: 'text-edge-refutes' },
   QUALIFIES: { labelKey: 'edge.type.QUALIFIES', hintKey: 'edge.type.QUALIFIES.hint', Icon: ChevronsRight, colorClass: 'text-edge-qualifies' },
-  RESPONDS_TO: { labelKey: 'edge.type.RESPONDS_TO', hintKey: 'edge.type.RESPONDS_TO.hint', Icon: Reply, colorClass: 'text-edge-responds' },
+  // Иконка должна совпадать с визуальным направлением ребра source→target
+  // (слева-направо). Reply (↩, влево) противоречил потоку и путал кто кому
+  // отвечает — заменён на CornerDownRight (↳, вперёд): сохраняет «ответ»-
+  // семантику, но указывает по направлению ребра, а не против него.
+  RESPONDS_TO: { labelKey: 'edge.type.RESPONDS_TO', hintKey: 'edge.type.RESPONDS_TO.hint', Icon: CornerDownRight, colorClass: 'text-edge-responds' },
 };
