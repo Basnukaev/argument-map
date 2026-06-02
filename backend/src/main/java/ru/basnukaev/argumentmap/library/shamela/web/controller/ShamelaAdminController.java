@@ -10,6 +10,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import ru.basnukaev.argumentmap.auth.domain.UserRole;
+import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
+import ru.basnukaev.argumentmap.exception.AdminOnlyException;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaAuthorDao;
 import ru.basnukaev.argumentmap.library.shamela.repository.ShamelaBookDao;
@@ -36,10 +39,13 @@ import ru.basnukaev.argumentmap.web.dto.PagedResponse;
 /**
  * Admin REST endpoints для shamela ETL pipeline (Этап 15.6).
  *
- * <p>На MVP - без role-check авторизации. {@link CurrentUser} только
- * для получения user-id (передаётся в {@code mapBook} как
- * {@code created_by} в {@code lib_books}). Spring Security + admin
- * role появятся в Этапе 20.
+ * <p><b>ADMIN-only</b> (консистентно с {@code SunnahAdminController} и
+ * audit admin endpoint): все endpoints проверяют role через
+ * {@link #requireAdmin()} - non-ADMIN authenticated user → 403
+ * {@code forbidden-admin-only}, anonymous → 401 (через {@link CurrentUser}
+ * резолвер на mutating endpoints). {@link CurrentUser} в {@code mapBook}
+ * дополнительно нужен для получения user-id (передаётся как
+ * {@code created_by} в {@code lib_books}).
  *
  * <p>{@code POST} операции - синхронные. {@code sync-master} может
  * занять до минуты при первом полном sync, {@code import-book} ~5с
@@ -95,6 +101,7 @@ public class ShamelaAdminController {
      */
     @PostMapping("/sync-master")
     public SyncMasterResponse syncMaster() {
+        requireAdmin();
         MasterSyncResult result = masterSyncService.syncMaster();
         return ShamelaAdminMappers.toResponse(result);
     }
@@ -106,6 +113,7 @@ public class ShamelaAdminController {
      */
     @PostMapping("/import-book/{bookId}")
     public ImportBookResponse importBook(@PathVariable long bookId) {
+        requireAdmin();
         requirePositiveBookId(bookId);
         BookImportResult result = bookImportService.importBook(bookId);
         return ShamelaAdminMappers.toResponse(result);
@@ -122,6 +130,7 @@ public class ShamelaAdminController {
     @PostMapping("/map-book/{bookId}")
     public MapBookResponse mapBook(@PathVariable long bookId,
                                    @CurrentUser UUID currentUserId) {
+        requireAdmin();
         requirePositiveBookId(bookId);
         MappedBookResult result = mapper.mapBook(bookId, currentUserId);
         return ShamelaAdminMappers.toResponse(result);
@@ -144,6 +153,7 @@ public class ShamelaAdminController {
     public List<StagingBookSearchResponse> searchBooks(
             @RequestParam("q") String query,
             @RequestParam(value = "limit", required = false) Integer limit) {
+        requireAdmin();
         if (query == null || query.isBlank()) {
             throw new IllegalArgumentException(
                     "параметр q обязателен и не должен быть пустым");
@@ -175,8 +185,8 @@ public class ShamelaAdminController {
      * по релевантности+id при поиске).
      *
      * <p>Авторизация консистентна с остальными admin-endpoint этого
-     * контроллера (sync-master/import-book/search) - на MVP без role-check
-     * (см. class-level javadoc; Spring Security admin-role - future task).
+     * контроллера (sync-master/import-book/search) - ADMIN-only через
+     * {@link #requireAdmin()} (см. class-level javadoc).
      *
      * @param page - 0-based номер страницы (default 0)
      * @param size - размер страницы (default 20, max 100 - clamp в PageRequest)
@@ -187,6 +197,7 @@ public class ShamelaAdminController {
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size,
             @RequestParam(value = "q", required = false) String q) {
+        requireAdmin();
         PageRequest pr = PageRequest.from(page, size);
         List<StagingBookSearchResponse> items = shamelaBookDao
                 .findPage(q, pr.size(), pr.offset()).stream()
@@ -218,6 +229,7 @@ public class ShamelaAdminController {
      */
     @PostMapping("/backfill-bibliography")
     public BackfillBibliographyResponse backfillBibliography() {
+        requireAdmin();
         ShamelaBibliographyBackfillService.BackfillResult result =
                 backfillService.backfillAll();
         return new BackfillBibliographyResponse(
@@ -234,6 +246,7 @@ public class ShamelaAdminController {
      */
     @GetMapping("/sync-status")
     public SyncStatusResponse syncStatus() {
+        requireAdmin();
         return new SyncStatusResponse(
                 syncStateDao.getMasterVersion(),
                 syncStateDao.getLastSyncedAt().orElse(null),
@@ -242,6 +255,20 @@ public class ShamelaAdminController {
                 shamelaBookDao.countAll(),
                 bookRepository.countMappedFromShamela()
         );
+    }
+
+    /**
+     * Гвард ADMIN-only (mirror {@code SunnahAdminController#requireAdmin}).
+     * Non-ADMIN authenticated user → 403 {@code forbidden-admin-only}.
+     * Anonymous traffic в dev/test (permitAll) трактуется как USER через
+     * {@link SecurityContextUtils#currentRoleOrAnonymous()} (least-privilege),
+     * поэтому тоже получает 403; на mutating endpoints с {@link CurrentUser}
+     * anonymous отсекается раньше резолвером → 401.
+     */
+    private static void requireAdmin() {
+        if (!UserRole.ADMIN.equals(SecurityContextUtils.currentRoleOrAnonymous())) {
+            throw new AdminOnlyException(SecurityContextUtils.currentUserIdOrNull());
+        }
     }
 
     private static void requirePositiveBookId(long bookId) {

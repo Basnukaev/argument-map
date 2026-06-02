@@ -90,10 +90,11 @@ shamela sync category.sqlite зависит от живого shamela.ws (env). 
 
 ### Проблемы / known
 
-- **shamela-admin endpoints без role-check** («на MVP») — pre-existing
-  security-гэп (Sunnah-admin наоборот ADMIN-only). Frontend AdminRoute гейтит
-  UI, но backend endpoints не ADMIN-gated. **Backlog: добавить ADMIN-guard на
-  всю shamela-admin группу** (consistency с Sunnah).
+- ~~**shamela-admin endpoints без role-check** («на MVP») — pre-existing
+  security-гэп (Sunnah-admin наоборот ADMIN-only).~~ **ЗАКРЫТО 2026-06-02:**
+  все 7 shamela-admin endpoint теперь ADMIN-only (`requireAdmin()` mirror Sunnah;
+  non-admin→403 forbidden-admin-only, anonymous на map-book→401). Consistency
+  с Sunnah-admin восстановлена.
 - bulkActions d3-drag uncaught-шум (pre-existing, тесты проходят).
 
 ### Следующий шаг

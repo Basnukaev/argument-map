@@ -222,8 +222,9 @@ title-weight ар, импорт-страницы показывают конте
    НЕ начат** (архитектурно). Рекомендация: FK `hd_collections.book_id →
    lib_books(id)` + UI кросс-линки (сборник в библиотеке как книга, иснады/хадисы
    как hd-представление). Детали — progress.md «Следующий шаг» батч 2. ~1 сессия.
-2. **Backlog SECURITY:** shamela-admin endpoints без role-check («на MVP») —
-   добавить ADMIN-guard на всю группу (Sunnah-admin уже ADMIN-only — consistency).
+2. **Backlog SECURITY — СДЕЛАНО:** shamela-admin endpoints теперь ADMIN-only
+   (все 7 endpoint, `requireAdmin()` mirror Sunnah; non-admin→403 forbidden-admin-only;
+   `ShamelaAdminControllerIT` 32/32). Consistency с Sunnah-admin закрыта.
 3. **Визуальная проверка руками** на :5173 — playwright env-blocked (нет Chromium).
    Особо: масштаб 0.9 (откат «Стандартный»); все редизайны батча 1; голоса
    тем/вопросов/ответов (клик НЕ должен разлогинивать — баг починен); импорт-

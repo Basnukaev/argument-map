@@ -1,5 +1,6 @@
 package ru.basnukaev.argumentmap.library.shamela.web;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -93,6 +94,7 @@ class ShamelaAdminControllerIT {
     private static final String SEARCH_QUERY_BUKHARI = "1681";
 
     private UUID testUserId;
+    private UUID nonAdminUserId;
 
     @BeforeEach
     void cleanup() {
@@ -107,10 +109,17 @@ class ShamelaAdminControllerIT {
         jdbcTemplate.update("DELETE FROM lib_shamela_category");
         jdbcTemplate.update(
                 "UPDATE lib_shamela_sync_state SET master_version = 0, last_synced_at = NULL WHERE id = 1");
+        // ADMIN-only гвард (security-gap fix): все endpoints требуют ADMIN.
+        // testUserId - ADMIN, передаётся X-User-Id на всех happy-path запросах.
         testUserId = UUID.randomUUID();
         jdbcTemplate.update(
-                "INSERT INTO users (id, username, email) VALUES (?, ?, ?) ON CONFLICT (id) DO NOTHING",
+                "INSERT INTO users (id, username, email, role) VALUES (?, ?, ?, 'ADMIN') ON CONFLICT (id) DO NOTHING",
                 testUserId, "admin-it-" + testUserId, testUserId + "@test.local"
+        );
+        nonAdminUserId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email, role) VALUES (?, ?, ?, 'USER') ON CONFLICT (id) DO NOTHING",
+                nonAdminUserId, "user-it-" + nonAdminUserId, nonAdminUserId + "@test.local"
         );
     }
 
@@ -121,7 +130,8 @@ class ShamelaAdminControllerIT {
         when(masterSyncService.syncMaster()).thenReturn(
                 MasterSyncResult.synced(0, 1261, 50, 25_000, 8500));
 
-        mockMvc.perform(post("/api/v1/admin/shamela/sync-master"))
+        mockMvc.perform(post("/api/v1/admin/shamela/sync-master")
+                        .header("X-User-Id", testUserId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.changed").value(true))
                 .andExpect(jsonPath("$.previousVersion").value(0))
@@ -135,7 +145,8 @@ class ShamelaAdminControllerIT {
     void syncMaster_returns_200_with_unchanged_when_version_same() throws Exception {
         when(masterSyncService.syncMaster()).thenReturn(MasterSyncResult.unchanged(1261));
 
-        mockMvc.perform(post("/api/v1/admin/shamela/sync-master"))
+        mockMvc.perform(post("/api/v1/admin/shamela/sync-master")
+                        .header("X-User-Id", testUserId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.changed").value(false))
                 .andExpect(jsonPath("$.currentVersion").value(1261))
@@ -147,7 +158,8 @@ class ShamelaAdminControllerIT {
         when(masterSyncService.syncMaster()).thenThrow(
                 new ShamelaApiException("HTTP 503 от dev.shamela.ws"));
 
-        mockMvc.perform(post("/api/v1/admin/shamela/sync-master"))
+        mockMvc.perform(post("/api/v1/admin/shamela/sync-master")
+                        .header("X-User-Id", testUserId.toString()))
                 .andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.title").value("shamela API недоступна"))
                 .andExpect(jsonPath("$.detail").value("HTTP 503 от dev.shamela.ws"));
@@ -160,7 +172,8 @@ class ShamelaAdminControllerIT {
         when(bookImportService.importBook(BOOK_ID_SAHIH_AL_BUKHARI))
                 .thenReturn(new BookImportResult(BOOK_ID_SAHIH_AL_BUKHARI, 4, 320, 18));
 
-        mockMvc.perform(post("/api/v1/admin/shamela/import-book/41557"))
+        mockMvc.perform(post("/api/v1/admin/shamela/import-book/41557")
+                        .header("X-User-Id", testUserId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.bookId").value(41557))
                 .andExpect(jsonPath("$.majorRelease").value(4))
@@ -175,7 +188,8 @@ class ShamelaAdminControllerIT {
         when(bookImportService.importBook(BOOK_ID_NOT_FOUND)).thenThrow(
                 new ShamelaNotFoundException("книга id=99999 не найдена"));
 
-        mockMvc.perform(post("/api/v1/admin/shamela/import-book/99999"))
+        mockMvc.perform(post("/api/v1/admin/shamela/import-book/99999")
+                        .header("X-User-Id", testUserId.toString()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.title").value("Запись shamela не найдена"))
                 .andExpect(jsonPath("$.detail").value("книга id=99999 не найдена"));
@@ -185,10 +199,12 @@ class ShamelaAdminControllerIT {
     void importBook_returns_400_on_non_positive_id() throws Exception {
         // T-06 audit: 1 happy + 1 error per validation case. Покрываем
         // -1 и 0 в одном тесте - requirePositiveBookId одинаково обрабатывает
-        mockMvc.perform(post("/api/v1/admin/shamela/import-book/-1"))
+        mockMvc.perform(post("/api/v1/admin/shamela/import-book/-1")
+                        .header("X-User-Id", testUserId.toString()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Некорректный аргумент"));
-        mockMvc.perform(post("/api/v1/admin/shamela/import-book/0"))
+        mockMvc.perform(post("/api/v1/admin/shamela/import-book/0")
+                        .header("X-User-Id", testUserId.toString()))
                 .andExpect(status().isBadRequest());
 
         verify(bookImportService, never()).importBook(anyLong());
@@ -198,7 +214,8 @@ class ShamelaAdminControllerIT {
 
     @Test
     void mapBook_returns_200_with_body_on_success() throws Exception {
-        UUID userId = UUID.randomUUID();
+        // created_by = ADMIN user (header передаётся как @CurrentUser)
+        UUID userId = testUserId;
         UUID bookUuid = UUID.randomUUID();
         UUID authorityUuid = UUID.randomUUID();
         when(mapper.mapBook(eq(BOOK_ID_SAHIH_AL_BUKHARI), eq(userId)))
@@ -218,7 +235,7 @@ class ShamelaAdminControllerIT {
 
     @Test
     void mapBook_returns_already_mapped_with_zero_counts() throws Exception {
-        UUID userId = UUID.randomUUID();
+        UUID userId = testUserId;
         UUID bookUuid = UUID.randomUUID();
         UUID authorityUuid = UUID.randomUUID();
         when(mapper.mapBook(eq(BOOK_ID_SAHIH_AL_BUKHARI), eq(userId)))
@@ -247,7 +264,7 @@ class ShamelaAdminControllerIT {
 
     @Test
     void mapBook_returns_404_when_book_missing() throws Exception {
-        UUID userId = UUID.randomUUID();
+        UUID userId = testUserId;
         when(mapper.mapBook(eq(BOOK_ID_NOT_FOUND), eq(userId)))
                 .thenThrow(new ShamelaNotFoundException(
                         "shamela book id=99999 не найдена в lib_shamela_book"));
@@ -287,7 +304,8 @@ class ShamelaAdminControllerIT {
                 null, null, null, null, null, null
         , BookVisibility.PUBLIC));
 
-        mockMvc.perform(get("/api/v1/admin/shamela/search").param("q", "البخاري"))
+        mockMvc.perform(get("/api/v1/admin/shamela/search")
+                        .header("X-User-Id", testUserId.toString()).param("q", "البخاري"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
                 // первый результат - 41557 (точное совпадение по подстроке + замаплен)
@@ -309,7 +327,8 @@ class ShamelaAdminControllerIT {
                         1, 0, null, null, null, null, true)
         ));
 
-        mockMvc.perform(get("/api/v1/admin/shamela/search").param("q", "книга"))
+        mockMvc.perform(get("/api/v1/admin/shamela/search")
+                        .header("X-User-Id", testUserId.toString()).param("q", "книга"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].bookId").value(1));
@@ -324,17 +343,20 @@ class ShamelaAdminControllerIT {
             )));
         }
 
-        mockMvc.perform(get("/api/v1/admin/shamela/search").param("q", "test").param("limit", "5"))
+        mockMvc.perform(get("/api/v1/admin/shamela/search")
+                        .header("X-User-Id", testUserId.toString()).param("q", "test").param("limit", "5"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(5));
     }
 
     @Test
     void searchBooks_returns_400_when_q_blank() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/shamela/search").param("q", ""))
+        mockMvc.perform(get("/api/v1/admin/shamela/search")
+                        .header("X-User-Id", testUserId.toString()).param("q", ""))
                 .andExpect(status().isBadRequest());
 
-        mockMvc.perform(get("/api/v1/admin/shamela/search").param("q", "   "))
+        mockMvc.perform(get("/api/v1/admin/shamela/search")
+                        .header("X-User-Id", testUserId.toString()).param("q", "   "))
                 .andExpect(status().isBadRequest());
     }
 
@@ -348,7 +370,8 @@ class ShamelaAdminControllerIT {
         ));
 
         // поиск по числу-id находит точное совпадение и кладёт первым
-        mockMvc.perform(get("/api/v1/admin/shamela/search").param("q", "1681"))
+        mockMvc.perform(get("/api/v1/admin/shamela/search")
+                        .header("X-User-Id", testUserId.toString()).param("q", "1681"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].bookId").value(1681))
@@ -368,7 +391,8 @@ class ShamelaAdminControllerIT {
                         1, 0, null, null, null, null, false)
         ));
 
-        mockMvc.perform(get("/api/v1/admin/shamela/books"))
+        mockMvc.perform(get("/api/v1/admin/shamela/books")
+                        .header("X-User-Id", testUserId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(3))
                 .andExpect(jsonPath("$.totalElements").value(3))
@@ -389,7 +413,8 @@ class ShamelaAdminControllerIT {
                         1, 0, null, null, null, null, true)
         ));
 
-        mockMvc.perform(get("/api/v1/admin/shamela/books"))
+        mockMvc.perform(get("/api/v1/admin/shamela/books")
+                        .header("X-User-Id", testUserId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.totalElements").value(1))
@@ -408,7 +433,8 @@ class ShamelaAdminControllerIT {
                         3, 0, null, null, null, null, false)
         ));
 
-        mockMvc.perform(get("/api/v1/admin/shamela/books").param("q", "البخاري"))
+        mockMvc.perform(get("/api/v1/admin/shamela/books")
+                        .header("X-User-Id", testUserId.toString()).param("q", "البخاري"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.totalElements").value(1))
@@ -426,7 +452,8 @@ class ShamelaAdminControllerIT {
                         1, 0, null, null, null, null, false)
         ));
 
-        mockMvc.perform(get("/api/v1/admin/shamela/books").param("q", "1681"))
+        mockMvc.perform(get("/api/v1/admin/shamela/books")
+                        .header("X-User-Id", testUserId.toString()).param("q", "1681"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.totalElements").value(1))
@@ -444,6 +471,7 @@ class ShamelaAdminControllerIT {
 
         // page 0, size 2 → первые 2 по id (1, 2)
         mockMvc.perform(get("/api/v1/admin/shamela/books")
+                        .header("X-User-Id", testUserId.toString())
                         .param("page", "0").param("size", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(2))
@@ -456,6 +484,7 @@ class ShamelaAdminControllerIT {
 
         // page 1, size 2 → следующие 2 (3, 4) - стабильная пагинация
         mockMvc.perform(get("/api/v1/admin/shamela/books")
+                        .header("X-User-Id", testUserId.toString())
                         .param("page", "1").param("size", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(2))
@@ -472,7 +501,8 @@ class ShamelaAdminControllerIT {
                         1, 0, null, null, null, null, false)
         ));
 
-        mockMvc.perform(get("/api/v1/admin/shamela/books").param("size", "10000"))
+        mockMvc.perform(get("/api/v1/admin/shamela/books")
+                        .header("X-User-Id", testUserId.toString()).param("size", "10000"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.size").value(100));
     }
@@ -493,7 +523,8 @@ class ShamelaAdminControllerIT {
                 null, null, null, null, null, null
         , BookVisibility.PUBLIC));
 
-        mockMvc.perform(get("/api/v1/admin/shamela/books"))
+        mockMvc.perform(get("/api/v1/admin/shamela/books")
+                        .header("X-User-Id", testUserId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].bookId").value(41557))
                 .andExpect(jsonPath("$.items[0].authorName").value("Аль-Бухари"))
@@ -502,7 +533,8 @@ class ShamelaAdminControllerIT {
 
     @Test
     void books_emptyDb_returnsEmptyPage() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/shamela/books"))
+        mockMvc.perform(get("/api/v1/admin/shamela/books")
+                        .header("X-User-Id", testUserId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(0))
                 .andExpect(jsonPath("$.totalElements").value(0))
@@ -513,7 +545,8 @@ class ShamelaAdminControllerIT {
 
     @Test
     void syncStatus_returns_initial_state_for_empty_db() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/shamela/sync-status"))
+        mockMvc.perform(get("/api/v1/admin/shamela/sync-status")
+                        .header("X-User-Id", testUserId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.masterVersion").value(0))
                 .andExpect(jsonPath("$.lastSyncedAt").doesNotExist())
@@ -549,7 +582,8 @@ class ShamelaAdminControllerIT {
         jdbcTemplate.update(
                 "UPDATE lib_shamela_sync_state SET master_version = 1261, last_synced_at = now() WHERE id = 1");
 
-        mockMvc.perform(get("/api/v1/admin/shamela/sync-status"))
+        mockMvc.perform(get("/api/v1/admin/shamela/sync-status")
+                        .header("X-User-Id", testUserId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.masterVersion").value(1261))
                 .andExpect(jsonPath("$.lastSyncedAt").exists())
@@ -557,5 +591,75 @@ class ShamelaAdminControllerIT {
                 .andExpect(jsonPath("$.authorsCount").value(3))
                 .andExpect(jsonPath("$.booksCount").value(2))
                 .andExpect(jsonPath("$.mappedBooksCount").value(1));
+    }
+
+    // ---------------- ADMIN-only авторизация (security-gap fix) ----------------
+    // Раньше shamela-admin endpoints были без role-check (class javadoc:
+    // "на MVP - без role-check"), в отличие от sunnah-admin. Теперь
+    // консистентно: non-ADMIN authenticated user → 403 forbidden-admin-only,
+    // anonymous на mutating с @CurrentUser → 401 (mapBook_returns_401_*).
+    // Mirror SunnahAdminControllerIT.
+
+    @Test
+    void syncMaster_as_non_admin_returns_403() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/shamela/sync-master")
+                        .header("X-User-Id", nonAdminUserId.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type", containsString("forbidden-admin-only")));
+
+        verifyNoInteractions(masterSyncService);
+    }
+
+    @Test
+    void importBook_as_non_admin_returns_403() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/shamela/import-book/41557")
+                        .header("X-User-Id", nonAdminUserId.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type", containsString("forbidden-admin-only")));
+
+        verifyNoInteractions(bookImportService);
+    }
+
+    @Test
+    void mapBook_as_non_admin_returns_403() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/shamela/map-book/41557")
+                        .header("X-User-Id", nonAdminUserId.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type", containsString("forbidden-admin-only")));
+
+        verifyNoInteractions(mapper);
+    }
+
+    @Test
+    void searchBooks_as_non_admin_returns_403() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/shamela/search")
+                        .header("X-User-Id", nonAdminUserId.toString())
+                        .param("q", "البخاري"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type", containsString("forbidden-admin-only")));
+    }
+
+    @Test
+    void listBooks_as_non_admin_returns_403() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/shamela/books")
+                        .header("X-User-Id", nonAdminUserId.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type", containsString("forbidden-admin-only")));
+    }
+
+    @Test
+    void backfillBibliography_as_non_admin_returns_403() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/shamela/backfill-bibliography")
+                        .header("X-User-Id", nonAdminUserId.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type", containsString("forbidden-admin-only")));
+    }
+
+    @Test
+    void syncStatus_as_non_admin_returns_403() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/shamela/sync-status")
+                        .header("X-User-Id", nonAdminUserId.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type", containsString("forbidden-admin-only")));
     }
 }
