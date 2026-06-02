@@ -158,6 +158,14 @@
   библиотеки, голосование node→topic (ADR), **overhaul админки + Sunnah
   dry-run import-preview** (поэтапное проверяемое наполнение), Alt+K/модалка perf.
   backend BUILD SUCCESS, frontend build/tsc/686 tests ✓
+- **Сессия 54 продолжение (62 коммита всего)** — баги ручного теста, бэклог
+  (hd_collections мост ADR-054, shamela ADMIN-guard, topic/question/answer votes),
+  14 Tier-3 (security/correctness/concurrency), 2 code-review (0 Critical),
+  d3-drag флак → CI зелёный (frontend 678/0/0). **archive.org PDF-импорт**
+  (спека `2026-06-02-archive-org-pdf-import-design.md`, ADR-056): parser +
+  gap-aware preview + import + dual-variant pdf_links + обложки + парсинг arabic
+  description. **Итерации archive.org** (фоновое извлечение всех томов,
+  volume-dropdown, eager-UI, relabel) — open, спека §10. migrations через 67.
 
 ---
 

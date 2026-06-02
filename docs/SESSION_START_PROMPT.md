@@ -190,64 +190,57 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 И двигаемся по приоритету (Critical → Important → Minor)
 
-### ⭐ АКТУАЛЬНО — entry Сессии 54
+### ⭐ АКТУАЛЬНО — entry Сессии 55 (старт после марафона Сессии 54)
 
-**Сессия 54 закрыла крупный предпрод UX-overhaul + content-tooling** (17 коммитов
-`1102d27..HEAD`, см. progress.md «Сессия 54»). Большой product-брифинг Абдулы
-(13 болей) зафиксирован в спеке `docs/superpowers/specs/2026-06-02-preprod-ux-
-overhaul.md`. **Все 8 фаз сделаны.** Верификация: backend `./mvnw verify` →
-**BUILD SUCCESS**; frontend build ✓ / tsc ✓ / eslint 0err / vitest 686 pass.
+**Сессия 54 — огромный автономный марафон (62 коммита `1102d27..HEAD`).** Полностью
+закрыты, детали — `docs/progress.md` (батчи 1-6) + спеки `2026-06-02-*`:
+- Продуктовый UX-overhaul (13 болей, 8 фаз): SWR-кэш, ListControls, redesign
+  чтения хадиса/Q&A, settings drawer + UI-scale (дефолт 0.9, откат), голосование
+  node→topic→question→answer, overhaul админки + Sunnah import-preview, и др.
+- 6 багов из ручного теста (статус узлов, sunnah-config, shamela PDF, миникарта…).
+- Бэклог: hd_collections (мост ADR-054 + UI), shamela ADMIN-guard, 14 Tier-3
+  (security/correctness/concurrency: auth timing, decompression bomb, OCR claim,
+  authority UNIQUE…), d3-drag флак → **CI ПОЛНОСТЬЮ ЗЕЛЁНЫЙ**.
+- 2 code-review (multi-agent, 0 Critical), все находки закрыты.
+- **НОВЫЙ инструмент: archive.org PDF-импорт** (спека `2026-06-02-archive-org-pdf-
+  import-design.md`, ADR-056): backend (parser+preview+import, dual-variant
+  pdf_links, idempotency) + frontend `AdminArchiveOrgPage` (gap-aware enrichment) +
+  **обложки** (coverUrl → `<img>` на карточке/reader) + **парсинг arabic description**
+  (издатель/год/тома/издание из текста). Live-smoke прошёл.
 
-**Закрыто (фазы):** #2.B hadith→node citation (HadithPickerModal + HadithRef
-enrichment); SWR-кэш данных (`queryCache` + useApiQuery/usePagedSearch —
-мгновенная навигация); Alt+K perf (убран backdrop-blur); карточки библиотеки
-(equal-height + muted dark обложки); голосование node→topic (удалён node-vote,
-добавлен topic-vote стек, ADR в decisions.md); единый ListControls (4 списка);
-redesign чтения хадиса (секции + sticky-nav + полноэкранный иснад); settings
-drawer + UI-scale (дефолт compact 0.9, откат на 100%) + reader font-controls;
-**overhaul админки + Sunnah import-preview** (AdminDashboardPage + AdminSunnahPage
-с dry-run preview по одному хадису — ЦЕНТРАЛЬНЫЙ запрос); redesign Q&A;
-#12 SourceDetailPanel не сливается с header.
+**Верификация (финал):** backend `./mvnw verify` → **BUILD SUCCESS**; frontend
+build ✓ / tsc ✓ / eslint 0err / **vitest 678/0/0**.
 
-**Батч 2 (баг-фиксы + чистки, ~13 коммитов) ТОЖЕ закрыт** (см. progress.md
-«Сессия 54 (батч 2)»): vote-баг (разлогин+навигация на карточке), выпил всего
-user-preferences вертикаля (migration 63) + bilingual + tashkeel (мусор), фикс
-title-weight ар, импорт-страницы показывают контент по умолчанию (shamela
-`/books` paged + sunnah автовыбор сборника, убрана file-кнопка), голоса на
-ответах (migration 64), **полная чистка БД** (контент=0, admin+схема+shamela-
-каталог 8589 сохранены, DevHadithSeeder→opt-in).
+**СЛЕДУЮЩИЙ ШАГ (тёплый путь) — итерации archive.org-инструмента** (спека §10):
+1. Полное **фоновое** извлечение всех томов (+Tesseract для scan-only; сейчас sync
+   за флагами `extractText`/`testModePages`).
+2. **volume-dropdown** в ридере (мульти-том навигация — `PdfInfoResponse.files`
+   уже отдаёт список, нет UI-селектора).
+3. **eager-download** UI (кнопка скачать тома в MinIO).
+4. **relabel/reassign** томов в preview (нужен `ImportRequest.fileMapping` на бэке).
+5. place/muhaqqiq split из description; provenance-enrichment как общий паттерн
+   для shamela/sunnah/alminasa.
 
-**Батч 3 (6 багов из ручного теста) + батч 4 («го дальше») ТОЖЕ закрыты** (см.
-progress.md батч 3/4): статус-узла PATCH+status, sunnah «не настроен» (→ запуск
-через `run.arguments`), shamela PDF resolve, миникарта/ребро/чип; **hd_collections
-UI** (книга-сборник→hadith-explorer), **shamela ADMIN-guard**, **code-review
-батчей 2-4** (8 fixes, 0 Critical), **d3-drag флак убран → CI ПОЛНОСТЬЮ ЗЕЛЁНЫЙ**
-(frontend 665/0/0, backend BUILD SUCCESS).
+**Прочее опц./отложенное:** **визуальная проверка руками** всего (playwright
+env-blocked — нет Chromium); IsnadExtraction (AI, контент, отложено Абдулой);
+SunnahApiClient/полный корпус; alminasa.ai (заглушка готова); shamela
+`category.sqlite` sync (живой shamela.ws); `git stash@{0}` (избыточен — `git stash drop`).
+Tier-3 low-severity: shamela chapter-cycle, bibliography dash-split, getDetail perf,
+OcrService NULL→FAILED (нужен новый статус). См. `docs/backlog.md`.
 
-**СЛЕДУЮЩИЙ ШАГ — все явные запросы + бэклог ЗАКРЫТЫ.** Остаётся опц./отложенное:
-1. **Визуальная проверка руками** на :5173 (playwright env-blocked — нет Chromium):
-   все редизайны, голоса (клик не разлогинивает), импорт-страницы, масштаб 0.9
-   (откат «Стандартный»). **БД пуста — наполнять через /admin tools.**
-2. Опц.: IsnadExtraction (AI matn→hd_sanads, КОНТЕНТ, отложено Абдулой); полный
-   in-place рендеринг hadith-сборника как книги (сейчас редирект достаточен);
-   step 4 SunnahApiClient/полный корпус; alminasa.ai import-tool (заглушка готова);
-   shamela `category.sqlite` sync (зависит от живого shamela.ws);
-   `git stash@{0}` (избыточен — `git stash drop`).
-
-**Инфра:** Docker (postgres+minio) up + **`sunnah-mysql` :3307** (root/root,
-БД `sunnah`; дамп `db/00-samplegitdb.sql` в контейнере, host-копия `/tmp/sunnah.sql`,
-re-fetch: `curl -sL raw.githubusercontent.com/sunnah-com/api/master/db/00-samplegitdb.sql`).
-Backend :9090 + JDWP :5005. **ВАЖНО (батч 3): sunnah-конфиг передавать через
-`-Dspring-boot.run.arguments`, НЕ env** — fork `spring-boot:run` теряет env-vars
-(симптом: импорт хадисов «не настроен» / 503). Рабочая команда рестарта:
+**Инфра:** Docker (postgres+minio) up + **`sunnah-mysql` :3307** (root/root, БД
+`sunnah`; дамп `db/00-samplegitdb.sql` в контейнере, host `/tmp/sunnah.sql`).
+Backend :9090 + JDWP :5005. **ВАЖНО: sunnah-конфиг — через
+`-Dspring-boot.run.arguments`, НЕ env** (fork `spring-boot:run` теряет env →
+импорт «не настроен»/503). Команда рестарта:
 `./mvnw spring-boot:run -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005" -Dspring-boot.run.arguments="--sunnah.dump.enabled=true --sunnah.dump.url=jdbc:mysql://localhost:3307/sunnah?allowPublicKeyRetrieval=true&useSSL=false --sunnah.dump.username=root --sunnah.dump.password=root"`
-migrations через 65 применены (60 drop node_votes, 61 topic_votes, 62
-question_votes, 63 drop user_preferences, 64 answer_votes, 65 hd_collections.book_id). **Дев-Postgres
-ПОЛНОСТЬЮ ОЧИЩЕН** (батч 2 #11): весь контент=0, остались только admin-юзер +
-схема + shamela master-каталог (`lib_shamela_book`=8589, источник импорта).
-DevHadithSeeder теперь opt-in (`DEV_SEED_HADITH=true` чтобы вернуть 3 эталона).
-frontend :5173 (Vite HMR). Admin для curl/тестов:
-`00000000-0000-0000-0000-000000000001`.
+migrations через **67** (60 drop node_votes, 61 topic_votes, 62 question_votes,
+63 drop user_preferences, 64 answer_votes, 65 hd_collections.book_id, 66
+authorities.name UNIQUE, 67 lib_books.cover_url). **Дев-Postgres ОЧИЩЕН**: контент=0,
+остались admin-юзер + схема + shamela-каталог (`lib_shamela_book`=8589).
+**DevHadithSeeder opt-in** (`DEV_SEED_HADITH=true` для 3 эталонов). frontend :5173.
+Admin для curl/тестов: `00000000-0000-0000-0000-000000000001`. HAR-файлы archive.org
+в gitignore (`*.har`).
 
 ### Историч. снапшоты (Сессии 47/49d/49c) — сжаты
 
