@@ -3564,8 +3564,53 @@ skippedInvalid }` (для одного хадиса — суммы 0/1). 404 `su
 
 Импортированные хадисы — `status=VARIANT` (не выдаются за канон); текст ar/en
 в `hd_matns`, grades (если есть) в `hd_hadiths.metadata`, структура книга/глава
-в `hd_matns.metadata`. Структурный иснад НЕ извлекается (sunnah даёт matn+isnad
-блобом — отдельная стадия IsnadExtraction, шаг 3).
+в `hd_matns.metadata`. Структурный иснад НЕ извлекается на импорте (sunnah
+даёт matn+isnad блобом) — извлекается отдельно через AI, см. ниже
+`POST /extract-isnad` (превью, без персиста).
+
+### POST /api/v1/admin/sunnah/extract-isnad (ADR-059)
+
+Извлечь иснад (цепочку передатчиков) из арабского матна хадиса через
+swappable LLM (ADR-058) и построить граф под React Flow. **Превью** —
+НИЧЕГО не пишется в БД (персист-на-импорте + дедуп нарраторов из rijal —
+отложенный следующий шаг). **Latency 5-15с** (вызов LLM).
+
+ADMIN-only (403 `forbidden-admin-only`). Матн берётся сервером из
+источника (preview-путь), не из клиентского тела.
+
+Request:
+```json
+{ "collection": "bukhari", "number": 1 }
+```
+
+Response `IsnadExtractionResponse`:
+```json
+{
+  "llmEnabled": true,
+  "isnadFound": true,
+  "graph": { /* SanadGraphResponse: nodes/edges/sanads, hadithId=null */ },
+  "cleanedMatn": "إنما الأعمال بالنيات"
+}
+```
+
+Три исхода:
+- LLM не настроен (`ai.*.api-key=disabled`) → `{ "llmEnabled": false,
+  "isnadFound": false, "graph": null, "cleanedMatn": null }`. **200, не
+  503** — короткое замыкание ДО обращения к источнику дампа (фронт
+  показывает «AI не настроен — задай ai.provider/ключ»).
+- Иснад извлечён → `{ "llmEnabled": true, "isnadFound": true, "graph":
+  <построен>, "cleanedMatn": ... }`.
+- LLM настроен, но иснад выделить не удалось / parse fail / пустой матн →
+  `{ "llmEnabled": true, "isnadFound": false, "graph": null }`.
+
+`graph` — тот же `SanadGraphResponse`, что у Hadith Explorer Phase 3, но
+строится in-memory: `hadithId=null`, узлы синтетические (`id` = `"x-0"`…,
+`narratorId=null`, заполнено лишь `nameAr`+`tier`); position 0 (после
+реверса извлечённой цепочки) = COMPANION, верхние передатчики = NARRATOR;
+синтетический корень `prophet` (PROPHET) → ребро к companion; синтетический
+узел `collector` (COLLECTOR, `nameAr`=арабское имя сборника) снизу;
+`sanads=[]`. Если LLM настроен (`AI_PROVIDER`+ключ) — 503 при
+несконфигурированном источнике дампа (как у остальных sunnah-admin).
 
 ## Hadith grades API (multi-grading)
 

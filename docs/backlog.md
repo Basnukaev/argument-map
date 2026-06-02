@@ -324,6 +324,20 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
 
 ## Бэк - бэклог
 
+- [ ] **Isnad persistence-on-import + rijal narrator dedup** (следующий
+      шаг после ADR-059). Сейчас извлечённый из матна иснад — эфемерное
+      превью (`POST /admin/sunnah/extract-isnad`, in-memory граф). Шаг:
+      на импорте хадиса персистить извлечённый иснад в
+      `hd_sanads`/`hd_narrators`/`hd_sanad_narrators` с **дедупом
+      нарраторов по normalized-name** (`ArabicTextNormalizer`) —
+      один передатчик = одна строка `hd_narrators`, переиспользуемая
+      между хадисами/цепями (иначе дубли). Обогащение био передатчиков
+      (даты, надёжность, поколение, kunya/laqab) — из rijal-источника
+      (alminasa / иной справочник передатчиков), сейчас узлы несут
+      только арабское имя. Учесть идемпотентность повторного импорта и
+      вариативность написания имён (الحميدي / عبد الله بن الزبير
+      الحميدي — это один передатчик).
+
 - [x] **Пагинация + фильтрация для всех GET-list endpoints** -
       закрыто 2026-05-18. Все 5 endpoints (`/sources`,
       `/authorities`, `/topics`, `/library/books`, `/questions`)

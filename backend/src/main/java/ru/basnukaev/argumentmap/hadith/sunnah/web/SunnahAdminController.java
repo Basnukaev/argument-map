@@ -4,20 +4,31 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import java.util.Optional;
+
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.validation.Valid;
+
 import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.exception.AdminOnlyException;
+import ru.basnukaev.argumentmap.hadith.isnad.ExtractedIsnad;
+import ru.basnukaev.argumentmap.hadith.isnad.IsnadExtractionService;
+import ru.basnukaev.argumentmap.hadith.service.SanadGraphService;
 import ru.basnukaev.argumentmap.hadith.sunnah.etl.SunnahDataSource;
+import ru.basnukaev.argumentmap.hadith.sunnah.etl.dto.SunnahCollectionRow;
 import ru.basnukaev.argumentmap.hadith.sunnah.service.SunnahImportService;
 import ru.basnukaev.argumentmap.hadith.sunnah.service.SunnahMappingResult;
+import ru.basnukaev.argumentmap.hadith.sunnah.web.dto.IsnadExtractionRequest;
+import ru.basnukaev.argumentmap.hadith.sunnah.web.dto.IsnadExtractionResponse;
 import ru.basnukaev.argumentmap.hadith.sunnah.web.dto.SunnahCollectionPreview;
 import ru.basnukaev.argumentmap.hadith.sunnah.web.dto.SunnahHadithBrowseItem;
 import ru.basnukaev.argumentmap.hadith.sunnah.web.dto.SunnahHadithPreview;
@@ -43,11 +54,17 @@ public class SunnahAdminController {
 
     private final SunnahImportService importService;
     private final ObjectProvider<SunnahDataSource> sourceProvider;
+    private final IsnadExtractionService isnadExtractionService;
+    private final SanadGraphService sanadGraphService;
 
     public SunnahAdminController(SunnahImportService importService,
-                                 ObjectProvider<SunnahDataSource> sourceProvider) {
+                                 ObjectProvider<SunnahDataSource> sourceProvider,
+                                 IsnadExtractionService isnadExtractionService,
+                                 SanadGraphService sanadGraphService) {
         this.importService = importService;
         this.sourceProvider = sourceProvider;
+        this.isnadExtractionService = isnadExtractionService;
+        this.sanadGraphService = sanadGraphService;
     }
 
     /** Каталог сборников, доступных в источнике (превью до импорта). */
@@ -119,6 +136,52 @@ public class SunnahAdminController {
         requireAdmin(currentUserId);
         SunnahMappingResult result = importService.importSingle(source(), collection, number);
         return SunnahImportResponse.from(result);
+    }
+
+    /**
+     * Извлечь иснад из матна хадиса через LLM и построить превью-граф
+     * (ADR-059). Превью — НИЧЕГО не пишется в БД. Latency 5-15с (вызов
+     * LLM). Если LLM не настроен — отдаём {@code llmEnabled:false} БЕЗ
+     * обращения к источнику дампа (короткое замыкание).
+     *
+     * <p>Матн берётся сервером из источника (preview-путь), а не из
+     * клиентского тела — не доверяем клиентскому тексту.
+     */
+    @PostMapping("/extract-isnad")
+    public IsnadExtractionResponse extractIsnad(@Valid @RequestBody IsnadExtractionRequest request,
+                                                @CurrentUser UUID currentUserId) {
+        requireAdmin(currentUserId);
+        if (!isnadExtractionService.isLlmEnabled()) {
+            return IsnadExtractionResponse.llmDisabled();
+        }
+
+        SunnahDataSource src = source();
+        String collection = request.collection();
+        String number = String.valueOf(request.number());
+        SunnahHadithPreview preview = importService.previewSingle(src, collection, number);
+        String matn = preview.matnAr();
+        if (matn == null || matn.isBlank()) {
+            return IsnadExtractionResponse.notFound();
+        }
+
+        Optional<ExtractedIsnad> extracted = isnadExtractionService.extract(matn);
+        if (extracted.isEmpty() || !extracted.get().isnadFound()) {
+            return IsnadExtractionResponse.notFound();
+        }
+
+        ExtractedIsnad isnad = extracted.get();
+        String collectionAr = collectionTitleAr(src, collection);
+        var graph = sanadGraphService.buildGraphFromExtracted(isnad, collectionAr, null);
+        return IsnadExtractionResponse.found(graph, isnad.cleanedMatn());
+    }
+
+    /** Арабское название сборника из источника (для COLLECTOR-узла), nullable. */
+    private String collectionTitleAr(SunnahDataSource src, String collectionName) {
+        return src.readCollections().stream()
+                .filter(c -> collectionName.equals(c.name()))
+                .map(SunnahCollectionRow::titleAr)
+                .findFirst()
+                .orElse(null);
     }
 
     private SunnahDataSource source() {

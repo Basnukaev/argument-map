@@ -111,6 +111,69 @@ class SanadGraphServiceTest {
         assertEquals(2, graph.sanads().size());
     }
 
+    @Test
+    void buildGraphFromExtracted_inMemory_prophetCompanionRolesTiers() {
+        // top→companion (как в матне): источник составителя … сподвижник
+        ru.basnukaev.argumentmap.hadith.isnad.ExtractedIsnad isnad =
+                new ru.basnukaev.argumentmap.hadith.isnad.ExtractedIsnad(
+                        true,
+                        List.of(
+                                new ru.basnukaev.argumentmap.hadith.isnad.ExtractedNarrator(
+                                        "الحميدي", "حدثنا"),
+                                new ru.basnukaev.argumentmap.hadith.isnad.ExtractedNarrator(
+                                        "سفيان", "حدثنا"),
+                                new ru.basnukaev.argumentmap.hadith.isnad.ExtractedNarrator(
+                                        "عمر بن الخطاب", "عن النبي")),
+                        "إنما الأعمال بالنيات");
+
+        SanadGraphResponse graph =
+                service.buildGraphFromExtracted(isnad, "صحيح البخاري", "Сахих аль-Бухари");
+
+        // hadithId null (превью), sanads пуст
+        assertEquals(null, graph.hadithId());
+        assertTrue(graph.sanads().isEmpty());
+
+        // Узлы: Пророк ﷺ + 3 передатчика + COLLECTOR = 5
+        assertEquals(5, graph.nodes().size());
+
+        GraphNode prophet = node(graph, "prophet");
+        assertNotNull(prophet);
+        assertEquals("PROPHET", prophet.role());
+
+        // position 0 (после реверса) = сподвижник Умар
+        GraphNode companion = node(graph, "x-0");
+        assertEquals("COMPANION", companion.role());
+        assertEquals("عمر بن الخطاب", companion.data().nameAr());
+        assertEquals(null, companion.data().narratorId());
+        assertEquals(1, companion.data().tier());
+
+        // верхние передатчики — NARRATOR (составитель НЕ звено цепи)
+        assertEquals("NARRATOR", node(graph, "x-1").role());
+        assertEquals("NARRATOR", node(graph, "x-2").role());
+        assertEquals("سفيان", node(graph, "x-1").data().nameAr());
+        assertEquals("الحميدي", node(graph, "x-2").data().nameAr());
+        // тиры по возрастанию
+        assertEquals(2, node(graph, "x-1").data().tier());
+        assertEquals(3, node(graph, "x-2").data().tier());
+
+        // COLLECTOR-узел снизу, tier = max+1
+        GraphNode collector = node(graph, "collector");
+        assertEquals("COLLECTOR", collector.role());
+        assertEquals("صحيح البخاري", collector.data().nameAr());
+        assertEquals(4, collector.data().tier());
+
+        // Рёбра: prophet→x-0→x-1→x-2→collector = 4
+        assertEquals(4, graph.edges().size());
+        GraphEdge prophetToCompanion = edge(graph, "prophet", "x-0");
+        assertEquals("عن النبي", prophetToCompanion.data().transmissionPhrase());
+        assertTrue(prophetToCompanion.data().onPrimaryChain());
+        assertEquals(1, prophetToCompanion.data().sanadCount());
+        // transmission ребра = формула получателя (узла-target)
+        assertEquals("حدثنا", edge(graph, "x-0", "x-1").data().transmissionPhrase());
+        assertNotNull(edge(graph, "x-1", "x-2"));
+        assertNotNull(edge(graph, "x-2", "collector"));
+    }
+
     private static GraphNode node(SanadGraphResponse g, String id) {
         return g.nodes().stream().filter(n -> n.id().equals(id)).findFirst().orElseThrow();
     }

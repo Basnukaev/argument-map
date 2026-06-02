@@ -1,6 +1,7 @@
 package ru.basnukaev.argumentmap.hadith.sunnah.web;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -124,6 +125,32 @@ class SunnahAdminControllerIT {
                         .header("X-User-Id", adminId.toString()))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.type", containsString("sunnah-dump-not-configured")));
+    }
+
+    // ---- extract-isnad (ADR-059): ADMIN-only + LLM-disabled короткое замыкание ----
+
+    @Test
+    void extract_isnad_as_non_admin_returns_403() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/sunnah/extract-isnad")
+                        .header("X-User-Id", userId.toString())
+                        .contentType("application/json")
+                        .content("{\"collection\":\"bukhari\",\"number\":1}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type", containsString("forbidden-admin-only")));
+    }
+
+    @Test
+    void extract_isnad_as_admin_llm_disabled_returns_200_llmEnabledFalse() throws Exception {
+        // В тест-профиле ai.*.api-key=disabled → LlmClient.isEnabled()=false.
+        // Эндпоинт замыкает ДО source() — никакого 503 несмотря на отсутствие дампа.
+        mockMvc.perform(post("/api/v1/admin/sunnah/extract-isnad")
+                        .header("X-User-Id", adminId.toString())
+                        .contentType("application/json")
+                        .content("{\"collection\":\"bukhari\",\"number\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.llmEnabled").value(false))
+                .andExpect(jsonPath("$.isnadFound").value(false))
+                .andExpect(jsonPath("$.graph").value(nullValue()));
     }
 
     private UUID insertUser(String suffix, String role) {

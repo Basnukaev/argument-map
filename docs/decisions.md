@@ -6298,3 +6298,50 @@ property — proxy-неопределённость с Resilience4j AOP. (2) О�
 смешивает HTTP-логику разных wire-форматов. (3) LangChain4j / Spring AI
 — heavy dep ради 2 endpoint'ов с простым JSON, против правила «без
 тяжёлых зависимостей».
+
+## ADR-059: AI извлечение иснада из матна (preview)
+
+**Контекст.** sunnah.com (spec §11) отдаёт matn+иснад единым блобом —
+структурного иснада нет. В админ-превью импорта хадиса граф иснада был
+заглушкой «Граф иснада будет извлечён на следующем этапе». Нужно дать
+админу извлечь цепочку передатчиков из арабского матна (иснад вшит
+free-text'ом в начало: «حدثنا A، قال حدثنا B، عن C… عن النبي ﷺ») и
+увидеть граф в существующем компоненте `SanadGraph` (React Flow).
+
+**Решение.** Новый `IsnadExtractionService` (пакет `hadith.isnad`) на
+swappable `LlmClient` (ADR-058) парсит из матна упорядоченную цепочку
+(`ExtractedIsnad`: `narrators[]` top→companion + `cleanedMatn`).
+Превью-граф строится **in-memory** в существующем `SanadGraphResponse`
+(reuse Hadith Explorer Phase 3 viz) методом
+`SanadGraphService.buildGraphFromExtracted` — **без БД**. Endpoint
+`POST /api/v1/admin/sunnah/extract-isnad` (ADMIN-only, body
+`{collection, number}` — матн берёт сервер preview-путём, не доверяя
+клиенту), ответ `IsnadExtractionResponse(llmEnabled, isnadFound, graph,
+cleanedMatn)`.
+
+- **Graceful degradation** — сервис никогда не бросает; LLM disabled /
+  мусор / upstream-ошибка → `Optional.empty()`. Endpoint при disabled
+  LLM замыкает ДО `source()` → 200 `{llmEnabled:false}` (не 503), фронт
+  показывает «AI не настроен».
+- **Маппинг в граф:** извлечённая цепь top→companion реверсится
+  (position 0 = сподвижник, Prophet-side); узлы синтетические
+  (`"x-0"`…, `narratorId=null`, заполнено лишь `nameAr`+`tier`); корень
+  `prophet` (reuse `prophetNode()`) → companion; роли position 0 =
+  COMPANION, остальные = NARRATOR; синтетический `collector` (COLLECTOR,
+  `nameAr`=сборник) внизу — составитель НЕ звено цепи, но граф его
+  показывает; `hadithId=null`, `sanads=[]`.
+
+**Последствия.** Граф эфемерный (preview) — на импорте не пишется.
+Биографии передатчиков пусты до rijal-источника (alminasa, future) —
+узлы несут только арабское имя. LLM latency 5-15с. Без ключа graceful
+(llmEnabled:false). Персист-на-импорте (`hd_sanads`/`hd_narrators`/
+`hd_sanad_narrators` с дедупом нарраторов по normalized-name) +
+обогащение био из rijal — **отложены** (следующий шаг, см. backlog).
+
+**Rejected alternatives.** (1) Принимать сырой `matn` в теле запроса —
+доверие клиентскому тексту; берём матн сервером из источника. (2)
+Отдельный `IsnadGraphBuilder`-класс — метод естественно лёг в
+`SanadGraphService` рядом с `buildGraph` (общие конвенции узлов/ролей/
+`prophetNode()`). (3) Сразу персистить извлечённый иснад на импорте —
+без дедупа нарраторов из rijal завёл бы дубликаты передатчиков; превью
+сначала, персист отдельным шагом.

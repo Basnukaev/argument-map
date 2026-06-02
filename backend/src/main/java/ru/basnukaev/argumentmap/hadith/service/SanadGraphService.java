@@ -150,6 +150,95 @@ public class SanadGraphService {
         return new SanadGraphResponse(hadithId, nodes, edges, sanadSummaries);
     }
 
+    /**
+     * Собирает превью-граф иснада из извлечённой LLM цепочки (ADR-059) —
+     * <b>без обращения к БД</b>. Эфемерный граф для admin-превью импорта
+     * sunnah.com: пока биографии передатчиков пусты (rijal-источник —
+     * future), узлы несут только арабское имя.
+     *
+     * <p>Маппинг в {@link SanadGraphResponse} (reuse конвенций
+     * {@link #buildGraph}):
+     * <ul>
+     *   <li><b>Разворот:</b> {@code isnad.narrators()} идёт top→companion
+     *       (как в матне), а граф строится снизу вверх: position 0 =
+     *       сподвижник (Prophet-side). Реверсим список.</li>
+     *   <li><b>Синтетические id</b> {@code "x-0"}, {@code "x-1"}, … —
+     *       никаких БД-uuid. {@code narratorId = null}.</li>
+     *   <li>Узел Пророка ﷺ ({@link #prophetNode()}) → ребро к position 0;
+     *       подпись ребра = transmission сподвижника
+     *       («عن النبي» / «سمعت»).</li>
+     *   <li><b>Роли:</b> position 0 → COMPANION, остальные передатчики →
+     *       NARRATOR (составитель — НЕ звено цепи).</li>
+     *   <li><b>Узел COLLECTOR</b> (id {@code "collector"}) добавляется
+     *       внизу для отображения сборника — связан от верхнего
+     *       передатчика, tier = max+1. Добавляем т.к. существующий граф
+     *       показывает составителя.</li>
+     *   <li>{@code hadithId = null} (не персистентный хадис), {@code
+     *       sanads} — пустой список (превью без сводки цепей).</li>
+     * </ul>
+     *
+     * @param isnad        извлечённая цепочка (предполагается
+     *                     {@code isnadFound=true} с непустыми narrators)
+     * @param collectionAr арабское имя сборника для COLLECTOR-узла
+     *                     (nullable)
+     * @param collectionRu русское имя сборника для COLLECTOR-узла
+     *                     (nullable)
+     */
+    public SanadGraphResponse buildGraphFromExtracted(
+            ru.basnukaev.argumentmap.hadith.isnad.ExtractedIsnad isnad,
+            String collectionAr, String collectionRu) {
+        // top→companion → companion→top: position 0 = сподвижник
+        List<ru.basnukaev.argumentmap.hadith.isnad.ExtractedNarrator> chain =
+                new ArrayList<>(isnad.narrators());
+        java.util.Collections.reverse(chain);
+
+        List<GraphNode> nodes = new ArrayList<>();
+        List<GraphEdge> edges = new ArrayList<>();
+        nodes.add(prophetNode());
+
+        int n = chain.size();
+        for (int i = 0; i < n; i++) {
+            ru.basnukaev.argumentmap.hadith.isnad.ExtractedNarrator narrator = chain.get(i);
+            String nodeId = "x-" + i;
+            String role = (i == 0) ? "COMPANION" : "NARRATOR";
+            int tier = i + 1;
+            nodes.add(new GraphNode(nodeId, role, sparseNarratorData(narrator.name(), tier, null)));
+
+            String source = (i == 0) ? PROPHET_NODE_ID : "x-" + (i - 1);
+            edges.add(new GraphEdge(
+                    "edge-" + i, source, nodeId,
+                    new EdgeData(narrator.transmission(), null, true, 1)));
+        }
+
+        // Синтетический узел сборника снизу цепи (как в БД-графе показан
+        // составитель). Связан от верхнего передатчика (последний в chain).
+        if (n > 0) {
+            int collectorTier = n + 1;
+            nodes.add(new GraphNode(
+                    "collector", "COLLECTOR",
+                    collectorData(collectionAr, collectionRu, collectorTier)));
+            edges.add(new GraphEdge(
+                    "edge-collector", "x-" + (n - 1), "collector",
+                    new EdgeData(null, null, true, 1)));
+        }
+
+        return new SanadGraphResponse(null, nodes, edges, List.of());
+    }
+
+    /** NarratorData превью-узла: только арабское имя + tier, остальное пусто. */
+    private NarratorData sparseNarratorData(String nameAr, int tier, String collection) {
+        return new NarratorData(
+                null, nameAr, null, null, null, null, null, null,
+                null, null, null, null, null, null, collection, tier);
+    }
+
+    /** NarratorData для синтетического COLLECTOR-узла превью-графа. */
+    private NarratorData collectorData(String collectionAr, String collectionRu, int tier) {
+        return new NarratorData(
+                null, collectionAr, null, collectionRu, null, null, null, null,
+                null, null, null, null, null, null, collectionAr, tier);
+    }
+
     private List<GraphEdge> buildEdges(List<Sanad> sanads,
                                        List<SanadNarrator> links,
                                        boolean hasProphetRoot) {
