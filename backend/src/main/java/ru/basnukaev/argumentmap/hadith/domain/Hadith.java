@@ -36,6 +36,24 @@ public record Hadith(
         String status,
         UUID sourceId,
         String metadata,
-        Instant createdAt
+        Instant createdAt,
+        String externalSource,
+        String externalId,
+        String hadithType,
+        String chapterAr,
+        String subChapterAr,
+        String fullTextAr
 ) {
+    /**
+     * Backward-compat конструктор без alminasa-полей (8 аргументов) для
+     * существующих call-site'ов (sunnah-маппер, seeder, IT-фикстуры) — пока
+     * legacy не удалён. alminasa-импортёр использует полный конструктор.
+     */
+    public Hadith(
+            UUID id, UUID collectionId, Integer primaryNumber, String normalizedMatn,
+            String status, UUID sourceId, String metadata, Instant createdAt
+    ) {
+        this(id, collectionId, primaryNumber, normalizedMatn, status, sourceId,
+                metadata, createdAt, null, null, null, null, null, null);
+    }
 }
