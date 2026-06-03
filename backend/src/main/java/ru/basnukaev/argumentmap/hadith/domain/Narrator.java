@@ -35,6 +35,29 @@ public record Narrator(
         String reliabilityComment,
         int transmittedCountCached,
         String metadata,
-        Instant createdAt
+        Instant createdAt,
+        String externalSource,
+        String externalId,
+        String tabaqa,
+        String gradeText,
+        String bornOnText,
+        String diedOnText
 ) {
+    /**
+     * Backward-compat конструктор без alminasa-полей (16 аргументов) для
+     * существующих call-site'ов (IsnadPersistenceService, DevHadithSeeder,
+     * IT-фикстуры). alminasa-импортёр использует полный конструктор.
+     */
+    public Narrator(
+            UUID id, UUID authorityId, String nameAr, String nameArNormalized,
+            String kunya, String laqab, Integer yearBirthHijri, Integer yearDeathHijri,
+            String birthplace, String deathPlace, String primaryResidence,
+            String reliabilityGrade, String reliabilityComment, int transmittedCountCached,
+            String metadata, Instant createdAt
+    ) {
+        this(id, authorityId, nameAr, nameArNormalized, kunya, laqab,
+                yearBirthHijri, yearDeathHijri, birthplace, deathPlace, primaryResidence,
+                reliabilityGrade, reliabilityComment, transmittedCountCached, metadata,
+                createdAt, null, null, null, null, null, null);
+    }
 }
