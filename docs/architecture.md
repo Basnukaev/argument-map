@@ -371,6 +371,39 @@ service-фасад (например `BookService` валидирует `authori
 Архитектурные детали и обоснование решений - в
 `architecture-platform.md`. Решение оформлено как ADR-019.
 
+## Hadith - доменный пакет (Phase 5, alminasa.ai - ADR-060)
+
+Хадисоведческий домен `hd_*` (отдельно от library): сборники
+(`hd_collections`), хадисы (`hd_hadiths`), матны (`hd_matns`), иснады
+(`hd_sanads`/`hd_narrators`/`hd_sanad_narrators`), оценки
+(`hadith_grades`).
+
+С Сессии 56 единственный источник арабского контента и хадисоведческих
+данных - **alminasa.ai** (ADR-060, заменяет sunnah.com primary +
+AI-извлечение иснада из Сессии 55). Доступ - bulk-снапшот: краулинг их
+открытого read-only ES-прокси → staging (`am_staging_*`, сырой JSONB) →
+маппинг в `hd_*` по природным ключам `external_id`. Рантайм к alminasa не
+обращается. Краулер и маппер - отдельными планами; в Сессии 56 заложен
+фундамент схемы (миграции 70+71).
+
+Расширение схемы под богатые данные alminasa:
+- `hd_hadiths` + `external_source`/`external_id` (UNIQUE с source),
+  `hadith_type` (марфу'/маукуф/…), `chapter_ar`/`sub_chapter_ar`,
+  `full_text_ar` (полный текст с inline-разметкой рави для кликабельного
+  иснада)
+- `hd_narrators` + `external_source`/`external_id` (UNIQUE),
+  `tabaqa` (поколение), `grade_text` (джарх-та'диль дословно),
+  `born_on_text`/`died_on_text` (проза дат)
+- новые таблицы: `hd_hadith_editions` (печатные издания),
+  `hd_rulings` (вердикты учёных), `hd_explanations`
+  (`kind` SHARH/ILAL/GHARIB), `hd_hadith_crossrefs` (такхридж/طرق через
+  cross-refs), `hd_narrator_relations` (сеть передатчиков)
+
+Иснад приходит пред-связанным (упорядоченный `narrators[]` + inline-теги
+рави) - парсится детерминированно, без AI. AI остаётся общей возможностью
+(перевод ar→ru/en, Q&A, гариб, PDF-парсинг), но не для извлечения иснада.
+Детали - `architecture-platform.md`, решение - ADR-060.
+
 ## Frontend (apps/ + shared/)
 
 С Phase 2 cleanup marathon (Сессия 25, 2026-05-11) фронт перешёл на
