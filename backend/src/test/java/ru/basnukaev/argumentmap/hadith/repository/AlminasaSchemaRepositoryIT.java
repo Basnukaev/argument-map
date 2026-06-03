@@ -114,5 +114,18 @@ class AlminasaSchemaRepositoryIT {
                 .satisfies(c -> assertThat(c.relatedExternalId()).isEqualTo("146-2356"));
         assertThat(relationRepository.findByNarratorId(narratorId)).singleElement()
                 .satisfies(rel -> assertThat(rel.cnt()).isEqualTo(24));
+
+        // deleteBy* — примитив идемпотентного реимпорта (используется маппером в Plan 3)
+        editionRepository.deleteByHadithId(hadithId);
+        rulingRepository.deleteByHadithId(hadithId);
+        explanationRepository.deleteByHadithId(hadithId);
+        crossrefRepository.deleteByHadithId(hadithId);
+        relationRepository.deleteByNarratorId(narratorId);
+
+        assertThat(editionRepository.findByHadithId(hadithId)).isEmpty();
+        assertThat(rulingRepository.findByHadithId(hadithId)).isEmpty();
+        assertThat(explanationRepository.findByHadithId(hadithId)).isEmpty();
+        assertThat(crossrefRepository.findByHadithId(hadithId)).isEmpty();
+        assertThat(relationRepository.findByNarratorId(narratorId)).isEmpty();
     }
 }
