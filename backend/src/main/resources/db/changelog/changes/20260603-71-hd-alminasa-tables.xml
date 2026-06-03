@@ -80,7 +80,7 @@
                 cnt                 integer,
                 created_at          timestamptz NOT NULL DEFAULT now()
             );
-            CREATE INDEX idx_hd_nrel_narrator ON hd_narrator_relations(narrator_id);
+            CREATE INDEX idx_hd_narrator_relations_narrator ON hd_narrator_relations(narrator_id);
         ]]></sql>
         <rollback><![CDATA[
             DROP TABLE hd_narrator_relations;

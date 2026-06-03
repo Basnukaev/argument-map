@@ -36,7 +36,7 @@
                 ADD COLUMN sub_chapter_ar  text,
                 ADD COLUMN full_text_ar    text;
             ALTER TABLE hd_hadiths
-                ADD CONSTRAINT uq_hd_hadiths_external UNIQUE (external_source, external_id);
+                ADD CONSTRAINT hd_hadiths_external_unique UNIQUE (external_source, external_id);
 
             ALTER TABLE hd_narrators
                 ADD COLUMN external_source varchar(30),
@@ -46,15 +46,15 @@
                 ADD COLUMN born_on_text    text,
                 ADD COLUMN died_on_text    text;
             ALTER TABLE hd_narrators
-                ADD CONSTRAINT uq_hd_narrators_external UNIQUE (external_source, external_id);
+                ADD CONSTRAINT hd_narrators_external_unique UNIQUE (external_source, external_id);
         ]]></sql>
         <rollback><![CDATA[
-            ALTER TABLE hd_narrators DROP CONSTRAINT uq_hd_narrators_external;
+            ALTER TABLE hd_narrators DROP CONSTRAINT hd_narrators_external_unique;
             ALTER TABLE hd_narrators
                 DROP COLUMN external_source, DROP COLUMN external_id,
                 DROP COLUMN tabaqa, DROP COLUMN grade_text,
                 DROP COLUMN born_on_text, DROP COLUMN died_on_text;
-            ALTER TABLE hd_hadiths DROP CONSTRAINT uq_hd_hadiths_external;
+            ALTER TABLE hd_hadiths DROP CONSTRAINT hd_hadiths_external_unique;
             ALTER TABLE hd_hadiths
                 DROP COLUMN external_source, DROP COLUMN external_id,
                 DROP COLUMN hadith_type, DROP COLUMN chapter_ar,
