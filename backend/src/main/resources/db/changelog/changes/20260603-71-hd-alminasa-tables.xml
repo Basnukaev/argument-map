@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Сессия 56: новые дочерние таблицы под данные alminasa.
+          hd_hadith_editions   — несколько печатных изданий (edition/page/volume).
+          hd_rulings           — импортированные вердикты учёных (свободный ruler +
+                                 год смерти). Ортогонально hadith_grades (ручные
+                                 оценки юзеров через authorities).
+          hd_explanations      — شروح/علل/غريب (kind), может быть большой текст.
+          hd_hadith_crossrefs  — такхридж/طرق (raw_narrations): связь хадиса с
+                                 сиблинг-преданиями по external_id (+ резолв в FK).
+          hd_narrator_relations— сеть передатчиков (top_students/top_scholars):
+                                 имя+частота, опциональный резолв в narrator FK.
+        Все ON DELETE CASCADE от родителя (хадис/рави). Индексы по FK сразу.
+    -->
+    <changeSet id="20260603-71-hd-alminasa-tables" author="Abdula Basnukaev">
+        <comment>Сессия 56: hd_hadith_editions / hd_rulings / hd_explanations / hd_hadith_crossrefs / hd_narrator_relations</comment>
+        <sql><![CDATA[
+            CREATE TABLE hd_hadith_editions (
+                id           uuid PRIMARY KEY,
+                hadith_id    uuid NOT NULL REFERENCES hd_hadiths(id) ON DELETE CASCADE,
+                edition_name text,
+                page         integer,
+                volume       integer
+            );
+            CREATE INDEX idx_hd_editions_hadith ON hd_hadith_editions(hadith_id);
+
+            CREATE TABLE hd_rulings (
+                id               uuid PRIMARY KEY,
+                hadith_id        uuid NOT NULL REFERENCES hd_hadiths(id) ON DELETE CASCADE,
+                ruler_name       text,
+                ruler_death_year integer,
+                ruling_text      text,
+                book_name        text,
+                page             integer,
+                volume           integer,
+                metadata         jsonb,
+                created_at       timestamptz NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_hd_rulings_hadith ON hd_rulings(hadith_id);
+
+            CREATE TABLE hd_explanations (
+                id                uuid PRIMARY KEY,
+                hadith_id         uuid NOT NULL REFERENCES hd_hadiths(id) ON DELETE CASCADE,
+                kind              varchar(20) NOT NULL CHECK (kind IN ('SHARH','ILAL','GHARIB')),
+                book_name         text,
+                author            text,
+                author_death_year integer,
+                page              integer,
+                volume            integer,
+                text              text,
+                metadata          jsonb,
+                created_at        timestamptz NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_hd_explanations_hadith ON hd_explanations(hadith_id);
+
+            CREATE TABLE hd_hadith_crossrefs (
+                id                  uuid PRIMARY KEY,
+                hadith_id           uuid NOT NULL REFERENCES hd_hadiths(id) ON DELETE CASCADE,
+                related_external_id varchar(40) NOT NULL,
+                related_hadith_id   uuid REFERENCES hd_hadiths(id) ON DELETE SET NULL,
+                relation_type       varchar(30),
+                note                text,
+                created_at          timestamptz NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_hd_crossrefs_hadith ON hd_hadith_crossrefs(hadith_id);
+            CREATE INDEX idx_hd_crossrefs_related ON hd_hadith_crossrefs(related_hadith_id);
+
+            CREATE TABLE hd_narrator_relations (
+                id                  uuid PRIMARY KEY,
+                narrator_id         uuid NOT NULL REFERENCES hd_narrators(id) ON DELETE CASCADE,
+                related_narrator_id uuid REFERENCES hd_narrators(id) ON DELETE SET NULL,
+                related_name        text,
+                role                varchar(20) NOT NULL CHECK (role IN ('STUDENT','SCHOLAR')),
+                cnt                 integer,
+                created_at          timestamptz NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_hd_nrel_narrator ON hd_narrator_relations(narrator_id);
+        ]]></sql>
+        <rollback><![CDATA[
+            DROP TABLE hd_narrator_relations;
+            DROP TABLE hd_hadith_crossrefs;
+            DROP TABLE hd_explanations;
+            DROP TABLE hd_rulings;
+            DROP TABLE hd_hadith_editions;
+        ]]></rollback>
+    </changeSet>
+
+</databaseChangeLog>
