@@ -377,7 +377,14 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
                 <p className="text-sm text-err-700">{bookState.message}</p>
               </Card>
             )}
-            {bookState.kind === 'success' && (
+            {bookState.kind === 'success' && bookState.book.contentKind === 'FILE_ONLY' && (
+              <Card className="flex flex-1 items-center justify-center p-6">
+                <p className="max-w-sm text-center text-sm text-ink-600">
+                  {t('citation_picker.file_only_unavailable')}
+                </p>
+              </Card>
+            )}
+            {bookState.kind === 'success' && bookState.book.contentKind !== 'FILE_ONLY' && (
               <>
                 <BookHeader book={bookState.book} pagesCount={bookState.pages.length} />
                 <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-elevated px-3 py-2">

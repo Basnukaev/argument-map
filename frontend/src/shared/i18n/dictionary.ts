@@ -794,8 +794,8 @@ export const DICTIONARY = {
     'admin.dashboard.shamela.produces': 'Книга с главами и страницами + академические метаданные',
     'admin.dashboard.shamela.cta': 'Открыть импорт Shamela',
     'admin.dashboard.pdf.title': 'Загрузить книгу (PDF/скан)',
-    'admin.dashboard.pdf.desc': 'Загрузка локального PDF или скана — текст извлекается автоматически из PDF слоя',
-    'admin.dashboard.pdf.produces': 'Книга с авто-извлечённым текстом и метаданными',
+    'admin.dashboard.pdf.desc': 'Загрузка локального PDF. Если в PDF есть текстовый слой — он подхватывается; сканы без текста открываются как PDF.',
+    'admin.dashboard.pdf.produces': 'Книга: PDF + текст из слоя (если есть)',
     'admin.dashboard.pdf.cta': 'Загрузить файл',
     'admin.dashboard.sunnah.title': 'Импорт хадисов (Sunnah)',
     'admin.dashboard.sunnah.desc':
@@ -807,7 +807,7 @@ export const DICTIONARY = {
     'admin.dashboard.archiveorg.desc':
       'Импорт книги по ссылке на archive.org — метаданные с подсветкой пропусков и список томов',
     'admin.dashboard.archiveorg.produces':
-      'Книга с томами (оригинал + OCR), академические метаданные и обложка',
+      'Книга с томами (PDF), академические метаданные и обложка',
     'admin.dashboard.archiveorg.cta': 'Открыть импорт archive.org',
     'admin.dashboard.audit.title': 'Журнал аудита',
     'admin.dashboard.audit.desc':
@@ -1031,6 +1031,8 @@ export const DICTIONARY = {
     'citation_picker.tab_books': 'Книги',
     'citation_picker.tab_reader': 'Чтение',
     'citation_picker.tab_selection': 'Выделение',
+    'citation_picker.file_only_unavailable':
+      'Эта книга — только PDF (без текстового слоя). Цитирование по фрагменту текста пока недоступно для таких книг.',
 
     // AddSourceModal (полная миграция)
     'add_source.title': 'Свободный источник',
@@ -2205,8 +2207,8 @@ export const DICTIONARY = {
     'admin.dashboard.shamela.produces': 'كتاب بفصول وصفحات + بيانات وصفية أكاديمية',
     'admin.dashboard.shamela.cta': 'فتح استيراد Shamela',
     'admin.dashboard.pdf.title': 'رفع كتاب (PDF/مسح ضوئي)',
-    'admin.dashboard.pdf.desc': 'رفع ملف PDF أو مسح محلي — يُستخرج النص تلقائياً من طبقة PDF',
-    'admin.dashboard.pdf.produces': 'كتاب بنص مُستخرَج تلقائياً وبيانات وصفية',
+    'admin.dashboard.pdf.desc': 'رفع ملف PDF محلي. إن كانت في الملف طبقة نصية فستُستخدم تلقائياً؛ أما المسوح الضوئية بدون نص فتُفتح بوصفها PDF.',
+    'admin.dashboard.pdf.produces': 'كتاب: PDF + نص الطبقة النصية (إن وُجدت)',
     'admin.dashboard.pdf.cta': 'رفع ملف',
     'admin.dashboard.sunnah.title': 'استيراد الأحاديث (Sunnah)',
     'admin.dashboard.sunnah.desc':
@@ -2217,7 +2219,7 @@ export const DICTIONARY = {
     'admin.dashboard.archiveorg.desc':
       'استيراد كتاب عبر رابط archive.org — بيانات وصفية مع إبراز النواقص وقائمة المجلدات',
     'admin.dashboard.archiveorg.produces':
-      'كتاب بمجلدات (الأصل + OCR) وبيانات وصفية أكاديمية وغلاف',
+      'كتاب بمجلدات (PDF) وبيانات وصفية أكاديمية وغلاف',
     'admin.dashboard.archiveorg.cta': 'فتح استيراد archive.org',
     'admin.dashboard.audit.title': 'سجلّ التدقيق',
     'admin.dashboard.audit.desc':
@@ -2434,6 +2436,8 @@ export const DICTIONARY = {
     'citation_picker.tab_books': 'الكتب',
     'citation_picker.tab_reader': 'القراءة',
     'citation_picker.tab_selection': 'التحديد',
+    'citation_picker.file_only_unavailable':
+      'هذا الكتاب بصيغة PDF فقط (بدون طبقة نصية). الاستشهاد بمقطع نصي غير متاح بعد لهذا النوع من الكتب.',
 
     'add_source.title': 'مصدر حر',
     'add_source.field.kind': 'النوع',
