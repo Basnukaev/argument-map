@@ -74,5 +74,7 @@
     <include file="db/changelog/changes/20260602-67-lib-books-cover-url.xml"/>
     <include file="db/changelog/changes/20260602-68-drop-ocr-columns.xml"/>
     <include file="db/changelog/changes/20260602-69-lib-books-content-kind.xml"/>
+    <include file="db/changelog/changes/20260603-70-hd-alminasa-columns.xml"/>
+    <include file="db/changelog/changes/20260603-71-hd-alminasa-tables.xml"/>
 
 </databaseChangeLog>

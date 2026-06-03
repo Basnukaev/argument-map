@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Сессия 56: разворот источника хадисов на alminasa.ai (единственный
+        источник). Спека docs/superpowers/specs/2026-06-03-alminasa-hadith-source-design.md.
+
+        Новые колонки расширяют существующие hd_hadiths / hd_narrators под
+        структурные данные alminasa:
+          - external_source/external_id — природный ключ источника
+            (hadith_id "146-1", narrator id "5719"). UNIQUE → идемпотентный
+            upsert вместо наивного fuzzy-матчинга имён.
+          - hadith_type — тип (марфу'/маукуф/...), которого не было в модели.
+          - chapter_ar/sub_chapter_ar — структура свода (денормализованные ar-метки).
+          - full_text_ar — полный матн+иснад с inline-разметкой рави
+            (<a class=rawy id=N>) для кликабельного иснада в UI.
+          - narrators: tabaqa (level), grade_text (джарх-та'диль дословно),
+            born_on_text/died_on_text (проза). enum reliability_grade остаётся
+            грубой производной для фильтров.
+
+        UNIQUE(external_source, external_id) допускает множественные NULL
+        (Postgres) — существующие seed-строки без external_* не нарушают его.
+    -->
+    <changeSet id="20260603-70-hd-alminasa-columns" author="Abdula Basnukaev">
+        <comment>Сессия 56: колонки alminasa на hd_hadiths/hd_narrators + UNIQUE external_id</comment>
+        <sql><![CDATA[
+            ALTER TABLE hd_hadiths
+                ADD COLUMN external_source varchar(30),
+                ADD COLUMN external_id     varchar(40),
+                ADD COLUMN hadith_type     varchar(40),
+                ADD COLUMN chapter_ar      text,
+                ADD COLUMN sub_chapter_ar  text,
+                ADD COLUMN full_text_ar    text;
+            ALTER TABLE hd_hadiths
+                ADD CONSTRAINT uq_hd_hadiths_external UNIQUE (external_source, external_id);
+
+            ALTER TABLE hd_narrators
+                ADD COLUMN external_source varchar(30),
+                ADD COLUMN external_id     varchar(40),
+                ADD COLUMN tabaqa          varchar(120),
+                ADD COLUMN grade_text      text,
+                ADD COLUMN born_on_text    text,
+                ADD COLUMN died_on_text    text;
+            ALTER TABLE hd_narrators
+                ADD CONSTRAINT uq_hd_narrators_external UNIQUE (external_source, external_id);
+        ]]></sql>
+        <rollback><![CDATA[
+            ALTER TABLE hd_narrators DROP CONSTRAINT uq_hd_narrators_external;
+            ALTER TABLE hd_narrators
+                DROP COLUMN external_source, DROP COLUMN external_id,
+                DROP COLUMN tabaqa, DROP COLUMN grade_text,
+                DROP COLUMN born_on_text, DROP COLUMN died_on_text;
+            ALTER TABLE hd_hadiths DROP CONSTRAINT uq_hd_hadiths_external;
+            ALTER TABLE hd_hadiths
+                DROP COLUMN external_source, DROP COLUMN external_id,
+                DROP COLUMN hadith_type, DROP COLUMN chapter_ar,
+                DROP COLUMN sub_chapter_ar, DROP COLUMN full_text_ar;
+        ]]></rollback>
+    </changeSet>
+
+</databaseChangeLog>
