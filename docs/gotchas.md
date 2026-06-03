@@ -701,6 +701,38 @@ auth.
 
 ---
 
+## LLM (DeepSeek/OpenAI) за корп-прокси: builder Authenticator вырезает Authorization: Bearer
+
+**Симптом (Сессия 56):** LLM-вызов через `java.net.http.HttpClient` за
+authenticated корп-прокси. С builder `Authenticator` (как в shamela) прокси-407
+проходит (CONNECT-туннель открывается), но DeepSeek/OpenAI отвечают `401` без
+`WWW-Authenticate` → JDK кидает `IOException: WWW-Authenticate header missing for
+response code 401`. Тот же ключ+прокси через curl даёт 200.
+
+**Причина:** при заданном builder `Authenticator` JDK HttpClient **ВЫРЕЗАЕТ
+пользовательский заголовок `Authorization`** (ждёт challenge-response). Для
+shamela это не проблема (там нет серверного Bearer), но LLM-ключ идёт именно в
+`Authorization: Bearer` → DeepSeek получает запрос БЕЗ ключа → 401. Verbose-лог
+(`-Djdk.httpclient.HttpClient.log=requests,headers`) показывает в REQUEST HEADERS
+к api.deepseek.com только `User-Agent`+`content-type`, без `Authorization`.
+
+**Решение (НЕ через Authenticator):** прокси-аутентификация ПРЕВЕНТИВНАЯ —
+заголовок `Proxy-Authorization: Basic base64(user:pass)` ставится на КАЖДЫЙ
+запрос вручную, builder Authenticator НЕ используется (тогда Bearer не вырезается).
+Нужны два system-property (в `ArgumentMapApplication` static-блоке, ДО HttpClient):
+```java
+System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "");      // Basic-over-CONNECT
+System.setProperty("jdk.httpclient.allowRestrictedHeaders", "proxy-authorization"); // разрешить ставить хедер
+```
+JDK кладёт превентивный `Proxy-Authorization` на CONNECT → 200 туннель, серверный
+`Authorization: Bearer` сохраняется → 200. В проекте: `ai.LlmHttpClients`
+(`build` + `proxyAuthHeader`) + `ai.http.proxy=http://user:pass@host:port`,
+клиенты (`OpenAiCompatibleLlmClient`/`AnthropicLlmClient`) шлют header сами.
+Прокси навешивается ТОЛЬКО на LLM-HttpClient (НЕ глобально `https.proxyHost` —
+иначе S3/MinIO localhost-трафик уйдёт в прокси → 503 на старте).
+
+---
+
 ## OpenApiIT.readOnlyEndpoint_doesNotGetUserIdHeader флакает в общем прогоне
 
 **Симптом:** при `./mvnw verify` иногда падает один тест

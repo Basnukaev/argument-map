@@ -164,6 +164,12 @@ ai:
   # кода. Ровно ОДИН клиент-бин активен (conditionals взаимоисключающие,
   # anthropic - matchIfMissing). Каждый провайдер читает свой блок ниже.
   provider: ${AI_PROVIDER:anthropic}
+  # Опциональный исходящий HTTP-прокси ТОЛЬКО для LLM-вызовов (за корп-прокси,
+  # где внешние хосты blackhole-DNS на 127.0.0.1). Формат http://user:pass@host:port.
+  # Превентивный Proxy-Authorization (см. LlmHttpClients + gotchas "LLM за корп-прокси").
+  # Пусто = прямое соединение. НЕ глобальный https.proxyHost (S3/MinIO не затрагивает).
+  http:
+    proxy: ${AI_HTTP_PROXY:}
   anthropic:
     # Sentinel "disabled" = LlmClient.isEnabled()=false → AI endpoint
     # вернёт 503, BookMetadataExtraction вернёт empty (graceful fallback).

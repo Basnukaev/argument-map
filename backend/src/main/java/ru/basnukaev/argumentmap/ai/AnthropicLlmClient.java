@@ -67,6 +67,8 @@ public class AnthropicLlmClient implements LlmClient {
     private final String model;
     private final int maxTokens;
     private final Duration timeout;
+    /** Превентивный Proxy-Authorization (Basic) если задан ai.http.proxy с кредами; иначе null. */
+    private final String proxyAuthHeader;
 
     @Autowired
     public AnthropicLlmClient(
@@ -75,18 +77,21 @@ public class AnthropicLlmClient implements LlmClient {
             @Value("${ai.anthropic.base-url:https://api.anthropic.com}") String baseUrl,
             @Value("${ai.anthropic.model:claude-sonnet-4-6}") String model,
             @Value("${ai.anthropic.max-tokens:4096}") int maxTokens,
-            @Value("${ai.anthropic.timeout-seconds:60}") int timeoutSeconds) {
+            @Value("${ai.anthropic.timeout-seconds:60}") int timeoutSeconds,
+            @Value("${ai.http.proxy:}") String proxyUrl) {
         this.objectMapper = objectMapper;
         this.apiKey = apiKey;
         this.baseUrl = baseUrl;
         this.model = model;
         this.maxTokens = maxTokens;
         this.timeout = Duration.ofSeconds(timeoutSeconds);
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .build();
-        log.info("AnthropicLlmClient init: model={}, baseUrl={}, enabled={}",
-                model, baseUrl, isEnabled());
+        // Опциональный прокси (ai.http.proxy) навешивается только на этот
+        // HttpClient, не глобально (иначе S3/MinIO-трафик тоже пошёл бы через прокси).
+        this.httpClient = LlmHttpClients.build(10, proxyUrl);
+        this.proxyAuthHeader = LlmHttpClients.proxyAuthHeader(proxyUrl);
+        log.info("AnthropicLlmClient init: model={}, baseUrl={}, enabled={}, proxy={}",
+                model, baseUrl, isEnabled(),
+                proxyUrl != null && !proxyUrl.isBlank() ? "yes" : "no");
     }
 
     /**
@@ -104,6 +109,7 @@ public class AnthropicLlmClient implements LlmClient {
         this.model = model;
         this.maxTokens = maxTokens;
         this.timeout = Duration.ofSeconds(timeoutSeconds);
+        this.proxyAuthHeader = null;
     }
 
     @Override
@@ -135,13 +141,15 @@ public class AnthropicLlmClient implements LlmClient {
         }
 
         String body = buildRequestBody(systemPrompt, userPrompt);
-        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/v1/messages"))
+        HttpRequest.Builder rb = HttpRequest.newBuilder(URI.create(baseUrl + "/v1/messages"))
                 .timeout(timeout)
                 .header("x-api-key", apiKey)
                 .header("anthropic-version", "2023-06-01")
-                .header("content-type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
+                .header("content-type", "application/json");
+        if (proxyAuthHeader != null) {
+            rb.header("Proxy-Authorization", proxyAuthHeader);
+        }
+        HttpRequest request = rb.POST(HttpRequest.BodyPublishers.ofString(body)).build();
 
         try {
             HttpResponse<String> response = httpClient.send(

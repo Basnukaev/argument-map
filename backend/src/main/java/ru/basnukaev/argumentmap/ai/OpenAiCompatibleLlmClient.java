@@ -64,6 +64,8 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
     private final String model;
     private final int maxTokens;
     private final Duration timeout;
+    /** Превентивный Proxy-Authorization (Basic) если задан ai.http.proxy с кредами; иначе null. */
+    private final String proxyAuthHeader;
 
     @Autowired
     public OpenAiCompatibleLlmClient(
@@ -72,29 +74,32 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
             @Value("${ai.openai.base-url:https://api.openai.com}") String baseUrl,
             @Value("${ai.openai.model:gpt-4o}") String model,
             @Value("${ai.openai.max-tokens:4096}") int maxTokens,
-            @Value("${ai.openai.timeout-seconds:60}") int timeoutSeconds) {
-        this(objectMapper, apiKey, baseUrl, model, maxTokens, timeoutSeconds, "OpenAiCompatibleLlmClient");
+            @Value("${ai.openai.timeout-seconds:60}") int timeoutSeconds,
+            @Value("${ai.http.proxy:}") String proxyUrl) {
+        this(objectMapper, apiKey, baseUrl, model, maxTokens, timeoutSeconds, proxyUrl,
+                "OpenAiCompatibleLlmClient");
     }
 
     /**
      * Protected конструктор для subclass'ов (DeepSeek) - принимает уже
      * разрешённый конфиг и собственное имя клиента для лога. Создаёт
-     * production HttpClient (connect-timeout 10s).
+     * production HttpClient (connect-timeout 10s) с опциональным прокси
+     * ({@code ai.http.proxy}) — навешивается только на этот клиент, не глобально.
      */
     protected OpenAiCompatibleLlmClient(ObjectMapper objectMapper, String apiKey,
                                         String baseUrl, String model, int maxTokens,
-                                        int timeoutSeconds, String clientName) {
+                                        int timeoutSeconds, String proxyUrl, String clientName) {
         this.objectMapper = objectMapper;
         this.apiKey = apiKey;
         this.baseUrl = baseUrl;
         this.model = model;
         this.maxTokens = maxTokens;
         this.timeout = Duration.ofSeconds(timeoutSeconds);
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .build();
-        log.info("{} init: model={}, baseUrl={}, enabled={}",
-                clientName, model, baseUrl, isEnabled());
+        this.httpClient = LlmHttpClients.build(10, proxyUrl);
+        this.proxyAuthHeader = LlmHttpClients.proxyAuthHeader(proxyUrl);
+        log.info("{} init: model={}, baseUrl={}, enabled={}, proxy={}",
+                clientName, model, baseUrl, isEnabled(),
+                proxyUrl != null && !proxyUrl.isBlank() ? "yes" : "no");
     }
 
     /**
@@ -111,6 +116,7 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
         this.model = model;
         this.maxTokens = maxTokens;
         this.timeout = Duration.ofSeconds(timeoutSeconds);
+        this.proxyAuthHeader = null;
     }
 
     @Override
@@ -128,12 +134,16 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
         }
 
         String body = buildRequestBody(systemPrompt, userPrompt);
-        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/v1/chat/completions"))
+        HttpRequest.Builder rb = HttpRequest.newBuilder(URI.create(baseUrl + "/v1/chat/completions"))
                 .timeout(timeout)
                 .header("Authorization", "Bearer " + apiKey)
-                .header("content-type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
+                .header("content-type", "application/json");
+        // Превентивный Proxy-Authorization на CONNECT (см. LlmHttpClients) —
+        // НЕ через Authenticator, иначе JDK вырезал бы Authorization: Bearer.
+        if (proxyAuthHeader != null) {
+            rb.header("Proxy-Authorization", proxyAuthHeader);
+        }
+        HttpRequest request = rb.POST(HttpRequest.BodyPublishers.ofString(body)).build();
 
         try {
             HttpResponse<String> response = httpClient.send(

@@ -27,8 +27,9 @@ public class DeepSeekLlmClient extends OpenAiCompatibleLlmClient {
             @Value("${ai.deepseek.base-url:https://api.deepseek.com}") String baseUrl,
             @Value("${ai.deepseek.model:deepseek-chat}") String model,
             @Value("${ai.deepseek.max-tokens:4096}") int maxTokens,
-            @Value("${ai.deepseek.timeout-seconds:60}") int timeoutSeconds) {
-        super(objectMapper, apiKey, baseUrl, model, maxTokens, timeoutSeconds,
+            @Value("${ai.deepseek.timeout-seconds:60}") int timeoutSeconds,
+            @Value("${ai.http.proxy:}") String proxyUrl) {
+        super(objectMapper, apiKey, baseUrl, model, maxTokens, timeoutSeconds, proxyUrl,
                 "DeepSeekLlmClient");
     }
 }

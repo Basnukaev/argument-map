@@ -12,6 +12,11 @@ public class ArgumentMapApplication {
 		// property при первом auth challenge). Подробности и reproducer -
 		// в docs/gotchas.md "Java HttpClient + SHAMELA_PROXY".
 		System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "");
+		// Разрешить выставлять Proxy-Authorization вручную (restricted header).
+		// LLM-клиент (ai.http.proxy) шлёт его ПРЕВЕНТИВНО на CONNECT — без
+		// builder-Authenticator, иначе JDK вырезал бы серверный Authorization:
+		// Bearer (DeepSeek/OpenAI ключ). См. gotchas.md "LLM за корп-прокси".
+		System.setProperty("jdk.httpclient.allowRestrictedHeaders", "proxy-authorization");
 	}
 
 	public static void main(String[] args) {
