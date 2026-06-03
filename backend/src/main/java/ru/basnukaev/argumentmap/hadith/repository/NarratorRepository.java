@@ -25,7 +25,9 @@ public class NarratorRepository {
             "id, authority_id, name_ar, name_ar_normalized, kunya, laqab, "
                     + "year_birth_hijri, year_death_hijri, birthplace, death_place, "
                     + "primary_residence, reliability_grade, reliability_comment, "
-                    + "transmitted_count_cached, metadata, created_at";
+                    + "transmitted_count_cached, metadata, created_at, "
+                    + "external_source, external_id, tabaqa, grade_text, "
+                    + "born_on_text, died_on_text";
 
     private static final RowMapper<Narrator> ROW_MAPPER = (rs, rn) -> new Narrator(
             rs.getObject("id", UUID.class),
@@ -43,7 +45,13 @@ public class NarratorRepository {
             rs.getString("reliability_comment"),
             rs.getInt("transmitted_count_cached"),
             rs.getString("metadata"),
-            instant(rs, "created_at")
+            instant(rs, "created_at"),
+            rs.getString("external_source"),
+            rs.getString("external_id"),
+            rs.getString("tabaqa"),
+            rs.getString("grade_text"),
+            rs.getString("born_on_text"),
+            rs.getString("died_on_text")
     );
 
     private final JdbcTemplate jdbcTemplate;
@@ -55,12 +63,15 @@ public class NarratorRepository {
     public Narrator save(Narrator n) {
         jdbcTemplate.update(
                 "INSERT INTO hd_narrators (" + COLUMNS + ") VALUES ("
-                        + "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?)",
+                        + "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, "
+                        + "?, ?, ?, ?, ?, ?)",
                 n.id(), n.authorityId(), n.nameAr(), n.nameArNormalized(),
                 n.kunya(), n.laqab(), n.yearBirthHijri(), n.yearDeathHijri(),
                 n.birthplace(), n.deathPlace(), n.primaryResidence(),
                 n.reliabilityGrade(), n.reliabilityComment(),
-                n.transmittedCountCached(), n.metadata(), odt(n.createdAt())
+                n.transmittedCountCached(), n.metadata(), odt(n.createdAt()),
+                n.externalSource(), n.externalId(), n.tabaqa(), n.gradeText(),
+                n.bornOnText(), n.diedOnText()
         );
         return n;
     }
@@ -88,6 +99,15 @@ public class NarratorRepository {
                 "SELECT " + COLUMNS + " FROM hd_narrators "
                         + "WHERE name_ar_normalized = ? ORDER BY created_at ASC LIMIT 1",
                 ROW_MAPPER, normalized
+        ).stream().findFirst();
+    }
+
+    /** Точный дедуп рави по природному ключу источника (alminasa narrator id). */
+    public Optional<Narrator> findByExternalId(String externalSource, String externalId) {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM hd_narrators "
+                        + "WHERE external_source = ? AND external_id = ?",
+                ROW_MAPPER, externalSource, externalId
         ).stream().findFirst();
     }
 
