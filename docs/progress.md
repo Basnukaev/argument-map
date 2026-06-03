@@ -51,6 +51,23 @@
   `ai.edit.processing-timeout-minutes`), HttpClientPdfFetcher negative Content-Length guard.
 - Итого ~9 Tier-3 пунктов бэклога закрыты. backend BUILD SUCCESS, frontend 716 тестов.
 
+### Хвост сессии — DeepSeek-прокси + сворачивание хадисов (по запросу Абдулы)
+- **LLM за корп-прокси** (`ai.http.proxy`): WSL2 blackhole-DNS api.deepseek.com→127.0.0.1 +
+  обязательный authenticated HTTPS_PROXY. Диагностика через standalone-репро: builder
+  `Authenticator` (как shamela) проходит прокси-407, НО JDK вырезает серверный
+  `Authorization: Bearer` → 401. Фикс: превентивный `Proxy-Authorization: Basic` +
+  `jdk.httpclient.allowRestrictedHeaders` (static-блок), прокси ТОЛЬКО на LLM-HttpClient.
+  `ai/LlmHttpClients`, gotcha. **DeepSeek заработал живьём** (метаданные archive.org ИИ —
+  лучше regex: split издатель/место). Ключ передан аргументом, НЕ в репо.
+- **UI-фиксы:** убраны OCR-упоминания в admin-карточках (archive.org «+OCR»→«PDF»,
+  PDF-upload без обещания авто-извлечения); CitationPicker не виснет на FILE_ONLY
+  (честное «только PDF» вместо вечного спиннера). Отложено (косметика): ровные чипы,
+  z-index FloatingActionBar/модалка, header overlap; AI-vision метаданных по front-matter PDF.
+- **Хадисы свёрнуты:** субагент enrich+grounding успел частично отредактировать
+  (extract-isnad endpoint, grounding) → **откатил** (`git checkout`), чтобы Абдула
+  переделал с чистой базы. РАЗВОРОТ стратегии (memory `feedback_hadith_source_strategy`):
+  **alminasa = единственный источник** (Сессия 56), AI-isnad-from-matn (ADR-059) → legacy.
+
 ### Решения
 - ADR-057 (OCR removed), ADR-058 (swappable LLM), ADR-059 (AI-иснад), ADR-056 amendment
   (archive.org FILE_ONLY). content_kind vs book_type — две ортогональные оси.
@@ -80,15 +97,14 @@ extract-isnad → `{llmEnabled:false}` (graceful без ключа).
 - **Весь UI требует ручной проверки** (playwright env-blocked, нет Chromium).
 
 ### Следующий шаг
-**Тёплый путь (после ручной проверки UI):**
-1. **Rijal-обогащение нарраторов** — иснад persistence сделан (Фаза 9), но нарраторы
-   без био (имя+нормализованное). Обогащать био/надёжность из authoritative rijal-источника
-   (alminasa future); улучшить дедуп (сейчас по норм. имени — false-merge гомонимов).
-2. **bbox-citation CREATION для FILE_ONLY** (roadmap 25.f) — CitationPicker PDF-режим
-   (выбор страницы + рисование bbox на скане через react-image-crop). Display готов.
-3. **Полный дамп sunnah.com** (контент-ops) — сейчас только bukhari.
-4. **AI-ключ для живой проверки** метаданных + иснада (попробовать deepseek/openai/claude
-   через `ai.provider`).
+1. **🔴 Переделка хадисов под alminasa** (Сессия 56) — alminasa = единственный источник
+   (memory `feedback_hadith_source_strategy`); дизайн-спека + alminasa-парсер (staging→map).
+   AI-isnad-from-matn (ADR-059) становится legacy.
+2. **🖐️ Ручная проверка UI** overhaul'а + DeepSeek-метаданные (ключ поднят).
+3. **bbox-citation CREATION** (roadmap 25.f) — архитектурный блокер (pdfFileId↔library_files),
+   нужно решение по модели. Display готов.
+4. **Косметика:** ровные чипы admin, z-index модалки, header overlap; AI-vision метаданных
+   по front-matter PDF (Абдула просил — титул/выходные данные несут ISBN/тома/издателя).
 
 ## 2026-06-02 - Сессия 54 (батч 5) - archive.org PDF-импорт MVP (новый инструмент)
 

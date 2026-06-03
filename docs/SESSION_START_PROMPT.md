@@ -214,17 +214,28 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 **Верификация (финал):** backend `./mvnw verify` → **BUILD SUCCESS**; frontend build ✓ /
 tsc ✓ / eslint **0 проблем** / **vitest 708/0/0**.
 
-**СЛЕДУЮЩИЙ ШАГ (тёплый путь):**
-1. **🖐️ РУЧНАЯ ПРОВЕРКА UI** всего overhaul'а Абдулой (playwright env-blocked, нет Chromium) —
-   archive.org импорт (FILE_ONLY ридер), content_kind кнопки, hadith превью/иснад, bbox.
-2. **AI-ключ для живой проверки** — задать `ai.provider` (anthropic/openai/deepseek) + ключ
-   в env, проверить AI-метаданные книг + извлечение иснада вживую.
-3. **Rijal-обогащение нарраторов** — persistence сделана (Фаза 9: hd_sanads/narrators/
-   sanad_narrators на импорте, дедуп по норм. имени). Осталось: био/надёжность нарраторов
-   из authoritative rijal-источника (alminasa future) + улучшить дедуп (false-merge гомонимов).
-4. **bbox-citation CREATION для FILE_ONLY** (roadmap 25.f) — CitationPicker PDF-режим
-   (выбор страницы + рисование bbox через react-image-crop). Display уже готов.
-5. **Полный дамп sunnah.com** (контент-ops) — сейчас только bukhari (100 строк).
+**ХВОСТ СЕССИИ 55 (после основного overhaul):** добавлена **поддержка LLM за корп-прокси**
+(`ai.http.proxy`, превентивный Proxy-Authorization — gotcha «LLM за корп-прокси»);
+**DeepSeek живьём заработал** через прокси (метаданные книг archive.org извлекаются ИИ,
+лучше regex). **Hadith-работа свёрнута** по решению Абдулы (enrich/grounding/alminasa —
+переделка отдельной сессией). Мелкие UI-фиксы: убраны OCR-упоминания в админ-карточках,
+CitationPicker больше не виснет на FILE_ONLY (показывает «только PDF»).
+
+**СЛЕДУЮЩИЙ ШАГ:**
+1. **🔴 ПЕРЕДЕЛКА ХАДИСОВ под alminasa** — Абдула развернул стратегию (см. memory
+   `feedback_hadith_source_strategy`): **alminasa.ai = ЕДИНСТВЕННЫЙ источник** арабского
+   контента + хадисоведения (открытый ES-прокси, отдаёт structured иснад/риджаль/шарх/
+   рулинги). sunnah.com → только en-переводы либо выпил. AI-isnad-from-matn (ADR-059) →
+   legacy. Нужна дизайн-спека Сессии 56 + новый alminasa-парсер (staging→map как sunnah ETL).
+2. **🖐️ РУЧНАЯ ПРОВЕРКА UI** overhaul'а (playwright env-blocked) — archive.org FILE_ONLY ридер,
+   content_kind кнопки, bbox-подсветка. DeepSeek-метаданные книги (с поднятым ключом).
+3. **bbox-citation CREATION для FILE_ONLY** (roadmap 25.f) — **архитектурный блокер**:
+   `pdfFileId`=FK на `library_files`, а archive.org PDF в `metadata.pdf_links`. Нужно
+   решение по модели (см. `docs/backlog.md` «FILE_ONLY bbox-citation CREATION»). Display готов.
+4. **Косметика (отложено Сессией 55):** ровные чипы admin-карточек; z-index FloatingActionBar
+   поверх модалки; header/верх модалки overlap. **AI-vision метаданных по front-matter PDF**
+   (титул/выходные данные содержат ISBN/тома/издателя — Абдула просил, multimodal LLM).
+5. **Полный дамп sunnah.com** (контент-ops) — если sunnah вообще остаётся.
 
 **Прочее отложенное:** migration 69 jsonb-guard hardening (backlog); shamela chapter-cycle,
 bibliography dash-split, getDetail perf (Tier-3 backlog). См. `docs/backlog.md`.
@@ -233,7 +244,10 @@ bibliography dash-split, getDetail perf (Tier-3 backlog). См. `docs/backlog.md
 дамп = только bukhari). Backend :9090 + JDWP :5005. **ВАЖНО: sunnah-конфиг — через
 `-Dspring-boot.run.arguments`, НЕ env.** Команда рестарта:
 `./mvnw spring-boot:run -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005" -Dspring-boot.run.arguments="--sunnah.dump.enabled=true --sunnah.dump.url=jdbc:mysql://localhost:3307/sunnah?allowPublicKeyRetrieval=true&useSSL=false --sunnah.dump.username=root --sunnah.dump.password=root"`
-**Для AI-фич:** добавить `--ai.provider=deepseek --ai.deepseek.api-key=...` (или anthropic/openai).
+**Для AI-фич:** добавить `--ai.provider=deepseek --ai.deepseek.api-key=<ключ>` (или anthropic/
+openai). **За корп-прокси (WSL2):** + `--ai.http.proxy=http://user:pass@host:port` (берётся
+из env `HTTPS_PROXY`; api.deepseek.com blackhole-DNS на 127.0.0.1 без прокси). Ключ Абдулы
+НЕ в репо — передаётся аргументом при рестарте.
 migrations через **69** (68 drop ocr-columns, 69 lib_books.content_kind). **Psql роль `argmap`**
 (не postgres): `docker exec argumentmap-postgres psql -U argmap -d argumentmap`. frontend :5173.
 Admin для curl/тестов: `00000000-0000-0000-0000-000000000001`. HAR archive.org в gitignore.
