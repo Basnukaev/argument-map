@@ -25,7 +25,9 @@ public class HadithRepository {
 
     private static final String COLUMNS =
             "id, collection_id, primary_number, normalized_matn, status, "
-                    + "source_id, metadata, created_at";
+                    + "source_id, metadata, created_at, "
+                    + "external_source, external_id, hadith_type, "
+                    + "chapter_ar, sub_chapter_ar, full_text_ar";
 
     private static final RowMapper<Hadith> ROW_MAPPER = (rs, rn) -> new Hadith(
             rs.getObject("id", UUID.class),
@@ -35,7 +37,13 @@ public class HadithRepository {
             rs.getString("status"),
             rs.getObject("source_id", UUID.class),
             rs.getString("metadata"),
-            instant(rs, "created_at")
+            instant(rs, "created_at"),
+            rs.getString("external_source"),
+            rs.getString("external_id"),
+            rs.getString("hadith_type"),
+            rs.getString("chapter_ar"),
+            rs.getString("sub_chapter_ar"),
+            rs.getString("full_text_ar")
     );
 
     private final JdbcTemplate jdbcTemplate;
@@ -47,9 +55,11 @@ public class HadithRepository {
     public Hadith save(Hadith h) {
         jdbcTemplate.update(
                 "INSERT INTO hd_hadiths (" + COLUMNS + ") VALUES "
-                        + "(?, ?, ?, ?, ?, ?, ?::jsonb, ?)",
+                        + "(?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?)",
                 h.id(), h.collectionId(), h.primaryNumber(), h.normalizedMatn(),
-                h.status(), h.sourceId(), h.metadata(), odt(h.createdAt())
+                h.status(), h.sourceId(), h.metadata(), odt(h.createdAt()),
+                h.externalSource(), h.externalId(), h.hadithType(),
+                h.chapterAr(), h.subChapterAr(), h.fullTextAr()
         );
         return h;
     }
@@ -81,6 +91,15 @@ public class HadithRepository {
                 "SELECT " + COLUMNS + " FROM hd_hadiths "
                         + "WHERE collection_id = ? AND primary_number = ?",
                 ROW_MAPPER, collectionId, primaryNumber
+        ).stream().findFirst();
+    }
+
+    /** Поиск по природному ключу источника (alminasa hadith_id) для идемпотентного импорта. */
+    public Optional<Hadith> findByExternalId(String externalSource, String externalId) {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM hd_hadiths "
+                        + "WHERE external_source = ? AND external_id = ?",
+                ROW_MAPPER, externalSource, externalId
         ).stream().findFirst();
     }
 
@@ -181,9 +200,13 @@ public class HadithRepository {
      * может ссылаться на narrator'а в нескольких своих цепях.
      */
     public List<Hadith> findByNarratorIdPage(UUID narratorId, int limit, int offset) {
+        // ВНИМАНИЕ: ручной список колонок (h.-алиасы для JOIN) должен совпадать
+        // с COLUMNS/ROW_MAPPER по порядку и числу — при расширении маппера править здесь тоже.
         return jdbcTemplate.query(
                 "SELECT DISTINCT h.id, h.collection_id, h.primary_number, h.normalized_matn, "
-                        + "h.status, h.source_id, h.metadata, h.created_at "
+                        + "h.status, h.source_id, h.metadata, h.created_at, "
+                        + "h.external_source, h.external_id, h.hadith_type, "
+                        + "h.chapter_ar, h.sub_chapter_ar, h.full_text_ar "
                         + "FROM hd_hadiths h "
                         + "JOIN hd_sanads s ON s.hadith_id = h.id "
                         + "JOIN hd_sanad_narrators sn ON sn.sanad_id = s.id "
