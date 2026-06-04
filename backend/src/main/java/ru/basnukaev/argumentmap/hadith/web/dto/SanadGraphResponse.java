@@ -46,6 +46,9 @@ public record SanadGraphResponse(
             String reliabilityGrade,
             String reliabilityComment,
             String generation,
+            String tabaqa,
+            String gradeText,
+            String externalId,
             String collection,
             int tier
     ) {

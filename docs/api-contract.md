@@ -3415,6 +3415,46 @@ Bundled detail: hadith + sanads (с narrator-link'ами) + matns + `grades`
 `hd_hadiths.metadata.grades`) в одном payload (N+1 avoidance). 404
 `hadith-not-found`.
 
+**alminasa-обогащение (План 6):** ответ несёт богатые данные из `hd_*`.
+Скалярные поля хадиса: `hadithType` (مرفوع/موقوف/…), `chapterAr`,
+`subChapterAr`, `fullTextAr` (HTML-иснад с `<a class=rawy id=N>` /
+`<a class=matn>` тегами для клик-резолва на фронте). Списки сателлитов
+(по одному запросу на тип, single-detail — N+1 нет; для legacy/seeded
+хадисов без сателлитов — пустые массивы, скалярные поля null):
+
+- `editions: [{editionName, page, volume}]` — печатные издания;
+- `rulings: [{rulerName, rulerDeathYear, rulingText, bookName, page,
+  volume, source, relatedExternalId}]` — вердикты учёных. `source`
+  (`'embedded'`|`'index'`) и `relatedExternalId` берутся из
+  `hd_rulings.metadata` (jsonb, ключи `source`/`relatedExternalId`;
+  отсутствуют → null). `source='index'` + `relatedExternalId` означает
+  вердикт на ПАРАЛЛЕЛЬНУЮ передачу, не на этот хадис;
+- `explanations: [{kind, bookName, author, page, volume, text}]` —
+  шарх/иляль/гариб (kind ∈ SHARH/ILAL/GHARIB; `text` до ~59KB);
+- `crossrefs: [{relatedExternalId, relatedHadithId, note}]` — такхридж/طرق.
+  `relatedHadithId` (nullable) заполнен, если сиблинг уже импортирован.
+
+```jsonc
+{
+  "id": "uuid", "collectionId": "uuid", "primaryNumber": 146,
+  "normalizedMatn": "...", "status": "CANONICAL", "sourceId": null,
+  "createdAt": "2026-06-04T10:00:00Z",
+  "hadithType": "مرفوع", "chapterAr": "كتاب بدء الوحي",
+  "subChapterAr": "باب كيف كان بدء الوحي",
+  "fullTextAr": "<a class=rawy id=1>عمر بن الخطاب</a> ... <a class=matn>إنما الأعمال بالنيات</a>",
+  "sanads": [ /* SanadDto[] */ ], "matns": [ /* MatnDto[] */ ],
+  "grades": [ /* {scholar, grade, note}[] */ ],
+  "editions": [ { "editionName": "طبعة بولاق", "page": 12, "volume": 1 } ],
+  "rulings": [ { "rulerName": "البخاري", "rulerDeathYear": 256,
+    "rulingText": "صحيح", "bookName": "الجامع الصحيح", "page": 5,
+    "volume": 1, "source": "embedded", "relatedExternalId": null } ],
+  "explanations": [ { "kind": "SHARH", "bookName": "فتح الباري",
+    "author": "ابن حجر", "page": 3, "volume": 1, "text": "شرح..." } ],
+  "crossrefs": [ { "relatedExternalId": "2-99", "relatedHadithId": null,
+    "note": "أخرجه مسلم" } ]
+}
+```
+
 ### GET /api/v1/hadith/hadiths/{id}/sanad-graph
 
 Граф иснада, преднастроенный под React Flow. **Узлы дедуплицированы**
@@ -3438,6 +3478,8 @@ Bundled detail: hadith + sanads (с narrator-link'ами) + matns + `grades`
         "kunya": "...", "laqab": "...", "yearDeathHijri": 143,
         "reliabilityGrade": "THIQA|SADUQ|MAQBUL|DAIF|MATRUK|SAHABI|UNKNOWN",
         "reliabilityComment": "...", "generation": "...",
+        "tabaqa": "الطبقة الأولى", "gradeText": "ثقة حافظ",
+        "externalId": "rawy-59",
         "collection": "Сахих аль-Бухари (только COLLECTOR)", "tier": 4
       } }
   ],
@@ -3458,6 +3500,10 @@ Bundled detail: hadith + sanads (с narrator-link'ами) + matns + `grades`
   `COLLECTOR` (составитель, есть в `compiledById` sanad'а) / `NARRATOR`.
 - `tier` - глубина (Пророк ﷺ = 0, далее position+1) для семантики.
 - `data.collection` заполняется только для `COLLECTOR` (из metadata sanad'а).
+- `data.tabaqa` / `data.gradeText` / `data.externalId` (План 6) — поколение,
+  verbatim джарх-та'диль и природный ключ alminasa-рави (для клик-резолва
+  иснада на фронте: связь токена `<a class=rawy>` в `fullTextAr` с узлом
+  графа). null для синтетического узла `prophet` и не-alminasa рави.
 - 404 `hadith-not-found` если хадиса нет.
 
 Питает компонент `SanadGraph` (React Flow, dagre TB layout, read-only).
@@ -3471,6 +3517,15 @@ DAIF / MATRUK / SAHABI / UNKNOWN).
 ### GET /api/v1/hadith/narrators/{id}
 
 Биография передатчика. 404 `narrator-not-found`.
+
+**alminasa-обогащение (План 6):** `NarratorResponse` несёт `tabaqa`
+(поколение/табака), `gradeText` (verbatim джарх-та'диль), `bornOnText` /
+`diedOnText` (проза дат рождения/смерти), `deathPlace`. Поле `relations`
+(сеть передатчиков top_students/top_scholars) строится ТОЛЬКО на этом
+detail-эндпоинте — `[{relatedNarratorId, relatedName, role, cnt}]`, role ∈
+{STUDENT, SCHOLAR}. `relatedNarratorId` (nullable) заполнен, если рави уже
+импортирован (резолв `relatedName` → наш FK). **list-эндпоинт
+(`GET /narrators`) `relations` НЕ строит — поле `null`** (без N+1).
 
 ### GET /api/v1/hadith/narrators/{id}/transmitted
 
@@ -4022,6 +4077,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-06-04 | v1 | **Hadith Explorer обогащён alminasa-данными (План 6).** Расширены 3 существующих ответа web-слоя (endpoint'ы НЕ переименованы, только новые поля DTO; домен/репозитории/миграции готовы Планами 1-3). (1) `GET /hadith/hadiths/{id}/detail` (`HadithDetailResponse`) +8 полей: скаляры `hadithType`/`chapterAr`/`subChapterAr`/`fullTextAr` (HTML-иснад с `<a class=rawy id=N>`/`<a class=matn>` тегами) + списки сателлитов `editions` (`EditionDto`), `rulings` (`RulingDto` — `source`/`relatedExternalId` из `hd_rulings.metadata` jsonb, парс через ObjectMapper, отсутствуют → null; `index`+`relatedExternalId` = вердикт на параллельную передачу), `explanations` (`ExplanationDto`, kind SHARH/ILAL/GHARIB), `crossrefs` (`CrossrefDto`, такхридж). Загрузка 4 репозиториев `findByHadithId` (single-detail, N+1 нет); legacy/без сателлитов → пустые массивы + null-скаляры. (2) `GET /hadith/narrators/{id}` (`NarratorResponse`) +6 полей: `tabaqa`/`gradeText`/`bornOnText`/`diedOnText`/`deathPlace` + `relations` (`NarratorRelationDto`, сеть передатчиков) — `relations` строится ТОЛЬКО в getOne; list-эндпоинт передаёт `null` (без N+1). (3) `GET /hadith/hadiths/{id}/sanad-graph` (`SanadGraphResponse.NarratorData`) +3 поля: `tabaqa`/`gradeText`/`externalId` (клик-резолв иснада на фронте); синтетический узел `prophet` несёт null'ы. Вкладки علل/غريب НЕ реализованы (ждут HAR). IT: `HadithControllerIT`/`NarratorControllerIT` (detail с сателлитами + legacy-пустота + relations + sanad-graph externalId) | План 6: фронт Hadith Explorer раскрывает богатые `hd_*` данные (тип/глава/кликабельный иснад/вердикты/шархи/такхридж/сеть передатчиков) вместо прежнего sunnah-сэмпла. Тонкий web-слой wiring готовых доменных данных |
 | 2026-06-04 | v1 | **Alminasa Import Admin API (План 5, ADR-060).** 5 новых эндпоинтов в `AlminasaAdminController` (ADMIN-only): `GET /api/v1/admin/alminasa/catalog` (12 сборников, прогресс staged→mapped; `mappedCount` ТОЛЬКО `external_source='alminasa'` — фикс C1), `GET /import/status`, `POST /import/narrators` (202+status), `POST /import/hadiths?bookId=` (202+status), `GET /dry-run/{hadithId}` (превью маппинга ДО записи, read-only rollback). DTO: `AlminasaCatalogEntryResponse`, `AlminasaImportStatusResponse`, `AlminasaDryRunResponse` (+`ChainLink`). Импорт — async на отдельном single-thread executor (`AlminasaImportConfig`, БЕЗ `alminasa.enabled`-гейта), in-memory state IDLE/RUNNING, `409 alminasa-import-already-running` при двойном запуске. Новые ошибки: `alminasa-import-already-running` (409), `alminasa-staging-not-found` (404, dry-run нестейдженного id), `alminasa-mapping-failed` (422, пустой/битый матн). Сервер НЕ блокирует импорт при идущем краулинге — идемпотентность лечит частичные данные re-run'ом | План 5: админка импорта застейдженных alminasa-данных в `hd_*` с проверяемым dry-run-превью (философия «поэтапного проверяемого импорта»). Отдельный executor (не crawl-бин): импорт работает чисто по локальному staging независимо от `alminasa.enabled` |
 | 2026-06-04 | v1 | **Sunnah Import Admin API удалён целиком (План 4, ADR-060).** Удалены все эндпоинты `/api/v1/admin/sunnah/*`: `GET /collections`, `GET /collections/{collection}/hadiths`, `GET /preview/{collection}/{number}`, `POST /import/{collection}/{number}`, `POST /import-collection/{collection}`, `POST /extract-isnad` (ADR-059). DTO `Sunnah*`/`IsnadExtraction*` удалены (regen types.ts — только удаления). Таблицы `sn_staging_*` дропнуты миграцией 74. Ошибки `sunnah-dump-not-configured` (503) и `sunnah-hadith-not-found` (404) удалены из GlobalExceptionHandler | ADR-060: alminasa.ai = единственный источник хадисов; sunnah-ETL и AI-извлечение иснада (ADR-059, superseded) — legacy. Замена: Alminasa Crawl Admin API (План 2) + маппер (План 3) + AdminHadithImportPage (План 5) |
 | 2026-06-02 | v1 | **Ортогональная классификация `contentKind` для книг (миграция 69).** ALTER `lib_books` ADD `content_kind VARCHAR(20) NOT NULL DEFAULT 'TEXT_ONLY'` (CHECK IN TEXT_ONLY/TEXT_AND_FILE/FILE_ONLY) + индекс `idx_lib_books_content_kind`. **Отдельная** от `book_type` (тот про ЖАНР: QURAN/HADITH_COLLECTION/BOOK/ARTICLE/MANUSCRIPT) — `content_kind` про availability «что доступно для чтения». Backfill по предикату: HAS_TEXT = есть `lib_pages` с НЕпустым `text_content` (`btrim(text_content)<>''` — scanned-PDF пустые плейсхолдеры не считаются); HAS_FILE = `metadata->'pdf_links'->'files'` непустой массив ИЛИ активная `library_files` (`source_type='USER_UPLOAD'`, `deleted_at IS NULL`). Маппинг: text+file→TEXT_AND_FILE, text→TEXT_ONLY, file→FILE_ONLY, ничего→TEXT_ONLY (default; покрывает HADITH_COLLECTION-книги-мосты → /hadith). `BookResponse`/`BookSummaryResponse`/`BookDetailResponse` расширены полем `contentKind` (enum). `Book` record получил поле + дефолт TEXT_ONLY в обоих backward-compat конструкторах. Импортёры уточняют `content_kind` ПОСЛЕ записи страниц/файлов через новый `BookRepository.updateContentKind`: `ShamelaToLibraryMapper` (pages>0 + pdf_links.files), `ArchiveOrgImportService` (hasFile всегда true, hasText = извлекли НЕпустой текст), `FileImportService` (USER_UPLOAD + НЕпустой текст), `BookCollectionBridgeService` (TEXT_ONLY explicit) | Книга может одновременно иметь текст и PDF, либо только скан без текста. `book_type` (жанр) не отвечал на вопрос «что показать в reader». Ортогональная ось `content_kind` позволяет фронту выбрать режим чтения (текст / PDF) без эвристик. Default TEXT_ONLY безопасен для книг-мостов сборников хадисов |

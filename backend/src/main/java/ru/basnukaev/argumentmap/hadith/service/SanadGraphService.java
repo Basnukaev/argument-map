@@ -206,7 +206,7 @@ public class SanadGraphService {
                 new NarratorData(
                         null, "النَّبِيُّ مُحَمَّدٌ ﷺ", "Prophet Muhammad", "Пророк Мухаммад ﷺ",
                         null, null, null, null, null, null, null,
-                        null, null, null, null, 0
+                        null, null, null, null, null, null, null, 0
                 )
         );
     }
@@ -217,6 +217,7 @@ public class SanadGraphService {
                 n.kunya(), n.laqab(), n.yearBirthHijri(), n.yearDeathHijri(),
                 n.birthplace(), n.primaryResidence(), n.deathPlace(),
                 n.reliabilityGrade(), n.reliabilityComment(), metaText(n.metadata(), "generation"),
+                n.tabaqa(), n.gradeText(), n.externalId(),
                 collection, tier
         );
     }

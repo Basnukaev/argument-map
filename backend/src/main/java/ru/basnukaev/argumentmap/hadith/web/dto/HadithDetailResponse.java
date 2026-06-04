@@ -19,9 +19,17 @@ public record HadithDetailResponse(
         String status,
         UUID sourceId,
         Instant createdAt,
+        String hadithType,
+        String chapterAr,
+        String subChapterAr,
+        String fullTextAr,
         List<SanadDto> sanads,
         List<MatnDto> matns,
-        List<GradeDto> grades
+        List<GradeDto> grades,
+        List<EditionDto> editions,
+        List<RulingDto> rulings,
+        List<ExplanationDto> explanations,
+        List<CrossrefDto> crossrefs
 ) {
 
     /** Курируемая оценка хадиса учёным (из hd_hadiths.metadata.grades). */

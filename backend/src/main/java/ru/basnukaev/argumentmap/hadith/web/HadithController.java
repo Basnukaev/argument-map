@@ -17,15 +17,27 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import ru.basnukaev.argumentmap.hadith.domain.Hadith;
+import ru.basnukaev.argumentmap.hadith.domain.HadithCrossref;
+import ru.basnukaev.argumentmap.hadith.domain.HadithEdition;
+import ru.basnukaev.argumentmap.hadith.domain.HadithExplanation;
+import ru.basnukaev.argumentmap.hadith.domain.HadithRuling;
 import ru.basnukaev.argumentmap.hadith.domain.Matn;
 import ru.basnukaev.argumentmap.hadith.domain.Sanad;
 import ru.basnukaev.argumentmap.hadith.domain.SanadNarrator;
+import ru.basnukaev.argumentmap.hadith.repository.HadithCrossrefRepository;
+import ru.basnukaev.argumentmap.hadith.repository.HadithEditionRepository;
+import ru.basnukaev.argumentmap.hadith.repository.HadithExplanationRepository;
 import ru.basnukaev.argumentmap.hadith.repository.HadithRepository;
+import ru.basnukaev.argumentmap.hadith.repository.HadithRulingRepository;
 import ru.basnukaev.argumentmap.hadith.repository.MatnRepository;
 import ru.basnukaev.argumentmap.hadith.repository.SanadRepository;
 import ru.basnukaev.argumentmap.hadith.service.SanadGraphService;
+import ru.basnukaev.argumentmap.hadith.web.dto.CrossrefDto;
+import ru.basnukaev.argumentmap.hadith.web.dto.EditionDto;
+import ru.basnukaev.argumentmap.hadith.web.dto.ExplanationDto;
 import ru.basnukaev.argumentmap.hadith.web.dto.HadithDetailResponse;
 import ru.basnukaev.argumentmap.hadith.web.dto.HadithResponse;
+import ru.basnukaev.argumentmap.hadith.web.dto.RulingDto;
 import ru.basnukaev.argumentmap.hadith.web.dto.SanadGraphResponse;
 import ru.basnukaev.argumentmap.web.dto.PageRequest;
 import ru.basnukaev.argumentmap.web.dto.PagedResponse;
@@ -43,17 +55,29 @@ public class HadithController {
     private final HadithRepository hadithRepository;
     private final SanadRepository sanadRepository;
     private final MatnRepository matnRepository;
+    private final HadithEditionRepository editionRepository;
+    private final HadithRulingRepository rulingRepository;
+    private final HadithExplanationRepository explanationRepository;
+    private final HadithCrossrefRepository crossrefRepository;
     private final SanadGraphService sanadGraphService;
     private final ObjectMapper objectMapper;
 
     public HadithController(HadithRepository hadithRepository,
                             SanadRepository sanadRepository,
                             MatnRepository matnRepository,
+                            HadithEditionRepository editionRepository,
+                            HadithRulingRepository rulingRepository,
+                            HadithExplanationRepository explanationRepository,
+                            HadithCrossrefRepository crossrefRepository,
                             SanadGraphService sanadGraphService,
                             ObjectMapper objectMapper) {
         this.hadithRepository = hadithRepository;
         this.sanadRepository = sanadRepository;
         this.matnRepository = matnRepository;
+        this.editionRepository = editionRepository;
+        this.rulingRepository = rulingRepository;
+        this.explanationRepository = explanationRepository;
+        this.crossrefRepository = crossrefRepository;
         this.sanadGraphService = sanadGraphService;
         this.objectMapper = objectMapper;
     }
@@ -132,11 +156,64 @@ public class HadithController {
 
         List<HadithDetailResponse.GradeDto> grades = parseGrades(h.metadata(), objectMapper);
 
+        // alminasa-сателлиты: по одному запросу на тип (single-detail, N+1 нет).
+        // Для legacy/seeded хадисов без сателлитов вернутся пустые списки.
+        List<EditionDto> editions = editionRepository.findByHadithId(id).stream()
+                .map(HadithController::toEditionDto)
+                .toList();
+        List<RulingDto> rulings = rulingRepository.findByHadithId(id).stream()
+                .map(r -> toRulingDto(r, objectMapper))
+                .toList();
+        List<ExplanationDto> explanations = explanationRepository.findByHadithId(id).stream()
+                .map(HadithController::toExplanationDto)
+                .toList();
+        List<CrossrefDto> crossrefs = crossrefRepository.findByHadithId(id).stream()
+                .map(HadithController::toCrossrefDto)
+                .toList();
+
         return new HadithDetailResponse(
                 h.id(), h.collectionId(), h.primaryNumber(),
                 h.normalizedMatn(), h.status(), h.sourceId(), h.createdAt(),
-                sanadDtos, matnDtos, grades
+                h.hadithType(), h.chapterAr(), h.subChapterAr(), h.fullTextAr(),
+                sanadDtos, matnDtos, grades,
+                editions, rulings, explanations, crossrefs
         );
+    }
+
+    private static EditionDto toEditionDto(HadithEdition e) {
+        return new EditionDto(e.editionName(), e.page(), e.volume());
+    }
+
+    /**
+     * {@code source} ('embedded'|'index') и {@code relatedExternalId} —
+     * из {@code hd_rulings.metadata} (jsonb). Defensive: любая ошибка
+     * парсинга → оба поля null (вердикт остаётся валиден без provenance).
+     */
+    private static RulingDto toRulingDto(HadithRuling r, ObjectMapper objectMapper) {
+        String source = null;
+        String relatedExternalId = null;
+        String metadata = r.metadata();
+        if (metadata != null && !metadata.isBlank()) {
+            try {
+                JsonNode root = objectMapper.readTree(metadata);
+                source = nodeText(root, "source");
+                relatedExternalId = nodeText(root, "relatedExternalId");
+            } catch (Exception e) {
+                // metadata — extensible jsonb, provenance не критичен для рендера
+            }
+        }
+        return new RulingDto(
+                r.rulerName(), r.rulerDeathYear(), r.rulingText(),
+                r.bookName(), r.page(), r.volume(), source, relatedExternalId);
+    }
+
+    private static ExplanationDto toExplanationDto(HadithExplanation e) {
+        return new ExplanationDto(
+                e.kind(), e.bookName(), e.author(), e.page(), e.volume(), e.text());
+    }
+
+    private static CrossrefDto toCrossrefDto(HadithCrossref c) {
+        return new CrossrefDto(c.relatedExternalId(), c.relatedHadithId(), c.note());
     }
 
     /**

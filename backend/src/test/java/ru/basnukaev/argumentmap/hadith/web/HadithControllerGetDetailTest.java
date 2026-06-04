@@ -15,7 +15,11 @@ import org.junit.jupiter.api.Test;
 import ru.basnukaev.argumentmap.hadith.domain.Hadith;
 import ru.basnukaev.argumentmap.hadith.domain.Sanad;
 import ru.basnukaev.argumentmap.hadith.domain.SanadNarrator;
+import ru.basnukaev.argumentmap.hadith.repository.HadithCrossrefRepository;
+import ru.basnukaev.argumentmap.hadith.repository.HadithEditionRepository;
+import ru.basnukaev.argumentmap.hadith.repository.HadithExplanationRepository;
 import ru.basnukaev.argumentmap.hadith.repository.HadithRepository;
+import ru.basnukaev.argumentmap.hadith.repository.HadithRulingRepository;
 import ru.basnukaev.argumentmap.hadith.repository.MatnRepository;
 import ru.basnukaev.argumentmap.hadith.repository.SanadRepository;
 import ru.basnukaev.argumentmap.hadith.service.SanadGraphService;
@@ -39,6 +43,10 @@ class HadithControllerGetDetailTest {
         HadithRepository hadithRepository = mock(HadithRepository.class);
         SanadRepository sanadRepository = mock(SanadRepository.class);
         MatnRepository matnRepository = mock(MatnRepository.class);
+        HadithEditionRepository editionRepository = mock(HadithEditionRepository.class);
+        HadithRulingRepository rulingRepository = mock(HadithRulingRepository.class);
+        HadithExplanationRepository explanationRepository = mock(HadithExplanationRepository.class);
+        HadithCrossrefRepository crossrefRepository = mock(HadithCrossrefRepository.class);
         SanadGraphService sanadGraphService = mock(SanadGraphService.class);
 
         UUID hadithId = UUID.randomUUID();
@@ -67,10 +75,15 @@ class HadithControllerGetDetailTest {
                 ));
 
         when(matnRepository.findByHadithId(hadithId)).thenReturn(List.of());
+        when(editionRepository.findByHadithId(hadithId)).thenReturn(List.of());
+        when(rulingRepository.findByHadithId(hadithId)).thenReturn(List.of());
+        when(explanationRepository.findByHadithId(hadithId)).thenReturn(List.of());
+        when(crossrefRepository.findByHadithId(hadithId)).thenReturn(List.of());
 
         HadithController controller = new HadithController(
                 hadithRepository, sanadRepository, matnRepository,
-                sanadGraphService, new ObjectMapper());
+                editionRepository, rulingRepository, explanationRepository,
+                crossrefRepository, sanadGraphService, new ObjectMapper());
 
         HadithDetailResponse resp = controller.getDetail(hadithId);
 

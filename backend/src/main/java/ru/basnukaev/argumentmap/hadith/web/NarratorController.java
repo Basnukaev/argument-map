@@ -10,9 +10,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import ru.basnukaev.argumentmap.hadith.domain.Narrator;
+import ru.basnukaev.argumentmap.hadith.domain.NarratorRelation;
 import ru.basnukaev.argumentmap.hadith.repository.HadithRepository;
+import ru.basnukaev.argumentmap.hadith.repository.NarratorRelationRepository;
 import ru.basnukaev.argumentmap.hadith.repository.NarratorRepository;
 import ru.basnukaev.argumentmap.hadith.web.dto.HadithResponse;
+import ru.basnukaev.argumentmap.hadith.web.dto.NarratorRelationDto;
 import ru.basnukaev.argumentmap.hadith.web.dto.NarratorResponse;
 import ru.basnukaev.argumentmap.web.dto.PageRequest;
 import ru.basnukaev.argumentmap.web.dto.PagedResponse;
@@ -30,11 +33,14 @@ public class NarratorController {
 
     private final NarratorRepository narratorRepository;
     private final HadithRepository hadithRepository;
+    private final NarratorRelationRepository relationRepository;
 
     public NarratorController(NarratorRepository narratorRepository,
-                              HadithRepository hadithRepository) {
+                              HadithRepository hadithRepository,
+                              NarratorRelationRepository relationRepository) {
         this.narratorRepository = narratorRepository;
         this.hadithRepository = hadithRepository;
+        this.relationRepository = relationRepository;
     }
 
     /**
@@ -48,10 +54,12 @@ public class NarratorController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
         PageRequest pr = PageRequest.from(page, size);
+        // list-путь: relations не строим (null) — без N+1; сеть передатчиков
+        // приходит только в getOne (detail).
         List<NarratorResponse> items = narratorRepository
                 .findPage(q, reliability, pr.size(), pr.offset())
                 .stream()
-                .map(NarratorController::toResponse)
+                .map(n -> toResponse(n, null))
                 .toList();
         long total = narratorRepository.countFiltered(q, reliability);
         return PagedResponse.of(items, pr.page(), pr.size(), total);
@@ -61,7 +69,11 @@ public class NarratorController {
     public NarratorResponse getOne(@PathVariable UUID id) {
         Narrator n = narratorRepository.findById(id)
                 .orElseThrow(() -> new NarratorNotFoundException(id));
-        return toResponse(n);
+        // detail-путь: сеть передатчиков (top_students/top_scholars) — один запрос.
+        List<NarratorRelationDto> relations = relationRepository.findByNarratorId(id).stream()
+                .map(NarratorController::toRelationDto)
+                .toList();
+        return toResponse(n, relations);
     }
 
     /**
@@ -86,12 +98,19 @@ public class NarratorController {
         return PagedResponse.of(items, pr.page(), pr.size(), total);
     }
 
-    private static NarratorResponse toResponse(Narrator n) {
+    private static NarratorResponse toResponse(Narrator n, List<NarratorRelationDto> relations) {
         return new NarratorResponse(
                 n.id(), n.authorityId(), n.nameAr(), n.kunya(), n.laqab(),
                 n.yearBirthHijri(), n.yearDeathHijri(), n.birthplace(),
                 n.primaryResidence(), n.reliabilityGrade(), n.reliabilityComment(),
-                n.transmittedCountCached(), n.createdAt()
+                n.transmittedCountCached(), n.createdAt(),
+                n.tabaqa(), n.gradeText(), n.bornOnText(), n.diedOnText(),
+                n.deathPlace(), relations
         );
+    }
+
+    private static NarratorRelationDto toRelationDto(NarratorRelation r) {
+        return new NarratorRelationDto(
+                r.relatedNarratorId(), r.relatedName(), r.role(), r.cnt());
     }
 }

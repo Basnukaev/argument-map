@@ -20,10 +20,12 @@ import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 import ru.basnukaev.argumentmap.hadith.domain.Hadith;
 import ru.basnukaev.argumentmap.hadith.domain.HadithStatus;
 import ru.basnukaev.argumentmap.hadith.domain.Narrator;
+import ru.basnukaev.argumentmap.hadith.domain.NarratorRelation;
 import ru.basnukaev.argumentmap.hadith.domain.NarratorReliability;
 import ru.basnukaev.argumentmap.hadith.domain.Sanad;
 import ru.basnukaev.argumentmap.hadith.domain.SanadNarrator;
 import ru.basnukaev.argumentmap.hadith.repository.HadithRepository;
+import ru.basnukaev.argumentmap.hadith.repository.NarratorRelationRepository;
 import ru.basnukaev.argumentmap.hadith.repository.NarratorRepository;
 import ru.basnukaev.argumentmap.hadith.repository.SanadRepository;
 
@@ -40,18 +42,22 @@ class NarratorControllerIT {
     @Autowired private NarratorRepository narratorRepository;
     @Autowired private HadithRepository hadithRepository;
     @Autowired private SanadRepository sanadRepository;
+    @Autowired private NarratorRelationRepository relationRepository;
 
     private UUID id1;
     private UUID id2;
 
     @BeforeEach
     void setUp() {
+        // n1 — полный (alminasa) конструктор: deathPlace/tabaqa/gradeText/born/died.
         Narrator n1 = new Narrator(
                 UUID.randomUUID(), null, "أبو هريرة", "abu hurayrah",
                 "أبو هريرة", null, null, 59,
-                "اليمن", "المدينة", "المدينة المنورة",
+                "اليمن", "المدينة المنورة", "المدينة",
                 NarratorReliability.THIQA, "Самый плодовитый передатчик",
-                0, null, Instant.now()
+                0, null, Instant.now(),
+                "alminasa", "rawy-1", "الطبقة الأولى", "ثقة حافظ",
+                "ولد قبل الهجرة", "توفي سنة 59 هـ"
         );
         narratorRepository.save(n1);
         id1 = n1.id();
@@ -81,6 +87,42 @@ class NarratorControllerIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id1.toString()))
                 .andExpect(jsonPath("$.reliabilityGrade").value("THIQA"));
+    }
+
+    @Test
+    void GET_one_returnsAlminasaEnrichmentAndRelations() throws Exception {
+        // Сеть передатчиков: один STUDENT (резолвлен в id2) + один SCHOLAR (нерезолвлен).
+        relationRepository.save(new NarratorRelation(
+                UUID.randomUUID(), id1, id2, "مالك بن أنس", "STUDENT", 42, Instant.now()));
+        relationRepository.save(new NarratorRelation(
+                UUID.randomUUID(), id1, null, "ابن شهاب الزهري", "SCHOLAR", 17, Instant.now()));
+
+        mockMvc.perform(get("/api/v1/hadith/narrators/{id}", id1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tabaqa").value("الطبقة الأولى"))
+                .andExpect(jsonPath("$.gradeText").value("ثقة حافظ"))
+                .andExpect(jsonPath("$.bornOnText").value("ولد قبل الهجرة"))
+                .andExpect(jsonPath("$.diedOnText").value("توفي سنة 59 هـ"))
+                .andExpect(jsonPath("$.deathPlace").value("المدينة المنورة"))
+                .andExpect(jsonPath("$.relations").isArray())
+                .andExpect(jsonPath("$.relations.length()").value(2))
+                .andExpect(jsonPath("$.relations[?(@.role == 'STUDENT')].relatedNarratorId")
+                        .value(org.hamcrest.Matchers.hasItem(id2.toString())))
+                .andExpect(jsonPath("$.relations[?(@.role == 'STUDENT')].cnt")
+                        .value(org.hamcrest.Matchers.hasItem(42)))
+                .andExpect(jsonPath("$.relations[?(@.role == 'SCHOLAR')].relatedNarratorId")
+                        .value(org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.nullValue())))
+                .andExpect(jsonPath("$.relations[?(@.role == 'SCHOLAR')].relatedName")
+                        .value(org.hamcrest.Matchers.hasItem("ابن شهاب الزهري")));
+    }
+
+    @Test
+    void GET_list_doesNotBuildRelations() throws Exception {
+        // list-путь: relations = null (без N+1); enrichment-поля проходят.
+        mockMvc.perform(get("/api/v1/hadith/narrators"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[*].relations")
+                        .value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.nullValue())));
     }
 
     @Test
