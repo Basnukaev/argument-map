@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
@@ -58,13 +59,86 @@ const COLLECTIONS = [
   },
 ];
 
-function mockEndpoints(detail: typeof DETAIL = DETAIL) {
+const EMPTY_GRAPH = { hadithId: 'h1', nodes: [], edges: [], sanads: [] };
+
+// alminasa-обогащённый detail: тип, глава, full_text с кликабельным рави,
+// вердикт с provenance, шарх, такхридж (resolved + unresolved), издания.
+const ALMINASA_DETAIL = {
+  ...DETAIL,
+  hadithType: 'مرفوع',
+  chapterAr: 'كتاب بدء الوحي',
+  subChapterAr: 'باب كيف كان بدء الوحي',
+  fullTextAr:
+    'حدثنا <a class=rawy id=5913>عُمَرُ بْنُ الْخَطَّابِ</a> ، قال : <a class=matn>إنما الأعمال بالنيات</a> .',
+  editions: [{ editionName: 'الطبعة السلطانية', page: 5, volume: 1 }],
+  rulings: [
+    {
+      rulerName: 'البخاري',
+      rulerDeathYear: 256,
+      rulingText: 'صحيح متفق عليه',
+      bookName: 'الصحيح',
+      page: 5,
+      volume: 1,
+      source: 'embedded',
+      relatedExternalId: null,
+    },
+    {
+      rulerName: 'ابن حجر',
+      rulerDeathYear: 852,
+      rulingText: 'حكم على الطريق',
+      bookName: 'الفتح',
+      page: null,
+      volume: null,
+      source: 'index',
+      relatedExternalId: '999-2',
+    },
+  ],
+  explanations: [
+    {
+      kind: 'SHARH',
+      bookName: 'فتح الباري',
+      author: 'ابن حجر',
+      page: 11,
+      volume: 1,
+      text: 'شرح طويل جدا لهذا الحديث العظيم في النيات',
+    },
+  ],
+  crossrefs: [
+    { relatedExternalId: '200-1', relatedHadithId: 'h-sibling', note: 'م 1907' },
+    { relatedExternalId: '300-1', relatedHadithId: null, note: 'د 2201' },
+  ],
+};
+
+// Граф с externalId на узле рави (для клик-резолва из текста иснада).
+const GRAPH_WITH_EXTERNAL = {
+  hadithId: 'h1',
+  nodes: [
+    { id: 'prophet', role: 'PROPHET', data: { narratorId: null, nameAr: 'النبي محمد ﷺ', tier: 0 } },
+    {
+      id: 'narrator-1',
+      role: 'COMPANION',
+      data: {
+        narratorId: 'n-umar',
+        nameAr: 'عمر بن الخطاب',
+        nameRu: 'Умар ибн аль-Хаттаб',
+        reliabilityGrade: 'SAHABI',
+        externalId: '5913',
+        tier: 1,
+      },
+    },
+  ],
+  edges: [],
+  sanads: [],
+};
+
+function mockEndpoints(
+  detail: typeof DETAIL | typeof ALMINASA_DETAIL = DETAIL,
+  graph: typeof EMPTY_GRAPH | typeof GRAPH_WITH_EXTERNAL = EMPTY_GRAPH,
+) {
   server.use(
     http.get(`${BASE}/api/v1/hadith/hadiths/h1/detail`, () => HttpResponse.json(detail)),
     http.get(`${BASE}/api/v1/hadith/collections`, () => HttpResponse.json(COLLECTIONS)),
-    http.get(`${BASE}/api/v1/hadith/hadiths/:id/sanad-graph`, () =>
-      HttpResponse.json({ hadithId: 'h1', nodes: [], edges: [], sanads: [] }),
-    ),
+    http.get(`${BASE}/api/v1/hadith/hadiths/:id/sanad-graph`, () => HttpResponse.json(graph)),
   );
 }
 
@@ -121,5 +195,96 @@ describe('HadithDetailPage', () => {
     await waitForApi(() => {
       expect(screen.getByText('Оценки учёных пока не добавлены')).toBeInTheDocument();
     });
+  });
+
+  it('legacy-хадис без alminasa-полей: новые секции скрыты (graceful)', async () => {
+    mockEndpoints();
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('link', { name: 'Иснад (текст)' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Вердикты учёных')).not.toBeInTheDocument();
+    expect(screen.queryByText('Такхридж')).not.toBeInTheDocument();
+  });
+
+  it('alminasa: бейдж типа + глава/подглава в шапке', async () => {
+    mockEndpoints(ALMINASA_DETAIL, GRAPH_WITH_EXTERNAL);
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByText('مرفوع')).toBeInTheDocument();
+    });
+    expect(screen.getByText('كتاب بدء الوحي')).toBeInTheDocument();
+    expect(screen.getByText('باب كيف كان بدء الوحي')).toBeInTheDocument();
+  });
+
+  it('alminasa: вердикт с учёным, годом смерти и provenance-подписью', async () => {
+    mockEndpoints(ALMINASA_DETAIL, GRAPH_WITH_EXTERNAL);
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByText('البخاري')).toBeInTheDocument();
+    });
+    expect(screen.getByText('ум. 256 г.х.')).toBeInTheDocument();
+    // embedded-вердикт — без подписи о параллели; index-вердикт — с подписью
+    expect(screen.getByText('на параллельную передачу 999-2')).toBeInTheDocument();
+  });
+
+  it('alminasa: такхридж resolved → линк, unresolved → текст', async () => {
+    mockEndpoints(ALMINASA_DETAIL, GRAPH_WITH_EXTERNAL);
+    renderPage();
+    // resolved (relatedHadithId есть) → линк на сиблинга
+    await waitForApi(() => {
+      expect(screen.getByRole('link', { name: /Перейти к передаче 200-1/ })).toHaveAttribute(
+        'href',
+        '/hadith/hadiths/h-sibling',
+      );
+    });
+    // счётчик в заголовке секции «Такхридж · передаётся в 2 местах»
+    expect(
+      screen.getByRole('heading', { name: /Такхридж.*передаётся в 2 местах/ }),
+    ).toBeInTheDocument();
+    // unresolved → внешний id текстом
+    expect(screen.getByText('300-1')).toBeInTheDocument();
+  });
+
+  it('alminasa: шарх collapsible — текст скрыт пока не раскроют', async () => {
+    mockEndpoints(ALMINASA_DETAIL, GRAPH_WITH_EXTERNAL);
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByText('Шарх')).toBeInTheDocument();
+    });
+    const sharhText = 'شرح طويل جدا لهذا الحديث العظيم في النيات';
+    expect(screen.queryByText(sharhText)).not.toBeInTheDocument();
+    // раскрытие по клику на шапку (книга — fatḥ al-bārī)
+    await userEvent.click(screen.getByRole('button', { name: /فتح الباري/ }));
+    expect(screen.getByText(sharhText)).toBeInTheDocument();
+  });
+
+  it('клик по рави в тексте иснада открывает панель из графа (без доп. фетча)', async () => {
+    let graphFetches = 0;
+    server.use(
+      http.get(`${BASE}/api/v1/hadith/hadiths/h1/detail`, () =>
+        HttpResponse.json(ALMINASA_DETAIL),
+      ),
+      http.get(`${BASE}/api/v1/hadith/collections`, () => HttpResponse.json(COLLECTIONS)),
+      http.get(`${BASE}/api/v1/hadith/hadiths/:id/sanad-graph`, () => {
+        graphFetches += 1;
+        return HttpResponse.json(GRAPH_WITH_EXTERNAL);
+      }),
+    );
+    renderPage();
+    // ждём пока граф загрузится (рави становится кликабельным — button)
+    let rawyBtn: HTMLElement | null = null;
+    await waitForApi(() => {
+      rawyBtn = screen.getByRole('button', { name: 'عُمَرُ بْنُ الْخَطَّابِ' });
+      expect(rawyBtn).toBeInTheDocument();
+    });
+    await userEvent.click(rawyBtn!);
+    // панель (aside=complementary) открылась с данными ИЗ графа (перевод узла);
+    // scope в панель — то же имя есть в карточке узла графа.
+    const panel = screen.getByRole('complementary');
+    expect(within(panel).getByText('Умар ибн аль-Хаттаб')).toBeInTheDocument();
+    // граф запрошен ровно один раз (lifted fetch, без доп. фетча на клик)
+    expect(graphFetches).toBe(1);
   });
 });

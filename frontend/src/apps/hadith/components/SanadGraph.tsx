@@ -31,11 +31,19 @@ interface SanadGraphProps {
    */
   hadithId?: string;
   /**
-   * Controlled-режим: готовый граф передаётся снаружи (admin-превью извлечённого
-   * ИИ иснада). Если проп присутствует (даже `null`) — внутренний fetch
-   * отключается; `null`/пустые узлы трактуются как empty-state.
+   * Controlled-режим данных: готовый граф передаётся снаружи (admin-превью
+   * извлечённого ИИ иснада ИЛИ lifted-фетч страницы хадиса). Если проп
+   * присутствует (даже `null`) — внутренний fetch отключается; `null`/пустые
+   * узлы трактуются как empty-state.
    */
   graph?: SanadGraphResponse | null;
+  /**
+   * Controlled-режим выбора: страница владеет selected-state (единая панель
+   * для клика по графу И по тексту иснада). Если передан — клик по узлу
+   * пробрасывается наверх вместо открытия внутренней панели; внутренняя
+   * NarratorPanel не рендерится (панелью владеет родитель).
+   */
+  onNarratorSelect?: (data: SanadFlowNodeData) => void;
 }
 
 /**
@@ -48,10 +56,12 @@ interface SanadGraphProps {
  *  - controlled (`graph` передан) — рендер переданных данных без fetch
  *    (admin-превью извлечённого ИИ иснада).
  */
-function SanadGraph({ hadithId, graph: graphProp }: SanadGraphProps) {
+function SanadGraph({ hadithId, graph: graphProp, onNarratorSelect }: SanadGraphProps) {
   const t = useT();
-  // Controlled-режим определяется по присутствию пропа `graph` (даже `null`).
+  // Controlled-режим данных определяется по присутствию пропа `graph` (даже `null`).
   const controlled = graphProp !== undefined;
+  // Controlled-режим выбора: родитель владеет панелью передатчика.
+  const selectionControlled = onNarratorSelect !== undefined;
   const [fetchedGraph, setFetchedGraph] = useState<SanadGraphResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SanadFlowNodeData | null>(null);
@@ -156,9 +166,15 @@ function SanadGraph({ hadithId, graph: graphProp }: SanadGraphProps) {
         elementsSelectable
         proOptions={{ hideAttribution: true }}
         onNodeClick={(_, node) => {
-          if (node.data.role !== 'PROPHET') setSelected(node.data);
+          if (node.data.role === 'PROPHET') return;
+          // Controlled-выбор: пробрасываем наверх (единая панель страницы);
+          // иначе открываем внутреннюю панель (self-fetch экраны / admin-превью).
+          if (selectionControlled) onNarratorSelect(node.data);
+          else setSelected(node.data);
         }}
-        onPaneClick={() => setSelected(null)}
+        onPaneClick={() => {
+          if (!selectionControlled) setSelected(null);
+        }}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
         <Controls showInteractive={false} />
@@ -207,7 +223,10 @@ function SanadGraph({ hadithId, graph: graphProp }: SanadGraphProps) {
         </Panel>
       </ReactFlow>
 
-      {selected && <NarratorPanel data={selected} onClose={() => setSelected(null)} />}
+      {/* Внутренняя панель — только если выбором владеет сам граф (не controlled). */}
+      {!selectionControlled && selected && (
+        <NarratorPanel data={selected} onClose={() => setSelected(null)} />
+      )}
     </div>
   );
 }

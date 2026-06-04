@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
@@ -84,6 +84,31 @@ describe('SanadGraph', () => {
       await screen.findByText('Для этого хадиса иснад ещё не задокументирован'),
     ).toBeInTheDocument();
     expect(fetched).toBe(false);
+  });
+
+  it('controlled-выбор (onNarratorSelect задан): внутренняя панель не рендерится', async () => {
+    // Контракт: когда выбором владеет родитель (onNarratorSelect передан),
+    // SanadGraph НЕ рендерит свою NarratorPanel — единственная панель на
+    // странице принадлежит родителю. (Сам клик-резолв из текста иснада в
+    // единую панель покрыт интеграционно в HadithDetailPage.test —
+    // клик по RF-узлу в jsdom неустойчив из-за d3-drag/event.view.)
+    const graph = {
+      hadithId: 'h1',
+      nodes: [
+        { id: 'prophet', role: 'PROPHET' as const, data: { narratorId: null, nameAr: 'النبي محمد ﷺ', tier: 0 } },
+        {
+          id: 'narrator-1',
+          role: 'NARRATOR' as const,
+          data: { narratorId: '1', nameAr: 'أبو هريرة', nameRu: 'Абу Хурайра', tier: 1 },
+        },
+      ],
+      edges: [],
+      sanads: [],
+    };
+    render(<SanadGraph graph={graph as unknown as never} onNarratorSelect={vi.fn()} />);
+    expect(await screen.findByText('Абу Хурайра')).toBeInTheDocument();
+    // внутренняя панель (aside=complementary) отсутствует — владеет родитель
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
   });
 
   it('рендерит узлы и легенду цепей при успешном ответе', async () => {

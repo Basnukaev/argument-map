@@ -73,7 +73,11 @@ function NarratorPanel({ data, onClose }: NarratorPanelProps) {
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
           <Field label={t('hadith.narrator.kunya')} value={data.kunya} />
           <Field label={t('hadith.narrator.laqab')} value={data.laqab} />
-          <Field label={t('hadith.narrator.generation')} value={data.generation} />
+          {/* M3: у alminasa-рави generation=null, поколение живёт в tabaqa. */}
+          <Field
+            label={t('hadith.narrator.generation')}
+            value={data.tabaqa ?? data.generation}
+          />
           <Field label={t('hadith.narrator.years')} value={years} />
         </dl>
 
@@ -93,9 +97,13 @@ function NarratorPanel({ data, onClose }: NarratorPanelProps) {
           </div>
         )}
 
-        {data.reliabilityComment && (
-          <div className="mt-4 rounded-md bg-sunken p-3 text-sm leading-relaxed text-ink-700">
-            {data.reliabilityComment}
+        {/* M3: verbatim джарх — gradeText (alminasa), фолбэк reliabilityComment. */}
+        {(data.gradeText ?? data.reliabilityComment) && (
+          <div
+            className="mt-4 rounded-md bg-sunken p-3 text-sm leading-relaxed text-ink-700"
+            dir="auto"
+          >
+            {data.gradeText ?? data.reliabilityComment}
           </div>
         )}
       </div>

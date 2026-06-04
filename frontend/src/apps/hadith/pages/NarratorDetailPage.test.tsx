@@ -66,4 +66,60 @@ describe('NarratorDetailPage', () => {
     expect(screen.getByText('Имам Медины, автор Муватты')).toBeInTheDocument();
     expect(screen.getByText('إنما الأعمال بالنيات')).toBeInTheDocument();
   });
+
+  it('alminasa M3: tabaqa вместо generation, gradeText, сеть передатчиков', async () => {
+    server.use(
+      http.get(`${BASE}/api/v1/hadith/narrators/n2`, () =>
+        HttpResponse.json({
+          id: 'n2',
+          authorityId: null,
+          nameAr: 'سفيان بن عيينة',
+          kunya: null,
+          laqab: null,
+          yearBirthHijri: null,
+          yearDeathHijri: null,
+          birthplace: null,
+          primaryResidence: null,
+          // у alminasa-рави reliabilityComment=null, generation=null:
+          reliabilityGrade: null,
+          reliabilityComment: null,
+          transmittedCount: 0,
+          createdAt: '2026-01-01',
+          tabaqa: 'الطبقة الثامنة',
+          gradeText: 'ثقة حافظ فقيه إمام حجة',
+          bornOnText: 'ولد سنة 107',
+          diedOnText: 'توفي سنة 198',
+          deathPlace: 'مكة',
+          relations: [
+            { relatedNarratorId: 'n-student', relatedName: 'الشافعي', role: 'STUDENT', cnt: 12 },
+            { relatedNarratorId: null, relatedName: 'الزهري', role: 'SCHOLAR', cnt: 3 },
+          ],
+        }),
+      ),
+      http.get(`${BASE}/api/v1/hadith/narrators/n2/transmitted`, () =>
+        HttpResponse.json({
+          items: [],
+          page: 0,
+          size: 20,
+          totalElements: 0,
+          totalPages: 0,
+          hasNext: false,
+        }),
+      ),
+    );
+    renderAt('n2');
+    await waitForApi(() => {
+      expect(screen.getByText('سفيان بن عيينة')).toBeInTheDocument();
+    });
+    // tabaqa как «поколение» (фолбэк отсутствующего generation)
+    expect(screen.getByText('الطبقة الثامنة')).toBeInTheDocument();
+    // gradeText как verbatim джарх (фолбэк reliabilityComment)
+    expect(screen.getByText('ثقة حافظ فقيه إمام حجة')).toBeInTheDocument();
+    // сеть передатчиков: resolved → линк, unresolved → текст
+    expect(screen.getByRole('link', { name: /الشافعي/ })).toHaveAttribute(
+      'href',
+      '/hadith/narrators/n-student',
+    );
+    expect(screen.getByText('الزهري')).toBeInTheDocument();
+  });
 });

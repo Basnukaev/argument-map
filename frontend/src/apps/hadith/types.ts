@@ -33,6 +33,12 @@ export type NarratorData = {
   reliabilityGrade: ReliabilityGrade | null;
   reliabilityComment: string | null;
   generation: string | null;
+  /** Табака (поколение) из alminasa — фолбэк для generation в панели. */
+  tabaqa: string | null;
+  /** Verbatim джарх-та'диль из alminasa — фолбэк для reliabilityComment. */
+  gradeText: string | null;
+  /** Внешний id передатчика (alminasa) — для клик-резолва иснада из текста. */
+  externalId: string | null;
   /** Название сборника — только для узлов-составителей (COLLECTOR). */
   collection: string | null;
   tier: number;
@@ -92,6 +98,14 @@ export interface Paged<T> {
   hasNext: boolean;
 }
 
+/** Связь передатчика с другим (ученик / учитель) — сеть передачи. */
+export interface NarratorRelationDto {
+  relatedNarratorId: string | null;
+  relatedName: string | null;
+  role: string | null;
+  cnt: number;
+}
+
 /** NarratorResponse — каталог/деталь передатчика (علم الرجال). */
 export interface NarratorResponseDto {
   id: string;
@@ -107,6 +121,18 @@ export interface NarratorResponseDto {
   reliabilityComment: string | null;
   transmittedCount: number;
   createdAt: string;
+  /** alminasa: табака (поколение) — фолбэк для отсутствующего generation. */
+  tabaqa: string | null;
+  /** alminasa: verbatim джарх — фолбэк для reliabilityComment. */
+  gradeText: string | null;
+  /** alminasa: дата рождения прозой. */
+  bornOnText: string | null;
+  /** alminasa: дата смерти прозой. */
+  diedOnText: string | null;
+  /** alminasa: место смерти (поле домена). */
+  deathPlace: string | null;
+  /** Сеть передатчиков — только в narrator-detail (getOne), не в списке. */
+  relations: NarratorRelationDto[] | null;
 }
 
 /** Вариация текста хадиса (matn) из detail endpoint. */
@@ -132,4 +158,64 @@ export interface HadithSummaryDto {
   status: string;
   sourceId: string | null;
   createdAt: string;
+}
+
+/** Печатное издание (alminasa) — название + том/страница. */
+export interface EditionDto {
+  editionName: string | null;
+  page: number | null;
+  volume: number | null;
+}
+
+/**
+ * Вердикт учёного (ruling). `source`='embedded' — вердикт прямо на этот
+ * хадис; 'index' с relatedExternalId — вердикт на параллельную передачу.
+ */
+export interface RulingDto {
+  rulerName: string | null;
+  rulerDeathYear: number | null;
+  rulingText: string | null;
+  bookName: string | null;
+  page: number | null;
+  volume: number | null;
+  source: string | null;
+  relatedExternalId: string | null;
+}
+
+/** Шарх / иляль / гариб (kind различает тип). Текст может быть огромным. */
+export interface ExplanationDto {
+  kind: string | null;
+  bookName: string | null;
+  author: string | null;
+  page: number | null;
+  volume: number | null;
+  text: string | null;
+}
+
+/** Такхридж/طرق — параллельная передача. resolved → relatedHadithId есть. */
+export interface CrossrefDto {
+  relatedExternalId: string | null;
+  relatedHadithId: string | null;
+  note: string | null;
+}
+
+/** Агрегат detail-эндпоинта GET /hadiths/{id}/detail (alminasa-обогащённый). */
+export interface HadithDetailDto {
+  id: string;
+  collectionId: string | null;
+  primaryNumber: number | null;
+  normalizedMatn: string;
+  status: string;
+  sourceId: string | null;
+  createdAt: string;
+  hadithType: string | null;
+  chapterAr: string | null;
+  subChapterAr: string | null;
+  fullTextAr: string | null;
+  matns: MatnDto[];
+  grades: HadithGrade[];
+  editions: EditionDto[] | null;
+  rulings: RulingDto[] | null;
+  explanations: ExplanationDto[] | null;
+  crossrefs: CrossrefDto[] | null;
 }

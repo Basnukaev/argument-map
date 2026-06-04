@@ -113,33 +113,103 @@ function NarratorDetailPage() {
                   <dd className="mt-0.5 font-arabic text-sm text-ink-800" dir="rtl">{bio.laqab}</dd>
                 </div>
               )}
-              {bio.yearDeathHijri != null && (
+              {/* M3: табака — фолбэк для отсутствующего generation у alminasa-рави. */}
+              {bio.tabaqa && (
+                <div>
+                  <dt className="text-[11px] uppercase tracking-wider text-ink-400">
+                    {t('hadith.narrator.generation')}
+                  </dt>
+                  <dd className="mt-0.5 font-arabic text-sm text-ink-800" dir="auto">{bio.tabaqa}</dd>
+                </div>
+              )}
+              {(bio.yearDeathHijri != null || bio.bornOnText || bio.diedOnText) && (
                 <div>
                   <dt className="text-[11px] uppercase tracking-wider text-ink-400">
                     {t('hadith.narrator.years')}
                   </dt>
-                  <dd className="mt-0.5 text-sm text-ink-800">
-                    {bio.yearBirthHijri != null ? `${bio.yearBirthHijri}–` : ''}
-                    {bio.yearDeathHijri} {t('hadith.graph.hijri')}
+                  <dd className="mt-0.5 text-sm text-ink-800" dir="auto">
+                    {bio.yearDeathHijri != null ? (
+                      <>
+                        {bio.yearBirthHijri != null ? `${bio.yearBirthHijri}–` : ''}
+                        {bio.yearDeathHijri} {t('hadith.graph.hijri')}
+                      </>
+                    ) : (
+                      [bio.bornOnText, bio.diedOnText].filter(Boolean).join(' — ')
+                    )}
                   </dd>
                 </div>
               )}
-              {(bio.birthplace || bio.primaryResidence) && (
+              {(bio.birthplace || bio.primaryResidence || bio.deathPlace) && (
                 <div>
                   <dt className="text-[11px] uppercase tracking-wider text-ink-400">
                     {t('hadith.narrator.life_path')}
                   </dt>
-                  <dd className="mt-0.5 text-sm text-ink-800">
-                    {[bio.birthplace, bio.primaryResidence].filter(Boolean).join(' → ')}
+                  <dd className="mt-0.5 text-sm text-ink-800" dir="auto">
+                    {[bio.birthplace, bio.primaryResidence, bio.deathPlace]
+                      .filter(Boolean)
+                      .join(' → ')}
                   </dd>
                 </div>
               )}
             </dl>
 
-            {bio.reliabilityComment && (
-              <div className="mb-8 rounded-md bg-sunken p-3 text-sm leading-relaxed text-ink-700">
-                {bio.reliabilityComment}
+            {/* M3: verbatim джарх — gradeText (alminasa), фолбэк reliabilityComment. */}
+            {(bio.gradeText ?? bio.reliabilityComment) && (
+              <div
+                className="mb-8 rounded-md bg-sunken p-3 text-sm leading-relaxed text-ink-700"
+                dir="auto"
+              >
+                {bio.gradeText ?? bio.reliabilityComment}
               </div>
+            )}
+
+            {/* M3: сеть передатчиков — ученики / учителя из relations. */}
+            {bio.relations && bio.relations.length > 0 && (
+              <section className="mb-8">
+                <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-500">
+                  {t('hadith.narrator.network')}
+                </h2>
+                <ul className="space-y-1.5">
+                  {bio.relations.map((rel, i) => {
+                    const label = rel.relatedName ?? '—';
+                    const roleLabel = rel.role ? `${rel.role}` : null;
+                    const meta = rel.cnt > 0 ? ` · ${rel.cnt}` : '';
+                    return (
+                      // У relation нет id; список неизменяемый (detail-снимок) → index ок.
+                      <li key={`${rel.relatedNarratorId ?? rel.relatedName ?? 'r'}-${i}`}>
+                        {rel.relatedNarratorId ? (
+                          <Link
+                            to={`/hadith/narrators/${rel.relatedNarratorId}`}
+                            className="inline-flex flex-wrap items-baseline gap-x-2 rounded-sm text-sm text-accent-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+                          >
+                            <span className="font-arabic" dir="rtl">
+                              {label}
+                            </span>
+                            {roleLabel && (
+                              <span className="text-xs text-ink-400">
+                                {roleLabel}
+                                {meta}
+                              </span>
+                            )}
+                          </Link>
+                        ) : (
+                          <span className="inline-flex flex-wrap items-baseline gap-x-2 text-sm text-ink-700">
+                            <span className="font-arabic" dir="rtl">
+                              {label}
+                            </span>
+                            {roleLabel && (
+                              <span className="text-xs text-ink-400">
+                                {roleLabel}
+                                {meta}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
             )}
 
             <section>
