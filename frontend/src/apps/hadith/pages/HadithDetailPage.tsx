@@ -319,7 +319,10 @@ function HadithDetailPage() {
                 <SectionHeading>
                   {t('hadith.detail.matns')} · {detail.matns.length}
                 </SectionHeading>
-                <MatnVariations matns={detail.matns} />
+                <MatnVariations
+                  matns={detail.matns}
+                  translateInHeroForId={primaryMatn?.id ?? null}
+                />
               </section>
             </article>
           </>

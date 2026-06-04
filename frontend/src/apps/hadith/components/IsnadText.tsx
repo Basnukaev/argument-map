@@ -26,6 +26,10 @@ function IsnadText({ html, narratorByExternalId, onNarratorClick }: IsnadTextPro
 
   return (
     <p className="font-arabic text-lg leading-loose text-ink-800" dir="rtl">
+      {/* key={i} осознанно: сегменты — детерминированная токенизация
+          статичной строки fullTextAr, без id, никогда не реордерятся;
+          список полностью заменяется при смене html (документированный
+          допустимый кейс index-key). */}
       {segments.map((seg, i) => {
         if (seg.kind === 'matn') {
           return (

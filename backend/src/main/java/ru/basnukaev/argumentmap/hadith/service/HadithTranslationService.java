@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import ru.basnukaev.argumentmap.ai.LlmApiException;
 import ru.basnukaev.argumentmap.ai.LlmClient;
 import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.exception.AdminOnlyException;
@@ -126,6 +127,11 @@ public class HadithTranslationService {
         // LLM-вызов вне любой транзакции (см. Javadoc класса).
         String systemPrompt = "ru".equals(lang) ? SYSTEM_PROMPT_RU : SYSTEM_PROMPT_EN;
         String translated = llmClient.complete(systemPrompt, matn.textAr()).trim();
+        if (translated.isBlank()) {
+            // пустой ответ модели — upstream-проблема: не персистим пустую
+            // строку (она бы навечно прошла cached-чек как «нет перевода»)
+            throw new LlmApiException("LLM вернул пустой перевод", 502);
+        }
 
         matnRepository.updateTranslation(matnId, lang, translated);
         log.info("AI-перевод матна {} на {} ({} симв.)", matnId, lang, translated.length());

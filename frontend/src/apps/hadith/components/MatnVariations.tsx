@@ -13,7 +13,16 @@ import type { MatnDto } from '@/apps/hadith/types';
  * по умолчанию, остальные свёрнуты — так список вариаций не превращается
  * в «стену текста».
  */
-function MatnItem({ matn, primary }: { matn: MatnDto; primary: MatnDto | null }) {
+function MatnItem({
+  matn,
+  primary,
+  hideTranslate,
+}: {
+  matn: MatnDto;
+  primary: MatnDto | null;
+  /** Контролы перевода уже показаны у hero-матна страницы — не дублируем. */
+  hideTranslate?: boolean;
+}) {
   const t = useT();
   const [open, setOpen] = useState(matn.isPrimary);
   const [showDiff, setShowDiff] = useState(false);
@@ -89,7 +98,9 @@ function MatnItem({ matn, primary }: { matn: MatnDto; primary: MatnDto | null })
             </p>
           )}
 
-          <MatnTranslateControls matnId={matn.id} textRu={matn.textRu} textEn={matn.textEn} />
+          {!hideTranslate && (
+            <MatnTranslateControls matnId={matn.id} textRu={matn.textRu} textEn={matn.textEn} />
+          )}
           {matn.divergenceSummary && (
             <p className="mt-2 text-xs italic text-ink-500" dir="auto">
               {matn.divergenceSummary}
@@ -106,7 +117,14 @@ function MatnItem({ matn, primary }: { matn: MatnDto; primary: MatnDto | null })
  * основная раскрыта, для остальных доступен пословный diff относительно
  * основной (toggle). Заголовок/счётчик секции владеет страница.
  */
-function MatnVariations({ matns }: { matns: MatnDto[] }) {
+function MatnVariations({
+  matns,
+  translateInHeroForId,
+}: {
+  matns: MatnDto[];
+  /** id матна, чьи переводы уже рендерит hero-секция страницы (без дубля). */
+  translateInHeroForId?: string | null;
+}) {
   const t = useT();
   const primary = matns.find((m) => m.isPrimary) ?? null;
 
@@ -118,7 +136,7 @@ function MatnVariations({ matns }: { matns: MatnDto[] }) {
     <ul className="space-y-3">
       {matns.map((m) => (
         <li key={m.id}>
-          <MatnItem matn={m} primary={primary} />
+          <MatnItem matn={m} primary={primary} hideTranslate={m.id === translateInHeroForId} />
         </li>
       ))}
     </ul>

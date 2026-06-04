@@ -213,6 +213,18 @@ class HadithTranslationControllerIT {
     }
 
     @Test
+    void POST_translate_missingLang_returns400() throws Exception {
+        // @Pattern пропускает null по контракту Bean Validation — без @NotNull
+        // пустое тело молча уходило бы в en-ветку (finding review Планов 5-7)
+        mockMvc.perform(post("/api/v1/hadith/matns/{matnId}/translate", matnId)
+                        .header("X-User-Id", userId.toString())
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type", Matchers.containsString("validation")));
+    }
+
+    @Test
     void POST_translate_blankTextAr_returns422() throws Exception {
         // Матн с пустым text_ar — вставляем напрямую, минуя save(). DB-колонка
         // text_ar NOT NULL, поэтому используем blank-строку (пробел), которую
