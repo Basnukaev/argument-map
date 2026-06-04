@@ -436,7 +436,7 @@ reporting), 55 - финал.
 - [ ] `docs/architecture.md` Observability раздел
 - [ ] `docs/gotchas.md` обновлён (logback profile conflict, micrometer
   naming, OTel async propagation pitfall)
-- [ ] Code review через `/superpowers:requesting-code-review` после каждой фазы
+- [ ] Независимый code review (OMC reviewer / `/code-review`) после каждой фазы
 
 ## 9. Risks / open questions
 

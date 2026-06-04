@@ -465,7 +465,7 @@ practice окажется болезненным - добавим toggle на ad
 - [ ] Тесты backend (25 новых IT) и frontend (15 новых Vitest) зелёные
 - [ ] api-contract.md обновлён, ADR-049 написан
 - [ ] Manual playwright smoke по acceptance journey пройден
-- [ ] Code review через `/superpowers:requesting-code-review` сделан
+- [ ] Независимый code review (OMC reviewer / `/code-review`) сделан
 
 ## 9. Risks / open questions
 
@@ -569,4 +569,4 @@ smoke). Если время поджимает - разбить на:
 7. **49.g** - frontend authStore extensions + ProtectedRoute generalize + tests
 8. **49.h** - RoleLockedAction wrapper + integration в action sites
 9. **49.i** - AdminUsersPage + route + i18n
-10. **49.j** - manual playwright smoke + code review (`/superpowers:requesting-code-review`) + handoff
+10. **49.j** - manual playwright smoke + независимый code review (OMC / `/code-review`) + handoff

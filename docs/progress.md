@@ -87,19 +87,59 @@ Backend `./mvnw verify` → **BUILD SUCCESS, 1324/1324**. Frontend **vitest 720/
 (114 файлов), tsc clean, types.ts — только добавления. Live-smoke краулера НЕ гонялся
 (см. backlog-гейт); admin-endpoints проверены IT + ручная проверка ниже.
 
+### Хвост сессии — live-инцидент первого dev-краулинга + хотфикс (10b26b2)
+Абдула прогнал dev-краул → `DuplicateKeyException` на первой странице. Systematic
+debugging: **`hadith_serial_id` — номер ВНУТРИ сборника, не глобальный** (живой зонд:
+12 доков с serial=1, по одному на сборник; заодно получен полный book-id map всех 12
+сборников для Плана 3: 19=Муватта, 121=Ахмад, 137=Дарими, 146=Бухари, 158=Муслим,
+173=Ибн Маджа, 184=Абу Дауд, 195=Тирмизи, 319=Насаи, 345=Ибн Хузайма, 454=Ибн Хиббан,
+594=Мустадрак). UNIQUE-индекс миграции 72 сработал задуманной канарейкой (упал ДО
+записи строк). Хотфикс TDD: миграция 73 (UNIQUE снят + checkpoint.last_sort_id),
+**составной search_after [serial, hadith_id]** (живым зондом подтверждён), фикстура
+из реальных live-доков. **Live-верификация:** 300 хадисов / 719 рави / 2069 рулингов
+застейджены, serial=1..3 → по 12 сборников каждый, pause на границе, `terms.id` к
+narrators подтверждён (закрыт residual финального ревью). Dev-данные очищены,
+чекпоинт IDLE. gotcha + api-contract (lastSortId) + types regen — в том же коммите.
+
 ### Проблемы/known
-- `terms.id` к narrators-12 — единственное live-предположение без тестового сигнала
-  (стаб отвечает на любой body). Проверить первым же dev-краулингом 1 страницы.
+- ~~`terms.id` к narrators-12 — live-предположение~~ **подтверждён живьём** (см. хвост).
 - Вкладки علل/غريب: контракты НЕ в HAR — перед Планом 6 снять свежий HAR с кликами.
 - Полный обход 12 сборников — ТОЛЬКО после ответа alminasa (backlog).
 
 ### Следующий шаг
-**План 3 — маппер staging→hd_*** (через writing-plans): детерминированный парс
+**План 3 — маппер staging→hd_*** (процесс: спека → план в `docs/plans/`,
+оркестрация через OMC `/ralplan`): детерминированный парс
 иснада из `full_text_ar` по `<a class=rawy id=N>` (порядок = narrators[], реверс в
 position 0 = Пророк ﷺ), upsert по external_id в hd_* (Plan 1 колонки/таблицы готовы),
 cross-refs из raw_narrations, рулинги/шархи/relations, book-id→slug map (146=البخاري,
 остальные из book_name при краулинге), unit-тесты на реальном hadith-HTML из фикстур.
 После него План 4 (выпил sunnah ETL + AI-иснад) → 5 (админка) → 6-7 (фронт, AI-перевод).
+
+### Перенесено из SESSION_START_PROMPT (файл выпилен при переходе на OMC, 2026-06-04)
+
+**Дополнительно в очереди (после Планов):** 🖐️ ручные проверки UI (накоплено
+с Сессии 55, playwright env-blocked): archive.org FILE_ONLY ридер, content_kind
+кнопки, bbox-подсветка, DeepSeek-метаданные; плюс admin alminasa endpoints
+(smoke ниже).
+
+**Инфра-стейт (на конец Сессии 56):** Docker (postgres+minio) up; backend :9090
++ JDWP :5005 (команда — CLAUDE.md); frontend :5173; psql роль `argmap`;
+миграции через 72. sunnah-mysql `:3307` нужен только для sunnah-legacy (до
+Плана 4). AI-фичи: `--ai.provider=...` + ключ аргументом (НЕ в репо), за
+корп-прокси `--ai.http.proxy=...`. Admin для curl:
+`00000000-0000-0000-0000-000000000001`. HAR'ы в gitignore; полные сэмплы
+ответов alminasa — `/tmp/alminasa-fixtures/` (если /tmp пережил ребут) либо
+пере-извлечь из HAR в корне. Smoke alminasa:
+`curl -s -H "X-User-Id: 00000000-0000-0000-0000-000000000001" http://localhost:9090/api/v1/admin/alminasa/crawl/status`
+→ `{"status":"IDLE",...}`. Дев-данные: fmhji (FILE_ONLY, 4 файла); bukhari
+hd_* 1 хадис (sunnah-legacy).
+
+**Известные мелочи (не блокеры):** jsdom+node24 не парсит multipart FormData
+(mock fetch в FileUploadModal.test); node24+undici AbortSignal workaround в
+test-setup.ts (gotchas); playwright WSL2 не грузит Google Fonts через
+corp-proxy (шрифты проверять в реальном браузере).
+
+## 2026-06-02/03 - Сессия 55 - крупный автономный overhaul (7 фаз + code-review)
 
 Запрос Абдулы: 10 пунктов + скриншоты `img*.png` + HAR (archive.org/alminasa).
 Полностью автономный марафон. Спека `docs/specs/2026-06-02-session-55-overhaul.md`.

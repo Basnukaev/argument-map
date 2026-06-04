@@ -882,7 +882,7 @@ safety.
 
 ### Code review checkpoints
 
-- После Phase 1 - mandatory `/superpowers:requesting-code-review`
+- После Phase 1 - mandatory независимый code review (OMC / `/code-review`)
   (backend CLAUDE.md rule «крупный этап»)
 - После Phase 3 - review React Flow code (perf hazards особенно)
 - После Phase 5 - review ETL + disambiguation (subtle bugs возможны)
@@ -1064,7 +1064,7 @@ Explorer» (Phase 3+).
   3, 4) - design quality + RTL details.
 - **Playwright** после каждого UI commit phase 2/3/4 (per CLAUDE.md
   rule). Headless WSL2. Screenshots в `/tmp/`.
-- **`/superpowers:requesting-code-review`** обязательно после
+- **Независимый code review (OMC / `/code-review`)** обязательно после
   Phase 1, 3, 5 (см. §7 «Code review checkpoints»).
 
 ---

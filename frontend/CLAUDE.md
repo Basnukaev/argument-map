@@ -95,8 +95,8 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 ## Code review после крупных этапов (mandatory)
 
 После каждого крупного этапа (закрытие Этапа N целиком либо
-закрытие N подэтапов одной темы) **обязательно** вызвать
-`/superpowers:requesting-code-review`:
+закрытие N подэтапов одной темы) **обязателен независимый
+code review** (OMC reviewer/verifier-агент либо скилл `/code-review`):
 
 - После закрытия Этапа целиком (Tiptap extensions, RBAC frontend,
   Responsive Фаза, Auth UI - крупные feature areas)
@@ -113,7 +113,7 @@ unmount, типичные React 19 ошибки (useSyncExternalStore vs effect)
 
 **Workflow:**
 1. Закрылся этап → коммит-handoff `feat(frontend): этап N closed`
-2. Вызвать `/superpowers:requesting-code-review` с BASE/HEAD SHA
+2. Запустить независимый review (OMC reviewer / `/code-review`) с BASE/HEAD SHA
 3. Прочитать reviewer's report - Critical/Important/Minor
 4. Закрыть **все Critical** и **все Important** в отдельных fix-коммитах
 5. **Только после этого** обновлять `roadmap.md` запись в «Закрытые»

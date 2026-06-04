@@ -59,7 +59,7 @@ argument-map/
 │   ├── glossary.md          термины проекта
 │   ├── api-contract.md      REST API контракт
 │   ├── doc-hygiene.md       правила поддержания документации
-│   └── SESSION_START_PROMPT.md  стартовый промпт для Claude Code
+│   └── specs/ + plans/ + audits/  спеки, планы и аудиты крупных работ
 │
 ├── backend/                 один Spring Boot для всех приложений
 │   ├── docs/                бэк-стандарты
@@ -180,11 +180,13 @@ Dev-user UUID: `14561248-0bfd-4a62-8395-d40a6972182a` (в
 ## Работа с Claude Code
 
 Claude Code работает по всему дереву - бэк, фронт, корневая
-документация. Стартовый промпт для новой сессии:
-[`docs/SESSION_START_PROMPT.md`](docs/SESSION_START_PROMPT.md)
+документация. Оркестрация - плагин **OMC (oh-my-claudecode)**.
+Стартовый протокол сессии - в [`CLAUDE.md`](CLAUDE.md) (секция
+«Старт новой сессии»); текущий приоритет - «Следующий шаг» последней
+записи [`docs/progress.md`](docs/progress.md).
 
 Memory Claude Code хранится в
-`~/.claude/projects/-mnt-c-my-folders-projects-argument-map/memory/`
+`~/.claude/projects/-home-basnukaev-projects-argument-map/memory/`
 с feedback-памятками (decision authority, WSL-only, no frequent
 builds, и т.д.)
 
