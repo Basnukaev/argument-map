@@ -252,6 +252,25 @@ sunnah:
     username: ${SUNNAH_DUMP_USERNAME:}
     password: ${SUNNAH_DUMP_PASSWORD:}
 
+# План 2 alminasa (ADR-060): открытый ES-прокси, краулер → am_staging_*.
+# origin отдельно от base-url: прокси проверяет Origin/Referer, в IT
+# base-url подменяется stub'ом. Прокси-URL только для alminasa-клиента.
+alminasa:
+  enabled: ${ALMINASA_ENABLED:true}
+  base-url: ${ALMINASA_BASE_URL:https://alminasa.ai}
+  origin: https://alminasa.ai
+  index-prefix: es-prod-euw1-
+  index-suffix: -read
+  http-proxy: ${ALMINASA_HTTP_PROXY:}
+  connect-timeout-seconds: 10
+  request-timeout-seconds: 60
+  crawl:
+    page-size: 100
+    delay-ms: 1000
+    dependent-batch-size: 25
+    dependent-fetch-size: 500
+    stale-timeout-minutes: 10
+
 # Resilience4j Circuit Breaker (ADR-024, Этап 25.b - operational hardening).
 # Защищает upstream HTTP вызовы от cascading failures.
 #
@@ -319,6 +338,15 @@ resilience4j:
         # Predicate приоритетнее retry-exceptions (последний бы матчил
         # любой LlmApiException включая 4xx).
         retry-exception-predicate: ru.basnukaev.argumentmap.ai.LlmTransientFailurePredicate
+      # Retry для alminasa ES-прокси (План 2, ADR-060). 3 попытки на
+      # transient failures (5xx, IOException, timeout), exponential backoff.
+      # Predicate появляется в следующей задаче — резолвится в рантайме.
+      alminasaApi:
+        max-attempts: 3
+        wait-duration: 2s
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        retry-exception-predicate: ru.basnukaev.argumentmap.hadith.alminasa.api.AlminasaTransientFailurePredicate
 
   # Metrics через actuator (см. management.endpoints.web ниже).
   metrics:
