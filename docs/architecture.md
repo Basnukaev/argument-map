@@ -410,7 +410,24 @@ narrators/explanations/rulings — батчевыми `terms` по id стран
 `am_staging_*` (raw jsonb + горячие колонки, идемпотентный upsert по природным
 ключам) + `am_crawl_checkpoint` (RUNNING/PAUSED/FAILED/COMPLETED, граница
 страницы, stale-takeover). Управление: `/api/v1/admin/alminasa/crawl/*`.
-Маппинг staging → hd_* — План 3.
+
+**Маппер staging → hd_* (План 3, ADR-060).** Двухпроходный импорт
+(`AlminasaImportService`): проход 1 — рави (`AlminasaNarratorMapper`:
+upsert по external_id, grade→enum производная c verbatim в `grade_text`,
+relations из top_students/scholars), проход 2 — хадисы
+(`AlminasaHadithMapper`: upsert хадиса + delete-recreate сателлитов —
+матн/издания/цепь/crossrefs/рулинги/шархи). Иснад — детерминированный
+парс `AlminasaIsnadParser` rawy-тегов `full_text_ar` (семантика «сегмент
+ПОСЛЕ тега» = собственная речь рави о получении; реверс → position 0 =
+сподвижник, формулы ложатся без сдвигов). Рулинги — union embedded
+`rulings[]` + rulings-индекс (одна строка на учёного-док) с дедупом.
+Статус правилом: сахихайн → CANONICAL, иначе VARIANT. Финальный
+resolve-проход: crossref-FK одним SQL по external_id; relation-FK в Java
+по нормализованному имени при единственном кандидате (best-effort,
+короткие формы имён почти не матчатся — known limitation). Каждый док —
+в своей транзакции (ошибка не валит прогон, re-run лечит). Dry-run —
+`dryRunHadith` (маппинг + `setRollbackOnly`). План:
+`docs/plans/2026-06-04-alminasa-mapper.md`.
 
 Детали - `architecture-platform.md`, решение - ADR-060.
 
