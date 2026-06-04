@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        План 2 alminasa-инжеста (ADR-060): staging-слой am_staging_* + чекпоинт
+        краулинга. Спека: docs/superpowers/specs/2026-06-03-alminasa-hadith-source-design.md §A/§B.
+
+        Паттерн зеркалит sn_staging_* (миграция 59, ADR-051), отличия:
+
+          (1) Природные ключи alminasa — hadith_id "{bookId}-{serial}" и numeric
+              narrator id — устойчивые внешние идентификаторы (HAR-анализ),
+              PK напрямую. Для explanation/ruling доков своего природного ключа
+              нет — PK = ES _id (es_id): индекс датирован 2024-08-24 и фактически
+              иммутабелен, _id стабилен между запросами.
+
+          (2) raw jsonb NOT NULL — полный _source (forward-compat: пере-маппинг
+              без пере-краулинга; контракт alminasa может молча смениться).
+              Горячие колонки — только то, что нужно прогрессу/каталогу/Плану 3
+              для выборок.
+
+          (3) am_staging_hadith.hadith_serial_id UNIQUE — это sort-ключ
+              search_after-пагинации; уникальность = гарантия что resume не
+              теряет и не дублирует доки. Упадёт на живом краулинге → сигнал
+              что ключ ненадёжен и пагинацию надо пересматривать.
+
+          (4) БЕЗ FK между staging-таблицами: staging — landing zone сырых
+              данных, согласованность проверяет маппер (План 3). Зависимые доки
+              (ruling/explanation) могут ссылаться на ещё-не-скраулённые хадисы.
+
+          (5) am_crawl_checkpoint generic по index_name — Планы 6+ добавят
+              индексы (ambiguous-12, hadith-commentary-12) без новой миграции.
+    -->
+    <changeSet id="20260604-72-alminasa-staging-tables" author="Abdula Basnukaev">
+        <comment>План 2 alminasa: staging-таблицы am_staging_* + am_crawl_checkpoint</comment>
+        <sql><![CDATA[
+            CREATE TABLE am_staging_hadith (
+                hadith_id        varchar(20) PRIMARY KEY,
+                book_id          integer NOT NULL,
+                hadith_serial_id bigint  NOT NULL,
+                book_name        text,
+                hadith_type      varchar(50),
+                chapter          text,
+                sub_chapter      text,
+                raw              jsonb NOT NULL,
+                imported_at      timestamptz NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_am_staging_hadith_book ON am_staging_hadith(book_id);
+            CREATE UNIQUE INDEX idx_am_staging_hadith_serial ON am_staging_hadith(hadith_serial_id);
+
+            CREATE TABLE am_staging_narrator (
+                narrator_id  bigint PRIMARY KEY,
+                full_name    text,
+                grade        text,
+                level        text,
+                raw          jsonb NOT NULL,
+                imported_at  timestamptz NOT NULL DEFAULT now()
+            );
+
+            CREATE TABLE am_staging_explanation (
+                es_id        varchar(100) PRIMARY KEY,
+                hadith_id    varchar(20) NOT NULL,
+                book_name    text,
+                author       text,
+                raw          jsonb NOT NULL,
+                imported_at  timestamptz NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_am_staging_explanation_hadith ON am_staging_explanation(hadith_id);
+
+            CREATE TABLE am_staging_ruling (
+                es_id           varchar(100) PRIMARY KEY,
+                hadith_id       varchar(20) NOT NULL,
+                ruler           text,
+                ruler_dod       integer,
+                narrations_type varchar(30),
+                raw             jsonb NOT NULL,
+                imported_at     timestamptz NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_am_staging_ruling_hadith ON am_staging_ruling(hadith_id);
+
+            CREATE TABLE am_crawl_checkpoint (
+                index_name      varchar(50) PRIMARY KEY,
+                status          varchar(20) NOT NULL DEFAULT 'IDLE'
+                                CHECK (status IN ('IDLE','RUNNING','PAUSED','FAILED','COMPLETED')),
+                last_sort_value bigint,
+                fetched_count   bigint NOT NULL DEFAULT 0,
+                total_hits      bigint,
+                error           text,
+                started_at      timestamptz,
+                updated_at      timestamptz NOT NULL DEFAULT now()
+            );
+        ]]></sql>
+        <rollback>
+            <sql><![CDATA[
+                DROP TABLE IF EXISTS am_crawl_checkpoint;
+                DROP TABLE IF EXISTS am_staging_ruling;
+                DROP TABLE IF EXISTS am_staging_explanation;
+                DROP TABLE IF EXISTS am_staging_narrator;
+                DROP TABLE IF EXISTS am_staging_hadith;
+            ]]></sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
