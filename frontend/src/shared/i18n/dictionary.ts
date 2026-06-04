@@ -810,7 +810,7 @@ export const DICTIONARY = {
     'admin.dashboard.audit.cta': 'Открыть журнал',
     'admin.dashboard.alminasa.title': 'alminasa.ai',
     'admin.dashboard.alminasa.desc':
-      'Будущее обогащение хадисов риджаль-данными (биографии передатчиков, оценки иснадов) из alminasa.ai. Основной импорт — через «Импорт хадисов (Sunnah)»; иснад извлекается ИИ из текста матна.',
+      'Единственный источник хадисов (ADR-060): полный снапшот корпуса alminasa.ai — матны, иснады, риджаль, рулинги, шархи. Краулер и маппер готовы; админка импорта — на подходе.',
     'admin.dashboard.alminasa.produces': 'Биографии передатчиков, детальные оценки иснадов',
     'admin.dashboard.alminasa.cta': 'Планируется',
 
@@ -2175,7 +2175,7 @@ export const DICTIONARY = {
     'admin.dashboard.audit.produces': 'تسلسل زمني لإجراءات المستخدمين عبر المنصة',
     'admin.dashboard.audit.cta': 'فتح السجلّ',
     'admin.dashboard.alminasa.title': 'alminasa.ai',
-    'admin.dashboard.alminasa.desc': 'إثراء مستقبلي للأحاديث ببيانات الرجال (تراجم الرواة، تقييمات الأسانيد) من alminasa.ai. الاستيراد الأساسي عبر «استيراد الأحاديث (Sunnah)»؛ يُستخرج الإسناد بالذكاء الاصطناعي من نص المتن.',
+    'admin.dashboard.alminasa.desc': 'المصدر الوحيد للأحاديث (ADR-060): نسخة كاملة من مكتبة alminasa.ai — المتون والأسانيد والرجال والأحكام والشروح. الزاحف والمحوِّل جاهزان؛ صفحة الاستيراد قادمة قريباً.',
     'admin.dashboard.alminasa.produces': 'تراجم الرواة، تقييمات تفصيلية للأسانيد',
     'admin.dashboard.alminasa.cta': 'مخطط',
 

@@ -86,7 +86,7 @@
 - ADR-056: Импорт PDF-книг из archive.org + dual-variant модель pdf_links (миграция 67)
 - ADR-057: Удаление Tesseract OCR (миграция 68)
 - ADR-058: Swappable LLM provider abstraction (пакет `ai`)
-- ADR-059: AI извлечение иснада из матна (preview)  ⟵ частично заменено ADR-060 (Сессия 56) — AI-извлечение иснада
+- ADR-059: AI извлечение иснада из матна (preview)  ⟵ SUPERSEDED ADR-060 — код выпилен целиком Планом 4 (Сессия 57, 2026-06-04)
 - ADR-060: alminasa.ai — единственный источник хадисов  ⟵ принято (заменяет решение Сессии 55 «sunnah primary + AI-иснад»
 
 ---
