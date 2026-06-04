@@ -6370,9 +6370,11 @@ property — proxy-неопределённость с Resilience4j AOP. (2) О�
 тяжёлых зависимостей».
 
 ## ADR-059: AI извлечение иснада из матна (preview)
-**Статус:** частично заменено ADR-060 (Сессия 56) — AI-извлечение иснада
-выпиливается (alminasa отдаёт пред-связанные цепочки детерминированным
-парсом); reuse-визуализация `SanadGraph`/`SanadGraphService` остаётся.
+**Статус:** ⟵ SUPERSEDED ADR-060 (План 4, Сессия 57, 2026-06-04) — код
+AI-извлечения иснада (`hadith/isnad/**`, `buildGraphFromExtracted`,
+endpoint `/admin/sunnah/extract-isnad`) УДАЛЁН: alminasa отдаёт
+пред-связанные цепочки, парс детерминированный (`AlminasaIsnadParser`);
+reuse-визуализация `SanadGraph`/`SanadGraphService.buildGraph` осталась.
 
 **Контекст.** sunnah.com (spec §11) отдаёт matn+иснад единым блобом —
 структурного иснада нет. В админ-превью импорта хадиса граф иснада был

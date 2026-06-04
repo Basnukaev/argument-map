@@ -317,14 +317,14 @@ design-specs создаются по мере приоритезации.
             такхридж/شروح-علل-غريب) + AI-перевод on-demand
       - ⚠️ Полный обход 12 сборников гейтится backlog-пунктом «Связаться
             с alminasa.ai»; контракты علل/غريب — снять HAR перед Планом 6.
-      **Legacy sunnah-трек (жив до Плана 4, ADR-060):** backend foundation
-      (Phase 1/3 sanad-граф, ADR-049, migrations 52-56), ETL sunnah.com
-      (Phase 5, ADR-050/051/052, migrations 57/59 `hd_collections`+`sn_staging_*`,
-      пилот 98 хадисов Бухари), под-проекты #1 просмотр / #2 линковка в узлы
-      ✅ Сессии 53-54, AI-иснад (ADR-059, IsnadExtraction). Выпиливается
-      Планом 4. Детали — progress.md Сессии 50-55 + специ
-      `docs/specs/2026-05-20-hadith-explorer-design.md`,
-      `2026-05-31-sunnah-etl-design.md`.
+      **Legacy sunnah-трек: ВЫПИЛЕН Планом 4** ✅ 2026-06-04 (ADR-060;
+      ADR-059 superseded). Удалены sunnah-ETL (`hadith/sunnah/**`,
+      `sn_staging_*` дроп миграцией 74, `/admin/sunnah/*`, AdminSunnahPage)
+      и AI-иснад (`hadith/isnad/**`, `buildGraphFromExtracted`).
+      Остались (живые): sanad-граф foundation (ADR-049, migrations 52-57)
+      и `SanadGraphService.buildGraph`/`SanadGraph` — работают на
+      alminasa-данных. История — progress.md Сессии 50-55, план
+      `docs/plans/2026-06-04-alminasa-legacy-removal.md`.
 
 - [ ] **49.D: Observability** - structured logging + Prometheus metrics
       + OpenTelemetry tracing + frontend error reporting. Spec:

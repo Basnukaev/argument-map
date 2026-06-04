@@ -62,10 +62,10 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       сурам, выбор аята, inline-вставка с цитатой и переводом.
       Бэк не готов: нужна интеграция с источниками типа quran.com
       или локальный mushaf-датасет _(SourcePickerQuran)_
-- [ ] **Source picker для хадисов** - таб «Хадисы» с 9 сборниками
-      (Бухари, Муслим, Тирмизи и т.д.), фильтр по grade
-      (sahih/hasan/daif), показ иснада. Потенциальная интеграция
-      с sunnah.com _(SourcePickerHadith)_
+- [ ] **Source picker для хадисов** - таб «Хадисы» с 12 сборниками
+      (Бухари, Муслим, Тирмизи и т.д.), фильтр по статусу/рулингам,
+      показ иснада. Данные — собственные `hd_*` (alminasa-снапшот,
+      ADR-060) _(SourcePickerHadith)_
 - [ ] **Source picker для книг** - таб «Книги» с навигацией том /
       страница, интеграция с shamela.ws. Самая большая работа
       из source pickers _(SourcePickerBooks)_
@@ -204,53 +204,15 @@ node_votes**); Frontend pagination остальных list pages (Load More,
 
 ### Code-review findings (Сессия 53, 2026-06-01) — Phase 5 ETL шаг 2 deferred Minor
 
-Из multi-agent review (5 измерений → adversarial verify, 0 Critical, все 6
-Important + большинство Minor закрыты в сессии). Сознательно отложенные Minor:
+~~Секция сжата Планом 4 (Сессия 57, 2026-06-04)~~: sunnah-ETL удалён
+(ADR-060) — пункты про `SunnahToHadithMapper`/`SunnahDumpReader`/
+`sn_staging_*`/AdminSunnahPage/полный корпус sunnah сняты как мёртвые.
+Единственный переживший (генерик, не sunnah):
 
-- [ ] **Concurrent-run idempotency** (Minor): `SunnahToHadithMapper` —
-  find-then-insert (TOCTOU). Для admin-triggered single import безопасно
-  (UNIQUE-констрейнт ловит), но параллельные прогоны одного сборника дали бы
-  сырой constraint-violation вместо чистого skip. Если появится параллельный
-  импорт: advisory lock по slug либо `INSERT ... ON CONFLICT DO NOTHING`.
-- [ ] **Расширенные формы хамзы/алифа** (Minor): NFKC + текущие folds
-  покрывают обычный текст и presentation forms; редкие U+0672/0673/0675/0676/
-  0677 (alef/waw with wavy hamza) пройдут verbatim. Добавить в switch если
-  встретятся в реальном дампе.
-- [ ] **hadith→book/chapter referential gap** (Minor, by design): в
-  `sn_staging_hadith` `book_number`/`chapter_id` — мягкие атрибуты без FK
-  (hasBooks/hasChapters опциональны). Опционально: mapper логирует/считает
-  хадисы с (book,chapter), не находящими staging-родителя.
-
-**Шаг 2.d (SunnahDumpReader, Сессия 53):**
-- [ ] **Admin REST-триггер импорта sunnah** + прод-config MySQL-DataSource
-  (`SunnahDumpProperties` url/user/pass/enabled + conditional bean). Нужно
-  чтобы запустить импорт против реального дампа вне тестов. AdminShamelaPage-
-  стиль, под bulk-policy gate (превью staging до commit).
-- [ ] **`SunnahDumpReader.readChapters` INNER JOIN** по `arabicBookID`: в
-  реальном дампе `BookData.arabicBookID` nullable → главы книги с
-  `arabicBookID IS NULL` отбросятся (главы теряются, хадисы — нет). Для
-  Бухари+Муслим arabicBookID заполнен. Fix при расширении объёма: LEFT JOIN
-  + fallback резолва book_number, либо валидация.
-- [ ] **Whole-collection in-memory List** в reader/import: `readHadiths`
-  материализует весь сборник в память (~7.5k строк для Сахихайн — ОК). При
-  расширении за пилот / API-источнике — пересмотреть на Stream/пагинацию.
-- [ ] **grade-парсинг dump**: `arabicgrade1`/`englishgrade1` кладутся как
-  `[{graded_by:"", grade: текст}]`. Грейдер ("Darussalam" из "Sahih
-  (Darussalam)") не извлекается. Улучшить при необходимости.
-
-**Шаг 2.e (прод-обвязка + реальный пилот, Сессия 53):**
-- [x] **HTML/markup в тексте дампа** — **исправлено Сессией 53** (под-проект #1):
-  оказалось, что разметка (HTML `<p>`, quran-якоря `<A href=openquran>`, footnote
-  `<c_qNN>`) есть и в арабском, и в английском, и текла в `normalized_matn`
-  (поиск). `SunnahTextCleaner` срезает её в reader для bodyAr И bodyEn;
-  перечистка 98 импортированных через delete+reimport. + previewMatn
-  (диакритизированный) на карточке + редизайн HadithListPage.
-- [ ] **Frontend AdminSunnahPage** (AdminShamelaPage-стиль): кнопки
-  «превью каталога» + «импорт сборника» поверх `/api/v1/admin/sunnah/*`.
-  Типы уже в `types.ts` (generate-api). Чтобы Абдула триггерил импорт без curl.
-- [ ] **Полный корпус**: репо-sample `00-samplegitdb.sql` = только 100
-  хадисов Бухари (muslim/др. — только метаданные сборников). Полный корпус —
-  через `SunnahApiClient` (шаг 4) либо полный дамп от sunnah.com.
+- [ ] **Расширенные формы хамзы/алифа** (Minor): `ArabicTextNormalizer` —
+  NFKC + текущие folds покрывают обычный текст и presentation forms; редкие
+  U+0672/0673/0675/0676/0677 (alef/waw with wavy hamza) пройдут verbatim.
+  Добавить в switch если встретятся в реальных alminasa-данных.
 
 ### Code-review findings (Сессия 52, 2026-06-01) — ADR-043 sweep gaps
 
