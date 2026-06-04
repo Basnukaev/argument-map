@@ -176,56 +176,41 @@
   + panel scroll + alminasa reframe; **AI-иснад** (ADR-059, IsnadExtractionService + live
   preview-граф, эфемерный). Code-review 0 Critical / 1 Important (@Retry bypass) + 9 Minor закрыты.
   backend BUILD SUCCESS, frontend 708/0/0. migrations через **69**.
+- **Этап 6. Улучшения бэкенда** (закрыт Сессия 39, ADR-037/044) — JSON
+  export/import, Dung's framework (миграция 41 + `topics.status_algorithm`
+  + `DungFrameworkService` grounded labelling + `PATCH /status-algorithm`).
+  FTS (Elasticsearch) и UI-toggle алгоритма — в backlog
+- **User feedback Сессии 38** (закрыт Сессия 39, ADR-036) — 7 UX-фиксов:
+  защита root-узла от удаления (`NodeIsRootException` 409), Alt+K/Del/
+  Backspace/⌘+↵ через единый `useHotkey`, shamela 502→локализованный
+  toast, диагностика шрифта BookListPage, unified silent-delete+undo
+  (window.confirm убран). Детали — progress.md Сессии 38-39
+- **Этап 19. Q&A — первое новое приложение под ADR-018** (закрыт Сессии
+  ~30-32, ADR-032/033/034) — миграции 26/28/29/30/31:
+  questions+answers+accepted_answer_id, параллельные иерархии
+  question_sources/answer_sources (ADR-033 валидирован 3×), accept-answer
+  flow, frontend `src/apps/qa/` (List/Create/Detail + AnswersSection +
+  CitationPicker targetType nodes/questions/answers). Voting/comments —
+  backlog. Детали — progress.md
+- **Этап 20. Академическая citation metadata** (закрыт Сессии 31-32,
+  ADR-028) — 20.a/b/f выше; 20.c ShamelaBibliographyParser + backfill
+  endpoint, 20.d admin BookEditModal (`PATCH /library/books/{id}` + 3
+  autocomplete), 20.e AddSourceModal extended (shared
+  AcademicMetadataFields, 2-step BOOK flow). Детали — progress.md
+- **Этап 21. Auth end-to-end** (закрыт Сессия 41, ADR-040) — Spring
+  Security 6 + JWT (jjwt) + BCrypt, миграция 32 users ALTER, AuthController,
+  httpOnly refresh cookie, frontend AuthStore + refresh-on-401,
+  Login/Register, ProtectedRoute/AdminRoute. Детали — progress.md
+- **Этап 22. RBAC permissions + audit** (закрыт Сессии 37/42-44, ADR-043
+  + Amendments) — hybrid visibility PRIVATE/SHARED/PUBLIC + members M:N
+  для topics/books (миграции 36/37), Q&A author-guards, 22.d audit log
+  (миграция 39, синхронный в транзакции, 8 действий), 22.e AdminAuditPage
+  `/admin/audit`. Открытые остатки — 22.f (backlog) и 23+ ниже. Детали —
+  progress.md
 
 ---
 
 ## Активные этапы
-
-### User feedback Сессии 38 (закрывается в Сессии 39)
-
-- [x] **#1:** root узел темы защищён от удаления - backend
-      `NodeIsRootException` 409 (`NodeService.deleteNode` guard
-      по `topic.root_node_id`), frontend скрывает «Удалить» в
-      context menu для корня + bulk-delete фильтрует root +
-      toast.warning
-- [x] **#2:** Alt+K layout-independent - решено через `useHotkey`
-      wrapper над `react-hotkeys-hook` (useKey:true → event.code)
-- [x] **#3:** Del/Backspace handler в `TopicGraphPage` мигрирован
-      с временного useEffect на `useHotkey('delete,backspace', ...)`
-      в `GraphCanvas` - после унификации
-- [x] **#4:** ⌘+↵ submit в FormModal через `useHotkey('mod+enter',
-      formRef.current?.requestSubmit, { enableOnFormTags: true })`.
-      `<ShortcutHint keys="mod+enter">` показывает ⌘ на Mac / Ctrl
-      на Win/Linux. Хардкодные `<Kbd>⌘</Kbd>` в AddNodeModal/
-      AddEdgeModal убраны. ADR-036 + миграция 17+ существующих
-      keydown handlers на единую систему
-- [x] **#5:** shamela 502 → локализованный toast вместо сырого
-      Problem Details с замаскированным api_key. Mapping по
-      `problem.type` (`shamela-api-error` / `-archive-error` /
-      `-reader-error`)
-- [x] **#6:** диагностика шрифта title книг в `BookListPage` -
-      `--font-book-title` в `tokens.css` уже Manrope (не EB Garamond
-      как обещает комментарий), но Google Fonts в WSL2 blocked 407
-      proxy → нулевая загрузка любых web-fonts, всё падает в
-      system serif/sans fallback. Решение по факту font'а - за
-      Абдулой (см. диагностический коммит)
-- [x] **#7 (Сессия 39):** UX unification удаления узлов - context
-      menu и Del/Backspace теперь идентичны: silent delete +
-      `toast.success` с действующей кнопкой «Отменить» на 3 сек
-      (паттерн Gmail/Slack). `window.confirm()` убран полностью.
-      Undo восстанавливает узел через POST `/api/v1/nodes` (новый
-      id, без edges - tooltip-hint предупреждает). Toast action API
-      расширен опциональным `hint`. ui-guidelines дополнены
-      секцией «Destructive actions»
-
-### Этап 6. Улучшения бэкенда (после MVP, не блокирует другие)
-
-- [x] **Этап 6 закрыт** - JSON export/import (Сессия 39, ADR-037), Dung's
-  framework (Сессия 38, ADR-044, миграция 41 + `topics.status_algorithm`
-  + `DungFrameworkService` grounded labelling + `PATCH /api/v1/topics/{id}
-  /status-algorithm`). Полнотекстовый поиск отложен через отдельный
-  Elasticsearch сервис (см. `docs/backlog.md` «Архитектурные решения»).
-  Frontend UI toggle алгоритма - в backlog
 
 ### Этап 18. Library frontend - оставшиеся подэтапы
 
@@ -241,147 +226,16 @@
       JOIN в NodeRepository). Откладывается - duplicate данные с
       header meta-row
 
-### Этап 19. Q&A - первое полностью новое приложение
-
-**Зачем:** проверить платформенность фундамента. Если library
-позволяет легко собрать новое приложение - архитектура работает
-
-- [x] **19.a:** Q&A foundation (ADR-032). Migration 26 `questions`
-      table + Question domain + QuestionStatus enum (OPEN/ANSWERED/
-      CLOSED). REST CRUD под `/api/v1/questions` (POST/GET list с
-      filters status/q/ GET/{id}/PATCH/DELETE). Frontend `src/apps/qa/`:
-      QuestionListPage с status filter + search, CreateQuestionPage
-      (Field + maxLength counters), QuestionDetailPage с status switcher
-      + delete. Header nav «Q&A» enabled. 30 i18n keys RU/AR
-- [x] **19.b:** Source attach - `question_sources` table (migration 28
-      объединила 9+23+25 в одну) + REST `POST /api/v1/questions/{id}/citations`
-      + `GET /{id}/sources` + `DELETE /sources/{questionSourceId}`.
-      Параллельная иерархия (ADR-033) в `qa/` package - `QuestionSource`/
-      `QuestionSourceRepository`/`QuestionCitationService`/
-      `QuestionCitationController` mirror `node_sources` stack.
-      Frontend - `CitationPicker` расширен `targetType: 'nodes' | 'questions'`
-      prop, `QuestionCitationsSection` использует тот же `SourceCard`.
-      18 IT тестов pass. Smoke playwright подтвердил identical UI
-      rendering structured citation на question detail page
-- [x] **19.c:** Answers + accept-answer flow (ADR-034). Migration 29
-      `answers` table + migration 30 `questions.accepted_answer_id`
-      nullable FK ON DELETE SET NULL. REST endpoints под `/api/v1`:
-      POST/GET `/questions/{id}/answers`, PATCH/DELETE `/answers/{id}`,
-      POST/DELETE `/questions/{id}/accepted-answer/{answerId}`.
-      `AnswerResponse` с derived `accepted: boolean`. 20 IT тестов
-      через Testcontainers (create / list ordered / accept / revoke /
-      cascade / SET NULL). Frontend - `AnswersSection.tsx` с inline-
-      формой добавления + AnswerCard с ribbon «Принят», кнопками
-      «Принять» (для asker) и «Удалить» (для author). 12 i18n keys
-      RU/AR. Voting + comments в backlog как отдельные этапы
-- [x] **19.d:** Answer sources - параллельная иерархия `answer_sources`
-      (ADR-033 итерация 3). Migration 31 mirror migration 28 - тот же
-      шаблон (surrogate UUID PK + positional fields + CHECK constraint
-      один-из-четырёх + 5 индексов), FK на `answers(id) ON DELETE CASCADE`.
-      Backend: `AnswerSource` record + `AnswerSourceRepository` (с alias
-      `ansrc` - `as` reserved keyword) + `AnswerCitationService` + 3
-      REST endpoint под `/api/v1/answers/{id}/{citations|sources}`.
-      `QaDtoMappers.toResponse` перегружен по типу - один класс на оба
-      flow. Frontend: `CitationPicker` расширен `targetType: 'answers'`,
-      новый `AnswerCitationsSection` mirror `QuestionCitationsSection`,
-      встроен в `AnswerCard` collapsed-by-default через toggle.
-      19 IT тестов pass (mirror 18 от 19.b + extra empty list test).
-      Smoke playwright подтвердил identical citation rendering на answer
-      level. **ADR-033 паттерн валидирован 3 раза подряд - platform
-      pivot масштабируется без перехода на generic citations table**
-
-### Этап 20. Полная академическая citation metadata - продолжение
-
-20.a/b/f закрыты (см. выше). Остаётся:
-
-- [x] **20.c:** Shamela bibliography parser - regex-based extraction
-      из `lib_shamela_book.bibliography` (мухаккик/издатель/место/edition/
-      год хиджры+григориан). `ShamelaBibliographyParser` + интеграция в
-      `ShamelaToLibraryMapper.mapBook` через `findOrCreate` в Muhaqqiq/
-      Publisher/PublicationPlace репозиториях. 12 unit-тестов с реальными
-      фикстурами (CR character separator + literal escape variant).
-      `POST /api/v1/admin/shamela/backfill-bibliography` для existing
-      books через `ShamelaBibliographyBackfillService` (non-destructive
-      merge). Smoke 3/3 dev-книг получили заполненные FK
-- [x] **20.d:** Admin BookEditModal - модалка с 6 полей (Field primitive)
-      + 3 inline autocomplete с debounced fetch (250ms + AbortController
-      cancel). Backend `PATCH /api/v1/library/books/{id}` через
-      `UpdateBookRequest` (PATCH-семантика: null=no change, ""=clear,
-      non-empty=findOrCreate). 3 autocomplete endpoints
-      `GET /api/v1/library/{muhaqqiqs, publishers, publication-places}?q=&limit=`.
-      Frontend - Pencil icon в углу карточки в BookListPage + кнопка
-      «Перечитать metadata» в AdminShamelaPage (вызывает backfill).
-      Smoke: тафсир Ибн Касира prefilled all 6 полей
-- [x] **20.e:** AddSourceModal extended form - при manual entry для
-      `sourceType=BOOK` показывается shared `<AcademicMetadataFields/>`
-      (6 полей муhaккик/издатель/место/edition/год хиджра/григориан).
-      Backend `CreateBookRequest` + `CreateSourceRequest` расширены
-      (`bookId` UUID, 6 academic optional). `BookService.createBook`
-      перегружен с findOrCreate в справочниках. 2-step UI flow: при
-      заполненном academic - POST `/api/v1/library/books` → POST
-      `/api/v1/sources` с `bookId` → attach. Legacy single-step без
-      `bookId` работает как раньше. BookEditModal мигрирован на shared
-      компонент. 9 backend IT + 4 frontend Vitest
-
-Объём 20.c-e: ~2 сессии. Не блокирует Этап 19 Q&A
-
 ### Этап 25. PDF Viewer - operational hardening + полировка
 
 Основные подэтапы закрыты (см. выше в закрытых). Остаётся:
 
-- **25.b. operational hardening** - незакрытые пункты из ADR-024:
-  - [x] **Circuit breaker через Resilience4j** (Сессия 36) -
-        `pdfDownload` instance защищает `HttpClientPdfFetcher.fetch()`,
-        50% failure threshold за окно из 10 запросов → OPEN 30 секунд →
-        HALF_OPEN 3 пробных → CLOSED. Fallback кидает
-        `ShamelaApiException` без upstream HTTP. 4 IT тесты pass.
-        Actuator endpoints `/circuitbreakers` + `/circuitbreakerevents`
-        для observability
-  - [x] **Health-check indicator** (Сессия 36) - `ObjectStorageHealthIndicator`
-        implements `HealthIndicator`, делает `HeadBucket` на primary bucket
-        `library-imported-books`. UP с {endpoint, bucket, latencyMs} details,
-        DOWN с statusCode/errorCode при S3 ошибке. Auto-discovered Spring
-        Actuator под ключом `objectStorage` в `/actuator/health`. 2 IT тестов
-        с MinIO testcontainer. Используется load balancer / k8s readiness probe
-  - [x] **Orphan-detection janitor** (Сессия 36) - `OrphanDetectionJanitor`
-        `@Scheduled` cron `0 0 3 * * *`. Forward sweep:
-        `listObjectsV2Paginator` per bucket → проверка
-        `findActiveByBucketAndKey`. Reverse sweep: `findAllActive` →
-        `headObject` per row. Log-only через `log.warn` с (type, bucket,
-        key, size, age) - manual review через логи. Conditional
-        `storage.janitor.enabled` (default false). 6 IT тестов с MinIO
-        testcontainer: matched/s3-only/catalog-only/soft-deleted/multi-
-        bucket/mixed
-  - [x] **Integrity verification cron** (Сессия 36) -
-        `IntegrityVerificationJob` `@Scheduled` cron `0 0 4 * * SUN`
-        (воскресенье 04:00, weekly). `findAllActive` → для каждой row
-        `getObject` + streaming SHA-256 через `MessageDigest` → сравнение
-        case-insensitive с `content_hash`. Mismatch → `log.error`
-        CORRUPTION; `NoSuchKey` → `log.warn` MISSING (consolidated report
-        через `OrphanDetectionJanitor`). Throttle между files
-        `storage.integrity.delay-millis` (default 100ms, 0 в тестах).
-        Conditional `storage.integrity.enabled` (default false). 6 IT
-        тестов с MinIO testcontainer: healthy/corrupted/missing/soft-
-        deleted-skipped/mixed/case-insensitive-hash
-  - [x] **AWS SDK v2 migration `RetryPolicy` → `RetryStrategy`** (Сессия 37) -
-        deprecated `software.amazon.awssdk.core.retry.RetryPolicy` заменён
-        на современный `software.amazon.awssdk.retries.api.RetryStrategy`
-        через `AwsRetryStrategy.standardRetryStrategy()`. Семантика
-        сохранена: exponential backoff с jitter + retry на 5xx /
-        throttling / connection reset. `maxAttempts = maxRetries + 1`
-        (новый API считает initial attempt частью лимита, legacy
-        `numRetries` нет). `apiCallTimeout` split (см. ниже) не тронут
-  - [x] **`StreamingResponseBody` bounded `ThreadPoolTaskExecutor`**
-        (Сессия 36) - `AsyncWebConfig` устанавливает `ThreadPoolTaskExecutor`
-        как default для async MVC: core=10, max=50, queue=100, keepAlive=60s,
-        `CallerRunsPolicy` для back-pressure (вместо OOM thread exhaustion),
-        async timeout=5мин. Микрометр метрики автоматически в `/actuator/metrics/executor.*`
-  - [x] **`apiCallTimeout` split** (Сессия 36) - `apiCallAttemptTimeout`
-        = `readTimeout` (per single attempt), `apiCallTimeout` =
-        `readTimeout × (maxRetries + 1) + 50% jitter` (total wall-clock
-        budget включая backoff между retries). Раньше overall = single
-        attempt → retries не успевали пройти. Логирование вычисленных
-        timeouts в startup для observability
+- [x] **25.b. operational hardening** (Сессии 36-37, ADR-024) —
+      Resilience4j circuit breaker `pdfDownload`,
+      `ObjectStorageHealthIndicator`, `OrphanDetectionJanitor` +
+      `IntegrityVerificationJob` (@Scheduled, conditional), AWS SDK v2
+      `RetryStrategy`, bounded async `ThreadPoolTaskExecutor`,
+      `apiCallTimeout` split. Детали — progress.md Сессии 36-37
 - [ ] **25.d.2: text↔pdf page sync** - internal pageNumber →
       pdfPageNumber mapping с fallback на physical=internal если null.
       Требует Tier 1 admin page-mapping flow
@@ -407,57 +261,8 @@
 
 ### Этап 21+. Аутентификация и далее
 
-- [x] **Этап 21 (Сессия 41, ADR-040) - auth end-to-end:** backend Spring
-      Security 6 + JWT (jjwt 0.12.6) + BCrypt + миграция 32 users ALTER
-      (password_hash/role/enabled) + AuthController (register/login/refresh/
-      logout/me) + httpOnly+Secure+SameSite=Strict refresh cookie +
-      JwtAuthenticationFilter + XUserIdAuthenticationFilter dev fallback +
-      DevUserSeeder (admin@argumentmap.local/admin12345). Frontend AuthStore
-      (Zustand, persist user) + apiClient Bearer interceptor + refresh-on-401
-      с dedup queue + LoginPage/RegisterPage (hero-style AuthShell) +
-      ProtectedRoute + AdminRoute (requireRole) + Logout flow в AvatarMenu +
-      Vite proxy /api+/actuator для same-origin cookies. 36 frontend tests +
-      30+ backend IT (246 frontend + 605 backend total). Transitional в
-      dev/test: GET /api/** остаётся permitAll - покрывает 60+ existing IT
-      без переписывания. В prod profile GET тоже authenticated()
-- [x] **Этап 22 (Сессии 42-44, ADR-043 + Amendment) - RBAC permissions
-      per-entity:** topics (22.a backend + 22.b frontend) + library books
-      (22.c backend + 22.c.f frontend) + Q&A author guards. Hybrid visibility
-      model (PRIVATE/SHARED/PUBLIC) + members M:N (MEMBER/EDITOR) + ADMIN
-      bypass через PermissionService service-layer ассерты. Миграции 36
-      (topic_members) + 37 (lib_books.visibility + lib_book_members). REST
-      POST/GET/PATCH/DELETE `/api/v1/{topics|library/books}/{id}/members`
-      + PATCH `/visibility`. 403 Problem Details
-      `forbidden-{topic|book|answer|question}-{access|write}`. Q&A без
-      visibility - только author/admin guards. Frontend: VisibilityRadioGroup
-      + VisibilityBadge в shared (reuse topics+books), Topic/BookMembersModal,
-      visibility radio в CreateTopicPage/BookEditModal, badge на Topic/BookList
-      cards + Topic/BookReader headers с change/manage кнопками для owner,
-      hiding write actions, permissionErrors helper. Total: backend 733+
-      tests, frontend 333 (Topic/BookMembersModal по 5 + CreateTopicPage +3)
-- [x] **22.d (Сессия 37, ADR-043 Amendment 3) - audit log per-entity:**
-      миграция 39 + `AuditLogService` synchronous в той же транзакции
-      что и mutation. Integration во все mutation-сервисы (TopicService,
-      NodeService, EdgeService, BookService, QuestionService, AnswerService,
-      TopicMemberService, BookMemberService) - 8 действий
-      (CREATE/UPDATE/DELETE/VISIBILITY_CHANGE/MEMBER_ADD/MEMBER_REMOVE/
-      MEMBER_ROLE_CHANGE). REST `GET /api/v1/audit/{topics|books}/{id}`
-      (owner+EDITOR), `/audit/me` (свои), `/audit/admin` (ADMIN only с
-      entityType/actorId/dateFrom/dateTo фильтрами). `PagedResponse<
-      AuditLogResponse>` с username bulk-JOIN. Backend 770 tests +16.
-      Private Q&A visibility model и admin UI - отложены в 22.e/backlog
-- [x] **22.e (Сессия 37, frontend) - admin audit UI:** AdminAuditPage
-      `/admin/audit` под ProtectedRoute requireRole="ADMIN". Table
-      с timestamp / entity_type / entity_id / action badge (color-coded
-      emerald/blue/rose/purple/amber) / actor_username / parent / view-
-      details. FilterBar (native <select>): entityType / action /
-      actorId / dateFrom / dateTo - Apply копирует draft→applied state,
-      триггерит refetch с query params (action client-side т.к. бэк не
-      принимает). DetailsModal - pretty-printed JSON changes через
-      JSON.stringify(JSON.parse,null,2), parse error fallback. Load More
-      pagination как в TopicListPage. Nav-link в AdminShamelaPage
-      overflow menu (••• → "Audit log"). ~40 i18n keys RU/AR. Tests +5
-      (362 total). Этап 22 полностью закрыт (a/b/c/c.f/d/e)
+Этапы 21 (auth) и 22 (RBAC + audit) закрыты (см. выше). Остаётся:
+
 - [ ] **22.f (backlog):** Private Q&A visibility model (visibility +
       members для questions/answers) если понадобится для закрытых
       учёных групп + audit retention policy janitor (cron cleanup
@@ -488,18 +293,14 @@ design-specs создаются по мере приоритезации.
       (спека `docs/specs/2026-06-03-alminasa-hadith-source-design.md`);
       sunnah-ETL и AI-иснад ниже по тексту — legacy, выпиливаются Планом 4.
       Прогресс alminasa-трека:
-      - [x] **План 1** (схема+домен+репо) ✅ 2026-06-03 — миграции 70-71,
-            alminasa-колонки hd_*, 5 таблиц (editions/rulings/explanations/
-            crossrefs/narrator-relations), репозитории + findByExternalId, IT.
-      - [x] **План 2** (ES-клиент + краулер) ✅ 2026-06-04 — миграции 72-73
-            (am_staging_* + am_crawl_checkpoint + составной курсор
-            [serial, hadith_id]: живой урок — hadith_serial_id per-book,
-            НЕ глобален), AlminasaEsClient (search_after + terms-батчи,
-            retry), resumable hadith-first краулер (pause/resume/
-            stale-takeover), admin REST `/admin/alminasa/crawl/*`,
-            **live-верифицирован** (300 хадисов/719 рави/2069 рулингов,
-            затем очищено), 33 теста. План:
-            `docs/plans/2026-06-04-alminasa-crawler-staging.md`.
+      - [x] **Планы 1-2** (схема+домен+репо; ES-клиент+резюмируемый
+            краулер) ✅ 2026-06-03/04 — миграции 70-73 (hd_*-колонки,
+            5 таблиц, am_staging_* + checkpoint, составной курсор
+            [serial, hadith_id]: hadith_serial_id per-book, НЕ глобален),
+            AlminasaEsClient + admin REST `/admin/alminasa/crawl/*`,
+            live-верифицирован, 33 теста. План:
+            `docs/plans/2026-06-04-alminasa-crawler-staging.md`,
+            progress.md Сессия 56.
       - [ ] **План 3** — маппер staging→hd_* + детерминированный парс иснада
             из `<a class=rawy>` (БЕЗ AI) ⬅️ **СЛЕДУЮЩИЙ**
       - [ ] **План 4** — выпил legacy (sunnah ETL, sn_staging_*, AI-иснад
@@ -510,38 +311,14 @@ design-specs создаются по мере приоритезации.
             такхридж/شروح-علل-غريب) + AI-перевод on-demand
       - ⚠️ Полный обход 12 сборников гейтится backlog-пунктом «Связаться
             с alminasa.ai»; контракты علل/غريب — снять HAR перед Планом 6.
-      **Phase 1 (backend foundation)** ✅ — migrations 52-55, domain/repo/
-      controllers, DevHadithSeeder. **Phase 3 (sanad graph viz)** ✅
-      2026-05-31 (ADR-049): `GET /hadiths/{id}/sanad-graph` (дедуплицированные
-      узлы + синтетический Пророк ﷺ + рёбра с формулами передачи),
-      `SanadGraph` React Flow read-only граф (dagre TB), `NarratorPanel`
-      с биографией, легенда (цепи + надёжность + тахаммуль), migration 56
-      (`SAHABI` whitelist), enriched seed хадиса №1 «Дела по намерениям»
-      (9 передатчиков, 3 цепи: Бухари/Муватта/Муслим, fan-out у Яхьи).
-      Осталось: **Phase 2** (narrator/collection list pages), **Phase 4**
-      (FTS поиск + фильтры), **Phase 5** (ETL sunnah.com — В РАБОТЕ: спайк +
-      спека `docs/specs/2026-05-31-sunnah-etl-design.md` ✅;
-      decision points решены §11; **step 1 done** 2026-05-31 — migration 57
-      `hd_collections`, ADR-050; **step 2 done полностью (2.a-2.e)** 2026-06-01
-      (Сессия 53, ADR-051/052) — migration 59 `sn_staging_*` (chapter_id varchar
-      для дробного babID) + `SunnahDataSource` + 4 staging DAO +
-      `SunnahToHadithMapper` + `ArabicTextNormalizer` + `SunnahDumpReader`
-      (реальная MySQL-схема) + `SunnahImportService` + **прод-обвязка 2.e**
-      (SunnahDumpProperties + conditional MySQL DataSource + admin REST-триггер,
-      bulk-policy gate); **реальный пилот прогнан** (98 хадисов Бухари из
-      настоящего дампа `db/00-samplegitdb.sql` в hd_*); ~45 тестов + 2
-      multi-agent review (0 Critical обе). **Пивот Абдулы: контент в последнюю
-      очередь, строим инструменты.** Под-проект #1 (просмотр хадисов: чистка
-      текста+навигация) ✅ Сессией 53. Под-проект #2 (линковка хадисов в узлы)
-      ✅ Сессией 54 (#2.A backend + #2.B обогащение/picker/рендер + Sunnah
-      import-preview tool в админке). **next:** #3 (`hd_collections` ↔ библ.
-      «Сборник хадисов»); **step 3
-      IsnadExtraction** (AI, КОНТЕНТ — отложено) + step 4 SunnahApiClient/полный
-      корпус; 🔴 sunnah.com не даёт структурный иснад
-      → граф для любого хадиса через AI-извлечение, **Phase 6 слит в Phase 5**).
-      Spec Explorer:
-      `docs/specs/2026-05-20-hadith-explorer-design.md`.
-      Объём остатка — 4-7 sessions.
+      **Legacy sunnah-трек (жив до Плана 4, ADR-060):** backend foundation
+      (Phase 1/3 sanad-граф, ADR-049, migrations 52-56), ETL sunnah.com
+      (Phase 5, ADR-050/051/052, migrations 57/59 `hd_collections`+`sn_staging_*`,
+      пилот 98 хадисов Бухари), под-проекты #1 просмотр / #2 линковка в узлы
+      ✅ Сессии 53-54, AI-иснад (ADR-059, IsnadExtraction). Выпиливается
+      Планом 4. Детали — progress.md Сессии 50-55 + специ
+      `docs/specs/2026-05-20-hadith-explorer-design.md`,
+      `2026-05-31-sunnah-etl-design.md`.
 
 - [ ] **49.D: Observability** - structured logging + Prometheus metrics
       + OpenTelemetry tracing + frontend error reporting. Spec:
