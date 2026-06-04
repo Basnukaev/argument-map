@@ -18,7 +18,7 @@ system, если внедряем)
 
 Три listings (`GET /topics`, `GET /questions`, `GET /library/books`)
 возвращают `PagedResponse<T>` с хардкодом `ORDER BY created_at DESC`
-(см. backend/CLAUDE.md «Pagination»). Пользователь не видит «что
+(см. backend/docs/api-design.md «Pagination»). Пользователь не видит «что
 популярное и актуальное» - только хронологию. При росте до 200+ тем
 discovery ломается: первые 20 - старые черновики.
 
