@@ -136,7 +136,13 @@ public class AlminasaImportService {
      * #resolveNarratorRelations}).
      *
      * @param bookIdFilter если не {@code null} — импортировать только хадисы
-     *                     этого сборника (фильтр в Java поверх keyset-обхода);
+     *                     этого сборника (КОНТЕНТНЫЙ фильтр поверх keyset-обхода;
+     *                     обход стартует с начала staging, но завершается ранним
+     *                     break сразу после прохода целевого book_id — строки
+     *                     упорядочены по book_id). Resolve-проход после цикла —
+     *                     ВСЕГДА глобальный (по всем NULL-FK независимо от
+     *                     фильтра): per-book изоляции у resolve нет, re-run
+     *                     других сборников дорезолвит их ссылки;
      *                     {@code null} — все сборники
      */
     public AlminasaImportSummary importHadiths(Integer bookIdFilter) {
@@ -152,8 +158,13 @@ public class AlminasaImportService {
                 break;
             }
             for (AmHadithRow row : page) {
+                if (bookIdFilter != null && row.bookId() > bookIdFilter) {
+                    // строки упорядочены по book_id — целевой сборник пройден,
+                    // дальше сканировать нечего
+                    return finishHadithImport(processed, failed, failures);
+                }
                 if (bookIdFilter != null && row.bookId() != bookIdFilter) {
-                    continue; // чужой сборник — пропускаем (фильтр поверх keyset-обхода)
+                    continue; // сборник ДО целевого — пропускаем (фильтр поверх keyset)
                 }
                 try {
                     hadithMapper.mapHadith(row);
@@ -170,6 +181,11 @@ public class AlminasaImportService {
             afterSerial = last.hadithSerialId();
         }
 
+        return finishHadithImport(processed, failed, failures);
+    }
+
+    /** Финал импорта хадисов: глобальный resolve-проход FK + сводка. */
+    private AlminasaImportSummary finishHadithImport(int processed, int failed, List<String> failures) {
         int crossrefsResolved = resolveCrossrefs();
         int relationsResolved = resolveNarratorRelations();
 
@@ -197,6 +213,11 @@ public class AlminasaImportService {
      * {@code findUnresolved} на следующей итерации — если бы offset рос на ВСЕ
      * строки батча, мы перескакивали бы ещё-не-просмотренные нерезолвленные.
      * Цикл завершается, когда очередной батч пуст.
+     *
+     * <p>Perf-caveat: OFFSET-пагинация по преимущественно-нерезолвимым строкам
+     * квадратична (PG пересканирует offset строк на каждой странице). Для
+     * one-shot админ-прогона приемлемо; станет болью — перейти на keyset по
+     * {@code (created_at, id)} (порядок выборки уже такой).
      *
      * @return число резолвленных relations
      */

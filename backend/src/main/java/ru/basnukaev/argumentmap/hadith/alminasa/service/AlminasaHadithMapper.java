@@ -209,6 +209,10 @@ public class AlminasaHadithMapper {
                 .orElseThrow(() -> new AlminasaMappingException(
                         "Хадис не найден в staging: " + hadithId, hadithId, null));
         try {
+            // self-invocation НАМЕРЕННА: @Transactional mapHadith тут no-op,
+            // маппинг живёт в транзакции dryRun — setRollbackOnly откатывает
+            // ВСЁ, включая cross-bean записи ensureNarrator (REQUIRED).
+            // НЕ выносить в отдельный бин и НЕ ставить REQUIRES_NEW.
             UUID id = mapHadith(row);
             return buildDryRunResult(id);
         } finally {
@@ -550,12 +554,14 @@ public class AlminasaHadithMapper {
         if (numbers.isArray() && !numbers.isEmpty()) {
             meta.set("numbers", numbers);
         }
-        String serial = text(raw, "hadith_serial_id");
         JsonNode serialNode = raw.path("hadith_serial_id");
         if (serialNode.isNumber()) {
             meta.put("serial", serialNode.asLong());
-        } else if (serial != null) {
-            meta.put("serial", serial);
+        } else {
+            String serial = text(raw, "hadith_serial_id");
+            if (serial != null) {
+                meta.put("serial", serial);
+            }
         }
         return writeJson(meta);
     }

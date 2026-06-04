@@ -200,8 +200,10 @@ public class NarratorRepository {
     public Map<String, List<UUID>> findExternalNormalizedNameIds() {
         Map<String, List<UUID>> result = new HashMap<>();
         jdbcTemplate.query(
+                // пустые имена (stub-from-tag без имени) не берём — "" не имя
                 "SELECT name_ar_normalized, id FROM hd_narrators "
-                        + "WHERE external_source = 'alminasa'",
+                        + "WHERE external_source = 'alminasa' "
+                        + "AND name_ar_normalized IS NOT NULL AND name_ar_normalized <> ''",
                 rs -> {
                     String name = rs.getString("name_ar_normalized");
                     UUID id = rs.getObject("id", UUID.class);
