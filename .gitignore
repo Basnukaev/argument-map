@@ -64,3 +64,6 @@ frontend/playwright-report/
 /package.json
 /package-lock.json
 *.har
+
+# OMC state (локальный эфемерный стейт оркестратора)
+.omc/
