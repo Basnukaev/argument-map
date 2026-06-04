@@ -14,7 +14,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import ru.basnukaev.argumentmap.ai.LlmApiException;
+import ru.basnukaev.argumentmap.hadith.alminasa.service.AlminasaMappingException;
+import ru.basnukaev.argumentmap.hadith.alminasa.service.AlminasaStagingNotFoundException;
 import ru.basnukaev.argumentmap.hadith.alminasa.web.AlminasaCrawlConflictException;
+import ru.basnukaev.argumentmap.hadith.alminasa.web.AlminasaImportConflictException;
 import ru.basnukaev.argumentmap.library.imports.AiEditNotConfiguredException;
 import ru.basnukaev.argumentmap.library.imports.FileImportException;
 import ru.basnukaev.argumentmap.library.imports.PageImageException;
@@ -318,6 +321,31 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.CONFLICT,
                 "Краулинг alminasa уже идёт", "alminasa-crawl-already-running",
                 ex.getMessage());
+    }
+
+    @ExceptionHandler(AlminasaImportConflictException.class)
+    public ProblemDetail handleAlminasaImportConflict(AlminasaImportConflictException ex) {
+        return problem(HttpStatus.CONFLICT,
+                "Импорт alminasa уже идёт", "alminasa-import-already-running",
+                ex.getMessage());
+    }
+
+    @ExceptionHandler(AlminasaStagingNotFoundException.class)
+    public ProblemDetail handleAlminasaStagingNotFound(AlminasaStagingNotFoundException ex) {
+        ProblemDetail pd = problem(HttpStatus.NOT_FOUND,
+                "Хадис не найден в staging", "alminasa-staging-not-found", ex.getMessage());
+        pd.setProperty("hadithId", ex.hadithId());
+        return pd;
+    }
+
+    @ExceptionHandler(AlminasaMappingException.class)
+    public ProblemDetail handleAlminasaMapping(AlminasaMappingException ex) {
+        ProblemDetail pd = problem(HttpStatus.UNPROCESSABLE_ENTITY,
+                "Ошибка маппинга хадиса alminasa", "alminasa-mapping-failed", ex.getMessage());
+        if (ex.hadithId() != null) {
+            pd.setProperty("hadithId", ex.hadithId());
+        }
+        return pd;
     }
 
     @ExceptionHandler(InsufficientRoleException.class)

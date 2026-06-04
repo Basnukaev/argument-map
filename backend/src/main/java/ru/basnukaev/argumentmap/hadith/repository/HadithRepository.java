@@ -195,6 +195,25 @@ public class HadithRepository {
         return counts;
     }
 
+    /**
+     * Число хадисов по сборнику с фильтром по источнику (план 5, фикс C1):
+     * зеркало {@link #countByCollectionGrouped} + {@code AND external_source = ?}.
+     * Каталог alminasa-импорта считает mappedCount ТОЛЬКО для alminasa-хадисов —
+     * иначе legacy sunnah-строки (тот же сборник в dev-БД) исказили бы прогресс.
+     */
+    public Map<UUID, Long> countByCollectionGroupedForSource(String externalSource) {
+        Map<UUID, Long> counts = new HashMap<>();
+        jdbcTemplate.query(
+                "SELECT collection_id, COUNT(*) AS cnt FROM hd_hadiths "
+                        + "WHERE collection_id IS NOT NULL AND external_source = ? "
+                        + "GROUP BY collection_id",
+                (java.sql.ResultSet rs) -> {
+                    counts.put(rs.getObject("collection_id", UUID.class), rs.getLong("cnt"));
+                },
+                externalSource);
+        return counts;
+    }
+
     public long countFiltered(String q, String status, UUID collectionId) {
         StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM hd_hadiths WHERE 1=1");
         List<Object> args = new ArrayList<>();

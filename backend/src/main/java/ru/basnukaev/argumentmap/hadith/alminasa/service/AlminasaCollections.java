@@ -37,4 +37,12 @@ public final class AlminasaCollections {
     public static Optional<CollectionInfo> byBookId(int bookId) {
         return Optional.ofNullable(BY_BOOK_ID.get(bookId));
     }
+
+    /**
+     * Все 12 сборников {@code book_id → метаданные}, отсортированы по
+     * {@code book_id} (детерминированный порядок строк каталога, план 5).
+     */
+    public static Map<Integer, CollectionInfo> all() {
+        return new java.util.TreeMap<>(BY_BOOK_ID);
+    }
 }

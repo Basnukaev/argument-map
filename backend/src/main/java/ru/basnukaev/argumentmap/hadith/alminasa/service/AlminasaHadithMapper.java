@@ -201,13 +201,13 @@ public class AlminasaHadithMapper {
      * {@link #mapHadith} внутри транзакции, собирает снапшот из персистнутых
      * строк, затем форсит rollback ({@code setRollbackOnly}). БД не мутируется.
      *
-     * @throws AlminasaMappingException хадиса нет в staging / пустой матн
+     * @throws AlminasaStagingNotFoundException хадиса нет в staging (404)
+     * @throws AlminasaMappingException застейджен, но матн пустой/битый (422)
      */
     @Transactional
     public AlminasaDryRunResult dryRunHadith(String hadithId) {
         AmHadithRow row = hadithStagingDao.findById(hadithId)
-                .orElseThrow(() -> new AlminasaMappingException(
-                        "Хадис не найден в staging: " + hadithId, hadithId, null));
+                .orElseThrow(() -> new AlminasaStagingNotFoundException(hadithId));
         try {
             // self-invocation НАМЕРЕННА: @Transactional mapHadith тут no-op,
             // маппинг живёт в транзакции dryRun — setRollbackOnly откатывает

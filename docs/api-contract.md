@@ -3556,6 +3556,138 @@ narrators/explanations/rulings добираются батчевыми `terms`-�
   — `COUNT(*)` соответствующих `am_staging_*` (фактическое наполнение БД,
   независимо от чекпоинта).
 
+## Alminasa Import Admin API (План 5, ADR-060)
+
+Управление маппингом застейдженных данных alminasa (`am_staging_*`) в
+доменные `hd_*`: каталог 12 сборников с прогрессом staged→mapped, async-запуск
+маппера (рави / хадисы / по сборнику) и dry-run превью одного хадиса ДО записи
+(философия «поэтапного проверяемого импорта»). Маппинг работает **чисто по
+локальному staging** — рантайм к alminasa-API не обращается. **ADMIN-only**:
+не-админ → **403** `forbidden-admin-only`, без principal → **401**
+`invalid-token`. Все endpoint'ы под `/api/v1/admin/alminasa`.
+
+Импорт — async на отдельном single-thread executor (`queue=0`): один прогон за
+раз, состояние in-memory (`IDLE`/`RUNNING`). Состояние НЕ переживает рестарт
+бэка (осознанно: рестарт = аварийное восстановление, маппинг идемпотентен —
+re-run дочинит частичные данные). Сервер **НЕ блокирует** импорт при идущем
+краулинге — идемпотентность лечит частичные данные re-run'ом (UI лишь
+дизейблит импорт-кнопки пока crawl RUNNING, как мягкий guard).
+
+| Метод | Путь | Ответ | Ошибки |
+|---|---|---|---|
+| GET | `/api/v1/admin/alminasa/catalog` | `List<AlminasaCatalogEntryResponse>` | 401/403 |
+| GET | `/api/v1/admin/alminasa/import/status` | `AlminasaImportStatusResponse` | 401/403 |
+| POST | `/api/v1/admin/alminasa/import/narrators` | **202** + status | 401/403/409 |
+| POST | `/api/v1/admin/alminasa/import/hadiths?bookId=` | **202** + status | 401/403/409 |
+| GET | `/api/v1/admin/alminasa/dry-run/{hadithId}` | `AlminasaDryRunResponse` | 401/403/404/422 |
+
+### GET /api/v1/admin/alminasa/catalog
+
+Каталог **всех 12 сборников** (статическая карта `AlminasaCollections`), даже
+при пустом staging. **200** + `List<AlminasaCatalogEntryResponse>`:
+
+```json
+[
+  {
+    "bookId": 146,
+    "slug": "bukhari",
+    "nameAr": "صحيح البخاري",
+    "nameRu": "Сахих аль-Бухари",
+    "stagedCount": 7563,
+    "mappedCount": 7563
+  }
+]
+```
+
+- `nameAr` — staging `book_name` приоритетнее статической карты (док
+  авторитетнее); фолбэк на карту, если staging пуст.
+- `stagedCount` — `COUNT(*)` из `am_staging_hadith` по `book_id`.
+- `mappedCount` — `COUNT(*)` из `hd_hadiths` по сборнику, **ТОЛЬКО**
+  `external_source='alminasa'`: legacy-строки другого источника в том же
+  сборнике (dev-БД) не искажают прогресс. Сборник ещё не создан маппером →
+  `mappedCount=0` (не ошибка).
+
+### GET /api/v1/admin/alminasa/import/status
+
+Снапшот состояния async-импорта (поллинг прогресса). **200** +
+`AlminasaImportStatusResponse`:
+
+```json
+{
+  "status": "RUNNING",
+  "kind": "HADITHS",
+  "bookIdFilter": 146,
+  "startedAt": "2026-06-04T10:00:00Z",
+  "processedSoFar": 1240,
+  "narratorsProcessed": 0,
+  "narratorsFailed": 0,
+  "hadithsProcessed": 0,
+  "hadithsFailed": 0,
+  "crossrefsResolved": 0,
+  "relationsResolved": 0,
+  "failures": [],
+  "error": null
+}
+```
+
+- `status` — `IDLE` / `RUNNING`. `IDLE` без сводки и ошибки — импорт ещё не
+  запускался.
+- `kind` — `NARRATORS` / `HADITHS` / `ALL` (null до первого запуска).
+- `bookIdFilter` — сборник-фильтр для `HADITHS` (null — все сборники).
+- `startedAt` — старт текущего прогона (только при `RUNNING`).
+- `processedSoFar` — живой накопительный счётчик обработанных доков при
+  `RUNNING` (0 после завершения).
+- `narratorsProcessed/Failed`, `hadithsProcessed/Failed`, `crossrefsResolved`,
+  `relationsResolved`, `failures[]` — из последней сводки (по завершении
+  прогона; cap `failures` — 20 примеров «вид:id: message»).
+- `error` — текст ошибки последнего прогона (null — ОК). После transient-фейла
+  `status` возвращается в `IDLE` (не лочится в 409) — повторный запуск разрешён.
+
+### POST /api/v1/admin/alminasa/import/narrators
+
+Async-запуск импорта рави (`am_staging_narrator` → `hd_narrators`). **202** +
+актуальный `AlminasaImportStatusResponse` (статус после клейма RUNNING).
+**409** `alminasa-import-already-running` если импорт (любого вида) уже идёт —
+один executor сериализует все виды.
+
+### POST /api/v1/admin/alminasa/import/hadiths
+
+Async-запуск импорта хадисов со всеми сателлитами + финальный resolve-проход
+FK. Query-параметр `bookId` (опционально) скоупит импорт одним сборником
+(контентный фильтр поверх keyset-обхода staging). **202** +
+`AlminasaImportStatusResponse`. **409** `alminasa-import-already-running` если
+импорт уже идёт.
+
+### GET /api/v1/admin/alminasa/dry-run/{hadithId}
+
+Превью маппинга одного хадиса ДО записи (семантически read-only: маппинг +
+rollback, БД не мутируется). **200** + `AlminasaDryRunResponse`:
+
+```json
+{
+  "externalId": "146-1",
+  "collectionSlug": "bukhari",
+  "status": "CANONICAL",
+  "hadithType": "مرفوع",
+  "primaryNumber": 1,
+  "chapterAr": "باب بدء الوحي",
+  "matnPreview": "إنما الأعمال بالنيات ...",
+  "chain": [
+    { "position": 0, "externalId": "5913", "nameAr": "عمر بن الخطاب", "formula": "عن" }
+  ],
+  "editionsCount": 2,
+  "crossrefsCount": 1,
+  "rulingsCount": 2,
+  "explanationsCount": 1
+}
+```
+
+- **404** `alminasa-staging-not-found` — хадиса нет в `am_staging_hadith`.
+- **422** `alminasa-mapping-failed` — застейджен, но матн пустой/битый
+  (маппинг невозможен).
+- `chain[]` — звенья иснада (position 0 = сподвижник), `externalId` рави,
+  `nameAr`, `formula` (формула передачи).
+
 ## Hadith grades API (multi-grading)
 
 Один и тот же хадис (source с `sourceType=HADITH`) может быть оценён
@@ -3890,6 +4022,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-06-04 | v1 | **Alminasa Import Admin API (План 5, ADR-060).** 5 новых эндпоинтов в `AlminasaAdminController` (ADMIN-only): `GET /api/v1/admin/alminasa/catalog` (12 сборников, прогресс staged→mapped; `mappedCount` ТОЛЬКО `external_source='alminasa'` — фикс C1), `GET /import/status`, `POST /import/narrators` (202+status), `POST /import/hadiths?bookId=` (202+status), `GET /dry-run/{hadithId}` (превью маппинга ДО записи, read-only rollback). DTO: `AlminasaCatalogEntryResponse`, `AlminasaImportStatusResponse`, `AlminasaDryRunResponse` (+`ChainLink`). Импорт — async на отдельном single-thread executor (`AlminasaImportConfig`, БЕЗ `alminasa.enabled`-гейта), in-memory state IDLE/RUNNING, `409 alminasa-import-already-running` при двойном запуске. Новые ошибки: `alminasa-import-already-running` (409), `alminasa-staging-not-found` (404, dry-run нестейдженного id), `alminasa-mapping-failed` (422, пустой/битый матн). Сервер НЕ блокирует импорт при идущем краулинге — идемпотентность лечит частичные данные re-run'ом | План 5: админка импорта застейдженных alminasa-данных в `hd_*` с проверяемым dry-run-превью (философия «поэтапного проверяемого импорта»). Отдельный executor (не crawl-бин): импорт работает чисто по локальному staging независимо от `alminasa.enabled` |
 | 2026-06-04 | v1 | **Sunnah Import Admin API удалён целиком (План 4, ADR-060).** Удалены все эндпоинты `/api/v1/admin/sunnah/*`: `GET /collections`, `GET /collections/{collection}/hadiths`, `GET /preview/{collection}/{number}`, `POST /import/{collection}/{number}`, `POST /import-collection/{collection}`, `POST /extract-isnad` (ADR-059). DTO `Sunnah*`/`IsnadExtraction*` удалены (regen types.ts — только удаления). Таблицы `sn_staging_*` дропнуты миграцией 74. Ошибки `sunnah-dump-not-configured` (503) и `sunnah-hadith-not-found` (404) удалены из GlobalExceptionHandler | ADR-060: alminasa.ai = единственный источник хадисов; sunnah-ETL и AI-извлечение иснада (ADR-059, superseded) — legacy. Замена: Alminasa Crawl Admin API (План 2) + маппер (План 3) + AdminHadithImportPage (План 5) |
 | 2026-06-02 | v1 | **Ортогональная классификация `contentKind` для книг (миграция 69).** ALTER `lib_books` ADD `content_kind VARCHAR(20) NOT NULL DEFAULT 'TEXT_ONLY'` (CHECK IN TEXT_ONLY/TEXT_AND_FILE/FILE_ONLY) + индекс `idx_lib_books_content_kind`. **Отдельная** от `book_type` (тот про ЖАНР: QURAN/HADITH_COLLECTION/BOOK/ARTICLE/MANUSCRIPT) — `content_kind` про availability «что доступно для чтения». Backfill по предикату: HAS_TEXT = есть `lib_pages` с НЕпустым `text_content` (`btrim(text_content)<>''` — scanned-PDF пустые плейсхолдеры не считаются); HAS_FILE = `metadata->'pdf_links'->'files'` непустой массив ИЛИ активная `library_files` (`source_type='USER_UPLOAD'`, `deleted_at IS NULL`). Маппинг: text+file→TEXT_AND_FILE, text→TEXT_ONLY, file→FILE_ONLY, ничего→TEXT_ONLY (default; покрывает HADITH_COLLECTION-книги-мосты → /hadith). `BookResponse`/`BookSummaryResponse`/`BookDetailResponse` расширены полем `contentKind` (enum). `Book` record получил поле + дефолт TEXT_ONLY в обоих backward-compat конструкторах. Импортёры уточняют `content_kind` ПОСЛЕ записи страниц/файлов через новый `BookRepository.updateContentKind`: `ShamelaToLibraryMapper` (pages>0 + pdf_links.files), `ArchiveOrgImportService` (hasFile всегда true, hasText = извлекли НЕпустой текст), `FileImportService` (USER_UPLOAD + НЕпустой текст), `BookCollectionBridgeService` (TEXT_ONLY explicit) | Книга может одновременно иметь текст и PDF, либо только скан без текста. `book_type` (жанр) не отвечал на вопрос «что показать в reader». Ортогональная ось `content_kind` позволяет фронту выбрать режим чтения (текст / PDF) без эвристик. Default TEXT_ONLY безопасен для книг-мостов сборников хадисов |
 | 2026-06-02 | v1 | **OCR endpoints удалены (ADR-057, Сессия 55).** `POST /api/v1/library/pages/{pageId}/ocr` (триггер Tesseract OCR) и `GET /api/v1/library/pages/{pageId}/ocr` (статус-polling) удалены. `OcrJobResponse` DTO удалён. `PageResponse` потерял 3 поля: `ocrStatus`, `ocrStartedAt`, `ocrCompletedAt`. Tesseract OCR удалён (ara плохо парсится); image upload (`POST /books/{id}/pages`) сохранён как субстрат для будущего AI-recognition | ADR-057: Tesseract OCR выпилен. Будущее распознавание — AI-based (LLM-vision) |

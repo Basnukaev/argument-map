@@ -111,6 +111,26 @@ public class AmHadithStagingDao {
         return result;
     }
 
+    /**
+     * Каталог застейдженных сборников для admin-страницы импорта (план 5):
+     * {@code book_id}, имя сборника (max — book_name внутри группы одинаков)
+     * и число застейдженных доков. Один GROUP BY. {@code bookName} может быть
+     * {@code null}, если crawl его не записал.
+     */
+    public List<StagedBook> catalogByBook() {
+        return jdbcTemplate.query(
+                "SELECT book_id, MAX(book_name) AS book_name, COUNT(*) AS staged_count "
+                        + "FROM am_staging_hadith GROUP BY book_id",
+                (rs, rn) -> new StagedBook(
+                        rs.getInt("book_id"),
+                        rs.getString("book_name"),
+                        rs.getLong("staged_count")));
+    }
+
+    /** Строка каталога staging-сборника: id, имя (nullable), число доков. */
+    public record StagedBook(int bookId, String bookName, long stagedCount) {
+    }
+
     public int count() {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM am_staging_hadith", Integer.class);

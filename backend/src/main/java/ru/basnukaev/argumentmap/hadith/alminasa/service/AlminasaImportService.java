@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.IntConsumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -102,6 +103,16 @@ public class AlminasaImportService {
      * рави не валит прогон.
      */
     public AlminasaImportSummary importNarrators() {
+        return importNarrators(null);
+    }
+
+    /**
+     * Перегрузка с live-прогрессом (план 5, фикс M1): {@code onProcessed}
+     * вызывается после каждого УСПЕШНО смапленного рави с накопительным
+     * счётчиком — launcher обновляет {@code processedSoFar}, статус-эндпоинт
+     * отдаёт его при RUNNING. {@code null} — без колбэка (null-safe).
+     */
+    public AlminasaImportSummary importNarrators(IntConsumer onProcessed) {
         int processed = 0;
         int failed = 0;
         List<String> failures = new ArrayList<>();
@@ -116,6 +127,7 @@ public class AlminasaImportService {
                 try {
                     narratorMapper.mapNarrator(row);
                     processed++;
+                    reportProgress(onProcessed, processed);
                 } catch (RuntimeException e) {
                     failed++;
                     log.warn("alminasa: ошибка маппинга рави narrator_id={}: {}",
@@ -146,6 +158,17 @@ public class AlminasaImportService {
      *                     {@code null} — все сборники
      */
     public AlminasaImportSummary importHadiths(Integer bookIdFilter) {
+        return importHadiths(bookIdFilter, null);
+    }
+
+    /**
+     * Перегрузка с live-прогрессом (план 5, фикс M1): {@code onProcessed}
+     * вызывается после каждого УСПЕШНО смапленного хадиса с накопительным
+     * счётчиком. {@code null} — без колбэка (null-safe). Прогресс считается
+     * только по фазе маппинга хадисов (resolve-проход после цикла не
+     * репортит — он быстрый SQL/Java-проход).
+     */
+    public AlminasaImportSummary importHadiths(Integer bookIdFilter, IntConsumer onProcessed) {
         int processed = 0;
         int failed = 0;
         List<String> failures = new ArrayList<>();
@@ -169,6 +192,7 @@ public class AlminasaImportService {
                 try {
                     hadithMapper.mapHadith(row);
                     processed++;
+                    reportProgress(onProcessed, processed);
                 } catch (RuntimeException e) {
                     failed++;
                     log.warn("alminasa: ошибка маппинга хадиса hadith_id={}: {}",
@@ -263,6 +287,13 @@ public class AlminasaImportService {
                 a.crossrefsResolved() + b.crossrefsResolved(),
                 a.relationsResolved() + b.relationsResolved(),
                 failures);
+    }
+
+    /** Null-safe репорт накопительного прогресса в launcher (план 5, фикс M1). */
+    private static void reportProgress(IntConsumer onProcessed, int processed) {
+        if (onProcessed != null) {
+            onProcessed.accept(processed);
+        }
     }
 
     /** Добавляет пример упавшего дока «вид:id: message» до cap-лимита. */
