@@ -12,6 +12,7 @@ import CrossrefsList from '@/apps/hadith/components/CrossrefsList';
 import EditionsList from '@/apps/hadith/components/EditionsList';
 import HadithGradesList from '@/apps/hadith/components/HadithGradesList';
 import MatnVariations from '@/apps/hadith/components/MatnVariations';
+import MatnTranslateControls from '@/apps/hadith/components/MatnTranslateControls';
 import HadithSectionNav, {
   type SectionNavItem,
 } from '@/apps/hadith/components/HadithSectionNav';
@@ -107,6 +108,8 @@ function HadithDetailPage() {
   }, [collectionsState, state]);
 
   const detail = state.kind === 'success' ? state.data : null;
+  // Primary-матн (рендерится в hero) — для on-demand AI-перевода под текстом.
+  const primaryMatn = detail?.matns.find((m) => m.isPrimary) ?? detail?.matns[0] ?? null;
 
   // Секции навигации зависят от наличия данных (graceful hide пустых).
   const sections = useMemo<SectionNavItem[]>(() => {
@@ -209,6 +212,13 @@ function HadithDetailPage() {
                   <p className="mt-3 max-w-2xl text-xs leading-snug text-ink-500">
                     {t(STATUS_EXPLAIN[detail.status] as DictKey)}
                   </p>
+                )}
+                {primaryMatn && (
+                  <MatnTranslateControls
+                    matnId={primaryMatn.id}
+                    textRu={primaryMatn.textRu}
+                    textEn={primaryMatn.textEn}
+                  />
                 )}
               </section>
 

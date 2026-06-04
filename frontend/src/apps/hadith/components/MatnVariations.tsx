@@ -3,6 +3,7 @@ import { ChevronDown } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import { useT } from '@/shared/i18n';
 import MatnDiff from '@/apps/hadith/components/MatnDiff';
+import MatnTranslateControls from '@/apps/hadith/components/MatnTranslateControls';
 import { hasWordDiff } from '@/apps/hadith/utils/matnDiff';
 import type { MatnDto } from '@/apps/hadith/types';
 
@@ -88,11 +89,7 @@ function MatnItem({ matn, primary }: { matn: MatnDto; primary: MatnDto | null })
             </p>
           )}
 
-          {matn.textRu && (
-            <p className="mt-2 text-sm text-ink-700" dir="ltr">
-              {matn.textRu}
-            </p>
-          )}
+          <MatnTranslateControls matnId={matn.id} textRu={matn.textRu} textEn={matn.textEn} />
           {matn.divergenceSummary && (
             <p className="mt-2 text-xs italic text-ink-500" dir="auto">
               {matn.divergenceSummary}
