@@ -3633,6 +3633,78 @@ Response `IsnadExtractionResponse`:
 `sanads=[]`. Если LLM настроен (`AI_PROVIDER`+ключ) — 503 при
 несконфигурированном источнике дампа (как у остальных sunnah-admin).
 
+## Alminasa Crawl Admin API (План 2, ADR-060)
+
+Resumable краулинг корпуса **alminasa.ai** (открытый read-only ES-прокси)
+в staging-таблицы `am_staging_*` (сырой `_source` в jsonb + горячие
+колонки). С Сессии 56 alminasa — единственный источник арабского контента
+и хадисоведческих данных (ADR-060); рантайм к alminasa не обращается, доступ
+только bulk-снапшотом. Маппинг staging → `hd_*` — отдельный план (План 3).
+**ADMIN-only** (паттерн sunnah/audit admin): не-админ → **403**
+`forbidden-admin-only`. Источник активен только при `alminasa.enabled=true`
+(default true). Все три endpoint'а под `/api/v1/admin/alminasa`.
+
+Краулер «hadith-first» и resumable: страница `hadith-12` идёт по
+`search_after` (курсор — `hadith_serial_id`), зависимые
+narrators/explanations/rulings добираются батчевыми `terms`-запросами по id
+страницы. Состояние — единственная строка `am_crawl_checkpoint`
+(`RUNNING/PAUSED/FAILED/COMPLETED`, граница страницы). Stale `RUNNING`
+(`updated_at` старше `alminasa.crawl.stale-timeout-minutes`, default 10 мин —
+воркер умер) перехватывается на старте.
+
+### POST /api/v1/admin/alminasa/crawl/start
+
+Запуск/resume краулинга → `am_staging_*`. **202** + `AlminasaCrawlStatusResponse`
+(текущий статус после клейма). **409** `alminasa-crawl-already-running` если
+краулинг уже идёт (живой `RUNNING`-claim — включая случай ещё живого воркера
+при попытке stale-takeover: пул `queue=0` отклоняет submit, чекпоинт не
+трогаем). Семантика старта: `IDLE`/`COMPLETED` → с нуля; `PAUSED`/`FAILED`/stale
+`RUNNING` → resume с сохранённого курсора (`lastSortValue`). ADMIN-only (403
+`forbidden-admin-only`).
+
+### POST /api/v1/admin/alminasa/crawl/pause
+
+Мягкая пауза на границе текущей страницы — чекпоинт сохраняется (`status`
+→ `PAUSED`, курсор не теряется, последующий `start` продолжит с него).
+**200** + `AlminasaCrawlStatusResponse`. ADMIN-only (403).
+
+### GET /api/v1/admin/alminasa/crawl/status
+
+Текущий чекпоинт + счётчики staging-таблиц (поллинг прогресса). **200** +
+`AlminasaCrawlStatusResponse`. ADMIN-only (403).
+
+`AlminasaCrawlStatusResponse`:
+```json
+{
+  "status": "RUNNING",
+  "lastSortValue": 4698,
+  "fetchedCount": 4700,
+  "totalHits": 750000,
+  "error": null,
+  "startedAt": "2026-06-04T10:00:00Z",
+  "updatedAt": "2026-06-04T10:05:12Z",
+  "stagedHadiths": 4700,
+  "stagedNarrators": 1280,
+  "stagedExplanations": 530,
+  "stagedRulings": 410
+}
+```
+
+- `status` — `IDLE` / `RUNNING` / `PAUSED` / `FAILED` / `COMPLETED`
+  (`IDLE` с нулями — краулинг ещё ни разу не запускался, строки чекпоинта нет).
+- `lastSortValue` — курсор `search_after` (`hadith_serial_id`); `null` до
+  первой застейдженной страницы.
+- `fetchedCount` — **АБСОЛЮТНОЕ** число застейдженных хадисов (накопительное по
+  чекпоинту, не дельта за запуск).
+- `totalHits` — общее число хитов `hadith-12` по версии ES; `null` до первой
+  страницы.
+- `error` — текст последней ошибки (для `FAILED`), иначе `null`.
+- `startedAt` / `updatedAt` — старт текущего/последнего прогона и время
+  последнего heartbeat (по нему детектится stale).
+- `stagedHadiths` / `stagedNarrators` / `stagedExplanations` / `stagedRulings`
+  — `COUNT(*)` соответствующих `am_staging_*` (фактическое наполнение БД,
+  независимо от чекпоинта).
+
 ## Hadith grades API (multi-grading)
 
 Один и тот же хадис (source с `sourceType=HADITH`) может быть оценён

@@ -2074,3 +2074,23 @@ test: {
 
 **Применено:** 2026-06-02. Полный прогон 105 files / 665 tests pass,
 **0 errors** (стабильно 3 прогона подряд). tsc + lint чисто.
+
+---
+
+## alminasa.ai — открытый ES-прокси: контракт и ловушки
+
+- Эндпоинт `POST https://alminasa.ai/api/reactivesearchproxy/es-prod-euw1-{index}-read/_search`
+  (префикс/суффикс обязательны). Сервер проверяет только `Origin`/`Referer:
+  https://alminasa.ai` — клиент проставляет их сам (`AlminasaEsClient`).
+- Индексы датированы (`...12.2024-08-24-...`) — контракт может молча смениться.
+  Поэтому staging хранит полный `_source` в raw jsonb: пере-маппинг без пере-краулинга.
+- `narrators[].id` в hadith-доках — СТРОКА (`"4698"`); у narrator-дока в `_source`
+  НЕТ поля `id` — numeric id берётся из ES `_id` хита.
+- Сайт пагинирует `from+size` — упирается в ES-лимит 10k. Наш краулер — `search_after`
+  по `hadith_serial_id` (глобально уникален, UNIQUE-индекс в staging это сторожит).
+- Вкладки علل/غريب — индексы `hadith-commentary-12`/`chains-*-12`/`ambiguous-12`:
+  контракты НЕ сняты в HAR (нет живых запросов). Перед Планом 6 снять свежий HAR
+  с кликами по этим вкладкам.
+- Rate-limit заголовков нет (CDN-кэш s-maxage=86400), но краулер консервативен:
+  `alminasa.crawl.delay-ms=1000` между страницами. До массового обхода — пункт
+  backlog «Связаться с alminasa.ai».

@@ -402,6 +402,16 @@ AI-извлечение иснада из Сессии 55). Доступ - bulk-
 Иснад приходит пред-связанным (упорядоченный `narrators[]` + inline-теги
 рави) - парсится детерминированно, без AI. AI остаётся общей возможностью
 (перевод ar→ru/en, Q&A, гариб, PDF-парсинг), но не для извлечения иснада.
+
+**Краулер alminasa (План 2, ADR-060).** `hadith/alminasa/`: `AlminasaEsClient`
+(узкий HTTP-клиент ES-прокси, retry `alminasaApi`) → `AlminasaCrawlService`
+(«hadith-first» resumable цикл: страница hadith-12 по `search_after`, зависимые
+narrators/explanations/rulings — батчевыми `terms` по id страницы) →
+`am_staging_*` (raw jsonb + горячие колонки, идемпотентный upsert по природным
+ключам) + `am_crawl_checkpoint` (RUNNING/PAUSED/FAILED/COMPLETED, граница
+страницы, stale-takeover). Управление: `/api/v1/admin/alminasa/crawl/*`.
+Маппинг staging → hd_* — План 3.
+
 Детали - `architecture-platform.md`, решение - ADR-060.
 
 ## Frontend (apps/ + shared/)

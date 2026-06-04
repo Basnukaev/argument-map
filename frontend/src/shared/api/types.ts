@@ -772,6 +772,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/alminasa/crawl/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["start"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/alminasa/crawl/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pause"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/{id}/role": {
         parameters: {
             query?: never;
@@ -1612,6 +1644,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["preview_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/alminasa/crawl/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["status"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2679,6 +2727,28 @@ export interface components {
             /** Format: int32 */
             pagesExtracted?: number;
             alreadyExisted?: boolean;
+        };
+        AlminasaCrawlStatusResponse: {
+            status?: string;
+            /** Format: int64 */
+            lastSortValue?: number;
+            /** Format: int64 */
+            fetchedCount?: number;
+            /** Format: int64 */
+            totalHits?: number;
+            error?: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+            /** Format: int64 */
+            stagedHadiths?: number;
+            /** Format: int64 */
+            stagedNarrators?: number;
+            /** Format: int64 */
+            stagedExplanations?: number;
+            /** Format: int64 */
+            stagedRulings?: number;
         };
         ChangeRoleRequest: {
             /**
@@ -4868,6 +4938,7 @@ export interface operations {
     importCollection: {
         parameters: {
             query: {
+                extractIsnad?: boolean;
                 currentUserId: string;
             };
             header?: {
@@ -5058,6 +5129,56 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ArchiveOrgImportResponse"];
+                };
+            };
+        };
+    };
+    start: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AlminasaCrawlStatusResponse"];
+                };
+            };
+        };
+    };
+    pause: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AlminasaCrawlStatusResponse"];
                 };
             };
         };
@@ -6798,6 +6919,31 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ArchiveOrgPreview"];
+                };
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AlminasaCrawlStatusResponse"];
                 };
             };
         };
