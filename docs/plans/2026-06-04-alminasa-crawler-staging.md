@@ -1,6 +1,8 @@
 # alminasa Hadith Ingestion — Plan 2: ES-клиент + resumable краулер → am_staging_*
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+>
+> **Примечание 2026-06-04:** план закрыт (исполнен); superpowers-ссылки в документе — история. Новые планы оркеструются через OMC (см. корневой CLAUDE.md «Оркестрация (OMC)»).
 
 **Goal:** HTTP-клиент к открытому ES-прокси alminasa.ai + фоновый возобновляемый краулер, который снимает полный снапшот корпуса (82,596 хадисов + рави + шархи + рулинги) в наши staging-таблицы `am_staging_*` с чекпоинтами.
 

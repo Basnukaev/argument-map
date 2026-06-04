@@ -3,9 +3,11 @@
 # Stdout идёт в Claude's context (feature SessionStart hook'а).
 #
 # What it loads:
-#   1. Last 2 entries из docs/progress.md (по ^## YYYY-MM-DD headers)
+#   1. Last 2 entries из docs/progress.md (по ^## YYYY-MM-DD headers);
+#      текущий приоритет = «Следующий шаг» последней записи (входит в #1)
 #   2. Active roadmap stage из docs/roadmap.md (не "закрыт")
-#   3. «Текущий приоритет» секция из docs/SESSION_START_PROMPT.md
+# (секция «Текущий приоритет» удалена 2026-06-04: SESSION_START_PROMPT
+#  выпилен при переходе на OMC, приоритет живёт в progress.md)
 
 set -uo pipefail
 # Note: intentional БЕЗ `set -e` - SessionStart hook info-only,
@@ -47,17 +49,10 @@ if [[ -f docs/roadmap.md ]]; then
   echo
 fi
 
-# 3. Текущий приоритет
-if [[ -f docs/SESSION_START_PROMPT.md ]]; then
-  echo "=== Текущий приоритет ==="
-  awk '/^## Текущий приоритет/{flag=1} flag' docs/SESSION_START_PROMPT.md | head -50
-  echo
-fi
-
 # jq availability hint (один раз при старте сессии)
 if ! command -v jq >/dev/null 2>&1; then
   echo "⚠️  jq не установлен. Установи: sudo apt install jq (для PreToolUse/PostToolUse hooks)"
 fi
 
-log_decision "SessionStart" "loaded" "progress + roadmap + приоритет"
+log_decision "SessionStart" "loaded" "progress + roadmap"
 exit 0

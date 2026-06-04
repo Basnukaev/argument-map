@@ -1,6 +1,8 @@
 # alminasa Hadith Ingestion — Plan 1: DB Schema + Domain Model + Repositories
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+>
+> **Примечание 2026-06-04:** план закрыт (исполнен); superpowers-ссылки в документе — история. Новые планы оркеструются через OMC (см. корневой CLAUDE.md «Оркестрация (OMC)»).
 
 **Goal:** Extend the hadith domain schema + Java model + JDBC repositories so they can hold the rich, structured data alminasa.ai provides (hadith type, narrator external IDs + tabaqa + verbatim grade, takhrij cross-refs, imported rulings, sharḥ/ʿilal/gharīb explanations, print editions, narrator network). This is the foundation that the crawler (Plan 2) and mapper (Plan 3) write into.
 

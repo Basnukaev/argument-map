@@ -8,7 +8,7 @@ Sub-project B из Claude Code harness setup (статья Anthropic May 2026
 
 | Event | Script | Purpose |
 |---|---|---|
-| SessionStart | `session-start.sh` | Load свежие progress.md (2 entries) + active roadmap + текущий приоритет в context |
+| SessionStart | `session-start.sh` | Load свежие progress.md (2 entries, включая «Следующий шаг» = текущий приоритет) + active roadmap в context |
 | Stop | `stop-reminder.sh` | Conditional reminder если в сессии были commits но progress.md не обновлялся |
 | PreToolUse(Bash) | `pre-bash-guard.sh` | Block `git commit --no-verify`. Warn для `./mvnw verify` |
 | PostToolUse(Edit\|Write) | `post-edit-reminder.sh` | Doc-update reminders для DTO/Controller/migration/ADR/application.yml |
@@ -76,9 +76,8 @@ Hooks нельзя unit-tested — Claude Code не имеет dedicated test fr
 ### SessionStart smoke
 1. Restart Claude Code или запустить `/start_conv` slash command
 2. Verify в context Claude'а появилось:
-   - Last 2 progress entries (Сессии 47 и 46)
+   - Last 2 progress entries (включая «Следующий шаг» последней записи)
    - Active roadmap stage
-   - «Текущий приоритет» секция
 3. Test bypass: `CLAUDE_HOOKS_DISABLE=1 claude` → verify hooks тихие
 
 ### Stop smoke

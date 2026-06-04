@@ -6,7 +6,7 @@ import java.util.UUID;
  * Бросается когда у пользователя недостаточно роли для выполнения
  * операции (например USER пытается добавить hadith grade требующий
  * SCHOLAR). Vision 49d Section 2.4 / spec
- * {@code docs/superpowers/specs/2026-05-20-roles-system-design.md}.
+ * {@code docs/specs/2026-05-20-roles-system-design.md}.
  *
  * <p>Маппится в {@code 403 Forbidden} с Problem Details
  * {@code type: forbidden-insufficient-role} + details

@@ -21,7 +21,7 @@ import ru.basnukaev.argumentmap.service.SourceService;
  * <p>Переиспользует мост {@code Hadith.sourceId → sources.id}: хадис-цитата —
  * обычная опора-источник (sourceType=HADITH) в {@code node_sources}, без
  * параллельной node↔hadith таблицы. Спека:
- * {@code docs/superpowers/specs/2026-06-01-hadith-node-citation-design.md}.
+ * {@code docs/specs/2026-06-01-hadith-node-citation-design.md}.
  */
 @Service
 public class HadithCitationService {

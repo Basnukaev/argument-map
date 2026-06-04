@@ -8,7 +8,7 @@ import ru.basnukaev.argumentmap.library.pdf.domain.RangeSpec;
 
 /**
  * Provider PDF-файлов для книги. Source-agnostic архитектура (см.
- * spec {@code docs/superpowers/specs/2026-05-11-pdf-viewer-source-agnostic.md},
+ * spec {@code docs/specs/2026-05-11-pdf-viewer-source-agnostic.md},
  * 25.b refactor): реализации обслуживают разные источники (shamela
  * через archive.org CDN, прямой archive.org, user-upload, IIIF и т.д.).
  *

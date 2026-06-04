@@ -238,7 +238,7 @@ public class PermissionService {
      * {@link InsufficientRoleException} если actual роль ниже required в
      * иерархии USER &lt; STUDENT &lt; SCHOLAR &lt; ADMIN. Семантика
      * матрицы прав - см.
-     * {@code docs/superpowers/specs/2026-05-20-roles-system-design.md}.
+     * {@code docs/specs/2026-05-20-roles-system-design.md}.
      *
      * <p>Использовать в service-слое перед действием которое требует
      * минимальной роли. Пример: HadithGradeService.addGrade →

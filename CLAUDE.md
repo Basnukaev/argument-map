@@ -157,7 +157,9 @@ scripts/seed-mawlid.sh     # тестовая тема для argument-map
 5. Краткое summary («вижу X, продолжаю Y») - и за работу
 
 **Handoff в конце сессии:** запись в progress.md (формат -
-doc-hygiene Принцип 5) с подробным «Следующим шагом»; roadmap
+doc-hygiene Принцип 5) с подробным «Следующим шагом»; в нём же
+зафиксировать инфра-стейт если менялся (порты / UUID / тестовые
+данные) и ключевые файлы, если задеты редкие части репо; roadmap
 обновлён (`[x]`, закрытые этапы сжаты); финальный коммит
 `docs: handoff Сессии N`. Лучше 70% задачи с чистым handoff, чем
 100% с оборванным контекстом.
@@ -215,12 +217,11 @@ API): держать всё в голове, пройтись по всем за
 
 Для любого frontend изменения которое влияет на UX (новый
 компонент, fix bug'а, redesign элемента) - после коммита **сам**
-запусти `/playwright-skill:playwright-skill` в headless режиме, не
-жди пока Абдула пройдёт в браузер. Это сокращает feedback loop
-
-**Setup:** первый запуск делает `npm run setup` в
-`~/.claude/plugins/cache/playwright-skill/playwright-skill/.../skills/playwright-skill/` -
-playwright + chromium ставятся локально в skill dir, не в проект
+прогони UI playwright'ом в headless, не жди пока Абдула пройдёт в
+браузер. Это сокращает feedback loop. Инструментарий: playwright
+MCP browser_*-инструменты (плагин playwright), либо standalone
+playwright-скрипт с bundled chromium (MCP-вариант в WSL2 может
+требовать sudo - см. memory `project_env_constraints`)
 
 **Workflow:**
 

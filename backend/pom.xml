@@ -54,7 +54,7 @@
 			Vision 49d Observability Phase 1 (ADR-051): structured logging
 			JSON encoder для prod profile. В dev/local/test остаётся text
 			console pattern. См. logback-spring.xml + spec
-			docs/superpowers/specs/2026-05-20-observability-design.md
+			docs/specs/2026-05-20-observability-design.md
 		-->
 		<dependency>
 			<groupId>net.logstash.logback</groupId>
