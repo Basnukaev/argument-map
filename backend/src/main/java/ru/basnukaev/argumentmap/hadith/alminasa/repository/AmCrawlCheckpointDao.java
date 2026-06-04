@@ -66,13 +66,17 @@ public class AmCrawlCheckpointDao {
                 totalHits, indexName);
     }
 
-    /** Граница страницы: новый search_after-курсор + приращение счётчика. */
-    public void advance(String indexName, long lastSortValue, int addedCount) {
+    /**
+     * Граница страницы: новый search_after-курсор + АБСОЛЮТНЫЙ счётчик
+     * застейдженных (= count(*) staging на момент границы; replay страницы
+     * не раздувает прогресс).
+     */
+    public void advance(String indexName, long lastSortValue, long fetchedCount) {
         jdbcTemplate.update("""
                 UPDATE am_crawl_checkpoint
-                SET last_sort_value = ?, fetched_count = fetched_count + ?, updated_at = now()
+                SET last_sort_value = ?, fetched_count = ?, updated_at = now()
                 WHERE index_name = ?
-                """, lastSortValue, addedCount, indexName);
+                """, lastSortValue, fetchedCount, indexName);
     }
 
     public void markCompleted(String indexName) {

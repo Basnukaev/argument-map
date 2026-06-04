@@ -98,8 +98,9 @@ class AmStagingDaoIT {
         assertThat(started.startedAt()).isNotNull();
 
         checkpointDao.setTotalHits("hadith-12", 82596L);
+        // advance — АБСОЛЮТНЫЙ счётчик: вторая граница не +100, а set 200
         checkpointDao.advance("hadith-12", 100L, 100);
-        checkpointDao.advance("hadith-12", 200L, 100);
+        checkpointDao.advance("hadith-12", 200L, 200);
 
         AmCrawlCheckpoint mid = checkpointDao.find("hadith-12").orElseThrow();
         assertThat(mid.lastSortValue()).isEqualTo(200L);

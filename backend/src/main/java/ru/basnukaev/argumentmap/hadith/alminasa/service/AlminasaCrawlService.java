@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -48,6 +49,11 @@ import ru.basnukaev.argumentmap.hadith.alminasa.web.AlminasaCrawlConflictExcepti
  *
  * <p>БЕЗ @Transactional вокруг цикла: каждая страница коммитится сама,
  * прогресс не теряется при падении (идемпотентность вместо отката).
+ *
+ * <p>Сериализацию конкурентных писателей гарантирует НЕ
+ * {@code synchronized claimStart()}, а executor {@code alminasaCrawlExecutor}
+ * (core=max=1, queue=0, AbortPolicy): при stale-takeover, пока старый поток
+ * ещё жив, второй submit отклоняется. Не поднимать queueCapacity.
  */
 @Service
 @ConditionalOnProperty(name = "alminasa.enabled", havingValue = "true", matchIfMissing = true)
@@ -134,7 +140,9 @@ public class AlminasaCrawlService {
             AmCrawlCheckpoint checkpoint = checkpointDao.find(HADITH_INDEX_KEY).orElseThrow();
             AlminasaPage page =
                     client.fetchHadithPage(checkpoint.lastSortValue(), props.crawl().pageSize());
-            checkpointDao.setTotalHits(HADITH_INDEX_KEY, page.totalHits());
+            if (!Objects.equals(checkpoint.totalHits(), page.totalHits())) {
+                checkpointDao.setTotalHits(HADITH_INDEX_KEY, page.totalHits());
+            }
             if (page.hits().isEmpty()) {
                 checkpointDao.markCompleted(HADITH_INDEX_KEY);
                 log.info("alminasa crawl завершён: {} хадисов", checkpoint.fetchedCount());
@@ -161,7 +169,8 @@ public class AlminasaCrawlService {
             stagedNarrators.addAll(newNarratorIds);
 
             long lastSerial = rows.get(rows.size() - 1).hadithSerialId();
-            checkpointDao.advance(HADITH_INDEX_KEY, lastSerial, rows.size());
+            long stagedCount = hadithDao.count();
+            checkpointDao.advance(HADITH_INDEX_KEY, lastSerial, stagedCount);
             log.info("alminasa crawl: страница до serial={} (+{} хадисов, +{} рави)",
                     lastSerial, rows.size(), newNarratorIds.size());
 
