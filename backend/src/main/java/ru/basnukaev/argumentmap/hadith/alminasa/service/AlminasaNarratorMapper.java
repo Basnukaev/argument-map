@@ -97,8 +97,8 @@ public class AlminasaNarratorMapper {
                 existing.map(Narrator::authorityId).orElse(null),
                 fullName,
                 normalized,
-                text(raw, "nickname"),                 // kunya
-                text(raw, "origin"),                   // laqab (нисба)
+                truncatePlace(text(raw, "nickname")),  // kunya varchar(120) — live-данные длиннее
+                truncatePlace(text(raw, "origin")),    // laqab (нисба) varchar(120)
                 hijriYear(text(raw, "born_on")),       // year_birth_hijri
                 hijriYear(text(raw, "died_on")),       // year_death_hijri
                 null,                                   // birthplace (нет отдельного поля)
@@ -368,7 +368,13 @@ public class AlminasaNarratorMapper {
         return s.isBlank() ? null : s;
     }
 
-    /** died_in/lived_in → place varchar(120). */
+    /**
+     * Усечение под varchar(120): died_in/lived_in/kunya/laqab. Live-инцидент
+     * первого dev-импорта (Сессия 57): nickname/origin живых доков длиннее
+     * 120 («أبو … ، وقيل : …» перечисления) — 2 хадиса падали на INSERT.
+     * Полный текст остаётся в staging raw (re-map после расширения колонок
+     * возможен без пере-краула).
+     */
     private static String truncatePlace(String place) {
         return truncate(place, 120);
     }

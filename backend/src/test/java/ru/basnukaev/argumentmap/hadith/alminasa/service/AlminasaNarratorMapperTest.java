@@ -64,6 +64,24 @@ class AlminasaNarratorMapperTest {
     }
 
     @Test
+    void mapNarrator_kunya_laqab_длиннее_120_усекаются() {
+        // live-инцидент Сессии 57: nickname/origin живых доков > varchar(120)
+        AlminasaNarratorMapper m = realMapper();
+        String longText = "أبو يحيى ، وقيل : أبو واقد ، ".repeat(8); // > 120 символов
+        String raw = "{\"full_name\":\"رجل\",\"nickname\":\"" + longText
+                + "\",\"origin\":\"" + longText + "\"}";
+        AmNarratorRow row = new AmNarratorRow(9100, "رجل", null, null, raw);
+        when(narratorRepository.findByExternalId("alminasa", "9100")).thenReturn(Optional.empty());
+
+        m.mapNarrator(row);
+
+        verify(narratorRepository).save(narratorCaptor.capture());
+        Narrator n = narratorCaptor.getValue();
+        assertThat(n.kunya()).hasSizeLessThanOrEqualTo(120);
+        assertThat(n.laqab()).hasSizeLessThanOrEqualTo(120);
+    }
+
+    @Test
     void mapNarrator_5719_маппит_все_поля() throws IOException {
         AlminasaNarratorMapper m = realMapper();
         AmNarratorRow row = new AmNarratorRow(
