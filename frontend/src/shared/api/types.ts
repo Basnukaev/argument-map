@@ -2989,6 +2989,14 @@ export interface components {
             hasText?: boolean;
             hasImage?: boolean;
         };
+        NarratorRelationDto: {
+            /** Format: uuid */
+            relatedNarratorId?: string;
+            relatedName?: string;
+            role?: string;
+            /** Format: int32 */
+            cnt?: number;
+        };
         NarratorResponse: {
             /** Format: uuid */
             id?: string;
@@ -3010,6 +3018,12 @@ export interface components {
             transmittedCount?: number;
             /** Format: date-time */
             createdAt?: string;
+            tabaqa?: string;
+            gradeText?: string;
+            bornOnText?: string;
+            diedOnText?: string;
+            deathPlace?: string;
+            relations?: components["schemas"]["NarratorRelationDto"][];
         };
         PagedResponseNarratorResponse: {
             items?: components["schemas"]["NarratorResponse"][];
@@ -3082,6 +3096,9 @@ export interface components {
             reliabilityGrade?: string;
             reliabilityComment?: string;
             generation?: string;
+            tabaqa?: string;
+            gradeText?: string;
+            externalId?: string;
             collection?: string;
             /** Format: int32 */
             tier?: number;
@@ -3102,6 +3119,29 @@ export interface components {
             primaryChain?: boolean;
             collectorNodeId?: string;
         };
+        CrossrefDto: {
+            relatedExternalId?: string;
+            /** Format: uuid */
+            relatedHadithId?: string;
+            note?: string;
+        };
+        EditionDto: {
+            editionName?: string;
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            volume?: number;
+        };
+        ExplanationDto: {
+            kind?: string;
+            bookName?: string;
+            author?: string;
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            volume?: number;
+            text?: string;
+        };
         GradeDto: {
             scholar?: string;
             grade?: string;
@@ -3120,9 +3160,17 @@ export interface components {
             sourceId?: string;
             /** Format: date-time */
             createdAt?: string;
+            hadithType?: string;
+            chapterAr?: string;
+            subChapterAr?: string;
+            fullTextAr?: string;
             sanads?: components["schemas"]["SanadDto"][];
             matns?: components["schemas"]["MatnDto"][];
             grades?: components["schemas"]["GradeDto"][];
+            editions?: components["schemas"]["EditionDto"][];
+            rulings?: components["schemas"]["RulingDto"][];
+            explanations?: components["schemas"]["ExplanationDto"][];
+            crossrefs?: components["schemas"]["CrossrefDto"][];
         };
         MatnDto: {
             /** Format: uuid */
@@ -3147,6 +3195,19 @@ export interface components {
             /** Format: uuid */
             narratorId?: string;
             transmissionPhrase?: string;
+        };
+        RulingDto: {
+            rulerName?: string;
+            /** Format: int32 */
+            rulerDeathYear?: number;
+            rulingText?: string;
+            bookName?: string;
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            volume?: number;
+            source?: string;
+            relatedExternalId?: string;
         };
         SanadDto: {
             /** Format: uuid */
