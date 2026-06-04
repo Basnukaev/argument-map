@@ -309,10 +309,14 @@ design-specs создаются по мере приоритезации.
             (per-док tx, resolve FK), dry-run. 51 тест, verify 1354.
             Review: 0 Critical / 1 Important (закрыт). План:
             `docs/plans/2026-06-04-alminasa-mapper.md`.
-      - [ ] **План 4** — выпил legacy (sunnah ETL, sn_staging_*, AI-иснад
-            ADR-059, AdminSunnahPage, sunnah-mysql) ⬅️ **СЛЕДУЮЩИЙ**
+      - [x] **План 4** — выпил legacy ✅ 2026-06-04 — sunnah ETL
+            (41 файл) + AI-иснад (ADR-059 superseded), миграция 74 DROP
+            sn_staging_*, AdminSunnahPage + 82 i18n-ключа, regen types.ts
+            (-389 строк); buildGraph/SanadGraph живы. Review-гэпы закрыты.
+            verify 1288+4(flake-rerun green), vitest 711, tsc clean. План:
+            `docs/plans/2026-06-04-alminasa-legacy-removal.md`.
       - [ ] **План 5** — AdminHadithImportPage (каталог 12 сборников/
-            прогресс/dry-run/resume)
+            прогресс/dry-run/resume) ⬅️ **СЛЕДУЮЩИЙ**
       - [ ] **Планы 6-7** — фронт (тип/кликабельный иснад/сеть рави/
             такхридж/شروح-علل-غريب) + AI-перевод on-demand
       - ⚠️ Полный обход 12 сборников гейтится backlog-пунктом «Связаться

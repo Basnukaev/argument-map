@@ -26,7 +26,7 @@
 
 ## Tasks
 
-- [ ] **T1 backend (один атомарный коммит — билд зелёный на каждом коммите):**
+- [x] **T1 backend (один атомарный коммит — билд зелёный на каждом коммите):**
   - удалить пакеты `hadith/sunnah/**` (26 main + 7 тестов) и `hadith/isnad/**`
     (4 main + 3 теста), `test/resources/sunnah/`;
   - `GlobalExceptionHandler`: убрать хендлеры Sunnah*-исключений + импорты;
@@ -40,20 +40,20 @@
     обоснованием — DROP необратим, legacy-данные не восстанавливаются) —
     `DROP TABLE IF EXISTS sn_staging_hadith/chapter/book/collection`;
   - точечный прогон: компиляция + SanadGraphServiceTest + быстрый smoke IT.
-- [ ] **T2 frontend (коммит 2):** AdminSunnahPage.tsx + .test.tsx; App.tsx
+- [x] **T2 frontend (коммит 2):** AdminSunnahPage.tsx + .test.tsx; App.tsx
   (lazy-импорт + роут /admin/sunnah); AdminDashboardPage (карточка sunnah);
   dictionary.ts (ключи admin.sunnah.* / admin.dashboard.sunnah.*);
   vitest + tsc.
-- [ ] **T3 regen types.ts (коммит 3):** поднять backend (JDWP, CLAUDE.md) →
+- [x] **T3 regen types.ts (коммит 3):** поднять backend (JDWP, CLAUDE.md) →
   `npm run generate-api` → diff ТОЛЬКО удаления Sunnah*/Isnad*-типов → tsc.
-- [ ] **T4 docs (коммит 4):** ADR-059 (строка ~6372 decisions.md) — шапка
+- [x] **T4 docs (коммит 4):** ADR-059 (строка ~6372 decisions.md) — шапка
   «⟵ SUPERSEDED ADR-060 (План 4)» + индекс (строка 89); api-contract.md —
   удалить секцию `/api/v1/admin/sunnah/*`; architecture.md — sunnah-ETL
   упоминания; roadmap 49.C — **отложенный split**: alminasa-трек остаётся,
   legacy sunnah-трек сжать в строку «выпилен Планом 4»; backlog — снять
   sunnah-защиту: удалить мёртвые sunnah-пункты (~68, ~225, ~249-253).
-- [ ] **Граница плана:** полный `./mvnw verify` + `npm run test:run` + tsc.
-- [ ] Независимый review (lite — деletion-этап): verify-агент проверяет
+- [x] **Граница плана:** полный `./mvnw verify` + `npm run test:run` + tsc.
+- [x] Независимый review (lite — деletion-этап): verify-агент проверяет
   отсутствие осиротевших ссылок (grep sunnah/isnad по main-коду), чистоту
   diff types.ts, полноту doc-правок.
 
