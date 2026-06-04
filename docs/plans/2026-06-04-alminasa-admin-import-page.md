@@ -108,7 +108,7 @@ matnPreview, chain[{position, externalId, nameAr, formula}], counts).
 
 ## Tasks
 
-- [ ] **T1 backend** (коммит 1): `AmHadithStagingDao.catalogByBook()` +
+- [x] **T1 backend** (коммит 1): `AmHadithStagingDao.catalogByBook()` +
   `HadithRepository.countByCollectionGroupedForSource` +
   `AlminasaCatalogService` + `AlminasaImportLauncher` + новый
   `AlminasaImportConfig` (executor, БЕЗ alminasa.enabled-гейта) +
@@ -120,11 +120,11 @@ matnPreview, chain[{position, externalId, nameAr, formula}], counts).
   скоупит импорт одним сборником, dry-run 200/404/422, catalog counts
   смешанная коллекция alminasa-only, catalog при пустом staging — 12
   строк с нулями) + api-contract.md.
-- [ ] **T2 regen** (коммит 2): backend up → `npm run generate-api` → tsc.
-- [ ] **T3 frontend** (коммит 3): AdminHadithImportPage + роут + карточка
+- [x] **T2 regen** (коммит 2): backend up → `npm run generate-api` → tsc.
+- [x] **T3 frontend** (коммит 3): AdminHadithImportPage + роут + карточка
   дашборда (enable) + i18n + MSW-тесты (каталог рендер, dry-run флоу,
   conflict 409 toast, статусы краулера/импорта).
-- [ ] **T4 верификация**: полный verify + vitest + tsc; **playwright
+- [x] **T4 верификация**: полный verify + vitest + tsc; **playwright
   headless** (standalone-скрипт, bundled chromium): дев-краул 1-2 страниц
   (гейт ОК) → скриншоты каталога/статусов → dry-run 146-1 живьём →
   импорт bukhari staged-подмножества → проверка каталога mappedCount →
@@ -142,7 +142,7 @@ matnPreview, chain[{position, externalId, nameAr, formula}], counts).
   last_sort_value=NULL, last_sort_id=NULL, fetched_count=0, total_hits=
   NULL, error=NULL` (как С56). Smoke: catalog → 12 строк нули, crawl
   status IDLE.
-- [ ] **T5 review**: независимый code-review диапазона → Critical/Important
+- [x] **T5 review**: независимый code-review диапазона → Critical/Important
   → fix-коммиты → roadmap.
 
 ## Definition of Done

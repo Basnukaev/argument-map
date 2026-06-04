@@ -120,17 +120,17 @@
 
 ## Tasks
 
-- [ ] **T1 backend** (коммит 1): DTO-расширения + 5 новых DTO +
+- [x] **T1 backend** (коммит 1): DTO-расширения + 5 новых DTO +
   контроллеры + SanadGraphService externalId/tabaqa/gradeText + IT +
   api-contract.md.
-- [ ] **T2 regen** (коммит 2): backend up → generate-api → tsc.
-- [ ] **T3 frontend** (коммит 3): parseIsnadHtml + секции
+- [x] **T2 regen** (коммит 2): backend up → generate-api → tsc.
+- [x] **T3 frontend** (коммит 3): parseIsnadHtml + секции
   HadithDetailPage + NarratorPanel/Detail + i18n + тесты.
-- [ ] **T4 верификация**: verify + vitest + tsc; playwright headless по
+- [x] **T4 верификация**: verify + vitest + tsc; playwright headless по
   живым данным (дев-краул, как План 5 T4, совместить прогон с ним если
   Планы идут подряд) — скриншот detail с кликабельным иснадом; очистка
   dev-данных (SQL Плана 5 T4).
-- [ ] **T5 review**: независимый review → fixes → roadmap.
+- [x] **T5 review**: независимый review → fixes → roadmap.
 
 ## Definition of Done
 

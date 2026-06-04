@@ -76,14 +76,14 @@
 
 ## Tasks
 
-- [ ] **T1 backend**: MatnRepository.updateTranslation + Service + DTO +
+- [x] **T1 backend**: MatnRepository.updateTranslation + Service + DTO +
   endpoint + handlers + IT (≥8 кейсов выше) + api-contract.md.
-- [ ] **T2 regen types** + tsc.
-- [ ] **T3 frontend**: кнопки/лоадер/рендер + i18n + vitest.
-- [ ] **T4 верификация**: verify + vitest + tsc. Live-прогон — «ждёт
+- [x] **T2 regen types** + tsc.
+- [x] **T3 frontend**: кнопки/лоадер/рендер + i18n + vitest.
+- [x] **T4 верификация**: verify + vitest + tsc. Live-прогон — «ждёт
   ключ» (handoff: команда запуска с --ai.provider/ключом уже в
   CLAUDE.md/progress).
-- [ ] **T5 review**: независимый review → fixes → roadmap 49.C финал.
+- [x] **T5 review**: независимый review → fixes → roadmap 49.C финал.
 
 ## Definition of Done
 

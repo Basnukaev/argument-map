@@ -9,6 +9,141 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
+## 2026-06-04/05 - Сессия 57 - alminasa Планы 3-7: маппер, выпил legacy, админка, Explorer, AI-перевод
+
+Полностью автономный марафон `/autopilot` (MAX-режим): закрыт ВЕСЬ
+оставшийся alminasa-трек ADR-060 — Планы 3→7 последовательно, каждый по
+циклу «план-док → критик → исполнение субагентами → тесты → review →
+фиксы». ~35 коммитов. Для каждого плана критик-ревью ДО исполнения
+ловило реальные дефекты дизайна (off-by-one семантики формул,
+lock-on-failure launcher'а, mappedCount без source-фильтра и др.).
+
+### Сделано
+
+**План 3 — маппер staging→hd_*** (`docs/plans/2026-06-04-alminasa-mapper.md`):
+- `AlminasaIsnadParser` — детерминированный парс rawy-тегов из
+  `full_text_ar`; семантика формул «сегмент ПОСЛЕ тега» (= собственная
+  речь рави о получении; критик C1 поймал off-by-one исходного дизайна),
+  реверс → position 0 = сподвижник, формулы без сдвигов; эталонный
+  вектор 146-1 залочен IT + round-trip `SanadGraphService.buildGraph`.
+- `AlminasaNarratorMapper` (upsert по external_id, grade→enum c verbatim
+  в grade_text, relations из top_students/scholars) +
+  `AlminasaHadithMapper` (транзакционный порядок resolve→delete-сателлиты→
+  insert; рулинги = union embedded+index per-док с дедупом; статус
+  сахихайн→CANONICAL; пре-чек коллизии (collection, primary_number));
+  `AlminasaImportService` (per-док tx, failure isolation, resolve
+  crossref-FK SQL-ом + relations в Java по нормализованным именам),
+  dry-run с setRollbackOnly. 51 тест; review 0C/1I (закрыт).
+**План 4 — выпил legacy** (`…-legacy-removal.md`): `hadith/sunnah/**`
+  (41 файл) + `hadith/isnad/**` (AI-иснад, ADR-059 → SUPERSEDED),
+  миграция 74 DROP `sn_staging_*`, AdminSunnahPage + 82 i18n-ключа,
+  `/admin/sunnah/*` из api-contract, regen types (-389 строк); roadmap
+  49.C split + backlog-чистка. `buildGraph`/`SanadGraph` живы.
+**План 5 — AdminHadithImportPage** (`…-admin-import-page.md`): 5 admin-
+  endpoints (catalog: mappedCount ТОЛЬКО по external_source='alminasa';
+  import/status с live processedSoFar; async launcher — CAS IDLE→RUNNING
+  до submit + finally-гарантия выхода (критик C2: иначе transient-фейл
+  навечно лочит 409), прямой executor.execute вместо @Async
+  (self-invocation мимо прокси — вскрыто latch-тестом); dry-run
+  404/422). Страница: краулер start/pause + каталог 12 сборников +
+  статус импорта + dry-run превью цепи; импорт-кнопки disabled при
+  crawl RUNNING. 14 IT + 7 MSW.
+**План 6 — Hadith Explorer на alminasa** (`…-frontend-explorer.md`):
+  detail +8 полей / narrator +6 / sanad-graph +externalId;
+  `parseIsnadHtml` (без dangerouslySetInnerHTML) + кликабельный иснад
+  (lifted graph-фетч, единая панель, клик = данные из графа без
+  доп. фетча); секции вердиктов (provenance «на параллельную передачу»),
+  шарха (collapsible), такхриджа (resolved→Link), изданий; NarratorPanel:
+  tabaqa??generation, gradeText??reliabilityComment.
+**План 7 — AI-перевод** (`…-ai-translation.md`): POST
+  /matns/{id}/translate (кэш text_ru/text_en + cached-флаг, force=ADMIN,
+  isEnabled→503, сервис БЕЗ @Transactional — LLM 5-15с вне tx, два
+  UPDATE по lang, guard пустого ответа→502); кнопки RU/EN у hero-матна
+  и вариаций (без дубля для primary). 10 IT со стабом LlmClient.
+
+### Live-верификация (playwright headless + дев-краул в рамках гейта)
+Дев-краул 1 страницы (100 хадисов / 315 рави / шархи / рулинги, pause
+на границе) → UI-прогон админки: каталог 12 сборников со staged-counts,
+импорт рави → маппинг всех → **вскрыт live-баг: kunya/laqab живых доков
+> varchar(120)** (2 хадиса падали) → фикс truncate + re-run → 100/100,
+26 crossref-FK + 916 relation-FK срезолвлено. Dry-run 146-1 через UI.
+Explorer: detail 146-1 — тип مرفوع, кликабельный иснад (клик открыл
+панель الحميدي), 8 вердиктов с provenance-подписями, 3 шарха, такхридж
+20 мест, 2 издания. Скриншоты /tmp/p5-*.png, /tmp/p6-*.png.
+**Очистка по гейту:** alminasa-строки hd_* удалены, staging TRUNCATE,
+чекпоинт IDLE (статус-smoke подтверждён).
+
+### Верификация (финал)
+Backend `./mvnw verify` **1318/1318 BUILD SUCCESS** (на границе П4 был
+flake HttpClientPdfFetcherCircuitBreakerIT — изолированный перегон
+зелёный, документированный TC-cache flake). Frontend **vitest 737/737**
+(116 файлов), tsc + eslint чисто, build success. types.ts регенерирован
+3 раза (только аддитивные/удаления по планам).
+
+### Code-review (независимые, по workflow)
+П3: 0 Critical / 1 Important (bookIdFilter семантика — закрыт early-break).
+П4: lite-verify, 2 гэпа (stale ADR-индекс, i18n alminasa-карточки) — закрыты.
+П5-7 (объединённый): **0 Critical / 0 Important / 5 Minor** — 4 закрыты
+(@NotNull lang + IT, дубль перевод-контролов, guard пустого LLM-ответа,
+index-key комментарий), 1 принят (unmount-guard, React 19 безвреден).
+
+### Решения/доки
+ADR не потребовались (всё в рамках ADR-058/060); ADR-059 помечен
+SUPERSEDED. Gotchas +2 (setRollbackOnly невидим из @Transactional-теста;
+не-NFC combining-знаки в арабских литералах). api-contract: +6 endpoints
+(Import Admin API, translate), -секция /admin/sunnah. Architecture:
+маппинг-пайплайн.
+
+### Проблемы/known
+- kunya/laqab >120 в live-данных — закрыт truncate'ом (4be4b7c), полный
+  текст остаётся в staging raw.
+- `.omc/state` мусор от хуков субагентов появлялся внутри backend/src —
+  вычищен, в git не попадал.
+- Релейшны передатчиков: FK-резолв best-effort (короткие формы имён),
+  916 на 100 хадисов — лучше ожиданий, но полнота не гарантирована.
+
+### ЖДЁТ АБДУЛУ (юзер-гейты, без них трек дальше не двигается)
+1. **Письмо alminasa (مركز تميز)** → разрешение на массовый обход
+   12 сборников (backlog «Связаться с alminasa.ai»). После ответа:
+   `/admin/hadith-import` → Старт краулера → (часы, resumable) →
+   «Импорт рави» → «Маппинг всех сборников».
+2. **Свежий HAR с кликами по вкладкам علل (иляль) и غريب (гариб)** на
+   alminasa.ai — без него вкладки НЕ реализованы (контракты ES-индексов
+   `hadith-commentary-12`/`ambiguous-12` неизвестны; ничего не выдумано).
+3. **AI-ключ для live-перевода** (`--ai.provider=... --ai.api-key=...`,
+   за прокси `--ai.http.proxy=...`): проверить POST translate живьём
+   (сейчас только стаб-тесты; без ключа кнопки дают 503-тост).
+4. **Ручные UI-проверки** (накопленные + новые):
+   - НОВОЕ `/admin/hadith-import`: дев-краул Старт→Пауза (гейт: 1-2
+     страницы!), импорт рави, маппинг сборника, прогресс-бары, dry-run
+     `146-1` (после краула) — RTL-выравнивание, tooltip на disabled
+     кнопках при RUNNING-краулере.
+   - НОВОЕ `/hadith` Explorer (нужны данные — после дев-краула+импорта):
+     detail хадиса — клик по рави В ТЕКСТЕ иснада И в React Flow графе
+     (обе точки должны открывать ОДНУ панель; RF-клик headless не
+     проверяется надёжно), collapsible шарха, такхридж-переходы,
+     кнопки перевода (503-тост без ключа).
+   - Накопленное с С55 (playwright env-blocked тогда): archive.org
+     FILE_ONLY ридер, content_kind кнопки, bbox-подсветка,
+     DeepSeek-метаданные.
+   - Тест-логин для проверок: `pw-admin-57@test.local` /
+     `Pw-Admin-57!pass` (ADMIN, создан этой сессией).
+
+### Инфра-стейт (на конец Сессии 57)
+Docker postgres+minio up; backend :9090 + JDWP :5005 запущен (код
+Планов 5-7); frontend :5173 запущен; миграции через **74** (74 — DROP
+sn_staging_*); staging/hd_* alminasa-данные ОЧИЩЕНЫ, чекпоинт IDLE;
+sunnah-mysql больше не нужен совсем. Smoke:
+`curl -s -H "X-User-Id: 00000000-0000-0000-0000-000000000001"
+http://localhost:9090/api/v1/admin/alminasa/import/status` → IDLE.
+
+### Следующий шаг
+Трек alminasa кодово ЗАВЕРШЁН — дальше только юзер-гейты (блок «ЖДЁТ
+АБДУЛУ» выше). Параллельные кандидаты: 49.B rating+pagination или 49.D
+observability (спеки готовы); либо после ответа alminasa — массовый
+обход + наблюдение за перф (resolveNarratorRelations OFFSET-caveat,
+батчинг маппера если живой прогон 82k покажет боль).
+
 ## 2026-06-03/04 - Сессия 56 - alminasa единственный источник: спека + Планы 1-2
 
 Реализация разворота ADR-060 (alminasa.ai = единственный источник хадисов).

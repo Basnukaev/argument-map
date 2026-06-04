@@ -315,12 +315,34 @@ design-specs создаются по мере приоритезации.
             (-389 строк); buildGraph/SanadGraph живы. Review-гэпы закрыты.
             verify 1288+4(flake-rerun green), vitest 711, tsc clean. План:
             `docs/plans/2026-06-04-alminasa-legacy-removal.md`.
-      - [ ] **План 5** — AdminHadithImportPage (каталог 12 сборников/
-            прогресс/dry-run/resume) ⬅️ **СЛЕДУЮЩИЙ**
-      - [ ] **Планы 6-7** — фронт (тип/кликабельный иснад/сеть рави/
-            такхридж/شروح-علل-غريب) + AI-перевод on-demand
-      - ⚠️ Полный обход 12 сборников гейтится backlog-пунктом «Связаться
-            с alminasa.ai»; контракты علل/غريب — снять HAR перед Планом 6.
+      - [x] **План 5** — AdminHadithImportPage ✅ 2026-06-04 — 5 admin-
+            endpoints (catalog с mappedCount по source / import status с
+            live-прогрессом / async launcher c CAS+finally-контрактом /
+            dry-run 404|422), страница 4 секции (краулер start/pause,
+            каталог 12, импорт, dry-run превью цепи). Live-верифицирован
+            playwright: дев-краул 100 хадисов → импорт 100/100 (вскрыл
+            и закрыл live-баг kunya/laqab>120). План:
+            `docs/plans/2026-06-04-alminasa-admin-import-page.md`.
+      - [x] **План 6** — Hadith Explorer на alminasa-данных ✅ 2026-06-04
+            — detail +8 полей (type/chapter/fullTextAr/editions/rulings с
+            provenance/explanations/crossrefs), narrator +6
+            (tabaqa/gradeText/relations), sanad-graph +externalId;
+            кликабельный иснад (parseIsnadHtml, lifted graph-фетч, единая
+            панель), вердикты/шарх/такхридж/издания, сеть передатчиков.
+            Live-верифицирован playwright (146-1). План:
+            `docs/plans/2026-06-04-alminasa-frontend-explorer.md`.
+      - [x] **План 7** — AI-перевод матна on-demand ✅ 2026-06-05 —
+            POST /matns/{id}/translate (кэш в text_ru/text_en,
+            force=ADMIN, isEnabled→503, LLM вне tx), кнопки RU/EN у
+            hero-матна и вариаций. Тесты со стабом; live — ждёт ключ.
+            План: `docs/plans/2026-06-04-alminasa-ai-translation.md`.
+      - Review Планов 5-7: **0 Critical / 0 Important** / 5 Minor
+            (4 закрыты фикс-коммитом, 1 принят). verify 1318+,
+            vitest 737, tsc clean.
+      - ⚠️ **Остаточные user-гейты** (не код): (1) массовый обход 12
+            сборников — после ответа alminasa (backlog «Связаться с
+            alminasa.ai», письмо пишет Абдула); (2) вкладки علل/غريب —
+            ждут свежий HAR с кликами; (3) live-перевод — ждёт AI-ключ.
       **Legacy sunnah-трек: ВЫПИЛЕН Планом 4** ✅ 2026-06-04 (ADR-060;
       ADR-059 superseded). Удалены sunnah-ETL (`hadith/sunnah/**`,
       `sn_staging_*` дроп миграцией 74, `/admin/sunnah/*`, AdminSunnahPage)
