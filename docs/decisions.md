@@ -27,6 +27,71 @@
 
 ---
 
+## Индекс ADR (навигация; полные записи ниже, новые — снизу)
+
+- ADR-001: JDBC Template вместо JPA/Hibernate
+- ADR-002: Source и Authority — справочники, а не узлы графа
+- ADR-003: Граф в двух таблицах (nodes + edges) с дискриминатором
+- ADR-004: Maven вместо Gradle
+- ADR-005: Монорепа с независимыми backend/ и frontend/
+- ADR-006: `createdBy` через HTTP-заголовок `X-User-Id` до появления авторизации
+- ADR-007: Вклад типов рёбер в алгоритм пересчёта статусов
+- ADR-008: React + TypeScript + Vite для фронтенда
+- ADR-009: React Flow для визуализации графа
+- ADR-010: Семантика типов связей и матрица допустимых пар
+- ADR-011: Удаление поля `weight` до появления категориальной разметки
+- ADR-012: Координаты узла на канвасе как часть `Node`, расширение PATCH
+- ADR-013: `sourceHandle`/`targetHandle` как часть `Edge`
+- ADR-014: Reconnect рёбер через универсальный `PATCH /api/v1/edges/{id}`
+- ADR-015: Статус узла как полоса 5px слева вместо `border-2` вокруг карточки
+- ADR-016: `nodeCount`/`edgeCount` в `TopicResponse` через агрегатный SQL
+- ADR-017: Объединение `Source`+`Authority` под одной точкой привязки к узлу  ⟵ принято (заменяет ADR-002 в части привязки `Authority` к узлу;
+- ADR-018: Pivot из «argument-map MVP» в «платформу для исламской науки»
+- ADR-019: Library как доменный пакет, универсальный Book с дискриминатором
+- ADR-020: Импорт shamela через её desktop-API + двухслойная staging-схема
+- ADR-021: Source-first архитектура library - электронная версия как production оригинала
+- ADR-022: Cleanup marathon - conventions из refactoring'а Сессии 25
+- ADR-023: Будущая микросервисная миграция длинных процессов
+- ADR-024: Object storage strategy - permanent S3-compatible storage + Postgres catalog + four-bucket criticality split
+- ADR-026: Source.bookId FK - one-source-per-book для citation flow
+- ADR-027: Positional citation fields в node_sources
+- ADR-028: Academic citation metadata - нормализованный middle path
+- ADR-029: FK variant A - surrogate `id` PK для `node_sources`
+- ADR-030: i18n архитектура - manual dictionary + DictKey union literal
+- ADR-031: v2 design system - семантические токены + Tailwind v4 `@theme inline`
+- ADR-032: Q&A приложение - foundation (Этап 19.a)
+- ADR-033: Q&A source attach - параллельная иерархия question_sources (Этап 19.b)
+- ADR-034: Q&A answers + accept-answer flow (Этап 19.c)
+- ADR-035: Apache PDFBox для page-by-page extraction (vs Tika, EPUB отложен)
+- ADR-036: react-hotkeys-hook для централизованных hotkeys
+- ADR-037: JSON export/import формат для тем
+- ADR-038: Self-hosted шрифты + Font Tweaker через CSS variables (Сессия 38)
+- ADR-039: Tiptap rich text editor для книг (Этап 17.0 prerequisite)
+- ADR-040: JWT-based authentication с transitional X-User-Id support (Этап 21)
+- ADR-041: OCR через Tess4j (Tesseract Java wrapper) для image-сканов  ⟵ отменено (заменено ADR-057, Сессия 55)
+- ADR-042: LLM provider для AI editing pass (Anthropic Claude, single-provider MVP)
+- ADR-043: RBAC permissions per-entity для topics (Этап 22)
+- ADR-044: Opt-in Dung's grounded semantics для пересчёта статусов (Этап 6)
+- ADR-045: Route-level lazy loading для frontend chunks
+- ADR-046: Rate limiting на auth endpoints через custom in-memory sliding-window filter
+- ADR-047: Refresh token rotation single-use с steal detection
+- ADR-048: Actuator endpoints behind basic auth в prod profile (Security backlog Crit #7)
+- ADR-049: Sanad graph visualization — backend dedup-node endpoint + React Flow read-only viz
+- ADR-050: Выделенная сущность hd_collections для сборников хадисов (Phase 5)
+- ADR-051: Staging-схема sn_staging_* для импорта sunnah.com (Phase 5 шаг 2)
+- ADR-052: Чтение дампа sunnah.com через MySQL-драйвер + Testcontainers (Phase 5 шаг 2.d)
+- ADR-053: Голосование перенесено с узлов на темы (community popularity signal)
+- ADR-054: Мост hd_collections ↔ lib_books — два представления одного сборника (под-проект #3)
+- ADR-055: UNIQUE на authorities.name + идемпотентный find-or-create (миграция 66)
+- ADR-056: Импорт PDF-книг из archive.org + dual-variant модель pdf_links (миграция 67)
+- ADR-057: Удаление Tesseract OCR (миграция 68)
+- ADR-058: Swappable LLM provider abstraction (пакет `ai`)
+- ADR-059: AI извлечение иснада из матна (preview)  ⟵ частично заменено ADR-060 (Сессия 56) — AI-извлечение иснада
+- ADR-060: alminasa.ai — единственный источник хадисов  ⟵ принято (заменяет решение Сессии 55 «sunnah primary + AI-иснад»
+
+---
+
+
 ## ADR-001: JDBC Template вместо JPA/Hibernate
 **Дата:** 2026-04-13
 **Статус:** принято
