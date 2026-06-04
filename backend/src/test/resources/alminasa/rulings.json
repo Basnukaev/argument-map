@@ -1,0 +1,116 @@
+{
+ "took": 1,
+ "hits": {
+  "total": {
+   "value": 8,
+   "relation": "eq"
+  },
+  "max_score": null,
+  "hits": [
+   {
+    "_index": "es-prod-euw1-rulings-12_v2.2024-08-24-23-47",
+    "_id": "yanMhpEBXUur4f6nVw_U",
+    "_score": null,
+    "_source": {
+     "hadith_id": "146-1",
+     "rulings": [
+      {
+       "hadith_id": "146-2356",
+       "ruling": "أورده في صحيحه",
+       "type": "embedded",
+       "book_name": "صحيح البخاري",
+       "number": null,
+       "page": 145,
+       "volume": 3
+      },
+      {
+       "hadith_id": "146-4707",
+       "ruling": "أورده في صحيحه",
+       "type": "embedded",
+       "book_name": "صحيح البخاري",
+       "number": null,
+       "page": 3,
+       "volume": 7
+      },
+      {
+       "hadith_id": "146-6223",
+       "ruling": "أورده في صحيحه",
+       "type": "embedded",
+       "book_name": "صحيح البخاري",
+       "number": null,
+       "page": 140,
+       "volume": 8
+      },
+      {
+       "hadith_id": "146-6467",
+       "ruling": "أورده في صحيحه",
+       "type": "embedded",
+       "book_name": "صحيح البخاري",
+       "number": null,
+       "page": 22,
+       "volume": 9
+      },
+      {
+       "hadith_id": "146-53",
+       "ruling": "أورده في صحيحه",
+       "type": "embedded",
+       "book_name": "صحيح البخاري",
+       "number": null,
+       "page": 20,
+       "volume": 1
+      },
+      {
+       "hadith_id": "146-3634",
+       "ruling": "أورده في صحيحه",
+       "type": "embedded",
+       "book_name": "صحيح البخاري",
+       "number": null,
+       "page": 56,
+       "volume": 5
+      },
+      {
+       "hadith_id": "146-1",
+       "ruling": "أورده في صحيحه",
+       "type": "embedded",
+       "book_name": "صحيح البخاري",
+       "number": null,
+       "page": 6,
+       "volume": 1
+      }
+     ],
+     "ruler": "البخاري",
+     "ruler_dod": 256,
+     "narrations_type": "raw"
+    },
+    "sort": [
+     256
+    ]
+   },
+   {
+    "_index": "es-prod-euw1-rulings-12_v2.2024-08-24-23-47",
+    "_id": "zKnMhpEBXUur4f6nVw_U",
+    "_score": null,
+    "_source": {
+     "hadith_id": "146-1",
+     "rulings": [
+      {
+       "hadith_id": "158-3537",
+       "ruling": "أورده في صحيحه",
+       "type": "embedded",
+       "book_name": "صحيح مسلم",
+       "number": null,
+       "page": 48,
+       "volume": 6
+      }
+     ],
+     "ruler": "مسلم",
+     "ruler_dod": 261,
+     "narrations_type": "raw"
+    },
+    "sort": [
+     261
+    ]
+   }
+  ]
+ }
+}
