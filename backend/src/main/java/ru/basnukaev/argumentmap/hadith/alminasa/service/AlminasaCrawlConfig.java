@@ -10,7 +10,10 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 /**
  * Single-thread executor краулера alminasa (паттерн AiEditConfig).
  * Один краулер за раз: core=max=1, queue=0; второй submit отбивается
- * AbortPolicy (но до него не доходит — claimStart() уже отдал 409).
+ * AbortPolicy: при обычном двойном старте до него не доходит
+ * (claimStart() отдал 409), при stale-takeover с ещё живым старым
+ * воркером — доходит, и контроллер маппит TaskRejectedException в
+ * тот же 409.
  * @EnableAsync уже включён в AiEditConfig.
  */
 @Configuration

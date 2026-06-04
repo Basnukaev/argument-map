@@ -3,6 +3,7 @@ package ru.basnukaev.argumentmap.hadith.alminasa.web;
 import java.util.UUID;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.task.TaskRejectedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -59,7 +60,14 @@ public class AlminasaAdminController {
     public AlminasaCrawlStatusResponse start(@CurrentUser UUID currentUserId) {
         requireAdmin(currentUserId);
         crawlService.claimStart();
-        crawlService.crawlAsync();
+        try {
+            crawlService.crawlAsync();
+        } catch (TaskRejectedException ex) {
+            // stale-takeover при ещё живом старом воркере: queue=0 отклонил submit.
+            // Чекпоинт НЕ трогаем — живой воркер продолжает advance/updated_at,
+            // его claim снова станет не-stale на границе страницы. Честный ответ — 409.
+            throw new AlminasaCrawlConflictException();
+        }
         return statusResponse();
     }
 
