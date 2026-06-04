@@ -79,7 +79,7 @@ const CONTENT_CARDS: ReadonlyArray<ToolCard> = [
     descKey: 'admin.dashboard.alminasa.desc',
     producesKey: 'admin.dashboard.alminasa.produces',
     ctaKey: 'admin.dashboard.alminasa.cta',
-    action: { kind: 'disabled' },
+    action: { kind: 'navigate', to: '/admin/hadith-import' },
   },
 ];
 
