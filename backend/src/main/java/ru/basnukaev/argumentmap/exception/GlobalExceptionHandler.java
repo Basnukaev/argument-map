@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import ru.basnukaev.argumentmap.ai.LlmApiException;
+import ru.basnukaev.argumentmap.hadith.alminasa.web.AlminasaCrawlConflictException;
 import ru.basnukaev.argumentmap.library.imports.AiEditNotConfiguredException;
 import ru.basnukaev.argumentmap.library.imports.FileImportException;
 import ru.basnukaev.argumentmap.library.imports.PageImageException;
@@ -318,6 +319,13 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleSunnahDumpNotConfigured(SunnahDumpNotConfiguredException ex) {
         return problem(HttpStatus.SERVICE_UNAVAILABLE,
                 "Источник sunnah не настроен", "sunnah-dump-not-configured",
+                ex.getMessage());
+    }
+
+    @ExceptionHandler(AlminasaCrawlConflictException.class)
+    public ProblemDetail handleAlminasaCrawlConflict(AlminasaCrawlConflictException ex) {
+        return problem(HttpStatus.CONFLICT,
+                "Краулинг alminasa уже идёт", "alminasa-crawl-already-running",
                 ex.getMessage());
     }
 
