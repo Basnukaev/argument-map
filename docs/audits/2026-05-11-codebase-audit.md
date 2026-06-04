@@ -3,8 +3,8 @@
 Полный heavy audit кодовой базы argument-map после 24 сессий Claude Code.
 Производный документ для Cleanup Marathon (Phase 1-5).
 
-**Spec:** `docs/superpowers/specs/2026-05-11-codebase-cleanup-marathon-design.md`
-**Plan:** `docs/superpowers/plans/2026-05-11-codebase-cleanup-marathon.md`
+**Spec:** `docs/specs/2026-05-11-codebase-cleanup-marathon-design.md`
+**Plan:** `docs/plans/2026-05-11-codebase-cleanup-marathon.md`
 
 ## Метрики
 

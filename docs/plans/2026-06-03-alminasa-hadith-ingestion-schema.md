@@ -8,7 +8,7 @@
 
 **Tech Stack:** Java 21 records, Spring Boot 3.5 JDBC Template (no JPA/Hibernate), PostgreSQL 16, Liquibase, Testcontainers (no H2).
 
-**Spec:** `docs/superpowers/specs/2026-06-03-alminasa-hadith-source-design.md` (§B data model).
+**Spec:** `docs/specs/2026-06-03-alminasa-hadith-source-design.md` (§B data model).
 
 **Migration numbering:** last applied migration is `20260602-69-...`; this plan adds **70** and **71**. Use the `liquibase-migration` skill when creating each migration file (ID format + master registration + rollback are error-prone).
 
@@ -60,7 +60,7 @@
 
     <!--
         Сессия 56: разворот источника хадисов на alminasa.ai (единственный
-        источник). Спека docs/superpowers/specs/2026-06-03-alminasa-hadith-source-design.md.
+        источник). Спека docs/specs/2026-06-03-alminasa-hadith-source-design.md.
 
         Новые колонки расширяют существующие hd_hadiths / hd_narrators под
         структурные данные alminasa:

@@ -28,7 +28,9 @@ frontend/                    - React/TS модуль
   design-reference/          - статические дизайн-референсы (НЕ ТРОГАТЬ)
 docs/                        - вся общая документация
   archive/                   - архив старых сессий progress
-  superpowers/               - specs, plans, audits для крупных работ
+  specs/                     - дизайн-спеки крупных работ
+  plans/                     - implementation-планы крупных работ
+  audits/                    - аудиты кодовой базы
 scripts/                     - утилиты (seed-mawlid.sh и др.)
 docker-compose.yml           - postgres (опционально minio)
 ```
@@ -79,7 +81,7 @@ scripts/seed-mawlid.sh     # тестовая тема для argument-map
 10. **`docs/doc-hygiene.md`** - правила поддержания документации
     в порядке (когда сжимать roadmap, ротировать SESSION_START_PROMPT,
     архивировать progress, и т.д.)
-11. **`docs/superpowers/specs/`** + **`audits/`** - дизайн-спеки и
+11. **`docs/specs/`** + **`audits/`** - дизайн-спеки и
     аудиты крупных работ
 
 Бэкенд- и фронтенд-специфичные правила - в `backend/CLAUDE.md` и

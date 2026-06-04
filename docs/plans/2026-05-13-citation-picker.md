@@ -8,7 +8,7 @@
 
 **Tech Stack:** Java 21, Spring Boot 3.5, JDBC Template, Liquibase 22+23 миграции, Testcontainers, React 19, Vite, Vitest+MSW, PDF.js, Tailwind v4.
 
-**Spec:** `docs/superpowers/specs/2026-05-13-citation-picker-design.md`
+**Spec:** `docs/specs/2026-05-13-citation-picker-design.md`
 
 ---
 
@@ -2623,8 +2623,8 @@ Edit `docs/progress.md`. Add new entry at top (after current sessions header):
 
 Сессия начата с brainstorming через superpowers skill, scope согласован
 с user'ом (MVP только argument-map, бэк full positional citation модель,
-1 сессия). Spec в docs/superpowers/specs/2026-05-13-citation-picker-design.md,
-plan в docs/superpowers/plans/2026-05-13-citation-picker.md.
+1 сессия). Spec в docs/specs/2026-05-13-citation-picker-design.md,
+plan в docs/plans/2026-05-13-citation-picker.md.
 
 ### Сделано
 
@@ -2757,7 +2757,7 @@ No naming inconsistencies found.
 
 ## Execution Handoff
 
-Plan complete and saved to `docs/superpowers/plans/2026-05-13-citation-picker.md`.
+Plan complete and saved to `docs/plans/2026-05-13-citation-picker.md`.
 
 Two execution options:
 

@@ -227,7 +227,7 @@ CREATE lib_publishers / lib_publication_places / lib_muhaqqiqs справочн�
 ALTER lib_books + 3 FK + 3 скаляра (edition_number, годы по хиджре и григорианскому).
 3 CHECK constraint для sanity, 3 BTREE индекса на новые FK.
 
-ADR-028 - см. docs/superpowers/specs/2026-05-14-academic-citation-metadata-design.md
+ADR-028 - см. docs/specs/2026-05-14-academic-citation-metadata-design.md
 EOF
 )"
 ```
@@ -2866,7 +2866,7 @@ Plan готов.
 
 ## Execution Handoff
 
-Plan saved to `docs/superpowers/plans/2026-05-14-academic-citation-metadata.md`.
+Plan saved to `docs/plans/2026-05-14-academic-citation-metadata.md`.
 
 Два варианта execution:
 

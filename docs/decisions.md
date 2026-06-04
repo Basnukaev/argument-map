@@ -1578,7 +1578,7 @@ E) **Skip миграции и сделать всё через jsonb** - не т
 **Статус:** принято
 **Реализовано:** Сессия 25 (cleanup marathon, 15 коммитов от a3f3a20 до 899690f)
 **Контекст:** после 24 сессий накопился техдолг. Audit (46 findings,
-`docs/superpowers/audits/2026-05-11-codebase-audit.md`) выявил
+`docs/audits/2026-05-11-codebase-audit.md`) выявил
 структурные паттерны которые надо зафиксировать как convention -
 иначе следующие этапы (Q&A 19, CitationPicker 18.f) будут наступать
 на те же проблемы.
@@ -5786,7 +5786,7 @@ credentials из env-переменных `ACTUATOR_USERNAME` + `ACTUATOR_PASSWO
 **Связанные решения:**
 
 - **ADR-018** (platform pivot) — hadith как третье app окупает pivot.
-- **Spec** `docs/superpowers/specs/2026-05-20-hadith-explorer-design.md`
+- **Spec** `docs/specs/2026-05-20-hadith-explorer-design.md`
   (Phase 3 §5.3) — этот ADR реализует и слегка переопределяет tentative
   ADR-052 из спеки (фактический следующий номер — 049).
 - **ADR-045** (lazy chunks) — `@xyflow/react` грузится в hadith-detail chunk.
@@ -5812,7 +5812,7 @@ migration не нужна — оба поля были NULL во всём seed'�
 − API-контракт изменился (primaryBookId/sourceBookId → collectionId), потребовал
 правки frontend-типов.
 
-**Связанные:** Spec `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md` §11
+**Связанные:** Spec `docs/specs/2026-05-31-sunnah-etl-design.md` §11
 (decision points #3/#4 + порядок эпика), ADR-049 (sanad graph).
 
 ## ADR-051: Staging-схема sn_staging_* для импорта sunnah.com (Phase 5 шаг 2)
@@ -5877,7 +5877,7 @@ dump-first/API-later), `SunnahToHadithMapper` (staging → hd_*) и
   руками как в `DevHadithSeeder` — для ETL на тысячах matn'ов это
   обязательно.
 
-**Связанные:** Spec `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md`
+**Связанные:** Spec `docs/specs/2026-05-31-sunnah-etl-design.md`
 §5/§7/§11, ADR-020 (shamela ETL двухслойная staging), ADR-050 (hd_collections).
 
 ## ADR-052: Чтение дампа sunnah.com через MySQL-драйвер + Testcontainers (Phase 5 шаг 2.d)
@@ -6078,7 +6078,7 @@ saveIgnoreConflict` = `INSERT ... ON CONFLICT (name) DO NOTHING` + re-select →
 ## ADR-056: Импорт PDF-книг из archive.org + dual-variant модель pdf_links (миграция 67)
 
 **Контекст.** Админ-инструмент импорта книг из archive.org (спека
-`docs/superpowers/specs/2026-06-02-archive-org-pdf-import-design.md`). archive.org
+`docs/specs/2026-06-02-archive-org-pdf-import-design.md`). archive.org
 отдаёт книгу как набор PDF: оригинал-скан (`Image Container PDF`,
 source=original) + OCR-слой (`Additional Text PDF`, `*_text.pdf`,
 source=derivative), сгруппированных по именам `{id}{N}` (`{id}0` = обложка,
@@ -6497,6 +6497,6 @@ AI-галлюцинации в иснаде и наивный fuzzy-матчин
   рантайм к alminasa не ходит.
 
 **Связанные:** дизайн-спека —
-`docs/superpowers/specs/2026-06-03-alminasa-hadith-source-design.md`;
+`docs/specs/2026-06-03-alminasa-hadith-source-design.md`;
 superseded — ADR-059 (AI-иснад), решение Сессии 55; остаётся — ADR-058
 (swappable LLM), ADR-050 (`hd_collections`).

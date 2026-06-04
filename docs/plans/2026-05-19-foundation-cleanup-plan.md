@@ -8,7 +8,7 @@
 
 **Tech Stack:** Markdown files. Git atomic commits with Conventional Commits format `docs:` / `chore:`. Shell для verification (`grep`, `wc`, `git diff`).
 
-**Spec:** `docs/superpowers/specs/2026-05-19-foundation-cleanup-design.md` (commit `e7be9d7`)
+**Spec:** `docs/specs/2026-05-19-foundation-cleanup-design.md` (commit `e7be9d7`)
 
 ---
 
@@ -29,7 +29,7 @@
 - `.claude/settings.json` — уточнить deny rules (убрать Read denies, добавить Write/Edit/Bash guards) (Task 9)
 - `.claude/commands/start_conv.md` — переписать под актуальный SESSION_START_PROMPT (Task 10)
 - `docs/progress.md` — handoff запись (Task 11)
-- `docs/superpowers/specs/2026-05-19-foundation-cleanup-design.md` — корректировка acceptance criterion #2 (Task 11)
+- `docs/specs/2026-05-19-foundation-cleanup-design.md` — корректировка acceptance criterion #2 (Task 11)
 
 **Не трогаются:** `src/`, `docs/decisions.md`, `docs/roadmap.md` (sub-project'ы не tracked в roadmap), native subagents, Superpowers plugin, design-reference/
 
@@ -846,7 +846,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `docs/progress.md` (новая запись Сессии 47 в начало)
-- Modify: `docs/superpowers/specs/2026-05-19-foundation-cleanup-design.md` (criterion #2 update)
+- Modify: `docs/specs/2026-05-19-foundation-cleanup-design.md` (criterion #2 update)
 
 - [ ] **Step 1: Verify CLAUDE.md sizes**
 
@@ -891,7 +891,7 @@ Expected: lint passes, build succeeds, все ~571 тестов проходят
 
 - [ ] **Step 5: Скорректировать spec — criterion #2 и section 4.5**
 
-Use Edit tool. **Изменение 1:** в `docs/superpowers/specs/2026-05-19-foundation-cleanup-design.md` заменить:
+Use Edit tool. **Изменение 1:** в `docs/specs/2026-05-19-foundation-cleanup-design.md` заменить:
 
 ```markdown
 2. `frontend/CLAUDE.md` ≤ 250 строк (с 351)
@@ -991,7 +991,7 @@ backend/CLAUDE.md и frontend/CLAUDE.md в один общий гайд.
 - [ ] **Step 7: Final handoff commit**
 
 ```bash
-git add docs/progress.md docs/superpowers/specs/2026-05-19-foundation-cleanup-design.md
+git add docs/progress.md docs/specs/2026-05-19-foundation-cleanup-design.md
 git commit -m "docs: handoff Sub-project A (Foundation cleanup) closed
 
 Sub-project A из Claude Code harness setup закрыт. Изменения:
@@ -1086,7 +1086,7 @@ Verification passed.
 
 ## Execution Handoff
 
-**Plan complete and saved to `docs/superpowers/plans/2026-05-19-foundation-cleanup-plan.md`. Two execution options:**
+**Plan complete and saved to `docs/plans/2026-05-19-foundation-cleanup-plan.md`. Two execution options:**
 
 **1. Subagent-Driven (recommended by skill)** — диспетчирую fresh subagent на каждый task, two-stage review между tasks, fast iteration
 

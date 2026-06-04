@@ -77,7 +77,7 @@
 stability/quality audit + cleanup существующего бэкенд-кода. subagent
 task в параллели с frontend code health и e2e playwright sessions.
 
-**Audit report**: `docs/superpowers/audits/2026-05-18-backend-audit.md`
+**Audit report**: `docs/audits/2026-05-18-backend-audit.md`
 
 10 зон проверки: god classes, long methods, code duplication, dead
 code, magic numbers, exception handling, SQL injection, @Transactional
@@ -110,7 +110,7 @@ consistency, IT coverage gaps, configuration properties
 
 **Документация:**
 
-- `docs/superpowers/audits/2026-05-18-backend-audit.md` - полный
+- `docs/audits/2026-05-18-backend-audit.md` - полный
   audit report (10 зон, critical/important/minor с обоснованием)
 
 **Метрики:**
@@ -137,7 +137,7 @@ consistency, IT coverage gaps, configuration properties
 Audit и cleanup существующего фронтенд-кода. Subagent task в параллели
 с backend code health и e2e playwright sessions.
 
-**Audit report**: `docs/superpowers/audits/2026-05-18-frontend-audit.md`
+**Audit report**: `docs/audits/2026-05-18-frontend-audit.md`
 
 Зон проверки 12: large components, any usage, enum, physical Tailwind,
 useMemo/useCallback, hardcoded strings, console.log/debugger, accessibility,
@@ -172,7 +172,7 @@ index keys, test coverage, custom hooks duplication, component composition.
 - `frontend/docs/coding-standards.md` - расширен раздел про index
   keys: добавлены допустимые исключения (parser segments, static
   visualizations) с требованием комментариев-обоснований
-- `docs/superpowers/audits/2026-05-18-frontend-audit.md` - полный
+- `docs/audits/2026-05-18-frontend-audit.md` - полный
   audit report (12 зон, метрики, recommendations)
 - 23 новых i18n ключа добавлено в `shared/i18n/dictionary.ts` ru+ar
 

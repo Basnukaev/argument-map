@@ -20,7 +20,7 @@ subagent-driven (имплементер + spec-ревью + quality-ревью �
 ### Сделано
 
 **Спека + План 1 (заход 1, 03.06):** дизайн-спека
-`docs/superpowers/specs/2026-06-03-alminasa-hadith-source-design.md` (HAR-анализ,
+`docs/specs/2026-06-03-alminasa-hadith-source-design.md` (HAR-анализ,
 архитектура краулер→staging→map, модель данных, фазовый план 1-7); план 1
 `2026-06-03-alminasa-hadith-ingestion-schema.md`; **миграции 70-71** (alminasa-колонки
 hd_hadiths/hd_narrators: external_id/type/chapter/full_text/tabaqa/grade_text;
@@ -102,7 +102,7 @@ cross-refs из raw_narrations, рулинги/шархи/relations, book-id→s
 После него План 4 (выпил sunnah ETL + AI-иснад) → 5 (админка) → 6-7 (фронт, AI-перевод).
 
 Запрос Абдулы: 10 пунктов + скриншоты `img*.png` + HAR (archive.org/alminasa).
-Полностью автономный марафон. Спека `docs/superpowers/specs/2026-06-02-session-55-overhaul.md`.
+Полностью автономный марафон. Спека `docs/specs/2026-06-02-session-55-overhaul.md`.
 Карта кода — multi-agent workflow (6 агентов). ~14 коммитов.
 
 ### Сделано (7 фаз)
@@ -200,7 +200,7 @@ extract-isnad → `{llmEnabled:false}` (graceful без ключа).
 
 Запрос Абдулы: админ-инструмент импорта книг из archive.org по URL (parser +
 preview + gap-aware enrichment + выбор обложки/томов). Brainstorm→спека
-(`docs/superpowers/specs/2026-06-02-archive-org-pdf-import-design.md`, одобрена)
+(`docs/specs/2026-06-02-archive-org-pdf-import-design.md`, одобрена)
 → реализация 2 субагентами (backend+frontend). ADR-056, migration 67. ~3 коммита.
 
 ### Сделано (MVP)
@@ -392,7 +392,7 @@ shamela sync category.sqlite зависит от живого shamela.ws (env). 
 **Автономный режим (ultracode).** Абдула дал большой product-брифинг («доведи до
 предпрода, подготовь инструменты для ручного наполнения контентом») с 13 болями и
 ушёл на часы, доверив все решения. Бриф зафиксирован в спеке
-`docs/superpowers/specs/2026-06-02-preprod-ux-overhaul.md` (источник истины) +
+`docs/specs/2026-06-02-preprod-ux-overhaul.md` (источник истины) +
 memory `project_session_54_preprod` + 3 feedback-memory. Сделано **широким
 параллелизмом субагентов** (backend ∥ frontend на disjoint-доменах; frontend
 сериализуется на общем dictionary.ts/master-changelog). Коммиты `1102d27..HEAD`.

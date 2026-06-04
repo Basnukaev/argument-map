@@ -441,5 +441,5 @@ pattern (keep только block patterns).
   hook автоматически loads
 
 **Связано со spec'ами:**
-- `docs/superpowers/specs/2026-05-19-foundation-cleanup-design.md`
+- `docs/specs/2026-05-19-foundation-cleanup-design.md`
   (Sub-project A) — этот sub-project продолжает roadmap из там

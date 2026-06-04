@@ -3,7 +3,7 @@
 **Дата:** 2026-05-20
 **Автор:** Абдула + brainstorming
 **Статус:** approved, ожидает implementation plan
-**Источник запроса:** `docs/superpowers/specs/2026-05-20-vision-expansion-49d.md`
+**Источник запроса:** `docs/specs/2026-05-20-vision-expansion-49d.md`
 Section 2.1
 **Связанные ADR (existing):** ADR-030 (NodeVote ±1, только nodes),
 ADR-032 (Q&A model без vote system), ADR-043 (visibility/members),

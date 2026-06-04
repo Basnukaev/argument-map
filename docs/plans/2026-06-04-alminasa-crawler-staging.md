@@ -8,8 +8,8 @@
 
 **Tech Stack:** Java 21, Spring Boot 3.5, JDBC Template, Liquibase (миграция 72), `java.net.http.HttpClient`, Jackson, Resilience4j `@Retry`, Testcontainers + JDK `com.sun.net.httpserver.HttpServer` (stub).
 
-**Спека:** `docs/superpowers/specs/2026-06-03-alminasa-hadith-source-design.md` (раздел A + B-staging + G).
-**Plan 1 (закрыт):** `docs/superpowers/plans/2026-06-03-alminasa-hadith-ingestion-schema.md` — миграции 70-71, домен, репозитории.
+**Спека:** `docs/specs/2026-06-03-alminasa-hadith-source-design.md` (раздел A + B-staging + G).
+**Plan 1 (закрыт):** `docs/plans/2026-06-03-alminasa-hadith-ingestion-schema.md` — миграции 70-71, домен, репозитории.
 
 ---
 
@@ -196,7 +196,7 @@ author `Abdula Basnukaev`, rollback, регистрация в master, CDATA.
 
     <!--
         План 2 alminasa-инжеста (ADR-060): staging-слой am_staging_* + чекпоинт
-        краулинга. Спека: docs/superpowers/specs/2026-06-03-alminasa-hadith-source-design.md §A/§B.
+        краулинга. Спека: docs/specs/2026-06-03-alminasa-hadith-source-design.md §A/§B.
 
         Паттерн зеркалит sn_staging_* (миграция 59, ADR-051), отличия:
 

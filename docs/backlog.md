@@ -8,9 +8,9 @@
 
 > **Сессия 49d vision expansion (2026-05-20):** Абдула задал большой
 > список новых целей в начале сессии. Полный structured список — в
-> `docs/superpowers/specs/2026-05-20-vision-expansion-49d.md`. Items
+> `docs/specs/2026-05-20-vision-expansion-49d.md`. Items
 > ниже отражают/ссылаются на этот документ. Большие фичи получают
-> отдельные design-specs в `docs/superpowers/specs/` по мере
+> отдельные design-specs в `docs/specs/` по мере
 > приоритезации.
 
 ## Фронт - общие улучшения
@@ -531,7 +531,7 @@ permission-модель», который надо домести чтобы swe
 ### Bug-hunt Tier-3 (Сессия 52, 2026-06-01) — 30 low-severity
 
 Из multi-agent багоохоты (235 агентов, 48 подтверждённых; HIGH security +
-medium закрыты в Сессии 52, см. `docs/superpowers/audits/2026-06-01-bug-hunt-handoff.md`).
+medium закрыты в Сессии 52, см. `docs/audits/2026-06-01-bug-hunt-handoff.md`).
 Остаток — low severity, ни один не критичен. Канон фиксов — в handoff'е.
 
 Security hardening:

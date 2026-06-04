@@ -1976,7 +1976,7 @@ API из WSL2 требует VPN/прокси» выше).
 соединение.
 
 **Узнано:** Сессия 51 (2026-05-31), Phase 5 feasibility-спайк.
-Детали — `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md` §3.
+Детали — `docs/specs/2026-05-31-sunnah-etl-design.md` §3.
 
 ## Тесты зелёные в изоляции, падают в полном прогоне (test pollution)
 

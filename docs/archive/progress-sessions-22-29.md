@@ -180,7 +180,7 @@ End-to-end ручной browser test для confirmation flow:
 5. Task 9 (45 мин) - BookReaderPage query params parsing для deep links
 6. Task 10-12 - lint+build+tests verify, playwright smoke, handoff
 
-Plan: `docs/superpowers/plans/2026-05-13-citation-picker.md`.
+Plan: `docs/plans/2026-05-13-citation-picker.md`.
 
 Smoke данные в production-БД:
 - 1 row sources с book_id (02bcfa43.../тафсир ибн касира) от ensure-or-create
@@ -262,7 +262,7 @@ backend restart с новой codebase.
 ### Следующий шаг
 
 **Новая сессия начинает с Task 3 plan'а** (NodeCitationService + Controller
-+ ~23 IT + computed location JOIN). Детально в `docs/superpowers/plans/2026-05-13-citation-picker.md`.
++ ~23 IT + computed location JOIN). Детально в `docs/plans/2026-05-13-citation-picker.md`.
 
 Краткая последовательность что осталось:
 1. **Task 3** (60-90 мин) - NodeCitationService с ensure-or-create Source,
@@ -316,11 +316,11 @@ bite-sized implementation plan'ом.
     ShamelaToLibraryMapper.mapBook удовлетворяет инвариант стабильности
     page_id, UPSERT fix не требуется (только gotcha)
 
-- **Spec написан** `af2254d` - `docs/superpowers/specs/2026-05-13-citation-picker-design.md`
+- **Spec написан** `af2254d` - `docs/specs/2026-05-13-citation-picker-design.md`
   (726 строк). Self-review passed (placeholder/consistency/scope/ambiguity)
 
 - **Implementation plan написан** `361a8bc` -
-  `docs/superpowers/plans/2026-05-13-citation-picker.md` (2768 строк).
+  `docs/plans/2026-05-13-citation-picker.md` (2768 строк).
   12 tasks с bite-sized TDD steps, complete code snippets, exact commit
   messages, self-review passed. Task 0-12 ровно покрывают spec.
 
@@ -372,8 +372,8 @@ bite-sized implementation plan'ом.
 
 **Новая сессия (Сессия 30) начинает с Task 0 plan'а.**
 
-Plan: `docs/superpowers/plans/2026-05-13-citation-picker.md` - читать
-полностью. Spec: `docs/superpowers/specs/2026-05-13-citation-picker-design.md`
+Plan: `docs/plans/2026-05-13-citation-picker.md` - читать
+полностью. Spec: `docs/specs/2026-05-13-citation-picker-design.md`
 - для контекста.
 
 Порядок:
@@ -1227,7 +1227,7 @@ tempDir (`/tmp/argmap-pdf/{bookId}/{filename}.pdf`) и оставляет
    по `LastModified`. Или объект-метаданными timestamp последнего
    access (PUT каждый access - дорого, лучше LastModified)
 
-**Спецификация**: `docs/superpowers/specs/2026-05-11-pdf-viewer-source-agnostic.md`
+**Спецификация**: `docs/specs/2026-05-11-pdf-viewer-source-agnostic.md`
 раздел "25.b - MinIO infrastructure".
 
 **Альтернативные приоритеты для Сессии 27**:
@@ -1261,7 +1261,7 @@ tempDir (`/tmp/argmap-pdf/{bookId}/{filename}.pdf`) и оставляет
 
 **Phase 0 (Audit):** 4 параллельных Explore-агента (backend, frontend,
 tests, docs), 46 findings собраны в
-`docs/superpowers/audits/2026-05-11-codebase-audit.md`. 10 high,
+`docs/audits/2026-05-11-codebase-audit.md`. 10 high,
 18 medium, 18 low/info.
 
 **Phase 1 (Backend boundaries):** 23 файла, +954/-781 LOC, 1 коммит:
@@ -1484,7 +1484,7 @@ polish-задачи:
 D-04 archive).
 
 Полный список с file:line - в
-`docs/superpowers/audits/2026-05-11-codebase-audit.md` секция
+`docs/audits/2026-05-11-codebase-audit.md` секция
 "Phase backlog".
 
 **Что MARATHON НЕ ТРОНУЛ (out of scope):**

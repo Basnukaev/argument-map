@@ -7,7 +7,7 @@
 - `2026-05-11-codebase-audit.md` - первый полный heavy audit после 24
   сессий (backend Java + frontend TS/TSX + tests + docs). 46 findings.
   Источник для Cleanup Marathon (см.
-  `docs/superpowers/specs/2026-05-11-codebase-cleanup-marathon-design.md`)
+  `docs/specs/2026-05-11-codebase-cleanup-marathon-design.md`)
 
 ## Когда читать
 
@@ -21,5 +21,5 @@
 ## Что НЕ хранится здесь
 
 - Текущие задачи (см. roadmap.md)
-- Реализация (см. specs + plans в `docs/superpowers/`)
+- Реализация (см. `docs/specs/` + `docs/plans/`)
 - Лог сессий (см. progress.md)

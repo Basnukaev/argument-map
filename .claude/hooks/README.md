@@ -2,7 +2,7 @@
 
 Sub-project B из Claude Code harness setup (статья Anthropic May 2026
 «How Claude Code works in large codebases»). См. design spec:
-`docs/superpowers/specs/2026-05-19-hooks-setup-design.md`.
+`docs/specs/2026-05-19-hooks-setup-design.md`.
 
 ## Hooks overview
 

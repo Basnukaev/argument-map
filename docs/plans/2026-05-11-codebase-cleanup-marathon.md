@@ -8,7 +8,7 @@
 
 **Tech Stack:** Java 21, Spring Boot 3.5, JDBC Template, Postgres 16, Liquibase, React 19, Vite 6, Tailwind v4, React Flow, Zustand 5, openapi-typescript, Vitest, JUnit 5 + Testcontainers.
 
-**Связанный spec:** `docs/superpowers/specs/2026-05-11-codebase-cleanup-marathon-design.md`
+**Связанный spec:** `docs/specs/2026-05-11-codebase-cleanup-marathon-design.md`
 
 **Out of scope (повтор из спека):**
 - Изменения в схеме БД
@@ -27,8 +27,8 @@
 
 | Файл | Назначение |
 |------|-----------|
-| `docs/superpowers/audits/2026-05-11-codebase-audit.md` | свод audit findings (Phase 0) |
-| `docs/superpowers/audits/README.md` | index audit-документов |
+| `docs/audits/2026-05-11-codebase-audit.md` | свод audit findings (Phase 0) |
+| `docs/audits/README.md` | index audit-документов |
 | `docs/archive/progress-sessions-1-20.md` | архив старых записей progress.md (Phase 5) |
 | `CLAUDE.md` (корень проекта) | быстрый старт для новых сессий Claude Code (Phase 5) |
 | `frontend/src/apps/argument-map/` (директория) | модуль argument-map (Phase 2) |
@@ -94,7 +94,7 @@ Single message с 4 Agent tool calls (subagent_type=Explore), все foreground.
 ### Task 0.2: Свести findings в единый документ
 
 **Files:**
-- Create: `docs/superpowers/audits/2026-05-11-codebase-audit.md`
+- Create: `docs/audits/2026-05-11-codebase-audit.md`
 
 - [ ] **Step 1: Дедуп cross-cutting**
 
@@ -131,13 +131,13 @@ Single message с 4 Agent tool calls (subagent_type=Explore), все foreground.
 
 - `2026-05-11-codebase-audit.md` - первый полный audit после 24 сессий
   (backend Java + frontend TS/TSX + tests + docs). Источник для cleanup
-  marathon (см. `docs/superpowers/specs/2026-05-11-codebase-cleanup-marathon-design.md`)
+  marathon (см. `docs/specs/2026-05-11-codebase-cleanup-marathon-design.md`)
 ```
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add docs/superpowers/audits/
+git add docs/audits/
 git commit -m "docs(audit): полный codebase audit перед cleanup marathon"
 ```
 
@@ -805,8 +805,8 @@ scripts/seed-mawlid.sh     # тестовая тема
 6. `docs/api-contract.md` - источник истины REST контракта
 7. `docs/glossary.md` - термины проекта
 8. `docs/progress.md` - актуальный лог сессий (старое в `docs/archive/`)
-9. `docs/superpowers/specs/` - спеки крупных работ
-10. `docs/superpowers/audits/` - аудиты кодовой базы
+9. `docs/specs/` - спеки крупных работ
+10. `docs/audits/` - аудиты кодовой базы
 
 ## Конвенции
 
@@ -949,7 +949,7 @@ Expected: всё зелёное.
 ### Сделано
 
 - Phase 0: Audit через 4 параллельных Explore-агентов, документ
-  `docs/superpowers/audits/2026-05-11-codebase-audit.md` с N findings
+  `docs/audits/2026-05-11-codebase-audit.md` с N findings
 - Phase 1: backend boundaries (ShamelaToLibraryMapper разнесён на 3,
   плюс ...)
 - Phase 2: внедрена `src/apps/{argument-map,library,admin}` + `src/shared/`

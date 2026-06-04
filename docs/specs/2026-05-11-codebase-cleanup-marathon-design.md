@@ -203,7 +203,7 @@ Phase 0 (Audit)   →   Phase 1 (Backend boundaries)
 
 ### Output Phase 0
 
-Документ `docs/superpowers/audits/2026-05-11-codebase-audit.md`:
+Документ `docs/audits/2026-05-11-codebase-audit.md`:
 
 ```
 # Codebase audit 2026-05-11
@@ -528,7 +528,7 @@ Tailwind v4]
 
 Удалить gotcha которые уже решены, оставить актуальные.
 
-#### 7. Создать `docs/superpowers/audits/README.md`
+#### 7. Создать `docs/audits/README.md`
 
 Короткий index какие audit-документы есть и для чего.
 

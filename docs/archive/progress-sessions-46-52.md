@@ -21,7 +21,7 @@ Memory `feedback_session_buffering_venv.md`.
 измерения + 3-линзовая adversarial-верификация → 72 raw → **48
 подтверждённых** (24 отброшено). Системный вывод: ADR-043 permission-модель
 не вызывалась рядом эндпоинтов. Triage в
-`docs/superpowers/audits/2026-06-01-bug-hunt-handoff.md`.
+`docs/audits/2026-06-01-bug-hunt-handoff.md`.
 
 **2. Фиксы из багоохоты (9 коммитов).** Все 4 HIGH security + medium:
 - `c2eafe3` минимап double-offset; `8dc88ad` 6 authz-дыр (export/PDF-IDOR/
@@ -61,7 +61,7 @@ hadith/narrator страниц + fix Load More stale-append race. 9/9 тесто
 ### Следующее (для свежей сессии — handoff)
 
 **Phase 5 ETL sunnah.com** — основной эпик (~3-4 сессии). Спека
-`docs/superpowers/specs/2026-05-31-sunnah-etl-design.md` (decision points
+`docs/specs/2026-05-31-sunnah-etl-design.md` (decision points
 решены). Step 1 (hd_collections) сделан в Сессии 51. **Next = SunnahDataSource**
 (API client + dump reader, зеркало shamela-паттерна). Брать в чистом
 контексте — это greenfield ETL, не bounded fix.
@@ -99,7 +99,7 @@ hadith/narrator страниц + fix Load More stale-append race. 9/9 тесто
   RU/AR; docs (CLAUDE.md RTL-исключение, architecture.md) синхронизированы.
 
 **2. Phase 5 ETL sunnah.com — feasibility-спайк + design spec** (`006045b`,
-код не писал — по плану). Spec: `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md`.
+код не писал — по плану). Spec: `docs/specs/2026-05-31-sunnah-etl-design.md`.
 
 **3. Tech-debt: lint repo-wide → GREEN** (2 коммита).
 - `a969313` HelpShortcuts immutability (let currentGroup мутировался в render
@@ -293,7 +293,7 @@ context conservation, frontend-design skill перед UI changes.
 
 ### Vision capture
 
-- `docs/superpowers/specs/2026-05-20-vision-expansion-49d.md` — full
+- `docs/specs/2026-05-20-vision-expansion-49d.md` — full
   structured список целей Абдулы (3 уровня: critical bugs / UI polish /
   platform features), приоритизация, workflow rules для continuation.
 
@@ -343,7 +343,7 @@ context conservation, frontend-design skill перед UI changes.
 - **B (Audit UI broken investigation)** — нашёл что dictionary keys уже
   есть, проблема в отсутствующем `color-scheme`. Secondary: перевод
   labels RU/AR.
-- **C (Roles design spec)** — создал `docs/superpowers/specs/
+- **C (Roles design spec)** — создал `docs/specs/
   2026-05-20-roles-system-design.md` (572 строки). 10 subphases (49.a-j),
   ~19.5h effort, ready for implementation. Generalizes existing
   `ProtectedRoute requireRole=` instead of создания новых wrappers.
@@ -533,7 +533,7 @@ collections`, REST CRUD, BookCard menu «Добавить в коллекцию�
   AnswerControllerIT 6/6, AnswerServiceIT 20/20. Frontend 573/573,
   TypeScript clean.
 - **Migrations:** 48 → 49 applied (CHECK constraint expansion).
-- **Specs созданы:** 5 в `docs/superpowers/specs/`:
+- **Specs созданы:** 5 в `docs/specs/`:
   - `2026-05-20-vision-expansion-49d.md` (root)
   - `2026-05-20-roles-system-design.md` (572 строки, **Phase A.1/A.2
     реализованы**, A.3-A.10 ready)
@@ -800,11 +800,11 @@ Backlog 100% проверен — все «quick wins» либо done либо s
 #### Коммиты
 
 - `89b30f6` `docs: spec для Sub-project C (project-specific skills) Claude Code harness` —
-  `docs/superpowers/specs/2026-05-19-project-skills-design.md` (~403 строки):
+  `docs/specs/2026-05-19-project-skills-design.md` (~403 строки):
   контекст (Anthropic article), goals, non-goals, design всех 4 skills,
   storage layout `.claude/skills/`, acceptance criteria, risks (4 пункта)
 - `32e3647` `docs: implementation plan для Sub-project C первый skill liquibase-migration` —
-  `docs/superpowers/plans/2026-05-19-project-skills-plan.md`: file structure,
+  `docs/plans/2026-05-19-project-skills-plan.md`: file structure,
   frontmatter content, manual test plan (7 check-points), backlog для 3
   remaining skills
 - `8a61608` `feat(.claude): liquibase-migration skill` —
@@ -1091,12 +1091,12 @@ Spec + plan + 10 атомарных execution коммитов + handoff:
 ### Spec и plan для будущих sessions
 
 **Sub-project A:**
-- Spec: `docs/superpowers/specs/2026-05-19-foundation-cleanup-design.md` (commit `e7be9d7`)
-- Plan: `docs/superpowers/plans/2026-05-19-foundation-cleanup-plan.md` (commit `92f1776`)
+- Spec: `docs/specs/2026-05-19-foundation-cleanup-design.md` (commit `e7be9d7`)
+- Plan: `docs/plans/2026-05-19-foundation-cleanup-plan.md` (commit `92f1776`)
 
 **Sub-project B:**
-- Spec: `docs/superpowers/specs/2026-05-19-hooks-setup-design.md` (commit `e4eed41`)
-- Plan: `docs/superpowers/plans/2026-05-19-hooks-setup-plan.md` (commit `9a7b45d`)
+- Spec: `docs/specs/2026-05-19-hooks-setup-design.md` (commit `e4eed41`)
+- Plan: `docs/plans/2026-05-19-hooks-setup-plan.md` (commit `9a7b45d`)
 
 ---
 

@@ -341,7 +341,7 @@ DAO bulk-upsert в lib_shamela_*. Не хватает оркестрации - �
     полного pipeline в lib_shamela_book есть >0 строк, в lib_shamela_page
     есть >0 строк для этой книги
 
-- Опционально: маленький design-документ `docs/superpowers/specs/2026-05-09-shamela-import-pipeline.md`
+- Опционально: маленький design-документ `docs/specs/2026-05-09-shamela-import-pipeline.md`
   с диаграммой потоков syncMaster + importBook (если по ходу
   возникнут вопросы по error-handling или transactions)
 **Не делать в 15.4:**
@@ -380,7 +380,7 @@ DAO bulk-upsert в lib_shamela_*. Не хватает оркестрации - �
 5 коммитов (плюс 1 docs про темп сборок):
 
 1. `506f144` `docs: design spec для Этапа 14 Library MVP` -
-   полный design-doc в `docs/superpowers/specs/2026-05-08-library-mvp-design.md`
+   полный design-doc в `docs/specs/2026-05-08-library-mvp-design.md`
    с доменной моделью, схемой миграции, REST-эндпоинтами, тестовой
    стратегией и разбивкой на 4 подэтапа
 2. `6489b0e` `feat(backend): library liquibase migration 16` -
@@ -3130,7 +3130,7 @@ cd ../frontend && claude
 
 ### Сделано
 - Брейнсторм Этапа 3 → дизайн в
-  `docs/superpowers/specs/2026-05-03-stage-3-services-design.md`
+  `docs/specs/2026-05-03-stage-3-services-design.md`
 - 2 новых ADR:
   - **ADR-006** — `createdBy` через HTTP-заголовок `X-User-Id` до
     появления Spring Security (Этап 6)

@@ -16,7 +16,7 @@
 > `ShamelaImportService` удалён, разнесён на
 > `MasterSyncService` + `BookImportService` + `WorkDirManager`. DTO
 > переименованы под `*Response` convention. См. ADR-022 + аудит
-> `docs/superpowers/audits/2026-05-11-codebase-audit.md`
+> `docs/audits/2026-05-11-codebase-audit.md`
 
 ---
 
@@ -152,7 +152,7 @@
   1-col grid, filter chips overflow-x-auto. 0 horizontal scroll на
   375px на всех тронутых страницах. 179 tests pass
 - **Предпрод UX-overhaul + content-tooling** (закрыт Сессия 54, 17 коммитов,
-  спека `docs/superpowers/specs/2026-06-02-preprod-ux-overhaul.md`) — 8 фаз по
+  спека `docs/specs/2026-06-02-preprod-ux-overhaul.md`) — 8 фаз по
   13 болям Абдулы: SWR-кэш данных (мгновенная навигация), единый ListControls,
   redesign чтения хадиса/Q&A, settings drawer + UI-scale (дефолт 0.9), карточки
   библиотеки, голосование node→topic (ADR), **overhaul админки + Sunnah
@@ -167,7 +167,7 @@
   description. **Итерации archive.org** (фоновое извлечение всех томов,
   volume-dropdown, eager-UI, relabel) — open, спека §10. migrations через 67.
 - **Сессия 55 — overhaul (7 фаз + code-review, ~14 коммитов)** — спека
-  `docs/superpowers/specs/2026-06-02-session-55-overhaul.md`. **OCR выпилен полностью**
+  `docs/specs/2026-06-02-session-55-overhaul.md`. **OCR выпилен полностью**
   (ADR-057, migration 68; Этап 17 OCR-часть отменена, AiEdit+image-upload сохранены);
   **swappable LLM** (ADR-058, пакет `ai/`, anthropic/openai/deepseek + BookMetadataExtraction);
   **content_kind** (migration 69, TEXT_ONLY/TEXT_AND_FILE/FILE_ONLY — ось доступности
@@ -469,23 +469,23 @@
 ### Этап 49 (Сессия 49d vision expansion) — большие фичи в planning
 
 Запрошены Абдулой в начале Сессии 49d (2026-05-20). Полное описание —
-в `docs/superpowers/specs/2026-05-20-vision-expansion-49d.md`. Отдельные
+в `docs/specs/2026-05-20-vision-expansion-49d.md`. Отдельные
 design-specs создаются по мере приоритезации.
 
 - [ ] **49.A: Roles ADMIN/SCHOLAR/STUDENT/USER** - расширение `users.role`
-      enum, AuthorizationService, route guards. Spec: `docs/superpowers/
-      specs/2026-05-20-roles-system-design.md` (572 строки, ready для
+      enum, AuthorizationService, route guards. Spec:
+      `docs/specs/2026-05-20-roles-system-design.md` (572 строки, ready для
       implementation). Effort ~19.5h. Subphases 49.a-49.j.
 
 - [ ] **49.B: Rating + pagination** для Topics/Q&A/Library - sorting
-      by popularity, view tracking, optional vote system. Spec: `docs/
-      superpowers/specs/2026-05-20-rating-pagination-design.md` (в
+      by popularity, view tracking, optional vote system. Spec:
+      `docs/specs/2026-05-20-rating-pagination-design.md` (в
       работе subagent'ом)
 
 - [~] **49.C: Hadith Chains Explorer (BIG)** - новое приложение
       `src/apps/hadith/` (ADR-018 platform pivot validation).
       **🔄 РАЗВОРОТ ADR-060 (Сессия 56): alminasa.ai = единственный источник**
-      (спека `docs/superpowers/specs/2026-06-03-alminasa-hadith-source-design.md`);
+      (спека `docs/specs/2026-06-03-alminasa-hadith-source-design.md`);
       sunnah-ETL и AI-иснад ниже по тексту — legacy, выпиливаются Планом 4.
       Прогресс alminasa-трека:
       - [x] **План 1** (схема+домен+репо) ✅ 2026-06-03 — миграции 70-71,
@@ -496,7 +496,7 @@ design-specs создаются по мере приоритезации.
             (search_after + terms-батчи, retry), resumable hadith-first
             краулер (pause/resume/stale-takeover), admin REST
             `/admin/alminasa/crawl/*`, 31 тест. План:
-            `docs/superpowers/plans/2026-06-04-alminasa-crawler-staging.md`.
+            `docs/plans/2026-06-04-alminasa-crawler-staging.md`.
       - [ ] **План 3** — маппер staging→hd_* + детерминированный парс иснада
             из `<a class=rawy>` (БЕЗ AI) ⬅️ **СЛЕДУЮЩИЙ**
       - [ ] **План 4** — выпил legacy (sunnah ETL, sn_staging_*, AI-иснад
@@ -517,7 +517,7 @@ design-specs создаются по мере приоритезации.
       (9 передатчиков, 3 цепи: Бухари/Муватта/Муслим, fan-out у Яхьи).
       Осталось: **Phase 2** (narrator/collection list pages), **Phase 4**
       (FTS поиск + фильтры), **Phase 5** (ETL sunnah.com — В РАБОТЕ: спайк +
-      спека `docs/superpowers/specs/2026-05-31-sunnah-etl-design.md` ✅;
+      спека `docs/specs/2026-05-31-sunnah-etl-design.md` ✅;
       decision points решены §11; **step 1 done** 2026-05-31 — migration 57
       `hd_collections`, ADR-050; **step 2 done полностью (2.a-2.e)** 2026-06-01
       (Сессия 53, ADR-051/052) — migration 59 `sn_staging_*` (chapter_id varchar
@@ -537,12 +537,12 @@ design-specs создаются по мере приоритезации.
       корпус; 🔴 sunnah.com не даёт структурный иснад
       → граф для любого хадиса через AI-извлечение, **Phase 6 слит в Phase 5**).
       Spec Explorer:
-      `docs/superpowers/specs/2026-05-20-hadith-explorer-design.md`.
+      `docs/specs/2026-05-20-hadith-explorer-design.md`.
       Объём остатка — 4-7 sessions.
 
 - [ ] **49.D: Observability** - structured logging + Prometheus metrics
-      + OpenTelemetry tracing + frontend error reporting. Spec: `docs/
-      superpowers/specs/2026-05-20-observability-design.md` (в работе
+      + OpenTelemetry tracing + frontend error reporting. Spec:
+      `docs/specs/2026-05-20-observability-design.md` (в работе
       subagent'ом)
 
 - [ ] **49.E: Library collections + favorites** - библиотека становится

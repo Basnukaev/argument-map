@@ -8,7 +8,7 @@
 
 **Tech Stack:** Bash + jq (parsing JSON stdin). Claude Code hooks contract (`$CLAUDE_PROJECT_DIR`, `$CLAUDE_SESSION_ID`, exit 0/2 semantics).
 
-**Spec:** `docs/superpowers/specs/2026-05-19-hooks-setup-design.md` (commit `e4eed41`)
+**Spec:** `docs/specs/2026-05-19-hooks-setup-design.md` (commit `e4eed41`)
 
 ---
 
@@ -692,7 +692,7 @@ Use Write tool. Content:
 
 Sub-project B из Claude Code harness setup (статья Anthropic May 2026
 «How Claude Code works in large codebases»). См. design spec:
-`docs/superpowers/specs/2026-05-19-hooks-setup-design.md`.
+`docs/specs/2026-05-19-hooks-setup-design.md`.
 
 ## Hooks overview
 

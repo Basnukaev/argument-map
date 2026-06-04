@@ -129,8 +129,8 @@ description: >
 
 | Файл | Действие |
 |------|---------|
-| `docs/superpowers/specs/2026-05-19-project-skills-design.md` | Создан (Step A) |
-| `docs/superpowers/plans/2026-05-19-project-skills-plan.md` | Создан (Step B, этот файл) |
+| `docs/specs/2026-05-19-project-skills-design.md` | Создан (Step A) |
+| `docs/plans/2026-05-19-project-skills-plan.md` | Создан (Step B, этот файл) |
 | `.claude/skills/liquibase-migration/SKILL.md` | Создать (Step C) |
 
 ---
