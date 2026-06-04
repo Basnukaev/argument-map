@@ -34,6 +34,9 @@ import ru.basnukaev.argumentmap.hadith.alminasa.api.dto.AlminasaPage;
 class AlminasaEsClientRetryIT {
 
     private static HttpServer server;
+    // Последовательность 503,503,200 рассчитана ровно на один @Test; при
+    // добавлении второго теста — сбрасывать счётчик и переписывать stub на
+    // per-test очередь ответов.
     private static final AtomicInteger requestCount = new AtomicInteger(0);
 
     @Autowired

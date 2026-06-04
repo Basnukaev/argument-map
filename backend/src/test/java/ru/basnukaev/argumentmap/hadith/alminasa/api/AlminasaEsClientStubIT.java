@@ -174,4 +174,11 @@ class AlminasaEsClientStubIT {
                 .isInstanceOf(AlminasaApiException.class)
                 .satisfies(e -> assertThat(((AlminasaApiException) e).statusCode()).isEqualTo(503));
     }
+
+    @Test
+    void пустые_коллекции_не_делают_сетевых_вызовов() {
+        assertThat(client.fetchNarratorsByIds(List.of())).isEmpty();
+        assertThat(client.fetchRulingsByHadithIds(List.of()).hits()).isEmpty();
+        assertThat(captured).isEmpty();
+    }
 }

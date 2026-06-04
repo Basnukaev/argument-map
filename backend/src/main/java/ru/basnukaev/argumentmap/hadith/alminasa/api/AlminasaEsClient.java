@@ -35,6 +35,8 @@ import ru.basnukaev.argumentmap.hadith.alminasa.api.dto.AlminasaPage;
  * <p>{@code @Retry(name="alminasaApi")} — transient-предикат
  * {@link AlminasaTransientFailurePredicate}. ВАЖНО: вызывать через
  * Spring-прокси (инжект), не self-invoke (регрессия Сессии 55 с llmApi).
+ *
+ * <p>Пустые коллекции id — short-circuit без сетевого вызова.
  */
 @Component
 @ConditionalOnProperty(name = "alminasa.enabled", havingValue = "true", matchIfMissing = true)
@@ -82,6 +84,9 @@ public class AlminasaEsClient {
     /** Нарраторы по их numeric id (id рави из narrators[] хадис-дока). */
     @Retry(name = "alminasaApi")
     public List<AlminasaHit> fetchNarratorsByIds(Collection<Long> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
         ObjectNode body = objectMapper.createObjectNode();
         body.put("size", ids.size());
         ArrayNode terms = body.putObject("query").putObject("terms").putArray("id");
@@ -102,6 +107,9 @@ public class AlminasaEsClient {
     }
 
     private AlminasaPage fetchDependents(String index, String termsField, Collection<String> hadithIds) {
+        if (hadithIds.isEmpty()) {
+            return new AlminasaPage(0, List.of());
+        }
         ObjectNode body = objectMapper.createObjectNode();
         body.put("size", props.crawl().dependentFetchSize());
         ArrayNode terms = body.putObject("query").putObject("terms").putArray(termsField);
