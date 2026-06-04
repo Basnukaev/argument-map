@@ -94,39 +94,12 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 ## Code review после крупных этапов (mandatory)
 
-После каждого крупного этапа (закрытие Этапа N целиком либо
-закрытие N подэтапов одной темы) **обязателен независимый
-code review** (OMC reviewer/verifier-агент либо скилл `/code-review`):
-
-- После закрытия Этапа целиком (Tiptap extensions, RBAC frontend,
-  Responsive Фаза, Auth UI - крупные feature areas)
-- После каждых 5-7 атомарных commit'ов на одну тему
-- Перед обновлением roadmap записи в «Закрытые этапы»
-- Перед финальным handoff коммитом сессии
-
-**Зачем:** reviewer ловит issues которые subagent мог пропустить -
-event.key vs event.code, dead code, accessibility, race conditions
-в polling/useEffect, inconsistent UX (delete confirm в одном пути
-но не в другом), stale comments, hardcoded glyphs вместо
-`<ShortcutHint>`, missing dark mode variants, leaking state на
-unmount, типичные React 19 ошибки (useSyncExternalStore vs effect).
-
-**Workflow:**
-1. Закрылся этап → коммит-handoff `feat(frontend): этап N closed`
-2. Запустить независимый review (OMC reviewer / `/code-review`) с BASE/HEAD SHA
-3. Прочитать reviewer's report - Critical/Important/Minor
-4. Закрыть **все Critical** и **все Important** в отдельных fix-коммитах
-5. **Только после этого** обновлять `roadmap.md` запись в «Закрытые»
-   и делать handoff `docs: handoff Сессии N`
-
-Если reviewer flag'нул Issue которое **намеренно** не делаем -
-зафиксировать в `docs/backlog.md` либо в комментарии в коде с
-обоснованием. Иначе reviewer flag'нет тот же Issue снова на
-следующем цикле.
-
-См. memory `feedback_no_self_context_tracking.md` - я не должен
-сам решать когда останавливаться, но code review между крупными
-этапами - часть workflow, не stopping point.
+Полный workflow (триггеры, 5 шагов, правило для не-fix'ов) - в корневом
+`../CLAUDE.md`, секция «Оркестрация (OMC)». Фронт-специфика - что ловит
+reviewer: event.key vs event.code, accessibility, race conditions в
+polling/useEffect, inconsistent UX, stale comments, missing dark mode
+variants, leaking state на unmount, React 19 (useSyncExternalStore vs
+effect).
 
 ### React
 

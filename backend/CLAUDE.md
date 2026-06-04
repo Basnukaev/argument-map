@@ -88,36 +88,10 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 ## Code review после крупных этапов (mandatory)
 
-После каждого крупного этапа (закрытие Этапа N целиком либо
-закрытие N подэтапов одной темы) **обязателен независимый
-code review** (OMC reviewer/verifier-агент либо скилл `/code-review`):
-
-- После закрытия Этапа целиком (миграция + domain + service + REST + IT)
-- После каждых 5-7 атомарных commit'ов на одну тему
-- Перед обновлением roadmap записи в «Закрытые этапы»
-- Перед финальным handoff коммитом сессии
-
-**Зачем:** reviewer ловит issues которые subagent мог пропустить -
-subtle SQL bugs, missing permission checks, integer overflow,
-inaccurate комментарии, race conditions, dead code, отложенные
-issues не зафиксированные в backlog.
-
-**Workflow:**
-1. Закрылся этап → коммит-handoff `feat(backend): этап N closed`
-2. Запустить независимый review (OMC reviewer / `/code-review`) с BASE/HEAD SHA
-3. Прочитать reviewer's report - Critical/Important/Minor
-4. Закрыть **все Critical** и **все Important** в отдельных fix-коммитах
-5. **Только после этого** обновлять `roadmap.md` запись в «Закрытые»
-   и делать handoff `docs: handoff Сессии N`
-
-Если reviewer flag'нул Issue которое **намеренно** не делаем -
-зафиксировать в `docs/backlog.md` либо в комментарии в коде с
-обоснованием. Иначе reviewer flag'нет тот же Issue снова на
-следующем цикле (см. как было с shared MinIO Testcontainer).
-
-См. memory `feedback_no_self_context_tracking.md` - я не должен
-сам решать когда останавливаться, но code review между крупными
-этапами - часть workflow, не stopping point.
+Полный workflow (триггеры, 5 шагов, правило для не-fix'ов) - в корневом
+`../CLAUDE.md`, секция «Оркестрация (OMC)». Бэк-специфика - что ловит
+reviewer: subtle SQL bugs, missing permission checks, integer overflow,
+race conditions, dead code, inaccurate комментарии.
 
 ## Соглашения по Java/Spring
 
@@ -167,67 +141,20 @@ issues не зафиксированные в backlog.
 
 ### Pagination + filters (GET-list endpoints)
 
-Все GET-list endpoints возвращают `PagedResponse<T>` обёртку
-(`web.dto.PagedResponse`) - не raw array. Контракт описан в
-`../docs/api-contract.md` секция «Пагинация GET-list endpoints»
+Все GET-list endpoints возвращают `PagedResponse<T>` (не raw array).
+**Полный паттерн** (PageRequest.from, repository findPage/countFiltered
+c единым appendFilters, валидация фильтров в service, IT-кейсы, запрет
+Spring Data Pageable): `backend/docs/api-design.md` секция «Pagination».
 
-- **Helpers:** `PagedResponse<T>.of(items, page, size, total)` -
-  computes totalPages/hasNext/hasPrev. `PageRequest.from(page, size)` -
-  парсит query-params: default page=0, size=20, MAX_SIZE=100 (clamp).
-  Negative/zero/null → default
-- **Repository pattern:** для каждого list endpoint два метода -
-  `findPage(filters..., int limit, int offset)` и
-  `countFiltered(filters...)`. WHERE clause **один источник истины**
-  через private `appendFilters(StringBuilder, List<Object>, filters...)`
-  helper - чтобы count не разъезжался с select. Сортировка по умолчанию
-  `created_at DESC` (новые сверху) - кроме authorities (`name ASC`
-  для исторического порядка)
-- **Service:** методы `listPage(filters..., int limit, int offset)` +
-  `countFiltered(filters...)`. Валидация фильтров (enum-whitelist,
-  combination rules типа reliability требует type=HADITH) - **здесь**,
-  не в Repository. Невалидная комбинация → `IllegalArgumentException`
-  (handler → 400), не `InvalidXyzException` (он бы дал 422 - тот
-  семантический код для нарушения payload invariants)
-- **Controller:** принимает `@RequestParam(required=false)
-  Integer page, Integer size` + фильтры, конструирует через
-  `PageRequest.from`, вызывает service дважды (items + count), мэппит,
-  возвращает `PagedResponse.of()`. Старый `findAll()` в Repository
-  сохраняем где используется internal callers (ETL/import/scheduled
-  jobs) - они не нуждаются в pagination
-- **Тесты:** IT кейсы для каждого endpoint - `paginated_returnsCorrectPage`,
-  `sizeOverMax_clampsTo100` (где уместно), `filterBy*_returnsOnlyMatching`,
-  `invalidFilterCombo_returns400` (где есть combination rules)
-- **Не использовать** Spring Data Pageable / PagingAndSortingRepository -
-  на проекте JDBC Template, не плодим dep'ы. Простой record-helper
-  достаточен
+### AI editing + LLM abstraction (ADR-042/058)
 
-### AI editing + LLM abstraction (ADR-042, Этап 17.e; ADR-058)
-
-LLM расставляет структуру (хадис-боксы, ayah-боксы, headings) поверх
-text_content. Optional enhancement — без ключа платформа работает
-(formatted_content=null). Tesseract OCR удалён (ADR-057) — image-сканы
-хранятся как субстрат для будущего AI-recognition.
-
-**Swappable provider (ADR-058):** прикладные сервисы инжектят
-интерфейс `ru.basnukaev.argumentmap.ai.LlmClient` (НЕ конкретный
-клиент). Реализация выбирается через `ai.provider` (env `AI_PROVIDER`):
-`anthropic` (default) / `openai` / `deepseek` — `@Component` +
-`@ConditionalOnProperty`, ровно ОДИН bean активен. Retry-инстанс
-`llmApi`, исключение `LlmApiException`. `BookMetadataExtractionService`
-использует тот же `LlmClient` для извлечения био-метаданных книг
-(graceful fallback на пустой Optional). При добавлении нового
-провайдера — новый `@Component @ConditionalOnProperty` + блок
-`ai.<provider>.*` в `application.yml`.
-
-**Liveness-escape:** `tryClaimAiEditProcessing` вытесняет stale PROCESSING
-(worker умер mid-complete) спустя `ai.edit.processing-timeout-minutes`
-(env `AI_EDIT_PROCESSING_TIMEOUT_MINUTES`, default 10) — иначе строка
-застряла бы навечно в PROCESSING и re-AI-edit был бы невозможен.
-
-**Детали:** `backend/docs/ai-editing.md` (provider switch, env vars
-config, async pipeline `aiEditTaskExecutor`, retry policy Resilience4j,
-state machine в `lib_pages.ai_edit_status`, prompt template, graceful
-degradation, live IT тест).
+LLM расставляет структуру поверх text_content (optional enhancement -
+без ключа платформа работает). Провайдер swappable: сервисы инжектят
+интерфейс `ai.LlmClient`, реализация по `ai.provider`
+(anthropic/openai/deepseek), ровно один bean активен. OCR удалён
+(ADR-057) - image-сканы хранятся как субстрат. **Все детали** (env,
+retry, state machine, liveness-escape stale PROCESSING, prompt):
+`backend/docs/ai-editing.md`.
 
 ### Security (ADR-040)
 
@@ -254,122 +181,13 @@ basic auth в prod profile (ADR-048).
 `auth.rate-limit.*` properties, IP extraction; ActuatorSecurityConfig,
 prod/dev profile difference, ACTUATOR_USERNAME/PASSWORD env vars).
 
-### Permissions (ADR-043, Этап 22)
+### Permissions + Audit log (ADR-043, Этап 22)
 
-Per-entity authorization для тем. `topics.visibility` - PRIVATE
-(только owner) / SHARED (owner + topic_members) / PUBLIC (read для
-всех authenticated, write только owner + EDITOR member). ADMIN
-bypass всех visibility checks.
-
-- **PermissionService** - `canReadTopic` / `canWriteTopic` / `isOwner`
-  + `assertCan*` (бросают `TopicAccessDeniedException` /
-  `TopicWriteAccessDeniedException` → 403 forbidden-topic-access/write)
-- **Где живут проверки** - Service-слой (не Controller). Сервис
-  принимает `(userId, role)` и сам ассертит. Старые сигнатуры (без
-  role) оставлены для internal callers (TopicImportService, scheduled
-  jobs, IT) - они не делают permission check
-- **Controllers** читают role из SecurityContext через
-  `SecurityContextUtils.currentRole()` helper (не вводим новый
-  ArgumentResolver - principal уже в SecurityContext через
-  AuthenticatedUser, helper его экстрактит)
-- **Topic members** - `TopicMemberService` + REST endpoints
-  `/api/v1/topics/{id}/members[/...]`. Только owner может add/update
-  role/remove (EDITOR не может - privilege escalation). MEMBER может
-  удалить только себя (self-leave)
-- **Audit log** (кто что менял когда + permission changes) - **отложен**.
-  Сейчас trace только через `revisions` для контента и стандартный
-  request log
-- **Existing tests с X-User-Id** - продолжают работать т.к. они
-  создавали тему сами и оперировали с тем же userId (default PRIVATE +
-  owner = full access). Кто читал/удалял без header - теперь должен
-  передавать X-User-Id (или 400 missing-user-header в dev/test)
-
-#### Library books (ADR-043 Amendment, Этап 22.c)
-
-Расширение visibility/members модели на `lib_books`. **Default
-PUBLIC** для existing rows (в отличие от topics PRIVATE) - shamela
-ETL и старые user-uploads - open library. Новые user-uploads через
-`FileImportService.importPdf` → **PRIVATE** (черновики приватны).
-
-- **PermissionService** - `canReadBook` / `canWriteBook` / `isBookOwner`
-  + `assertCanReadBook` / `assertCanWriteBook` / `assertIsBookOwner`.
-  Те же exception/HTTP паттерны что у topics: `BookAccessDeniedException`
-  → 403 forbidden-book-access, `BookWriteAccessDeniedException` → 403
-  forbidden-book-write, `BookMemberNotFoundException` → 404
-- **Book members** - `BookMemberService` + REST
-  `/api/v1/library/books/{id}/members[/...]`. Mirror TopicMember (owner
-  add/update/remove, MEMBER self-leave). `BookMemberRepository` mirror
-  TopicMemberRepository
-- **BookRepository** - `findVisibleToUserPage` / `countVisibleToUser`
-  для visibility filter (PUBLIC OR created_by=? OR SHARED+EXISTS
-  lib_book_members). Старый `findPage` без filter оставлен для
-  internal (shamela sync, admin)
-- **BookController endpoints обязательно требуют X-User-Id** на GET
-  `/books`, GET `/books/{id}`, PATCH `/books/{id}`, DELETE
-  `/books/{id}`, PATCH `/books/{id}/visibility`. Listings показывают
-  только видимое user'у. Existing IT обновлены - все 49 `new Book(...)`
-  получили 17-й аргумент `BookVisibility.PUBLIC` через python-script
-  patch
-
-#### Q&A guards (ADR-043 Amendment, Этап 22.c)
-
-**НЕ добавляем visibility model** - questions/answers по дизайну open
-discussion (видны всем authenticated). Защищаем только mutating через
-author/admin guard:
-
-- `QuestionService.updateQuestion(id, ..., actorUserId, actorRole)` +
-  `deleteQuestion(id, actorUserId, actorRole)` - guards. Старые
-  без actor оставлены для internal callers
-- `AnswerService.updateAnswer(id, body, actorUserId, actorRole)` +
-  `deleteAnswer(id, actorUserId, actorRole)` - аналогично
-- Exceptions: `QuestionWriteAccessDeniedException` → 403
-  forbidden-question-write, `AnswerWriteAccessDeniedException` → 403
-  forbidden-answer-write. Не автор и не ADMIN → 403
-- Frontend получает 403 с типизированным problem-detail - локализация
-  через `permissionErrors` helper (existing для topics)
-- **Private Q&A** (visibility model для questions/answers) **отложен**
-  в 22.e - расширим если возникнет use-case закрытых учёных групп
-
-#### Audit log (ADR-043 Amendment 3, Этап 22.d)
-
-Event-sourcing lite аудит мутаций. **Synchronous** в той же транзакции
-что и main flow - rollback main откатит audit. Manual logging (не Spring
-AOP) - каждый mutation-сайт явно вызывает `auditLogService.log*`.
-
-- **AuditLogService** методы:
-  - `logCreate(entityType, entityId, parentType?, parentId?, actor,
-    snapshot)`
-  - `logUpdate(...., Map<String, FieldDiff>)` - FieldDiff(old, new)
-  - `logDelete(...., snapshot)`
-  - `logVisibilityChange(entityType, entityId, actor, old, new)`
-  - `logMemberAdd/Remove/RoleChange(memberEntityType, memberId,
-    parentType, parentId, actor, userId, role)`
-- **Где логировать** - в role-overload методе сервиса (где известен
-  actor userId). Legacy-перегрузки без role не пишут audit (используются
-  только в тестах и internal callers). EdgeService - audit в
-  `createEdge(... userId)` legacy потому что родительский путь через
-  userId единственный, не через role
-- **Snapshot - только key fields** (title/content/visibility), не
-  полный entity. Полные snapshots для `nodes.content`/`metadataJson`
-  раздуют jsonb. Для debugging достаточно identifying fields
-- **REST endpoints**:
-  - `GET /api/v1/audit/topics/{id}` - assertCanWrite (только owner +
-    EDITOR, не SHARED/PUBLIC MEMBER)
-  - `GET /api/v1/audit/books/{id}` - assertCanWriteBook
-  - `GET /api/v1/audit/me` - любой authenticated, фильтр по
-    actor=current
-  - `GET /api/v1/audit/admin?entityType=&actorId=&dateFrom=&dateTo=` -
-    ADMIN only через `AdminOnlyException` → 403 forbidden-admin-only
-- **Retention policy** (Code review round 3 #5) - `AuditLogRetentionJanitor`
-  в `service/`, `@ConditionalOnProperty(audit.retention.enabled=true)`,
-  cron 02:00 ежедневно (override через AUDIT_RETENTION_CRON). По
-  умолчанию выключен (compliance retention prod-only). Retention
-  `audit.retention.retention-days` (default 365, минимум 7 - валидация
-  в AuditRetentionProperties). В prod включается:
-  `AUDIT_RETENTION_ENABLED=true`. AuditLogRepository.deleteOlderThan
-  один DELETE statement, без soft-delete
-- **Не покрыто:** admin UI (отложен 22.e/backlog), async logging
-  (через outbox если performance overhead станет ощутимым)
+Per-entity authorization (topics PRIVATE/SHARED/PUBLIC + members; books
+default-PUBLIC; Q&A author/admin-guards без visibility) и
+event-sourcing-lite аудит мутаций. **Вся модель** (PermissionService,
+exceptions→HTTP-коды, проверки в service-слое, members-REST, audit
+snapshot/retention janitor): `backend/docs/permissions.md`.
 
 ### Hadith grades + Authority.type (миграция 47)
 

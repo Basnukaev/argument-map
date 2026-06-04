@@ -143,9 +143,16 @@ scripts/seed-mawlid.sh     # тестовая тема для argument-map
 работ прежний: спека (`docs/specs/`) → план (`docs/plans/`) →
 исполнение → независимый review; инструменты теперь - OMC.
 
-**Независимый code review после крупных этапов - обязателен** (как и
-раньше): через OMC reviewer/verifier-агентов либо скилл `/code-review`.
-Триггеры и порядок - в `backend/CLAUDE.md` / `frontend/CLAUDE.md`.
+**Независимый code review после крупных этапов - обязателен**
+(OMC reviewer/verifier-агент либо скилл `/code-review`). Когда:
+закрыт этап целиком; каждые 5-7 атомарных коммитов одной темы; перед
+записью этапа в «Закрытые» roadmap; перед финальным handoff-коммитом.
+Порядок: handoff-коммит этапа → независимый review (BASE/HEAD SHA) →
+разбор Critical/Important/Minor → закрыть ВСЕ Critical и Important
+отдельными fix-коммитами → только потом roadmap/handoff. Finding,
+который намеренно не делаем, - зафиксировать в backlog или коде с
+обоснованием (иначе reviewer флажит снова). Доменные примеры находок -
+в `backend/CLAUDE.md` / `frontend/CLAUDE.md`.
 
 ## Старт новой сессии
 

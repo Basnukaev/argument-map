@@ -355,3 +355,41 @@ API должен быть готов к добавлению аутентифи�
 - [ ] Доступен в OpenAPI (`/swagger-ui.html`)
 - [ ] Написан интеграционный тест
 - [ ] Не ломает существующие эндпоинты
+
+## Pagination + filters (GET-list endpoints)
+
+Все GET-list endpoints возвращают `PagedResponse<T>` обёртку
+(`web.dto.PagedResponse`) - не raw array. Контракт описан в
+`../docs/api-contract.md` секция «Пагинация GET-list endpoints»
+
+- **Helpers:** `PagedResponse<T>.of(items, page, size, total)` -
+  computes totalPages/hasNext/hasPrev. `PageRequest.from(page, size)` -
+  парсит query-params: default page=0, size=20, MAX_SIZE=100 (clamp).
+  Negative/zero/null → default
+- **Repository pattern:** для каждого list endpoint два метода -
+  `findPage(filters..., int limit, int offset)` и
+  `countFiltered(filters...)`. WHERE clause **один источник истины**
+  через private `appendFilters(StringBuilder, List<Object>, filters...)`
+  helper - чтобы count не разъезжался с select. Сортировка по умолчанию
+  `created_at DESC` (новые сверху) - кроме authorities (`name ASC`
+  для исторического порядка)
+- **Service:** методы `listPage(filters..., int limit, int offset)` +
+  `countFiltered(filters...)`. Валидация фильтров (enum-whitelist,
+  combination rules типа reliability требует type=HADITH) - **здесь**,
+  не в Repository. Невалидная комбинация → `IllegalArgumentException`
+  (handler → 400), не `InvalidXyzException` (он бы дал 422 - тот
+  семантический код для нарушения payload invariants)
+- **Controller:** принимает `@RequestParam(required=false)
+  Integer page, Integer size` + фильтры, конструирует через
+  `PageRequest.from`, вызывает service дважды (items + count), мэппит,
+  возвращает `PagedResponse.of()`. Старый `findAll()` в Repository
+  сохраняем где используется internal callers (ETL/import/scheduled
+  jobs) - они не нуждаются в pagination
+- **Тесты:** IT кейсы для каждого endpoint - `paginated_returnsCorrectPage`,
+  `sizeOverMax_clampsTo100` (где уместно), `filterBy*_returnsOnlyMatching`,
+  `invalidFilterCombo_returns400` (где есть combination rules)
+- **Не использовать** Spring Data Pageable / PagingAndSortingRepository -
+  на проекте JDBC Template, не плодим dep'ы. Простой record-helper
+  достаточен
+
+*(вынесено из `backend/CLAUDE.md`, doc-hygiene Принцип 2)*
