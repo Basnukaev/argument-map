@@ -219,73 +219,73 @@ REST-контракт НЕ меняется → api-contract.md и types.ts НЕ
 
 ## Task 1: read-методы staging-DAO + расширения hd_*-репозиториев
 
-- [ ] `AmHadithStagingDao`: `findPage(Integer afterBookId, Long afterSerial, int limit)`
+- [x] `AmHadithStagingDao`: `findPage(Integer afterBookId, Long afterSerial, int limit)`
       → `ORDER BY book_id, hadith_serial_id` keyset; `findById(hadithId)`;
       `countByBookId()` → `Map<Integer,Long>` (пригодится Плану 5; group by).
       Row-маппинг включает `raw::text` → `rawJson`.
-- [ ] `AmNarratorStagingDao`: `findPage(Long afterId, int limit)` (keyset по PK),
+- [x] `AmNarratorStagingDao`: `findPage(Long afterId, int limit)` (keyset по PK),
       `findById(long)`.
-- [ ] `AmRulingStagingDao.findByHadithId(String)`, `AmExplanationStagingDao.findByHadithId(String)`.
-- [ ] `NarratorRepository.update(Narrator)` — полный UPDATE по id (все колонки
+- [x] `AmRulingStagingDao.findByHadithId(String)`, `AmExplanationStagingDao.findByHadithId(String)`.
+- [x] `NarratorRepository.update(Narrator)` — полный UPDATE по id (все колонки
       кроме id/created_at); `HadithRepository.update(Hadith)` — аналогично.
-- [ ] `MatnRepository.deleteByHadithId(UUID)` (у editions/crossrefs/rulings/
+- [x] `MatnRepository.deleteByHadithId(UUID)` (у editions/crossrefs/rulings/
       explanations/sanads deleteByHadithId УЖЕ есть — не дублировать).
-- [ ] `HadithCrossrefRepository.resolveRelatedHadithIds()` — `UPDATE
+- [x] `HadithCrossrefRepository.resolveRelatedHadithIds()` — `UPDATE
       hd_hadith_crossrefs c SET related_hadith_id = h.id FROM hd_hadiths h
       WHERE c.related_hadith_id IS NULL AND h.external_source='alminasa' AND
       h.external_id = c.related_external_id`; вернуть affected.
-- [ ] Под Java-resolve relations (реш. 11б):
+- [x] Под Java-resolve relations (реш. 11б):
       `NarratorRepository.findExternalNormalizedNameIds()` →
       `Map<String, List<UUID>>` (name_ar_normalized → ids, только
       external_source='alminasa');
       `NarratorRelationRepository.findUnresolved(limit, offset)` +
       `updateRelatedNarratorId(relationId, narratorId)`.
-- [ ] Расширить `AmStagingDaoIT` + IT новых методов репозиториев (round-trip,
+- [x] Расширить `AmStagingDaoIT` + IT новых методов репозиториев (round-trip,
       keyset-пагинация через границу book_id, resolve-crossrefs с
       позитив/негатив-кейсами).
-- [ ] Коммит `feat(backend): read-методы staging-DAO + upsert/resolve расширения hd_*-репозиториев`
+- [x] Коммит `feat(backend): read-методы staging-DAO + upsert/resolve расширения hd_*-репозиториев`
 
 ## Task 2: AlminasaIsnadParser (pure) + unit-тесты на реальном HTML
 
-- [ ] Парсер: regex `<a class=rawy id=(\d+)>(.*?)</a>` + `<a class=matn>` —
+- [x] Парсер: regex `<a class=rawy id=(\d+)>(.*?)</a>` + `<a class=matn>` —
       порядок, сегменты между тегами, формула по приоритетному списку
       (нормализация `ArabicTextNormalizer`), collectorPhrase, хвостовой сегмент
       → формула position-0 (применяется ПОСЛЕ реверса в маппере — парсер
       возвращает collector→companion и formulaForLink семантику «как предыдущий
       получил от этого»).
-- [ ] Тесты на фикстуре `hadith-page.json` (146-1: 6 звеньев, ids в порядке
+- [x] Тесты на фикстуре `hadith-page.json` (146-1: 6 звеньев, ids в порядке
       4698→5913, формулы حدثنا/حدثنا/حدثنا/أخبرني/سمع/سمعت, companion-формула
       сمعت, collectorPhrase حدثنا) + 146-53 (второй хит) + edge: без тегов →
       пустой список; пустая строка/NULL; тег без id; вложенный мусор; текст
       без matn-тега.
-- [ ] Коммит `feat(backend): детерминированный парсер иснада из full_text_ar (alminasa)`
+- [x] Коммит `feat(backend): детерминированный парсер иснада из full_text_ar (alminasa)`
 
 ## Task 3: AlminasaNarratorMapper + AlminasaCollections
 
-- [ ] `mapNarrator(AmNarratorRow)`: re-parse raw → upsert по external_id
+- [x] `mapNarrator(AmNarratorRow)`: re-parse raw → upsert по external_id
       (find→update|insert); поля по решениям 4-5 (nameAr=full_name, kunya=
       nickname, laqab=origin, lived_in→primaryResidence, died_in→deathPlace,
       tabaqa=level, gradeText=grade, bornOnText/diedOnText + best-effort hijri);
       relations delete-recreate из top_students(STUDENT)/top_scholars(SCHOLAR),
       parse `"имя - (N)"`.
-- [ ] `AlminasaCollections`: static map 12 сборников + `resolveOrCreate`
+- [x] `AlminasaCollections`: static map 12 сборников + `resolveOrCreate`
       (кэш в маппере не нужен — CollectionRepository.findBySlug дешёв, но
       in-memory cache на прогон допустим в ImportService).
-- [ ] Unit-тесты: маппинг полей с narrators.json; таблица enum-производной
+- [x] Unit-тесты: маппинг полей с narrators.json; таблица enum-производной
       (صحابي/ثقة ثبت/صدوق/مقبول/ضعيف/متروك/мусор→UNKNOWN); хиджри из прозы
       (есть число/нет числа/سنة N); relations parse вкл. имя с дефисом.
-- [ ] Коммит `feat(backend): маппер рави alminasa staging→hd_narrators + relations`
+- [x] Коммит `feat(backend): маппер рави alminasa staging→hd_narrators + relations`
 
 ## Task 4: AlminasaHadithMapper (ядро)
 
-- [ ] `mapHadith(AmHadithRow)` по решениям 1-3, 6-9, 12: re-parse raw →
+- [x] `mapHadith(AmHadithRow)` по решениям 1-3, 6-9, 12: re-parse raw →
       resolve/create collection → upsert hadith → delete-recreate матн/издания/
       цепь (реверс + формулы + resolve рави по реш. 3)/crossrefs (minus self,
       type='TARIQ', note=numbers сиблинга из narrations_numbers)/rulings
       (union+дедуп)/explanations (join сегментов).
-- [ ] `dryRunHadith(String hadithId)`: тот же маппинг в transaction с
+- [x] `dryRunHadith(String hadithId)`: тот же маппинг в transaction с
       `setRollbackOnly` + вернуть снапшот результата (под План 5; без REST).
-- [ ] `AlminasaMapperIT` (Testcontainers): засеять staging фикстурами (146-1 +
+- [x] `AlminasaMapperIT` (Testcontainers): засеять staging фикстурами (146-1 +
       его narrator/ruling/explanation доки) → `mapHadith` → assert: hadith
       (external_id, type=مرفوع, chapter, full_text_ar, status=CANONICAL,
       collection slug=bukhari), primary matn (текст+normalized), editions=2,
@@ -298,42 +298,42 @@ REST-контракт НЕ меняется → api-contract.md и types.ts НЕ
       relatedExternalId=158-3537), explanations: 1×SHARH (фатх аль-Бари, text
       non-empty). Повторный mapHadith → те же counts (идемпотентность), hadith
       UUID стабилен.
-- [ ] Unit-тест дедупа рулингов изолированно (M5): embedded+index collapse,
+- [x] Unit-тест дедупа рулингов изолированно (M5): embedded+index collapse,
       разные ruler'ы не схлопываются.
-- [ ] Edge-IT: хадис без rawy-тегов → без цепи, без ошибки; пустой матн → fail;
+- [x] Edge-IT: хадис без rawy-тегов → без цепи, без ошибки; пустой матн → fail;
       коллизия (collection_id, primary_number) двух external_id → у второго
       primary_number=NULL, оба импортированы (I1).
-- [ ] Коммит `feat(backend): маппер хадисов alminasa staging→hd_* (ядро Плана 3)`
+- [x] Коммит `feat(backend): маппер хадисов alminasa staging→hd_* (ядро Плана 3)`
 
 ## Task 5: AlminasaImportService (orchestration + resolve)
 
-- [ ] `importNarrators()`: keyset-цикл по staging → mapNarrator в per-док
+- [x] `importNarrators()`: keyset-цикл по staging → mapNarrator в per-док
       транзакции (бин-граница); счётчики; cap-20 failures.
-- [ ] `importHadiths(Integer bookIdFilter)`: keyset-цикл (ORDER BY book_id,
+- [x] `importHadiths(Integer bookIdFilter)`: keyset-цикл (ORDER BY book_id,
       serial) → mapHadith; после цикла — `resolveCrossrefs()` (SQL) +
       `resolveNarratorRelations()` (Java, реш. 11б: in-memory map нормализ.
       имён, единственный кандидат); вернуть `AlminasaImportSummary`.
-- [ ] `AlminasaImportServiceIT`: полный e2e (нарраторы → хадисы 146-1 и 146-53 →
+- [x] `AlminasaImportServiceIT`: полный e2e (нарраторы → хадисы 146-1 и 146-53 →
       resolve: crossref 146-1↔146-53 получил related_hadith_id, relation
       «الزهري» остался NULL-FK с именем (короткая форма не матчится — known
       limitation), позитивный Java-resolve кейс на синтетическом точном имени;
       битый raw JSON одного дока → failed=1, остальные импортированы;
       повторный полный прогон → row-counts стабильны.
-- [ ] Perf-примечание в javadoc ImportService: 82k × per-док tx — one-shot
+- [x] Perf-примечание в javadoc ImportService: 82k × per-док tx — one-shot
       admin-операция, минуты-десятки минут приемлемы; НЕ оптимизировать
       преждевременно (батчинг — если живой прогон покажет боль).
-- [ ] Коммит `feat(backend): orchestration импорта alminasa + resolve-проход FK`
+- [x] Коммит `feat(backend): orchestration импорта alminasa + resolve-проход FK`
 
 ## Task 6: доки + финальная верификация
 
-- [ ] `docs/architecture.md`: маппинг-пайплайн (staging→hd_*, двухпроходность,
+- [x] `docs/architecture.md`: маппинг-пайплайн (staging→hd_*, двухпроходность,
       resolve), ссылка на план.
-- [ ] `docs/glossary.md`: такхридж/طرق, табака, джарх ва та'диль (если
+- [x] `docs/glossary.md`: такхридж/طرق, табака, джарх ва та'диль (если
       отсутствуют).
-- [ ] gotcha при любой находке времени исполнения.
-- [ ] Полный `./mvnw verify` (граница плана) — BUILD SUCCESS.
-- [ ] Коммит `docs(backend): архитектура маппинга alminasa (План 3)`
-- [ ] Независимый review (BASE=HEAD перед Task 1) → Critical/Important →
+- [x] gotcha при любой находке времени исполнения.
+- [x] Полный `./mvnw verify` (граница плана) — BUILD SUCCESS.
+- [x] Коммит `docs(backend): архитектура маппинга alminasa (План 3)`
+- [x] Независимый review (BASE=HEAD перед Task 1) → Critical/Important →
       fix-коммиты → чекбоксы/handoff.
 
 ## Верификация плана (Definition of Done)

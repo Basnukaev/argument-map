@@ -301,10 +301,16 @@ design-specs создаются по мере приоритезации.
             live-верифицирован, 33 теста. План:
             `docs/plans/2026-06-04-alminasa-crawler-staging.md`,
             progress.md Сессия 56.
-      - [ ] **План 3** — маппер staging→hd_* + детерминированный парс иснада
-            из `<a class=rawy>` (БЕЗ AI) ⬅️ **СЛЕДУЮЩИЙ**
+      - [x] **План 3** — маппер staging→hd_* + детерминированный парс иснада
+            из `<a class=rawy>` (БЕЗ AI) ✅ 2026-06-04 — AlminasaIsnadParser
+            («сегмент после тега», реверс pos0=сподвижник),
+            Narrator/HadithMapper (upsert по external_id, рулинги
+            union+дедуп, статус сахихайн→CANONICAL), ImportService
+            (per-док tx, resolve FK), dry-run. 51 тест, verify 1354.
+            Review: 0 Critical / 1 Important (закрыт). План:
+            `docs/plans/2026-06-04-alminasa-mapper.md`.
       - [ ] **План 4** — выпил legacy (sunnah ETL, sn_staging_*, AI-иснад
-            ADR-059, AdminSunnahPage, sunnah-mysql)
+            ADR-059, AdminSunnahPage, sunnah-mysql) ⬅️ **СЛЕДУЮЩИЙ**
       - [ ] **План 5** — AdminHadithImportPage (каталог 12 сборников/
             прогресс/dry-run/resume)
       - [ ] **Планы 6-7** — фронт (тип/кликабельный иснад/сеть рави/
