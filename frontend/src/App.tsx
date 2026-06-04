@@ -42,7 +42,6 @@ const NarratorDetailPage = lazy(() => import('@/apps/hadith/pages/NarratorDetail
 const BookReaderPage = lazy(() => import('@/apps/library/pages/BookReaderPage'));
 const AdminDashboardPage = lazy(() => import('@/apps/admin/pages/AdminDashboardPage'));
 const AdminShamelaPage = lazy(() => import('@/apps/admin/pages/AdminShamelaPage'));
-const AdminSunnahPage = lazy(() => import('@/apps/admin/pages/AdminSunnahPage'));
 const AdminArchiveOrgPage = lazy(() => import('@/apps/admin/pages/AdminArchiveOrgPage'));
 const AdminPageEditorPage = lazy(() => import('@/apps/admin/pages/AdminPageEditorPage'));
 const AdminAuditPage = lazy(() => import('@/apps/admin/pages/AdminAuditPage'));
@@ -192,14 +191,6 @@ function App() {
             element={
               <ProtectedRoute requireRole="ADMIN">
                 <AdminShamelaPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/sunnah"
-            element={
-              <ProtectedRoute requireRole="ADMIN">
-                <AdminSunnahPage />
               </ProtectedRoute>
             }
           />

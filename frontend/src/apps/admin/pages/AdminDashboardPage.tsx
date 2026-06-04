@@ -6,7 +6,6 @@ import {
   FileUp,
   Globe,
   Library,
-  ScrollText,
   ShieldCheck,
   Sparkles,
   ArrowRight,
@@ -63,15 +62,6 @@ const CONTENT_CARDS: ReadonlyArray<ToolCard> = [
     producesKey: 'admin.dashboard.pdf.produces',
     ctaKey: 'admin.dashboard.pdf.cta',
     action: { kind: 'modal' },
-  },
-  {
-    id: 'sunnah',
-    icon: ScrollText,
-    titleKey: 'admin.dashboard.sunnah.title',
-    descKey: 'admin.dashboard.sunnah.desc',
-    producesKey: 'admin.dashboard.sunnah.produces',
-    ctaKey: 'admin.dashboard.sunnah.cta',
-    action: { kind: 'navigate', to: '/admin/sunnah' },
   },
   {
     id: 'archiveorg',
