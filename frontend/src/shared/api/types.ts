@@ -724,6 +724,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/alminasa/import/narrators": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importNarrators"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/alminasa/import/hadiths": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importHadiths"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/alminasa/crawl/start": {
         parameters: {
             query?: never;
@@ -1556,6 +1588,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/alminasa/import/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["importStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/alminasa/dry-run/{hadithId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["dryRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/alminasa/crawl/status": {
         parameters: {
             query?: never;
@@ -1564,6 +1628,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/alminasa/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["catalog"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2564,6 +2644,30 @@ export interface components {
             pagesExtracted?: number;
             alreadyExisted?: boolean;
         };
+        AlminasaImportStatusResponse: {
+            status?: string;
+            kind?: string;
+            /** Format: int32 */
+            bookIdFilter?: number;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: int32 */
+            processedSoFar?: number;
+            /** Format: int32 */
+            narratorsProcessed?: number;
+            /** Format: int32 */
+            narratorsFailed?: number;
+            /** Format: int32 */
+            hadithsProcessed?: number;
+            /** Format: int32 */
+            hadithsFailed?: number;
+            /** Format: int32 */
+            crossrefsResolved?: number;
+            /** Format: int32 */
+            relationsResolved?: number;
+            failures?: string[];
+            error?: string;
+        };
         AlminasaCrawlStatusResponse: {
             status?: string;
             /** Format: int64 */
@@ -3194,6 +3298,43 @@ export interface components {
             /** Format: int64 */
             sizeBytes?: number;
             downloadUrl?: string;
+        };
+        AlminasaDryRunResponse: {
+            externalId?: string;
+            collectionSlug?: string;
+            status?: string;
+            hadithType?: string;
+            /** Format: int32 */
+            primaryNumber?: number;
+            chapterAr?: string;
+            matnPreview?: string;
+            chain?: components["schemas"]["ChainLink"][];
+            /** Format: int32 */
+            editionsCount?: number;
+            /** Format: int32 */
+            crossrefsCount?: number;
+            /** Format: int32 */
+            rulingsCount?: number;
+            /** Format: int32 */
+            explanationsCount?: number;
+        };
+        ChainLink: {
+            /** Format: int32 */
+            position?: number;
+            externalId?: string;
+            nameAr?: string;
+            formula?: string;
+        };
+        AlminasaCatalogEntryResponse: {
+            /** Format: int32 */
+            bookId?: number;
+            slug?: string;
+            nameAr?: string;
+            nameRu?: string;
+            /** Format: int64 */
+            stagedCount?: number;
+            /** Format: int64 */
+            mappedCount?: number;
         };
         BulkDeleteNodesRequest: {
             nodeIds: string[];
@@ -4874,6 +5015,57 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ArchiveOrgImportResponse"];
+                };
+            };
+        };
+    };
+    importNarrators: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AlminasaImportStatusResponse"];
+                };
+            };
+        };
+    };
+    importHadiths: {
+        parameters: {
+            query: {
+                currentUserId: string;
+                bookId?: number;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AlminasaImportStatusResponse"];
                 };
             };
         };
@@ -6586,6 +6778,58 @@ export interface operations {
             };
         };
     };
+    importStatus: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AlminasaImportStatusResponse"];
+                };
+            };
+        };
+    };
+    dryRun: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                hadithId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AlminasaDryRunResponse"];
+                };
+            };
+        };
+    };
     status: {
         parameters: {
             query: {
@@ -6607,6 +6851,31 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["AlminasaCrawlStatusResponse"];
+                };
+            };
+        };
+    };
+    catalog: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AlminasaCatalogEntryResponse"][];
                 };
             };
         };
