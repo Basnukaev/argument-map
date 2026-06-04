@@ -71,6 +71,14 @@ public class MatnRepository {
     }
 
     /**
+     * Удаляет все матны данного хадиса — примитив идемпотентного реимпорта
+     * (delete-recreate паттерн маппера alminasa, план 3, решение 9).
+     */
+    public void deleteByHadithId(UUID hadithId) {
+        jdbcTemplate.update("DELETE FROM hd_matns WHERE hadith_id = ?", hadithId);
+    }
+
+    /**
      * Текст первичного matn (text_ar) по списку hadith-id, одним запросом —
      * для preview-карточек списка (избегаем N+1). Возвращает map hadith_id →
      * text_ar только для хадисов с is_primary matn.

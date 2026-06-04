@@ -72,6 +72,26 @@ public class HadithRepository {
     }
 
     /**
+     * Полное обновление хадиса по id — все колонки кроме id и created_at.
+     * Используется маппером alminasa для upsert-паттерна: find → update | insert.
+     */
+    public void update(Hadith h) {
+        jdbcTemplate.update(
+                "UPDATE hd_hadiths SET "
+                        + "collection_id = ?, primary_number = ?, normalized_matn = ?, "
+                        + "status = ?, source_id = ?, metadata = ?::jsonb, "
+                        + "external_source = ?, external_id = ?, hadith_type = ?, "
+                        + "chapter_ar = ?, sub_chapter_ar = ?, full_text_ar = ? "
+                        + "WHERE id = ?",
+                h.collectionId(), h.primaryNumber(), h.normalizedMatn(),
+                h.status(), h.sourceId(), h.metadata(),
+                h.externalSource(), h.externalId(), h.hadithType(),
+                h.chapterAr(), h.subChapterAr(), h.fullTextAr(),
+                h.id()
+        );
+    }
+
+    /**
      * Выставляет {@code source_id} (мост в citation-домен) — под-проект #2,
      * при первом прикреплении хадиса к узлу как опоры. Идемпотентно на
      * уровне сервиса (вызывается только если source_id был null).

@@ -2,9 +2,13 @@ package ru.basnukaev.argumentmap.hadith.alminasa.repository;
 
 import static ru.basnukaev.argumentmap.hadith.alminasa.repository.AmDaoSupport.sumAffected;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmHadithRow;
@@ -12,6 +16,17 @@ import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmHadithRow;
 /** DAO {@code am_staging_hadith} (миграция 72). План 2 alminasa. */
 @Repository
 public class AmHadithStagingDao {
+
+    private static final RowMapper<AmHadithRow> ROW_MAPPER = (rs, rn) -> new AmHadithRow(
+            rs.getString("hadith_id"),
+            rs.getInt("book_id"),
+            rs.getLong("hadith_serial_id"),
+            rs.getString("book_name"),
+            rs.getString("hadith_type"),
+            rs.getString("chapter"),
+            rs.getString("sub_chapter"),
+            rs.getString("raw_json")
+    );
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -44,6 +59,56 @@ public class AmHadithStagingDao {
                 r.chapter(), r.subChapter(), r.rawJson()
         }).toList();
         return sumAffected(jdbcTemplate.batchUpdate(sql, args));
+    }
+
+    /**
+     * Keyset-пагинация по составному курсору {@code (book_id, hadith_serial_id)}.
+     * При {@code afterBookId == null} возвращает строки с начала.
+     * Порядок: {@code ORDER BY book_id, hadith_serial_id} — детерминированный
+     * обход staging для маппера (план 3).
+     */
+    public List<AmHadithRow> findPage(Integer afterBookId, Long afterSerial, int limit) {
+        if (afterBookId == null) {
+            return jdbcTemplate.query(
+                    "SELECT hadith_id, book_id, hadith_serial_id, book_name, hadith_type, "
+                            + "chapter, sub_chapter, raw::text AS raw_json "
+                            + "FROM am_staging_hadith "
+                            + "ORDER BY book_id, hadith_serial_id "
+                            + "LIMIT ?",
+                    ROW_MAPPER, limit);
+        }
+        return jdbcTemplate.query(
+                "SELECT hadith_id, book_id, hadith_serial_id, book_name, hadith_type, "
+                        + "chapter, sub_chapter, raw::text AS raw_json "
+                        + "FROM am_staging_hadith "
+                        + "WHERE (book_id, hadith_serial_id) > (?, ?) "
+                        + "ORDER BY book_id, hadith_serial_id "
+                        + "LIMIT ?",
+                ROW_MAPPER, afterBookId, afterSerial, limit);
+    }
+
+    /** Поиск по природному ключу {@code hadith_id}. */
+    public Optional<AmHadithRow> findById(String hadithId) {
+        return jdbcTemplate.query(
+                "SELECT hadith_id, book_id, hadith_serial_id, book_name, hadith_type, "
+                        + "chapter, sub_chapter, raw::text AS raw_json "
+                        + "FROM am_staging_hadith WHERE hadith_id = ?",
+                ROW_MAPPER, hadithId
+        ).stream().findFirst();
+    }
+
+    /**
+     * Число строк по каждому сборнику — для сводки прогресса краулинга
+     * (план 5, admin-endpoint). Один GROUP BY вместо N запросов.
+     */
+    public Map<Integer, Long> countByBookId() {
+        Map<Integer, Long> result = new HashMap<>();
+        jdbcTemplate.query(
+                "SELECT book_id, COUNT(*) AS cnt FROM am_staging_hadith GROUP BY book_id",
+                rs -> {
+                    result.put(rs.getInt("book_id"), rs.getLong("cnt"));
+                });
+        return result;
     }
 
     public int count() {

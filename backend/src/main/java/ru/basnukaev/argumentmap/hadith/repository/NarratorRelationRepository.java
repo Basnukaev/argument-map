@@ -52,4 +52,29 @@ public class NarratorRelationRepository {
     public void deleteByNarratorId(UUID narratorId) {
         jdbcTemplate.update("DELETE FROM hd_narrator_relations WHERE narrator_id = ?", narratorId);
     }
+
+    /**
+     * Выборка связей с незаполненным {@code related_narrator_id} — вход
+     * Java-резолва (план 3, решение 11б). Порядок по {@code created_at, id}
+     * для детерминированного постраничного обхода.
+     */
+    public List<NarratorRelation> findUnresolved(int limit, long offset) {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM hd_narrator_relations "
+                        + "WHERE related_narrator_id IS NULL "
+                        + "ORDER BY created_at, id "
+                        + "LIMIT ? OFFSET ?",
+                ROW_MAPPER, limit, offset);
+    }
+
+    /**
+     * Проставляет {@code related_narrator_id} у одной связи по id —
+     * вызывается Java-резолвом только при ровно одном кандидате по
+     * нормализованному имени (гомонимы → связь остаётся NULL, known limitation).
+     */
+    public void updateRelatedNarratorId(UUID relationId, UUID narratorId) {
+        jdbcTemplate.update(
+                "UPDATE hd_narrator_relations SET related_narrator_id = ? WHERE id = ?",
+                narratorId, relationId);
+    }
 }

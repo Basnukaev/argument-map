@@ -53,4 +53,23 @@ public class HadithCrossrefRepository {
     public void deleteByHadithId(UUID hadithId) {
         jdbcTemplate.update("DELETE FROM hd_hadith_crossrefs WHERE hadith_id = ?", hadithId);
     }
+
+    /**
+     * Resolve-проход: проставляет {@code related_hadith_id} для всех crossref-строк,
+     * у которых FK ещё NULL, по совпадению {@code related_external_id} с
+     * {@code external_id} уже импортированных alminasa-хадисов.
+     * Один UPDATE вместо N+1 — индекс {@code idx_hd_crossrefs_related} покрывает.
+     * Вызывается после полного батч-импорта (re-runnable: повторный вызов — нет эффекта).
+     *
+     * @return число обновлённых строк
+     */
+    public int resolveRelatedHadithIds() {
+        return jdbcTemplate.update(
+                "UPDATE hd_hadith_crossrefs c "
+                        + "SET related_hadith_id = h.id "
+                        + "FROM hd_hadiths h "
+                        + "WHERE c.related_hadith_id IS NULL "
+                        + "AND h.external_source = 'alminasa' "
+                        + "AND h.external_id = c.related_external_id");
+    }
 }

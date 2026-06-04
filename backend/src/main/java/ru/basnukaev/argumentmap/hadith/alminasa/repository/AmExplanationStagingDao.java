@@ -5,6 +5,7 @@ import static ru.basnukaev.argumentmap.hadith.alminasa.repository.AmDaoSupport.s
 import java.util.List;
 
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmExplanationRow;
@@ -12,6 +13,14 @@ import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmExplanationRow;
 /** DAO {@code am_staging_explanation} (миграция 72). План 2 alminasa. */
 @Repository
 public class AmExplanationStagingDao {
+
+    private static final RowMapper<AmExplanationRow> ROW_MAPPER = (rs, rn) -> new AmExplanationRow(
+            rs.getString("es_id"),
+            rs.getString("hadith_id"),
+            rs.getString("book_name"),
+            rs.getString("author"),
+            rs.getString("raw_json")
+    );
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -39,6 +48,17 @@ public class AmExplanationStagingDao {
                 r.esId(), r.hadithId(), r.bookName(), r.author(), r.rawJson()
         }).toList();
         return sumAffected(jdbcTemplate.batchUpdate(sql, args));
+    }
+
+    /**
+     * Все шархи для данного хадиса — используется маппером (план 3).
+     * Индекс {@code idx_am_staging_explanation_hadith} покрывает запрос.
+     */
+    public List<AmExplanationRow> findByHadithId(String hadithId) {
+        return jdbcTemplate.query(
+                "SELECT es_id, hadith_id, book_name, author, raw::text AS raw_json "
+                        + "FROM am_staging_explanation WHERE hadith_id = ?",
+                ROW_MAPPER, hadithId);
     }
 
     public int count() {

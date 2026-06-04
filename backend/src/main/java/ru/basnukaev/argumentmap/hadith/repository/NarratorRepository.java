@@ -4,7 +4,9 @@ import static ru.basnukaev.argumentmap.repository.JdbcTimes.instant;
 import static ru.basnukaev.argumentmap.repository.JdbcTimes.odt;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -160,5 +162,51 @@ public class NarratorRepository {
         }
         Long count = jdbcTemplate.queryForObject(sql.toString(), Long.class, args.toArray());
         return count == null ? 0L : count;
+    }
+
+    /**
+     * Полное обновление рави по id — все колонки кроме id и created_at.
+     * Используется маппером alminasa для upsert-паттерна: find → update | insert.
+     */
+    public void update(Narrator n) {
+        jdbcTemplate.update(
+                "UPDATE hd_narrators SET "
+                        + "authority_id = ?, name_ar = ?, name_ar_normalized = ?, "
+                        + "kunya = ?, laqab = ?, year_birth_hijri = ?, year_death_hijri = ?, "
+                        + "birthplace = ?, death_place = ?, primary_residence = ?, "
+                        + "reliability_grade = ?, reliability_comment = ?, "
+                        + "transmitted_count_cached = ?, metadata = ?::jsonb, "
+                        + "external_source = ?, external_id = ?, tabaqa = ?, grade_text = ?, "
+                        + "born_on_text = ?, died_on_text = ? "
+                        + "WHERE id = ?",
+                n.authorityId(), n.nameAr(), n.nameArNormalized(),
+                n.kunya(), n.laqab(), n.yearBirthHijri(), n.yearDeathHijri(),
+                n.birthplace(), n.deathPlace(), n.primaryResidence(),
+                n.reliabilityGrade(), n.reliabilityComment(),
+                n.transmittedCountCached(), n.metadata(),
+                n.externalSource(), n.externalId(), n.tabaqa(), n.gradeText(),
+                n.bornOnText(), n.diedOnText(),
+                n.id()
+        );
+    }
+
+    /**
+     * Загружает все нормализованные имена рави из alminasa (external_source='alminasa')
+     * в Map {@code name_ar_normalized → List<id>} для Java-резолва
+     * narrator-relations (план 3, решение 11б).
+     * При нескольких рави с одним именем (омонимы) список содержит оба id —
+     * маппер оставляет FK пустым (гомонимы не резолвятся однозначно).
+     */
+    public Map<String, List<UUID>> findExternalNormalizedNameIds() {
+        Map<String, List<UUID>> result = new HashMap<>();
+        jdbcTemplate.query(
+                "SELECT name_ar_normalized, id FROM hd_narrators "
+                        + "WHERE external_source = 'alminasa'",
+                rs -> {
+                    String name = rs.getString("name_ar_normalized");
+                    UUID id = rs.getObject("id", UUID.class);
+                    result.computeIfAbsent(name, k -> new ArrayList<>()).add(id);
+                });
+        return result;
     }
 }

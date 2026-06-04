@@ -3,6 +3,8 @@ package ru.basnukaev.argumentmap.hadith.alminasa.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -100,6 +102,152 @@ class AmStagingDaoIT {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT ruler_dod FROM am_staging_ruling WHERE es_id = 'yanMhpEBXUur4f6nVw_U'", Integer.class))
                 .isEqualTo(256);
+    }
+
+    // ── AmHadithStagingDao read-методы ────────────────────────────────────────
+
+    @Test
+    void hadith_findPage_с_начала_возвращает_limit_строк() {
+        hadithDao.upsertAll(List.of(
+                new AmHadithRow("146-1", 146, 1, "صحيح البخاري", "مرفوع", null, null, "{}"),
+                new AmHadithRow("146-2", 146, 2, "صحيح البخاري", "مرفوع", null, null, "{}"),
+                new AmHadithRow("158-1", 158, 1, "صحيح مسلم",   "مرفوع", null, null, "{}")));
+
+        List<AmHadithRow> page = hadithDao.findPage(null, null, 2);
+
+        assertThat(page).hasSize(2);
+        assertThat(page.get(0).hadithId()).isEqualTo("146-1");
+        assertThat(page.get(1).hadithId()).isEqualTo("146-2");
+    }
+
+    @Test
+    void hadith_findPage_keyset_через_границу_book_id() {
+        // book 146: serial 1, 2; book 158: serial 1
+        hadithDao.upsertAll(List.of(
+                new AmHadithRow("146-1", 146, 1, "صحيح البخاري", "مرفوع", null, null, "{}"),
+                new AmHadithRow("146-2", 146, 2, "صحيح البخاري", "مرفوع", null, null, "{}"),
+                new AmHadithRow("158-1", 158, 1, "صحيح مسلم",   "مرفوع", null, null, "{}")));
+
+        // первая страница с начала — 2 строки
+        List<AmHadithRow> page1 = hadithDao.findPage(null, null, 2);
+        assertThat(page1).extracting(AmHadithRow::hadithId)
+                .containsExactly("146-1", "146-2");
+
+        // вторая страница keyset (146, 2) — 1 строка из book 158
+        AmHadithRow last = page1.get(1);
+        List<AmHadithRow> page2 = hadithDao.findPage(last.bookId(), last.hadithSerialId(), 2);
+        assertThat(page2).extracting(AmHadithRow::hadithId)
+                .containsExactly("158-1");
+
+        // третья страница — пусто
+        AmHadithRow last2 = page2.get(0);
+        List<AmHadithRow> page3 = hadithDao.findPage(last2.bookId(), last2.hadithSerialId(), 2);
+        assertThat(page3).isEmpty();
+    }
+
+    @Test
+    void hadith_findById_hit_и_miss() {
+        hadithDao.upsertAll(List.of(
+                new AmHadithRow("146-1", 146, 1, "صحيح البخاري", "مرفوع", "باب", null, "{\"x\":1}")));
+
+        Optional<AmHadithRow> hit = hadithDao.findById("146-1");
+        assertThat(hit).isPresent();
+        assertThat(hit.get().bookId()).isEqualTo(146);
+        assertThat(hit.get().hadithSerialId()).isEqualTo(1L);
+        assertThat(hit.get().chapter()).isEqualTo("باب");
+        // raw::text должен вернуть валидный JSON
+        assertThat(hit.get().rawJson()).contains("x");
+
+        assertThat(hadithDao.findById("999-999")).isEmpty();
+    }
+
+    @Test
+    void hadith_countByBookId() {
+        hadithDao.upsertAll(List.of(
+                new AmHadithRow("146-1", 146, 1, null, null, null, null, "{}"),
+                new AmHadithRow("146-2", 146, 2, null, null, null, null, "{}"),
+                new AmHadithRow("158-1", 158, 1, null, null, null, null, "{}")));
+
+        Map<Integer, Long> counts = hadithDao.countByBookId();
+
+        assertThat(counts).containsEntry(146, 2L);
+        assertThat(counts).containsEntry(158, 1L);
+        assertThat(counts).doesNotContainKey(999);
+    }
+
+    // ── AmNarratorStagingDao read-методы ──────────────────────────────────────
+
+    @Test
+    void narrator_findPage_keyset_по_pk() {
+        narratorDao.upsertAll(List.of(
+                new AmNarratorRow(100, "رَاوٍ أ", "ثقة", "الثانية", "{}"),
+                new AmNarratorRow(200, "رَاوٍ ب", "صدوق", "الثالثة", "{}"),
+                new AmNarratorRow(300, "رَاوٍ ج", "ضعيف", "الرابعة", "{}")));
+
+        // с начала, limit 2
+        List<AmNarratorRow> page1 = narratorDao.findPage(null, 2);
+        assertThat(page1).extracting(AmNarratorRow::narratorId).containsExactly(100L, 200L);
+
+        // keyset от 200
+        List<AmNarratorRow> page2 = narratorDao.findPage(200L, 2);
+        assertThat(page2).extracting(AmNarratorRow::narratorId).containsExactly(300L);
+
+        // дальше — пусто
+        assertThat(narratorDao.findPage(300L, 2)).isEmpty();
+    }
+
+    @Test
+    void narrator_findById_hit_и_miss() {
+        narratorDao.upsertAll(List.of(
+                new AmNarratorRow(5719, "علقمة بن وقاص العتواري", "ثقة ثبت", "الثانية", "{\"k\":2}")));
+
+        Optional<AmNarratorRow> hit = narratorDao.findById(5719);
+        assertThat(hit).isPresent();
+        assertThat(hit.get().fullName()).isEqualTo("علقمة بن وقاص العتواري");
+        assertThat(hit.get().grade()).isEqualTo("ثقة ثبت");
+        assertThat(hit.get().rawJson()).contains("k");
+
+        assertThat(narratorDao.findById(9999999L)).isEmpty();
+    }
+
+    // ── AmRulingStagingDao / AmExplanationStagingDao findByHadithId ───────────
+
+    @Test
+    void ruling_findByHadithId_фильтрует_по_hadith_id() {
+        rulingDao.upsertAll(List.of(
+                new AmRulingRow("es-r-1", "146-1", "البخاري",  256, "raw", "{}"),
+                new AmRulingRow("es-r-2", "146-1", "مسلم",     261, "raw", "{}"),
+                new AmRulingRow("es-r-3", "158-1", "الترمذي",  279, "raw", "{}")));
+
+        List<AmRulingRow> rows146 = rulingDao.findByHadithId("146-1");
+        assertThat(rows146).hasSize(2);
+        assertThat(rows146).extracting(AmRulingRow::esId)
+                .containsExactlyInAnyOrder("es-r-1", "es-r-2");
+
+        List<AmRulingRow> rows158 = rulingDao.findByHadithId("158-1");
+        assertThat(rows158).singleElement()
+                .satisfies(r -> assertThat(r.ruler()).isEqualTo("الترمذي"));
+
+        assertThat(rulingDao.findByHadithId("999-999")).isEmpty();
+    }
+
+    @Test
+    void explanation_findByHadithId_фильтрует_по_hadith_id() {
+        explanationDao.upsertAll(List.of(
+                new AmExplanationRow("es-e-1", "146-1", "فتح الباري",    "ابن حجر",   "{}"),
+                new AmExplanationRow("es-e-2", "146-1", "عمدة القاري",   "العيني",    "{}"),
+                new AmExplanationRow("es-e-3", "158-1", "شرح النووي",    "النووي",    "{}")));
+
+        List<AmExplanationRow> rows146 = explanationDao.findByHadithId("146-1");
+        assertThat(rows146).hasSize(2);
+        assertThat(rows146).extracting(AmExplanationRow::esId)
+                .containsExactlyInAnyOrder("es-e-1", "es-e-2");
+
+        List<AmExplanationRow> rows158 = explanationDao.findByHadithId("158-1");
+        assertThat(rows158).singleElement()
+                .satisfies(e -> assertThat(e.author()).isEqualTo("النووي"));
+
+        assertThat(explanationDao.findByHadithId("999-999")).isEmpty();
     }
 
     @Test
