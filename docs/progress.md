@@ -9,7 +9,97 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
-## 2026-06-02/03 - Сессия 55 - крупный автономный overhaul (7 фаз + code-review)
+## 2026-06-03/04 - Сессия 56 - alminasa единственный источник: спека + Планы 1-2
+
+Реализация разворота ADR-060 (alminasa.ai = единственный источник хадисов).
+Сессия шла в два захода: первый заход (03.06) закрыл спеку + План 1 и **упал**
+(API-ошибки клиента) ровно на границе после doc-коммита Плана 1 — крах ничего
+не потерял (атомарные коммиты). Второй заход (04.06) — План 2 целиком,
+subagent-driven (имплементер + spec-ревью + quality-ревью на каждую группу задач).
+
+### Сделано
+
+**Спека + План 1 (заход 1, 03.06):** дизайн-спека
+`docs/superpowers/specs/2026-06-03-alminasa-hadith-source-design.md` (HAR-анализ,
+архитектура краулер→staging→map, модель данных, фазовый план 1-7); план 1
+`2026-06-03-alminasa-hadith-ingestion-schema.md`; **миграции 70-71** (alminasa-колонки
+hd_hadiths/hd_narrators: external_id/type/chapter/full_text/tabaqa/grade_text;
+5 новых таблиц hd_hadith_editions/hd_rulings/hd_explanations/hd_hadith_crossrefs/
+hd_narrator_relations); расширенные Hadith/Narrator records + репозитории с
+findByExternalId; 5 доменных records + репозитории; round-trip IT
+(AlminasaSchemaRepositoryIT); **ADR-060** + glossary/architecture. 13 коммитов.
+
+**План 2 (заход 2, 04.06):** `2026-06-04-alminasa-crawler-staging.md` — ES-клиент +
+resumable краулер → staging. 15 коммитов:
+- **HAR-разбор субагентом** → уточнения спеки: путь индекса `es-prod-euw1-{index}-read`;
+  сайт пагинирует from+size (упёрся бы в ES-лимит 10k) → у нас `search_after` по
+  `hadith_serial_id`; `narrators[].id` — строка; у narrator-дока id только в ES `_id`;
+  вкладки علل/غريب — отдельные индексы, контракты не сняты (отложено до Плана 6).
+  Фикстуры из HAR → `backend/src/test/resources/alminasa/`.
+- **Миграция 72**: `am_staging_hadith/narrator/explanation/ruling` (raw jsonb NOT NULL
+  forward-compat, природные PK, UNIQUE(hadith_serial_id) сторожит search_after) +
+  `am_crawl_checkpoint` (generic по index_name, status CHECK).
+- **AlminasaRows** (JsonNode→Row, fail-fast на битых доках, trim) + 4 staging-DAO +
+  чекпоинт-DAO с resume-семантикой (upsertRunning(reset), advance=АБСОЛЮТНЫЙ счётчик).
+- **AlminasaEsClient**: 4 запроса (страница хадисов search_after + terms-батчи
+  narrators/explanations/rulings), Origin/Referer, опц. корп-прокси (Authenticator —
+  безопасен, серверного Authorization нет), @Retry(alminasaApi) + transient-предикат
+  (0/429/5xx; interrupt=-1 и 4xx НЕ ретраим), empty-collection short-circuit,
+  warn при переполнении dependent-fetch-size.
+- **AlminasaCrawlService**: «hadith-first» resumable цикл — страница хадисов →
+  зависимые по id страницы (только проверенные HAR'ом формы запросов, нет
+  сортировочных требований к зависимым индексам); чекпоинт на границе КАЖДОЙ
+  страницы; pause на границе; stale-takeover (10 мин); single-thread executor
+  (queue=0+AbortPolicy = реальный guard сериализации); БЕЗ @Transactional на цикле.
+- **Admin REST** `/api/v1/admin/alminasa/crawl/{start,pause,status}` (202/200/200,
+  409 alminasa-crawl-already-running, ADMIN-only как sunnah); race
+  «stale-takeover при живом воркере» → TaskRejectedException → честный 409
+  (чекпоинт не трогаем — живой воркер сам продолжает heartbeat).
+- **Доки**: api-contract (3 endpoint'а + DTO), gotchas (ES-прокси: контракт и
+  ловушки), architecture (pipeline краулера), regen types.ts (только добавления).
+- **31 новый тест**: AlminasaRowsTest(5) + AmStagingDaoIT(4) + predicate(3) +
+  StubIT(7) + RetryIT(1, лок regрессии self-invocation Сессии 55) +
+  CrawlServiceIT(5: full/resume/pause/conflict/stale) + ControllerIT(6, вкл.
+  детерминированный тест race живого воркера через latch).
+
+### Решения
+- ADR-060 (заход 1). План 2: `_msearch` не нужен (одиночные `_search` c terms);
+  alminasa.enabled default-on (публичный прокси, секретов нет); чекпоинт generic
+  без collection-измерения (глобальный hadith-first обход, прогресс по сборникам
+  План 5 возьмёт из staging group by book_id); fetched_count = абсолютный count(*)
+  (replay страницы не раздувает прогресс).
+- **Продукт (Абдула, из консультации с веб-Клодом):** до массового обхода написать
+  в مركز تميز (alminasa) про официальный доступ — пункт в backlog; полный обход
+  12 сборников ГЕЙТИТСЯ этим пунктом. Memory `feedback_hadith_source_strategy`
+  дополнена.
+
+### Code-review (per-группа + финальный)
+Каждая группа: spec-ревью + quality-ревью. 3 фикс-итерации по ревью: (1) предикат
+без негативных тестов + empty-collection guards; (2) fetched_count дрейф при replay +
+лживый javadoc 409 + total_hits каждую страницу; (3) race stale-takeover→500 →
+TaskRejectedException→409 + детерминированный IT. Финальный ревью всего диапазона:
+**0 Critical, 0 Important, Ready to merge**; единственный named residual —
+queryability `terms.id` на narrators-индексе непроверяема стабом (live-smoke,
+гейтится backlog-пунктом).
+
+### Верификация (финал)
+Backend `./mvnw verify` → **BUILD SUCCESS, 1324/1324**. Frontend **vitest 720/720**
+(114 файлов), tsc clean, types.ts — только добавления. Live-smoke краулера НЕ гонялся
+(см. backlog-гейт); admin-endpoints проверены IT + ручная проверка ниже.
+
+### Проблемы/known
+- `terms.id` к narrators-12 — единственное live-предположение без тестового сигнала
+  (стаб отвечает на любой body). Проверить первым же dev-краулингом 1 страницы.
+- Вкладки علل/غريب: контракты НЕ в HAR — перед Планом 6 снять свежий HAR с кликами.
+- Полный обход 12 сборников — ТОЛЬКО после ответа alminasa (backlog).
+
+### Следующий шаг
+**План 3 — маппер staging→hd_*** (через writing-plans): детерминированный парс
+иснада из `full_text_ar` по `<a class=rawy id=N>` (порядок = narrators[], реверс в
+position 0 = Пророк ﷺ), upsert по external_id в hd_* (Plan 1 колонки/таблицы готовы),
+cross-refs из raw_narrations, рулинги/шархи/relations, book-id→slug map (146=البخاري,
+остальные из book_name при краулинге), unit-тесты на реальном hadith-HTML из фикстур.
+После него План 4 (выпил sunnah ETL + AI-иснад) → 5 (админка) → 6-7 (фронт, AI-перевод).
 
 Запрос Абдулы: 10 пунктов + скриншоты `img*.png` + HAR (archive.org/alminasa).
 Полностью автономный марафон. Спека `docs/superpowers/specs/2026-06-02-session-55-overhaul.md`.

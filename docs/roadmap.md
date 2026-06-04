@@ -484,6 +484,29 @@ design-specs создаются по мере приоритезации.
 
 - [~] **49.C: Hadith Chains Explorer (BIG)** - новое приложение
       `src/apps/hadith/` (ADR-018 platform pivot validation).
+      **🔄 РАЗВОРОТ ADR-060 (Сессия 56): alminasa.ai = единственный источник**
+      (спека `docs/superpowers/specs/2026-06-03-alminasa-hadith-source-design.md`);
+      sunnah-ETL и AI-иснад ниже по тексту — legacy, выпиливаются Планом 4.
+      Прогресс alminasa-трека:
+      - [x] **План 1** (схема+домен+репо) ✅ 2026-06-03 — миграции 70-71,
+            alminasa-колонки hd_*, 5 таблиц (editions/rulings/explanations/
+            crossrefs/narrator-relations), репозитории + findByExternalId, IT.
+      - [x] **План 2** (ES-клиент + краулер) ✅ 2026-06-04 — миграция 72
+            (am_staging_* + am_crawl_checkpoint), AlminasaEsClient
+            (search_after + terms-батчи, retry), resumable hadith-first
+            краулер (pause/resume/stale-takeover), admin REST
+            `/admin/alminasa/crawl/*`, 31 тест. План:
+            `docs/superpowers/plans/2026-06-04-alminasa-crawler-staging.md`.
+      - [ ] **План 3** — маппер staging→hd_* + детерминированный парс иснада
+            из `<a class=rawy>` (БЕЗ AI) ⬅️ **СЛЕДУЮЩИЙ**
+      - [ ] **План 4** — выпил legacy (sunnah ETL, sn_staging_*, AI-иснад
+            ADR-059, AdminSunnahPage, sunnah-mysql)
+      - [ ] **План 5** — AdminHadithImportPage (каталог 12 сборников/
+            прогресс/dry-run/resume)
+      - [ ] **Планы 6-7** — фронт (тип/кликабельный иснад/сеть рави/
+            такхридж/شروح-علل-غريب) + AI-перевод on-demand
+      - ⚠️ Полный обход 12 сборников гейтится backlog-пунктом «Связаться
+            с alminasa.ai»; контракты علل/غريب — снять HAR перед Планом 6.
       **Phase 1 (backend foundation)** ✅ — migrations 52-55, domain/repo/
       controllers, DevHadithSeeder. **Phase 3 (sanad graph viz)** ✅
       2026-05-31 (ADR-049): `GET /hadiths/{id}/sanad-graph` (дедуплицированные

@@ -190,68 +190,57 @@ ADR / gotcha / api-contract пишутся **сразу**, не в конце с
 
 И двигаемся по приоритету (Critical → Important → Minor)
 
-### ⭐ АКТУАЛЬНО — entry Сессии 56 (старт после марафона Сессии 55)
+### ⭐ АКТУАЛЬНО — entry Сессии 57 (после alminasa Планов 1-2 Сессии 56)
 
-**Сессия 55 — крупный автономный overhaul (7 фаз + code-review, ~14 коммитов
-`9a766cc..HEAD`).** Детали — `docs/progress.md` (запись Сессии 55) + спека
-`docs/superpowers/specs/2026-06-02-session-55-overhaul.md`. По 10 запросам Абдулы:
-- **OCR выпилен полностью** (ADR-057, migration 68) — Tesseract плохо парсил арабский.
-  AiEditService + image-scan upload сохранены как субстрат для будущего AI-распознавания.
-- **Swappable LLM** (ADR-058): пакет `ai/` — `LlmClient` + Anthropic/OpenAI/DeepSeek через
-  `@ConditionalOnProperty(ai.provider)` + `BookMetadataExtractionService`.
-- **content_kind** (migration 69) — ось доступности TEXT_ONLY/TEXT_AND_FILE/FILE_ONLY
-  (ортогональна `book_type`=жанр). Ридер по типу.
-- **archive.org overhaul**: FILE_ONLY, drop `_text` OCR-варианты, HTML-стрип, AI-метаданные,
-  лок формы после импорта. Закрыло баги обложки-как-тома/абракадабры/сырого-HTML/спиннера.
-- **Reader**: bbox-подсветка PDF-цитат, 0-page guard.
-- **Hadith**: `availableHadith` честный счётчик (дамп=bukhari-only!), скролл превью-панели,
-  alminasa переформулирована.
-- **AI-иснад** (ADR-059): `IsnadExtractionService` (LLM из матна) + live preview-граф в
-  AdminSunnahPage (кнопка «Извлечь иснад (ИИ)»). Эфемерный (без персистенции в hd_*).
-- **Code-review** (multi-agent): 0 Critical, 1 Important (`@Retry` bypass на AI-edit — фикс +
-  `LlmClientRetryIT`) + 9 Minor закрыты.
+**Сессия 56 — alminasa = единственный источник (ADR-060), Планы 1-2 закрыты.**
+Детали — `docs/progress.md` (запись Сессии 56). Кратко:
+- **План 1** ✅: миграции 70-71 (alminasa-колонки hd_* + 5 таблиц editions/rulings/
+  explanations/crossrefs/narrator-relations), домен+репозитории с findByExternalId.
+- **План 2** ✅: миграция 72 (`am_staging_*` + `am_crawl_checkpoint`),
+  `hadith/alminasa/` — AlminasaEsClient (ES-прокси `es-prod-euw1-{index}-read`,
+  search_after по hadith_serial_id, terms-батчи, @Retry alminasaApi),
+  AlminasaCrawlService (resumable hadith-first краулер: pause/resume/stale-takeover,
+  чекпоинт на границе страницы, абсолютный fetched_count), admin REST
+  `/api/v1/admin/alminasa/crawl/{start,pause,status}` (202/200/200, 409). 31 тест.
+  Фикстуры из HAR: `backend/src/test/resources/alminasa/`.
+- **Верификация:** backend verify **1324/1324 BUILD SUCCESS**, frontend vitest
+  **720/720**, tsc clean. Финальный multi-review: 0 Critical/Important.
 
-**Верификация (финал):** backend `./mvnw verify` → **BUILD SUCCESS**; frontend build ✓ /
-tsc ✓ / eslint **0 проблем** / **vitest 708/0/0**.
+**СЛЕДУЮЩИЙ ШАГ (по порядку):**
+1. **🔴 План 3 — маппер staging→hd_*** (через writing-plans, спека §C):
+   детерминированный парс иснада из `full_text_ar` по `<a class=rawy id=N>`
+   (порядок тегов = narrators[], реверс → position 0 = Пророк ﷺ, как
+   IsnadPersistenceService), upsert по external_id (Plan 1 готов), cross-refs из
+   raw_narrations, рулинги/шархи/relations, book-id→slug map (146=البخاري),
+   статус хадиса правилом (сахихайн→CANONICAL). Unit-тесты на реальном
+   hadith-HTML из фикстур. End-to-end IT одного хадиса.
+2. **План 4 — выпил legacy**: sunnah ETL (`hadith/sunnah/**`, `sn_staging_*`
+   drop-миграцией, AdminSunnahPage, sunnah.dump.*, docker sunnah-mysql) +
+   AI-иснад (`hadith/isnad/**`, ADR-059 → superseded). SanadGraphService/
+   SanadGraph ОСТАЮТСЯ (переиспользуются).
+3. **План 5 — AdminHadithImportPage** (каталог/прогресс/dry-run/resume),
+   **Планы 6-7** — фронт-данные + AI-перевод.
+4. **🖐️ Ручные проверки UI** (накоплено с Сессии 55, playwright env-blocked):
+   archive.org FILE_ONLY ридер, content_kind кнопки, bbox-подсветка,
+   DeepSeek-метаданные. Плюс новое: admin alminasa endpoints (curl ниже).
 
-**ХВОСТ СЕССИИ 55 (после основного overhaul):** добавлена **поддержка LLM за корп-прокси**
-(`ai.http.proxy`, превентивный Proxy-Authorization — gotcha «LLM за корп-прокси»);
-**DeepSeek живьём заработал** через прокси (метаданные книг archive.org извлекаются ИИ,
-лучше regex). **Hadith-работа свёрнута** по решению Абдулы (enrich/grounding/alminasa —
-переделка отдельной сессией). Мелкие UI-фиксы: убраны OCR-упоминания в админ-карточках,
-CitationPicker больше не виснет на FILE_ONLY (показывает «только PDF»).
+**⚠️ Гейты и residual-риски alminasa:**
+- **Полный обход 12 сборников — ТОЛЬКО после ответа alminasa** (backlog «Связаться
+  с alminasa.ai»; письмо пишет Абдула). Dev-краулинг 1-2 страниц для отладки — ок.
+- `terms.id` к narrators-12 — единственное live-предположение без тестового сигнала;
+  проверить первым dev-краулингом (narrators должны прийти непустыми).
+- Вкладки علل/غريب — контракты не сняты; перед Планом 6 свежий HAR.
 
-**СЛЕДУЮЩИЙ ШАГ:**
-1. **🔴 ПЕРЕДЕЛКА ХАДИСОВ под alminasa** — Абдула развернул стратегию (см. memory
-   `feedback_hadith_source_strategy`): **alminasa.ai = ЕДИНСТВЕННЫЙ источник** арабского
-   контента + хадисоведения (открытый ES-прокси, отдаёт structured иснад/риджаль/шарх/
-   рулинги). sunnah.com → только en-переводы либо выпил. AI-isnad-from-matn (ADR-059) →
-   legacy. Нужна дизайн-спека Сессии 56 + новый alminasa-парсер (staging→map как sunnah ETL).
-2. **🖐️ РУЧНАЯ ПРОВЕРКА UI** overhaul'а (playwright env-blocked) — archive.org FILE_ONLY ридер,
-   content_kind кнопки, bbox-подсветка. DeepSeek-метаданные книги (с поднятым ключом).
-3. **bbox-citation CREATION для FILE_ONLY** (roadmap 25.f) — **архитектурный блокер**:
-   `pdfFileId`=FK на `library_files`, а archive.org PDF в `metadata.pdf_links`. Нужно
-   решение по модели (см. `docs/backlog.md` «FILE_ONLY bbox-citation CREATION»). Display готов.
-4. **Косметика (отложено Сессией 55):** ровные чипы admin-карточек; z-index FloatingActionBar
-   поверх модалки; header/верх модалки overlap. **AI-vision метаданных по front-matter PDF**
-   (титул/выходные данные содержат ISBN/тома/издателя — Абдула просил, multimodal LLM).
-5. **Полный дамп sunnah.com** (контент-ops) — если sunnah вообще остаётся.
-
-**Прочее отложенное:** migration 69 jsonb-guard hardening (backlog); shamela chapter-cycle,
-bibliography dash-split, getDetail perf (Tier-3 backlog). См. `docs/backlog.md`.
-
-**Инфра:** Docker (postgres+minio) up + **`sunnah-mysql` :3307** (root/root, БД `sunnah`;
-дамп = только bukhari). Backend :9090 + JDWP :5005. **ВАЖНО: sunnah-конфиг — через
-`-Dspring-boot.run.arguments`, НЕ env.** Команда рестарта:
-`./mvnw spring-boot:run -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005" -Dspring-boot.run.arguments="--sunnah.dump.enabled=true --sunnah.dump.url=jdbc:mysql://localhost:3307/sunnah?allowPublicKeyRetrieval=true&useSSL=false --sunnah.dump.username=root --sunnah.dump.password=root"`
-**Для AI-фич:** добавить `--ai.provider=deepseek --ai.deepseek.api-key=<ключ>` (или anthropic/
-openai). **За корп-прокси (WSL2):** + `--ai.http.proxy=http://user:pass@host:port` (берётся
-из env `HTTPS_PROXY`; api.deepseek.com blackhole-DNS на 127.0.0.1 без прокси). Ключ Абдулы
-НЕ в репо — передаётся аргументом при рестарте.
-migrations через **69** (68 drop ocr-columns, 69 lib_books.content_kind). **Psql роль `argmap`**
-(не postgres): `docker exec argumentmap-postgres psql -U argmap -d argumentmap`. frontend :5173.
-Admin для curl/тестов: `00000000-0000-0000-0000-000000000001`. HAR archive.org в gitignore.
-**Дев-данные:** fmhji переимпортирован чисто (FILE_ONLY, 4 файла); bukhari hd_* 1 хадис.
+**Инфра:** Docker (postgres+minio) up. Backend :9090 + JDWP :5005 (рестарт —
+команда в CLAUDE.md; sunnah-mysql `:3307` НЕ нужен для alminasa-работы, нужен
+только если трогаешь sunnah-legacy до Плана 4). Для AI-фич: `--ai.provider=...`
++ ключ аргументом (НЕ в репо); за корп-прокси `--ai.http.proxy=...`.
+migrations через **72**. Psql роль `argmap`. frontend :5173.
+Admin для curl: `00000000-0000-0000-0000-000000000001`. HAR'ы в gitignore;
+полные сэмплы ответов alminasa — `/tmp/alminasa-fixtures/` (если /tmp пережил
+ребут) либо пере-извлечь из HAR в корне.
+Smoke alminasa: `curl -s -H "X-User-Id: 00000000-0000-0000-0000-000000000001" http://localhost:9090/api/v1/admin/alminasa/crawl/status` → `{"status":"IDLE",...}`.
+**Дев-данные:** fmhji (FILE_ONLY, 4 файла); bukhari hd_* 1 хадис (sunnah-legacy).
 
 ### Историч. снапшоты (Сессии 47/49d/49c) — сжаты
 
