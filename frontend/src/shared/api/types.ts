@@ -484,6 +484,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hadith/matns/{matnId}/translate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["translate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/edges": {
         parameters: {
             query?: never;
@@ -2463,6 +2479,16 @@ export interface components {
             addedAt?: string;
             /** Format: uuid */
             addedBy?: string;
+        };
+        MatnTranslateRequest: {
+            lang?: string;
+        };
+        MatnTranslationResponse: {
+            /** Format: uuid */
+            matnId?: string;
+            lang?: string;
+            text?: string;
+            cached?: boolean;
         };
         CreateEdgeRequest: {
             /** Format: uuid */
@@ -4644,6 +4670,38 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["BookMemberResponse"];
+                };
+            };
+        };
+    };
+    translate: {
+        parameters: {
+            query: {
+                force?: boolean;
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                matnId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MatnTranslateRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["MatnTranslationResponse"];
                 };
             };
         };
