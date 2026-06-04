@@ -21,8 +21,6 @@ import ru.basnukaev.argumentmap.library.imports.PageImageException;
 import ru.basnukaev.argumentmap.library.imports.web.UnsupportedMediaTypeException;
 import ru.basnukaev.argumentmap.library.pdf.service.PdfNotAvailableException;
 import ru.basnukaev.argumentmap.library.pdf.service.RangeNotSatisfiableException;
-import ru.basnukaev.argumentmap.hadith.sunnah.service.SunnahHadithNotFoundException;
-import ru.basnukaev.argumentmap.hadith.sunnah.web.SunnahDumpNotConfiguredException;
 import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgException;
 import ru.basnukaev.argumentmap.library.archiveorg.ArchiveOrgItemNotFoundException;
 import ru.basnukaev.argumentmap.library.archiveorg.InvalidArchiveOrgUrlException;
@@ -315,24 +313,10 @@ public class GlobalExceptionHandler {
                 "archive.org недоступен", "archive-org-error", ex.getMessage());
     }
 
-    @ExceptionHandler(SunnahDumpNotConfiguredException.class)
-    public ProblemDetail handleSunnahDumpNotConfigured(SunnahDumpNotConfiguredException ex) {
-        return problem(HttpStatus.SERVICE_UNAVAILABLE,
-                "Источник sunnah не настроен", "sunnah-dump-not-configured",
-                ex.getMessage());
-    }
-
     @ExceptionHandler(AlminasaCrawlConflictException.class)
     public ProblemDetail handleAlminasaCrawlConflict(AlminasaCrawlConflictException ex) {
         return problem(HttpStatus.CONFLICT,
                 "Краулинг alminasa уже идёт", "alminasa-crawl-already-running",
-                ex.getMessage());
-    }
-
-    @ExceptionHandler(SunnahHadithNotFoundException.class)
-    public ProblemDetail handleSunnahHadithNotFound(SunnahHadithNotFoundException ex) {
-        return problem(HttpStatus.NOT_FOUND,
-                "Хадис не найден в источнике sunnah", "sunnah-hadith-not-found",
                 ex.getMessage());
     }
 

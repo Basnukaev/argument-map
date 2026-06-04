@@ -45,8 +45,8 @@ public record Narrator(
 ) {
     /**
      * Backward-compat конструктор без alminasa-полей (16 аргументов) для
-     * существующих call-site'ов (IsnadPersistenceService, DevHadithSeeder,
-     * IT-фикстуры). alminasa-импортёр использует полный конструктор.
+     * существующих call-site'ов (DevHadithSeeder, IT-фикстуры).
+     * alminasa-импортёр использует полный конструктор.
      */
     public Narrator(
             UUID id, UUID authorityId, String nameAr, String nameArNormalized,

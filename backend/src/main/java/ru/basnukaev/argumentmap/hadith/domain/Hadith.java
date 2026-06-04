@@ -46,8 +46,8 @@ public record Hadith(
 ) {
     /**
      * Backward-compat конструктор без alminasa-полей (8 аргументов) для
-     * существующих call-site'ов (sunnah-маппер, seeder, IT-фикстуры) — пока
-     * legacy не удалён. alminasa-импортёр использует полный конструктор.
+     * существующих call-site'ов (seeder, IT-фикстуры; legacy sunnah-маппер
+     * удалён Планом 4). alminasa-импортёр использует полный конструктор.
      */
     public Hadith(
             UUID id, UUID collectionId, Integer primaryNumber, String normalizedMatn,

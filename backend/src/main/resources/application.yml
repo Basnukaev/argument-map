@@ -240,18 +240,6 @@ archiveorg:
   request-timeout-seconds: 30
   connect-timeout-seconds: 10
 
-# Импорт дампа sunnah.com (ADR-052, Phase 5 шаг 2.d). По умолчанию выключен —
-# reader-бин не создаётся, admin-endpoint /api/v1/admin/sunnah отвечает 503.
-# Включается отдельным MySQL с загруженным db/00-samplegitdb.sql:
-#   SUNNAH_DUMP_ENABLED=true SUNNAH_DUMP_URL=jdbc:mysql://host:3306/sunnah
-#   SUNNAH_DUMP_USERNAME=... SUNNAH_DUMP_PASSWORD=...
-sunnah:
-  dump:
-    enabled: ${SUNNAH_DUMP_ENABLED:false}
-    url: ${SUNNAH_DUMP_URL:}
-    username: ${SUNNAH_DUMP_USERNAME:}
-    password: ${SUNNAH_DUMP_PASSWORD:}
-
 # План 2 alminasa (ADR-060): открытый ES-прокси, краулер → am_staging_*.
 # origin отдельно от base-url: прокси проверяет Origin/Referer, в IT
 # base-url подменяется stub'ом. Прокси-URL только для alminasa-клиента.

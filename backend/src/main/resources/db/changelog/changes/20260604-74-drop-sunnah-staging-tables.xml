@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Выпил legacy sunnah.com ETL по ADR-060 (План 4): alminasa стал
+        единственным источником хадисов, sunnah-импортёр и его staging-схема
+        удалены. Дропаем staging-таблицы sn_staging_*, созданные миграцией 59.
+        Порядок DROP'а — от зависимых к независимым (hadith → chapter → book →
+        collection), хотя IF EXISTS + отсутствие межтабличных FK делают порядок
+        некритичным.
+        План: docs/plans/2026-06-04-alminasa-legacy-removal.md
+
+        Rollback СОЗНАТЕЛЬНО опущен: DROP TABLE необратим, а legacy
+        sunnah-данные не восстанавливаются (источник выпилен целиком).
+        Воссоздание схемы при необходимости — миграция 59 в истории.
+    -->
+    <changeSet id="20260604-74-drop-sunnah-staging-tables" author="Abdula Basnukaev">
+        <comment>Дроп legacy staging-таблиц sn_staging_* (выпил sunnah ETL, ADR-060, План 4)</comment>
+        <sql><![CDATA[
+            DROP TABLE IF EXISTS sn_staging_hadith;
+            DROP TABLE IF EXISTS sn_staging_chapter;
+            DROP TABLE IF EXISTS sn_staging_book;
+            DROP TABLE IF EXISTS sn_staging_collection;
+        ]]></sql>
+    </changeSet>
+
+</databaseChangeLog>
