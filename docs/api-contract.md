@@ -3508,6 +3508,42 @@ Bundled detail: hadith + sanads (с narrator-link'ами) + matns + `grades`
 
 Питает компонент `SanadGraph` (React Flow, dagre TB layout, read-only).
 
+### POST /api/v1/hadith/matns/{matnId}/translate
+
+AI-перевод текста матна (`text_ar`) на ru/en on-demand (План 7, ADR-058).
+Синхронный (LLM 5-15с, фронт показывает лоадер). Body
+`MatnTranslateRequest {lang}` — `@Valid`, union-валидация `ru|en` через
+`@Pattern` (иной → 400 `validation`). Query `?force=` (boolean, default
+`false`). `@CurrentUser` обязателен (anonymous → 401 `invalid-token`).
+
+Поведение: перевод персистится в `hd_matns.text_{lang}` и при повторном
+запросе отдаётся из БД без LLM-вызова. `force=true` — регенерация
+курируемого перевода, **ADMIN-only** (403 `forbidden-admin-only` для
+остальных). Race двух одновременных translate допускает двойной LLM-вызов
+(MVP, atomic-claim — backlog): оба перевода валидны, перезапись
+идемпотентна.
+
+**200** `MatnTranslationResponse`:
+
+```jsonc
+{
+  "matnId": "uuid",
+  "lang": "ru",
+  "text": "Поистине, дела (оцениваются) по намерениям…",
+  "cached": false   // true = взято из БД, LLM не вызывался
+}
+```
+
+**Ошибки:**
+- 400 `validation` — `lang` не `ru`/`en`.
+- 401 `invalid-token` — нет принципала (anonymous).
+- 403 `forbidden-admin-only` — `force=true` не от ADMIN.
+- 404 `matn-not-found` — матн не найден (property `matnId`).
+- 422 `invalid-matn-text` — у матна пустой `text_ar` (нечего переводить;
+  guard ДО LLM-вызова; property `matnId`).
+- 503 `llm-not-configured` — LLM-провайдер не сконфигурирован
+  (`LlmClient.isEnabled()==false`, sentinel-ключ); pre-flight, не bug.
+
 ### GET /api/v1/hadith/narrators
 
 Каталог передатчиков, `PagedResponse<NarratorResponse>`. Фильтры: `q`
@@ -4077,6 +4113,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-06-04 | v1 | **AI-перевод матна on-demand (План 7, ADR-058).** Новый эндпоинт `POST /api/v1/hadith/matns/{matnId}/translate` (отдельный `MatnTranslationController` под ресурс `/hadith/matns`): body `MatnTranslateRequest {lang}` (`@Pattern` ru\|en → 400 `validation`), query `?force=` (boolean, ADMIN-only регенерация → 403 `forbidden-admin-only`), `@CurrentUser` обязателен (anonymous → 401 `invalid-token`). 200 `MatnTranslationResponse {matnId, lang, text, cached}`: переводит `text_ar` через `LlmClient` (ADR-058) и персистит в `hd_matns.text_ru`/`text_en` (колонки существуют с Плана 1); повторный запрос → `cached=true` без LLM-вызова. `HadithTranslationService.translate()` БЕЗ @Transactional (LLM-вызов вне tx — pool-slot не держим 5-15с); `MatnRepository.updateTranslation` — два отдельных UPDATE по lang. Ошибки: 404 `matn-not-found`, 422 `invalid-matn-text` (пустой text_ar, guard ДО LLM), 503 `llm-not-configured` (sentinel-ключ, pre-flight). Race двух translate допускает двойной LLM-вызов (MVP; atomic-claim — backlog). IT: `HadithTranslationControllerIT` (стаб LlmClient + счётчик: happy/cached/force/401/404/400/422) + `HadithTranslationNotConfiguredIT` (503 без стаба) | План 7: кнопка «Перевести (ru/en)» на матне в Hadith Explorer; перевод детерминированно полезен всем читателям, мутация безопасна (заполнение NULL-поля) |
 | 2026-06-04 | v1 | **Hadith Explorer обогащён alminasa-данными (План 6).** Расширены 3 существующих ответа web-слоя (endpoint'ы НЕ переименованы, только новые поля DTO; домен/репозитории/миграции готовы Планами 1-3). (1) `GET /hadith/hadiths/{id}/detail` (`HadithDetailResponse`) +8 полей: скаляры `hadithType`/`chapterAr`/`subChapterAr`/`fullTextAr` (HTML-иснад с `<a class=rawy id=N>`/`<a class=matn>` тегами) + списки сателлитов `editions` (`EditionDto`), `rulings` (`RulingDto` — `source`/`relatedExternalId` из `hd_rulings.metadata` jsonb, парс через ObjectMapper, отсутствуют → null; `index`+`relatedExternalId` = вердикт на параллельную передачу), `explanations` (`ExplanationDto`, kind SHARH/ILAL/GHARIB), `crossrefs` (`CrossrefDto`, такхридж). Загрузка 4 репозиториев `findByHadithId` (single-detail, N+1 нет); legacy/без сателлитов → пустые массивы + null-скаляры. (2) `GET /hadith/narrators/{id}` (`NarratorResponse`) +6 полей: `tabaqa`/`gradeText`/`bornOnText`/`diedOnText`/`deathPlace` + `relations` (`NarratorRelationDto`, сеть передатчиков) — `relations` строится ТОЛЬКО в getOne; list-эндпоинт передаёт `null` (без N+1). (3) `GET /hadith/hadiths/{id}/sanad-graph` (`SanadGraphResponse.NarratorData`) +3 поля: `tabaqa`/`gradeText`/`externalId` (клик-резолв иснада на фронте); синтетический узел `prophet` несёт null'ы. Вкладки علل/غريب НЕ реализованы (ждут HAR). IT: `HadithControllerIT`/`NarratorControllerIT` (detail с сателлитами + legacy-пустота + relations + sanad-graph externalId) | План 6: фронт Hadith Explorer раскрывает богатые `hd_*` данные (тип/глава/кликабельный иснад/вердикты/шархи/такхридж/сеть передатчиков) вместо прежнего sunnah-сэмпла. Тонкий web-слой wiring готовых доменных данных |
 | 2026-06-04 | v1 | **Alminasa Import Admin API (План 5, ADR-060).** 5 новых эндпоинтов в `AlminasaAdminController` (ADMIN-only): `GET /api/v1/admin/alminasa/catalog` (12 сборников, прогресс staged→mapped; `mappedCount` ТОЛЬКО `external_source='alminasa'` — фикс C1), `GET /import/status`, `POST /import/narrators` (202+status), `POST /import/hadiths?bookId=` (202+status), `GET /dry-run/{hadithId}` (превью маппинга ДО записи, read-only rollback). DTO: `AlminasaCatalogEntryResponse`, `AlminasaImportStatusResponse`, `AlminasaDryRunResponse` (+`ChainLink`). Импорт — async на отдельном single-thread executor (`AlminasaImportConfig`, БЕЗ `alminasa.enabled`-гейта), in-memory state IDLE/RUNNING, `409 alminasa-import-already-running` при двойном запуске. Новые ошибки: `alminasa-import-already-running` (409), `alminasa-staging-not-found` (404, dry-run нестейдженного id), `alminasa-mapping-failed` (422, пустой/битый матн). Сервер НЕ блокирует импорт при идущем краулинге — идемпотентность лечит частичные данные re-run'ом | План 5: админка импорта застейдженных alminasa-данных в `hd_*` с проверяемым dry-run-превью (философия «поэтапного проверяемого импорта»). Отдельный executor (не crawl-бин): импорт работает чисто по локальному staging независимо от `alminasa.enabled` |
 | 2026-06-04 | v1 | **Sunnah Import Admin API удалён целиком (План 4, ADR-060).** Удалены все эндпоинты `/api/v1/admin/sunnah/*`: `GET /collections`, `GET /collections/{collection}/hadiths`, `GET /preview/{collection}/{number}`, `POST /import/{collection}/{number}`, `POST /import-collection/{collection}`, `POST /extract-isnad` (ADR-059). DTO `Sunnah*`/`IsnadExtraction*` удалены (regen types.ts — только удаления). Таблицы `sn_staging_*` дропнуты миграцией 74. Ошибки `sunnah-dump-not-configured` (503) и `sunnah-hadith-not-found` (404) удалены из GlobalExceptionHandler | ADR-060: alminasa.ai = единственный источник хадисов; sunnah-ETL и AI-извлечение иснада (ADR-059, superseded) — legacy. Замена: Alminasa Crawl Admin API (План 2) + маппер (План 3) + AdminHadithImportPage (План 5) |

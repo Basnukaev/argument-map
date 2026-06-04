@@ -420,6 +420,34 @@ public class GlobalExceptionHandler {
         return pd;
     }
 
+    // ---- AI-перевод матна (План 7, ADR-058) ----
+
+    @ExceptionHandler(ru.basnukaev.argumentmap.hadith.web.MatnNotFoundException.class)
+    public ProblemDetail handleMatnNotFound(
+            ru.basnukaev.argumentmap.hadith.web.MatnNotFoundException ex) {
+        ProblemDetail pd = problem(HttpStatus.NOT_FOUND,
+                "Матн не найден", "matn-not-found", ex.getMessage());
+        pd.setProperty("matnId", ex.getMatnId().toString());
+        return pd;
+    }
+
+    @ExceptionHandler(ru.basnukaev.argumentmap.hadith.web.InvalidMatnTextException.class)
+    public ProblemDetail handleInvalidMatnText(
+            ru.basnukaev.argumentmap.hadith.web.InvalidMatnTextException ex) {
+        ProblemDetail pd = problem(HttpStatus.UNPROCESSABLE_ENTITY,
+                "У матна нет арабского текста", "invalid-matn-text", ex.getMessage());
+        pd.setProperty("matnId", ex.getMatnId().toString());
+        return pd;
+    }
+
+    @ExceptionHandler(ru.basnukaev.argumentmap.hadith.web.MatnTranslationNotConfiguredException.class)
+    public ProblemDetail handleMatnTranslationNotConfigured(
+            ru.basnukaev.argumentmap.hadith.web.MatnTranslationNotConfiguredException ex) {
+        // 503 Service Unavailable - configuration issue (нет API key), не bug.
+        return problem(HttpStatus.SERVICE_UNAVAILABLE,
+                "AI-перевод не настроен", "llm-not-configured", ex.getMessage());
+    }
+
     @ExceptionHandler(InvalidHadithGradeException.class)
     public ProblemDetail handleInvalidHadithGrade(InvalidHadithGradeException ex) {
         return problem(HttpStatus.BAD_REQUEST,

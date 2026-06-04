@@ -6,6 +6,7 @@ import static ru.basnukaev.argumentmap.repository.JdbcTimes.odt;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -60,6 +61,38 @@ public class MatnRepository {
                 odt(m.createdAt())
         );
         return m;
+    }
+
+    public Optional<Matn> findById(UUID id) {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM hd_matns WHERE id = ?",
+                ROW_MAPPER, id
+        ).stream().findFirst();
+    }
+
+    /**
+     * Персистит AI-перевод матна в text_ru ИЛИ text_en (по lang). Два
+     * отдельных UPDATE-стейтмента вместо одного с условными колонками —
+     * единый UPDATE с CASE занулил бы вторую колонку (план 7, решение 6).
+     * Короткая транзакция на репо-методе: сам LLM-вызов идёт ВНЕ tx
+     * (сервис без @Transactional), сюда приходим уже с готовым текстом.
+     *
+     * @param matnId id матна
+     * @param lang   'ru' либо 'en'
+     * @param text   перевод
+     * @throws IllegalArgumentException если lang не 'ru'/'en'
+     */
+    public void updateTranslation(UUID matnId, String lang, String text) {
+        if ("ru".equals(lang)) {
+            jdbcTemplate.update(
+                    "UPDATE hd_matns SET text_ru = ? WHERE id = ?", text, matnId);
+        } else if ("en".equals(lang)) {
+            jdbcTemplate.update(
+                    "UPDATE hd_matns SET text_en = ? WHERE id = ?", text, matnId);
+        } else {
+            throw new IllegalArgumentException(
+                    "Неподдерживаемый язык перевода: " + lang + " (ожидается ru|en)");
+        }
     }
 
     public List<Matn> findByHadithId(UUID hadithId) {
