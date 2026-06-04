@@ -77,5 +77,6 @@
     <include file="db/changelog/changes/20260603-70-hd-alminasa-columns.xml"/>
     <include file="db/changelog/changes/20260603-71-hd-alminasa-tables.xml"/>
     <include file="db/changelog/changes/20260604-72-alminasa-staging-tables.xml"/>
+    <include file="db/changelog/changes/20260604-73-alminasa-composite-cursor.xml"/>
 
 </databaseChangeLog>

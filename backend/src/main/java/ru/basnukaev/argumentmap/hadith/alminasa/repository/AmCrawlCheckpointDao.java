@@ -9,17 +9,18 @@ import org.springframework.stereotype.Repository;
 import ru.basnukaev.argumentmap.hadith.alminasa.repository.domain.AmCrawlCheckpoint;
 import ru.basnukaev.argumentmap.hadith.alminasa.repository.domain.AmCrawlCheckpoint.AmCrawlStatus;
 
-/** DAO {@code am_crawl_checkpoint} (миграция 72). План 2 alminasa. */
+/** DAO {@code am_crawl_checkpoint} (миграции 72-73). План 2 alminasa. */
 @Repository
 public class AmCrawlCheckpointDao {
 
     private static final String COLUMNS =
-            "index_name, status, last_sort_value, fetched_count, total_hits, error, started_at, updated_at";
+            "index_name, status, last_sort_value, last_sort_id, fetched_count, total_hits, error, started_at, updated_at";
 
     private static final RowMapper<AmCrawlCheckpoint> ROW_MAPPER = (rs, rn) -> new AmCrawlCheckpoint(
             rs.getString("index_name"),
             AmCrawlStatus.valueOf(rs.getString("status")),
             rs.getObject("last_sort_value", Long.class),
+            rs.getString("last_sort_id"),
             rs.getLong("fetched_count"),
             rs.getObject("total_hits", Long.class),
             rs.getString("error"),
@@ -43,7 +44,7 @@ public class AmCrawlCheckpointDao {
     /**
      * Перевод в RUNNING (создаёт строку при отсутствии). {@code resetProgress}
      * — обнулить прогресс (свежий краулинг с нуля) или сохранить
-     * last_sort_value/fetched_count (resume после PAUSED/FAILED/stale).
+     * курсор/fetched_count (resume после PAUSED/FAILED/stale).
      */
     public AmCrawlCheckpoint upsertRunning(String indexName, boolean resetProgress) {
         jdbcTemplate.update("""
@@ -52,11 +53,12 @@ public class AmCrawlCheckpointDao {
                 ON CONFLICT (index_name) DO UPDATE SET
                     status = 'RUNNING',
                     last_sort_value = CASE WHEN ? THEN NULL ELSE am_crawl_checkpoint.last_sort_value END,
+                    last_sort_id    = CASE WHEN ? THEN NULL ELSE am_crawl_checkpoint.last_sort_id    END,
                     fetched_count   = CASE WHEN ? THEN 0    ELSE am_crawl_checkpoint.fetched_count   END,
                     error = NULL,
                     started_at = now(),
                     updated_at = now()
-                """, indexName, resetProgress, resetProgress);
+                """, indexName, resetProgress, resetProgress, resetProgress);
         return find(indexName).orElseThrow();
     }
 
@@ -67,16 +69,16 @@ public class AmCrawlCheckpointDao {
     }
 
     /**
-     * Граница страницы: новый search_after-курсор + АБСОЛЮТНЫЙ счётчик
-     * застейдженных (= count(*) staging на момент границы; replay страницы
-     * не раздувает прогресс).
+     * Граница страницы: новый СОСТАВНОЙ search_after-курсор (serial +
+     * hadith_id-tiebreaker) + АБСОЛЮТНЫЙ счётчик застейдженных (= count(*)
+     * staging на момент границы; replay страницы не раздувает прогресс).
      */
-    public void advance(String indexName, long lastSortValue, long fetchedCount) {
+    public void advance(String indexName, long lastSortValue, String lastSortId, long fetchedCount) {
         jdbcTemplate.update("""
                 UPDATE am_crawl_checkpoint
-                SET last_sort_value = ?, fetched_count = ?, updated_at = now()
+                SET last_sort_value = ?, last_sort_id = ?, fetched_count = ?, updated_at = now()
                 WHERE index_name = ?
-                """, lastSortValue, fetchedCount, indexName);
+                """, lastSortValue, lastSortId, fetchedCount, indexName);
     }
 
     public void markCompleted(String indexName) {

@@ -81,7 +81,7 @@ class AlminasaEsClientStubIT {
     void fetchHadithPage_первая_страница_без_search_after() throws IOException {
         fixtureToServe.set("hadith-page.json");
 
-        AlminasaPage page = client.fetchHadithPage(null, 100);
+        AlminasaPage page = client.fetchHadithPage(null, null, 100);
 
         CapturedRequest req = captured.poll();
         assertThat(req.path()).isEqualTo("/api/reactivesearchproxy/es-prod-euw1-hadith-12-read/_search");
@@ -91,7 +91,10 @@ class AlminasaEsClientStubIT {
 
         JsonNode body = MAPPER.readTree(req.body());
         assertThat(body.path("size").asInt()).isEqualTo(100);
+        // составной sort: serial (per-book!) + hadith_id-tiebreaker
         assertThat(body.path("sort").get(0).path("hadith_serial_id").path("order").asText())
+                .isEqualTo("asc");
+        assertThat(body.path("sort").get(1).path("hadith_id").path("order").asText())
                 .isEqualTo("asc");
         assertThat(body.path("track_total_hits").asBoolean()).isTrue();
         assertThat(body.has("search_after")).isFalse();
@@ -104,13 +107,14 @@ class AlminasaEsClientStubIT {
     }
 
     @Test
-    void fetchHadithPage_resume_передаёт_search_after() throws IOException {
+    void fetchHadithPage_resume_передаёт_составной_search_after() throws IOException {
         fixtureToServe.set("hadith-page-empty.json");
 
-        AlminasaPage page = client.fetchHadithPage(4242L, 50);
+        AlminasaPage page = client.fetchHadithPage(4242L, "146-4242", 50);
 
         JsonNode body = MAPPER.readTree(captured.poll().body());
         assertThat(body.path("search_after").get(0).asLong()).isEqualTo(4242L);
+        assertThat(body.path("search_after").get(1).asText()).isEqualTo("146-4242");
         assertThat(page.hits()).isEmpty();
     }
 
@@ -170,7 +174,7 @@ class AlminasaEsClientStubIT {
         fixtureToServe.set("hadith-page-empty.json");
         statusToServe.set(503);
 
-        assertThatThrownBy(() -> client.fetchHadithPage(null, 10))
+        assertThatThrownBy(() -> client.fetchHadithPage(null, null, 10))
                 .isInstanceOf(AlminasaApiException.class)
                 .satisfies(e -> assertThat(((AlminasaApiException) e).statusCode()).isEqualTo(503));
     }

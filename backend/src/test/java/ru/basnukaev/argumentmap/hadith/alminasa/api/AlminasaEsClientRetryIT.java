@@ -89,7 +89,7 @@ class AlminasaEsClientRetryIT {
 
     @Test
     void retry_503_503_200_успешен_после_трёх_запросов() {
-        AlminasaPage page = client.fetchHadithPage(null, 10);
+        AlminasaPage page = client.fetchHadithPage(null, null, 10);
 
         assertThat(requestCount.get()).isEqualTo(3);
         assertThat(page.hits()).isEmpty();

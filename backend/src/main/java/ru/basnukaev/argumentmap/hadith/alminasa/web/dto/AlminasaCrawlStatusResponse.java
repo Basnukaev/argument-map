@@ -6,11 +6,13 @@ import ru.basnukaev.argumentmap.hadith.alminasa.repository.domain.AmCrawlCheckpo
 
 /**
  * Статус краулинга alminasa: чекпоинт + счётчики staging-таблиц.
- * {@code status=IDLE} с нулями — краулинг ещё не запускался.
+ * {@code status=IDLE} с нулями — краулинг ещё не запускался. Курсор —
+ * составной (lastSortValue=serial внутри сборника, lastSortId=hadith_id).
  */
 public record AlminasaCrawlStatusResponse(
         String status,
         Long lastSortValue,
+        String lastSortId,
         long fetchedCount,
         Long totalHits,
         String error,
@@ -28,12 +30,13 @@ public record AlminasaCrawlStatusResponse(
                                                  long stagedExplanations,
                                                  long stagedRulings) {
         if (checkpoint == null) {
-            return new AlminasaCrawlStatusResponse("IDLE", null, 0, null, null, null, null,
+            return new AlminasaCrawlStatusResponse("IDLE", null, null, 0, null, null, null, null,
                     stagedHadiths, stagedNarrators, stagedExplanations, stagedRulings);
         }
         return new AlminasaCrawlStatusResponse(
                 checkpoint.status().name(),
                 checkpoint.lastSortValue(),
+                checkpoint.lastSortId(),
                 checkpoint.fetchedCount(),
                 checkpoint.totalHits(),
                 checkpoint.error(),

@@ -138,8 +138,8 @@ public class AlminasaCrawlService {
         Set<Long> stagedNarrators = new HashSet<>(narratorDao.findAllIds());
         while (true) {
             AmCrawlCheckpoint checkpoint = checkpointDao.find(HADITH_INDEX_KEY).orElseThrow();
-            AlminasaPage page =
-                    client.fetchHadithPage(checkpoint.lastSortValue(), props.crawl().pageSize());
+            AlminasaPage page = client.fetchHadithPage(
+                    checkpoint.lastSortValue(), checkpoint.lastSortId(), props.crawl().pageSize());
             if (!Objects.equals(checkpoint.totalHits(), page.totalHits())) {
                 checkpointDao.setTotalHits(HADITH_INDEX_KEY, page.totalHits());
             }
@@ -168,15 +168,17 @@ public class AlminasaCrawlService {
             }
             stagedNarrators.addAll(newNarratorIds);
 
-            long lastSerial = rows.get(rows.size() - 1).hadithSerialId();
+            AmHadithRow lastRow = rows.get(rows.size() - 1);
             long stagedCount = hadithDao.count();
-            checkpointDao.advance(HADITH_INDEX_KEY, lastSerial, stagedCount);
-            log.info("alminasa crawl: страница до serial={} (+{} хадисов, +{} рави)",
-                    lastSerial, rows.size(), newNarratorIds.size());
+            checkpointDao.advance(
+                    HADITH_INDEX_KEY, lastRow.hadithSerialId(), lastRow.hadithId(), stagedCount);
+            log.info("alminasa crawl: страница до курсора ({}, {}) (+{} хадисов, +{} рави)",
+                    lastRow.hadithSerialId(), lastRow.hadithId(), rows.size(), newNarratorIds.size());
 
             if (pauseRequested) {
                 checkpointDao.markPaused(HADITH_INDEX_KEY);
-                log.info("alminasa crawl: пауза на serial={}", lastSerial);
+                log.info("alminasa crawl: пауза на курсоре ({}, {})",
+                        lastRow.hadithSerialId(), lastRow.hadithId());
                 return;
             }
             sleep(props.crawl().delayMs());

@@ -2732,6 +2732,7 @@ export interface components {
             status?: string;
             /** Format: int64 */
             lastSortValue?: number;
+            lastSortId?: string;
             /** Format: int64 */
             fetchedCount?: number;
             /** Format: int64 */

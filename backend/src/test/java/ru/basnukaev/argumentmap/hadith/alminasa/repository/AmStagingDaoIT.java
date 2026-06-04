@@ -57,6 +57,21 @@ class AmStagingDaoIT {
                 .isEqualTo("146-1");
     }
 
+    /**
+     * Живой урок dev-краулинга (Сессия 56): hadith_serial_id — номер ВНУТРИ
+     * сборника, НЕ глобальный (12 доков с serial=1, по одному на сборник).
+     * Миграция 73 сняла UNIQUE с serial — хадисы разных сборников с
+     * одинаковым serial обязаны стейджиться оба.
+     */
+    @Test
+    void hadith_с_одинаковым_serial_разных_сборников_оба_вставляются() {
+        hadithDao.upsertAll(List.of(
+                new AmHadithRow("121-1", 121, 1, "مسند أحمد بن حنبل", "مرفوع", null, null, "{}"),
+                new AmHadithRow("146-1", 146, 1, "صحيح البخاري", "مرفوع", null, null, "{}")));
+
+        assertThat(hadithDao.count()).isEqualTo(2);
+    }
+
     @Test
     void narrator_upsert_и_findAllIds() {
         narratorDao.upsertAll(List.of(
@@ -94,16 +109,18 @@ class AmStagingDaoIT {
         AmCrawlCheckpoint started = checkpointDao.upsertRunning("hadith-12", true);
         assertThat(started.status()).isEqualTo(AmCrawlStatus.RUNNING);
         assertThat(started.lastSortValue()).isNull();
+        assertThat(started.lastSortId()).isNull();
         assertThat(started.fetchedCount()).isZero();
         assertThat(started.startedAt()).isNotNull();
 
         checkpointDao.setTotalHits("hadith-12", 82596L);
-        // advance — АБСОЛЮТНЫЙ счётчик: вторая граница не +100, а set 200
-        checkpointDao.advance("hadith-12", 100L, 100);
-        checkpointDao.advance("hadith-12", 200L, 200);
+        // advance — АБСОЛЮТНЫЙ счётчик + СОСТАВНОЙ курсор (serial per-book!)
+        checkpointDao.advance("hadith-12", 100L, "146-100", 100);
+        checkpointDao.advance("hadith-12", 200L, "158-200", 200);
 
         AmCrawlCheckpoint mid = checkpointDao.find("hadith-12").orElseThrow();
         assertThat(mid.lastSortValue()).isEqualTo(200L);
+        assertThat(mid.lastSortId()).isEqualTo("158-200");
         assertThat(mid.fetchedCount()).isEqualTo(200L);
         assertThat(mid.totalHits()).isEqualTo(82596L);
 
@@ -111,9 +128,10 @@ class AmStagingDaoIT {
         assertThat(checkpointDao.find("hadith-12").orElseThrow().status())
                 .isEqualTo(AmCrawlStatus.PAUSED);
 
-        // resume БЕЗ reset — прогресс сохраняется
+        // resume БЕЗ reset — обе компоненты курсора сохраняются
         AmCrawlCheckpoint resumed = checkpointDao.upsertRunning("hadith-12", false);
         assertThat(resumed.lastSortValue()).isEqualTo(200L);
+        assertThat(resumed.lastSortId()).isEqualTo("158-200");
         assertThat(resumed.fetchedCount()).isEqualTo(200L);
 
         checkpointDao.markFailed("hadith-12", "boom");
@@ -124,9 +142,10 @@ class AmStagingDaoIT {
         assertThat(done.status()).isEqualTo(AmCrawlStatus.COMPLETED);
         assertThat(done.error()).isNull();
 
-        // рестарт с reset — прогресс обнуляется
+        // рестарт с reset — обе компоненты курсора обнуляются
         AmCrawlCheckpoint fresh = checkpointDao.upsertRunning("hadith-12", true);
         assertThat(fresh.lastSortValue()).isNull();
+        assertThat(fresh.lastSortId()).isNull();
         assertThat(fresh.fetchedCount()).isZero();
     }
 }

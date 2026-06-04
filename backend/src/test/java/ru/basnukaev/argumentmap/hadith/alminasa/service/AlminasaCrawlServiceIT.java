@@ -82,7 +82,13 @@ class AlminasaCrawlServiceIT {
                     String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
                     hadithRequests.add(body);
                     serveFixture(exchange,
-                            body.contains("search_after") ? "hadith-page-empty.json" : "hadith-page.json");
+                            // dup-serial: первая страница — РЕАЛЬНЫЕ доки 121-1/137-1/146-1
+                            // (все serial=1; живой урок про per-book serial). Пустая
+                            // страница несёт ТОТ ЖЕ total (как реальный ES) — иначе
+                            // setTotalHits перетёр бы 82596 на финальной странице.
+                            body.contains("search_after")
+                                    ? "hadith-page-dup-serial-empty.json"
+                                    : "hadith-page-dup-serial.json");
                 });
         server.createContext("/api/reactivesearchproxy/es-prod-euw1-narrators-12-read/_search",
                 exchange -> serveFixture(exchange, "narrators.json"));
@@ -124,14 +130,14 @@ class AlminasaCrawlServiceIT {
 
         AmCrawlCheckpoint cp = checkpointDao.find(AlminasaCrawlService.HADITH_INDEX_KEY).orElseThrow();
         assertThat(cp.status()).isEqualTo(AmCrawlStatus.COMPLETED);
-        assertThat(cp.totalHits()).isEqualTo(21); // total из фикстуры
-        assertThat(cp.fetchedCount()).isEqualTo(2);
-        // курсор = max(serial) застейдженного
-        Long maxSerial = jdbcTemplate.queryForObject(
-                "SELECT MAX(hadith_serial_id) FROM am_staging_hadith", Long.class);
-        assertThat(cp.lastSortValue()).isEqualTo(maxSerial);
+        assertThat(cp.totalHits()).isEqualTo(82596); // total из live-фикстуры
+        // ТРИ дока с ОДИНАКОВЫМ serial=1 — все застейджены (миграция 73)
+        assertThat(cp.fetchedCount()).isEqualTo(3);
+        assertThat(count("am_staging_hadith")).isEqualTo(3);
+        // составной курсор: serial последнего дока + его hadith_id (146-1 — лексикографически последний)
+        assertThat(cp.lastSortValue()).isEqualTo(1L);
+        assertThat(cp.lastSortId()).isEqualTo("146-1");
 
-        assertThat(count("am_staging_hadith")).isEqualTo(2);
         assertThat(count("am_staging_narrator")).isGreaterThanOrEqualTo(1);
         assertThat(count("am_staging_explanation")).isEqualTo(2);
         assertThat(count("am_staging_ruling")).isEqualTo(2);
@@ -139,24 +145,25 @@ class AlminasaCrawlServiceIT {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT raw->>'matn_with_tashkeel' FROM am_staging_hadith WHERE hadith_id = '146-1'",
                 String.class)).isNotBlank();
-        // вторая страница запрошена с search_after
+        // вторая страница запрошена с СОСТАВНЫМ search_after [1, "146-1"]
         assertThat(hadithRequests).hasSize(2);
-        assertThat(hadithRequests.stream().skip(1).findFirst().orElseThrow())
-                .contains("search_after");
+        String secondRequest = hadithRequests.stream().skip(1).findFirst().orElseThrow();
+        assertThat(secondRequest).contains("search_after");
+        assertThat(secondRequest).contains("\"146-1\"");
     }
 
     @Test
     void resume_продолжает_с_чекпоинта_не_с_нуля() {
         checkpointDao.upsertRunning(AlminasaCrawlService.HADITH_INDEX_KEY, true);
-        checkpointDao.advance(AlminasaCrawlService.HADITH_INDEX_KEY, 9999L, 100);
+        checkpointDao.advance(AlminasaCrawlService.HADITH_INDEX_KEY, 9999L, "146-9999", 100);
         checkpointDao.markPaused(AlminasaCrawlService.HADITH_INDEX_KEY);
 
         crawlService.claimStart();
         crawlService.crawlLoop();
 
-        // ПЕРВЫЙ же запрос — с search_after:[9999] → пустая страница → COMPLETED
+        // ПЕРВЫЙ же запрос — с составным search_after:[9999,"146-9999"] → пусто → COMPLETED
         assertThat(hadithRequests).hasSize(1);
-        assertThat(hadithRequests.peek()).contains("9999");
+        assertThat(hadithRequests.peek()).contains("9999").contains("\"146-9999\"");
         AmCrawlCheckpoint cp = checkpointDao.find(AlminasaCrawlService.HADITH_INDEX_KEY).orElseThrow();
         assertThat(cp.status()).isEqualTo(AmCrawlStatus.COMPLETED);
         assertThat(cp.fetchedCount()).isEqualTo(100); // прогресс сохранён
@@ -171,7 +178,7 @@ class AlminasaCrawlServiceIT {
         AmCrawlCheckpoint cp = checkpointDao.find(AlminasaCrawlService.HADITH_INDEX_KEY).orElseThrow();
         assertThat(cp.status()).isEqualTo(AmCrawlStatus.PAUSED);
         // страница успела застейджиться перед паузой
-        assertThat(count("am_staging_hadith")).isEqualTo(2);
+        assertThat(count("am_staging_hadith")).isEqualTo(3);
         assertThat(hadithRequests).hasSize(1);
     }
 

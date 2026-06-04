@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Живой урок первого dev-краулинга alminasa (Сессия 56): предположение
+        «hadith_serial_id глобально уникален» оказалось НЕВЕРНЫМ — это номер
+        хадиса ВНУТРИ сборника (= числовой суффикс hadith_id). Живой зонд:
+        term hadith_serial_id=1 → ровно 12 доков, по одному на каждый из 12
+        сборников. UNIQUE-индекс из миграции 72 сработал как канареечный
+        сторож (комментарий там это и предсказывал): краулер упал на первой
+        же странице ДО записи единой строки.
+
+        Следствия:
+          (1) UNIQUE с hadith_serial_id снимается (заменяется обычным
+              индексом — для диагностики/сортировок полезен).
+          (2) Пагинация search_after по одному serial некорректна (теряла бы
+              доки, делящие граничное значение) → курсор становится СОСТАВНЫМ:
+              sort [hadith_serial_id, hadith_id], где hadith_id (PK-строка) —
+              уникальный tiebreaker. Подтверждено живым зондом:
+              search_after [1,"146-1"] корректно продолжает внутри serial=1.
+          (3) am_crawl_checkpoint получает вторую компоненту курсора
+              last_sort_id (hadith_id последнего дока страницы).
+    -->
+    <changeSet id="20260604-73-alminasa-composite-cursor" author="Abdula Basnukaev">
+        <comment>Составной курсор краулинга alminasa: serial per-book, UNIQUE снят, чекпоинт + last_sort_id</comment>
+        <sql><![CDATA[
+            DROP INDEX idx_am_staging_hadith_serial;
+            CREATE INDEX idx_am_staging_hadith_serial ON am_staging_hadith(hadith_serial_id);
+
+            ALTER TABLE am_crawl_checkpoint ADD COLUMN last_sort_id varchar(20);
+        ]]></sql>
+        <rollback>
+            <sql><![CDATA[
+                ALTER TABLE am_crawl_checkpoint DROP COLUMN last_sort_id;
+                DROP INDEX idx_am_staging_hadith_serial;
+                CREATE UNIQUE INDEX idx_am_staging_hadith_serial ON am_staging_hadith(hadith_serial_id);
+            ]]></sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

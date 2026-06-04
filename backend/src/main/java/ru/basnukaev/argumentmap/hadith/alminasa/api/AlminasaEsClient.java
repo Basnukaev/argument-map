@@ -62,21 +62,30 @@ public class AlminasaEsClient {
     }
 
     /**
-     * Страница корпуса hadith-12 по {@code hadith_serial_id} asc.
+     * Страница корпуса hadith-12 по СОСТАВНОМУ ключу
+     * {@code (hadith_serial_id asc, hadith_id asc)}. Serial — номер хадиса
+     * ВНУТРИ сборника (живой урок Сессии 56: 12 доков с serial=1), поэтому
+     * пагинация требует уникального tiebreaker'а — hadith_id (PK-строка,
+     * лексикографический порядок; семантика порядка не важна, важна
+     * детерминированность total order).
      *
-     * @param afterSerialId курсор search_after (null — с начала корпуса)
+     * @param afterSerialId  serial-компонента курсора (null — с начала корпуса)
+     * @param afterHadithId  hadith_id-компонента курсора (null — с начала)
      */
     @Retry(name = "alminasaApi")
-    public AlminasaPage fetchHadithPage(Long afterSerialId, int size) {
+    public AlminasaPage fetchHadithPage(Long afterSerialId, String afterHadithId, int size) {
         ObjectNode body = objectMapper.createObjectNode();
         body.put("size", size);
         body.set("query", objectMapper.createObjectNode()
                 .set("match_all", objectMapper.createObjectNode()));
-        body.putArray("sort").addObject()
+        ArrayNode sort = body.putArray("sort");
+        sort.addObject()
                 .set("hadith_serial_id", objectMapper.createObjectNode().put("order", "asc"));
+        sort.addObject()
+                .set("hadith_id", objectMapper.createObjectNode().put("order", "asc"));
         body.put("track_total_hits", true);
-        if (afterSerialId != null) {
-            body.putArray("search_after").add(afterSerialId);
+        if (afterSerialId != null && afterHadithId != null) {
+            body.putArray("search_after").add(afterSerialId).add(afterHadithId);
         }
         return toPage(search(HADITH_INDEX, body));
     }

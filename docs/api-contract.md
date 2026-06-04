@@ -3659,8 +3659,8 @@ narrators/explanations/rulings добираются батчевыми `terms`-�
 краулинг уже идёт (живой `RUNNING`-claim — включая случай ещё живого воркера
 при попытке stale-takeover: пул `queue=0` отклоняет submit, чекпоинт не
 трогаем). Семантика старта: `IDLE`/`COMPLETED` → с нуля; `PAUSED`/`FAILED`/stale
-`RUNNING` → resume с сохранённого курсора (`lastSortValue`). ADMIN-only (403
-`forbidden-admin-only`).
+`RUNNING` → resume с сохранённого составного курсора (`lastSortValue` +
+`lastSortId`). ADMIN-only (403 `forbidden-admin-only`).
 
 ### POST /api/v1/admin/alminasa/crawl/pause
 
@@ -3677,9 +3677,10 @@ narrators/explanations/rulings добираются батчевыми `terms`-�
 ```json
 {
   "status": "RUNNING",
-  "lastSortValue": 4698,
+  "lastSortValue": 17,
+  "lastSortId": "195-17",
   "fetchedCount": 4700,
-  "totalHits": 750000,
+  "totalHits": 82596,
   "error": null,
   "startedAt": "2026-06-04T10:00:00Z",
   "updatedAt": "2026-06-04T10:05:12Z",
@@ -3692,7 +3693,9 @@ narrators/explanations/rulings добираются батчевыми `terms`-�
 
 - `status` — `IDLE` / `RUNNING` / `PAUSED` / `FAILED` / `COMPLETED`
   (`IDLE` с нулями — краулинг ещё ни разу не запускался, строки чекпоинта нет).
-- `lastSortValue` — курсор `search_after` (`hadith_serial_id`); `null` до
+- `lastSortValue` + `lastSortId` — **СОСТАВНОЙ** курсор `search_after`
+  (`[hadith_serial_id, hadith_id]`): serial — номер ВНУТРИ сборника (не глобален,
+  12 доков делят serial=1), `hadith_id` — уникальный tiebreaker. Оба `null` до
   первой застейдженной страницы.
 - `fetchedCount` — **АБСОЛЮТНОЕ** число застейдженных хадисов (накопительное по
   чекпоинту, не дельта за запуск).
