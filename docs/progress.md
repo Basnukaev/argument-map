@@ -124,8 +124,8 @@ cross-refs из raw_narrations, рулинги/шархи/relations, book-id→s
 
 **Инфра-стейт (на конец Сессии 56):** Docker (postgres+minio) up; backend :9090
 + JDWP :5005 (команда — CLAUDE.md); frontend :5173; psql роль `argmap`;
-миграции через 72. sunnah-mysql `:3307` нужен только для sunnah-legacy (до
-Плана 4). AI-фичи: `--ai.provider=...` + ключ аргументом (НЕ в репо), за
+миграции через **73** (73 — составной курсор, хвост-хотфикс). sunnah-mysql
+`:3307` нужен только для sunnah-legacy (до Плана 4). AI-фичи: `--ai.provider=...` + ключ аргументом (НЕ в репо), за
 корп-прокси `--ai.http.proxy=...`. Admin для curl:
 `00000000-0000-0000-0000-000000000001`. HAR'ы в gitignore; полные сэмплы
 ответов alminasa — `/tmp/alminasa-fixtures/` (если /tmp пережил ребут) либо

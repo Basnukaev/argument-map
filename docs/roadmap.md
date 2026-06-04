@@ -491,11 +491,14 @@ design-specs создаются по мере приоритезации.
       - [x] **План 1** (схема+домен+репо) ✅ 2026-06-03 — миграции 70-71,
             alminasa-колонки hd_*, 5 таблиц (editions/rulings/explanations/
             crossrefs/narrator-relations), репозитории + findByExternalId, IT.
-      - [x] **План 2** (ES-клиент + краулер) ✅ 2026-06-04 — миграция 72
-            (am_staging_* + am_crawl_checkpoint), AlminasaEsClient
-            (search_after + terms-батчи, retry), resumable hadith-first
-            краулер (pause/resume/stale-takeover), admin REST
-            `/admin/alminasa/crawl/*`, 31 тест. План:
+      - [x] **План 2** (ES-клиент + краулер) ✅ 2026-06-04 — миграции 72-73
+            (am_staging_* + am_crawl_checkpoint + составной курсор
+            [serial, hadith_id]: живой урок — hadith_serial_id per-book,
+            НЕ глобален), AlminasaEsClient (search_after + terms-батчи,
+            retry), resumable hadith-first краулер (pause/resume/
+            stale-takeover), admin REST `/admin/alminasa/crawl/*`,
+            **live-верифицирован** (300 хадисов/719 рави/2069 рулингов,
+            затем очищено), 33 теста. План:
             `docs/plans/2026-06-04-alminasa-crawler-staging.md`.
       - [ ] **План 3** — маппер staging→hd_* + детерминированный парс иснада
             из `<a class=rawy>` (БЕЗ AI) ⬅️ **СЛЕДУЮЩИЙ**
