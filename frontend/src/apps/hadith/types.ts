@@ -224,14 +224,23 @@ export interface RulingDto {
   relatedCollectionNameRu: string | null;
 }
 
+/** Тип толкования: шарх (общий разбор), иляль (скрытые дефекты передачи),
+ *  гариб (толкование редкого слова матна). Бэк шлёт одно из трёх; держим
+ *  union для дискриминации в UI (группировка по kind), но допускаем
+ *  null/неизвестное значение на случай legacy-данных. */
+export type ExplanationKind = 'SHARH' | 'ILAL' | 'GHARIB';
+
 /** Шарх / иляль / гариб (kind различает тип). Текст может быть огромным. */
 export interface ExplanationDto {
-  kind: string | null;
+  kind: ExplanationKind | string | null;
   bookName: string | null;
   author: string | null;
   page: number | null;
   volume: number | null;
   text: string | null;
+  /** Только GHARIB: редкое слово из матна (заголовок карточки), напр. أَبْعَدَ.
+   *  null для SHARH/ILAL и для GHARIB без слова → фолбэк на book/author. */
+  reference: string | null;
 }
 
 /** Такхридж/طرق — параллельная передача. resolved → relatedHadithId есть. */

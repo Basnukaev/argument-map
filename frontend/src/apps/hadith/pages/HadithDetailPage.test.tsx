@@ -118,6 +118,7 @@ const ALMINASA_DETAIL = {
       page: 11,
       volume: 1,
       text: 'شرح طويل جدا لهذا الحديث العظيم في النيات',
+      reference: null,
     },
   ],
   crossrefs: [
@@ -134,6 +135,40 @@ const ALMINASA_DETAIL = {
       numbers: ['2201'],
       collectionNameAr: 'سنن أبي داود',
       collectionNameRu: 'Сунан Абу Дауд',
+    },
+  ],
+};
+
+// Хадис с тремя kind толкований — для проверки разделения на секции.
+const THREE_KINDS_DETAIL = {
+  ...ALMINASA_DETAIL,
+  explanations: [
+    {
+      kind: 'SHARH',
+      bookName: 'فتح الباري',
+      author: 'ابن حجر',
+      page: 11,
+      volume: 1,
+      text: 'شرح طويل جدا لهذا الحديث العظيم في النيات',
+      reference: null,
+    },
+    {
+      kind: 'ILAL',
+      bookName: 'علل الدارقطني',
+      author: 'الدارقطني',
+      page: 7,
+      volume: 3,
+      text: 'علة خفية في إسناد هذا الحديث رغم ظاهر الصحة',
+      reference: null,
+    },
+    {
+      kind: 'GHARIB',
+      bookName: 'النهاية في غريب الحديث',
+      author: 'ابن الأثير',
+      page: 9,
+      volume: 1,
+      text: 'تفسير الكلمة الغريبة من المعجم',
+      reference: 'أَبْعَدَ',
     },
   ],
 };
@@ -345,6 +380,96 @@ describe('HadithDetailPage', () => {
     // раскрытие по клику на шапку (книга — fatḥ al-bārī)
     await userEvent.click(screen.getByRole('button', { name: /فتح الباري/ }));
     expect(screen.getByText(sharhText)).toBeInTheDocument();
+  });
+
+  it('три kind толкований → три секции (шарх / иляль / гариб) с навигацией', async () => {
+    mockEndpoints(THREE_KINDS_DETAIL, GRAPH_WITH_EXTERNAL);
+    renderPage();
+    // заголовки трёх секций
+    await waitForApi(() => {
+      expect(screen.getByRole('heading', { name: /Шарх/ })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('heading', { name: /Иляль/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Гариб/ })).toBeInTheDocument();
+    // пункты навигации на все три секции
+    expect(screen.getByRole('link', { name: 'Шарх' })).toHaveAttribute('href', '#explanations');
+    expect(screen.getByRole('link', { name: 'Иляль' })).toHaveAttribute('href', '#ilal');
+    expect(screen.getByRole('link', { name: 'Гариб' })).toHaveAttribute('href', '#gharib');
+    // подзаголовки-пояснения иляля и гариба
+    expect(screen.getByText('Скрытые дефекты передачи, отмеченные критиками')).toBeInTheDocument();
+    expect(
+      screen.getByText('Толкования редких слов матна из классических словарей'),
+    ).toBeInTheDocument();
+  });
+
+  it('GHARIB-карточка: слово (reference) в заголовке, словарь рядом', async () => {
+    mockEndpoints(THREE_KINDS_DETAIL, GRAPH_WITH_EXTERNAL);
+    renderPage();
+    // слово أَبْعَدَ — заголовок карточки гариба (видно до раскрытия)
+    await waitForApi(() => {
+      expect(screen.getByText('أَبْعَدَ')).toBeInTheDocument();
+    });
+    // словарь·автор рядом со словом
+    expect(screen.getByText('النهاية في غريب الحديث · ابن الأثير')).toBeInTheDocument();
+    // толкование свёрнуто; кнопка-шапка раскрытия содержит слово
+    const gharibText = 'تفسير الكلمة الغريبة من المعجم';
+    expect(screen.queryByText(gharibText)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /أَبْعَدَ/ }));
+    expect(screen.getByText(gharibText)).toBeInTheDocument();
+  });
+
+  it('ILAL-карточка: книга/автор критика + сворачиваемый текст разбора', async () => {
+    mockEndpoints(THREE_KINDS_DETAIL, GRAPH_WITH_EXTERNAL);
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByRole('heading', { name: /Иляль/ })).toBeInTheDocument();
+    });
+    const ilalText = 'علة خفية في إسناد هذا الحديث رغم ظاهر الصحة';
+    expect(screen.queryByText(ilalText)).not.toBeInTheDocument();
+    // раскрытие по шапке (книга — علل الدارقطني)
+    await userEvent.click(screen.getByRole('button', { name: /علل الدارقطني/ }));
+    expect(screen.getByText(ilalText)).toBeInTheDocument();
+  });
+
+  it('только SHARH → секции иляль/гариб скрыты и нет в навигации', async () => {
+    // ALMINASA_DETAIL по умолчанию несёт только один SHARH
+    mockEndpoints(ALMINASA_DETAIL, GRAPH_WITH_EXTERNAL);
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByRole('heading', { name: /Шарх/ })).toBeInTheDocument();
+    });
+    // секции иляля/гариба и их пункты навигации отсутствуют
+    expect(screen.queryByRole('heading', { name: /Иляль/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Гариб/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Иляль' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Гариб' })).not.toBeInTheDocument();
+  });
+
+  it('GHARIB без reference → фолбэк на book/author-заголовок', async () => {
+    const gharibNoRef = {
+      ...ALMINASA_DETAIL,
+      explanations: [
+        {
+          kind: 'GHARIB',
+          bookName: 'لسان العرب',
+          author: 'ابن منظور',
+          page: 3,
+          volume: 2,
+          text: 'تفسير بلا كلمة عنوان',
+          reference: null,
+        },
+      ],
+    };
+    mockEndpoints(gharibNoRef, GRAPH_WITH_EXTERNAL);
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByRole('heading', { name: /Гариб/ })).toBeInTheDocument();
+    });
+    // фолбэк-заголовок = book — author (как у шарха), текст сворачиваемый
+    const fallbackText = 'تفسير بلا كلمة عنوان';
+    expect(screen.queryByText(fallbackText)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /لسان العرب — ابن منظور/ }));
+    expect(screen.getByText(fallbackText)).toBeInTheDocument();
   });
 
   it('клик по рави в тексте иснада открывает панель из графа (без доп. фетча)', async () => {

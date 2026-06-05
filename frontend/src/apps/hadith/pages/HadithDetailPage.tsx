@@ -22,6 +22,7 @@ import { parseIsnadHtml } from '@/apps/hadith/utils/parseIsnadHtml';
 import { useApiQuery } from '@/shared/hooks/useApiQuery';
 import { useT, type DictKey, hasArabicScript } from '@/shared/i18n';
 import type {
+  ExplanationDto,
   HadithDetailDto,
   NarratorData,
   SanadFlowNodeData,
@@ -125,6 +126,22 @@ function HadithDetailPage() {
   // Primary-матн (рендерится в hero) — для on-demand AI-перевода под текстом.
   const primaryMatn = detail?.matns.find((m) => m.isPrimary) ?? detail?.matns[0] ?? null;
 
+  // Толкования разбиты на три независимые секции по kind: شروح (SHARH),
+  // علل (ILAL — скрытые дефекты), غريب (GHARIB — редкие слова). Группируем
+  // ОДНИМ проходом, сохраняя порядок с бэка (ORDER BY kind стабилен — не
+  // пересортировываем). Каждая секция graceful-hide при пустоте.
+  const explanationGroups = useMemo(() => {
+    const sharh: ExplanationDto[] = [];
+    const ilal: ExplanationDto[] = [];
+    const gharib: ExplanationDto[] = [];
+    for (const e of detail?.explanations ?? []) {
+      if (e.kind === 'ILAL') ilal.push(e);
+      else if (e.kind === 'GHARIB') gharib.push(e);
+      else sharh.push(e); // SHARH и legacy/неизвестное → в общий «Шарх»
+    }
+    return { sharh, ilal, gharib };
+  }, [detail?.explanations]);
+
   // Число импортированных параллельных передач (resolved crossrefs) — тогл
   // «Все пути» виден только при наличии хотя бы одной.
   const resolvedTuruqCount = detail?.crossrefs?.filter((c) => c.relatedHadithId).length ?? 0;
@@ -153,7 +170,10 @@ function HadithDetailPage() {
     if (detail?.fullTextAr) items.push({ id: 'isnad-text', labelKey: 'hadith.detail.nav.isnad_text' });
     items.push({ id: 'sanad', labelKey: 'hadith.detail.nav.sanad' });
     if ((detail?.rulings?.length ?? 0) > 0) items.push({ id: 'rulings', labelKey: 'hadith.detail.nav.rulings' });
-    if ((detail?.explanations?.length ?? 0) > 0) items.push({ id: 'explanations', labelKey: 'hadith.detail.nav.explanations' });
+    // Три независимые секции толкований — пункт навигации по условию на свою группу.
+    if (explanationGroups.sharh.length > 0) items.push({ id: 'explanations', labelKey: 'hadith.detail.nav.explanations' });
+    if (explanationGroups.ilal.length > 0) items.push({ id: 'ilal', labelKey: 'hadith.detail.nav.ilal' });
+    if (explanationGroups.gharib.length > 0) items.push({ id: 'gharib', labelKey: 'hadith.detail.nav.gharib' });
     if ((detail?.crossrefs?.length ?? 0) > 0) items.push({ id: 'crossrefs', labelKey: 'hadith.detail.nav.crossrefs' });
     if ((detail?.editions?.length ?? 0) > 0) items.push({ id: 'editions', labelKey: 'hadith.detail.nav.editions' });
     // Оценки учёных — РУЧНЫЕ оценки платформы (не дубль вердиктов): секцию
@@ -164,7 +184,7 @@ function HadithDetailPage() {
     // Параллельные тексты — ленивый блок, видим только при наличии resolved crossrefs.
     if (resolvedTuruqCount > 0) items.push({ id: 'sibling-matns', labelKey: 'hadith.detail.nav.sibling_matns' });
     return items;
-  }, [detail]);
+  }, [detail, explanationGroups, resolvedTuruqCount]);
 
   // Клик по рави в тексте: NarratorData из графа → добавляем role для панели,
   // сохраняем форму имени из текста (textForm) для подписи «في الإسناد».
@@ -387,13 +407,39 @@ function HadithDetailPage() {
                 </section>
               )}
 
-              {/* 5. Шарх (explanations) */}
-              {detail.explanations && detail.explanations.length > 0 && (
+              {/* 5a. Шарх (kind=SHARH) — общий разбор хадиса */}
+              {explanationGroups.sharh.length > 0 && (
                 <section id="explanations" className={SECTION_ANCHOR}>
                   <SectionHeading>
-                    {t('hadith.detail.explanations')} · {detail.explanations.length}
+                    {t('hadith.detail.explanations')} · {explanationGroups.sharh.length}
                   </SectionHeading>
-                  <ExplanationsList explanations={detail.explanations} />
+                  <ExplanationsList explanations={explanationGroups.sharh} variant="SHARH" />
+                </section>
+              )}
+
+              {/* 5b. Иляль (kind=ILAL) — скрытые дефекты передачи */}
+              {explanationGroups.ilal.length > 0 && (
+                <section id="ilal" className={SECTION_ANCHOR}>
+                  <SectionHeading>
+                    {t('hadith.detail.ilal')} · {explanationGroups.ilal.length}
+                  </SectionHeading>
+                  <p className="-mt-2 mb-3 text-xs leading-snug text-ink-500">
+                    {t('hadith.detail.ilal.hint')}
+                  </p>
+                  <ExplanationsList explanations={explanationGroups.ilal} variant="ILAL" />
+                </section>
+              )}
+
+              {/* 5c. Гариб (kind=GHARIB) — толкования редких слов матна */}
+              {explanationGroups.gharib.length > 0 && (
+                <section id="gharib" className={SECTION_ANCHOR}>
+                  <SectionHeading>
+                    {t('hadith.detail.gharib')} · {explanationGroups.gharib.length}
+                  </SectionHeading>
+                  <p className="-mt-2 mb-3 text-xs leading-snug text-ink-500">
+                    {t('hadith.detail.gharib.hint')}
+                  </p>
+                  <ExplanationsList explanations={explanationGroups.gharib} variant="GHARIB" />
                 </section>
               )}
 
