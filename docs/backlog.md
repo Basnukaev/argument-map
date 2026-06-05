@@ -147,6 +147,36 @@ floating action bar (graphSelectionStore). Детали в progress.md/git.
 
 ## Бэк - бэклог
 
+### alminasa — вне-скоуп находки HAR-разбора С59 (контракты сняты, фикстуры в test/resources/alminasa/s59)
+
+- [ ] **chains-links-12 — богатые рёбра сети передатчиков**: готовые
+  link-доки {src_id, tgt_id, verb(حدثنا/عن/…), src/tgt_type вкл.
+  Prophet, is_singular} — 13k+ рёбер у крупного рави. Богаче наших
+  hd_narrator_relations (у тех только counts из top_students).
+  Краулить narrator-first/лениво, НЕ в hadith-цикле. Фикстура
+  chains-links-12-scholars.json.
+- [ ] **narrator-commentary-12 — джарх-ва-тадиль цитаты о рави**:
+  {commenter, commenter_dod, comments[], book(Такриб ат-Тахзиб...),
+  page/volume} по narrator id. Новая таблица hd_narrator_commentaries
+  + секция в карточке рави («что сказали учёные о передатчике» с
+  атрибуцией). Фикстура narrator-commentary-12.json.
+- [ ] **references — каталог корпуса alminasa** (86 книг: type/status/
+  progress оцифровки). Витрина «что есть в корпусе»; можно статическим
+  seed. Низкий приоритет. Фикстура references.json.
+- [ ] **Расширенный профиль рави из narrators-12**: краулер сейчас
+  кладёт raw целиком — но book_titles[]/top_students[]/top_scholars[]
+  уже мапятся; досмотреть остальные поля (extended_full_name и пр.)
+  при следующем заходе на риджаль.
+- [ ] **Подсветка гариб-слов в матне**: hd_explanations(GHARIB).metadata
+  несёт reference+referenceId — подсветить слова в hero-матне с
+  тултипом-толкованием (после Плана 8).
+- [ ] **Admin-форма «Оценка учёного» (hadith_grades)**: секция «Оценки
+  учёных» на detail — ручные оценки платформы через authorities
+  (SCHOLAR); UI добавления нет, поэтому секция пуста и скрыта.
+  Форма: выбор authority + grade + note → POST (бэк есть).
+  Вопрос Абдулы С59 «какие данные нужны» — вот эти.
+
+
 - [ ] **Связаться с alminasa.ai (مركز تميز) до массового краулинга** —
       продуктовое решение Абдулы (идея из консультации 2026-06-04).
       Два академических проекта в одной нише: написать им — возможно
