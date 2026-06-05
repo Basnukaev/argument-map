@@ -1380,6 +1380,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hadith/hadiths/{id}/turuq-graph": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getTuruqGraph"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/hadith/hadiths/{id}/sanad-graph": {
         parameters: {
             query?: never;
@@ -2481,7 +2497,7 @@ export interface components {
             addedBy?: string;
         };
         MatnTranslateRequest: {
-            lang?: string;
+            lang: string;
         };
         MatnTranslationResponse: {
             /** Format: uuid */
@@ -3103,6 +3119,7 @@ export interface components {
             id?: string;
             role?: string;
             data?: components["schemas"]["NarratorData"];
+            version?: components["schemas"]["VersionInfo"];
         };
         NarratorData: {
             /** Format: uuid */
@@ -3145,11 +3162,24 @@ export interface components {
             primaryChain?: boolean;
             collectorNodeId?: string;
         };
+        VersionInfo: {
+            /** Format: uuid */
+            hadithId?: string;
+            externalId?: string;
+            collectionSlug?: string;
+            collectionNameAr?: string;
+            collectionNameRu?: string;
+            /** Format: int32 */
+            printedNumber?: number;
+            matnPreview?: string;
+        };
         CrossrefDto: {
             relatedExternalId?: string;
             /** Format: uuid */
             relatedHadithId?: string;
-            note?: string;
+            numbers?: string[];
+            collectionNameAr?: string;
+            collectionNameRu?: string;
         };
         EditionDto: {
             editionName?: string;
@@ -3186,6 +3216,7 @@ export interface components {
             sourceId?: string;
             /** Format: date-time */
             createdAt?: string;
+            externalId?: string;
             hadithType?: string;
             chapterAr?: string;
             subChapterAr?: string;
@@ -3234,6 +3265,9 @@ export interface components {
             volume?: number;
             source?: string;
             relatedExternalId?: string;
+            /** Format: uuid */
+            relatedHadithId?: string;
+            relatedCollectionNameRu?: string;
         };
         SanadDto: {
             /** Format: uuid */
@@ -6560,6 +6594,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["HadithResponse"];
+                };
+            };
+        };
+    };
+    getTuruqGraph: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SanadGraphResponse"];
                 };
             };
         };
