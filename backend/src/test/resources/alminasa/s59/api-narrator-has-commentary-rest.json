@@ -1,0 +1,37 @@
+{
+  "endpoint": "https://alminasa.ai/api/narrator-has-commentary?narratorId=4396",
+  "method": "GET",
+  "request_body": "",
+  "response": {
+    "data": {
+      "took": 0,
+      "timed_out": false,
+      "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+      },
+      "hits": {
+        "total": {
+          "value": 1,
+          "relation": "eq"
+        },
+        "max_score": 8.918471,
+        "hits": [
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "4396",
+            "_score": 8.918471,
+            "_ignored": [
+              "extended_fullname"
+            ],
+            "_source": {
+              "hasCommentary": true
+            }
+          }
+        ]
+      }
+    }
+  }
+}

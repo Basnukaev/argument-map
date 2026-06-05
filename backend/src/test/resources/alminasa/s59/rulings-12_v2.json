@@ -1,0 +1,265 @@
+{
+  "index": "rulings-12_v2",
+  "request_url": "https://alminasa.ai/api/reactivesearchproxy/es-prod-euw1-rulings-12_v2-read/_msearch?",
+  "request_body": "{\"preference\":\"rul_result\"}\n{\"query\":{\"bool\":{\"must\":[{\"bool\":{\"must\":[{\"bool\":{\"filter\":[{\"term\":{\"hadith_id\":\"146-2\"}},{\"term\":{\"narrations_type\":\"raw\"}}]}}]}}]}},\"size\":50,\"_source\":{\"includes\":[\"hadith_id\",\"narrations_type\",\"ruler\",\"ruler_dod\",\"rulings\"],\"excludes\":[]},\"sort\":[{\"ruler_dod\":{\"order\":\"asc\"}}]}\n",
+  "responses": [
+    {
+      "took": 0,
+      "timed_out": false,
+      "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+      },
+      "hits": {
+        "total": {
+          "value": 7,
+          "relation": "eq"
+        },
+        "max_score": null,
+        "hits": [
+          {
+            "_index": "es-prod-euw1-rulings-12_v2.2024-08-24-23-47",
+            "_id": "8qbKhpEBXUur4f6n5xuD",
+            "_score": null,
+            "_source": {
+              "hadith_id": "146-2",
+              "rulings": [
+                {
+                  "hadith_id": "146-2994",
+                  "ruling": "أورده في صحيحه",
+                  "type": "embedded",
+                  "book_name": "صحيح البخاري",
+                  "number": null,
+                  "page": 112,
+                  "volume": 4
+                },
+                {
+                  "hadith_id": "146-2",
+                  "ruling": "أورده في صحيحه",
+                  "type": "embedded",
+                  "book_name": "صحيح البخاري",
+                  "number": null,
+                  "page": 6,
+                  "volume": 1
+                }
+              ],
+              "ruler": "البخاري",
+              "ruler_dod": 256,
+              "narrations_type": "raw"
+            },
+            "sort": [
+              256
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-rulings-12_v2.2024-08-24-23-47",
+            "_id": "9KbKhpEBXUur4f6n5xuD",
+            "_score": null,
+            "_source": {
+              "hadith_id": "146-2",
+              "rulings": [
+                {
+                  "hadith_id": "158-4311",
+                  "ruling": "أورده في صحيحه",
+                  "type": "embedded",
+                  "book_name": "صحيح مسلم",
+                  "number": null,
+                  "page": 82,
+                  "volume": 7
+                }
+              ],
+              "ruler": "مسلم",
+              "ruler_dod": 261,
+              "narrations_type": "raw"
+            },
+            "sort": [
+              261
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-rulings-12_v2.2024-08-24-23-47",
+            "_id": "76bKhpEBXUur4f6n5xuD",
+            "_score": null,
+            "_source": {
+              "hadith_id": "146-2",
+              "rulings": [
+                {
+                  "hadith_id": "195-3596",
+                  "ruling": "حسن صحيح",
+                  "type": "embedded",
+                  "book_name": "جامع الترمذي",
+                  "number": null,
+                  "page": 25,
+                  "volume": 6
+                }
+              ],
+              "ruler": "الترمذي",
+              "ruler_dod": 279,
+              "narrations_type": "raw"
+            },
+            "sort": [
+              279
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-rulings-12_v2.2024-08-24-23-47",
+            "_id": "86bKhpEBXUur4f6n5xuD",
+            "_score": null,
+            "_source": {
+              "hadith_id": "146-2",
+              "rulings": [
+                {
+                  "hadith_id": "454-38",
+                  "ruling": "أورده في صحيحه",
+                  "type": "embedded",
+                  "book_name": "صحيح ابن حبان",
+                  "number": null,
+                  "page": 225,
+                  "volume": 1
+                }
+              ],
+              "ruler": "ابن حبان",
+              "ruler_dod": 354,
+              "narrations_type": "raw"
+            },
+            "sort": [
+              354
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-rulings-12_v2.2024-08-24-23-47",
+            "_id": "8abKhpEBXUur4f6n5xuD",
+            "_score": null,
+            "_source": {
+              "hadith_id": "146-2",
+              "rulings": [
+                {
+                  "hadith_id": "594-5172",
+                  "ruling": "أورده في صحيحه",
+                  "type": "embedded",
+                  "book_name": "المستدرك على الصحيحين",
+                  "number": null,
+                  "page": 279,
+                  "volume": 3
+                }
+              ],
+              "ruler": "الحاكم",
+              "ruler_dod": 405,
+              "narrations_type": "raw"
+            },
+            "sort": [
+              405
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-rulings-12_v2.2024-08-24-23-47",
+            "_id": "8KbKhpEBXUur4f6n5xuD",
+            "_score": null,
+            "_source": {
+              "hadith_id": "146-2",
+              "rulings": [
+                {
+                  "hadith_id": "195-3596",
+                  "ruling": "صحيح",
+                  "type": "embedded",
+                  "book_name": "صحيح سنن الترمذي",
+                  "number": null,
+                  "page": 493,
+                  "volume": 3
+                },
+                {
+                  "hadith_id": "319-923",
+                  "ruling": "صحيح",
+                  "type": "embedded",
+                  "book_name": "صحيح سنن النسائي",
+                  "number": null,
+                  "page": 309,
+                  "volume": 1
+                },
+                {
+                  "hadith_id": "319-924",
+                  "ruling": "صحيح",
+                  "type": "embedded",
+                  "book_name": "صحيح سنن النسائي",
+                  "number": null,
+                  "page": 309,
+                  "volume": 1
+                }
+              ],
+              "ruler": "الألباني",
+              "ruler_dod": 1420,
+              "narrations_type": "raw"
+            },
+            "sort": [
+              1420
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-rulings-12_v2.2024-08-24-23-47",
+            "_id": "7qbKhpEBXUur4f6n5xuD",
+            "_score": null,
+            "_source": {
+              "hadith_id": "146-2",
+              "rulings": [
+                {
+                  "hadith_id": "121-24736",
+                  "ruling": "إسناده صحيح على شرط الشيخين",
+                  "type": "embedded",
+                  "book_name": "مسند أحمد تخريج شعيب الأرنؤوط",
+                  "number": null,
+                  "page": 183,
+                  "volume": 42
+                },
+                {
+                  "hadith_id": "121-25612",
+                  "ruling": "إسناده صحيح على شرط الشيخين",
+                  "type": "embedded",
+                  "book_name": "مسند أحمد تخريج شعيب الأرنؤوط",
+                  "number": null,
+                  "page": 268,
+                  "volume": 43
+                },
+                {
+                  "hadith_id": "454-38",
+                  "ruling": "إسناده صحيح",
+                  "type": "embedded",
+                  "book_name": "صحيح ابن حبان",
+                  "number": null,
+                  "page": 225,
+                  "volume": 1
+                },
+                {
+                  "hadith_id": "121-25613",
+                  "ruling": "إسناده صحيح على شرط مسلم",
+                  "type": "embedded",
+                  "book_name": "مسند أحمد تخريج شعيب الأرنؤوط",
+                  "number": null,
+                  "page": 269,
+                  "volume": 43
+                },
+                {
+                  "hadith_id": "121-24688",
+                  "ruling": "إسناده صحيح على شرط الشيخين",
+                  "type": "embedded",
+                  "book_name": "مسند أحمد تخريج شعيب الأرنؤوط",
+                  "number": null,
+                  "page": 146,
+                  "volume": 42
+                }
+              ],
+              "ruler": "شعيب الأرنؤوط",
+              "ruler_dod": 1437,
+              "narrations_type": "raw"
+            },
+            "sort": [
+              1437
+            ]
+          }
+        ]
+      },
+      "status": 200
+    }
+  ]
+}

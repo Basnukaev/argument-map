@@ -1,0 +1,1145 @@
+{
+  "index": "references",
+  "request_url": "https://alminasa.ai/api/reactivesearchproxy/es-prod-euw1-references-read/_msearch?",
+  "request_body": "{\"preference\":\"ref_result\"}\n{\"query\":{\"bool\":{\"must\":[{\"bool\":{\"must\":[{\"match_all\":{}}]}}]}},\"size\":1000,\"_source\":{\"includes\":[\"_id\",\"author\",\"book_name\",\"type\",\"status\",\"progress\",\"edition\"],\"excludes\":[]},\"track_total_hits\":true}\n",
+  "responses": [
+    {
+      "took": 1,
+      "timed_out": false,
+      "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+      },
+      "hits": {
+        "total": {
+          "value": 86,
+          "relation": "eq"
+        },
+        "max_score": 1,
+        "hits": [
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "0",
+            "_score": 1,
+            "_source": {
+              "book_name": "صحيح البخاري",
+              "type": "المتون الحديثية",
+              "author": "محمد بن اسماعيل البخاري",
+              "status": "مكتمل",
+              "progress": 100,
+              "edition": "دار طوق النجاة - بيروت - الطبعة الأولى 1422هـ / دار ابن كثير - 1414هـ / 1993م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "1",
+            "_score": 1,
+            "_source": {
+              "book_name": "صحيح مسلم",
+              "type": "المتون الحديثية",
+              "author": " مسلم بن الحجاج",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "دار الجيل - بيروت 1334 هـ / دار إحياء الكتب العربية ١٣٧٤ هـ - ١٩٥٥ م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "2",
+            "_score": 1,
+            "_source": {
+              "book_name": "سنن أبي داود",
+              "type": "المتون الحديثية",
+              "author": "أبو داود السجستاني",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "المكتبة العصرية"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "3",
+            "_score": 1,
+            "_source": {
+              "book_name": "جامع الترمذي",
+              "type": "المتون الحديثية",
+              "author": "محمد بن عيسى الترمذي",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "دار الغرب الإسلامي - بيروت - لبنان - 1996 : 1998م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "4",
+            "_score": 1,
+            "_source": {
+              "book_name": "سنن النسائى الصغرى",
+              "type": "المتون الحديثية",
+              "author": "أبو عبد الرحمن النسائي",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "مكتب المطبوعات الإسلامية - 1414هـ / 1994م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "5",
+            "_score": 1,
+            "_source": {
+              "book_name": "سنن ابن ماجه",
+              "type": "المتون الحديثية",
+              "author": "ابن ماجه أبو عبد الله",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "دار الرسالة العالمية - الطبعة الأولى 1430هـ - 2009م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "6",
+            "_score": 1,
+            "_source": {
+              "book_name": "موطأ مالك رواية يحيى الليثي",
+              "type": "المتون الحديثية",
+              "author": "مالك بن أنس",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "مؤسسة زايد بن سلطان - الطبعة الأولى 1425هـ - 2004م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "7",
+            "_score": 1,
+            "_source": {
+              "book_name": "سنن الدارمي",
+              "type": "المتون الحديثية",
+              "author": "أبو محمد عبد الله الدارمي",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "دار المغني - الطبعة الأولى 1412هـ - 2000م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "8",
+            "_score": 1,
+            "_source": {
+              "book_name": "مسند أحمد بن حنبل",
+              "type": "المتون الحديثية",
+              "author": " أحمد بن حنبل",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "جمعية المكنز الإسلامي- دار المنهاج - الطبعة الأولى 1431هـ - 2010م / دار الرسالة العالمية - الطبعة الأولى ٢٠٠١ - ١٤٢١"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "9",
+            "_score": 1,
+            "_source": {
+              "book_name": "صحيح ابن خزيمة",
+              "type": "المتون الحديثية",
+              "author": " محمد بن إسحاق بن خزيمة ",
+              "status": "قيد التدقيق",
+              "progress": 80,
+              "edition": "دار الميمان - الرياض - السعودية - الطبعة الأولى 1430هـ - 2009م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "10",
+            "_score": 1,
+            "_source": {
+              "book_name": "صحيح ابن حبان",
+              "type": "المتون الحديثية",
+              "author": "ابن حبان البستي ",
+              "status": "قيد التدقيق",
+              "progress": 80,
+              "edition": "مؤسسة الرسالة - بيروت - لبنان - الطبعة الثانية 1414هـ - 1993م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "11",
+            "_score": 1,
+            "_source": {
+              "book_name": "المستدرك على الصحيحين",
+              "type": "المتون الحديثية",
+              "author": "أبو عبد الله الحاكم النيسابوري",
+              "status": "قيد التدقيق",
+              "progress": 70,
+              "edition": "دار المعرفة - بيروت - لبنان"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "12",
+            "_score": 1,
+            "_source": {
+              "book_name": "علل الدارقطني",
+              "type": "العلل",
+              "author": "أبو الحسن الدارقطني",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "دار طيبة 1405 1/12 - دار ابن الجوزي 1427 13/16"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "13",
+            "_score": 1,
+            "_source": {
+              "book_name": "العلل لابن أبي حاتم",
+              "type": "العلل",
+              "author": "عبد الرحمن بن أبي حاتم",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "مؤسسة الجريسي، الطبعة الأولى، ١٤٢٧ هـ - ٢٠٠٦ م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "14",
+            "_score": 1,
+            "_source": {
+              "book_name": "علل الترمذي الكبير",
+              "type": "العلل",
+              "author": "أبو عيسى الترمذي",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "عالم الكتب , مكتبة النهضة العربية - بيروت - الطبعة: الأولى، 1409"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "15",
+            "_score": 1,
+            "_source": {
+              "book_name": "الإلزامات والتتبع للدارقطني",
+              "type": "العلل",
+              "author": "أبو الحسن الدارقطني",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "دار الكتب العلمية، بيروت - لبنان الطبعة: الثانية، 1405 هـ - 1985 م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "16",
+            "_score": 1,
+            "_source": {
+              "book_name": "سنن أبي داود",
+              "type": "العلل",
+              "author": "أبو داود السجستاني",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "المكتبة العصرية"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "17",
+            "_score": 1,
+            "_source": {
+              "book_name": "جامع الترمذي",
+              "type": "العلل",
+              "author": "محمد بن عيسى الترمذي",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "دار الغرب الإسلامي - بيروت - لبنان - 1996 : 1998م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "18",
+            "_score": 1,
+            "_source": {
+              "book_name": "سنن النسائى الصغرى",
+              "type": "العلل",
+              "author": "أبو عبد الرحمن النسائي",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "مكتب المطبوعات الإسلامية - 1414هـ / 1994م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "19",
+            "_score": 1,
+            "_source": {
+              "book_name": "صحيح ابن خزيمة",
+              "type": "العلل",
+              "author": " محمد بن إسحاق بن خزيمة ",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "دار الميمان - الرياض - السعودية - الطبعة الأولى 1430هـ - 2009م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "20",
+            "_score": 1,
+            "_source": {
+              "book_name": "تهذيب الكمال في أسماء الرجال",
+              "type": "الجرح والتعديل",
+              "author": "الحافظ المزي",
+              "status": "قيد التدقيق",
+              "progress": 70,
+              "edition": "مؤسسة الرسالة - بيروت - 1400 - 1980"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "21",
+            "_score": 1,
+            "_source": {
+              "book_name": "تقريب التهذيب",
+              "type": "الجرح والتعديل",
+              "author": "ابن حجر العسقلاني",
+              "status": "قيد التدقيق",
+              "progress": 60,
+              "edition": "دار العاصمة - 1412"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "22",
+            "_score": 1,
+            "_source": {
+              "book_name": "تهذيب التهذيب",
+              "type": "الجرح والتعديل",
+              "author": "ابن حجر العسقلاني",
+              "status": "قيد التدقيق",
+              "progress": 70,
+              "edition": "مؤسسة الرسالة"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "23",
+            "_score": 1,
+            "_source": {
+              "book_name": "الجرح والتعديل لابن أبي حاتم",
+              "type": "الجرح والتعديل",
+              "author": "عبد الرحمن بن أبي حاتم",
+              "status": "قيد التدقيق",
+              "progress": 70,
+              "edition": "دار إحياء التراث العربي - 1271 هـ 1952 م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "24",
+            "_score": 1,
+            "_source": {
+              "book_name": "الكامل في ضعفاء الرجال",
+              "type": "الجرح والتعديل",
+              "author": "ابن عدي الجرجاني",
+              "status": "قيد التدقيق",
+              "progress": 70,
+              "edition": "الكتب العلمية - 1418هـ 1997م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "25",
+            "_score": 1,
+            "_source": {
+              "book_name": "فتح الباري بشرح صحيح البخاري",
+              "type": "الشروح",
+              "author": "ابن حجر العسقلاني",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "دارالريان للتراث - 1407هـ / 1986م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "26",
+            "_score": 1,
+            "_source": {
+              "book_name": "فتح الباري في شرح صحيح البخاري",
+              "type": "الشروح",
+              "author": "ابن رجب الحنبلي",
+              "status": "قيد الإدخال",
+              "progress": 70,
+              "edition": "دار ابن الجوزي"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "27",
+            "_score": 1,
+            "_source": {
+              "book_name": "عمدة القاري شرح صحيح البخاري",
+              "type": "الشروح",
+              "author": "بدر الدين العيني",
+              "status": "قيد التدقيق",
+              "progress": 80,
+              "edition": "دار إحياء التراث العربي"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "28",
+            "_score": 1,
+            "_source": {
+              "book_name": "التوضيح لشرح الجامع الصحيح",
+              "type": "الشروح",
+              "author": "ابن الملقن",
+              "status": "قيد الإدخال",
+              "progress": 60,
+              "edition": "وزارة الأوقاف والشؤون الإسلامية قطر - ٢٠٠٩"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "29",
+            "_score": 1,
+            "_source": {
+              "book_name": "المنهاج شرح صحيح مسلم بن الحجاج",
+              "type": "الشروح",
+              "author": " يحيى بن شرف النووي",
+              "status": "قيد التدقيق",
+              "progress": 80,
+              "edition": "دار الخير - 1416هـ / 1996م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "30",
+            "_score": 1,
+            "_source": {
+              "book_name": "السراج الوهاج من كشف مطالب صحيح مسلم بن الحجاج",
+              "type": "الشروح",
+              "author": "أبي الطيب صديق",
+              "status": "قيد الإدخال",
+              "progress": 70,
+              "edition": "وزارة الأوقاف والشؤون الإسلامية القطرية"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "31",
+            "_score": 1,
+            "_source": {
+              "book_name": "المفهم لما أشكل من تلخيص كتاب مسلم",
+              "type": "الشروح",
+              "author": "أبو العباس القرطبي",
+              "status": "قيد الإدخال",
+              "progress": 70,
+              "edition": "دار ابن كثير"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "32",
+            "_score": 1,
+            "_source": {
+              "book_name": "عون المعبود شرح سنن أبي داود",
+              "type": "الشروح",
+              "author": "شرف الحق العظيم آبادي",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "دار الفكر - 1415هـ / 1995م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "33",
+            "_score": 1,
+            "_source": {
+              "book_name": "تهذيب سنن أبي داود",
+              "type": "الشروح",
+              "author": "ابن قيم الجوزية",
+              "status": "قيد الإدخال",
+              "progress": 70,
+              "edition": "طبعة عطاءات العلم"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "34",
+            "_score": 1,
+            "_source": {
+              "book_name": "حاشية السندي على ابن ماجه",
+              "type": "الشروح",
+              "author": "محمد بن عبدالهادي السندي",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "دار الجيل - بيروت"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "35",
+            "_score": 1,
+            "_source": {
+              "book_name": "تحفة الأحوذي بشرح جامع الترمذي",
+              "type": "الشروح",
+              "author": "عبد الرحمن المباركفوري",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "دار الكتب العلمية"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "36",
+            "_score": 1,
+            "_source": {
+              "book_name": "شرح الزرقاني على موطأ الإمام مالك",
+              "type": "الشروح",
+              "author": "محمد بن عبد الباقي الزرقاني",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "مكتبة الثقافة الدينية"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "37",
+            "_score": 1,
+            "_source": {
+              "book_name": "شرح السيوطي لسنن النسائي",
+              "type": "الشروح",
+              "author": "جلال الدين السيوطي",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "مكتب المطبوعات الإسلامية - 1414هـ / 1994م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "38",
+            "_score": 1,
+            "_source": {
+              "book_name": "حاشية السندي على المسند",
+              "type": "الشروح",
+              "author": "محمد بن عبدالهادي السندي",
+              "status": "قيد الإدخال",
+              "progress": 70,
+              "edition": "وزارة الأوقاف والشؤون الإسلامية قطر"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "39",
+            "_score": 1,
+            "_source": {
+              "book_name": "التمهيد لما في الموطأ من المعاني والأسانيد",
+              "type": "الشروح",
+              "author": "ابن عبد البر",
+              "status": "قيد الإدخال",
+              "progress": 70,
+              "edition": "وزارة عموم الأوقاف والشؤون الإسلامية - المغرب - ١٣٨٧ه"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "40",
+            "_score": 1,
+            "_source": {
+              "book_name": "الاستذكار الجامع لمذاهب فقهاء الأمصار وعلماء الأقطار",
+              "type": "الشروح",
+              "author": "ابن عبد البر",
+              "status": "قيد الإدخال",
+              "progress": 70,
+              "edition": "دار قتيبة"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "41",
+            "_score": 1,
+            "_source": {
+              "book_name": "جامع الترمذي",
+              "type": "أحكام المحدثين",
+              "author": "محمد بن عيسى الترمذي",
+              "status": "مكتمل",
+              "progress": 100,
+              "edition": "دار الغرب الإسلامي - بيروت - لبنان - 1996 : 1998م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "42",
+            "_score": 1,
+            "_source": {
+              "book_name": "البدر المنير في تخريج الأحاديث والآثار الواقعة في الشرح الكبير",
+              "type": "أحكام المحدثين",
+              "author": "ابن الملقن",
+              "status": "قيد الإدخال",
+              "progress": 70,
+              "edition": "دار الهجرة - ١٤٢٥هـ-٢٠٠٤م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "43",
+            "_score": 1,
+            "_source": {
+              "book_name": "التلخيص الحبير في تخريج أحاديث الرافعي الكبير",
+              "type": "أحكام المحدثين",
+              "author": "ابن حجر العسقلاني",
+              "status": "قيد الإدخال",
+              "progress": 70,
+              "edition": "مؤسسة قرطبة - 1416هـ"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "44",
+            "_score": 1,
+            "_source": {
+              "book_name": "فتح الباري بشرح صحيح البخاري",
+              "type": "أحكام المحدثين",
+              "author": "ابن حجر العسقلاني",
+              "status": "قيد التدقيق",
+              "progress": 90,
+              "edition": "دارالريان للتراث - 1407هـ / 1986م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "45",
+            "_score": 1,
+            "_source": {
+              "book_name": "فتح الباري في شرح صحيح البخاري",
+              "type": "أحكام المحدثين",
+              "author": "ابن رجب الحنبلي",
+              "status": "قيد الإدخال",
+              "progress": 70,
+              "edition": "دار ابن الجوزي"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "46",
+            "_score": 1,
+            "_source": {
+              "book_name": "التمهيد لما في الموطأ من المعاني والأسانيد",
+              "type": "أحكام المحدثين",
+              "author": "ابن عبد البر",
+              "status": "قيد الإدخال",
+              "progress": 70,
+              "edition": "وزارة عموم الأوقاف والشؤون الإسلامية - المغرب - ١٣٨٧ه"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "47",
+            "_score": 1,
+            "_source": {
+              "book_name": "الاستذكار الجامع لمذاهب فقهاء الأمصار وعلماء الأقطار",
+              "type": "أحكام المحدثين",
+              "author": "ابن عبد البر",
+              "status": "قيد الإدخال",
+              "progress": 70,
+              "edition": "دار قتيبة"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "48",
+            "_score": 1,
+            "_source": {
+              "book_name": "صحيح سنن الترمذي",
+              "type": "أحكام المحدثين",
+              "author": "ناصر الدين الألباني",
+              "status": "مكتمل",
+              "progress": 100,
+              "edition": "مكتبة المعارف ١٤٢٠ هـ - ٢٠٠٠ م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "49",
+            "_score": 1,
+            "_source": {
+              "book_name": "ضعيف سنن الترمذي",
+              "type": "أحكام المحدثين",
+              "author": "ناصر الدين الألباني",
+              "status": "مكتمل",
+              "progress": 100,
+              "edition": "مكتبة المعارف ١٤٢٠ هـ - ٢٠٠٠ م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "50",
+            "_score": 1,
+            "_source": {
+              "book_name": "صحيح سنن أبي داود",
+              "type": "أحكام المحدثين",
+              "author": "ناصر الدين الألباني",
+              "status": "مكتمل",
+              "progress": 100,
+              "edition": "مكتبة المعارف ١٤١٩ هـ - ١٩٩٨ م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "51",
+            "_score": 1,
+            "_source": {
+              "book_name": "ضعيف سنن أبي داود",
+              "type": "أحكام المحدثين",
+              "author": "ناصر الدين الألباني",
+              "status": "مكتمل",
+              "progress": 100,
+              "edition": "مكتبة المعارف ١٤١٩ هـ - ١٩٩٨ م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "52",
+            "_score": 1,
+            "_source": {
+              "book_name": "صحيح سنن ابن ماجه",
+              "type": "أحكام المحدثين",
+              "author": "ناصر الدين الألباني",
+              "status": "مكتمل",
+              "progress": 100,
+              "edition": "مكتبة المعارف ١٤١٧ هـ - ١٩٩٧ م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "53",
+            "_score": 1,
+            "_source": {
+              "book_name": "ضعيف سنن ابن ماجه",
+              "type": "أحكام المحدثين",
+              "author": "ناصر الدين الألباني",
+              "status": "مكتمل",
+              "progress": 100,
+              "edition": "مكتبة المعارف ١٤١٧ هـ - ١٩٩٧ م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "54",
+            "_score": 1,
+            "_source": {
+              "book_name": "صحيح سنن النسائي",
+              "type": "أحكام المحدثين",
+              "author": "ناصر الدين الألباني",
+              "status": "مكتمل",
+              "progress": 100,
+              "edition": "مكتبة المعارف ١٤١٩ هـ - ١٩٩٨ م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "55",
+            "_score": 1,
+            "_source": {
+              "book_name": "ضعيف سنن النسائي",
+              "type": "أحكام المحدثين",
+              "author": "ناصر الدين الألباني",
+              "status": "مكتمل",
+              "progress": 100,
+              "edition": "مكتبة المعارف ١٤١٩ هـ - ١٩٩٨ م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "56",
+            "_score": 1,
+            "_source": {
+              "book_name": "سنن ابن ماجه",
+              "type": "أحكام المحدثين",
+              "author": "شعيب الأرنؤوط",
+              "status": "مكتمل",
+              "progress": 100,
+              "edition": "دار الرسالة العالمية - الطبعة الأولى 1430هـ - 2009م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "57",
+            "_score": 1,
+            "_source": {
+              "book_name": "صحيح ابن حبان",
+              "type": "أحكام المحدثين",
+              "author": "شعيب الأرنؤوط",
+              "status": "مكتمل",
+              "progress": 100,
+              "edition": "مؤسسة الرسالة - بيروت - لبنان - الطبعة الثانية 1414هـ - 1993م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "58",
+            "_score": 1,
+            "_source": {
+              "book_name": "سنن أبي داود تخريج شعيب الأرنؤوط",
+              "type": "أحكام المحدثين",
+              "author": "شعيب الأرنؤوط",
+              "status": "مكتمل",
+              "progress": 100,
+              "edition": "دار الرسالة العالمية - الطبعة الأولى ٢٠٠٩ - ١٤٣٠"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "59",
+            "_score": 1,
+            "_source": {
+              "book_name": "مسند أحمد تخريج شعيب الأرنؤوط",
+              "type": "أحكام المحدثين",
+              "author": "شعيب الأرنؤوط",
+              "status": "مكتمل",
+              "progress": 100,
+              "edition": "دار الرسالة العالمية - الطبعة الأولى ٢٠٠١ - ١٤٢١"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "60",
+            "_score": 1,
+            "_source": {
+              "book_name": "سنن الدارمي",
+              "type": "أحكام المحدثين",
+              "author": "حسين أسد",
+              "status": "مكتمل",
+              "progress": 100,
+              "edition": "دار المغني - الطبعة الأولى 1412هـ - 2000م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "61",
+            "_score": 1,
+            "_source": {
+              "book_name": "صحيح ابن خزيمة",
+              "type": "أحكام المحدثين",
+              "author": "ماهر الفحل",
+              "status": "مكتمل",
+              "progress": 100,
+              "edition": "دار الميمان - الرياض - السعودية - الطبعة الأولى 1430هـ - 2009م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "62",
+            "_score": 1,
+            "_source": {
+              "book_name": "النهاية في غريب الحديث",
+              "type": "غريب الحديث",
+              "author": "ابن الأثير الجزري",
+              "status": "قيد الإدخال",
+              "progress": 90,
+              "edition": "المكتبة العلمية - بيروت 1399هـ - 1979م"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "63",
+            "_score": 1,
+            "_source": {
+              "book_name": "لسان العرب",
+              "type": "غريب الحديث",
+              "author": "ابن منظور",
+              "status": "قيد الإدخال",
+              "progress": 90,
+              "edition": "دار صادر - بيروت - 1414"
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "64",
+            "_score": 1,
+            "_source": {
+              "book_name": "سنن النسائى الكبرى",
+              "type": "المتون الحديثية",
+              "author": "أبو عبد الرحمن النسائي",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "65",
+            "_score": 1,
+            "_source": {
+              "book_name": "موطأ مالك رواية محمد بن الحسن الشيباني",
+              "type": "المتون الحديثية",
+              "author": "مالك بن أنس",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "66",
+            "_score": 1,
+            "_source": {
+              "book_name": "موطأ مالك رواية أبي مصعب الزهري",
+              "type": "المتون الحديثية",
+              "author": "مالك بن أنس",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "67",
+            "_score": 1,
+            "_source": {
+              "book_name": "مصنف عبد الرزاق",
+              "type": "المتون الحديثية",
+              "author": "عبد الرزاق الصنعاني",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "68",
+            "_score": 1,
+            "_source": {
+              "book_name": "مصنف ابن أبي شيبة",
+              "type": "المتون الحديثية",
+              "author": "أبو بكر ابن ابي شيبة",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "69",
+            "_score": 1,
+            "_source": {
+              "book_name": "المعجم الصغير للطبراني",
+              "type": "المتون الحديثية",
+              "author": "سليمان بن أحمد الطبراني",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "70",
+            "_score": 1,
+            "_source": {
+              "book_name": "المعجم الاوسط للطبراني",
+              "type": "المتون الحديثية",
+              "author": "سليمان بن أحمد الطبراني",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "71",
+            "_score": 1,
+            "_source": {
+              "book_name": "المعجم الكبير للطبراني",
+              "type": "المتون الحديثية",
+              "author": "سليمان بن أحمد الطبراني",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "72",
+            "_score": 1,
+            "_source": {
+              "book_name": "السنن الصغير للبيهقي",
+              "type": "المتون الحديثية",
+              "author": "أبو بكر البيهقي",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "73",
+            "_score": 1,
+            "_source": {
+              "book_name": "السنن الكبرى للبيهقي",
+              "type": "المتون الحديثية",
+              "author": "أبو بكر البيهقي",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "74",
+            "_score": 1,
+            "_source": {
+              "book_name": "سنن الدارقطني",
+              "type": "المتون الحديثية",
+              "author": "أبو الحسن الدارقطني",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "75",
+            "_score": 1,
+            "_source": {
+              "book_name": "ميزان الاعتدال",
+              "type": "الجرح والتعديل",
+              "author": "شمس الدين الذهبي",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "76",
+            "_score": 1,
+            "_source": {
+              "book_name": "التاريخ الكبير",
+              "type": "الجرح والتعديل",
+              "author": "محمد بن اسماعيل البخاري",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "77",
+            "_score": 1,
+            "_source": {
+              "book_name": "كتاب العلل ومعرفة الرجال",
+              "type": "العلل",
+              "author": " أحمد بن حنبل",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "78",
+            "_score": 1,
+            "_source": {
+              "book_name": "الضعفاء الكبير",
+              "type": "العلل",
+              "author": "أبو جعفر العقيلي",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "79",
+            "_score": 1,
+            "_source": {
+              "book_name": "بيان الوهم والإيهام في كتاب الأحكام",
+              "type": "العلل",
+              "author": "أبو الحسن ابن القطان",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "80",
+            "_score": 1,
+            "_source": {
+              "book_name": "العلل المتناهية في الأحاديث الواهية",
+              "type": "العلل",
+              "author": " ابن الجوزي",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "81",
+            "_score": 1,
+            "_source": {
+              "book_name": "المنتخب من العلل للخلال",
+              "type": "العلل",
+              "author": "ابن قدامة",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "82",
+            "_score": 1,
+            "_source": {
+              "book_name": "كتاب العلل لابن المديني",
+              "type": "العلل",
+              "author": "علي بن المديني",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "83",
+            "_score": 1,
+            "_source": {
+              "book_name": "تخريج سنن الترمذي",
+              "type": "أحكام المحدثين",
+              "author": "شعيب الأرنؤوط",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "84",
+            "_score": 1,
+            "_source": {
+              "book_name": "تخريج مسند أحمد بن حنبل",
+              "type": "أحكام المحدثين",
+              "author": "أحمد شاكر",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          },
+          {
+            "_index": "es-prod-euw1-references.2025-08-07-07-35",
+            "_id": "85",
+            "_score": 1,
+            "_source": {
+              "book_name": "غريب الحديث",
+              "type": "غريب الحديث",
+              "author": "أبو عبيد القاسم الهروي",
+              "status": "في إصدارات مقبلة",
+              "progress": 0,
+              "edition": ""
+            }
+          }
+        ]
+      },
+      "status": 200
+    }
+  ]
+}

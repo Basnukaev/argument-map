@@ -1,0 +1,73 @@
+{
+  "endpoint": "https://alminasa.ai/api/reactivesearchproxy/es-prod-euw1-narrators-12-read/_msearch?",
+  "method": "POST",
+  "request_body": "{\"preference\":\"result\"}\n{\"query\":{\"bool\":{\"must\":[{\"bool\":{\"must\":[{\"match\":{\"id\":\"4396\"}},{\"match_all\":{}}]}}]}},\"size\":5,\"_source\":{\"includes\":[\"full_name\",\"extended_full_name\",\"nickname\",\"origin\",\"level\",\"born_on\",\"died_on\",\"lived_in\",\"died_in\",\"grade\",\"book_titles\",\"top_students\",\"top_scholars\"],\"excludes\":[]},\"track_total_hits\":true}\n",
+  "response": {
+    "took": 0,
+    "responses": [
+      {
+        "took": 0,
+        "timed_out": false,
+        "_shards": {
+          "total": 1,
+          "successful": 1,
+          "skipped": 0,
+          "failed": 0
+        },
+        "hits": {
+          "total": {
+            "value": 1,
+            "relation": "eq"
+          },
+          "max_score": 9.918471,
+          "hits": [
+            {
+              "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+              "_id": "4396",
+              "_score": 9.918471,
+              "_ignored": [
+                "extended_fullname"
+              ],
+              "_source": {
+                "full_name": "أبو هريرة الدوسي",
+                "nickname": "أبو هريرة ، ويقال كانت كنيته في الجاهلية :  أبو الأسود",
+                "grade": "الصحابي الجليل  حافظ الصحابة",
+                "origin": "الدوسي ، اليماني",
+                "born_on": null,
+                "died_on": "57 هـ ، أو : 58 هـ ، أو : 59 هـ",
+                "lived_in": "المدينة ، ذو الحليفة ، البحرين",
+                "died_in": "العقيق",
+                "level": "الصحابي الجليل",
+                "book_titles": [
+                  "مسند أحمد بن حنبل",
+                  "سنن الدارمي",
+                  "موطأ مالك رواية يحيى الليثي",
+                  "المستدرك على الصحيحين",
+                  "صحيح البخاري",
+                  "سنن النسائى الصغرى",
+                  "صحيح مسلم",
+                  "سنن ابن ماجه",
+                  "جامع الترمذي",
+                  "صحيح ابن خزيمة",
+                  "سنن أبي داود",
+                  "صحيح ابن حبان"
+                ],
+                "top_students": [
+                  "ذكوان السمان - (1966)",
+                  "أبو سلمة بن عبد الرحمن - (1819)",
+                  "عبد الرحمن بن هرمز الأعرج - (1147)"
+                ],
+                "top_scholars": [
+                  "رسول الله ﷺ - (13151)",
+                  "عمر بن الخطاب - (40)",
+                  "عائشة بنت أبي بكر الصديق - (17)"
+                ]
+              }
+            }
+          ]
+        },
+        "status": 200
+      }
+    ]
+  }
+}

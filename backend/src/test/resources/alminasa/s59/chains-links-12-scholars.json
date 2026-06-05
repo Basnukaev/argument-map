@@ -1,0 +1,4045 @@
+{
+  "endpoint": "https://alminasa.ai/api/reactivesearchproxy/es-prod-euw1-chains-links-12-read/_msearch?",
+  "method": "POST",
+  "request_body": "{\"preference\":\"narr_scholar_result\"}\n{\"query\":{\"bool\":{\"must\":[{\"bool\":{\"must\":[{\"match\":{\"link.src_id\":\"4396\"}}]}}]}},\"size\":10,\"_source\":{\"includes\":[\"hadith\",\"link\",\"hadith.narrations\",\"rulings\",\"rulings.ruler.keyword\",\"rulings.ruling.keyword\",\"rulings.book_name\",\"rulings.page\",\"rulings.volume\"],\"excludes\":[]},\"track_total_hits\":true,\"sort\":[{\"hadith.authenticity_order\":{\"order\":\"asc\"}},{\"hadith.hadith_serial_id\":{\"order\":\"asc\"}}],\"aggs\":{\"unique_scholars\":{\"cardinality\":{\"field\":\"link.tgt_id\"}},\"unique_grades\":{\"cardinality\":{\"field\":\"link.tgt_grade\"}},\"unique_verbs\":{\"cardinality\":{\"field\":\"link.verb\"}}}}\n",
+  "response": {
+    "took": 6,
+    "responses": [
+      {
+        "took": 6,
+        "timed_out": false,
+        "_shards": {
+          "total": 1,
+          "successful": 1,
+          "skipped": 0,
+          "failed": 0
+        },
+        "hits": {
+          "total": {
+            "value": 13006,
+            "relation": "eq"
+          },
+          "max_score": null,
+          "hits": [
+            {
+              "_index": "es-prod-euw1-chains-links-12.2024-09-06-12-25",
+              "_id": "GlJSx5EBie9MRIMNXDQN",
+              "_score": null,
+              "_source": {
+                "hadith": {
+                  "book_id": 146,
+                  "hadith_id": "146-8",
+                  "hadith_serial_id": 8,
+                  "author": "محمد بن إسماعيل البخاري",
+                  "book_name": "صحيح البخاري",
+                  "raw_type": null,
+                  "type": "مرفوع",
+                  "narration_id": "8-صحيح البخاري",
+                  "authenticity_order": 1,
+                  "editions": [
+                    {
+                      "edition": "دار ابن كثير - 1414هـ / 1993م",
+                      "page": 13,
+                      "volume": 1
+                    },
+                    {
+                      "edition": "دار طوق النجاة - بيروت - الطبعة الأولى 1422هـ",
+                      "page": 11,
+                      "volume": 1
+                    }
+                  ],
+                  "time_order": 256,
+                  "chapter": "كتاب الإيمان",
+                  "hadith": "حَدَّثَنَا <a class=rawy id=5060>عَبْدُ اللَّهِ بْنُ مُحَمَّدٍ </a> ، قَالَ : حَدَّثَنَا <a class=rawy id=5231>أَبُو عَامِرٍ الْعَقَدِيُّ </a> ، قَالَ : حَدَّثَنَا <a class=rawy id=3574>سُلَيْمَانُ بْنُ بِلَالٍ </a> ، عَنْ <a class=rawy id=4797>عَبْدِ اللَّهِ بْنِ دِينَارٍ </a> ، عَنْ <a class=rawy id=2840>أَبِي صَالِحٍ </a> ، عَنْ <a class=rawy id=4396>أَبِي هُرَيْرَةَ </a> رَضِيَ اللَّهُ عَنْه ، عَنِ النَّبِيِّ صَلَّى اللَّهُ عَلَيْهِ وَسَلَّمَ ، قَالَ : \" <a class=matn>الْإِيمَانُ بِضْعٌ وَسِتُّونَ شُعْبَةً ، وَالْحَيَاءُ شُعْبَةٌ مِنَ الْإِيمَانِ \" </a> .",
+                  "number": [
+                    9
+                  ],
+                  "ruling": null,
+                  "sub_chapter": "باب أمور الإيمان",
+                  "narrators": [
+                    {
+                      "id": "5060",
+                      "full_name": "عبد الله بن محمد المسندي",
+                      "level": "العاشرة",
+                      "grade": "ثقة حافظ  جمع المسند",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "عَبْدُ اللَّهِ بْنُ مُحَمَّدٍ "
+                    },
+                    {
+                      "id": "5231",
+                      "full_name": "أبو عامر العقدي",
+                      "level": "التاسعة",
+                      "grade": "ثقة",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "أَبُو عَامِرٍ الْعَقَدِيُّ "
+                    },
+                    {
+                      "id": "3574",
+                      "full_name": "سليمان بن بلال القرشي",
+                      "level": "الثامنة",
+                      "grade": "ثقة",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "سُلَيْمَانُ بْنُ بِلَالٍ "
+                    },
+                    {
+                      "id": "4797",
+                      "full_name": "عبد الله بن دينار العدوي",
+                      "level": "الرابعة",
+                      "grade": "ثقة",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "عَبْدِ اللَّهِ بْنِ دِينَارٍ "
+                    },
+                    {
+                      "id": "2840",
+                      "full_name": "ذكوان السمان",
+                      "level": "الثالثة",
+                      "grade": "ثقة ثبت",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "أَبِي صَالِحٍ "
+                    },
+                    {
+                      "id": "4396",
+                      "full_name": "أبو هريرة الدوسي",
+                      "level": "الصحابي الجليل",
+                      "grade": "الصحابي الجليل  حافظ الصحابة",
+                      "is_companion": true,
+                      "is_unknown": false,
+                      "reference": "أَبِي هُرَيْرَةَ "
+                    },
+                    {
+                      "id": "a-146",
+                      "full_name": "محمد بن إسماعيل البخاري (صحيح البخاري)",
+                      "level": null,
+                      "grade": null,
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": ""
+                    }
+                  ],
+                  "narrators_full_names": [
+                    "أبو هريرة الدوسي",
+                    "عبد الله بن دينار العدوي",
+                    "سليمان بن بلال القرشي",
+                    "أبو عامر العقدي",
+                    "ذكوان السمان",
+                    "عبد الله بن محمد المسندي"
+                  ],
+                  "page": 11,
+                  "volume": 1,
+                  "keywords": "الْإِيمَانُ بِضْعٌ وَسِتُّونَ شُعْبَةً ، وَالْحَيَاءُ شُعْبَةٌ مِنَ الْإِيمَانِ",
+                  "narrations": [],
+                  "raw_narrations": [
+                    "319-4946",
+                    "319-4945",
+                    "158-54",
+                    "454-192",
+                    "158-53",
+                    "454-193",
+                    "121-8726",
+                    "121-9156",
+                    "173-56",
+                    "454-168",
+                    "184-4058",
+                    "319-4944",
+                    "195-2556",
+                    "454-169",
+                    "146-8",
+                    "121-9497",
+                    "454-183",
+                    "121-9535"
+                  ],
+                  "narrations_numbers": [
+                    {
+                      "narration_id": "146-8",
+                      "number": [
+                        "9"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4946",
+                      "number": [
+                        "5021"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4945",
+                      "number": [
+                        "5020"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-54",
+                      "number": [
+                        "35"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-192",
+                      "number": [
+                        "190"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-53",
+                      "number": [
+                        "35"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-193",
+                      "number": [
+                        "191"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8726",
+                      "number": [
+                        "9048"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9156",
+                      "number": [
+                        "9485"
+                      ]
+                    },
+                    {
+                      "narration_id": "173-56",
+                      "number": [
+                        "57"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-168",
+                      "number": [
+                        "166"
+                      ]
+                    },
+                    {
+                      "narration_id": "184-4058",
+                      "number": [
+                        "4676"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4944",
+                      "number": [
+                        "5019"
+                      ]
+                    },
+                    {
+                      "narration_id": "195-2556",
+                      "number": [
+                        "2614"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-169",
+                      "number": [
+                        "167"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-8",
+                      "number": [
+                        "9"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9497",
+                      "number": [
+                        "9841"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-183",
+                      "number": [
+                        "181"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9535",
+                      "number": [
+                        "9879"
+                      ]
+                    }
+                  ],
+                  "narrations_group_id": null,
+                  "hasExplanation": true,
+                  "hasExtendedExplanation": false,
+                  "hasCommentary": false,
+                  "hasRuling": true,
+                  "hasExtendedRuling": false,
+                  "rulings": [
+                    {
+                      "ruling": "أورده في صحيحه",
+                      "ruler": "البخاري",
+                      "ruler_dod": 256,
+                      "book_name": "صحيح البخاري",
+                      "page": 11,
+                      "volume": 1
+                    }
+                  ]
+                },
+                "link": {
+                  "src_id": "4396",
+                  "src_full_name": "أبو هريرة الدوسي",
+                  "src_reference": "أَبِي هُرَيْرَةَ",
+                  "src_type": "Narrator",
+                  "tgt_id": "p-1",
+                  "tgt_full_name": "رسول الله ﷺ",
+                  "tgt_reference": "رسول الله ﷺ",
+                  "tgt_type": "Prophet",
+                  "src_matched": true,
+                  "tgt_matched": true,
+                  "verb": null,
+                  "src_grade": null,
+                  "tgt_grade": null,
+                  "is_singular": true
+                }
+              },
+              "sort": [
+                1,
+                8
+              ]
+            },
+            {
+              "_index": "es-prod-euw1-chains-links-12.2024-09-06-12-25",
+              "_id": "QCRSx5EBT5MsJQ2xXMxS",
+              "_score": null,
+              "_source": {
+                "hadith": {
+                  "book_id": 146,
+                  "hadith_id": "146-13",
+                  "hadith_serial_id": 13,
+                  "author": "محمد بن إسماعيل البخاري",
+                  "book_name": "صحيح البخاري",
+                  "raw_type": null,
+                  "type": "مرفوع",
+                  "narration_id": "13-صحيح البخاري",
+                  "authenticity_order": 1,
+                  "editions": [
+                    {
+                      "edition": "دار ابن كثير - 1414هـ / 1993م",
+                      "page": 14,
+                      "volume": 1
+                    },
+                    {
+                      "edition": "دار طوق النجاة - بيروت - الطبعة الأولى 1422هـ",
+                      "page": 12,
+                      "volume": 1
+                    }
+                  ],
+                  "time_order": 256,
+                  "chapter": "كتاب الإيمان",
+                  "hadith": "حَدَّثَنَا <a class=rawy id=1382>أَبُو الْيَمَانِ </a> ، قَالَ : أَخْبَرَنَا <a class=rawy id=3801>شُعَيْبٌ </a> ، قَالَ : حَدَّثَنَا <a class=rawy id=4798>أَبُو الزِّنَادِ </a> ، عَنِ <a class=rawy id=4506>الْأَعْرَجِ </a> ، عَنْ <a class=rawy id=4396>أَبِي هُرَيْرَةَ </a> رَضِيَ اللَّهُ عَنْهُ ، أَن رَسُولَ اللَّهِ صَلَّى اللَّهُ عَلَيْهِ وَسَلَّمَ ، قَالَ : \" <a class=matn>فَوَالَّذِي نَفْسِي بِيَدِهِ ، لَا يُؤْمِنُ أَحَدُكُمْ حَتَّى أَكُونَ أَحَبَّ إِلَيْهِ مِنْ وَالِدِهِ وَوَلَدِهِ \" </a> .",
+                  "number": [
+                    14
+                  ],
+                  "ruling": null,
+                  "sub_chapter": "باب حب الرسول صلى الله عليه وسلم من الإيمان",
+                  "narrators": [
+                    {
+                      "id": "1382",
+                      "full_name": "أبو اليمان الحكم بن نافع",
+                      "level": "العاشرة",
+                      "grade": "ثقة ثبت",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "أَبُو الْيَمَانِ "
+                    },
+                    {
+                      "id": "3801",
+                      "full_name": "شعيب بن أبي حمزة الحمصي",
+                      "level": "السابعة",
+                      "grade": "ثقة عابد",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "شُعَيْبٌ "
+                    },
+                    {
+                      "id": "4798",
+                      "full_name": "أبو الزناد",
+                      "level": "الخامسة",
+                      "grade": "ثقة فقيه .",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "أَبُو الزِّنَادِ "
+                    },
+                    {
+                      "id": "4506",
+                      "full_name": "عبد الرحمن بن هرمز الأعرج",
+                      "level": "الثالثة",
+                      "grade": "ثقة ثبت عالم",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "الْأَعْرَجِ "
+                    },
+                    {
+                      "id": "4396",
+                      "full_name": "أبو هريرة الدوسي",
+                      "level": "الصحابي الجليل",
+                      "grade": "الصحابي الجليل  حافظ الصحابة",
+                      "is_companion": true,
+                      "is_unknown": false,
+                      "reference": "أَبِي هُرَيْرَةَ "
+                    },
+                    {
+                      "id": "a-146",
+                      "full_name": "محمد بن إسماعيل البخاري (صحيح البخاري)",
+                      "level": null,
+                      "grade": null,
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": ""
+                    }
+                  ],
+                  "narrators_full_names": [
+                    "شعيب بن أبي حمزة الحمصي",
+                    "أبو هريرة الدوسي",
+                    "أبو الزناد",
+                    "عبد الرحمن بن هرمز الأعرج",
+                    "أبو اليمان الحكم بن نافع"
+                  ],
+                  "page": 12,
+                  "volume": 1,
+                  "keywords": "لَا يُؤْمِنُ أَحَدُكُمْ حَتَّى أَكُونَ أَحَبَّ إِلَيْهِ مِنْ وَالِدِهِ وَوَلَدِهِ",
+                  "narrations": [],
+                  "raw_narrations": [
+                    "146-13",
+                    "319-4955"
+                  ],
+                  "narrations_numbers": [
+                    {
+                      "narration_id": "146-13",
+                      "number": [
+                        "14"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-13",
+                      "number": [
+                        "14"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4955",
+                      "number": [
+                        "5030"
+                      ]
+                    }
+                  ],
+                  "narrations_group_id": null,
+                  "hasExplanation": true,
+                  "hasExtendedExplanation": true,
+                  "hasCommentary": false,
+                  "hasRuling": true,
+                  "hasExtendedRuling": true,
+                  "rulings": [
+                    {
+                      "ruling": "أورده في صحيحه",
+                      "ruler": "البخاري",
+                      "ruler_dod": 256,
+                      "book_name": "صحيح البخاري",
+                      "page": 12,
+                      "volume": 1
+                    }
+                  ]
+                },
+                "link": {
+                  "src_id": "4396",
+                  "src_full_name": "أبو هريرة الدوسي",
+                  "src_reference": "أَبِي هُرَيْرَةَ",
+                  "src_type": "Narrator",
+                  "tgt_id": "p-1",
+                  "tgt_full_name": "رسول الله ﷺ",
+                  "tgt_reference": "رسول الله ﷺ",
+                  "tgt_type": "Prophet",
+                  "src_matched": true,
+                  "tgt_matched": true,
+                  "verb": null,
+                  "src_grade": null,
+                  "tgt_grade": null,
+                  "is_singular": true
+                }
+              },
+              "sort": [
+                1,
+                13
+              ]
+            },
+            {
+              "_index": "es-prod-euw1-chains-links-12.2024-09-06-12-25",
+              "_id": "TVJSx5EBie9MRIMNXDTD",
+              "_score": null,
+              "_source": {
+                "hadith": {
+                  "book_id": 146,
+                  "hadith_id": "146-25",
+                  "hadith_serial_id": 25,
+                  "author": "محمد بن إسماعيل البخاري",
+                  "book_name": "صحيح البخاري",
+                  "raw_type": null,
+                  "type": "مرفوع",
+                  "narration_id": "25-صحيح البخاري",
+                  "authenticity_order": 1,
+                  "editions": [
+                    {
+                      "edition": "دار ابن كثير - 1414هـ / 1993م",
+                      "page": 18,
+                      "volume": 1
+                    },
+                    {
+                      "edition": "دار طوق النجاة - بيروت - الطبعة الأولى 1422هـ",
+                      "page": 14,
+                      "volume": 1
+                    }
+                  ],
+                  "time_order": 256,
+                  "chapter": "كتاب الإيمان",
+                  "hadith": "حَدَّثَنَا <a class=rawy id=465>أَحْمَدُ بْنُ يُونُسَ </a> <a class=rawy id=7721>وَمُوسَى بْنُ إِسْمَاعِيلَ </a> ، قَالَا : حَدَّثَنَا <a class=rawy id=823>إِبْرَاهِيمُ بْنُ سَعْدٍ </a> ، قَالَ : حَدَّثَنَا <a class=rawy id=7272>ابْنُ شِهَابٍ </a> ، عَنْ <a class=rawy id=3299>سَعِيدِ بْنِ الْمُسَيِّبِ </a> ، عَنْ <a class=rawy id=4396>أَبِي هُرَيْرَةَ </a> ، \" أَنَّ رَسُولَ اللَّهِ صَلَّى اللَّهُ عَلَيْهِ وَسَلَّمَ <a class=matn>سُئِلَ ، أَيُّ الْعَمَلِ أَفْضَلُ ؟ فَقَالَ : إِيمَانٌ بِاللَّهِ وَرَسُولِهِ ، قِيلَ : ثُمَّ مَاذَا ؟ قَالَ : الْجِهَادُ فِي سَبِيلِ اللَّهِ ، قِيلَ : ثُمَّ مَاذَا ؟ قَالَ : حَجٌّ مَبْرُورٌ \" </a> .",
+                  "number": [
+                    26
+                  ],
+                  "ruling": null,
+                  "sub_chapter": "باب من قال إن الإيمان هو العمل",
+                  "narrators": [
+                    {
+                      "id": "465",
+                      "full_name": "أحمد بن عبد الله اليربوعي",
+                      "level": "من كبار العاشرة",
+                      "grade": "ثقة حافظ",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "أَحْمَدُ بْنُ يُونُسَ "
+                    },
+                    {
+                      "id": "7721",
+                      "full_name": "موسى بن إسماعيل التبوذكي",
+                      "level": "صغار التاسعة",
+                      "grade": "ثقة ثبت",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "وَمُوسَى بْنُ إِسْمَاعِيلَ "
+                    },
+                    {
+                      "id": "823",
+                      "full_name": "إبراهيم بن سعد أبو إسحاق الزهري",
+                      "level": "الثامنة",
+                      "grade": "ثقة حجة  تكلم فيه بلا قادح",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "إِبْرَاهِيمُ بْنُ سَعْدٍ "
+                    },
+                    {
+                      "id": "7272",
+                      "full_name": "الزهري",
+                      "level": "من رؤوس الطبقة الرابعة",
+                      "grade": "الفقيه الحافظ  متفق على جلالته وإتقانه وثبته",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "ابْنُ شِهَابٍ "
+                    },
+                    {
+                      "id": "3299",
+                      "full_name": "سعيد بن المسيب",
+                      "level": "من كبار الثانية",
+                      "grade": "أحد العلماء الأثبات الفقهاء الكبار",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "سَعِيدِ بْنِ الْمُسَيِّبِ "
+                    },
+                    {
+                      "id": "4396",
+                      "full_name": "أبو هريرة الدوسي",
+                      "level": "الصحابي الجليل",
+                      "grade": "الصحابي الجليل  حافظ الصحابة",
+                      "is_companion": true,
+                      "is_unknown": false,
+                      "reference": "أَبِي هُرَيْرَةَ"
+                    },
+                    {
+                      "id": "a-146",
+                      "full_name": "محمد بن إسماعيل البخاري (صحيح البخاري)",
+                      "level": null,
+                      "grade": null,
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": ""
+                    }
+                  ],
+                  "narrators_full_names": [
+                    "أبو هريرة الدوسي",
+                    "أحمد بن عبد الله اليربوعي",
+                    "سعيد بن المسيب",
+                    "موسى بن إسماعيل التبوذكي",
+                    "الزهري",
+                    "إبراهيم بن سعد أبو إسحاق الزهري"
+                  ],
+                  "page": 14,
+                  "volume": 1,
+                  "keywords": "أَيُّ الْعَمَلِ أَفْضَلُ ؟ فَقَالَ : إِيمَانٌ بِاللَّهِ وَرَسُولِهِ",
+                  "narrations": [],
+                  "raw_narrations": [
+                    "195-1580",
+                    "158-121",
+                    "319-4925",
+                    "121-7328",
+                    "319-3122",
+                    "121-7407",
+                    "146-1428",
+                    "454-155",
+                    "319-2590",
+                    "121-10530",
+                    "454-4696",
+                    "121-8377",
+                    "121-7455",
+                    "121-9487",
+                    "146-25",
+                    "137-2656",
+                    "121-7665",
+                    "121-10656",
+                    "121-8172",
+                    "454-4695",
+                    "121-8833",
+                    "121-7876",
+                    "137-2315",
+                    "319-3095"
+                  ],
+                  "narrations_numbers": [
+                    {
+                      "narration_id": "146-25",
+                      "number": [
+                        "26"
+                      ]
+                    },
+                    {
+                      "narration_id": "195-1580",
+                      "number": [
+                        "1658"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-121",
+                      "number": [
+                        "83"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4925",
+                      "number": [
+                        "5000"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7328",
+                      "number": [
+                        "7627"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-3122",
+                      "number": [
+                        "3155"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7407",
+                      "number": [
+                        "7705"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-1428",
+                      "number": [
+                        "1519"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-155",
+                      "number": [
+                        "153"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2590",
+                      "number": [
+                        "2623"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10530",
+                      "number": [
+                        "10908"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-4696",
+                      "number": [
+                        "4598"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8377",
+                      "number": [
+                        "8699"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7455",
+                      "number": [
+                        "7756"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9487",
+                      "number": [
+                        "9831"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-25",
+                      "number": [
+                        "26"
+                      ]
+                    },
+                    {
+                      "narration_id": "137-2656",
+                      "number": [
+                        "2781"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7665",
+                      "number": [
+                        "7978"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10656",
+                      "number": [
+                        "11032"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8172",
+                      "number": [
+                        "8487"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-4695",
+                      "number": [
+                        "4597"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8833",
+                      "number": [
+                        "9160"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7876",
+                      "number": [
+                        "8190"
+                      ]
+                    },
+                    {
+                      "narration_id": "137-2315",
+                      "number": [
+                        "2438"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-3095",
+                      "number": [
+                        "3130"
+                      ]
+                    }
+                  ],
+                  "narrations_group_id": null,
+                  "hasExplanation": true,
+                  "hasExtendedExplanation": true,
+                  "hasCommentary": true,
+                  "hasRuling": true,
+                  "hasExtendedRuling": true,
+                  "rulings": [
+                    {
+                      "ruling": "أورده في صحيحه",
+                      "ruler": "البخاري",
+                      "ruler_dod": 256,
+                      "book_name": "صحيح البخاري",
+                      "page": 14,
+                      "volume": 1
+                    }
+                  ]
+                },
+                "link": {
+                  "src_id": "4396",
+                  "src_full_name": "أبو هريرة الدوسي",
+                  "src_reference": "أبي هريرة",
+                  "src_type": "Narrator",
+                  "tgt_id": "p-1",
+                  "tgt_full_name": "رسول الله ﷺ",
+                  "tgt_reference": "رسول الله ﷺ",
+                  "tgt_type": "Prophet",
+                  "src_matched": true,
+                  "tgt_matched": true,
+                  "verb": null,
+                  "src_grade": "صحابي",
+                  "tgt_grade": null,
+                  "is_singular": true
+                }
+              },
+              "sort": [
+                1,
+                25
+              ]
+            },
+            {
+              "_index": "es-prod-euw1-chains-links-12.2024-09-06-12-25",
+              "_id": "U1JSx5EBie9MRIMNXDTs",
+              "_score": null,
+              "_source": {
+                "hadith": {
+                  "book_id": 146,
+                  "hadith_id": "146-25",
+                  "hadith_serial_id": 25,
+                  "author": "محمد بن إسماعيل البخاري",
+                  "book_name": "صحيح البخاري",
+                  "raw_type": null,
+                  "type": "مرفوع",
+                  "narration_id": "25-صحيح البخاري",
+                  "authenticity_order": 1,
+                  "editions": [
+                    {
+                      "edition": "دار ابن كثير - 1414هـ / 1993م",
+                      "page": 18,
+                      "volume": 1
+                    },
+                    {
+                      "edition": "دار طوق النجاة - بيروت - الطبعة الأولى 1422هـ",
+                      "page": 14,
+                      "volume": 1
+                    }
+                  ],
+                  "time_order": 256,
+                  "chapter": "كتاب الإيمان",
+                  "hadith": "حَدَّثَنَا <a class=rawy id=465>أَحْمَدُ بْنُ يُونُسَ </a> <a class=rawy id=7721>وَمُوسَى بْنُ إِسْمَاعِيلَ </a> ، قَالَا : حَدَّثَنَا <a class=rawy id=823>إِبْرَاهِيمُ بْنُ سَعْدٍ </a> ، قَالَ : حَدَّثَنَا <a class=rawy id=7272>ابْنُ شِهَابٍ </a> ، عَنْ <a class=rawy id=3299>سَعِيدِ بْنِ الْمُسَيِّبِ </a> ، عَنْ <a class=rawy id=4396>أَبِي هُرَيْرَةَ </a> ، \" أَنَّ رَسُولَ اللَّهِ صَلَّى اللَّهُ عَلَيْهِ وَسَلَّمَ <a class=matn>سُئِلَ ، أَيُّ الْعَمَلِ أَفْضَلُ ؟ فَقَالَ : إِيمَانٌ بِاللَّهِ وَرَسُولِهِ ، قِيلَ : ثُمَّ مَاذَا ؟ قَالَ : الْجِهَادُ فِي سَبِيلِ اللَّهِ ، قِيلَ : ثُمَّ مَاذَا ؟ قَالَ : حَجٌّ مَبْرُورٌ \" </a> .",
+                  "number": [
+                    26
+                  ],
+                  "ruling": null,
+                  "sub_chapter": "باب من قال إن الإيمان هو العمل",
+                  "narrators": [
+                    {
+                      "id": "465",
+                      "full_name": "أحمد بن عبد الله اليربوعي",
+                      "level": "من كبار العاشرة",
+                      "grade": "ثقة حافظ",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "أَحْمَدُ بْنُ يُونُسَ "
+                    },
+                    {
+                      "id": "7721",
+                      "full_name": "موسى بن إسماعيل التبوذكي",
+                      "level": "صغار التاسعة",
+                      "grade": "ثقة ثبت",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "وَمُوسَى بْنُ إِسْمَاعِيلَ "
+                    },
+                    {
+                      "id": "823",
+                      "full_name": "إبراهيم بن سعد أبو إسحاق الزهري",
+                      "level": "الثامنة",
+                      "grade": "ثقة حجة  تكلم فيه بلا قادح",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "إِبْرَاهِيمُ بْنُ سَعْدٍ "
+                    },
+                    {
+                      "id": "7272",
+                      "full_name": "الزهري",
+                      "level": "من رؤوس الطبقة الرابعة",
+                      "grade": "الفقيه الحافظ  متفق على جلالته وإتقانه وثبته",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "ابْنُ شِهَابٍ "
+                    },
+                    {
+                      "id": "3299",
+                      "full_name": "سعيد بن المسيب",
+                      "level": "من كبار الثانية",
+                      "grade": "أحد العلماء الأثبات الفقهاء الكبار",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "سَعِيدِ بْنِ الْمُسَيِّبِ "
+                    },
+                    {
+                      "id": "4396",
+                      "full_name": "أبو هريرة الدوسي",
+                      "level": "الصحابي الجليل",
+                      "grade": "الصحابي الجليل  حافظ الصحابة",
+                      "is_companion": true,
+                      "is_unknown": false,
+                      "reference": "أَبِي هُرَيْرَةَ"
+                    },
+                    {
+                      "id": "a-146",
+                      "full_name": "محمد بن إسماعيل البخاري (صحيح البخاري)",
+                      "level": null,
+                      "grade": null,
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": ""
+                    }
+                  ],
+                  "narrators_full_names": [
+                    "أبو هريرة الدوسي",
+                    "أحمد بن عبد الله اليربوعي",
+                    "سعيد بن المسيب",
+                    "موسى بن إسماعيل التبوذكي",
+                    "الزهري",
+                    "إبراهيم بن سعد أبو إسحاق الزهري"
+                  ],
+                  "page": 14,
+                  "volume": 1,
+                  "keywords": "أَيُّ الْعَمَلِ أَفْضَلُ ؟ فَقَالَ : إِيمَانٌ بِاللَّهِ وَرَسُولِهِ",
+                  "narrations": [],
+                  "raw_narrations": [
+                    "195-1580",
+                    "158-121",
+                    "319-4925",
+                    "121-7328",
+                    "319-3122",
+                    "121-7407",
+                    "146-1428",
+                    "454-155",
+                    "319-2590",
+                    "121-10530",
+                    "454-4696",
+                    "121-8377",
+                    "121-7455",
+                    "121-9487",
+                    "146-25",
+                    "137-2656",
+                    "121-7665",
+                    "121-10656",
+                    "121-8172",
+                    "454-4695",
+                    "121-8833",
+                    "121-7876",
+                    "137-2315",
+                    "319-3095"
+                  ],
+                  "narrations_numbers": [
+                    {
+                      "narration_id": "146-25",
+                      "number": [
+                        "26"
+                      ]
+                    },
+                    {
+                      "narration_id": "195-1580",
+                      "number": [
+                        "1658"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-121",
+                      "number": [
+                        "83"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4925",
+                      "number": [
+                        "5000"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7328",
+                      "number": [
+                        "7627"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-3122",
+                      "number": [
+                        "3155"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7407",
+                      "number": [
+                        "7705"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-1428",
+                      "number": [
+                        "1519"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-155",
+                      "number": [
+                        "153"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2590",
+                      "number": [
+                        "2623"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10530",
+                      "number": [
+                        "10908"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-4696",
+                      "number": [
+                        "4598"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8377",
+                      "number": [
+                        "8699"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7455",
+                      "number": [
+                        "7756"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9487",
+                      "number": [
+                        "9831"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-25",
+                      "number": [
+                        "26"
+                      ]
+                    },
+                    {
+                      "narration_id": "137-2656",
+                      "number": [
+                        "2781"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7665",
+                      "number": [
+                        "7978"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10656",
+                      "number": [
+                        "11032"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8172",
+                      "number": [
+                        "8487"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-4695",
+                      "number": [
+                        "4597"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8833",
+                      "number": [
+                        "9160"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7876",
+                      "number": [
+                        "8190"
+                      ]
+                    },
+                    {
+                      "narration_id": "137-2315",
+                      "number": [
+                        "2438"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-3095",
+                      "number": [
+                        "3130"
+                      ]
+                    }
+                  ],
+                  "narrations_group_id": null,
+                  "hasExplanation": true,
+                  "hasExtendedExplanation": true,
+                  "hasCommentary": true,
+                  "hasRuling": true,
+                  "hasExtendedRuling": true,
+                  "rulings": [
+                    {
+                      "ruling": "أورده في صحيحه",
+                      "ruler": "البخاري",
+                      "ruler_dod": 256,
+                      "book_name": "صحيح البخاري",
+                      "page": 14,
+                      "volume": 1
+                    }
+                  ]
+                },
+                "link": {
+                  "src_id": "4396",
+                  "src_full_name": "أبو هريرة الدوسي",
+                  "src_reference": "أَبِي هُرَيْرَةَ",
+                  "src_type": "Narrator",
+                  "tgt_id": "p-1",
+                  "tgt_full_name": "رسول الله ﷺ",
+                  "tgt_reference": "رسول الله ﷺ",
+                  "tgt_type": "Prophet",
+                  "src_matched": true,
+                  "tgt_matched": true,
+                  "verb": null,
+                  "src_grade": "صحابي",
+                  "tgt_grade": null,
+                  "is_singular": true
+                }
+              },
+              "sort": [
+                1,
+                25
+              ]
+            },
+            {
+              "_index": "es-prod-euw1-chains-links-12.2024-09-06-12-25",
+              "_id": "niRSx5EBT5MsJQ2xXcxb",
+              "_score": null,
+              "_source": {
+                "hadith": {
+                  "book_id": 146,
+                  "hadith_id": "146-32",
+                  "hadith_serial_id": 32,
+                  "author": "محمد بن إسماعيل البخاري",
+                  "book_name": "صحيح البخاري",
+                  "raw_type": null,
+                  "type": "مرفوع",
+                  "narration_id": "32-صحيح البخاري",
+                  "authenticity_order": 1,
+                  "editions": [
+                    {
+                      "edition": "دار ابن كثير - 1414هـ / 1993م",
+                      "page": 21,
+                      "volume": 1
+                    },
+                    {
+                      "edition": "دار طوق النجاة - بيروت - الطبعة الأولى 1422هـ",
+                      "page": 16,
+                      "volume": 1
+                    }
+                  ],
+                  "time_order": 256,
+                  "chapter": "كتاب الإيمان",
+                  "hadith": "حَدَّثَنَا <a class=rawy id=3583>سُلَيْمَانُ أَبُو الرَّبِيعِ </a> ، قَالَ : حَدَّثَنَا <a class=rawy id=1012>إِسْمَاعِيلُ بْنُ جَعْفَرٍ </a> ، قَالَ : حَدَّثَنَا <a class=rawy id=7859>نَافِعُ بْنُ مَالِكِ بْنِ أَبِي عَامِرٍ أَبُو سُهَيْلٍ </a> ، عَنْ <a class=rawy id=6657>أَبِيهِ </a> ، عَنْ <a class=rawy id=4396>أَبِي هُرَيْرَةَ </a> ، عَنِ النَّبِيِّ صَلَّى اللَّهُ عَلَيْهِ وَسَلَّمَ ، قَالَ : \" <a class=matn>آيَةُ الْمُنَافِقِ ثَلَاثٌ ، إِذَا حَدَّثَ كَذَبَ ، وَإِذَا وَعَدَ أَخْلَفَ ، وَإِذَا اؤْتُمِنَ خَانَ \" </a> .",
+                  "number": [
+                    33
+                  ],
+                  "ruling": null,
+                  "sub_chapter": "باب علامة المنافق",
+                  "narrators": [
+                    {
+                      "id": "3583",
+                      "full_name": "سليمان بن داود العتكي",
+                      "level": "العاشرة",
+                      "grade": "ثقة , لم يتكلم فيه أحد بحجة",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "سُلَيْمَانُ أَبُو الرَّبِيعِ "
+                    },
+                    {
+                      "id": "1012",
+                      "full_name": "إسماعيل بن جعفر بن أبي كثير الزرقي",
+                      "level": "الثامنة",
+                      "grade": "ثقة ثبت",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "إِسْمَاعِيلُ بْنُ جَعْفَرٍ "
+                    },
+                    {
+                      "id": "7859",
+                      "full_name": "نافع بن مالك بن أبي عامر الأصبحي",
+                      "level": "الرابعة",
+                      "grade": "ثقة",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "نَافِعُ بْنُ مَالِكِ بْنِ أَبِي عَامِرٍ أَبُو سُهَيْلٍ "
+                    },
+                    {
+                      "id": "6657",
+                      "full_name": "مالك بن أبي عامر الأصبحي",
+                      "level": "الثانية",
+                      "grade": "ثقة",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "أَبِيهِ "
+                    },
+                    {
+                      "id": "4396",
+                      "full_name": "أبو هريرة الدوسي",
+                      "level": "الصحابي الجليل",
+                      "grade": "الصحابي الجليل  حافظ الصحابة",
+                      "is_companion": true,
+                      "is_unknown": false,
+                      "reference": "أَبِي هُرَيْرَةَ "
+                    },
+                    {
+                      "id": "a-146",
+                      "full_name": "محمد بن إسماعيل البخاري (صحيح البخاري)",
+                      "level": null,
+                      "grade": null,
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": ""
+                    }
+                  ],
+                  "narrators_full_names": [
+                    "سليمان بن داود العتكي",
+                    "مالك بن أبي عامر الأصبحي",
+                    "إسماعيل بن جعفر بن أبي كثير الزرقي",
+                    "أبو هريرة الدوسي",
+                    "نافع بن مالك بن أبي عامر الأصبحي"
+                  ],
+                  "page": 16,
+                  "volume": 1,
+                  "keywords": "آيَةُ الْمُنَافِقِ ثَلَاثٌ ، إِذَا حَدَّثَ كَذَبَ ، وَإِذَا وَعَدَ أَخْلَفَ",
+                  "narrations": [],
+                  "raw_narrations": [
+                    "319-4961",
+                    "158-93",
+                    "146-32",
+                    "454-259",
+                    "121-10708",
+                    "158-92",
+                    "146-2498",
+                    "146-2557",
+                    "146-5657",
+                    "195-2574",
+                    "121-8950"
+                  ],
+                  "narrations_numbers": [
+                    {
+                      "narration_id": "146-32",
+                      "number": [
+                        "33"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4961",
+                      "number": [
+                        "5036"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-93",
+                      "number": [
+                        "59"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-32",
+                      "number": [
+                        "33"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-259",
+                      "number": [
+                        "257"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10708",
+                      "number": [
+                        "11079",
+                        "11080"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-92",
+                      "number": [
+                        "59"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-2498",
+                      "number": [
+                        "2682"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-2557",
+                      "number": [
+                        "2749"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-5657",
+                      "number": [
+                        "6095"
+                      ]
+                    },
+                    {
+                      "narration_id": "195-2574",
+                      "number": [
+                        "2631"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8950",
+                      "number": [
+                        "9281"
+                      ]
+                    }
+                  ],
+                  "narrations_group_id": null,
+                  "hasExplanation": true,
+                  "hasExtendedExplanation": true,
+                  "hasCommentary": true,
+                  "hasRuling": true,
+                  "hasExtendedRuling": true,
+                  "rulings": [
+                    {
+                      "ruling": "أورده في صحيحه",
+                      "ruler": "البخاري",
+                      "ruler_dod": 256,
+                      "book_name": "صحيح البخاري",
+                      "page": 16,
+                      "volume": 1
+                    }
+                  ]
+                },
+                "link": {
+                  "src_id": "4396",
+                  "src_full_name": "أبو هريرة الدوسي",
+                  "src_reference": "أَبِي هُرَيْرَةَ ،",
+                  "src_type": "Narrator",
+                  "tgt_id": "p-1",
+                  "tgt_full_name": "رسول الله ﷺ",
+                  "tgt_reference": "رسول الله ﷺ",
+                  "tgt_type": "Prophet",
+                  "src_matched": true,
+                  "tgt_matched": true,
+                  "verb": null,
+                  "src_grade": null,
+                  "tgt_grade": null,
+                  "is_singular": true
+                }
+              },
+              "sort": [
+                1,
+                32
+              ]
+            },
+            {
+              "_index": "es-prod-euw1-chains-links-12.2024-09-06-12-25",
+              "_id": "siRSx5EBT5MsJQ2xXcyH",
+              "_score": null,
+              "_source": {
+                "hadith": {
+                  "book_id": 146,
+                  "hadith_id": "146-34",
+                  "hadith_serial_id": 34,
+                  "author": "محمد بن إسماعيل البخاري",
+                  "book_name": "صحيح البخاري",
+                  "raw_type": null,
+                  "type": "مرفوع",
+                  "narration_id": "34-صحيح البخاري",
+                  "authenticity_order": 1,
+                  "editions": [
+                    {
+                      "edition": "دار ابن كثير - 1414هـ / 1993م",
+                      "page": 22,
+                      "volume": 1
+                    },
+                    {
+                      "edition": "دار طوق النجاة - بيروت - الطبعة الأولى 1422هـ",
+                      "page": 17,
+                      "volume": 1
+                    }
+                  ],
+                  "time_order": 256,
+                  "chapter": "كتاب الإيمان",
+                  "hadith": "حَدَّثَنَا <a class=rawy id=1382>أَبُو الْيَمَانِ </a> ، قَالَ : أَخْبَرَنَا <a class=rawy id=3801>شُعَيْبٌ </a> ، قَالَ : حَدَّثَنَا <a class=rawy id=4798>أَبُو الزِّنَادِ </a> ، عَنِ <a class=rawy id=4506>الْأَعْرَجِ </a> ، عَنْ <a class=rawy id=4396>أَبِي هُرَيْرَةَ </a> ، قَالَ : قَالَ رَسُولُ اللَّهِ صَلَّى اللَّهُ عَلَيْهِ وَسَلَّمَ : \" <a class=matn>مَنْ يَقُمْ لَيْلَةَ الْقَدْرِ إِيمَانًا وَاحْتِسَابًا غُفِرَ لَهُ مَا تَقَدَّمَ مِنْ ذَنْبِهِ \" </a> .",
+                  "number": [
+                    35
+                  ],
+                  "ruling": null,
+                  "sub_chapter": "باب قيام ليلة القدر من الإيمان",
+                  "narrators": [
+                    {
+                      "id": "1382",
+                      "full_name": "أبو اليمان الحكم بن نافع",
+                      "level": "العاشرة",
+                      "grade": "ثقة ثبت",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "أَبُو الْيَمَانِ "
+                    },
+                    {
+                      "id": "3801",
+                      "full_name": "شعيب بن أبي حمزة الحمصي",
+                      "level": "السابعة",
+                      "grade": "ثقة عابد",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "شُعَيْبٌ "
+                    },
+                    {
+                      "id": "4798",
+                      "full_name": "أبو الزناد",
+                      "level": "الخامسة",
+                      "grade": "ثقة فقيه .",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "أَبُو الزِّنَادِ "
+                    },
+                    {
+                      "id": "4506",
+                      "full_name": "عبد الرحمن بن هرمز الأعرج",
+                      "level": "الثالثة",
+                      "grade": "ثقة ثبت عالم",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "الْأَعْرَجِ "
+                    },
+                    {
+                      "id": "4396",
+                      "full_name": "أبو هريرة الدوسي",
+                      "level": "الصحابي الجليل",
+                      "grade": "الصحابي الجليل  حافظ الصحابة",
+                      "is_companion": true,
+                      "is_unknown": false,
+                      "reference": "أَبِي هُرَيْرَةَ "
+                    },
+                    {
+                      "id": "a-146",
+                      "full_name": "محمد بن إسماعيل البخاري (صحيح البخاري)",
+                      "level": null,
+                      "grade": null,
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": ""
+                    }
+                  ],
+                  "narrators_full_names": [
+                    "أبو الزناد",
+                    "أبو هريرة الدوسي",
+                    "شعيب بن أبي حمزة الحمصي",
+                    "عبد الرحمن بن هرمز الأعرج",
+                    "أبو اليمان الحكم بن نافع"
+                  ],
+                  "page": 17,
+                  "volume": 1,
+                  "keywords": "مَنْ يَقُمْ لَيْلَةَ الْقَدْرِ إِيمَانًا وَاحْتِسَابًا غُفِرَ لَهُ",
+                  "narrations": [],
+                  "raw_narrations": [
+                    "319-2178",
+                    "345-2055",
+                    "121-10096",
+                    "121-10621",
+                    "173-1316",
+                    "319-2187",
+                    "146-1878",
+                    "121-8796",
+                    "121-1621",
+                    "195-618",
+                    "319-2179",
+                    "121-6997",
+                    "454-2608",
+                    "195-735",
+                    "158-1275",
+                    "121-10318",
+                    "319-2185",
+                    "319-2182",
+                    "319-2190",
+                    "319-2188",
+                    "158-1273",
+                    "184-1165",
+                    "121-9908",
+                    "121-7104",
+                    "121-7591",
+                    "146-1777",
+                    "454-3765",
+                    "319-1592",
+                    "319-2177",
+                    "121-8374",
+                    "319-2189",
+                    "319-4965",
+                    "146-34",
+                    "319-2175",
+                    "121-1594",
+                    "319-2181",
+                    "19-248",
+                    "319-2087",
+                    "121-7105",
+                    "121-7682",
+                    "173-1631",
+                    "319-2183",
+                    "319-4966",
+                    "319-2180",
+                    "345-2057",
+                    "319-2186",
+                    "121-9081",
+                    "146-37",
+                    "345-1793",
+                    "454-3514",
+                    "319-2184",
+                    "137-1729",
+                    "173-1318",
+                    "121-9080",
+                    "319-1593",
+                    "146-36",
+                    "146-1884",
+                    "345-2059",
+                    "319-4964",
+                    "158-1272",
+                    "319-4967",
+                    "158-1274",
+                    "184-1166",
+                    "146-1879"
+                  ],
+                  "narrations_numbers": [
+                    {
+                      "narration_id": "146-34",
+                      "number": [
+                        "35"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2178",
+                      "number": [
+                        "2196"
+                      ]
+                    },
+                    {
+                      "narration_id": "345-2055",
+                      "number": [
+                        "2199"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10096",
+                      "number": [
+                        "10448"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10621",
+                      "number": [
+                        "10997"
+                      ]
+                    },
+                    {
+                      "narration_id": "173-1316",
+                      "number": [
+                        "1326"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2187",
+                      "number": [
+                        "2205"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-1878",
+                      "number": [
+                        "2008"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8796",
+                      "number": [
+                        "9123"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-1621",
+                      "number": [
+                        "1710"
+                      ]
+                    },
+                    {
+                      "narration_id": "195-618",
+                      "number": [
+                        "683"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2179",
+                      "number": [
+                        "2197"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-6997",
+                      "number": [
+                        "7291"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-2608",
+                      "number": [
+                        "2546"
+                      ]
+                    },
+                    {
+                      "narration_id": "195-735",
+                      "number": [
+                        "808"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-1275",
+                      "number": [
+                        "760"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10318",
+                      "number": [
+                        "10686"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2185",
+                      "number": [
+                        "2203"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2182",
+                      "number": [
+                        "2200"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2190",
+                      "number": [
+                        "2209"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2188",
+                      "number": [
+                        "2206"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-1273",
+                      "number": [
+                        "759"
+                      ]
+                    },
+                    {
+                      "narration_id": "184-1165",
+                      "number": [
+                        "1371"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9908",
+                      "number": [
+                        "10258",
+                        "10259"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7104",
+                      "number": [
+                        "7400"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7591",
+                      "number": [
+                        "7902"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-1777",
+                      "number": [
+                        "1901"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-3765",
+                      "number": [
+                        "3682"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-1592",
+                      "number": [
+                        "1601"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2177",
+                      "number": [
+                        "2195"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8374",
+                      "number": [
+                        "8695"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2189",
+                      "number": [
+                        "2207",
+                        "2208"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4965",
+                      "number": [
+                        "5040"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-34",
+                      "number": [
+                        "35"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2175",
+                      "number": [
+                        "2193"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-1594",
+                      "number": [
+                        "1682"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2181",
+                      "number": [
+                        "2199"
+                      ]
+                    },
+                    {
+                      "narration_id": "19-248",
+                      "number": [
+                        "376"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2087",
+                      "number": [
+                        "2103"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7105",
+                      "number": [
+                        "7401"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7682",
+                      "number": [
+                        "7996"
+                      ]
+                    },
+                    {
+                      "narration_id": "173-1631",
+                      "number": [
+                        "1641"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2183",
+                      "number": [
+                        "2201"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4966",
+                      "number": [
+                        "5041"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2180",
+                      "number": [
+                        "2198"
+                      ]
+                    },
+                    {
+                      "narration_id": "345-2057",
+                      "number": [
+                        "2201"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2186",
+                      "number": [
+                        "2204"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9081",
+                      "number": [
+                        "9412"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-37",
+                      "number": [
+                        "38"
+                      ]
+                    },
+                    {
+                      "narration_id": "345-1793",
+                      "number": [
+                        "1894"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-3514",
+                      "number": [
+                        "3432"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2184",
+                      "number": [
+                        "2202"
+                      ]
+                    },
+                    {
+                      "narration_id": "137-1729",
+                      "number": [
+                        "1817"
+                      ]
+                    },
+                    {
+                      "narration_id": "173-1318",
+                      "number": [
+                        "1328"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9080",
+                      "number": [
+                        "9411"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-1593",
+                      "number": [
+                        "1602"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-36",
+                      "number": [
+                        "37"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-1884",
+                      "number": [
+                        "2014"
+                      ]
+                    },
+                    {
+                      "narration_id": "345-2059",
+                      "number": [
+                        "2203"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4964",
+                      "number": [
+                        "5039"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-1272",
+                      "number": [
+                        "759"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4967",
+                      "number": [
+                        "5042"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-1274",
+                      "number": [
+                        "760"
+                      ]
+                    },
+                    {
+                      "narration_id": "184-1166",
+                      "number": [
+                        "1372"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-1879",
+                      "number": [
+                        "2009"
+                      ]
+                    }
+                  ],
+                  "narrations_group_id": null,
+                  "hasExplanation": true,
+                  "hasExtendedExplanation": true,
+                  "hasCommentary": true,
+                  "hasRuling": true,
+                  "hasExtendedRuling": true,
+                  "rulings": [
+                    {
+                      "ruling": "أورده في صحيحه",
+                      "ruler": "البخاري",
+                      "ruler_dod": 256,
+                      "book_name": "صحيح البخاري",
+                      "page": 17,
+                      "volume": 1
+                    }
+                  ]
+                },
+                "link": {
+                  "src_id": "4396",
+                  "src_full_name": "أبو هريرة الدوسي",
+                  "src_reference": "أَبِي هُرَيْرَةَ",
+                  "src_type": "Narrator",
+                  "tgt_id": "p-1",
+                  "tgt_full_name": "رسول الله ﷺ",
+                  "tgt_reference": "رسول الله ﷺ",
+                  "tgt_type": "Prophet",
+                  "src_matched": true,
+                  "tgt_matched": true,
+                  "verb": null,
+                  "src_grade": null,
+                  "tgt_grade": null,
+                  "is_singular": true
+                }
+              },
+              "sort": [
+                1,
+                34
+              ]
+            },
+            {
+              "_index": "es-prod-euw1-chains-links-12.2024-09-06-12-25",
+              "_id": "elJSx5EBie9MRIMNXTS3",
+              "_score": null,
+              "_source": {
+                "hadith": {
+                  "book_id": 146,
+                  "hadith_id": "146-35",
+                  "hadith_serial_id": 35,
+                  "author": "محمد بن إسماعيل البخاري",
+                  "book_name": "صحيح البخاري",
+                  "raw_type": null,
+                  "type": "مرفوع",
+                  "narration_id": "35-صحيح البخاري",
+                  "authenticity_order": 1,
+                  "editions": [
+                    {
+                      "edition": "دار ابن كثير - 1414هـ / 1993م",
+                      "page": 22,
+                      "volume": 1
+                    },
+                    {
+                      "edition": "دار طوق النجاة - بيروت - الطبعة الأولى 1422هـ",
+                      "page": 17,
+                      "volume": 1
+                    }
+                  ],
+                  "time_order": 256,
+                  "chapter": "كتاب الإيمان",
+                  "hadith": "حَدَّثَنَا <a class=rawy id=2348>حَرَمِيُّ بْنُ حَفْصٍ </a> ، قَالَ : حَدَّثَنَا <a class=rawy id=5260>عَبْدُ الْوَاحِدِ </a> ، قَالَ : حَدَّثَنَا <a class=rawy id=5866>عُمَارَةُ </a> ، قَالَ : حَدَّثَنَا <a class=rawy id=181>أَبُو زُرْعَةَ بْنُ عَمْرِو بْنِ جَرِيرٍ </a> ، قَالَ : سَمِعْتُ <a class=rawy id=4396>أَبَا هُرَيْرَةَ </a> ، عَنِ النَّبِيِّ صَلَّى اللَّهُ عَلَيْهِ وَسَلَّمَ ، قَالَ : \" <a class=matn>انْتَدَبَ اللَّهُ لِمَنْ خَرَجَ فِي سَبِيلِهِ لَا يُخْرِجُهُ إِلَّا إِيمَانٌ بِي وَتَصْدِيقٌ بِرُسُلِي ، أَنْ أُرْجِعَهُ بِمَا نَالَ مِنْ أَجْرٍ أَوْ غَنِيمَةٍ أَوْ أُدْخِلَهُ الْجَنَّةَ ، وَلَوْلَا أَنْ أَشُقَّ عَلَى أُمَّتِي مَا قَعَدْتُ خَلْفَ سَرِيَّةٍ ، وَلَوَدِدْتُ أَنِّي أُقْتَلُ فِي سَبِيلِ اللَّهِ ، ثُمَّ أُحْيَا ، ثُمَّ أُقْتَلُ ، ثُمَّ أُحْيَا ، ثُمَّ أُقْتَلُ \" </a> .",
+                  "number": [
+                    36
+                  ],
+                  "ruling": null,
+                  "sub_chapter": "باب الجهاد من الإيمان",
+                  "narrators": [
+                    {
+                      "id": "2348",
+                      "full_name": "حرمي بن حفص العتكي",
+                      "level": "كبار العاشرة",
+                      "grade": "ثقة",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "حَرَمِيُّ بْنُ حَفْصٍ "
+                    },
+                    {
+                      "id": "5260",
+                      "full_name": "عبد الواحد بن زياد",
+                      "level": "الثامنة",
+                      "grade": "ثقة  في حديثه عن الأعمش وحده مقال",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "عَبْدُ الْوَاحِدِ "
+                    },
+                    {
+                      "id": "5866",
+                      "full_name": "عمارة بن القعقاع",
+                      "level": "السادسة",
+                      "grade": "ثقة",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "عُمَارَةُ"
+                    },
+                    {
+                      "id": "181",
+                      "full_name": "أبو زرعة بن عمرو بن جرير الغلابي",
+                      "level": "الثالثة",
+                      "grade": "ثقة",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "أَبُو زُرْعَةَ بْنُ عَمْرِو بْنِ جَرِيرٍ "
+                    },
+                    {
+                      "id": "4396",
+                      "full_name": "أبو هريرة الدوسي",
+                      "level": "الصحابي الجليل",
+                      "grade": "الصحابي الجليل  حافظ الصحابة",
+                      "is_companion": true,
+                      "is_unknown": false,
+                      "reference": "أَبَا هُرَيْرَةَ"
+                    },
+                    {
+                      "id": "a-146",
+                      "full_name": "محمد بن إسماعيل البخاري (صحيح البخاري)",
+                      "level": null,
+                      "grade": null,
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": ""
+                    }
+                  ],
+                  "narrators_full_names": [
+                    "حرمي بن حفص العتكي",
+                    "عبد الواحد بن زياد",
+                    "عمارة بن القعقاع",
+                    "أبو هريرة الدوسي",
+                    "أبو زرعة بن عمرو بن جرير الغلابي"
+                  ],
+                  "page": 17,
+                  "volume": 1,
+                  "keywords": "انْتَدَبَ اللَّهُ لِمَنْ خَرَجَ فِي سَبِيلِهِ لَا يُخْرِجُهُ إِلَّا إِيمَانٌ بِي وَتَصْدِيقٌ بِرُسُلِي",
+                  "narrations": [],
+                  "raw_narrations": [
+                    "121-9706",
+                    "121-9275",
+                    "158-3492",
+                    "121-7128",
+                    "319-4970",
+                    "19-939",
+                    "121-10303",
+                    "121-8968",
+                    "146-5133",
+                    "146-2606",
+                    "19-967",
+                    "121-8969",
+                    "19-969",
+                    "319-3089",
+                    "121-10221",
+                    "146-2590",
+                    "146-6712",
+                    "158-3490",
+                    "146-6933",
+                    "121-8985",
+                    "146-2765",
+                    "146-35",
+                    "158-3493",
+                    "158-3491",
+                    "173-2788",
+                    "146-6927",
+                    "121-9915",
+                    "454-4755",
+                    "146-232",
+                    "121-8981",
+                    "173-2746",
+                    "195-1578",
+                    "158-3494",
+                    "319-3117",
+                    "121-6984",
+                    "121-10514",
+                    "454-4840",
+                    "121-9276",
+                    "137-2331",
+                    "146-2601",
+                    "19-940",
+                    "121-9788",
+                    "121-7171",
+                    "121-8006",
+                    "319-3092",
+                    "454-4722",
+                    "319-3063",
+                    "319-3093",
+                    "121-10429",
+                    "454-4708",
+                    "121-10719",
+                    "454-4839",
+                    "121-8776",
+                    "121-8980",
+                    "319-3113",
+                    "121-9272",
+                    "319-3118",
+                    "319-4969",
+                    "454-4728",
+                    "319-3088",
+                    "121-7932",
+                    "121-8779",
+                    "319-3087",
+                    "121-8777",
+                    "195-1542",
+                    "121-8881",
+                    "121-10187",
+                    "146-6713",
+                    "137-2313",
+                    "454-4721",
+                    "121-8336",
+                    "158-3497",
+                    "146-2592",
+                    "19-979",
+                    "121-8778",
+                    "146-2907",
+                    "121-10648"
+                  ],
+                  "narrations_numbers": [
+                    {
+                      "narration_id": "146-35",
+                      "number": [
+                        "36"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9706",
+                      "number": [
+                        "10058"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9275",
+                      "number": [
+                        "9611"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-3492",
+                      "number": [
+                        "1876"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7128",
+                      "number": [
+                        "7422"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4970",
+                      "number": [
+                        "5045"
+                      ]
+                    },
+                    {
+                      "narration_id": "19-939",
+                      "number": [
+                        "1616"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10303",
+                      "number": [
+                        "10672"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8968",
+                      "number": [
+                        "9297"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-5133",
+                      "number": [
+                        "5533"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-2606",
+                      "number": [
+                        "2803"
+                      ]
+                    },
+                    {
+                      "narration_id": "19-967",
+                      "number": [
+                        "1672"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8969",
+                      "number": [
+                        "9298"
+                      ]
+                    },
+                    {
+                      "narration_id": "19-969",
+                      "number": [
+                        "1674"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-3089",
+                      "number": [
+                        "3124"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10221",
+                      "number": [
+                        "10587"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-2590",
+                      "number": [
+                        "2785"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-6712",
+                      "number": [
+                        "7226"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-3490",
+                      "number": [
+                        "1876"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-6933",
+                      "number": [
+                        "7463"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8985",
+                      "number": [
+                        "9316"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-2765",
+                      "number": [
+                        "2972"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-35",
+                      "number": [
+                        "36"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-3493",
+                      "number": [
+                        "1876"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-3491",
+                      "number": [
+                        "1876"
+                      ]
+                    },
+                    {
+                      "narration_id": "173-2788",
+                      "number": [
+                        "2795"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-6927",
+                      "number": [
+                        "7457"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9915",
+                      "number": [
+                        "10267"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-4755",
+                      "number": [
+                        "4652"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-232",
+                      "number": [
+                        "237"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8981",
+                      "number": [
+                        "9311"
+                      ]
+                    },
+                    {
+                      "narration_id": "173-2746",
+                      "number": [
+                        "2753"
+                      ]
+                    },
+                    {
+                      "narration_id": "195-1578",
+                      "number": [
+                        "1656"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-3494",
+                      "number": [
+                        "1876"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-3117",
+                      "number": [
+                        "3151"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-6984",
+                      "number": [
+                        "7278"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10514",
+                      "number": [
+                        "10891"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-4840",
+                      "number": [
+                        "4737"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9276",
+                      "number": [
+                        "9612"
+                      ]
+                    },
+                    {
+                      "narration_id": "137-2331",
+                      "number": [
+                        "2450"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-2601",
+                      "number": [
+                        "2797"
+                      ]
+                    },
+                    {
+                      "narration_id": "19-940",
+                      "number": [
+                        "1617"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9788",
+                      "number": [
+                        "10138"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7171",
+                      "number": [
+                        "7461"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8006",
+                      "number": [
+                        "8322"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-3092",
+                      "number": [
+                        "3127"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-4722",
+                      "number": [
+                        "4622"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-3063",
+                      "number": [
+                        "3098"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-3093",
+                      "number": [
+                        "3128"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10429",
+                      "number": [
+                        "10803"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-4708",
+                      "number": [
+                        "4610"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10719",
+                      "number": [
+                        "11092"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-4839",
+                      "number": [
+                        "4736"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8776",
+                      "number": [
+                        "9102"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8980",
+                      "number": [
+                        "9310"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-3113",
+                      "number": [
+                        "3147"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9272",
+                      "number": [
+                        "9606"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-3118",
+                      "number": [
+                        "3152"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4969",
+                      "number": [
+                        "5044"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-4728",
+                      "number": [
+                        "4627"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-3088",
+                      "number": [
+                        "3123"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7932",
+                      "number": [
+                        "8246"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8779",
+                      "number": [
+                        "9105"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-3087",
+                      "number": [
+                        "3122"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8777",
+                      "number": [
+                        "9103"
+                      ]
+                    },
+                    {
+                      "narration_id": "195-1542",
+                      "number": [
+                        "1619"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8881",
+                      "number": [
+                        "9210"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10187",
+                      "number": [
+                        "10551"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-6713",
+                      "number": [
+                        "7227"
+                      ]
+                    },
+                    {
+                      "narration_id": "137-2313",
+                      "number": [
+                        "2436"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-4721",
+                      "number": [
+                        "4621"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8336",
+                      "number": [
+                        "8659"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-3497",
+                      "number": [
+                        "1878"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-2592",
+                      "number": [
+                        "2787"
+                      ]
+                    },
+                    {
+                      "narration_id": "19-979",
+                      "number": [
+                        "1690"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8778",
+                      "number": [
+                        "9104"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-2907",
+                      "number": [
+                        "3123"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10648",
+                      "number": [
+                        "11024"
+                      ]
+                    }
+                  ],
+                  "narrations_group_id": null,
+                  "hasExplanation": true,
+                  "hasExtendedExplanation": true,
+                  "hasCommentary": true,
+                  "hasRuling": true,
+                  "hasExtendedRuling": true,
+                  "rulings": [
+                    {
+                      "ruling": "أورده في صحيحه",
+                      "ruler": "البخاري",
+                      "ruler_dod": 256,
+                      "book_name": "صحيح البخاري",
+                      "page": 17,
+                      "volume": 1
+                    }
+                  ]
+                },
+                "link": {
+                  "src_id": "4396",
+                  "src_full_name": "أبو هريرة الدوسي",
+                  "src_reference": "أَبَا هُرَيْرَةَ ،",
+                  "src_type": "Narrator",
+                  "tgt_id": "p-1",
+                  "tgt_full_name": "رسول الله ﷺ",
+                  "tgt_reference": "رسول الله ﷺ",
+                  "tgt_type": "Prophet",
+                  "src_matched": true,
+                  "tgt_matched": true,
+                  "verb": null,
+                  "src_grade": null,
+                  "tgt_grade": null,
+                  "is_singular": true
+                }
+              },
+              "sort": [
+                1,
+                35
+              ]
+            },
+            {
+              "_index": "es-prod-euw1-chains-links-12.2024-09-06-12-25",
+              "_id": "gFJSx5EBie9MRIMNXTS3",
+              "_score": null,
+              "_source": {
+                "hadith": {
+                  "book_id": 146,
+                  "hadith_id": "146-36",
+                  "hadith_serial_id": 36,
+                  "author": "محمد بن إسماعيل البخاري",
+                  "book_name": "صحيح البخاري",
+                  "raw_type": null,
+                  "type": "مرفوع",
+                  "narration_id": "36-صحيح البخاري",
+                  "authenticity_order": 1,
+                  "editions": [
+                    {
+                      "edition": "دار ابن كثير - 1414هـ / 1993م",
+                      "page": 22,
+                      "volume": 1
+                    },
+                    {
+                      "edition": "دار طوق النجاة - بيروت - الطبعة الأولى 1422هـ",
+                      "page": 17,
+                      "volume": 1
+                    }
+                  ],
+                  "time_order": 256,
+                  "chapter": "كتاب الإيمان",
+                  "hadith": "حَدَّثَنَا <a class=rawy id=1040>إِسْمَاعِيلُ </a> ، قَالَ : حَدَّثَنِي <a class=rawy id=6659>مَالِكٌ </a> ، عَنِ <a class=rawy id=7272>ابْنِ شِهَابٍ </a> ، عَنْ <a class=rawy id=2542>حُمَيْدِ بْنِ عَبْدِ الرَّحْمَنِ </a> ، عَنْ <a class=rawy id=4396>أَبِي هُرَيْرَةَ </a> ، أَن رَسُولَ اللَّهِ صَلَّى اللَّهُ عَلَيْهِ وَسَلَّمَ ، قَالَ : \" <a class=matn>مَنْ قَامَ رَمَضَانَ إِيمَانًا وَاحْتِسَابًا غُفِرَ لَهُ مَا تَقَدَّمَ مِنْ ذَنْبِهِ \" </a> .",
+                  "number": [
+                    37
+                  ],
+                  "ruling": null,
+                  "sub_chapter": "باب تطوع قيام رمضان من الإيمان",
+                  "narrators": [
+                    {
+                      "id": "1040",
+                      "full_name": "إسماعيل بن أبي أويس",
+                      "level": "العاشرة",
+                      "grade": "صدوق  أخطأ في أحاديث من حفظه",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "إِسْمَاعِيلُ "
+                    },
+                    {
+                      "id": "6659",
+                      "full_name": "مالك بن أنس",
+                      "level": "السابعة",
+                      "grade": "الفقيه  إمام دار الهجرة  رأس المتقنين  وكبير المتثبتين",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "مَالِكٌ "
+                    },
+                    {
+                      "id": "7272",
+                      "full_name": "الزهري",
+                      "level": "من رؤوس الطبقة الرابعة",
+                      "grade": "الفقيه الحافظ  متفق على جلالته وإتقانه وثبته",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "ابْنِ شِهَابٍ "
+                    },
+                    {
+                      "id": "2542",
+                      "full_name": "حميد بن عبد الرحمن القرشي",
+                      "level": "الثانية.",
+                      "grade": "ثقة",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "حُمَيْدِ بْنِ عَبْدِ الرَّحْمَنِ "
+                    },
+                    {
+                      "id": "4396",
+                      "full_name": "أبو هريرة الدوسي",
+                      "level": "الصحابي الجليل",
+                      "grade": "الصحابي الجليل  حافظ الصحابة",
+                      "is_companion": true,
+                      "is_unknown": false,
+                      "reference": "أَبِي هُرَيْرَةَ "
+                    },
+                    {
+                      "id": "a-146",
+                      "full_name": "محمد بن إسماعيل البخاري (صحيح البخاري)",
+                      "level": null,
+                      "grade": null,
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": ""
+                    }
+                  ],
+                  "narrators_full_names": [
+                    "أبو هريرة الدوسي",
+                    "إسماعيل بن أبي أويس",
+                    "الزهري",
+                    "حميد بن عبد الرحمن القرشي",
+                    "مالك بن أنس"
+                  ],
+                  "page": 17,
+                  "volume": 1,
+                  "keywords": "مَنْ قَامَ رَمَضَانَ إِيمَانًا وَاحْتِسَابًا غُفِرَ لَهُ",
+                  "narrations": [],
+                  "raw_narrations": [
+                    "319-2178",
+                    "345-2055",
+                    "121-10096",
+                    "121-10621",
+                    "173-1316",
+                    "319-2187",
+                    "146-1878",
+                    "121-8796",
+                    "121-1621",
+                    "195-618",
+                    "319-2179",
+                    "121-6997",
+                    "454-2608",
+                    "195-735",
+                    "158-1275",
+                    "121-10318",
+                    "319-2185",
+                    "319-2182",
+                    "319-2190",
+                    "319-2188",
+                    "158-1273",
+                    "184-1165",
+                    "121-9908",
+                    "121-7104",
+                    "121-7591",
+                    "146-1777",
+                    "454-3765",
+                    "319-1592",
+                    "319-2177",
+                    "121-8374",
+                    "319-2189",
+                    "319-4965",
+                    "146-34",
+                    "319-2175",
+                    "121-1594",
+                    "319-2181",
+                    "19-248",
+                    "319-2087",
+                    "121-7105",
+                    "121-7682",
+                    "173-1631",
+                    "319-2183",
+                    "319-4966",
+                    "319-2180",
+                    "345-2057",
+                    "319-2186",
+                    "121-9081",
+                    "146-37",
+                    "345-1793",
+                    "454-3514",
+                    "319-2184",
+                    "137-1729",
+                    "173-1318",
+                    "121-9080",
+                    "319-1593",
+                    "146-36",
+                    "146-1884",
+                    "345-2059",
+                    "319-4964",
+                    "158-1272",
+                    "319-4967",
+                    "158-1274",
+                    "184-1166",
+                    "146-1879"
+                  ],
+                  "narrations_numbers": [
+                    {
+                      "narration_id": "146-36",
+                      "number": [
+                        "37"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2178",
+                      "number": [
+                        "2196"
+                      ]
+                    },
+                    {
+                      "narration_id": "345-2055",
+                      "number": [
+                        "2199"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10096",
+                      "number": [
+                        "10448"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10621",
+                      "number": [
+                        "10997"
+                      ]
+                    },
+                    {
+                      "narration_id": "173-1316",
+                      "number": [
+                        "1326"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2187",
+                      "number": [
+                        "2205"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-1878",
+                      "number": [
+                        "2008"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8796",
+                      "number": [
+                        "9123"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-1621",
+                      "number": [
+                        "1710"
+                      ]
+                    },
+                    {
+                      "narration_id": "195-618",
+                      "number": [
+                        "683"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2179",
+                      "number": [
+                        "2197"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-6997",
+                      "number": [
+                        "7291"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-2608",
+                      "number": [
+                        "2546"
+                      ]
+                    },
+                    {
+                      "narration_id": "195-735",
+                      "number": [
+                        "808"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-1275",
+                      "number": [
+                        "760"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10318",
+                      "number": [
+                        "10686"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2185",
+                      "number": [
+                        "2203"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2182",
+                      "number": [
+                        "2200"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2190",
+                      "number": [
+                        "2209"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2188",
+                      "number": [
+                        "2206"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-1273",
+                      "number": [
+                        "759"
+                      ]
+                    },
+                    {
+                      "narration_id": "184-1165",
+                      "number": [
+                        "1371"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9908",
+                      "number": [
+                        "10258",
+                        "10259"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7104",
+                      "number": [
+                        "7400"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7591",
+                      "number": [
+                        "7902"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-1777",
+                      "number": [
+                        "1901"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-3765",
+                      "number": [
+                        "3682"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-1592",
+                      "number": [
+                        "1601"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2177",
+                      "number": [
+                        "2195"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8374",
+                      "number": [
+                        "8695"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2189",
+                      "number": [
+                        "2207",
+                        "2208"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4965",
+                      "number": [
+                        "5040"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-34",
+                      "number": [
+                        "35"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2175",
+                      "number": [
+                        "2193"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-1594",
+                      "number": [
+                        "1682"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2181",
+                      "number": [
+                        "2199"
+                      ]
+                    },
+                    {
+                      "narration_id": "19-248",
+                      "number": [
+                        "376"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2087",
+                      "number": [
+                        "2103"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7105",
+                      "number": [
+                        "7401"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7682",
+                      "number": [
+                        "7996"
+                      ]
+                    },
+                    {
+                      "narration_id": "173-1631",
+                      "number": [
+                        "1641"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2183",
+                      "number": [
+                        "2201"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4966",
+                      "number": [
+                        "5041"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2180",
+                      "number": [
+                        "2198"
+                      ]
+                    },
+                    {
+                      "narration_id": "345-2057",
+                      "number": [
+                        "2201"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2186",
+                      "number": [
+                        "2204"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9081",
+                      "number": [
+                        "9412"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-37",
+                      "number": [
+                        "38"
+                      ]
+                    },
+                    {
+                      "narration_id": "345-1793",
+                      "number": [
+                        "1894"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-3514",
+                      "number": [
+                        "3432"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2184",
+                      "number": [
+                        "2202"
+                      ]
+                    },
+                    {
+                      "narration_id": "137-1729",
+                      "number": [
+                        "1817"
+                      ]
+                    },
+                    {
+                      "narration_id": "173-1318",
+                      "number": [
+                        "1328"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9080",
+                      "number": [
+                        "9411"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-1593",
+                      "number": [
+                        "1602"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-36",
+                      "number": [
+                        "37"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-1884",
+                      "number": [
+                        "2014"
+                      ]
+                    },
+                    {
+                      "narration_id": "345-2059",
+                      "number": [
+                        "2203"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4964",
+                      "number": [
+                        "5039"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-1272",
+                      "number": [
+                        "759"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4967",
+                      "number": [
+                        "5042"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-1274",
+                      "number": [
+                        "760"
+                      ]
+                    },
+                    {
+                      "narration_id": "184-1166",
+                      "number": [
+                        "1372"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-1879",
+                      "number": [
+                        "2009"
+                      ]
+                    }
+                  ],
+                  "narrations_group_id": null,
+                  "hasExplanation": true,
+                  "hasExtendedExplanation": false,
+                  "hasCommentary": true,
+                  "hasRuling": true,
+                  "hasExtendedRuling": true,
+                  "rulings": [
+                    {
+                      "ruling": "أورده في صحيحه",
+                      "ruler": "البخاري",
+                      "ruler_dod": 256,
+                      "book_name": "صحيح البخاري",
+                      "page": 17,
+                      "volume": 1
+                    }
+                  ]
+                },
+                "link": {
+                  "src_id": "4396",
+                  "src_full_name": "أبو هريرة الدوسي",
+                  "src_reference": "أَبِي هُرَيْرَةَ",
+                  "src_type": "Narrator",
+                  "tgt_id": "p-1",
+                  "tgt_full_name": "رسول الله ﷺ",
+                  "tgt_reference": "رسول الله ﷺ",
+                  "tgt_type": "Prophet",
+                  "src_matched": true,
+                  "tgt_matched": true,
+                  "verb": null,
+                  "src_grade": null,
+                  "tgt_grade": null,
+                  "is_singular": true
+                }
+              },
+              "sort": [
+                1,
+                36
+              ]
+            },
+            {
+              "_index": "es-prod-euw1-chains-links-12.2024-09-06-12-25",
+              "_id": "hlJSx5EBie9MRIMNXTS3",
+              "_score": null,
+              "_source": {
+                "hadith": {
+                  "book_id": 146,
+                  "hadith_id": "146-37",
+                  "hadith_serial_id": 37,
+                  "author": "محمد بن إسماعيل البخاري",
+                  "book_name": "صحيح البخاري",
+                  "raw_type": null,
+                  "type": "مرفوع",
+                  "narration_id": "37-صحيح البخاري",
+                  "authenticity_order": 1,
+                  "editions": [
+                    {
+                      "edition": "دار ابن كثير - 1414هـ / 1993م",
+                      "page": 22,
+                      "volume": 1
+                    },
+                    {
+                      "edition": "دار طوق النجاة - بيروت - الطبعة الأولى 1422هـ",
+                      "page": 17,
+                      "volume": 1
+                    }
+                  ],
+                  "time_order": 256,
+                  "chapter": "كتاب الإيمان",
+                  "hadith": "حَدَّثَنَا <a class=rawy id=6995>مُحَمَّدُ بْنُ سَلَامٍ </a> ، قَالَ : أَخْبَرَنَا <a class=rawy id=7237>مُحَمَّدُ بْنُ فُضَيْلٍ </a> ، قَالَ : حَدَّثَنَا <a class=rawy id=8272>يَحْيَى بْنُ سَعِيدٍ </a> ، عَنْ <a class=rawy id=4903>أَبِي سَلَمَةَ </a> ، عَنْ <a class=rawy id=4396>أَبِي هُرَيْرَةَ </a> ، قَالَ : قَالَ رَسُولُ اللَّهِ صَلَّى اللَّهُ عَلَيْهِ وَسَلَّمَ : \" <a class=matn>مَنْ صَامَ رَمَضَانَ إِيمَانًا وَاحْتِسَابًا غُفِرَ لَهُ مَا تَقَدَّمَ مِنْ ذَنْبِهِ \" </a> .",
+                  "number": [
+                    38
+                  ],
+                  "ruling": null,
+                  "sub_chapter": "باب صوم رمضان احتسابا من الإيمان",
+                  "narrators": [
+                    {
+                      "id": "6995",
+                      "full_name": "محمد بن سلام البيكندي",
+                      "level": "العاشرة",
+                      "grade": "ثقة ثبت",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "مُحَمَّدُ بْنُ سَلَامٍ "
+                    },
+                    {
+                      "id": "7237",
+                      "full_name": "محمد بن فضيل بن غزوان",
+                      "level": "التاسعة",
+                      "grade": "صدوق عارف  رمي بالتشيع",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "مُحَمَّدُ بْنُ فُضَيْلٍ "
+                    },
+                    {
+                      "id": "8272",
+                      "full_name": "يحيى بن سعيد الأنصاري",
+                      "level": "الخامسة",
+                      "grade": "ثقة ثبت",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "يَحْيَى بْنُ سَعِيدٍ "
+                    },
+                    {
+                      "id": "4903",
+                      "full_name": "أبو سلمة بن عبد الرحمن",
+                      "level": "الثالثة",
+                      "grade": "ثقة  مكثر",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "أَبِي سَلَمَةَ "
+                    },
+                    {
+                      "id": "4396",
+                      "full_name": "أبو هريرة الدوسي",
+                      "level": "الصحابي الجليل",
+                      "grade": "الصحابي الجليل  حافظ الصحابة",
+                      "is_companion": true,
+                      "is_unknown": false,
+                      "reference": "أَبِي هُرَيْرَةَ "
+                    },
+                    {
+                      "id": "a-146",
+                      "full_name": "محمد بن إسماعيل البخاري (صحيح البخاري)",
+                      "level": null,
+                      "grade": null,
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": ""
+                    }
+                  ],
+                  "narrators_full_names": [
+                    "محمد بن سلام البيكندي",
+                    "يحيى بن سعيد الأنصاري",
+                    "محمد بن فضيل بن غزوان",
+                    "أبو هريرة الدوسي",
+                    "أبو سلمة بن عبد الرحمن"
+                  ],
+                  "page": 17,
+                  "volume": 1,
+                  "keywords": "مَنْ صَامَ رَمَضَانَ إِيمَانًا وَاحْتِسَابًا غُفِرَ لَهُ",
+                  "narrations": [],
+                  "raw_narrations": [
+                    "319-2178",
+                    "345-2055",
+                    "121-10096",
+                    "121-10621",
+                    "173-1316",
+                    "319-2187",
+                    "146-1878",
+                    "121-8796",
+                    "121-1621",
+                    "195-618",
+                    "319-2179",
+                    "121-6997",
+                    "454-2608",
+                    "195-735",
+                    "158-1275",
+                    "121-10318",
+                    "319-2185",
+                    "319-2182",
+                    "319-2190",
+                    "319-2188",
+                    "158-1273",
+                    "184-1165",
+                    "121-9908",
+                    "121-7104",
+                    "121-7591",
+                    "146-1777",
+                    "454-3765",
+                    "319-1592",
+                    "319-2177",
+                    "121-8374",
+                    "319-2189",
+                    "319-4965",
+                    "146-34",
+                    "319-2175",
+                    "121-1594",
+                    "319-2181",
+                    "19-248",
+                    "319-2087",
+                    "121-7105",
+                    "121-7682",
+                    "173-1631",
+                    "319-2183",
+                    "319-4966",
+                    "319-2180",
+                    "345-2057",
+                    "319-2186",
+                    "121-9081",
+                    "146-37",
+                    "345-1793",
+                    "454-3514",
+                    "319-2184",
+                    "137-1729",
+                    "173-1318",
+                    "121-9080",
+                    "319-1593",
+                    "146-36",
+                    "146-1884",
+                    "345-2059",
+                    "319-4964",
+                    "158-1272",
+                    "319-4967",
+                    "158-1274",
+                    "184-1166",
+                    "146-1879"
+                  ],
+                  "narrations_numbers": [
+                    {
+                      "narration_id": "146-37",
+                      "number": [
+                        "38"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2178",
+                      "number": [
+                        "2196"
+                      ]
+                    },
+                    {
+                      "narration_id": "345-2055",
+                      "number": [
+                        "2199"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10096",
+                      "number": [
+                        "10448"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10621",
+                      "number": [
+                        "10997"
+                      ]
+                    },
+                    {
+                      "narration_id": "173-1316",
+                      "number": [
+                        "1326"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2187",
+                      "number": [
+                        "2205"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-1878",
+                      "number": [
+                        "2008"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8796",
+                      "number": [
+                        "9123"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-1621",
+                      "number": [
+                        "1710"
+                      ]
+                    },
+                    {
+                      "narration_id": "195-618",
+                      "number": [
+                        "683"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2179",
+                      "number": [
+                        "2197"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-6997",
+                      "number": [
+                        "7291"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-2608",
+                      "number": [
+                        "2546"
+                      ]
+                    },
+                    {
+                      "narration_id": "195-735",
+                      "number": [
+                        "808"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-1275",
+                      "number": [
+                        "760"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-10318",
+                      "number": [
+                        "10686"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2185",
+                      "number": [
+                        "2203"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2182",
+                      "number": [
+                        "2200"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2190",
+                      "number": [
+                        "2209"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2188",
+                      "number": [
+                        "2206"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-1273",
+                      "number": [
+                        "759"
+                      ]
+                    },
+                    {
+                      "narration_id": "184-1165",
+                      "number": [
+                        "1371"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9908",
+                      "number": [
+                        "10258",
+                        "10259"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7104",
+                      "number": [
+                        "7400"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7591",
+                      "number": [
+                        "7902"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-1777",
+                      "number": [
+                        "1901"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-3765",
+                      "number": [
+                        "3682"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-1592",
+                      "number": [
+                        "1601"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2177",
+                      "number": [
+                        "2195"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-8374",
+                      "number": [
+                        "8695"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2189",
+                      "number": [
+                        "2207",
+                        "2208"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4965",
+                      "number": [
+                        "5040"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-34",
+                      "number": [
+                        "35"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2175",
+                      "number": [
+                        "2193"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-1594",
+                      "number": [
+                        "1682"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2181",
+                      "number": [
+                        "2199"
+                      ]
+                    },
+                    {
+                      "narration_id": "19-248",
+                      "number": [
+                        "376"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2087",
+                      "number": [
+                        "2103"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7105",
+                      "number": [
+                        "7401"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-7682",
+                      "number": [
+                        "7996"
+                      ]
+                    },
+                    {
+                      "narration_id": "173-1631",
+                      "number": [
+                        "1641"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2183",
+                      "number": [
+                        "2201"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4966",
+                      "number": [
+                        "5041"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2180",
+                      "number": [
+                        "2198"
+                      ]
+                    },
+                    {
+                      "narration_id": "345-2057",
+                      "number": [
+                        "2201"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2186",
+                      "number": [
+                        "2204"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9081",
+                      "number": [
+                        "9412"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-37",
+                      "number": [
+                        "38"
+                      ]
+                    },
+                    {
+                      "narration_id": "345-1793",
+                      "number": [
+                        "1894"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-3514",
+                      "number": [
+                        "3432"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-2184",
+                      "number": [
+                        "2202"
+                      ]
+                    },
+                    {
+                      "narration_id": "137-1729",
+                      "number": [
+                        "1817"
+                      ]
+                    },
+                    {
+                      "narration_id": "173-1318",
+                      "number": [
+                        "1328"
+                      ]
+                    },
+                    {
+                      "narration_id": "121-9080",
+                      "number": [
+                        "9411"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-1593",
+                      "number": [
+                        "1602"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-36",
+                      "number": [
+                        "37"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-1884",
+                      "number": [
+                        "2014"
+                      ]
+                    },
+                    {
+                      "narration_id": "345-2059",
+                      "number": [
+                        "2203"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4964",
+                      "number": [
+                        "5039"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-1272",
+                      "number": [
+                        "759"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4967",
+                      "number": [
+                        "5042"
+                      ]
+                    },
+                    {
+                      "narration_id": "158-1274",
+                      "number": [
+                        "760"
+                      ]
+                    },
+                    {
+                      "narration_id": "184-1166",
+                      "number": [
+                        "1372"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-1879",
+                      "number": [
+                        "2009"
+                      ]
+                    }
+                  ],
+                  "narrations_group_id": null,
+                  "hasExplanation": true,
+                  "hasExtendedExplanation": true,
+                  "hasCommentary": true,
+                  "hasRuling": true,
+                  "hasExtendedRuling": true,
+                  "rulings": [
+                    {
+                      "ruling": "أورده في صحيحه",
+                      "ruler": "البخاري",
+                      "ruler_dod": 256,
+                      "book_name": "صحيح البخاري",
+                      "page": 17,
+                      "volume": 1
+                    }
+                  ]
+                },
+                "link": {
+                  "src_id": "4396",
+                  "src_full_name": "أبو هريرة الدوسي",
+                  "src_reference": "أَبِي هُرَيْرَةَ ",
+                  "src_type": "Narrator",
+                  "tgt_id": "p-1",
+                  "tgt_full_name": "رسول الله ﷺ",
+                  "tgt_reference": "رسول الله ﷺ",
+                  "tgt_type": "Prophet",
+                  "src_matched": true,
+                  "tgt_matched": true,
+                  "verb": null,
+                  "src_grade": "الصحابي الجليل  حافظ الصحابة",
+                  "tgt_grade": null,
+                  "is_singular": true
+                }
+              },
+              "sort": [
+                1,
+                37
+              ]
+            },
+            {
+              "_index": "es-prod-euw1-chains-links-12.2024-09-06-12-25",
+              "_id": "tiRSx5EBT5MsJQ2xXczf",
+              "_score": null,
+              "_source": {
+                "hadith": {
+                  "book_id": 146,
+                  "hadith_id": "146-38",
+                  "hadith_serial_id": 38,
+                  "author": "محمد بن إسماعيل البخاري",
+                  "book_name": "صحيح البخاري",
+                  "raw_type": null,
+                  "type": "مرفوع",
+                  "narration_id": "38-صحيح البخاري",
+                  "authenticity_order": 1,
+                  "editions": [
+                    {
+                      "edition": "دار ابن كثير - 1414هـ / 1993م",
+                      "page": 23,
+                      "volume": 1
+                    },
+                    {
+                      "edition": "دار طوق النجاة - بيروت - الطبعة الأولى 1422هـ",
+                      "page": 17,
+                      "volume": 1
+                    }
+                  ],
+                  "time_order": 256,
+                  "chapter": "كتاب الإيمان",
+                  "hadith": "حَدَّثَنَا <a class=rawy id=4544>عَبْدُ السَّلَامِ بْنُ مُطَهَّرٍ </a> ، قَالَ : حَدَّثَنَا <a class=rawy id=5991>عُمَرُ بْنُ عَلِيٍّ </a> ، عَنْ <a class=rawy id=7644>مَعْنِ بْنِ مُحَمَّدٍ الْغِفَارِيِّ </a> ، عَنْ <a class=rawy id=3280>سَعِيدِ بْنِ أَبِي سَعِيدٍ الْمَقْبُرِيِّ </a> ، عَنْ <a class=rawy id=4396>أَبِي هُرَيْرَةَ </a> ، عَنِ النَّبِيِّ صَلَّى اللَّهُ عَلَيْهِ وَسَلَّمَ ، قَالَ : \" <a class=matn>إِنَّ الدِّينَ يُسْرٌ ، وَلَنْ يُشَادَّ الدِّينَ أَحَدٌ إِلَّا غَلَبَهُ ، فَسَدِّدُوا وَقَارِبُوا وَأَبْشِرُوا وَاسْتَعِينُوا بِالْغَدْوَةِ وَالرَّوْحَةِ وَشَيْءٍ مِنَ الدُّلْجَةِ \" </a> .",
+                  "number": [
+                    39
+                  ],
+                  "ruling": null,
+                  "sub_chapter": "باب الدين يسر",
+                  "narrators": [
+                    {
+                      "id": "4544",
+                      "full_name": "عبد السلام بن مطهر الأزدي",
+                      "level": "التاسعة",
+                      "grade": "صدوق",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "عَبْدُ السَّلَامِ بْنُ مُطَهَّرٍ "
+                    },
+                    {
+                      "id": "5991",
+                      "full_name": "عمر بن علي بن عطاء",
+                      "level": "الثامنة",
+                      "grade": "ثقة  وكان يدلس شديدا",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "عُمَرُ بْنُ عَلِيٍّ "
+                    },
+                    {
+                      "id": "7644",
+                      "full_name": "معن بن محمد بن معن الغفاري",
+                      "level": "السادسة",
+                      "grade": "مقبول",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "مَعْنِ بْنِ مُحَمَّدٍ الْغِفَارِيِّ "
+                    },
+                    {
+                      "id": "3280",
+                      "full_name": "سعيد المقبري",
+                      "level": "الثالثة",
+                      "grade": "ثقة  من الثالثة  تغير قبل موته بأربع سنين وروايته عن عائشة وأم سلمة مرسلة",
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": "سَعِيدِ بْنِ أَبِي سَعِيدٍ الْمَقْبُرِيِّ "
+                    },
+                    {
+                      "id": "4396",
+                      "full_name": "أبو هريرة الدوسي",
+                      "level": "الصحابي الجليل",
+                      "grade": "الصحابي الجليل  حافظ الصحابة",
+                      "is_companion": true,
+                      "is_unknown": false,
+                      "reference": "أَبِي هُرَيْرَةَ "
+                    },
+                    {
+                      "id": "a-146",
+                      "full_name": "محمد بن إسماعيل البخاري (صحيح البخاري)",
+                      "level": null,
+                      "grade": null,
+                      "is_companion": false,
+                      "is_unknown": false,
+                      "reference": ""
+                    }
+                  ],
+                  "narrators_full_names": [
+                    "أبو هريرة الدوسي",
+                    "عبد السلام بن مطهر الأزدي",
+                    "معن بن محمد بن معن الغفاري",
+                    "عمر بن علي بن عطاء",
+                    "سعيد المقبري"
+                  ],
+                  "page": 17,
+                  "volume": 1,
+                  "keywords": "إِنَّ الدِّينَ يُسْرٌ ، وَلَنْ يُشَادَّ الدِّينَ أَحَدٌ إِلَّا غَلَبَهُ",
+                  "narrations": [],
+                  "raw_narrations": [
+                    "319-4974",
+                    "146-38",
+                    "454-356"
+                  ],
+                  "narrations_numbers": [
+                    {
+                      "narration_id": "146-38",
+                      "number": [
+                        "39"
+                      ]
+                    },
+                    {
+                      "narration_id": "319-4974",
+                      "number": [
+                        "5049"
+                      ]
+                    },
+                    {
+                      "narration_id": "146-38",
+                      "number": [
+                        "39"
+                      ]
+                    },
+                    {
+                      "narration_id": "454-356",
+                      "number": [
+                        "351"
+                      ]
+                    }
+                  ],
+                  "narrations_group_id": null,
+                  "hasExplanation": true,
+                  "hasExtendedExplanation": true,
+                  "hasCommentary": true,
+                  "hasRuling": true,
+                  "hasExtendedRuling": true,
+                  "rulings": [
+                    {
+                      "ruling": "أورده في صحيحه",
+                      "ruler": "البخاري",
+                      "ruler_dod": 256,
+                      "book_name": "صحيح البخاري",
+                      "page": 17,
+                      "volume": 1
+                    }
+                  ]
+                },
+                "link": {
+                  "src_id": "4396",
+                  "src_full_name": "أبو هريرة الدوسي",
+                  "src_reference": "أَبِي هُرَيْرَةَ ،",
+                  "src_type": "Narrator",
+                  "tgt_id": "p-1",
+                  "tgt_full_name": "رسول الله ﷺ",
+                  "tgt_reference": "رسول الله ﷺ",
+                  "tgt_type": "Prophet",
+                  "src_matched": true,
+                  "tgt_matched": true,
+                  "verb": null,
+                  "src_grade": null,
+                  "tgt_grade": null,
+                  "is_singular": true
+                }
+              },
+              "sort": [
+                1,
+                38
+              ]
+            }
+          ]
+        },
+        "aggregations": {
+          "unique_scholars": {
+            "value": 31
+          },
+          "unique_grades": {
+            "value": 16
+          },
+          "unique_verbs": {
+            "value": 11
+          }
+        },
+        "status": 200
+      }
+    ]
+  }
+}

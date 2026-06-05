@@ -1,0 +1,332 @@
+{
+  "endpoint": "https://alminasa.ai/api/narrators",
+  "method": "GET",
+  "request_body": "",
+  "response": {
+    "data": {
+      "took": 3,
+      "timed_out": false,
+      "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+      },
+      "hits": {
+        "total": {
+          "value": 11189,
+          "relation": "eq"
+        },
+        "max_score": null,
+        "hits": [
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "4396",
+            "_score": null,
+            "_ignored": [
+              "extended_fullname"
+            ],
+            "_source": {
+              "id": "4396",
+              "narrations_count": "11057",
+              "full_name": "أبو هريرة الدوسي",
+              "is_companion": true,
+              "is_unknown": false
+            },
+            "sort": [
+              11057
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "4049",
+            "_score": null,
+            "_source": {
+              "id": "4049",
+              "narrations_count": "7409",
+              "full_name": "عائشة بنت أبي بكر الصديق",
+              "is_companion": true,
+              "is_unknown": false
+            },
+            "sort": [
+              7409
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "7272",
+            "_score": null,
+            "_source": {
+              "id": "7272",
+              "narrations_count": "6927",
+              "full_name": "الزهري",
+              "is_companion": false,
+              "is_unknown": false
+            },
+            "sort": [
+              6927
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "4967",
+            "_score": null,
+            "_source": {
+              "id": "4967",
+              "narrations_count": "6745",
+              "full_name": "عبد الله بن عمر بن الخطاب",
+              "is_companion": true,
+              "is_unknown": false
+            },
+            "sort": [
+              6745
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "3795",
+            "_score": null,
+            "_source": {
+              "id": "3795",
+              "narrations_count": "6618",
+              "full_name": "شعبة بن الحجاج",
+              "is_companion": false,
+              "is_unknown": false
+            },
+            "sort": [
+              6618
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "4883",
+            "_score": null,
+            "_source": {
+              "id": "4883",
+              "narrations_count": "6533",
+              "full_name": "عبد الله بن عباس",
+              "is_companion": true,
+              "is_unknown": false
+            },
+            "sort": [
+              6533
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "720",
+            "_score": null,
+            "_source": {
+              "id": "720",
+              "narrations_count": "6141",
+              "full_name": "أنس بن مالك",
+              "is_companion": true,
+              "is_unknown": false
+            },
+            "sort": [
+              6141
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "3436",
+            "_score": null,
+            "_source": {
+              "id": "3436",
+              "narrations_count": "4218",
+              "full_name": "سفيان الثوري",
+              "is_companion": false,
+              "is_unknown": false
+            },
+            "sort": [
+              4218
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "2069",
+            "_score": null,
+            "_ignored": [
+              "died_on"
+            ],
+            "_source": {
+              "id": "2069",
+              "narrations_count": "3981",
+              "full_name": "جابر بن عبد الله بن عمرو بن حرام الأنصاري",
+              "is_companion": true,
+              "is_unknown": false
+            },
+            "sort": [
+              3981
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "6458",
+            "_score": null,
+            "_source": {
+              "id": "6458",
+              "narrations_count": "3713",
+              "full_name": "قتادة بن دعامة",
+              "is_companion": false,
+              "is_unknown": false
+            },
+            "sort": [
+              3713
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "3443",
+            "_score": null,
+            "_source": {
+              "id": "3443",
+              "narrations_count": "3659",
+              "full_name": "سفيان بن عيينة",
+              "is_companion": false,
+              "is_unknown": false
+            },
+            "sort": [
+              3659
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "3629",
+            "_score": null,
+            "_source": {
+              "id": "3629",
+              "narrations_count": "3637",
+              "full_name": "الأعمش",
+              "is_companion": false,
+              "is_unknown": false
+            },
+            "sort": [
+              3637
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "5594",
+            "_score": null,
+            "_source": {
+              "id": "5594",
+              "narrations_count": "3596",
+              "full_name": "عروة بن الزبير",
+              "is_companion": false,
+              "is_unknown": false
+            },
+            "sort": [
+              3596
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "8160",
+            "_score": null,
+            "_source": {
+              "id": "8160",
+              "narrations_count": "3407",
+              "full_name": "وكيع بن الجراح",
+              "is_companion": false,
+              "is_unknown": false
+            },
+            "sort": [
+              3407
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "7863",
+            "_score": null,
+            "_source": {
+              "id": "7863",
+              "narrations_count": "3367",
+              "full_name": "نافع مولى ابن عمر",
+              "is_companion": false,
+              "is_unknown": false
+            },
+            "sort": [
+              3367
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "6659",
+            "_score": null,
+            "_source": {
+              "id": "6659",
+              "narrations_count": "3186",
+              "full_name": "مالك بن أنس",
+              "is_companion": false,
+              "is_unknown": false
+            },
+            "sort": [
+              3186
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "8271",
+            "_score": null,
+            "_source": {
+              "id": "8271",
+              "narrations_count": "3116",
+              "full_name": "يحيى القطان",
+              "is_companion": false,
+              "is_unknown": false
+            },
+            "sort": [
+              3116
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "6904",
+            "_score": null,
+            "_source": {
+              "id": "6904",
+              "narrations_count": "3043",
+              "full_name": "غندر ربيب شعبة",
+              "is_companion": false,
+              "is_unknown": false
+            },
+            "sort": [
+              3043
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "4533",
+            "_score": null,
+            "_source": {
+              "id": "4533",
+              "narrations_count": "3002",
+              "full_name": "عبد الرزاق الصنعاني",
+              "is_companion": false,
+              "is_unknown": false
+            },
+            "sort": [
+              3002
+            ]
+          },
+          {
+            "_index": "es-prod-euw1-narrators-12.2024-08-24-23-34",
+            "_id": "2492",
+            "_score": null,
+            "_source": {
+              "id": "2492",
+              "narrations_count": "2907",
+              "full_name": "حماد بن سلمة",
+              "is_companion": false,
+              "is_unknown": false
+            },
+            "sort": [
+              2907
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
