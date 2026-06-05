@@ -260,13 +260,27 @@ public class AlminasaNarratorMapper {
     }
 
     /**
-     * Производный enum надёжности (решение 4): {@code level=='صحابي'} → SAHABI;
+     * Производный enum надёжности (решение 4): сподвижник → SAHABI;
      * иначе по префиксу grade. Поле {@code is_unknown} в narrator-доке ОТСУТСТВУЕТ
      * (есть только в narrators[] hadith-дока) — здесь не используется.
+     *
+     * <p>Live-находка Сессии 58: у alminasa {@code level} бывает не только
+     * {@code صحابي}, но и {@code الصحابي الجليل} / {@code صحابية} — строгое
+     * равенство роняло Абу Хурайру в UNKNOWN («маджхуль» на сподвижнике).
+     * Детекция: level СОДЕРЖИТ корень {@code صحاب} (level короткий и
+     * контролируемый — contains безопасен), либо gradeText НАЧИНАЕТСЯ с
+     * {@code صحابي}/{@code الصحابي} (startsWith — чтобы «روى عن الصحابة» у
+     * табиина не ловился).
      */
     static String reliabilityGrade(String level, String gradeText) {
-        if ("صحابي".equals(level)) {
+        if (level != null && level.contains("صحاب")) {
             return NarratorReliability.SAHABI;
+        }
+        if (gradeText != null) {
+            String g = gradeText.trim();
+            if (g.startsWith("صحابي") || g.startsWith("الصحابي")) {
+                return NarratorReliability.SAHABI;
+            }
         }
         return reliabilityFromGradePrefix(gradeText);
     }

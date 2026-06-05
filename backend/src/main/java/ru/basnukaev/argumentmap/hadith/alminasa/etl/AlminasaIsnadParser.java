@@ -1,7 +1,10 @@
 package ru.basnukaev.argumentmap.hadith.alminasa.etl;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,14 +35,27 @@ public final class AlminasaIsnadParser {
     private static final String MATN_MARKER = "<a class=matn>";
 
     /**
-     * Приоритетный список формул передачи (нормализованные при инициализации).
-     * Порядок = приоритет: первый найденный в сегменте токен побеждает.
+     * Приоритетный список формул передачи: нормализованный токен → каноническая
+     * форма. Порядок = приоритет: первый найденный в сегменте токен побеждает.
+     *
+     * <p>Включены писцовые аббревиатуры (live-находка Сессии 58: в Мустадраке
+     * сплошь {@code ثنا}): ثنا/ثني = حدثنا/حدثني, أنا/نا = أخبرنا/حدثنا,
+     * أنبأ = أنبأنا — они КАНОНИЗИРУЮТСЯ к полным формам, чтобы стрелки графа
+     * и фильтры видели единообразные формулы. Сравнение пословное (равенство
+     * нормализованного слова), короткие токены не ловят подстроки чужих слов.
      */
-    private static final List<String> FORMULA_TOKENS = normalizeTokens(
-            "حدثنا", "حدثني", "أخبرنا", "أخبرني", "أنبأنا", "سمعت", "سمع", "عن", "أن");
+    private static final Map<String, String> FORMULA_TOKENS = tokenMap(new String[][]{
+            {"حدثنا", "حدثنا"}, {"حدثني", "حدثني"},
+            {"أخبرنا", "أخبرنا"}, {"أخبرني", "أخبرني"}, {"أنبأنا", "أنبأنا"},
+            {"ثنا", "حدثنا"}, {"ثني", "حدثني"},
+            {"أنا", "أخبرنا"}, {"نا", "حدثنا"}, {"أنبأ", "أنبأنا"},
+            {"سمعت", "سمعت"}, {"سمع", "سمع"}, {"عن", "عن"}, {"أن", "أن"},
+    });
 
     /** Фолбэк-формулы (ищутся только если приоритетные не найдены). */
-    private static final List<String> FALLBACK_TOKENS = normalizeTokens("قال", "يقول");
+    private static final Map<String, String> FALLBACK_TOKENS = tokenMap(new String[][]{
+            {"قال", "قال"}, {"يقول", "يقول"},
+    });
 
     private AlminasaIsnadParser() {
     }
@@ -107,22 +123,24 @@ public final class AlminasaIsnadParser {
 
     /**
      * Первый токен из {@code tokens} (в порядке приоритета), равный какому-либо
-     * слову сегмента. Возвращает сам токен (нормализованную форму) либо {@code null}.
+     * слову сегмента. Возвращает КАНОНИЧЕСКУЮ форму токена либо {@code null}.
      */
-    private static String firstMatch(List<String> words, List<String> tokens) {
-        for (String token : tokens) {
-            if (words.contains(token)) {
-                return token;
+    private static String firstMatch(List<String> words, Map<String, String> tokens) {
+        for (Map.Entry<String, String> e : tokens.entrySet()) {
+            if (words.contains(e.getKey())) {
+                return e.getValue();
             }
         }
         return null;
     }
 
-    private static List<String> normalizeTokens(String... tokens) {
-        List<String> result = new ArrayList<>(tokens.length);
-        for (String token : tokens) {
-            result.add(ArabicTextNormalizer.normalize(token));
+    /** Нормализует пары токен→каноническая форма, сохраняя порядок приоритета. */
+    private static Map<String, String> tokenMap(String[][] pairs) {
+        Map<String, String> result = new LinkedHashMap<>();
+        for (String[] pair : pairs) {
+            result.put(ArabicTextNormalizer.normalize(pair[0]),
+                    ArabicTextNormalizer.normalize(pair[1]));
         }
-        return List.copyOf(result);
+        return Collections.unmodifiableMap(result);
     }
 }

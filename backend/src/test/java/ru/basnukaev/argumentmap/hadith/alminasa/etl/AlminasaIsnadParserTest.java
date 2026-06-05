@@ -161,4 +161,20 @@ class AlminasaIsnadParserTest {
         assertThat(isnad.links()).hasSize(1);
         assertThat(isnad.links().get(0).receivedVia()).isNull();
     }
+
+    @Test
+    void parse_писцовые_аббревиатуры_канонизируются() {
+        // Live-кейс Мустадрака (Сессия 58): «ثنا» = حدثنا, «ثني» = حدثني,
+        // «أنا» = أخبرنا — аббревиатуры распознаются и канонизируются к полным
+        // формам (стрелки графа и фильтры видят единообразные формулы).
+        String text = "أَخْبَرَنَا <a class=rawy id=1>الأول</a> بِمَكَّةَ ، ثنا "
+                + "<a class=rawy id=2>الثاني</a> ، ثني <a class=rawy id=3>الثالث</a>"
+                + " ، أنا <a class=rawy id=4>الرابع</a> <a class=matn>المتن</a>";
+        ParsedIsnad isnad = AlminasaIsnadParser.parse(text);
+
+        assertThat(isnad.collectorPhrase()).isEqualTo(norm("أخبرنا"));
+        // receivedVia(c_i) = сегмент ПОСЛЕ тега c_i: «بمكة ، ثنا» → حدثنا и т.д.
+        assertThat(isnad.links()).extracting(IsnadLink::receivedVia)
+                .containsExactly(norm("حدثنا"), norm("حدثني"), norm("أخبرنا"), null);
+    }
 }

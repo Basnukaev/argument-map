@@ -187,6 +187,21 @@ class AlminasaNarratorMapperTest {
         // null grade → UNKNOWN
         assertThat(AlminasaNarratorMapper.reliabilityGrade("الأولى", null))
                 .isEqualTo(NarratorReliability.UNKNOWN);
+
+        // live-кейс Абу Хурайры (Сессия 58): level «الصحابي الجليل» ≠ строгое
+        // «صحابي» — детекция по корню صحاب в level
+        assertThat(AlminasaNarratorMapper.reliabilityGrade(
+                "الصحابي الجليل", "الصحابي الجليل  حافظ الصحابة"))
+                .isEqualTo(NarratorReliability.SAHABI);
+        // сподвижница (женская форма)
+        assertThat(AlminasaNarratorMapper.reliabilityGrade("صحابية", null))
+                .isEqualTo(NarratorReliability.SAHABI);
+        // level пуст, но gradeText НАЧИНАЕТСЯ с الصحابي → SAHABI
+        assertThat(AlminasaNarratorMapper.reliabilityGrade(null, "الصحابي الجليل"))
+                .isEqualTo(NarratorReliability.SAHABI);
+        // табиин с упоминанием сподвижников В СЕРЕДИНЕ grade НЕ становится SAHABI
+        assertThat(AlminasaNarratorMapper.reliabilityGrade("الثانية", "ثقة روى عن الصحابة"))
+                .isEqualTo(NarratorReliability.THIQA);
     }
 
     // ── хиджри-год из прозы (решение 5) ───────────────────────────────────────────
