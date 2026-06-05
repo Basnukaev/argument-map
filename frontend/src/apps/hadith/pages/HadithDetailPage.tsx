@@ -17,6 +17,7 @@ import MatnTranslateControls from '@/apps/hadith/components/MatnTranslateControl
 import HadithSectionNav, {
   type SectionNavItem,
 } from '@/apps/hadith/components/HadithSectionNav';
+import { parseIsnadHtml } from '@/apps/hadith/utils/parseIsnadHtml';
 import { useApiQuery } from '@/shared/hooks/useApiQuery';
 import { useT, type DictKey, hasArabicScript } from '@/shared/i18n';
 import type {
@@ -174,10 +175,27 @@ function HadithDetailPage() {
     setSelectedTextForm(textForm);
   };
 
-  // Клик из графа: открываем панель без textForm (форма имени из узла = каноническая).
+  // Форма имени из текста иснада по externalId — чтобы подпись
+  // «كما ورد في الإسناد» показывалась и при клике ИЗ ГРАФА (консистентность
+  // панелей — фидбек С59).
+  const textFormByExternalId = useMemo(() => {
+    if (!detail?.fullTextAr) return null;
+    const map = new Map<string, string>();
+    for (const seg of parseIsnadHtml(detail.fullTextAr)) {
+      if (seg.kind === 'rawy' && seg.externalId != null && !map.has(seg.externalId)) {
+        map.set(seg.externalId, seg.text);
+      }
+    }
+    return map;
+  }, [detail?.fullTextAr]);
+
+  // Клик из графа: textForm резолвим из текста иснада по externalId
+  // (рави без rawy-тега в тексте — подпись не показывается).
   const handleGraphNarratorSelect = (data: SanadFlowNodeData) => {
     setSelectedNarrator(data);
-    setSelectedTextForm(undefined);
+    setSelectedTextForm(
+      data.externalId != null ? textFormByExternalId?.get(data.externalId) : undefined,
+    );
   };
 
   return (
