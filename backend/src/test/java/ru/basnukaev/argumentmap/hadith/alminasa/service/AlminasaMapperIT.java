@@ -212,8 +212,14 @@ class AlminasaMapperIT {
         GraphEdge prophetEdge = graph.edges().stream()
                 .filter(e -> e.source().equals(prophet.id())).findFirst().orElseThrow();
         assertThat(prophetEdge.data().transmissionPhrase()).isEqualTo(norm("سمعت"));
-        // рёбер по числу пар (6 узлов + prophet → 6 рёбер)
-        assertThat(graph.edges()).hasSize(6);
+        // рёбер по числу пар (6 узлов + prophet → 6) + ребро к version-узлу
+        // сборника в конце цепи (С58: цепь не обрывается в пустоту)
+        assertThat(graph.edges()).hasSize(7);
+        assertThat(graph.nodes()).anySatisfy(n -> {
+            assertThat(n.role()).isEqualTo("VERSION");
+            assertThat(n.version()).isNotNull();
+            assertThat(n.version().externalId()).isEqualTo("146-1");
+        });
 
         // ── crossrefs: без 146-1, с note-номерами ──────────────────────────────────
         List<HadithCrossref> crossrefs = crossrefRepository.findByHadithId(hadithId);
