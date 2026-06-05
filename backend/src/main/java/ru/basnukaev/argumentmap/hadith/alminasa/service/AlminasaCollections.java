@@ -39,6 +39,27 @@ public final class AlminasaCollections {
     }
 
     /**
+     * Метаданные сборника по alminasa external_id (формат {@code bookId-…},
+     * напр. {@code 146-1}): префикс до первого дефиса → int bookId → карта.
+     * Непарсится / нет дефиса / неизвестный bookId → пусто. Единая точка
+     * резолва префикса для rulings/crossrefs (не дублировать парсинг).
+     */
+    public static Optional<CollectionInfo> byExternalId(String externalId) {
+        if (externalId == null) {
+            return Optional.empty();
+        }
+        int dash = externalId.indexOf('-');
+        if (dash <= 0) {
+            return Optional.empty();
+        }
+        try {
+            return byBookId(Integer.parseInt(externalId.substring(0, dash)));
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
+    }
+
+    /**
      * Все 12 сборников {@code book_id → метаданные}, отсортированы по
      * {@code book_id} (детерминированный порядок строк каталога, план 5).
      */

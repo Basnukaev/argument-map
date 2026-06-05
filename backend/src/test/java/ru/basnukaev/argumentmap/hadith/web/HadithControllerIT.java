@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
+import ru.basnukaev.argumentmap.hadith.domain.Collection;
 import ru.basnukaev.argumentmap.hadith.domain.Hadith;
 import ru.basnukaev.argumentmap.hadith.domain.HadithCrossref;
 import ru.basnukaev.argumentmap.hadith.domain.HadithEdition;
@@ -28,6 +29,7 @@ import ru.basnukaev.argumentmap.hadith.domain.Narrator;
 import ru.basnukaev.argumentmap.hadith.domain.NarratorReliability;
 import ru.basnukaev.argumentmap.hadith.domain.Sanad;
 import ru.basnukaev.argumentmap.hadith.domain.SanadNarrator;
+import ru.basnukaev.argumentmap.hadith.repository.CollectionRepository;
 import ru.basnukaev.argumentmap.hadith.repository.HadithCrossrefRepository;
 import ru.basnukaev.argumentmap.hadith.repository.HadithEditionRepository;
 import ru.basnukaev.argumentmap.hadith.repository.HadithExplanationRepository;
@@ -55,6 +57,7 @@ class HadithControllerIT {
     @Autowired private HadithRulingRepository rulingRepository;
     @Autowired private HadithExplanationRepository explanationRepository;
     @Autowired private HadithCrossrefRepository crossrefRepository;
+    @Autowired private CollectionRepository collectionRepository;
 
     private UUID hadithId;
     private UUID narratorId;
@@ -187,12 +190,14 @@ class HadithControllerIT {
                 UUID.randomUUID(), amId, "SHARH", "فتح الباري", "ابن حجر",
                 852, 3, 1, "شرح الحديث...", null, now));
 
+        // crossref на сиблинг сборника 158 (Муслим) с JSON-массивом номеров в note.
         crossrefRepository.save(new HadithCrossref(
-                UUID.randomUUID(), amId, "2-99", null,
-                "TAKHRIJ", "أخرجه مسلم", now));
+                UUID.randomUUID(), amId, "158-99", null,
+                "TARIQ", "[\"12\",\"13\"]", now));
 
         mockMvc.perform(get("/api/v1/hadith/hadiths/{id}/detail", amId))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.externalId").value("146-1"))
                 .andExpect(jsonPath("$.hadithType").value("مرفوع"))
                 .andExpect(jsonPath("$.chapterAr").value("كتاب بدء الوحي"))
                 .andExpect(jsonPath("$.subChapterAr").value("باب كيف كان بدء الوحي"))
@@ -205,12 +210,48 @@ class HadithControllerIT {
                 .andExpect(jsonPath("$.rulings[0].rulerDeathYear").value(256))
                 .andExpect(jsonPath("$.rulings[0].source").value("embedded"))
                 .andExpect(jsonPath("$.rulings[0].relatedExternalId").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.rulings[0].relatedHadithId").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.explanations.length()").value(1))
                 .andExpect(jsonPath("$.explanations[0].kind").value("SHARH"))
                 .andExpect(jsonPath("$.explanations[0].author").value("ابن حجر"))
                 .andExpect(jsonPath("$.crossrefs.length()").value(1))
-                .andExpect(jsonPath("$.crossrefs[0].relatedExternalId").value("2-99"))
-                .andExpect(jsonPath("$.crossrefs[0].note").value("أخرجه مسلم"));
+                .andExpect(jsonPath("$.crossrefs[0].relatedExternalId").value("158-99"))
+                .andExpect(jsonPath("$.crossrefs[0].numbers").value(org.hamcrest.Matchers.contains("12", "13")))
+                .andExpect(jsonPath("$.crossrefs[0].collectionNameRu").value("Сахих Муслима"))
+                .andExpect(jsonPath("$.crossrefs[0].collectionNameAr").value("صحيح مسلم"));
+    }
+
+    @Test
+    void GET_detail_rulingResolvesRelatedHadithId_andCollectionNameRu() throws Exception {
+        Instant now = Instant.now();
+
+        // Импортированный сиблинг сборника 158 (Муслим) — цель резолва.
+        Hadith sibling = new Hadith(
+                UUID.randomUUID(), null, 99,
+                "متن الطريق", HadithStatus.VARIANT, null, null, now,
+                "alminasa", "158-99", null, null, null, null);
+        hadithRepository.save(sibling);
+
+        // Хадис с index-вердиктом на параллельную передачу 158-99.
+        Hadith am = new Hadith(
+                UUID.randomUUID(), null, 1,
+                "متن الأصل", HadithStatus.CANONICAL, null, null, now,
+                "alminasa", "146-1", null, null, null, null);
+        hadithRepository.save(am);
+        UUID amId = am.id();
+
+        rulingRepository.save(new HadithRuling(
+                UUID.randomUUID(), amId, "الألباني", 1420,
+                "صحيح", "السلسلة الصحيحة", 7, 1,
+                "{\"source\":\"index\",\"relatedExternalId\":\"158-99\"}", now));
+
+        mockMvc.perform(get("/api/v1/hadith/hadiths/{id}/detail", amId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rulings.length()").value(1))
+                .andExpect(jsonPath("$.rulings[0].source").value("index"))
+                .andExpect(jsonPath("$.rulings[0].relatedExternalId").value("158-99"))
+                .andExpect(jsonPath("$.rulings[0].relatedHadithId").value(sibling.id().toString()))
+                .andExpect(jsonPath("$.rulings[0].relatedCollectionNameRu").value("Сахих Муслима"));
     }
 
     @Test
@@ -223,14 +264,15 @@ class HadithControllerIT {
     @Test
     void GET_sanadGraph_returnsProphetRootedGraph() throws Exception {
         // setUp создаёт 1 sanad с 1 narrator (position 0) - граф = Пророк ﷺ
-        // (синтетический корень) + 1 узел-сподвижник, соединённые 1 ребром.
+        // (синтетический корень) + 1 узел-сподвижник + version-узел самого
+        // хадиса: 3 узла, 2 ребра (prophet→narrator, narrator→version).
         mockMvc.perform(get("/api/v1/hadith/hadiths/{id}/sanad-graph", hadithId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hadithId").value(hadithId.toString()))
-                .andExpect(jsonPath("$.nodes.length()").value(2))
-                .andExpect(jsonPath("$.edges.length()").value(1))
-                .andExpect(jsonPath("$.edges[0].source").value("prophet"))
-                .andExpect(jsonPath("$.edges[0].target").value("narrator-" + narratorId))
+                .andExpect(jsonPath("$.nodes.length()").value(3))
+                .andExpect(jsonPath("$.edges.length()").value(2))
+                .andExpect(jsonPath("$.edges[?(@.source == 'prophet')].target")
+                        .value(org.hamcrest.Matchers.hasItem("narrator-" + narratorId)))
                 // alminasa-обогащение узла: externalId/tabaqa/gradeText для клик-резолва
                 .andExpect(jsonPath("$.nodes[?(@.id == 'narrator-" + narratorId + "')].data.externalId")
                         .value(org.hamcrest.Matchers.hasItem("rawy-59")))
@@ -240,8 +282,149 @@ class HadithControllerIT {
     }
 
     @Test
+    void GET_sanadGraph_appendsVersionNode_withCollectionAndPreview() throws Exception {
+        Instant now = Instant.now();
+
+        // Сборник с известным русским названием + alminasa-хадис с номером и матном.
+        Collection coll = new Collection(
+                UUID.randomUUID(), "bukhari", "صحيح البخاري", null,
+                "Сахих аль-Бухари", null, null,
+                "{\"source\":\"alminasa\"}", now);
+        collectionRepository.save(coll);
+
+        Hadith vHadith = new Hadith(
+                UUID.randomUUID(), coll.id(), 1,
+                "إنما الأعمال بالنيات",
+                HadithStatus.CANONICAL, null, null, now,
+                "alminasa", "146-7", "مرفوع", null, null, null);
+        hadithRepository.save(vHadith);
+        UUID vId = vHadith.id();
+
+        Narrator companion = new Narrator(
+                UUID.randomUUID(), null, "عمر", "umar",
+                null, null, null, 23, null, null, null,
+                NarratorReliability.SAHABI, null, 0, null, now,
+                "alminasa", "rawy-1", null, null, null, null);
+        narratorRepository.save(companion);
+        Narrator collector = new Narrator(
+                UUID.randomUUID(), null, "البخاري", "albukhari",
+                null, null, null, 256, null, null, null,
+                NarratorReliability.THIQA, null, 0, null, now,
+                "alminasa", "rawy-2", null, null, null, null);
+        narratorRepository.save(collector);
+
+        Sanad sanad = new Sanad(UUID.randomUUID(), vId, "SAHIH", null, null, true, null, now);
+        sanadRepository.save(sanad);
+        sanadRepository.saveNarratorLink(new SanadNarrator(sanad.id(), 0, companion.id(), "سمعت"));
+        sanadRepository.saveNarratorLink(new SanadNarrator(sanad.id(), 1, collector.id(), "حدثنا"));
+
+        matnRepository.save(new Matn(
+                UUID.randomUUID(), vId, "إنما الأعمال بالنيات", "innama",
+                null, null, coll.id(), 1, null, null, true, null, null, now));
+
+        String versionId = "version-" + vId;
+        mockMvc.perform(get("/api/v1/hadith/hadiths/{id}/sanad-graph", vId))
+                .andExpect(status().isOk())
+                // version-узел: role=VERSION, data=null, VersionInfo заполнен
+                .andExpect(jsonPath("$.nodes[?(@.id == '" + versionId + "')].role")
+                        .value(org.hamcrest.Matchers.hasItem("VERSION")))
+                .andExpect(jsonPath("$.nodes[?(@.id == '" + versionId + "')].version.collectionNameRu")
+                        .value(org.hamcrest.Matchers.hasItem("Сахих аль-Бухари")))
+                .andExpect(jsonPath("$.nodes[?(@.id == '" + versionId + "')].version.printedNumber")
+                        .value(org.hamcrest.Matchers.hasItem(1)))
+                .andExpect(jsonPath("$.nodes[?(@.id == '" + versionId + "')].version.matnPreview")
+                        .value(org.hamcrest.Matchers.hasItem("إنما الأعمال بالنيات")))
+                // ребро от топ-нарратора (collector, макс. position) в version-узел
+                .andExpect(jsonPath("$.edges[?(@.target == '" + versionId + "')].source")
+                        .value(org.hamcrest.Matchers.hasItem("narrator-" + collector.id())));
+    }
+
+    @Test
     void GET_sanadGraph_nonExistent_returns404() throws Exception {
         mockMvc.perform(get("/api/v1/hadith/hadiths/{id}/sanad-graph", UUID.randomUUID()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value(org.hamcrest.Matchers.containsString("hadith-not-found")));
+    }
+
+    @Test
+    void GET_turuqGraph_mergesSiblings_sharedNarratorAndPerVersionEdges() throws Exception {
+        Instant now = Instant.now();
+
+        // Общий сподвижник между двумя версиями (тот же UUID шарится).
+        Narrator companion = new Narrator(
+                UUID.randomUUID(), null, "عمر بن الخطاب", "umar",
+                null, null, null, 23, null, null, null,
+                NarratorReliability.SAHABI, null, 0, null, now,
+                "alminasa", "rawy-1", null, null, null, null);
+        narratorRepository.save(companion);
+        Narrator collMain = new Narrator(
+                UUID.randomUUID(), null, "البخاري", "albukhari",
+                null, null, null, 256, null, null, null,
+                NarratorReliability.THIQA, null, 0, null, now,
+                "alminasa", "rawy-2", null, null, null, null);
+        narratorRepository.save(collMain);
+        Narrator collSib = new Narrator(
+                UUID.randomUUID(), null, "مسلم", "muslim",
+                null, null, null, 261, null, null, null,
+                NarratorReliability.THIQA, null, 0, null, now,
+                "alminasa", "rawy-3", null, null, null, null);
+        narratorRepository.save(collSib);
+
+        // Главный хадис (146-1) + резолвленный сиблинг (158-2).
+        Hadith main = new Hadith(
+                UUID.randomUUID(), null, 1, "متن الأصل",
+                HadithStatus.CANONICAL, null, null, now,
+                "alminasa", "146-1", null, null, null, null);
+        hadithRepository.save(main);
+        Hadith sib = new Hadith(
+                UUID.randomUUID(), null, 2, "متن الطريق",
+                HadithStatus.VARIANT, null, null, now,
+                "alminasa", "158-2", null, null, null, null);
+        hadithRepository.save(sib);
+
+        // main: companion → collMain ; sib: companion → collSib
+        Sanad sMain = new Sanad(UUID.randomUUID(), main.id(), "SAHIH", null, null, true, null, now);
+        sanadRepository.save(sMain);
+        sanadRepository.saveNarratorLink(new SanadNarrator(sMain.id(), 0, companion.id(), "سمعت"));
+        sanadRepository.saveNarratorLink(new SanadNarrator(sMain.id(), 1, collMain.id(), "حدثنا"));
+        Sanad sSib = new Sanad(UUID.randomUUID(), sib.id(), "SAHIH", null, null, true, null, now);
+        sanadRepository.save(sSib);
+        sanadRepository.saveNarratorLink(new SanadNarrator(sSib.id(), 0, companion.id(), "عن"));
+        sanadRepository.saveNarratorLink(new SanadNarrator(sSib.id(), 1, collSib.id(), "حدثنا"));
+
+        // crossref главного → резолвленный сиблинг (related_hadith_id заполнен).
+        crossrefRepository.save(new HadithCrossref(
+                UUID.randomUUID(), main.id(), "158-2", sib.id(),
+                "TARIQ", null, now));
+
+        String vMain = "version-" + main.id();
+        String vSib = "version-" + sib.id();
+
+        mockMvc.perform(get("/api/v1/hadith/hadiths/{id}/turuq-graph", main.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hadithId").value(main.id().toString()))
+                // общий узел сподвижника — ровно один
+                .andExpect(jsonPath("$.nodes[?(@.id == 'narrator-" + companion.id() + "')].id")
+                        .value(org.hamcrest.Matchers.hasSize(1)))
+                // два version-узла
+                .andExpect(jsonPath("$.nodes[?(@.role == 'VERSION')]")
+                        .value(org.hamcrest.Matchers.hasSize(2)))
+                // ребро prophet→companion агрегирует обе версии: sanadCount=2
+                .andExpect(jsonPath("$.edges[?(@.source == 'prophet' && "
+                        + "@.target == 'narrator-" + companion.id() + "')].data.sanadCount")
+                        .value(org.hamcrest.Matchers.hasItem(2)))
+                // у каждой версии своё ребро от своего топ-звена в свой version-узел
+                .andExpect(jsonPath("$.edges[?(@.target == '" + vMain + "')].source")
+                        .value(org.hamcrest.Matchers.hasItem("narrator-" + collMain.id())))
+                .andExpect(jsonPath("$.edges[?(@.target == '" + vSib + "')].source")
+                        .value(org.hamcrest.Matchers.hasItem("narrator-" + collSib.id())))
+                // обе цепи в sanads[]
+                .andExpect(jsonPath("$.sanads.length()").value(2));
+    }
+
+    @Test
+    void GET_turuqGraph_nonExistent_returns404() throws Exception {
+        mockMvc.perform(get("/api/v1/hadith/hadiths/{id}/turuq-graph", UUID.randomUUID()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value(org.hamcrest.Matchers.containsString("hadith-not-found")));
     }

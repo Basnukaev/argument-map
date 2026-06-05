@@ -1,5 +1,7 @@
 package ru.basnukaev.argumentmap.hadith.web.dto;
 
+import java.util.UUID;
+
 /**
  * Вердикт учёного (alminasa rulings[]). Секция «Вердикты» Hadith Explorer.
  *
@@ -8,6 +10,13 @@ package ru.basnukaev.argumentmap.hadith.web.dto;
  * {@code relatedExternalId}). UI обязан различать «вердикт на этот хадис»
  * (embedded) от «вердикта на параллельную передачу» (index +
  * relatedExternalId).
+ *
+ * <p>{@code relatedHadithId} (nullable) — резолв {@code relatedExternalId}
+ * в наш FK, если параллельная передача уже импортирована (для перехода в
+ * Explorer). {@code relatedCollectionNameRu} (nullable) — русское название
+ * сборника параллельной передачи по префиксу {@code relatedExternalId}
+ * ({@code bookId-…}); оба null когда {@code relatedExternalId} отсутствует
+ * (embedded-вердикт на сам хадис) либо сборник/сиблинг неизвестен.
  */
 public record RulingDto(
         String rulerName,
@@ -17,6 +26,8 @@ public record RulingDto(
         Integer page,
         Integer volume,
         String source,
-        String relatedExternalId
+        String relatedExternalId,
+        UUID relatedHadithId,
+        String relatedCollectionNameRu
 ) {
 }

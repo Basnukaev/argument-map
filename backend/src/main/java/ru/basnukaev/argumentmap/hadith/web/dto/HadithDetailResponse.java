@@ -19,6 +19,7 @@ public record HadithDetailResponse(
         String status,
         UUID sourceId,
         Instant createdAt,
+        String externalId,
         String hadithType,
         String chapterAr,
         String subChapterAr,

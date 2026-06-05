@@ -2,8 +2,10 @@ package ru.basnukaev.argumentmap.hadith.web;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -24,6 +26,8 @@ import ru.basnukaev.argumentmap.hadith.domain.HadithRuling;
 import ru.basnukaev.argumentmap.hadith.domain.Matn;
 import ru.basnukaev.argumentmap.hadith.domain.Sanad;
 import ru.basnukaev.argumentmap.hadith.domain.SanadNarrator;
+import ru.basnukaev.argumentmap.hadith.alminasa.service.AlminasaCollections;
+import ru.basnukaev.argumentmap.hadith.alminasa.service.AlminasaCollections.CollectionInfo;
 import ru.basnukaev.argumentmap.hadith.repository.HadithCrossrefRepository;
 import ru.basnukaev.argumentmap.hadith.repository.HadithEditionRepository;
 import ru.basnukaev.argumentmap.hadith.repository.HadithExplanationRepository;
@@ -161,23 +165,45 @@ public class HadithController {
         List<EditionDto> editions = editionRepository.findByHadithId(id).stream()
                 .map(HadithController::toEditionDto)
                 .toList();
+
+        // In-method кэш резолва related_external_id → наш UUID. Rulings и
+        // crossrefs ссылаются на параллельные передачи по alminasa external_id;
+        // distinct-значений немного (~12), один lookup на уникальный id.
+        Map<String, UUID> relatedIdCache = new HashMap<>();
+
         List<RulingDto> rulings = rulingRepository.findByHadithId(id).stream()
-                .map(r -> toRulingDto(r, objectMapper))
+                .map(r -> toRulingDto(r, objectMapper, relatedIdCache))
                 .toList();
         List<ExplanationDto> explanations = explanationRepository.findByHadithId(id).stream()
                 .map(HadithController::toExplanationDto)
                 .toList();
         List<CrossrefDto> crossrefs = crossrefRepository.findByHadithId(id).stream()
-                .map(HadithController::toCrossrefDto)
+                .map(c -> toCrossrefDto(c, objectMapper, relatedIdCache))
                 .toList();
 
         return new HadithDetailResponse(
                 h.id(), h.collectionId(), h.primaryNumber(),
                 h.normalizedMatn(), h.status(), h.sourceId(), h.createdAt(),
-                h.hadithType(), h.chapterAr(), h.subChapterAr(), h.fullTextAr(),
+                h.externalId(), h.hadithType(), h.chapterAr(), h.subChapterAr(),
+                h.fullTextAr(),
                 sanadDtos, matnDtos, grades,
                 editions, rulings, explanations, crossrefs
         );
+    }
+
+    /**
+     * Резолв alminasa {@code related_external_id} → наш {@code hd_hadiths.id}
+     * с in-method кэшем (один lookup на уникальный external_id за detail-запрос).
+     * Не найден / null → null (FK-резолв опционален: сиблинг мог быть не
+     * импортирован).
+     */
+    private UUID resolveRelatedHadithId(String relatedExternalId, Map<String, UUID> cache) {
+        if (relatedExternalId == null) {
+            return null;
+        }
+        return cache.computeIfAbsent(relatedExternalId, ext ->
+                hadithRepository.findByExternalId("alminasa", ext)
+                        .map(Hadith::id).orElse(null));
     }
 
     private static EditionDto toEditionDto(HadithEdition e) {
@@ -188,8 +214,12 @@ public class HadithController {
      * {@code source} ('embedded'|'index') и {@code relatedExternalId} —
      * из {@code hd_rulings.metadata} (jsonb). Defensive: любая ошибка
      * парсинга → оба поля null (вердикт остаётся валиден без provenance).
+     *
+     * <p>{@code relatedHadithId} — резолв {@code relatedExternalId} в наш FK
+     * (in-method кэш). {@code relatedCollectionNameRu} — русский сборник
+     * параллельной передачи по префиксу {@code relatedExternalId}.
      */
-    private static RulingDto toRulingDto(HadithRuling r, ObjectMapper objectMapper) {
+    private RulingDto toRulingDto(HadithRuling r, ObjectMapper objectMapper, Map<String, UUID> relatedIdCache) {
         String source = null;
         String relatedExternalId = null;
         String metadata = r.metadata();
@@ -202,9 +232,13 @@ public class HadithController {
                 // metadata — extensible jsonb, provenance не критичен для рендера
             }
         }
+        UUID relatedHadithId = resolveRelatedHadithId(relatedExternalId, relatedIdCache);
+        String relatedCollectionNameRu = AlminasaCollections.byExternalId(relatedExternalId)
+                .map(CollectionInfo::nameRu).orElse(null);
         return new RulingDto(
                 r.rulerName(), r.rulerDeathYear(), r.rulingText(),
-                r.bookName(), r.page(), r.volume(), source, relatedExternalId);
+                r.bookName(), r.page(), r.volume(), source, relatedExternalId,
+                relatedHadithId, relatedCollectionNameRu);
     }
 
     private static ExplanationDto toExplanationDto(HadithExplanation e) {
@@ -212,8 +246,50 @@ public class HadithController {
                 e.kind(), e.bookName(), e.author(), e.page(), e.volume(), e.text());
     }
 
-    private static CrossrefDto toCrossrefDto(HadithCrossref c) {
-        return new CrossrefDto(c.relatedExternalId(), c.relatedHadithId(), c.note());
+    /**
+     * {@code numbers} — распарсенный JSON-массив номеров сиблинга из
+     * {@code hd_hadith_crossrefs.note} (битый/null → пустой список).
+     * {@code collectionNameAr/Ru} — сборник сиблинга по префиксу
+     * {@code relatedExternalId}. {@code relatedHadithId} — резолв в наш FK
+     * (in-method кэш; resolve-проход ETL уже мог заполнить
+     * {@code c.relatedHadithId()}, но при свежем сиблинге кэш-резолв надёжнее).
+     */
+    private CrossrefDto toCrossrefDto(HadithCrossref c, ObjectMapper objectMapper, Map<String, UUID> relatedIdCache) {
+        List<String> numbers = parseNumbers(c.note(), objectMapper);
+        Optional<CollectionInfo> info = AlminasaCollections.byExternalId(c.relatedExternalId());
+        UUID relatedHadithId = c.relatedHadithId() != null
+                ? c.relatedHadithId()
+                : resolveRelatedHadithId(c.relatedExternalId(), relatedIdCache);
+        return new CrossrefDto(
+                c.relatedExternalId(), relatedHadithId, numbers,
+                info.map(CollectionInfo::nameAr).orElse(null),
+                info.map(CollectionInfo::nameRu).orElse(null));
+    }
+
+    /**
+     * Парс JSON-массива номеров из {@code note} (формат маппера:
+     * {@code numbersNote} пишет JSON-массив). Битый/null/не-массив → пустой
+     * список (defensive: note исторически свободная строка).
+     */
+    private static List<String> parseNumbers(String note, ObjectMapper objectMapper) {
+        if (note == null || note.isBlank()) {
+            return List.of();
+        }
+        try {
+            JsonNode arr = objectMapper.readTree(note);
+            if (!arr.isArray()) {
+                return List.of();
+            }
+            List<String> numbers = new ArrayList<>();
+            for (JsonNode n : arr) {
+                if (!n.isNull()) {
+                    numbers.add(n.asText());
+                }
+            }
+            return numbers;
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 
     /**
@@ -257,6 +333,19 @@ public class HadithController {
         hadithRepository.findById(id)
                 .orElseThrow(() -> new HadithNotFoundException(id));
         return sanadGraphService.buildGraph(id);
+    }
+
+    /**
+     * Объединённый граф всех путей (طرق) хадиса: сам хадис + все его
+     * резолвленные crossref-сиблинги, слитые в один граф (общие рави — один
+     * узел, version-узел на каждую версию). Юзер: «все пути предания в одном
+     * месте». 404 как у sanad-graph.
+     */
+    @GetMapping("/{id}/turuq-graph")
+    public SanadGraphResponse getTuruqGraph(@PathVariable UUID id) {
+        hadithRepository.findById(id)
+                .orElseThrow(() -> new HadithNotFoundException(id));
+        return sanadGraphService.buildTuruqGraph(id);
     }
 
     private static HadithResponse toResponse(Hadith h) {

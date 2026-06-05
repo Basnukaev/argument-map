@@ -23,11 +23,35 @@ public record SanadGraphResponse(
         List<SanadSummary> sanads
 ) {
 
-    /** role: PROPHET / COMPANION / NARRATOR / COLLECTOR */
+    /**
+     * role: PROPHET / COMPANION / NARRATOR / COLLECTOR / VERSION.
+     *
+     * <p>VERSION-узел (юзер-фидбек: «в конце должна быть связь с версией
+     * хадиса») — конечная вершина графа, представляющая сам хадис-версию
+     * (сборник + номер + превью матна). У narrator/prophet-узлов
+     * {@code version=null}; у version-узла {@code data=null}.
+     */
     public record GraphNode(
             String id,
             String role,
-            NarratorData data
+            NarratorData data,
+            VersionInfo version
+    ) {
+    }
+
+    /**
+     * Данные version-узла (конкретного хадиса-версии). Заполняется только у
+     * узлов с {@code role="VERSION"}, {@code id=version-{hadithId}}.
+     * Поля сборника null, если коллекция хадиса не найдена.
+     */
+    public record VersionInfo(
+            UUID hadithId,
+            String externalId,
+            String collectionSlug,
+            String collectionNameAr,
+            String collectionNameRu,
+            Integer printedNumber,
+            String matnPreview
     ) {
     }
 

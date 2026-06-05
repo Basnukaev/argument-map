@@ -3416,7 +3416,8 @@ Bundled detail: hadith + sanads (с narrator-link'ами) + matns + `grades`
 `hadith-not-found`.
 
 **alminasa-обогащение (План 6):** ответ несёт богатые данные из `hd_*`.
-Скалярные поля хадиса: `hadithType` (مرفوع/موقوف/…), `chapterAr`,
+Скалярные поля хадиса: `externalId` (природный ключ alminasa, напр.
+`146-1`; null у legacy), `hadithType` (مرفوع/موقوف/…), `chapterAr`,
 `subChapterAr`, `fullTextAr` (HTML-иснад с `<a class=rawy id=N>` /
 `<a class=matn>` тегами для клик-резолва на фронте). Списки сателлитов
 (по одному запросу на тип, single-detail — N+1 нет; для legacy/seeded
@@ -3424,34 +3425,46 @@ Bundled detail: hadith + sanads (с narrator-link'ами) + matns + `grades`
 
 - `editions: [{editionName, page, volume}]` — печатные издания;
 - `rulings: [{rulerName, rulerDeathYear, rulingText, bookName, page,
-  volume, source, relatedExternalId}]` — вердикты учёных. `source`
+  volume, source, relatedExternalId, relatedHadithId,
+  relatedCollectionNameRu}]` — вердикты учёных. `source`
   (`'embedded'`|`'index'`) и `relatedExternalId` берутся из
   `hd_rulings.metadata` (jsonb, ключи `source`/`relatedExternalId`;
   отсутствуют → null). `source='index'` + `relatedExternalId` означает
-  вердикт на ПАРАЛЛЕЛЬНУЮ передачу, не на этот хадис;
+  вердикт на ПАРАЛЛЕЛЬНУЮ передачу, не на этот хадис. **Сессия 58:**
+  `relatedHadithId` (nullable) — резолв `relatedExternalId` в наш FK
+  (если параллельная передача импортирована); `relatedCollectionNameRu`
+  (nullable) — русский сборник параллельной передачи по префиксу
+  `relatedExternalId` (`bookId-…` → `AlminasaCollections`);
 - `explanations: [{kind, bookName, author, page, volume, text}]` —
   шарх/иляль/гариб (kind ∈ SHARH/ILAL/GHARIB; `text` до ~59KB);
-- `crossrefs: [{relatedExternalId, relatedHadithId, note}]` — такхридж/طرق.
+- `crossrefs: [{relatedExternalId, relatedHadithId, numbers,
+  collectionNameAr, collectionNameRu}]` — такхридж/طرق. **Сессия 58
+  (breaking):** поле `note` удалено; вместо него `numbers` — распарсенный
+  JSON-массив номеров сиблинга из `hd_hadith_crossrefs.note` (битый/null →
+  пустой список `[]`), `collectionNameAr`/`collectionNameRu` — сборник
+  сиблинга по префиксу `relatedExternalId` (неизвестный/непарсится → null).
   `relatedHadithId` (nullable) заполнен, если сиблинг уже импортирован.
 
 ```jsonc
 {
   "id": "uuid", "collectionId": "uuid", "primaryNumber": 146,
   "normalizedMatn": "...", "status": "CANONICAL", "sourceId": null,
-  "createdAt": "2026-06-04T10:00:00Z",
+  "createdAt": "2026-06-04T10:00:00Z", "externalId": "146-1",
   "hadithType": "مرفوع", "chapterAr": "كتاب بدء الوحي",
   "subChapterAr": "باب كيف كان بدء الوحي",
   "fullTextAr": "<a class=rawy id=1>عمر بن الخطاب</a> ... <a class=matn>إنما الأعمال بالنيات</a>",
   "sanads": [ /* SanadDto[] */ ], "matns": [ /* MatnDto[] */ ],
   "grades": [ /* {scholar, grade, note}[] */ ],
   "editions": [ { "editionName": "طبعة بولاق", "page": 12, "volume": 1 } ],
-  "rulings": [ { "rulerName": "البخاري", "rulerDeathYear": 256,
-    "rulingText": "صحيح", "bookName": "الجامع الصحيح", "page": 5,
-    "volume": 1, "source": "embedded", "relatedExternalId": null } ],
+  "rulings": [ { "rulerName": "الألباني", "rulerDeathYear": 1420,
+    "rulingText": "صحيح", "bookName": "السلسلة الصحيحة", "page": 7,
+    "volume": 1, "source": "index", "relatedExternalId": "158-99",
+    "relatedHadithId": "uuid", "relatedCollectionNameRu": "Сахих Муслима" } ],
   "explanations": [ { "kind": "SHARH", "bookName": "فتح الباري",
     "author": "ابن حجر", "page": 3, "volume": 1, "text": "شرح..." } ],
-  "crossrefs": [ { "relatedExternalId": "2-99", "relatedHadithId": null,
-    "note": "أخرجه مسلم" } ]
+  "crossrefs": [ { "relatedExternalId": "158-99", "relatedHadithId": "uuid",
+    "numbers": ["12", "13"], "collectionNameAr": "صحيح مسلم",
+    "collectionNameRu": "Сахих Муслима" } ]
 }
 ```
 
@@ -3464,15 +3477,23 @@ Bundled detail: hadith + sanads (с narrator-link'ами) + matns + `grades`
 видимая подпись берётся из primary chain, число цепей через ребро -
 в `sanadCount`.
 
+**Сессия 58:** граф завершается **version-узлом** самого хадиса (юзер:
+«в конце должна быть связь с версией хадиса») — `role="VERSION"`,
+`id="version-{hadithId}"`, `data=null`, заполнен `version` (VersionInfo:
+сборник + номер + превью матна). Рёбра идут от коллекторного конца каждой
+цепи (рави с МАКС. position) в version-узел (`id="edge-version-{n}"`,
+`transmissionPhrase=null`). У narrator/prophet-узлов `version=null`.
+
 **Response** `SanadGraphResponse`:
 
 ```jsonc
 {
   "hadithId": "uuid",
   "nodes": [
-    { "id": "prophet", "role": "PROPHET",
+    { "id": "prophet", "role": "PROPHET", "version": null,
       "data": { "narratorId": null, "nameAr": "النبي محمد ﷺ", "tier": 0 } },
     { "id": "narrator-{uuid}", "role": "COMPANION|NARRATOR|COLLECTOR",
+      "version": null,
       "data": {
         "narratorId": "uuid", "nameAr": "...", "nameRu": "...",
         "kunya": "...", "laqab": "...", "yearDeathHijri": 143,
@@ -3481,12 +3502,22 @@ Bundled detail: hadith + sanads (с narrator-link'ами) + matns + `grades`
         "tabaqa": "الطبقة الأولى", "gradeText": "ثقة حافظ",
         "externalId": "rawy-59",
         "collection": "Сахих аль-Бухари (только COLLECTOR)", "tier": 4
-      } }
+      } },
+    { "id": "version-{uuid}", "role": "VERSION", "data": null,
+      "version": {
+        "hadithId": "uuid", "externalId": "146-1",
+        "collectionSlug": "bukhari", "collectionNameAr": "صحيح البخاري",
+        "collectionNameRu": "Сахих аль-Бухари",
+        "printedNumber": 1, "matnPreview": "إنما الأعمال بالنيات…" } }
   ],
   "edges": [
     { "id": "edge-0", "source": "prophet", "target": "narrator-{uuid}",
       "data": { "transmissionPhrase": "سَمِعْتُ", "chainGrade": "SAHIH",
-                "onPrimaryChain": true, "sanadCount": 3 } }
+                "onPrimaryChain": true, "sanadCount": 3 } },
+    { "id": "edge-version-0", "source": "narrator-{uuid}",
+      "target": "version-{uuid}",
+      "data": { "transmissionPhrase": null, "chainGrade": null,
+                "onPrimaryChain": true, "sanadCount": 1 } }
   ],
   "sanads": [
     { "id": "uuid", "collectionRu": "Сахих аль-Бухари",
@@ -3497,16 +3528,34 @@ Bundled detail: hadith + sanads (с narrator-link'ами) + matns + `grades`
 ```
 
 - `role`: `PROPHET` (синтетический корень) / `COMPANION` (position 0) /
-  `COLLECTOR` (составитель, есть в `compiledById` sanad'а) / `NARRATOR`.
+  `COLLECTOR` (составитель, есть в `compiledById` sanad'а) / `NARRATOR` /
+  `VERSION` (узел хадиса-версии, конец графа).
 - `tier` - глубина (Пророк ﷺ = 0, далее position+1) для семантики.
 - `data.collection` заполняется только для `COLLECTOR` (из metadata sanad'а).
 - `data.tabaqa` / `data.gradeText` / `data.externalId` (План 6) — поколение,
   verbatim джарх-та'диль и природный ключ alminasa-рави (для клик-резолва
   иснада на фронте: связь токена `<a class=rawy>` в `fullTextAr` с узлом
   графа). null для синтетического узла `prophet` и не-alminasa рави.
+- `version` (Сессия 58) заполнен только у `VERSION`-узлов (`data=null`);
+  поля сборника null, если коллекция хадиса не найдена.
 - 404 `hadith-not-found` если хадиса нет.
 
 Питает компонент `SanadGraph` (React Flow, dagre TB layout, read-only).
+
+### GET /api/v1/hadith/hadiths/{id}/turuq-graph
+
+Объединённый граф всех путей предания (طرق) хадиса (Сессия 58): сам хадис
++ все его резолвленные crossref-сиблинги (`related_hadith_id IS NOT NULL`,
+distinct), слитые в **один** граф. Та же структура ответа, что у
+`sanad-graph` (`SanadGraphResponse`). 404 `hadith-not-found`.
+
+Слияние: narrator-узлы дедуплицируются по `narratorId` (рави шарятся между
+версиями — те же UUID), `prophet` один; рёбра передачи дедуплицируются по
+`(source,target)` с агрегацией `sanadCount`. `onPrimaryChain=true` только
+для рёбер primary-цепи ГЛАВНОГО хадиса. У каждой версии — свой
+version-узел (`version-{hadithId}`) и своё ребро от своего коллекторного
+конца. `hadithId` ответа = главный хадис; `sanads[]` содержит цепи всех
+версий. Read-only detail-операция (≤20 хадисов на запрос — приемлемо).
 
 ### POST /api/v1/hadith/matns/{matnId}/translate
 
@@ -4113,6 +4162,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-06-06 | v1 | **Сессия 58: turuq-graph + DTO enrichment по юзер-фидбеку.** (A) Обогащение detail-DTO: `HadithDetailResponse` +`externalId` (природный ключ alminasa, null у legacy); `RulingDto` +`relatedHadithId` (резолв `relatedExternalId`→наш FK, in-method кэш) +`relatedCollectionNameRu` (русский сборник параллельной передачи по префиксу `relatedExternalId`); `CrossrefDto` **переделан (breaking)** — поле `note` удалено, добавлены `numbers` (распарсенный JSON-массив номеров из `hd_hadith_crossrefs.note`, битый/null→`[]`), `collectionNameAr`/`collectionNameRu` (сборник сиблинга по префиксу). Единый static-хелпер `AlminasaCollections.byExternalId` для резолва префикса `bookId-…`. (B) Version-узлы в графе иснада: `SanadGraphResponse.GraphNode` +`version` (новый record `VersionInfo{hadithId, externalId, collectionSlug, collectionNameAr, collectionNameRu, printedNumber, matnPreview}`); `buildGraph` завершает граф version-узлом самого хадиса (`role=VERSION`, `id=version-{hadithId}`, `data=null`) + рёбра от коллекторного конца каждой цепи (`edge-version-{n}`, `transmissionPhrase=null`). Новый `buildTuruqGraph` — объединённый граф самого хадиса + всех резолвленных crossref-путей (общие рави = один узел, prophet один, рёбра дедуп с агрегацией `sanadCount`, `onPrimaryChain` только у primary-цепи главного, version-узел на каждую версию). Новый endpoint `GET /api/v1/hadith/hadiths/{id}/turuq-graph` → `SanadGraphResponse` (404 `hadith-not-found`). `SanadGraphService` рефакторён на общий внутренний аккумулятор `GraphAccumulator`. IT: `HadithControllerIT` (detail externalId/ruling-резолв/crossref-numbers + sanad-graph version-узел + turuq-graph merge + 404), `SanadGraphServiceTest` (version-узел + turuq merge unit) | Юзер-фидбек Hadith Explorer: (1) сырые id непонятны — показываем человекочитаемые сборники + резолвленные ссылки на сиблинги; (2) «в конце должна быть связь с версией хадиса» — version-узел замыкает граф; (3) «все пути предания в одном месте» — turuq-graph сливает طرق в один граф |
 | 2026-06-04 | v1 | **AI-перевод матна on-demand (План 7, ADR-058).** Новый эндпоинт `POST /api/v1/hadith/matns/{matnId}/translate` (отдельный `MatnTranslationController` под ресурс `/hadith/matns`): body `MatnTranslateRequest {lang}` (`@Pattern` ru\|en → 400 `validation`), query `?force=` (boolean, ADMIN-only регенерация → 403 `forbidden-admin-only`), `@CurrentUser` обязателен (anonymous → 401 `invalid-token`). 200 `MatnTranslationResponse {matnId, lang, text, cached}`: переводит `text_ar` через `LlmClient` (ADR-058) и персистит в `hd_matns.text_ru`/`text_en` (колонки существуют с Плана 1); повторный запрос → `cached=true` без LLM-вызова. `HadithTranslationService.translate()` БЕЗ @Transactional (LLM-вызов вне tx — pool-slot не держим 5-15с); `MatnRepository.updateTranslation` — два отдельных UPDATE по lang. Ошибки: 404 `matn-not-found`, 422 `invalid-matn-text` (пустой text_ar, guard ДО LLM), 503 `llm-not-configured` (sentinel-ключ, pre-flight). Race двух translate допускает двойной LLM-вызов (MVP; atomic-claim — backlog). IT: `HadithTranslationControllerIT` (стаб LlmClient + счётчик: happy/cached/force/401/404/400/422) + `HadithTranslationNotConfiguredIT` (503 без стаба) | План 7: кнопка «Перевести (ru/en)» на матне в Hadith Explorer; перевод детерминированно полезен всем читателям, мутация безопасна (заполнение NULL-поля) |
 | 2026-06-04 | v1 | **Hadith Explorer обогащён alminasa-данными (План 6).** Расширены 3 существующих ответа web-слоя (endpoint'ы НЕ переименованы, только новые поля DTO; домен/репозитории/миграции готовы Планами 1-3). (1) `GET /hadith/hadiths/{id}/detail` (`HadithDetailResponse`) +8 полей: скаляры `hadithType`/`chapterAr`/`subChapterAr`/`fullTextAr` (HTML-иснад с `<a class=rawy id=N>`/`<a class=matn>` тегами) + списки сателлитов `editions` (`EditionDto`), `rulings` (`RulingDto` — `source`/`relatedExternalId` из `hd_rulings.metadata` jsonb, парс через ObjectMapper, отсутствуют → null; `index`+`relatedExternalId` = вердикт на параллельную передачу), `explanations` (`ExplanationDto`, kind SHARH/ILAL/GHARIB), `crossrefs` (`CrossrefDto`, такхридж). Загрузка 4 репозиториев `findByHadithId` (single-detail, N+1 нет); legacy/без сателлитов → пустые массивы + null-скаляры. (2) `GET /hadith/narrators/{id}` (`NarratorResponse`) +6 полей: `tabaqa`/`gradeText`/`bornOnText`/`diedOnText`/`deathPlace` + `relations` (`NarratorRelationDto`, сеть передатчиков) — `relations` строится ТОЛЬКО в getOne; list-эндпоинт передаёт `null` (без N+1). (3) `GET /hadith/hadiths/{id}/sanad-graph` (`SanadGraphResponse.NarratorData`) +3 поля: `tabaqa`/`gradeText`/`externalId` (клик-резолв иснада на фронте); синтетический узел `prophet` несёт null'ы. Вкладки علل/غريب НЕ реализованы (ждут HAR). IT: `HadithControllerIT`/`NarratorControllerIT` (detail с сателлитами + legacy-пустота + relations + sanad-graph externalId) | План 6: фронт Hadith Explorer раскрывает богатые `hd_*` данные (тип/глава/кликабельный иснад/вердикты/шархи/такхридж/сеть передатчиков) вместо прежнего sunnah-сэмпла. Тонкий web-слой wiring готовых доменных данных |
 | 2026-06-04 | v1 | **Alminasa Import Admin API (План 5, ADR-060).** 5 новых эндпоинтов в `AlminasaAdminController` (ADMIN-only): `GET /api/v1/admin/alminasa/catalog` (12 сборников, прогресс staged→mapped; `mappedCount` ТОЛЬКО `external_source='alminasa'` — фикс C1), `GET /import/status`, `POST /import/narrators` (202+status), `POST /import/hadiths?bookId=` (202+status), `GET /dry-run/{hadithId}` (превью маппинга ДО записи, read-only rollback). DTO: `AlminasaCatalogEntryResponse`, `AlminasaImportStatusResponse`, `AlminasaDryRunResponse` (+`ChainLink`). Импорт — async на отдельном single-thread executor (`AlminasaImportConfig`, БЕЗ `alminasa.enabled`-гейта), in-memory state IDLE/RUNNING, `409 alminasa-import-already-running` при двойном запуске. Новые ошибки: `alminasa-import-already-running` (409), `alminasa-staging-not-found` (404, dry-run нестейдженного id), `alminasa-mapping-failed` (422, пустой/битый матн). Сервер НЕ блокирует импорт при идущем краулинге — идемпотентность лечит частичные данные re-run'ом | План 5: админка импорта застейдженных alminasa-данных в `hd_*` с проверяемым dry-run-превью (философия «поэтапного проверяемого импорта»). Отдельный executor (не crawl-бин): импорт работает чисто по локальному staging независимо от `alminasa.enabled` |
