@@ -43,6 +43,7 @@ import ru.basnukaev.argumentmap.hadith.web.dto.HadithDetailResponse;
 import ru.basnukaev.argumentmap.hadith.web.dto.HadithResponse;
 import ru.basnukaev.argumentmap.hadith.web.dto.RulingDto;
 import ru.basnukaev.argumentmap.hadith.web.dto.SanadGraphResponse;
+import ru.basnukaev.argumentmap.hadith.web.dto.SiblingMatnDto;
 import ru.basnukaev.argumentmap.web.dto.PageRequest;
 import ru.basnukaev.argumentmap.web.dto.PagedResponse;
 
@@ -346,6 +347,48 @@ public class HadithController {
         hadithRepository.findById(id)
                 .orElseThrow(() -> new HadithNotFoundException(id));
         return sanadGraphService.buildTuruqGraph(id);
+    }
+
+    /**
+     * Primary-матны импортированных параллельных передач (طرق) — секция
+     * «Тексты параллельных передач» (С59). Lazy-эндпоинт: detail не раздуваем
+     * (матны сиблингов нужны не каждому читателю). Порядок — по external_id
+     * (стабилен между вызовами). 404 если хадиса нет.
+     */
+    @GetMapping("/{id}/sibling-matns")
+    public List<SiblingMatnDto> getSiblingMatns(@PathVariable UUID id) {
+        hadithRepository.findById(id)
+                .orElseThrow(() -> new HadithNotFoundException(id));
+
+        // резолвленные сиблинги, дедуп по id (один сиблинг может прийти
+        // несколькими crossref-строками с разными note-номерами)
+        List<UUID> siblingIds = crossrefRepository.findByHadithId(id).stream()
+                .map(HadithCrossref::relatedHadithId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (siblingIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<UUID, String> matnByHadith = matnRepository.findPrimaryTextByHadithIds(siblingIds);
+        return siblingIds.stream()
+                .map(sid -> hadithRepository.findById(sid).orElse(null))
+                .filter(java.util.Objects::nonNull)
+                .map(h -> {
+                    Optional<CollectionInfo> info =
+                            AlminasaCollections.byExternalId(h.externalId());
+                    return new SiblingMatnDto(
+                            h.id(), h.externalId(),
+                            info.map(CollectionInfo::nameAr).orElse(null),
+                            info.map(CollectionInfo::nameRu).orElse(null),
+                            h.primaryNumber(),
+                            matnByHadith.get(h.id()));
+                })
+                // сиблинг без primary-матна бессмыслен в секции текстов
+                .filter(dto -> dto.textAr() != null && !dto.textAr().isBlank())
+                .sorted(java.util.Comparator.comparing(SiblingMatnDto::externalId))
+                .toList();
     }
 
     private static HadithResponse toResponse(Hadith h) {

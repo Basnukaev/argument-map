@@ -428,4 +428,47 @@ class HadithControllerIT {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value(org.hamcrest.Matchers.containsString("hadith-not-found")));
     }
+
+    @Test
+    void GET_siblingMatns_returnsResolvedSiblingTexts() throws Exception {
+        Instant now = Instant.now();
+        Hadith main = new Hadith(
+                UUID.randomUUID(), null, 1, "متن الأصل",
+                HadithStatus.CANONICAL, null, null, now,
+                "alminasa", "146-10", null, null, null, null);
+        hadithRepository.save(main);
+        Hadith sib = new Hadith(
+                UUID.randomUUID(), null, 489, "متن الطريق",
+                HadithStatus.VARIANT, null, null, now,
+                "alminasa", "454-489", null, null, null, null);
+        hadithRepository.save(sib);
+        // primary-матн сиблинга — то, что должно вернуться в секцию текстов
+        matnRepository.save(new Matn(
+                UUID.randomUUID(), sib.id(), "ألا أخبركم بخياركم", "الا اخبركم بخياركم",
+                null, null, null, 489, 234, 2, true, null, null, now));
+
+        // резолвленный crossref + нерезолвленный (не должен попасть)
+        crossrefRepository.save(new HadithCrossref(
+                UUID.randomUUID(), main.id(), "454-489", sib.id(), "TARIQ", null, now));
+        crossrefRepository.save(new HadithCrossref(
+                UUID.randomUUID(), main.id(), "121-7038", null, "TARIQ", null, now));
+
+        mockMvc.perform(get("/api/v1/hadith/hadiths/{id}/sibling-matns", main.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].hadithId").value(sib.id().toString()))
+                .andExpect(jsonPath("$[0].externalId").value("454-489"))
+                // имя сборника по префиксу 454 → Ибн Хиббан
+                .andExpect(jsonPath("$[0].collectionNameRu")
+                        .value(org.hamcrest.Matchers.containsString("Ибн Хиббана")))
+                .andExpect(jsonPath("$[0].printedNumber").value(489))
+                .andExpect(jsonPath("$[0].textAr")
+                        .value(org.hamcrest.Matchers.containsString("بخياركم")));
+    }
+
+    @Test
+    void GET_siblingMatns_nonExistent_returns404() throws Exception {
+        mockMvc.perform(get("/api/v1/hadith/hadiths/{id}/sibling-matns", UUID.randomUUID()))
+                .andExpect(status().isNotFound());
+    }
 }
