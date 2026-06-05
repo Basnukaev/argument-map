@@ -4,7 +4,7 @@
  * regenerated для hadith-домена, поэтому объявлено вручную здесь.
  */
 
-export type NarratorRole = 'PROPHET' | 'COMPANION' | 'NARRATOR' | 'COLLECTOR';
+export type NarratorRole = 'PROPHET' | 'COMPANION' | 'NARRATOR' | 'COLLECTOR' | 'VERSION';
 
 export type ReliabilityGrade =
   | 'THIQA'
@@ -44,10 +44,31 @@ export type NarratorData = {
   tier: number;
 };
 
+/**
+ * Версия-узел (role='VERSION') — карточка параллельной передачи (конец цепи
+ * = запись в сборнике). data у таких узлов null; смысловые поля — в version.
+ *
+ * type (не interface): как у NarratorData, React Flow v12 требует, чтобы
+ * data узла удовлетворяла Record<string, unknown> — это проходит для
+ * type-литералов (неявная индекс-сигнатура), но не для interface.
+ */
+export type VersionInfo = {
+  hadithId: string;
+  externalId: string;
+  collectionSlug: string | null;
+  collectionNameAr: string | null;
+  collectionNameRu: string | null;
+  printedNumber: number | null;
+  matnPreview: string | null;
+};
+
 export interface SanadGraphNodeDto {
   id: string;
   role: NarratorRole;
-  data: NarratorData;
+  /** null у version-узлов (role='VERSION') — смысловые поля живут в version. */
+  data: NarratorData | null;
+  /** Заполнен только у version-узлов; null у передатчиков. */
+  version: VersionInfo | null;
 }
 
 export interface SanadGraphEdgeDto {
@@ -78,8 +99,25 @@ export interface SanadGraphResponse {
   sanads: SanadSummaryDto[];
 }
 
-/** Данные узла React Flow = NarratorData + role (для рендера карточки). */
-export type SanadFlowNodeData = NarratorData & { role: NarratorRole };
+/** Роль передатчика — все роли кроме VERSION (тот рендерится отдельно). */
+export type TransmitterRole = Exclude<NarratorRole, 'VERSION'>;
+
+/**
+ * Данные узла-передатчика React Flow = NarratorData + role (рендер карточки).
+ * role исключает 'VERSION' — это дискриминант union'а SanadGraphNodeData
+ * (version-узлы имеют data с бэка null и рендерятся VersionGraphNode).
+ */
+export type SanadFlowNodeData = NarratorData & { role: TransmitterRole };
+
+/**
+ * Данные version-узла React Flow = VersionInfo + role='VERSION'.
+ * `isCurrent` — version.hadithId совпал с hadithId страницы (узел «вы здесь»,
+ * не-кликабелен). Вычисляется при сборке узлов в SanadGraph.
+ */
+export type VersionFlowNodeData = VersionInfo & { role: 'VERSION'; isCurrent: boolean };
+
+/** Объединённые данные узла графа: передатчик ИЛИ карточка-версия. */
+export type SanadGraphNodeData = SanadFlowNodeData | VersionFlowNodeData;
 
 /** Курируемая оценка хадиса учёным (из detail endpoint, metadata.grades). */
 export interface HadithGrade {
@@ -180,6 +218,10 @@ export interface RulingDto {
   volume: number | null;
   source: string | null;
   relatedExternalId: string | null;
+  /** UUID импортированной параллельной передачи (resolved) — для линка. */
+  relatedHadithId: string | null;
+  /** Имя сборника параллельной передачи (для бейджа). */
+  relatedCollectionNameRu: string | null;
 }
 
 /** Шарх / иляль / гариб (kind различает тип). Текст может быть огромным. */
@@ -196,7 +238,10 @@ export interface ExplanationDto {
 export interface CrossrefDto {
   relatedExternalId: string | null;
   relatedHadithId: string | null;
-  note: string | null;
+  /** Номера в печатном издании (распарсены бэком). */
+  numbers: string[];
+  collectionNameAr: string | null;
+  collectionNameRu: string | null;
 }
 
 /** Агрегат detail-эндпоинта GET /hadiths/{id}/detail (alminasa-обогащённый). */
@@ -208,6 +253,8 @@ export interface HadithDetailDto {
   status: string;
   sourceId: string | null;
   createdAt: string;
+  /** Свой alminasa-id хадиса (напр. "594-1") — для self-проверки вердиктов. */
+  externalId: string | null;
   hadithType: string | null;
   chapterAr: string | null;
   subChapterAr: string | null;

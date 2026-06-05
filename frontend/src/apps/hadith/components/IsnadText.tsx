@@ -10,8 +10,12 @@ interface IsnadTextProps {
    * из этой карты БЕЗ доп. фетча.
    */
   narratorByExternalId: Map<string, NarratorData> | null;
-  /** Клик по кликабельному рави → открыть панель страницы. */
-  onNarratorClick: (data: NarratorData) => void;
+  /**
+   * Клик по кликабельному рави → открыть панель страницы. `textForm` — как
+   * рави записан в тексте иснада (seg.text), для подписи «كما ورد في الإسناد»
+   * в панели (снимает путаницу الفاكهي vs الخزاعي).
+   */
+  onNarratorClick: (data: NarratorData, textForm: string) => void;
 }
 
 /**
@@ -48,7 +52,7 @@ function IsnadText({ html, narratorByExternalId, onNarratorClick }: IsnadTextPro
               <button
                 key={i}
                 type="button"
-                onClick={() => onNarratorClick(resolved)}
+                onClick={() => onNarratorClick(resolved, seg.text)}
                 className="rounded-sm font-semibold text-accent-700 underline decoration-accent-300 decoration-dotted underline-offset-4 hover:bg-accent-50 hover:decoration-accent-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
               >
                 {seg.text}

@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { ArrowLeft, BookOpen, Loader2, Network } from 'lucide-react';
+import { apiGetRaw, ApiError } from '@/shared/api/client';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import SanadGraph from '@/apps/hadith/components/SanadGraph';
@@ -23,6 +24,7 @@ import type {
   NarratorData,
   SanadFlowNodeData,
   SanadGraphResponse,
+  TransmitterRole,
 } from '@/apps/hadith/types';
 import type { components } from '@/shared/api/types';
 
@@ -84,6 +86,14 @@ function HadithDetailPage() {
 
   // Единая панель передатчика: и граф-клики, и текст-клики ставят сюда.
   const [selectedNarrator, setSelectedNarrator] = useState<SanadFlowNodeData | null>(null);
+  // Форма имени из текста иснада (клик из IsnadText) — undefined при клике из графа.
+  const [selectedTextForm, setSelectedTextForm] = useState<string | undefined>(undefined);
+
+  // Тогл «Основная цепь | Все пути»: turuq-graph грузится лениво (раз) при
+  // первом переключении, кэшируется в state.
+  const [viewMode, setViewMode] = useState<'main' | 'turuq'>('main');
+  const [turuqGraph, setTuruqGraph] = useState<SanadGraphResponse | null>(null);
+  const [turuqLoading, setTuruqLoading] = useState(false);
 
   const graph = graphState.kind === 'success' ? graphState.data : null;
 
@@ -93,6 +103,8 @@ function HadithDetailPage() {
     if (!graph) return null;
     const map = new Map<string, NarratorData>();
     for (const node of graph.nodes) {
+      // Version-узлы (data===null) пропускаем — карта только для рави-резолва.
+      if (!node.data) continue;
       const ext = node.data.externalId;
       if (ext != null) map.set(ext, node.data);
     }
@@ -111,6 +123,28 @@ function HadithDetailPage() {
   // Primary-матн (рендерится в hero) — для on-demand AI-перевода под текстом.
   const primaryMatn = detail?.matns.find((m) => m.isPrimary) ?? detail?.matns[0] ?? null;
 
+  // Число импортированных параллельных передач (resolved crossrefs) — тогл
+  // «Все пути» виден только при наличии хотя бы одной.
+  const resolvedTuruqCount = detail?.crossrefs?.filter((c) => c.relatedHadithId).length ?? 0;
+
+  // Переключение на «Все пути»: ленивый фетч turuq-graph (раз, кэш в state).
+  const handleShowTuruq = () => {
+    setViewMode('turuq');
+    if (turuqGraph || turuqLoading || !id) return;
+    setTuruqLoading(true);
+    apiGetRaw<SanadGraphResponse>(`/api/v1/hadith/hadiths/${id}/turuq-graph`)
+      .then((g) => setTuruqGraph(g))
+      .catch((e: unknown) => {
+        // Тихий фолбэк на основную цепь: показываем её, не роняем секцию.
+        setViewMode('main');
+        if (!(e instanceof ApiError)) return;
+      })
+      .finally(() => setTuruqLoading(false));
+  };
+
+  // Граф для рендера: основная цепь либо объединённый turuq (controlled).
+  const displayGraph = viewMode === 'turuq' ? turuqGraph : graph;
+
   // Секции навигации зависят от наличия данных (graceful hide пустых).
   const sections = useMemo<SectionNavItem[]>(() => {
     const items: SectionNavItem[] = [{ id: 'text', labelKey: 'hadith.detail.nav.text' }];
@@ -120,15 +154,30 @@ function HadithDetailPage() {
     if ((detail?.explanations?.length ?? 0) > 0) items.push({ id: 'explanations', labelKey: 'hadith.detail.nav.explanations' });
     if ((detail?.crossrefs?.length ?? 0) > 0) items.push({ id: 'crossrefs', labelKey: 'hadith.detail.nav.crossrefs' });
     if ((detail?.editions?.length ?? 0) > 0) items.push({ id: 'editions', labelKey: 'hadith.detail.nav.editions' });
-    items.push({ id: 'grades', labelKey: 'hadith.detail.nav.grades' });
-    items.push({ id: 'variations', labelKey: 'hadith.detail.nav.variations' });
+    // Оценки учёных — РУЧНЫЕ оценки платформы (не дубль вердиктов): секцию
+    // и пункт навигации показываем только при непустом списке.
+    if ((detail?.grades?.length ?? 0) > 0) items.push({ id: 'grades', labelKey: 'hadith.detail.nav.grades' });
+    // Вариации — у alminasa 1 запись = 1 матн; секция нужна только при >1.
+    if ((detail?.matns.length ?? 0) > 1) items.push({ id: 'variations', labelKey: 'hadith.detail.nav.variations' });
     return items;
   }, [detail]);
 
-  // Клик по рави в тексте: NarratorData из графа → добавляем role для панели.
-  const handleTextNarratorClick = (data: NarratorData) => {
-    const node = graph?.nodes.find((n) => n.data.externalId === data.externalId);
-    setSelectedNarrator({ ...data, role: node?.role ?? 'NARRATOR' });
+  // Клик по рави в тексте: NarratorData из графа → добавляем role для панели,
+  // сохраняем форму имени из текста (textForm) для подписи «في الإسناد».
+  const handleTextNarratorClick = (data: NarratorData, textForm: string) => {
+    const node = graph?.nodes.find((n) => n.data?.externalId === data.externalId);
+    // Рави-узлы всегда передатчики (у version-узлов нет externalId в data);
+    // VERSION сюда не попадёт — фолбэк на NARRATOR для типобезопасности.
+    const role: TransmitterRole =
+      node && node.role !== 'VERSION' ? node.role : 'NARRATOR';
+    setSelectedNarrator({ ...data, role });
+    setSelectedTextForm(textForm);
+  };
+
+  // Клик из графа: открываем панель без textForm (форма имени из узла = каноническая).
+  const handleGraphNarratorSelect = (data: SanadFlowNodeData) => {
+    setSelectedNarrator(data);
+    setSelectedTextForm(undefined);
   };
 
   return (
@@ -243,17 +292,64 @@ function HadithDetailPage() {
                   <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-ink-500">
                     <Network size={14} aria-hidden /> {t('hadith.detail.graph')}
                   </h2>
-                  <span className="text-xs text-ink-400">{t('hadith.detail.tap_hint')}</span>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Тогл «Основная цепь | Все пути (N)» — только при resolved>0. */}
+                    {resolvedTuruqCount > 0 && (
+                      <div className="inline-flex rounded-md border border-border-strong p-0.5 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setViewMode('main')}
+                          aria-pressed={viewMode === 'main'}
+                          className={`rounded-sm px-2 py-1 font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 ${
+                            viewMode === 'main'
+                              ? 'bg-accent-50 text-accent-700'
+                              : 'text-ink-500 hover:text-ink-700'
+                          }`}
+                        >
+                          {t('hadith.detail.graph.main_chain')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleShowTuruq}
+                          aria-pressed={viewMode === 'turuq'}
+                          className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-1 font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 ${
+                            viewMode === 'turuq'
+                              ? 'bg-accent-50 text-accent-700'
+                              : 'text-ink-500 hover:text-ink-700'
+                          }`}
+                        >
+                          {t('hadith.detail.graph.all_paths').replace(
+                            '{count}',
+                            String(resolvedTuruqCount),
+                          )}
+                          {turuqLoading && (
+                            <Loader2 size={12} className="animate-spin" aria-hidden />
+                          )}
+                        </button>
+                      </div>
+                    )}
+                    <span className="text-xs text-ink-400">{t('hadith.detail.tap_hint')}</span>
+                  </div>
                 </div>
                 <div className="relative h-[60vh] w-full overflow-hidden rounded-lg border border-border-strong bg-sunken md:h-[70vh]">
-                  <SanadGraph
-                    graph={graph}
-                    onNarratorSelect={setSelectedNarrator}
-                  />
+                  {/* turuq ещё грузится (кэша нет) → спиннер вместо пустого графа. */}
+                  {viewMode === 'turuq' && turuqLoading && !turuqGraph ? (
+                    <div className="flex h-full items-center justify-center gap-2 text-sm text-ink-500">
+                      <Loader2 size={16} className="animate-spin" aria-hidden />{' '}
+                      {t('hadith.graph.loading')}
+                    </div>
+                  ) : (
+                    <SanadGraph
+                      graph={displayGraph}
+                      currentHadithId={id}
+                      onNarratorSelect={handleGraphNarratorSelect}
+                    />
+                  )}
                   {/* Единая панель: клики из графа И из текста иснада. */}
                   {selectedNarrator && (
                     <NarratorPanel
                       data={selectedNarrator}
+                      textForm={selectedTextForm}
                       onClose={() => setSelectedNarrator(null)}
                     />
                   )}
@@ -266,7 +362,7 @@ function HadithDetailPage() {
                   <SectionHeading>
                     {t('hadith.detail.rulings')} · {detail.rulings.length}
                   </SectionHeading>
-                  <RulingsList rulings={detail.rulings} />
+                  <RulingsList rulings={detail.rulings} hadithExternalId={detail.externalId} />
                 </section>
               )}
 
@@ -305,25 +401,28 @@ function HadithDetailPage() {
                 </section>
               )}
 
-              {/* 8. Оценки учёных */}
-              <section id="grades" className={SECTION_ANCHOR}>
-                <SectionHeading>
-                  {t('hadith.detail.grades')}
-                  {detail.grades.length > 0 && ` · ${detail.grades.length}`}
-                </SectionHeading>
-                <HadithGradesList grades={detail.grades ?? []} />
-              </section>
+              {/* 8. Оценки учёных — РУЧНЫЕ оценки платформы; скрыта при пустоте. */}
+              {detail.grades.length > 0 && (
+                <section id="grades" className={SECTION_ANCHOR}>
+                  <SectionHeading>
+                    {t('hadith.detail.grades')} · {detail.grades.length}
+                  </SectionHeading>
+                  <HadithGradesList grades={detail.grades} />
+                </section>
+              )}
 
-              {/* 9. Вариации matn'а */}
-              <section id="variations" className={SECTION_ANCHOR}>
-                <SectionHeading>
-                  {t('hadith.detail.matns')} · {detail.matns.length}
-                </SectionHeading>
-                <MatnVariations
-                  matns={detail.matns}
-                  translateInHeroForId={primaryMatn?.id ?? null}
-                />
-              </section>
+              {/* 9. Вариации matn'а — скрыта при ≤1 матне (1 запись = 1 матн). */}
+              {detail.matns.length > 1 && (
+                <section id="variations" className={SECTION_ANCHOR}>
+                  <SectionHeading>
+                    {t('hadith.detail.matns')} · {detail.matns.length}
+                  </SectionHeading>
+                  <MatnVariations
+                    matns={detail.matns}
+                    translateInHeroForId={primaryMatn?.id ?? null}
+                  />
+                </section>
+              )}
             </article>
           </>
         )}

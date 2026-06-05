@@ -6,6 +6,12 @@ import type { SanadFlowNodeData } from '@/apps/hadith/types';
 interface NarratorPanelProps {
   data: SanadFlowNodeData;
   onClose: () => void;
+  /**
+   * Форма имени рави как она записана в тексте иснада (клик из IsnadText).
+   * Показывается muted-строкой «في الإسناد: …» под каноническим именем —
+   * снимает путаницу الفاكهي vs الخزاعي. undefined при клике из графа.
+   */
+  textForm?: string;
 }
 
 function Field({ label, value }: { label: string; value: string | null }) {
@@ -23,7 +29,7 @@ function Field({ label, value }: { label: string; value: string | null }) {
  * графа иснада. Абсолютно позиционируется внутри контейнера графа
  * (родитель должен быть relative); на mobile занимает всю ширину.
  */
-function NarratorPanel({ data, onClose }: NarratorPanelProps) {
+function NarratorPanel({ data, onClose, textForm }: NarratorPanelProps) {
   const t = useT();
   const rel = data.reliabilityGrade ? RELIABILITY_TOKENS[data.reliabilityGrade] : null;
 
@@ -47,6 +53,13 @@ function NarratorPanel({ data, onClose }: NarratorPanelProps) {
             {data.nameAr}
           </div>
           {data.nameRu && <div className="mt-0.5 text-sm text-ink-600">{data.nameRu}</div>}
+          {/* Форма имени как в иснаде (клик из текста) — снимает путаницу
+              канонического имени vs того, как рави назван в этой цепи. */}
+          {textForm && (
+            <div className="mt-1 font-arabic text-sm text-ink-400" dir="rtl">
+              {t('hadith.narrator.in_isnad')}: {textForm}
+            </div>
+          )}
         </div>
         <button
           type="button"

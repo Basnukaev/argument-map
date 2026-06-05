@@ -44,4 +44,16 @@ describe('NarratorPanel', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
     expect(onClose).toHaveBeenCalledOnce();
   });
+
+  it('textForm (клик из текста) → подпись «في الإسناد: …»', () => {
+    // textForm отличается от канонического имени (الفاكهي vs الخزاعي кейс)
+    render(<NarratorPanel data={DATA} onClose={() => {}} textForm="الفاكهي" />);
+    // подпись с формой имени как в иснаде (label + textForm в одном узле)
+    expect(screen.getByText(/في الإسناد:\s*الفاكهي/)).toBeInTheDocument();
+  });
+
+  it('без textForm (клик из графа) → подписи «في الإسناد» нет', () => {
+    render(<NarratorPanel data={DATA} onClose={() => {}} />);
+    expect(screen.queryByText(/في الإسناد/)).not.toBeInTheDocument();
+  });
 });

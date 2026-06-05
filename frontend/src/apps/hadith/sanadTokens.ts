@@ -31,6 +31,8 @@ export const ROLE_STRIP: Record<NarratorRole, string> = {
   COMPANION: 'bg-violet-400',
   NARRATOR: 'bg-accent-400',
   COLLECTOR: 'bg-amber-400',
+  // VERSION-узлы рендерятся отдельным компонентом (без верхней полоски).
+  VERSION: 'bg-sky-400',
 };
 
 /**

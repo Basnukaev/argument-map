@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 import {
   ReactFlow,
   Background,
@@ -8,14 +9,21 @@ import {
   MarkerType,
   type Edge,
 } from '@xyflow/react';
-import { Loader2, Network } from 'lucide-react';
+import { BookOpen, Loader2, Network } from 'lucide-react';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
 import { useT, type DictKey } from '@/shared/i18n';
 import SanadGraphNode, { type SanadNode } from './SanadGraphNode';
 import NarratorPanel from './NarratorPanel';
 import { layoutSanad } from '@/apps/hadith/utils/sanadLayout';
 import { edgeStroke, RELIABILITY_TOKENS } from '@/apps/hadith/sanadTokens';
-import type { ReliabilityGrade, SanadFlowNodeData, SanadGraphResponse } from '@/apps/hadith/types';
+import type {
+  NarratorData,
+  ReliabilityGrade,
+  SanadFlowNodeData,
+  SanadGraphNodeData,
+  SanadGraphResponse,
+  TransmitterRole,
+} from '@/apps/hadith/types';
 
 // Стабильная ссылка между рендерами (иначе React Flow предупреждает и
 // пересоздаёт типы узлов на каждый render).
@@ -44,6 +52,12 @@ interface SanadGraphProps {
    * NarratorPanel не рендерится (панелью владеет родитель).
    */
   onNarratorSelect?: (data: SanadFlowNodeData) => void;
+  /**
+   * hadithId текущей страницы — для version-узлов: совпадение с
+   * version.hadithId помечает узел «вы здесь» (не-кликабелен). Клик по чужому
+   * version-узлу навигирует на detail той передачи.
+   */
+  currentHadithId?: string;
 }
 
 /**
@@ -56,8 +70,14 @@ interface SanadGraphProps {
  *  - controlled (`graph` передан) — рендер переданных данных без fetch
  *    (admin-превью извлечённого ИИ иснада).
  */
-function SanadGraph({ hadithId, graph: graphProp, onNarratorSelect }: SanadGraphProps) {
+function SanadGraph({
+  hadithId,
+  graph: graphProp,
+  onNarratorSelect,
+  currentHadithId,
+}: SanadGraphProps) {
   const t = useT();
+  const navigate = useNavigate();
   // Controlled-режим данных определяется по присутствию пропа `graph` (даже `null`).
   const controlled = graphProp !== undefined;
   // Controlled-режим выбора: родитель владеет панелью передатчика.
@@ -94,13 +114,25 @@ function SanadGraph({ hadithId, graph: graphProp, onNarratorSelect }: SanadGraph
   // при pan/zoom — memo по graph (реальная перф-проблема, не превентивный memo).
   const { rfNodes, rfEdges } = useMemo(() => {
     if (!graph) return { rfNodes: [] as SanadNode[], rfEdges: [] as Edge[] };
-    const nodes: SanadNode[] = graph.nodes.map((n) => ({
-      id: n.id,
-      type: 'sanad',
-      position: { x: 0, y: 0 },
-      data: { ...n.data, role: n.role },
-      draggable: false,
-    }));
+    const nodes: SanadNode[] = graph.nodes.map((n) => {
+      // Version-узлы: data с бэка null, смысловые поля в n.version. Помечаем
+      // «свой» узел (isCurrent) сравнением с hadithId страницы.
+      const data: SanadGraphNodeData =
+        n.role === 'VERSION' && n.version
+          ? {
+              ...n.version,
+              role: 'VERSION',
+              isCurrent: currentHadithId != null && n.version.hadithId === currentHadithId,
+            }
+          : { ...(n.data as NarratorData), role: n.role as TransmitterRole };
+      return {
+        id: n.id,
+        type: 'sanad',
+        position: { x: 0, y: 0 },
+        data,
+        draggable: false,
+      };
+    });
     const edges: Edge[] = graph.edges.map((e) => {
       const stroke = edgeStroke(e.data.chainGrade);
       return {
@@ -123,7 +155,7 @@ function SanadGraph({ hadithId, graph: graphProp, onNarratorSelect }: SanadGraph
       };
     });
     return { rfNodes: layoutSanad(nodes, edges), rfEdges: edges };
-  }, [graph]);
+  }, [graph, currentHadithId]);
 
   if (error) {
     return (
@@ -166,11 +198,18 @@ function SanadGraph({ hadithId, graph: graphProp, onNarratorSelect }: SanadGraph
         elementsSelectable
         proOptions={{ hideAttribution: true }}
         onNodeClick={(_, node) => {
-          if (node.data.role === 'PROPHET') return;
+          const d = node.data;
+          if (d.role === 'PROPHET') return;
+          // Version-узел: навигация на detail той передачи (чужой узел);
+          // свой («вы здесь») — не-кликабелен.
+          if (d.role === 'VERSION') {
+            if (!d.isCurrent) navigate(`/hadith/hadiths/${d.hadithId}`);
+            return;
+          }
           // Controlled-выбор: пробрасываем наверх (единая панель страницы);
           // иначе открываем внутреннюю панель (self-fetch экраны / admin-превью).
-          if (selectionControlled) onNarratorSelect(node.data);
-          else setSelected(node.data);
+          if (selectionControlled) onNarratorSelect(d);
+          else setSelected(d);
         }}
         onPaneClick={() => {
           if (!selectionControlled) setSelected(null);
@@ -215,6 +254,11 @@ function SanadGraph({ hadithId, graph: graphProp, onNarratorSelect }: SanadGraph
                 </li>
               ))}
             </ul>
+          </div>
+
+          <div className="mb-2 flex items-start gap-1.5 text-[11px] leading-snug text-ink-500">
+            <BookOpen size={12} className="mt-0.5 shrink-0 text-sky-500" aria-hidden />
+            <span>{t('hadith.graph.legend_version')}</span>
           </div>
 
           <p className="text-[11px] leading-snug text-ink-500">

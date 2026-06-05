@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, type RenderResult } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
 import { waitForApi } from '@/test/asyncHelpers';
@@ -8,6 +9,11 @@ import SanadGraph from './SanadGraph';
 const BASE = 'http://test.local';
 const GRAPH_URL = `${BASE}/api/v1/hadith/hadiths/:id/sanad-graph`;
 
+// SanadGraph использует useNavigate (клик по version-узлу) — Router обязателен.
+function renderGraph(ui: React.ReactElement): RenderResult {
+  return render(<MemoryRouter>{ui}</MemoryRouter>);
+}
+
 describe('SanadGraph', () => {
   it('показывает ошибку, если эндпоинт вернул проблему', async () => {
     server.use(
@@ -15,7 +21,7 @@ describe('SanadGraph', () => {
         HttpResponse.json({ title: 'Граф недоступен' }, { status: 500 }),
       ),
     );
-    render(<SanadGraph hadithId="h1" />);
+    renderGraph(<SanadGraph hadithId="h1" />);
     await waitForApi(() => {
       expect(screen.getByText('Граф недоступен')).toBeInTheDocument();
     });
@@ -27,7 +33,7 @@ describe('SanadGraph', () => {
         HttpResponse.json({ hadithId: 'h1', nodes: [], edges: [], sanads: [] }),
       ),
     );
-    render(<SanadGraph hadithId="h1" />);
+    renderGraph(<SanadGraph hadithId="h1" />);
     await waitForApi(() => {
       expect(
         screen.getByText('Для этого хадиса иснад ещё не задокументирован'),
@@ -64,7 +70,7 @@ describe('SanadGraph', () => {
     };
     // graph как unknown — тест передаёт частичную форму NarratorData (как и
     // остальные кейсы в этом файле), полные поля рантайму не нужны.
-    render(<SanadGraph graph={graph as unknown as never} />);
+    renderGraph(<SanadGraph graph={graph as unknown as never} />);
 
     // Узел из переданного графа отрендерился сразу, без сетевого запроса
     expect(await screen.findByText('Абу Хурайра')).toBeInTheDocument();
@@ -79,7 +85,7 @@ describe('SanadGraph', () => {
         return HttpResponse.json({ hadithId: 'h1', nodes: [], edges: [], sanads: [] });
       }),
     );
-    render(<SanadGraph graph={null} />);
+    renderGraph(<SanadGraph graph={null} />);
     expect(
       await screen.findByText('Для этого хадиса иснад ещё не задокументирован'),
     ).toBeInTheDocument();
@@ -105,7 +111,7 @@ describe('SanadGraph', () => {
       edges: [],
       sanads: [],
     };
-    render(<SanadGraph graph={graph as unknown as never} onNarratorSelect={vi.fn()} />);
+    renderGraph(<SanadGraph graph={graph as unknown as never} onNarratorSelect={vi.fn()} />);
     expect(await screen.findByText('Абу Хурайра')).toBeInTheDocument();
     // внутренняя панель (aside=complementary) отсутствует — владеет родитель
     expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
@@ -152,12 +158,65 @@ describe('SanadGraph', () => {
         }),
       ),
     );
-    render(<SanadGraph hadithId="h1" />);
+    renderGraph(<SanadGraph hadithId="h1" />);
     await waitForApi(() => {
       // узел-передатчик отрендерился
       expect(screen.getByText('Умар ибн аль-Хаттаб')).toBeInTheDocument();
     });
     // легенда цепей содержит сборник
     expect(screen.getByText('Сахих аль-Бухари')).toBeInTheDocument();
+  });
+
+  it('version-узел рендерится карточкой-книгой; «свой» помечен «вы здесь»', async () => {
+    const graph = {
+      hadithId: 'h-current',
+      nodes: [
+        { id: 'prophet', role: 'PROPHET' as const, data: { narratorId: null, nameAr: 'النبي محمد ﷺ', tier: 0 } },
+        {
+          id: 'version-current',
+          role: 'VERSION' as const,
+          data: null,
+          version: {
+            hadithId: 'h-current',
+            externalId: '1-1',
+            collectionSlug: 'bukhari',
+            collectionNameAr: 'صحيح البخاري',
+            collectionNameRu: 'Сахих аль-Бухари',
+            printedNumber: 1,
+            matnPreview: 'إنما الأعمال بالنيات',
+          },
+        },
+        {
+          id: 'version-other',
+          role: 'VERSION' as const,
+          data: null,
+          version: {
+            hadithId: 'h-other',
+            externalId: '200-1',
+            collectionSlug: 'muslim',
+            collectionNameAr: 'صحيح مسلم',
+            collectionNameRu: 'Сахих Муслим',
+            printedNumber: 1907,
+            matnPreview: 'الأعمال بالنية',
+          },
+        },
+      ],
+      edges: [],
+      sanads: [],
+    };
+    renderGraph(
+      <SanadGraph
+        graph={graph as unknown as never}
+        currentHadithId="h-current"
+        onNarratorSelect={vi.fn()}
+      />,
+    );
+    // обе version-карточки отрендерились (имена сборников)
+    expect(await screen.findByText('Сахих аль-Бухари')).toBeInTheDocument();
+    expect(screen.getByText('Сахих Муслим')).toBeInTheDocument();
+    // «свой» узел (h-current) помечен «вы здесь»
+    expect(screen.getByText('вы здесь')).toBeInTheDocument();
+    // строка легенды про version-узлы присутствует
+    expect(screen.getByText(/запись в сборнике/)).toBeInTheDocument();
   });
 });

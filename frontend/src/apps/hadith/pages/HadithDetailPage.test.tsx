@@ -30,6 +30,7 @@ const DETAIL = {
   status: 'CANONICAL',
   sourceId: null,
   createdAt: '2026-01-01',
+  externalId: '1-1',
   matns: [
     {
       id: 'm1',
@@ -41,6 +42,18 @@ const DETAIL = {
       pageNo: null,
       volume: null,
       isPrimary: true,
+      divergenceSummary: null,
+    },
+    {
+      id: 'm2',
+      textAr: 'الأعمال بالنية',
+      textRu: null,
+      textEn: null,
+      collectionId: 'c1',
+      printedNumber: 2,
+      pageNo: null,
+      volume: null,
+      isPrimary: false,
       divergenceSummary: null,
     },
   ],
@@ -81,6 +94,8 @@ const ALMINASA_DETAIL = {
       volume: 1,
       source: 'embedded',
       relatedExternalId: null,
+      relatedHadithId: null,
+      relatedCollectionNameRu: null,
     },
     {
       rulerName: 'ابن حجر',
@@ -91,6 +106,8 @@ const ALMINASA_DETAIL = {
       volume: null,
       source: 'index',
       relatedExternalId: '999-2',
+      relatedHadithId: 'h-ruling-sibling',
+      relatedCollectionNameRu: 'Сунан ат-Тирмизи',
     },
   ],
   explanations: [
@@ -104,8 +121,20 @@ const ALMINASA_DETAIL = {
     },
   ],
   crossrefs: [
-    { relatedExternalId: '200-1', relatedHadithId: 'h-sibling', note: 'م 1907' },
-    { relatedExternalId: '300-1', relatedHadithId: null, note: 'د 2201' },
+    {
+      relatedExternalId: '200-1',
+      relatedHadithId: 'h-sibling',
+      numbers: ['1907'],
+      collectionNameAr: 'صحيح مسلم',
+      collectionNameRu: 'Сахих Муслим',
+    },
+    {
+      relatedExternalId: '300-1',
+      relatedHadithId: null,
+      numbers: ['2201'],
+      collectionNameAr: 'سنن أبي داود',
+      collectionNameRu: 'Сунан Абу Дауд',
+    },
   ],
 };
 
@@ -189,11 +218,33 @@ describe('HadithDetailPage', () => {
     });
   });
 
-  it('пустой список оценок → дружелюбный empty-state', async () => {
+  it('пустой список оценок → секция и пункт навигации скрыты', async () => {
     mockEndpoints({ ...DETAIL, grades: [] });
     renderPage();
     await waitForApi(() => {
-      expect(screen.getByText('Оценки учёных пока не добавлены')).toBeInTheDocument();
+      // страница загрузилась (текст-герой виден)
+      expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+    });
+    // ручные оценки платформы пусты → ни заголовка секции, ни пункта навигации
+    expect(screen.queryByRole('link', { name: 'Оценки' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Оценки учёных')).not.toBeInTheDocument();
+  });
+
+  it('вариации скрыты при ≤1 матне, показаны при >1', async () => {
+    // single-matn → секция «Вариации» и её пункт навигации скрыты
+    mockEndpoints({ ...DETAIL, matns: DETAIL.matns.slice(0, 1) });
+    const { unmount } = renderPage();
+    await waitForApi(() => {
+      expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('link', { name: 'Вариации' })).not.toBeInTheDocument();
+    unmount();
+
+    // multi-matn (DETAIL по умолчанию — 2 матна) → секция видна
+    mockEndpoints();
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByRole('link', { name: 'Вариации' })).toBeInTheDocument();
     });
   });
 
@@ -218,32 +269,68 @@ describe('HadithDetailPage', () => {
     expect(screen.getByText('باب كيف كان بدء الوحي')).toBeInTheDocument();
   });
 
-  it('alminasa: вердикт с учёным, годом смерти и provenance-подписью', async () => {
+  it('alminasa: вердикт с учёным, годом смерти и бейджем параллели', async () => {
     mockEndpoints(ALMINASA_DETAIL, GRAPH_WITH_EXTERNAL);
     renderPage();
     await waitForApi(() => {
       expect(screen.getByText('البخاري')).toBeInTheDocument();
     });
     expect(screen.getByText('ум. 256 г.х.')).toBeInTheDocument();
-    // embedded-вердикт — без подписи о параллели; index-вердикт — с подписью
-    expect(screen.getByText('на параллельную передачу 999-2')).toBeInTheDocument();
+    // index-вердикт с resolved relatedHadithId → бейдж-ссылка на сиблинга
+    // с именем сборника и mono external id
+    const badge = screen.getByRole('link', { name: /Сунан ат-Тирмизи/ });
+    expect(badge).toHaveAttribute('href', '/hadith/hadiths/h-ruling-sibling');
+    expect(within(badge).getByText('999-2')).toBeInTheDocument();
+  });
+
+  it('ruling-бейдж: self-вердикт (relatedExternalId === externalId страницы) без бейджа', async () => {
+    // вердикт на эту же запись — relatedExternalId совпадает с externalId хадиса
+    const selfRulingDetail = {
+      ...ALMINASA_DETAIL,
+      externalId: '1-1',
+      rulings: [
+        {
+          rulerName: 'الترمذي',
+          rulerDeathYear: 279,
+          rulingText: 'حسن صحيح',
+          bookName: 'الجامع',
+          page: null,
+          volume: null,
+          source: 'index',
+          relatedExternalId: '1-1',
+          relatedHadithId: 'h1',
+          relatedCollectionNameRu: 'Сахих аль-Бухари',
+        },
+      ],
+    };
+    mockEndpoints(selfRulingDetail, GRAPH_WITH_EXTERNAL);
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByText('الترمذي')).toBeInTheDocument();
+    });
+    // бейдж параллели НЕ показан (вердикт на эту же запись)
+    expect(screen.queryByRole('link', { name: /Сахих аль-Бухари/ })).not.toBeInTheDocument();
   });
 
   it('alminasa: такхридж resolved → линк, unresolved → текст', async () => {
     mockEndpoints(ALMINASA_DETAIL, GRAPH_WITH_EXTERNAL);
     renderPage();
-    // resolved (relatedHadithId есть) → линк на сиблинга
+    // resolved (relatedHadithId есть) → линк «Перейти» на сиблинга
     await waitForApi(() => {
-      expect(screen.getByRole('link', { name: /Перейти к передаче 200-1/ })).toHaveAttribute(
+      expect(screen.getByRole('link', { name: 'Перейти' })).toHaveAttribute(
         'href',
         '/hadith/hadiths/h-sibling',
       );
     });
+    // имя сборника + номер печатного издания рендерятся
+    expect(screen.getByText('Сахих Муслим')).toBeInTheDocument();
+    expect(screen.getByText('№1907')).toBeInTheDocument();
     // счётчик в заголовке секции «Такхридж · передаётся в 2 местах»
     expect(
       screen.getByRole('heading', { name: /Такхридж.*передаётся в 2 местах/ }),
     ).toBeInTheDocument();
-    // unresolved → внешний id текстом
+    // unresolved → подпись «не импортирована» + внешний id текстом
+    expect(screen.getByText('не импортирована')).toBeInTheDocument();
     expect(screen.getByText('300-1')).toBeInTheDocument();
   });
 
@@ -286,5 +373,79 @@ describe('HadithDetailPage', () => {
     expect(within(panel).getByText('Умар ибн аль-Хаттаб')).toBeInTheDocument();
     // граф запрошен ровно один раз (lifted fetch, без доп. фетча на клик)
     expect(graphFetches).toBe(1);
+  });
+
+  it('тогл «Все пути» виден при resolved>0 и лениво фетчит turuq-graph', async () => {
+    let turuqFetches = 0;
+    const TURUQ_GRAPH = {
+      hadithId: 'h1',
+      nodes: [
+        { id: 'prophet', role: 'PROPHET', data: { narratorId: null, nameAr: 'النبي محمد ﷺ', tier: 0 } },
+        {
+          id: 'version-other',
+          role: 'VERSION',
+          data: null,
+          version: {
+            hadithId: 'h-sibling',
+            externalId: '200-1',
+            collectionSlug: 'muslim',
+            collectionNameAr: 'صحيح مسلم',
+            collectionNameRu: 'Сахих Муслим (طرق)',
+            printedNumber: 1907,
+            matnPreview: 'الأعمال بالنية',
+          },
+        },
+      ],
+      edges: [],
+      sanads: [],
+    };
+    server.use(
+      http.get(`${BASE}/api/v1/hadith/hadiths/h1/detail`, () => HttpResponse.json(ALMINASA_DETAIL)),
+      http.get(`${BASE}/api/v1/hadith/collections`, () => HttpResponse.json(COLLECTIONS)),
+      http.get(`${BASE}/api/v1/hadith/hadiths/:id/sanad-graph`, () =>
+        HttpResponse.json(GRAPH_WITH_EXTERNAL),
+      ),
+      http.get(`${BASE}/api/v1/hadith/hadiths/h1/turuq-graph`, () => {
+        turuqFetches += 1;
+        return HttpResponse.json(TURUQ_GRAPH);
+      }),
+    );
+    renderPage();
+    // тогл виден (ALMINASA_DETAIL имеет 1 resolved crossref → «Все пути (1)»)
+    let allPathsBtn: HTMLElement | null = null;
+    await waitForApi(() => {
+      allPathsBtn = screen.getByRole('button', { name: /Все пути \(1\)/ });
+      expect(allPathsBtn).toBeInTheDocument();
+    });
+    // до клика turuq-graph не запрашивается (ленивый фетч)
+    expect(turuqFetches).toBe(0);
+    await userEvent.click(allPathsBtn!);
+    // version-узел из turuq-графа отрендерился → turuq-graph запрошен
+    await waitForApi(() => {
+      expect(screen.getByText('Сахих Муслим (طرق)')).toBeInTheDocument();
+    });
+    expect(turuqFetches).toBe(1);
+  });
+
+  it('тогл «Все пути» скрыт при отсутствии resolved crossrefs', async () => {
+    // crossref без relatedHadithId → resolved=0 → тогла нет
+    const noResolved = {
+      ...ALMINASA_DETAIL,
+      crossrefs: [
+        {
+          relatedExternalId: '300-1',
+          relatedHadithId: null,
+          numbers: ['2201'],
+          collectionNameAr: 'سنن أبي داود',
+          collectionNameRu: 'Сунан Абу Дауд',
+        },
+      ],
+    };
+    mockEndpoints(noResolved, GRAPH_WITH_EXTERNAL);
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: /Все пути/ })).not.toBeInTheDocument();
   });
 });

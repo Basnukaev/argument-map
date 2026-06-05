@@ -2,9 +2,10 @@ import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import { BookOpen, Star } from 'lucide-react';
 import { useT, type DictKey } from '@/shared/i18n';
 import { RELIABILITY_TOKENS, ROLE_STRIP } from '@/apps/hadith/sanadTokens';
-import type { SanadFlowNodeData } from '@/apps/hadith/types';
+import type { SanadGraphNodeData } from '@/apps/hadith/types';
+import VersionGraphNode from './VersionGraphNode';
 
-export type SanadNode = Node<SanadFlowNodeData, 'sanad'>;
+export type SanadNode = Node<SanadGraphNodeData, 'sanad'>;
 
 /**
  * Узел графа иснада — карточка передатчика. Read-only: handle'ы только
@@ -12,10 +13,16 @@ export type SanadNode = Node<SanadFlowNodeData, 'sanad'>;
  * перетаскивание отключено на уровне ReactFlow.
  *
  * Узел Пророка ﷺ рендерится особо (зелёная рамка, без оценки надёжности —
- * источник вне шкалы джарх ва тадиль).
+ * источник вне шкалы джарх ва тадиль). Version-узел (конец цепи = запись в
+ * сборнике) делегируется в VersionGraphNode (data у него null).
  */
 function SanadGraphNode({ data, selected }: NodeProps<SanadNode>) {
   const t = useT();
+
+  if (data.role === 'VERSION') {
+    return <VersionGraphNode data={data} />;
+  }
+
   const rel = data.reliabilityGrade ? RELIABILITY_TOKENS[data.reliabilityGrade] : null;
 
   if (data.role === 'PROPHET') {
