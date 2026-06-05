@@ -19,10 +19,16 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
+import ru.basnukaev.argumentmap.hadith.alminasa.etl.AlminasaRows;
+import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmAmbiguousRow;
+import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmCommentaryRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmExplanationRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmHadithRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmNarratorRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmRulingRow;
+import ru.basnukaev.argumentmap.hadith.alminasa.api.dto.AlminasaHit;
+import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmAmbiguousStagingDao;
+import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmCommentaryStagingDao;
 import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmExplanationStagingDao;
 import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmHadithStagingDao;
 import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmNarratorStagingDao;
@@ -69,6 +75,8 @@ class AlminasaMapperIT {
     @Autowired private AmNarratorStagingDao narratorStagingDao;
     @Autowired private AmRulingStagingDao rulingStagingDao;
     @Autowired private AmExplanationStagingDao explanationStagingDao;
+    @Autowired private AmCommentaryStagingDao commentaryStagingDao;
+    @Autowired private AmAmbiguousStagingDao ambiguousStagingDao;
 
     @Autowired private AlminasaNarratorMapper narratorMapper;
     @Autowired private AlminasaHadithMapper hadithMapper;
@@ -257,6 +265,92 @@ class AlminasaMapperIT {
         assertThat(expl.text()).isNotBlank();
         assertThat(expl.bookName()).isEqualTo("فتح الباري بشرح صحيح البخاري");
         assertThat(expl.author()).isEqualTo("ابن حجر العسقلاني"); // trailing space обрезан
+    }
+
+    /**
+     * DoD п.1 (План 8): staging commentary-фикстура 146-2 + ambiguous
+     * 760182/770632 + хадис-raw с {@code ambiguous[]} → mapHadith → ILAL-строка
+     * у 146-2 с текстом Даракутни; GHARIB-строки с reference-словами; повторный
+     * mapHadith — counts стабильны, SHARH выжил.
+     */
+    @Test
+    void mapHadith_146_2_иляль_и_гариб_из_staging() throws IOException {
+        // хадис 146-2 с матном + ambiguous[] (слово جرس → две словарные статьи)
+        String raw = "{\"hadith_id\":\"146-2\",\"book_name\":\"صحيح البخاري\","
+                + "\"type\":\"مرفوع\",\"hadith\":\"حديث صلصلة الجرس\","
+                + "\"matn_with_tashkeel\":\"نص فيه جرس\",\"number\":[2],"
+                + "\"ambiguous\":[{\"reference\":\"جرس\",\"reference_id\":12,"
+                + "\"explanation_ids\":[760182,770632]}]}";
+        hadithStagingDao.upsertAll(List.of(new AmHadithRow(
+                "146-2", 146, 2L, "صحيح البخاري", "مرفوع", null, null, raw)));
+
+        // commentary-фикстура 146-2 (narrations:["146-2"]) через реальную фабрику
+        JsonNode commHit = fixture("s59/hadith-commentary-12.json")
+                .path("responses").get(0).path("hits").path("hits").get(0);
+        commentaryStagingDao.upsertAll(List.of(AlminasaRows.fromCommentaryHit(
+                new AlminasaHit(commHit.path("_id").asText(), commHit.path("_source"), null))));
+
+        // ambiguous-фикстуры 760182/770632 через реальную фабрику
+        JsonNode ambHits = fixture("s59/ambiguous-12.json")
+                .path("responses").get(0).path("hits").path("hits");
+        for (JsonNode hit : ambHits) {
+            ambiguousStagingDao.upsertAll(List.of(AlminasaRows.fromAmbiguousHit(
+                    new AlminasaHit(hit.path("_id").asText(), hit.path("_source"), null))));
+        }
+
+        UUID hadithId = hadithMapper.mapHadith(hadithStagingDao.findById("146-2").orElseThrow());
+
+        List<HadithExplanation> all = explanationRepository.findByHadithId(hadithId);
+        // ── ILAL: одна строка с текстом Даракутни ──────────────────────────────────
+        List<HadithExplanation> ilal = all.stream()
+                .filter(e -> "ILAL".equals(e.kind())).toList();
+        assertThat(ilal).singleElement().satisfies(e -> {
+            assertThat(e.bookName()).isEqualTo("علل الدارقطني");
+            assertThat(e.author()).isEqualTo("أبو الحسن الدارقطني");
+            assertThat(e.text()).contains("هشام"); // commentary_text Даракутни
+            JsonNode meta = readJson(e.metadata());
+            assertThat(meta.path("commentaryId").asInt()).isEqualTo(3491);
+            assertThat(meta.path("narrations").get(0).asText()).isEqualTo("146-2");
+            assertThat(meta.path("fullText").asText()).isNotBlank();
+        });
+
+        // ── GHARIB: две строки (одно слово × две словарные статьи) ──────────────────
+        List<HadithExplanation> gharib = all.stream()
+                .filter(e -> "GHARIB".equals(e.kind())).toList();
+        assertThat(gharib).hasSize(2);
+        assertThat(gharib).allSatisfy(e -> {
+            assertThat(e.text()).isNotBlank();
+            assertThat(readJson(e.metadata()).path("reference").asText()).isEqualTo("جرس");
+            assertThat(readJson(e.metadata()).path("referenceId").asInt()).isEqualTo(12);
+        });
+        assertThat(gharib).extracting(HadithExplanation::bookName)
+                .containsExactlyInAnyOrder("النهاية في غريب الحديث", "لسان العرب");
+
+        // ── идемпотентность: повторный mapHadith — counts стабильны ────────────────
+        UUID second = hadithMapper.mapHadith(hadithStagingDao.findById("146-2").orElseThrow());
+        assertThat(second).isEqualTo(hadithId);
+        List<HadithExplanation> reall = explanationRepository.findByHadithId(hadithId);
+        assertThat(reall.stream().filter(e -> "ILAL".equals(e.kind())).count()).isEqualTo(1);
+        assertThat(reall.stream().filter(e -> "GHARIB".equals(e.kind())).count()).isEqualTo(2);
+    }
+
+    /**
+     * GHARIB: ambiguous_id без застейдженного словаря (sparse backfill) → молча
+     * skip, ни одной GHARIB-строки.
+     */
+    @Test
+    void mapHadith_гариб_без_застейдженного_словаря_skip() {
+        String raw = "{\"hadith_id\":\"146-5\",\"book_name\":\"صحيح البخاري\","
+                + "\"type\":\"مرفوع\",\"hadith\":\"حديث\",\"matn_with_tashkeel\":\"نص\","
+                + "\"number\":[5],\"ambiguous\":[{\"reference\":\"غريب\",\"reference_id\":9,"
+                + "\"explanation_ids\":[424242]}]}";
+        hadithStagingDao.upsertAll(List.of(new AmHadithRow(
+                "146-5", 146, 5L, "صحيح البخاري", "مرفوع", null, null, raw)));
+
+        UUID id = hadithMapper.mapHadith(hadithStagingDao.findById("146-5").orElseThrow());
+
+        assertThat(explanationRepository.findByHadithId(id).stream()
+                .filter(e -> "GHARIB".equals(e.kind()))).isEmpty();
     }
 
     @Test

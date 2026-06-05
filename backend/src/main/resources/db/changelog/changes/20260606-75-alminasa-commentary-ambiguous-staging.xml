@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        План 8 alminasa (علل/غريب, ADR-060): два новых staging-индекса под
+        backfill-краул зависимых данных (вкладки علل/иляль и غريب/гариб
+        Hadith Explorer).
+
+          (1) am_staging_commentary (hadith-commentary-12, علل): PK
+              commentary_id (int) — природный id комментария из _source.
+              narrations jsonb NOT NULL — массив hadith_id-строк (КЛЮЧ ДЖОЙНА
+              на хадис). GIN-индекс по narrations под оператор @> (дефолтный
+              jsonb_ops корректен для contains-запроса маппера ILAL).
+
+          (2) am_staging_ambiguous (ambiguous-12, غريب): PK ambiguous_id (int)
+              — природный id словарной статьи. Ids приходят из hadith-дока
+              поля ambiguous[] (уже в am_staging_hadith.raw — перекраул
+              hadith-12 НЕ нужен). Лукап маппером по id (findByIds).
+
+          Паттерн зеркалит am_staging_* (миграция 72): raw jsonb NOT NULL
+              (полный _source, forward-compat), горячие колонки — только то,
+              что нужно выборкам, БЕЗ FK (staging — landing zone).
+    -->
+    <changeSet id="20260606-75-alminasa-commentary-ambiguous-staging" author="Abdula Basnukaev">
+        <comment>План 8 alminasa: staging am_staging_commentary (علل) + am_staging_ambiguous (غريب)</comment>
+        <sql><![CDATA[
+            CREATE TABLE am_staging_commentary (
+                commentary_id int PRIMARY KEY,
+                book_name     text,
+                author_name   text,
+                narrations    jsonb NOT NULL,
+                raw           jsonb NOT NULL,
+                imported_at   timestamptz NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_am_staging_commentary_narrations
+                ON am_staging_commentary USING gin (narrations);
+
+            CREATE TABLE am_staging_ambiguous (
+                ambiguous_id int PRIMARY KEY,
+                book_name    text,
+                author       text,
+                raw          jsonb NOT NULL,
+                imported_at  timestamptz NOT NULL DEFAULT now()
+            );
+        ]]></sql>
+        <rollback>
+            <sql><![CDATA[
+                DROP TABLE IF EXISTS am_staging_ambiguous;
+                DROP TABLE IF EXISTS am_staging_commentary;
+            ]]></sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

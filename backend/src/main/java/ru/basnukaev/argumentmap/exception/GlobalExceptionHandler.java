@@ -16,6 +16,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import ru.basnukaev.argumentmap.ai.LlmApiException;
 import ru.basnukaev.argumentmap.hadith.alminasa.service.AlminasaMappingException;
 import ru.basnukaev.argumentmap.hadith.alminasa.service.AlminasaStagingNotFoundException;
+import ru.basnukaev.argumentmap.hadith.alminasa.web.AlminasaBackfillConflictException;
 import ru.basnukaev.argumentmap.hadith.alminasa.web.AlminasaCrawlConflictException;
 import ru.basnukaev.argumentmap.hadith.alminasa.web.AlminasaImportConflictException;
 import ru.basnukaev.argumentmap.library.imports.AiEditNotConfiguredException;
@@ -327,6 +328,13 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleAlminasaImportConflict(AlminasaImportConflictException ex) {
         return problem(HttpStatus.CONFLICT,
                 "Импорт alminasa уже идёт", "alminasa-import-already-running",
+                ex.getMessage());
+    }
+
+    @ExceptionHandler(AlminasaBackfillConflictException.class)
+    public ProblemDetail handleAlminasaBackfillConflict(AlminasaBackfillConflictException ex) {
+        return problem(HttpStatus.CONFLICT,
+                "Backfill alminasa уже идёт", "alminasa-backfill-already-running",
                 ex.getMessage());
     }
 

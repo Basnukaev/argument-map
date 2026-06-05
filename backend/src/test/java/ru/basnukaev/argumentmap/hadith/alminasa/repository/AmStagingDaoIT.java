@@ -14,6 +14,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
+import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmAmbiguousRow;
+import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmCommentaryRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmExplanationRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmHadithRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmNarratorRow;
@@ -34,6 +36,8 @@ class AmStagingDaoIT {
     @Autowired private AmNarratorStagingDao narratorDao;
     @Autowired private AmExplanationStagingDao explanationDao;
     @Autowired private AmRulingStagingDao rulingDao;
+    @Autowired private AmCommentaryStagingDao commentaryDao;
+    @Autowired private AmAmbiguousStagingDao ambiguousDao;
     @Autowired private AmCrawlCheckpointDao checkpointDao;
     @Autowired private JdbcTemplate jdbcTemplate;
 
@@ -248,6 +252,63 @@ class AmStagingDaoIT {
                 .satisfies(e -> assertThat(e.author()).isEqualTo("النووي"));
 
         assertThat(explanationDao.findByHadithId("999-999")).isEmpty();
+    }
+
+    // ── AmCommentaryStagingDao / AmAmbiguousStagingDao (миграция 75, План 8) ──
+
+    @Test
+    void commentary_upsert_идемпотентен_по_pk() {
+        commentaryDao.upsertAll(List.of(new AmCommentaryRow(
+                3491, "علل الدارقطني", "أبو الحسن الدارقطني",
+                "[\"146-2\"]", "{\"commentary_text\":\"...\"}")));
+        commentaryDao.upsertAll(List.of(new AmCommentaryRow(
+                3491, "علل الدارقطني المحدّث", "أبو الحسن الدارقطني",
+                "[\"146-2\"]", "{\"commentary_text\":\"...\"}")));
+
+        assertThat(commentaryDao.count()).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT book_name FROM am_staging_commentary WHERE commentary_id = 3491", String.class))
+                .isEqualTo("علل الدارقطني المحدّث");
+    }
+
+    @Test
+    void commentary_findByNarration_находит_по_элементу_массива() {
+        // 146-2 — в narrations; 999-9 — в другом доке; джойн по элементу массива
+        commentaryDao.upsertAll(List.of(
+                new AmCommentaryRow(3491, "علل الدارقطني", "الدارقطني",
+                        "[\"146-2\",\"454-38\"]", "{\"commentary_text\":\"a\"}"),
+                new AmCommentaryRow(7777, "علل أخرى", "آخر",
+                        "[\"999-9\"]", "{\"commentary_text\":\"b\"}")));
+
+        List<AmCommentaryRow> hit = commentaryDao.findByNarration("146-2");
+        assertThat(hit).singleElement()
+                .satisfies(r -> assertThat(r.commentaryId()).isEqualTo(3491));
+
+        // второй элемент того же массива тоже находит
+        assertThat(commentaryDao.findByNarration("454-38")).singleElement()
+                .satisfies(r -> assertThat(r.commentaryId()).isEqualTo(3491));
+
+        // несуществующий — пусто (НЕ silent substring-match)
+        assertThat(commentaryDao.findByNarration("146-200")).isEmpty();
+    }
+
+    @Test
+    void ambiguous_upsert_идемпотентен_и_findByIds() {
+        ambiguousDao.upsertAll(List.of(
+                new AmAmbiguousRow(760182, "النهاية في غريب الحديث", "ابن الأثير",
+                        "{\"explanation\":\"...\"}"),
+                new AmAmbiguousRow(770632, "لسان العرب", "ابن منظور",
+                        "{\"explanation\":\"...\"}")));
+        // повтор того же id — count стабилен
+        ambiguousDao.upsertAll(List.of(
+                new AmAmbiguousRow(760182, "النهاية في غريب الحديث", "ابن الأثير",
+                        "{\"explanation\":\"updated\"}")));
+        assertThat(ambiguousDao.count()).isEqualTo(2);
+
+        List<AmAmbiguousRow> found = ambiguousDao.findByIds(List.of(760182, 770632, 999999));
+        assertThat(found).extracting(AmAmbiguousRow::ambiguousId)
+                .containsExactlyInAnyOrder(760182, 770632);
+        assertThat(ambiguousDao.findByIds(List.of())).isEmpty();
     }
 
     @Test

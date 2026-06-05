@@ -1,0 +1,34 @@
+{
+  "took": 1,
+  "timed_out": false,
+  "hits": {
+    "total": { "value": 2, "relation": "eq" },
+    "hits": [
+      {
+        "_index": "es-prod-euw1-ambiguous-12.2024-08-24-23-53",
+        "_id": "0q7PhpEBXUur4f6nBgiu",
+        "_source": {
+          "id": 760182,
+          "book_name": "النهاية في غريب الحديث",
+          "author": "ابن الأثير",
+          "explanation": "( جَرَسَ ) الجرس في الأصل الصوت الخفي ومنه صوت جرس طير الجنة.",
+          "page": 261,
+          "volume": 1
+        }
+      },
+      {
+        "_index": "es-prod-euw1-ambiguous-12.2024-08-24-23-53",
+        "_id": "BK7PhpEBXUur4f6nEhz-",
+        "_source": {
+          "id": 770632,
+          "book_name": "لسان العرب",
+          "author": "ابن منظور",
+          "explanation": "[ جرس ] الجرس الصوت المجروس والجرس الصوت نفسه.",
+          "page": 124,
+          "volume": 3
+        }
+      }
+    ]
+  },
+  "status": 200
+}

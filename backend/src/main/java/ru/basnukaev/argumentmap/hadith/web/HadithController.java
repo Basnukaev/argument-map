@@ -176,7 +176,7 @@ public class HadithController {
                 .map(r -> toRulingDto(r, objectMapper, relatedIdCache))
                 .toList();
         List<ExplanationDto> explanations = explanationRepository.findByHadithId(id).stream()
-                .map(HadithController::toExplanationDto)
+                .map(e -> toExplanationDto(e, objectMapper))
                 .toList();
         List<CrossrefDto> crossrefs = crossrefRepository.findByHadithId(id).stream()
                 .map(c -> toCrossrefDto(c, objectMapper, relatedIdCache))
@@ -242,9 +242,25 @@ public class HadithController {
                 relatedHadithId, relatedCollectionNameRu);
     }
 
-    private static ExplanationDto toExplanationDto(HadithExplanation e) {
+    /**
+     * {@code reference} (СЛОВО-заголовок гариб-статьи) — из
+     * {@code hd_explanations.metadata.reference} (jsonb; есть только у GHARIB).
+     * Defensive: любая ошибка парсинга → null (карточка остаётся валидна без
+     * заголовка-слова; образец {@link #toRulingDto}).
+     */
+    private static ExplanationDto toExplanationDto(HadithExplanation e, ObjectMapper objectMapper) {
+        String reference = null;
+        String metadata = e.metadata();
+        if (metadata != null && !metadata.isBlank()) {
+            try {
+                JsonNode root = objectMapper.readTree(metadata);
+                reference = nodeText(root, "reference");
+            } catch (Exception ex) {
+                // metadata — extensible jsonb, reference не критичен для рендера
+            }
+        }
         return new ExplanationDto(
-                e.kind(), e.bookName(), e.author(), e.page(), e.volume(), e.text());
+                e.kind(), e.bookName(), e.author(), e.page(), e.volume(), e.text(), reference);
     }
 
     /**

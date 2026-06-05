@@ -3435,8 +3435,13 @@ Bundled detail: hadith + sanads (с narrator-link'ами) + matns + `grades`
   (если параллельная передача импортирована); `relatedCollectionNameRu`
   (nullable) — русский сборник параллельной передачи по префиксу
   `relatedExternalId` (`bookId-…` → `AlminasaCollections`);
-- `explanations: [{kind, bookName, author, page, volume, text}]` —
-  шарх/иляль/гариб (kind ∈ SHARH/ILAL/GHARIB; `text` до ~59KB);
+- `explanations: [{kind, bookName, author, page, volume, text, reference}]` —
+  шарх/иляль/гариб (kind ∈ SHARH/ILAL/GHARIB; `text` до ~59KB).
+  **Сессия 59 (План 8):** `reference` (nullable) — заголовок-СЛОВО гариб-статьи
+  (из `hd_explanations.metadata.reference` через defensive jsonb-парс; есть
+  только у GHARIB, для SHARH/ILAL — null). ILAL (علل/иляль — скрытые дефекты,
+  «Илал ад-Даракутни») и GHARIB (غريب — толкования редких слов, «ан-Нихая»/
+  «Лисан аль-араб») наполняются backfill-краулом + re-map (см. Backfill Admin API);
 - `crossrefs: [{relatedExternalId, relatedHadithId, numbers,
   collectionNameAr, collectionNameRu}]` — такхридж/طرق. **Сессия 58
   (breaking):** поле `note` удалено; вместо него `numbers` — распарсенный
@@ -3461,7 +3466,11 @@ Bundled detail: hadith + sanads (с narrator-link'ами) + matns + `grades`
     "volume": 1, "source": "index", "relatedExternalId": "158-99",
     "relatedHadithId": "uuid", "relatedCollectionNameRu": "Сахих Муслима" } ],
   "explanations": [ { "kind": "SHARH", "bookName": "فتح الباري",
-    "author": "ابن حجر", "page": 3, "volume": 1, "text": "شرح..." } ],
+    "author": "ابن حجر", "page": 3, "volume": 1, "text": "شرح...",
+    "reference": null },
+    { "kind": "GHARIB", "bookName": "النهاية في غريب الحديث",
+    "author": "ابن الأثير", "page": 261, "volume": 1,
+    "text": "تفسير...", "reference": "جرس" } ],
   "crossrefs": [ { "relatedExternalId": "158-99", "relatedHadithId": "uuid",
     "numbers": ["12", "13"], "collectionNameAr": "صحيح مسلم",
     "collectionNameRu": "Сахих Муслима" } ]
@@ -3695,6 +3704,57 @@ narrators/explanations/rulings добираются батчевыми `terms`-�
 - `stagedHadiths` / `stagedNarrators` / `stagedExplanations` / `stagedRulings`
   — `COUNT(*)` соответствующих `am_staging_*` (фактическое наполнение БД,
   независимо от чекпоинта).
+
+## Alminasa Backfill Admin API (План 8, ADR-060)
+
+Backfill-краул зависимых данных علл/иляль (`hadith-commentary-12`) и غريب/гариб
+(`ambiguous-12`) поверх уже снятого корпуса хадисов — **без пере-обхода
+hadith-12** (поле `ambiguous[]` уже в `am_staging_hadith.raw`). Цикл идёт keyset'ом
+по staging-корпусу В ПАМЯТИ, на странице добирает commentary по `hadith_id`'ам и
+ambiguous по `explanation_ids` из `raw.ambiguous[]`. One-shot ~30-40 мин, БЕЗ
+resumability (crash/pause → рестарт с нуля; upsert идемпотентен). Свой
+single-thread executor — **может идти параллельно с crawl**. **ADMIN-only** (403
+`forbidden-admin-only`).
+
+### POST /api/v1/admin/alminasa/backfill/start
+
+Запуск backfill → `am_staging_commentary` + `am_staging_ambiguous`. **202** +
+`AlminasaBackfillStatusResponse`. **409** `alminasa-backfill-already-running`
+если backfill уже идёт (живой `RUNNING`-state; либо `TaskRejectedException` при
+живом воркере — пул `queue=0`).
+
+### POST /api/v1/admin/alminasa/backfill/pause
+
+Пауза на границе текущей страницы (флаг). **202** + `AlminasaBackfillStatusResponse`.
+**После pause рестарт ТОЖЕ с нуля** (in-memory курсор теряется — resumability вне
+скоупа Плана 8).
+
+### GET /api/v1/admin/alminasa/backfill/status
+
+Снапшот прогона + счётчики staging علل/غريب (поллинг). **200** +
+`AlminasaBackfillStatusResponse`.
+
+`AlminasaBackfillStatusResponse`:
+```json
+{
+  "status": "RUNNING",
+  "startedAt": "2026-06-06T10:00:00Z",
+  "processedPages": 12,
+  "processedHadiths": 1200,
+  "stagedCommentaries": 340,
+  "stagedAmbiguous": 1180,
+  "error": null
+}
+```
+
+- `status` — `IDLE` / `RUNNING` (in-memory state прогона; не переживает рестарт).
+- `startedAt` — старт текущего/последнего прогона (`null` до первого запуска).
+- `processedPages` / `processedHadiths` — коарс-прогресс текущего/последнего прогона.
+- `stagedCommentaries` / `stagedAmbiguous` — `COUNT(*)` `am_staging_commentary` /
+  `am_staging_ambiguous` (фактическое наполнение БД).
+- `error` — текст последней ошибки (если прогон упал; иначе `null`). После фейла
+  `status=IDLE` + `error≠null` → повторный `start` снова разрешён (finally-контракт,
+  без вечного 409).
 
 ## Alminasa Import Admin API (План 5, ADR-060)
 
@@ -4162,6 +4222,7 @@ only (id+title+authorityId), полная сериализация исключ�
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-06-06 | v1 | **План 8: вкладки علل (иляль) и غريب (гариб) — backfill + DTO.** (A) Миграция 75: staging `am_staging_commentary` (علل, PK `commentary_id`, `narrations jsonb` + GIN-индекс под `@>`, raw) + `am_staging_ambiguous` (غريب, PK `ambiguous_id`, raw). DAO с `upsertAll` (ON CONFLICT) / `count` / `AmCommentaryStagingDao.findByNarration` (GIN `narrations @> ["146-2"]`, bind = Jackson-сериализованный массив) / `AmAmbiguousStagingDao.findByIds`. (B) `AlminasaEsClient` +`fetchCommentaries` (terms `commentary.narrations`, батчи по `dependent-batch-size`, size=`dependent-fetch-size`) +`fetchAmbiguous` (terms `id`, батчи `min(200, dependent-fetch-size)`, size=размеру батча) — `_search` (не `_msearch`). Новый `AlminasaDependentsBackfillService` (in-memory keyset по staging-корпусу, коарс-чекпоинт `backfill-s59`, свой `alminasaBackfillExecutor`, CAS+finally-контракт; может идти параллельно с crawl) + 3 admin-эндпоинта `POST /admin/alminasa/backfill/{start,pause}` (202; 409 `alminasa-backfill-already-running`) + `GET /admin/alminasa/backfill/status` (`AlminasaBackfillStatusResponse`). (C) `AlminasaHadithMapper.insertExplanations` +ILAL (`findByNarration`→kind=ILAL, text=`commentary_text`, metadata `{commentaryId, narrations, fullText, fullTextHtml}`) +GHARIB (`raw.ambiguous[]`→строка на `(ambiguous_id × reference_id)`, text=`explanation`, metadata `{ambiguousId, reference, referenceId}`; нет словаря в staging→skip); SHARH-путь нетронут, delete-recreate держит идемпотентность. (D) `ExplanationDto` +`reference` (nullable, GHARIB-заголовок-слово; `toExplanationDto` читает metadata defensive try/catch). IT: `AmStagingDaoIT`/`AlminasaRowsTest` (round-trip + findByNarration на 146-2), `AlminasaEsClientStubIT` (shapes обоих индексов), `AlminasaDependentsBackfillServiceIT` (e2e + фейл→IDLE→relaunch + 409-latch), `AlminasaMapperIT` (ILAL Даракутни + GHARIB + idem), `HadithControllerIT` (GHARIB.reference) | План 8: علل (скрытые дефекты, «Илал ад-Даракутни») и غريب (толкования редких слов) приходят в `hd_explanations` отдельными kind'ами для соответствующих секций Hadith Explorer. Backfill мал (2 индекса по снятому корпусу, `ambiguous[]` уже в raw) |
 | 2026-06-06 | v1 | **Сессия 58: turuq-graph + DTO enrichment по юзер-фидбеку.** (A) Обогащение detail-DTO: `HadithDetailResponse` +`externalId` (природный ключ alminasa, null у legacy); `RulingDto` +`relatedHadithId` (резолв `relatedExternalId`→наш FK, in-method кэш) +`relatedCollectionNameRu` (русский сборник параллельной передачи по префиксу `relatedExternalId`); `CrossrefDto` **переделан (breaking)** — поле `note` удалено, добавлены `numbers` (распарсенный JSON-массив номеров из `hd_hadith_crossrefs.note`, битый/null→`[]`), `collectionNameAr`/`collectionNameRu` (сборник сиблинга по префиксу). Единый static-хелпер `AlminasaCollections.byExternalId` для резолва префикса `bookId-…`. (B) Version-узлы в графе иснада: `SanadGraphResponse.GraphNode` +`version` (новый record `VersionInfo{hadithId, externalId, collectionSlug, collectionNameAr, collectionNameRu, printedNumber, matnPreview}`); `buildGraph` завершает граф version-узлом самого хадиса (`role=VERSION`, `id=version-{hadithId}`, `data=null`) + рёбра от коллекторного конца каждой цепи (`edge-version-{n}`, `transmissionPhrase=null`). Новый `buildTuruqGraph` — объединённый граф самого хадиса + всех резолвленных crossref-путей (общие рави = один узел, prophet один, рёбра дедуп с агрегацией `sanadCount`, `onPrimaryChain` только у primary-цепи главного, version-узел на каждую версию). Новый endpoint `GET /api/v1/hadith/hadiths/{id}/turuq-graph` → `SanadGraphResponse` (404 `hadith-not-found`). `SanadGraphService` рефакторён на общий внутренний аккумулятор `GraphAccumulator`. IT: `HadithControllerIT` (detail externalId/ruling-резолв/crossref-numbers + sanad-graph version-узел + turuq-graph merge + 404), `SanadGraphServiceTest` (version-узел + turuq merge unit) | Юзер-фидбек Hadith Explorer: (1) сырые id непонятны — показываем человекочитаемые сборники + резолвленные ссылки на сиблинги; (2) «в конце должна быть связь с версией хадиса» — version-узел замыкает граф; (3) «все пути предания в одном месте» — turuq-graph сливает طرق в один граф |
 | 2026-06-04 | v1 | **AI-перевод матна on-demand (План 7, ADR-058).** Новый эндпоинт `POST /api/v1/hadith/matns/{matnId}/translate` (отдельный `MatnTranslationController` под ресурс `/hadith/matns`): body `MatnTranslateRequest {lang}` (`@Pattern` ru\|en → 400 `validation`), query `?force=` (boolean, ADMIN-only регенерация → 403 `forbidden-admin-only`), `@CurrentUser` обязателен (anonymous → 401 `invalid-token`). 200 `MatnTranslationResponse {matnId, lang, text, cached}`: переводит `text_ar` через `LlmClient` (ADR-058) и персистит в `hd_matns.text_ru`/`text_en` (колонки существуют с Плана 1); повторный запрос → `cached=true` без LLM-вызова. `HadithTranslationService.translate()` БЕЗ @Transactional (LLM-вызов вне tx — pool-slot не держим 5-15с); `MatnRepository.updateTranslation` — два отдельных UPDATE по lang. Ошибки: 404 `matn-not-found`, 422 `invalid-matn-text` (пустой text_ar, guard ДО LLM), 503 `llm-not-configured` (sentinel-ключ, pre-flight). Race двух translate допускает двойной LLM-вызов (MVP; atomic-claim — backlog). IT: `HadithTranslationControllerIT` (стаб LlmClient + счётчик: happy/cached/force/401/404/400/422) + `HadithTranslationNotConfiguredIT` (503 без стаба) | План 7: кнопка «Перевести (ru/en)» на матне в Hadith Explorer; перевод детерминированно полезен всем читателям, мутация безопасна (заполнение NULL-поля) |
 | 2026-06-04 | v1 | **Hadith Explorer обогащён alminasa-данными (План 6).** Расширены 3 существующих ответа web-слоя (endpoint'ы НЕ переименованы, только новые поля DTO; домен/репозитории/миграции готовы Планами 1-3). (1) `GET /hadith/hadiths/{id}/detail` (`HadithDetailResponse`) +8 полей: скаляры `hadithType`/`chapterAr`/`subChapterAr`/`fullTextAr` (HTML-иснад с `<a class=rawy id=N>`/`<a class=matn>` тегами) + списки сателлитов `editions` (`EditionDto`), `rulings` (`RulingDto` — `source`/`relatedExternalId` из `hd_rulings.metadata` jsonb, парс через ObjectMapper, отсутствуют → null; `index`+`relatedExternalId` = вердикт на параллельную передачу), `explanations` (`ExplanationDto`, kind SHARH/ILAL/GHARIB), `crossrefs` (`CrossrefDto`, такхридж). Загрузка 4 репозиториев `findByHadithId` (single-detail, N+1 нет); legacy/без сателлитов → пустые массивы + null-скаляры. (2) `GET /hadith/narrators/{id}` (`NarratorResponse`) +6 полей: `tabaqa`/`gradeText`/`bornOnText`/`diedOnText`/`deathPlace` + `relations` (`NarratorRelationDto`, сеть передатчиков) — `relations` строится ТОЛЬКО в getOne; list-эндпоинт передаёт `null` (без N+1). (3) `GET /hadith/hadiths/{id}/sanad-graph` (`SanadGraphResponse.NarratorData`) +3 поля: `tabaqa`/`gradeText`/`externalId` (клик-резолв иснада на фронте); синтетический узел `prophet` несёт null'ы. Вкладки علل/غريب НЕ реализованы (ждут HAR). IT: `HadithControllerIT`/`NarratorControllerIT` (detail с сателлитами + legacy-пустота + relations + sanad-graph externalId) | План 6: фронт Hadith Explorer раскрывает богатые `hd_*` данные (тип/глава/кликабельный иснад/вердикты/шархи/такхридж/сеть передатчиков) вместо прежнего sunnah-сэмпла. Тонкий web-слой wiring готовых доменных данных |

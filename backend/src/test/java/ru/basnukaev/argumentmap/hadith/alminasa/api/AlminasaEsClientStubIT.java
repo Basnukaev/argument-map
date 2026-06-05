@@ -170,6 +170,52 @@ class AlminasaEsClientStubIT {
     }
 
     @Test
+    void fetchCommentaries_terms_по_commentary_narrations() throws IOException {
+        fixtureToServe.set("s59/commentary-search-response.json");
+
+        List<AlminasaHit> hits = client.fetchCommentaries(List.of("146-2"));
+
+        CapturedRequest req = captured.poll();
+        assertThat(req.path())
+                .isEqualTo("/api/reactivesearchproxy/es-prod-euw1-hadith-commentary-12-read/_search");
+        JsonNode body = MAPPER.readTree(req.body());
+        assertThat(body.path("query").path("terms").path("commentary.narrations").get(0).asText())
+                .isEqualTo("146-2");
+        assertThat(body.path("size").asInt()).isEqualTo(500); // dependent-fetch-size
+        assertThat(body.path("track_total_hits").asBoolean()).isTrue();
+
+        assertThat(hits).hasSize(1);
+        assertThat(hits.get(0).source().path("commentary").path("id").asInt()).isEqualTo(3491);
+    }
+
+    @Test
+    void fetchAmbiguous_terms_по_id_и_size_по_размеру_батча() throws IOException {
+        fixtureToServe.set("s59/ambiguous-search-response.json");
+
+        List<AlminasaHit> hits = client.fetchAmbiguous(List.of(760182, 770632));
+
+        CapturedRequest req = captured.poll();
+        assertThat(req.path())
+                .isEqualTo("/api/reactivesearchproxy/es-prod-euw1-ambiguous-12-read/_search");
+        JsonNode body = MAPPER.readTree(req.body());
+        JsonNode terms = body.path("query").path("terms").path("id");
+        assertThat(terms.get(0).asInt()).isEqualTo(760182);
+        assertThat(terms.get(1).asInt()).isEqualTo(770632);
+        // size = размеру батча (1 id = ровно 1 док)
+        assertThat(body.path("size").asInt()).isEqualTo(2);
+
+        assertThat(hits).hasSize(2);
+        assertThat(hits.get(0).source().path("id").asInt()).isEqualTo(760182);
+    }
+
+    @Test
+    void fetchCommentaries_и_fetchAmbiguous_пустые_коллекции_без_сетевых_вызовов() {
+        assertThat(client.fetchCommentaries(List.of())).isEmpty();
+        assertThat(client.fetchAmbiguous(List.of())).isEmpty();
+        assertThat(captured).isEmpty();
+    }
+
+    @Test
     void не_2xx_бросает_AlminasaApiException_со_статусом() {
         fixtureToServe.set("hadith-page-empty.json");
         statusToServe.set(503);

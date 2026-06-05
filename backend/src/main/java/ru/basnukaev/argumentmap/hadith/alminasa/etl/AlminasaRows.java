@@ -3,6 +3,8 @@ package ru.basnukaev.argumentmap.hadith.alminasa.etl;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import ru.basnukaev.argumentmap.hadith.alminasa.api.dto.AlminasaHit;
+import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmAmbiguousRow;
+import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmCommentaryRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmExplanationRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmHadithRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmNarratorRow;
@@ -75,6 +77,52 @@ public final class AlminasaRows {
                 requireText(hadith, "hadith_id"),
                 textOrNull(explanation, "explanation_book_name"),
                 textOrNull(explanation, "explanation_book_author"),
+                src.toString()
+        );
+    }
+
+    /**
+     * Комментарий-иляль (علل): hit._source.commentary → {@link AmCommentaryRow}.
+     * PK = commentary.id; raw = вложенный {@code commentary}-узел (маппер читает
+     * из него commentary_text / full_text / full_text_html напрямую). narrations
+     * — массив hadith_id-строк (ключ джойна на хадис).
+     */
+    public static AmCommentaryRow fromCommentaryHit(AlminasaHit hit) {
+        JsonNode commentary = hit.source().path("commentary");
+        JsonNode idNode = commentary.path("id");
+        if (!idNode.canConvertToInt()) {
+            throw new IllegalArgumentException(
+                    "alminasa commentary без numeric id: " + commentary.path("id"));
+        }
+        JsonNode narrations = commentary.path("narrations");
+        if (!narrations.isArray()) {
+            throw new IllegalArgumentException(
+                    "alminasa commentary без массива narrations: id=" + idNode.asInt());
+        }
+        return new AmCommentaryRow(
+                idNode.asInt(),
+                textOrNull(commentary, "book_name"),
+                textOrNull(commentary, "author_name"),
+                narrations.toString(),
+                commentary.toString()
+        );
+    }
+
+    /**
+     * Словарная статья гариб (غريب): hit._source → {@link AmAmbiguousRow}.
+     * PK = id; raw = полный _source (длинный {@code explanation} внутри).
+     */
+    public static AmAmbiguousRow fromAmbiguousHit(AlminasaHit hit) {
+        JsonNode src = hit.source();
+        JsonNode idNode = src.path("id");
+        if (!idNode.canConvertToInt()) {
+            throw new IllegalArgumentException(
+                    "alminasa ambiguous без numeric id: " + src.path("id"));
+        }
+        return new AmAmbiguousRow(
+                idNode.asInt(),
+                textOrNull(src, "book_name"),
+                textOrNull(src, "author"),
                 src.toString()
         );
     }

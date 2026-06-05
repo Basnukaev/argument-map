@@ -48,6 +48,11 @@ public class AlminasaEsClient {
     static final String NARRATORS_INDEX = "narrators-12";
     static final String EXPLANATION_INDEX = "hadith-explanation-12";
     static final String RULINGS_INDEX = "rulings-12_v2";
+    static final String COMMENTARY_INDEX = "hadith-commentary-12";
+    static final String AMBIGUOUS_INDEX = "ambiguous-12";
+
+    /** Потолок batch'а ids для ambiguous (terms по id, 1 id = 1 док). */
+    private static final int AMBIGUOUS_MAX_BATCH = 200;
 
     private final HttpClient httpClient;
     private final AlminasaProperties props;
@@ -113,6 +118,73 @@ public class AlminasaEsClient {
     @Retry(name = "alminasaApi")
     public AlminasaPage fetchRulingsByHadithIds(Collection<String> hadithIds) {
         return fetchDependents(RULINGS_INDEX, "hadith_id", hadithIds);
+    }
+
+    /**
+     * Комментарии-иляль (علл) по hadith_id'ам: terms по {@code commentary.narrations}
+     * (массив hadith_id-строк). Батчинг per-index (реш. 1 M1): батчи hadith_id'ов
+     * по {@code dependent-batch-size} (25), ES size = {@code dependent-fetch-size}.
+     * Хиты всех батчей агрегируются; overflow-warn на батч (паттерн dependents).
+     */
+    @Retry(name = "alminasaApi")
+    public List<AlminasaHit> fetchCommentaries(List<String> hadithIds) {
+        if (hadithIds.isEmpty()) {
+            return List.of();
+        }
+        List<AlminasaHit> all = new ArrayList<>();
+        for (List<String> batch : partition(hadithIds, props.crawl().dependentBatchSize())) {
+            ObjectNode body = objectMapper.createObjectNode();
+            body.put("size", props.crawl().dependentFetchSize());
+            ArrayNode terms = body.putObject("query").putObject("terms")
+                    .putArray("commentary.narrations");
+            batch.forEach(terms::add);
+            body.put("track_total_hits", true);
+            AlminasaPage page = toPage(search(COMMENTARY_INDEX, body));
+            warnOnOverflow(COMMENTARY_INDEX, page, props.crawl().dependentFetchSize());
+            all.addAll(page.hits());
+        }
+        return all;
+    }
+
+    /**
+     * Словарные статьи гариб (غريب) по их id: terms по {@code id} (1 id = ровно
+     * 1 док). Батчинг per-index (реш. 1 M1): батчи по {@code min(200, dependent-fetch-size)},
+     * ES size = размеру батча. Хиты всех батчей агрегируются.
+     */
+    @Retry(name = "alminasaApi")
+    public List<AlminasaHit> fetchAmbiguous(List<Integer> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        int batchSize = Math.min(AMBIGUOUS_MAX_BATCH, props.crawl().dependentFetchSize());
+        List<AlminasaHit> all = new ArrayList<>();
+        for (List<Integer> batch : partition(ids, batchSize)) {
+            ObjectNode body = objectMapper.createObjectNode();
+            body.put("size", batch.size());
+            ArrayNode terms = body.putObject("query").putObject("terms").putArray("id");
+            batch.forEach(terms::add);
+            body.put("track_total_hits", true);
+            AlminasaPage page = toPage(search(AMBIGUOUS_INDEX, body));
+            warnOnOverflow(AMBIGUOUS_INDEX, page, batch.size());
+            all.addAll(page.hits());
+        }
+        return all;
+    }
+
+    private void warnOnOverflow(String index, AlminasaPage page, int size) {
+        if (page.totalHits() > page.hits().size()) {
+            log.warn("alminasa {}: total={} > возвращено {} (size={}) — "
+                            + "увеличь size или уменьши батч",
+                    index, page.totalHits(), page.hits().size(), size);
+        }
+    }
+
+    private static <T> List<List<T>> partition(List<T> list, int size) {
+        List<List<T>> parts = new ArrayList<>();
+        for (int i = 0; i < list.size(); i += size) {
+            parts.add(list.subList(i, Math.min(i + size, list.size())));
+        }
+        return parts;
     }
 
     private AlminasaPage fetchDependents(String index, String termsField, Collection<String> hadithIds) {

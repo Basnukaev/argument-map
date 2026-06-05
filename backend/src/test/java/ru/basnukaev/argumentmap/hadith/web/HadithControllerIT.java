@@ -222,6 +222,35 @@ class HadithControllerIT {
     }
 
     @Test
+    void GET_detail_gharibExplanationExposesReference() throws Exception {
+        Instant now = Instant.now();
+        Hadith am = new Hadith(
+                UUID.randomUUID(), null, 2, "نص فيه جرس", "CANONICAL", null,
+                "{\"source\":\"alminasa\"}", now, "alminasa", "146-2",
+                "مرفوع", null, null, "حديث صلصلة الجرس");
+        hadithRepository.save(am);
+        UUID amId = am.id();
+
+        // GHARIB-строка с metadata.reference (СЛОВО-заголовок) — парсится в DTO
+        explanationRepository.save(new HadithExplanation(
+                UUID.randomUUID(), amId, "GHARIB", "النهاية في غريب الحديث", "ابن الأثير",
+                null, 261, 1, "تفسير كلمة جرس",
+                "{\"ambiguousId\":760182,\"reference\":\"جرس\",\"referenceId\":12}", now));
+        // ILAL-строка без reference → null
+        explanationRepository.save(new HadithExplanation(
+                UUID.randomUUID(), amId, "ILAL", "علل الدارقطني", "الدارقطني",
+                null, 153, 14, "علة الحديث",
+                "{\"commentaryId\":3491}", now));
+
+        mockMvc.perform(get("/api/v1/hadith/hadiths/{id}/detail", amId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.explanations[?(@.kind=='GHARIB')].reference")
+                        .value(org.hamcrest.Matchers.contains("جرس")))
+                .andExpect(jsonPath("$.explanations[?(@.kind=='ILAL')].reference")
+                        .value(org.hamcrest.Matchers.contains(org.hamcrest.Matchers.nullValue())));
+    }
+
+    @Test
     void GET_detail_rulingResolvesRelatedHadithId_andCollectionNameRu() throws Exception {
         Instant now = Instant.now();
 

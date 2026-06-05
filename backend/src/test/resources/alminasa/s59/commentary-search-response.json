@@ -1,0 +1,30 @@
+{
+  "took": 0,
+  "timed_out": false,
+  "hits": {
+    "total": { "value": 1, "relation": "eq" },
+    "hits": [
+      {
+        "_index": "es-prod-euw1-hadith-commentary-12.2024-08-24-23-42",
+        "_id": "ZaPFhpEBXUur4f6ndRpP",
+        "_source": {
+          "type": "external",
+          "hadith": { "hadith_id": "0", "hadith_serial_id": 0 },
+          "commentary": {
+            "id": 3491,
+            "narrations": ["146-2"],
+            "book_name": "علل الدارقطني",
+            "author_name": "أبو الحسن الدارقطني",
+            "matn": "سأل الحارث بن هشام رسول الله",
+            "page": 153,
+            "volume": 14,
+            "commentary_text": "يرويه هشام بن عروة واختلف عنه — هذا هو علة الحديث عند الدارقطني.",
+            "full_text": "وسئل عن حديث عروة عن عائشة ... فيكون مسندا عن عائشة وهو الصحيح.",
+            "full_text_html": "<a class=\"rawi\">عروة</a> عن <a class=\"rawi\">عائشة</a>"
+          }
+        }
+      }
+    ]
+  },
+  "status": 200
+}

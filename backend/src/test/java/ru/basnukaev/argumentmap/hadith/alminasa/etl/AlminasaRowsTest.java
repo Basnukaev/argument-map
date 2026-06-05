@@ -11,6 +11,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import ru.basnukaev.argumentmap.hadith.alminasa.api.dto.AlminasaHit;
+import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmAmbiguousRow;
+import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmCommentaryRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmExplanationRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmHadithRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmNarratorRow;
@@ -28,6 +30,15 @@ class AlminasaRowsTest {
         try (InputStream in = getClass().getResourceAsStream("/alminasa/" + fixture)) {
             JsonNode resp = MAPPER.readTree(in);
             JsonNode hit = resp.path("hits").path("hits").get(0);
+            return new AlminasaHit(hit.path("_id").asText(), hit.path("_source"), hit.path("sort"));
+        }
+    }
+
+    /** Первый хит из _msearch-фикстуры s59 (responses[0].hits.hits[0]). */
+    private AlminasaHit firstMsearchHit(String fixture) throws IOException {
+        try (InputStream in = getClass().getResourceAsStream("/alminasa/" + fixture)) {
+            JsonNode hit = MAPPER.readTree(in)
+                    .path("responses").get(0).path("hits").path("hits").get(0);
             return new AlminasaHit(hit.path("_id").asText(), hit.path("_source"), hit.path("sort"));
         }
     }
@@ -84,5 +95,31 @@ class AlminasaRowsTest {
         assertThat(row.ruler()).isEqualTo("البخاري");
         assertThat(row.rulerDod()).isEqualTo(256);
         assertThat(row.narrationsType()).isEqualTo("raw");
+    }
+
+    @Test
+    void fromCommentaryHit_парсит_commentary_id_narrations_и_raw() throws IOException {
+        AmCommentaryRow row = AlminasaRows.fromCommentaryHit(firstMsearchHit("s59/hadith-commentary-12.json"));
+
+        assertThat(row.commentaryId()).isEqualTo(3491);
+        assertThat(row.bookName()).isEqualTo("علل الدارقطني");
+        assertThat(row.authorName()).isEqualTo("أبو الحسن الدارقطني");
+        // narrations — JSON-массив hadith_id-строк (ключ джойна)
+        JsonNode narrations = MAPPER.readTree(row.narrationsJson());
+        assertThat(narrations.isArray()).isTrue();
+        assertThat(narrations.get(0).asText()).isEqualTo("146-2");
+        // raw — вложенный commentary-узел: commentary_text доступен напрямую
+        assertThat(MAPPER.readTree(row.rawJson()).path("commentary_text").asText()).isNotBlank();
+    }
+
+    @Test
+    void fromAmbiguousHit_парсит_id_book_author_и_raw() throws IOException {
+        AmAmbiguousRow row = AlminasaRows.fromAmbiguousHit(firstMsearchHit("s59/ambiguous-12.json"));
+
+        assertThat(row.ambiguousId()).isEqualTo(760182);
+        assertThat(row.bookName()).isEqualTo("النهاية في غريب الحديث");
+        assertThat(row.author()).isEqualTo("ابن الأثير");
+        // raw — полный _source: длинный explanation внутри
+        assertThat(MAPPER.readTree(row.rawJson()).path("explanation").asText()).isNotBlank();
     }
 }

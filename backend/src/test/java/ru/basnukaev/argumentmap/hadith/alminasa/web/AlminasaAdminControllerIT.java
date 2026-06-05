@@ -49,6 +49,7 @@ class AlminasaAdminControllerIT {
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private AmCrawlCheckpointDao checkpointDao;
     @Autowired @Qualifier("alminasaCrawlExecutor") private ThreadPoolTaskExecutor crawlExecutor;
+    @Autowired @Qualifier("alminasaBackfillExecutor") private ThreadPoolTaskExecutor backfillExecutor;
 
     private UUID adminId;
     private UUID userId;
@@ -56,6 +57,9 @@ class AlminasaAdminControllerIT {
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("DELETE FROM am_crawl_checkpoint");
+        jdbcTemplate.update("DELETE FROM am_staging_commentary");
+        jdbcTemplate.update("DELETE FROM am_staging_ambiguous");
+        jdbcTemplate.update("DELETE FROM am_staging_hadith");
         jdbcTemplate.update("DELETE FROM users WHERE username LIKE 'alminasa-%'");
         adminId = insertUser("alminasa-admin", UserRole.ADMIN);
         userId = insertUser("alminasa-user", UserRole.USER);
@@ -146,6 +150,62 @@ class AlminasaAdminControllerIT {
                         .header("X-User-Id", adminId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").exists());
+    }
+
+    // ── backfill علл/غريب (План 8) ────────────────────────────────────────────
+
+    @Test
+    void backfill_start_не_админом_403() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/alminasa/backfill/start")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type", containsString("forbidden-admin-only")));
+    }
+
+    @Test
+    void backfill_start_анонимом_401() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/alminasa/backfill/start"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void backfill_status_без_запуска_IDLE_и_нулевые_счётчики() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/alminasa/backfill/status")
+                        .header("X-User-Id", adminId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IDLE"))
+                .andExpect(jsonPath("$.stagedCommentaries").value(0))
+                .andExpect(jsonPath("$.stagedAmbiguous").value(0));
+    }
+
+    @Test
+    void backfill_start_отдаёт_202_со_статусом() throws Exception {
+        // base-url закрыт → async-backfill быстро падает в FAILED, на 202 не влияет
+        awaitBackfillExecutorIdle();
+        mockMvc.perform(post("/api/v1/admin/alminasa/backfill/start")
+                        .header("X-User-Id", adminId.toString()))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").exists());
+        awaitBackfillExecutorIdle();
+    }
+
+    @Test
+    void backfill_pause_отдаёт_202_со_статусом() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/alminasa/backfill/pause")
+                        .header("X-User-Id", adminId.toString()))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").exists());
+    }
+
+    /** Ждёт пока single-thread backfill-executor освободится. */
+    private void awaitBackfillExecutorIdle() throws InterruptedException {
+        long deadline = System.nanoTime() + java.time.Duration.ofSeconds(30).toNanos();
+        while (backfillExecutor.getActiveCount() > 0) {
+            if (System.nanoTime() > deadline) {
+                throw new IllegalStateException("backfill-executor не освободился за 30s");
+            }
+            Thread.sleep(50);
+        }
     }
 
     /** Ждёт пока single-thread crawl-executor освободится (краулер прошлого теста утих). */

@@ -23,11 +23,15 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.AlminasaIsnadParser;
+import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmAmbiguousRow;
+import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmCommentaryRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmExplanationRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmHadithRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmRulingRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.IsnadLink;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.ParsedIsnad;
+import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmAmbiguousStagingDao;
+import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmCommentaryStagingDao;
 import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmExplanationStagingDao;
 import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmHadithStagingDao;
 import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmRulingStagingDao;
@@ -84,6 +88,8 @@ public class AlminasaHadithMapper {
     private final AmHadithStagingDao hadithStagingDao;
     private final AmRulingStagingDao rulingStagingDao;
     private final AmExplanationStagingDao explanationStagingDao;
+    private final AmCommentaryStagingDao commentaryStagingDao;
+    private final AmAmbiguousStagingDao ambiguousStagingDao;
     private final CollectionRepository collectionRepository;
     private final HadithRepository hadithRepository;
     private final MatnRepository matnRepository;
@@ -99,6 +105,8 @@ public class AlminasaHadithMapper {
     public AlminasaHadithMapper(AmHadithStagingDao hadithStagingDao,
                                 AmRulingStagingDao rulingStagingDao,
                                 AmExplanationStagingDao explanationStagingDao,
+                                AmCommentaryStagingDao commentaryStagingDao,
+                                AmAmbiguousStagingDao ambiguousStagingDao,
                                 CollectionRepository collectionRepository,
                                 HadithRepository hadithRepository,
                                 MatnRepository matnRepository,
@@ -113,6 +121,8 @@ public class AlminasaHadithMapper {
         this.hadithStagingDao = hadithStagingDao;
         this.rulingStagingDao = rulingStagingDao;
         this.explanationStagingDao = explanationStagingDao;
+        this.commentaryStagingDao = commentaryStagingDao;
+        this.ambiguousStagingDao = ambiguousStagingDao;
         this.collectionRepository = collectionRepository;
         this.hadithRepository = hadithRepository;
         this.matnRepository = matnRepository;
@@ -191,7 +201,7 @@ public class AlminasaHadithMapper {
         insertSanad(hadithId, raw, fullTextAr);
         insertCrossrefs(hadithId, externalId, raw);
         insertRulings(hadithId, externalId, raw);
-        insertExplanations(hadithId, externalId);
+        insertExplanations(hadithId, externalId, raw);
 
         return hadithId;
     }
@@ -510,11 +520,22 @@ public class AlminasaHadithMapper {
     }
 
     /**
+     * Explanations трёх видов (delete-recreate уже снёс все kind разом, SHARH
+     * выживает re-map — решение 3): SHARH (шархи), ILAL (علл/иляль), GHARIB
+     * (غريب/гариб). Все три пере-вставляются в одной транзакции маппинга.
+     */
+    private void insertExplanations(UUID hadithId, String externalId, JsonNode raw) {
+        insertSharh(hadithId, externalId);
+        insertIlal(hadithId, externalId);
+        insertGharib(hadithId, raw);
+    }
+
+    /**
      * Шархи (решение 8): один rulings-док explanation → одна строка kind=SHARH;
      * text = join {@code hadith_explanation_array[].sharh} через «\n\n»;
      * author/book trim; author_death_year null; metadata={esId}.
      */
-    private void insertExplanations(UUID hadithId, String externalId) {
+    private void insertSharh(UUID hadithId, String externalId) {
         for (AmExplanationRow doc : explanationStagingDao.findByHadithId(externalId)) {
             JsonNode raw = parse(doc.rawJson(), null);
             JsonNode explanation = raw.path("explanation");
@@ -544,6 +565,109 @@ public class AlminasaHadithMapper {
                     intOrNull(explanation, "explanation_page"),
                     intOrNull(explanation, "explanation_volume"),
                     String.join("\n\n", segments), writeJson(meta), Instant.now()));
+        }
+    }
+
+    /**
+     * Иляль (علل, решение 3, фикс C2): commentary-доки, чей {@code narrations}
+     * содержит наш hadith_id (GIN-лукап {@link AmCommentaryStagingDao#findByNarration}).
+     * Одна строка kind=ILAL на док; text = {@code commentary_text} (чистый разбор
+     * Даракутни; full_text дублирует уже показанный матн-вопрос). metadata =
+     * {commentaryId, narrations, fullText, fullTextHtml} (под будущий тогл
+     * «полный контекст»). Пустой commentary_text → skip (нечего показывать).
+     */
+    private void insertIlal(UUID hadithId, String externalId) {
+        for (AmCommentaryRow doc : commentaryStagingDao.findByNarration(externalId)) {
+            JsonNode commentary = parse(doc.rawJson(), null);
+            String commentaryText = text(commentary, "commentary_text");
+            if (commentaryText == null) {
+                continue;
+            }
+            ObjectNode meta = objectMapper.createObjectNode();
+            meta.put("commentaryId", doc.commentaryId());
+            meta.set("narrations", parse(doc.narrationsJson(), null));
+            String fullText = text(commentary, "full_text");
+            if (fullText != null) {
+                meta.put("fullText", fullText);
+            }
+            String fullTextHtml = text(commentary, "full_text_html");
+            if (fullTextHtml != null) {
+                meta.put("fullTextHtml", fullTextHtml);
+            }
+
+            explanationRepository.save(new HadithExplanation(
+                    UUID.randomUUID(), hadithId, "ILAL",
+                    trimOrNull(doc.bookName()),
+                    trimOrNull(doc.authorName()),
+                    null,
+                    intOrNull(commentary, "page"),
+                    intOrNull(commentary, "volume"),
+                    commentaryText, writeJson(meta), Instant.now()));
+        }
+    }
+
+    /**
+     * Гариб (غريب, решение 3, фикс M3): из {@code raw.ambiguous[]} хадиса —
+     * {@code [{reference(СЛОВО), reference_id, explanation_ids[int]}]}. Для каждой
+     * пары (вхождение слова × словарная статья) — ОДНА строка kind=GHARIB: ключ
+     * (hadith × ambiguous_id × reference_id) — общая статья на два слова даёт две
+     * строки (заголовки-слова не теряются). ambiguous_id без дока в staging
+     * (sparse backfill) → молча skip. text = {@code explanation}; metadata =
+     * {ambiguousId, reference, referenceId}.
+     */
+    private void insertGharib(UUID hadithId, JsonNode raw) {
+        JsonNode ambiguous = raw.path("ambiguous");
+        if (!ambiguous.isArray() || ambiguous.isEmpty()) {
+            return;
+        }
+        // собрать все explanation_ids → один батч-лукап staging-словарей
+        List<Integer> allIds = new ArrayList<>();
+        for (JsonNode entry : ambiguous) {
+            for (JsonNode id : entry.path("explanation_ids")) {
+                if (id.canConvertToInt()) {
+                    allIds.add(id.asInt());
+                }
+            }
+        }
+        Map<Integer, AmAmbiguousRow> byId = new HashMap<>();
+        for (AmAmbiguousRow doc : ambiguousStagingDao.findByIds(allIds)) {
+            byId.put(doc.ambiguousId(), doc);
+        }
+
+        for (JsonNode entry : ambiguous) {
+            String reference = text(entry, "reference");
+            Integer referenceId = intOrNull(entry, "reference_id");
+            for (JsonNode idNode : entry.path("explanation_ids")) {
+                if (!idNode.canConvertToInt()) {
+                    continue;
+                }
+                AmAmbiguousRow doc = byId.get(idNode.asInt());
+                if (doc == null) {
+                    continue; // sparse backfill: словарь ещё не застейджен
+                }
+                JsonNode src = parse(doc.rawJson(), null);
+                String explanation = text(src, "explanation");
+                if (explanation == null) {
+                    continue;
+                }
+                ObjectNode meta = objectMapper.createObjectNode();
+                meta.put("ambiguousId", doc.ambiguousId());
+                if (reference != null) {
+                    meta.put("reference", reference);
+                }
+                if (referenceId != null) {
+                    meta.put("referenceId", referenceId);
+                }
+
+                explanationRepository.save(new HadithExplanation(
+                        UUID.randomUUID(), hadithId, "GHARIB",
+                        trimOrNull(doc.bookName()),
+                        trimOrNull(doc.author()),
+                        null,
+                        intOrNull(src, "page"),
+                        intOrNull(src, "volume"),
+                        explanation, writeJson(meta), Instant.now()));
+            }
         }
     }
 
