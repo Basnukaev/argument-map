@@ -13,6 +13,7 @@ import CrossrefsList from '@/apps/hadith/components/CrossrefsList';
 import EditionsList from '@/apps/hadith/components/EditionsList';
 import HadithGradesList from '@/apps/hadith/components/HadithGradesList';
 import MatnVariations from '@/apps/hadith/components/MatnVariations';
+import SiblingMatns from '@/apps/hadith/components/SiblingMatns';
 import MatnTranslateControls from '@/apps/hadith/components/MatnTranslateControls';
 import HadithSectionNav, {
   type SectionNavItem,
@@ -160,6 +161,8 @@ function HadithDetailPage() {
     if ((detail?.grades?.length ?? 0) > 0) items.push({ id: 'grades', labelKey: 'hadith.detail.nav.grades' });
     // Вариации — у alminasa 1 запись = 1 матн; секция нужна только при >1.
     if ((detail?.matns.length ?? 0) > 1) items.push({ id: 'variations', labelKey: 'hadith.detail.nav.variations' });
+    // Параллельные тексты — ленивый блок, видим только при наличии resolved crossrefs.
+    if (resolvedTuruqCount > 0) items.push({ id: 'sibling-matns', labelKey: 'hadith.detail.nav.sibling_matns' });
     return items;
   }, [detail]);
 
@@ -439,6 +442,16 @@ function HadithDetailPage() {
                     matns={detail.matns}
                     translateInHeroForId={primaryMatn?.id ?? null}
                   />
+                </section>
+              )}
+
+              {/* 10. Параллельные тексты — ленивый блок, виден при resolved crossrefs > 0. */}
+              {resolvedTuruqCount > 0 && id && (
+                <section id="sibling-matns" className={SECTION_ANCHOR}>
+                  <SectionHeading>
+                    {t('hadith.detail.nav.sibling_matns')}
+                  </SectionHeading>
+                  <SiblingMatns hadithId={id} resolvedTuruqCount={resolvedTuruqCount} />
                 </section>
               )}
             </article>
