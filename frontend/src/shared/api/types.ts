@@ -804,6 +804,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/alminasa/backfill/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["backfillStart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/alminasa/backfill/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["backfillPause"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/{id}/role": {
         parameters: {
             query?: never;
@@ -1692,6 +1724,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["catalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/alminasa/backfill/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["backfillStatus"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2749,6 +2797,20 @@ export interface components {
             /** Format: int64 */
             stagedRulings?: number;
         };
+        AlminasaBackfillStatusResponse: {
+            status?: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: int32 */
+            processedPages?: number;
+            /** Format: int32 */
+            processedHadiths?: number;
+            /** Format: int64 */
+            stagedCommentaries?: number;
+            /** Format: int64 */
+            stagedAmbiguous?: number;
+            error?: string;
+        };
         ChangeRoleRequest: {
             /**
              * @description Новая роль пользователя - whitelist из 4 значений
@@ -3223,6 +3285,7 @@ export interface components {
             /** Format: int32 */
             volume?: number;
             text?: string;
+            reference?: string;
         };
         GradeDto: {
             scholar?: string;
@@ -5299,6 +5362,56 @@ export interface operations {
             };
         };
     };
+    backfillStart: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AlminasaBackfillStatusResponse"];
+                };
+            };
+        };
+    };
+    backfillPause: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AlminasaBackfillStatusResponse"];
+                };
+            };
+        };
+    };
     updateRole: {
         parameters: {
             query: {
@@ -7099,6 +7212,31 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["AlminasaCatalogEntryResponse"][];
+                };
+            };
+        };
+    };
+    backfillStatus: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AlminasaBackfillStatusResponse"];
                 };
             };
         };
