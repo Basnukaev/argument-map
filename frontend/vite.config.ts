@@ -13,6 +13,11 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // WSL2 localhost-relay (Windows→WSL) надёжно форвардит только
+    // wildcard-bind (0.0.0.0): backend на *:9090 из Windows открывается,
+    // а 127.0.0.1-bind vite после сетевых изменений перестал. host: true
+    // = 0.0.0.0 — как backend (см. gotcha «localhost:5173 из Windows»)
+    host: true,
     // WSL2 + проект на /mnt/c/* не получает file-system events с DrvFs.
     // Принудительный polling - HMR начинает срабатывать на каждое сохранение
     watch: {

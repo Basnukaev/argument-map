@@ -2138,3 +2138,26 @@ hostkey`); `AI_PROVIDER`+`DEEPSEEK_API_KEY` — из
 «Команды» и `~/.bash_aliases` (am-backend). Проверка обоих трактов на
 старте — две лог-строки: `DeepSeekLlmClient init: … enabled=true,
 proxy=yes` и `shamela HTTP-клиент: прокси …`.
+
+---
+
+## localhost:5173 из Windows не открывается (вечная крутилка), хотя vite ready
+
+**Симптом:** `am-frontend` поднимает vite («ready in 187ms»), из WSL
+`curl localhost:5173` → 200, а Windows-браузер крутит загрузку вечно.
+При этом backend `localhost:9090` из Windows открывается нормально.
+
+**Причина:** WSL2 localhost-relay (Windows→WSL) надёжно форвардит
+только **wildcard-bind** слушателей. Backend биндится на `*:9090` —
+форвардится; vite по умолчанию — на `127.0.0.1:5173` — relay его
+перестал подхватывать (после сетевых изменений на Windows-стороне;
+раньше работало). Диагноз в одну строку: `ss -tlnp | grep <port>` —
+`127.0.0.1:` vs `*:`. Проверка Windows-стороны не выходя из WSL:
+`powershell.exe -Command "Invoke-WebRequest http://localhost:5173"`.
+Браузер/прокси ни при чём (системный прокси был выключен, localhost
+в bypass).
+
+**Решение:** `server.host: true` в `vite.config.ts` (= 0.0.0.0, как
+backend). Vite сам рестартует на изменение конфига. Побочно: dev-сервер
+виден в LAN (Network: http://<wsl-ip>:5173) — для dev-машины за NAT
+приемлемо, backend и так на `*:9090`. (Сессия 60.)
