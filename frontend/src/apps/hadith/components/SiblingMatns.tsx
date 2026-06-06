@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router';
 import { Loader2 } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
-import { apiGetRaw, ApiError, formatApiError } from '@/shared/api/client';
+import { apiGetRaw, formatApiError } from '@/shared/api/client';
 import { useT } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
 
@@ -64,13 +64,9 @@ function SiblingMatns({
   const [siblings, setSiblings] = useState<SiblingMatnDto[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Гард unmounted: хендлер-фетч без useEffect-cleanup — setState после
-  // ухода со страницы глушим вручную (review С59; в React 19 это no-op,
-  // гард ради консистентности с AbortController основного графа).
-  const unmounted = useRef(false);
-  useEffect(() => () => {
-    unmounted.current = true;
-  }, []);
+  // БЕЗ unmounted-гарда (откат review-минора С59): React 18+ сам глушит
+  // setState после unmount, а ref-гард ломался в StrictMode навсегда
+  // (cleanup при dev-remount, флаг не сбрасывался → вечный спиннер).
 
   const handleShow = () => {
     if (loading || siblings !== null) return;
@@ -78,15 +74,13 @@ function SiblingMatns({
     setError(null);
     apiGetRaw<SiblingMatnDto[]>(`/api/v1/hadith/hadiths/${hadithId}/sibling-matns`)
       .then((data) => {
-        if (!unmounted.current) setSiblings(data);
+        setSiblings(data);
       })
       .catch((e: unknown) => {
-        if (unmounted.current) return;
         setError(formatApiError(e, t('hadith.siblings.error')));
-        if (!(e instanceof ApiError)) return;
       })
       .finally(() => {
-        if (!unmounted.current) setLoading(false);
+        setLoading(false);
       });
   };
 

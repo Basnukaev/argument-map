@@ -636,3 +636,12 @@ DecoratedHeading / PageNumber). Что осталось доделать в edit
 - **Slash menu** (`/hadith`, `/ayah`, `/note`) - быстрый ввод
   custom blocks из клавиатуры без mouse в toolbar.
   `@tiptap/extension-mention`-style approach
+
+## Turuq-граф: легенда «Цепи передачи» в режиме «Все пути» (найдено С60)
+
+В merged-графе все 12 санадов приходят с `primaryChain=true` (каждый —
+основная цепь СВОЕГО хадиса), легенда показывает 12 одинаковых строк
+«основная» — шум без информации. Идея: в turuq-режиме либо скрывать
+легенду цепей, либо подписывать цепи сборником
+(`collectionRu`/`collectionAr` сейчас null в SanadDto turuq-ответа —
+заполнить в SanadGraphService.buildTuruqGraph).
