@@ -144,6 +144,16 @@ async function rawAuthFetch<T>(
   return (await response.json()) as T;
 }
 
+/**
+ * Single-flight для refresh НА УРОВНЕ СТОРА. Дедупликации в apiClient
+ * недостаточно: bootstrap (loadCurrentUser) зовёт refreshAccessToken
+ * напрямую, минуя interceptor, и при перезагрузке страницы гонится с
+ * 401-retry компонентных запросов. Ротация refresh-токена (ADR-047)
+ * валидирует только первый POST /auth/refresh - проигравшие получают
+ * 401, а их catch стирал сессию → флаки-логаут по F5.
+ */
+let refreshInFlight: Promise<string | null> | null = null;
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: readPersistedUser(),
   accessToken: null,
@@ -189,29 +199,39 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   async refreshAccessToken() {
-    try {
-      const data = await rawAuthFetch<AuthLoginResponse>(
-        '/api/v1/auth/refresh',
-        { method: 'POST' },
-      );
-      persistUser(data.user);
-      set({
-        user: data.user,
-        accessToken: data.accessToken,
-        initialized: true,
-      });
-      return data.accessToken;
-    } catch (e) {
-      // 401 = refresh cookie невалидный либо истёк - clear local session
-      // включая user-scoped кеши (preferences + onboarding) чтобы на
-      // следующем login другого user'а они не унаследовались
-      if (e instanceof ApiError && e.status === 401) {
-        persistUser(null);
-        clearUserStorage();
-        set({ user: null, accessToken: null, initialized: true });
+    if (refreshInFlight) return refreshInFlight;
+    refreshInFlight = (async () => {
+      try {
+        const data = await rawAuthFetch<AuthLoginResponse>(
+          '/api/v1/auth/refresh',
+          { method: 'POST' },
+        );
+        persistUser(data.user);
+        set({
+          user: data.user,
+          accessToken: data.accessToken,
+          initialized: true,
+        });
+        return data.accessToken;
+      } catch (e) {
+        // 401 = refresh cookie невалидный либо истёк - clear local session
+        // включая user-scoped кеши (preferences + onboarding) чтобы на
+        // следующем login другого user'а они не унаследовались
+        if (e instanceof ApiError && e.status === 401) {
+          persistUser(null);
+          clearUserStorage();
+          set({ user: null, accessToken: null, initialized: true });
+        }
+        return null;
+      } finally {
+        // через микротик - чтобы параллельные wait'еры успели await'нуться
+        // на текущий promise прежде чем освободим slot (идиома client.ts)
+        queueMicrotask(() => {
+          refreshInFlight = null;
+        });
       }
-      return null;
-    }
+    })();
+    return refreshInFlight;
   },
 
   async loadCurrentUser() {

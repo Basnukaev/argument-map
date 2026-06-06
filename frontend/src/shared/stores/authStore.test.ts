@@ -225,9 +225,9 @@ describe('authStore', () => {
     expect(window.localStorage.getItem('auth.user')).toBeNull();
   });
 
-  it('refreshAccessToken - параллельные вызовы делятся одним promise', async () => {
-    // Этот тест проверяет логику authStore (не interceptor).
-    // Через ручной счётчик server hits
+  it('refreshAccessToken - последовательные вызовы делают отдельные POST', async () => {
+    // single-flight дедуплицирует только КОНКУРЕНТНЫЕ вызовы: после settle
+    // слот освобождается, и следующий refresh - новая честная ротация
     let calls = 0;
     server.use(
       http.post(`${API}/api/v1/auth/refresh`, async () => {
@@ -237,14 +237,35 @@ describe('authStore', () => {
       }),
     );
 
-    // store сам по себе не дедуплицирует - дедупликация в apiClient interceptor.
-    // Тут только проверка что store работает корректно если refresh вызвать
-    // несколько раз последовательно
     const t1 = await useAuthStore.getState().refreshAccessToken();
     const t2 = await useAuthStore.getState().refreshAccessToken();
     expect(t1).toBe('access.token.v1');
     expect(t2).toBe('access.token.v1');
     expect(calls).toBe(2);
+  });
+
+  it('refreshAccessToken - конкурентные вызовы шлют ровно один POST (single-flight)', async () => {
+    // Регрессия: bootstrap (loadCurrentUser) и 401-retry interceptor'а
+    // гонялись на перезагрузке страницы → две ротации одной refresh-куки,
+    // проигравшая получала 401 и стирала сессию (флаки-логаут по F5)
+    let calls = 0;
+    server.use(
+      http.post(`${API}/api/v1/auth/refresh`, async () => {
+        calls += 1;
+        await new Promise((r) => setTimeout(r, 10));
+        return HttpResponse.json(LOGIN_RESPONSE);
+      }),
+    );
+
+    const [t1, t2, t3] = await Promise.all([
+      useAuthStore.getState().refreshAccessToken(),
+      useAuthStore.getState().refreshAccessToken(),
+      useAuthStore.getState().refreshAccessToken(),
+    ]);
+    expect(t1).toBe('access.token.v1');
+    expect(t2).toBe('access.token.v1');
+    expect(t3).toBe('access.token.v1');
+    expect(calls).toBe(1);
   });
 });
 
