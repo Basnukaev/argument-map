@@ -9,6 +9,73 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
+## 2026-06-06 - Сессия 59 - ВСЕ юзер-гейты сняты: HAR→وкладки علل/غريب (План 8), DeepSeek live, хвост фидбека
+
+Абдула принёс: свежие HAR с кликами по вкладкам علل/غريب (+бонусные
+almuradji3/arruvat), DeepSeek-ключ, 2 UX-замечания. Автономный марафон
+~12 коммитов. **alminasa-трек теперь закрыт ПОЛНОСТЬЮ — гейтов не
+осталось.**
+
+### DeepSeek live (гейт «ждёт ключ» снят)
+Ключ в `~/.config/argument-map/ai.env` (600, вне гита); бэк стартует с
+`AI_PROVIDER=deepseek + DEEPSEEK_API_KEY + AI_HTTP_PROXY=$HTTPS_PROXY`
+(прямое соединение режется — корп-прокси обязателен, gotcha С55).
+**Перевод живьём работает**: 594-1 → RU «Совершенство веры верующего —
+в его благом нраве» (2.3с), EN тоже; cached=true на повторе.
+
+### HAR-разбор (гейт «ждёт HAR» снят)
+Субагент разобрал 3 HAR: علل = `hadith-commentary-12` (джойн
+commentary.narrations[] ⊇ hadith_id), غريب = `ambiguous-12` (словарные
+статьи; ids из hadith-doc `ambiguous[]` — **УЖЕ в нашем staging raw у
+16 784 хадисов** → перекраул не нужен). Бонус-находки → backlog:
+chains-links-12 (рёбра сети с глаголами передачи), narrator-commentary-12
+(джарх-цитаты о рави), references (каталог корпуса). Фикстуры —
+`backend/src/test/resources/alminasa/s59/`.
+
+### План 8 — вкладки علل/غريب (`docs/plans/2026-06-06-alminasa-ilal-gharib.md`)
+Критика плана ДО исполнения: REVISE → C1 (курсору backfill негде жить
+в чекпоинте → one-shot in-memory keyset, коарс-прогресс, свой executor),
+C2 (точный GIN-SQL `narrations @> ?::jsonb`, bind Jackson-массивом),
+M1 (батчинг per-index), M3 (ключ GHARIB hadith×ambiguous_id×reference_id),
+M4 (text=commentary_text). Реализация: миграция 75
+(am_staging_commentary GIN + am_staging_ambiguous),
+AlminasaDependentsBackfillService + REST backfill/{start,pause,status},
+insertExplanations ILAL/GHARIB (SHARH выживает re-map),
+ExplanationDto.reference, UI: три секции شروح/علل/غريب
+(гариб-карточка: СЛОВО-заголовок + словарь·автор).
+**Live: backfill 33k за 17 мин (2 350 commentary + 4 210 ambiguous,
+0 ошибок) → re-map 33 299/33 300 → hd_explanations: 65 280 GHARIB +
+2 018 ILAL + 26 871 SHARH.** API-проверка: 184-1 — 4 гариба (أَبْعَدَ،
+الْمَذْهَبَ × 2 словаря), 146-2 — иляль Даракутни.
+
+### Хвост фидбека С58
+«في الإسناد» и при клике из ГРАФА (map externalId→textForm из
+parseIsnadHtml); «Неизвестно (маджхуль)» → «Без оценки» (маджхуль —
+джарх-термин, у нас отсутствие записи); sibling-matns endpoint + секция
+«Параллельные тексты» (ответ на «где вариации»: вариации alminasa =
+матны параллельных передач).
+
+### Review (объединённый С58-59, диапазон a67f9c7..HEAD)
+**APPROVE: 0 Critical / 0 Important / 5 Minor** — 3 закрыты (фантомный
+RUNNING чекпоинта при TaskRejected, мёртвая переменная, unmount-гарды),
+2 приняты с обоснованием (SAHABI без нормализации, index-key с
+комментарием). Verify 1326/1326 (+17 ObjectStorageServiceIT —
+TC-flake, изолированный перегон 17/17 зелёный). vitest 76/76 hadith.
+
+### Известное
+- 594-2472 — единственный фейл re-map (пустой matn_with_tashkeel в
+  источнике, честный skip).
+- Иляль-покрытие разреженное по природе данных (~2k доков на корпус).
+- Подсветка гариб-слов прямо в матне — backlog (metadata.reference
+  уже несёт слово и позицию).
+
+### Следующий шаг
+alminasa-трек завершён целиком (Планы 1-8, все гейты сняты). Дальше:
+49.B rating+pagination / 49.D observability (спеки готовы) либо
+backlog-находки HAR (jарх-цитаты о рави — красивая следующая фича
+для карточки передатчика). Письмо alminasa (вежливость/официальный
+доступ) — по-прежнему рекомендовано, пункт в backlog.
+
 ## 2026-06-05/06 - Сессия 58 - фидбек Абдулы по Explorer: 2 live-бага + граф «Все пути» + UX
 
 Абдула прогнал Explorer на собственноручно накрауленных **33k хадисах**

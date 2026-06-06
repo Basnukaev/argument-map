@@ -114,9 +114,9 @@
 
 ## Tasks
 
-- [ ] **T1 миграция 75 + staging-DAO** (+ Rows-парсеры из фикстур
+- [x] **T1 миграция 75 + staging-DAO** (+ Rows-парсеры из фикстур
   s59, IT round-trip).
-- [ ] **T2 ES-клиент + backfill-цикл**: 2 fetch-метода в
+- [x] **T2 ES-клиент + backfill-цикл**: 2 fetch-метода в
   AlminasaEsClient (terms-шаблоны ИЗ ФИКСТУР s59: индекс/тело;
   батчинг per-index по реш. 1), НОВЫЙ
   AlminasaDependentsBackfillService (in-memory keyset, коарс-чекпоинт
@@ -127,15 +127,15 @@
   backfill-already-running) + `GET /admin/alminasa/backfill/status`.
   IT со стабом (паттерн AlminasaEsClientStubIT) + IT
   фейл→IDLE→relaunch.
-- [ ] **T3 маппер**: insertExplanations ILAL+GHARIB (реш. 3) + unit
+- [x] **T3 маппер**: insertExplanations ILAL+GHARIB (реш. 3) + unit
   на фикстурах s59 + IT e2e (staged commentary/ambiguous → re-map →
   3 kind'а в hd_explanations).
-- [ ] **T4 web**: ExplanationDto.reference + api-contract + regen.
-- [ ] **T5 UI**: три секции по kind + i18n + MSW-тесты.
-- [ ] **T6 live**: backfill на 33k (фон, ~20 мин) → re-map →
+- [x] **T4 web**: ExplanationDto.reference + api-contract + regen.
+- [x] **T5 UI**: три секции по kind + i18n + MSW-тесты.
+- [x] **T6 live**: backfill на 33k (фон, ~20 мин) → re-map →
   playwright-проверка хадиса с гарибом (напр. 184-1: слово أَبْعَدَ) и
   с илялем (146-2) → скриншоты.
-- [ ] **T7**: review → fixes → roadmap/progress/backlog (вне-скоуп
+- [x] **T7**: review → fixes → roadmap/progress/backlog (вне-скоуп
   пункты) → handoff.
 
 ## Definition of Done
