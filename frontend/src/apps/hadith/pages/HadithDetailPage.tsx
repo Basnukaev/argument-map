@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { ArrowLeft, BookOpen, Loader2, Network } from 'lucide-react';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
@@ -146,19 +146,31 @@ function HadithDetailPage() {
   // «Все пути» виден только при наличии хотя бы одной.
   const resolvedTuruqCount = detail?.crossrefs?.filter((c) => c.relatedHadithId).length ?? 0;
 
+  // Гард unmounted для хендлер-фетчей (review С59): React 19 глушит такие
+  // setState сам, гард — для консистентности с AbortController useApiQuery.
+  const unmounted = useRef(false);
+  useEffect(() => () => {
+    unmounted.current = true;
+  }, []);
+
   // Переключение на «Все пути»: ленивый фетч turuq-graph (раз, кэш в state).
   const handleShowTuruq = () => {
     setViewMode('turuq');
     if (turuqGraph || turuqLoading || !id) return;
     setTuruqLoading(true);
     apiGetRaw<SanadGraphResponse>(`/api/v1/hadith/hadiths/${id}/turuq-graph`)
-      .then((g) => setTuruqGraph(g))
+      .then((g) => {
+        if (!unmounted.current) setTuruqGraph(g);
+      })
       .catch((e: unknown) => {
+        if (unmounted.current) return;
         // Тихий фолбэк на основную цепь: показываем её, не роняем секцию.
         setViewMode('main');
         if (!(e instanceof ApiError)) return;
       })
-      .finally(() => setTuruqLoading(false));
+      .finally(() => {
+        if (!unmounted.current) setTuruqLoading(false);
+      });
   };
 
   // Граф для рендера: основная цепь либо объединённый turuq (controlled).

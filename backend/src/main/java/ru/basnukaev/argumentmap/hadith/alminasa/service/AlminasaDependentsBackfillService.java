@@ -112,6 +112,9 @@ public class AlminasaDependentsBackfillService {
             executor.execute(this::runBackfill);
         } catch (TaskRejectedException ex) {
             state.set(State.idle());
+            // чекпоинт уже переведён в RUNNING claimRunning'ом — откатываем,
+            // иначе статус-поллинг показывал бы фантомный RUNNING (review С59)
+            checkpointDao.markFailed(BACKFILL_INDEX_KEY, "executor отклонил задачу (живой воркер)");
             throw new AlminasaBackfillConflictException();
         }
         return state.get();

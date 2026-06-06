@@ -419,7 +419,6 @@ public class SanadGraphService {
         }
 
         void addVersionEdge(String source, String target, boolean onPrimaryChain) {
-            String key = source + "->" + target;
             for (VersionEdge ve : versionEdges) {
                 if (ve.source.equals(source) && ve.target.equals(target)) {
                     ve.sanadCount++;
