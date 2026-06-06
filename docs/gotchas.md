@@ -2114,3 +2114,27 @@ IT-класса (`AlminasaDryRunIT`): сервис открывает СВОЮ �
 последовательные refresh — отдельные честные ротации. Найдено
 смок-тестом на чистой БД playwright'ом — серия быстрых page.goto бьёт
 по гонке куда чаще живого юзера. (Сессия 60.)
+
+---
+
+## Backend требует ПОЛНЫЙ env-набор: SHAMELA_PROXY + AI_* — иначе «половина интеграций молчит»
+
+**Симптом:** с alias Абдулы (`am-backend`) работает shamela-импорт, но
+не AI-перевод; со старта Claude — наоборот. Выглядит как
+неуловимый баг, на деле — два НЕПОЛНЫХ env-набора.
+
+**Причина:** оба внешних клиента имеют осознанно РАЗДЕЛЬНЫЕ per-client
+прокси (НЕ глобальный `https.proxyHost` — чтобы не утянуть S3/MinIO):
+`ShamelaHttpClientConfig` читает env `SHAMELA_PROXY`, LLM-клиент —
+property `ai.http.proxy` (env `AI_HTTP_PROXY`). Оба default=direct, а
+напрямую из этой сети недоступны И shamela.ws, И api.deepseek.com.
+Alias давал только SHAMELA_PROXY; команда Claude — только AI_*.
+
+**Решение:** один канонический набор в обоих местах запуска (С60):
+`SHAMELA_PROXY` и `AI_HTTP_PROXY` = один hostkey-прокси (в сессии
+Claude это `$HTTPS_PROXY`, в alias — `$http_proxy` после `proxy-use
+hostkey`); `AI_PROVIDER`+`DEEPSEEK_API_KEY` — из
+`~/.config/argument-map/ai.env` (вне гита). Канон: корневой CLAUDE.md
+«Команды» и `~/.bash_aliases` (am-backend). Проверка обоих трактов на
+старте — две лог-строки: `DeepSeekLlmClient init: … enabled=true,
+proxy=yes` и `shamela HTTP-клиент: прокси …`.

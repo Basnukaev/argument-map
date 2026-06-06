@@ -44,7 +44,13 @@ docker-compose.yml           - postgres (опционально minio)
 ./mvnw -DskipTests compile # быстрая компиляция
 
 # Backend dev-сервер (Claude запускает сам в фоне, с JDWP для дебага)
-# Абдула подключается IntelliJ Remote JVM Debug к localhost:5005
+# Абдула подключается IntelliJ Remote JVM Debug к localhost:5005.
+# ПОЛНЫЙ env-набор обязателен (С60): SHAMELA_PROXY — shamela.ws через
+# hostkey-прокси; AI_HTTP_PROXY + ai.env — DeepSeek-перевод. Сессия Claude
+# уже за hostkey ($HTTPS_PROXY = тот же прокси, что proxy-use hostkey).
+# Абдула стартует то же самое алиасом am-backend (~/.bash_aliases).
+set -a && . ~/.config/argument-map/ai.env && set +a && \
+SHAMELA_PROXY="$HTTPS_PROXY" AI_HTTP_PROXY="$HTTPS_PROXY" \
 ./mvnw spring-boot:run \
   -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005" \
   > /tmp/backend.log 2>&1 &
