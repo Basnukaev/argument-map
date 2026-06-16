@@ -34,6 +34,7 @@ import ru.basnukaev.argumentmap.hadith.repository.SanadRepository;
 import ru.basnukaev.argumentmap.hadith.web.dto.SanadGraphResponse;
 import ru.basnukaev.argumentmap.hadith.web.dto.SanadGraphResponse.GraphEdge;
 import ru.basnukaev.argumentmap.hadith.web.dto.SanadGraphResponse.GraphNode;
+import ru.basnukaev.argumentmap.hadith.web.dto.SanadGraphResponse.SanadSummary;
 
 /**
  * Unit-тест ядра сборки графа иснада (без Spring/БД, Mockito-моки репозиториев).
@@ -241,6 +242,18 @@ class SanadGraphServiceTest {
 
         // sanads[] содержит цепи обеих версий.
         assertEquals(2, graph.sanads().size());
+
+        // Имя сборника в сводке каждой цепи берётся с её хадиса (metadata sanad'а
+        // в turuq-режиме пуст). Без этого легенда «Все пути» показывала бы
+        // одинаковые строки вместо разных сборников.
+        SanadSummary mainSummary = graph.sanads().stream()
+                .filter(s -> s.id().equals(sMain)).findFirst().orElseThrow();
+        SanadSummary sibSummary = graph.sanads().stream()
+                .filter(s -> s.id().equals(sSib)).findFirst().orElseThrow();
+        assertEquals("Сахих аль-Бухари", mainSummary.collectionRu());
+        assertEquals("صحيح البخاري", mainSummary.collectionAr());
+        assertEquals("Сахих Муслима", sibSummary.collectionRu());
+        assertEquals("صحيح مسلم", sibSummary.collectionAr());
     }
 
     private static GraphNode node(SanadGraphResponse g, String id) {

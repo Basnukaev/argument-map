@@ -217,16 +217,28 @@ public class SanadGraphService {
         // Рёбра внутри цепей (prophet→companion→…→collector) с дедупом.
         accumulateChainEdges(acc, sanads, links, hasProphetRoot, isMain);
 
+        // Сборник хадиса (авторитетный источник имени для легенды цепей). В
+        // turuq-режиме metadata sanad'а обычно пуст — имя сборника лежит на
+        // самом хадисе (collectionId), как и в version-узле ниже.
+        Collection collection = hadith.collectionId() == null ? null
+                : collectionRepository.findById(hadith.collectionId()).orElse(null);
+
         // Version-узел самого хадиса + рёбра от коллекторного конца каждой цепи.
-        String versionNodeId = addVersionNode(acc, hadith);
+        String versionNodeId = addVersionNode(acc, hadith, collection);
         accumulateVersionEdges(acc, sanads, links, versionNodeId, isMain);
 
-        // Сводки цепей.
+        // Сводки цепей. Имя сборника: per-цепь metadata sanad'а имеет приоритет
+        // (если заполнен), иначе — сборник хадиса. Так каждая цепь в merged-turuq
+        // подписана своим сборником, а не одинаковым ярлыком «основная».
+        String hadithCollectionRu = collection == null ? null : collection.nameRu();
+        String hadithCollectionAr = collection == null ? null : collection.nameAr();
         for (Sanad s : sanads) {
+            String chainRu = metaTextOr(s.metadata(), "collectionRu", hadithCollectionRu);
+            String chainAr = metaTextOr(s.metadata(), "collectionAr", hadithCollectionAr);
             acc.sanadSummaries.add(new SanadSummary(
                     s.id(),
-                    metaText(s.metadata(), "collectionRu"),
-                    metaText(s.metadata(), "collectionAr"),
+                    chainRu,
+                    chainAr,
                     s.chainGrade(),
                     s.primaryChain(),
                     s.compiledById() == null ? null : "narrator-" + s.compiledById()
@@ -294,14 +306,12 @@ public class SanadGraphService {
     /**
      * Создаёт version-узел хадиса (сборник + номер + превью матна) и
      * возвращает его id. Коллекция nullable (null → slug/имена null, узел
-     * всё равно создаётся). tier = max tier среди уже добавленных + 1.
+     * всё равно создаётся), резолвится вызывающим и шарится со сводками цепей.
+     * tier = max tier среди уже добавленных + 1.
      */
-    private String addVersionNode(GraphAccumulator acc, Hadith hadith) {
+    private String addVersionNode(GraphAccumulator acc, Hadith hadith, Collection collection) {
         UUID hadithId = hadith.id();
         String nodeId = "version-" + hadithId;
-
-        Collection collection = hadith.collectionId() == null ? null
-                : collectionRepository.findById(hadith.collectionId()).orElse(null);
 
         String matnPreview = preview(matnRepository
                 .findPrimaryTextByHadithIds(List.of(hadithId)).get(hadithId));
@@ -348,6 +358,16 @@ public class SanadGraphService {
                 n.tabaqa(), n.gradeText(), n.externalId(),
                 collection, tier
         );
+    }
+
+    /**
+     * Как {@link #metaText}, но при отсутствии поля (или ошибке парсинга)
+     * возвращает {@code fallback}. Per-цепь metadata имеет приоритет над
+     * общим значением хадиса.
+     */
+    private String metaTextOr(String metadata, String field, String fallback) {
+        String value = metaText(metadata, field);
+        return value != null ? value : fallback;
     }
 
     /**

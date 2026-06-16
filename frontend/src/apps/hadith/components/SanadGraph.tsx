@@ -182,6 +182,12 @@ function SanadGraph({
     );
   }
 
+  // Ярлык «основная» информативен лишь когда основная цепь ровно одна (режим
+  // одного хадиса). В merged-turuq все цепи помечены primary → ярлык не несёт
+  // информации и его скрываем (легенда подписывает цепи сборником).
+  const primaryBadgeMeaningful =
+    graph.sanads.filter((s) => s.primaryChain).length === 1;
+
   return (
     <div className="relative h-full w-full">
       <ReactFlow<SanadNode, Edge>
@@ -232,7 +238,10 @@ function SanadGraph({
                     style={{ backgroundColor: edgeStroke(s.chainGrade) }}
                   />
                   <span className="text-ink-700">{s.collectionRu ?? s.collectionAr ?? '—'}</span>
-                  {s.primaryChain && (
+                  {/* «основная» осмысленна, только когда выделяет ОДНУ цепь среди
+                      прочих. В turuq-режиме («Все пути») каждая цепь — основная
+                      своего хадиса, ярлык на всех = шум, поэтому скрываем. */}
+                  {s.primaryChain && primaryBadgeMeaningful && (
                     <span className="rounded-sm bg-accent-50 px-1 text-[10px] font-medium text-accent-700">
                       {t('hadith.graph.primary')}
                     </span>
