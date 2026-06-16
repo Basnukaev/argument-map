@@ -418,6 +418,57 @@ describe('HadithDetailPage', () => {
     expect(screen.getByText(gharibText)).toBeInTheDocument();
   });
 
+  it('гариб-слово подсвечено в hero-матне; клик открывает поповер с толкованием', async () => {
+    // hero-матн содержит слово تطوي; GHARIB.reference تَطْوَى (с огласовкой +
+    // алиф-максура) должно сматчиться после нормализации и подсветиться.
+    const gharibInMatn = {
+      ...ALMINASA_DETAIL,
+      normalizedMatn: 'وادع اهل الصفه تطوي بطونهم',
+      explanations: [
+        {
+          kind: 'GHARIB',
+          bookName: 'النهاية في غريب الحديث',
+          author: 'ابن الأثير',
+          page: 9,
+          volume: 1,
+          text: 'يطوون = يضمون بطونهم من الجوع',
+          reference: 'تَطْوَى',
+        },
+      ],
+    };
+    mockEndpoints(gharibInMatn, GRAPH_WITH_EXTERNAL);
+    renderPage();
+    // подсвеченное слово в hero — кнопка с aria-haspopup внутри h1
+    let wordBtn: HTMLElement | null = null;
+    await waitForApi(() => {
+      wordBtn = screen.getByRole('button', { name: 'تطوي' });
+      expect(wordBtn).toHaveAttribute('aria-haspopup', 'dialog');
+    });
+    // толкование скрыто пока не кликнуть
+    const explainText = 'يطوون = يضمون بطونهم من الجوع';
+    expect(screen.queryByText(explainText)).not.toBeInTheDocument();
+    await userEvent.click(wordBtn!);
+    // поповер открылся: толкование + словарь·автор
+    const popover = screen.getByRole('dialog');
+    expect(within(popover).getByText(explainText)).toBeInTheDocument();
+    expect(within(popover).getByText('النهاية في غريب الحديث · ابن الأثير')).toBeInTheDocument();
+  });
+
+  it('гариб-слово отсутствует в hero-матне → матн без подсветки (graceful)', async () => {
+    // THREE_KINDS_DETAIL: матн «إنما الأعمال بالنيات», reference أَبْعَدَ его НЕ
+    // содержит → hero рендерится чистым текстом, кнопки-слова нет.
+    mockEndpoints(THREE_KINDS_DETAIL, GRAPH_WITH_EXTERNAL);
+    renderPage();
+    await waitForApi(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: /إنما الأعمال بالنيات/ }),
+      ).toBeInTheDocument();
+    });
+    // слово أَبْعَدَ есть только в секции «غريب» (карточка), не как кнопка в hero
+    const h1 = screen.getByRole('heading', { level: 1 });
+    expect(within(h1).queryByRole('button')).not.toBeInTheDocument();
+  });
+
   it('ILAL-карточка: книга/автор критика + сворачиваемый текст разбора', async () => {
     mockEndpoints(THREE_KINDS_DETAIL, GRAPH_WITH_EXTERNAL);
     renderPage();

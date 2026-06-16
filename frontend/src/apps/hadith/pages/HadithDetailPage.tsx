@@ -15,6 +15,7 @@ import HadithGradesList from '@/apps/hadith/components/HadithGradesList';
 import MatnVariations from '@/apps/hadith/components/MatnVariations';
 import SiblingMatns from '@/apps/hadith/components/SiblingMatns';
 import MatnTranslateControls from '@/apps/hadith/components/MatnTranslateControls';
+import HighlightedMatn from '@/apps/hadith/components/HighlightedMatn';
 import HadithSectionNav, {
   type SectionNavItem,
 } from '@/apps/hadith/components/HadithSectionNav';
@@ -305,7 +306,7 @@ function HadithDetailPage() {
                   className="mt-4 font-arabic text-2xl leading-loose text-ink-900 sm:text-3xl"
                   dir="rtl"
                 >
-                  {detail.normalizedMatn}
+                  <HighlightedMatn matn={detail.normalizedMatn} gharib={explanationGroups.gharib} />
                 </h1>
                 {STATUS_EXPLAIN[detail.status] && (
                   <p className="mt-3 max-w-2xl text-xs leading-snug text-ink-500">
