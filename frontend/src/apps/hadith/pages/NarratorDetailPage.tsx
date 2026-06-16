@@ -6,6 +6,7 @@ import Header from '@/shared/components/layout/Header';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
 import { useT, type DictKey } from '@/shared/i18n';
 import { RELIABILITY_TOKENS } from '@/apps/hadith/sanadTokens';
+import NarratorCommentaryList from '@/apps/hadith/components/NarratorCommentaryList';
 import type { HadithSummaryDto, NarratorResponseDto, Paged } from '@/apps/hadith/types';
 
 /**
@@ -161,6 +162,17 @@ function NarratorDetailPage() {
               >
                 {bio.gradeText ?? bio.reliabilityComment}
               </div>
+            )}
+
+            {/* Оценки учёных о передатчике (джарх/таʿдиль) — внешние цитаты из
+                риджаль-книг с атрибуцией (критик · книга · стр.). */}
+            {bio.commentaries && bio.commentaries.length > 0 && (
+              <section className="mb-8">
+                <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-500">
+                  {t('hadith.narrator.commentaries.title')}
+                </h2>
+                <NarratorCommentaryList commentaries={bio.commentaries} />
+              </section>
             )}
 
             {/* M3: сеть передатчиков — ученики / учителя из relations. */}

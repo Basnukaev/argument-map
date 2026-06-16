@@ -144,6 +144,21 @@ export interface NarratorRelationDto {
   cnt: number;
 }
 
+/**
+ * Оценка учёного-критика О передатчике (джарх/таʿдиль) из риджаль-книг.
+ * `commenter` — критик; `comments` — массив вердиктов (обычно 1, бывает >1);
+ * bookName/author/page/volume — атрибуция (напр. تقريب التهذيب · ابن حجر · т.1 с.1218).
+ */
+export interface NarratorCommentaryDto {
+  commenter: string;
+  commenterDeathYear: number | null;
+  bookName: string | null;
+  author: string | null;
+  page: number | null;
+  volume: number | null;
+  comments: string[];
+}
+
 /** NarratorResponse — каталог/деталь передатчика (علم الرجال). */
 export interface NarratorResponseDto {
   id: string;
@@ -171,6 +186,8 @@ export interface NarratorResponseDto {
   deathPlace: string | null;
   /** Сеть передатчиков — только в narrator-detail (getOne), не в списке. */
   relations: NarratorRelationDto[] | null;
+  /** Оценки учёных о передатчике (джарх/таʿдиль) — только в getOne, null в списке. */
+  commentaries?: NarratorCommentaryDto[] | null;
 }
 
 /** Вариация текста хадиса (matn) из detail endpoint. */

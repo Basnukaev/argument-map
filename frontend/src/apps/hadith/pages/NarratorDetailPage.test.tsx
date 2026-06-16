@@ -65,6 +65,8 @@ describe('NarratorDetailPage', () => {
     });
     expect(screen.getByText('Имам Медины, автор Муватты')).toBeInTheDocument();
     expect(screen.getByText('إنما الأعمال بالنيات')).toBeInTheDocument();
+    // commentaries отсутствуют в ответе → секция «Оценки учёных» скрыта
+    expect(screen.queryByText('Оценки учёных о передатчике')).not.toBeInTheDocument();
   });
 
   it('alminasa M3: tabaqa вместо generation, gradeText, сеть передатчиков', async () => {
@@ -121,5 +123,60 @@ describe('NarratorDetailPage', () => {
       '/hadith/narrators/n-student',
     );
     expect(screen.getByText('الزهري')).toBeInTheDocument();
+  });
+
+  it('narrator-commentary: секция «Оценки учёных» с критиком, вердиктом и атрибуцией', async () => {
+    server.use(
+      http.get(`${BASE}/api/v1/hadith/narrators/n3`, () =>
+        HttpResponse.json({
+          id: 'n3',
+          authorityId: null,
+          nameAr: 'أبو هريرة الدوسي',
+          kunya: null,
+          laqab: null,
+          yearBirthHijri: null,
+          yearDeathHijri: null,
+          birthplace: null,
+          primaryResidence: null,
+          reliabilityGrade: 'SAHABI',
+          reliabilityComment: null,
+          transmittedCount: 0,
+          createdAt: '2026-01-01',
+          relations: null,
+          commentaries: [
+            {
+              commenter: 'ابن حجر',
+              commenterDeathYear: 852,
+              bookName: 'تقريب التهذيب',
+              author: 'ابن حجر العسقلاني',
+              page: 1218,
+              volume: 1,
+              comments: ['الصحابي الجليل ، حافظ الصحابة'],
+            },
+          ],
+        }),
+      ),
+      http.get(`${BASE}/api/v1/hadith/narrators/n3/transmitted`, () =>
+        HttpResponse.json({
+          items: [],
+          page: 0,
+          size: 20,
+          totalElements: 0,
+          totalPages: 0,
+          hasNext: false,
+        }),
+      ),
+    );
+    renderAt('n3');
+    await waitForApi(() => {
+      expect(screen.getByText('أبو هريرة الدوسي')).toBeInTheDocument();
+    });
+    // секция отрендерилась (заголовок)
+    expect(screen.getByText('Оценки учёных о передатчике')).toBeInTheDocument();
+    // критик + вердикт видны
+    expect(screen.getByText('ابن حجر')).toBeInTheDocument();
+    expect(screen.getByText('الصحابي الجليل ، حافظ الصحابة')).toBeInTheDocument();
+    // год смерти критика (интерполяция {year})
+    expect(screen.getByText('ум. 852 г.х.')).toBeInTheDocument();
   });
 });
