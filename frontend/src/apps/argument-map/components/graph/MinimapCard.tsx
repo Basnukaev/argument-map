@@ -127,9 +127,15 @@ function useProjection(
       // Offset to center the scaled content within the area
       const ofsX = (areaW - contentW * s) / 2;
       const ofsY = (areaH - contentH * s) / 2;
-      return { s, minX, minY, ofsX, ofsY };
+      // Центрированный origin под BOUNDS_PAD: bounds расширены симметрично
+      // вокруг контента, поэтому drag/click клампим к этому origin'у, а НЕ к
+      // raw minX. Иначе диапазон асимметричен (весь pad на дальней стороне) и
+      // вьюпорт защёлкивается неконсистентно у краёв (#6, audit).
+      const padMinX = minX - (bounds.w - contentW) / 2;
+      const padMinY = minY - (bounds.h - contentH) / 2;
+      return { s, minX, minY, ofsX, ofsY, padMinX, padMinY };
     }
-    return { s, minX: 0, minY: 0, ofsX: 0, ofsY: 0 };
+    return { s, minX: 0, minY: 0, ofsX: 0, ofsY: 0, padMinX: 0, padMinY: 0 };
   }, [nodes, bounds, areaW, areaH]);
 }
 
@@ -316,13 +322,13 @@ function MinimapCard({
       const dy = (e.clientY - dragRef.current.startY) / proj.s;
       const newX = clamp(
         dragRef.current.vpStartX + dx,
-        proj.minX,
-        proj.minX + bounds.w - viewport.w,
+        proj.padMinX,
+        proj.padMinX + bounds.w - viewport.w,
       );
       const newY = clamp(
         dragRef.current.vpStartY + dy,
-        proj.minY,
-        proj.minY + bounds.h - viewport.h,
+        proj.padMinY,
+        proj.padMinY + bounds.h - viewport.h,
       );
       onViewportChange({ x: newX, y: newY, w: viewport.w, h: viewport.h });
     },
@@ -351,13 +357,13 @@ function MinimapCard({
       // Center viewport on click point, clamped
       const newX = clamp(
         canvasX - viewport.w / 2,
-        proj.minX,
-        proj.minX + bounds.w - viewport.w,
+        proj.padMinX,
+        proj.padMinX + bounds.w - viewport.w,
       );
       const newY = clamp(
         canvasY - viewport.h / 2,
-        proj.minY,
-        proj.minY + bounds.h - viewport.h,
+        proj.padMinY,
+        proj.padMinY + bounds.h - viewport.h,
       );
       onViewportChange({ x: newX, y: newY, w: viewport.w, h: viewport.h });
     },
