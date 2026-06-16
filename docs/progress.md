@@ -9,6 +9,79 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
+## 2026-06-16 - Сессия 61 - narrator-commentary + автопилот по беклогу (13 задач)
+
+Автопилот-марафон: дочинить narrator-commentary, затем автономно пройти
+беклог, в конце сводка ручных проверок. Координатор-модель: я + параллельные
+исполнители-агенты (правки файлов на диске = надёжно), независимый review +
+мой verify-гейт на каждом коммите.
+
+### narrator-commentary — джарх/таʿдиль о рави (ADR-061, миграция 76)
+Клон Плана 8 со сдвигом ключа джойна **хадис→рави** (`hd_narrators.external_id`).
+ES `narrator-commentary-12` (32 848 доков) → `hd_narrator_commentaries`
+(live **29 546**, re-map 7 789 рави 0 ошибок) → секция «Оценки учёных о
+передатчике» на карточке рави. Backend X.a–X.d (opus-исполнитель) + frontend
+X.e + live backfill + playwright (Абу Хурайра, Ибн Хаджар «الصحابي الجليل»).
+Review **APPROVE 0C/0I** + 5 Minor (MINOR-1 silent-truncate → backlog).
+План: `docs/plans/2026-06-16-alminasa-narrator-commentary.md`.
+
+### Корпус: НЕ был пуст (коррекция С60-handoff)
+С60 писал «БД пустая», реальность: краул `hadith-12` был **PAUSED на 32k/82.6k**
+(не пустой), а علل/غريب НЕ re-map'нуты. С61: backfill علл/غريب (2 289 commentary
++ 4 168 ambiguous staged) → re-map хадисов → `hd_explanations` **GHARIB 62 808
++ ILAL 1 967 + SHARH 25 978**. Корпус восстановлен к фиделити С59.
+
+### Беклог-автопилот (13 закрыто)
+**Сделано кодом:** #2 turuq-легенда (collectionRu/Ar из hd_collections, ярлык
+«основная» только при 1 primary-цепи), #3 гариб-подсветка (HighlightedMatn +
+highlightGharib normalizeArabic), #5 Load More race (BookListPage→usePagedSearch
+generation-guard), #6 MinimapCard clamp (padMinX центрирование), #7 PageView
+highlight (Tiptap onEditorReady-сигнал готовности DOM), #8 CreateQuestionPage
+sanitize-wrap, #10 GraphCanvas comment (M-6), #12 thesis round-trip IT (5),
+#13 graph-chrome smoke (44).
+**Stale (устранено ранее, не делалось):** #9 (mock-логи AdminShamela удалены
+Фазой 7), #11 (usePagedSearch хук уже существовал — применён к BookListPage =
+#5), #14 (d3-drag мок в test-setup.ts с С51 → bulkActions 5/5 в full-run).
+**#4 ЭСКАЛИРОВАНО (архитектура, код НЕ писан):** `hadith_grades` (миграция 43,
+POST по `sources.id`, таблица+enum) НЕ сведён с alminasa `hd_hadiths`
+(detail читает `metadata.grades` jsonb freeform, read-only). id+schema mismatch
+→ ADR Абдулы, 3 варианта в backlog.
+
+### Гочи/находки
+- **`ai.env` + `./mvnw verify` = ложный фейл:** засорсил ai.env (для SHAMELA-
+  прокси бэка) → `DEEPSEEK_API_KEY` протёк в `HadithTranslationNotConfiguredIT`
+  (ждёт «AI не настроен → 503») → 1/1355 фейл. Чистый env в изоляции → зелёный.
+  **Не сорсить ai.env перед verify.**
+- **OMC-агенты съедают финальное текстовое сообщение** (хук «standing by») →
+  велеть писать результат в файл (`/tmp/*-done.md`); имплементацию (правки на
+  диске) это не трогает, верифицирую сам.
+- **Pre-existing lint (2, не С61):** `AdminHadithImportPage.tsx:108`
+  set-state-in-effect (Плана 5) + `HadithDetailPage.tsx:214` React-Compiler
+  preserve-manual-memoization (С59). Baseline красный с С56 (был зелёный С51).
+
+### Верификация
+- Backend `./mvnw verify`: **1354/1355** (1 = env-артефакт выше, изолированно
+  зелёный); narrator-commentary IT все зелёные на чистой схеме (76 changesets).
+- Frontend: build ✓, **814/814 тестов** ✓, lint 2 pre-existing errors.
+- narrator-commentary review APPROVE 0C/0I.
+
+### Инфра-стейт
+- Корпус: `hd_hadiths` 31 999, `hd_narrators` 7 648, `hd_narrator_commentaries`
+  **29 546**, `hd_explanations` ~90.7k. Краул `hadith-12` PAUSED 32k/82.6k
+  (можно дотянуть). Миграции через **76**.
+- Backend :9090 (narrator-commentary код + миграция 76, JDWP :5005), frontend
+  :5173. dev-логин `admin@argumentmap.local / admin12345`.
+
+### Следующий шаг
+1. **Решение по #4** — мост `hadith_grades` ↔ alminasa `hd_hadiths` (ADR, 3
+   варианта A/B/C в backlog: jsonb-POST / связать с sources / новая таблица).
+2. Pre-existing lint (2 ошибки) — focused follow-up (не трогать наобум).
+3. Опц.: дотянуть краул `hadith-12` 32k→82.6k.
+4. Дальше по выбору: **49.B** rating+pagination / **49.D** observability (спеки
+   готовы), либо HAR-находки (chains-links-12 богатые рёбра сети, references-
+   каталог 86 книг, narrator-commentary расширенный профиль).
+5. Письмо alminasa (вежливость) — backlog.
+
 ## 2026-06-06 - Сессия 60 - чистая БД: смок установки с нуля + фикс флаки-логаута по F5
 
 По просьбе Абдулы **полная очистка данных** под смок чистой установки:

@@ -172,14 +172,34 @@ floating action bar (graphSelectionStore). Детали в progress.md/git.
   кладёт raw целиком — но book_titles[]/top_students[]/top_scholars[]
   уже мапятся; досмотреть остальные поля (extended_full_name и пр.)
   при следующем заходе на риджаль.
-- [ ] **Подсветка гариб-слов в матне**: hd_explanations(GHARIB).metadata
-  несёт reference+referenceId — подсветить слова в hero-матне с
-  тултипом-толкованием (после Плана 8).
-- [ ] **Admin-форма «Оценка учёного» (hadith_grades)**: секция «Оценки
-  учёных» на detail — ручные оценки платформы через authorities
-  (SCHOLAR); UI добавления нет, поэтому секция пуста и скрыта.
-  Форма: выбор authority + grade + note → POST (бэк есть).
-  Вопрос Абдулы С59 «какие данные нужны» — вот эти.
+- [x] **Подсветка гариб-слов в матне** ✅ Сессия 61 (commit 1d4f5e3):
+  `HighlightedMatn.tsx` + `highlightGharib.ts` (normalizeArabic зеркалит
+  бэковый ArabicTextNormalizer, пословный матчинг + фразы-reference ~5%),
+  click-поповер толкование+словарь. 10 unit + 2 HadithDetailPage теста,
+  playwright 44 слова. metadata.referenceId использован как ключ.
+- [ ] **Admin-форма «Оценка учёного» (hadith_grades)** ⚠️ ЭСКАЛИРОВАНО
+  (Сессия 61, инвестигация в git/progress): механизм `hadith_grades`
+  (миграция 43, `POST /api/v1/sources/{id}/grades`, таблица + enum
+  `HadithGradeValue`, FK на `sources`+`authorities`) **НЕ сведён** с
+  alminasa `hd_hadiths`. Detail-секция «Оценки учёных» читает
+  `hd_hadiths.metadata.grades` jsonb (freeform scholar/grade/note,
+  **READ-ONLY**, нет POST). id-mismatch (`sources.id` vs `hd_hadiths.id`) +
+  schema-mismatch: даже при совпадении id форма писала бы в таблицу, которую
+  detail НИКОГДА не читает → секция осталась бы пустой. **Нужен ADR Абдулы:**
+  (A) POST в `hd_hadiths.metadata.grades` jsonb (просто, но freeform, без
+  authorities-FK/enum/дедупа); (B) связать `hd_hadiths`↔`sources` + detail
+  читает из `hadith_grades` JOIN (дороже, настоящая модель: authorities, enum,
+  дедуп, permission SCHOLAR); (C) новая таблица `hd_hadith_grades(hadith_id
+  FK, authority_id, grade, citation, note)` + endpoint + чтение в detail.
+  Код НЕ писан (guard: архитектура → стоп).
+- [ ] **Pre-existing lint errors (2, найдено С61 финальным `npm run lint`)** —
+  НЕ регрессия С61 (файлы байт-в-байт как на HEAD 3f8356b, мой новый код
+  lint-чист). `AdminHadithImportPage.tsx:108` — `set-state-in-effect`
+  (из Плана 5/С56; проект избегает этого, есть идиома `{open && <Modal/>}`);
+  `HadithDetailPage.tsx:214` — React-Compiler `preserve-manual-memoization`
+  на `textFormByExternalId` (memo из С59). Lint-baseline был зелёным в С51,
+  деградировал в С56/С58-59. Focused follow-up; не трогать наобум (риск
+  тонкой регрессии в memo/effect). build+814 тестов зелёные независимо.
 
 
 - [ ] **Связаться с alminasa.ai (مركز تميز) до массового краулинга** —
@@ -559,14 +579,6 @@ Edge z-order persistence (миграция 48, Сессия 47 — дублик�
       backend, эта точка станет реальной XSS дырой. Fix: либо разбить
       на структурированный `<p>{t(..._p1)}<br/>{t(..._p2)}</p>`, либо
       обернуть `sanitizePageHtml` (используется в reader path).
-
-- [ ] **AdminShamelaPage placeholder strings hardcoded RU**
-      (audit M-3) - `AdminShamelaPage.tsx:629-633` пять mock log lines
-      литералы на русском (`'sync-master: ничего нового...'`). Heading
-      i18n'd, но строки логов нет. Placeholder исчезнет когда backend
-      log endpoint появится - но до тех пор при locale=en/ar mixed
-      rendering. Fix: TODO comment либо migration в dictionary
-      ru/ar/en временные ключи
 
 ---
 
