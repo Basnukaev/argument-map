@@ -455,8 +455,13 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
         label: t(opt.labelKey),
         icon: Plus,
         onClick: () => {
-          // lastNodesRef (а не nodes из closure) - useCallback не пере-создавался
-          // после предыдущего create, closure nodes - устаревший snapshot
+          // Читаем lastNodesRef.current, а НЕ nodes из closure: useCallback не
+          // пере-создавался после предыдущего create, поэтому closure nodes -
+          // устаревший snapshot. lastNodesRef - это ref (стабильная identity),
+          // поэтому сознательно НЕ в deps-массиве useCallback (ref пересоздания
+          // callback не требует, exhaustive-deps его и не просит). РЕГРЕССИЯ-ГАРД:
+          // если когда-нибудь превратить lastNodesRef в state - ОБЯЗАТЕЛЬНО
+          // добавить в deps, иначе вернётся ровно тот stale-snapshot, что ref обходит.
           const currentNodes = lastNodesRef.current;
           const anchor = currentNodes.find((n) => n.id === node.id) ?? node;
           const pos = findFreePosition(anchor.position, opt.direction, currentNodes);
