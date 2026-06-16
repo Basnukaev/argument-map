@@ -11,7 +11,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
  *
  * <p>alminasa-обогащение: {@code tabaqa} (поколение), {@code gradeText}
  * (verbatim джарх-та'диль), {@code bornOnText}/{@code diedOnText} (проза
- * дат), {@code deathPlace}. {@code relations} (сеть передатчиков) строится
+ * дат), {@code deathPlace}. {@code relations} (сеть передатчиков) и
+ * {@code commentaries} (джарх/таʿдиль-цитаты учёных о рави, ADR-061) строятся
  * ТОЛЬКО в getOne (detail) — list-путь передаёт null (без N+1).
  */
 public record NarratorResponse(
@@ -34,6 +35,7 @@ public record NarratorResponse(
         String bornOnText,
         String diedOnText,
         String deathPlace,
-        List<NarratorRelationDto> relations
+        List<NarratorRelationDto> relations,
+        List<NarratorCommentaryDto> commentaries
 ) {
 }

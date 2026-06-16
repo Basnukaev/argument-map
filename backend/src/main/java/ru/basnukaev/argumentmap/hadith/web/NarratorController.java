@@ -10,11 +10,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import ru.basnukaev.argumentmap.hadith.domain.Narrator;
+import ru.basnukaev.argumentmap.hadith.domain.NarratorCommentary;
 import ru.basnukaev.argumentmap.hadith.domain.NarratorRelation;
 import ru.basnukaev.argumentmap.hadith.repository.HadithRepository;
+import ru.basnukaev.argumentmap.hadith.repository.NarratorCommentaryRepository;
 import ru.basnukaev.argumentmap.hadith.repository.NarratorRelationRepository;
 import ru.basnukaev.argumentmap.hadith.repository.NarratorRepository;
 import ru.basnukaev.argumentmap.hadith.web.dto.HadithResponse;
+import ru.basnukaev.argumentmap.hadith.web.dto.NarratorCommentaryDto;
 import ru.basnukaev.argumentmap.hadith.web.dto.NarratorRelationDto;
 import ru.basnukaev.argumentmap.hadith.web.dto.NarratorResponse;
 import ru.basnukaev.argumentmap.web.dto.PageRequest;
@@ -34,13 +37,16 @@ public class NarratorController {
     private final NarratorRepository narratorRepository;
     private final HadithRepository hadithRepository;
     private final NarratorRelationRepository relationRepository;
+    private final NarratorCommentaryRepository commentaryRepository;
 
     public NarratorController(NarratorRepository narratorRepository,
                               HadithRepository hadithRepository,
-                              NarratorRelationRepository relationRepository) {
+                              NarratorRelationRepository relationRepository,
+                              NarratorCommentaryRepository commentaryRepository) {
         this.narratorRepository = narratorRepository;
         this.hadithRepository = hadithRepository;
         this.relationRepository = relationRepository;
+        this.commentaryRepository = commentaryRepository;
     }
 
     /**
@@ -54,12 +60,12 @@ public class NarratorController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
         PageRequest pr = PageRequest.from(page, size);
-        // list-путь: relations не строим (null) — без N+1; сеть передатчиков
-        // приходит только в getOne (detail).
+        // list-путь: relations/commentaries не строим (null) — без N+1; сеть
+        // передатчиков и цитаты учёных приходят только в getOne (detail).
         List<NarratorResponse> items = narratorRepository
                 .findPage(q, reliability, pr.size(), pr.offset())
                 .stream()
-                .map(n -> toResponse(n, null))
+                .map(n -> toResponse(n, null, null))
                 .toList();
         long total = narratorRepository.countFiltered(q, reliability);
         return PagedResponse.of(items, pr.page(), pr.size(), total);
@@ -73,7 +79,11 @@ public class NarratorController {
         List<NarratorRelationDto> relations = relationRepository.findByNarratorId(id).stream()
                 .map(NarratorController::toRelationDto)
                 .toList();
-        return toResponse(n, relations);
+        // detail-путь: джарх/таʿдиль-цитаты учёных о рави (ADR-061) — один запрос.
+        List<NarratorCommentaryDto> commentaries = commentaryRepository.findByNarratorId(id).stream()
+                .map(NarratorController::toCommentaryDto)
+                .toList();
+        return toResponse(n, relations, commentaries);
     }
 
     /**
@@ -98,19 +108,26 @@ public class NarratorController {
         return PagedResponse.of(items, pr.page(), pr.size(), total);
     }
 
-    private static NarratorResponse toResponse(Narrator n, List<NarratorRelationDto> relations) {
+    private static NarratorResponse toResponse(Narrator n, List<NarratorRelationDto> relations,
+                                               List<NarratorCommentaryDto> commentaries) {
         return new NarratorResponse(
                 n.id(), n.authorityId(), n.nameAr(), n.kunya(), n.laqab(),
                 n.yearBirthHijri(), n.yearDeathHijri(), n.birthplace(),
                 n.primaryResidence(), n.reliabilityGrade(), n.reliabilityComment(),
                 n.transmittedCountCached(), n.createdAt(),
                 n.tabaqa(), n.gradeText(), n.bornOnText(), n.diedOnText(),
-                n.deathPlace(), relations
+                n.deathPlace(), relations, commentaries
         );
     }
 
     private static NarratorRelationDto toRelationDto(NarratorRelation r) {
         return new NarratorRelationDto(
                 r.relatedNarratorId(), r.relatedName(), r.role(), r.cnt());
+    }
+
+    private static NarratorCommentaryDto toCommentaryDto(NarratorCommentary c) {
+        return new NarratorCommentaryDto(
+                c.commenter(), c.commenterDeathYear(), c.bookName(), c.author(),
+                c.page(), c.volume(), c.comments());
     }
 }

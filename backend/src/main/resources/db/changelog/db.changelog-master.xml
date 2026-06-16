@@ -80,5 +80,6 @@
     <include file="db/changelog/changes/20260604-73-alminasa-composite-cursor.xml"/>
     <include file="db/changelog/changes/20260604-74-drop-sunnah-staging-tables.xml"/>
     <include file="db/changelog/changes/20260606-75-alminasa-commentary-ambiguous-staging.xml"/>
+    <include file="db/changelog/changes/20260616-76-alminasa-narrator-commentary.xml"/>
 
 </databaseChangeLog>

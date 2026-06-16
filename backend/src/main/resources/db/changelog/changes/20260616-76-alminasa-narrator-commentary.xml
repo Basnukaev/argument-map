@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        narrator-commentary alminasa (джарх/таʿдиль о рави, ADR-061): цитаты
+        учёных-критиков О передатчике из ES-индекса narrator-commentary-12.
+        Клон Плана 8 (علل/غريب) со сдвигом ключа джойна хадис→рави.
+
+          (1) hd_narrator_commentaries — доменная таблица. FK на hd_narrators
+              (ON DELETE CASCADE): цитата привязана к РАВИ, не к хадису —
+              поэтому ОТДЕЛЬНАЯ таблица, а не реюз hd_explanations (там
+              hadith_id NOT NULL FK на хадис). comments jsonb NOT NULL —
+              массив строк-вердиктов (обычно 1, бывает >1; forward-compat).
+              commenter_death_year — год смерти критика (хронологическая
+              сортировка цитат). Индекс по narrator_id.
+
+          (2) am_staging_narrator_commentary — staging-landing. PK doc_id text
+              = ES _id хита: в _source НЕТ природного int id, _id стабилен
+              per-doc → идемпотентный upsert ON CONFLICT (doc_id). Caveat:
+              re-index alminasa порождает новые _id; staging транзиентен,
+              re-map per-narrator delete-recreate выправляет домен. narrator_id
+              int — ключ джойна (= hd_narrators.external_id), B-tree индекс
+              (скалярный джойн, НЕ GIN). raw jsonb NOT NULL — полный _source.
+    -->
+    <changeSet id="20260616-76-alminasa-narrator-commentary" author="Abdula Basnukaev">
+        <comment>narrator-commentary alminasa: hd_narrator_commentaries + am_staging_narrator_commentary</comment>
+        <sql><![CDATA[
+            CREATE TABLE hd_narrator_commentaries (
+                id                  uuid PRIMARY KEY,
+                narrator_id         uuid NOT NULL REFERENCES hd_narrators(id) ON DELETE CASCADE,
+                commenter           text,
+                commenter_death_year integer,
+                book_name           text,
+                author              text,
+                page                integer,
+                volume              integer,
+                comments            jsonb NOT NULL,
+                metadata            jsonb,
+                created_at          timestamptz NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_hd_narrator_commentaries_narrator
+                ON hd_narrator_commentaries(narrator_id);
+
+            CREATE TABLE am_staging_narrator_commentary (
+                doc_id       text PRIMARY KEY,
+                narrator_id  int NOT NULL,
+                commenter    text,
+                book         text,
+                raw          jsonb NOT NULL,
+                imported_at  timestamptz NOT NULL DEFAULT now()
+            );
+            CREATE INDEX idx_am_staging_narrator_commentary_narrator
+                ON am_staging_narrator_commentary(narrator_id);
+        ]]></sql>
+        <rollback>
+            <sql><![CDATA[
+                DROP TABLE IF EXISTS am_staging_narrator_commentary;
+                DROP TABLE IF EXISTS hd_narrator_commentaries;
+            ]]></sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

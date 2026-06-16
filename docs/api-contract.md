@@ -3621,6 +3621,24 @@ detail-эндпоинте — `[{relatedNarratorId, relatedName, role, cnt}]`, r
 импортирован (резолв `relatedName` → наш FK). **list-эндпоинт
 (`GET /narrators`) `relations` НЕ строит — поле `null`** (без N+1).
 
+**narrator-commentary (джарх/таʿдиль о рави, ADR-061):** поле `commentaries`
+— цитаты учёных-критиков О передатчике (из риджаль-книг) с атрибуцией.
+Строится ТОЛЬКО на detail-эндпоинте, сортировка по году смерти критика
+(NULLS LAST), затем по книге. Формат `NarratorCommentaryDto`:
+```jsonc
+{
+  "commenter": "ابن حجر",               // критик (краткое имя)
+  "commenterDeathYear": 852,            // год смерти критика (nullable)
+  "bookName": "تقريب التهذيب",          // книга-источник (nullable)
+  "author": "ابن حجر العسقلاني",        // автор книги (nullable)
+  "page": 1218,                          // nullable
+  "volume": 1,                           // nullable
+  "comments": ["الصحابي الجليل ، حافظ الصحابة"]  // массив вердиктов (обычно 1, бывает >1)
+}
+```
+**list-эндпоинт (`GET /narrators`) `commentaries` НЕ строит — поле `null`**
+(без N+1).
+
 ### GET /api/v1/hadith/narrators/{id}/transmitted
 
 Хадисы, в иснадах которых встречается этот передатчик (علم الرجال) —
@@ -3755,6 +3773,40 @@ single-thread executor — **может идти параллельно с crawl
 - `error` — текст последней ошибки (если прогон упал; иначе `null`). После фейла
   `status=IDLE` + `error≠null` → повторный `start` снова разрешён (finally-контракт,
   без вечного 409).
+
+### POST /api/v1/admin/alminasa/backfill/narrator-commentary/start
+
+Запуск backfill цитат джарх/таʿдиль о рави (ADR-061) → `am_staging_narrator_commentary`
+(keyset по `am_staging_narrator`, terms по `id` рави в индекс `narrator-commentary-12`).
+**202** + `AlminasaNarratorCommentaryBackfillStatusResponse`. **409**
+`alminasa-backfill-already-running` если backfill уже идёт (живой `RUNNING`-state;
+либо `TaskRejectedException` при живом воркере).
+
+### POST /api/v1/admin/alminasa/backfill/narrator-commentary/pause
+
+Пауза на границе текущей страницы (флаг). **202** +
+`AlminasaNarratorCommentaryBackfillStatusResponse`. **После pause рестарт ТОЖЕ с нуля**
+(in-memory курсор теряется).
+
+### GET /api/v1/admin/alminasa/backfill/narrator-commentary/status
+
+Снапшот прогона + счётчик staging цитат (поллинг). **200** +
+`AlminasaNarratorCommentaryBackfillStatusResponse`:
+```json
+{
+  "status": "RUNNING",
+  "startedAt": "2026-06-16T10:00:00Z",
+  "processedPages": 5,
+  "processedNarrators": 500,
+  "stagedCommentaries": 1840,
+  "error": null
+}
+```
+- `status` — `IDLE` / `RUNNING` (in-memory state прогона; не переживает рестарт).
+- `processedNarrators` — коарс-прогресс (число обработанных staged-рави).
+- `stagedCommentaries` — `COUNT(*)` `am_staging_narrator_commentary`.
+- `error` — текст последней ошибки (после фейла `status=IDLE` + `error≠null` →
+  повторный `start` снова разрешён).
 
 ## Alminasa Import Admin API (План 5, ADR-060)
 

@@ -88,6 +88,7 @@
 - ADR-058: Swappable LLM provider abstraction (пакет `ai`)
 - ADR-059: AI извлечение иснада из матна (preview)  ⟵ SUPERSEDED ADR-060 — код выпилен целиком Планом 4 (Сессия 57, 2026-06-04)
 - ADR-060: alminasa.ai — единственный источник хадисов  ⟵ принято (заменяет решение Сессии 55 «sunnah primary + AI-иснад»
+- ADR-061: Отдельная таблица hd_narrator_commentaries для джарх/таʿдиль о рави (миграция 76)
 
 ---
 
@@ -6567,3 +6568,51 @@ AI-галлюцинации в иснаде и наивный fuzzy-матчин
 `docs/specs/2026-06-03-alminasa-hadith-source-design.md`;
 superseded — ADR-059 (AI-иснад), решение Сессии 55; остаётся — ADR-058
 (swappable LLM), ADR-050 (`hd_collections`).
+
+---
+
+## ADR-061: Отдельная таблица hd_narrator_commentaries для джарх/таʿдиль о рави
+**Дата:** 2026-06-16
+**Статус:** принято
+**Реализовано:** Сессия 61, миграция 76, план
+`docs/plans/2026-06-16-alminasa-narrator-commentary.md`
+
+**Контекст.** alminasa ES-индекс `narrator-commentary-12` (32 848 доков)
+отдаёт джарх/таʿдиль-цитаты учёных-критиков **о передатчике** (рави):
+`{commenter, commenter_dod, comments[], book, author, page, volume}` по
+narrator id. Нужно показывать на карточке рави секцию «оценки учёных о
+передатчике» с атрибуцией. Вопрос: хранить в существующей `hd_explanations`
+или завести отдельную таблицу.
+
+**Решение.** Отдельная доменная таблица `hd_narrator_commentaries` (FK на
+`hd_narrators` ON DELETE CASCADE) + staging `am_staging_narrator_commentary`
+(миграция 76). Backfill отдельным проходом по narrator id (terms на
+`narrator-commentary-12`), маппинг встроен в `AlminasaNarratorMapper.mapNarrator`
+(delete-recreate per рави, как `hd_narrator_relations`). Цитаты inline в
+`NarratorResponse.commentaries` (getOne), без отдельного paginated endpoint.
+
+**Причины.** `hd_explanations.hadith_id` — NOT NULL FK на хадис; цитата о рави
+к хадису структурно не привязана (это оценка передатчика, не текста). Поля
+семантически разные (`commenter`/`commenter_dod` vs `kind` SHARH/ILAL/GHARIB).
+Ключ джойна — `hd_narrators.external_id` (UNIQUE из миграции 70), та же
+механика, что у иснад-резолюции; новый уникальный индекс не нужен. Staging PK =
+ES `_id` (в `_source` нет природного int id) → идемпотентный upsert
+`ON CONFLICT (doc_id)`.
+
+**Последствия.**
+- Клон-паттерн Плана 8 (علل/غريب): новый ES-индекс → staging → backfill (свой
+  State/checkpoint `narrator-commentary-backfill`, reuse бин
+  `alminasaBackfillExecutor`) → delete-recreate маппинг → REST
+  (`POST /api/v1/admin/alminasa/backfill/narrator-commentary/{start,pause}`,
+  `GET …/status`) → секция UI на `NarratorDetailPage`.
+- backfill narrator-commentary и علل/غريب backfill **НЕ могут идти
+  одновременно** (общий single-thread `alminasaBackfillExecutor`, queue=0 →
+  второй submit → 409); crawl + любой backfill — параллельны (разные index_name).
+  Нужна одновременность двух backfill'ов → отдельный executor-бин.
+- Пагинация цитат не сделана (корпус bounded, реально <~50 на рави);
+  отдельный paginated `GET /narrators/{id}/commentaries` — fallback в backlog
+  при росте payload у плодовитого рави.
+- `comments` хранятся как `jsonb`-массив (forward-compat; обычно 1 вердикт).
+
+**Связанные:** клон-паттерн — План 8 (علل/غريب); источник — ADR-060 (alminasa);
+backlog-находка С59 (`backlog.md` narrator-commentary-12) закрыта.

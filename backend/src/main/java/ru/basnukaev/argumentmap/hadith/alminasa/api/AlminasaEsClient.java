@@ -50,6 +50,7 @@ public class AlminasaEsClient {
     static final String RULINGS_INDEX = "rulings-12_v2";
     static final String COMMENTARY_INDEX = "hadith-commentary-12";
     static final String AMBIGUOUS_INDEX = "ambiguous-12";
+    static final String NARRATOR_COMMENTARY_INDEX = "narrator-commentary-12";
 
     /** Потолок batch'а ids для ambiguous (terms по id, 1 id = 1 док). */
     private static final int AMBIGUOUS_MAX_BATCH = 200;
@@ -166,6 +167,33 @@ public class AlminasaEsClient {
             body.put("track_total_hits", true);
             AlminasaPage page = toPage(search(AMBIGUOUS_INDEX, body));
             warnOnOverflow(AMBIGUOUS_INDEX, page, batch.size());
+            all.addAll(page.hits());
+        }
+        return all;
+    }
+
+    /**
+     * Цитаты джарх/таʿдиль о рави (narrator-commentary-12, ADR-061) по их
+     * numeric id: terms по {@code id} (= narrator external_id; у плодовитого
+     * рави много доков — критик × книга). Батчинг как у {@link
+     * #fetchCommentaries}: батчи narrator id'ов по {@code dependent-batch-size},
+     * ES size = {@code dependent-fetch-size}. Хиты всех батчей агрегируются;
+     * overflow-warn на батч. Пустой список — short-circuit без сетевого вызова.
+     */
+    @Retry(name = "alminasaApi")
+    public List<AlminasaHit> fetchNarratorCommentaries(List<Integer> narratorIds) {
+        if (narratorIds.isEmpty()) {
+            return List.of();
+        }
+        List<AlminasaHit> all = new ArrayList<>();
+        for (List<Integer> batch : partition(narratorIds, props.crawl().dependentBatchSize())) {
+            ObjectNode body = objectMapper.createObjectNode();
+            body.put("size", props.crawl().dependentFetchSize());
+            ArrayNode terms = body.putObject("query").putObject("terms").putArray("id");
+            batch.forEach(terms::add);
+            body.put("track_total_hits", true);
+            AlminasaPage page = toPage(search(NARRATOR_COMMENTARY_INDEX, body));
+            warnOnOverflow(NARRATOR_COMMENTARY_INDEX, page, props.crawl().dependentFetchSize());
             all.addAll(page.hits());
         }
         return all;

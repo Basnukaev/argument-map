@@ -18,12 +18,16 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmNarratorCommentaryRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmNarratorRow;
+import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmNarratorCommentaryStagingDao;
 import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmNarratorStagingDao;
 import ru.basnukaev.argumentmap.hadith.alminasa.service.AlminasaNarratorMapper.ParsedRelation;
 import ru.basnukaev.argumentmap.hadith.domain.Narrator;
+import ru.basnukaev.argumentmap.hadith.domain.NarratorCommentary;
 import ru.basnukaev.argumentmap.hadith.domain.NarratorRelation;
 import ru.basnukaev.argumentmap.hadith.domain.NarratorReliability;
+import ru.basnukaev.argumentmap.hadith.repository.NarratorCommentaryRepository;
 import ru.basnukaev.argumentmap.hadith.repository.NarratorRelationRepository;
 import ru.basnukaev.argumentmap.hadith.repository.NarratorRepository;
 import ru.basnukaev.argumentmap.hadith.service.ArabicTextNormalizer;
@@ -39,15 +43,18 @@ class AlminasaNarratorMapperTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Mock private AmNarratorStagingDao narratorStagingDao;
+    @Mock private AmNarratorCommentaryStagingDao narratorCommentaryStagingDao;
     @Mock private NarratorRepository narratorRepository;
     @Mock private NarratorRelationRepository relationRepository;
+    @Mock private NarratorCommentaryRepository narratorCommentaryRepository;
 
     @Captor private ArgumentCaptor<Narrator> narratorCaptor;
     @Captor private ArgumentCaptor<NarratorRelation> relationCaptor;
+    @Captor private ArgumentCaptor<NarratorCommentary> commentaryCaptor;
 
     private AlminasaNarratorMapper realMapper() {
-        return new AlminasaNarratorMapper(narratorStagingDao, narratorRepository,
-                relationRepository, MAPPER);
+        return new AlminasaNarratorMapper(narratorStagingDao, narratorCommentaryStagingDao,
+                narratorRepository, relationRepository, narratorCommentaryRepository, MAPPER);
     }
 
     /** {@code _source} единственного хита narrators.json (рави 5719). */
@@ -138,6 +145,56 @@ class AlminasaNarratorMapperTest {
             assertThat(r.cnt()).isEqualTo(24);
         });
         assertThat(rels).allSatisfy(r -> assertThat(r.relatedNarratorId()).isNull());
+    }
+
+    /**
+     * Staged narrator-commentary (фикстура s59, рави 4396 Абу Хурайра) → строка
+     * hd_narrator_commentaries: commenter, comments-вердикт, книга, год смерти
+     * критика из sort-фоллбэка (852). delete-recreate в той же транзакции, что
+     * mapNarrator.
+     */
+    @Test
+    void mapNarrator_4396_строит_narrator_commentary_из_staging() throws IOException {
+        AlminasaNarratorMapper m = realMapper();
+        // raw цитаты = _source фикстуры с инжектированными id + commenter_dod
+        // (как их положит парсер через fromNarratorCommentaryHit)
+        AmNarratorCommentaryRow staged = commentaryRowFromFixture();
+        AmNarratorRow row = new AmNarratorRow(
+                4396, "أبو هريرة الدوسي", "الصحابي الجليل", "صحابي", "{\"full_name\":\"أبو هريرة الدوسي\"}");
+        when(narratorRepository.findByExternalId("alminasa", "4396")).thenReturn(Optional.empty());
+        when(narratorCommentaryStagingDao.findByNarratorId(4396)).thenReturn(List.of(staged));
+
+        m.mapNarrator(row);
+
+        // delete-recreate: сначала снос существующих цитат рави
+        verify(narratorCommentaryRepository).deleteByNarratorId(org.mockito.ArgumentMatchers.any());
+        verify(narratorCommentaryRepository).save(commentaryCaptor.capture());
+        NarratorCommentary c = commentaryCaptor.getValue();
+        assertThat(c.commenter()).isEqualTo("ابن حجر");
+        assertThat(c.bookName()).isEqualTo("تقريب التهذيب");
+        assertThat(c.author()).isEqualTo("ابن حجر العسقلاني");
+        assertThat(c.page()).isEqualTo(1218);
+        assertThat(c.volume()).isEqualTo(1);
+        assertThat(c.comments()).containsExactly("الصحابي الجليل ، حافظ الصحابة");
+        // год смерти критика — из sort[0] фоллбэка парсера (в _source фикстуры нет)
+        assertThat(c.commenterDeathYear()).isEqualTo(852);
+    }
+
+    /**
+     * Staging-row из _msearch-фикстуры через парсер (id + commenter_dod как в
+     * live). Фикстура обёрнута в {@code response.responses[0].hits.hits[0]}.
+     */
+    private static AmNarratorCommentaryRow commentaryRowFromFixture() throws IOException {
+        try (InputStream in = AlminasaNarratorMapperTest.class
+                .getResourceAsStream("/alminasa/s59/narrator-commentary-12.json")) {
+            JsonNode hit = MAPPER.readTree(in)
+                    .path("response").path("responses").get(0).path("hits").path("hits").get(0);
+            com.fasterxml.jackson.databind.node.ObjectNode src =
+                    ((com.fasterxml.jackson.databind.node.ObjectNode) hit.path("_source")).put("id", "4396");
+            return ru.basnukaev.argumentmap.hadith.alminasa.etl.AlminasaRows.fromNarratorCommentaryHit(
+                    new ru.basnukaev.argumentmap.hadith.alminasa.api.dto.AlminasaHit(
+                            hit.path("_id").asText(), src, hit.path("sort")));
+        }
     }
 
     @Test

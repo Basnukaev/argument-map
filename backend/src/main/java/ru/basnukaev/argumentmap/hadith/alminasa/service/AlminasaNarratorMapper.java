@@ -1,6 +1,8 @@
 package ru.basnukaev.argumentmap.hadith.alminasa.service;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -17,11 +19,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmNarratorCommentaryRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmNarratorRow;
+import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmNarratorCommentaryStagingDao;
 import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmNarratorStagingDao;
 import ru.basnukaev.argumentmap.hadith.domain.Narrator;
+import ru.basnukaev.argumentmap.hadith.domain.NarratorCommentary;
 import ru.basnukaev.argumentmap.hadith.domain.NarratorRelation;
 import ru.basnukaev.argumentmap.hadith.domain.NarratorReliability;
+import ru.basnukaev.argumentmap.hadith.repository.NarratorCommentaryRepository;
 import ru.basnukaev.argumentmap.hadith.repository.NarratorRelationRepository;
 import ru.basnukaev.argumentmap.hadith.repository.NarratorRepository;
 import ru.basnukaev.argumentmap.hadith.service.ArabicTextNormalizer;
@@ -55,23 +61,30 @@ public class AlminasaNarratorMapper {
     private static final Pattern RELATION_ENTRY = Pattern.compile("^(.*)-\\s*\\((\\d+)\\)\\s*$");
 
     private final AmNarratorStagingDao narratorStagingDao;
+    private final AmNarratorCommentaryStagingDao narratorCommentaryStagingDao;
     private final NarratorRepository narratorRepository;
     private final NarratorRelationRepository relationRepository;
+    private final NarratorCommentaryRepository narratorCommentaryRepository;
     private final ObjectMapper objectMapper;
 
     public AlminasaNarratorMapper(AmNarratorStagingDao narratorStagingDao,
+                                  AmNarratorCommentaryStagingDao narratorCommentaryStagingDao,
                                   NarratorRepository narratorRepository,
                                   NarratorRelationRepository relationRepository,
+                                  NarratorCommentaryRepository narratorCommentaryRepository,
                                   ObjectMapper objectMapper) {
         this.narratorStagingDao = narratorStagingDao;
+        this.narratorCommentaryStagingDao = narratorCommentaryStagingDao;
         this.narratorRepository = narratorRepository;
         this.relationRepository = relationRepository;
+        this.narratorCommentaryRepository = narratorCommentaryRepository;
         this.objectMapper = objectMapper;
     }
 
     /**
      * Маппит одну staging-строку рави в {@code hd_narrators} (upsert) +
-     * пересоздаёт {@code hd_narrator_relations}.
+     * пересоздаёт {@code hd_narrator_relations} и {@code hd_narrator_commentaries}
+     * (джарх/таʿдиль о рави) — всё в одной транзакции.
      *
      * @return id строки {@code hd_narrators} (существующей или новой)
      */
@@ -124,6 +137,7 @@ public class AlminasaNarratorMapper {
         }
 
         recreateRelations(id, raw);
+        recreateNarratorCommentaries(id, externalId);
         return id;
     }
 
@@ -226,6 +240,58 @@ public class AlminasaNarratorMapper {
         relationRepository.deleteByNarratorId(narratorId);
         saveRelations(narratorId, raw.path("top_students"), "STUDENT");
         saveRelations(narratorId, raw.path("top_scholars"), "SCHOLAR");
+    }
+
+    /**
+     * Delete-recreate джарх/таʿдиль-цитат о рави из staging (ADR-061). Лукап по
+     * {@code narrator_id} (= external_id рави) — terms возвращает пусто для рави
+     * без цитат, тогда метод просто сносит существующие. Год смерти критика
+     * берётся из raw {@code commenter_dod} (парсер инжектит из sort[0], если в
+     * {@code _source} нет). Пустой {@code comments} → строка-цитата пропускается.
+     */
+    private void recreateNarratorCommentaries(UUID narratorId, String externalId) {
+        narratorCommentaryRepository.deleteByNarratorId(narratorId);
+        Optional<Integer> externalIdInt = parseExternalIdInt(externalId);
+        if (externalIdInt.isEmpty()) {
+            return;
+        }
+        for (AmNarratorCommentaryRow staged : narratorCommentaryStagingDao.findByNarratorId(externalIdInt.get())) {
+            JsonNode raw = parse(staged.rawJson());
+            List<String> comments = readComments(raw.path("comments"));
+            if (comments.isEmpty()) {
+                continue;
+            }
+            ObjectNode metadata = objectMapper.createObjectNode();
+            metadata.put("source", SOURCE);
+            metadata.put("docId", staged.docId());
+            narratorCommentaryRepository.save(new NarratorCommentary(
+                    UUID.randomUUID(),
+                    narratorId,
+                    text(raw, "commenter"),
+                    intOrNull(raw, "commenter_dod"),
+                    text(raw, "book"),
+                    text(raw, "author"),
+                    intOrNull(raw, "page"),
+                    intOrNull(raw, "volume"),
+                    comments,
+                    writeJson(metadata),
+                    Instant.now()));
+        }
+    }
+
+    /** {@code comments}-массив строк из raw → {@code List<String>} (пустые/пробельные отброшены). */
+    private static List<String> readComments(JsonNode arr) {
+        List<String> result = new ArrayList<>();
+        if (!arr.isArray()) {
+            return result;
+        }
+        for (JsonNode el : arr) {
+            String s = el.asText(null);
+            if (s != null && !s.isBlank()) {
+                result.add(s.trim());
+            }
+        }
+        return result;
     }
 
     private void saveRelations(UUID narratorId, JsonNode arr, String role) {
@@ -361,6 +427,21 @@ public class AlminasaNarratorMapper {
         } catch (NumberFormatException e) {
             return Optional.empty();
         }
+    }
+
+    /** external_id рави как int (ключ джойна narrator-commentary staging). */
+    private static Optional<Integer> parseExternalIdInt(String externalId) {
+        try {
+            return Optional.of(Integer.parseInt(externalId.trim()));
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
+    }
+
+    /** Числовое поле raw как Integer; null если отсутствует/не число. */
+    private static Integer intOrNull(JsonNode node, String field) {
+        JsonNode v = node.path(field);
+        return v.isNumber() ? v.asInt() : null;
     }
 
     private String writeJson(JsonNode node) {

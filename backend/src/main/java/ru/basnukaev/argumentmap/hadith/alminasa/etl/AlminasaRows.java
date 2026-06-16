@@ -1,12 +1,14 @@
 package ru.basnukaev.argumentmap.hadith.alminasa.etl;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import ru.basnukaev.argumentmap.hadith.alminasa.api.dto.AlminasaHit;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmAmbiguousRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmCommentaryRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmExplanationRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmHadithRow;
+import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmNarratorCommentaryRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmNarratorRow;
 import ru.basnukaev.argumentmap.hadith.alminasa.etl.dto.AmRulingRow;
 
@@ -125,6 +127,54 @@ public final class AlminasaRows {
                 textOrNull(src, "author"),
                 src.toString()
         );
+    }
+
+    /**
+     * Цитата джарх/таʿдиль о рави (narrator-commentary-12): hit → {@link
+     * AmNarratorCommentaryRow}. PK doc_id = ES {@code _id} (в {@code _source}
+     * нет природного int id). narrator_id (ключ джойна на рави) — из
+     * {@code _source.id} (string, = hd_narrators.external_id). commenter/book —
+     * горячие колонки; полный {@code _source} едет в raw jsonb.
+     */
+    public static AmNarratorCommentaryRow fromNarratorCommentaryHit(AlminasaHit hit) {
+        JsonNode src = hit.source();
+        JsonNode idNode = src.path("id");
+        int narratorId;
+        try {
+            // id в _source — строка ("4396"); приводим к int (ключ джойна на рави)
+            narratorId = Integer.parseInt(idNode.asText().trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                    "alminasa narrator-commentary без numeric _source.id: " + idNode, e);
+        }
+        return new AmNarratorCommentaryRow(
+                hit.id(),
+                narratorId,
+                textOrNull(src, "commenter"),
+                textOrNull(src, "book"),
+                rawWithCommenterDod(hit)
+        );
+    }
+
+    /**
+     * raw для narrator-commentary = {@code _source}, но с гарантированным
+     * {@code commenter_dod} (год смерти критика): в live он в {@code _source},
+     * в тест-фикстуре — только в {@code sort[0]} (решение 4 плана). Если в
+     * {@code _source} нет, а в {@code sort[0]} есть число — инжектим, чтобы
+     * маппер всегда читал из raw без доступа к {@code sort}.
+     */
+    private static String rawWithCommenterDod(AlminasaHit hit) {
+        JsonNode src = hit.source();
+        if (!src.path("commenter_dod").isMissingNode() && !src.path("commenter_dod").isNull()) {
+            return src.toString();
+        }
+        JsonNode sort0 = hit.sort() != null ? hit.sort().path(0) : null;
+        if (sort0 != null && sort0.isNumber() && src.isObject()) {
+            ObjectNode copy = (ObjectNode) src.deepCopy();
+            copy.put("commenter_dod", sort0.asInt());
+            return copy.toString();
+        }
+        return src.toString();
     }
 
     public static AmRulingRow fromRulingHit(AlminasaHit hit) {

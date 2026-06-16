@@ -21,6 +21,7 @@ import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmAmbiguousStagingDao
 import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmCommentaryStagingDao;
 import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmExplanationStagingDao;
 import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmHadithStagingDao;
+import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmNarratorCommentaryStagingDao;
 import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmNarratorStagingDao;
 import ru.basnukaev.argumentmap.hadith.alminasa.repository.AmRulingStagingDao;
 import ru.basnukaev.argumentmap.hadith.alminasa.service.AlminasaCatalogService;
@@ -28,8 +29,10 @@ import ru.basnukaev.argumentmap.hadith.alminasa.service.AlminasaCrawlService;
 import ru.basnukaev.argumentmap.hadith.alminasa.service.AlminasaDependentsBackfillService;
 import ru.basnukaev.argumentmap.hadith.alminasa.service.AlminasaHadithMapper;
 import ru.basnukaev.argumentmap.hadith.alminasa.service.AlminasaImportLauncher;
+import ru.basnukaev.argumentmap.hadith.alminasa.service.AlminasaNarratorCommentaryBackfillService;
 import ru.basnukaev.argumentmap.hadith.alminasa.web.dto.AlminasaBackfillStatusResponse;
 import ru.basnukaev.argumentmap.hadith.alminasa.web.dto.AlminasaCatalogEntryResponse;
+import ru.basnukaev.argumentmap.hadith.alminasa.web.dto.AlminasaNarratorCommentaryBackfillStatusResponse;
 import ru.basnukaev.argumentmap.hadith.alminasa.web.dto.AlminasaCrawlStatusResponse;
 import ru.basnukaev.argumentmap.hadith.alminasa.web.dto.AlminasaDryRunResponse;
 import ru.basnukaev.argumentmap.hadith.alminasa.web.dto.AlminasaImportStatusResponse;
@@ -55,6 +58,8 @@ public class AlminasaAdminController {
     private final AlminasaCatalogService catalogService;
     private final AlminasaImportLauncher importLauncher;
     private final AlminasaDependentsBackfillService backfillService;
+    private final AlminasaNarratorCommentaryBackfillService narratorCommentaryBackfillService;
+    private final AmNarratorCommentaryStagingDao narratorCommentaryStagingDao;
     private final AlminasaHadithMapper hadithMapper;
 
     public AlminasaAdminController(AlminasaCrawlService crawlService,
@@ -67,6 +72,8 @@ public class AlminasaAdminController {
                                    AlminasaCatalogService catalogService,
                                    AlminasaImportLauncher importLauncher,
                                    AlminasaDependentsBackfillService backfillService,
+                                   AlminasaNarratorCommentaryBackfillService narratorCommentaryBackfillService,
+                                   AmNarratorCommentaryStagingDao narratorCommentaryStagingDao,
                                    AlminasaHadithMapper hadithMapper) {
         this.crawlService = crawlService;
         this.hadithDao = hadithDao;
@@ -78,6 +85,8 @@ public class AlminasaAdminController {
         this.catalogService = catalogService;
         this.importLauncher = importLauncher;
         this.backfillService = backfillService;
+        this.narratorCommentaryBackfillService = narratorCommentaryBackfillService;
+        this.narratorCommentaryStagingDao = narratorCommentaryStagingDao;
         this.hadithMapper = hadithMapper;
     }
 
@@ -206,6 +215,45 @@ public class AlminasaAdminController {
     private AlminasaBackfillStatusResponse backfillStatusResponse() {
         return AlminasaBackfillStatusResponse.of(
                 backfillService.status(), commentaryDao.count(), ambiguousDao.count());
+    }
+
+    // ── backfill narrator-commentary (джарх/таʿдиль о рави, ADR-061) ──────────
+
+    /**
+     * Запуск backfill-краула цитат о рави поверх staging-корпуса рави. 202 +
+     * статус; 409 {@code alminasa-backfill-already-running} если backfill уже
+     * идёт.
+     */
+    @PostMapping("/backfill/narrator-commentary/start")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public AlminasaNarratorCommentaryBackfillStatusResponse narratorCommentaryBackfillStart(
+            @CurrentUser UUID currentUserId) {
+        requireAdmin(currentUserId);
+        narratorCommentaryBackfillService.start();
+        return narratorCommentaryBackfillStatusResponse();
+    }
+
+    /** Пауза narrator-commentary backfill на границе страницы (после pause рестарт с нуля). */
+    @PostMapping("/backfill/narrator-commentary/pause")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public AlminasaNarratorCommentaryBackfillStatusResponse narratorCommentaryBackfillPause(
+            @CurrentUser UUID currentUserId) {
+        requireAdmin(currentUserId);
+        narratorCommentaryBackfillService.pause();
+        return narratorCommentaryBackfillStatusResponse();
+    }
+
+    /** Снапшот прогресса narrator-commentary backfill + счётчик staging цитат (поллинг). */
+    @GetMapping("/backfill/narrator-commentary/status")
+    public AlminasaNarratorCommentaryBackfillStatusResponse narratorCommentaryBackfillStatus(
+            @CurrentUser UUID currentUserId) {
+        requireAdmin(currentUserId);
+        return narratorCommentaryBackfillStatusResponse();
+    }
+
+    private AlminasaNarratorCommentaryBackfillStatusResponse narratorCommentaryBackfillStatusResponse() {
+        return AlminasaNarratorCommentaryBackfillStatusResponse.of(
+                narratorCommentaryBackfillService.status(), narratorCommentaryStagingDao.count());
     }
 
     private AlminasaCrawlStatusResponse statusResponse() {
