@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, FileImage, Loader2 } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import type { components } from '@/shared/api/types';
@@ -101,7 +101,23 @@ function PageView({
 }: Props) {
   const t = useT();
   const contentRef = useRef<HTMLElement>(null);
-  const pageId = state.kind === 'success' ? state.page.id : null;
+  const pageId = state.kind === 'success' ? (state.page.id ?? null) : null;
+
+  // Флаг готовности Tiptap DOM: false пока useEditor не инициализировался.
+  // Сбрасывается при смене pageId (новая страница = новый контент = новый editor).
+  // Нужен чтобы highlight-эффект не стрелял раньше чем text nodes в DOM есть.
+  const [richTextReady, setRichTextReady] = useState(false);
+  // Сброс при смене страницы — новый контент загружает новый editor
+  const prevPageIdRef = useRef<string | null>(null);
+  if (prevPageIdRef.current !== pageId) {
+    prevPageIdRef.current = pageId;
+    // Сброс только если был уже ready (избегаем двойного setState на mount)
+    if (richTextReady) setRichTextReady(false);
+  }
+
+  const onRichTextReady = useCallback(() => {
+    setRichTextReady(true);
+  }, []);
 
   useEffect(() => {
     if (!selectable || !onSelectionChange || !contentRef.current || !pageId) {
@@ -136,12 +152,21 @@ function PageView({
   useEffect(() => {
     if (!contentRef.current) return;
     const container = contentRef.current;
+
+    // Для formattedContent (Tiptap path): ждём сигнала richTextReady,
+    // иначе text nodes ещё не в DOM и applyHighlight ничего не найдёт.
+    // Для legacy dangerouslySetInnerHTML path: richTextReady всегда false,
+    // но там DOM синхронный — достаточно pageId как сигнала готовности.
+    const hasFormattedContent =
+      state.kind === 'success' && state.page.formattedContent != null;
+    if (hasFormattedContent && !richTextReady) return;
+
     removeHighlights(container);
     if (!highlightRange) return;
     applyHighlight(container, highlightRange[0], highlightRange[1]);
     const mark = container.querySelector('mark.citation-highlight');
     mark?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [highlightRange, pageId]);
+  }, [highlightRange, pageId, richTextReady, state]);
 
   if (state.kind === 'loading') {
     return (
@@ -206,6 +231,7 @@ function PageView({
           <RichTextRenderer
             content={page.formattedContent}
             extensions={READER_EXTENSIONS}
+            onReady={onRichTextReady}
           />
         </article>
       ) : (

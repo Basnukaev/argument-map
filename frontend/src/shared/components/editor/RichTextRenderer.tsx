@@ -35,6 +35,12 @@ interface Props {
   className?: string;
   /** RTL direction для арабского контента */
   dir?: 'rtl' | 'ltr' | 'auto';
+  /**
+   * Вызывается когда Tiptap editor инициализирован и DOM заполнен.
+   * Используется для синхронизации highlight-эффекта в PageView:
+   * подсветка применяется только после того как text nodes в DOM готовы.
+   */
+  onReady?: () => void;
 }
 
 /**
@@ -71,6 +77,7 @@ function RichTextRenderer({
   extensions = [],
   className,
   dir,
+  onReady,
 }: Props) {
   return (
     <div dir={dir}>
@@ -79,6 +86,7 @@ function RichTextRenderer({
         editable={false}
         extensions={extensions}
         className={className}
+        onEditorReady={onReady}
       />
     </div>
   );
