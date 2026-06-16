@@ -155,11 +155,16 @@ floating action bar (graphSelectionStore). Детали в progress.md/git.
   hd_narrator_relations (у тех только counts из top_students).
   Краулить narrator-first/лениво, НЕ в hadith-цикле. Фикстура
   chains-links-12-scholars.json.
-- [ ] **narrator-commentary-12 — джарх-ва-тадиль цитаты о рави**:
-  {commenter, commenter_dod, comments[], book(Такриб ат-Тахзиб...),
-  page/volume} по narrator id. Новая таблица hd_narrator_commentaries
-  + секция в карточке рави («что сказали учёные о передатчике» с
-  атрибуцией). Фикстура narrator-commentary-12.json.
+- [x] **narrator-commentary-12 — джарх-ва-тадиль цитаты о рави** ✅ Сессия 61
+  (2026-06-16, ADR-061, миграция 76): таблица hd_narrator_commentaries +
+  секция «Оценки учёных о передатчике» на карточке рави. Live: 29 546 цитат
+  (re-map 7 789 рави, 0 ошибок). План
+  `docs/plans/2026-06-16-alminasa-narrator-commentary.md`. **Known-tradeoff
+  (MINOR-1 review):** `AlminasaEsClient.fetchNarratorCommentaries` батчит 25
+  рави × ES `size=500` — у очень плодовитого рави цитаты могут переполнить
+  size (warn-лог, доки не теряются: re-crawl батча). Консистентно с
+  fetchCommentaries/fetchAmbiguous; поднять `dependent-fetch-size` если в live
+  появятся overflow-warn'ы по narrator-commentary-12.
 - [ ] **references — каталог корпуса alminasa** (86 книг: type/status/
   progress оцифровки). Витрина «что есть в корпусе»; можно статическим
   seed. Низкий приоритет. Фикстура references.json.

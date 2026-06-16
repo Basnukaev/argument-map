@@ -347,6 +347,12 @@ design-specs создаются по мере приоритезации.
             backfill-краул 2 индексов (33k за 17 мин), маппинг
             ILAL/GHARIB (65 280 + 2 018 строк live), три секции UI.
             План: `docs/plans/2026-06-06-alminasa-ilal-gharib.md`.
+      - [x] **narrator-commentary — джарх/таʿдиль о рави** ✅ 2026-06-16
+            (Сессия 61, ADR-061, миграция 76) — backfill `narrator-commentary-12`
+            (29 546 цитат, re-map 7 789 рави 0 ошибок) → `hd_narrator_commentaries`
+            → секция «Оценки учёных о передатчике» на карточке рави. Review
+            APPROVE 0C/0I. План:
+            `docs/plans/2026-06-16-alminasa-narrator-commentary.md`.
       - ✅ **Все user-гейты СНЯТЫ** (2026-06-06): массовый обход —
             Абдула снял сам; HAR علل/غريب — снят и разобран; AI-ключ
             DeepSeek — live-перевод работает. Письмо alminasa
