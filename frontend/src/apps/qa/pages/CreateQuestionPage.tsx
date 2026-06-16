@@ -7,6 +7,7 @@ import Header from '@/shared/components/layout/Header';
 import { apiPostRaw, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useT } from '@/shared/i18n';
+import { sanitizePageHtml } from '@/shared/components/reader/utils';
 import type { components } from '@/shared/api/types';
 
 type Question = components['schemas']['QuestionResponse'];
@@ -129,7 +130,7 @@ function CreateQuestionPage() {
               </div>
               <p
                 className="text-sm leading-relaxed text-ink-700"
-                dangerouslySetInnerHTML={{ __html: t('qa.create.hint_body') }}
+                dangerouslySetInnerHTML={{ __html: sanitizePageHtml(t('qa.create.hint_body')) }}
               />
               <p className="mt-3 text-xs italic text-ink-500">
                 {t('qa.create.hint_example')}
