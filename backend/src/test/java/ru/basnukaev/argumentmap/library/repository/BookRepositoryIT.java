@@ -326,4 +326,97 @@ class BookRepositoryIT {
         assertThatThrownBy(() -> bookRepository.save(bad))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
     }
+
+    // Thesis metadata round-trip (миграция 58)
+
+    @Test
+    void save_withThesisMetadata_roundTrip() {
+        // Рисала с заполненными thesis_degree / supervisor / institution -
+        // проверяем что save + findById сохраняет все три поля без искажений
+        Book book = new Book(
+                UUID.randomUUID(), BookType.BOOK,
+                "رسالة في علم الحديث",
+                null, "ar",
+                null, null, userId,
+                Instant.now(), Instant.now(),
+                null, null, null, null, null, null,
+                BookVisibility.PUBLIC,
+                "دكتوراه", "د. أحمد السلامة", "جامعة الإمام محمد بن سعود الإسلامية"
+        );
+
+        bookRepository.save(book);
+
+        Book reloaded = bookRepository.findById(book.id()).orElseThrow();
+        assertThat(reloaded.thesisDegree()).isEqualTo("دكتوراه");
+        assertThat(reloaded.thesisSupervisor()).isEqualTo("د. أحمد السلامة");
+        assertThat(reloaded.thesisInstitution())
+                .isEqualTo("جامعة الإمام محمد بن سعود الإسلامية");
+    }
+
+    @Test
+    void save_withNullThesisFields_persistsNulls() {
+        // Обычная изданная книга (не рисала) - thesis-поля должны оставаться null
+        Book book = book("كتاب عادي بدون أطروحة");
+
+        bookRepository.save(book);
+
+        Book reloaded = bookRepository.findById(book.id()).orElseThrow();
+        assertThat(reloaded.thesisDegree()).isNull();
+        assertThat(reloaded.thesisSupervisor()).isNull();
+        assertThat(reloaded.thesisInstitution()).isNull();
+    }
+
+    @Test
+    void updateThesisMetadata_setsAllThreeFields() {
+        // save книги без thesis-данных, затем updateThesisMetadata -
+        // проверяем что все три поля записались и считались через ROW_MAPPER
+        Book book = bookRepository.save(book("مخطوطة للتحديث"));
+
+        boolean updated = bookRepository.updateThesisMetadata(
+                book.id(),
+                "ماجستير",
+                "أ.د. عبد الله العمري",
+                "كلية الشريعة"
+        );
+
+        assertThat(updated).isTrue();
+        Book reloaded = bookRepository.findById(book.id()).orElseThrow();
+        assertThat(reloaded.thesisDegree()).isEqualTo("ماجستير");
+        assertThat(reloaded.thesisSupervisor()).isEqualTo("أ.د. عبد الله العمري");
+        assertThat(reloaded.thesisInstitution()).isEqualTo("كلية الشريعة");
+    }
+
+    @Test
+    void updateThesisMetadata_withNulls_clearsFields() {
+        // Сначала сохраняем книгу с thesis-данными (через полный конструктор),
+        // затем обновляем их в null - проверяем nullable round-trip
+        Book book = new Book(
+                UUID.randomUUID(), BookType.BOOK,
+                "رسالة للمسح",
+                null, "ar",
+                null, null, userId,
+                Instant.now(), Instant.now(),
+                null, null, null, null, null, null,
+                BookVisibility.PUBLIC,
+                "دكتوراه", "مشرف", "جامعة"
+        );
+        bookRepository.save(book);
+
+        boolean updated = bookRepository.updateThesisMetadata(book.id(), null, null, null);
+
+        assertThat(updated).isTrue();
+        Book reloaded = bookRepository.findById(book.id()).orElseThrow();
+        assertThat(reloaded.thesisDegree()).isNull();
+        assertThat(reloaded.thesisSupervisor()).isNull();
+        assertThat(reloaded.thesisInstitution()).isNull();
+    }
+
+    @Test
+    void updateThesisMetadata_whenBookNotExists_returnsFalse() {
+        // Несуществующий id - метод должен вернуть false, не бросать исключение
+        boolean updated = bookRepository.updateThesisMetadata(
+                UUID.randomUUID(), "دكتوراه", "مشرف", "جامعة"
+        );
+        assertThat(updated).isFalse();
+    }
 }
