@@ -19,31 +19,23 @@ import SortSelect from '@/shared/components/ui/SortSelect';
 import LoadMoreButton from '@/shared/components/ui/LoadMoreButton';
 import BookEditModal from '@/shared/components/library/BookEditModal';
 import VisibilityBadge from '@/shared/components/visibility/VisibilityBadge';
-import { apiGetRaw, apiPostRaw, apiDeleteRaw, ApiError, formatApiError } from '@/shared/api/client';
+import { apiGetRaw, apiPostRaw, apiDeleteRaw, formatApiError } from '@/shared/api/client';
 import { formatPermissionError } from '@/shared/api/permissionErrors';
 import { toast } from '@/shared/stores/toastStore';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useT, type DictKey } from '@/shared/i18n';
-import type { AsyncState } from '@/shared/types/async';
+import { usePagedSearch } from '@/shared/hooks/usePagedSearch';
 import type { components } from '@/shared/api/types';
 
 type Book = components['schemas']['BookSummaryResponse'];
 type BookType = NonNullable<Book['bookType']>;
 type BookDetailResponse = components['schemas']['BookDetailResponse'];
-type PagedBooks = components['schemas']['PagedResponseBookSummaryResponse'];
 type AuthorityResponse = components['schemas']['AuthorityResponse'];
 type PagedAuthorities = components['schemas']['PagedResponseAuthorityResponse'];
 type CollectionResponse = components['schemas']['CollectionResponse'];
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
-
-interface BooksAccum {
-  books: Book[];
-  page: number;
-  hasNext: boolean;
-  totalElements: number;
-}
 
 /** Ключи в словаре через book.type.* - подцепляем через useT() */
 const BOOK_TYPE_DICT_KEY: Record<BookType, DictKey> = {
@@ -114,9 +106,6 @@ type SortKey = 'recent' | 'popular' | 'alphabetical';
 function BookListPage() {
   const t = useT();
   const navigate = useNavigate();
-  const [state, setState] = useState<AsyncState<BooksAccum>>({ kind: 'loading' });
-  const [searchInput, setSearchInput] = useState('');
-  const [searchQ, setSearchQ] = useState('');
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>('ALL');
   // Хранится currentUserId для strict MINE-фильтра. null = anonymous (или
   // bootstrap ещё идёт) - MINE вернёт empty (см. displayedBooks)
@@ -126,7 +115,6 @@ function BookListPage() {
   const [sortBy, setSortBy] = useState<SortKey>('recent');
   const [editingBook, setEditingBook] = useState<BookDetailResponse | null>(null);
   const [loadingEdit, setLoadingEdit] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
   // Vision 49d Section 2.2 — Set bookIds в default коллекции "Избранное"
   const [favBookIds, setFavBookIds] = useState<Set<string>>(new Set());
   const [favLoadingId, setFavLoadingId] = useState<string | null>(null);
@@ -204,16 +192,6 @@ function BookListPage() {
     [navigate, resolvingBookId],
   );
 
-  /** Debounced search - после 300ms простоя sync'аем searchInput → searchQ.
-   * searchQ - триггер refetch'а через useEffect ниже. UX: юзер печатает
-   * быстро без сетевого спама, после паузы происходит запрос */
-  useEffect(() => {
-    const handle = setTimeout(() => {
-      setSearchQ(searchInput.trim());
-    }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(handle);
-  }, [searchInput]);
-
   const handleEdit = async (bookId: string) => {
     setLoadingEdit(bookId);
     try {
@@ -234,84 +212,40 @@ function BookListPage() {
 
   /** URL builder - объединяет current filter state. Server-side: ?q=,
    * ?type=, ?authorityId=, ?page=, ?size=, ?sort= (Vision 49d Phase 1).
-   * Visibility - client-side (libraryFilter MINE/SHARED/PUBLIC) */
+   * `q` приходит от usePagedSearch (debounced). Visibility - client-side
+   * (libraryFilter MINE/SHARED/PUBLIC) поверх загруженной страницы. */
   const buildBooksUrl = useCallback(
-    (page: number): string => {
+    (page: number, q: string): string => {
       const params = new URLSearchParams();
       params.set('page', String(page));
       params.set('size', String(PAGE_SIZE));
       params.set('sort', sortBy);
-      if (searchQ) params.set('q', searchQ);
+      if (q) params.set('q', q);
       if (typeFilter !== 'ALL') params.set('type', typeFilter);
       if (authorityFilter?.id) params.set('authorityId', authorityFilter.id);
       return `/api/v1/library/books?${params.toString()}`;
     },
-    [searchQ, typeFilter, authorityFilter, sortBy],
+    [typeFilter, authorityFilter, sortBy],
   );
 
-  /** Initial fetch + refetch при изменении server-side filters (q/type).
-   * setState({kind:'loading'}) синхронно в effect не вызываем
-   * (react-hooks/set-state-in-effect) - держим предыдущие данные пока
-   * новые не пришли. На initial mount loading через useState initial value */
-  useEffect(() => {
-    const controller = new AbortController();
-    apiGetRaw<PagedBooks>(buildBooksUrl(0), { signal: controller.signal })
-      .then((paged) => {
-        if (controller.signal.aborted) return;
-        setState({
-          kind: 'success',
-          data: {
-            books: paged.items ?? [],
-            page: paged.page ?? 0,
-            hasNext: paged.hasNext ?? false,
-            totalElements: paged.totalElements ?? 0,
-          },
-        });
-      })
-      .catch((e: unknown) => {
-        if (controller.signal.aborted) return;
-        const message =
-          e instanceof ApiError
-            ? `${e.problem.title}${e.problem.detail ? ': ' + e.problem.detail : ''}`
-            : e instanceof Error
-              ? e.message
-              : 'Не удалось загрузить библиотеку';
-        setState({ kind: 'error', message });
-      });
-    return () => controller.abort();
-  }, [buildBooksUrl]);
+  // Debounce + paged fetch + Load-More (включая stale-append race guard:
+  // смена q/фильтра во время in-flight page-N отбрасывает устаревший ответ).
+  // Server-side фильтры (type/authority/sort) — в deps, чтобы page 0
+  // перезапрашивался при их смене. Visibility — client-side, ниже.
+  const { state, searchInput, setSearchInput, loadMore, loadingMore } =
+    usePagedSearch<Book>({
+      buildUrl: buildBooksUrl,
+      debounceMs: SEARCH_DEBOUNCE_MS,
+      deps: [typeFilter, authorityFilter, sortBy],
+      fallbackError: 'Не удалось загрузить библиотеку',
+    });
 
-  /** Load More - подгружает следующую страницу. Аппендит к existing list.
-   * Local filter (visibility) применяется поверх */
-  const handleLoadMore = async () => {
-    if (state.kind !== 'success' || !state.data.hasNext || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const nextPage = state.data.page + 1;
-      const resp = await apiGetRaw<PagedBooks>(buildBooksUrl(nextPage));
-      const nextItems = resp.items ?? [];
-      setState({
-        kind: 'success',
-        data: {
-          books: [...state.data.books, ...nextItems],
-          page: resp.page ?? nextPage,
-          hasNext: resp.hasNext ?? false,
-          totalElements: resp.totalElements ?? state.data.totalElements,
-        },
-      });
-    } catch (e: unknown) {
-      toast.error(formatApiError(e, t('common.error')));
-    } finally {
-      setLoadingMore(false);
-    }
-  };
-
-  /** Client-side filter: visibility/owner + sort поверх загруженной
-   * страницы. Search/type/authorityId уже применены server-side через
+  /** Client-side filter: visibility/owner поверх загруженной страницы.
+   * Search/type/authorityId уже применены server-side через
    * ?q=&type=&authorityId= */
   const displayedBooks = useMemo(() => {
     if (state.kind !== 'success') return [];
-    let list = state.data.books;
+    let list = state.data.items;
     if (libraryFilter === 'MINE') {
       // Anonymous (currentUserId=null) - пустой список (нет owner identity)
       list = currentUserId
@@ -446,12 +380,12 @@ function BookListPage() {
           </Card>
         )}
 
-        {state.kind === 'success' && state.data.books.length === 0 && (
+        {state.kind === 'success' && state.data.items.length === 0 && (
           <EmptyState />
         )}
 
         {state.kind === 'success' &&
-          state.data.books.length > 0 &&
+          state.data.items.length > 0 &&
           displayedBooks.length === 0 && (
             <p className="text-center text-sm text-ink-500">
               {t('topic.list.not_found')}
@@ -481,7 +415,7 @@ function BookListPage() {
 
             {!localFilterActive && (
               <LoadMoreButton
-                onClick={handleLoadMore}
+                onClick={loadMore}
                 loading={loadingMore}
                 hasNext={state.data.hasNext}
                 shownCount={displayedBooks.length}
