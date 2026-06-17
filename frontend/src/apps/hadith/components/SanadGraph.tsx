@@ -9,7 +9,7 @@ import {
   MarkerType,
   type Edge,
 } from '@xyflow/react';
-import { BookOpen, Loader2, Maximize, Minimize, Network } from 'lucide-react';
+import { BookOpen, Loader2, Maximize, Minimize, Network, GitBranch } from 'lucide-react';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
 import { useT, type DictKey } from '@/shared/i18n';
 import SanadGraphNode, { type SanadNode } from './SanadGraphNode';
@@ -269,6 +269,25 @@ function SanadGraph({
       <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-ink-500">
         <Network size={28} className="text-ink-300" aria-hidden />
         {t('hadith.graph.empty')}
+      </div>
+    );
+  }
+
+  // Такхридж/вариант: граф есть, но 0 рави И 0 version-узлов
+  // (только сборник/пророк — пустая структурная оболочка).
+  // Корпус-wide ~996 хадисов (~3%) — это VARIANT без собственной цепи передачи.
+  // VERSION-узлы (параллельные передачи) — реальный контент, граф рендерится.
+  // Граф КОРРЕКТЕН, данные не сломаны; показываем информативный empty-state.
+  const hasRawi = graph.nodes.some(
+    (n) => n.role === 'NARRATOR' || n.role === 'COMPANION' || n.role === 'VERSION',
+  );
+  if (!hasRawi) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+        <GitBranch size={28} className="text-ink-300" aria-hidden />
+        <p className="max-w-sm text-sm leading-relaxed text-ink-500">
+          {t('hadith.sanad.empty_takhrij')}
+        </p>
       </div>
     );
   }

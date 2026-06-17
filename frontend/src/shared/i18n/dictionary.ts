@@ -1458,6 +1458,8 @@ export const DICTIONARY = {
     'hadith.graph.you_are_here': 'вы здесь',
     'hadith.graph.chain_select': 'Подсветить эту цепь в графе',
     'hadith.graph.chain_deselect': 'Снять подсветку',
+    'hadith.sanad.empty_takhrij':
+      'Эта запись — вариант/такхридж без отдельной цепи передачи. Структурный иснад не извлечён; см. полный текст во вкладке «Текст».',
     'hadith.narrators.title': 'Передатчики',
     'hadith.narrators.subtitle': 'Каталог передатчиков хадисов — наука о людях (علم الرجال)',
     'hadith.narrators.search': 'Поиск по имени',
@@ -2988,6 +2990,8 @@ export const DICTIONARY = {
     'hadith.graph.you_are_here': 'أنت هنا',
     'hadith.graph.chain_select': 'إبراز هذه السلسلة في الشجرة',
     'hadith.graph.chain_deselect': 'إلغاء الإبراز',
+    'hadith.sanad.empty_takhrij':
+      'هذه الرواية تخريج/متابعة بلا سند مستقل. لم يُستخرج الإسناد الهيكلي؛ راجع النص الكامل في تبويب «النص».',
     'hadith.narrators.title': 'الرواة',
     'hadith.narrators.subtitle': 'فهرس رواة الحديث — علم الرجال',
     'hadith.narrators.search': 'بحث بالاسم',

@@ -92,6 +92,30 @@ describe('SanadGraph', () => {
     expect(fetched).toBe(false);
   });
 
+  it('такхридж (0 рави): показывает empty-state вместо графа', async () => {
+    // Хадис с COLLECTOR-узлом, но без NARRATOR/COMPANION — такхридж/вариант.
+    const graph = {
+      hadithId: 'h-takhrij',
+      nodes: [
+        {
+          id: 'collector-1',
+          role: 'COLLECTOR' as const,
+          data: { narratorId: null, nameAr: 'المستدرك', tier: 1, collectionAr: 'المستدرك' },
+        },
+      ],
+      edges: [],
+      sanads: [],
+    };
+    renderGraph(<SanadGraph graph={graph as unknown as never} />);
+    expect(
+      await screen.findByText(
+        'Эта запись — вариант/такхридж без отдельной цепи передачи. Структурный иснад не извлечён; см. полный текст во вкладке «Текст».',
+      ),
+    ).toBeInTheDocument();
+    // React Flow не рендерится — нет рави-узлов
+    expect(screen.queryByText('المستدرك')).not.toBeInTheDocument();
+  });
+
   it('controlled-выбор (onNarratorSelect задан): внутренняя панель не рендерится', async () => {
     // Контракт: когда выбором владеет родитель (onNarratorSelect передан),
     // SanadGraph НЕ рендерит свою NarratorPanel — единственная панель на
