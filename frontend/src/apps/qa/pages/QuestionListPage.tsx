@@ -19,6 +19,7 @@ import QuestionStatusBadge from '@/apps/qa/components/QuestionStatusBadge';
 import VoteWidget from '@/shared/components/ui/VoteWidget';
 import { usePagedSearch } from '@/shared/hooks/usePagedSearch';
 import { useT, useFormatDate, hasArabicScript, type DictKey } from '@/shared/i18n';
+import { useIsAuthenticated } from '@/shared/stores/authStore';
 import type { components } from '@/shared/api/types';
 
 type Question = components['schemas']['QuestionResponse'];
@@ -37,6 +38,9 @@ const FILTER_LABEL: Record<'ALL' | Status, DictKey> = {
 function QuestionListPage() {
   const t = useT();
   const formatDate = useFormatDate();
+  // Guest view (roadmap 49.G): аноним видит вопросы read-only, кнопка
+  // «Задать вопрос» скрыта (вход через «Войти» в хедере).
+  const isAuthenticated = useIsAuthenticated();
   const [statusFilter, setStatusFilter] = useState<Status | 'ALL'>('ALL');
   // Vision 49d Section 2.1 - server-side sort
   const [sort, setSort] = useState<SortKey>('recent');
@@ -106,9 +110,11 @@ function QuestionListPage() {
               </p>
             )}
           </div>
-          <Link to="/qa/new">
-            <Button icon={Plus}>{t('qa.list.create_button')}</Button>
-          </Link>
+          {isAuthenticated && (
+            <Link to="/qa/new">
+              <Button icon={Plus}>{t('qa.list.create_button')}</Button>
+            </Link>
+          )}
         </header>
 
         <ListToolbar

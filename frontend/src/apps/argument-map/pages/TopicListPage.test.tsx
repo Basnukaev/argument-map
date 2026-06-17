@@ -1,13 +1,35 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { waitForApi } from '@/test/asyncHelpers';
 import { MemoryRouter } from 'react-router';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
+import { useAuthStore } from '@/shared/stores/authStore';
 import TopicListPage from './TopicListPage';
 
 const BASE = 'http://test.local';
+
+// Guest view (roadmap 49.G): write-CTA (создать/импорт) гейтятся по
+// authStore.user. Тесты импорта/каталога идут от лица залогиненного юзера -
+// иначе кнопки/file-input скрыты. Гость-сценарий покрыт отдельным IT/смоком.
+beforeEach(() => {
+  useAuthStore.setState({
+    user: {
+      id: '00000000-0000-0000-0000-000000000001',
+      username: 'tester',
+      email: 'tester@x.local',
+      role: 'USER',
+    },
+    accessToken: 'fake-jwt',
+    isLoading: false,
+    initialized: true,
+  });
+});
+
+afterEach(() => {
+  useAuthStore.setState({ user: null, accessToken: null });
+});
 
 function renderPage() {
   return render(

@@ -91,6 +91,7 @@
 - ADR-061: Отдельная таблица hd_narrator_commentaries для джарх/таʿдиль о рави (миграция 76)
 - ADR-062: Мост hd_hadiths↔sources для ручных оценок учёных (Option B, lazy-resolve)
 - ADR-063: Двух-осевая таксономия хадиса — провенанс (status) + аутентичность (миграция 77, выводимая)
+- ADR-064: Guest view — публичный read-only доступ (permitAll GET + RBAC service-фильтр, 49.G)
 
 ---
 
@@ -6729,3 +6730,43 @@ null если нет совпадений. **Ограничения** (в javado
 re-map все NULL. Приближённость эвристики — осознанный trade-off (точная
 классификация требует ручной курации/NLP); улучшать при сигнале. Связанные:
 ADR-062 (ручные оценки — отдельная, НЕ выводимая ось), ADR-060 (источник).
+
+## ADR-064: Guest view — публичный read-only доступ (permitAll GET + RBAC service-фильтр)
+**Дата:** 2026-06-18
+**Статус:** принято
+**Реализовано:** Сессия 62, спека
+`docs/specs/2026-06-17-hadith-explorer-ux-feedback.md` (A1 = roadmap 49.G)
+
+**Контекст.** Аноним (без логина) получал красный «Access token отсутствует
+либо истёк» (`CurrentUserArgumentResolver` бросал 401 на `@CurrentUser` в
+публичных GET, до которых dev-permitAll пускал). Абдула выбрал **полный
+публичный read-only доступ** (D4).
+
+**Решение.**
+1. **SecurityConfig:** `GET /api/v1/{topics,hadith,library/books,library/pages,
+   questions}/**` → `permitAll` во ВСЕХ профилях (не только dev). Мутации
+   (POST/PATCH/DELETE) + `/admin/**` + `/api/v1/auth/me` + actuator — остаются
+   `authenticated()`.
+2. **Публичные GET-контроллеры** читают принципала через `currentUserIdOrNull()`
+   (null для анонима), а RBAC service-фильтр (ADR-043) клиппит до PUBLIC для
+   null-юзера → PRIVATE/SHARED анониму НЕ раскрывается (403 / SQL-клип).
+3. **Frontend:** `useIsAuthenticated` гейтит write-CTA; bootstrap анонима тихий
+   (не error-стейт); `ProtectedRoute` оставлен для admin/profile/create.
+
+**Причины.** RBAC visibility-фильтр уже anonymous-safe (`userId=null` → только
+PUBLIC), поэтому permitAll на GET + существующие service-guard'ы —
+минимально-инвазивно, без отдельной prod-ветки security-логики. Подтверждено
+`GuestAccessProdProfileIT` (@prod: аноним PUBLIC→200, PRIVATE→403, мутация→401).
+
+**Побочно (найдено при расширении поверхности — ценность «двери под надзором»):**
+закрыт pre-existing **IDOR** в `BookService.getPage/listPages` (не было
+read-guard'а — любой authed читал страницы PRIVATE-книги перебором pageId) +
+**NPE** в `GlobalExceptionHandler` на анониме (`userId=null` → 500 вместо 403).
+
+**Открытый вопрос (на решение Абдулы):** member-list
+(`/topics|books/{id}/members`) и export PUBLIC-контента сейчас доступны анониму
+— раскрывают username/UUID участников ПУБЛИЧНОЙ темы. Безопасный дефолт
+(PRIVATE закрыт) выбран; если member-list нежелателен анониму — вернуть за
+`authenticated()` (фронт его анониму не зовёт), без риска.
+
+**Связанные:** ADR-040 (auth transitional), ADR-043 (RBAC visibility).

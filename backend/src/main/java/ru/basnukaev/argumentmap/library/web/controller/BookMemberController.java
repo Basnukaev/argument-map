@@ -59,8 +59,12 @@ public class BookMemberController {
     }
 
     @GetMapping
-    public List<BookMemberResponse> list(@PathVariable UUID bookId,
-                                         @CurrentUser UUID userId) {
+    public List<BookMemberResponse> list(@PathVariable UUID bookId) {
+        // Guest view (roadmap 49.G): GET под permitAll, userId из
+        // SecurityContext (null если аноним), не @CurrentUser. listMembers
+        // делает assertCanReadBook - аноним видит членов только PUBLIC книги;
+        // PRIVATE/SHARED → 403.
+        UUID userId = SecurityContextUtils.currentUserIdOrNull();
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         return bookMemberService.listMembers(bookId, userId, role).stream()
                 .map(LibraryDtoMappers::toResponse).toList();

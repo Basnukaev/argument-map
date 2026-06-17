@@ -90,12 +90,15 @@ public class BookController {
             @RequestParam(name = "publisherId", required = false) UUID publisherId,
             @RequestParam(name = "page", required = false) Integer page,
             @RequestParam(name = "size", required = false) Integer size,
-            @RequestParam(name = "sort", required = false) String sort,
-            @CurrentUser UUID currentUserId) {
+            @RequestParam(name = "sort", required = false) String sort) {
         // ADR-043 Amendment: visibility filter применяется на repository
         // уровне через listVisibleBooksPage. PRIVATE owned + SHARED member
         // + PUBLIC видны user'у. ADMIN видит всё.
         // Vision 49d Section 2.1: sort whitelist (recent/popular/alphabetical).
+        // Guest view (roadmap 49.G): userId из SecurityContext (null если
+        // аноним) - не @CurrentUser (тот бросает 401). listVisibleBooksPage
+        // при null клиппит до PUBLIC.
+        UUID currentUserId = SecurityContextUtils.currentUserIdOrNull();
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         PageRequest pr = PageRequest.from(page, size);
         List<Book> items = bookService.listVisibleBooksPage(currentUserId, role,
@@ -117,8 +120,11 @@ public class BookController {
     }
 
     @GetMapping("/books/{bookId}")
-    public BookDetailResponse getOne(@PathVariable UUID bookId,
-                                     @CurrentUser UUID currentUserId) {
+    public BookDetailResponse getOne(@PathVariable UUID bookId) {
+        // Guest view (roadmap 49.G): read-only детали книги доступны анониму
+        // для PUBLIC. getBookWithChapters с userId=null отдаёт PRIVATE/SHARED
+        // как 403 (read-guard в BookService).
+        UUID currentUserId = SecurityContextUtils.currentUserIdOrNull();
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         BookDetail detail = bookService.getBookWithChapters(bookId, currentUserId, role);
         return LibraryDtoMappers.toDetailResponse(detail);
@@ -175,14 +181,22 @@ public class BookController {
             @PathVariable UUID bookId,
             @RequestParam(name = "from", required = false) Integer fromPage,
             @RequestParam(name = "to", required = false) Integer toPage) {
-        return bookService.listPages(bookId, fromPage, toPage).stream()
+        // Guest view (roadmap 49.G): read-guard на родительской книге -
+        // аноним (userId=null) видит страницы только PUBLIC, PRIVATE → 403.
+        UUID currentUserId = SecurityContextUtils.currentUserIdOrNull();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        return bookService.listPages(bookId, fromPage, toPage, currentUserId, role).stream()
                 .map(LibraryDtoMappers::toSummary)
                 .toList();
     }
 
     @GetMapping("/pages/{pageId}")
     public PageResponse getPage(@PathVariable UUID pageId) {
-        PageDetail detail = bookService.getPage(pageId);
+        // Guest view (roadmap 49.G): read-guard на родительской книге -
+        // аноним видит текст/скан страницы только для PUBLIC, PRIVATE → 403.
+        UUID currentUserId = SecurityContextUtils.currentUserIdOrNull();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        PageDetail detail = bookService.getPage(pageId, currentUserId, role);
         return LibraryDtoMappers.toResponse(detail);
     }
 

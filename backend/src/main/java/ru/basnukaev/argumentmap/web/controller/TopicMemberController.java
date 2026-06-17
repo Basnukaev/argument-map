@@ -57,8 +57,12 @@ public class TopicMemberController {
     }
 
     @GetMapping
-    public List<TopicMemberResponse> list(@PathVariable UUID topicId,
-                                          @CurrentUser UUID userId) {
+    public List<TopicMemberResponse> list(@PathVariable UUID topicId) {
+        // Guest view (roadmap 49.G): GET под permitAll, поэтому userId из
+        // SecurityContext (null если аноним), не @CurrentUser. listMembers
+        // делает assertCanRead - аноним видит членов только PUBLIC темы;
+        // PRIVATE/SHARED → 403 (не leak'аем приватный список).
+        UUID userId = SecurityContextUtils.currentUserIdOrNull();
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         return topicMemberService.listMembers(topicId, userId, role).stream()
                 .map(DtoMappers::toResponse).toList();

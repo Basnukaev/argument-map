@@ -99,8 +99,13 @@ function TopicGraphPage() {
   // через GET /members - не вытягиваем на каждый рендер. Точная семантика
   // принадлежит бэку. Здесь только скрываем явно ненужные UI кнопки
   // для не-owner на PRIVATE темах (она не должна была загрузиться, но
-  // защитный slot)
-  const canWriteOptimistic = isOwner || isAdmin || visibility !== 'PRIVATE';
+  // защитный slot).
+  // Guest view (roadmap 49.G): аноним (currentUser=null) видит PUBLIC граф
+  // read-only - write-кнопки скрыты, иначе клик упёрся бы в 401. Без
+  // Boolean(currentUser) условие `visibility !== 'PRIVATE'` пускало бы
+  // анонима к add-node/edge на PUBLIC темах.
+  const canWriteOptimistic =
+    Boolean(currentUser) && (isOwner || isAdmin || visibility !== 'PRIVATE');
   const canManage = isOwner || isAdmin;
 
   return (

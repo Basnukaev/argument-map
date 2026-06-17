@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import { http, HttpResponse, delay } from 'msw';
 import { server } from '@/test/server';
 import { waitForApi } from '@/test/asyncHelpers';
@@ -33,8 +34,10 @@ const ANSWER_B = {
 };
 
 function renderSection() {
+  // MemoryRouter: guest-ветка композера рендерит <Link to="/login">
+  // (анонимный user в тестах). Без роутера Link бросает контекст-ошибку.
   return render(
-    <>
+    <MemoryRouter>
       <AnswersSection
         questionId={QUESTION_ID}
         askedBy={ASKER_ID}
@@ -42,7 +45,7 @@ function renderSection() {
         onAcceptanceChange={() => {}}
       />
       <Toaster />
-    </>,
+    </MemoryRouter>,
   );
 }
 

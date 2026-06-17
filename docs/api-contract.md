@@ -138,6 +138,34 @@ backward compat не поддерживается (нет prod).
 аутентификации). Возвращают `Set-Cookie: refresh_token=...` где
 применимо (HttpOnly + Secure + SameSite=Strict).
 
+#### Гостевой доступ (guest read-only, ADR-064, Этап 49.G)
+
+Анонимный (незалогиненный) клиент имеет **публичный read-only** доступ к
+контенту во всех профилях. На уровне Spring Security `permitAll` стоит на
+**GET** для:
+
+- `/api/v1/topics/**`
+- `/api/v1/hadith/**`
+- `/api/v1/library/books/**`
+- `/api/v1/library/pages/**`
+- `/api/v1/questions/**`
+
+Все остальные методы (POST/PATCH/DELETE), `/api/v1/auth/me`, `/admin/**` и
+actuator-эндпоинты остаются `authenticated()`. Мутация анонимом → **401**
+(в prod — `unauthorized` на security-гейте; в dev — `invalid-token` от
+резолвера, т.к. dev пускает до контроллера).
+
+**Видимость для анонима.** permitAll снимает только auth-гейт; RBAC
+visibility-фильтр (ADR-043) работает на service-слое и сам обрабатывает
+`userId=null` → доступен **только** контент `visibility='PUBLIC'`. Аноним на
+PRIVATE/SHARED тему/книгу получает **403** (`forbidden-topic-access` /
+аналог), не раскрывая существование. Списочные эндпоинты SQL-клиппят до
+PUBLIC.
+
+**Контракт неизменности для уже-залогиненных:** поведение authenticated-
+запросов не меняется — те же 200/403. Для анонима добавляются ровно две
+новые ветки: PUBLIC→200 и (PRIVATE|мутация)→(403|401).
+
 **Rate limiting** (ADR-046): `/auth/login` и `/auth/register` защищены
 custom in-memory sliding-window filter. Default disabled (dev/test/local
 работают без настройки), в prod включается через

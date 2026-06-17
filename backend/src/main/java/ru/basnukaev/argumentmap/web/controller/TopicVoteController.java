@@ -65,8 +65,13 @@ public class TopicVoteController {
     }
 
     @GetMapping("/votes")
-    public TopicVoteStatsResponse getStats(@PathVariable UUID topicId,
-                                           @CurrentUser UUID userId) {
+    public TopicVoteStatsResponse getStats(@PathVariable UUID topicId) {
+        // Guest view (roadmap 49.G): GET под permitAll. userId из
+        // SecurityContext (null если аноним), не @CurrentUser (тот бросает
+        // 401). read-guard ниже отдаёт агрегаты только при доступе к теме -
+        // аноним видит голоса PUBLIC тем, PRIVATE/SHARED → 403. userVote=null
+        // для анонима (getUserVote(null) → empty).
+        UUID userId = SecurityContextUtils.currentUserIdOrNull();
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         // read-guard: отдаём агрегаты только если есть доступ к теме - иначе
         // утечка голосов приватных тем

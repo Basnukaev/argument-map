@@ -34,6 +34,16 @@ export interface AuthUser {
 }
 
 /**
+ * Selector-хук: залогинен ли пользователь. Guest view (roadmap 49.G):
+ * анонимный читатель видит публичный контент, но write-действия (создать
+ * тему/вопрос, импорт, голос) скрыты. Компоненты гейтят CTA через
+ * `useIsAuthenticated()` вместо ручного `useAuthStore((s) => Boolean(s.user))`.
+ */
+export function useIsAuthenticated(): boolean {
+  return useAuthStore((s) => s.user !== null);
+}
+
+/**
  * Backend ответ /auth/login и /auth/refresh.
  */
 interface AuthLoginResponse {

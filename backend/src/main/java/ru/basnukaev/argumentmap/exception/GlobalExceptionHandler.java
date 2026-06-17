@@ -2,6 +2,7 @@ package ru.basnukaev.argumentmap.exception;
 
 import java.net.URI;
 import java.util.List;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -217,7 +218,10 @@ public class GlobalExceptionHandler {
                 "Нет доступа к теме", "forbidden-topic-access",
                 "У вас нет прав на чтение этой темы");
         pd.setProperty("topicId", ex.getTopicId().toString());
-        pd.setProperty("userId", ex.getUserId().toString());
+        // Guest view (roadmap 49.G): аноним (userId=null) на PRIVATE/SHARED
+        // тему получает чистый 403 - property userId не выставляем (нет UUID).
+        // Раньше .toString() на null бросал NPE → 500, скрывая 403.
+        setUserIdIfPresent(pd, ex.getUserId());
         return pd;
     }
 
@@ -227,7 +231,7 @@ public class GlobalExceptionHandler {
                 "Нет прав на изменение темы", "forbidden-topic-write",
                 "У вас нет прав на запись в эту тему");
         pd.setProperty("topicId", ex.getTopicId().toString());
-        pd.setProperty("userId", ex.getUserId().toString());
+        setUserIdIfPresent(pd, ex.getUserId());
         return pd;
     }
 
@@ -245,7 +249,9 @@ public class GlobalExceptionHandler {
                 "Нет доступа к книге", "forbidden-book-access",
                 "У вас нет прав на чтение этой книги");
         pd.setProperty("bookId", ex.getBookId().toString());
-        pd.setProperty("userId", ex.getUserId().toString());
+        // Guest view (roadmap 49.G): аноним (userId=null) на PRIVATE/SHARED
+        // книгу/страницу/PDF → чистый 403 (без NPE на null.toString()).
+        setUserIdIfPresent(pd, ex.getUserId());
         return pd;
     }
 
@@ -255,7 +261,7 @@ public class GlobalExceptionHandler {
                 "Нет прав на изменение книги", "forbidden-book-write",
                 "У вас нет прав на запись в эту книгу");
         pd.setProperty("bookId", ex.getBookId().toString());
-        pd.setProperty("userId", ex.getUserId().toString());
+        setUserIdIfPresent(pd, ex.getUserId());
         return pd;
     }
 
@@ -678,6 +684,18 @@ public class GlobalExceptionHandler {
         pd.setTitle(title);
         pd.setType(URI.create(ERROR_TYPE_BASE + typeSlug));
         return pd;
+    }
+
+    /**
+     * Выставляет {@code userId}-property только если он не null. Анонимный
+     * запрос (guest view, roadmap 49.G) даёт null userId в access-denied
+     * исключениях; {@code .toString()} на нём бросал бы NPE прямо в
+     * @ExceptionHandler → 500 вместо ожидаемого 403.
+     */
+    private static void setUserIdIfPresent(ProblemDetail pd, UUID userId) {
+        if (userId != null) {
+            pd.setProperty("userId", userId.toString());
+        }
     }
 
     public record FieldError(String field, String message) {

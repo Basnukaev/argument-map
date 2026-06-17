@@ -25,6 +25,7 @@ import {
 } from '@/shared/api/client';
 import { usePagedSearch } from '@/shared/hooks/usePagedSearch';
 import { useT, useFormatDate } from '@/shared/i18n';
+import { useIsAuthenticated } from '@/shared/stores/authStore';
 import { toast } from '@/shared/stores/toastStore';
 import type { components } from '@/shared/api/types';
 import VisibilityBadge from '@/apps/argument-map/components/VisibilityBadge';
@@ -39,6 +40,9 @@ const PAGE_SIZE = 20;
 function TopicListPage() {
   const t = useT();
   const navigate = useNavigate();
+  // Guest view (roadmap 49.G): аноним видит каталог read-only, write-CTA
+  // (создать тему, импорт) скрыты - вход через «Войти» в хедере.
+  const isAuthenticated = useIsAuthenticated();
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Поиск client-side по уже загруженной выборке: бэк /api/v1/topics не
   // поддерживает ?q= (см. api-contract). Отдельное state, НЕ через
@@ -159,27 +163,29 @@ function TopicListPage() {
               )}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              icon={Upload}
-              variant="ghost"
-              onClick={triggerFilePicker}
-              disabled={importBusy}
-            >
-              {t('topic.import.button')}
-            </Button>
-            <Link to="/topics/new">
-              <Button icon={Plus}>{t('topic.list.create_button')}</Button>
-            </Link>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/json,.json"
-              onChange={handleFileSelected}
-              className="hidden"
-              aria-hidden
-            />
-          </div>
+          {isAuthenticated && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                icon={Upload}
+                variant="ghost"
+                onClick={triggerFilePicker}
+                disabled={importBusy}
+              >
+                {t('topic.import.button')}
+              </Button>
+              <Link to="/topics/new">
+                <Button icon={Plus}>{t('topic.list.create_button')}</Button>
+              </Link>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json,.json"
+                onChange={handleFileSelected}
+                className="hidden"
+                aria-hidden
+              />
+            </div>
+          )}
         </header>
 
         <ListToolbar
@@ -228,9 +234,11 @@ function TopicListPage() {
         {state.kind === 'success' && state.data.items.length === 0 && (
           <Card className="mx-auto max-w-2xl p-12 text-center">
             <p className="text-base text-ink-700">{t('topic.list.empty')}</p>
-            <Link to="/topics/new" className="mt-4 inline-block">
-              <Button icon={Plus}>{t('topic.list.create_button')}</Button>
-            </Link>
+            {isAuthenticated && (
+              <Link to="/topics/new" className="mt-4 inline-block">
+                <Button icon={Plus}>{t('topic.list.create_button')}</Button>
+              </Link>
+            )}
           </Card>
         )}
 

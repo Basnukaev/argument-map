@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
 import {
   MessageSquare,
   Loader2,
@@ -22,6 +23,7 @@ import {
 import { toast } from '@/shared/stores/toastStore';
 import { askConfirm } from '@/shared/stores/confirmStore';
 import { hasArabicScript, useFormatDate, useT } from '@/shared/i18n';
+import { useIsAuthenticated } from '@/shared/stores/authStore';
 import type { components } from '@/shared/api/types';
 import AnswerCitationsSection from './AnswerCitationsSection';
 
@@ -55,6 +57,9 @@ type State =
 function AnswersSection({ questionId, askedBy, acceptedAnswerId, onAcceptanceChange }: Props) {
   const t = useT();
   const formatDate = useFormatDate();
+  // Guest view (roadmap 49.G): аноним читает ответы, но композер скрыт -
+  // вместо него мягкое приглашение войти (не красная ошибка).
+  const isAuthenticated = useIsAuthenticated();
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [bodyInput, setBodyInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -246,33 +251,43 @@ function AnswersSection({ questionId, askedBy, acceptedAnswerId, onAcceptanceCha
         </div>
       )}
 
-      {/* Композер ответа: явный заголовок «Ваш ответ» */}
-      <form onSubmit={handleSubmit} className="mt-7 rounded-md border border-border bg-elevated p-4 shadow-sh1">
-        <Field
-          label={t('qa.answers.compose_title')}
-          hint={t('qa.answers.placeholder')}
-        >
-          <Field.Textarea
-            value={bodyInput}
-            onChange={(e) => setBodyInput(e.target.value)}
-            maxLength={BODY_MAX}
-            rows={4}
-            dir="auto"
-            placeholder={t('qa.answers.placeholder')}
-          />
-          <Field.Meta left={`${bodyInput.length} / ${BODY_MAX}`} />
-        </Field>
-        <div className="mt-2 flex justify-end">
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={!bodyInput.trim() || submitting}
-            icon={MessageSquare}
+      {/* Композер ответа: явный заголовок «Ваш ответ». Только для
+          залогиненных - анониму мягкое приглашение войти (guest view). */}
+      {isAuthenticated ? (
+        <form onSubmit={handleSubmit} className="mt-7 rounded-md border border-border bg-elevated p-4 shadow-sh1">
+          <Field
+            label={t('qa.answers.compose_title')}
+            hint={t('qa.answers.placeholder')}
           >
-            {submitting ? t('common.saving') : t('qa.answers.add_button')}
-          </Button>
+            <Field.Textarea
+              value={bodyInput}
+              onChange={(e) => setBodyInput(e.target.value)}
+              maxLength={BODY_MAX}
+              rows={4}
+              dir="auto"
+              placeholder={t('qa.answers.placeholder')}
+            />
+            <Field.Meta left={`${bodyInput.length} / ${BODY_MAX}`} />
+          </Field>
+          <div className="mt-2 flex justify-end">
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={!bodyInput.trim() || submitting}
+              icon={MessageSquare}
+            >
+              {submitting ? t('common.saving') : t('qa.answers.add_button')}
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <div className="mt-7 flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-elevated p-4 text-sm text-ink-600 shadow-sh1">
+          <span>{t('auth.required_to_view')}</span>
+          <Link to="/login">
+            <Button variant="secondary">{t('auth.login')}</Button>
+          </Link>
         </div>
-      </form>
+      )}
     </section>
   );
 }

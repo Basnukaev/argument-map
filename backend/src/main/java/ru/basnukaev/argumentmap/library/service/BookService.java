@@ -445,10 +445,38 @@ public class BookService {
         return pageRepository.findByBookIdRange(bookId, from, to);
     }
 
+    /**
+     * Версия с read-guard (ADR-043 Amendment + guest view roadmap 49.G).
+     * GET /library/books/{id}/pages стал публичным для анонима - даже
+     * метадата-индекс страниц приватной книги не должен утекать. userId=null
+     * (аноним) → доступ только к PUBLIC; PRIVATE/SHARED → 403.
+     */
+    @Transactional(readOnly = true)
+    public List<Page> listPages(UUID bookId, Integer fromPage, Integer toPage,
+                                UUID userId, String role) {
+        permissionService.assertCanReadBook(bookId, userId, role);
+        return listPages(bookId, fromPage, toPage);
+    }
+
     @Transactional(readOnly = true)
     public PageDetail getPage(UUID pageId) {
         Page page = pageRepository.findById(pageId)
                 .orElseThrow(() -> new PageNotFoundException(pageId));
+        return new PageDetail(page, imageRegionRepository.findByPageId(pageId));
+    }
+
+    /**
+     * Версия с read-guard (ADR-043 Amendment + guest view roadmap 49.G).
+     * Используется REST: страница - чувствительный payload (текст/скан), а
+     * GET /library/pages/{id} стал публичным для анонима. assertCanReadBook
+     * на родительской книге не пускает аноним/постороннего к PRIVATE/SHARED
+     * (403, 404-like). userId=null (аноним) → доступ только к PUBLIC.
+     */
+    @Transactional(readOnly = true)
+    public PageDetail getPage(UUID pageId, UUID userId, String role) {
+        Page page = pageRepository.findById(pageId)
+                .orElseThrow(() -> new PageNotFoundException(pageId));
+        permissionService.assertCanReadBook(page.bookId(), userId, role);
         return new PageDetail(page, imageRegionRepository.findByPageId(pageId));
     }
 

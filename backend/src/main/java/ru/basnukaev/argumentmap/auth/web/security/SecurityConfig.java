@@ -101,6 +101,25 @@ public class SecurityConfig {
                             .permitAll();
                     // CORS preflight - всегда permit
                     auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
+                    // Guest view (roadmap 49.G / Vision 49d Section 2.5):
+                    // read-only GET публичного контента доступен анониму во
+                    // ВСЕХ профилях (включая prod). Покрывает темы, хадисы
+                    // (+ рави), библиотеку (+ PDF stream), Q&A read. PRIVATE-
+                    // контент НЕ раскрывается: permitAll снимает только
+                    // Spring-уровень auth-гейт, а RBAC visibility-фильтр
+                    // (ADR-043) живёт в service-слое и сам обрабатывает
+                    // anonymous (userId=null через currentUserIdOrNull) —
+                    // аноним видит только PUBLIC, PRIVATE/SHARED → 403/404.
+                    // Мутации (POST/PATCH/DELETE) сюда не попадают (matcher
+                    // привязан к GET) → падают в anyRequest().authenticated().
+                    // /admin/** и /auth/me тоже не матчатся этими паттернами.
+                    auth.requestMatchers(HttpMethod.GET,
+                                         "/api/v1/topics/**",
+                                         "/api/v1/hadith/**",
+                                         "/api/v1/library/books/**",
+                                         "/api/v1/library/pages/**",
+                                         "/api/v1/questions/**")
+                            .permitAll();
                     // ADR-040 transitional: в dev/local/test profile все
                     // /api/** endpoints публичные. Это покрывает 60+
                     // existing IT тестов которые до Этапа 21 не передавали

@@ -76,8 +76,12 @@ public class TopicExportImportController {
      * 403 (404-like: не leak'аем существование).
      */
     @GetMapping("/{topicId}/export")
-    public ResponseEntity<TopicExportDto> export(@PathVariable UUID topicId,
-                                                 @CurrentUser UUID userId) {
+    public ResponseEntity<TopicExportDto> export(@PathVariable UUID topicId) {
+        // Guest view (roadmap 49.G): GET под permitAll. userId из
+        // SecurityContext (null если аноним), не @CurrentUser. assertCanRead
+        // отдаёт PRIVATE/SHARED чужой темы как 403 - аноним экспортирует
+        // только PUBLIC.
+        UUID userId = SecurityContextUtils.currentUserIdOrNull();
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         permissionService.assertCanRead(topicId, userId, role);
         TopicExportDto dto = exportService.exportTopic(topicId);

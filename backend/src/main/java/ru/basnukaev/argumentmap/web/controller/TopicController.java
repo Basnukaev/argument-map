@@ -87,11 +87,15 @@ public class TopicController {
      */
     @GetMapping
     public PagedResponse<TopicResponse> list(
-            @CurrentUser UUID userId,
             @RequestParam(name = "visibility", required = false) String visibility,
             @RequestParam(name = "page", required = false) Integer page,
             @RequestParam(name = "size", required = false) Integer size,
             @RequestParam(name = "sort", required = false) String sort) {
+        // Guest view (roadmap 49.G): read-only список доступен анониму.
+        // userId из SecurityContext (null если аноним) - не @CurrentUser,
+        // т.к. тот бросает 401 на anonymous. visibility-фильтр в
+        // listVisibleTopicsPage сам клиппит до PUBLIC при userId=null.
+        UUID userId = SecurityContextUtils.currentUserIdOrNull();
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         PageRequest pr = PageRequest.from(page, size);
         // Vision 49d Section 2.1: sort whitelist (recent/popular/alphabetical)
@@ -114,7 +118,11 @@ public class TopicController {
     }
 
     @GetMapping("/{topicId}")
-    public TopicResponse getOne(@PathVariable UUID topicId, @CurrentUser UUID userId) {
+    public TopicResponse getOne(@PathVariable UUID topicId) {
+        // Guest view (roadmap 49.G): read-only детали доступны анониму для
+        // PUBLIC тем. assertCanRead с userId=null отдаёт PRIVATE/SHARED как
+        // 403 (404-like), PUBLIC пропускает.
+        UUID userId = SecurityContextUtils.currentUserIdOrNull();
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         permissionService.assertCanRead(topicId, userId, role);
         return withVotes(topicService.getTopicWithCounts(topicId), userId);
@@ -165,7 +173,10 @@ public class TopicController {
     }
 
     @GetMapping("/{topicId}/graph")
-    public GraphResponse getGraph(@PathVariable UUID topicId, @CurrentUser UUID userId) {
+    public GraphResponse getGraph(@PathVariable UUID topicId) {
+        // Guest view (roadmap 49.G): read-only граф доступен анониму для
+        // PUBLIC тем (assertCanRead клиппит PRIVATE/SHARED → 403).
+        UUID userId = SecurityContextUtils.currentUserIdOrNull();
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         permissionService.assertCanRead(topicId, userId, role);
         GraphView graph = graphService.getGraph(topicId);
