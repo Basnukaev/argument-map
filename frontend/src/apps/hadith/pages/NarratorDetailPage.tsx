@@ -7,7 +7,8 @@ import { apiGetRaw, ApiError } from '@/shared/api/client';
 import { useT, type DictKey } from '@/shared/i18n';
 import { RELIABILITY_TOKENS } from '@/apps/hadith/sanadTokens';
 import NarratorCommentaryList from '@/apps/hadith/components/NarratorCommentaryList';
-import type { HadithSummaryDto, NarratorResponseDto, Paged } from '@/apps/hadith/types';
+import { normalizeArabic } from '@/apps/hadith/utils/highlightGharib';
+import type { HadithSummaryDto, NarratorCommentaryDto, NarratorResponseDto, Paged } from '@/apps/hadith/types';
 
 /**
  * Биография передатчика + список переданных им хадисов (علم الرجال).
@@ -49,6 +50,62 @@ function NarratorDetailPage() {
   }, [id]);
 
   const rel = bio?.reliabilityGrade ? RELIABILITY_TOKENS[bio.reliabilityGrade] : null;
+
+  /**
+   * Нормализация для дедупа: снять огласовки + сложить буквы (normalizeArabic),
+   * затем убрать пунктуацию и свернуть пробелы. Это позволяет сравнивать
+   * «الصحابي الجليل حافظ الصحابة» и «الصحابي الجليل ، حافظ الصحابة» как
+   * семантически идентичные (арабская запятая — стилистическая, не смысловая).
+   */
+  function normForDedup(text: string): string {
+    return normalizeArabic(text)
+      .replace(/[،؛؟٪«»,.;:!?()[\]"'…]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * B4: дедуп серого verbatim-бара.
+   * Бар несёт gradeText (или reliabilityComment как фолбэк). Если тот же текст
+   * уже присутствует в одном из комментариев учёных — он будет показан там с
+   * атрибуцией (критик · книга · страница), и дублировать его в баре нет смысла.
+   * Сравниваем через normForDedup — снимает огласовки, складывает буквы и убирает
+   * пунктуацию, чтобы «... ، ...» и «... ...» считались одним текстом.
+   */
+  function isBarDuplicated(
+    barText: string,
+    commentaries: NarratorCommentaryDto[] | null | undefined,
+  ): boolean {
+    if (!commentaries || commentaries.length === 0) return false;
+    const normBar = normForDedup(barText);
+    return commentaries.some((c) =>
+      c.comments.some((verdict) => {
+        const normVerdict = normForDedup(verdict);
+        return normVerdict.includes(normBar) || normBar.includes(normVerdict);
+      }),
+    );
+  }
+
+  /**
+   * B4: дедуп поля tabaqa.
+   * У alminasa поле `level` для сподвижников содержит почётный эпитет
+   * («الصحابي الجليل»), а не номер поколения (طبقة). Тот же текст попадает
+   * в gradeText («الصحابي الجليل حافظ الصحابة» — расширенная версия того же
+   * эпитета). Показывать «Поколение = الصحابي الجليل» вводит в заблуждение.
+   * Скрываем tabaqa, если его нормализованная форма содержится в нормализованном
+   * gradeText или совпадает с ним — т.е. tabaqa является подстрокой/частью gradeText.
+   * Для обычных рави с реальной طبقة («الطبقة الثامنة») gradeText будет иным
+   * («ثقة حافظ»), совпадения нет → поле показывается нормально.
+   */
+  function isTabaqaEpithet(
+    tabaqa: string,
+    gradeText: string | null | undefined,
+  ): boolean {
+    if (!gradeText) return false;
+    const normTabaqa = normForDedup(tabaqa);
+    const normGrade = normForDedup(gradeText);
+    return normGrade.includes(normTabaqa);
+  }
 
   return (
     <main className="min-h-screen bg-bg">
@@ -125,8 +182,10 @@ function NarratorDetailPage() {
                   </dd>
                 </div>
               )}
-              {/* M3: табака — фолбэк для отсутствующего generation у alminasa-рави. */}
-              {bio.tabaqa && (
+              {/* M3: табака — фолбэк для отсутствующего generation у alminasa-рави.
+                  B4: скрываем если tabaqa — почётный эпитет (содержится в gradeText),
+                  что типично для сподвижников (alminasa пишет туда «الصحابي الجليل»). */}
+              {bio.tabaqa && !isTabaqaEpithet(bio.tabaqa, bio.gradeText) && (
                 <div className="rounded-xl border border-border bg-sunken px-4 py-3.5">
                   <dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
                     {t('hadith.narrator.generation')}
@@ -167,15 +226,22 @@ function NarratorDetailPage() {
               )}
             </dl>
 
-            {/* M3: verbatim джарх — gradeText (alminasa), фолбэк reliabilityComment. */}
-            {(bio.gradeText ?? bio.reliabilityComment) && (
-              <div
-                className="mb-8 rounded-md bg-sunken p-3 text-sm leading-relaxed text-ink-700"
-                dir="auto"
-              >
-                {bio.gradeText ?? bio.reliabilityComment}
-              </div>
-            )}
+            {/* M3: verbatim джарх — gradeText (alminasa), фолбэк reliabilityComment.
+                B4: скрываем бар если его текст уже присутствует в секции «Оценки учёных»
+                — дублирование без атрибуции хуже, чем атрибутированная цитата там. */}
+            {(() => {
+              const barText = bio.gradeText ?? bio.reliabilityComment;
+              if (!barText) return null;
+              if (isBarDuplicated(barText, bio.commentaries)) return null;
+              return (
+                <div
+                  className="mb-8 rounded-md bg-sunken p-3 text-sm leading-relaxed text-ink-700"
+                  dir="auto"
+                >
+                  {barText}
+                </div>
+              );
+            })()}
 
             {/* Оценки учёных о передатчике (джарх/таʿдиль) — внешние цитаты из
                 риджаль-книг с атрибуцией (критик · книга · стр.). */}

@@ -179,4 +179,115 @@ describe('NarratorDetailPage', () => {
     // год смерти критика (интерполяция {year})
     expect(screen.getByText('ум. 852 г.х.')).toBeInTheDocument();
   });
+
+  it('B4: серый verbatim-бар скрывается когда gradeText дублирует commentary', async () => {
+    // Абу Хурайра: gradeText = «الصحابي الجليل حافظ الصحابة»,
+    // первая commentary содержит тот же текст (с огласовками/запятой — нормализованно совпадёт).
+    server.use(
+      http.get(`${BASE}/api/v1/hadith/narrators/n4`, () =>
+        HttpResponse.json({
+          id: 'n4',
+          authorityId: null,
+          nameAr: 'أبو هريرة',
+          kunya: null,
+          laqab: null,
+          yearBirthHijri: null,
+          yearDeathHijri: 59,
+          birthplace: null,
+          primaryResidence: null,
+          reliabilityGrade: 'SAHABI',
+          reliabilityComment: null,
+          transmittedCount: 0,
+          createdAt: '2026-01-01',
+          tabaqa: 'الصحابي الجليل',
+          gradeText: 'الصحابي الجليل حافظ الصحابة',
+          bornOnText: null,
+          diedOnText: null,
+          deathPlace: null,
+          relations: null,
+          commentaries: [
+            {
+              commenter: 'ابن حجر',
+              commenterDeathYear: 852,
+              bookName: 'تقريب التهذيب',
+              author: 'ابن حجر العسقلاني',
+              page: 1218,
+              volume: 1,
+              // Commentary содержит тот же эпитет (с запятой — после нормализации совпадёт)
+              comments: ['الصحابي الجليل ، حافظ الصحابة'],
+            },
+          ],
+        }),
+      ),
+      http.get(`${BASE}/api/v1/hadith/narrators/n4/transmitted`, () =>
+        HttpResponse.json({
+          items: [],
+          page: 0,
+          size: 20,
+          totalElements: 0,
+          totalPages: 0,
+          hasNext: false,
+        }),
+      ),
+    );
+    renderAt('n4');
+    await waitForApi(() => {
+      expect(screen.getByText('أبو هريرة')).toBeInTheDocument();
+    });
+    // Текст из commentary отображается в секции «Оценки учёных» (с атрибуцией)
+    expect(screen.getByText('الصحابي الجليل ، حافظ الصحابة')).toBeInTheDocument();
+    // gradeText дублирует commentary — серый бар скрыт (текст НЕ появляется дважды)
+    // getAllByText вернёт ровно один экземпляр (в commentary), не два
+    expect(screen.getAllByText(/الصحابي الجليل/).length).toBe(1);
+    // tabaqa «الصحابي الجليل» является частью gradeText → поле «Поколение» скрыто
+    expect(screen.queryByText('الصحابي الجليل')).not.toBeInTheDocument();
+  });
+
+  it('B4: tabaqa показывается когда это реальное поколение (не эпитет)', async () => {
+    // Суфьян ибн Уяйна: tabaqa=«الطبقة الثامنة», gradeText=«ثقة حافظ» — не совпадают
+    server.use(
+      http.get(`${BASE}/api/v1/hadith/narrators/n5`, () =>
+        HttpResponse.json({
+          id: 'n5',
+          authorityId: null,
+          nameAr: 'سفيان بن عيينة',
+          kunya: null,
+          laqab: null,
+          yearBirthHijri: 107,
+          yearDeathHijri: 198,
+          birthplace: null,
+          primaryResidence: null,
+          reliabilityGrade: 'THIQA',
+          reliabilityComment: null,
+          transmittedCount: 0,
+          createdAt: '2026-01-01',
+          tabaqa: 'الطبقة الثامنة',
+          gradeText: 'ثقة حافظ فقيه إمام حجة',
+          bornOnText: null,
+          diedOnText: null,
+          deathPlace: null,
+          relations: null,
+          commentaries: null,
+        }),
+      ),
+      http.get(`${BASE}/api/v1/hadith/narrators/n5/transmitted`, () =>
+        HttpResponse.json({
+          items: [],
+          page: 0,
+          size: 20,
+          totalElements: 0,
+          totalPages: 0,
+          hasNext: false,
+        }),
+      ),
+    );
+    renderAt('n5');
+    await waitForApi(() => {
+      expect(screen.getByText('سفيان بن عيينة')).toBeInTheDocument();
+    });
+    // tabaqa ≠ gradeText → поле «Поколение» показывается
+    expect(screen.getByText('الطبقة الثامنة')).toBeInTheDocument();
+    // gradeText не дублируется commentary (commentaries=null) → серый бар показывается
+    expect(screen.getByText('ثقة حافظ فقيه إمام حجة')).toBeInTheDocument();
+  });
 });
