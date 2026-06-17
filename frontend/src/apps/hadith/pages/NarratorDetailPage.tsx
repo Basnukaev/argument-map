@@ -10,6 +10,30 @@ import NarratorCommentaryList from '@/apps/hadith/components/NarratorCommentaryL
 import { normalizeArabic } from '@/apps/hadith/utils/highlightGharib';
 import type { HadithSummaryDto, NarratorCommentaryDto, NarratorResponseDto, Paged } from '@/apps/hadith/types';
 
+/** Цвет чипа провенанса (CANONICAL/VARIANT) — синхронизирован с HadithDetailPage. */
+function hadithStatusClass(status: string | undefined): string {
+  switch (status) {
+    case 'CANONICAL':
+      return 'bg-emerald-100 text-emerald-700';
+    default:
+      return 'bg-ink-100 text-ink-700';
+  }
+}
+
+/** Короткий лейбл чипа провенанса → i18n. */
+const HADITH_STATUS_SHORT: Record<string, DictKey> = {
+  CANONICAL: 'hadith.detail.status.CANONICAL.short',
+  VARIANT: 'hadith.detail.status.VARIANT.short',
+};
+
+/** Tooltip пояснения провенанса → i18n. */
+const HADITH_STATUS_EXPLAIN: Record<string, DictKey> = {
+  CANONICAL: 'hadith.detail.status.CANONICAL',
+  VARIANT: 'hadith.detail.status.VARIANT',
+  WEAK: 'hadith.detail.status.WEAK',
+  FABRICATED: 'hadith.detail.status.FABRICATED',
+};
+
 /**
  * Биография передатчика + список переданных им хадисов (علم الرجال).
  * Тянет /narrators/{id} (bio) и /narrators/{id}/transmitted параллельно.
@@ -321,8 +345,17 @@ function NarratorDetailPage() {
                           <div className="mb-1 flex items-center gap-2 text-xs text-ink-500">
                             <BookOpen size={12} aria-hidden />
                             {h.primaryNumber != null && <span className="font-mono">№{h.primaryNumber}</span>}
-                            <span className="rounded-sm bg-ink-100 px-1.5 py-0.5 font-semibold uppercase">
-                              {h.status}
+                            <span
+                              className={`rounded-sm px-1.5 py-0.5 font-semibold uppercase ${hadithStatusClass(h.status)}`}
+                              title={
+                                h.status && HADITH_STATUS_EXPLAIN[h.status]
+                                  ? t(HADITH_STATUS_EXPLAIN[h.status] as DictKey)
+                                  : undefined
+                              }
+                            >
+                              {h.status && HADITH_STATUS_SHORT[h.status]
+                                ? t(HADITH_STATUS_SHORT[h.status] as DictKey)
+                                : h.status}
                             </span>
                           </div>
                           <div className="line-clamp-2 font-arabic text-base text-ink-900" dir="rtl">
