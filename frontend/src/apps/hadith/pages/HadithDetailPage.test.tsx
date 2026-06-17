@@ -10,7 +10,7 @@ import HadithDetailPage from './HadithDetailPage';
 
 const BASE = 'http://test.local';
 
-// HadithSectionNav использует IntersectionObserver — jsdom его не даёт.
+// IntersectionObserver — на всякий случай мокаем (graph/прочие потребители).
 beforeAll(() => {
   class IOMock {
     observe(): void {}
@@ -25,9 +25,11 @@ beforeAll(() => {
 
 // Гейт «Добавить оценку» — SCHOLAR+. По умолчанию тесты анонимны (user=null →
 // кнопки нет). После каждого теста сбрасываем сессию, чтобы SCHOLAR-юзер из
-// grade-теста не протекал в соседние (где секция оценок ожидается скрытой).
+// grade-теста не протекал в соседние. Чистим URL hash — активная вкладка
+// инициализируется из него, иначе deep-link из одного теста течёт в другой.
 afterEach(() => {
   useAuthStore.setState({ user: null, accessToken: null });
+  window.history.replaceState(null, '', '/');
 });
 
 function loginAs(role: AuthUser['role']) {
@@ -35,6 +37,11 @@ function loginAs(role: AuthUser['role']) {
     user: { id: 'u-test', username: 'tester', email: 'tester@test.local', role },
     accessToken: 'test-token',
   });
+}
+
+/** Клик по вкладке переключателя (role=tab) по её локализованному названию. */
+async function openTab(name: string | RegExp) {
+  await userEvent.click(screen.getByRole('tab', { name }));
 }
 
 const DETAIL = {
@@ -168,7 +175,7 @@ const ALMINASA_DETAIL = {
   ],
 };
 
-// Хадис с тремя kind толкований — для проверки разделения на секции.
+// Хадис с тремя kind толкований — для проверки разделения на вкладки.
 const THREE_KINDS_DETAIL = {
   ...ALMINASA_DETAIL,
   explanations: [
@@ -246,35 +253,59 @@ function renderPage() {
 }
 
 describe('HadithDetailPage', () => {
-  it('рендерит четыре секции: текст, иснад, оценки, вариации', async () => {
+  it('рендерит шапку (текст-герой + сборник) и переключатель; оценки — на своей вкладке', async () => {
     mockEndpoints();
     renderPage();
     await waitForApi(() => {
-      // текст-герой (h1) — отдельно от копии текста в карточке вариации
+      // текст-герой (h1) на активной вкладке «Текст» — отдельно от копии в вариации
       expect(
         screen.getByRole('heading', { level: 1, name: /إنما الأعمال بالنيات/ }),
       ).toBeInTheDocument();
-      // имя сборника подтянуто из /collections
+      // имя сборника подтянуто из /collections (в постоянной шапке)
       expect(screen.getByText('Сахих аль-Бухари')).toBeInTheDocument();
-      // секционная навигация
+      // переключатель вкладок
       expect(screen.getByRole('navigation', { name: 'Разделы хадиса' })).toBeInTheDocument();
-      // оценки
-      expect(screen.getByText('аль-Бухари')).toBeInTheDocument();
     });
+    // оценки — за вкладкой «Оценки» (по умолчанию скрыты)
+    expect(screen.queryByText('аль-Бухари')).not.toBeInTheDocument();
+    await openTab('Оценки');
+    expect(screen.getByText('аль-Бухари')).toBeInTheDocument();
   });
 
-  it('секционная навигация ведёт якорными ссылками на секции', async () => {
+  it('переключатель — это вкладки (role=tab), а не якорные ссылки', async () => {
     mockEndpoints();
     renderPage();
     await waitForApi(() => {
-      expect(screen.getByRole('link', { name: 'Текст' })).toHaveAttribute('href', '#text');
+      expect(screen.getByRole('tab', { name: 'Текст' })).toBeInTheDocument();
     });
-    expect(screen.getByRole('link', { name: 'Иснад' })).toHaveAttribute('href', '#sanad');
-    expect(screen.getByRole('link', { name: 'Оценки' })).toHaveAttribute('href', '#grades');
-    expect(screen.getByRole('link', { name: 'Вариации' })).toHaveAttribute('href', '#variations');
+    // активная вкладка по умолчанию — «Текст»
+    expect(screen.getByRole('tab', { name: 'Текст' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Иснад' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Оценки' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Вариации' })).toBeInTheDocument();
+    // якорных ссылок секций больше нет
+    expect(screen.queryByRole('link', { name: 'Иснад' })).not.toBeInTheDocument();
   });
 
-  it('показывает пояснение статуса CANONICAL (провенанс)', async () => {
+  it('переключение вкладки показывает ТОЛЬКО её секцию (граф ↔ вариации)', async () => {
+    mockEndpoints();
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+    });
+    // на вкладке «Текст» графа/вариаций нет
+    expect(screen.queryByRole('heading', { name: /Граф иснада/ })).not.toBeInTheDocument();
+    // открыли «Иснад» — виден граф, h1 текста скрыт
+    await openTab('Иснад');
+    expect(screen.getByRole('heading', { name: /Граф иснада/ })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
+    // открыли «Вариации» — граф скрыт, видна секция вариаций
+    await openTab('Вариации');
+    expect(screen.queryByRole('heading', { name: /Граф иснада/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Тексты вариаций · 2/ })).toBeInTheDocument();
+  });
+
+  it('показывает пояснение статуса CANONICAL (провенанс) на вкладке «Текст»', async () => {
     mockEndpoints();
     renderPage();
     await waitForApi(() => {
@@ -282,45 +313,46 @@ describe('HadithDetailPage', () => {
     });
   });
 
-  it('пустой список оценок → секция и пункт навигации скрыты', async () => {
+  it('пустой список оценок → вкладка «Оценки» отсутствует', async () => {
     mockEndpoints({ ...DETAIL, grades: [] });
     renderPage();
     await waitForApi(() => {
-      // страница загрузилась (текст-герой виден)
       expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
     });
-    // ручные оценки платформы пусты → ни заголовка секции, ни пункта навигации
-    expect(screen.queryByRole('link', { name: 'Оценки' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Оценки учёных')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Оценки' })).not.toBeInTheDocument();
   });
 
-  it('вариации скрыты при ≤1 матне, показаны при >1', async () => {
-    // single-matn → секция «Вариации» и её пункт навигации скрыты
+  it('вкладка «Вариации» скрыта при ≤1 матне, показана при >1', async () => {
+    // single-matn → вкладки «Вариации» нет
     mockEndpoints({ ...DETAIL, matns: DETAIL.matns.slice(0, 1) });
     const { unmount } = renderPage();
     await waitForApi(() => {
       expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
     });
-    expect(screen.queryByRole('link', { name: 'Вариации' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Вариации' })).not.toBeInTheDocument();
     unmount();
 
-    // multi-matn (DETAIL по умолчанию — 2 матна) → секция видна
+    // multi-matn (DETAIL по умолчанию — 2 матна) → вкладка есть
     mockEndpoints();
     renderPage();
     await waitForApi(() => {
-      expect(screen.getByRole('link', { name: 'Вариации' })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Вариации' })).toBeInTheDocument();
     });
   });
 
-  it('legacy-хадис без alminasa-полей: новые секции скрыты (graceful)', async () => {
+  it('legacy-хадис без alminasa-полей: вкладки контента скрыты (graceful)', async () => {
     mockEndpoints();
     renderPage();
     await waitForApi(() => {
       expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
     });
-    expect(screen.queryByRole('link', { name: 'Иснад (текст)' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Вердикты учёных')).not.toBeInTheDocument();
-    expect(screen.queryByText('Такхридж')).not.toBeInTheDocument();
+    // нет вкладок вердиктов / шарха / такхриджа (нет данных)
+    expect(screen.queryByRole('tab', { name: 'Вердикты' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Шарх' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Такхридж' })).not.toBeInTheDocument();
+    // но «Текст» и «Иснад» (граф) есть всегда
+    expect(screen.getByRole('tab', { name: 'Текст' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Иснад' })).toBeInTheDocument();
   });
 
   it('alminasa: бейджи типа (i18n) + достоверности + глава/подглава в шапке', async () => {
@@ -350,22 +382,22 @@ describe('HadithDetailPage', () => {
     expect(screen.queryByText('Даиф')).not.toBeInTheDocument();
   });
 
-  it('alminasa: вердикт с учёным, годом смерти и бейджем параллели', async () => {
+  it('alminasa: вердикт с учёным, годом смерти и бейджем параллели (вкладка «Вердикты»)', async () => {
     mockEndpoints(ALMINASA_DETAIL, GRAPH_WITH_EXTERNAL);
     renderPage();
     await waitForApi(() => {
-      expect(screen.getByText('البخاري')).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Вердикты' })).toBeInTheDocument();
     });
+    await openTab('Вердикты');
+    expect(screen.getByText('البخاري')).toBeInTheDocument();
     expect(screen.getByText('ум. 256 г.х.')).toBeInTheDocument();
     // index-вердикт с resolved relatedHadithId → бейдж-ссылка на сиблинга
-    // с именем сборника и mono external id
     const badge = screen.getByRole('link', { name: /Сунан ат-Тирмизи/ });
     expect(badge).toHaveAttribute('href', '/hadith/hadiths/h-ruling-sibling');
     expect(within(badge).getByText('999-2')).toBeInTheDocument();
   });
 
   it('ruling-бейдж: self-вердикт (relatedExternalId === externalId страницы) без бейджа', async () => {
-    // вердикт на эту же запись — relatedExternalId совпадает с externalId хадиса
     const selfRulingDetail = {
       ...ALMINASA_DETAIL,
       externalId: '1-1',
@@ -387,22 +419,26 @@ describe('HadithDetailPage', () => {
     mockEndpoints(selfRulingDetail, GRAPH_WITH_EXTERNAL);
     renderPage();
     await waitForApi(() => {
-      expect(screen.getByText('الترمذي')).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Вердикты' })).toBeInTheDocument();
     });
+    await openTab('Вердикты');
+    expect(screen.getByText('الترمذي')).toBeInTheDocument();
     // бейдж параллели НЕ показан (вердикт на эту же запись)
     expect(screen.queryByRole('link', { name: /Сахих аль-Бухари/ })).not.toBeInTheDocument();
   });
 
-  it('alminasa: такхридж resolved → линк, unresolved → текст', async () => {
+  it('alminasa: такхридж resolved → линк, unresolved → текст (вкладка «Такхридж»)', async () => {
     mockEndpoints(ALMINASA_DETAIL, GRAPH_WITH_EXTERNAL);
     renderPage();
-    // resolved (relatedHadithId есть) → линк «Перейти» на сиблинга
     await waitForApi(() => {
-      expect(screen.getByRole('link', { name: 'Перейти' })).toHaveAttribute(
-        'href',
-        '/hadith/hadiths/h-sibling',
-      );
+      expect(screen.getByRole('tab', { name: 'Такхридж' })).toBeInTheDocument();
     });
+    await openTab('Такхридж');
+    // resolved (relatedHadithId есть) → линк «Перейти» на сиблинга
+    expect(screen.getByRole('link', { name: 'Перейти' })).toHaveAttribute(
+      'href',
+      '/hadith/hadiths/h-sibling',
+    );
     // имя сборника + номер печатного издания рендерятся
     expect(screen.getByText('Сахих Муслим')).toBeInTheDocument();
     expect(screen.getByText('№1907')).toBeInTheDocument();
@@ -415,12 +451,13 @@ describe('HadithDetailPage', () => {
     expect(screen.getByText('300-1')).toBeInTheDocument();
   });
 
-  it('alminasa: шарх collapsible — текст скрыт пока не раскроют', async () => {
+  it('alminasa: шарх collapsible — текст скрыт пока не раскроют (вкладка «Шарх»)', async () => {
     mockEndpoints(ALMINASA_DETAIL, GRAPH_WITH_EXTERNAL);
     renderPage();
     await waitForApi(() => {
-      expect(screen.getByText('Шарх')).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Шарх' })).toBeInTheDocument();
     });
+    await openTab('Шарх');
     const sharhText = 'شرح طويل جدا لهذا الحديث العظيم في النيات';
     expect(screen.queryByText(sharhText)).not.toBeInTheDocument();
     // раскрытие по клику на шапку (книга — fatḥ al-bārī)
@@ -428,33 +465,37 @@ describe('HadithDetailPage', () => {
     expect(screen.getByText(sharhText)).toBeInTheDocument();
   });
 
-  it('три kind толкований → три секции (шарх / иляль / гариб) с навигацией', async () => {
+  it('три kind толкований → три вкладки (шарх / иляль / гариб), каждая со своим контентом', async () => {
     mockEndpoints(THREE_KINDS_DETAIL, GRAPH_WITH_EXTERNAL);
     renderPage();
-    // заголовки трёх секций
+    // три вкладки присутствуют
     await waitForApi(() => {
-      expect(screen.getByRole('heading', { name: /Шарх/ })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Шарх' })).toBeInTheDocument();
     });
+    expect(screen.getByRole('tab', { name: 'Иляль' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Гариб' })).toBeInTheDocument();
+    // контент каждой — только на своей вкладке
+    await openTab('Шарх');
+    expect(screen.getByRole('heading', { name: /Шарх/ })).toBeInTheDocument();
+    await openTab('Иляль');
     expect(screen.getByRole('heading', { name: /Иляль/ })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Гариб/ })).toBeInTheDocument();
-    // пункты навигации на все три секции
-    expect(screen.getByRole('link', { name: 'Шарх' })).toHaveAttribute('href', '#explanations');
-    expect(screen.getByRole('link', { name: 'Иляль' })).toHaveAttribute('href', '#ilal');
-    expect(screen.getByRole('link', { name: 'Гариб' })).toHaveAttribute('href', '#gharib');
-    // подзаголовки-пояснения иляля и гариба
     expect(screen.getByText('Скрытые дефекты передачи, отмеченные критиками')).toBeInTheDocument();
+    await openTab('Гариб');
+    expect(screen.getByRole('heading', { name: /Гариб/ })).toBeInTheDocument();
     expect(
       screen.getByText('Толкования редких слов матна из классических словарей'),
     ).toBeInTheDocument();
   });
 
-  it('GHARIB-карточка: слово (reference) в заголовке, словарь рядом', async () => {
+  it('GHARIB-карточка: слово (reference) в заголовке, словарь рядом (вкладка «Гариб»)', async () => {
     mockEndpoints(THREE_KINDS_DETAIL, GRAPH_WITH_EXTERNAL);
     renderPage();
-    // слово أَبْعَدَ — заголовок карточки гариба (видно до раскрытия)
     await waitForApi(() => {
-      expect(screen.getByText('أَبْعَدَ')).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Гариб' })).toBeInTheDocument();
     });
+    await openTab('Гариб');
+    // слово أَبْعَدَ — заголовок карточки гариба (видно до раскрытия)
+    expect(screen.getByText('أَبْعَدَ')).toBeInTheDocument();
     // словарь·автор рядом со словом
     expect(screen.getByText('النهاية في غريب الحديث · ابن الأثير')).toBeInTheDocument();
     // толкование свёрнуто; кнопка-шапка раскрытия содержит слово
@@ -464,11 +505,52 @@ describe('HadithDetailPage', () => {
     expect(screen.getByText(gharibText)).toBeInTheDocument();
   });
 
-  it('гариб-слово подсвечено в hero-матне; клик открывает поповер с толкованием', async () => {
-    // hero-матн содержит слово تطوي; GHARIB.reference تَطْوَى (с огласовкой +
-    // алиф-максура) должно сматчиться после нормализации и подсветиться.
+  it('гариб-подсветка работает на ОГЛАСОВАННОМ тексте иснада рядом с кликабельным рави (С7)', async () => {
+    // full_text_ar несёт И кликабельного рави, И matn с огласованным словом
+    // بِالنِّيَّاتِ, которое после нормализации матчит GHARIB.reference بِالنِّيَّاتِ.
+    // Гариб подсвечивается на не-рави сегменте; клик по рави не ломается.
+    const gharibOnIsnad = {
+      ...ALMINASA_DETAIL,
+      fullTextAr:
+        'حدثنا <a class=rawy id=5913>عُمَرُ بْنُ الْخَطَّابِ</a> ، قال : <a class=matn>إنما الأعمال بِالنِّيَّاتِ</a> .',
+      explanations: [
+        {
+          kind: 'GHARIB',
+          bookName: 'النهاية في غريب الحديث',
+          author: 'ابن الأثير',
+          page: 9,
+          volume: 1,
+          text: 'النية: القصد، وعليها مدار الأعمال',
+          reference: 'بِالنِّيَّاتِ',
+        },
+      ],
+    };
+    mockEndpoints(gharibOnIsnad, GRAPH_WITH_EXTERNAL);
+    renderPage();
+    // ждём граф (рави кликабелен) — на вкладке «Текст» по умолчанию
+    const h1 = await screen.findByRole('heading', { level: 1 });
+    let rawyBtn: HTMLElement | null = null;
+    await waitForApi(() => {
+      rawyBtn = within(h1).getByRole('button', { name: 'عُمَرُ بْنُ الْخَطَّابِ' });
+      expect(rawyBtn).toBeInTheDocument();
+    });
+    // гариб-слово (огласованное) подсвечено как поповер-кнопка внутри h1
+    const gharibBtn = within(h1).getByRole('button', { name: 'بِالنِّيَّاتِ' });
+    expect(gharibBtn).toHaveAttribute('aria-haspopup', 'dialog');
+    // рави НЕ является гариб-поповером (клики по рави сохранены)
+    expect(rawyBtn!).not.toHaveAttribute('aria-haspopup');
+    // клик по гариб-слову открывает поповер с толкованием
+    await userEvent.click(gharibBtn);
+    const popover = screen.getByRole('dialog');
+    expect(within(popover).getByText('النية: القصد، وعليها مدار الأعمال')).toBeInTheDocument();
+  });
+
+  it('legacy без full_text_ar: гариб подсвечивается в hero-матне (normalizedMatn) + поповер', async () => {
+    // НЕТ full_text_ar → fallback на normalizedMatn с HighlightedMatn.
+    // reference تَطْوَى матчит слово تطوي после нормализации.
     const gharibInMatn = {
       ...ALMINASA_DETAIL,
+      fullTextAr: null,
       normalizedMatn: 'وادع اهل الصفه تطوي بطونهم',
       explanations: [
         {
@@ -484,65 +566,61 @@ describe('HadithDetailPage', () => {
     };
     mockEndpoints(gharibInMatn, GRAPH_WITH_EXTERNAL);
     renderPage();
-    // подсвеченное слово в hero — кнопка с aria-haspopup внутри h1
     let wordBtn: HTMLElement | null = null;
     await waitForApi(() => {
       wordBtn = screen.getByRole('button', { name: 'تطوي' });
       expect(wordBtn).toHaveAttribute('aria-haspopup', 'dialog');
     });
-    // толкование скрыто пока не кликнуть
     const explainText = 'يطوون = يضمون بطونهم من الجوع';
     expect(screen.queryByText(explainText)).not.toBeInTheDocument();
     await userEvent.click(wordBtn!);
-    // поповер открылся: толкование + словарь·автор
     const popover = screen.getByRole('dialog');
     expect(within(popover).getByText(explainText)).toBeInTheDocument();
     expect(within(popover).getByText('النهاية في غريب الحديث · ابن الأثير')).toBeInTheDocument();
   });
 
-  it('гариб-слово отсутствует в hero-матне → матн без подсветки (graceful)', async () => {
-    // THREE_KINDS_DETAIL: матн «إنما الأعمال بالنيات», reference أَبْعَدَ его НЕ
-    // содержит → hero рендерится чистым текстом, кнопки-слова нет.
+  it('гариб-слова в матне нет → текст без гариб-поповеров (graceful), рави не задет', async () => {
+    // THREE_KINDS_DETAIL: full_text_ar matn = «إنما الأعمال بالنيات», reference
+    // أَبْعَدَ его НЕ содержит → нет гариб-кнопок (aria-haspopup) в h1.
     mockEndpoints(THREE_KINDS_DETAIL, GRAPH_WITH_EXTERNAL);
     renderPage();
+    const h1 = await screen.findByRole('heading', { level: 1 });
+    // ждём граф (рави кликабелен)
     await waitForApi(() => {
-      expect(
-        screen.getByRole('heading', { level: 1, name: /إنما الأعمال بالنيات/ }),
-      ).toBeInTheDocument();
+      expect(within(h1).getByRole('button', { name: 'عُمَرُ بْنُ الْخَطَّابِ' })).toBeInTheDocument();
     });
-    // слово أَبْعَدَ есть только в секции «غريب» (карточка), не как кнопка в hero
-    const h1 = screen.getByRole('heading', { level: 1 });
-    expect(within(h1).queryByRole('button')).not.toBeInTheDocument();
+    // ни одной гариб-кнопки (поповер) в h1
+    const popoverButtons = within(h1)
+      .getAllByRole('button')
+      .filter((b) => b.getAttribute('aria-haspopup') === 'dialog');
+    expect(popoverButtons).toHaveLength(0);
   });
 
-  it('ILAL-карточка: книга/автор критика + сворачиваемый текст разбора', async () => {
+  it('ILAL-карточка: книга/автор критика + сворачиваемый текст разбора (вкладка «Иляль»)', async () => {
     mockEndpoints(THREE_KINDS_DETAIL, GRAPH_WITH_EXTERNAL);
     renderPage();
     await waitForApi(() => {
-      expect(screen.getByRole('heading', { name: /Иляль/ })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Иляль' })).toBeInTheDocument();
     });
+    await openTab('Иляль');
     const ilalText = 'علة خفية في إسناد هذا الحديث رغم ظاهر الصحة';
     expect(screen.queryByText(ilalText)).not.toBeInTheDocument();
-    // раскрытие по шапке (книга — علل الدارقطني)
     await userEvent.click(screen.getByRole('button', { name: /علل الدارقطني/ }));
     expect(screen.getByText(ilalText)).toBeInTheDocument();
   });
 
-  it('только SHARH → секции иляль/гариб скрыты и нет в навигации', async () => {
+  it('только SHARH → вкладки иляль/гариб скрыты', async () => {
     // ALMINASA_DETAIL по умолчанию несёт только один SHARH
     mockEndpoints(ALMINASA_DETAIL, GRAPH_WITH_EXTERNAL);
     renderPage();
     await waitForApi(() => {
-      expect(screen.getByRole('heading', { name: /Шарх/ })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Шарх' })).toBeInTheDocument();
     });
-    // секции иляля/гариба и их пункты навигации отсутствуют
-    expect(screen.queryByRole('heading', { name: /Иляль/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: /Гариб/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Иляль' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Гариб' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Иляль' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Гариб' })).not.toBeInTheDocument();
   });
 
-  it('GHARIB без reference → фолбэк на book/author-заголовок', async () => {
+  it('GHARIB без reference → фолбэк на book/author-заголовок (вкладка «Гариб»)', async () => {
     const gharibNoRef = {
       ...ALMINASA_DETAIL,
       explanations: [
@@ -560,9 +638,9 @@ describe('HadithDetailPage', () => {
     mockEndpoints(gharibNoRef, GRAPH_WITH_EXTERNAL);
     renderPage();
     await waitForApi(() => {
-      expect(screen.getByRole('heading', { name: /Гариб/ })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Гариб' })).toBeInTheDocument();
     });
-    // фолбэк-заголовок = book — author (как у шарха), текст сворачиваемый
+    await openTab('Гариб');
     const fallbackText = 'تفسير بلا كلمة عنوان';
     expect(screen.queryByText(fallbackText)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /لسان العرب — ابن منظور/ }));
@@ -582,22 +660,21 @@ describe('HadithDetailPage', () => {
       }),
     );
     renderPage();
-    // ждём пока граф загрузится (рави становится кликабельным — button)
+    // рави в тексте — на вкладке «Текст» (по умолчанию активна)
     let rawyBtn: HTMLElement | null = null;
     await waitForApi(() => {
       rawyBtn = screen.getByRole('button', { name: 'عُمَرُ بْنُ الْخَطَّابِ' });
       expect(rawyBtn).toBeInTheDocument();
     });
     await userEvent.click(rawyBtn!);
-    // панель (aside=complementary) открылась с данными ИЗ графа (перевод узла);
-    // scope в панель — то же имя есть в карточке узла графа.
+    // панель (aside=complementary) открылась с данными ИЗ графа (перевод узла)
     const panel = screen.getByRole('complementary');
     expect(within(panel).getByText('Умар ибн аль-Хаттаб')).toBeInTheDocument();
     // граф запрошен ровно один раз (lifted fetch, без доп. фетча на клик)
     expect(graphFetches).toBe(1);
   });
 
-  it('тогл «Все пути» виден при resolved>0 и лениво фетчит turuq-graph', async () => {
+  it('тогл «Все пути» (вкладка «Иснад») виден при resolved>0 и лениво фетчит turuq-graph', async () => {
     let turuqFetches = 0;
     const TURUQ_GRAPH = {
       hadithId: 'h1',
@@ -633,16 +710,16 @@ describe('HadithDetailPage', () => {
       }),
     );
     renderPage();
-    // тогл виден (ALMINASA_DETAIL имеет 1 resolved crossref → «Все пути (1)»)
-    let allPathsBtn: HTMLElement | null = null;
     await waitForApi(() => {
-      allPathsBtn = screen.getByRole('button', { name: /Все пути \(1\)/ });
-      expect(allPathsBtn).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Иснад' })).toBeInTheDocument();
     });
+    // открываем вкладку графа — тогл виден (1 resolved crossref → «Все пути (1)»)
+    await openTab('Иснад');
+    const allPathsBtn = screen.getByRole('button', { name: /Все пути \(1\)/ });
+    expect(allPathsBtn).toBeInTheDocument();
     // до клика turuq-graph не запрашивается (ленивый фетч)
     expect(turuqFetches).toBe(0);
-    await userEvent.click(allPathsBtn!);
-    // version-узел из turuq-графа отрендерился → turuq-graph запрошен
+    await userEvent.click(allPathsBtn);
     await waitForApi(() => {
       expect(screen.getByText('Сахих Муслим (طرق)')).toBeInTheDocument();
     });
@@ -650,7 +727,6 @@ describe('HadithDetailPage', () => {
   });
 
   it('тогл «Все пути» скрыт при отсутствии resolved crossrefs', async () => {
-    // crossref без relatedHadithId → resolved=0 → тогла нет
     const noResolved = {
       ...ALMINASA_DETAIL,
       crossrefs: [
@@ -666,29 +742,31 @@ describe('HadithDetailPage', () => {
     mockEndpoints(noResolved, GRAPH_WITH_EXTERNAL);
     renderPage();
     await waitForApi(() => {
-      expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Иснад' })).toBeInTheDocument();
     });
+    await openTab('Иснад');
     expect(screen.queryByRole('button', { name: /Все пути/ })).not.toBeInTheDocument();
   });
 
-  it('аноним не видит кнопку «Добавить оценку»', async () => {
+  it('аноним не видит вкладку «Оценки» при пустом списке', async () => {
     mockEndpoints({ ...DETAIL, grades: [] });
     renderPage();
     await waitForApi(() => {
       expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
     });
+    expect(screen.queryByRole('tab', { name: 'Оценки' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Добавить оценку' })).not.toBeInTheDocument();
   });
 
-  it('SCHOLAR видит секцию оценок с кнопкой даже при пустом списке', async () => {
+  it('SCHOLAR видит вкладку оценок с кнопкой даже при пустом списке', async () => {
     loginAs('SCHOLAR');
     mockEndpoints({ ...DETAIL, grades: [] });
     renderPage();
     await waitForApi(() => {
-      expect(screen.getByRole('button', { name: 'Добавить оценку' })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Оценки' })).toBeInTheDocument();
     });
-    // секция оценок + empty-state видны (пункт навигации тоже)
-    expect(screen.getByRole('link', { name: 'Оценки' })).toBeInTheDocument();
+    await openTab('Оценки');
+    expect(screen.getByRole('button', { name: 'Добавить оценку' })).toBeInTheDocument();
     expect(screen.getByText('Оценки учёных пока не добавлены')).toBeInTheDocument();
   });
 
@@ -776,8 +854,9 @@ describe('HadithDetailPage', () => {
 
     renderPage();
     await waitForApi(() => {
-      expect(screen.getByRole('button', { name: 'Добавить оценку' })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Оценки' })).toBeInTheDocument();
     });
+    await openTab('Оценки');
     await userEvent.click(screen.getByRole('button', { name: 'Добавить оценку' }));
 
     // модалка открылась

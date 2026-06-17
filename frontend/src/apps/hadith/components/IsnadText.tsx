@@ -1,5 +1,8 @@
+import { Fragment, type ReactNode } from 'react';
 import { parseIsnadHtml } from '@/apps/hadith/utils/parseIsnadHtml';
-import type { NarratorData } from '@/apps/hadith/types';
+import { buildMatnSegments } from '@/apps/hadith/utils/highlightGharib';
+import GharibWord from '@/apps/hadith/components/GharibWord';
+import type { ExplanationDto, NarratorData } from '@/apps/hadith/types';
 
 interface IsnadTextProps {
   /** Сырой `fullTextAr` хадиса (alminasa-HTML). */
@@ -16,17 +19,47 @@ interface IsnadTextProps {
    * в панели (снимает путаницу الفاكهي vs الخزاعي).
    */
   onNarratorClick: (data: NarratorData, textForm: string) => void;
+  /**
+   * GHARIB-толкования секции «غريب». Гариб-слова подсвечиваются ТОЛЬКО на
+   * не-рави сегментах (matn + литеральный текст) — клики по рави не ломаются
+   * (С7: один огласованный текст несёт и кликабельных рави, и гариб-подсветку).
+   */
+  gharib?: ExplanationDto[];
 }
 
 /**
  * Безопасный рендер текста иснада: токенизация через parseIsnadHtml
  * (НЕ dangerouslySetInnerHTML). rawy-сегменты кликабельны ТОЛЬКО когда
  * граф загружен и externalId есть в карте; matn — стилевое выделение
- * (не кликабельно); остальное — plain-текст. RTL.
+ * (не кликабельно) + гариб-подсветка слов; остальное — plain-текст с
+ * гариб-подсветкой. RTL.
  */
-function IsnadText({ html, narratorByExternalId, onNarratorClick }: IsnadTextProps) {
+function IsnadText({ html, narratorByExternalId, onNarratorClick, gharib }: IsnadTextProps) {
   const segments = parseIsnadHtml(html);
   if (segments.length === 0) return null;
+
+  const gharibList = gharib ?? [];
+
+  // Гариб-подсветка применяется к НЕ-рави сегментам (matn/text): рендерим
+  // под-сегменты buildMatnSegments, гариб-слова — через GharibWord, прочее —
+  // как есть. Рави не трогаем (клики). Пустой gharib → один plain-сегмент,
+  // текст рендерится напрямую (без оверхеда).
+  const renderGharib = (text: string, keyPrefix: string): ReactNode => {
+    if (gharibList.length === 0) return text;
+    const parts = buildMatnSegments(text, gharibList);
+    return parts.map((seg) =>
+      seg.gharib ? (
+        <GharibWord
+          key={`${keyPrefix}-${seg.key}`}
+          word={seg.text}
+          exp={seg.gharib}
+          trailPunct={seg.trailPunct}
+        />
+      ) : (
+        <Fragment key={`${keyPrefix}-${seg.key}`}>{seg.text}</Fragment>
+      ),
+    );
+  };
 
   return (
     <p className="font-arabic text-lg leading-loose text-ink-800" dir="rtl">
@@ -37,9 +70,10 @@ function IsnadText({ html, narratorByExternalId, onNarratorClick }: IsnadTextPro
       {segments.map((seg, i) => {
         if (seg.kind === 'matn') {
           return (
-            // matn — стилевое выделение текста матна (тонкий фон, не кликабельно).
+            // matn — стилевое выделение текста матна (тонкий фон, не кликабельно);
+            // внутри — гариб-подсветка слов матна.
             <span key={i} className="rounded-sm bg-accent-50 px-0.5 text-ink-900">
-              {seg.text}
+              {renderGharib(seg.text, `m${i}`)}
             </span>
           );
         }
@@ -66,7 +100,9 @@ function IsnadText({ html, narratorByExternalId, onNarratorClick }: IsnadTextPro
             </span>
           );
         }
-        return <span key={i}>{seg.text}</span>;
+        // Литеральный текст между тегами — гариб-подсветка (матн может быть не
+        // обёрнут в <a class=matn>, слова матна встречаются и здесь).
+        return <span key={i}>{renderGharib(seg.text, `t${i}`)}</span>;
       })}
     </p>
   );
