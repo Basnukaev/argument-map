@@ -3411,9 +3411,19 @@ hadithId, sourceId}`. List/detach хадис-опор — через сущес�
 ### GET /api/v1/hadith/hadiths/{id}/detail
 
 Bundled detail: hadith + sanads (с narrator-link'ами) + matns + `grades`
-(курируемые оценки учёных `[{scholar, grade, note}]` из
-`hd_hadiths.metadata.grades`) в одном payload (N+1 avoidance). 404
+(ручные оценки учёных) в одном payload (N+1 avoidance). 404
 `hadith-not-found`.
+
+**Оценки учёных (`grades`) — ADR-062 Option B (Сессия 62, breaking):**
+читаются из `hadith_grades` (JOIN через `hd_hadiths.source_id`), а не из
+прежнего `hd_hadiths.metadata.grades` (тот вход больше не парсится). Форма
+сменилась с freeform `{scholar, grade, note}` на структурную с authority-FK
+и enum-grade: `grades: [{gradeId, scholarId, scholarName, scholarFullName,
+scholarDeathYearHijri, grade, gradeCitation, note}]` — `grade` ∈
+`SAHIH/HASAN/DAIF/MAUDU`, `note` = `hadith_grades.comment`, `gradeId` для
+PATCH/DELETE. У хадиса без `source_id` (оценок ещё не было) — пустой массив
+(source создаётся лениво при первой оценке, см. POST
+`/api/v1/hadith/hadiths/{id}/grades`).
 
 **alminasa-обогащение (План 6):** ответ несёт богатые данные из `hd_*`.
 Скалярные поля хадиса: `externalId` (природный ключ alminasa, напр.
@@ -3459,7 +3469,10 @@ Bundled detail: hadith + sanads (с narrator-link'ами) + matns + `grades`
   "subChapterAr": "باب كيف كان بدء الوحي",
   "fullTextAr": "<a class=rawy id=1>عمر بن الخطاب</a> ... <a class=matn>إنما الأعمال بالنيات</a>",
   "sanads": [ /* SanadDto[] */ ], "matns": [ /* MatnDto[] */ ],
-  "grades": [ /* {scholar, grade, note}[] */ ],
+  "grades": [ { "gradeId": "uuid", "scholarId": "uuid",
+    "scholarName": "الألباني", "scholarFullName": "محمد ناصر الدين الألباني",
+    "scholarDeathYearHijri": 1420, "grade": "SAHIH",
+    "gradeCitation": "السلسلة الصحيحة 1/1", "note": "صحيح بطرقه" } ],
   "editions": [ { "editionName": "طبعة بولاق", "page": 12, "volume": 1 } ],
   "rulings": [ { "rulerName": "الألباني", "rulerDeathYear": 1420,
     "rulingText": "صحيح", "bookName": "السلسلة الصحيحة", "page": 7,
@@ -3996,6 +4009,36 @@ N для одного хадиса <50, pagination избыточна). Сорт
 `scholarDeathYearHijri`) через JOIN с `authorities` - один SQL без N+1.
 
 **Ошибки:** 404 `source-not-found`.
+
+### POST /api/v1/hadith/hadiths/{id}/grades (ADR-062 Option B, Сессия 62)
+
+Front-facing вход для добавления оценки учёного на alminasa-хадис. Path —
+`hd_hadiths.id` (hadith-домен), не `sources.id`: фронт оперирует хадисами и
+не знает про `sources`. Мост (`HadithGradeBridgeService`) лениво
+резолвит/создаёт HADITH-source хадиса (`hd_hadiths.source_id`, реюз паттерна
+под-проекта #2) и делегирует в существующий `HadithGradeService.addGrade` —
+тот же `hadith_grades`-механизм (authorities-FK, enum, dedup, аудит
+`createdBy`). GET/PATCH/DELETE оценок остаются на
+`/api/v1/sources/{sourceId}/grades` / `/api/v1/sources/grades/{gradeId}`
+(после создания оценки фронт знает `sourceId` из response/detail).
+
+**Body** `CreateHadithGradeRequest` (тот же, что у source-based POST):
+`{scholarId, grade ∈ SAHIH|HASAN|DAIF|MAUDU, gradeCitation?, comment?}`.
+
+**Permission:** SCHOLAR+ (как у `addGrade`; ADMIN тоже разрешён).
+
+**Response 201 Created** + `Location: /api/v1/sources/grades/{gradeId}`,
+тело `HadithGradeResponse` (thin, без denormalized scholar — фронт рефетчит
+detail).
+
+**Ошибки:**
+
+- 400 `invalid-scholar-authority` — resolved authority `type != SCHOLAR`
+- 400 validation — missing `scholarId` / `grade`
+- 403 `forbidden-insufficient-role` — роль ниже SCHOLAR (properties
+  `currentRole`, `requiredRole=SCHOLAR`)
+- 404 `hadith-not-found` / `authority-not-found`
+- 409 `hadith-grade-duplicate` — тот же scholar уже оценил этот хадис
 
 ### PATCH /api/v1/sources/grades/{gradeId}
 

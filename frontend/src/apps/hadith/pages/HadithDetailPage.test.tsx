@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
-import { waitForApi } from '@/test/asyncHelpers';
+import { waitForApi, waitForUi } from '@/test/asyncHelpers';
+import { useAuthStore, type AuthUser } from '@/shared/stores/authStore';
 import HadithDetailPage from './HadithDetailPage';
 
 const BASE = 'http://test.local';
@@ -21,6 +22,20 @@ beforeAll(() => {
   }
   vi.stubGlobal('IntersectionObserver', IOMock);
 });
+
+// Гейт «Добавить оценку» — SCHOLAR+. По умолчанию тесты анонимны (user=null →
+// кнопки нет). После каждого теста сбрасываем сессию, чтобы SCHOLAR-юзер из
+// grade-теста не протекал в соседние (где секция оценок ожидается скрытой).
+afterEach(() => {
+  useAuthStore.setState({ user: null, accessToken: null });
+});
+
+function loginAs(role: AuthUser['role']) {
+  useAuthStore.setState({
+    user: { id: 'u-test', username: 'tester', email: 'tester@test.local', role },
+    accessToken: 'test-token',
+  });
+}
 
 const DETAIL = {
   id: 'h1',
@@ -57,7 +72,20 @@ const DETAIL = {
       divergenceSummary: null,
     },
   ],
-  grades: [{ scholar: 'аль-Бухари', grade: 'Сахих', note: 'муттафакун алейхи' }],
+  grades: [
+    {
+      gradeId: 'gr1',
+      scholarId: 'sc1',
+      scholarName: 'аль-Бухари',
+      scholarFullName: 'Мухаммад ибн Исмаил аль-Бухари',
+      // 261, не 256 — иначе «ум. 256 г.х.» столкнётся с ruling البخاري (256)
+      // в ALMINASA_DETAIL (он спредит DETAIL.grades) и getByText найдёт два.
+      scholarDeathYearHijri: 261,
+      grade: 'SAHIH',
+      gradeCitation: null,
+      note: 'муттафакун алейхи',
+    },
+  ],
 };
 
 const COLLECTIONS = [
@@ -623,5 +651,140 @@ describe('HadithDetailPage', () => {
       expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
     });
     expect(screen.queryByRole('button', { name: /Все пути/ })).not.toBeInTheDocument();
+  });
+
+  it('аноним не видит кнопку «Добавить оценку»', async () => {
+    mockEndpoints({ ...DETAIL, grades: [] });
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: 'Добавить оценку' })).not.toBeInTheDocument();
+  });
+
+  it('SCHOLAR видит секцию оценок с кнопкой даже при пустом списке', async () => {
+    loginAs('SCHOLAR');
+    mockEndpoints({ ...DETAIL, grades: [] });
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByRole('button', { name: 'Добавить оценку' })).toBeInTheDocument();
+    });
+    // секция оценок + empty-state видны (пункт навигации тоже)
+    expect(screen.getByRole('link', { name: 'Оценки' })).toBeInTheDocument();
+    expect(screen.getByText('Оценки учёных пока не добавлены')).toBeInTheDocument();
+  });
+
+  it('SCHOLAR: поиск учёного → выбор → отправка оценки → рефетч detail', async () => {
+    loginAs('SCHOLAR');
+    let posted: { scholarId: string; grade: string } | null = null;
+    let detailCalls = 0;
+    const GRADED_DETAIL = {
+      ...DETAIL,
+      grades: [
+        {
+          gradeId: 'g-new',
+          scholarId: 'sc-albani',
+          scholarName: 'аль-Албани',
+          scholarFullName: 'Мухаммад Насир ад-Дин аль-Албани',
+          scholarDeathYearHijri: 1420,
+          grade: 'SAHIH',
+          gradeCitation: null,
+          note: null,
+        },
+      ],
+    };
+    server.use(
+      // первый detail — без оценок; после POST (refetch с ?r=1) — с оценкой
+      http.get(`${BASE}/api/v1/hadith/hadiths/h1/detail`, () => {
+        detailCalls += 1;
+        return HttpResponse.json(detailCalls === 1 ? { ...DETAIL, grades: [] } : GRADED_DETAIL);
+      }),
+      http.get(`${BASE}/api/v1/hadith/collections`, () => HttpResponse.json(COLLECTIONS)),
+      http.get(`${BASE}/api/v1/hadith/hadiths/:id/sanad-graph`, () =>
+        HttpResponse.json(EMPTY_GRAPH),
+      ),
+      // autocomplete учёных (PagedResponse) — отдаём SCHOLAR + не-SCHOLAR (фильтруется)
+      http.get(`${BASE}/api/v1/authorities`, () =>
+        HttpResponse.json({
+          items: [
+            {
+              id: 'sc-albani',
+              name: 'аль-Албани',
+              fullName: 'Мухаммад Насир ад-Дин аль-Албани',
+              deathYearHijri: 1420,
+              type: 'SCHOLAR',
+              bio: null,
+              era: null,
+              madhab: null,
+              createdAt: '2026-01-01',
+            },
+            {
+              id: 'pub-1',
+              name: 'Дар аль-кутуб',
+              fullName: null,
+              deathYearHijri: null,
+              type: 'PUBLISHER',
+              bio: null,
+              era: null,
+              madhab: null,
+              createdAt: '2026-01-01',
+            },
+          ],
+          page: 0,
+          size: 10,
+          totalElements: 2,
+          totalPages: 1,
+          hasNext: false,
+        }),
+      ),
+      http.post(`${BASE}/api/v1/hadith/hadiths/h1/grades`, async ({ request }) => {
+        const body = (await request.json()) as { scholarId: string; grade: string };
+        posted = { scholarId: body.scholarId, grade: body.grade };
+        return HttpResponse.json(
+          {
+            id: 'g-new',
+            sourceId: 'src-1',
+            scholarId: body.scholarId,
+            grade: body.grade,
+            gradeCitation: null,
+            comment: null,
+            createdAt: '2026-06-17',
+            createdBy: 'u-test',
+          },
+          { status: 201 },
+        );
+      }),
+    );
+
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByRole('button', { name: 'Добавить оценку' })).toBeInTheDocument();
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Добавить оценку' }));
+
+    // модалка открылась
+    expect(screen.getByRole('heading', { name: 'Оценка учёного' })).toBeInTheDocument();
+
+    // поиск учёного — печатаем, ждём debounced (250мс) результат, выбираем
+    await userEvent.type(screen.getByPlaceholderText('Начните вводить имя…'), 'аль');
+    await waitForUi(() => {
+      expect(screen.getByRole('button', { name: /Мухаммад Насир ад-Дин/ })).toBeInTheDocument();
+    });
+    // не-SCHOLAR (издатель) отфильтрован
+    expect(screen.queryByText('Дар аль-кутуб')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Мухаммад Насир ад-Дин/ }));
+
+    // отправка
+    await userEvent.click(screen.getByRole('button', { name: 'Сохранить оценку' }));
+
+    // POST ушёл с правильным scholarId + grade
+    await waitForUi(() => {
+      expect(posted).toEqual({ scholarId: 'sc-albani', grade: 'SAHIH' });
+    });
+    // detail рефетчнут (≥2 вызова) и новая оценка показана
+    await waitForUi(() => {
+      expect(screen.getByText('аль-Албани')).toBeInTheDocument();
+    });
+    expect(detailCalls).toBeGreaterThanOrEqual(2);
   });
 });

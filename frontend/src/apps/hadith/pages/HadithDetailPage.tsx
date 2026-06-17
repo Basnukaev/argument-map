@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
-import { ArrowLeft, BookOpen, Loader2, Network } from 'lucide-react';
+import { ArrowLeft, BookOpen, Loader2, Network, Plus } from 'lucide-react';
 import { apiGetRaw } from '@/shared/api/client';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
@@ -12,6 +12,7 @@ import ExplanationsList from '@/apps/hadith/components/ExplanationsList';
 import CrossrefsList from '@/apps/hadith/components/CrossrefsList';
 import EditionsList from '@/apps/hadith/components/EditionsList';
 import HadithGradesList from '@/apps/hadith/components/HadithGradesList';
+import AddHadithGradeModal from '@/apps/hadith/components/AddHadithGradeModal';
 import MatnVariations from '@/apps/hadith/components/MatnVariations';
 import SiblingMatns from '@/apps/hadith/components/SiblingMatns';
 import MatnTranslateControls from '@/apps/hadith/components/MatnTranslateControls';
@@ -21,6 +22,9 @@ import HadithSectionNav, {
 } from '@/apps/hadith/components/HadithSectionNav';
 import { parseIsnadHtml } from '@/apps/hadith/utils/parseIsnadHtml';
 import { useApiQuery } from '@/shared/hooks/useApiQuery';
+import { invalidateCache } from '@/shared/hooks/queryCache';
+import Button from '@/shared/components/ui/Button';
+import { useAuthStore, hasRoleAtLeast } from '@/shared/stores/authStore';
 import { useT, type DictKey, hasArabicScript } from '@/shared/i18n';
 import type {
   ExplanationDto,
@@ -79,9 +83,21 @@ function HadithDetailPage() {
   const t = useT();
   const { id } = useParams<{ id: string }>();
 
-  const state = useApiQuery<HadithDetailDto>(
-    id ? `/api/v1/hadith/hadiths/${id}/detail` : null,
-  );
+  // Роль для гейта write-действий (добавление оценки — SCHOLAR+, как другие
+  // admin/научные действия). Аноним/USER/STUDENT кнопку не видят.
+  const userRole = useAuthStore((s) => s.user?.role);
+  const canGrade = hasRoleAtLeast(userRole, 'SCHOLAR');
+
+  // Модалка «Добавить оценку» + nonce для рефетча detail после POST. Nonce
+  // вшит в path (useApiQuery рефетчит при смене path); при 0 — path без
+  // суффикса (existing-поведение и тесты не затронуты).
+  const [gradeModalOpen, setGradeModalOpen] = useState(false);
+  const [gradeNonce, setGradeNonce] = useState(0);
+
+  const detailPath = id
+    ? `/api/v1/hadith/hadiths/${id}/detail${gradeNonce > 0 ? `?r=${gradeNonce}` : ''}`
+    : null;
+  const state = useApiQuery<HadithDetailDto>(detailPath);
   const collectionsState = useApiQuery<CollectionItem[]>('/api/v1/hadith/collections');
   // Lifted sanad-graph fetch: страница владеет графом (для клик-резолва иснада).
   const graphState = useApiQuery<SanadGraphResponse>(
@@ -187,14 +203,15 @@ function HadithDetailPage() {
     if ((detail?.crossrefs?.length ?? 0) > 0) items.push({ id: 'crossrefs', labelKey: 'hadith.detail.nav.crossrefs' });
     if ((detail?.editions?.length ?? 0) > 0) items.push({ id: 'editions', labelKey: 'hadith.detail.nav.editions' });
     // Оценки учёных — РУЧНЫЕ оценки платформы (не дубль вердиктов): секцию
-    // и пункт навигации показываем только при непустом списке.
-    if ((detail?.grades?.length ?? 0) > 0) items.push({ id: 'grades', labelKey: 'hadith.detail.nav.grades' });
+    // и пункт навигации показываем при непустом списке ЛИБО когда у юзера есть
+    // право добавить оценку (SCHOLAR+ видит секцию с кнопкой «Добавить»).
+    if ((detail?.grades?.length ?? 0) > 0 || canGrade) items.push({ id: 'grades', labelKey: 'hadith.detail.nav.grades' });
     // Вариации — у alminasa 1 запись = 1 матн; секция нужна только при >1.
     if ((detail?.matns.length ?? 0) > 1) items.push({ id: 'variations', labelKey: 'hadith.detail.nav.variations' });
     // Параллельные тексты — ленивый блок, видим только при наличии resolved crossrefs.
     if (resolvedTuruqCount > 0) items.push({ id: 'sibling-matns', labelKey: 'hadith.detail.nav.sibling_matns' });
     return items;
-  }, [detail, explanationGroups, resolvedTuruqCount]);
+  }, [detail, explanationGroups, resolvedTuruqCount, canGrade]);
 
   // Клик по рави в тексте: NarratorData из графа → добавляем role для панели,
   // сохраняем форму имени из текста (textForm) для подписи «في الإسناد».
@@ -478,12 +495,27 @@ function HadithDetailPage() {
                 </section>
               )}
 
-              {/* 8. Оценки учёных — РУЧНЫЕ оценки платформы; скрыта при пустоте. */}
-              {detail.grades.length > 0 && (
+              {/* 8. Оценки учёных — РУЧНЫЕ оценки платформы. Видна при наличии
+                  оценок ЛИБО когда юзер может добавить (SCHOLAR+): тогда
+                  показываем кнопку «Добавить» + empty-state. */}
+              {(detail.grades.length > 0 || canGrade) && (
                 <section id="grades" className={SECTION_ANCHOR}>
-                  <SectionHeading>
-                    {t('hadith.detail.grades')} · {detail.grades.length}
-                  </SectionHeading>
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-500">
+                      {t('hadith.detail.grades')}
+                      {detail.grades.length > 0 ? ` · ${detail.grades.length}` : ''}
+                    </h2>
+                    {canGrade && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        icon={Plus}
+                        onClick={() => setGradeModalOpen(true)}
+                      >
+                        {t('hadith.grade.add')}
+                      </Button>
+                    )}
+                  </div>
                   <HadithGradesList grades={detail.grades} />
                 </section>
               )}
@@ -511,6 +543,20 @@ function HadithDetailPage() {
                 </section>
               )}
             </article>
+
+            {/* Модалка «Добавить оценку» — идиома {open && <Modal/>}; чистый
+                state на каждое открытие. После POST инвалидируем кэш detail и
+                бампаем nonce → useApiQuery рефетчит свежий список оценок. */}
+            {gradeModalOpen && id && (
+              <AddHadithGradeModal
+                hadithId={id}
+                onClose={() => setGradeModalOpen(false)}
+                onCreated={() => {
+                  if (detailPath) invalidateCache((k) => k === detailPath);
+                  setGradeNonce((n) => n + 1);
+                }}
+              />
+            )}
           </>
         )}
       </div>

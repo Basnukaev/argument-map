@@ -33,10 +33,22 @@ public record HadithDetailResponse(
         List<CrossrefDto> crossrefs
 ) {
 
-    /** Курируемая оценка хадиса учёным (из hd_hadiths.metadata.grades). */
+    /**
+     * Ручная оценка хадиса учёным из {@code hadith_grades} (JOIN через
+     * {@code hd_hadiths.source_id}, ADR-062 Option B). Структурная форма
+     * с authority-FK и enum-grade — заменила прежний freeform
+     * {@code metadata.grades}. {@code grade} — enum HadithGradeValue
+     * (SAHIH/HASAN/DAIF/MAUDU). {@code gradeId} нужен фронту для
+     * PATCH/DELETE существующей оценки.
+     */
     public record GradeDto(
-            String scholar,
+            UUID gradeId,
+            UUID scholarId,
+            String scholarName,
+            String scholarFullName,
+            Integer scholarDeathYearHijri,
             String grade,
+            String gradeCitation,
             String note
     ) {
     }

@@ -22,8 +22,10 @@ import ru.basnukaev.argumentmap.hadith.repository.HadithRepository;
 import ru.basnukaev.argumentmap.hadith.repository.HadithRulingRepository;
 import ru.basnukaev.argumentmap.hadith.repository.MatnRepository;
 import ru.basnukaev.argumentmap.hadith.repository.SanadRepository;
+import ru.basnukaev.argumentmap.hadith.service.HadithGradeBridgeService;
 import ru.basnukaev.argumentmap.hadith.service.SanadGraphService;
 import ru.basnukaev.argumentmap.hadith.web.dto.HadithDetailResponse;
+import ru.basnukaev.argumentmap.repository.HadithGradeRepository;
 
 /**
  * Unit-тест correctness lock-in для grouped narrator-lookup в
@@ -47,7 +49,9 @@ class HadithControllerGetDetailTest {
         HadithRulingRepository rulingRepository = mock(HadithRulingRepository.class);
         HadithExplanationRepository explanationRepository = mock(HadithExplanationRepository.class);
         HadithCrossrefRepository crossrefRepository = mock(HadithCrossrefRepository.class);
+        HadithGradeRepository hadithGradeRepository = mock(HadithGradeRepository.class);
         SanadGraphService sanadGraphService = mock(SanadGraphService.class);
+        HadithGradeBridgeService hadithGradeBridgeService = mock(HadithGradeBridgeService.class);
 
         UUID hadithId = UUID.randomUUID();
         UUID sanadA = UUID.randomUUID();
@@ -83,7 +87,8 @@ class HadithControllerGetDetailTest {
         HadithController controller = new HadithController(
                 hadithRepository, sanadRepository, matnRepository,
                 editionRepository, rulingRepository, explanationRepository,
-                crossrefRepository, sanadGraphService, new ObjectMapper());
+                crossrefRepository, hadithGradeRepository, sanadGraphService,
+                hadithGradeBridgeService, new ObjectMapper());
 
         HadithDetailResponse resp = controller.getDetail(hadithId);
 

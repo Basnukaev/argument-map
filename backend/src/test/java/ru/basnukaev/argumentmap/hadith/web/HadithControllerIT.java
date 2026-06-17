@@ -1,6 +1,8 @@
 package ru.basnukaev.argumentmap.hadith.web;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -13,10 +15,19 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
+import ru.basnukaev.argumentmap.domain.Authority;
+import ru.basnukaev.argumentmap.domain.AuthorityType;
+import ru.basnukaev.argumentmap.domain.HadithGradeValue;
+import ru.basnukaev.argumentmap.repository.AuthorityRepository;
+import ru.basnukaev.argumentmap.web.dto.CreateHadithGradeRequest;
 import ru.basnukaev.argumentmap.hadith.domain.Collection;
 import ru.basnukaev.argumentmap.hadith.domain.Hadith;
 import ru.basnukaev.argumentmap.hadith.domain.HadithCrossref;
@@ -58,6 +69,9 @@ class HadithControllerIT {
     @Autowired private HadithExplanationRepository explanationRepository;
     @Autowired private HadithCrossrefRepository crossrefRepository;
     @Autowired private CollectionRepository collectionRepository;
+    @Autowired private AuthorityRepository authorityRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private ObjectMapper objectMapper;
 
     private UUID hadithId;
     private UUID narratorId;
@@ -281,6 +295,123 @@ class HadithControllerIT {
                 .andExpect(jsonPath("$.rulings[0].relatedExternalId").value("158-99"))
                 .andExpect(jsonPath("$.rulings[0].relatedHadithId").value(sibling.id().toString()))
                 .andExpect(jsonPath("$.rulings[0].relatedCollectionNameRu").value("Сахих Муслима"));
+    }
+
+    @Test
+    void POST_grade_lazyCreatesSourceAndDetailReadsFromHadithGrades() throws Exception {
+        // ADR-062 Option B: оценка на хадис без source_id — мост лениво создаёт
+        // HADITH-source, пишет в hadith_grades, detail читает оттуда (JOIN).
+        UUID scholarUserId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email, role) VALUES (?, ?, ?, 'SCHOLAR')",
+                scholarUserId, "scholar-" + scholarUserId, scholarUserId + "@example.com");
+
+        Authority scholar = new Authority(UUID.randomUUID(), "الألباني",
+                "محدث", "XIV век хиджры", null, null, Instant.now(),
+                "محمد ناصر الدين الألباني", 1420, AuthorityType.SCHOLAR);
+        authorityRepository.save(scholar);
+
+        var req = new CreateHadithGradeRequest(scholar.id(), HadithGradeValue.SAHIH,
+                "السلسلة الصحيحة 1/1", "صحيح بطرقه");
+
+        mockMvc.perform(post("/api/v1/hadith/hadiths/{id}/grades", hadithId)
+                        .header("X-User-Id", scholarUserId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Location",
+                        org.hamcrest.Matchers.containsString("/api/v1/sources/grades/")))
+                .andExpect(jsonPath("$.id").exists())
+                .andExpect(jsonPath("$.sourceId").exists())
+                .andExpect(jsonPath("$.scholarId").value(scholar.id().toString()))
+                .andExpect(jsonPath("$.grade").value("SAHIH"))
+                .andExpect(jsonPath("$.createdBy").value(scholarUserId.toString()));
+
+        // мост выставил source_id хадису (lazy-create)
+        UUID sourceId = jdbcTemplate.queryForObject(
+                "SELECT source_id FROM hd_hadiths WHERE id = ?", UUID.class, hadithId);
+        org.junit.jupiter.api.Assertions.assertNotNull(sourceId);
+
+        // detail читает структурную оценку из hadith_grades (denormalized scholar)
+        mockMvc.perform(get("/api/v1/hadith/hadiths/{id}/detail", hadithId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.grades.length()").value(1))
+                .andExpect(jsonPath("$.grades[0].gradeId").exists())
+                .andExpect(jsonPath("$.grades[0].scholarId").value(scholar.id().toString()))
+                .andExpect(jsonPath("$.grades[0].scholarName").value("الألباني"))
+                .andExpect(jsonPath("$.grades[0].scholarFullName").value("محمد ناصر الدين الألباني"))
+                .andExpect(jsonPath("$.grades[0].scholarDeathYearHijri").value(1420))
+                .andExpect(jsonPath("$.grades[0].grade").value("SAHIH"))
+                .andExpect(jsonPath("$.grades[0].gradeCitation").value("السلسلة الصحيحة 1/1"))
+                .andExpect(jsonPath("$.grades[0].note").value("صحيح بطرقه"));
+    }
+
+    @Test
+    void POST_grade_nonScholarAuthority_returns400() throws Exception {
+        // authority type=PUBLISHER → 400 invalid-scholar-authority (унаследовано
+        // от HadithGradeService — оценивать хадис может только SCHOLAR).
+        UUID scholarUserId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email, role) VALUES (?, ?, ?, 'SCHOLAR')",
+                scholarUserId, "scholar2-" + scholarUserId, scholarUserId + "@example.com");
+
+        Authority publisher = new Authority(UUID.randomUUID(), "دار النشر",
+                null, null, null, null, Instant.now(), null, null, AuthorityType.PUBLISHER);
+        authorityRepository.save(publisher);
+
+        var req = new CreateHadithGradeRequest(publisher.id(), HadithGradeValue.SAHIH, null, null);
+
+        mockMvc.perform(post("/api/v1/hadith/hadiths/{id}/grades", hadithId)
+                        .header("X-User-Id", scholarUserId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type")
+                        .value(org.hamcrest.Matchers.containsString("invalid-scholar-authority")));
+    }
+
+    @Test
+    void POST_grade_byUserRole_returns403() throws Exception {
+        // USER ниже SCHOLAR → 403 (role gate унаследован от addGrade).
+        UUID userRoleId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email, role) VALUES (?, ?, ?, 'USER')",
+                userRoleId, "regular-" + userRoleId, userRoleId + "@example.com");
+
+        Authority scholar = new Authority(UUID.randomUUID(), "البخاري",
+                null, null, null, null, Instant.now(), null, 256, AuthorityType.SCHOLAR);
+        authorityRepository.save(scholar);
+
+        var req = new CreateHadithGradeRequest(scholar.id(), HadithGradeValue.SAHIH, null, null);
+
+        mockMvc.perform(post("/api/v1/hadith/hadiths/{id}/grades", hadithId)
+                        .header("X-User-Id", userRoleId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type")
+                        .value(org.hamcrest.Matchers.containsString("forbidden-insufficient-role")));
+    }
+
+    @Test
+    void POST_grade_nonExistentHadith_returns404() throws Exception {
+        UUID scholarUserId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email, role) VALUES (?, ?, ?, 'SCHOLAR')",
+                scholarUserId, "scholar3-" + scholarUserId, scholarUserId + "@example.com");
+        Authority scholar = new Authority(UUID.randomUUID(), "مسلم",
+                null, null, null, null, Instant.now(), null, 261, AuthorityType.SCHOLAR);
+        authorityRepository.save(scholar);
+
+        var req = new CreateHadithGradeRequest(scholar.id(), HadithGradeValue.SAHIH, null, null);
+
+        mockMvc.perform(post("/api/v1/hadith/hadiths/{id}/grades", UUID.randomUUID())
+                        .header("X-User-Id", scholarUserId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type")
+                        .value(org.hamcrest.Matchers.containsString("hadith-not-found")));
     }
 
     @Test

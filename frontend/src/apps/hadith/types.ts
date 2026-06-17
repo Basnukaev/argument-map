@@ -119,11 +119,38 @@ export type VersionFlowNodeData = VersionInfo & { role: 'VERSION'; isCurrent: bo
 /** Объединённые данные узла графа: передатчик ИЛИ карточка-версия. */
 export type SanadGraphNodeData = SanadFlowNodeData | VersionFlowNodeData;
 
-/** Курируемая оценка хадиса учёным (из detail endpoint, metadata.grades). */
+/**
+ * Оценка хадиса учёным (ADR-062 Option B): из `hadith_grades` (JOIN через
+ * `hd_hadiths.source_id`), а не из прежнего `metadata.grades`. Структурная
+ * форма с authority-FK и enum-grade. `grade` ∈ HadithGradeValue
+ * (SAHIH/HASAN/DAIF/MAUDU); `note` = `hadith_grades.comment`.
+ */
 export interface HadithGrade {
-  scholar: string | null;
-  grade: string | null;
+  gradeId: string;
+  scholarId: string;
+  scholarName: string | null;
+  scholarFullName: string | null;
+  scholarDeathYearHijri: number | null;
+  grade: HadithGradeValue;
+  gradeCitation: string | null;
   note: string | null;
+}
+
+/** Whitelist оценок хадиса (зеркало backend HadithGradeValue). */
+export type HadithGradeValue = 'SAHIH' | 'HASAN' | 'DAIF' | 'MAUDU';
+
+/** Каталог авторитетов (ученые/издатели/...) — для autocomplete оценок. */
+export interface AuthorityResponseDto {
+  id: string;
+  name: string;
+  bio: string | null;
+  era: string | null;
+  madhab: string | null;
+  createdAt: string;
+  fullName: string | null;
+  deathYearHijri: number | null;
+  /** Семантическая роль: SCHOLAR/MUHAQQIQ/PUBLISHER/AUTHOR/OTHER. */
+  type: string | null;
 }
 
 /** Обёртка PagedResponse<T> с бэка (GET-list endpoints). */

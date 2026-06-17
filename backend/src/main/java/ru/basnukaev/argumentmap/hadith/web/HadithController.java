@@ -1,5 +1,6 @@
 package ru.basnukaev.argumentmap.hadith.web;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -12,12 +13,19 @@ import java.util.stream.Collectors;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.validation.Valid;
+import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
+import ru.basnukaev.argumentmap.domain.HadithGrade;
+import ru.basnukaev.argumentmap.domain.HadithGradeWithScholar;
 import ru.basnukaev.argumentmap.hadith.domain.Hadith;
 import ru.basnukaev.argumentmap.hadith.domain.HadithCrossref;
 import ru.basnukaev.argumentmap.hadith.domain.HadithEdition;
@@ -35,7 +43,12 @@ import ru.basnukaev.argumentmap.hadith.repository.HadithRepository;
 import ru.basnukaev.argumentmap.hadith.repository.HadithRulingRepository;
 import ru.basnukaev.argumentmap.hadith.repository.MatnRepository;
 import ru.basnukaev.argumentmap.hadith.repository.SanadRepository;
+import ru.basnukaev.argumentmap.hadith.service.HadithGradeBridgeService;
 import ru.basnukaev.argumentmap.hadith.service.SanadGraphService;
+import ru.basnukaev.argumentmap.repository.HadithGradeRepository;
+import ru.basnukaev.argumentmap.web.CurrentUser;
+import ru.basnukaev.argumentmap.web.dto.CreateHadithGradeRequest;
+import ru.basnukaev.argumentmap.web.dto.HadithGradeResponse;
 import ru.basnukaev.argumentmap.hadith.web.dto.CrossrefDto;
 import ru.basnukaev.argumentmap.hadith.web.dto.EditionDto;
 import ru.basnukaev.argumentmap.hadith.web.dto.ExplanationDto;
@@ -64,7 +77,9 @@ public class HadithController {
     private final HadithRulingRepository rulingRepository;
     private final HadithExplanationRepository explanationRepository;
     private final HadithCrossrefRepository crossrefRepository;
+    private final HadithGradeRepository hadithGradeRepository;
     private final SanadGraphService sanadGraphService;
+    private final HadithGradeBridgeService hadithGradeBridgeService;
     private final ObjectMapper objectMapper;
 
     public HadithController(HadithRepository hadithRepository,
@@ -74,7 +89,9 @@ public class HadithController {
                             HadithRulingRepository rulingRepository,
                             HadithExplanationRepository explanationRepository,
                             HadithCrossrefRepository crossrefRepository,
+                            HadithGradeRepository hadithGradeRepository,
                             SanadGraphService sanadGraphService,
+                            HadithGradeBridgeService hadithGradeBridgeService,
                             ObjectMapper objectMapper) {
         this.hadithRepository = hadithRepository;
         this.sanadRepository = sanadRepository;
@@ -83,7 +100,9 @@ public class HadithController {
         this.rulingRepository = rulingRepository;
         this.explanationRepository = explanationRepository;
         this.crossrefRepository = crossrefRepository;
+        this.hadithGradeRepository = hadithGradeRepository;
         this.sanadGraphService = sanadGraphService;
+        this.hadithGradeBridgeService = hadithGradeBridgeService;
         this.objectMapper = objectMapper;
     }
 
@@ -112,6 +131,39 @@ public class HadithController {
         Hadith h = hadithRepository.findById(id)
                 .orElseThrow(() -> new HadithNotFoundException(id));
         return toResponse(h);
+    }
+
+    /**
+     * Добавить ручную оценку учёного на хадис (ADR-062 Option B). Path —
+     * {@code hd_hadiths.id} (hadith-домен), не {@code sources.id}: мост
+     * лениво резолвит/создаёт HADITH-source и делегирует в
+     * {@code HadithGradeService.addGrade} (permission SCHOLAR+, enum-валидация,
+     * dedup «один учёный — одна оценка»). GET/PATCH/DELETE оценок —
+     * на {@code /api/v1/sources/{sourceId}/grades}.
+     *
+     * <p>Ошибки наследуются от grade-механизма: 400 invalid-scholar-authority
+     * (authority не SCHOLAR), 403 forbidden-insufficient-role (роль ниже
+     * SCHOLAR), 404 authority-not-found / hadith-not-found, 409
+     * hadith-grade-duplicate.
+     */
+    @PostMapping("/{id}/grades")
+    public ResponseEntity<HadithGradeResponse> addGrade(@PathVariable UUID id,
+                                                        @Valid @RequestBody CreateHadithGradeRequest request,
+                                                        @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        HadithGrade created = hadithGradeBridgeService.addGradeForHadith(
+                id, request.scholarId(), request.grade(),
+                request.gradeCitation(), request.comment(), userId, role);
+        // thin response без scholar-JOIN (1 SQL); фронт рефетчит detail для
+        // denormalized-имени, как и существующий HadithGradeController
+        HadithGradeResponse body = new HadithGradeResponse(
+                created.id(), created.sourceId(), created.scholarId(),
+                null, null, null,
+                created.grade(), created.gradeCitation(), created.comment(),
+                created.createdAt(), created.createdBy());
+        return ResponseEntity
+                .created(URI.create("/api/v1/sources/grades/" + created.id()))
+                .body(body);
     }
 
     /**
@@ -159,7 +211,14 @@ public class HadithController {
                 ))
                 .toList();
 
-        List<HadithDetailResponse.GradeDto> grades = parseGrades(h.metadata(), objectMapper);
+        // ADR-062 Option B: оценки учёных читаем из hadith_grades (JOIN через
+        // source_id), а не из metadata.grades. У хадиса без source_id оценок
+        // нет — пустой список (source создаётся лениво при первой оценке).
+        List<HadithDetailResponse.GradeDto> grades = h.sourceId() == null
+                ? List.of()
+                : hadithGradeRepository.findBySourceIdWithScholar(h.sourceId()).stream()
+                        .map(HadithController::toGradeDto)
+                        .toList();
 
         // alminasa-сателлиты: по одному запросу на тип (single-detail, N+1 нет).
         // Для legacy/seeded хадисов без сателлитов вернутся пустые списки.
@@ -310,28 +369,14 @@ public class HadithController {
     }
 
     /**
-     * Курируемые оценки учёных из {@code hd_hadiths.metadata.grades} (jsonb).
-     * Defensive: любая ошибка парсинга → пустой список (grades не критичны).
-     * Package-private static — unit-тестируется без Spring/БД.
+     * Маппинг denormalized-оценки ({@code hadith_grades} JOIN authorities) в
+     * detail-DTO. {@code grade} (enum) сериализуем как имя
+     * (SAHIH/HASAN/DAIF/MAUDU); {@code comment} → поле {@code note}.
      */
-    static List<HadithDetailResponse.GradeDto> parseGrades(String metadata, ObjectMapper objectMapper) {
-        if (metadata == null || metadata.isBlank()) {
-            return List.of();
-        }
-        try {
-            JsonNode arr = objectMapper.readTree(metadata).get("grades");
-            if (arr == null || !arr.isArray()) {
-                return List.of();
-            }
-            List<HadithDetailResponse.GradeDto> out = new ArrayList<>();
-            for (JsonNode g : arr) {
-                out.add(new HadithDetailResponse.GradeDto(
-                        nodeText(g, "scholar"), nodeText(g, "grade"), nodeText(g, "note")));
-            }
-            return out;
-        } catch (Exception e) {
-            return List.of();
-        }
+    private static HadithDetailResponse.GradeDto toGradeDto(HadithGradeWithScholar g) {
+        return new HadithDetailResponse.GradeDto(
+                g.id(), g.scholarId(), g.scholarName(), g.scholarFullName(),
+                g.scholarDeathYearHijri(), g.grade().name(), g.gradeCitation(), g.comment());
     }
 
     private static String nodeText(JsonNode node, String field) {

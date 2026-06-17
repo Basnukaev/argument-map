@@ -6616,3 +6616,77 @@ ES `_id` (в `_source` нет природного int id) → идемпоте�
 
 **Связанные:** клон-паттерн — План 8 (علل/غريب); источник — ADR-060 (alminasa);
 backlog-находка С59 (`backlog.md` narrator-commentary-12) закрыта.
+
+## ADR-062: Мост hd_hadiths↔sources для ручных оценок учёных (Option B)
+**Дата:** 2026-06-17
+**Статус:** принято (Абдула выбрал Option B; lazy-resolve вместо backfill)
+**Реализовано:** Сессия 62, спека
+`docs/specs/2026-06-17-hadith-explorer-ux-feedback.md` секция «#4».
+
+**Контекст.** Существует механизм multi-grading хадисов (`hadith_grades`,
+миграции 43/47): `HadithGradeService.addGrade` пишет оценку учёного
+(authority `type=SCHOLAR`) в `hadith_grades` по `sources.id` (FK
+`source_id → sources.id`, `scholar_id → authorities.id`, enum-whitelist
+`SAHIH/HASAN/DAIF/MAUDU`, dedup «один учёный — одна оценка», permission
+SCHOLAR+). Но эта система **не была сведена** с alminasa-моделью хадиса
+(`hd_hadiths`): detail-эндпоинт читал «Оценки учёных» из jsonb-поля
+`hd_hadiths.metadata.grades` (freeform `{scholar, grade, note}`, read-only,
+без POST/PATCH). Два независимых механизма с разными ключами и формами.
+Колонка `hd_hadiths.source_id` (мост в citation-домен, под-проект #2) уже
+существовала, но заполнена только у хадисов, прикреплённых как опора к узлу
+графа.
+
+**Инвестигация заполненности `source_id` (dev-БД на 2026-06-17).**
+`SELECT count(*), count(source_id) FROM hd_hadiths` → **31999 строк, из них
+2 с source_id**. `metadata.grades` присутствует в **0** строк (alminasa-краулер
+их не пишет). `hadith_grades` и authorities `type=SCHOLAR` — по **0** строк
+(корпус очищен в С60). Вывод: backfill `source_id` для 32k хадисов создал бы
+32k Source-строк, которые почти все никто никогда не оценит (мусор + риск
+рассинхрона). `source_id` ставится только в `HadithCitationService`
+(под-проект #2) при первом attach хадиса к узлу как опоры.
+
+**Решение (Option B, lazy-resolve — выбран Абдулой).**
+1. **Без backfill-миграции.** Source для хадиса создаётся **лениво на запись
+   оценки** — переиспользуем уже существующий паттерн
+   `HadithCitationService.ensureSourceForHadith`: если `hadith.sourceId == null`,
+   создать `SourceType.HADITH` через `SourceService.createSource(...)` и выставить
+   `hd_hadiths.source_id` через `HadithRepository.updateSourceId(...)`. Логика
+   вынесена в новый узкий сервис `HadithGradeBridgeService` (резолв source →
+   делегирование в существующий `HadithGradeService.addGrade`).
+2. **Новый эндпоинт** `POST /api/v1/hadith/hadiths/{id}/grades` (по `hd_hadiths.id`,
+   а не `sources.id`) — фронт работает в hadith-домене и не знает про sources.
+   Резолвит/создаёт source хадиса, затем зовёт role-aware
+   `HadithGradeService.addGrade(sourceId, …)` (permission SCHOLAR+, enum-валидация,
+   dedup — без изменений). GET/PATCH/DELETE оценок остаются на существующем
+   `HadithGradeController` (`/api/v1/sources/{id}/grades`).
+3. **Detail ЧИТАЕТ из `hadith_grades`** (JOIN через `source_id`), а не из
+   `metadata.grades`: `HadithController.getDetail` грузит
+   `HadithGradeRepository.findBySourceIdWithScholar(hadith.sourceId)` (пустой
+   список если `source_id == null` — у не-оценённого хадиса оценок нет). `GradeDto`
+   расширен до структурной формы (`gradeId, scholarId, scholarName,
+   scholarFullName, scholarDeathYearHijri, grade, gradeCitation, note`).
+   Парсинг `metadata.grades` удалён (был мёртвой веткой — 0 строк).
+
+**Причины.** Lazy-resolve — минимально-инвазивный путь: 0 новых таблиц, 0
+миграций, переиспользование готового `hadith_grades`-механизма (authorities-FK,
+enum, dedup, SCHOLAR+ permission, аудит createdBy) и готового
+ensure-source-паттерна. Отвергнут backfill (32k мусорных Source-строк);
+отвергнут Option A (POST в `metadata.grades` — freeform, без authorities-FK,
+без enum, без dedup); отвергнут Option C (новая таблица `hd_hadith_grades` —
+дублирует существующую `hadith_grades` без выгоды).
+
+**Последствия.**
+- `GradeDto` сменил форму (`{scholar, grade, note}` → структурная) — фронт-тип
+  `HadithGrade` и `HadithGradesList` обновлены; `metadata.grades`-вход больше
+  не читается (если в будущем alminasa начнёт писать туда — нужен отдельный
+  re-map в `hadith_grades`, не обратно к jsonb).
+- Source создаётся лениво и переживает удаление оценки (как в под-проекте #2:
+  один Source на хадис, реюз при повторных attach/grade). Это by design.
+- Оценку хадиса теперь могут ставить ADMIN/SCHOLAR (как другие admin-действия);
+  на dev-БД нет ни одного SCHOLAR-authority — форма работает, но список выбора
+  учёных пуст до наполнения справочника (POST `/api/v1/authorities` type=SCHOLAR).
+
+**Связанные:** переиспользует `HadithCitationService.ensureSourceForHadith`
+(под-проект #2, мост `hd_hadiths.source_id → sources.id`); механизм оценок —
+ADR-043/`backend/docs/hadith-grades.md` (миграции 43/47); источник хадисов —
+ADR-060 (alminasa).
