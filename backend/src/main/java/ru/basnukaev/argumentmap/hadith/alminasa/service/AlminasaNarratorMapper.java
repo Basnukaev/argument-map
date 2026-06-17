@@ -104,6 +104,12 @@ public class AlminasaNarratorMapper {
         String normalized = ArabicTextNormalizer.normalize(fullName);
         String gradeText = text(raw, "grade");
         String level = text(raw, "level");
+        String reliability = reliabilityGrade(level, gradeText);
+        // Для сподвижников (SAHABI) alminasa пишет в level почётный эпитет
+        // («الصحابي الجليل», «صحابية»), а не номер طبقة — обнуляем, чтобы
+        // хонорифик не хранился в колонке tabaqa и не вводил в заблуждение.
+        String tabaqa = NarratorReliability.SAHABI.equals(reliability) ? null
+                : truncate(level, TABAQA_MAX_LEN);
 
         Narrator narrator = new Narrator(
                 id,
@@ -117,14 +123,14 @@ public class AlminasaNarratorMapper {
                 null,                                   // birthplace (нет отдельного поля)
                 truncatePlace(text(raw, "died_in")),   // death_place
                 truncatePlace(text(raw, "lived_in")),  // primary_residence
-                reliabilityGrade(level, gradeText),
+                reliability,
                 null,                                   // reliability_comment (verbatim — в grade_text)
                 existing.map(Narrator::transmittedCountCached).orElse(0),
                 buildMetadata(raw),
                 existing.map(Narrator::createdAt).orElseGet(Instant::now),
                 SOURCE,
                 externalId,
-                truncate(level, TABAQA_MAX_LEN),        // tabaqa
+                tabaqa,                                 // tabaqa (null для SAHABI — см. выше)
                 gradeText,                              // grade_text (дословно)
                 text(raw, "born_on"),                   // born_on_text (проза)
                 text(raw, "died_on")                    // died_on_text (проза)
@@ -192,6 +198,9 @@ public class AlminasaNarratorMapper {
         } else {
             reliability = reliabilityFromGradePrefix(gradeText);
         }
+        // Аналогично mapNarrator: сподвижник → tabaqa null (level = хонорифик, не طبقة)
+        String tabaqa = NarratorReliability.SAHABI.equals(reliability) ? null
+                : truncate(level, TABAQA_MAX_LEN);
 
         ObjectNode metadata = objectMapper.createObjectNode();
         metadata.put("source", SOURCE);
@@ -209,7 +218,7 @@ public class AlminasaNarratorMapper {
                 id, null, fullName, ArabicTextNormalizer.normalize(fullName),
                 null, null, null, null, null, null, null,
                 reliability, null, 0, writeJson(metadata), Instant.now(),
-                SOURCE, externalId, truncate(level, TABAQA_MAX_LEN), gradeText, null, null
+                SOURCE, externalId, tabaqa, gradeText, null, null
         ));
         return id;
     }

@@ -219,6 +219,44 @@ class AlminasaNarratorMapperTest {
         assertThat(n.transmittedCountCached()).isEqualTo(42);
     }
 
+    // ── tabaqa для SAHABI обнуляется (B4-фикс) ────────────────────────────────────
+
+    @Test
+    void mapNarrator_sahabi_tabaqa_null() {
+        // level содержит почётный эпитет («الصحابي الجليل»), а не طبقة — должен быть null
+        AlminasaNarratorMapper m = realMapper();
+        String raw = "{\"full_name\":\"أبو هريرة الدوسي\","
+                + "\"level\":\"الصحابي الجليل\","
+                + "\"grade\":\"الصحابي الجليل  حافظ الصحابة\"}";
+        AmNarratorRow row = new AmNarratorRow(4396, "أبو هريرة الدوسي", null, null, raw);
+        when(narratorRepository.findByExternalId("alminasa", "4396")).thenReturn(Optional.empty());
+
+        m.mapNarrator(row);
+
+        verify(narratorRepository).save(narratorCaptor.capture());
+        Narrator n = narratorCaptor.getValue();
+        assertThat(n.reliabilityGrade()).isEqualTo(NarratorReliability.SAHABI);
+        assertThat(n.tabaqa()).isNull();
+    }
+
+    @Test
+    void mapNarrator_обычный_рави_tabaqa_сохранён() {
+        // реальная طبقة («الثانية») у не-сподвижника остаётся как есть
+        AlminasaNarratorMapper m = realMapper();
+        String raw = "{\"full_name\":\"علقمة\","
+                + "\"level\":\"الثانية\","
+                + "\"grade\":\"ثقة ثبت\"}";
+        AmNarratorRow row = new AmNarratorRow(9200, "علقمة", null, null, raw);
+        when(narratorRepository.findByExternalId("alminasa", "9200")).thenReturn(Optional.empty());
+
+        m.mapNarrator(row);
+
+        verify(narratorRepository).save(narratorCaptor.capture());
+        Narrator n = narratorCaptor.getValue();
+        assertThat(n.reliabilityGrade()).isEqualTo(NarratorReliability.THIQA);
+        assertThat(n.tabaqa()).isEqualTo("الثانية");
+    }
+
     // ── таблица производного enum надёжности (решение 4) ──────────────────────────
 
     @Test
