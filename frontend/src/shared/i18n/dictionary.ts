@@ -1458,6 +1458,8 @@ export const DICTIONARY = {
     'hadith.graph.you_are_here': 'вы здесь',
     'hadith.graph.chain_select': 'Подсветить эту цепь в графе',
     'hadith.graph.chain_deselect': 'Снять подсветку',
+    'hadith.graph.legend_show': 'Показать легенду',
+    'hadith.graph.legend_hide': 'Скрыть легенду',
     'hadith.sanad.empty_takhrij':
       'Эта запись — вариант/такхридж без отдельной цепи передачи. Структурный иснад не извлечён; см. полный текст во вкладке «Текст».',
     'hadith.narrators.title': 'Передатчики',
@@ -2990,6 +2992,8 @@ export const DICTIONARY = {
     'hadith.graph.you_are_here': 'أنت هنا',
     'hadith.graph.chain_select': 'إبراز هذه السلسلة في الشجرة',
     'hadith.graph.chain_deselect': 'إلغاء الإبراز',
+    'hadith.graph.legend_show': 'إظهار الدليل',
+    'hadith.graph.legend_hide': 'إخفاء الدليل',
     'hadith.sanad.empty_takhrij':
       'هذه الرواية تخريج/متابعة بلا سند مستقل. لم يُستخرج الإسناد الهيكلي؛ راجع النص الكامل في تبويب «النص».',
     'hadith.narrators.title': 'الرواة',

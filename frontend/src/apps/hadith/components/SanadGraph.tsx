@@ -9,9 +9,10 @@ import {
   MarkerType,
   type Edge,
 } from '@xyflow/react';
-import { BookOpen, Loader2, Maximize, Minimize, Network, GitBranch } from 'lucide-react';
+import { BookOpen, Loader2, Maximize, Minimize, Network, GitBranch, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
 import { useT, type DictKey } from '@/shared/i18n';
+import { useThemeStore } from '@/shared/stores/themeStore';
 import SanadGraphNode, { type SanadNode } from './SanadGraphNode';
 import NarratorPanel from './NarratorPanel';
 import { layoutSanad } from '@/apps/hadith/utils/sanadLayout';
@@ -117,6 +118,7 @@ function SanadGraph({
 }: SanadGraphProps) {
   const t = useT();
   const navigate = useNavigate();
+  const { effectiveTheme } = useThemeStore();
   // Controlled-режим данных определяется по присутствию пропа `graph` (даже `null`).
   const controlled = graphProp !== undefined;
   // Controlled-режим выбора: родитель владеет панелью передатчика.
@@ -126,6 +128,8 @@ function SanadGraph({
   const [selected, setSelected] = useState<SanadFlowNodeData | null>(null);
   // id активного (подсвеченного) санада из легенды; null = нет подсветки.
   const [activeSanadId, setActiveSanadId] = useState<string | null>(null);
+  // Панель легенды: развёрнута по умолчанию, сворачивается кнопкой.
+  const [legendCollapsed, setLegendCollapsed] = useState(false);
 
   // Fullscreen: ref на корневой div + state для иконки переключения.
   const containerRef = useRef<HTMLDivElement>(null);
@@ -299,7 +303,11 @@ function SanadGraph({
     graph.sanads.filter((s) => s.primaryChain).length === 1;
 
   return (
-    <div ref={containerRef} className="relative h-full w-full">
+    <div
+      ref={containerRef}
+      data-theme={effectiveTheme}
+      className="relative h-full w-full bg-app [&:fullscreen]:h-screen [&:fullscreen]:w-screen"
+    >
       <ReactFlow<SanadNode, Edge>
         nodes={rfNodes}
         edges={rfEdges}
@@ -347,72 +355,97 @@ function SanadGraph({
           </button>
         </Panel>
 
-        <Panel
-          position="top-left"
-          className="max-w-[260px] rounded-md border border-border-strong bg-elevated/95 p-3 text-xs shadow-sh1 backdrop-blur"
-        >
-          <div className="mb-2">
-            <div className="mb-1 font-semibold text-ink-700">{t('hadith.graph.legend_chains')}</div>
-            {/* max-h ограничивает высоту при длинном списке (turuq 100+ цепей). */}
-            <ul className="max-h-[40vh] space-y-0.5 overflow-y-auto">
-              {graph.sanads.map((s) => {
-                const isActive = activeSanadId === s.id;
-                return (
-                  <li key={s.id}>
-                    <button
-                      type="button"
-                      onClick={() => setActiveSanadId(isActive ? null : s.id)}
-                      className={`flex w-full items-center gap-2 rounded px-1 py-0.5 text-start transition-colors ${
-                        isActive
-                          ? 'bg-accent-50 ring-1 ring-accent-300'
-                          : 'hover:bg-ink-50'
-                      }`}
-                      dir="auto"
-                      title={isActive ? t('hadith.graph.chain_deselect') : t('hadith.graph.chain_select')}
-                    >
-                      <span
-                        className="inline-block h-1.5 w-4 shrink-0 rounded-full"
-                        style={{ backgroundColor: edgeStroke(s.chainGrade) }}
-                      />
-                      <span className="text-ink-700">{s.collectionRu ?? s.collectionAr ?? '—'}</span>
-                      {/* «основная» осмысленна, только когда выделяет ОДНУ цепь среди
-                          прочих. В turuq-режиме («Все пути») каждая цепь — основная
-                          своего хадиса, ярлык на всех = шум, поэтому скрываем. */}
-                      {s.primaryChain && primaryBadgeMeaningful && (
-                        <span className="rounded-sm bg-accent-50 px-1 text-[10px] font-medium text-accent-700">
-                          {t('hadith.graph.primary')}
-                        </span>
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
+        {/* Легенда: свёрнутая версия — иконка-кнопка для разворота. */}
+        {legendCollapsed ? (
+          <Panel position="top-left">
+            <button
+              type="button"
+              aria-label={t('hadith.graph.legend_show')}
+              onClick={() => setLegendCollapsed(false)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-bd bg-card shadow-sm text-meta transition-colors hover:bg-hover hover:text-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+            >
+              <PanelLeftOpen size={15} aria-hidden />
+            </button>
+          </Panel>
+        ) : (
+          <Panel position="top-left">
+            {/* Весь блок легенды ограничен по высоте + scroll, чтобы не вылезать
+                за нижний край вьюпорта (C13 fix). max-h: ~80vh минус отступы. */}
+            <div className="flex max-h-[calc(80vh-2rem)] max-w-[260px] flex-col overflow-y-auto rounded-md border border-border-strong bg-elevated/95 p-3 text-xs shadow-sh1 backdrop-blur">
+              {/* Заголовок с кнопкой сворачивания */}
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="font-semibold text-ink-700">{t('hadith.graph.legend_chains')}</span>
+                <button
+                  type="button"
+                  aria-label={t('hadith.graph.legend_hide')}
+                  onClick={() => setLegendCollapsed(true)}
+                  className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+                >
+                  <PanelLeftClose size={13} aria-hidden />
+                </button>
+              </div>
 
-          <div className="mb-2">
-            <div className="mb-1 font-semibold text-ink-700">
-              {t('hadith.graph.legend_reliability')}
+              {/* Список цепей — без отдельного max-h: весь блок уже ограничен. */}
+              <ul className="mb-2 space-y-0.5">
+                {graph.sanads.map((s) => {
+                  const isActive = activeSanadId === s.id;
+                  return (
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        onClick={() => setActiveSanadId(isActive ? null : s.id)}
+                        className={`flex w-full items-center gap-2 rounded px-1 py-0.5 text-start transition-colors ${
+                          isActive
+                            ? 'bg-accent-50 ring-1 ring-accent-300'
+                            : 'hover:bg-ink-50'
+                        }`}
+                        dir="auto"
+                        title={isActive ? t('hadith.graph.chain_deselect') : t('hadith.graph.chain_select')}
+                      >
+                        <span
+                          className="inline-block h-1.5 w-4 shrink-0 rounded-full"
+                          style={{ backgroundColor: edgeStroke(s.chainGrade) }}
+                        />
+                        <span className="text-ink-700">{s.collectionRu ?? s.collectionAr ?? '—'}</span>
+                        {/* «основная» осмысленна, только когда выделяет ОДНУ цепь среди
+                            прочих. В turuq-режиме («Все пути») каждая цепь — основная
+                            своего хадиса, ярлык на всех = шум, поэтому скрываем. */}
+                        {s.primaryChain && primaryBadgeMeaningful && (
+                          <span className="rounded-sm bg-accent-50 px-1 text-[10px] font-medium text-accent-700">
+                            {t('hadith.graph.primary')}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <div className="mb-2">
+                <div className="mb-1 font-semibold text-ink-700">
+                  {t('hadith.graph.legend_reliability')}
+                </div>
+                <ul className="grid grid-cols-2 gap-x-2 gap-y-1">
+                  {LEGEND_GRADES.map((g) => (
+                    <li key={g} className="flex items-center gap-1.5">
+                      <span className={`inline-block h-2 w-2 rounded-full ${RELIABILITY_TOKENS[g].dot}`} />
+                      <span className="text-ink-600">{t(`hadith.reliability.${g}` as DictKey)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="mb-2 flex items-start gap-1.5 text-[11px] leading-snug text-ink-500">
+                <BookOpen size={12} className="mt-0.5 shrink-0 text-sky-500" aria-hidden />
+                <span>{t('hadith.graph.legend_version')}</span>
+              </div>
+
+              <p className="text-[11px] leading-snug text-ink-500">
+                {t('hadith.graph.transmission_hint')}
+              </p>
             </div>
-            <ul className="grid grid-cols-2 gap-x-2 gap-y-1">
-              {LEGEND_GRADES.map((g) => (
-                <li key={g} className="flex items-center gap-1.5">
-                  <span className={`inline-block h-2 w-2 rounded-full ${RELIABILITY_TOKENS[g].dot}`} />
-                  <span className="text-ink-600">{t(`hadith.reliability.${g}` as DictKey)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="mb-2 flex items-start gap-1.5 text-[11px] leading-snug text-ink-500">
-            <BookOpen size={12} className="mt-0.5 shrink-0 text-sky-500" aria-hidden />
-            <span>{t('hadith.graph.legend_version')}</span>
-          </div>
-
-          <p className="text-[11px] leading-snug text-ink-500">
-            {t('hadith.graph.transmission_hint')}
-          </p>
-        </Panel>
+          </Panel>
+        )}
       </ReactFlow>
 
       {/* Внутренняя панель — только если выбором владеет сам граф (не controlled). */}
