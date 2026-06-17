@@ -27,7 +27,7 @@ public class HadithRepository {
             "id, collection_id, primary_number, normalized_matn, status, "
                     + "source_id, metadata, created_at, "
                     + "external_source, external_id, hadith_type, "
-                    + "chapter_ar, sub_chapter_ar, full_text_ar";
+                    + "chapter_ar, sub_chapter_ar, full_text_ar, authenticity";
 
     private static final RowMapper<Hadith> ROW_MAPPER = (rs, rn) -> new Hadith(
             rs.getObject("id", UUID.class),
@@ -43,7 +43,8 @@ public class HadithRepository {
             rs.getString("hadith_type"),
             rs.getString("chapter_ar"),
             rs.getString("sub_chapter_ar"),
-            rs.getString("full_text_ar")
+            rs.getString("full_text_ar"),
+            rs.getString("authenticity")
     );
 
     private final JdbcTemplate jdbcTemplate;
@@ -55,11 +56,11 @@ public class HadithRepository {
     public Hadith save(Hadith h) {
         jdbcTemplate.update(
                 "INSERT INTO hd_hadiths (" + COLUMNS + ") VALUES "
-                        + "(?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?)",
+                        + "(?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?)",
                 h.id(), h.collectionId(), h.primaryNumber(), h.normalizedMatn(),
                 h.status(), h.sourceId(), h.metadata(), odt(h.createdAt()),
                 h.externalSource(), h.externalId(), h.hadithType(),
-                h.chapterAr(), h.subChapterAr(), h.fullTextAr()
+                h.chapterAr(), h.subChapterAr(), h.fullTextAr(), h.authenticity()
         );
         return h;
     }
@@ -81,12 +82,14 @@ public class HadithRepository {
                         + "collection_id = ?, primary_number = ?, normalized_matn = ?, "
                         + "status = ?, source_id = ?, metadata = ?::jsonb, "
                         + "external_source = ?, external_id = ?, hadith_type = ?, "
-                        + "chapter_ar = ?, sub_chapter_ar = ?, full_text_ar = ? "
+                        + "chapter_ar = ?, sub_chapter_ar = ?, full_text_ar = ?, "
+                        + "authenticity = ? "
                         + "WHERE id = ?",
                 h.collectionId(), h.primaryNumber(), h.normalizedMatn(),
                 h.status(), h.sourceId(), h.metadata(),
                 h.externalSource(), h.externalId(), h.hadithType(),
                 h.chapterAr(), h.subChapterAr(), h.fullTextAr(),
+                h.authenticity(),
                 h.id()
         );
     }
@@ -142,16 +145,25 @@ public class HadithRepository {
         );
     }
 
-    public List<Hadith> findPage(String q, String status, UUID collectionId,
-                                 int limit, int offset) {
-        return findPage(q, status, collectionId, null, limit, offset);
-    }
-
-    public List<Hadith> findPage(String q, String status, UUID collectionId,
+    public List<Hadith> findPage(String q, String status, String authenticity, UUID collectionId,
                                  String sort, int limit, int offset) {
         StringBuilder sql = new StringBuilder("SELECT ").append(COLUMNS)
                 .append(" FROM hd_hadiths WHERE 1=1");
         List<Object> args = new ArrayList<>();
+        appendFilters(sql, args, q, status, authenticity, collectionId);
+        sql.append(orderByClause(sort)).append(" LIMIT ? OFFSET ?");
+        args.add(limit);
+        args.add(offset);
+        return jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray());
+    }
+
+    /**
+     * Единый набор фильтров для {@link #findPage} и {@link #countFiltered} —
+     * status (ось провенанса) и authenticity (ось достоверности)
+     * ортогональны и комбинируются по AND.
+     */
+    private static void appendFilters(StringBuilder sql, List<Object> args, String q,
+                                      String status, String authenticity, UUID collectionId) {
         if (q != null && !q.isBlank()) {
             sql.append(" AND LOWER(normalized_matn) LIKE LOWER(?)");
             args.add("%" + q + "%");
@@ -160,14 +172,14 @@ public class HadithRepository {
             sql.append(" AND status = ?");
             args.add(status);
         }
+        if (authenticity != null && !authenticity.isBlank()) {
+            sql.append(" AND authenticity = ?");
+            args.add(authenticity);
+        }
         if (collectionId != null) {
             sql.append(" AND collection_id = ?");
             args.add(collectionId);
         }
-        sql.append(orderByClause(sort)).append(" LIMIT ? OFFSET ?");
-        args.add(limit);
-        args.add(offset);
-        return jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray());
     }
 
     /**
@@ -214,21 +226,10 @@ public class HadithRepository {
         return counts;
     }
 
-    public long countFiltered(String q, String status, UUID collectionId) {
+    public long countFiltered(String q, String status, String authenticity, UUID collectionId) {
         StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM hd_hadiths WHERE 1=1");
         List<Object> args = new ArrayList<>();
-        if (q != null && !q.isBlank()) {
-            sql.append(" AND LOWER(normalized_matn) LIKE LOWER(?)");
-            args.add("%" + q + "%");
-        }
-        if (status != null && !status.isBlank()) {
-            sql.append(" AND status = ?");
-            args.add(status);
-        }
-        if (collectionId != null) {
-            sql.append(" AND collection_id = ?");
-            args.add(collectionId);
-        }
+        appendFilters(sql, args, q, status, authenticity, collectionId);
         Long count = jdbcTemplate.queryForObject(sql.toString(), Long.class, args.toArray());
         return count == null ? 0L : count;
     }
@@ -245,7 +246,7 @@ public class HadithRepository {
                 "SELECT DISTINCT h.id, h.collection_id, h.primary_number, h.normalized_matn, "
                         + "h.status, h.source_id, h.metadata, h.created_at, "
                         + "h.external_source, h.external_id, h.hadith_type, "
-                        + "h.chapter_ar, h.sub_chapter_ar, h.full_text_ar "
+                        + "h.chapter_ar, h.sub_chapter_ar, h.full_text_ar, h.authenticity "
                         + "FROM hd_hadiths h "
                         + "JOIN hd_sanads s ON s.hadith_id = h.id "
                         + "JOIN hd_sanad_narrators sn ON sn.sanad_id = s.id "

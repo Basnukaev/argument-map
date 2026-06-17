@@ -81,5 +81,6 @@
     <include file="db/changelog/changes/20260604-74-drop-sunnah-staging-tables.xml"/>
     <include file="db/changelog/changes/20260606-75-alminasa-commentary-ambiguous-staging.xml"/>
     <include file="db/changelog/changes/20260616-76-alminasa-narrator-commentary.xml"/>
+    <include file="db/changelog/changes/20260617-77-hd-hadiths-authenticity.xml"/>
 
 </databaseChangeLog>

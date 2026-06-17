@@ -23,10 +23,13 @@ import java.util.UUID;
  * @param collectionId FK на сборник hd_collections (nullable если standalone)
  * @param primaryNumber номер в сборнике (e.g. 6018)
  * @param normalizedMatn нормализованный текст хадиса
- * @param status whitelist {@link HadithStatus}
+ * @param status whitelist {@link HadithStatus} — ось ПРОВЕНАНСА (CANONICAL/VARIANT)
  * @param sourceId nullable FK на sources для citation bridge
  * @param metadata JSONB extensible
  * @param createdAt timestamp
+ * @param authenticity whitelist {@link HadithAuthenticity} — ось ДОСТОВЕРНОСТИ
+ *                     (SAHIH/HASAN/DAIF/MAUDU), nullable; выводится маппером
+ *                     keyword-эвристикой по вердиктам рулингов
  */
 public record Hadith(
         UUID id,
@@ -42,7 +45,8 @@ public record Hadith(
         String hadithType,
         String chapterAr,
         String subChapterAr,
-        String fullTextAr
+        String fullTextAr,
+        String authenticity
 ) {
     /**
      * Backward-compat конструктор без alminasa-полей (8 аргументов) для
@@ -54,6 +58,23 @@ public record Hadith(
             String status, UUID sourceId, String metadata, Instant createdAt
     ) {
         this(id, collectionId, primaryNumber, normalizedMatn, status, sourceId,
-                metadata, createdAt, null, null, null, null, null, null);
+                metadata, createdAt, null, null, null, null, null, null, null);
+    }
+
+    /**
+     * Backward-compat конструктор без {@code authenticity} (14 аргументов) —
+     * существующие alminasa call-site'ы и IT-фикстуры, которым ось
+     * достоверности не нужна. authenticity вычисляется только маппером
+     * (полный 15-арг конструктор).
+     */
+    public Hadith(
+            UUID id, UUID collectionId, Integer primaryNumber, String normalizedMatn,
+            String status, UUID sourceId, String metadata, Instant createdAt,
+            String externalSource, String externalId, String hadithType,
+            String chapterAr, String subChapterAr, String fullTextAr
+    ) {
+        this(id, collectionId, primaryNumber, normalizedMatn, status, sourceId,
+                metadata, createdAt, externalSource, externalId, hadithType,
+                chapterAr, subChapterAr, fullTextAr, null);
     }
 }

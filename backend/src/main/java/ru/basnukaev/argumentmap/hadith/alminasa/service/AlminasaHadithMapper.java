@@ -40,6 +40,7 @@ import ru.basnukaev.argumentmap.hadith.alminasa.service.dto.AlminasaDryRunResult
 import ru.basnukaev.argumentmap.hadith.alminasa.service.dto.AlminasaDryRunResult.SanadLinkPreview;
 import ru.basnukaev.argumentmap.hadith.domain.Collection;
 import ru.basnukaev.argumentmap.hadith.domain.Hadith;
+import ru.basnukaev.argumentmap.hadith.domain.HadithAuthenticity;
 import ru.basnukaev.argumentmap.hadith.domain.HadithCrossref;
 import ru.basnukaev.argumentmap.hadith.domain.HadithEdition;
 import ru.basnukaev.argumentmap.hadith.domain.HadithExplanation;
@@ -70,6 +71,13 @@ import ru.basnukaev.argumentmap.hadith.service.ArabicTextNormalizer;
  * транзакции (решение 9): resolve UUID → deleteByHadithId ВСЕХ сателлитов →
  * re-insert. {@code @Transactional} на public-методах; бин отделён от
  * orchestration-бина (решение 10).
+ *
+ * <p>Ось ДОСТОВЕРНОСТИ {@code hd_hadiths.authenticity} (спека 2026-06-17
+ * §C8/C19/C21/D1) выводится {@link #deriveAuthenticity} keyword-эвристикой по
+ * арабским вердиктам рулингов — ортогонально {@code status} (провенанс). Матч
+ * ПРИБЛИЖЁННЫЙ (подстрочный, без анализа отрицаний/контекста); пригоден для
+ * фасетного фильтра, ручную оценку учёного не заменяет. Детали и ограничения —
+ * в javadoc {@link #deriveAuthenticity}.
  */
 @Service
 public class AlminasaHadithMapper {
@@ -165,6 +173,11 @@ public class AlminasaHadithMapper {
                 ? HadithStatus.CANONICAL : HadithStatus.VARIANT;
         String fullTextAr = text(raw, "hadith");
 
+        // Рулинги собираем ДО конструирования хадиса: их вердикты питают и
+        // саму строку рулингов (сателлит), и ось достоверности authenticity.
+        List<RulingCandidate> rulings = dedupRulings(collectRulingCandidates(raw, externalId));
+        String authenticity = deriveAuthenticity(rulings);
+
         Hadith hadith = new Hadith(
                 hadithId,
                 collectionId,
@@ -179,7 +192,8 @@ public class AlminasaHadithMapper {
                 truncate(text(raw, "type"), HADITH_TYPE_MAX_LEN),
                 text(raw, "chapter"),
                 text(raw, "sub_chapter"),
-                fullTextAr
+                fullTextAr,
+                authenticity
         );
 
         if (existing.isPresent()) {
@@ -200,7 +214,7 @@ public class AlminasaHadithMapper {
         insertEditions(hadithId, raw);
         insertSanad(hadithId, raw, fullTextAr);
         insertCrossrefs(hadithId, externalId, raw);
-        insertRulings(hadithId, externalId, raw);
+        insertRulings(hadithId, rulings);
         insertExplanations(hadithId, externalId, raw);
 
         return hadithId;
@@ -415,12 +429,16 @@ public class AlminasaHadithMapper {
      * (б) rulings-доки по ВЕРХНЕМУ hadith_id — одна строка на док (source='index').
      * Дедуп по (ruler_name, ruling_text, book_name, page, volume), embedded приоритет.
      */
-    private void insertRulings(UUID hadithId, String externalId, JsonNode raw) {
+    private List<RulingCandidate> collectRulingCandidates(JsonNode raw, String externalId) {
         List<RulingCandidate> candidates = new ArrayList<>();
         candidates.addAll(embeddedRulings(raw));
         candidates.addAll(indexRulings(externalId));
+        return candidates;
+    }
 
-        for (RulingCandidate c : dedupRulings(candidates)) {
+    /** Сохраняет уже дедуплицированные рулинги-кандидаты в hd_rulings. */
+    private void insertRulings(UUID hadithId, List<RulingCandidate> dedupedRulings) {
+        for (RulingCandidate c : dedupedRulings) {
             rulingRepository.save(new HadithRuling(
                     UUID.randomUUID(), hadithId, c.rulerName(), c.rulerDeathYear(),
                     c.rulingText(), c.bookName(), c.page(), c.volume(),
@@ -517,6 +535,85 @@ public class AlminasaHadithMapper {
     record RulingCandidate(
             String rulerName, Integer rulerDeathYear, String rulingText,
             String bookName, Integer page, Integer volume, String metadata) {
+    }
+
+    // ── authenticity (ось достоверности) ──────────────────────────────────────────
+
+    /**
+     * Ключевые слова вердиктов в НОРМАЛИЗОВАННОМ пространстве
+     * ({@link ArabicTextNormalizer}: огласовки сняты, алифы/хамзы сведены) →
+     * бакет достоверности. Порядок массива = приоритет «худшего» вердикта при
+     * множественном совпадении в одном рулинге и при ничьей мод
+     * (MAUDU&gt;DAIF&gt;HASAN&gt;SAHIH). Подстрочное совпадение НАМЕРЕННО ловит
+     * словоформы: «صحيح» в «صحيح الإسناد»/«صحيحه», «حسن» в «حسن صحيح»,
+     * «ضعيف» в «ضعيف جدا».
+     */
+    private static final List<Map.Entry<String, String>> AUTHENTICITY_KEYWORDS =
+            List.of(
+                    Map.entry("موضوع", HadithAuthenticity.MAUDU),
+                    Map.entry("ضعيف", HadithAuthenticity.DAIF),
+                    Map.entry("حسن", HadithAuthenticity.HASAN),
+                    Map.entry("صحيح", HadithAuthenticity.SAHIH));
+
+    /**
+     * Выводит ось достоверности (SAHIH/HASAN/DAIF/MAUDU) из арабских вердиктов
+     * рулингов хадиса keyword-эвристикой. ПРИБЛИЖЁННО (package-private под unit-тест):
+     *
+     * <ol>
+     *   <li>текст каждого рулинга нормализуется и классифицируется в ОДИН бакет
+     *       по {@link #AUTHENTICITY_KEYWORDS}; при нескольких совпадениях в одном
+     *       тексте выбирается ХУДШИЙ (MAUDU&gt;DAIF&gt;HASAN&gt;SAHIH);</li>
+     *   <li>среди классифицированных рулингов берётся МОДАЛЬНЫЙ (самый частотный)
+     *       вердикт; при равенстве частот — ХУДШИЙ;</li>
+     *   <li>ни одного совпадения → {@code null}.</li>
+     * </ol>
+     *
+     * <p>Ограничения эвристики (осознанные): подстрочный матч путает отрицания
+     * («ليس بموضوع» → MAUDU) и составные грейды («حسن صحيح» → худший HASAN);
+     * пунктуацию/контекст не анализирует. Достаточно для фасетного фильтра, НЕ
+     * заменяет ручную оценку учёного (hadith_grades). Пересматривается при
+     * накоплении мис-классификаций на реальном корпусе.
+     */
+    static String deriveAuthenticity(List<RulingCandidate> rulings) {
+        Map<String, Integer> tally = new HashMap<>();
+        for (RulingCandidate r : rulings) {
+            String bucket = classifyRuling(r.rulingText());
+            if (bucket != null) {
+                tally.merge(bucket, 1, Integer::sum);
+            }
+        }
+        if (tally.isEmpty()) {
+            return null;
+        }
+        // мода; ничья частот → худший по порядку AUTHENTICITY_KEYWORDS
+        String best = null;
+        int bestCount = 0;
+        for (Map.Entry<String, String> kw : AUTHENTICITY_KEYWORDS) {
+            String bucket = kw.getValue();
+            int count = tally.getOrDefault(bucket, 0);
+            if (count > bestCount) {
+                best = bucket;
+                bestCount = count;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Классифицирует один вердикт в худший подходящий бакет (или null). Текст
+     * нормализуется, чтобы матч был нечувствителен к огласовкам/вариантам букв.
+     */
+    private static String classifyRuling(String rulingText) {
+        if (rulingText == null || rulingText.isBlank()) {
+            return null;
+        }
+        String normalized = ArabicTextNormalizer.normalize(rulingText);
+        for (Map.Entry<String, String> kw : AUTHENTICITY_KEYWORDS) {
+            if (normalized.contains(kw.getKey())) {
+                return kw.getValue();
+            }
+        }
+        return null;
     }
 
     /**

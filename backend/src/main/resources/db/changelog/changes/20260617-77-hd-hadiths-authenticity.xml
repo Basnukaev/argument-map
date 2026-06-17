@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Двух-осевая таксономия хадиса (спека 2026-06-17 §C8/C19/C21/D1).
+
+        ПРОВЕНАНС (откуда хадис) уже живёт в hd_hadiths.status
+        (CANONICAL=Сахихайн / VARIANT=параллельная). Это НЕ аутентичность —
+        фильтры «Слабые/Выдуманные» из status всегда давали 0, т.к. status
+        не несёт суждения о достоверности.
+
+        Новая колонка authenticity — ОТДЕЛЬНАЯ ось ДОСТОВЕРНОСТИ
+        (SAHIH/HASAN/DAIF/MAUDU). Выводится маппером keyword-эвристикой по
+        арабским вердиктам рулингов хадиса (hd_rulings.ruling_text). NULL =
+        вердиктов нет / совпадений не найдено. Заполняется на re-map (import).
+
+        whitelist mirror — domain.HadithAuthenticity.
+    -->
+    <changeSet id="20260617-77-hd-hadiths-authenticity" author="Abdula Basnukaev">
+        <comment>Ось достоверности хадиса: hd_hadiths.authenticity + CHECK + индекс</comment>
+        <addColumn tableName="hd_hadiths">
+            <column name="authenticity" type="VARCHAR(20)"/>
+        </addColumn>
+
+        <sql>
+            ALTER TABLE hd_hadiths ADD CONSTRAINT hd_hadiths_authenticity_check
+                CHECK (authenticity IN ('SAHIH', 'HASAN', 'DAIF', 'MAUDU'));
+        </sql>
+
+        <createIndex tableName="hd_hadiths" indexName="idx_hd_hadiths_authenticity">
+            <column name="authenticity"/>
+        </createIndex>
+
+        <rollback>
+            <dropIndex tableName="hd_hadiths" indexName="idx_hd_hadiths_authenticity"/>
+            <sql>ALTER TABLE hd_hadiths DROP CONSTRAINT hd_hadiths_authenticity_check;</sql>
+            <dropColumn tableName="hd_hadiths" columnName="authenticity"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

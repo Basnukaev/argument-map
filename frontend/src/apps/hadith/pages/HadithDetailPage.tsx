@@ -38,26 +38,72 @@ import type { components } from '@/shared/api/types';
 
 type CollectionItem = components['schemas']['CollectionResponse'];
 
-/** Цвет статус-бейджа — синхронизирован с карточками списка хадисов. */
+/** Цвет бейджа происхождения (ось провенанса CANONICAL/VARIANT). */
 function statusClass(status: string | undefined): string {
   switch (status) {
     case 'CANONICAL':
       return 'bg-emerald-100 text-emerald-700';
-    case 'WEAK':
+    default:
+      return 'bg-ink-100 text-ink-700';
+  }
+}
+
+/** Цвет бейджа достоверности по оси authenticity. */
+function authenticityClass(authenticity: string): string {
+  switch (authenticity) {
+    case 'SAHIH':
+      return 'bg-emerald-100 text-emerald-700';
+    case 'HASAN':
+      return 'bg-teal-100 text-teal-700';
+    case 'DAIF':
       return 'bg-amber-100 text-amber-700';
-    case 'FABRICATED':
+    case 'MAUDU':
       return 'bg-rose-100 text-rose-700';
     default:
       return 'bg-ink-100 text-ink-700';
   }
 }
 
-/** Ключ пояснения статуса (есть для 4 известных статусов). */
+/** Ключ пояснения статуса (провенанс) — полная фраза под текстом-героем. */
 const STATUS_EXPLAIN: Record<string, DictKey> = {
   CANONICAL: 'hadith.detail.status.CANONICAL',
   VARIANT: 'hadith.detail.status.VARIANT',
   WEAK: 'hadith.detail.status.WEAK',
   FABRICATED: 'hadith.detail.status.FABRICATED',
+};
+
+/** Короткий лейбл бейджа происхождения (CANONICAL/VARIANT → i18n). */
+const STATUS_SHORT: Record<string, DictKey> = {
+  CANONICAL: 'hadith.detail.status.CANONICAL.short',
+  VARIANT: 'hadith.detail.status.VARIANT.short',
+};
+
+/** Лейбл + tooltip бейджа достоверности (SAHIH/HASAN/DAIF/MAUDU). */
+const AUTHENTICITY_LABEL: Record<string, DictKey> = {
+  SAHIH: 'hadith.detail.authenticity.SAHIH',
+  HASAN: 'hadith.detail.authenticity.HASAN',
+  DAIF: 'hadith.detail.authenticity.DAIF',
+  MAUDU: 'hadith.detail.authenticity.MAUDU',
+};
+const AUTHENTICITY_TIP: Record<string, DictKey> = {
+  SAHIH: 'hadith.detail.authenticity.SAHIH.tip',
+  HASAN: 'hadith.detail.authenticity.HASAN.tip',
+  DAIF: 'hadith.detail.authenticity.DAIF.tip',
+  MAUDU: 'hadith.detail.authenticity.MAUDU.tip',
+};
+
+/** Тип хадиса (مرفوع/موقوف/مقطوع/قدسي) → i18n-лейбл + tooltip; ключ = ар-значение. */
+const HADITH_TYPE_LABEL: Record<string, DictKey> = {
+  مرفوع: 'hadith.detail.hadithType.مرفوع',
+  موقوف: 'hadith.detail.hadithType.موقوف',
+  مقطوع: 'hadith.detail.hadithType.مقطوع',
+  قدسي: 'hadith.detail.hadithType.قدسي',
+};
+const HADITH_TYPE_TIP: Record<string, DictKey> = {
+  مرفوع: 'hadith.detail.hadithType.مرفوع.tip',
+  موقوف: 'hadith.detail.hadithType.موقوف.tip',
+  مقطوع: 'hadith.detail.hadithType.مقطوع.tip',
+  قدسي: 'hadith.detail.hadithType.قدسي.tip',
 };
 
 // Якоря резервируют отступ под две прилипшие полосы (Header h-12 + section
@@ -291,17 +337,46 @@ function HadithDetailPage() {
                   {detail.primaryNumber != null && (
                     <span className="font-mono text-ink-500">№{detail.primaryNumber}</span>
                   )}
+                  {/* Ось ПРОВЕНАНСА (происхождение): i18n-лейбл + tooltip. */}
                   <span
                     className={`rounded-sm px-2 py-0.5 text-xs font-semibold ${statusClass(detail.status)}`}
+                    title={
+                      STATUS_EXPLAIN[detail.status]
+                        ? t(STATUS_EXPLAIN[detail.status] as DictKey)
+                        : undefined
+                    }
                   >
-                    {detail.status}
+                    {STATUS_SHORT[detail.status]
+                      ? t(STATUS_SHORT[detail.status] as DictKey)
+                      : detail.status}
                   </span>
+                  {/* Ось ДОСТОВЕРНОСТИ (если выведена): бейдж + tooltip-пояснение. */}
+                  {detail.authenticity && AUTHENTICITY_LABEL[detail.authenticity] && (
+                    <span
+                      className={`rounded-sm px-2 py-0.5 text-xs font-semibold ${authenticityClass(detail.authenticity)}`}
+                      title={
+                        AUTHENTICITY_TIP[detail.authenticity]
+                          ? t(AUTHENTICITY_TIP[detail.authenticity] as DictKey)
+                          : undefined
+                      }
+                    >
+                      {t(AUTHENTICITY_LABEL[detail.authenticity] as DictKey)}
+                    </span>
+                  )}
+                  {/* Тип хадиса (مرفوع/...): РЕАЛЬНЫЙ термин i18n + tooltip-определение. */}
                   {detail.hadithType && (
                     <span
                       className="rounded-sm bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700"
                       dir="auto"
+                      title={
+                        HADITH_TYPE_TIP[detail.hadithType]
+                          ? t(HADITH_TYPE_TIP[detail.hadithType] as DictKey)
+                          : undefined
+                      }
                     >
-                      {detail.hadithType}
+                      {HADITH_TYPE_LABEL[detail.hadithType]
+                        ? t(HADITH_TYPE_LABEL[detail.hadithType] as DictKey)
+                        : detail.hadithType}
                     </span>
                   )}
                 </div>

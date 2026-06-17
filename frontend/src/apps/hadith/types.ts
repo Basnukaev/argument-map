@@ -303,7 +303,11 @@ export interface HadithDetailDto {
   collectionId: string | null;
   primaryNumber: number | null;
   normalizedMatn: string;
+  /** Ось ПРОВЕНАНСА: CANONICAL (Сахихайн) / VARIANT (параллельная). */
   status: string;
+  /** Ось ДОСТОВЕРНОСТИ: SAHIH/HASAN/DAIF/MAUDU; null — вердиктов нет.
+   *  Выведена бэком эвристикой по рулингам (приближённо). */
+  authenticity: string | null;
   sourceId: string | null;
   createdAt: string;
   /** Свой alminasa-id хадиса (напр. "594-1") — для self-проверки вердиктов. */

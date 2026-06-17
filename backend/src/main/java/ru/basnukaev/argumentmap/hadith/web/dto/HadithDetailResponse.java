@@ -17,6 +17,10 @@ public record HadithDetailResponse(
         Integer primaryNumber,
         String normalizedMatn,
         String status,
+        /** Ось достоверности (SAHIH/HASAN/DAIF/MAUDU), nullable — выведена
+         * маппером keyword-эвристикой по вердиктам рулингов. Ось провенанса —
+         * отдельное поле {@code status} (CANONICAL/VARIANT). */
+        String authenticity,
         UUID sourceId,
         Instant createdAt,
         String externalId,

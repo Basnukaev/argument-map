@@ -107,6 +107,7 @@ const EMPTY_GRAPH = { hadithId: 'h1', nodes: [], edges: [], sanads: [] };
 const ALMINASA_DETAIL = {
   ...DETAIL,
   hadithType: 'مرفوع',
+  authenticity: 'SAHIH',
   chapterAr: 'كتاب بدء الوحي',
   subChapterAr: 'باب كيف كان بدء الوحي',
   fullTextAr:
@@ -273,11 +274,11 @@ describe('HadithDetailPage', () => {
     expect(screen.getByRole('link', { name: 'Вариации' })).toHaveAttribute('href', '#variations');
   });
 
-  it('показывает пояснение статуса CANONICAL', async () => {
+  it('показывает пояснение статуса CANONICAL (провенанс)', async () => {
     mockEndpoints();
     renderPage();
     await waitForApi(() => {
-      expect(screen.getByText(/Канонический — достоверный/)).toBeInTheDocument();
+      expect(screen.getByText(/Канонический — из Сахихайн/)).toBeInTheDocument();
     });
   });
 
@@ -322,14 +323,31 @@ describe('HadithDetailPage', () => {
     expect(screen.queryByText('Такхридж')).not.toBeInTheDocument();
   });
 
-  it('alminasa: бейдж типа + глава/подглава в шапке', async () => {
+  it('alminasa: бейджи типа (i18n) + достоверности + глава/подглава в шапке', async () => {
     mockEndpoints(ALMINASA_DETAIL, GRAPH_WITH_EXTERNAL);
     renderPage();
+    // тип хадиса مرفوع рендерится локализованным термином «Марфуʿ» (i18n)
     await waitForApi(() => {
-      expect(screen.getByText('مرفوع')).toBeInTheDocument();
+      expect(screen.getByText('Марфуʿ')).toBeInTheDocument();
     });
+    // ось достоверности (authenticity=SAHIH) — отдельный бейдж «Сахих»
+    expect(screen.getByText('Сахих')).toBeInTheDocument();
+    // ось провенанса (status=CANONICAL) — бейдж «Сахихайн»
+    expect(screen.getByText('Сахихайн')).toBeInTheDocument();
     expect(screen.getByText('كتاب بدء الوحي')).toBeInTheDocument();
     expect(screen.getByText('باب كيف كان بدء الوحي')).toBeInTheDocument();
+  });
+
+  it('бейдж достоверности скрыт когда authenticity отсутствует', async () => {
+    // DETAIL (без authenticity) → бейджа достоверности нет, но провенанс есть
+    mockEndpoints();
+    renderPage();
+    await waitForApi(() => {
+      expect(screen.getByText('Сахихайн')).toBeInTheDocument();
+    });
+    // ни одного из лейблов достоверности
+    expect(screen.queryByText('Сахих')).not.toBeInTheDocument();
+    expect(screen.queryByText('Даиф')).not.toBeInTheDocument();
   });
 
   it('alminasa: вердикт с учёным, годом смерти и бейджем параллели', async () => {

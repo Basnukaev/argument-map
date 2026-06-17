@@ -422,6 +422,42 @@ class HadithControllerIT {
     }
 
     @Test
+    void GET_filterByAuthenticity_returnsOnlyMatching() throws Exception {
+        Instant now = Instant.now();
+        // ось достоверности ортогональна провенансу: VARIANT-хадис с authenticity=DAIF
+        Hadith daif = new Hadith(
+                UUID.randomUUID(), null, 500, "متن ضعيف",
+                HadithStatus.VARIANT, null, null, now,
+                "alminasa", "121-500", null, null, null, null, "DAIF");
+        hadithRepository.save(daif);
+
+        mockMvc.perform(get("/api/v1/hadith/hadiths").param("authenticity", "DAIF"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(daif.id().toString()));
+
+        // setUp-хадис без authenticity (null) не попадает под фильтр SAHIH
+        mockMvc.perform(get("/api/v1/hadith/hadiths").param("authenticity", "SAHIH"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(0));
+    }
+
+    @Test
+    void GET_detail_exposesAuthenticity() throws Exception {
+        Instant now = Instant.now();
+        Hadith sahih = new Hadith(
+                UUID.randomUUID(), null, 501, "متن صحيح",
+                HadithStatus.CANONICAL, null, null, now,
+                "alminasa", "146-501", null, null, null, null, "SAHIH");
+        hadithRepository.save(sahih);
+
+        mockMvc.perform(get("/api/v1/hadith/hadiths/{id}/detail", sahih.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANONICAL"))
+                .andExpect(jsonPath("$.authenticity").value("SAHIH"));
+    }
+
+    @Test
     void GET_sanadGraph_returnsProphetRootedGraph() throws Exception {
         // setUp создаёт 1 sanad с 1 narrator (position 0) - граф = Пророк ﷺ
         // (синтетический корень) + 1 узел-сподвижник + version-узел самого

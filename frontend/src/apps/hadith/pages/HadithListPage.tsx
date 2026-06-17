@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { BookOpen, Loader2, Users, Info } from 'lucide-react';
+import { BookOpen, Loader2, Users } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import ListToolbar from '@/shared/components/ui/ListToolbar';
@@ -18,16 +18,16 @@ type CollectionItem = components['schemas']['CollectionResponse'];
 
 const PAGE_SIZE = 20;
 type SortKey = 'number' | 'alphabetical' | 'recent';
-type StatusFilter = 'CANONICAL' | 'VARIANT' | 'WEAK' | 'FABRICATED' | 'ALL';
+// Две ортогональные оси (спека 2026-06-17): происхождение (провенанс) и
+// достоверность. ALL = ось не фильтрует.
+type ProvenanceFilter = 'CANONICAL' | 'VARIANT' | 'ALL';
+type AuthenticityFilter = 'SAHIH' | 'HASAN' | 'DAIF' | 'MAUDU' | 'ALL';
 
+/** Цвет бейджа происхождения на карточке (ось провенанса CANONICAL/VARIANT). */
 function statusClass(status: string | undefined): string {
   switch (status) {
     case 'CANONICAL':
       return 'bg-emerald-100 text-emerald-700';
-    case 'WEAK':
-      return 'bg-amber-100 text-amber-700';
-    case 'FABRICATED':
-      return 'bg-rose-100 text-rose-700';
     default:
       return 'bg-ink-100 text-ink-700';
   }
@@ -47,7 +47,8 @@ function HadithListPage() {
   // (param только начальное значение, не source of truth).
   const [searchParams] = useSearchParams();
   const initialCollectionId = searchParams.get('collectionId');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [provenanceFilter, setProvenanceFilter] = useState<ProvenanceFilter>('ALL');
+  const [authenticityFilter, setAuthenticityFilter] = useState<AuthenticityFilter>('ALL');
   const [collectionId, setCollectionId] = useState<string | null>(initialCollectionId);
   const [sort, setSort] = useState<SortKey>('number');
 
@@ -80,13 +81,48 @@ function HadithListPage() {
     [collections, t],
   );
 
-  const statusChips = useMemo(
+  // Ось ПРОИСХОЖДЕНИЯ (провенанс): Сахихайн[CANONICAL] / Параллельная[VARIANT].
+  const provenanceChips = useMemo(
     () => [
-      { value: 'ALL', label: t('hadith.filter.all') },
-      { value: 'CANONICAL', label: t('hadith.filter.canonical') },
-      { value: 'VARIANT', label: t('hadith.filter.variant') },
-      { value: 'WEAK', label: t('hadith.filter.weak') },
-      { value: 'FABRICATED', label: t('hadith.filter.fabricated') },
+      { value: 'ALL', label: t('hadith.facet.provenance.all') },
+      {
+        value: 'CANONICAL',
+        label: t('hadith.facet.provenance.canonical'),
+        title: t('hadith.facet.tip.canonical'),
+      },
+      {
+        value: 'VARIANT',
+        label: t('hadith.facet.provenance.variant'),
+        title: t('hadith.facet.tip.variant'),
+      },
+    ],
+    [t],
+  );
+
+  // Ось ДОСТОВЕРНОСТИ: Сахих/Хасан/Даиф/Мауду[authenticity] — из вердиктов рулингов.
+  const authenticityChips = useMemo(
+    () => [
+      { value: 'ALL', label: t('hadith.facet.authenticity.all') },
+      {
+        value: 'SAHIH',
+        label: t('hadith.facet.authenticity.sahih'),
+        title: t('hadith.facet.tip.sahih'),
+      },
+      {
+        value: 'HASAN',
+        label: t('hadith.facet.authenticity.hasan'),
+        title: t('hadith.facet.tip.hasan'),
+      },
+      {
+        value: 'DAIF',
+        label: t('hadith.facet.authenticity.daif'),
+        title: t('hadith.facet.tip.daif'),
+      },
+      {
+        value: 'MAUDU',
+        label: t('hadith.facet.authenticity.maudu'),
+        title: t('hadith.facet.tip.maudu'),
+      },
     ],
     [t],
   );
@@ -107,16 +143,18 @@ function HadithListPage() {
       params.set('size', String(PAGE_SIZE));
       params.set('sort', sort);
       if (q) params.set('q', q);
-      if (statusFilter !== 'ALL') params.set('status', statusFilter);
+      // status = ось провенанса; authenticity = ось достоверности (ортогональны).
+      if (provenanceFilter !== 'ALL') params.set('status', provenanceFilter);
+      if (authenticityFilter !== 'ALL') params.set('authenticity', authenticityFilter);
       if (collectionId) params.set('collectionId', collectionId);
       return `/api/v1/hadith/hadiths?${params.toString()}`;
     },
-    [statusFilter, collectionId, sort],
+    [provenanceFilter, authenticityFilter, collectionId, sort],
   );
 
   const { state, searchInput, setSearchInput, loadMore, loadingMore } = usePagedSearch<HadithItem>({
     buildUrl,
-    deps: [statusFilter, collectionId, sort],
+    deps: [provenanceFilter, authenticityFilter, collectionId, sort],
   });
 
   return (
@@ -166,16 +204,33 @@ function HadithListPage() {
           }
         />
 
-        {/* фильтр по статусу + легенда (статусы непрозрачны без подсказки) */}
-        <div className="mb-5 flex items-center gap-2">
-          <FilterChips
-            options={statusChips}
-            value={statusFilter}
-            onChange={(v) => setStatusFilter(v as StatusFilter)}
-            ariaLabel={t('hadith.filter.all')}
-            className="min-w-0 flex-1"
-          />
-          <StatusLegend />
+        {/* Две оси фасетов: происхождение (провенанс) + достоверность.
+            Раньше одна сломанная ось мешала их — daif/maudu из status всегда 0. */}
+        <div className="mb-5 space-y-2.5">
+          <div className="flex items-center gap-2">
+            <span className="w-24 shrink-0 text-xs font-medium uppercase tracking-wide text-ink-500">
+              {t('hadith.facet.provenance.label')}
+            </span>
+            <FilterChips
+              options={provenanceChips}
+              value={provenanceFilter}
+              onChange={(v) => setProvenanceFilter(v as ProvenanceFilter)}
+              ariaLabel={t('hadith.facet.provenance.label')}
+              className="min-w-0 flex-1"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-24 shrink-0 text-xs font-medium uppercase tracking-wide text-ink-500">
+              {t('hadith.facet.authenticity.label')}
+            </span>
+            <FilterChips
+              options={authenticityChips}
+              value={authenticityFilter}
+              onChange={(v) => setAuthenticityFilter(v as AuthenticityFilter)}
+              ariaLabel={t('hadith.facet.authenticity.label')}
+              className="min-w-0 flex-1"
+            />
+          </div>
         </div>
 
         {state.kind === 'loading' && (
@@ -243,61 +298,6 @@ function HadithListPage() {
         )}
       </div>
     </main>
-  );
-}
-
-/**
- * StatusLegend - info-поповер расшифровывающий статусы хадиса
- * (CANONICAL / VARIANT / WEAK / FABRICATED). Юзер жаловался что
- * статусы непонятны - короткая инлайн-легенда по клику на (i).
- * Toggle-кнопка + dropdown-панель, закрывается повторным кликом /
- * blur. Цветные точки совпадают с statusClass карточек.
- */
-function StatusLegend() {
-  const t = useT();
-  const [open, setOpen] = useState(false);
-  const items: ReadonlyArray<{ key: string; dot: string; text: string }> = [
-    { key: 'CANONICAL', dot: 'bg-emerald-500', text: t('hadith.legend.canonical') },
-    { key: 'VARIANT', dot: 'bg-ink-400', text: t('hadith.legend.variant') },
-    { key: 'WEAK', dot: 'bg-amber-500', text: t('hadith.legend.weak') },
-    { key: 'FABRICATED', dot: 'bg-rose-500', text: t('hadith.legend.fabricated') },
-  ];
-  return (
-    <div className="relative shrink-0">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        onBlur={() => setOpen(false)}
-        aria-expanded={open}
-        aria-label={t('hadith.legend.title')}
-        title={t('hadith.legend.title')}
-        className={`grid h-8 w-8 place-items-center rounded-full border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/40 ${
-          open
-            ? 'border-accent-500 bg-accent-50 text-accent-700'
-            : 'border-border-strong bg-elevated text-ink-500 hover:bg-ink-100 hover:text-ink-700'
-        }`}
-      >
-        <Info size={15} aria-hidden />
-      </button>
-      {open && (
-        <div className="absolute end-0 z-30 mt-1.5 w-72 rounded-md border border-border bg-elevated p-3 shadow-sh3">
-          <p className="mb-2 text-xs font-semibold text-ink-900">
-            {t('hadith.legend.title')}
-          </p>
-          <ul className="space-y-1.5">
-            {items.map((it) => (
-              <li key={it.key} className="flex items-start gap-2 text-xs text-ink-600">
-                <span
-                  className={`mt-1 h-2 w-2 shrink-0 rounded-full ${it.dot}`}
-                  aria-hidden
-                />
-                <span>{it.text}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
   );
 }
 

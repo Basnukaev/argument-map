@@ -126,6 +126,40 @@ describe('HadithListPage', () => {
     });
   });
 
+  it('две оси фасетов: чип происхождения шлёт status, чип достоверности — authenticity', async () => {
+    const calls: { status: string | null; authenticity: string | null }[] = [];
+    server.use(
+      http.get(`${BASE}/api/v1/hadith/collections`, () => HttpResponse.json(COLLECTIONS)),
+      http.get(`${BASE}/api/v1/hadith/hadiths`, ({ request }) => {
+        const u = new URL(request.url).searchParams;
+        calls.push({ status: u.get('status'), authenticity: u.get('authenticity') });
+        return HttpResponse.json(paged([hadith('h1', 1, 'متن')]));
+      }),
+    );
+    render(
+      <MemoryRouter>
+        <HadithListPage />
+      </MemoryRouter>,
+    );
+    await waitForApi(() => {
+      expect(screen.getByText(/متن/)).toBeInTheDocument();
+    });
+    // первый запрос — обе оси пусты (ALL)
+    expect(calls[0]).toEqual({ status: null, authenticity: null });
+
+    // ось происхождения: чип «Сахихайн» → status=CANONICAL, authenticity не выставлен
+    await userEvent.click(screen.getByRole('button', { name: 'Сахихайн' }));
+    await waitFor(() => {
+      expect(calls[calls.length - 1]).toEqual({ status: 'CANONICAL', authenticity: null });
+    });
+
+    // ось достоверности: чип «Даиф» → authenticity=DAIF, провенанс сохраняется
+    await userEvent.click(screen.getByRole('button', { name: 'Даиф' }));
+    await waitFor(() => {
+      expect(calls[calls.length - 1]).toEqual({ status: 'CANONICAL', authenticity: 'DAIF' });
+    });
+  });
+
   it('смена сортировки шлёт sort param (default number → alphabetical)', async () => {
     const sorts: (string | null)[] = [];
     server.use(

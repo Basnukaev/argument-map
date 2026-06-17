@@ -3,6 +3,8 @@ export interface FilterChipOption {
   label: string;
   /** Опциональный счётчик - рендерится тонким бейджем внутри пилюли. */
   count?: number;
+  /** Опциональная подсказка (native tooltip) - что значит фильтр. */
+  title?: string;
 }
 
 interface Props {
@@ -50,6 +52,7 @@ function FilterChips({
             type="button"
             onClick={() => onChange(opt.value)}
             aria-pressed={active}
+            title={opt.title}
             className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/40 ${
               active
                 ? 'border-accent-600 bg-accent-600 text-ink-0'

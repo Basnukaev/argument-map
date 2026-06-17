@@ -149,6 +149,8 @@ class AlminasaMapperIT {
         assertThat(h.externalSource()).isEqualTo("alminasa");
         assertThat(h.externalId()).isEqualTo("146-1");
         assertThat(h.status()).isEqualTo("CANONICAL"); // book 146
+        // ось достоверности: оба рулинга «أورده في صحيحه» → подстрока صحيح → SAHIH
+        assertThat(h.authenticity()).isEqualTo("SAHIH");
         assertThat(h.hadithType()).isEqualTo("مرفوع");
         assertThat(h.chapterAr()).isEqualTo("باب بدء الوحي");
         assertThat(h.fullTextAr()).contains("<a class=rawy id=4698>");

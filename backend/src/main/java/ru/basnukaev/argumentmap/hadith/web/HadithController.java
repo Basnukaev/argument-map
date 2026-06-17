@@ -110,19 +110,20 @@ public class HadithController {
     public PagedResponse<HadithResponse> list(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String authenticity,
             @RequestParam(required = false) UUID collectionId,
             @RequestParam(required = false) String sort,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
         PageRequest pr = PageRequest.from(page, size);
         List<Hadith> hadiths = hadithRepository
-                .findPage(q, status, collectionId, sort, pr.size(), pr.offset());
+                .findPage(q, status, authenticity, collectionId, sort, pr.size(), pr.offset());
         Map<UUID, String> previews = matnRepository.findPrimaryTextByHadithIds(
                 hadiths.stream().map(Hadith::id).toList());
         List<HadithResponse> items = hadiths.stream()
                 .map(h -> HadithResponse.from(h, previews.get(h.id())))
                 .toList();
-        long total = hadithRepository.countFiltered(q, status, collectionId);
+        long total = hadithRepository.countFiltered(q, status, authenticity, collectionId);
         return PagedResponse.of(items, pr.page(), pr.size(), total);
     }
 
@@ -243,7 +244,7 @@ public class HadithController {
 
         return new HadithDetailResponse(
                 h.id(), h.collectionId(), h.primaryNumber(),
-                h.normalizedMatn(), h.status(), h.sourceId(), h.createdAt(),
+                h.normalizedMatn(), h.status(), h.authenticity(), h.sourceId(), h.createdAt(),
                 h.externalId(), h.hadithType(), h.chapterAr(), h.subChapterAr(),
                 h.fullTextAr(),
                 sanadDtos, matnDtos, grades,

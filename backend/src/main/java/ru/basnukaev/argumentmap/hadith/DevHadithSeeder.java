@@ -95,7 +95,7 @@ public class DevHadithSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        if (hadithRepository.countFiltered(null, null, null) > 0) {
+        if (hadithRepository.countFiltered(null, null, null, null) > 0) {
             log.debug("Dev hadith seed skipped - existing data found");
             return;
         }
