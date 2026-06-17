@@ -97,38 +97,51 @@ function NarratorDetailPage() {
               )}
             </header>
 
-            <dl className="mb-6 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+            {/* B2 (Field Layout Options, Вариант 1 «поля-карточки»): метка и значение
+                в общей рамке (gestalt «общая область») — арабское значение больше НЕ
+                уплывает от метки в широкой колонке (проблема RU-интерфейса). Карточка
+                направление-агностична → симметрично в RU/AR; тёмная тема через
+                семантические токены (border-border/bg-sunken/text-ink-*). Длинные
+                поля (кунья, жизненный путь) — на всю ширину. Дизайн-референс:
+                docs/specs/2026-06-17-hadith-explorer-ux-feedback.md (B2). */}
+            <dl className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {bio.kunya && (
-                <div>
-                  <dt className="text-[11px] uppercase tracking-wider text-ink-400">
+                <div className="rounded-xl border border-border bg-sunken px-4 py-3.5 sm:col-span-2">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
                     {t('hadith.narrator.kunya')}
                   </dt>
-                  <dd className="mt-0.5 font-arabic text-sm text-ink-800" dir="rtl">{bio.kunya}</dd>
+                  <dd className="mt-2 font-arabic text-base leading-relaxed text-ink-800" dir="rtl">
+                    {bio.kunya}
+                  </dd>
                 </div>
               )}
               {bio.laqab && (
-                <div>
-                  <dt className="text-[11px] uppercase tracking-wider text-ink-400">
+                <div className="rounded-xl border border-border bg-sunken px-4 py-3.5">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
                     {t('hadith.narrator.laqab')}
                   </dt>
-                  <dd className="mt-0.5 font-arabic text-sm text-ink-800" dir="rtl">{bio.laqab}</dd>
+                  <dd className="mt-2 font-arabic text-base leading-relaxed text-ink-800" dir="rtl">
+                    {bio.laqab}
+                  </dd>
                 </div>
               )}
               {/* M3: табака — фолбэк для отсутствующего generation у alminasa-рави. */}
               {bio.tabaqa && (
-                <div>
-                  <dt className="text-[11px] uppercase tracking-wider text-ink-400">
+                <div className="rounded-xl border border-border bg-sunken px-4 py-3.5">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
                     {t('hadith.narrator.generation')}
                   </dt>
-                  <dd className="mt-0.5 font-arabic text-sm text-ink-800" dir="auto">{bio.tabaqa}</dd>
+                  <dd className="mt-2 font-arabic text-base leading-relaxed text-ink-800" dir="auto">
+                    {bio.tabaqa}
+                  </dd>
                 </div>
               )}
               {(bio.yearDeathHijri != null || bio.bornOnText || bio.diedOnText) && (
-                <div>
-                  <dt className="text-[11px] uppercase tracking-wider text-ink-400">
+                <div className="rounded-xl border border-border bg-sunken px-4 py-3.5">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
                     {t('hadith.narrator.years')}
                   </dt>
-                  <dd className="mt-0.5 text-sm text-ink-800" dir="auto">
+                  <dd className="mt-2 text-base leading-relaxed text-ink-800" dir="auto">
                     {bio.yearDeathHijri != null ? (
                       <>
                         {bio.yearBirthHijri != null ? `${bio.yearBirthHijri}–` : ''}
@@ -141,11 +154,11 @@ function NarratorDetailPage() {
                 </div>
               )}
               {(bio.birthplace || bio.primaryResidence || bio.deathPlace) && (
-                <div>
-                  <dt className="text-[11px] uppercase tracking-wider text-ink-400">
+                <div className="rounded-xl border border-border bg-sunken px-4 py-3.5 sm:col-span-2">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
                     {t('hadith.narrator.life_path')}
                   </dt>
-                  <dd className="mt-0.5 text-sm text-ink-800" dir="auto">
+                  <dd className="mt-2 font-arabic text-base leading-relaxed text-ink-800" dir="auto">
                     {[bio.birthplace, bio.primaryResidence, bio.deathPlace]
                       .filter(Boolean)
                       .join(' → ')}
