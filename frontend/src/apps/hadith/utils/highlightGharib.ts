@@ -21,6 +21,18 @@ import type { ExplanationDto } from '@/apps/hadith/types';
 const TASHKEEL = /[ً-ٰٟـ]/g;
 
 /**
+ * Пунктуация с ГРАНИЦ reference и токенов матна перед нормализацией/сравнением.
+ * Арабская: ، ؛ ؟ ٪ «»; латинская: , . ; : ! ? Кавычки/скобки/эллипсис.
+ * Остаётся частью токена только если внутри слова (не на границе).
+ */
+const PUNCT_BOUNDARY = /^[،؛؟٪«»,.;:!?()[\]"'…]+|[،؛؟٪«»,.;:!?()[\]"'…]+$/g;
+
+/** Срезать граничную пунктуацию с обеих сторон строки. */
+function trimPunct(s: string): string {
+  return s.replace(PUNCT_BOUNDARY, '');
+}
+
+/**
  * Свести арабское слово к той же нормализованной форме, что бэк применяет к
  * normalized_matn — иначе токены с огласовкой/исходной формой буквы не сойдутся.
  * NFKC раскрывает presentation forms и лигатуры в канонические буквы.
@@ -41,6 +53,7 @@ export function normalizeArabic(word: string): string {
 /**
  * Сегмент рендера матна: либо обычный текст (`gharib` отсутствует), либо
  * подсвеченное гариб-слово с привязанным толкованием (`gharib`).
+ * `trailPunct` — пунктуация после слова, рендерится вне кнопки-подсветки.
  */
 export interface MatnSegment {
   /** Текст сегмента — оригинальный (как в матне), с пробелами для plain-кусков. */
@@ -49,25 +62,55 @@ export interface MatnSegment {
   gharib: ExplanationDto | null;
   /** Стабильный ключ для React-списка (offset слова в матне). */
   key: string;
+  /**
+   * Пунктуация, срезанная с конца последнего токена гариб-сегмента.
+   * Рендерится вне кнопки (чтобы подсветка не захватывала знак препинания).
+   * Только для сегментов с gharib !== null.
+   */
+  trailPunct?: string;
 }
 
 interface Token {
   /** Оригинальный токен (как в матне). */
   raw: string;
-  /** Нормализованная форма (для сопоставления). */
+  /** Нормализованная форма (для сопоставления) — без граничной пунктуации. */
   norm: string;
-  /** Whitespace/пунктуация перед токеном (сохраняется в выводе дословно). */
+  /** Whitespace перед токеном (сохраняется в выводе дословно). */
   lead: string;
+  /** Ведущая пунктуация токена (часть raw, срезана перед нормализацией). */
+  leadPunct: string;
+  /** Хвостовая пунктуация токена (часть raw, срезана перед нормализацией). */
+  trailPunct: string;
 }
 
-/** Разбить матн на токены-слова, сохраняя ведущие разделители для рендера. */
+/**
+ * Разбить строку токена на (leadPunct, word, trailPunct).
+ * Граничная пунктуация выделяется явным захватом в regex: ведущая → group 1,
+ * слово → group 2, хвостовая → group 3. Если строка целиком пунктуация —
+ * всё идёт в leadPunct, word и trailPunct пусты.
+ */
+function splitPunct(raw: string): { leadPunct: string; word: string; trailPunct: string } {
+  const m = raw.match(/^([،؛؟٪«»,.;:!?()[\]"'…]*)(.*?)([،؛؟٪«»,.;:!?()[\]"'…]*)$/su);
+  if (!m) return { leadPunct: '', word: raw, trailPunct: '' };
+  return { leadPunct: m[1] ?? '', word: m[2] ?? '', trailPunct: m[3] ?? '' };
+}
+
+/** Разбить матн на токены-слова, сохраняя ведущие пробелы и граничную пунктуацию. */
 function tokenize(matn: string): Token[] {
   const tokens: Token[] = [];
   // Слово = непрерывный run не-пробелов; lead = пробелы перед ним.
   const re = /(\s*)(\S+)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(matn)) !== null) {
-    tokens.push({ lead: m[1] ?? '', raw: m[2] ?? '', norm: normalizeArabic(m[2] ?? '') });
+    const raw = m[2] ?? '';
+    const { leadPunct, word, trailPunct } = splitPunct(raw);
+    tokens.push({
+      lead: m[1] ?? '',
+      raw,
+      norm: normalizeArabic(word),
+      leadPunct,
+      trailPunct,
+    });
   }
   return tokens;
 }
@@ -133,15 +176,33 @@ export function buildMatnSegments(matn: string, gharib: ExplanationDto[]): MatnS
     if (hit) {
       flushPlain();
       const slice = tokens.slice(i, i + hit.len);
-      // lead первого токена остаётся в plain-буфере (уже сброшен); чтобы не
-      // потерять пробел перед подсвеченным словом, добавляем его обратно как
-      // отдельный plain-сегмент.
-      const lead = slice[0]!.lead;
+      const firstToken = slice[0]!;
+      const lastToken = slice[slice.length - 1]!;
+
+      // Ведущий пробел перед сегментом
+      const lead = firstToken.lead;
       if (lead) {
         segments.push({ text: lead, gharib: null, key: `l${segments.length}` });
       }
-      const text = slice.map((t, idx) => (idx === 0 ? t.raw : t.lead + t.raw)).join('');
-      segments.push({ text, gharib: hit.exp, key: `g${i}` });
+
+      // Ведущая пунктуация первого токена рендерится вне подсветки
+      if (firstToken.leadPunct) {
+        segments.push({ text: firstToken.leadPunct, gharib: null, key: `lp${segments.length}` });
+      }
+
+      // Текст гариб-сегмента: clean words без граничной пунктуации
+      const text = slice
+        .map((t, idx) => {
+          const clean = trimPunct(t.raw);
+          // Для не-первых токенов сохраняем пробел (lead) перед словом
+          return idx === 0 ? clean : t.lead + clean;
+        })
+        .join('');
+
+      // Хвостовая пунктуация последнего токена
+      const trailPunct = lastToken.trailPunct;
+
+      segments.push({ text, gharib: hit.exp, key: `g${i}`, trailPunct });
       matched = true;
       i += hit.len;
     } else {

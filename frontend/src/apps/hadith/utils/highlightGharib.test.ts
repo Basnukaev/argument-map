@@ -75,4 +75,26 @@ describe('buildMatnSegments', () => {
     expect(hit).toBeDefined();
     expect(hit!.text).toBe('اهل الصفه');
   });
+
+  it('пунктуация на конце reference/токена матна не попадает в подсветку', () => {
+    // reference «الأكبر،» — с арабской запятой; матн тоже содержит «الاكبر،»
+    // Подсвеченный сегмент должен содержать только «الاكبر» (без ،),
+    // а trailPunct = '،' рендерится вне кнопки.
+    const segs = buildMatnSegments('هو الاكبر، والاصغر', [gharib('الْأَكْبَرُ،', 'الأول')]);
+    const hit = segs.find((s) => s.gharib);
+    expect(hit).toBeDefined();
+    expect(hit!.text).toBe('الاكبر'); // без знака препинания
+    expect(hit!.trailPunct).toBe('،'); // пунктуация вне подсветки
+    // полный текст матна сохранён
+    const joined = segs.map((s) => s.text + (s.trailPunct ?? '')).join('');
+    expect(joined).toBe('هو الاكبر، والاصغر');
+  });
+
+  it('латинская пунктуация на конце токена не попадает в подсветку', () => {
+    const segs = buildMatnSegments('قال النبي: سنوت.', [gharib('سَنَوْتُ')]);
+    const hit = segs.find((s) => s.gharib);
+    expect(hit).toBeDefined();
+    expect(hit!.text).toBe('سنوت');
+    expect(hit!.trailPunct).toBe('.');
+  });
 });

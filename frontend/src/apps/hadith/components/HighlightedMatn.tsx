@@ -29,7 +29,12 @@ function HighlightedMatn({ matn, gharib }: HighlightedMatnProps) {
     <>
       {segments.map((seg) =>
         seg.gharib ? (
-          <GharibWord key={seg.key} word={seg.text} exp={seg.gharib} />
+          <GharibWord
+            key={seg.key}
+            word={seg.text}
+            exp={seg.gharib}
+            trailPunct={seg.trailPunct}
+          />
         ) : (
           seg.text
         ),
@@ -43,14 +48,56 @@ function HighlightedMatn({ matn, gharib }: HighlightedMatnProps) {
  * толкованием. Поповер управляется локальным state'ом; закрытие по
  * click-outside и Escape (паттерн InlineCitationMarker — native popover-атрибут
  * не используем, jsdom его не держит).
+ *
+ * Поповер позиционируется с учётом вьюпорта: по умолчанию раскрывается вниз
+ * от слова (top-full), но если места снизу нет — флипает вверх (bottom-full).
+ * По горизонтали: по умолчанию выравнивается по концу (end-0); если уходит
+ * за левый край — выравнивается по началу (start-0). Внутри — скролл при
+ * длинном толковании (max-height + overflow-y: auto).
  */
-function GharibWord({ word, exp }: { word: string; exp: ExplanationDto }) {
+function GharibWord({
+  word,
+  exp,
+  trailPunct,
+}: {
+  word: string;
+  exp: ExplanationDto;
+  trailPunct?: string;
+}) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLSpanElement>(null);
+  const popoverRef = useRef<HTMLSpanElement>(null);
+
+  // Направление раскрытия поповера: вниз (false) или вверх (true)
+  const [flipUp, setFlipUp] = useState(false);
+  // Выравнивание по горизонтали: по концу (false) или по началу (true)
+  const [flipStart, setFlipStart] = useState(false);
 
   useEffect(() => {
     if (!open) return;
+
+    // Вычислить направление сразу после открытия
+    const measurePosition = () => {
+      if (!wrapperRef.current || !popoverRef.current) return;
+      const wRect = wrapperRef.current.getBoundingClientRect();
+      const pRect = popoverRef.current.getBoundingClientRect();
+      const vp = { h: window.innerHeight, w: window.innerWidth };
+
+      // Флип вверх если поповер выходит за нижний край вьюпорта
+      setFlipUp(wRect.bottom + pRect.height > vp.h - 8);
+
+      // Флип к началу если поповер выходит за левый край вьюпорта при end-0
+      // (в RTL end-0 = правый край обёртки; поповер уходит влево)
+      // Проверяем: если левый край поповера < 8px
+      setFlipStart(pRect.left < 8);
+    };
+
+    // Два RAF — чтобы поповер успел отрендериться в DOM до замера
+    const raf1 = requestAnimationFrame(() => {
+      requestAnimationFrame(measurePosition);
+    });
+
     const onDocClick = (e: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
         setOpen(false);
@@ -62,12 +109,17 @@ function GharibWord({ word, exp }: { word: string; exp: ExplanationDto }) {
     document.addEventListener('mousedown', onDocClick);
     document.addEventListener('keydown', onKey);
     return () => {
+      cancelAnimationFrame(raf1);
       document.removeEventListener('mousedown', onDocClick);
       document.removeEventListener('keydown', onKey);
     };
   }, [open]);
 
   const dict = [exp.bookName, exp.author].filter((p): p is string => Boolean(p)).join(' · ');
+
+  // Позиционирование: вертикаль (вниз/вверх), горизонталь (конец/начало)
+  const vertClass = flipUp ? 'bottom-full mb-1' : 'top-full mt-1';
+  const horizClass = flipStart ? 'start-0' : 'end-0';
 
   return (
     <span ref={wrapperRef} className="relative inline-block">
@@ -80,11 +132,14 @@ function GharibWord({ word, exp }: { word: string; exp: ExplanationDto }) {
       >
         {word}
       </button>
+      {trailPunct}
       {open && (
         <span
+          ref={popoverRef}
           role="dialog"
           dir="rtl"
-          className="absolute end-0 top-full z-50 mt-1 block w-72 rounded-md border border-border bg-elevated p-3 text-start text-sm leading-relaxed text-ink-700 shadow-sh3 dark:text-ink-200"
+          className={`absolute ${vertClass} ${horizClass} z-50 block w-72 rounded-md border border-border bg-elevated p-3 text-start text-sm leading-relaxed shadow-sh3`}
+          style={{ maxHeight: 'min(70vh, 20rem)', overflowY: 'auto' }}
           onClick={(e) => e.stopPropagation()}
         >
           {exp.text && (
