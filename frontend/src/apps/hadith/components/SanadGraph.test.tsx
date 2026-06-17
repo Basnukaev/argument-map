@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, type RenderResult } from '@testing-library/react';
+import { render, screen, type RenderResult, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
@@ -218,5 +218,58 @@ describe('SanadGraph', () => {
     expect(screen.getByText('вы здесь')).toBeInTheDocument();
     // строка легенды про version-узлы присутствует
     expect(screen.getByText(/запись в сборнике/)).toBeInTheDocument();
+  });
+
+  it('клик по строке легенды переключает активное состояние кнопки (подсветка цепи)', async () => {
+    server.use(
+      http.get(GRAPH_URL, () =>
+        HttpResponse.json({
+          hadithId: 'h1',
+          nodes: [
+            { id: 'prophet', role: 'PROPHET', data: { narratorId: null, nameAr: 'النبي محمد ﷺ', tier: 0 } },
+            {
+              id: 'narrator-1',
+              role: 'COMPANION',
+              data: {
+                narratorId: '1',
+                nameAr: 'عمر بن الخطاب',
+                nameRu: 'Умар ибн аль-Хаттаб',
+                reliabilityGrade: 'SAHABI',
+                yearDeathHijri: 23,
+                tier: 1,
+              },
+            },
+          ],
+          edges: [
+            {
+              id: 'e0',
+              source: 'prophet',
+              target: 'narrator-1',
+              data: { transmissionPhrase: 'سمعت', chainGrade: 'SAHIH', onPrimaryChain: true, sanadCount: 1 },
+            },
+          ],
+          sanads: [
+            {
+              id: 's1',
+              collectionRu: 'Сахих аль-Бухари',
+              collectionAr: 'صحيح البخاري',
+              chainGrade: 'SAHIH',
+              primaryChain: true,
+              collectorNodeId: 'narrator-1',
+            },
+          ],
+        }),
+      ),
+    );
+    renderGraph(<SanadGraph hadithId="h1" />);
+    // Ждём рендера легенды
+    const chainBtn = await screen.findByTitle('Подсветить эту цепь в графе');
+    expect(chainBtn).toBeInTheDocument();
+    // Клик активирует подсветку: title меняется
+    fireEvent.click(chainBtn);
+    expect(screen.getByTitle('Снять подсветку')).toBeInTheDocument();
+    // Повторный клик снимает подсветку
+    fireEvent.click(screen.getByTitle('Снять подсветку'));
+    expect(screen.getByTitle('Подсветить эту цепь в графе')).toBeInTheDocument();
   });
 });

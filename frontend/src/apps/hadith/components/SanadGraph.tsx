@@ -22,8 +22,47 @@ import type {
   SanadFlowNodeData,
   SanadGraphNodeData,
   SanadGraphResponse,
+  SanadSummaryDto,
   TransmitterRole,
 } from '@/apps/hadith/types';
+
+/**
+ * Обходит граф в обратном направлении (от конечного узла к корню) и
+ * возвращает множества id узлов и рёбер, принадлежащих пути этого санада.
+ * Используется для подсветки цепи по клику в легенде.
+ */
+function collectSanadPath(
+  collectorNodeId: string,
+  edges: Edge[],
+): { nodeIds: Set<string>; edgeIds: Set<string> } {
+  const nodeIds = new Set<string>();
+  const edgeIds = new Set<string>();
+
+  // Строим индекс target → список рёбер (для обхода вверх по цепи).
+  const byTarget = new Map<string, Edge[]>();
+  for (const e of edges) {
+    const list = byTarget.get(e.target) ?? [];
+    list.push(e);
+    byTarget.set(e.target, list);
+  }
+
+  // BFS вверх: начинаем с collectorNodeId, идём к корню через target→source.
+  const queue: string[] = [collectorNodeId];
+  nodeIds.add(collectorNodeId);
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const incoming = byTarget.get(current) ?? [];
+    for (const e of incoming) {
+      edgeIds.add(e.id);
+      if (!nodeIds.has(e.source)) {
+        nodeIds.add(e.source);
+        queue.push(e.source);
+      }
+    }
+  }
+
+  return { nodeIds, edgeIds };
+}
 
 // Стабильная ссылка между рендерами (иначе React Flow предупреждает и
 // пересоздаёт типы узлов на каждый render).
@@ -85,6 +124,8 @@ function SanadGraph({
   const [fetchedGraph, setFetchedGraph] = useState<SanadGraphResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SanadFlowNodeData | null>(null);
+  // id активного (подсвеченного) санада из легенды; null = нет подсветки.
+  const [activeSanadId, setActiveSanadId] = useState<string | null>(null);
 
   // В controlled-режиме источник данных — проп; иначе результат внутреннего fetch.
   const graph = controlled ? graphProp : fetchedGraph;
@@ -112,7 +153,7 @@ function SanadGraph({
 
   // dagre-раскладка + маппинг дорогие, а React Flow перерисовывается часто
   // при pan/zoom — memo по graph (реальная перф-проблема, не превентивный memo).
-  const { rfNodes, rfEdges } = useMemo(() => {
+  const { rfNodes: baseNodes, rfEdges: baseEdges } = useMemo(() => {
     if (!graph) return { rfNodes: [] as SanadNode[], rfEdges: [] as Edge[] };
     const nodes: SanadNode[] = graph.nodes.map((n) => {
       // Version-узлы: data с бэка null, смысловые поля в n.version. Помечаем
@@ -156,6 +197,34 @@ function SanadGraph({
     });
     return { rfNodes: layoutSanad(nodes, edges), rfEdges: edges };
   }, [graph, currentHadithId]);
+
+  // Подсветка пути активного санада. Отдельный memo: пересчитывается только
+  // при смене активного санада, не при pan/zoom (baseNodes/baseEdges стабильны).
+  const { rfNodes, rfEdges } = useMemo(() => {
+    if (!activeSanadId || !graph) {
+      return { rfNodes: baseNodes, rfEdges: baseEdges };
+    }
+    const activeSanad = graph.sanads.find((s: SanadSummaryDto) => s.id === activeSanadId);
+    if (!activeSanad?.collectorNodeId) {
+      return { rfNodes: baseNodes, rfEdges: baseEdges };
+    }
+    const { nodeIds, edgeIds } = collectSanadPath(activeSanad.collectorNodeId, baseEdges);
+
+    const highlightedNodes = baseNodes.map((n) => ({
+      ...n,
+      style: nodeIds.has(n.id)
+        ? { opacity: 1 }
+        : { opacity: 0.2, filter: 'grayscale(0.6)' },
+    }));
+    const highlightedEdges = baseEdges.map((e) => {
+      if (!edgeIds.has(e.id)) {
+        return { ...e, style: { ...e.style, opacity: 0.15 } };
+      }
+      // Активное ребро — подчёркиваем шириной.
+      return { ...e, style: { ...e.style, opacity: 1, strokeWidth: Number(e.style?.strokeWidth ?? 1.6) + 1 } };
+    });
+    return { rfNodes: highlightedNodes, rfEdges: highlightedEdges };
+  }, [activeSanadId, graph, baseNodes, baseEdges]);
 
   if (error) {
     return (
@@ -230,24 +299,40 @@ function SanadGraph({
         >
           <div className="mb-2">
             <div className="mb-1 font-semibold text-ink-700">{t('hadith.graph.legend_chains')}</div>
-            <ul className="space-y-1">
-              {graph.sanads.map((s) => (
-                <li key={s.id} className="flex items-center gap-2" dir="auto">
-                  <span
-                    className="inline-block h-1.5 w-4 rounded-full"
-                    style={{ backgroundColor: edgeStroke(s.chainGrade) }}
-                  />
-                  <span className="text-ink-700">{s.collectionRu ?? s.collectionAr ?? '—'}</span>
-                  {/* «основная» осмысленна, только когда выделяет ОДНУ цепь среди
-                      прочих. В turuq-режиме («Все пути») каждая цепь — основная
-                      своего хадиса, ярлык на всех = шум, поэтому скрываем. */}
-                  {s.primaryChain && primaryBadgeMeaningful && (
-                    <span className="rounded-sm bg-accent-50 px-1 text-[10px] font-medium text-accent-700">
-                      {t('hadith.graph.primary')}
-                    </span>
-                  )}
-                </li>
-              ))}
+            {/* max-h ограничивает высоту при длинном списке (turuq 100+ цепей). */}
+            <ul className="max-h-[40vh] space-y-0.5 overflow-y-auto">
+              {graph.sanads.map((s) => {
+                const isActive = activeSanadId === s.id;
+                return (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSanadId(isActive ? null : s.id)}
+                      className={`flex w-full items-center gap-2 rounded px-1 py-0.5 text-start transition-colors ${
+                        isActive
+                          ? 'bg-accent-50 ring-1 ring-accent-300'
+                          : 'hover:bg-ink-50'
+                      }`}
+                      dir="auto"
+                      title={isActive ? t('hadith.graph.chain_deselect') : t('hadith.graph.chain_select')}
+                    >
+                      <span
+                        className="inline-block h-1.5 w-4 shrink-0 rounded-full"
+                        style={{ backgroundColor: edgeStroke(s.chainGrade) }}
+                      />
+                      <span className="text-ink-700">{s.collectionRu ?? s.collectionAr ?? '—'}</span>
+                      {/* «основная» осмысленна, только когда выделяет ОДНУ цепь среди
+                          прочих. В turuq-режиме («Все пути») каждая цепь — основная
+                          своего хадиса, ярлык на всех = шум, поэтому скрываем. */}
+                      {s.primaryChain && primaryBadgeMeaningful && (
+                        <span className="rounded-sm bg-accent-50 px-1 text-[10px] font-medium text-accent-700">
+                          {t('hadith.graph.primary')}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </div>
 
