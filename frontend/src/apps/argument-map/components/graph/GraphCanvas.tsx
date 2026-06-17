@@ -743,8 +743,8 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView
-          minZoom={0.2}
-          maxZoom={1.5}
+          minZoom={0.1}
+          maxZoom={4}
           // elevateNodesOnSelect=true: selected node автоматически
           // получает максимальный z-index в RF stack - drag в overlap'е
           // захватывает именно его. Раньше было false (sticky stacking

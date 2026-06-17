@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   ReactFlow,
@@ -9,7 +9,7 @@ import {
   MarkerType,
   type Edge,
 } from '@xyflow/react';
-import { BookOpen, Loader2, Network } from 'lucide-react';
+import { BookOpen, Loader2, Maximize, Minimize, Network } from 'lucide-react';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
 import { useT, type DictKey } from '@/shared/i18n';
 import SanadGraphNode, { type SanadNode } from './SanadGraphNode';
@@ -126,6 +126,28 @@ function SanadGraph({
   const [selected, setSelected] = useState<SanadFlowNodeData | null>(null);
   // id активного (подсвеченного) санада из легенды; null = нет подсветки.
   const [activeSanadId, setActiveSanadId] = useState<string | null>(null);
+
+  // Fullscreen: ref на корневой div + state для иконки переключения.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    function onFsChange() {
+      setIsFullscreen(!!document.fullscreenElement);
+    }
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
+  const handleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen().catch(() => {
+        // requestFullscreen отклонён (напр. iframe без allow="fullscreen")
+      });
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, []);
 
   // В controlled-режиме источник данных — проп; иначе результат внутреннего fetch.
   const graph = controlled ? graphProp : fetchedGraph;
@@ -258,15 +280,15 @@ function SanadGraph({
     graph.sanads.filter((s) => s.primaryChain).length === 1;
 
   return (
-    <div className="relative h-full w-full">
+    <div ref={containerRef} className="relative h-full w-full">
       <ReactFlow<SanadNode, Edge>
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={nodeTypes}
         fitView
         fitViewOptions={{ padding: 0.2 }}
-        minZoom={0.3}
-        maxZoom={1.75}
+        minZoom={0.1}
+        maxZoom={4}
         nodesDraggable={false}
         nodesConnectable={false}
         edgesFocusable={false}
@@ -292,6 +314,19 @@ function SanadGraph({
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
         <Controls showInteractive={false} />
+
+        {/* Кнопка полноэкранного режима — top-right, graph-chrome исключён
+            из RTL-logical (граф не зеркалится, см. frontend/CLAUDE.md). */}
+        <Panel position="top-right">
+          <button
+            type="button"
+            aria-label={isFullscreen ? t('graph.fullscreen_exit') : t('graph.fullscreen_enter')}
+            onClick={handleFullscreen}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-bd bg-card shadow-sm text-meta transition-colors hover:bg-hover hover:text-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+          >
+            {isFullscreen ? <Minimize size={15} aria-hidden /> : <Maximize size={15} aria-hidden />}
+          </button>
+        </Panel>
 
         <Panel
           position="top-left"

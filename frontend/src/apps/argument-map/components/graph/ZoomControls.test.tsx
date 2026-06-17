@@ -115,17 +115,24 @@ describe('ZoomControls', () => {
 
   // ── Fullscreen ─────────────────────────────────────────────────────
 
-  it('кнопка "Полный экран" не рендерится без onFullscreen', () => {
+  it('кнопка полного экрана не рендерится без onFullscreen', () => {
     renderControls();
-    expect(screen.queryByRole('button', { name: 'Полный экран' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'На весь экран' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Выйти из полного экрана' })).not.toBeInTheDocument();
   });
 
-  it('кнопка "Полный экран" рендерится и кликается при наличии onFullscreen', async () => {
+  it('кнопка "На весь экран" рендерится и кликается при наличии onFullscreen', async () => {
     const onFullscreen = vi.fn();
     renderControls({ onFullscreen });
-    const btn = screen.getByRole('button', { name: 'Полный экран' });
+    const btn = screen.getByRole('button', { name: 'На весь экран' });
     await userEvent.click(btn);
     expect(onFullscreen).toHaveBeenCalledOnce();
+  });
+
+  it('кнопка показывает "Выйти из полного экрана" при isFullscreen=true', () => {
+    renderControls({ onFullscreen: vi.fn(), isFullscreen: true });
+    expect(screen.getByRole('button', { name: 'Выйти из полного экрана' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'На весь экран' })).not.toBeInTheDocument();
   });
 
   // ── Current zoom display ───────────────────────────────────────────

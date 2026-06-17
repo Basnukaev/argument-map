@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNodes, useEdges, useStore, useReactFlow } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
 import ZoomControls from '@/apps/argument-map/components/graph/ZoomControls';
@@ -18,6 +18,34 @@ function GraphViewportPanel() {
   const canvasW = useStore((s) => s.width);
   const canvasH = useStore((s) => s.height);
   const { setViewport, fitView, zoomTo } = useReactFlow();
+
+  // Fullscreen: поднимаемся к ближайшему .react-flow-wrapper / родителю через
+  // closest, чтобы не выносить ref наружу из GraphCanvas. В GraphCanvas обёртка
+  // `.h-full.w-full` сама является React Flow mount-point, поэтому
+  // `.react-flow` всегда рядом в DOM.
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    function onFsChange() {
+      setIsFullscreen(!!document.fullscreenElement);
+    }
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
+  const handleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      // Ищем ближайший React Flow wrapper вверх по DOM
+      const target =
+        panelRef.current?.closest<HTMLElement>('.react-flow') ??
+        panelRef.current?.parentElement ??
+        panelRef.current;
+      target?.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, []);
 
   const minimapNodes: MinimapNode[] = useMemo(
     () =>
@@ -85,6 +113,7 @@ function GraphViewportPanel() {
 
   return (
     <div
+      ref={panelRef}
       // end-3 постоянно (НЕ end-[416px] при открытой панели!). Этот
       // контейнер - position:absolute ВНУТРИ обёртки графа, у которой
       // при открытом NodeDetailsPanel/EdgeDetailsPanel стоит pe-[400px]
@@ -99,13 +128,15 @@ function GraphViewportPanel() {
     >
       <ZoomControls
         zoom={zoom}
-        min={0.2}
-        max={1.5}
+        min={0.1}
+        max={4}
         step={0.1}
         onZoomChange={handleZoomChange}
         onFit={handleFit}
         onFitSelection={handleFitSelection}
         hasSelection={hasSelection}
+        onFullscreen={handleFullscreen}
+        isFullscreen={isFullscreen}
       />
       <MinimapCard
         nodes={minimapNodes}

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Minus, Plus, ChevronDown, Scan, Maximize } from 'lucide-react';
+import { Minus, Plus, ChevronDown, Scan, Maximize, Minimize } from 'lucide-react';
 import { useT } from '@/shared/i18n';
 import type { DictKey } from '@/shared/i18n';
 
@@ -17,6 +17,8 @@ interface ZoomControlsProps {
   onFit?: () => void;
   onFitSelection?: () => void;
   onFullscreen?: () => void;
+  /** Whether the graph is currently in fullscreen mode (toggles icon) */
+  isFullscreen?: boolean;
   /** Controls "Fit selection" preset visibility */
   hasSelection?: boolean;
 }
@@ -135,6 +137,7 @@ function ZoomControls({
   onFit,
   onFitSelection,
   onFullscreen,
+  isFullscreen = false,
   hasSelection = false,
 }: ZoomControlsProps) {
   const t = useT();
@@ -324,14 +327,21 @@ function ZoomControls({
 
       {/* Fullscreen — only render when handler provided */}
       {onFullscreen && (
-        <Tooltip label={t('graph.zoom_fullscreen')} kbd="F">
+        <Tooltip
+          label={isFullscreen ? t('graph.fullscreen_exit') : t('graph.fullscreen_enter')}
+          kbd="F"
+        >
           <button
             type="button"
-            aria-label={t('graph.zoom_fullscreen')}
+            aria-label={isFullscreen ? t('graph.fullscreen_exit') : t('graph.fullscreen_enter')}
             onClick={onFullscreen}
             className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[6px] text-body transition-colors hover:bg-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
           >
-            <Maximize size={15} aria-hidden="true" />
+            {isFullscreen ? (
+              <Minimize size={15} aria-hidden="true" />
+            ) : (
+              <Maximize size={15} aria-hidden="true" />
+            )}
           </button>
         </Tooltip>
       )}
