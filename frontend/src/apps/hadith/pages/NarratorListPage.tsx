@@ -3,8 +3,9 @@ import { Link } from 'react-router';
 import { Users, Search, Loader2, ArrowLeft } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
+import Pagination from '@/shared/components/ui/Pagination';
 import { useT, type DictKey } from '@/shared/i18n';
-import { usePagedSearch } from '@/shared/hooks/usePagedSearch';
+import { usePagedList } from '@/shared/hooks/usePagedList';
 import { RELIABILITY_TOKENS } from '@/apps/hadith/sanadTokens';
 import type { NarratorResponseDto, ReliabilityGrade } from '@/apps/hadith/types';
 
@@ -13,8 +14,8 @@ const GRADES: ReliabilityGrade[] = ['SAHABI', 'THIQA', 'SADUQ', 'MAQBUL', 'DAIF'
 
 /**
  * Каталог передатчиков (علم الرجال). Поиск по имени + фильтр по степени
- * надёжности. Карточка ведёт на NarratorDetailPage. Debounce + Load-More —
- * через usePagedSearch.
+ * надёжности. Карточка ведёт на NarratorDetailPage. Debounce + нумерованная
+ * пагинация — через usePagedList.
  */
 function NarratorListPage() {
   const t = useT();
@@ -32,8 +33,8 @@ function NarratorListPage() {
     [grade],
   );
 
-  const { state, searchInput, setSearchInput, loadMore, loadingMore } =
-    usePagedSearch<NarratorResponseDto>({ buildUrl, deps: [grade] });
+  const { state, searchInput, setSearchInput, page, goToPage } =
+    usePagedList<NarratorResponseDto>({ buildUrl, deps: [grade] });
 
   return (
     <main className="min-h-screen bg-bg">
@@ -142,19 +143,13 @@ function NarratorListPage() {
                 );
               })}
             </ul>
-            {state.data.hasNext && (
-              <div className="mt-4 flex justify-center">
-                <button
-                  type="button"
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  className="inline-flex items-center gap-2 rounded-md border border-border-strong bg-elevated px-4 py-2 text-sm font-medium text-ink-700 hover:bg-ink-100 disabled:opacity-50"
-                >
-                  {loadingMore && <Loader2 size={14} className="animate-spin" />}
-                  {t('common.load_more')}
-                </button>
-              </div>
-            )}
+            <Pagination
+              page={page}
+              totalPages={state.data.totalPages}
+              totalElements={state.data.totalElements}
+              pageSize={PAGE_SIZE}
+              onPageChange={goToPage}
+            />
             </>
           ))}
       </div>

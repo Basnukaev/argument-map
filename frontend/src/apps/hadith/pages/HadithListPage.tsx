@@ -7,9 +7,9 @@ import ListToolbar from '@/shared/components/ui/ListToolbar';
 import SearchInput from '@/shared/components/ui/SearchInput';
 import FilterChips from '@/shared/components/ui/FilterChips';
 import SortSelect from '@/shared/components/ui/SortSelect';
-import LoadMoreButton from '@/shared/components/ui/LoadMoreButton';
+import Pagination from '@/shared/components/ui/Pagination';
 import { useT } from '@/shared/i18n';
-import { usePagedSearch } from '@/shared/hooks/usePagedSearch';
+import { usePagedList } from '@/shared/hooks/usePagedList';
 import { useApiQuery } from '@/shared/hooks/useApiQuery';
 import type { components } from '@/shared/api/types';
 
@@ -152,7 +152,7 @@ function HadithListPage() {
     [provenanceFilter, authenticityFilter, collectionId, sort],
   );
 
-  const { state, searchInput, setSearchInput, loadMore, loadingMore } = usePagedSearch<HadithItem>({
+  const { state, searchInput, setSearchInput, page, goToPage } = usePagedList<HadithItem>({
     buildUrl,
     deps: [provenanceFilter, authenticityFilter, collectionId, sort],
   });
@@ -287,12 +287,12 @@ function HadithListPage() {
                 ))}
               </ul>
             )}
-            <LoadMoreButton
-              onClick={loadMore}
-              loading={loadingMore}
-              hasNext={state.data.hasNext}
-              shownCount={state.data.items.length}
-              totalCount={state.data.totalElements}
+            <Pagination
+              page={page}
+              totalPages={state.data.totalPages}
+              totalElements={state.data.totalElements}
+              pageSize={PAGE_SIZE}
+              onPageChange={goToPage}
             />
           </>
         )}

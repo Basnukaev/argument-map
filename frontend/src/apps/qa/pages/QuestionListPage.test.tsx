@@ -50,8 +50,8 @@ beforeEach(() => {
   }
 });
 
-describe('QuestionListPage — Load More error fallback', () => {
-  it('при сбое Load More показывает осмысленное сообщение об ошибке, а не подзаголовок-строку', async () => {
+describe('QuestionListPage — переход на страницу: ошибка', () => {
+  it('при сбое перехода на страницу показывает осмысленное сообщение об ошибке, а не подзаголовок-строку', async () => {
     server.use(
       http.get(QUESTIONS_URL, ({ request }) => {
         const page = new URL(request.url).searchParams.get('page');
@@ -60,7 +60,7 @@ describe('QuestionListPage — Load More error fallback', () => {
             pagedResponse([makeQuestion('q1', 'Первый вопрос')], true),
           );
         }
-        // page 1 (Load More) падает с ProblemDetails без detail/title →
+        // page 1 (переход на стр.2) падает с ProblemDetails без detail/title →
         // formatApiError упадёт на fallbackError.
         return HttpResponse.json(
           { type: 'about:blank', title: '', status: 500 },
@@ -75,10 +75,10 @@ describe('QuestionListPage — Load More error fallback', () => {
     });
 
     await userEvent.click(
-      await screen.findByRole('button', { name: /Показать ещё/i }),
+      await screen.findByRole('button', { name: 'Следующая страница' }),
     );
 
-    // Fallback теперь — осмысленный load_failed, а НЕ подзаголовок
+    // Fallback — осмысленный load_failed, а НЕ подзаголовок
     // «вопросов в обсуждении» (старый баг).
     await waitForApi(() => {
       expect(screen.getByText(/Не удалось загрузить вопросы/i)).toBeInTheDocument();

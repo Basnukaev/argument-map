@@ -16,7 +16,7 @@ import ListToolbar from '@/shared/components/ui/ListToolbar';
 import SearchInput from '@/shared/components/ui/SearchInput';
 import FilterChips from '@/shared/components/ui/FilterChips';
 import SortSelect from '@/shared/components/ui/SortSelect';
-import LoadMoreButton from '@/shared/components/ui/LoadMoreButton';
+import Pagination from '@/shared/components/ui/Pagination';
 import BookEditModal from '@/shared/components/library/BookEditModal';
 import VisibilityBadge from '@/shared/components/visibility/VisibilityBadge';
 import { apiGetRaw, apiPostRaw, apiDeleteRaw, formatApiError } from '@/shared/api/client';
@@ -24,7 +24,7 @@ import { formatPermissionError } from '@/shared/api/permissionErrors';
 import { toast } from '@/shared/stores/toastStore';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useT, type DictKey } from '@/shared/i18n';
-import { usePagedSearch } from '@/shared/hooks/usePagedSearch';
+import { usePagedList } from '@/shared/hooks/usePagedList';
 import type { components } from '@/shared/api/types';
 
 type Book = components['schemas']['BookSummaryResponse'];
@@ -212,7 +212,7 @@ function BookListPage() {
 
   /** URL builder - объединяет current filter state. Server-side: ?q=,
    * ?type=, ?authorityId=, ?page=, ?size=, ?sort= (Vision 49d Phase 1).
-   * `q` приходит от usePagedSearch (debounced). Visibility - client-side
+   * `q` приходит от usePagedList (debounced). Visibility - client-side
    * (libraryFilter MINE/SHARED/PUBLIC) поверх загруженной страницы. */
   const buildBooksUrl = useCallback(
     (page: number, q: string): string => {
@@ -228,12 +228,12 @@ function BookListPage() {
     [typeFilter, authorityFilter, sortBy],
   );
 
-  // Debounce + paged fetch + Load-More (включая stale-append race guard:
-  // смена q/фильтра во время in-flight page-N отбрасывает устаревший ответ).
-  // Server-side фильтры (type/authority/sort) — в deps, чтобы page 0
-  // перезапрашивался при их смене. Visibility — client-side, ниже.
-  const { state, searchInput, setSearchInput, loadMore, loadingMore } =
-    usePagedSearch<Book>({
+  // Debounce + нумерованная пагинация (?page= в URL, 1-based). Server-side
+  // фильтры (type/authority/sort) — в deps: их смена сбрасывает на стр.1.
+  // Visibility — client-side (ниже), при активном таком фильтре пагинация
+  // скрыта (новые страницы пришли бы с бэка но скрылись client-side).
+  const { state, searchInput, setSearchInput, page, goToPage } =
+    usePagedList<Book>({
       buildUrl: buildBooksUrl,
       debounceMs: SEARCH_DEBOUNCE_MS,
       deps: [typeFilter, authorityFilter, sortBy],
@@ -414,12 +414,12 @@ function BookListPage() {
             </ul>
 
             {!localFilterActive && (
-              <LoadMoreButton
-                onClick={loadMore}
-                loading={loadingMore}
-                hasNext={state.data.hasNext}
-                shownCount={displayedBooks.length}
-                totalCount={state.data.totalElements}
+              <Pagination
+                page={page}
+                totalPages={state.data.totalPages}
+                totalElements={state.data.totalElements}
+                pageSize={PAGE_SIZE}
+                onPageChange={goToPage}
               />
             )}
           </>

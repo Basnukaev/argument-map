@@ -313,19 +313,20 @@ describe('BookListPage / Library overview', () => {
     expect(screen.queryByText('Public Book')).not.toBeInTheDocument();
   });
 
-  it('показывает кнопку Load More и аппендит результаты при клике', async () => {
+  it('пагинация: «следующая» грузит вторую страницу и ЗАМЕНЯЕТ список', async () => {
     let callCount = 0;
     server.use(
       http.get(`${BASE}/api/v1/library/books`, ({ request }) => {
         callCount += 1;
         const url = new URL(request.url);
+        // бэк 0-based: page=0 — первая, page=1 — вторая (UI ?page=2)
         const page = Number(url.searchParams.get('page') ?? '0');
         if (page === 0) {
           return HttpResponse.json({
             items: [{ id: 'b1', title: 'First Book', bookType: 'BOOK', visibility: 'PUBLIC' }],
             page: 0,
             size: 20,
-            totalElements: 2,
+            totalElements: 40,
             totalPages: 2,
             hasNext: true,
             hasPrev: false,
@@ -335,7 +336,7 @@ describe('BookListPage / Library overview', () => {
           items: [{ id: 'b2', title: 'Second Book', bookType: 'BOOK', visibility: 'PUBLIC' }],
           page: 1,
           size: 20,
-          totalElements: 2,
+          totalElements: 40,
           totalPages: 2,
           hasNext: false,
           hasPrev: true,
@@ -346,15 +347,16 @@ describe('BookListPage / Library overview', () => {
     await waitForApi(() => {
       expect(screen.getByText('First Book')).toBeInTheDocument();
     });
-    const loadMore = screen.getByRole('button', { name: /Показать ещё/i });
-    expect(loadMore).toBeInTheDocument();
+    const next = screen.getByRole('button', { name: 'Следующая страница' });
+    expect(next).toBeInTheDocument();
 
     const user = userEvent.setup();
-    await user.click(loadMore);
+    await user.click(next);
     await waitForApi(() => {
       expect(screen.getByText('Second Book')).toBeInTheDocument();
     });
-    expect(screen.getByText('First Book')).toBeInTheDocument();
+    // вторая страница ЗАМЕНИЛА первую (REPLACE, не append)
+    expect(screen.queryByText('First Book')).not.toBeInTheDocument();
     expect(callCount).toBeGreaterThanOrEqual(2);
   });
 

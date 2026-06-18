@@ -428,6 +428,12 @@ export const DICTIONARY = {
     'common.load_more': 'Показать ещё',
     'common.clear': 'Очистить',
     'common.shown_of': 'Показано {shown} из {total}',
+    // numbered pagination (C20) — нумерованная пагинация вместо «Показать ещё»
+    'common.pagination.counter': '{from}–{to} из {total}',
+    'common.pagination.prev': 'Предыдущая страница',
+    'common.pagination.next': 'Следующая страница',
+    'common.pagination.page': 'Страница {n}',
+    'common.pagination.nav': 'Пагинация',
 
     // command palette
     'palette.aria': 'Командная палитра',
@@ -1997,6 +2003,12 @@ export const DICTIONARY = {
     'common.load_more': 'عرض المزيد',
     'common.clear': 'مسح',
     'common.shown_of': 'عرض {shown} من {total}',
+    // numbered pagination (C20)
+    'common.pagination.counter': '{from}–{to} من {total}',
+    'common.pagination.prev': 'الصفحة السابقة',
+    'common.pagination.next': 'الصفحة التالية',
+    'common.pagination.page': 'الصفحة {n}',
+    'common.pagination.nav': 'ترقيم الصفحات',
 
     'palette.aria': 'لوحة الأوامر',
     'palette.placeholder': 'بحث في الأوامر والصفحات',

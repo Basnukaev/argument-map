@@ -9,14 +9,19 @@ import NarratorListPage from './NarratorListPage';
 
 const BASE = 'http://test.local';
 
-function paged(items: unknown[], opts: { page?: number; hasNext?: boolean } = {}) {
+function paged(
+  items: unknown[],
+  opts: { page?: number; hasNext?: boolean; totalPages?: number } = {},
+) {
+  const page = opts.page ?? 0;
+  const totalPages = opts.totalPages ?? (opts.hasNext ? 2 : 1);
   return {
     items,
-    page: opts.page ?? 0,
+    page,
     size: 30,
-    totalElements: items.length,
-    totalPages: opts.hasNext ? 2 : 1,
-    hasNext: opts.hasNext ?? false,
+    totalElements: totalPages * 30,
+    totalPages,
+    hasNext: opts.hasNext ?? page < totalPages - 1,
   };
 }
 
@@ -78,14 +83,16 @@ describe('NarratorListPage', () => {
     });
   });
 
-  it('Load More подгружает следующую страницу и аппендит к списку', async () => {
+  it('пагинация: клик «следующая» грузит вторую страницу и ЗАМЕНЯЕТ список', async () => {
     server.use(
       http.get(`${BASE}/api/v1/hadith/narrators`, ({ request }) => {
         const page = new URL(request.url).searchParams.get('page');
+        // бэк 0-based: page=1 = вторая страница (UI ?page=2). Обе страницы
+        // одного набора (totalPages=2) — пагинация остаётся видимой.
         if (page === '1') {
-          return HttpResponse.json(paged([narrator('n2', 'الشافعي')], { page: 1, hasNext: false }));
+          return HttpResponse.json(paged([narrator('n2', 'الشافعي')], { page: 1, totalPages: 2 }));
         }
-        return HttpResponse.json(paged([narrator('n1', 'مالك بن أنس')], { page: 0, hasNext: true }));
+        return HttpResponse.json(paged([narrator('n1', 'مالك بن أنس')], { page: 0, totalPages: 2 }));
       }),
     );
     render(
@@ -97,12 +104,12 @@ describe('NarratorListPage', () => {
       expect(screen.getByText('مالك بن أنس')).toBeInTheDocument();
     });
 
-    await userEvent.click(screen.getByRole('button', { name: /показать ещё/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Следующая страница' }));
 
     await waitForApi(() => {
-      // обе страницы видны - первая не заменена, вторая добавлена
-      expect(screen.getByText('مالك بن أنس')).toBeInTheDocument();
+      // вторая страница ЗАМЕНИЛА первую (REPLACE, не append)
       expect(screen.getByText('الشافعي')).toBeInTheDocument();
+      expect(screen.queryByText('مالك بن أنس')).not.toBeInTheDocument();
     });
   });
 

@@ -15,7 +15,7 @@ import Header from '@/shared/components/layout/Header';
 import ListToolbar from '@/shared/components/ui/ListToolbar';
 import SearchInput from '@/shared/components/ui/SearchInput';
 import SortSelect from '@/shared/components/ui/SortSelect';
-import LoadMoreButton from '@/shared/components/ui/LoadMoreButton';
+import Pagination from '@/shared/components/ui/Pagination';
 import {
   apiGetRaw,
   apiPostMultipart,
@@ -23,7 +23,7 @@ import {
   ApiError,
   formatApiError,
 } from '@/shared/api/client';
-import { usePagedSearch } from '@/shared/hooks/usePagedSearch';
+import { usePagedList } from '@/shared/hooks/usePagedList';
 import { useT, useFormatDate } from '@/shared/i18n';
 import { useIsAuthenticated } from '@/shared/stores/authStore';
 import { toast } from '@/shared/stores/toastStore';
@@ -44,10 +44,12 @@ function TopicListPage() {
   // (создать тему, импорт) скрыты - вход через «Войти» в хедере.
   const isAuthenticated = useIsAuthenticated();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Поиск client-side по уже загруженной выборке: бэк /api/v1/topics не
+  // Поиск client-side по уже загруженной странице: бэк /api/v1/topics не
   // поддерживает ?q= (см. api-contract). Отдельное state, НЕ через
-  // usePagedSearch.searchInput - иначе ввод сбрасывал бы пагинацию на
-  // page 0 (hook рефетчит page 0 на смену debouncedQuery).
+  // usePagedList.searchInput — иначе ввод сбрасывал бы на стр.1 (hook
+  // рефетчит при смене debouncedQuery). При активном поиске пагинация
+  // скрыта (фильтрация одной страницы — листать смысла нет; server-side
+  // ?q= для тем — backlog).
   const [search, setSearch] = useState('');
   const [importBusy, setImportBusy] = useState(false);
   // Vision 49d Section 2.1 - sort через server-side ?sort= param
@@ -62,7 +64,7 @@ function TopicListPage() {
     [sort],
   );
 
-  const { state, loadMore, loadingMore } = usePagedSearch<Topic>({
+  const { state, page, goToPage } = usePagedList<Topic>({
     buildUrl,
     deps: [sort, refreshKey],
     fallbackError: 'Не удалось загрузить темы',
@@ -104,7 +106,7 @@ function TopicListPage() {
         onClick: () => navigate(`/topics/${response.topicId}`),
       });
       // refetch topic list - новая тема должна появиться в каталоге.
-      // Bump refreshKey (в deps usePagedSearch) → hook рефетчит page 0.
+      // Bump refreshKey (в deps usePagedList) → hook рефетчит текущую страницу.
       setRefreshKey((k) => k + 1);
     } catch (err: unknown) {
       if (err instanceof ApiError && err.is('unsupported-format-version')) {
@@ -263,18 +265,17 @@ function TopicListPage() {
             </ul>
 
             {/*
-              Load More скрыт при активном client-side search: фильтрация
-              по текущей выборке - грузить ещё страницы пока выборка
-              отфильтрована не имеет смысла (server-side ?q= - backlog).
-              Без search показываем кнопку + счётчик «Показано N из M».
+              Пагинация скрыта при активном client-side search: листать
+              страницы пока выборка отфильтрована по одной странице смысла
+              нет (server-side ?q= для тем — backlog).
             */}
             {!search.trim() && (
-              <LoadMoreButton
-                onClick={loadMore}
-                loading={loadingMore}
-                hasNext={state.data.hasNext}
-                shownCount={state.data.items.length}
-                totalCount={state.data.totalElements}
+              <Pagination
+                page={page}
+                totalPages={state.data.totalPages}
+                totalElements={state.data.totalElements}
+                pageSize={PAGE_SIZE}
+                onPageChange={goToPage}
               />
             )}
           </>

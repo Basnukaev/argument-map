@@ -14,10 +14,10 @@ import ListToolbar from '@/shared/components/ui/ListToolbar';
 import SearchInput from '@/shared/components/ui/SearchInput';
 import FilterChips from '@/shared/components/ui/FilterChips';
 import SortSelect from '@/shared/components/ui/SortSelect';
-import LoadMoreButton from '@/shared/components/ui/LoadMoreButton';
+import Pagination from '@/shared/components/ui/Pagination';
 import QuestionStatusBadge from '@/apps/qa/components/QuestionStatusBadge';
 import VoteWidget from '@/shared/components/ui/VoteWidget';
-import { usePagedSearch } from '@/shared/hooks/usePagedSearch';
+import { usePagedList } from '@/shared/hooks/usePagedList';
 import { useT, useFormatDate, hasArabicScript, type DictKey } from '@/shared/i18n';
 import { useIsAuthenticated } from '@/shared/stores/authStore';
 import type { components } from '@/shared/api/types';
@@ -47,9 +47,9 @@ function QuestionListPage() {
 
   /**
    * Backend поддерживает server-side ?status=, ?q= и ?sort= (см.
-   * api-contract). usePagedSearch владеет search-инпутом (debounced →
-   * ?q=) и пагинацией; статус/сорт передаются через deps - смена любого
-   * рефетчит page 0. SWR-кэш: возврат на страницу не перезагружает.
+   * api-contract). usePagedList владеет search-инпутом (debounced →
+   * ?q=) и нумерованной пагинацией (?page= в URL); статус/сорт через
+   * deps — смена любого сбрасывает на стр.1. SWR-кэш per-page.
    */
   const buildUrl = useCallback(
     (page: number, q: string): string => {
@@ -64,8 +64,8 @@ function QuestionListPage() {
     [statusFilter, sort],
   );
 
-  const { state, searchInput, setSearchInput, loadMore, loadingMore } =
-    usePagedSearch<Question>({
+  const { state, searchInput, setSearchInput, page, goToPage } =
+    usePagedList<Question>({
       buildUrl,
       deps: [statusFilter, sort],
       fallbackError: t('qa.list.load_failed'),
@@ -259,14 +259,14 @@ function QuestionListPage() {
               })}
           </ul>
 
-          {/* Search теперь server-side (?q=) - load-more работает с любым
-              query, новые items приходят уже отфильтрованные бэком. */}
-          <LoadMoreButton
-            onClick={loadMore}
-            loading={loadingMore}
-            hasNext={state.data.hasNext}
-            shownCount={state.data.items.length}
-            totalCount={state.data.totalElements}
+          {/* Search server-side (?q=) — пагинация листает любую выборку,
+              items приходят уже отфильтрованные бэком. */}
+          <Pagination
+            page={page}
+            totalPages={state.data.totalPages}
+            totalElements={state.data.totalElements}
+            pageSize={PAGE_SIZE}
+            onPageChange={goToPage}
           />
           </>
         )}
