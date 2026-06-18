@@ -474,6 +474,7 @@ function HadithDetailPage() {
                       matnId={primaryMatn.id}
                       textRu={primaryMatn.textRu}
                       textEn={primaryMatn.textEn}
+                      role={userRole}
                     />
                   )}
                 </section>
