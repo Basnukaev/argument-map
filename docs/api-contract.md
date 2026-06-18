@@ -3643,6 +3643,43 @@ AI-перевод текста матна (`text_ar`) на ru/en on-demand (Пл
 - 503 `llm-not-configured` — LLM-провайдер не сконфигурирован
   (`LlmClient.isEnabled()==false`, sentinel-ключ); pre-flight, не bug.
 
+### PATCH /api/v1/hadith/matns/{matnId}/translation
+
+Ручная правка сохранённого перевода матна, **ADMIN-only** (C9). Админ
+перезаписывает существующий `hd_matns.text_{lang}` новым текстом **БЕЗ
+вызова LLM** — это правка, а не генерация (в отличие от `translate`,
+который зовёт `LlmClient`). Body `MatnTranslationEditRequest {lang, text}`
+— `@Valid`: `lang` union-валидация `ru|en` через `@Pattern`, `text`
+`@NotBlank` + `@Size(max=50000)` (иное → 400 `validation`). `@CurrentUser`
+обязателен (anonymous → 401 `invalid-token`).
+
+Поведение: пишется только колонка `text_{lang}` (через
+`MatnRepository.updateTranslation`, отдельный UPDATE по lang — вторая
+языковая колонка не затрагивается). Текст трогается `trim()` перед
+персистом. `HadithTranslationService.editTranslation()` БЕЗ
+@Transactional (короткий tx на репо-уровне, как у `translate`).
+
+**200** `MatnTranslationResponse`:
+
+```jsonc
+{
+  "matnId": "uuid",
+  "lang": "ru",
+  "text": "Поистине, дела (оцениваются) по намерениям…",
+  "cached": true   // всегда true: текст — сохранённое значение, LLM не звался
+}
+```
+
+**Ошибки:**
+- 400 `validation` — `lang` не `ru`/`en`, либо `text` пустой/blank
+  (`@NotBlank`), либо длиннее 50000 символов (`@Size`).
+- 401 `invalid-token` — нет принципала (anonymous).
+- 403 `forbidden-admin-only` — не ADMIN (property `userId`).
+- 404 `matn-not-found` — матн не найден (property `matnId`).
+- 422 `invalid-matn-text` — `text` blank после trim (defensive guard в
+  сервисе; от HTTP практически недостижим — `@NotBlank` отдаёт 400 раньше;
+  property `matnId`).
+
 ### GET /api/v1/hadith/narrators
 
 Каталог передатчиков, `PagedResponse<NarratorResponse>`. Фильтры: `q`

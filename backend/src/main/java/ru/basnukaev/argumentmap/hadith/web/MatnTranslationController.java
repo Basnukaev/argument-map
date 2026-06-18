@@ -2,6 +2,7 @@ package ru.basnukaev.argumentmap.hadith.web;
 
 import java.util.UUID;
 
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,6 +15,7 @@ import jakarta.validation.Valid;
 import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.hadith.service.HadithTranslationService;
 import ru.basnukaev.argumentmap.hadith.web.dto.MatnTranslateRequest;
+import ru.basnukaev.argumentmap.hadith.web.dto.MatnTranslationEditRequest;
 import ru.basnukaev.argumentmap.hadith.web.dto.MatnTranslationResponse;
 import ru.basnukaev.argumentmap.web.CurrentUser;
 
@@ -52,5 +54,27 @@ public class MatnTranslationController {
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         return translationService.translate(
                 matnId, request.lang(), force, currentUserId, role);
+    }
+
+    /**
+     * Ручная правка сохранённого перевода матна — ADMIN перезаписывает
+     * {@code text_ru}/{@code text_en} новым текстом БЕЗ вызова LLM (правка,
+     * не генерация). Возвращает тот же {@link MatnTranslationResponse}, что
+     * и translate, с {@code cached=true} (текст в ответе — сохранённое
+     * значение, LLM не звался).
+     *
+     * <p>{@code @CurrentUser} обязателен — anonymous отсекается резолвером
+     * (401 invalid-token). 403 forbidden-admin-only (не-ADMIN) /
+     * 404 matn-not-found / 422 invalid-matn-text (blank после trim) /
+     * 400 validation (невалидный lang или пустой text от @Valid).
+     */
+    @PatchMapping("/{matnId}/translation")
+    public MatnTranslationResponse editTranslation(
+            @PathVariable UUID matnId,
+            @Valid @RequestBody MatnTranslationEditRequest request,
+            @CurrentUser UUID currentUserId) {
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        return translationService.editTranslation(
+                matnId, request.lang(), request.text(), currentUserId, role);
     }
 }

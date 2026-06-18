@@ -138,4 +138,49 @@ public class HadithTranslationService {
 
         return new MatnTranslationResponse(matnId, lang, translated, false);
     }
+
+    /**
+     * Ручная правка сохранённого перевода матна — ADMIN перезаписывает
+     * {@code text_ru}/{@code text_en} БЕЗ вызова LLM (правка, не генерация).
+     * Цепочка: ADMIN-guard (403) → findById (404) → lang/text guard (422) →
+     * {@link MatnRepository#updateTranslation} (только нужная колонка).
+     *
+     * <p>Возвращает {@code cached=true}: текст в ответе — сохранённое
+     * значение, не свежий LLM-результат (LLM здесь не звался). Семантика
+     * поля та же что у уже-закэшированного перевода в {@link #translate}.
+     *
+     * @param matnId матн
+     * @param lang   'ru' либо 'en'
+     * @param text   новый перевод
+     * @param userId текущий пользователь (для 403-detail)
+     * @param role   роль текущего пользователя (UserRole.*)
+     * @return обновлённый перевод, {@code cached=true}
+     * @throws AdminOnlyException        403 — не ADMIN
+     * @throws MatnNotFoundException     404 — матн не найден
+     * @throws InvalidMatnTextException  422 — text пустой после trim
+     */
+    public MatnTranslationResponse editTranslation(UUID matnId, String lang,
+                                                   String text, UUID userId, String role) {
+        // Правка курируемого перевода — admin-операция (как force в translate).
+        if (!UserRole.ADMIN.equals(role)) {
+            throw new AdminOnlyException(userId);
+        }
+
+        // Существование матна — 404, как в translate (находим, но не используем
+        // поля: важен сам факт наличия строки перед UPDATE).
+        matnRepository.findById(matnId)
+                .orElseThrow(() -> new MatnNotFoundException(matnId));
+
+        // @NotBlank ловит null/blank на уровне @Valid (400), но trim тут даёт
+        // защиту от строки из одних пробелов и нормализует хвостовые пробелы.
+        String trimmed = text == null ? "" : text.trim();
+        if (trimmed.isBlank()) {
+            throw new InvalidMatnTextException(matnId);
+        }
+
+        matnRepository.updateTranslation(matnId, lang, trimmed);
+        log.info("Правка перевода матна {} на {} ({} симв.)", matnId, lang, trimmed.length());
+
+        return new MatnTranslationResponse(matnId, lang, trimmed, true);
+    }
 }
