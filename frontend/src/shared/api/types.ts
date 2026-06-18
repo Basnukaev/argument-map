@@ -500,6 +500,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hadith/hadiths/{id}/grades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["addGrade_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/edges": {
         parameters: {
             query?: never;
@@ -836,6 +852,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/alminasa/backfill/narrator-commentary/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["narratorCommentaryBackfillStart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/alminasa/backfill/narrator-commentary/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["narratorCommentaryBackfillPause"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/{id}/role": {
         parameters: {
             query?: never;
@@ -1042,6 +1090,22 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["update_4"];
+        trace?: never;
+    };
+    "/api/v1/hadith/matns/{matnId}/translation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["editTranslation"];
         trace?: never;
     };
     "/api/v1/edges/{edgeId}": {
@@ -1740,6 +1804,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["backfillStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/alminasa/backfill/narrator-commentary/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["narratorCommentaryBackfillStatus"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2811,6 +2891,18 @@ export interface components {
             stagedAmbiguous?: number;
             error?: string;
         };
+        AlminasaNarratorCommentaryBackfillStatusResponse: {
+            status?: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: int32 */
+            processedPages?: number;
+            /** Format: int32 */
+            processedNarrators?: number;
+            /** Format: int64 */
+            stagedCommentaries?: number;
+            error?: string;
+        };
         ChangeRoleRequest: {
             /**
              * @description Новая роль пользователя - whitelist из 4 значений
@@ -2941,6 +3033,10 @@ export interface components {
         };
         UpdateBookMemberRequest: {
             role: string;
+        };
+        MatnTranslationEditRequest: {
+            lang: string;
+            text: string;
         };
         UpdateEdgeRequest: {
             /** Format: uuid */
@@ -3109,6 +3205,18 @@ export interface components {
             hasText?: boolean;
             hasImage?: boolean;
         };
+        NarratorCommentaryDto: {
+            commenter?: string;
+            /** Format: int32 */
+            commenterDeathYear?: number;
+            bookName?: string;
+            author?: string;
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            volume?: number;
+            comments?: string[];
+        };
         NarratorRelationDto: {
             /** Format: uuid */
             relatedNarratorId?: string;
@@ -3144,6 +3252,7 @@ export interface components {
             diedOnText?: string;
             deathPlace?: string;
             relations?: components["schemas"]["NarratorRelationDto"][];
+            commentaries?: components["schemas"]["NarratorCommentaryDto"][];
         };
         PagedResponseNarratorResponse: {
             items?: components["schemas"]["NarratorResponse"][];
@@ -3288,8 +3397,16 @@ export interface components {
             reference?: string;
         };
         GradeDto: {
-            scholar?: string;
+            /** Format: uuid */
+            gradeId?: string;
+            /** Format: uuid */
+            scholarId?: string;
+            scholarName?: string;
+            scholarFullName?: string;
+            /** Format: int32 */
+            scholarDeathYearHijri?: number;
             grade?: string;
+            gradeCitation?: string;
             note?: string;
         };
         HadithDetailResponse: {
@@ -3301,6 +3418,7 @@ export interface components {
             primaryNumber?: number;
             normalizedMatn?: string;
             status?: string;
+            authenticity?: string;
             /** Format: uuid */
             sourceId?: string;
             /** Format: date-time */
@@ -3570,10 +3688,7 @@ export interface operations {
                 size?: number;
                 sort?: string;
             };
-            header?: {
-                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
-                "X-User-Id"?: string;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -3715,10 +3830,7 @@ export interface operations {
     list_1: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
-                "X-User-Id"?: string;
-            };
+            header?: never;
             path: {
                 topicId: string;
             };
@@ -4603,7 +4715,7 @@ export interface operations {
     };
     list_7: {
         parameters: {
-            query: {
+            query?: {
                 q?: string;
                 type?: "QURAN" | "HADITH_COLLECTION" | "BOOK" | "ARTICLE" | "MANUSCRIPT";
                 authorityId?: string;
@@ -4611,12 +4723,8 @@ export interface operations {
                 page?: number;
                 size?: number;
                 sort?: string;
-                currentUserId: string;
             };
-            header?: {
-                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
-                "X-User-Id"?: string;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -4746,10 +4854,7 @@ export interface operations {
     list_8: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
-                "X-User-Id"?: string;
-            };
+            header?: never;
             path: {
                 bookId: string;
             };
@@ -4825,6 +4930,35 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["MatnTranslationResponse"];
+                };
+            };
+        };
+    };
+    addGrade_1: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateHadithGradeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["HadithGradeResponse"];
                 };
             };
         };
@@ -5412,6 +5546,56 @@ export interface operations {
             };
         };
     };
+    narratorCommentaryBackfillStart: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AlminasaNarratorCommentaryBackfillStatusResponse"];
+                };
+            };
+        };
+    };
+    narratorCommentaryBackfillPause: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AlminasaNarratorCommentaryBackfillStatusResponse"];
+                };
+            };
+        };
+    };
     updateRole: {
         parameters: {
             query: {
@@ -5446,10 +5630,7 @@ export interface operations {
     getOne: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
-                "X-User-Id"?: string;
-            };
+            header?: never;
             path: {
                 topicId: string;
             };
@@ -5897,13 +6078,8 @@ export interface operations {
     };
     getOne_2: {
         parameters: {
-            query: {
-                currentUserId: string;
-            };
-            header?: {
-                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
-                "X-User-Id"?: string;
-            };
+            query?: never;
+            header?: never;
             path: {
                 bookId: string;
             };
@@ -6059,6 +6235,37 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["BookMemberResponse"];
+                };
+            };
+        };
+    };
+    editTranslation: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                matnId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MatnTranslationEditRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["MatnTranslationResponse"];
                 };
             };
         };
@@ -6271,10 +6478,7 @@ export interface operations {
     getStats_1: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
-                "X-User-Id"?: string;
-            };
+            header?: never;
             path: {
                 topicId: string;
             };
@@ -6296,10 +6500,7 @@ export interface operations {
     getGraph: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
-                "X-User-Id"?: string;
-            };
+            header?: never;
             path: {
                 topicId: string;
             };
@@ -6321,10 +6522,7 @@ export interface operations {
     export: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
-                "X-User-Id"?: string;
-            };
+            header?: never;
             path: {
                 topicId: string;
             };
@@ -6693,6 +6891,7 @@ export interface operations {
             query?: {
                 q?: string;
                 status?: string;
+                authenticity?: string;
                 collectionId?: string;
                 sort?: string;
                 page?: number;
@@ -7237,6 +7436,31 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["AlminasaBackfillStatusResponse"];
+                };
+            };
+        };
+    };
+    narratorCommentaryBackfillStatus: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AlminasaNarratorCommentaryBackfillStatusResponse"];
                 };
             };
         };
