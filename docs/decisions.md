@@ -6762,6 +6762,12 @@ PUBLIC), поэтому permitAll на GET + существующие service-gu
 закрыт pre-existing **IDOR** в `BookService.getPage/listPages` (не было
 read-guard'а — любой authed читал страницы PRIVATE-книги перебором pageId) +
 **NPE** в `GlobalExceptionHandler` на анониме (`userId=null` → 500 вместо 403).
+Независимое ревью С62 доловило ещё два под-ресурса под тем же permitAll-глобом
+`/library/pages/**` (`GET /pages/{id}/regions`, `GET /pages/{id}/ai-edit`) —
+тоже без read-guard'а, аноним перебором pageId читал метадату приватной книги;
+закрыты тем же `assertCanReadBook` (C-1, регресс в `GuestAccessProdProfileIT`).
+Урок: широкий permitAll-глоб = обязательство проверить КАЖДЫЙ матчащийся
+эндпоинт.
 
 **Открытый вопрос (на решение Абдулы):** member-list
 (`/topics|books/{id}/members`) и export PUBLIC-контента сейчас доступны анониму

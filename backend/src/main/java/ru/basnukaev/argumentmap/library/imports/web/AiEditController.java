@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import ru.basnukaev.argumentmap.ai.LlmClient;
 import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
+import ru.basnukaev.argumentmap.service.PermissionService;
 import ru.basnukaev.argumentmap.exception.PageNotFoundException;
 import ru.basnukaev.argumentmap.library.domain.AiEditStatus;
 import ru.basnukaev.argumentmap.library.domain.Page;
@@ -56,15 +57,18 @@ public class AiEditController {
     private final LlmClient llmClient;
     private final PageRepository pageRepository;
     private final BookService bookService;
+    private final PermissionService permissionService;
 
     public AiEditController(AiEditService aiEditService,
                              LlmClient llmClient,
                              PageRepository pageRepository,
-                             BookService bookService) {
+                             BookService bookService,
+                             PermissionService permissionService) {
         this.aiEditService = aiEditService;
         this.llmClient = llmClient;
         this.pageRepository = pageRepository;
         this.bookService = bookService;
+        this.permissionService = permissionService;
     }
 
     @PostMapping("/{pageId}/ai-edit")
@@ -108,6 +112,13 @@ public class AiEditController {
     public AiEditJobResponse getAiEditStatus(@PathVariable UUID pageId) {
         Page page = pageRepository.findById(pageId)
                 .orElseThrow(() -> new PageNotFoundException(pageId));
+        // Read-guard: статус AI-обработки страницы приватной книги не должен
+        // утекать анониму/чужому. permitAll на GET /library/pages/** сделал
+        // эндпоинт достижимым без auth — guard обязателен (C-1, ревью С62).
+        permissionService.assertCanReadBook(
+                page.bookId(),
+                SecurityContextUtils.currentUserIdOrNull(),
+                SecurityContextUtils.currentRoleOrAnonymous());
         return new AiEditJobResponse(
                 pageId,
                 page.aiEditStatus(),

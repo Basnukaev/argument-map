@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.library.domain.ImageRegion;
 import ru.basnukaev.argumentmap.library.service.ImageRegionService;
 import ru.basnukaev.argumentmap.library.web.dto.CreateImageRegionRequest;
@@ -65,7 +66,11 @@ public class ImageRegionController {
 
     @GetMapping("/pages/{pageId}/regions")
     public List<ImageRegionResponse> list(@PathVariable UUID pageId) {
-        return imageRegionService.listByPage(pageId).stream()
+        // GET под permitAll /library/pages/** — читаем принципала
+        // anonymous-safe; read-guard на родительскую книгу — в сервисе.
+        UUID currentUserId = SecurityContextUtils.currentUserIdOrNull();
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        return imageRegionService.listByPage(pageId, currentUserId, role).stream()
                 .map(LibraryDtoMappers::toResponse)
                 .toList();
     }

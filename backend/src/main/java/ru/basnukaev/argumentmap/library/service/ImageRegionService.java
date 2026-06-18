@@ -10,8 +10,10 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.basnukaev.argumentmap.exception.ImageRegionNotFoundException;
 import ru.basnukaev.argumentmap.exception.PageNotFoundException;
 import ru.basnukaev.argumentmap.library.domain.ImageRegion;
+import ru.basnukaev.argumentmap.library.domain.Page;
 import ru.basnukaev.argumentmap.library.repository.ImageRegionRepository;
 import ru.basnukaev.argumentmap.library.repository.PageRepository;
+import ru.basnukaev.argumentmap.service.PermissionService;
 
 /**
  * CRUD сервис над {@link ImageRegion} - выделенные прямоугольники на
@@ -30,11 +32,14 @@ public class ImageRegionService {
 
     private final ImageRegionRepository imageRegionRepository;
     private final PageRepository pageRepository;
+    private final PermissionService permissionService;
 
     public ImageRegionService(ImageRegionRepository imageRegionRepository,
-                               PageRepository pageRepository) {
+                               PageRepository pageRepository,
+                               PermissionService permissionService) {
         this.imageRegionRepository = imageRegionRepository;
         this.pageRepository = pageRepository;
+        this.permissionService = permissionService;
     }
 
     @Transactional
@@ -61,10 +66,14 @@ public class ImageRegionService {
     }
 
     @Transactional(readOnly = true)
-    public List<ImageRegion> listByPage(UUID pageId) {
-        if (pageRepository.findById(pageId).isEmpty()) {
-            throw new PageNotFoundException(pageId);
-        }
+    public List<ImageRegion> listByPage(UUID pageId, UUID userId, String role) {
+        Page page = pageRepository.findById(pageId)
+                .orElseThrow(() -> new PageNotFoundException(pageId));
+        // Read-guard: метадата регионов (bbox + extractedText) страницы
+        // приватной книги не должна утекать анониму/чужому. permitAll на
+        // GET /library/pages/** сделал эндпоинт достижимым без auth — guard
+        // обязателен (C-1, независимое ревью С62).
+        permissionService.assertCanReadBook(page.bookId(), userId, role);
         return imageRegionRepository.findByPageId(pageId);
     }
 

@@ -64,6 +64,7 @@ class GuestAccessProdProfileIT {
     private UUID ownerId;
     private UUID publicTopicId;
     private UUID privateTopicId;
+    private UUID privateBookPageId;
 
     @BeforeEach
     void setUp() {
@@ -81,6 +82,19 @@ class GuestAccessProdProfileIT {
         jdbcTemplate.update(
                 "INSERT INTO topics (id, title, created_by, visibility) VALUES (?, ?, ?, 'PRIVATE')",
                 privateTopicId, "Приватная тема", ownerId);
+
+        // PRIVATE книга + её страница: под-ресурсы /pages/{id}/** не должны
+        // течь анониму (C-1, ревью С62).
+        UUID privateBookId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO lib_books (id, book_type, title, language, created_by, visibility) "
+                        + "VALUES (?, 'BOOK', ?, 'ar', ?, 'PRIVATE')",
+                privateBookId, "Приватная книга", ownerId);
+        privateBookPageId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO lib_pages (id, book_id, page_number, text_content) "
+                        + "VALUES (?, ?, 1, ?)",
+                privateBookPageId, privateBookId, "текст приватной страницы");
     }
 
     @Test
@@ -121,6 +135,25 @@ class GuestAccessProdProfileIT {
         mockMvc.perform(get("/api/v1/hadith/narrators")).andExpect(status().isOk());
         mockMvc.perform(get("/api/v1/library/books")).andExpect(status().isOk());
         mockMvc.perform(get("/api/v1/questions")).andExpect(status().isOk());
+    }
+
+    @Test
+    void anonymous_getPrivateBookPageRegions_returns403() throws Exception {
+        // C-1 (ревью С62): permitAll /library/pages/** не должен открывать
+        // анониму метадату регионов (bbox + extractedText) страницы приватной
+        // книги. Read-guard в ImageRegionService.
+        mockMvc.perform(get("/api/v1/library/pages/{id}/regions", privateBookPageId))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type").value(containsString("forbidden-book-access")));
+    }
+
+    @Test
+    void anonymous_getPrivateBookPageAiEditStatus_returns403() throws Exception {
+        // C-1 (ревью С62): и AI-edit-статус страницы приватной книги. Read-guard
+        // в AiEditController.getAiEditStatus.
+        mockMvc.perform(get("/api/v1/library/pages/{id}/ai-edit", privateBookPageId))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type").value(containsString("forbidden-book-access")));
     }
 
     @Test
