@@ -7,15 +7,20 @@ import {
   Controls,
   Panel,
   MarkerType,
+  getNodesBounds,
+  getViewportForBounds,
   type Edge,
+  type ReactFlowInstance,
 } from '@xyflow/react';
-import { BookOpen, Loader2, Maximize, Minimize, Network, GitBranch, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { BookOpen, ImageDown, Loader2, Maximize, Minimize, Network, GitBranch, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
 import { useT, type DictKey } from '@/shared/i18n';
 import { useThemeStore } from '@/shared/stores/themeStore';
+import { exportGraphAsPngHighRes } from '@/shared/utils/graphExport';
+import { toast } from '@/shared/stores/toastStore';
 import SanadGraphNode, { type SanadNode } from './SanadGraphNode';
 import NarratorPanel from './NarratorPanel';
-import { layoutSanad } from '@/apps/hadith/utils/sanadLayout';
+import { layoutSanad, NODE_WIDTH, NODE_HEIGHT } from '@/apps/hadith/utils/sanadLayout';
 import { edgeStroke, RELIABILITY_TOKENS } from '@/apps/hadith/sanadTokens';
 import type {
   NarratorData,
@@ -135,6 +140,14 @@ function SanadGraph({
   const containerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // React Flow instance (через onInit) — нужен для PNG-экспорта: считать
+  // bounds всех узлов и трансформ, чтобы захватить ПОЛНЫЙ граф (не вьюпорт).
+  const rfInstanceRef = useRef<ReactFlowInstance<SanadNode, Edge> | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  // В controlled-режиме источник данных — проп; иначе результат внутреннего fetch.
+  const graph = controlled ? graphProp : fetchedGraph;
+
   useEffect(() => {
     function onFsChange() {
       setIsFullscreen(!!document.fullscreenElement);
@@ -153,8 +166,62 @@ function SanadGraph({
     }
   }, []);
 
-  // В controlled-режиме источник данных — проп; иначе результат внутреннего fetch.
-  const graph = controlled ? graphProp : fetchedGraph;
+  // PNG-экспорт всего графа в высоком разрешении (запрос: «PNG в неограниченном
+  // разрешении»). Считаем bounds всех узлов + трансформ, который вписывает их
+  // в кадр размера = реальный размер графа; pixelRatio 2 даёт ретина-плотность
+  // без апскейл-мыла. Захват по bounds, НЕ по видимой части вьюпорта.
+  const handleExportPng = useCallback(async () => {
+    const instance = rfInstanceRef.current;
+    if (!instance) return;
+    const nodes = instance.getNodes();
+    if (nodes.length === 0) return;
+
+    // `.react-flow__viewport` содержит все узлы + рёбра (RF не виртуализирует),
+    // именно к нему применяется transform; html-to-image кадрирует по width/height.
+    const viewport = containerRef.current?.querySelector(
+      '.react-flow__viewport',
+    ) as HTMLElement | null;
+    if (!viewport) {
+      toast.error(t('graph.export.error'));
+      return;
+    }
+
+    // Padding в CSS-px вокруг графа, чтобы крайние узлы/тени не обрезались.
+    const padding = 24;
+    // getNodesBounds читает measured-размеры узла; на момент экспорта measured
+    // бывает пуст (узлы домеряются асинхронно) → ширина одиночной колонки
+    // схлопывалась к 0 и PNG кропал карточки по горизонтали. Подставляем
+    // известные размеры карточки иснада (как в sanadLayout) с приоритетом
+    // реального measured, если он уже есть.
+    const sizedNodes = nodes.map((n) => {
+      const width = n.measured?.width || n.width || NODE_WIDTH;
+      const height = n.measured?.height || n.height || NODE_HEIGHT;
+      return { ...n, width, height, measured: { width, height } };
+    });
+    const bounds = getNodesBounds(sizedNodes);
+    const imageWidth = Math.ceil(bounds.width) + padding * 2;
+    const imageHeight = Math.ceil(bounds.height) + padding * 2;
+    // zoom=1 (полный размер, без даунскейла) — высокое разрешение даёт pixelRatio.
+    const transform = getViewportForBounds(bounds, imageWidth, imageHeight, 1, 1, padding);
+    const filename = `isnad-${hadithId ?? currentHadithId ?? graph?.hadithId ?? 'graph'}.png`;
+
+    setExporting(true);
+    try {
+      await exportGraphAsPngHighRes(viewport, filename, {
+        bounds,
+        transform,
+        imageWidth,
+        imageHeight,
+        pixelRatio: 2,
+      });
+      toast.success(t('graph.export.success').replace('{filename}', filename));
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(`${t('graph.export.error')}: ${msg}`);
+    } finally {
+      setExporting(false);
+    }
+  }, [hadithId, currentHadithId, graph, t]);
 
   useEffect(() => {
     // Fetch только в self-fetch режиме: проп `graph` не передан и есть hadithId.
@@ -312,6 +379,9 @@ function SanadGraph({
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={nodeTypes}
+        onInit={(instance) => {
+          rfInstanceRef.current = instance;
+        }}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.1}
@@ -342,9 +412,24 @@ function SanadGraph({
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
         <Controls showInteractive={false} />
 
-        {/* Кнопка полноэкранного режима — top-right, graph-chrome исключён
-            из RTL-logical (граф не зеркалится, см. frontend/CLAUDE.md). */}
-        <Panel position="top-right">
+        {/* Кнопки графа — top-right, graph-chrome исключён из RTL-logical
+            (граф не зеркалится, физические классы допустимы, см.
+            frontend/CLAUDE.md): PNG-экспорт + полноэкранный режим. */}
+        <Panel position="top-right" className="flex items-center gap-1">
+          <button
+            type="button"
+            aria-label={t('hadith.graph.export_png')}
+            title={t('hadith.graph.export_png')}
+            onClick={() => void handleExportPng()}
+            disabled={exporting}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-bd bg-card shadow-sm text-meta transition-colors hover:bg-hover hover:text-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {exporting ? (
+              <Loader2 size={15} className="animate-spin" aria-hidden />
+            ) : (
+              <ImageDown size={15} aria-hidden />
+            )}
+          </button>
           <button
             type="button"
             aria-label={isFullscreen ? t('graph.fullscreen_exit') : t('graph.fullscreen_enter')}

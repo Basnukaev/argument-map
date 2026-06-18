@@ -23,7 +23,7 @@ import {
   buildExportFilename,
   exportGraphAsPng,
   exportGraphAsSvg,
-} from '@/apps/argument-map/utils/graphExport';
+} from '@/shared/utils/graphExport';
 import { toast } from '@/shared/stores/toastStore';
 import {
   useLayoutPresetStore,

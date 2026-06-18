@@ -1,9 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, type RenderResult, fireEvent } from '@testing-library/react';
+import { render, screen, type RenderResult, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/server';
 import { waitForApi } from '@/test/asyncHelpers';
+
+// PNG-экспорт идёт через shared-утилиту (html-to-image внутри) — мокаем, чтобы
+// проверить, что клик по кнопке вызывает экспорт (рендер canvas в jsdom не
+// работает, мок достаточен; реальный снимок — Playwright на живом графе).
+vi.mock('@/shared/utils/graphExport', () => ({
+  exportGraphAsPngHighRes: vi.fn().mockResolvedValue(undefined),
+}));
+
+import { exportGraphAsPngHighRes } from '@/shared/utils/graphExport';
 import SanadGraph from './SanadGraph';
 
 const BASE = 'http://test.local';
@@ -295,5 +304,49 @@ describe('SanadGraph', () => {
     // Повторный клик снимает подсветку
     fireEvent.click(screen.getByTitle('Снять подсветку'));
     expect(screen.getByTitle('Подсветить эту цепь в графе')).toBeInTheDocument();
+  });
+
+  it('кнопка «Скачать PNG» присутствует и клик вызывает экспорт графа', async () => {
+    vi.mocked(exportGraphAsPngHighRes).mockClear();
+    const graph = {
+      hadithId: 'h-export',
+      nodes: [
+        { id: 'prophet', role: 'PROPHET' as const, data: { narratorId: null, nameAr: 'النبي محمد ﷺ', tier: 0 } },
+        {
+          id: 'narrator-1',
+          role: 'NARRATOR' as const,
+          data: { narratorId: '1', nameAr: 'أبو هريرة', nameRu: 'Абу Хурайра', tier: 1 },
+        },
+      ],
+      edges: [
+        {
+          id: 'e0',
+          source: 'prophet',
+          target: 'narrator-1',
+          data: { transmissionPhrase: 'عن', chainGrade: 'SAHIH', onPrimaryChain: true, sanadCount: 1 },
+        },
+      ],
+      sanads: [],
+    };
+    renderGraph(<SanadGraph graph={graph as unknown as never} currentHadithId="h-export" />);
+
+    // граф отрендерился (рави-узел виден) — кнопка экспорта в graph-chrome
+    expect(await screen.findByText('Абу Хурайра')).toBeInTheDocument();
+    const exportBtn = screen.getByRole('button', { name: 'Скачать PNG' });
+    expect(exportBtn).toBeInTheDocument();
+
+    fireEvent.click(exportBtn);
+
+    // клик вызвал shared-утилиту экспорта (имя файла по hadithId графа)
+    await waitFor(() => {
+      expect(exportGraphAsPngHighRes).toHaveBeenCalledTimes(1);
+    });
+    const callArgs = vi.mocked(exportGraphAsPngHighRes).mock.calls[0]!;
+    expect(callArgs[1]).toBe('isnad-h-export.png');
+    // высокое разрешение: pixelRatio ≥ 2, передаётся bounds + transform всего графа
+    const opts = callArgs[2]!;
+    expect(opts.pixelRatio).toBeGreaterThanOrEqual(2);
+    expect(opts.bounds).toBeDefined();
+    expect(opts.transform).toBeDefined();
   });
 });

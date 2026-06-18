@@ -1471,6 +1471,7 @@ export const DICTIONARY = {
     'hadith.graph.chain_deselect': 'Снять подсветку',
     'hadith.graph.legend_show': 'Показать легенду',
     'hadith.graph.legend_hide': 'Скрыть легенду',
+    'hadith.graph.export_png': 'Скачать PNG',
     'hadith.sanad.empty_takhrij':
       'Эта запись — вариант/такхридж без отдельной цепи передачи. Структурный иснад не извлечён; см. полный текст во вкладке «Текст».',
     'hadith.narrators.title': 'Передатчики',
@@ -3019,6 +3020,7 @@ export const DICTIONARY = {
     'hadith.graph.chain_deselect': 'إلغاء الإبراز',
     'hadith.graph.legend_show': 'إظهار الدليل',
     'hadith.graph.legend_hide': 'إخفاء الدليل',
+    'hadith.graph.export_png': 'تنزيل PNG',
     'hadith.sanad.empty_takhrij':
       'هذه الرواية تخريج/متابعة بلا سند مستقل. لم يُستخرج الإسناد الهيكلي؛ راجع النص الكامل في تبويب «النص».',
     'hadith.narrators.title': 'الرواة',

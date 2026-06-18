@@ -2,7 +2,7 @@
  * Тесты для graphExport - filename slugify, фильтр исключаемых элементов,
  * download-trigger через мок `html-to-image`. Реальный render canvas не
  * тестируем - это responsibility html-to-image (внешняя либа) + Playwright
- * smoke в TopicGraphPage
+ * smoke в TopicGraphPage / SanadGraph
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
@@ -15,6 +15,7 @@ import { toPng, toSvg } from 'html-to-image';
 import {
   buildExportFilename,
   exportGraphAsPng,
+  exportGraphAsPngHighRes,
   exportGraphAsSvg,
   isExcludedFromExport,
   slugifyForFilename,
@@ -165,5 +166,56 @@ describe('exportGraphAsPng / Svg', () => {
 
     expect(opts.filter!(controls)).toBe(false);
     expect(opts.filter!(node)).toBe(true);
+  });
+});
+
+describe('exportGraphAsPngHighRes', () => {
+  let clickSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.mocked(toPng).mockResolvedValue('data:image/png;base64,FAKE');
+    clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    clickSpy.mockRestore();
+  });
+
+  test('передаёт явные width/height кадра + transform на viewport (полный граф)', async () => {
+    const el = document.createElement('div');
+    await exportGraphAsPngHighRes(el, 'isnad.png', {
+      bounds: { x: 0, y: 0, width: 800, height: 600 },
+      transform: { x: 10, y: 20, zoom: 1.5 },
+      imageWidth: 820,
+      imageHeight: 620,
+      pixelRatio: 3,
+    });
+
+    expect(toPng).toHaveBeenCalledOnce();
+    const opts = vi.mocked(toPng).mock.calls[0]![1]!;
+    // высокое разрешение: кадр в реальном размере графа × pixelRatio
+    expect(opts.width).toBe(820);
+    expect(opts.height).toBe(620);
+    expect(opts.pixelRatio).toBe(3);
+    // transform на .react-flow__viewport вписывает весь граф в кадр
+    expect(opts.style!.transform).toBe('translate(10px, 20px) scale(1.5)');
+    expect(opts.style!.width).toBe('820px');
+    expect(opts.style!.height).toBe('620px');
+    expect(clickSpy).toHaveBeenCalledOnce();
+  });
+
+  test('pixelRatio по умолчанию = 2 (retina), фон из темы', async () => {
+    const el = document.createElement('div');
+    await exportGraphAsPngHighRes(el, 'isnad.png', {
+      bounds: { x: 0, y: 0, width: 400, height: 300 },
+      transform: { x: 0, y: 0, zoom: 1 },
+      imageWidth: 400,
+      imageHeight: 300,
+    });
+
+    const opts = vi.mocked(toPng).mock.calls[0]![1]!;
+    expect(opts.pixelRatio).toBe(2);
+    expect(opts.backgroundColor).toBe('#ffffff');
   });
 });

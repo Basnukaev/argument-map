@@ -2,8 +2,11 @@ import dagre from 'dagre';
 import type { Edge, Node } from '@xyflow/react';
 
 // Размеры карточки узла должны совпадать с SanadGraphNode (w-[240px]).
-const NODE_WIDTH = 240;
-const NODE_HEIGHT = 108;
+// Экспортируются: PNG-экспорт (SanadGraph.handleExportPng) подставляет их в
+// getNodesBounds, когда measured-размеры узлов ещё пусты (иначе ширина графа
+// схлопывается к 0 и экспорт кропает карточки).
+export const NODE_WIDTH = 240;
+export const NODE_HEIGHT = 108;
 
 /**
  * Раскладка графа иснада сверху вниз (TB): Пророк ﷺ сверху, составители

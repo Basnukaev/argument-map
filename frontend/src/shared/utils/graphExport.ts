@@ -2,15 +2,19 @@
  * Утилита экспорта графа React Flow в PNG / SVG через `html-to-image`.
  *
  * Контекст: backlog «Экспорт графа в PNG / SVG». Используется кнопкой
- * в `GraphPanels` toolbar - пользователь выбирает формат, граф сохраняется
- * как файл через программный клик по `<a download>`.
+ * в `GraphPanels` toolbar (граф аргументации) и кнопкой в `SanadGraph`
+ * (граф иснада). Граф сохраняется как файл через программный клик по
+ * `<a download>`. Живёт в `shared/`, т.к. переиспользуется двумя app'ами
+ * (ADR-022: hadith app не импортирует из argument-map app).
  *
  * Поведение:
  * - Захватывается React Flow `.react-flow__viewport` element (содержит
  *   все узлы + рёбра, без overlay-панелей)
  * - Перед export рекомендуется `fitView({ padding: 0.1 })` чтобы все
  *   узлы попали в кадр - иначе экспортируется только текущая видимая
- *   часть viewport. Это делает caller, см. `handleExportGraph` в `GraphPanels`
+ *   часть viewport. Это делает caller, см. `handleExport` в `GraphPanels`.
+ *   Альтернатива - `exportGraphAsPngHighRes` ниже: считает bounds всех
+ *   узлов и рендерит ПОЛНЫЙ граф независимо от вьюпорта (без fitView)
  * - filter исключает controls / minimap / attribution - они не часть
  *   данных графа, а UI-overlay
  * - pixelRatio управляет качеством PNG (1x стандарт, 2x retina-ready).
@@ -133,6 +137,85 @@ export async function exportGraphAsSvg(
   const dataUrl = await toSvg(graphElement, {
     backgroundColor: options.backgroundColor ?? readThemeBackground(),
     filter: (node) => !isExcludedFromExport(node),
+  });
+  triggerDownload(dataUrl, filename);
+}
+
+/** Прямоугольник графа в координатах flow (как `Rect` из @xyflow). */
+export interface GraphBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Трансформ вьюпорта (как `Viewport` из @xyflow): сдвиг + zoom. */
+export interface GraphTransform {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+interface HighResExportOptions {
+  /**
+   * Bounds всех узлов графа в координатах flow (`getNodesBounds`). По ним
+   * считается размер кадра и трансформ, чтобы захватить ПОЛНЫЙ граф, а не
+   * только видимую часть вьюпорта.
+   */
+  bounds: GraphBounds;
+  /**
+   * Трансформ вьюпорта (`getViewportForBounds`), вписывающий bounds в кадр
+   * размера imageWidth×imageHeight. Применяется к `.react-flow__viewport`
+   * через CSS transform на время снимка.
+   */
+  transform: GraphTransform;
+  /**
+   * Базовый размер кадра в CSS-пикселях (до pixelRatio). Обычно совпадает с
+   * шириной/высотой bounds + padding. Итоговое разрешение = imageWidth ×
+   * pixelRatio (так высокий pixelRatio даёт высокое разрешение без апскейла).
+   */
+  imageWidth: number;
+  imageHeight: number;
+  /** density-multiplier: итоговый PNG = imageWidth×pixelRatio пикселей. */
+  pixelRatio?: number;
+  backgroundColor?: string;
+}
+
+/**
+ * Экспорт ПОЛНОГО графа в PNG высокого разрешения, без обрезки по вьюпорту.
+ *
+ * Канонический React Flow «download image» рецепт: caller считает
+ * `getNodesBounds(rfInstance.getNodes())` и `getViewportForBounds(...)`,
+ * передаёт сюда bounds + transform + явный размер кадра. html-to-image
+ * получает фиксированные `width`/`height` и CSS-transform на
+ * `.react-flow__viewport`, поэтому рендерит весь граф независимо от того,
+ * что сейчас видно на экране (in-DOM узлы, RF не виртуализирует).
+ *
+ * Высокое разрешение достигается комбинацией: размер кадра = реальный
+ * размер графа (imageWidth/Height) × `pixelRatio` (≥2). Без апскейл-мыла -
+ * canvas рендерится сразу в целевом разрешении.
+ *
+ * @param viewportElement элемент `.react-flow__viewport` (НЕ `.react-flow`):
+ *   именно к нему применяется transform; обёртку html-to-image кадрирует по
+ *   width/height.
+ */
+export async function exportGraphAsPngHighRes(
+  viewportElement: HTMLElement,
+  filename: string,
+  options: HighResExportOptions,
+): Promise<void> {
+  const pixelRatio = options.pixelRatio ?? 2;
+  const dataUrl = await toPng(viewportElement, {
+    backgroundColor: options.backgroundColor ?? readThemeBackground(),
+    pixelRatio,
+    width: options.imageWidth,
+    height: options.imageHeight,
+    filter: (node) => !isExcludedFromExport(node),
+    style: {
+      width: `${options.imageWidth}px`,
+      height: `${options.imageHeight}px`,
+      transform: `translate(${options.transform.x}px, ${options.transform.y}px) scale(${options.transform.zoom})`,
+    },
   });
   triggerDownload(dataUrl, filename);
 }
