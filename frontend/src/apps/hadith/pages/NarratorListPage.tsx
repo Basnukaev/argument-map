@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react';
 import { Link } from 'react-router';
-import { Users, Search, Loader2, ArrowLeft } from 'lucide-react';
+import { Users, Loader2, ArrowLeft } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
+import SearchInput from '@/shared/components/ui/SearchInput';
 import Pagination from '@/shared/components/ui/Pagination';
 import { useT, type DictKey } from '@/shared/i18n';
 import { usePagedList } from '@/shared/hooks/usePagedList';
@@ -57,17 +58,14 @@ function NarratorListPage() {
         </header>
 
         <div className="mb-6 flex flex-wrap items-center gap-3">
-          <div className="flex h-9 max-w-md flex-1 items-center rounded-md border border-border-strong bg-elevated focus-within:border-accent-500">
-            <Search size={15} className="ms-3 text-ink-400" aria-hidden />
-            <input
-              type="search"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder={t('hadith.narrators.search')}
-              dir="auto"
-              className="flex-1 bg-transparent px-3 text-sm text-ink-900 outline-none"
-            />
-          </div>
+          <SearchInput
+            value={searchInput}
+            onChange={setSearchInput}
+            placeholder={t('hadith.narrators.search')}
+            ariaLabel={t('hadith.narrators.search')}
+            className="max-w-md flex-1"
+            arabicKeyboard
+          />
           <select
             value={grade}
             onChange={(e) => setGrade(e.target.value as typeof grade)}

@@ -427,6 +427,11 @@ export const DICTIONARY = {
     'common.locale_switch': 'Локаль интерфейса',
     'common.load_more': 'Показать ещё',
     'common.clear': 'Очистить',
+    // arabic virtual keyboard (SearchInput opt-in для арабо-ориентированных полей)
+    'common.arabic_keyboard': 'Арабская клавиатура',
+    'common.keyboard.space': 'Пробел',
+    'common.keyboard.backspace': 'Стереть',
+    'common.keyboard.close': 'Закрыть',
     'common.shown_of': 'Показано {shown} из {total}',
     // numbered pagination (C20) — нумерованная пагинация вместо «Показать ещё»
     'common.pagination.counter': '{from}–{to} из {total}',
@@ -2002,6 +2007,11 @@ export const DICTIONARY = {
     'common.locale_switch': 'لغة الواجهة',
     'common.load_more': 'عرض المزيد',
     'common.clear': 'مسح',
+    // arabic virtual keyboard
+    'common.arabic_keyboard': 'لوحة مفاتيح عربية',
+    'common.keyboard.space': 'مسافة',
+    'common.keyboard.backspace': 'حذف',
+    'common.keyboard.close': 'إغلاق',
     'common.shown_of': 'عرض {shown} من {total}',
     // numbered pagination (C20)
     'common.pagination.counter': '{from}–{to} من {total}',

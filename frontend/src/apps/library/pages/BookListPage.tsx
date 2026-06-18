@@ -322,6 +322,7 @@ function BookListPage() {
                 placeholder={t('library.overview.search_placeholder')}
                 ariaLabel={t('common.search')}
                 className="w-full"
+                arabicKeyboard
               />
             }
             filters={

@@ -41,4 +41,44 @@ describe('SearchInput', () => {
     await user.click(screen.getByRole('button', { name: 'Очистить' }));
     expect(onChange).toHaveBeenCalledWith('');
   });
+
+  it('без пропа arabicKeyboard тогла клавиатуры нет (регрессия-гард)', () => {
+    render(<SearchInput value="" onChange={() => {}} ariaLabel="поиск" />);
+    expect(
+      screen.queryByRole('button', { name: 'Арабская клавиатура' }),
+    ).toBeNull();
+  });
+
+  it('с arabicKeyboard есть тогл, клик открывает попап клавиатуры', async () => {
+    const user = userEvent.setup();
+    render(
+      <SearchInput value="" onChange={() => {}} ariaLabel="поиск" arabicKeyboard />,
+    );
+    const toggle = screen.getByRole('button', { name: 'Арабская клавиатура' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await user.click(toggle);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('клик по букве в клавиатуре добавляет её в значение (onChange с value+буква)', async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <SearchInput value="ا" onChange={onChange} ariaLabel="поиск" arabicKeyboard />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Арабская клавиатура' }));
+    await user.click(screen.getByRole('button', { name: 'ب' }));
+    expect(onChange).toHaveBeenCalledWith('اب');
+  });
+
+  it('backspace в клавиатуре укорачивает значение на один символ', async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <SearchInput value="اب" onChange={onChange} ariaLabel="поиск" arabicKeyboard />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Арабская клавиатура' }));
+    await user.click(screen.getByRole('button', { name: 'Стереть' }));
+    expect(onChange).toHaveBeenCalledWith('ا');
+  });
 });

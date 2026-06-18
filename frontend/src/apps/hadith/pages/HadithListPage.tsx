@@ -185,6 +185,7 @@ function HadithListPage() {
               placeholder={t('hadith.search_placeholder')}
               ariaLabel={t('common.search')}
               className="w-full"
+              arabicKeyboard
             />
           }
           filters={
