@@ -9,6 +9,76 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
+## 2026-06-18 - Сессия 62 - Hadith Explorer UX-фидбек (22 пункта) + автопилот очереди + прод-аудит
+
+Продолжение С61-автопилота. Абдула прогнал Hadith Explorer руками → **22 пункта**
+UX-фидбека (карточка рави, detail хадиса, список). Тимлид-триаж → спека
+`docs/specs/2026-06-17-hadith-explorer-ux-feedback.md` (волны 0-5) → исполнение
+параллельными opus-исполнителями + мой verify-гейт + playwright на каждом UI-коммите
++ независимый review рисковых коммитов. Форки D1-D4 решены Абдулой (2-осевая
+таксономия, слить вкладки, править перевод, полный guest-view, нумерованная пагинация).
+
+### Сделано (волны 0-5, ~18 атомарных коммитов)
+- **#4 оценки учёных** — мост hd_hadiths↔sources (ADR-062 Option B, lazy source_id).
+- **B2/B3/B4 карточка рави** — label:value «поля-карточки» (дизайн Field Layout Вар.1),
+  i18n status-чипов, дедуп тройного эпитета (tabaqa=null сподвижникам, на re-map).
+- **C6/C16 гариб** — поповер скролл+контраст+clamp + тримминг пунктуации.
+- **C8/C19/C21/D1 таксономия** — миграция 77 `authenticity` (SAHIH/HASAN/DAIF/MAUDU,
+  эвристика по рулингам), 2-осевые фасеты, hadith_type i18n (ADR-063).
+- **C7/C10/C18 detail** — вкладки-switcher + слияние Текст/Иснад + гариб в огласованный.
+- **C11/C12/C13/C15 граф** — легенда скролл+highlight+сворачивание, зум 400%, fullscreen
+  (тема-фон не чёрный), empty-state такхриджа. **C14a (запутанность) отложен** — все
+  31999 хадисов одноцепочечные, путать нечего (диагноз в спеке).
+- **A1/49.G guest-view** — permitAll GET в prod + RBAC service-фильтр (ADR-064);
+  побочно закрыт pre-existing IDOR (BookService.getPage) + NPE (GlobalExceptionHandler).
+- **C20 пагинация** — нумерованная cross-app (usePagedList + Pagination, deep-link ?page=).
+- **B5 AR-клавиатура** — попап в SearchInput (хадисы/рави/книги).
+- **C9 правка перевода** — PATCH /matns/{id}/translation (ADMIN, бэк IT 8/8) + edit-UI (фронт).
+- **C14b PNG-экспорт** иснад-графа high-res (graphExport → shared, ADR-022).
+- **C17 diff** параллельных текстов (siblingDiff LCS + normalizeArabic). **Очередь
+  Абдулы (guest/пагинация/AR/перевод/PNG/diff) — ЗАКРЫТА полностью.**
+
+### Независимый review (opus) — поймал 1 Critical
+guest-view/C9-бэк/C20. **C-1:** permitAll-глоб `/library/pages/**` открыл анониму ещё
+2 под-ресурса (`/regions`, `/ai-edit`) без read-guard → анон-IDOR на метадату приватных
+книг. **Зафикшено** (assertCanReadBook + регресс GuestAccessProdProfileIT). I-1/I-2
+(client-фильтр прячет пагинацию) + M-1 → backlog.
+
+### Прод-аудит (запрос Абдулы, отдельный агент → `PROD-READINESS-AUDIT.md` в корне)
+Главная боль подтверждена кодом: **реимпорт молча затирает ВСЁ** (mapHadith
+delete-recreate matns/sanads/rulings — перевод исчезает с новым matnId; рави — все 20
+колонок; защиты manually_edited/lock/overrides НЕТ нигде). **P0:** защита правок от
+реимпорта, бэкап/restore БД (нет вообще), env-плейсхолдеры DB-кредов. **P1:** manual-edit
+эндпоинты hd_*, data-health вью, закрыть member-list анониму.
+
+### Находки/гочи
+- **playwright ловит то, что мок скрывает (2×):** C20 deep-link сброс (firstRun-ref ×
+  StrictMode-double-invoke → gotcha записан) + C14b PNG-кроп (getNodesBounds на
+  недомеренных узлах → width=0, 96px-полоска). Невидимы юнит-тестам/tsc, вскрыты только
+  живым прогоном + проверкой артефакта (размеры PNG).
+- types.ts дрейфовал (фичи шли на ручных типах) — регенерён (b49a7e9).
+
+### Инфра-стейт
+Backend перезапущен с новым кодом (guest-view+C9+C-1), JDWP :5005, порт 9090. Корпус:
+**31999 хадисов (ВСЕ одноцепочечные)**, 7789 рави, 28035 с crossref-siblings, 1 матн с
+переводом. Dev-вход admin@argumentmap.local/admin12345. Хадисы для проверок: `22687c64`
+(149 siblings — diff), `b81d260c` (9-рави цепь — PNG/граф/вкладки).
+
+### Следующий шаг — ПРОД-ФАЗА (Абдула запросил после очереди), по `PROD-READINESS-AUDIT.md`
+1. **P0-1a (быстрый, начать с него):** перестать терять перевод при реимпорте —
+   `AlminasaHadithMapper.insertMatn` (стр.305) не должен delete-recreate matn с
+   переводом; upsert по природному ключу (hadith_id + printed_number) с сохранением
+   text_ru/text_en. Минимальный фикс острейшего случая, без архитектурного решения.
+2. **P0-1 (архитектура, нужен ADR):** общая защита ручных правок от реимпорта —
+   overlay-таблица `hd_field_overrides` vs lock-колонки vs merge (3 варианта в аудите
+   §3.3). Разблокирует P1-1 (manual-edit эндпоинты — иначе правки затрутся).
+3. **P0-2/P0-3:** бэкап/restore БД (ранбук в remblo) + env-плейсхолдеры DB-кредов
+   (`application.yml:371`, сейчас захардкожены localhost/argmap/argmap).
+4. **P1-4 (security, дёшево):** закрыть member-list анониму (`assertIsMemberOrAdmin` на
+   `/topics|books/{id}/members`) — тот же открытый вопрос ADR-064.
+Затем P1: manual-edit эндпоинты hd_* (authenticity/рави) + data-health вью + admin-UI.
+Tiptap-редактор (ADR-039) готов — Абдула хотел «пощупать»: `/admin/library/pages/{id}/edit`.
+
 ## 2026-06-16 - Сессия 61 - narrator-commentary + автопилот по беклогу (13 задач)
 
 Автопилот-марафон: дочинить narrator-commentary, затем автономно пройти

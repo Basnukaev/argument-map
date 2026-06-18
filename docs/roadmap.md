@@ -383,10 +383,12 @@ design-specs создаются по мере приоритезации.
       possible Elasticsearch. Спек пока не создан — vision spec
       Section 2.3
 
-- [ ] **49.G: Guest view** - анонимный доступ для просмотра public
-      Topics / Books / Q&A. Public GET endpoints permitAll в prod,
-      auth-aware UI hides write actions. Спек пока не создан — vision
-      spec Section 2.5
+- [x] **49.G: Guest view** ✅ 2026-06-18 (С62, ADR-064) — анонимный
+      read-only доступ: permitAll GET (topics/hadith/library/questions) во
+      всех профилях + RBAC service-фильтр (аноним → только PUBLIC,
+      PRIVATE→403); auth-aware UI прячет write-действия. Побочно закрыт
+      pre-existing IDOR (BookService + C-1 sub-resources). Открытый вопрос:
+      member-list PUBLIC-контента доступен анониму (P1-4 прод-аудита).
 
 ---
 

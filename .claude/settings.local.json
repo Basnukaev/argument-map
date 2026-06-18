@@ -42,7 +42,9 @@
       "Bash(./mvnw -DskipTests compile)",
       "Bash(./mvnw -q -DskipTests test-compile)",
       "Bash(./mvnw -DskipTests test-compile)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(ps -o lstart=,etime= -p 10262)",
+      "Bash(ps -p 10262 -o args=)"
     ]
   },
   "outputStyle": "Explanatory"
