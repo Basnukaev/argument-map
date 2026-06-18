@@ -1,3 +1,5 @@
+import { normalizeArabic } from '@/apps/hadith/utils/highlightGharib';
+
 // Огласовки (харакат) снимаем при сопоставлении, чтобы diff показывал
 // расхождения в СЛОВАХ, а не в диакритике. Явные codepoints (ASCII \u),
 // чтобы НЕ задеть арабские цифры (U+0660-0669) и пунктуацию:
@@ -11,6 +13,72 @@ function normalize(word: string): string {
 
 function tokenize(text: string): string[] {
   return text.trim().split(/\s+/).filter(Boolean);
+}
+
+/**
+ * Сегмент пословной разметки sibling-текста (параллельной передачи)
+ * относительно текущего матна. Хранит ОРИГИНАЛЬНЫЙ (огласованный) токен
+ * sibling'а; `different` — слово, не входящее в общую с текущим матном
+ * подпоследовательность (вставка/замена → подсветка расхождения).
+ */
+export interface SiblingSegment {
+  text: string;
+  different: boolean;
+}
+
+/**
+ * Пословная разметка sibling-матна относительно текущего: каждый токен sibling'а
+ * помечается `different`, если его нет в текущем матне на соответствующей позиции
+ * (по LCS). Сравнение — в нормализованном пространстве (`normalizeArabic`:
+ * сняты огласовки, свёрнуты أإآٱ→ا, ى→ي, ة→ه, хамза-носители, NFKC), поэтому
+ * отличия лишь в харакате/орфографии НЕ считаются расхождением; на экран
+ * отдаётся оригинальный (огласованный) токен sibling'а.
+ *
+ * В отличие от `wordDiff` (трёхсторонний merge add/del/same для одной книги),
+ * здесь возвращаются ТОЛЬКО токены sibling'а — удаления из текущего матна не
+ * показываются (sibling-карточка отображает свой текст как есть, лишь
+ * подсвечивая что в нём расходится).
+ */
+export function siblingDiff(current: string, sibling: string): SiblingSegment[] {
+  const a = tokenize(current);
+  const b = tokenize(sibling);
+  const na = a.map(normalizeArabic);
+  const nb = b.map(normalizeArabic);
+  const m = a.length;
+  const n = b.length;
+
+  // dp[i][j] = длина LCS суффиксов na[i:] и nb[j:].
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
+  for (let i = m - 1; i >= 0; i--) {
+    const row = dp[i]!;
+    const below = dp[i + 1]!;
+    for (let j = n - 1; j >= 0; j--) {
+      row[j] = na[i] === nb[j] ? below[j + 1]! + 1 : Math.max(below[j]!, row[j + 1]!);
+    }
+  }
+
+  // Реконструкция: общие токены → different=false, остальные токены sibling'а →
+  // different=true. Токены текущего, которых нет в sibling, пропускаем (i++).
+  const segments: SiblingSegment[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < m && j < n) {
+    if (na[i] === nb[j]) {
+      segments.push({ text: b[j]!, different: false });
+      i++;
+      j++;
+    } else if (dp[i + 1]![j]! >= dp[i]![j + 1]!) {
+      i++;
+    } else {
+      segments.push({ text: b[j]!, different: true });
+      j++;
+    }
+  }
+  while (j < n) {
+    segments.push({ text: b[j]!, different: true });
+    j++;
+  }
+  return segments;
 }
 
 export type DiffType = 'same' | 'add' | 'del';

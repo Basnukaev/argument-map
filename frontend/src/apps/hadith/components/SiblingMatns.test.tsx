@@ -21,10 +21,10 @@ const SIBLINGS = [
   },
 ];
 
-function renderSiblings(count = 2) {
+function renderSiblings(count = 2, currentMatn?: string) {
   return render(
     <MemoryRouter>
-      <SiblingMatns hadithId={HADITH_ID} resolvedTuruqCount={count} />
+      <SiblingMatns hadithId={HADITH_ID} resolvedTuruqCount={count} currentMatn={currentMatn} />
     </MemoryRouter>,
   );
 }
@@ -56,6 +56,45 @@ describe('SiblingMatns', () => {
     expect(
       screen.queryByRole('button', { name: /параллельных передач/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it('с currentMatn → подзаголовок + подсветка расходящегося слова', async () => {
+    server.use(http.get(ENDPOINT, () => HttpResponse.json(SIBLINGS)));
+
+    // текущий матн отличается одним словом (بالقصد vs بالنيات у sibling'а)
+    renderSiblings(2, 'إِنَّمَا الْأَعْمَالُ بِالْقَصْدِ');
+    await userEvent.click(
+      screen.getByRole('button', { name: /параллельных передач \(2\)/i }),
+    );
+
+    await waitForApi(() => {
+      expect(screen.getByText('Сахих аль-Бухари')).toBeInTheDocument();
+    });
+
+    // Подзаголовок-объяснение назначения + легенда расхождений
+    expect(screen.getByText(/тахридж/i)).toBeInTheDocument();
+    expect(screen.getByText(/расхождения с текущим текстом/i)).toBeInTheDocument();
+
+    // Расходящееся слово sibling'а подсвечено (amber); совпадающие — нет
+    const diverged = screen.getByText('بِالنِّيَّاتِ');
+    expect(diverged.className).toContain('bg-amber-100');
+    expect(screen.getByText('إِنَّمَا').className).not.toContain('bg-amber-100');
+  });
+
+  it('без currentMatn → текст без подсветки (один узел, graceful)', async () => {
+    server.use(http.get(ENDPOINT, () => HttpResponse.json(SIBLINGS)));
+
+    renderSiblings(2);
+    await userEvent.click(
+      screen.getByRole('button', { name: /параллельных передач \(2\)/i }),
+    );
+
+    await waitForApi(() => {
+      expect(screen.getByText('Сахих аль-Бухари')).toBeInTheDocument();
+    });
+
+    // Текст рендерится целиком одним узлом — diff не применялся
+    expect(screen.getByText('إِنَّمَا الْأَعْمَالُ بِالنِّيَّاتِ')).toBeInTheDocument();
   });
 
   it('пустой ответ → сообщение «ещё не импортированы»', async () => {

@@ -667,7 +667,11 @@ function HadithDetailPage() {
                   <SectionHeading>
                     {t('hadith.detail.nav.sibling_matns')}
                   </SectionHeading>
-                  <SiblingMatns hadithId={id} resolvedTuruqCount={resolvedTuruqCount} />
+                  <SiblingMatns
+                    hadithId={id}
+                    resolvedTuruqCount={resolvedTuruqCount}
+                    currentMatn={primaryMatn?.textAr}
+                  />
                 </section>
               )}
             </div>

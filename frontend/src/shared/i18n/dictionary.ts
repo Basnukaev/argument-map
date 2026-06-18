@@ -1518,6 +1518,9 @@ export const DICTIONARY = {
     'hadith.siblings.error': 'Не удалось загрузить параллельные тексты',
     'hadith.siblings.empty': 'Тексты параллельных передач ещё не импортированы',
     'hadith.siblings.goto': '→ Перейти',
+    'hadith.siblings.subtitle':
+      'Тексты той же традиции (тахридж) из других сборников.',
+    'hadith.siblings.diff_legend': 'подсвечены расхождения с текущим текстом',
     'hadith.translate.ru': 'Перевод RU',
     'hadith.translate.en': 'Перевод EN',
     'hadith.translate.loading': 'Перевод (5-15 сек)…',
@@ -3067,6 +3070,8 @@ export const DICTIONARY = {
     'hadith.siblings.error': 'تعذّر تحميل النصوص الموازية',
     'hadith.siblings.empty': 'نصوص الطرق الموازية لم تُستورَد بعد',
     'hadith.siblings.goto': '→ انتقال',
+    'hadith.siblings.subtitle': 'نصوص الرواية نفسها (تخريج) من مصادر أخرى.',
+    'hadith.siblings.diff_legend': 'الفروق عن النص الحالي مُمَيَّزة',
     'hadith.translate.ru': 'ترجمة RU',
     'hadith.translate.en': 'ترجمة EN',
     'hadith.translate.loading': 'جارٍ الترجمة (5-15 ثانية)…',

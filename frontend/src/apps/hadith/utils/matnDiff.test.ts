@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { wordDiff, hasWordDiff } from './matnDiff';
+import { wordDiff, hasWordDiff, siblingDiff } from './matnDiff';
 
 describe('wordDiff', () => {
   it('идентичные строки → всё same', () => {
@@ -39,5 +39,47 @@ describe('wordDiff', () => {
     expect(hasWordDiff('الأعمال بالنيات', 'الأعمال بالنية')).toBe(true);
     expect(hasWordDiff('بسم الله', 'بسم الله')).toBe(false);
     expect(hasWordDiff('كَتَبَ', 'كتب')).toBe(false);
+  });
+});
+
+describe('siblingDiff', () => {
+  it('идентичные тексты → 0 different, все токены sibling сохранены', () => {
+    const segs = siblingDiff('بسم الله الرحمن', 'بسم الله الرحمن');
+    expect(segs.every((s) => !s.different)).toBe(true);
+    expect(segs.map((s) => s.text)).toEqual(['بسم', 'الله', 'الرحمن']);
+  });
+
+  it('вставка слова в середину → different только у него (LCS, не весь хвост)', () => {
+    const segs = siblingDiff('بسم الله الرحمن', 'بسم الله العظيم الرحمن');
+    expect(segs.map((s) => s.text)).toEqual(['بسم', 'الله', 'العظيم', 'الرحمن']);
+    expect(segs.filter((s) => s.different).map((s) => s.text)).toEqual(['العظيم']);
+  });
+
+  it('замена слова → заменённое different, окружение same', () => {
+    const segs = siblingDiff('الأعمال بالنيات اليوم', 'الأعمال بالقصد اليوم');
+    expect(segs.find((s) => s.text === 'الأعمال')!.different).toBe(false);
+    expect(segs.find((s) => s.text === 'اليوم')!.different).toBe(false);
+    expect(segs.find((s) => s.text === 'بالقصد')!.different).toBe(true);
+  });
+
+  it('разные огласовки одного слова → НЕ different (нормализация)', () => {
+    const segs = siblingDiff('كَتَبَ', 'كتب');
+    expect(segs).toHaveLength(1);
+    expect(segs[0]!.different).toBe(false);
+    // на экран отдаётся оригинальный (огласованный) токен sibling'а
+    expect(segs[0]!.text).toBe('كتب');
+  });
+
+  it('орфографический вариант (ى↔ي, أ↔ا) → НЕ different', () => {
+    const segs = siblingDiff('على الأرض', 'علي الارض');
+    expect(segs.every((s) => !s.different)).toBe(true);
+  });
+
+  it('пустые входы обрабатываются gracefully', () => {
+    expect(siblingDiff('', '')).toEqual([]);
+    // пустой current → весь sibling different (сравнивать не с чем)
+    expect(siblingDiff('', 'بسم الله').every((s) => s.different)).toBe(true);
+    // пустой sibling → нет сегментов
+    expect(siblingDiff('بسم الله', '')).toEqual([]);
   });
 });

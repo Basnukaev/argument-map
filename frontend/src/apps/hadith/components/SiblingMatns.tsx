@@ -4,15 +4,51 @@ import { Loader2 } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import { apiGetRaw, formatApiError } from '@/shared/api/client';
 import { useT } from '@/shared/i18n';
+import { siblingDiff } from '@/apps/hadith/utils/matnDiff';
 import type { components } from '@/shared/api/types';
 
 type SiblingMatnDto = components['schemas']['SiblingMatnDto'];
 
 /**
- * Одна карточка параллельной передачи: шапка (сборник · №N) + mono externalId
- * + ссылка «→ Перейти» + арабский текст матна (RTL naskh).
+ * Текст матна параллельной передачи. Если передан текущий матн (`currentMatn`)
+ * — рендерится пословный diff: слова, расходящиеся с текущим текстом,
+ * подсвечены амбром; совпадающие — обычным цветом. Без `currentMatn`
+ * (graceful) — текст as-is. RTL naskh.
  */
-function SiblingCard({ s }: { s: SiblingMatnDto }) {
+function SiblingText({ textAr, currentMatn }: { textAr: string; currentMatn?: string }) {
+  // diff дешёвый (десятки слов на карточку) — без memo (YAGNI, как в MatnDiff).
+  // Пустой currentMatn → siblingDiff пометит весь текст different; чтобы не
+  // красить карточку целиком когда сравнивать не с чем, рендерим plain.
+  if (!currentMatn) {
+    return (
+      <p className="mt-3 font-arabic text-lg leading-loose text-ink-900" dir="rtl">
+        {textAr}
+      </p>
+    );
+  }
+  const segments = siblingDiff(currentMatn, textAr);
+  return (
+    <p className="mt-3 font-arabic text-lg leading-loose text-ink-900" dir="rtl">
+      {segments.map((seg, idx) => (
+        // key с index намеренно: производный append-only список без
+        // естественного id (слова повторяются), как в MatnDiff.
+        <span
+          key={`${idx}-${seg.text}`}
+          className={seg.different ? 'rounded-sm bg-amber-100 px-0.5 text-amber-900' : undefined}
+        >
+          {seg.text}{' '}
+        </span>
+      ))}
+    </p>
+  );
+}
+
+/**
+ * Одна карточка параллельной передачи: шапка (сборник · №N) + mono externalId
+ * + ссылка «→ Перейти» + арабский текст матна с подсветкой расхождений с
+ * текущим текстом.
+ */
+function SiblingCard({ s, currentMatn }: { s: SiblingMatnDto; currentMatn?: string }) {
   const t = useT();
   return (
     <Card className="p-4">
@@ -37,11 +73,7 @@ function SiblingCard({ s }: { s: SiblingMatnDto }) {
           </Link>
         )}
       </div>
-      {s.textAr && (
-        <p className="mt-3 font-arabic text-lg leading-loose text-ink-900" dir="rtl">
-          {s.textAr}
-        </p>
-      )}
+      {s.textAr && <SiblingText textAr={s.textAr} currentMatn={currentMatn} />}
     </Card>
   );
 }
@@ -55,10 +87,16 @@ function SiblingCard({ s }: { s: SiblingMatnDto }) {
 function SiblingMatns({
   hadithId,
   resolvedTuruqCount,
+  currentMatn,
 }: {
   hadithId: string;
   /** Число resolved crossrefs (передаётся из страницы, уже посчитано). */
   resolvedTuruqCount: number;
+  /**
+   * Текущий (основной) матн хадиса — база для подсветки расхождений в sibling'ах.
+   * Опционален: без него карточки рендерят текст без diff (graceful).
+   */
+  currentMatn?: string;
 }) {
   const t = useT();
   const [siblings, setSiblings] = useState<SiblingMatnDto[] | null>(null);
@@ -111,15 +149,25 @@ function SiblingMatns({
     );
   }
 
-  // Карточки.
+  // Карточки. Подзаголовок поясняет назначение секции (матны той же традиции
+  // из других сборников) + что подсвечены расхождения с текущим текстом.
   return (
-    <ul className="space-y-3">
-      {siblings.map((s) => (
-        <li key={s.hadithId ?? s.externalId ?? String(s.printedNumber)}>
-          <SiblingCard s={s} />
-        </li>
-      ))}
-    </ul>
+    <div>
+      <p className="mb-3 max-w-2xl text-sm leading-snug text-ink-500">
+        {t('hadith.siblings.subtitle')}{' '}
+        <span className="inline-flex items-center gap-1 align-baseline">
+          <span className="inline-block h-3 w-3 rounded-sm bg-amber-100" aria-hidden />
+          {t('hadith.siblings.diff_legend')}
+        </span>
+      </p>
+      <ul className="space-y-3">
+        {siblings.map((s) => (
+          <li key={s.hadithId ?? s.externalId ?? String(s.printedNumber)}>
+            <SiblingCard s={s} currentMatn={currentMatn} />
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
