@@ -25,19 +25,20 @@ interface Props {
  * остаётся, можно печатать дальше).
  */
 
-/** Полный алфавит (28 букв) построчно по 7 - сетка переносится естественно. */
-const ALPHABET: ReadonlyArray<string> = [
-  'ا', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ',
-  'د', 'ذ', 'ر', 'ز', 'س', 'ش', 'ص',
-  'ض', 'ط', 'ظ', 'ع', 'غ', 'ف', 'ق',
-  'ك', 'ل', 'م', 'ن', 'ه', 'و', 'ي',
+/**
+ * Стандартная физическая арабская раскладка (Arabic 101, QWERTY-mapped) —
+ * НЕ алфавитный порядок, как на реальной клавиатуре (FB-4a). Три ряда:
+ * верхний (ضصثقفغعهخحجد), средний (شسيبلاتنمكط), нижний (ئءؤرلاىةوزظ).
+ */
+const KEY_ROWS: ReadonlyArray<ReadonlyArray<string>> = [
+  ['ض', 'ص', 'ث', 'ق', 'ف', 'غ', 'ع', 'ه', 'خ', 'ح', 'ج', 'د'],
+  ['ش', 'س', 'ي', 'ب', 'ل', 'ا', 'ت', 'ن', 'م', 'ك', 'ط'],
+  ['ئ', 'ء', 'ؤ', 'ر', 'لا', 'ى', 'ة', 'و', 'ز', 'ظ'],
 ];
 
-/** Варианты букв (хамза / мадда / та-марбута / алиф-максура / лям-алиф) -
+/** Доп. формы (на физической раскладке — shift/иные состояния): ذ + алиф-хамза,
  *  важны для поиска по matn, где встречаются именно эти формы. */
-const VARIANTS: ReadonlyArray<string> = [
-  'ء', 'أ', 'إ', 'آ', 'ؤ', 'ئ', 'ة', 'ى', 'لا',
-];
+const EXTRA_FORMS: ReadonlyArray<string> = ['ذ', 'أ', 'إ', 'آ'];
 
 function ArabicKeyboard({ onInsert, onBackspace, onClose }: Props) {
   const t = useT();
@@ -67,7 +68,7 @@ function ArabicKeyboard({ onInsert, onBackspace, onClose }: Props) {
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => onInsert(char)}
         aria-label={char}
-        className="grid h-9 min-w-9 place-items-center rounded-sm border border-border-strong bg-elevated font-arabic text-lg text-ink-900 transition-colors hover:bg-accent-100 hover:text-accent-700"
+        className="grid h-9 min-w-8 place-items-center rounded-sm border border-border-strong bg-elevated px-1 font-arabic text-base text-ink-900 transition-colors hover:bg-accent-100 hover:text-accent-700"
       >
         {char}
       </button>
@@ -79,14 +80,19 @@ function ArabicKeyboard({ onInsert, onBackspace, onClose }: Props) {
       ref={ref}
       role="dialog"
       aria-label={t('common.arabic_keyboard')}
-      dir="rtl"
-      className="absolute end-0 top-full z-30 mt-1 w-[19rem] max-w-[calc(100vw-2rem)] rounded-md border border-border bg-elevated p-2.5 shadow-sh3"
+      dir="ltr"
+      className="absolute end-0 top-full z-30 mt-1 w-[28rem] max-w-[calc(100vw-1rem)] rounded-md border border-border bg-elevated p-2.5 shadow-sh3"
     >
-      <div className="grid grid-cols-7 gap-1">
-        {ALPHABET.map(letterButton)}
-      </div>
-      <div className="mt-1 grid grid-cols-7 gap-1">
-        {VARIANTS.map(letterButton)}
+      {KEY_ROWS.map((row, i) => (
+        <div
+          key={row.join('')}
+          className={`flex flex-wrap justify-center gap-0.5${i > 0 ? ' mt-1' : ''}`}
+        >
+          {row.map(letterButton)}
+        </div>
+      ))}
+      <div className="mt-1 flex flex-wrap justify-center gap-0.5">
+        {EXTRA_FORMS.map(letterButton)}
       </div>
       <div className="mt-2 flex items-center gap-1.5">
         <button
