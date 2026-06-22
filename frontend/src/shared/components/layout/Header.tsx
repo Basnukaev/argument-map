@@ -14,6 +14,7 @@ import { useT, type DictKey } from '@/shared/i18n';
 import { useIsMobile } from '@/shared/hooks/useViewport';
 import { usePaletteStore } from '@/shared/stores/paletteStore';
 import { useSettingsDrawerStore } from '@/shared/stores/settingsDrawerStore';
+import { useAuthStore, hasRoleAtLeast } from '@/shared/stores/authStore';
 
 interface NavItem {
   to: string;
@@ -58,6 +59,12 @@ function Header() {
   const showSettings = useSettingsDrawerStore((s) => s.show);
   const isMobile = useIsMobile();
   const [menuOpen, setMenuOpen] = useState(false);
+  // FB-2: «Админ» в навигации — только для ADMIN. Guest-view (ADR-064) закрыл
+  // API, но нав-пункт оставался виден анониму/обычному юзеру (фронт-гейтинг).
+  const role = useAuthStore((s) => s.user?.role);
+  const navItems = NAV_ITEMS.filter(
+    (item) => item.to !== '/admin' || hasRoleAtLeast(role, 'ADMIN'),
+  );
 
   return (
     <>
@@ -95,7 +102,7 @@ function Header() {
         {/* Inline navigation - только desktop (≥md). На mobile скрыт,
             доступен через hamburger Modal */}
         <nav className="hidden md:flex gap-1 flex-1">
-          {NAV_ITEMS.map((item) =>
+          {navItems.map((item) =>
             item.disabled ? (
               <span
                 key={item.to}
@@ -163,7 +170,7 @@ function Header() {
           title={t('nav.menu_title')}
         >
           <nav className="flex flex-col gap-1">
-            {NAV_ITEMS.map((item) =>
+            {navItems.map((item) =>
               item.disabled ? (
                 <span
                   key={item.to}

@@ -15,6 +15,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { useT } from '@/shared/i18n';
 import { useThemeStore } from '@/shared/stores/themeStore';
+import { useAuthStore, hasRoleAtLeast } from '@/shared/stores/authStore';
 import {
   ARABIC_FONTS,
   FONT_PAIRS,
@@ -61,6 +62,9 @@ function CommandPaletteBody({ onClose }: { onClose: () => void }) {
   const setPair = useFontPairStore((s) => s.setPair);
   const setArabicFont = useFontPairStore((s) => s.setArabicFont);
   const showSettings = useSettingsDrawerStore((s) => s.show);
+  // FB-2: команда «в Админку» — только для ADMIN (роут уже под ProtectedRoute,
+  // но пункт палитры не должен светиться обычному юзеру/гостю).
+  const role = useAuthStore((s) => s.user?.role);
   const [query, setQuery] = useState('');
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -107,13 +111,15 @@ function CommandPaletteBody({ onClose }: { onClose: () => void }) {
       Icon: Book,
       run: () => navigate('/books'),
     },
-    {
-      id: 'goto-admin',
-      label: t('palette.goto_admin'),
-      hint: '/admin/shamela',
-      Icon: Settings,
-      run: () => navigate('/admin/shamela'),
-    },
+    ...(hasRoleAtLeast(role, 'ADMIN')
+      ? [{
+          id: 'goto-admin',
+          label: t('palette.goto_admin'),
+          hint: '/admin/shamela',
+          Icon: Settings,
+          run: () => navigate('/admin/shamela'),
+        } as Command]
+      : []),
     {
       id: 'open-settings',
       label: t('settings.open_command'),
