@@ -352,6 +352,132 @@ class TopicControllerIT {
                 .andExpect(jsonPath("$.type").value(containsString("forbidden-topic-write")));
     }
 
+    // ---- POST /topics/{id}/renormalize-zindex ----
+
+    /**
+     * Основной сценарий: разреженные z_index компактизируются в 0..N,
+     * сохраняя относительный порядок. Узлы с z_index {0, 100, 9999} →
+     * должны получить {0, 1, 2}. Порядок проверяется по id.
+     */
+    @Test
+    void POST_renormalizeZIndex_compactsNodes_preservingRelativeOrder() throws Exception {
+        UUID topicId = createTopicViaApi();
+
+        // Сеем ещё 2 узла (корневой уже есть с z_index=0)
+        UUID nodeA = UUID.randomUUID();
+        UUID nodeB = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO nodes (id, topic_id, node_type, content, status, z_index, created_by, created_at, updated_at) "
+                        + "VALUES (?, ?, 'CLAIM', 'A', 'UNVERIFIED', 100, ?, now(), now())",
+                nodeA, topicId, userId);
+        jdbcTemplate.update(
+                "INSERT INTO nodes (id, topic_id, node_type, content, status, z_index, created_by, created_at, updated_at) "
+                        + "VALUES (?, ?, 'CLAIM', 'B', 'UNVERIFIED', 9999, ?, now(), now())",
+                nodeB, topicId, userId);
+
+        mockMvc.perform(post("/api/v1/topics/{id}/renormalize-zindex", topicId)
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                // 3 узла: корневой + A + B
+                .andExpect(jsonPath("$.nodesRenormalized").value(3))
+                .andExpect(jsonPath("$.edgesRenormalized").value(0));
+
+        // Проверяем что z_index теперь компактные 0,1,2 и порядок сохранён
+        // корневой был z_index=0 → остаётся 0
+        // nodeA был 100 → должен стать 1
+        // nodeB был 9999 → должен стать 2
+        Integer rootZ = jdbcTemplate.queryForObject(
+                "SELECT z_index FROM nodes WHERE topic_id = ? ORDER BY z_index LIMIT 1",
+                Integer.class, topicId);
+        assertThat(rootZ).isEqualTo(0);
+
+        Integer nodeAZ = jdbcTemplate.queryForObject(
+                "SELECT z_index FROM nodes WHERE id = ?", Integer.class, nodeA);
+        assertThat(nodeAZ).isEqualTo(1);
+
+        Integer nodeBZ = jdbcTemplate.queryForObject(
+                "SELECT z_index FROM nodes WHERE id = ?", Integer.class, nodeB);
+        assertThat(nodeBZ).isEqualTo(2);
+    }
+
+    @Test
+    void POST_renormalizeZIndex_compactsEdges_preservingRelativeOrder() throws Exception {
+        UUID topicId = createTopicViaApi();
+
+        // Достаём id корневого узла темы
+        UUID rootNodeId = jdbcTemplate.queryForObject(
+                "SELECT root_node_id FROM topics WHERE id = ?", UUID.class, topicId);
+
+        // Создаём ещё два узла для рёбер
+        UUID nodeA = UUID.randomUUID();
+        UUID nodeB = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO nodes (id, topic_id, node_type, content, status, z_index, created_by, created_at, updated_at) "
+                        + "VALUES (?, ?, 'CLAIM', 'A', 'UNVERIFIED', 0, ?, now(), now())",
+                nodeA, topicId, userId);
+        jdbcTemplate.update(
+                "INSERT INTO nodes (id, topic_id, node_type, content, status, z_index, created_by, created_at, updated_at) "
+                        + "VALUES (?, ?, 'CLAIM', 'B', 'UNVERIFIED', 0, ?, now(), now())",
+                nodeB, topicId, userId);
+
+        // Создаём рёбра с разреженными z_index
+        UUID edgeX = UUID.randomUUID();
+        UUID edgeY = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO edges (id, from_node_id, to_node_id, edge_type, z_index, created_by, created_at) "
+                        + "VALUES (?, ?, ?, 'SUPPORTS', 50, ?, now())",
+                edgeX, nodeA, rootNodeId, userId);
+        jdbcTemplate.update(
+                "INSERT INTO edges (id, from_node_id, to_node_id, edge_type, z_index, created_by, created_at) "
+                        + "VALUES (?, ?, ?, 'SUPPORTS', 500, ?, now())",
+                edgeY, nodeB, rootNodeId, userId);
+
+        mockMvc.perform(post("/api/v1/topics/{id}/renormalize-zindex", topicId)
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.edgesRenormalized").value(2));
+
+        Integer edgeXZ = jdbcTemplate.queryForObject(
+                "SELECT z_index FROM edges WHERE id = ?", Integer.class, edgeX);
+        assertThat(edgeXZ).isEqualTo(0);
+
+        Integer edgeYZ = jdbcTemplate.queryForObject(
+                "SELECT z_index FROM edges WHERE id = ?", Integer.class, edgeY);
+        assertThat(edgeYZ).isEqualTo(1);
+    }
+
+    @Test
+    void POST_renormalizeZIndex_byNonWriter_returns403() throws Exception {
+        UUID topicId = createTopicViaApi();
+        UUID otherUserId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
+                otherUserId, "other-" + otherUserId, otherUserId + "@example.com");
+
+        mockMvc.perform(post("/api/v1/topics/{id}/renormalize-zindex", topicId)
+                        .header("X-User-Id", otherUserId.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type").value(containsString("forbidden-topic")));
+    }
+
+    @Test
+    void POST_renormalizeZIndex_nonExistentTopic_returns404() throws Exception {
+        UUID missing = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/topics/{id}/renormalize-zindex", missing)
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value(containsString("topic-not-found")));
+    }
+
+    @Test
+    void POST_renormalizeZIndex_withoutAuth_returns401() throws Exception {
+        UUID topicId = createTopicViaApi();
+
+        mockMvc.perform(post("/api/v1/topics/{id}/renormalize-zindex", topicId))
+                .andExpect(status().isUnauthorized());
+    }
+
     private UUID createTopicViaApi() throws Exception {
         var req = new CreateTopicRequest("T", null, "Q?", null);
         String json = mockMvc.perform(post("/api/v1/topics")

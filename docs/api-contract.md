@@ -740,6 +740,33 @@ permission-чек
 Парный endpoint. `z_index = MIN(z_index по теме) - 1`. Контракт
 идентичный `bring-to-front` - заголовки, запрос, ответ, ошибки.
 
+### POST /api/v1/topics/{id}/renormalize-zindex
+
+**Recovery endpoint:** компактизирует z_index всех узлов и рёбер темы в
+одной транзакции. После многократных `bring-to-front`/`send-to-back`
+z_index может вырасти до больших чисел (приближаясь к Integer overflow).
+Этот endpoint восстанавливает компактную последовательность `0, 1, 2, … N`
+сохраняя относительный порядок (тай-брейкер при равных z_index — `created_at`).
+
+**Permission:** owner + EDITOR (`assertCanWrite`) — те же что и остальные
+мутирующие операции темы.
+
+**Запрос:** тело отсутствует.
+
+**Ответ 200 OK:**
+```json
+{
+  "nodesRenormalized": 42,
+  "edgesRenormalized": 17
+}
+```
+`nodesRenormalized` — количество узлов темы (все перезаписаны, включая
+те у кого z_index формально не изменился). `edgesRenormalized` — аналогично
+для рёбер. Нули означают пустую тему — не ошибка.
+
+**Ошибки:** 401 `invalid-token`, 403 `forbidden-topic-access` /
+`forbidden-topic-write`, 404 `topic-not-found`.
+
 ### Multi-translation узлов (миграция 45, translator attribution)
 
 Один узел может иметь несколько переводов от разных переводчиков

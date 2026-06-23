@@ -178,6 +178,21 @@ public class NodeRepository {
     }
 
     /**
+     * Все узлы темы упорядоченные по z_index возрастанию, при равных
+     * z_index — по created_at (стабильная сортировка). Используется в
+     * renormalize-zindex для компактизации разреженных z_index без
+     * нарушения относительного порядка.
+     */
+    public List<Node> findByTopicIdOrderedByZIndex(UUID topicId) {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM nodes WHERE topic_id = ? "
+                        + "ORDER BY z_index, created_at",
+                ROW_MAPPER,
+                topicId
+        );
+    }
+
+    /**
      * Возвращает минимальный z_index среди узлов темы. Если тема пуста -
      * 0. Используется для «На задний план»: новый z_index = findMinZIndex
      * (topicId) - 1.

@@ -146,6 +146,23 @@ public class EdgeRepository {
     }
 
     /**
+     * Все рёбра темы упорядоченные по z_index возрастанию, при равных
+     * z_index — по created_at (стабильная сортировка). Тема определяется
+     * через from-узел (инвариант: рёбра не пересекают границы тем).
+     * Используется в renormalize-zindex для компактизации.
+     */
+    public List<Edge> findByTopicIdOrderedByZIndex(UUID topicId) {
+        return jdbcTemplate.query(
+                "SELECT e.id, e.from_node_id, e.to_node_id, e.edge_type, e.rationale, "
+                        + "e.source_handle, e.target_handle, e.created_by, e.created_at, e.z_index "
+                        + "FROM edges e JOIN nodes n ON n.id = e.from_node_id "
+                        + "WHERE n.topic_id = ? ORDER BY e.z_index, e.created_at",
+                ROW_MAPPER,
+                topicId
+        );
+    }
+
+    /**
      * Возвращает минимальный z_index среди рёбер темы. Если в теме нет
      * рёбер - 0. Используется для «На задний план»: новый z_index =
      * findMinZIndex(topicId) - 1.

@@ -36,6 +36,7 @@ import ru.basnukaev.argumentmap.web.dto.TopicResponse;
 import ru.basnukaev.argumentmap.web.dto.UpdateTopicRequest;
 import ru.basnukaev.argumentmap.web.dto.UpdateTopicStatusAlgorithmRequest;
 import ru.basnukaev.argumentmap.web.dto.UpdateTopicVisibilityRequest;
+import ru.basnukaev.argumentmap.web.dto.ZIndexRenormalizeResponse;
 import ru.basnukaev.argumentmap.web.mapper.DtoMappers;
 import org.springframework.web.bind.annotation.RequestParam;
 
@@ -228,5 +229,22 @@ public class TopicController {
         String role = SecurityContextUtils.currentRoleOrAnonymous();
         Topic updated = topicService.updateStatusAlgorithm(topicId, request.algorithm(), userId, role);
         return DtoMappers.toResponse(updated);
+    }
+
+    /**
+     * Компактизирует z_index узлов и рёбер темы (recovery от overflow).
+     *
+     * <p>После многократных bringToFront/sendToBack z_index может вырасти
+     * до больших чисел. Этот endpoint перезаписывает z_index в компактную
+     * последовательность 0..N сохраняя относительный порядок. Owner + EDITOR
+     * (assertCanWrite). 200 OK с количеством обновлённых записей.
+     */
+    @PostMapping("/{topicId}/renormalize-zindex")
+    public ZIndexRenormalizeResponse renormalizeZIndex(@PathVariable UUID topicId,
+                                                       @CurrentUser UUID userId) {
+        String role = SecurityContextUtils.currentRoleOrAnonymous();
+        TopicService.RenormalizeResult result =
+                topicService.renormalizeZIndex(topicId, userId, role);
+        return new ZIndexRenormalizeResponse(result.nodesRenormalized(), result.edgesRenormalized());
     }
 }

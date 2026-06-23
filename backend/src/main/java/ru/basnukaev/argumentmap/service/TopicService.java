@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.domain.AuditEntityType;
+import ru.basnukaev.argumentmap.domain.Edge;
 import ru.basnukaev.argumentmap.domain.Node;
 import ru.basnukaev.argumentmap.domain.NodeStatus;
 import ru.basnukaev.argumentmap.domain.NodeType;
@@ -17,6 +18,7 @@ import ru.basnukaev.argumentmap.domain.StatusAlgorithm;
 import ru.basnukaev.argumentmap.domain.Topic;
 import ru.basnukaev.argumentmap.domain.TopicVisibility;
 import ru.basnukaev.argumentmap.exception.TopicNotFoundException;
+import ru.basnukaev.argumentmap.repository.EdgeRepository;
 import ru.basnukaev.argumentmap.repository.NodeRepository;
 import ru.basnukaev.argumentmap.repository.TopicRepository;
 import ru.basnukaev.argumentmap.repository.TopicWithCounts;
@@ -26,16 +28,19 @@ public class TopicService {
 
     private final TopicRepository topicRepository;
     private final NodeRepository nodeRepository;
+    private final EdgeRepository edgeRepository;
     private final PermissionService permissionService;
     private final AuditLogService auditLogService;
     private final StatusCalculationService statusCalculationService;
 
     public TopicService(TopicRepository topicRepository, NodeRepository nodeRepository,
+                        EdgeRepository edgeRepository,
                         PermissionService permissionService,
                         AuditLogService auditLogService,
                         StatusCalculationService statusCalculationService) {
         this.topicRepository = topicRepository;
         this.nodeRepository = nodeRepository;
+        this.edgeRepository = edgeRepository;
         this.permissionService = permissionService;
         this.auditLogService = auditLogService;
         this.statusCalculationService = statusCalculationService;
@@ -338,6 +343,48 @@ public class TopicService {
         }
         permissionService.assertCanWrite(topicId, userId, role);
         nodeRepository.clearPositionsByTopic(topicId);
+    }
+
+    /**
+     * Компактизирует z_index узлов и рёбер темы в одной транзакции.
+     *
+     * <p>После многократных вызовов bringToFront/sendToBack z_index может
+     * разрастись до больших чисел (риск overflow). Этот метод читает все
+     * узлы и рёбра темы упорядоченными по текущему z_index (тай-брейкер —
+     * created_at) и переписывает их z_index в компактную последовательность
+     * 0, 1, 2 ... N, сохраняя относительный порядок.
+     *
+     * <p>Permissions: owner + EDITOR (assertCanWrite — те же что resetLayout).
+     * Audit не пишется: z_index — UI affordance, не доменное изменение.
+     *
+     * @return пара (nodesRenormalized, edgesRenormalized) — количество
+     *         обновлённых записей (включая те у кого z_index не изменился,
+     *         т.к. мы перезаписываем всю последовательность целиком)
+     */
+    @Transactional
+    public RenormalizeResult renormalizeZIndex(UUID topicId, UUID userId, String role) {
+        if (topicRepository.findById(topicId).isEmpty()) {
+            throw new TopicNotFoundException(topicId);
+        }
+        permissionService.assertCanWrite(topicId, userId, role);
+
+        List<Node> nodes = nodeRepository.findByTopicIdOrderedByZIndex(topicId);
+        for (int i = 0; i < nodes.size(); i++) {
+            nodeRepository.updateZIndex(nodes.get(i).id(), i);
+        }
+
+        List<Edge> edges = edgeRepository.findByTopicIdOrderedByZIndex(topicId);
+        for (int i = 0; i < edges.size(); i++) {
+            edgeRepository.updateZIndex(edges.get(i).id(), i);
+        }
+
+        return new RenormalizeResult(nodes.size(), edges.size());
+    }
+
+    /**
+     * Результат {@link #renormalizeZIndex(UUID, UUID, String)}.
+     */
+    public record RenormalizeResult(int nodesRenormalized, int edgesRenormalized) {
     }
 
     /**
