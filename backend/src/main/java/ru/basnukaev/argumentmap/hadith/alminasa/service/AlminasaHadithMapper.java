@@ -202,6 +202,14 @@ public class AlminasaHadithMapper {
             hadithRepository.save(hadith);
         }
 
+        // P0-1a (страховка до overlay-курации, спека §P0-1a): спасаем
+        // накопленный ручной перевод primary-матна (text_ru/en) от delete-
+        // recreate — читаем ДО удаления, переносим в новую строку. Снять после
+        // фазы 6 (перевод уедет в overlay, delete-recreate станет безопасным).
+        Matn priorPrimaryMatn = existing.isPresent()
+                ? matnRepository.findPrimaryByHadithId(hadithId).orElse(null)
+                : null;
+
         // delete-recreate ВСЕХ сателлитов (решение 9): порядок resolve → delete → insert
         matnRepository.deleteByHadithId(hadithId);
         editionRepository.deleteByHadithId(hadithId);
@@ -210,7 +218,7 @@ public class AlminasaHadithMapper {
         rulingRepository.deleteByHadithId(hadithId);
         explanationRepository.deleteByHadithId(hadithId);
 
-        insertMatn(hadithId, collectionId, matnText, primaryNumber, raw);
+        insertMatn(hadithId, collectionId, matnText, primaryNumber, raw, priorPrimaryMatn);
         insertEditions(hadithId, raw);
         insertSanad(hadithId, raw, fullTextAr);
         insertCrossrefs(hadithId, externalId, raw);
@@ -302,11 +310,18 @@ public class AlminasaHadithMapper {
 
     // ── satellites ──────────────────────────────────────────────────────────────
 
+    /**
+     * @param prior primary-matn ДО реимпорта (или null для нового хадиса) —
+     *              переносим его {@code text_ru/text_en}, чтобы delete-recreate
+     *              не терял накопленный ручной перевод (P0-1a, спека §P0-1a).
+     */
     private void insertMatn(UUID hadithId, UUID collectionId, String matnText,
-                            Integer primaryNumber, JsonNode raw) {
+                            Integer primaryNumber, JsonNode raw, Matn prior) {
         matnRepository.save(new Matn(
                 UUID.randomUUID(), hadithId, matnText, ArabicTextNormalizer.normalize(matnText),
-                null, null, collectionId, primaryNumber,
+                prior != null ? prior.textRu() : null,
+                prior != null ? prior.textEn() : null,
+                collectionId, primaryNumber,
                 intOrNull(raw, "page"), intOrNull(raw, "volume"),
                 true, null, null, Instant.now()));
     }

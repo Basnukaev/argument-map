@@ -373,6 +373,28 @@ class AlminasaMapperIT {
     }
 
     @Test
+    void mapHadith_реимпорт_сохраняет_ручной_перевод_матна() {
+        // P0-1a (спека §P0-1a): delete-recreate реимпорта НЕ должен терять
+        // накопленный ручной/AI перевод (text_ru/en) primary-матна.
+        narratorMapper.mapNarrator(narratorStagingDao.findById(5719).orElseThrow());
+        AmHadithRow row = hadithStagingDao.findById("146-1").orElseThrow();
+        UUID hadithId = hadithMapper.mapHadith(row);
+
+        // Накапливаем перевод (как через C9-эндпоинт / AI-перевод).
+        Matn primary = matnRepository.findPrimaryByHadithId(hadithId).orElseThrow();
+        matnRepository.updateTranslation(primary.id(), "ru", "Дела — по намерениям");
+        matnRepository.updateTranslation(primary.id(), "en", "Actions are by intentions");
+
+        // Реимпорт того же хадиса (delete-recreate матна — новая строка).
+        hadithMapper.mapHadith(row);
+
+        Matn afterReimport = matnRepository.findPrimaryByHadithId(hadithId).orElseThrow();
+        assertThat(afterReimport.id()).isNotEqualTo(primary.id());      // строка пересоздана
+        assertThat(afterReimport.textRu()).isEqualTo("Дела — по намерениям"); // перевод спасён
+        assertThat(afterReimport.textEn()).isEqualTo("Actions are by intentions");
+    }
+
+    @Test
     void mapHadith_без_rawy_тегов_импортируется_без_цепи() {
         // синтетический rawJson без rawy-тегов, но с матном
         String raw = "{\"hadith_id\":\"146-999\",\"book_name\":\"صحيح البخاري\","

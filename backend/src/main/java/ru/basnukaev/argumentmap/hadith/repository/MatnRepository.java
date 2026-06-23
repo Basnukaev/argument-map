@@ -104,6 +104,20 @@ public class MatnRepository {
     }
 
     /**
+     * Primary-matn хадиса (или empty). Для P0-1a: при delete-recreate реимпорте
+     * маппер сначала читает эту строку, чтобы перенести накопленный
+     * {@code text_ru/text_en} в новую (иначе ручной перевод терялся). Снять
+     * после фазы 6 курации (перевод уедет в overlay). Спека §P0-1a.
+     */
+    public Optional<Matn> findPrimaryByHadithId(UUID hadithId) {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM hd_matns "
+                        + "WHERE hadith_id = ? AND is_primary = true LIMIT 1",
+                ROW_MAPPER, hadithId
+        ).stream().findFirst();
+    }
+
+    /**
      * Удаляет все матны данного хадиса — примитив идемпотентного реимпорта
      * (delete-recreate паттерн маппера alminasa, план 3, решение 9).
      */
