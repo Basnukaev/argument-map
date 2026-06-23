@@ -69,10 +69,10 @@ function parsePageParam(raw: string | null): number {
  * для целевой страницы нет — показываем loading (REPLACE-семантика: items
  * другой страницы вводили бы в заблуждение).
  *
- * Стейл-гард: каждый запрос помнит «поколение» (bump'ается на смену
- * query/deps) И целевую страницу на момент issue; ответ применяется
- * только если оба совпадают с текущими — иначе игнорируется (ответ
- * устаревшей страницы/query не затирает свежий state).
+ * Стейл-гард: каждый запрос помнит «поколение» (generationRef bump'ается
+ * на КАЖДЫЙ прогон fetch-эффекта — и на смену page, и на смену query/deps);
+ * ответ применяется только если поколение совпадает с текущим — иначе
+ * игнорируется (ответ устаревшей страницы/query не затирает свежий state).
  */
 export function usePagedList<TItem>(options: Options): Result<TItem> {
   const {
@@ -155,7 +155,6 @@ export function usePagedList<TItem>(options: Options): Result<TItem> {
   useEffect(() => {
     generationRef.current += 1;
     const issuedGeneration = generationRef.current;
-    const issuedPage = page;
     const backendPage = page - 1;
     const cacheKey = buildUrl(backendPage, debouncedQuery);
 
@@ -175,26 +174,17 @@ export function usePagedList<TItem>(options: Options): Result<TItem> {
     apiGetRaw<Paged<TItem>>(cacheKey, { signal: controller.signal })
       .then((paged) => {
         if (controller.signal.aborted) return;
-        // Stale-guard: эпоха фильтров или целевая страница сменились пока
-        // запрос был in-flight — игнорируем (иначе stale-ответ затёр бы
-        // свежий state).
-        if (
-          issuedGeneration !== generationRef.current ||
-          issuedPage !== page
-        ) {
-          return;
-        }
+        // Stale-guard: эпоха (generation) bump'ается на КАЖДЫЙ прогон эффекта —
+        // в т.ч. при смене page (page в deps). Поэтому одной проверки эпохи
+        // достаточно: stale-ответ предыдущей страницы/query имеет меньшую
+        // generation → игнорируется (плюс cleanup .abort() гасит in-flight).
+        if (issuedGeneration !== generationRef.current) return;
         setCached(cacheKey, paged);
         setState({ kind: 'success', data: paged });
       })
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;
-        if (
-          issuedGeneration !== generationRef.current ||
-          issuedPage !== page
-        ) {
-          return;
-        }
+        if (issuedGeneration !== generationRef.current) return;
         // Не затираем валидный кэш error-экраном.
         if (getCached<Paged<TItem>>(cacheKey) !== undefined) return;
         setState({ kind: 'error', message: formatApiError(e, fallbackError) });
