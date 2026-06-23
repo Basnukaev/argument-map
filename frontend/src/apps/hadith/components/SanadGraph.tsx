@@ -19,8 +19,10 @@ import { useThemeStore } from '@/shared/stores/themeStore';
 import { exportGraphAsPngHighRes } from '@/shared/utils/graphExport';
 import { toast } from '@/shared/stores/toastStore';
 import SanadGraphNode, { type SanadNode } from './SanadGraphNode';
+import SanadCustomEdge from './SanadCustomEdge';
 import NarratorPanel from './NarratorPanel';
 import { layoutSanad, NODE_WIDTH, NODE_HEIGHT } from '@/apps/hadith/utils/sanadLayout';
+import { applySanadElkLayout } from '@/apps/hadith/utils/sanadElkLayout';
 import { edgeStroke, RELIABILITY_TOKENS } from '@/apps/hadith/sanadTokens';
 import type {
   NarratorData,
@@ -119,8 +121,9 @@ function collectSanadPath(
 }
 
 // Стабильная ссылка между рендерами (иначе React Flow предупреждает и
-// пересоздаёт типы узлов на каждый render).
+// пересоздаёт типы узлов/рёбер на каждый render).
 const nodeTypes = { sanad: SanadGraphNode };
+const edgeTypes = { sanad: SanadCustomEdge };
 
 // Подмножество степеней для компактной легенды (полный список — в панели).
 const LEGEND_GRADES: ReliabilityGrade[] = ['SAHABI', 'THIQA', 'SADUQ', 'DAIF'];
@@ -297,9 +300,10 @@ function SanadGraph({
     return () => controller.abort();
   }, [controlled, hadithId]);
 
-  // dagre-раскладка + маппинг дорогие, а React Flow перерисовывается часто
-  // при pan/zoom — memo по graph (реальная перф-проблема, не превентивный memo).
-  const { rfNodes: baseNodes, rfEdges: baseEdges } = useMemo(() => {
+  // Построение RF-узлов/рёбер + dagre-раскладка (мгновенный fallback, ниже
+  // подменяется ELK по готовности). memo по graph: маппинг + dagre дорогие,
+  // RF перерисовывается часто при pan/zoom (реальная перф-проблема, не превентивный memo).
+  const { rfNodes: dagreNodes, rfEdges: dagreEdges } = useMemo(() => {
     if (!graph) return { rfNodes: [] as SanadNode[], rfEdges: [] as Edge[] };
     const nodes: SanadNode[] = graph.nodes.map((n) => {
       // Version-узлы: data с бэка null, смысловые поля в n.version. Помечаем
@@ -326,23 +330,44 @@ function SanadGraph({
         id: e.id,
         source: e.source,
         target: e.target,
-        type: 'smoothstep',
-        label: e.data.transmissionPhrase ?? undefined,
-        labelStyle: {
-          fontFamily: 'var(--font-arabic)',
-          fontSize: 13,
-          fontWeight: 600,
-          fill: 'var(--c-ink-700)',
-        },
-        labelBgStyle: { fill: 'var(--c-bg-elevated)', fillOpacity: 0.92 },
-        labelBgPadding: [4, 2] as [number, number],
-        labelBgBorderRadius: 4,
+        type: 'sanad',
+        // Подпись-формула живёт в data: у кастомного ребра RF-встроенный label
+        // не работает — SanadCustomEdge рендерит её сам (+ bend-points из ELK).
+        data: { transmissionPhrase: e.data.transmissionPhrase ?? undefined },
         style: { stroke, strokeWidth: e.data.onPrimaryChain ? 2.4 : 1.6 },
         markerEnd: { type: MarkerType.ArrowClosed, color: stroke, width: 16, height: 16 },
       };
     });
     return { rfNodes: layoutSanad(nodes, edges), rfEdges: edges };
   }, [graph, currentHadithId]);
+
+  // ELK ортогональная раскладка (async): рёбра огибают карточки (Проблема 1),
+  // параллельные рёбра разводятся (Проблема 2), подписи-формулы садятся на
+  // середину сегмента, не на узел (Проблема 3). dagre выше — мгновенный
+  // fallback; ELK подменяет позиции + bend-points по готовности.
+  const [elkLayout, setElkLayout] = useState<{ nodes: SanadNode[]; edges: Edge[] } | null>(null);
+  useEffect(() => {
+    // Сброс на смену графа: не показывать ELK-позиции прошлого графа, пока
+    // считаем новый (eslint-disable — тот же приём, что в fetch-эффекте выше).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setElkLayout(null);
+    if (dagreNodes.length === 0) return;
+    let cancelled = false;
+    applySanadElkLayout(dagreNodes, dagreEdges)
+      .then((res) => {
+        if (!cancelled) setElkLayout(res);
+      })
+      .catch(() => {
+        // ELK упал — остаёмся на dagre fallback (граф читаем, просто без ortho).
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dagreNodes, dagreEdges]);
+
+  // ELK по готовности, иначе dagre. Кормят highlight-memo ниже.
+  const baseNodes = elkLayout?.nodes ?? dagreNodes;
+  const baseEdges = elkLayout?.edges ?? dagreEdges;
 
   // Подсветка пути активного санада. Отдельный memo: пересчитывается только
   // при смене активного санада, не при pan/zoom (baseNodes/baseEdges стабильны).
@@ -361,6 +386,7 @@ function SanadGraph({
         edgeIds.has(e.id)
           ? {
               ...e,
+              data: { ...e.data, dimmed: false },
               style: {
                 ...e.style,
                 opacity: 1,
@@ -370,9 +396,8 @@ function SanadGraph({
           : {
               // Чужие рёбра И их подписи приглушаем — цепочка читается чисто.
               ...e,
+              data: { ...e.data, dimmed: true },
               style: { ...e.style, opacity: 0.12 },
-              labelStyle: { ...e.labelStyle, opacity: 0.12 },
-              labelBgStyle: { ...e.labelBgStyle, fillOpacity: 0.1 },
             },
       );
       return { rfNodes: nodes, rfEdges: edges };
@@ -394,10 +419,10 @@ function SanadGraph({
     }));
     const highlightedEdges = baseEdges.map((e) => {
       if (!edgeIds.has(e.id)) {
-        return { ...e, style: { ...e.style, opacity: 0.15 } };
+        return { ...e, data: { ...e.data, dimmed: true }, style: { ...e.style, opacity: 0.15 } };
       }
       // Активное ребро — подчёркиваем шириной.
-      return { ...e, style: { ...e.style, opacity: 1, strokeWidth: Number(e.style?.strokeWidth ?? 1.6) + 1 } };
+      return { ...e, data: { ...e.data, dimmed: false }, style: { ...e.style, opacity: 1, strokeWidth: Number(e.style?.strokeWidth ?? 1.6) + 1 } };
     });
     return { rfNodes: highlightedNodes, rfEdges: highlightedEdges };
   }, [highlightedNode, activeSanadId, graph, baseNodes, baseEdges]);
@@ -462,6 +487,7 @@ function SanadGraph({
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onInit={(instance) => {
           rfInstanceRef.current = instance;
         }}
