@@ -76,7 +76,7 @@ public class OverrideApplyService {
             }
             // non-reveal + hidden → вырезаем (не добавляем в out)
         }
-        return out;
+        return List.copyOf(out);   // immutable, как и остальные ветки
     }
 
     // ── Hadith ────────────────────────────────────────────────────────────────

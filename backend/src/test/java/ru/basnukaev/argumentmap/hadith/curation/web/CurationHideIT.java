@@ -107,6 +107,30 @@ class CurationHideIT {
     }
 
     @Test
+    void hiddenRuling_authenticatedNonAdmin_alsoCut() throws Exception {
+        // Граница безопасности: reveal ТОЛЬКО для ADMIN. Аутентифицированный
+        // не-ADMIN (STUDENT) видит запись вырезанной, как гость — регрессия,
+        // ослабившая проверку до hasAtLeast, покраснела бы здесь.
+        UUID studentId = insertUser("student", UserRole.STUDENT);
+        UUID hid = UUID.randomUUID();
+        hadithRepository.save(new Hadith(hid, null, 1, "n", HadithStatus.CANONICAL, null, null, Instant.now()));
+        UUID hidden = UUID.randomUUID();
+        rulingRepository.save(new HadithRuling(hidden, hid, "одиозный", 300, "صحيح-скрытый",
+                "كتاب", 1, 1, "{}", Instant.now()));
+        rulingRepository.save(new HadithRuling(UUID.randomUUID(), hid, "البخاري", 256, "صحيح-видимый",
+                "كتاب", 1, 1, "{}", Instant.now()));
+
+        hideRecord("hd_rulings", hidden);
+
+        mockMvc.perform(get("/api/v1/hadith/hadiths/{id}/detail", hid)
+                        .header("X-User-Id", studentId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rulings.length()").value(1))
+                .andExpect(jsonPath("$.rulings[?(@.hiddenByAdmin==true)]",
+                        org.hamcrest.Matchers.empty()));
+    }
+
+    @Test
     void hiddenCommentary_cutForGuest_revealedForAdmin() throws Exception {
         UUID nid = UUID.randomUUID();
         narratorRepository.save(new Narrator(nid, null, "راو", "راو", null, null, null, null,
@@ -129,7 +153,9 @@ class CurationHideIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.commentaries.length()").value(2))
                 .andExpect(jsonPath("$.commentaries[?(@.hiddenByAdmin==true)].commenter",
-                        hasItem("заблудший")));
+                        hasItem("заблудший")))
+                .andExpect(jsonPath("$.commentaries[?(@.hiddenByAdmin==true)].hideReason",
+                        hasItem("модерация")));
     }
 
     @Test
