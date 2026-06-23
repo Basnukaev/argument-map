@@ -212,6 +212,27 @@
 
 ## Активные этапы
 
+### Этап 30. Курация данных — overlay hd_field_overrides (ADR-065)
+
+P0-1 (реимпорт затирает правки) + FB-5 (править/скрывать вторичные
+данные при защите первоисточника). Спека:
+`docs/specs/2026-06-18-data-curation-overlay.md` (фазы 0-6).
+
+- [x] **P0-1a** merge-страховка перевода матна (Сессия 64-cont, `f7b6fb5`)
+- [x] **Фаза 1** схема + repo + домен (Сессия 65) — миграция 78
+      `hd_field_overrides`, `OverrideEntity`/`FieldOverride`/
+      `CurationWhitelist`, `OverrideRepository` (upsert/batch/delete),
+      ADR-065. 15 тестов (whitelist unit + repo IT, CHECK/UNIQUE)
+- [ ] **Фаза 2** apply-слой `OverrideApplyService` + интеграция в
+      `findById/findPage` хадиса/рави (не в `findByExternalId`)
+- [ ] **Фаза 3** generic write-API `PUT/DELETE/GET /admin/curation/
+      overrides` + audit + RBAC + frontend `EditableField` (пилот
+      hadiths+narrators) → **review-чекпоинт**
+- [ ] **Фаза 4** hide/show (запись + поле) + `HideToggle`
+- [ ] **Фаза 5** расширение на сателлиты (rulings/explanations/
+      commentaries/matns/sanads)
+- [ ] **Фаза 6** миграция C9-перевода в overlay + снять P0-1a → review
+
 ### Этап 18. Library frontend - оставшиеся подэтапы
 
 Основное закрыто (см. выше в закрытых). Что осталось:

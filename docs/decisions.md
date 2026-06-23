@@ -6777,6 +6777,80 @@ read-guard'а — любой authed читал страницы PRIVATE-книг
 
 **Связанные:** ADR-040 (auth transitional), ADR-043 (RBAC visibility).
 
+## ADR-065: Overlay-таблица hd_field_overrides для курации данных hadith-домена (миграция 78)
+
+**Статус:** ✅ Принято (Сессия 65, 2026-06-24)
+**Связанные:** ADR-043 (RBAC + audit_log — переиспользуем), ADR-060 (alminasa —
+единственный источник, реимпорт затирает), ADR-061 (hd_narrator_commentaries),
+ADR-062 (hadith_grades — отдельная курируемая ось, НЕ дублируем),
+ADR-063 (authenticity — выводимая ось, главный кандидат на правку).
+**Спека:** `docs/specs/2026-06-18-data-curation-overlay.md` (фазы 0-6).
+
+### Контекст
+
+Реимпорт alminasa (`AlminasaHadithMapper.mapHadith`,
+`AlminasaNarratorMapper.mapNarrator`) делает upsert хадиса/рави с перезаписью
+всех колонок + delete-recreate сателлитов → **молча затирает любые ручные
+правки** (P0-1 аудита). Механизма do-not-overwrite в схеме/коде нет.
+Параллельно FB-5 требует: (a) править любые данные любой hd_*-сущности (фикс
+ошибок импорта), (b) скрывать/показывать данные без удаления (модерация),
+(c) при гарантии неизменности первоисточника (текст матна/аята/цитаты).
+Перевод матна (C9 PATCH) — самый острый случай: `insertMatn` пересоздаёт
+строку с `text_ru/en = NULL` и новым `matnId` (промежуточно спасён merge-
+страховкой P0-1a в `AlminasaHadithMapper`/`MatnRepository.findPrimaryByHadithId`).
+
+### Решение
+
+Generic **overlay-таблица `hd_field_overrides`** (`entity_table, entity_id,
+field_name, override_value, is_null_override, hidden, edited_by, edited_at,
+reason`; UNIQUE по `(entity_table, entity_id, field_name)`; CHECK на whitelist
+8 таблиц + payload). Импорт hd_* **не трогаем** — пишет базовый слой как есть.
+Правки и hide-флаги живут в overlay и накладываются **на ЧТЕНИИ**
+централизованным `OverrideApplyService` (декоратор на доменных records ДО
+маппинга в DTO; вызывается в `findById/findPage` репозиториев + на списках
+сателлитов в контроллере). → правки автоматически переживают delete-recreate
+реимпорта.
+
+Первоисточник защищён **whitelist'ом редактируемых полей** (`CurationWhitelist`,
+а не схемой): `normalized_matn`, `full_text_ar`, `hd_matns.text_ar`,
+`hd_narrator_commentaries.comments` — не входят в editable-набор, PATCH с ними
+→ 400. Перевод (`text_ru/en`) — наш контент, редактируем.
+
+Hide: поле-уровень (поле→null) + запись-уровень (`field_name='__record__'`
+→ запись вырезается из payload). `reason` обязателен для hide (модерация).
+Аудит — двойной: `edited_by/at/reason` в самой таблице + `AuditLogService`
+(ADR-043) на каждый PUT/DELETE. RBAC: ADMIN-only на старте (SCHOLAR — позже,
+с моделью review). REST: generic `PUT/DELETE/GET /api/v1/admin/curation/overrides`.
+
+`OverrideEntity` — реальный Java enum (не constant-class как `HadithStatus`):
+`entity_table` = закрытый набор, зеркалируемый CHECK'ом, enum даёт компилятору
+exhaustiveness для apply-диспетчеризации.
+
+### Отвергнутые альтернативы
+
+- **(B) Колонки-локи `*_locked/*_hidden boolean` + условный UPDATE.** N колонок
+  × M таблиц раздувают мапперы и миграции; трогают import-write-path (риск
+  регрессии идемпотентности); не работают на delete-recreate-сателлитах
+  (lock исчезает со строкой); hide требует ещё колонок. Не масштабируется.
+- **(C) Merge-стратегия (upsert сателлитов по природному ключу, сохраняя
+  правленые колонки).** Требует природного ключа на каждом сателлите (хрупко),
+  не даёт hide/show и аудита. Принята лишь как **частный быстрый фикс для
+  перевода** (P0-1a) до готовности overlay, затем снимается (фаза 6).
+
+### Последствия
+
+- **+** Не трогаем import-логику → правки переживают реимпорт; один механизм
+  на правку + hide + аудит; расширяется на любое поле любой hd_*-сущности;
+  первоисточник защищён декларативным whitelist'ом; переиспользует audit_log.
+- **−** Новый apply-слой на чтении (батч-fetch, NO_OP при отсутствии
+  overrides — перф-цена мала); `findById/findPage` перестают быть «чистым БД»
+  (raw — через `findByExternalId` для импорта); фасет-фильтр list по
+  authenticity (решение Абдулы §10: считать по effective-значению через JOIN);
+  ключ matn-перевода нестабилен на реимпорте → резолв по `(hadith_id,
+  is_primary)` (фаза 6).
+- Миграция: один-shot перенос существующего C9-перевода в overlay; C9-эндпоинт
+  переписан на overlay внутри (URL сохранён).
+
 ## ADR-066: Page-image сканы регистрируются в library_files как SCAN
 
 **Контекст.** `PageImageService.uploadPageImage` — единственный blob-writing

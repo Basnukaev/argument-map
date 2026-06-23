@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Курация данных (ADR-065): overlay-таблица правок и hide-флагов поверх
+        импортного корпуса hadith-домена. Импорт alminasa hd_* не трогаем —
+        правки живут здесь и накладываются на ЧТЕНИИ (apply-слой), потому
+        переживают delete-recreate реимпорта.
+
+        Решает P0-1 (overwrite-protection) + FB-5 (править/скрывать любые
+        вторичные данные, первоисточник защищён whitelist'ом в сервисе).
+
+        entity_table — whitelist 8 hd_*-таблиц. field_name — колонка или
+        '__record__' (hide всей строки). override_value текстом, каст в тип
+        поля на apply. hidden — модерация без удаления. reason обязателен
+        для hidden (на сервисе). UNIQUE(entity_table,entity_id,field_name).
+    -->
+    <changeSet id="20260618-78-hd-field-overrides" author="Abdula Basnukaev">
+        <comment>Курация данных: hd_field_overrides (override-значения + hide-флаги)</comment>
+        <createTable tableName="hd_field_overrides">
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="entity_table" type="VARCHAR(40)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="entity_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="field_name" type="VARCHAR(60)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="override_value" type="TEXT"/>
+            <column name="is_null_override" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="hidden" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="edited_by" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_hd_overrides_user"
+                             references="users(id)"
+                             deleteCascade="false"/>
+            </column>
+            <column name="edited_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="reason" type="TEXT"/>
+        </createTable>
+
+        <addUniqueConstraint
+                tableName="hd_field_overrides"
+                columnNames="entity_table, entity_id, field_name"
+                constraintName="hd_field_overrides_unique"/>
+
+        <createIndex tableName="hd_field_overrides" indexName="idx_hd_overrides_lookup">
+            <column name="entity_table"/>
+            <column name="entity_id"/>
+        </createIndex>
+
+        <sql>
+            ALTER TABLE hd_field_overrides ADD CONSTRAINT hd_field_overrides_table_check
+                CHECK (entity_table IN (
+                    'hd_hadiths','hd_narrators','hd_sanads','hd_sanad_narrators',
+                    'hd_rulings','hd_explanations','hd_narrator_commentaries','hd_matns'));
+            ALTER TABLE hd_field_overrides ADD CONSTRAINT hd_field_overrides_payload_check
+                CHECK (override_value IS NOT NULL OR is_null_override OR hidden);
+        </sql>
+
+        <rollback>
+            <dropTable tableName="hd_field_overrides"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>
