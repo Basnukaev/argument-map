@@ -32,14 +32,19 @@ const SANAD_LAYOUT_OPTIONS: Record<string, string> = {
   'elk.algorithm': 'layered',
   'elk.direction': 'DOWN',
   'elk.edgeRouting': 'ORTHOGONAL',
-  // Горизонтальный зазор узлов в слое (turuq-дерево «Все пути»).
-  'elk.spacing.nodeNode': '90',
-  // Вертикальный зазор между слоями цепи.
-  'elk.layered.spacing.nodeNodeBetweenLayers': '120',
-  // ГЛАВНОЕ для Проблемы 1: зазор ребро↔карточка → рёбра огибают узлы.
-  'elk.layered.spacing.edgeNodeBetweenLayers': '40',
-  // Проблема 2: разведение параллельных рёбер.
-  'elk.layered.spacing.edgeEdgeBetweenLayers': '22',
+  // Горизонтальный зазор узлов в слое (turuq-дерево «Все пути»). Шире →
+  // вертикальные сбросы к детям разнесены, параллельные линии читаемы.
+  'elk.spacing.nodeNode': '110',
+  // Вертикальный зазор между слоями — больше места под пологие ступени рёбер.
+  'elk.layered.spacing.nodeNodeBetweenLayers': '150',
+  // Зазор ребро↔карточка → рёбра огибают узлы (Проблема 1).
+  'elk.layered.spacing.edgeNodeBetweenLayers': '50',
+  // Расстояние между параллельными рёбрами (С64: «нужна дистанция между линиями»).
+  // Рёбра НЕ сливаются (mergeEdges выключен) — каждое отдельной линией, разнесены.
+  'elk.layered.spacing.edgeEdgeBetweenLayers': '30',
+  // В пределах одного слоя — тоже разносим рёбра, чтобы вертикали не липли.
+  'elk.spacing.edgeEdge': '28',
+  'elk.spacing.edgeNode': '40',
   'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
   'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
   // BALANCED усредняет 4 прохода выравнивания → родитель центрируется над
@@ -49,9 +54,6 @@ const SANAD_LAYOUT_OPTIONS: Record<string, string> = {
   'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
   // Срезает лишние изломы ортогональных рёбер — чище путь.
   'elk.layered.unnecessaryBendpoints': 'true',
-  // Веер из одного узла идёт общим стволом и ветвится один раз, а не «гребёнкой»
-  // вертикалей из разнесённых портов (С64: «убери отступы»).
-  'elk.layered.mergeEdges': 'true',
 };
 
 /**
