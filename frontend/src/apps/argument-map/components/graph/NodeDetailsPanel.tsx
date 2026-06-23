@@ -21,6 +21,8 @@ interface Props {
   onUpdated: () => void;
   /** если true - "Содержание" сразу открывается в режиме редактирования */
   initialEditing?: boolean;
+  /** FB-2: гость/не-EDITOR — панель read-only (без edit-контента и add-цитат). */
+  canWrite?: boolean;
 }
 
 /**
@@ -37,7 +39,7 @@ interface Props {
  *   fullscreen с back-arrow в header делает чтение и редактирование
  *   узла независимой задачей. Закрыл → видишь граф
  */
-function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: Props) {
+function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false, canWrite = true }: Props) {
   const t = useT();
   const isMobile = useIsMobile();
   const nodeType: NodeType = node.nodeType ?? 'CLAIM';
@@ -116,6 +118,7 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
           initialEditing={initialEditing}
           onSaved={onUpdated}
           inlineCitations={node.inlineCitations}
+          canWrite={canWrite}
         />
         <NodeMetadataSection node={node} />
         {nodeType !== 'QUESTION' && (
@@ -123,6 +126,7 @@ function NodeDetailsPanel({ node, onClose, onUpdated, initialEditing = false }: 
             nodeId={node.id}
             nodeContent={node.content ?? ''}
             onCountsChange={setCitationCounts}
+            canWrite={canWrite}
           />
         )}
         <NodeRevisionsSection nodeId={node.id} />

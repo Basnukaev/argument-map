@@ -810,6 +810,7 @@ function GraphCanvas({ graph, topicId, onRefetch, canWrite = true }: Props) {
           onClose={closeDetail}
           onUpdated={onRefetch}
           initialEditing={editTargetNodeId === detailNode.id}
+          canWrite={canWrite}
         />
       )}
 

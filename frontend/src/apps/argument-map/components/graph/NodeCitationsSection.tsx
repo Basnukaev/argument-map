@@ -47,9 +47,11 @@ interface Props {
   nodeId: string | undefined;
   nodeContent: string;
   onCountsChange?: (counts: { lib: number; free: number }) => void;
+  /** FB-2: гость/не-EDITOR — без кнопок «Привести источник» и detach (read-only). */
+  canWrite?: boolean;
 }
 
-function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
+function NodeCitationsSection({ nodeId, nodeContent, onCountsChange, canWrite = true }: Props) {
   const t = useT();
   const [state, setState] = useState<SourcesState>({ kind: 'loading' });
   const [addSourceOpen, setAddSourceOpen] = useState(false);
@@ -160,9 +162,14 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
         count={state.kind === 'loaded' ? state.data.links.length : undefined}
         defaultOpen={false}
       >
+        {/* FB-2: detach (×) — hover-only, opacity-0, бэк отдаёт 403 гостю.
+            Полное скрытие требует optional onDetach через CitationsList/
+            HadithCite/FreeformCite — отдельный follow-up. Primary write-утечки
+            (edit контента, add-цитаты) уже скрыты для гостя. */}
         <CitationsList state={state} onDetach={detachNodeSource} />
         {/* Vertical stack - текст кнопки "Привести источник" длинный и не
             вмещается в side-by-side layout в узком detail panel (~360px) */}
+        {canWrite && (
         <div className="mt-2 flex flex-col gap-2">
           <Button
             type="button"
@@ -197,6 +204,7 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange }: Props) {
             {t('node.citation_add_free')}
           </Button>
         </div>
+        )}
       </PanelSection>
 
       {addSourceOpen && nodeId && (

@@ -18,6 +18,8 @@ interface Props {
   /** inline citation refs из node.inlineCitations - для рендера [N]-маркеров
    *  в view-режиме. В edit-режиме textarea показывает raw `[1]` (без рендера) */
   inlineCitations?: InlineCitationRef[];
+  /** FB-2: гость/не-EDITOR видит контент read-only (без кнопки «Редактировать»). */
+  canWrite?: boolean;
 }
 
 /**
@@ -26,9 +28,10 @@ interface Props {
  * - edit: textarea + Save/Cancel
  * Хранит свой draft/saving/saveError state - не загрязняет orchestrator.
  */
-function NodeContentEditor({ nodeId, content, initialEditing, onSaved, inlineCitations }: Props) {
+function NodeContentEditor({ nodeId, content, initialEditing, onSaved, inlineCitations, canWrite = true }: Props) {
   const t = useT();
-  const [editing, setEditing] = useState(initialEditing);
+  // Гость (canWrite=false) не входит в edit даже при initialEditing.
+  const [editing, setEditing] = useState(canWrite ? initialEditing : false);
   const [draft, setDraft] = useState(content);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -79,16 +82,18 @@ function NodeContentEditor({ nodeId, content, initialEditing, onSaved, inlineCit
           ) : (
             <p className="text-sm italic text-ink-400">{t('node.empty_content_short')}</p>
           )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            icon={Pencil}
-            onClick={startEdit}
-            className="-ms-2 mt-3"
-          >
-            {t('common.edit')}
-          </Button>
+          {canWrite && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              icon={Pencil}
+              onClick={startEdit}
+              className="-ms-2 mt-3"
+            >
+              {t('common.edit')}
+            </Button>
+          )}
         </div>
       ) : (
         <div className="space-y-2">

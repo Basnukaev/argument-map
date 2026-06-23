@@ -73,6 +73,20 @@ describe('NodeDetailsPanel', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('canWrite=false (гость): нет кнопки «Редактировать» контента (FB-2)', () => {
+    renderPanel({ canWrite: false });
+    expect(
+      screen.queryByRole('button', { name: /Редактировать/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('canWrite=true: кнопка «Редактировать» контента есть', () => {
+    renderPanel({ canWrite: true });
+    expect(
+      screen.getByRole('button', { name: /Редактировать/ }),
+    ).toBeInTheDocument();
+  });
+
   it('aria-label панели = Детали узла', () => {
     renderPanel();
     expect(screen.getByRole('complementary', { name: 'Детали узла' })).toBeInTheDocument();
