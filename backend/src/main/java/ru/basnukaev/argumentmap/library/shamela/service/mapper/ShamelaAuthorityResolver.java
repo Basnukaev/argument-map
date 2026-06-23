@@ -62,9 +62,27 @@ public class ShamelaAuthorityResolver {
                     shamelaAuthorId);
             return resolveAnonymous();
         }
-        String normalized = normalizeName(shamelaAuthor.get().name());
+        UUID resolved = resolveByName(shamelaAuthor.get().name(), shamelaAuthor.get().biography());
+        return resolved != null ? resolved : resolveAnonymous();
+    }
+
+    /**
+     * Резолвит свободную строку-имя автора (например {@code إعداد:} -
+     * автор диссертации, у которого нет {@code lib_shamela_author.id})
+     * в {@code Authority} тем же путём, что и shamela-автор по id:
+     * normalize → exact-match по имени → idempotent insert AUTHOR.
+     *
+     * <p>Используется маппером как fallback, когда structured author_id
+     * отсутствует, но bibliography содержит имя подготовившего работу
+     * (иначе автор диссертации молча терялся).
+     *
+     * @return id Authority под этим именем, либо {@code null} если имя
+     *         после нормализации пустое (caller сам решает про anonymous)
+     */
+    public UUID resolveByName(String rawName, String bio) {
+        String normalized = normalizeName(rawName);
         if (normalized == null) {
-            return resolveAnonymous();
+            return null;
         }
         Optional<Authority> existing = authorityRepository.findByName(normalized);
         if (existing.isPresent()) {
@@ -78,7 +96,7 @@ public class ShamelaAuthorityResolver {
         Authority created = new Authority(
                 UUID.randomUUID(),
                 normalized,
-                blankToNull(shamelaAuthor.get().biography()),
+                blankToNull(bio),
                 null,
                 null,
                 null,

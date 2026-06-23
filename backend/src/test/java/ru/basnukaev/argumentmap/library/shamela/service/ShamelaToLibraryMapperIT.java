@@ -221,6 +221,27 @@ class ShamelaToLibraryMapperIT {
         assertThat(anonymous.name()).isEqualTo(ShamelaToLibraryMapper.ANONYMOUS_AUTHORITY_NAME);
     }
 
+    @Test
+    void mapBook_resolvesThesisPreparerAsAuthor_whenStructuredAuthorMissing() {
+        // Диссертация: structured author_id отсутствует, автор указан только
+        // в bibliography через إعداد:. Раньше книга получала anonymous-
+        // авторитет (автор молча терялся). Теперь preparer резолвится в
+        // обычную Authority(type=AUTHOR).
+        long shamelaBookId = 15L;
+        String biblio = "الكتاب: الاستنباط عند الخطيب الشربيني"
+                + "\\rرسالة: ماجستير، جامعة الإمام محمد بن سعود الإسلامية"
+                + "\\rإعداد: أسماء بنت محمد بن عبدالعزيز الناصر"
+                + "\\rإشراف: د عبدالعزيز بن ناصر السبر";
+        seedBook(shamelaBookId, "رسالة ماجستير", null, 1, biblio, null);
+
+        MappedBookResult result = mapper.mapBook(shamelaBookId, testUserId);
+
+        Authority authority = authorityRepository.findById(result.authorityId()).orElseThrow();
+        assertThat(authority.name()).isEqualTo("أسماء بنت محمد بن عبدالعزيز الناصر");
+        // не anonymous-fallback
+        assertThat(authority.name()).isNotEqualTo(ShamelaToLibraryMapper.ANONYMOUS_AUTHORITY_NAME);
+    }
+
     // Сценарий "dangling author_id" (FK на несуществующего автора) тестируется
     // только защитной веткой кода - на уровне БД lib_shamela_book.author_id имеет
     // FK на lib_shamela_author с ON DELETE SET NULL, что гарантирует невозможность

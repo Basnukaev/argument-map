@@ -132,8 +132,8 @@ public class ShamelaToLibraryMapper {
             return MappedBookResult.alreadyMapped(book.id(), shamelaBookId, book.authorityId());
         }
 
-        UUID authorityId = authorityResolver.resolve(shamelaBook.authorId());
         ParsedBibliography parsedBiblio = bibliographyParser.parse(shamelaBook.bibliography());
+        UUID authorityId = resolveAuthority(shamelaBook, parsedBiblio);
         UUID muhaqqiqId = parsedBiblio.muhaqqiq() == null
                 ? null : muhaqqiqRepository.findOrCreate(parsedBiblio.muhaqqiq());
         UUID publisherId = parsedBiblio.publisher() == null
@@ -183,6 +183,25 @@ public class ShamelaToLibraryMapper {
                 shamelaBookId, bookUuid, chaptersCount, pagesCount, authorityId);
         return MappedBookResult.freshlyCreated(bookUuid, shamelaBookId, authorityId,
                 chaptersCount, pagesCount);
+    }
+
+    /**
+     * Резолвит автора книги. Обычный путь - structured
+     * {@code shamela_book.author_id} через {@link ShamelaAuthorityResolver}.
+     * Для диссертаций автор часто отсутствует в author_id и указан только
+     * в bibliography через маркер {@code إعداد:} ({@code thesisPreparer}) -
+     * без fallback'а он молча терялся (резолвился anonymous). Если
+     * structured author нет, но preparer распарсен - резолвим его по имени
+     * тем же путём (Authority type=AUTHOR), иначе anonymous как раньше.
+     */
+    private UUID resolveAuthority(ShamelaBookRow shamelaBook, ParsedBibliography parsedBiblio) {
+        if (shamelaBook.authorId() == null && parsedBiblio.thesisPreparer() != null) {
+            UUID preparerId = authorityResolver.resolveByName(parsedBiblio.thesisPreparer(), null);
+            if (preparerId != null) {
+                return preparerId;
+            }
+        }
+        return authorityResolver.resolve(shamelaBook.authorId());
     }
 
     private static String titleOrPlaceholder(String raw) {

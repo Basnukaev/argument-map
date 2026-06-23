@@ -27,10 +27,18 @@ public record ParsedBibliography(
         // institution = جامعة/كلية. Все nullable - обычные книги их не имеют.
         String thesisDegree,
         String thesisSupervisor,
-        String thesisInstitution
+        String thesisInstitution,
+        // thesisPreparer = автор диссертации из маркера إعداد ("подготовил").
+        // У диссертаций автор часто отсутствует в structured author_id и
+        // указан ТОЛЬКО здесь - без этого поля он молча терялся. Маппер
+        // использует его как fallback для author-резолвинга когда
+        // structured author отсутствует. Schema-колонки НЕТ - имя резолвится
+        // в обычную Authority(type=AUTHOR) через тот же путь, что и любой
+        // shamela-автор.
+        String thesisPreparer
 ) {
     public static ParsedBibliography empty() {
-        return new ParsedBibliography(null, null, null, null, null, null, null, null, null);
+        return new ParsedBibliography(null, null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -46,6 +54,7 @@ public record ParsedBibliography(
                 && publishedYearGregorian == null
                 && thesisDegree == null
                 && thesisSupervisor == null
-                && thesisInstitution == null;
+                && thesisInstitution == null
+                && thesisPreparer == null;
     }
 }

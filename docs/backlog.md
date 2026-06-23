@@ -307,11 +307,14 @@ permission-модель», который надо домести чтобы swe
 (commit 5f27689, завершает ADR-043 sweep); AI-edit stuck-PROCESSING
 liveness (Сессия 55 Фаза 12). Детали в progress.md/git.
 
-- [ ] **Thesis `إعداد:` author-loss** — partial-parse прячет raw
-  description (guard `!hasStructuredMetadata`); у диссертаций автор иногда
-  только в `إعداد:` и не резолвится в shamela authorId → теряется. Либо
-  парсить إعداد в authority/thesis, либо показывать raw когда есть
-  непокрытые structured-полями строки.
+- [x] **Thesis `إعداد:` author-loss** — закрыто С64 (без схемы): `ParsedBibliography`
+  получил nullable-поле `thesisPreparer`, парсер ловит `إعداد`/`اعداد`/`من إعداد`
+  (как существующий `إشراف`-маркер), а `ShamelaToLibraryMapper.resolveAuthority`
+  использует preparer как fallback автора, когда structured `author_id` пуст —
+  имя резолвится в обычную `Authority(type=AUTHOR)` тем же путём (новый
+  `ShamelaAuthorityResolver.resolveByName`). Без новой колонки. Backfill-сервис
+  НЕ трогали (риск перезаписать ручные правки — отдельный вопрос). Тесты: parser
+  19/19 (+iʿdād-кейсы), mapper IT 16/16 (+resolvesThesisPreparerAsAuthor).
 - [x] **Repository round-trip IT для thesis-колонок** — закрыто (аудит С64):
   `BookRepositoryIT.save_withThesisMetadata_roundTrip` (+null-fields +
   updateThesisMetadata) сохраняют/читают thesis_* через Testcontainers Postgres.

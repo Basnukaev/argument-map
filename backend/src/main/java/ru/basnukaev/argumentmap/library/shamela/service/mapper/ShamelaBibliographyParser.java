@@ -60,9 +60,14 @@ public class ShamelaBibliographyParser {
 
     // Thesis (рисала) markers - для академических диссертаций (миграция 58):
     //   رسالة: ماجستير، جامعة الإمام ... - كلية ... → degree + institution
+    //   إعداد: فلان                                 → preparer (автор диссертации)
     //   إشراف: د. فلان                              → supervisor
     //   العام الجامعي: ١٤٣٧ - ١٤٣٨ هـ                → academic year (→ hijri)
     private static final Pattern THESIS_LINE = compileField("رسالة");
+    // إعداد ("подготовил") - автор диссертации. Варианты с/без начальной
+    // hamza (إعداد/اعداد), зеркалит alternation у SUPERVISOR. У диссертаций
+    // автор часто указан ТОЛЬКО здесь, без structured author_id.
+    private static final Pattern PREPARER = compileField("(?:إعداد|اعداد|من إعداد|من اعداد)");
     private static final Pattern SUPERVISOR = compileField("(?:إشراف|اشراف|المشرف)");
     private static final Pattern ACADEMIC_YEAR_LINE = compileField("(?:العام الجامعي|العام الدراسي)");
 
@@ -142,6 +147,7 @@ public class ShamelaBibliographyParser {
             }
         }
         String thesisSupervisor = extract(bibliography, SUPERVISOR);
+        String thesisPreparer = extract(bibliography, PREPARER);
 
         Integer editionNumber = parseEditionNumber(editionRaw);
         // Год: для изданных книг - الطبعة/عام النشر; для диссертаций -
@@ -160,7 +166,8 @@ public class ShamelaBibliographyParser {
                 gregorian,
                 blank(thesisDegree),
                 blank(thesisSupervisor),
-                blank(thesisInstitution)
+                blank(thesisInstitution),
+                blank(thesisPreparer)
         );
     }
 

@@ -206,6 +206,8 @@ class ShamelaBibliographyParserTest {
         assertThat(parsed.thesisDegree()).isEqualTo("ماجستير");
         assertThat(parsed.thesisInstitution())
                 .isEqualTo("جامعة الإمام محمد بن سعود الإسلامية - كلية أصول الدين - قسم القرآن وعلومه");
+        // إعداد: автор диссертации - раньше молча терялся (нет assert'а)
+        assertThat(parsed.thesisPreparer()).isEqualTo("أسماء بنت محمد بن عبدالعزيز الناصر");
         assertThat(parsed.thesisSupervisor()).isEqualTo("د عبدالعزيز بن ناصر السبر");
         // Академический год → hijri (берётся последний/максимальный матч هـ)
         assertThat(parsed.publishedYearHijri()).isIn(1437, 1438);
@@ -213,6 +215,30 @@ class ShamelaBibliographyParserTest {
         assertThat(parsed.publisher()).isNull();
         assertThat(parsed.muhaqqiq()).isNull();
         assertThat(parsed.editionNumber()).isNull();
+    }
+
+    @Test
+    void parsesPreparerWithoutHamzaOnEdad() {
+        // إعداد может встречаться без начальной hamza (اعداد) - зеркалит
+        // alternation у إشراف/اشراف. Автор диссертации не должен теряться.
+        String biblio = "رسالة: دكتوراه - جامعة أم القرى"
+                + "\\rاعداد: محمد بن أحمد الزهراني";
+
+        ParsedBibliography parsed = parser.parse(biblio);
+
+        assertThat(parsed.thesisPreparer()).isEqualTo("محمد بن أحمد الزهراني");
+    }
+
+    @Test
+    void publishedBookHasNoPreparer_noFalsePositive() {
+        // Обычная изданная книга не должна получить thesisPreparer.
+        String biblio = "الكتاب: تفسير القرآن العظيم\\rالمؤلف: ابن كثير"
+                + "\\rالمحقق: حكمت بن بشير بن ياسين"
+                + "\\rالناشر: دار ابن الجوزي للنشر والتوزيع - السعودية";
+
+        ParsedBibliography parsed = parser.parse(biblio);
+
+        assertThat(parsed.thesisPreparer()).isNull();
     }
 
     @Test
