@@ -20,6 +20,7 @@ import ru.basnukaev.argumentmap.hadith.alminasa.service.AlminasaStagingNotFoundE
 import ru.basnukaev.argumentmap.hadith.alminasa.web.AlminasaBackfillConflictException;
 import ru.basnukaev.argumentmap.hadith.alminasa.web.AlminasaCrawlConflictException;
 import ru.basnukaev.argumentmap.hadith.alminasa.web.AlminasaImportConflictException;
+import ru.basnukaev.argumentmap.hadith.curation.web.CurationException;
 import ru.basnukaev.argumentmap.library.imports.AiEditNotConfiguredException;
 import ru.basnukaev.argumentmap.library.imports.FileImportException;
 import ru.basnukaev.argumentmap.library.imports.PageImageException;
@@ -300,6 +301,13 @@ public class GlobalExceptionHandler {
                 "Этот endpoint доступен только пользователям с ролью ADMIN");
         pd.setProperty("userId", ex.getUserId().toString());
         return pd;
+    }
+
+    // ---- курация данных (ADR-065) ----
+
+    @ExceptionHandler(CurationException.class)
+    public ProblemDetail handleCuration(CurationException ex) {
+        return problem(ex.status(), ex.title(), ex.typeSlug(), ex.getMessage());
     }
 
     // ---- archive.org import (ADR-056) ----

@@ -4417,10 +4417,63 @@ only (id+title+authorityId), полная сериализация исключ�
 - 400 - missing X-User-Id / невалидный JSON / topic=null
 - 422 `unsupported-format-version` - formatVersion не в whitelist
 
+## Курация данных API (ADR-065)
+
+Generic overlay-правки/скрытия поверх импортного корпуса hadith-домена.
+**ADMIN-only** (гейт в сервисе; аноним → 401 `invalid-token`). Все
+эндпоинты под `/api/v1/admin/curation/overrides`. Правки накладываются на
+ЧТЕНИИ (apply-слой) — переживают реимпорт alminasa. Первоисточник
+(`normalized_matn`/`full_text_ar`/`text_ar`/commentary `comments`) защищён
+whitelist'ом: PATCH с ним → 400 `curation-field-not-editable`.
+
+| Метод | Путь | Тело / параметры | Ответ | Ошибки |
+|---|---|---|---|---|
+| PUT | `/api/v1/admin/curation/overrides` | `CurationOverridePutRequest` | `CurationOverrideResponse` | 400/401/403/404 |
+| DELETE | `/api/v1/admin/curation/overrides?entityTable=&entityId=&fieldName=` | — | **204** | 401/403/404 |
+| GET | `/api/v1/admin/curation/overrides?entityTable=&entityId=` | — | `List<CurationOverrideResponse>` | 401/403/400 |
+
+### CurationOverridePutRequest
+```json
+{
+  "entityTable": "hd_narrators",   // whitelist 8 hd_*-таблиц
+  "entityId": "uuid",
+  "fieldName": "reliability_grade", // колонка или "__record__" (hide записи)
+  "value": "THIQA",                 // nullable; обязателен если !hidden && !isNull
+  "isNull": false,                  // явная правка в NULL
+  "hidden": false,                  // скрыть поле/запись
+  "reason": "у Ибн Хаджара ثقة"     // обязателен для hidden
+}
+```
+
+### CurationOverrideResponse
+```json
+{
+  "id": "uuid", "entityTable": "hd_narrators", "entityId": "uuid",
+  "fieldName": "reliability_grade", "value": "THIQA",
+  "isNull": false, "hidden": false,
+  "editedBy": "uuid", "editedAt": "2026-06-24T...Z", "reason": "..."
+}
+```
+
+**Ошибки (RFC 7807 `type`):**
+- 400 `curation-invalid-entity-table` — таблица не в whitelist
+- 400 `curation-field-not-editable` — поле вне whitelist (или первоисточник)
+- 400 `curation-invalid-enum-value` — value вне enum-whitelist поля
+- 400 `curation-reason-required` — `hidden=true` без `reason`
+- 400 `curation-empty-override` — ни value, ни isNull, ни hidden
+- 403 `forbidden-admin-only` — роль ниже ADMIN
+- 404 `curation-entity-not-found` — `(entityTable, entityId)` не существует
+- 404 `curation-override-not-found` — DELETE несуществующего override
+
+Аудит двойной: `edited_by/at/reason` в строке + `audit_log`
+(`entity_type=HD_FIELD_OVERRIDE`, `parent_entity_type=entityTable`) в той
+же транзакции.
+
 ## История изменений контракта
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-06-24 | v1 | **Курация данных API (ADR-065), Фаза 3 пилот.** Generic `PUT/DELETE/GET /api/v1/admin/curation/overrides` (ADMIN-only) поверх миграции 78 `hd_field_overrides`. `CurationOverridePutRequest{entityTable,entityId,fieldName,value?,isNull?,hidden?,reason?}` → `CurationOverrideResponse`. Правки/скрытия живут в overlay, накладываются на ЧТЕНИИ (`OverrideApplyService` в `findById/findPage` хадиса/рави) → переживают delete-recreate реимпорта alminasa. Whitelist (`CurationWhitelist`) защищает первоисточник (`normalized_matn`/`full_text_ar`/`text_ar`/commentary `comments` → 400 `curation-field-not-editable`). Новые ошибки: `curation-invalid-entity-table`/`curation-field-not-editable`/`curation-invalid-enum-value`/`curation-reason-required`/`curation-empty-override` (400), `curation-entity-not-found`/`curation-override-not-found` (404). Аудит двойной (строка + `audit_log` `HD_FIELD_OVERRIDE`). Пилот-сущности: hd_hadiths (authenticity/status/…) + hd_narrators (reliability/tabaqa/…). IT: `CurationOverrideControllerIT` (RBAC, first-source 400, enum 400, reason-required, round-trip effective findById, DELETE-откат) | P0-1 (реимпорт затирал ручные правки) + FB-5 (править/скрывать вторичные данные при защите первоисточника). Overlay = один механизм на правку+hide+аудит, import-логику не трогаем |
 | 2026-06-06 | v1 | **План 8: вкладки علل (иляль) и غريب (гариб) — backfill + DTO.** (A) Миграция 75: staging `am_staging_commentary` (علل, PK `commentary_id`, `narrations jsonb` + GIN-индекс под `@>`, raw) + `am_staging_ambiguous` (غريب, PK `ambiguous_id`, raw). DAO с `upsertAll` (ON CONFLICT) / `count` / `AmCommentaryStagingDao.findByNarration` (GIN `narrations @> ["146-2"]`, bind = Jackson-сериализованный массив) / `AmAmbiguousStagingDao.findByIds`. (B) `AlminasaEsClient` +`fetchCommentaries` (terms `commentary.narrations`, батчи по `dependent-batch-size`, size=`dependent-fetch-size`) +`fetchAmbiguous` (terms `id`, батчи `min(200, dependent-fetch-size)`, size=размеру батча) — `_search` (не `_msearch`). Новый `AlminasaDependentsBackfillService` (in-memory keyset по staging-корпусу, коарс-чекпоинт `backfill-s59`, свой `alminasaBackfillExecutor`, CAS+finally-контракт; может идти параллельно с crawl) + 3 admin-эндпоинта `POST /admin/alminasa/backfill/{start,pause}` (202; 409 `alminasa-backfill-already-running`) + `GET /admin/alminasa/backfill/status` (`AlminasaBackfillStatusResponse`). (C) `AlminasaHadithMapper.insertExplanations` +ILAL (`findByNarration`→kind=ILAL, text=`commentary_text`, metadata `{commentaryId, narrations, fullText, fullTextHtml}`) +GHARIB (`raw.ambiguous[]`→строка на `(ambiguous_id × reference_id)`, text=`explanation`, metadata `{ambiguousId, reference, referenceId}`; нет словаря в staging→skip); SHARH-путь нетронут, delete-recreate держит идемпотентность. (D) `ExplanationDto` +`reference` (nullable, GHARIB-заголовок-слово; `toExplanationDto` читает metadata defensive try/catch). IT: `AmStagingDaoIT`/`AlminasaRowsTest` (round-trip + findByNarration на 146-2), `AlminasaEsClientStubIT` (shapes обоих индексов), `AlminasaDependentsBackfillServiceIT` (e2e + фейл→IDLE→relaunch + 409-latch), `AlminasaMapperIT` (ILAL Даракутни + GHARIB + idem), `HadithControllerIT` (GHARIB.reference) | План 8: علل (скрытые дефекты, «Илал ад-Даракутни») и غريب (толкования редких слов) приходят в `hd_explanations` отдельными kind'ами для соответствующих секций Hadith Explorer. Backfill мал (2 индекса по снятому корпусу, `ambiguous[]` уже в raw) |
 | 2026-06-06 | v1 | **Сессия 58: turuq-graph + DTO enrichment по юзер-фидбеку.** (A) Обогащение detail-DTO: `HadithDetailResponse` +`externalId` (природный ключ alminasa, null у legacy); `RulingDto` +`relatedHadithId` (резолв `relatedExternalId`→наш FK, in-method кэш) +`relatedCollectionNameRu` (русский сборник параллельной передачи по префиксу `relatedExternalId`); `CrossrefDto` **переделан (breaking)** — поле `note` удалено, добавлены `numbers` (распарсенный JSON-массив номеров из `hd_hadith_crossrefs.note`, битый/null→`[]`), `collectionNameAr`/`collectionNameRu` (сборник сиблинга по префиксу). Единый static-хелпер `AlminasaCollections.byExternalId` для резолва префикса `bookId-…`. (B) Version-узлы в графе иснада: `SanadGraphResponse.GraphNode` +`version` (новый record `VersionInfo{hadithId, externalId, collectionSlug, collectionNameAr, collectionNameRu, printedNumber, matnPreview}`); `buildGraph` завершает граф version-узлом самого хадиса (`role=VERSION`, `id=version-{hadithId}`, `data=null`) + рёбра от коллекторного конца каждой цепи (`edge-version-{n}`, `transmissionPhrase=null`). Новый `buildTuruqGraph` — объединённый граф самого хадиса + всех резолвленных crossref-путей (общие рави = один узел, prophet один, рёбра дедуп с агрегацией `sanadCount`, `onPrimaryChain` только у primary-цепи главного, version-узел на каждую версию). Новый endpoint `GET /api/v1/hadith/hadiths/{id}/turuq-graph` → `SanadGraphResponse` (404 `hadith-not-found`). `SanadGraphService` рефакторён на общий внутренний аккумулятор `GraphAccumulator`. IT: `HadithControllerIT` (detail externalId/ruling-резолв/crossref-numbers + sanad-graph version-узел + turuq-graph merge + 404), `SanadGraphServiceTest` (version-узел + turuq merge unit) | Юзер-фидбек Hadith Explorer: (1) сырые id непонятны — показываем человекочитаемые сборники + резолвленные ссылки на сиблинги; (2) «в конце должна быть связь с версией хадиса» — version-узел замыкает граф; (3) «все пути предания в одном месте» — turuq-graph сливает طرق в один граф |
 | 2026-06-04 | v1 | **AI-перевод матна on-demand (План 7, ADR-058).** Новый эндпоинт `POST /api/v1/hadith/matns/{matnId}/translate` (отдельный `MatnTranslationController` под ресурс `/hadith/matns`): body `MatnTranslateRequest {lang}` (`@Pattern` ru\|en → 400 `validation`), query `?force=` (boolean, ADMIN-only регенерация → 403 `forbidden-admin-only`), `@CurrentUser` обязателен (anonymous → 401 `invalid-token`). 200 `MatnTranslationResponse {matnId, lang, text, cached}`: переводит `text_ar` через `LlmClient` (ADR-058) и персистит в `hd_matns.text_ru`/`text_en` (колонки существуют с Плана 1); повторный запрос → `cached=true` без LLM-вызова. `HadithTranslationService.translate()` БЕЗ @Transactional (LLM-вызов вне tx — pool-slot не держим 5-15с); `MatnRepository.updateTranslation` — два отдельных UPDATE по lang. Ошибки: 404 `matn-not-found`, 422 `invalid-matn-text` (пустой text_ar, guard ДО LLM), 503 `llm-not-configured` (sentinel-ключ, pre-flight). Race двух translate допускает двойной LLM-вызов (MVP; atomic-claim — backlog). IT: `HadithTranslationControllerIT` (стаб LlmClient + счётчик: happy/cached/force/401/404/400/422) + `HadithTranslationNotConfiguredIT` (503 без стаба) | План 7: кнопка «Перевести (ru/en)» на матне в Hadith Explorer; перевод детерминированно полезен всем читателям, мутация безопасна (заполнение NULL-поля) |
