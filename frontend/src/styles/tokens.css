@@ -241,22 +241,6 @@
   --c-err-500:  var(--status-err);
   --c-err-100:  var(--status-err-bg);
 
-  /* Node type tokens (v2 abstract/empirical → v3 per-type) */
-  --c-type-abstract-bg: var(--node-thesis);
-  --c-type-abstract-fg: var(--node-thesis-ink);
-  --c-type-empirical-bg: var(--node-evidence);
-  --c-type-empirical-fg: var(--node-evidence-ink);
-
-  /* Edge tokens */
-  --c-edge-supports:    var(--edge-supports);
-  --c-edge-supports-bg: var(--status-ok-bg);
-  --c-edge-refutes:     var(--edge-attacks);
-  --c-edge-refutes-bg:  var(--status-err-bg);
-  --c-edge-qualifies:   var(--edge-clarifies);
-  --c-edge-qualifies-bg: var(--status-info-bg);
-  --c-edge-responds:    var(--edge-neutral);
-  --c-edge-responds-bg: var(--bg-subtle);
-
   /* Typography old names */
   --t-xs:   var(--fs-xs);
   --t-sm:   var(--fs-sm);

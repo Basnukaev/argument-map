@@ -51,10 +51,10 @@ const TONE_CLASSES: Record<Tone, string> = {
   emerald: 'bg-ok-100 text-ok-700 border-ok-500/30',
   amber: 'bg-warn-100 text-warn-700 border-warn-500/30',
   red: 'bg-err-100 text-err-700 border-err-500/30',
-  blue: 'bg-edge-qualifies-bg text-edge-qualifies border-edge-qualifies/30',
-  violet: 'bg-type-abstract-bg text-type-abstract-fg border-type-abstract-fg/20',
-  sky: 'bg-edge-qualifies-bg text-edge-qualifies border-edge-qualifies/30',
-  teal: 'bg-type-empirical-bg text-type-empirical-fg border-type-empirical-fg/20',
+  blue: 'bg-status-info-bg text-edge-clarifies border-edge-clarifies/30',
+  violet: 'bg-node-thesis text-node-thesis-ink border-node-thesis-ink/20',
+  sky: 'bg-status-info-bg text-edge-clarifies border-edge-clarifies/30',
+  teal: 'bg-node-evidence text-node-evidence-ink border-node-evidence-ink/20',
 };
 
 function Badge({

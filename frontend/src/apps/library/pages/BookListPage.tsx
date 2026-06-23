@@ -61,7 +61,7 @@ const BOOK_TYPE_BADGE: Record<BookType, string> = {
   HADITH_COLLECTION: 'bg-warn-100 text-warn-700',
   BOOK: 'bg-ink-100 text-ink-700',
   ARTICLE: 'bg-ink-100 text-ink-700',
-  MANUSCRIPT: 'bg-type-abstract-bg text-type-abstract-fg',
+  MANUSCRIPT: 'bg-node-thesis text-node-thesis-ink',
 };
 
 /** Стабильный цвет на основе bookId для Card.Cover - выглядит как

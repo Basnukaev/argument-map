@@ -121,14 +121,14 @@ function NodeMini({ node, emptyText }: NodeMiniProps) {
 function headerBgFor(edgeType: EdgeType): string {
   switch (edgeType) {
     case 'SUPPORTS':
-      return 'bg-edge-supports-bg';
+      return 'bg-status-ok-bg';
     case 'REFUTES':
     case 'INVALIDATES':
-      return 'bg-edge-refutes-bg';
+      return 'bg-status-err-bg';
     case 'QUALIFIES':
-      return 'bg-edge-qualifies-bg';
+      return 'bg-status-info-bg';
     case 'RESPONDS_TO':
-      return 'bg-edge-responds-bg';
+      return 'bg-subtle';
   }
 }
 
@@ -141,7 +141,7 @@ function iconBgFor(edgeType: EdgeType): { bg: string; text: string } {
     case 'INVALIDATES':
       return { bg: 'bg-err-100', text: 'text-err-700' };
     case 'QUALIFIES':
-      return { bg: 'bg-edge-qualifies-bg', text: 'text-edge-qualifies' };
+      return { bg: 'bg-status-info-bg', text: 'text-edge-clarifies' };
     case 'RESPONDS_TO':
       return { bg: 'bg-ink-100', text: 'text-ink-700' };
   }

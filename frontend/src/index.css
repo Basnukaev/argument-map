@@ -195,21 +195,6 @@
   --color-err-700: var(--status-err-ink);
   --color-err-50: var(--status-err-bg);
 
-  /* Graph type tokens (v2 naming) */
-  --color-type-abstract-bg: var(--node-thesis);
-  --color-type-abstract-fg: var(--node-thesis-ink);
-  --color-type-empirical-bg: var(--node-evidence);
-  --color-type-empirical-fg: var(--node-evidence-ink);
-
-  /* Graph edge tokens (v2 naming) */
-  --color-edge-supports-bg: var(--status-ok-bg);
-  --color-edge-refutes: var(--edge-attacks);
-  --color-edge-refutes-bg: var(--status-err-bg);
-  --color-edge-qualifies: var(--edge-clarifies);
-  --color-edge-qualifies-bg: var(--status-info-bg);
-  --color-edge-responds: var(--edge-neutral);
-  --color-edge-responds-bg: var(--bg-subtle);
-
   /* === Fonts === */
   --font-ui: var(--font-ui);
   --font-serif: var(--font-serif);
