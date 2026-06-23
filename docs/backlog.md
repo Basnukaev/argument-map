@@ -347,8 +347,12 @@ assertive; QuestionDetailPage delete-gating Фаза 11; AnswersSection busyIds
 детали в progress.md/git.
 
 Остаются живыми:
-- [ ] **View-count inflation** — `POST /books/{id}/views` unauthenticated +
-      unbounded (anti-spam dedup отложен Phase 2.b). `BookController.java:113`.
+- [x] **View-count inflation** — закрыто С64: in-memory sliding-window дедуп по
+      `(clientIp, bookId)` (окно 30 мин, `BookViewDedupService`, зеркалит
+      RateLimitFilter) — повтор той же пары = no-op. Эндпоинт `POST /views`
+      сделан публичным в prod (счётчик публичен, контент не раскрывается), дедуп
+      = анти-инфляция. AtomicInteger callCount, XFF-trust note. Тесты unit 9 + IT
+      (BookServiceIT 3 + GuestAccessProdProfileIT аноним→204).
 - [x] **MinimapCard drag/clamp** — закрыто (commit `a890327`): `BOUNDS_PAD`
       симметрично расширяет bounds, drag/click клампятся к `padMinX/padMinY`
       (центрированный origin). Подтверждено С64.
@@ -364,9 +368,12 @@ assertive; QuestionDetailPage delete-gating Фаза 11; AnswersSection busyIds
       никогда негатив); controller не выставляет `Content-Length` при `-1`.
       Suffix-range половина отдельная/намеренная (PdfController отклоняет
       suffix `bytes=-N` per ADR-023 amendment — PDF.js их не шлёт).
-- [ ] **PageImageService S3-put-before-DB** в @Transactional → rollback
-      оставляет orphan scan (или включить OrphanDetectionJanitor в prod).
-      `PageImageService.java:125`.
+- [x] **PageImageService S3-put-before-DB** — закрыто С64 (ADR-066): root cause —
+      это единственный blob-writer, байпасивший каталог (`put` вместо
+      `putAndRegister`), из-за чего janitor ложно флажил каждый page-image.
+      Фикс: `putAndRegister(..., SCAN)` (тип уже в enum+CHECK, без миграции) →
+      blob регистрируется в `library_files`, janitor authoritative, residual =
+      восстановимый невидимый orphan. PageImageServiceIT 9 + OrphanDetectionJanitorIT 7.
 
 - [x] **AuditEntityType / UserRole single source of truth** - закрыто
       2026-05-19 (Сессия 47 Tech debt task #3). `@Schema(allowableValues)`
@@ -400,7 +407,7 @@ assertive; QuestionDetailPage delete-gating Фаза 11; AnswersSection busyIds
   `forbidden-deleted-topic-audit`, >0 + ADMIN → возвращаем preserved
   audit (compliance forensics). Симметрично для книг
   (`forbidden-deleted-book-audit`). Reviewer flag round 3 #6
-- [ ] **Z-index renormalization для long-running тем** - max+1 / min-1
+- [x] **Z-index renormalization для long-running тем** - max+1 / min-1
   pattern на 32-bit int даёт практически безграничное space (2.1B
   операций bring-to-front пока не уйдёт в overflow), но теоретически
   уплывёт на edge cases (бот-driven автоматизация, многолетние
@@ -411,8 +418,10 @@ assertive; QuestionDetailPage delete-gating Фаза 11; AnswersSection busyIds
   **Update Сессия 49b (2026-05-20):** added overflow guards в
   `NodeService.bringToFront/sendToBack` + `EdgeService.bringToFront/sendToBack`
   (commit `8b82892`) - throws `IllegalStateException` при достижении
-  `Integer.MAX_VALUE/MIN_VALUE`. Recovery path (admin `POST /api/v1/topics/{id}/renormalize-zindex`)
-  не реализован - оставлено в этом backlog item, overflow rare
+  `Integer.MAX_VALUE/MIN_VALUE`. **Recovery path реализован С64:** `POST
+  /api/v1/topics/{id}/renormalize-zindex` (компактизация z_index узлов+рёбер
+  в 0..N сохраняя порядок, в одной транзакции; assertCanWrite owner/EDITOR/ADMIN;
+  TopicControllerIT 5 кейсов + live-смоук). Overflow-гарды + recovery — оба есть.
 - [ ] **Edge.topic_id денормализация (ADR-level decision)** - сейчас
   `EdgeService.bringToFront/sendToBack` и `deleteEdge` loadят edge +
   from-node для получения topicId (2 queries per call). Если store

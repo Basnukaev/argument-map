@@ -9,6 +9,44 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
+## 2026-06-24 - Сессия 64 (cont.) - автопилот бэклога (OMC-оркестрация)
+
+После графа-иснада Абдула: `/autopilot ... где перепутье — решай сам, best
+practice`. OMC переподключён → оркестрация через worktree-executor'ы + architect
++ code-reviewer. **Доведены до конца все autopilot-safe пункты бэклога**, форки
+решены мной; крупные фичи (Source pickers, RTL, full-text, hadith_grades,
+FILE_ONLY citation, narrator dedup) НЕ трогал — это многосессионные эпики с ADR.
+
+### Сделано (исполнители-executor'ы в worktree, я интегрировал cherry-pick'ом)
+- **#6 thesis `إعداد`** (`9510114`) — автор диссертации не теряется (parser +
+  thesisPreparer + resolveByName fallback, без схемы). Parser 19 + mapper IT 16.
+- **#10 lint 0** (`9e88e5a`) — memo-hoist (preserve-manual-memoization) +
+  eslint-disable mount-fetch. lint 0, 58 тестов.
+- **#16 z-index renormalize** (`5a1ee9a`+types `c53cf1d`) — `POST /topics/{id}/
+  renormalize-zindex` (компакт 0..N, assertCanWrite). 5 IT + live-смоук (0,0,0→0,1,2,
+  non-writer 403). types.ts регенерирован.
+- **#3 view-count дедуп** (`fd54389`) — in-memory sliding-window (clientIp,bookId);
+  **форк решён:** счётчик публичен → POST /views permitAll в prod (`7a0089e`),
+  дедуп=анти-инфляция. 9 unit + IT + GuestAccessProdProfileIT аноним→204.
+- **#5 PageImage→SCAN** (`6342bbc`, ADR-066) — architect-дизайн: root cause =
+  единственный blob-writer мимо каталога; `putAndRegister(SCAN)` (без схемы) →
+  janitor authoritative. 16 IT.
+
+### Валидация (autopilot Phase 4)
+Code-reviewer: **APPROVE**, 0 Critical, 1 Important (pre-existing view-auth — закрыт
+форк-решением), 6 Minor (callCount→AtomicInteger, XFF-trust note, инвариант
+eviction — закрыты в `7a0089e`; остальные no-fix). Integration-прогон 79 backend-
+тестов + 19 (prod-guest+dedup) зелёные. ADR-065 коллизия (зарезервирован под
+курацию) → PageImage переименован в ADR-066.
+
+### СЛЕДУЮЩИЙ ШАГ — без изменений: ЭПИК КУРАЦИИ (фазы 0→6)
+Главный приоритет прежний — эпик курации данных (P0-1+FB-5), `docs/specs/
+2026-06-18-data-curation-overlay.md`, ADR-065 (зарезервирован). Остаток бэклога
+после автопилота — только gated/эпики: #9 migration-guard (immutable), Source
+pickers / RTL / full-text / hadith_grades / FILE_ONLY-citation / narrator-dedup
+(каждый — отдельный ADR+спека). Инфра: backend перезапущен на свежем master
+(:9090, JDWP :5005), dev-логин admin@argumentmap.local/admin12345.
+
 ## 2026-06-23 - Сессия 64 - ELK-граф иснада + автопилот/сверка бэклога
 
 Продолжение С63. Абдула: «продолжи фикс графа через elk», затем «на автопилоте все
