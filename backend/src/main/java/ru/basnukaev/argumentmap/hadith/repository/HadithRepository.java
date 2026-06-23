@@ -15,10 +15,18 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
+import ru.basnukaev.argumentmap.hadith.curation.service.OverrideApplyService;
 import ru.basnukaev.argumentmap.hadith.domain.Hadith;
 
 /**
  * Доступ к hd_hadiths. Vision 49d Section 2.6 Phase 1.
+ *
+ * <p><b>Курация (ADR-065):</b> display-методы ({@link #findById},
+ * {@link #findPage}, {@link #findByNarratorIdPage}, {@link #findBySourceIds})
+ * накладывают overlay-правки через {@link OverrideApplyService} — отдают
+ * EFFECTIVE-значения. Import idempotency lookups ({@link #findByExternalId},
+ * {@link #findByCollectionIdAndPrimaryNumber}) отдают RAW (импорт сравнивает/
+ * пишет базовый слой; иначе правка затёрлась бы обратно в импорт).
  */
 @Repository
 public class HadithRepository {
@@ -48,9 +56,11 @@ public class HadithRepository {
     );
 
     private final JdbcTemplate jdbcTemplate;
+    private final OverrideApplyService overrideApply;
 
-    public HadithRepository(JdbcTemplate jdbcTemplate) {
+    public HadithRepository(JdbcTemplate jdbcTemplate, OverrideApplyService overrideApply) {
         this.jdbcTemplate = jdbcTemplate;
+        this.overrideApply = overrideApply;
     }
 
     public Hadith save(Hadith h) {
@@ -69,7 +79,7 @@ public class HadithRepository {
         return jdbcTemplate.query(
                 "SELECT " + COLUMNS + " FROM hd_hadiths WHERE id = ?",
                 ROW_MAPPER, id
-        ).stream().findFirst();
+        ).stream().findFirst().map(overrideApply::applyOne);
     }
 
     /**
@@ -138,11 +148,11 @@ public class HadithRepository {
             return List.of();
         }
         String placeholders = sourceIds.stream().map(x -> "?").collect(Collectors.joining(","));
-        return jdbcTemplate.query(
+        return overrideApply.applyHadiths(jdbcTemplate.query(
                 "SELECT " + COLUMNS + " FROM hd_hadiths "
                         + "WHERE source_id IN (" + placeholders + ")",
                 ROW_MAPPER, sourceIds.toArray()
-        );
+        ));
     }
 
     public List<Hadith> findPage(String q, String status, String authenticity, UUID collectionId,
@@ -154,7 +164,7 @@ public class HadithRepository {
         sql.append(orderByClause(sort)).append(" LIMIT ? OFFSET ?");
         args.add(limit);
         args.add(offset);
-        return jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray());
+        return overrideApply.applyHadiths(jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray()));
     }
 
     /**
@@ -242,7 +252,7 @@ public class HadithRepository {
     public List<Hadith> findByNarratorIdPage(UUID narratorId, int limit, int offset) {
         // ВНИМАНИЕ: ручной список колонок (h.-алиасы для JOIN) должен совпадать
         // с COLUMNS/ROW_MAPPER по порядку и числу — при расширении маппера править здесь тоже.
-        return jdbcTemplate.query(
+        return overrideApply.applyHadiths(jdbcTemplate.query(
                 "SELECT DISTINCT h.id, h.collection_id, h.primary_number, h.normalized_matn, "
                         + "h.status, h.source_id, h.metadata, h.created_at, "
                         + "h.external_source, h.external_id, h.hadith_type, "
@@ -253,7 +263,7 @@ public class HadithRepository {
                         + "WHERE sn.narrator_id = ? "
                         + "ORDER BY h.created_at DESC LIMIT ? OFFSET ?",
                 ROW_MAPPER, narratorId, limit, offset
-        );
+        ));
     }
 
     public long countByNarratorId(UUID narratorId) {

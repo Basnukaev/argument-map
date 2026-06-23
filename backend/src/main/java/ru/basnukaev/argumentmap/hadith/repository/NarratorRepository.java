@@ -14,11 +14,19 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
+import ru.basnukaev.argumentmap.hadith.curation.service.OverrideApplyService;
 import ru.basnukaev.argumentmap.hadith.domain.Narrator;
 
 /**
  * Доступ к hd_narrators. Vision 49d Section 2.6 Phase 1.
  * JDBC Template, snake_case columns, без JPA.
+ *
+ * <p><b>Курация (ADR-065):</b> display-методы ({@link #findById},
+ * {@link #findPage}, {@link #findByIds}) накладывают overlay-правки через
+ * {@link OverrideApplyService} (EFFECTIVE). Import/dedup lookups
+ * ({@link #findByExternalId}, {@link #findByNameArNormalized},
+ * {@link #findExternalNormalizedNameIds}) отдают RAW — дедуп и idempotency
+ * импорта идут по базовому слою.
  */
 @Repository
 public class NarratorRepository {
@@ -57,9 +65,11 @@ public class NarratorRepository {
     );
 
     private final JdbcTemplate jdbcTemplate;
+    private final OverrideApplyService overrideApply;
 
-    public NarratorRepository(JdbcTemplate jdbcTemplate) {
+    public NarratorRepository(JdbcTemplate jdbcTemplate, OverrideApplyService overrideApply) {
         this.jdbcTemplate = jdbcTemplate;
+        this.overrideApply = overrideApply;
     }
 
     public Narrator save(Narrator n) {
@@ -82,7 +92,7 @@ public class NarratorRepository {
         return jdbcTemplate.query(
                 "SELECT " + COLUMNS + " FROM hd_narrators WHERE id = ?",
                 ROW_MAPPER, id
-        ).stream().findFirst();
+        ).stream().findFirst().map(overrideApply::applyOne);
     }
 
     /**
@@ -120,10 +130,10 @@ public class NarratorRepository {
     public List<Narrator> findByIds(List<UUID> ids) {
         if (ids.isEmpty()) return List.of();
         String placeholders = String.join(",", ids.stream().map(id -> "?").toList());
-        return jdbcTemplate.query(
+        return overrideApply.applyNarrators(jdbcTemplate.query(
                 "SELECT " + COLUMNS + " FROM hd_narrators WHERE id IN (" + placeholders + ")",
                 ROW_MAPPER, ids.toArray()
-        );
+        ));
     }
 
     /**
@@ -146,7 +156,7 @@ public class NarratorRepository {
         sql.append(" ORDER BY year_death_hijri ASC NULLS LAST, name_ar_normalized ASC LIMIT ? OFFSET ?");
         args.add(limit);
         args.add(offset);
-        return jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray());
+        return overrideApply.applyNarrators(jdbcTemplate.query(sql.toString(), ROW_MAPPER, args.toArray()));
     }
 
     public long countFiltered(String q, String reliability) {

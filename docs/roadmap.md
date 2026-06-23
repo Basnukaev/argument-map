@@ -223,8 +223,11 @@ P0-1 (реимпорт затирает правки) + FB-5 (править/с�
       `hd_field_overrides`, `OverrideEntity`/`FieldOverride`/
       `CurationWhitelist`, `OverrideRepository` (upsert/batch/delete),
       ADR-065. 15 тестов (whitelist unit + repo IT, CHECK/UNIQUE)
-- [ ] **Фаза 2** apply-слой `OverrideApplyService` + интеграция в
-      `findById/findPage` хадиса/рави (не в `findByExternalId`)
+- [x] **Фаза 2** (Сессия 65) apply-слой `OverrideApplyService` +
+      `OverrideSet` (каст-помощники §3.4) + репозиторный fold в
+      `findById/findPage/findByIds/findBySourceIds` хадиса/рави
+      (НЕ в `findByExternalId`/dedup — RAW для импорта). 12 тестов
+      (unit helpers + pure apply + IT effective-vs-raw)
 - [ ] **Фаза 3** generic write-API `PUT/DELETE/GET /admin/curation/
       overrides` + audit + RBAC + frontend `EditableField` (пилот
       hadiths+narrators) → **review-чекпоинт**
