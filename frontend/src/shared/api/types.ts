@@ -3271,6 +3271,8 @@ export interface components {
             hasImage?: boolean;
         };
         NarratorCommentaryDto: {
+            /** Format: uuid */
+            id?: string;
             commenter?: string;
             /** Format: int32 */
             commenterDeathYear?: number;
@@ -3281,6 +3283,8 @@ export interface components {
             /** Format: int32 */
             volume?: number;
             comments?: string[];
+            hiddenByAdmin?: boolean;
+            hideReason?: string;
         };
         NarratorRelationDto: {
             /** Format: uuid */
@@ -3451,6 +3455,8 @@ export interface components {
             volume?: number;
         };
         ExplanationDto: {
+            /** Format: uuid */
+            id?: string;
             kind?: string;
             bookName?: string;
             author?: string;
@@ -3460,6 +3466,8 @@ export interface components {
             volume?: number;
             text?: string;
             reference?: string;
+            hiddenByAdmin?: boolean;
+            hideReason?: string;
         };
         GradeDto: {
             /** Format: uuid */
@@ -3526,6 +3534,8 @@ export interface components {
             transmissionPhrase?: string;
         };
         RulingDto: {
+            /** Format: uuid */
+            id?: string;
             rulerName?: string;
             /** Format: int32 */
             rulerDeathYear?: number;
@@ -3540,6 +3550,8 @@ export interface components {
             /** Format: uuid */
             relatedHadithId?: string;
             relatedCollectionNameRu?: string;
+            hiddenByAdmin?: boolean;
+            hideReason?: string;
         };
         SanadDto: {
             /** Format: uuid */

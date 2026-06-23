@@ -4,6 +4,7 @@ import type { ExplanationDto } from '@/apps/hadith/types';
 
 function gharib(reference: string | null, text = 'تفسير', extra: Partial<ExplanationDto> = {}): ExplanationDto {
   return {
+    id: 'g1',
     kind: 'GHARIB',
     bookName: 'النهاية',
     author: 'ابن الأثير',
@@ -11,6 +12,8 @@ function gharib(reference: string | null, text = 'تفسير', extra: Partial<Ex
     volume: null,
     text,
     reference,
+    hiddenByAdmin: false,
+    hideReason: null,
     ...extra,
   };
 }

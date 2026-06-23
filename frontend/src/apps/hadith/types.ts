@@ -177,6 +177,8 @@ export interface NarratorRelationDto {
  * bookName/author/page/volume — атрибуция (напр. تقريب التهذيب · ابن حجر · т.1 с.1218).
  */
 export interface NarratorCommentaryDto {
+  /** UUID записи — для ADMIN record-hide (курация Фаза 4.b). */
+  id: string;
   commenter: string;
   commenterDeathYear: number | null;
   bookName: string | null;
@@ -184,6 +186,10 @@ export interface NarratorCommentaryDto {
   page: number | null;
   volume: number | null;
   comments: string[];
+  /** ADMIN скрыл запись (курация 4.b) — обычный читатель её не получает. */
+  hiddenByAdmin: boolean;
+  /** Причина скрытия (видна только ADMIN). */
+  hideReason: string | null;
 }
 
 /** NarratorResponse — каталог/деталь передатчика (علم الرجال). */
@@ -254,6 +260,8 @@ export interface EditionDto {
  * хадис; 'index' с relatedExternalId — вердикт на параллельную передачу.
  */
 export interface RulingDto {
+  /** UUID записи — для ADMIN record-hide (курация Фаза 4.b). */
+  id: string;
   rulerName: string | null;
   rulerDeathYear: number | null;
   rulingText: string | null;
@@ -266,6 +274,10 @@ export interface RulingDto {
   relatedHadithId: string | null;
   /** Имя сборника параллельной передачи (для бейджа). */
   relatedCollectionNameRu: string | null;
+  /** ADMIN скрыл запись (курация 4.b) — обычный читатель её не получает. */
+  hiddenByAdmin: boolean;
+  /** Причина скрытия (видна только ADMIN). */
+  hideReason: string | null;
 }
 
 /** Тип толкования: шарх (общий разбор), иляль (скрытые дефекты передачи),
@@ -276,6 +288,8 @@ export type ExplanationKind = 'SHARH' | 'ILAL' | 'GHARIB';
 
 /** Шарх / иляль / гариб (kind различает тип). Текст может быть огромным. */
 export interface ExplanationDto {
+  /** UUID записи — для ADMIN record-hide (курация Фаза 4.b). */
+  id: string;
   kind: ExplanationKind | string | null;
   bookName: string | null;
   author: string | null;
@@ -285,6 +299,10 @@ export interface ExplanationDto {
   /** Только GHARIB: редкое слово из матна (заголовок карточки), напр. أَبْعَدَ.
    *  null для SHARH/ILAL и для GHARIB без слова → фолбэк на book/author. */
   reference: string | null;
+  /** ADMIN скрыл запись (курация 4.b) — обычный читатель её не получает. */
+  hiddenByAdmin: boolean;
+  /** Причина скрытия (видна только ADMIN). */
+  hideReason: string | null;
 }
 
 /** Такхридж/طرق — параллельная передача. resolved → relatedHadithId есть. */

@@ -1,5 +1,7 @@
+import { EyeOff } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import { useT } from '@/shared/i18n';
+import HideToggle from '@/apps/hadith/components/curation/HideToggle';
 import type { NarratorCommentaryDto } from '@/apps/hadith/types';
 
 /**
@@ -7,7 +9,17 @@ import type { NarratorCommentaryDto } from '@/apps/hadith/types';
  * (`commenter`, RTL) + год смерти; тело — список вердиктов (`comments[]`, RTL);
  * мета-строка — книга · автор · том/страница (атрибуция из риджаль-книги).
  */
-function NarratorCommentaryItem({ commentary }: { commentary: NarratorCommentaryDto }) {
+function NarratorCommentaryItem({
+  commentary,
+  role,
+  onChanged,
+}: {
+  commentary: NarratorCommentaryDto;
+  /** Роль зрителя — гейт ADMIN record-hide (курация 4.b). */
+  role: string | undefined;
+  /** Рефетч bio после скрытия/показа записи. */
+  onChanged: () => void;
+}) {
   const t = useT();
   const cite = [
     commentary.bookName,
@@ -19,7 +31,31 @@ function NarratorCommentaryItem({ commentary }: { commentary: NarratorCommentary
     .join(' · ');
 
   return (
-    <Card className="p-4">
+    <Card className={`p-4 ${commentary.hiddenByAdmin ? 'opacity-50' : ''}`}>
+      {/* ADMIN record-hide (курация 4.b): пилюля причины + тогл показать/скрыть. */}
+      {(commentary.hiddenByAdmin || role) && (
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          {commentary.hiddenByAdmin ? (
+            <div className="inline-flex items-center gap-1.5 rounded-sm bg-rose-50 px-1.5 py-0.5 text-xs text-rose-700">
+              <EyeOff size={12} aria-hidden />
+              <span dir="auto">
+                {t('hadith.curation.hidden_by_admin')}
+                {commentary.hideReason ? `: ${commentary.hideReason}` : ''}
+              </span>
+            </div>
+          ) : (
+            <span />
+          )}
+          <HideToggle
+            entityTable="hd_narrator_commentaries"
+            entityId={commentary.id}
+            hiddenByAdmin={commentary.hiddenByAdmin}
+            hideReason={commentary.hideReason}
+            role={role}
+            onChanged={onChanged}
+          />
+        </div>
+      )}
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span className="font-arabic text-base font-semibold text-ink-900" dir="rtl">
           {commentary.commenter}
@@ -63,13 +99,22 @@ function NarratorCommentaryItem({ commentary }: { commentary: NarratorCommentary
  * Список оценок учёных о передатчике. Порядок с бэка стабилен
  * (commenter_dod asc, book_order); detail-снимок неизменяем.
  */
-function NarratorCommentaryList({ commentaries }: { commentaries: NarratorCommentaryDto[] }) {
+function NarratorCommentaryList({
+  commentaries,
+  role,
+  onChanged,
+}: {
+  commentaries: NarratorCommentaryDto[];
+  /** Роль зрителя — гейт ADMIN record-hide (курация 4.b). */
+  role: string | undefined;
+  /** Рефетч bio после скрытия/показа записи. */
+  onChanged: () => void;
+}) {
   return (
     <ul className="space-y-3">
-      {commentaries.map((c, i) => (
-        // У цитаты нет id с бэка; стабильный ключ — критик + книга + индекс.
-        <li key={`${c.commenter}-${c.bookName ?? ''}-${i}`}>
-          <NarratorCommentaryItem commentary={c} />
+      {commentaries.map((c) => (
+        <li key={c.id}>
+          <NarratorCommentaryItem commentary={c} role={role} onChanged={onChanged} />
         </li>
       ))}
     </ul>

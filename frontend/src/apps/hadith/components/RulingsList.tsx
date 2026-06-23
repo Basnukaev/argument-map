@@ -1,7 +1,8 @@
 import { Link } from 'react-router';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, EyeOff } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import { useT } from '@/shared/i18n';
+import HideToggle from '@/apps/hadith/components/curation/HideToggle';
 import type { RulingDto } from '@/apps/hadith/types';
 
 /**
@@ -12,7 +13,19 @@ import type { RulingDto } from '@/apps/hadith/types';
  *  - resolved (relatedHadithId) → бейдж-ссылка на detail сиблинга;
  *  - иначе → текстовый бейдж с именем сборника (или внешним id).
  */
-function RulingItem({ ruling, hadithExternalId }: { ruling: RulingDto; hadithExternalId: string | null }) {
+function RulingItem({
+  ruling,
+  hadithExternalId,
+  role,
+  onChanged,
+}: {
+  ruling: RulingDto;
+  hadithExternalId: string | null;
+  /** Роль зрителя — гейт ADMIN record-hide (курация 4.b). */
+  role: string | undefined;
+  /** Рефетч detail после скрытия/показа записи. */
+  onChanged: () => void;
+}) {
   const t = useT();
   const cite = [
     ruling.bookName,
@@ -30,7 +43,17 @@ function RulingItem({ ruling, hadithExternalId }: { ruling: RulingDto; hadithExt
   const label = ruling.relatedCollectionNameRu ?? ruling.relatedExternalId ?? '';
 
   return (
-    <Card className="p-4">
+    <Card className={`p-4 ${ruling.hiddenByAdmin ? 'opacity-50' : ''}`}>
+      {/* ADMIN record-hide (курация 4.b): пилюля причины + тогл показать/скрыть. */}
+      {ruling.hiddenByAdmin && (
+        <div className="mb-2 inline-flex items-center gap-1.5 rounded-sm bg-rose-50 px-1.5 py-0.5 text-xs text-rose-700">
+          <EyeOff size={12} aria-hidden />
+          <span dir="auto">
+            {t('hadith.curation.hidden_by_admin')}
+            {ruling.hideReason ? `: ${ruling.hideReason}` : ''}
+          </span>
+        </div>
+      )}
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         {ruling.rulerName && (
           <span className="font-arabic text-base font-semibold text-ink-900" dir="rtl">
@@ -81,6 +104,16 @@ function RulingItem({ ruling, hadithExternalId }: { ruling: RulingDto; hadithExt
             <span>{t('hadith.detail.ruling.on_parallel').replace('{id}', label)}</span>
           </span>
         )}
+        <span className="ms-auto">
+          <HideToggle
+            entityTable="hd_rulings"
+            entityId={ruling.id}
+            hiddenByAdmin={ruling.hiddenByAdmin}
+            hideReason={ruling.hideReason}
+            role={role}
+            onChanged={onChanged}
+          />
+        </span>
       </div>
     </Card>
   );
@@ -89,17 +122,27 @@ function RulingItem({ ruling, hadithExternalId }: { ruling: RulingDto; hadithExt
 function RulingsList({
   rulings,
   hadithExternalId,
+  role,
+  onChanged,
 }: {
   rulings: RulingDto[];
   /** Своя alminasa-id хадиса страницы — для скрытия self-вердикт-бейджа. */
   hadithExternalId: string | null;
+  /** Роль зрителя — гейт ADMIN record-hide (курация 4.b). */
+  role: string | undefined;
+  /** Рефетч detail после скрытия/показа записи. */
+  onChanged: () => void;
 }) {
   return (
     <ul className="space-y-3">
-      {rulings.map((r, i) => (
-        // У ruling нет id с бэка; список неизменяемый (detail-снимок) → index ок.
-        <li key={`${r.rulerName ?? ''}-${i}`}>
-          <RulingItem ruling={r} hadithExternalId={hadithExternalId} />
+      {rulings.map((r) => (
+        <li key={r.id}>
+          <RulingItem
+            ruling={r}
+            hadithExternalId={hadithExternalId}
+            role={role}
+            onChanged={onChanged}
+          />
         </li>
       ))}
     </ul>

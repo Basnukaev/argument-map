@@ -344,7 +344,11 @@ function NarratorDetailPage() {
                 <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-500">
                   {t('hadith.narrator.commentaries.title')}
                 </h2>
-                <NarratorCommentaryList commentaries={bio.commentaries} />
+                <NarratorCommentaryList
+                  commentaries={bio.commentaries}
+                  role={userRole}
+                  onChanged={refetchBio}
+                />
               </section>
             )}
 

@@ -1,12 +1,28 @@
 import { useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, EyeOff } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import { useT } from '@/shared/i18n';
+import HideToggle from '@/apps/hadith/components/curation/HideToggle';
 import type { ExplanationDto } from '@/apps/hadith/types';
 
 /** Вариант карточки = семантика секции. SHARH/ILAL делят раскладку «книга/автор
  *  + сворачиваемый текст»; GHARIB ставит слово (reference) заголовком. */
 type ExplanationVariant = 'SHARH' | 'ILAL' | 'GHARIB';
+
+/** Пилюля «Скрыто администратором: причина» (курация 4.b) — общая для обоих
+ *  вариантов карточки толкования. */
+function HiddenPill({ reason }: { reason: string | null }) {
+  const t = useT();
+  return (
+    <div className="inline-flex items-center gap-1.5 rounded-sm bg-rose-50 px-1.5 py-0.5 text-xs text-rose-700">
+      <EyeOff size={12} aria-hidden />
+      <span dir="auto">
+        {t('hadith.curation.hidden_by_admin')}
+        {reason ? `: ${reason}` : ''}
+      </span>
+    </div>
+  );
+}
 
 /** Цитата «т.N · с.M» — общая для всех вариантов карточки. */
 function citeLine(exp: ExplanationDto, t: ReturnType<typeof useT>): string {
@@ -36,7 +52,15 @@ function CollapsibleText({ text, open }: { text: string; open: boolean }) {
  * тело. Идентична исходному рендеру шарха; используется и для иляля, где
  * заголовок — название книги критика (напр. علل الدارقطني / الدارقطني).
  */
-function BookHeadedItem({ exp }: { exp: ExplanationDto }) {
+function BookHeadedItem({
+  exp,
+  role,
+  onChanged,
+}: {
+  exp: ExplanationDto;
+  role: string | undefined;
+  onChanged: () => void;
+}) {
   const t = useT();
   const [open, setOpen] = useState(false);
 
@@ -44,7 +68,20 @@ function BookHeadedItem({ exp }: { exp: ExplanationDto }) {
   const cite = citeLine(exp, t);
 
   return (
-    <Card className="overflow-hidden">
+    <Card className={`overflow-hidden ${exp.hiddenByAdmin ? 'opacity-50' : ''}`}>
+      {(exp.hiddenByAdmin || role) && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-3">
+          {exp.hiddenByAdmin ? <HiddenPill reason={exp.hideReason} /> : <span />}
+          <HideToggle
+            entityTable="hd_explanations"
+            entityId={exp.id}
+            hiddenByAdmin={exp.hiddenByAdmin}
+            hideReason={exp.hideReason}
+            role={role}
+            onChanged={onChanged}
+          />
+        </div>
+      )}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -76,17 +113,38 @@ function BookHeadedItem({ exp }: { exp: ExplanationDto }) {
  * ابن الأثير) + цитата. Тело (толкование) сворачиваемое. reference null →
  * фолбэк на book/author-заголовок (рендерим BookHeadedItem).
  */
-function GharibItem({ exp }: { exp: ExplanationDto }) {
+function GharibItem({
+  exp,
+  role,
+  onChanged,
+}: {
+  exp: ExplanationDto;
+  role: string | undefined;
+  onChanged: () => void;
+}) {
   const t = useT();
   const [open, setOpen] = useState(false);
 
-  if (!exp.reference) return <BookHeadedItem exp={exp} />;
+  if (!exp.reference) return <BookHeadedItem exp={exp} role={role} onChanged={onChanged} />;
 
   const dict = [exp.bookName, exp.author].filter((p): p is string => Boolean(p)).join(' · ');
   const cite = citeLine(exp, t);
 
   return (
-    <Card className="overflow-hidden">
+    <Card className={`overflow-hidden ${exp.hiddenByAdmin ? 'opacity-50' : ''}`}>
+      {(exp.hiddenByAdmin || role) && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-3">
+          {exp.hiddenByAdmin ? <HiddenPill reason={exp.hideReason} /> : <span />}
+          <HideToggle
+            entityTable="hd_explanations"
+            entityId={exp.id}
+            hiddenByAdmin={exp.hiddenByAdmin}
+            hideReason={exp.hideReason}
+            role={role}
+            onChanged={onChanged}
+          />
+        </div>
+      )}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -123,17 +181,25 @@ function GharibItem({ exp }: { exp: ExplanationDto }) {
 function ExplanationsList({
   explanations,
   variant = 'SHARH',
+  role,
+  onChanged,
 }: {
   explanations: ExplanationDto[];
   variant?: ExplanationVariant;
+  /** Роль зрителя — гейт ADMIN record-hide (курация 4.b). */
+  role: string | undefined;
+  /** Рефетч detail после скрытия/показа записи. */
+  onChanged: () => void;
 }) {
   return (
     <ul className="space-y-3">
-      {explanations.map((e, i) => (
-        // У толкования нет id с бэка; список — неизменяемый detail-снимок,
-        // отфильтрованный по одному kind → стабильный индекс в секции ок.
-        <li key={`${variant}-${e.reference ?? e.bookName ?? ''}-${i}`}>
-          {variant === 'GHARIB' ? <GharibItem exp={e} /> : <BookHeadedItem exp={e} />}
+      {explanations.map((e) => (
+        <li key={e.id}>
+          {variant === 'GHARIB' ? (
+            <GharibItem exp={e} role={role} onChanged={onChanged} />
+          ) : (
+            <BookHeadedItem exp={e} role={role} onChanged={onChanged} />
+          )}
         </li>
       ))}
     </ul>

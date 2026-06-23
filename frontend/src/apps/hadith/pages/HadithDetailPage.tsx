@@ -641,7 +641,12 @@ function HadithDetailPage() {
                   <SectionHeading>
                     {t('hadith.detail.rulings')} · {detail.rulings.length}
                   </SectionHeading>
-                  <RulingsList rulings={detail.rulings} hadithExternalId={detail.externalId} />
+                  <RulingsList
+                    rulings={detail.rulings}
+                    hadithExternalId={detail.externalId}
+                    role={userRole}
+                    onChanged={refetchDetail}
+                  />
                 </section>
               )}
 
@@ -651,7 +656,12 @@ function HadithDetailPage() {
                   <SectionHeading>
                     {t('hadith.detail.explanations')} · {explanationGroups.sharh.length}
                   </SectionHeading>
-                  <ExplanationsList explanations={explanationGroups.sharh} variant="SHARH" />
+                  <ExplanationsList
+                    explanations={explanationGroups.sharh}
+                    variant="SHARH"
+                    role={userRole}
+                    onChanged={refetchDetail}
+                  />
                 </section>
               )}
 
@@ -664,7 +674,12 @@ function HadithDetailPage() {
                   <p className="-mt-2 mb-3 text-xs leading-snug text-ink-500">
                     {t('hadith.detail.ilal.hint')}
                   </p>
-                  <ExplanationsList explanations={explanationGroups.ilal} variant="ILAL" />
+                  <ExplanationsList
+                    explanations={explanationGroups.ilal}
+                    variant="ILAL"
+                    role={userRole}
+                    onChanged={refetchDetail}
+                  />
                 </section>
               )}
 
@@ -677,7 +692,12 @@ function HadithDetailPage() {
                   <p className="-mt-2 mb-3 text-xs leading-snug text-ink-500">
                     {t('hadith.detail.gharib.hint')}
                   </p>
-                  <ExplanationsList explanations={explanationGroups.gharib} variant="GHARIB" />
+                  <ExplanationsList
+                    explanations={explanationGroups.gharib}
+                    variant="GHARIB"
+                    role={userRole}
+                    onChanged={refetchDetail}
+                  />
                 </section>
               )}
 
