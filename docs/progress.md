@@ -39,8 +39,18 @@ eviction — закрыты в `7a0089e`; остальные no-fix). Integratio
 тестов + 19 (prod-guest+dedup) зелёные. ADR-065 коллизия (зарезервирован под
 курацию) → PageImage переименован в ADR-066.
 
-### СЛЕДУЮЩИЙ ШАГ — без изменений: ЭПИК КУРАЦИИ (фазы 0→6)
-Главный приоритет прежний — эпик курации данных (P0-1+FB-5), `docs/specs/
+### ЭПИК КУРАЦИИ: Фаза 0 СДЕЛАНА (`f7b6fb5`); далее Фаза 1 (свежей сессией)
+**Фаза 0 (P0-1a) закрыта:** реимпорт alminasa больше не теряет ручной перевод
+матна — `AlminasaHadithMapper.mapHadith` читает primary-матн ДО delete-recreate
+(`MatnRepository.findPrimaryByHadithId`) и переносит `text_ru/en` в новую строку.
+AlminasaMapperIT 8/8. Снять после Фазы 6 (перевод уедет в overlay).
+**СЛЕДУЮЩИЙ ШАГ = Фаза 1** (свежей сессией, по `docs/specs/
+2026-06-18-data-curation-overlay.md` §Фаза 1): миграция `20260618-78-hd-field-
+overrides` + `FieldOverride`/`OverrideRepository` + `CurationWhitelist` + ADR-065
+в decisions.md. Затем Фазы 2-6 (apply-слой, пилот, hide/show, сателлиты, миграция
+C9-перевода в overlay).
+
+Главный приоритет — эпик курации данных (P0-1+FB-5), `docs/specs/
 2026-06-18-data-curation-overlay.md`, ADR-065 (зарезервирован). Остаток бэклога
 после автопилота — только gated/эпики: #9 migration-guard (immutable), Source
 pickers / RTL / full-text / hadith_grades / FILE_ONLY-citation / narrator-dedup
