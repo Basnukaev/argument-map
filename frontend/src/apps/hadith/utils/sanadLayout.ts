@@ -23,7 +23,11 @@ export function layoutSanad<N extends Node, E extends Edge>(
 
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: 'TB', nodesep: 56, ranksep: 84, marginx: 24, marginy: 24 });
+  // nodesep/ranksep увеличены под широкое turuq-дерево («Все пути», FB-7b):
+  // больше горизонтального/вертикального зазора → узлы не наседают друг на
+  // друга и рёбра-формулы читаемы. Одноцепочечный режим (1 колонка) от
+  // nodesep не зависит — безопасно.
+  g.setGraph({ rankdir: 'TB', nodesep: 88, ranksep: 100, marginx: 24, marginy: 24 });
 
   nodes.forEach((node) => {
     g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
