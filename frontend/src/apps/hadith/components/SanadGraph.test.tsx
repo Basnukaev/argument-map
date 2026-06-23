@@ -196,6 +196,8 @@ describe('SanadGraph', () => {
       // узел-передатчик отрендерился
       expect(screen.getByText('Умар ибн аль-Хаттаб')).toBeInTheDocument();
     });
+    // легенда свёрнута по умолчанию (FB-7) — разворачиваем для проверки цепей
+    fireEvent.click(screen.getByRole('button', { name: 'Показать легенду' }));
     // легенда цепей содержит сборник
     expect(screen.getByText('Сахих аль-Бухари')).toBeInTheDocument();
   });
@@ -249,6 +251,8 @@ describe('SanadGraph', () => {
     expect(screen.getByText('Сахих Муслим')).toBeInTheDocument();
     // «свой» узел (h-current) помечен «вы здесь»
     expect(screen.getByText('вы здесь')).toBeInTheDocument();
+    // легенда свёрнута по умолчанию (FB-7) — разворачиваем
+    fireEvent.click(screen.getByRole('button', { name: 'Показать легенду' }));
     // строка легенды про version-узлы присутствует
     expect(screen.getByText(/запись в сборнике/)).toBeInTheDocument();
   });
@@ -295,7 +299,8 @@ describe('SanadGraph', () => {
       ),
     );
     renderGraph(<SanadGraph hadithId="h1" />);
-    // Ждём рендера легенды
+    // легенда свёрнута по умолчанию (FB-7) — разворачиваем
+    fireEvent.click(await screen.findByRole('button', { name: 'Показать легенду' }));
     const chainBtn = await screen.findByTitle('Подсветить эту цепь в графе');
     expect(chainBtn).toBeInTheDocument();
     // Клик активирует подсветку: title меняется

@@ -179,21 +179,15 @@ function SanadGraph({
   const [fetchedGraph, setFetchedGraph] = useState<SanadGraphResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SanadFlowNodeData | null>(null);
-  // FB-7 граф: держать мышь на узле 1с → подсветить ВСЮ цепочку через него
-  // (от корня к сборникам), приглушить остальное. Тоггл: повторное удержание
-  // на том же узле снимает; уход мыши до 1с сбрасывает таймер.
+  // FB-7 граф: клик по узлу/ребру → подсветить ВСЮ цепочку через него (от корня
+  // к сборникам), приглушить остальное. Снимается кликом по пустому полю; клик
+  // по другому узлу/ребру переключает подсветку на него.
   const [highlightedNode, setHighlightedNode] = useState<string | null>(null);
-  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(
-    () => () => {
-      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    },
-    [],
-  );
   // id активного (подсвеченного) санада из легенды; null = нет подсветки.
   const [activeSanadId, setActiveSanadId] = useState<string | null>(null);
-  // Панель легенды: развёрнута по умолчанию, сворачивается кнопкой.
-  const [legendCollapsed, setLegendCollapsed] = useState(false);
+  // Панель легенды: свёрнута по умолчанию (развёрнутая перекрывает левые узлы
+  // графа — на них нельзя кликнуть/навести); разворачивается кнопкой.
+  const [legendCollapsed, setLegendCollapsed] = useState(true);
 
   // Fullscreen: ref на корневой div + state для иконки переключения.
   const containerRef = useRef<HTMLDivElement>(null);
@@ -480,19 +474,6 @@ function SanadGraph({
         edgesFocusable={false}
         elementsSelectable
         proOptions={{ hideAttribution: true }}
-        onNodeMouseEnter={(_, node) => {
-          if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-          // Подсветка только после 1с удержания; уход мыши до 1с → таймер сброшен.
-          hoverTimerRef.current = setTimeout(() => {
-            setHighlightedNode((prev) => (prev === node.id ? null : node.id));
-          }, 1000);
-        }}
-        onNodeMouseLeave={() => {
-          if (hoverTimerRef.current) {
-            clearTimeout(hoverTimerRef.current);
-            hoverTimerRef.current = null;
-          }
-        }}
         onNodeClick={(_, node) => {
           const d = node.data;
           if (d.role === 'PROPHET') return;
@@ -502,12 +483,17 @@ function SanadGraph({
             if (!d.isCurrent) navigate(`/hadith/hadiths/${d.hadithId}`);
             return;
           }
+          // FB-7: клик по узлу подсвечивает его цепь (переключает на кликнутый).
+          setHighlightedNode(node.id);
           // Controlled-выбор: пробрасываем наверх (единая панель страницы);
           // иначе открываем внутреннюю панель (self-fetch экраны / admin-превью).
           if (selectionControlled) onNarratorSelect(d);
           else setSelected(d);
         }}
+        onEdgeClick={(_, edge) => setHighlightedNode(edge.source)}
         onPaneClick={() => {
+          // Клик по пустому полю снимает подсветку цепи + закрывает панель.
+          setHighlightedNode(null);
           if (!selectionControlled) setSelected(null);
         }}
       >
