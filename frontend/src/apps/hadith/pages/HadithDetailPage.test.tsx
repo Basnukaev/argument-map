@@ -439,7 +439,8 @@ describe('HadithDetailPage', () => {
       'href',
       '/hadith/hadiths/h-sibling',
     );
-    // имя сборника + номер печатного издания рендерятся
+    // имя сборника + номер печатного издания рендерятся (Такхридж-секция,
+    // не version-узел графа — рус. имя там сохраняется)
     expect(screen.getByText('Сахих Муслим')).toBeInTheDocument();
     expect(screen.getByText('№1907')).toBeInTheDocument();
     // счётчик в заголовке секции «Такхридж · передаётся в 2 местах»
@@ -688,8 +689,10 @@ describe('HadithDetailPage', () => {
             hadithId: 'h-sibling',
             externalId: '200-1',
             collectionSlug: 'muslim',
-            collectionNameAr: 'صحيح مسلم',
-            collectionNameRu: 'Сахих Муслим (طرق)',
+            // маркер (طرق) перенесён в арабское имя — рус. транслит больше не
+            // рендерится (С64), а тест отличает turuq-граф от обычного по нему.
+            collectionNameAr: 'صحيح مسلم (طرق)',
+            collectionNameRu: 'Сахих Муслим (طрق)',
             printedNumber: 1907,
             matnPreview: 'الأعمال بالنية',
           },
@@ -721,7 +724,7 @@ describe('HadithDetailPage', () => {
     expect(turuqFetches).toBe(0);
     await userEvent.click(allPathsBtn);
     await waitForApi(() => {
-      expect(screen.getByText('Сахих Муслим (طرق)')).toBeInTheDocument();
+      expect(screen.getByText('صحيح مسلم (طرق)')).toBeInTheDocument();
     });
     expect(turuqFetches).toBe(1);
   });

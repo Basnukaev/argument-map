@@ -36,9 +36,9 @@ function VersionGraphNode({ data }: Props) {
                   {data.collectionNameAr}
                 </div>
               )}
-              {data.collectionNameRu && (
-                <div className="mt-0.5 truncate text-xs text-sky-700">{data.collectionNameRu}</div>
-              )}
+              {/* Русская транслитерация сборника убрана (С64): «Сахих Ибн
+                  Хузаймы» и т.п. выглядели коряво при любой локали — показываем
+                  только арабское название сборника (узнаётся независимо). */}
             </div>
             {data.printedNumber != null && (
               <span className="shrink-0 font-mono text-[11px] text-sky-600">

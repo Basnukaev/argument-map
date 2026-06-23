@@ -29,11 +29,14 @@ function SanadGraphNode({ data, selected }: NodeProps<SanadNode>) {
     return (
       <>
         <div className="w-[240px] rounded-xl border-2 border-emerald-400 bg-emerald-50 px-4 py-3 text-center shadow-sh2">
-          <div className="font-arabic text-xl leading-snug text-emerald-900" dir="rtl">
+          {/* leading-loose: имя Пророка густо огласовано — при tight line-height
+              харакаты вылезали в верхний паддинг, и зазор сверху/снизу был
+              неодинаковым (С64). */}
+          <div className="font-arabic text-xl leading-loose text-emerald-900" dir="rtl">
             {data.nameAr}
           </div>
           {data.nameRu && (
-            <div className="mt-0.5 text-xs font-medium text-emerald-700">{data.nameRu}</div>
+            <div className="text-xs font-medium text-emerald-700">{data.nameRu}</div>
           )}
         </div>
         <Handle

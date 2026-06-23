@@ -29,10 +29,11 @@ function renderNode(data: VersionFlowNodeData) {
 }
 
 describe('VersionGraphNode', () => {
-  it('показывает арабское/русское имя сборника, номер и превью матна', () => {
+  it('показывает арабское имя сборника, номер и превью матна (рус. транслит убран, С64)', () => {
     renderNode(BASE);
     expect(screen.getByText('صحيح مسلم')).toBeInTheDocument();
-    expect(screen.getByText('Сахих Муслим')).toBeInTheDocument();
+    // Русская транслитерация сборника убрана (С64) — её быть не должно.
+    expect(screen.queryByText('Сахих Муслим')).not.toBeInTheDocument();
     expect(screen.getByText('№1907')).toBeInTheDocument();
     expect(screen.getByText('الأعمال بالنية')).toBeInTheDocument();
   });

@@ -246,9 +246,10 @@ describe('SanadGraph', () => {
         onNarratorSelect={vi.fn()}
       />,
     );
-    // обе version-карточки отрендерились (имена сборников)
-    expect(await screen.findByText('Сахих аль-Бухари')).toBeInTheDocument();
-    expect(screen.getByText('Сахих Муслим')).toBeInTheDocument();
+    // обе version-карточки отрендерились (арабские имена сборников; рус.
+    // транслит убран С64)
+    expect(await screen.findByText('صحيح البخاري')).toBeInTheDocument();
+    expect(screen.getByText('صحيح مسلم')).toBeInTheDocument();
     // «свой» узел (h-current) помечен «вы здесь»
     expect(screen.getByText('вы здесь')).toBeInTheDocument();
     // легенда свёрнута по умолчанию (FB-7) — разворачиваем
