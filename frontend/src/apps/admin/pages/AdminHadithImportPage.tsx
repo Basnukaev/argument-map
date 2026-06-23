@@ -103,8 +103,11 @@ function AdminHadithImportPage() {
     }
   }, []);
 
-  // Начальная загрузка всех трёх источников.
+  // Начальная загрузка всех трёх источников. setState внутри refetch-колбэков
+  // асинхронный (после await), не синхронный — легитимный mount-fetch; правило
+  // глушим точечно, как и в других fetch-эффектах проекта (С64).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refetchCatalog();
     void refetchImportStatus();
     void refetchCrawlStatus();

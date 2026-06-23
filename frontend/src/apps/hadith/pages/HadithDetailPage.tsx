@@ -314,16 +314,19 @@ function HadithDetailPage() {
   // Форма имени из текста иснада по externalId — чтобы подпись
   // «كما ورد في الإسناد» показывалась и при клике ИЗ ГРАФА (консистентность
   // панелей — фидбек С59).
+  // Хойстим в const (без optional chaining в deps) — иначе React-Compiler не
+  // может сохранить ручную мемоизацию (preserve-manual-memoization, С64).
+  const fullTextAr = detail?.fullTextAr;
   const textFormByExternalId = useMemo(() => {
-    if (!detail?.fullTextAr) return null;
+    if (!fullTextAr) return null;
     const map = new Map<string, string>();
-    for (const seg of parseIsnadHtml(detail.fullTextAr)) {
+    for (const seg of parseIsnadHtml(fullTextAr)) {
       if (seg.kind === 'rawy' && seg.externalId != null && !map.has(seg.externalId)) {
         map.set(seg.externalId, seg.text);
       }
     }
     return map;
-  }, [detail?.fullTextAr]);
+  }, [fullTextAr]);
 
   // Клик из графа: textForm резолвим из текста иснада по externalId
   // (рави без rawy-тега в тексте — подпись не показывается).

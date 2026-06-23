@@ -215,14 +215,13 @@ floating action bar (graphSelectionStore). Детали в progress.md/git.
   дедуп, permission SCHOLAR); (C) новая таблица `hd_hadith_grades(hadith_id
   FK, authority_id, grade, citation, note)` + endpoint + чтение в detail.
   Код НЕ писан (guard: архитектура → стоп).
-- [ ] **Pre-existing lint errors (2, найдено С61 финальным `npm run lint`)** —
-  НЕ регрессия С61 (файлы байт-в-байт как на HEAD 3f8356b, мой новый код
-  lint-чист). `AdminHadithImportPage.tsx:108` — `set-state-in-effect`
-  (из Плана 5/С56; проект избегает этого, есть идиома `{open && <Modal/>}`);
-  `HadithDetailPage.tsx:214` — React-Compiler `preserve-manual-memoization`
-  на `textFormByExternalId` (memo из С59). Lint-baseline был зелёным в С51,
-  деградировал в С56/С58-59. Focused follow-up; не трогать наобум (риск
-  тонкой регрессии в memo/effect). build+814 тестов зелёные независимо.
+- [x] **Pre-existing lint errors (2)** — закрыто С64 (lint 0 ошибок): (1)
+  `HadithDetailPage` `preserve-manual-memoization` — `detail?.fullTextAr`
+  захойстен в const `fullTextAr` (deps без optional-chaining → компилятор
+  сохраняет мемоизацию), поведение идентично; (2) `AdminHadithImportPage`
+  `set-state-in-effect` — точечный `eslint-disable-next-line` на legitimate
+  mount-fetch (setState async после await, как в других fetch-эффектах проекта).
+  tsc 0, 58 затронутых тестов зелёные.
 
 
 - [ ] **Связаться с alminasa.ai (مركز تميز) до массового краулинга** —
