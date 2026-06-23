@@ -652,6 +652,19 @@ delete+insert для primary-матна). Это спасает накоплен
 
 ## 10. Риски / открытые вопросы
 
+> **РЕШЕНИЯ АБДУЛЫ (2026-06-23) — закрывают вопросы 2 и 5:**
+> - **Вопрос 2 (ключ matn-перевода):** согласовано — ключевать matn-overrides по
+>   `(hadith_id, is_primary)` (`entity_id=hadith_id`, `field_name='primary_text_ru'`),
+>   резолв primary-матна на apply. Снимает нестабильность `matn.id` (delete-recreate).
+> - **Вопрос 5 (фасет-фильтр authenticity):** НЕ оставляем как ограничение — фильтр
+>   должен работать по **АКТУАЛЬНЫМ (effective, override-applied) данным**. Т.е.
+>   `findPage`/`countFiltered` по authenticity учитывают override (LEFT JOIN
+>   `hd_field_overrides` + COALESCE на effective-значение в WHERE/COUNT; overrides
+>   редки → JOIN дёшев). **Будущее (backlog):** фильтрация по ВСЕМ версиям данных
+>   (импорт + правки) + показ, в какой версии найдено схождение.
+> - **Commentary (`hd_narrator_commentaries.comments`):** подтверждено — verbatim
+>   джарх/таʿдиль-цитата = первоисточник, НЕ правится; только скрытие записи целиком.
+
 1. **Перф apply на каждый read.** Mitigation: батч-`load` (один `IN`-запрос
    на тип сущности за payload — нет N+1). Подавляющее большинство записей
    overrides не имеют (пустой `OverrideSet` = NO_OP, ноль аллокаций). List
@@ -799,21 +812,3 @@ Hide: поле-уровень (поле→null) + запись-уровень (`
 4. **Аудит двойной** (таблица + AuditLogService ADR-043); `reason` обязателен
    для hide. **RBAC ADMIN-only**. ADR-065 (черновик внутри). Не дублируем
    `hadith_grades` (ADR-062).
-
----
-
-## Решения Абдулы (2026-06-18) — закрывают открытые вопросы §10
-
-1. **Цитаты джарх/таʿдиль (`hd_narrator_commentaries.comments`) — только СКРЫТЬ,
-   не править.** Подтверждено: verbatim-цитата риджаль-книги ≈ первоисточник,
-   текст неизменен; запись скрываема целиком (заблудший критик). Остаётся как в §5.
-2. **Ключ matn-перевода = `(hadith_id, is_primary)`, НЕ `matn.id`** (закрывает §10
-   п.2). Причина: `matn.id` получает новый UUID на каждом реимпорте (delete-recreate)
-   → override по matn.id осиротел бы. Ключуем по стабильному `hadith_id` + primary.
-   Учесть в фазе 6 (миграция C9-перевода в overlay).
-3. **Фасет-фильтр работает по АКТУАЛЬНЫМ (effective, override-применённым) данным,
-   НЕ по базовой колонке** (МЕНЯЕТ решение §10 «приемлемо v1»). Т.е. если админ
-   через override сменил authenticity — фасет `?authenticity=` и счётчики должны
-   отражать override (LEFT JOIN hd_field_overrides + COALESCE в WHERE/COUNT по
-   authenticity-полю). **Будущее (backlog, не v1):** фильтрация по ВСЕМ версиям
-   данных + индикация, в какой версии найдено схождение (версионирование правок).
