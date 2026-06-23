@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Languages, Loader2, Pencil } from 'lucide-react';
+import { Languages, Loader2, Pencil, RefreshCw } from 'lucide-react';
 import { apiPostRaw, apiPatchRaw, ApiError, formatApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useT } from '@/shared/i18n';
@@ -57,6 +57,29 @@ function MatnTranslateControls({
         { lang },
       );
       setTranslations((prev) => ({ ...prev, [lang]: res.text ?? '' }));
+    } catch (error) {
+      if (error instanceof ApiError && error.is('llm-not-configured')) {
+        toast.error(t('hadith.translate.not_configured'));
+      } else {
+        toast.error(formatApiError(error, t('hadith.translate.failed')));
+      }
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  /** FB-6: ADMIN перегенерирует перевод заново через LLM (force=true, бэк
+   *  ADMIN-only). В отличие от translate() — не гейтится наличием перевода. */
+  async function regenerate(lang: Lang): Promise<void> {
+    if (loading) return;
+    setLoading(lang);
+    try {
+      const res = await apiPostRaw<MatnTranslationResponse>(
+        `/api/v1/hadith/matns/${matnId}/translate?force=true`,
+        { lang },
+      );
+      setTranslations((prev) => ({ ...prev, [lang]: res.text ?? '' }));
+      toast.success(t('hadith.translate.regenerated'));
     } catch (error) {
       if (error instanceof ApiError && error.is('llm-not-configured')) {
         toast.error(t('hadith.translate.not_configured'));
@@ -172,15 +195,31 @@ function MatnTranslateControls({
               {value}
             </span>
             {isAdmin && (
-              <button
-                type="button"
-                onClick={() => startEdit(lang)}
-                aria-label={t('hadith.translate.edit')}
-                title={t('hadith.translate.edit')}
-                className="mt-0.5 shrink-0 rounded-sm p-0.5 text-ink-400 hover:bg-ink-50 hover:text-ink-600"
-              >
-                <Pencil size={13} aria-hidden />
-              </button>
+              <span className="mt-0.5 flex shrink-0 items-center gap-0.5">
+                <button
+                  type="button"
+                  disabled={loading != null}
+                  onClick={() => regenerate(lang)}
+                  aria-label={t('hadith.translate.regenerate')}
+                  title={t('hadith.translate.regenerate')}
+                  className="rounded-sm p-0.5 text-ink-400 hover:bg-ink-50 hover:text-ink-600 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loading === lang ? (
+                    <Loader2 size={13} className="animate-spin" aria-hidden />
+                  ) : (
+                    <RefreshCw size={13} aria-hidden />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => startEdit(lang)}
+                  aria-label={t('hadith.translate.edit')}
+                  title={t('hadith.translate.edit')}
+                  className="rounded-sm p-0.5 text-ink-400 hover:bg-ink-50 hover:text-ink-600"
+                >
+                  <Pencil size={13} aria-hidden />
+                </button>
+              </span>
             )}
           </p>
         );
