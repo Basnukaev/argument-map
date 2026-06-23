@@ -9,6 +9,97 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
+## 2026-06-24 - Сессия 65 - ЭПИК КУРАЦИИ Фазы 1-3 (overlay hd_field_overrides)
+
+Автопилот: «посмотри прогресс/беклог, делай всё, на перепутье — best practice».
+Приоритет из С64 был однозначен — **эпик курации данных** (P0-1 + FB-5), спека
+`docs/specs/2026-06-18-data-curation-overlay.md` (фазы 0-6, ADR-065 заготовлен).
+Фаза 0 (P0-1a merge-страховка перевода) была закрыта в С64-cont. Эта сессия
+закрыла **Фазы 1-3 (пилот) + review-чекпоинт**. 6 коммитов.
+
+### Что построено (механизм)
+Overlay-таблица `hd_field_overrides` поверх импортного корпуса. Импорт alminasa
+hd_* **не трогаем** — правки/скрытия живут в overlay и накладываются **на
+ЧТЕНИИ** (`OverrideApplyService` в `findById/findPage` хадиса/рави). → правка
+переживает delete-recreate реимпорта (это и есть решение P0-1). Тот же паттерн,
+что `hadith_grades` (ADR-062), но generic над любым полем.
+
+- **Фаза 1** (`a5f7524`): миграция 78 (UNIQUE(table,id,field) + CHECK whitelist
+  8 таблиц + payload-CHECK + FK users); `OverrideEntity` (Java enum, mirror
+  CHECK), `FieldOverride` record (+`__record__`), `CurationWhitelist` (§5 —
+  первоисточник `normalized_matn`/`full_text_ar`/`text_ar`/commentary `comments`
+  СОЗНАТЕЛЬНО вне editable), `OverrideRepository` (upsert ON CONFLICT + batch
+  findByEntity). ADR-065 в decisions.md. 15 тестов.
+- **Фаза 2** (`23ffe05`): `OverrideApplyService`+`OverrideSet` (каст-помощники
+  §3.4: битый int→WARN+base; hidden/null→null). **Репозиторный fold**:
+  display-методы (`findById/findPage/findByIds/findBySourceIds/
+  findByNarratorIdPage`) → EFFECTIVE; import/dedup (`findByExternalId/
+  findByCollectionIdAndPrimaryNumber/findByNameArNormalized`) → RAW. Это
+  load-bearing инвариант: правка НЕ может утечь обратно в импорт-write-path.
+  12 тестов.
+- **Фаза 3.a** (`43b101d`): generic `PUT/DELETE/GET /api/v1/admin/curation/
+  overrides` (ADMIN-only), `CurationOverrideService` (whitelist+enum+reason+
+  existence валидация, двойной аудит ADR-043 в той же tx), `CurationException`
+  (единый параметризованный, 7 type-slug), api-contract.md. 11-кейс IT.
+- **Review-fixes** (`7248aa6`): из независимого ревью (APPROVE, 0 Crit/Imp,
+  8 Minor) закрыты дешёвые — isNull в audit-diff, base-vs-effective facet
+  javadoc, stale-комменты, applyBool forward-note, name_ar позиционный тест.
+- **Фаза 3.b** (`b17714e`): frontend `EditableField` (ADMIN inline-edit, паттерн
+  C9; non-admin → plain) в HadithDetailPage (status/authenticity/hadith_type/
+  chapter_ar/sub_chapter_ar) + NarratorDetailPage (reliability_grade/tabaqa/
+  grade_text/kunya/laqab). i18n ru+ar. types.ts регенерирован. 7+46 тестов.
+
+### Review (Фаза 3 чекпоинт — ПРОЙДЕН)
+Независимый code-reviewer (Opus): **APPROVE, 0 Critical, 0 Important, 8 Minor.**
+Все «опасные» инварианты, которые просили опровергнуть, подтверждены: нет утечки
+override в импорт, позиционная корректность record-конструкторов, SQL-инъекция в
+assertEntityExists невозможна (table = всегда один из 8 hardcoded enum-литералов),
+первоисточник непробиваем, RBAC полон, аудит атомарен, нет N+1. Дешёвые Minor
+закрыты; остальные осознанно отложены (effective-facet JOIN → §10 backlog;
+applyBool strictness + сателлиты → Фаза 5).
+
+### Верификация
+- Backend: каждая фаза — таргетный прогон зелёный; регрессия (Hadith/Narrator
+  Controller IT, AlminasaMapper/SchemaRepository IT, SanadGraphService) зелёная.
+- **Live-смоук** на :9090: PUT authenticity SAHIH→HASAN → `GET /detail` отдаёт
+  EFFECTIVE HASAN → DELETE → откат к SAHIH; dev-таблица overrides очищена (0).
+- Frontend: tsc 0, lint clean, 7+46 тестов; Playwright headless — detail
+  рендерится без краша (аноним: бейджи plain, карандашей нет, матн цел).
+
+### Инфра-стейт
+- **Backend ПЕРЕЗАПУЩЕН** на свежем master (pid сменился; :9090, JDWP :5005,
+  полный env ai.env+proxy). Миграция 78 применена. Старый pid 99696 убит.
+- Dev-Postgres: 2 ADMIN-юзера (`...001` И `...002` — оба ADMIN!), hd_field_
+  overrides пуста. Dev-логин admin@argumentmap.local/admin12345.
+- Frontend :5173 жив (HMR подхватил Фазу 3.b).
+
+### Известное / отложено
+- **Effective-facet**: `findPage` фильтрует authenticity/status по БАЗОВОМУ слою
+  (apply после fetch) — override в фасет-счётчике не виден. §10, JOIN-проход в
+  backlog (решение Абдулы: учитывать effective).
+- **name_ar normalized-sync**: правка `name_ar` через overlay не пересчитывает
+  `name_ar_normalized` (search по базовому) — overrides редки, отложено.
+- 8 Minor ревью — все либо закрыты, либо привязаны к Фазе 5.
+
+### Следующий шаг — Фаза 4 (hide/show)
+По спеке §9 Фаза 4: (4.a) backend — запись-уровень `__record__` hide + поле-
+уровень hide в apply (вырезание скрытых записей из списков сателлитов в
+контроллерах detail; `OverrideSet.isRecordHidden` уже есть, applyStr уже отдаёт
+null на hidden-поле) + **reveal-режим для ADMIN** (§4.3: hidden-записи приходят с
+флагом `hiddenByAdmin` вместо вырезания, чтобы ADMIN мог раскрыть). (4.b) frontend
+`HideToggle` (EyeOff/Eye + обязательная reason-модалка → PUT {hidden:true,reason})
+на скрываемых блоках rulings/explanations/commentaries + индикатор «скрыто
+администратором». Whitelist record-hide уже готов (hd_matns/sanads/rulings/
+explanations/commentaries). Затем Фаза 5 (сателлиты: rulings/explanations/
+commentaries/matns-meta/sanads — apply+DTO-интеграция) и Фаза 6 (миграция
+C9-перевода в overlay по ключу `(hadith_id,is_primary)` + снять P0-1a). Каждая
+фаза — review-чекпоинт.
+
+**Ручная проверка (Абдуле):** залогинься ADMIN, открой hadith/narrator detail —
+карандаши у бейджей/полей, клик → инлайн-правка → «Сохранено» + бейдж
+обновляется; обычный юзер/аноним — без карандашей; матн без карандаша. Глянь
+RTL-вёрстку инлайн-редактора глазами (Playwright headless ≠ реальный браузер).
+
 ## 2026-06-24 - Сессия 64 (cont.) - автопилот бэклога (OMC-оркестрация)
 
 После графа-иснада Абдула: `/autopilot ... где перепутье — решай сам, best

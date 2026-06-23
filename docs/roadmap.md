@@ -228,9 +228,12 @@ P0-1 (реимпорт затирает правки) + FB-5 (править/с�
       `findById/findPage/findByIds/findBySourceIds` хадиса/рави
       (НЕ в `findByExternalId`/dedup — RAW для импорта). 12 тестов
       (unit helpers + pure apply + IT effective-vs-raw)
-- [ ] **Фаза 3** generic write-API `PUT/DELETE/GET /admin/curation/
-      overrides` + audit + RBAC + frontend `EditableField` (пилот
-      hadiths+narrators) → **review-чекпоинт**
+- [x] **Фаза 3** (Сессия 65) generic write-API `PUT/DELETE/GET
+      /admin/curation/overrides` (ADMIN, audit, 7 error-types) +
+      frontend `EditableField` (пилот hadiths+narrators). Независимый
+      review: **APPROVE, 0 Critical/Important, 8 Minor** (дешёвые
+      закрыты, остальное → §10/Фаза 5). Live-смоук + Playwright render.
+      **← review-чекпоинт ПРОЙДЕН**
 - [ ] **Фаза 4** hide/show (запись + поле) + `HideToggle`
 - [ ] **Фаза 5** расширение на сателлиты (rulings/explanations/
       commentaries/matns/sanads)
