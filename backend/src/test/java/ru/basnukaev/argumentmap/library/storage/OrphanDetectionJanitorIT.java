@@ -2,18 +2,26 @@ package ru.basnukaev.argumentmap.library.storage;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+
+import javax.imageio.ImageIO;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
@@ -25,6 +33,7 @@ import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
 import ru.basnukaev.argumentmap.library.domain.LibraryFile;
 import ru.basnukaev.argumentmap.library.domain.LibraryFileSourceType;
+import ru.basnukaev.argumentmap.library.imports.PageImageService;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.repository.LibraryFileRepository;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -69,6 +78,7 @@ class OrphanDetectionJanitorIT {
 
     @Autowired private OrphanDetectionJanitor janitor;
     @Autowired private ObjectStorageService storage;
+    @Autowired private PageImageService pageImageService;
     @Autowired private S3Client s3Client;
     @Autowired private LibraryFileRepository libraryFileRepository;
     @Autowired private BookRepository bookRepository;
@@ -240,10 +250,43 @@ class OrphanDetectionJanitorIT {
                 r -> r.bucket(b).key(m.key()).versionId(m.versionId())));
     }
 
+    @Test
+    void detectOrphans_pageImageUploadedViaService_notCountedAsS3OnlyOrphan() {
+        // ADR-066: page image, загруженный через PageImageService, должен
+        // быть зарегистрирован в library_files (SCAN) и НЕ считаться orphan
+        Book pageBook = bookRepository.save(book("PageImageBook"));
+        byte[] jpeg = buildJpeg(200, 300);
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "scan.jpg", MediaType.IMAGE_JPEG_VALUE, jpeg);
+
+        pageImageService.uploadPageImage(pageBook.id(), 1, file);
+
+        OrphanDetectionJanitor.OrphanSweepResult result = janitor.detectOrphans();
+
+        assertThat(result.getS3OnlyOrphans()).isZero();
+    }
+
     private Book book(String title) {
         Instant now = Instant.now();
         return new Book(UUID.randomUUID(), BookType.BOOK, title, null, "ar",
                 null, null, userId, now, now,
                 null, null, null, null, null, null, BookVisibility.PUBLIC);
+    }
+
+    private static byte[] buildJpeg(int width, int height) {
+        try {
+            BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = img.createGraphics();
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, width, height);
+            g.setColor(Color.BLACK);
+            g.drawLine(0, 0, width, height);
+            g.dispose();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            ImageIO.write(img, "jpg", out);
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new IllegalStateException("test fixture build failed", e);
+        }
     }
 }

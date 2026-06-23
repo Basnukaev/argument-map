@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import ru.basnukaev.argumentmap.exception.BookNotFoundException;
+import ru.basnukaev.argumentmap.library.domain.LibraryFileSourceType;
 import ru.basnukaev.argumentmap.library.domain.Page;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.repository.PageRepository;
@@ -42,11 +43,15 @@ import ru.basnukaev.argumentmap.library.storage.ObjectStorageService;
  *       OCR pipeline удалён - субстрат для будущего AI-recognition)</li>
  * </ol>
  *
- * <p>Транзакционно: создание/обновление {@code Page} row + S3 put в
- * одной транзакции. Если S3 падает после Page-row commit (rare race) -
- * page без image_storage_key остаётся, повторный upload исправит.
- * Orphan blob в bucket'е (S3 put прошёл, БД не закомитилась) - ловится
- * {@code OrphanDetectionJanitor}.
+ * <p>Транзакционно: создание/обновление {@code Page} row + S3 put +
+ * регистрация в {@code library_files} (source_type=SCAN) в одной
+ * транзакции. Каждый page-image blob теперь catalogued в
+ * {@code library_files} наравне с PDF-импортом и user-upload'ами.
+ * {@code OrphanDetectionJanitor} авторитетен для pageImages-bucket:
+ * объект без active catalog row → S3-only orphan, catalog row без
+ * объекта → catalog-only orphan. Остаточный failure mode: S3 put
+ * прошёл, TX откатилась → invisible orphan blob (не виден пользователю,
+ * убирается janitor'ом при следующем sweep'е).
  */
 @Service
 public class PageImageService {
@@ -122,8 +127,9 @@ public class PageImageService {
         Instant uploadedAt = Instant.now();
 
         try (InputStream content = file.getInputStream()) {
-            objectStorageService.put(bucket, storageKey, content,
-                    file.getContentType());
+            objectStorageService.putAndRegister(bucket, storageKey, content,
+                    file.getContentType(), bookId, null,
+                    LibraryFileSourceType.SCAN, null, null);
         } catch (IOException e) {
             throw new PageImageException(
                     "не удалось прочитать uploaded image для bookId="

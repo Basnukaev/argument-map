@@ -6776,3 +6776,44 @@ read-guard'а — любой authed читал страницы PRIVATE-книг
 `authenticated()` (фронт его анониму не зовёт), без риска.
 
 **Связанные:** ADR-040 (auth transitional), ADR-043 (RBAC visibility).
+
+## ADR-066: Page-image сканы регистрируются в library_files как SCAN
+
+**Контекст.** `PageImageService.uploadPageImage` — единственный blob-writing
+путь, использовавший голый `objectStorageService.put(...)` без регистрации
+в `library_files`. Все другие writer'ы (`FileImportService`,
+`PdfLinksSourceProvider`) используют `putAndRegister`. Из-за отсутствия
+catalog row: (a) откат транзакции после put оставлял невидимый orphan-blob
+(нет `delete(bucket,key)` без `LibraryFile`-строки — `softDelete`/`hardDelete`
+требуют catalog row); (b) `OrphanDetectionJanitor` ложно флажил КАЖДЫЙ
+page image как `s3OnlyOrphan` — поэтому janitor по умолчанию выключен.
+
+**Решение (Option 3).** Заменить `put` на `putAndRegister` с
+`source_type = SCAN`. `SCAN` уже присутствует в `LibraryFileSourceType` и
+в CHECK constraint `library_files.source_type` (миграция 21, ADR-024) —
+миграция схемы не требуется. `putAndRegister` идемпотентен через
+`ON CONFLICT (bucket, storage_key) DO UPDATE` — re-upload не создаёт
+дубликатов в catalog. Janitor становится авторитетным для bucket
+`library-page-images`.
+
+**Отклонённые альтернативы:**
+- *Option 1 — afterCommit hook*: регистрировать в `library_files` после
+  коммита TX через `TransactionSynchronizationManager.registerSynchronization`.
+  Сложнее, частичный failure между TX-commit и afterCommit создаёт новый
+  класс проблем (catalog row отсутствует, объект в S3 есть, janitor флажит).
+- *Option 2 — put вне транзакции*: вынести S3 put за пределы `@Transactional`.
+  Нарушает текущую семантику (S3 put + Page row в одной TX), усложняет
+  rollback-логику, не решает проблему catalog.
+- *Option 4 — расширить janitor*: научить janitor игнорировать pageImages
+  bucket или вести отдельный exclusion-list. Работает как workaround, но
+  не устраняет root cause (orphan при откате) и требует сопровождения
+  exclusion-list'а при добавлении новых bucket'ов.
+
+**Остаточный failure mode.** S3 put прошёл, TX откатилась → invisible
+orphan blob в pageImages bucket (нет catalog row, нет указателя в Page).
+Не виден пользователю (Page.imageStorageKey не обновлён), убирается janitor'ом
+при следующем sweep (hardDelete по catalog row которую janitor создаёт через
+обнаружение s3OnlyOrphan). Это приемлемо: риск идентичен остальным writer'ам.
+
+**Связанные:** ADR-024 (object storage catalog), ADR-041 (page image upload),
+ADR-057 (OCR removal, scan как субстрат).

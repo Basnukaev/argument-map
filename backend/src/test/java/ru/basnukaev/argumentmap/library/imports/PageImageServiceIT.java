@@ -29,8 +29,11 @@ import ru.basnukaev.argumentmap.exception.BookNotFoundException;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookVisibility;
 import ru.basnukaev.argumentmap.library.domain.BookType;
+import ru.basnukaev.argumentmap.library.domain.LibraryFile;
+import ru.basnukaev.argumentmap.library.domain.LibraryFileSourceType;
 import ru.basnukaev.argumentmap.library.domain.Page;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
+import ru.basnukaev.argumentmap.library.repository.LibraryFileRepository;
 import ru.basnukaev.argumentmap.library.repository.PageRepository;
 import ru.basnukaev.argumentmap.library.storage.ObjectStorageProperties;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -71,6 +74,9 @@ class PageImageServiceIT {
 
     @Autowired
     private ObjectStorageProperties properties;
+
+    @Autowired
+    private LibraryFileRepository libraryFileRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -212,6 +218,35 @@ class PageImageServiceIT {
 
         assertThat(second.id()).isEqualTo(first.id());
         assertThat(second.imageUploadedAt()).isAfter(firstTs);
+
+        // ADR-066: после двух upload'ов одного page ровно ОДНА active
+        // catalog row (idempotent upsert через ON CONFLICT)
+        String expectedKey = book.id() + "/page-3.jpg";
+        long activeCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM library_files "
+                        + "WHERE bucket = ? AND storage_key = ? AND deleted_at IS NULL",
+                Long.class,
+                imagesBucket, expectedKey);
+        assertThat(activeCount).isEqualTo(1);
+    }
+
+    @Test
+    void uploadPageImage_registersLibraryFileWithScanSourceType() {
+        // ADR-066: upload должен регистрировать blob в library_files как SCAN
+        byte[] jpeg = buildJpeg(300, 400);
+        MockMultipartFile file = jpegFile(jpeg);
+
+        service.uploadPageImage(book.id(), 10, file);
+
+        String expectedKey = book.id() + "/page-10.jpg";
+        java.util.Optional<LibraryFile> catalogRow =
+                libraryFileRepository.findActiveByBucketAndKey(imagesBucket, expectedKey);
+
+        assertThat(catalogRow).isPresent();
+        LibraryFile lf = catalogRow.get();
+        assertThat(lf.sourceType()).isEqualTo(LibraryFileSourceType.SCAN);
+        assertThat(lf.bookId()).isEqualTo(book.id());
+        assertThat(lf.contentHash()).isNotNull().isNotBlank();
     }
 
     /**
