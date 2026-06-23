@@ -63,9 +63,20 @@ function SanadEdge(props: EdgeProps<SanadCustomEdgeType>) {
   let labelY: number;
 
   if (points && points.length >= 2) {
-    // Прямые 90°-углы строго по ELK-полилинии (порты на границах карточек).
-    edgePath = buildSharpOrthogonalPath(points);
-    const pos = pickLabelPosition(points);
+    // Концы привязываем к РЕАЛЬНЫМ хэндлам (sourceY/targetY): ELK считает высоту
+    // узла = NODE_HEIGHT (108), а карточка отрисована ниже → ELK startPoint висел
+    // под нижней гранью, давая зазор (С64). X берём из ELK (порт/маршрут), Y
+    // концов — из RF. Первый сегмент остаётся вертикальным (тот же port-X).
+    const snapped = points.map((p, i) =>
+      i === 0
+        ? { x: p.x, y: sourceY }
+        : i === points.length - 1
+          ? { x: p.x, y: targetY }
+          : p,
+    );
+    // Прямые 90°-углы строго по ELK-маршруту.
+    edgePath = buildSharpOrthogonalPath(snapped);
+    const pos = pickLabelPosition(snapped);
     labelX = pos.x;
     labelY = pos.y;
   } else {
