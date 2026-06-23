@@ -17,8 +17,14 @@ import java.util.UUID;
  * сборника параллельной передачи по префиксу {@code relatedExternalId}
  * ({@code bookId-…}); оба null когда {@code relatedExternalId} отсутствует
  * (embedded-вердикт на сам хадис) либо сборник/сиблинг неизвестен.
+ *
+ * <p>{@code id} — PK вердикта (нужен фронту для hide-тогла, ADR-065).
+ * {@code hiddenByAdmin}/{@code hideReason} — reveal-режим курации (§4.3):
+ * обычному читателю скрытый вердикт не приходит вовсе (вырезан), ADMIN видит
+ * его с {@code hiddenByAdmin=true} + причиной, чтобы раскрыть обратно.
  */
 public record RulingDto(
+        UUID id,
         String rulerName,
         Integer rulerDeathYear,
         String rulingText,
@@ -28,6 +34,8 @@ public record RulingDto(
         String source,
         String relatedExternalId,
         UUID relatedHadithId,
-        String relatedCollectionNameRu
+        String relatedCollectionNameRu,
+        boolean hiddenByAdmin,
+        String hideReason
 ) {
 }

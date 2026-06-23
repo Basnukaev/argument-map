@@ -23,8 +23,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.domain.HadithGrade;
+import ru.basnukaev.argumentmap.hadith.curation.domain.OverrideEntity;
+import ru.basnukaev.argumentmap.hadith.curation.service.OverrideApplyService;
 import ru.basnukaev.argumentmap.domain.HadithGradeWithScholar;
 import ru.basnukaev.argumentmap.hadith.domain.Hadith;
 import ru.basnukaev.argumentmap.hadith.domain.HadithCrossref;
@@ -80,6 +83,7 @@ public class HadithController {
     private final HadithGradeRepository hadithGradeRepository;
     private final SanadGraphService sanadGraphService;
     private final HadithGradeBridgeService hadithGradeBridgeService;
+    private final OverrideApplyService overrideApply;
     private final ObjectMapper objectMapper;
 
     public HadithController(HadithRepository hadithRepository,
@@ -92,6 +96,7 @@ public class HadithController {
                             HadithGradeRepository hadithGradeRepository,
                             SanadGraphService sanadGraphService,
                             HadithGradeBridgeService hadithGradeBridgeService,
+                            OverrideApplyService overrideApply,
                             ObjectMapper objectMapper) {
         this.hadithRepository = hadithRepository;
         this.sanadRepository = sanadRepository;
@@ -103,6 +108,7 @@ public class HadithController {
         this.hadithGradeRepository = hadithGradeRepository;
         this.sanadGraphService = sanadGraphService;
         this.hadithGradeBridgeService = hadithGradeBridgeService;
+        this.overrideApply = overrideApply;
         this.objectMapper = objectMapper;
     }
 
@@ -232,12 +238,18 @@ public class HadithController {
         // distinct-значений немного (~12), один lookup на уникальный id.
         Map<String, UUID> relatedIdCache = new HashMap<>();
 
-        List<RulingDto> rulings = rulingRepository.findByHadithId(id).stream()
-                .map(r -> toRulingDto(r, objectMapper, relatedIdCache))
-                .toList();
-        List<ExplanationDto> explanations = explanationRepository.findByHadithId(id).stream()
-                .map(e -> toExplanationDto(e, objectMapper))
-                .toList();
+        // Курация (ADR-065 §4.3): record-hidden вердикты/шарх обычному читателю
+        // не отдаём (вырезаны); ADMIN видит их с hiddenByAdmin+причиной (reveal),
+        // чтобы раскрыть. Модерация заблудших/экстремистских вторичных данных.
+        boolean reveal = UserRole.ADMIN.equals(SecurityContextUtils.currentRoleOrAnonymous());
+        List<RulingDto> rulings = overrideApply.applyRecordHide(
+                OverrideEntity.HD_RULINGS, rulingRepository.findByHadithId(id),
+                HadithRuling::id, reveal,
+                (r, hidden, reason) -> toRulingDto(r, objectMapper, relatedIdCache, hidden, reason));
+        List<ExplanationDto> explanations = overrideApply.applyRecordHide(
+                OverrideEntity.HD_EXPLANATIONS, explanationRepository.findByHadithId(id),
+                HadithExplanation::id, reveal,
+                (e, hidden, reason) -> toExplanationDto(e, objectMapper, hidden, reason));
         List<CrossrefDto> crossrefs = crossrefRepository.findByHadithId(id).stream()
                 .map(c -> toCrossrefDto(c, objectMapper, relatedIdCache))
                 .toList();
@@ -280,7 +292,9 @@ public class HadithController {
      * (in-method кэш). {@code relatedCollectionNameRu} — русский сборник
      * параллельной передачи по префиксу {@code relatedExternalId}.
      */
-    private RulingDto toRulingDto(HadithRuling r, ObjectMapper objectMapper, Map<String, UUID> relatedIdCache) {
+    private RulingDto toRulingDto(HadithRuling r, ObjectMapper objectMapper,
+                                  Map<String, UUID> relatedIdCache,
+                                  boolean hiddenByAdmin, String hideReason) {
         String source = null;
         String relatedExternalId = null;
         String metadata = r.metadata();
@@ -297,9 +311,9 @@ public class HadithController {
         String relatedCollectionNameRu = AlminasaCollections.byExternalId(relatedExternalId)
                 .map(CollectionInfo::nameRu).orElse(null);
         return new RulingDto(
-                r.rulerName(), r.rulerDeathYear(), r.rulingText(),
+                r.id(), r.rulerName(), r.rulerDeathYear(), r.rulingText(),
                 r.bookName(), r.page(), r.volume(), source, relatedExternalId,
-                relatedHadithId, relatedCollectionNameRu);
+                relatedHadithId, relatedCollectionNameRu, hiddenByAdmin, hideReason);
     }
 
     /**
@@ -308,7 +322,8 @@ public class HadithController {
      * Defensive: любая ошибка парсинга → null (карточка остаётся валидна без
      * заголовка-слова; образец {@link #toRulingDto}).
      */
-    private static ExplanationDto toExplanationDto(HadithExplanation e, ObjectMapper objectMapper) {
+    private static ExplanationDto toExplanationDto(HadithExplanation e, ObjectMapper objectMapper,
+                                                   boolean hiddenByAdmin, String hideReason) {
         String reference = null;
         String metadata = e.metadata();
         if (metadata != null && !metadata.isBlank()) {
@@ -320,7 +335,8 @@ public class HadithController {
             }
         }
         return new ExplanationDto(
-                e.kind(), e.bookName(), e.author(), e.page(), e.volume(), e.text(), reference);
+                e.id(), e.kind(), e.bookName(), e.author(), e.page(), e.volume(), e.text(),
+                reference, hiddenByAdmin, hideReason);
     }
 
     /**

@@ -9,6 +9,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import ru.basnukaev.argumentmap.auth.domain.UserRole;
+import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
+import ru.basnukaev.argumentmap.hadith.curation.domain.OverrideEntity;
+import ru.basnukaev.argumentmap.hadith.curation.service.OverrideApplyService;
 import ru.basnukaev.argumentmap.hadith.domain.Narrator;
 import ru.basnukaev.argumentmap.hadith.domain.NarratorCommentary;
 import ru.basnukaev.argumentmap.hadith.domain.NarratorRelation;
@@ -38,15 +42,18 @@ public class NarratorController {
     private final HadithRepository hadithRepository;
     private final NarratorRelationRepository relationRepository;
     private final NarratorCommentaryRepository commentaryRepository;
+    private final OverrideApplyService overrideApply;
 
     public NarratorController(NarratorRepository narratorRepository,
                               HadithRepository hadithRepository,
                               NarratorRelationRepository relationRepository,
-                              NarratorCommentaryRepository commentaryRepository) {
+                              NarratorCommentaryRepository commentaryRepository,
+                              OverrideApplyService overrideApply) {
         this.narratorRepository = narratorRepository;
         this.hadithRepository = hadithRepository;
         this.relationRepository = relationRepository;
         this.commentaryRepository = commentaryRepository;
+        this.overrideApply = overrideApply;
     }
 
     /**
@@ -80,9 +87,12 @@ public class NarratorController {
                 .map(NarratorController::toRelationDto)
                 .toList();
         // detail-путь: джарх/таʿдиль-цитаты учёных о рави (ADR-061) — один запрос.
-        List<NarratorCommentaryDto> commentaries = commentaryRepository.findByNarratorId(id).stream()
-                .map(NarratorController::toCommentaryDto)
-                .toList();
+        // Курация (ADR-065 §4.3): record-hidden цитата заблудшего критика
+        // читателю не отдаётся; ADMIN видит с hiddenByAdmin+причиной (reveal).
+        boolean reveal = UserRole.ADMIN.equals(SecurityContextUtils.currentRoleOrAnonymous());
+        List<NarratorCommentaryDto> commentaries = overrideApply.applyRecordHide(
+                OverrideEntity.HD_NARRATOR_COMMENTARIES, commentaryRepository.findByNarratorId(id),
+                NarratorCommentary::id, reveal, NarratorController::toCommentaryDto);
         return toResponse(n, relations, commentaries);
     }
 
@@ -125,9 +135,10 @@ public class NarratorController {
                 r.relatedNarratorId(), r.relatedName(), r.role(), r.cnt());
     }
 
-    private static NarratorCommentaryDto toCommentaryDto(NarratorCommentary c) {
+    private static NarratorCommentaryDto toCommentaryDto(NarratorCommentary c,
+                                                         boolean hiddenByAdmin, String hideReason) {
         return new NarratorCommentaryDto(
-                c.commenter(), c.commenterDeathYear(), c.bookName(), c.author(),
-                c.page(), c.volume(), c.comments());
+                c.id(), c.commenter(), c.commenterDeathYear(), c.bookName(), c.author(),
+                c.page(), c.volume(), c.comments(), hiddenByAdmin, hideReason);
     }
 }

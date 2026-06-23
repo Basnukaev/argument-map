@@ -3,6 +3,7 @@ package ru.basnukaev.argumentmap.hadith.curation.service;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -53,14 +54,19 @@ public final class OverrideSet {
         return byEntity.containsKey(id);
     }
 
-    /** Скрыта ли запись целиком ({@code __record__} + hidden) — Фаза 4. */
-    public boolean isRecordHidden(UUID id) {
+    /** Record-hide override записи ({@code __record__} + hidden), если есть. */
+    public Optional<FieldOverride> recordHide(UUID id) {
         Map<String, FieldOverride> rec = byEntity.get(id);
         if (rec == null) {
-            return false;
+            return Optional.empty();
         }
         FieldOverride o = rec.get(FieldOverride.RECORD_FIELD);
-        return o != null && o.hidden();
+        return o != null && o.hidden() ? Optional.of(o) : Optional.empty();
+    }
+
+    /** Скрыта ли запись целиком ({@code __record__} + hidden) — Фаза 4. */
+    public boolean isRecordHidden(UUID id) {
+        return recordHide(id).isPresent();
     }
 
     /** Имена переопределённых (не record-hide) полей записи — для admin-индикатора. */
