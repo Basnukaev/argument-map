@@ -119,7 +119,12 @@ public final class OverrideSet {
         }
     }
 
-    /** Boolean-поле: {@code "true"/"false"} | base. */
+    /**
+     * Boolean-поле: {@code "true"/"false"} | base. Параллель
+     * {@link #applyInt}/{@link #applyStr}; первый вызов — Фаза 5
+     * ({@code hd_sanads.primary_chain}). Тогда же ужесточить парсинг
+     * (сейчас не-"true" → false молча, как {@code Boolean.valueOf}).
+     */
     public Boolean applyBool(UUID id, String field, Boolean base) {
         FieldOverride o = get(id, field);
         if (o == null) {

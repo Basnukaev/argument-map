@@ -55,12 +55,16 @@ class OverrideApplyServiceTest {
                 new FieldOverride(UUID.randomUUID(), OverrideEntity.HD_NARRATORS.tableName(),
                         id, "reliability_grade", "THIQA", false, false, UUID.randomUUID(), Instant.now(), null),
                 new FieldOverride(UUID.randomUUID(), OverrideEntity.HD_NARRATORS.tableName(),
-                        id, "tabaqa", "الثانية", false, false, UUID.randomUUID(), Instant.now(), null)));
+                        id, "tabaqa", "الثانية", false, false, UUID.randomUUID(), Instant.now(), null),
+                new FieldOverride(UUID.randomUUID(), OverrideEntity.HD_NARRATORS.tableName(),
+                        id, "name_ar", "علقمة بن وقاص", false, false, UUID.randomUUID(), Instant.now(), null)));
 
         Narrator result = OverrideApplyService.apply(base, ov);
 
         assertThat(result.reliabilityGrade()).isEqualTo("THIQA");
         assertThat(result.tabaqa()).isEqualTo("الثانية");
+        // name_ar переопределяется (фиксирует позиционную корректность record-конструктора)
+        assertThat(result.nameAr()).isEqualTo("علقمة بن وقاص");
         // name_ar_normalized — производная, не трогается на apply
         assertThat(result.nameArNormalized()).isEqualTo("علقمه");
     }

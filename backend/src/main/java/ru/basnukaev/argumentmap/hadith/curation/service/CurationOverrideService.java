@@ -82,6 +82,9 @@ public class CurationOverrideService {
         } else {
             Map<String, AuditLogService.FieldDiff> diff = new LinkedHashMap<>();
             putIfChanged(diff, "value", existing.overrideValue(), saved.overrideValue());
+            // isNull отдельно от value: переход hide→null-override оставляет
+            // overrideValue=null в обоих состояниях, но это разные правки
+            putIfChanged(diff, "isNull", existing.isNullOverride(), saved.isNullOverride());
             putIfChanged(diff, "hidden", existing.hidden(), saved.hidden());
             putIfChanged(diff, "reason", existing.reason(), saved.reason());
             auditLogService.logUpdate(AUDIT_ENTITY, saved.id(), entity.tableName(),

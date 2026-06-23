@@ -171,6 +171,12 @@ public class HadithRepository {
      * Единый набор фильтров для {@link #findPage} и {@link #countFiltered} —
      * status (ось провенанса) и authenticity (ось достоверности)
      * ортогональны и комбинируются по AND.
+     *
+     * <p><b>Курация (ADR-065):</b> фильтр идёт по БАЗОВОМУ слою колонки —
+     * apply накладывается ПОСЛЕ fetch+пагинации, поэтому override authenticity/
+     * status в фасет-фильтре WHERE не учитывается (правка видна в карточке, но
+     * фасет-счётчик считает по импорту). Осознанное ограничение; effective-
+     * фасет через JOIN — спека §10 (backlog).
      */
     private static void appendFilters(StringBuilder sql, List<Object> args, String q,
                                       String status, String authenticity, UUID collectionId) {

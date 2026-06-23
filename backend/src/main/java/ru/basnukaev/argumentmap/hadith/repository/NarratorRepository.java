@@ -23,10 +23,10 @@ import ru.basnukaev.argumentmap.hadith.domain.Narrator;
  *
  * <p><b>Курация (ADR-065):</b> display-методы ({@link #findById},
  * {@link #findPage}, {@link #findByIds}) накладывают overlay-правки через
- * {@link OverrideApplyService} (EFFECTIVE). Import/dedup lookups
- * ({@link #findByExternalId}, {@link #findByNameArNormalized},
- * {@link #findExternalNormalizedNameIds}) отдают RAW — дедуп и idempotency
- * импорта идут по базовому слою.
+ * {@link OverrideApplyService} (EFFECTIVE). Idempotency/dedup-импорта
+ * ({@link #findByExternalId}, {@link #findExternalNormalizedNameIds}) отдают
+ * RAW — идут по базовому слою. {@link #findByNameArNormalized} сейчас без
+ * прод-вызова, но тоже RAW (симметрия: не display-путь).
  */
 @Repository
 public class NarratorRepository {
