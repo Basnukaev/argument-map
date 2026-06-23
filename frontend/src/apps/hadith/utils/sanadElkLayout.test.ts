@@ -19,8 +19,10 @@ function edge(id: string, source: string, target: string, phrase?: string): Edge
   };
 }
 
-function bendCount(e: Edge): number {
-  return (e.data as { bendPoints?: unknown[] } | undefined)?.bendPoints?.length ?? 0;
+// Внутренние изломы = points без startPoint/endPoint (длина − 2).
+function interiorBends(e: Edge): number {
+  const pts = (e.data as { points?: unknown[] } | undefined)?.points;
+  return pts ? Math.max(0, pts.length - 2) : 0;
 }
 
 describe('applySanadElkLayout', () => {
@@ -55,8 +57,17 @@ describe('applySanadElkLayout', () => {
     const nodes = [node('p'), node('a'), node('b'), node('c')];
     const edges = [edge('e1', 'p', 'a'), edge('e2', 'a', 'b'), edge('e3', 'a', 'c')];
     const res = await applySanadElkLayout(nodes, edges);
-    const totalBends = res.edges.reduce((sum, e) => sum + bendCount(e), 0);
+    const totalBends = res.edges.reduce((sum, e) => sum + interiorBends(e), 0);
     expect(totalBends).toBeGreaterThan(0);
+  });
+
+  it('каждое ребро несёт полную полилинию ELK (start→…→end, ≥2 точки)', async () => {
+    const nodes = [node('p'), node('a')];
+    const edges = [edge('e1', 'p', 'a', 'عن')];
+    const res = await applySanadElkLayout(nodes, edges);
+    const pts = (res.edges[0]!.data as { points?: unknown[] }).points;
+    expect(Array.isArray(pts)).toBe(true);
+    expect(pts!.length).toBeGreaterThanOrEqual(2);
   });
 
   it('сохраняет transmissionPhrase в data ребра', async () => {

@@ -19,11 +19,12 @@ export type SanadEdgeData = {
   /** Арабская формула передачи (حدثنا / عن / أخبرنا …) — подпись на ребре. */
   transmissionPhrase?: string;
   /**
-   * Изломы ортогонального пути из ELK (sanadElkLayout). Заполнены после
-   * async-раскладки; до неё undefined → fallback на getSmoothStepPath
-   * (геометрическая аппроксимация, как было на dagre).
+   * ПОЛНАЯ ортогональная полилиния из ELK (startPoint→bends→endPoint, в flow-
+   * координатах). Заполнена после async-раскладки; до неё undefined → fallback
+   * на getSmoothStepPath. Рисуем строго по ней (не склеиваем с RF-хэндлом) —
+   * иначе веер из узла даёт диагонали (С64).
    */
-  bendPoints?: Array<{ x: number; y: number }>;
+  points?: Array<{ x: number; y: number }>;
   /** Подсветка цепи по клику: приглушить чужие подписи (линия — через style.opacity). */
   dimmed?: boolean;
 };
@@ -53,7 +54,7 @@ function SanadEdge(props: EdgeProps<SanadCustomEdgeType>) {
     markerEnd,
   } = props;
 
-  const bendPoints = data?.bendPoints;
+  const points = data?.points;
   const phrase = data?.transmissionPhrase;
   const dimmed = data?.dimmed ?? false;
 
@@ -61,14 +62,8 @@ function SanadEdge(props: EdgeProps<SanadCustomEdgeType>) {
   let labelX: number;
   let labelY: number;
 
-  if (bendPoints && bendPoints.length > 0) {
-    const points = [
-      { x: sourceX, y: sourceY },
-      ...bendPoints,
-      { x: targetX, y: targetY },
-    ];
-    // Прямые 90°-углы (Абдула: «верни прямые углы», скруглённые читались
-    // как зазубрины на крупном turuq-дереве).
+  if (points && points.length >= 2) {
+    // Прямые 90°-углы строго по ELK-полилинии (порты на границах карточек).
     edgePath = buildSharpOrthogonalPath(points);
     const pos = pickLabelPosition(points);
     labelX = pos.x;

@@ -42,6 +42,10 @@ const SANAD_LAYOUT_OPTIONS: Record<string, string> = {
   'elk.layered.spacing.edgeEdgeBetweenLayers': '22',
   'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
   'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
+  // BALANCED усредняет 4 прохода выравнивания → родитель центрируется над
+  // веером детей. Так Пророк и основная цепь идут по ЦЕНТРУ, а не по краю
+  // (С64: спина «прибивалась» к правому краю фан-аута).
+  'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
   'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
   // Срезает лишние изломы ортогональных рёбер — чище путь.
   'elk.layered.unnecessaryBendpoints': 'true',
@@ -85,12 +89,21 @@ export async function applySanadElkLayout<N extends Node, E extends Edge>(
     posById.set(child.id, { x: child.x ?? 0, y: child.y ?? 0 });
   }
 
-  const bendsById = new Map<string, Array<{ x: number; y: number }>>();
+  // ПОЛНАЯ полилиния ребра в координатах ELK: startPoint (порт на нижней
+  // границе source) → bendPoints → endPoint (порт на верхней границе target).
+  // Берём именно ELK-порты, а НЕ RF-хэндл (bottom-center): при веере из одного
+  // узла ELK разносит порты по нижней грани, и путь остаётся ортогональным
+  // (С64: ранее склейка center→bend давала диагонали). Узлы тоже ELK-позиции —
+  // координаты совпадают, ребро точно стыкуется с границами карточек.
+  const pointsById = new Map<string, Array<{ x: number; y: number }>>();
   for (const elkEdge of result.edges ?? []) {
     const section = (elkEdge.sections ?? [])[0];
     if (!section) continue;
-    const bends = (section.bendPoints ?? []).map((p) => ({ x: p.x, y: p.y }));
-    if (bends.length > 0) bendsById.set(elkEdge.id, bends);
+    const pts: Array<{ x: number; y: number }> = [];
+    if (section.startPoint) pts.push({ x: section.startPoint.x, y: section.startPoint.y });
+    for (const b of section.bendPoints ?? []) pts.push({ x: b.x, y: b.y });
+    if (section.endPoint) pts.push({ x: section.endPoint.x, y: section.endPoint.y });
+    if (pts.length >= 2) pointsById.set(elkEdge.id, pts);
   }
 
   return {
@@ -101,8 +114,8 @@ export async function applySanadElkLayout<N extends Node, E extends Edge>(
       return pos ? { ...n, position: pos } : n;
     }),
     edges: edges.map((e) => {
-      const bends = bendsById.get(e.id);
-      return { ...e, data: { ...(e.data as object), bendPoints: bends } } as E;
+      const points = pointsById.get(e.id);
+      return { ...e, data: { ...(e.data as object), points } } as E;
     }),
   };
 }

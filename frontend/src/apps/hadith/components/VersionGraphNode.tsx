@@ -47,8 +47,11 @@ function VersionGraphNode({ data }: Props) {
             )}
           </div>
           {data.matnPreview && (
+            // leading-loose: матн полностью огласован, харакаты — верхние
+            // выносные; при tight line-height их срезал line-clamp overflow
+            // (С64). Свободный интерлиньяж даёт полупробел над первой строкой.
             <p
-              className="mt-1.5 line-clamp-2 font-arabic text-xs leading-snug text-sky-700/80"
+              className="mt-1.5 line-clamp-2 font-arabic text-xs leading-loose text-sky-700/80"
               dir="rtl"
             >
               {data.matnPreview}
