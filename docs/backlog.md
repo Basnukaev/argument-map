@@ -38,17 +38,33 @@
   чинил FB-7a — вероятно edge с пустой `transmissionPhrase` (label='' → пустой
   labelBg-rect) ЛИБО merge-коннектор с дефолтным fill. **Диагностировать зумом в
   branch-точку turuq-PNG** (что за DOM-элемент), затем гейтить/стилизовать. Среднее.
-- [ ] **Граф иснада: зазор ребро-карточка + разведение параллельных рёбер**
-  (Абдула, 3 проблемы С63; **ELK-задача**). sanad-граф на **dagre**, который НЕ
-  обходит узлы и не разводит параллельные рёбра. Правильный фикс — переключить
-  `sanadLayout` на **elkjs** (уже в зависимостях, используется argument-map-графом).
-  - **Проблема 1 (зазор):** линии проходят вплотную/сквозь карточки. Нужен видимый
-    зазор. ELK `spacing.edgeNode` + orthogonal routing с обходом bbox узлов (+padding).
-  - **Проблема 2 (наложение):** параллельные рёбра сливаются. ELK `spacing.edgeEdge`
-    + offset параллельных. *(Интерактивная часть — highlight ребра по hover + dim
-    остальных — УЖЕ СДЕЛАНА, `c78cf4b`.)*
-  - nodesep/ranksep уже подняты (С63, 88/100) — паллиатив. Крупное, async ELK-рефактор
-    layoutSanad + визуальная итерация; референс — elk-layout argument-map-графа.
+- [ ] **Граф иснада: ELK orthogonal routing (зазор ребро-карточка + разведение
+  параллельных)** — Абдула, Проблемы 1/2 С63. **ПЛАН ГОТОВ (инвестигейшн С63).**
+  sanad-граф на **dagre** (НЕ обходит узлы, не разводит параллельные). Фикс =
+  переключить на **elkjs** (`^0.11.1`, уже в deps; зрелая инфра у argument-map-графа).
+  - **Референсы (переиспользовать паттерн):** `apps/argument-map/utils/elkLayout.ts`
+    (`applyElkLayout` L163, `LAYERED_BASE` L51 — preset **tree-tb**: `elk.algorithm=
+    layered`, `edgeRouting=ORTHOGONAL`, `spacing.nodeNode=100`, `edgeNodeBetweenLayers
+    =50` ← ЗАЗОР Проблемы 1, `edgeEdgeBetweenLayers=20` ← Проблема 2, BRANDES_KOEPF
+    placement); `components/graph/CustomEdge.tsx` + `utils/orthogonalPath.ts` (рендер
+    ELK bend-points в SVG-path).
+  - **Sanad-упрощения (проще, чем argument-map):** НЕТ layerConstraint (нет
+    QUESTION/EVIDENCE-типов), **НЕТ инверсии direction** (sanad source=ранний рави=
+    выше уже совпадает с ELK layered DOWN), нет radial. Т.е. ELK-граф = просто
+    `children: nodes{width:240,height:108}`, `edges: {sources:[source],targets:[target],
+    labels:[{width:~40,height:20}]}` (label = формула передачи).
+  - **Шаги:** (1) sanad ELK-layout util (positions + edge.sections bend-points;
+    apps/hadith/utils или generic в shared); (2) sanad CustomEdge — рисует ELK
+    bend-points (ortho-path) + transmission-label-чип, **уважает `e.style`/`labelStyle`
+    opacity** (иначе сломает click-highlight `fcb6aaf`); (3) SanadGraph: layout
+    становится **async** (useEffect+state вместо sync useMemo `baseNodes`), edge type
+    'smoothstep'→custom; обработать flicker (dagre как initial, ELK по готовности).
+  - **Ре-верификация (4 поверхности, легко сломать):** PNG-экспорт
+    (`withInlinedCssVars` + кастомное ребро), fullscreen, **click-highlight цепи**
+    (стилизация e.style/labelStyle), тема light/dark; single-chain + turuq + version/
+    book-узлы. *(Интерактив — click-подсветка цепи — УЖЕ СДЕЛАНА, `fcb6aaf`.)*
+  - nodesep/ranksep уже подняты (С63, 88/100) — паллиатив до ELK. Крупное, async +
+    custom-edge рефактор; делать в свежей сессии с верификацией каждой поверхности.
 - [ ] **FB-2 detach-× гостю** через optional onDetach в CitationsList/HadithCite/
   FreeformCite (сейчас hover-only, opacity-0, бэк отдаёт 403; primary edit/add уже
   скрыты С63). Мелкое.
