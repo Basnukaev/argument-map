@@ -16,6 +16,7 @@ import MatnVariations from '@/apps/hadith/components/MatnVariations';
 import SiblingMatns from '@/apps/hadith/components/SiblingMatns';
 import MatnTranslateControls from '@/apps/hadith/components/MatnTranslateControls';
 import HighlightedMatn from '@/apps/hadith/components/HighlightedMatn';
+import EditableField from '@/apps/hadith/components/curation/EditableField';
 import HadithTabs, { type HadithTabItem } from '@/apps/hadith/components/HadithTabs';
 import { parseIsnadHtml } from '@/apps/hadith/utils/parseIsnadHtml';
 import { useApiQuery } from '@/shared/hooks/useApiQuery';
@@ -103,6 +104,20 @@ const HADITH_TYPE_TIP: Record<string, DictKey> = {
   قدسي: 'hadith.detail.hadithType.قدسي.tip',
 };
 
+/** Курация Фаза 3.b — enum-опции ADMIN-правки осей провенанса/достоверности. */
+const STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: 'CANONICAL', label: 'CANONICAL' },
+  { value: 'VARIANT', label: 'VARIANT' },
+  { value: 'WEAK', label: 'WEAK' },
+  { value: 'FABRICATED', label: 'FABRICATED' },
+];
+const AUTHENTICITY_OPTIONS: { value: string; label: string }[] = [
+  { value: 'SAHIH', label: 'SAHIH' },
+  { value: 'HASAN', label: 'HASAN' },
+  { value: 'DAIF', label: 'DAIF' },
+  { value: 'MAUDU', label: 'MAUDU' },
+];
+
 /** Заголовок секции — единый стиль для всех новых секций. */
 function SectionHeading({ children }: { children: ReactNode }) {
   return (
@@ -139,10 +154,13 @@ function HadithDetailPage() {
   // вшит в path (useApiQuery рефетчит при смене path); при 0 — path без
   // суффикса (existing-поведение и тесты не затронуты).
   const [gradeModalOpen, setGradeModalOpen] = useState(false);
-  const [gradeNonce, setGradeNonce] = useState(0);
+  // Единый nonce рефетча detail: бампается после POST оценки И после ADMIN
+  // inline-правки поля (курация Фаза 3.b). Вшит в path (useApiQuery рефетчит
+  // при смене path); при 0 — path без суффикса (existing-поведение / тесты).
+  const [detailNonce, setDetailNonce] = useState(0);
 
   const detailPath = id
-    ? `/api/v1/hadith/hadiths/${id}/detail${gradeNonce > 0 ? `?r=${gradeNonce}` : ''}`
+    ? `/api/v1/hadith/hadiths/${id}/detail${detailNonce > 0 ? `?r=${detailNonce}` : ''}`
     : null;
   const state = useApiQuery<HadithDetailDto>(detailPath);
   const collectionsState = useApiQuery<CollectionItem[]>('/api/v1/hadith/collections');
@@ -189,6 +207,13 @@ function HadithDetailPage() {
   const detail = state.kind === 'success' ? state.data : null;
   // Primary-матн (рендерится в hero) — для on-demand AI-перевода под текстом.
   const primaryMatn = detail?.matns.find((m) => m.isPrimary) ?? detail?.matns[0] ?? null;
+
+  // Рефетч detail после ADMIN inline-правки поля (курация Фаза 3.b): тот же
+  // механизм, что у grade-flow — инвалидируем кэш и бампаем единый nonce.
+  const refetchDetail = () => {
+    if (detailPath) invalidateCache((k) => k === detailPath);
+    setDetailNonce((n) => n + 1);
+  };
 
   // Толкования разбиты на три независимые секции по kind: شروح (SHARH),
   // علل (ILAL — скрытые дефекты), غريب (GHARIB — редкие слова). Группируем
@@ -375,47 +400,83 @@ function HadithDetailPage() {
                 {detail.primaryNumber != null && (
                   <span className="font-mono text-ink-500">№{detail.primaryNumber}</span>
                 )}
-                {/* Ось ПРОВЕНАНСА (происхождение): i18n-лейбл + tooltip. */}
-                <span
-                  className={`rounded-sm px-2 py-0.5 text-xs font-semibold ${statusClass(detail.status)}`}
-                  title={
-                    STATUS_EXPLAIN[detail.status]
-                      ? t(STATUS_EXPLAIN[detail.status] as DictKey)
-                      : undefined
+                {/* Ось ПРОВЕНАНСА (происхождение): i18n-лейбл + tooltip.
+                    ADMIN-правка (курация 3.b) — карандаш рядом с бейджем. */}
+                <EditableField
+                  entityTable="hd_hadiths"
+                  entityId={detail.id}
+                  fieldName="status"
+                  value={detail.status}
+                  kind="enum"
+                  options={STATUS_OPTIONS}
+                  role={userRole}
+                  onSaved={refetchDetail}
+                  label={
+                    <span
+                      className={`rounded-sm px-2 py-0.5 text-xs font-semibold ${statusClass(detail.status)}`}
+                      title={
+                        STATUS_EXPLAIN[detail.status]
+                          ? t(STATUS_EXPLAIN[detail.status] as DictKey)
+                          : undefined
+                      }
+                    >
+                      {STATUS_SHORT[detail.status]
+                        ? t(STATUS_SHORT[detail.status] as DictKey)
+                        : detail.status}
+                    </span>
                   }
-                >
-                  {STATUS_SHORT[detail.status]
-                    ? t(STATUS_SHORT[detail.status] as DictKey)
-                    : detail.status}
-                </span>
+                />
                 {/* Ось ДОСТОВЕРНОСТИ (если выведена): бейдж + tooltip-пояснение. */}
                 {detail.authenticity && AUTHENTICITY_LABEL[detail.authenticity] && (
-                  <span
-                    className={`rounded-sm px-2 py-0.5 text-xs font-semibold ${authenticityClass(detail.authenticity)}`}
-                    title={
-                      AUTHENTICITY_TIP[detail.authenticity]
-                        ? t(AUTHENTICITY_TIP[detail.authenticity] as DictKey)
-                        : undefined
+                  <EditableField
+                    entityTable="hd_hadiths"
+                    entityId={detail.id}
+                    fieldName="authenticity"
+                    value={detail.authenticity}
+                    kind="enum"
+                    options={AUTHENTICITY_OPTIONS}
+                    role={userRole}
+                    onSaved={refetchDetail}
+                    label={
+                      <span
+                        className={`rounded-sm px-2 py-0.5 text-xs font-semibold ${authenticityClass(detail.authenticity)}`}
+                        title={
+                          AUTHENTICITY_TIP[detail.authenticity]
+                            ? t(AUTHENTICITY_TIP[detail.authenticity] as DictKey)
+                            : undefined
+                        }
+                      >
+                        {t(AUTHENTICITY_LABEL[detail.authenticity] as DictKey)}
+                      </span>
                     }
-                  >
-                    {t(AUTHENTICITY_LABEL[detail.authenticity] as DictKey)}
-                  </span>
+                  />
                 )}
                 {/* Тип хадиса (مرفوع/...): РЕАЛЬНЫЙ термин i18n + tooltip-определение. */}
                 {detail.hadithType && (
-                  <span
-                    className="rounded-sm bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700"
-                    dir="auto"
-                    title={
-                      HADITH_TYPE_TIP[detail.hadithType]
-                        ? t(HADITH_TYPE_TIP[detail.hadithType] as DictKey)
-                        : undefined
+                  <EditableField
+                    entityTable="hd_hadiths"
+                    entityId={detail.id}
+                    fieldName="hadith_type"
+                    value={detail.hadithType}
+                    kind="text"
+                    role={userRole}
+                    onSaved={refetchDetail}
+                    label={
+                      <span
+                        className="rounded-sm bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700"
+                        dir="auto"
+                        title={
+                          HADITH_TYPE_TIP[detail.hadithType]
+                            ? t(HADITH_TYPE_TIP[detail.hadithType] as DictKey)
+                            : undefined
+                        }
+                      >
+                        {HADITH_TYPE_LABEL[detail.hadithType]
+                          ? t(HADITH_TYPE_LABEL[detail.hadithType] as DictKey)
+                          : detail.hadithType}
+                      </span>
                     }
-                  >
-                    {HADITH_TYPE_LABEL[detail.hadithType]
-                      ? t(HADITH_TYPE_LABEL[detail.hadithType] as DictKey)
-                      : detail.hadithType}
-                  </span>
+                  />
                 )}
               </div>
               {(detail.chapterAr || detail.subChapterAr) && (
@@ -425,11 +486,33 @@ function HadithDetailPage() {
                   }`}
                   dir="auto"
                 >
-                  {detail.chapterAr && <span>{detail.chapterAr}</span>}
+                  {detail.chapterAr && (
+                    <EditableField
+                      entityTable="hd_hadiths"
+                      entityId={detail.id}
+                      fieldName="chapter_ar"
+                      value={detail.chapterAr}
+                      kind="text"
+                      role={userRole}
+                      onSaved={refetchDetail}
+                      label={<span>{detail.chapterAr}</span>}
+                    />
+                  )}
                   {detail.chapterAr && detail.subChapterAr && (
                     <span className="text-ink-300">/</span>
                   )}
-                  {detail.subChapterAr && <span className="text-ink-500">{detail.subChapterAr}</span>}
+                  {detail.subChapterAr && (
+                    <EditableField
+                      entityTable="hd_hadiths"
+                      entityId={detail.id}
+                      fieldName="sub_chapter_ar"
+                      value={detail.subChapterAr}
+                      kind="text"
+                      role={userRole}
+                      onSaved={refetchDetail}
+                      label={<span className="text-ink-500">{detail.subChapterAr}</span>}
+                    />
+                  )}
                 </div>
               )}
             </header>
@@ -685,7 +768,7 @@ function HadithDetailPage() {
                 onClose={() => setGradeModalOpen(false)}
                 onCreated={() => {
                   if (detailPath) invalidateCache((k) => k === detailPath);
-                  setGradeNonce((n) => n + 1);
+                  setDetailNonce((n) => n + 1);
                 }}
               />
             )}

@@ -1535,6 +1535,10 @@ export const DICTIONARY = {
     'hadith.translate.save_failed': 'Не удалось сохранить перевод',
     'hadith.translate.regenerate': 'Перегенерировать перевод',
     'hadith.translate.regenerated': 'Перевод перегенерирован',
+    // Курация Фаза 3.b — ADMIN inline-правка полей сущности.
+    'hadith.curation.edit_field': 'Исправить администратором',
+    'hadith.curation.saved': 'Сохранено',
+    'hadith.curation.save_failed': 'Не удалось сохранить',
     'hadith.narrator.network': 'Сеть передатчиков',
     'hadith.narrator.commentaries.title': 'Оценки учёных о передатчике',
     'hadith.narrator.commentaries.died': 'ум. {year} г.х.',
@@ -3092,6 +3096,10 @@ export const DICTIONARY = {
     'hadith.translate.save_failed': 'تعذّر حفظ الترجمة',
     'hadith.translate.regenerate': 'إعادة توليد الترجمة',
     'hadith.translate.regenerated': 'تمت إعادة توليد الترجمة',
+    // Курация Фаза 3.b — ADMIN inline-правка полей сущности.
+    'hadith.curation.edit_field': 'تصحيح (مشرف)',
+    'hadith.curation.saved': 'تم الحفظ',
+    'hadith.curation.save_failed': 'تعذّر الحفظ',
     'hadith.narrator.network': 'شبكة الرواة',
     'hadith.narrator.commentaries.title': 'أقوال العلماء في الراوي',
     'hadith.narrator.commentaries.died': 'ت {year} هـ',

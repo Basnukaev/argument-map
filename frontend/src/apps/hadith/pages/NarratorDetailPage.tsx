@@ -5,7 +5,9 @@ import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import { apiGetRaw, ApiError } from '@/shared/api/client';
 import { useT, type DictKey } from '@/shared/i18n';
+import { useAuthStore } from '@/shared/stores/authStore';
 import { RELIABILITY_TOKENS } from '@/apps/hadith/sanadTokens';
+import EditableField from '@/apps/hadith/components/curation/EditableField';
 import NarratorCommentaryList from '@/apps/hadith/components/NarratorCommentaryList';
 import { normalizeArabic } from '@/apps/hadith/utils/highlightGharib';
 import type { HadithSummaryDto, NarratorCommentaryDto, NarratorResponseDto, Paged } from '@/apps/hadith/types';
@@ -34,6 +36,17 @@ const HADITH_STATUS_EXPLAIN: Record<string, DictKey> = {
   FABRICATED: 'hadith.detail.status.FABRICATED',
 };
 
+/** Курация Фаза 3.b — enum-опции ADMIN-правки степени надёжности рави. */
+const RELIABILITY_OPTIONS: { value: string; label: string }[] = [
+  { value: 'THIQA', label: 'THIQA' },
+  { value: 'SADUQ', label: 'SADUQ' },
+  { value: 'MAQBUL', label: 'MAQBUL' },
+  { value: 'DAIF', label: 'DAIF' },
+  { value: 'MATRUK', label: 'MATRUK' },
+  { value: 'SAHABI', label: 'SAHABI' },
+  { value: 'UNKNOWN', label: 'UNKNOWN' },
+];
+
 /**
  * Биография передатчика + список переданных им хадисов (علم الرجال).
  * Тянет /narrators/{id} (bio) и /narrators/{id}/transmitted параллельно.
@@ -41,10 +54,14 @@ const HADITH_STATUS_EXPLAIN: Record<string, DictKey> = {
 function NarratorDetailPage() {
   const t = useT();
   const { id } = useParams<{ id: string }>();
+  // Роль для гейта ADMIN inline-правки полей рави (курация Фаза 3.b).
+  const userRole = useAuthStore((s) => s.user?.role);
   const [bio, setBio] = useState<NarratorResponseDto | null>(null);
   const [transmitted, setTransmitted] = useState<HadithSummaryDto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // Nonce рефетча bio после ADMIN-правки поля — bump инициирует useEffect.
+  const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
     if (!id) return;
@@ -71,9 +88,12 @@ function NarratorDetailPage() {
         setLoading(false);
       });
     return () => controller.abort();
-  }, [id]);
+  }, [id, nonce]);
 
   const rel = bio?.reliabilityGrade ? RELIABILITY_TOKENS[bio.reliabilityGrade] : null;
+
+  // Рефетч bio после ADMIN inline-правки поля рави (курация Фаза 3.b).
+  const refetchBio = () => setNonce((n) => n + 1);
 
   /**
    * Нормализация для дедупа: снять огласовки + сложить буквы (normalizeArabic),
@@ -162,14 +182,30 @@ function NarratorDetailPage() {
                 <h1 className="font-arabic text-3xl leading-tight text-ink-900" dir="rtl">
                   {bio.nameAr}
                 </h1>
-                {rel && bio.reliabilityGrade && (
-                  <span
-                    className={`shrink-0 rounded-sm px-2 py-1 font-arabic text-sm font-semibold ${rel.chip}`}
-                    dir="rtl"
-                  >
-                    {rel.ar}
-                  </span>
-                )}
+                {/* Степень надёжности — рич-чип; ADMIN-правка (курация 3.b)
+                    карандашом рядом (виден и когда grade ещё не выставлен). */}
+                <span className="shrink-0">
+                  <EditableField
+                    entityTable="hd_narrators"
+                    entityId={bio.id}
+                    fieldName="reliability_grade"
+                    value={bio.reliabilityGrade}
+                    kind="enum"
+                    options={RELIABILITY_OPTIONS}
+                    role={userRole}
+                    onSaved={refetchBio}
+                    label={
+                      rel && bio.reliabilityGrade ? (
+                        <span
+                          className={`rounded-sm px-2 py-1 font-arabic text-sm font-semibold ${rel.chip}`}
+                          dir="rtl"
+                        >
+                          {rel.ar}
+                        </span>
+                      ) : undefined
+                    }
+                  />
+                </span>
               </div>
               {rel && bio.reliabilityGrade && (
                 <div className="mt-1 text-sm font-medium text-ink-600">
@@ -192,7 +228,15 @@ function NarratorDetailPage() {
                     {t('hadith.narrator.kunya')}
                   </dt>
                   <dd className="mt-2 font-arabic text-base leading-relaxed text-ink-800" dir="rtl">
-                    {bio.kunya}
+                    <EditableField
+                      entityTable="hd_narrators"
+                      entityId={bio.id}
+                      fieldName="kunya"
+                      value={bio.kunya}
+                      kind="text"
+                      role={userRole}
+                      onSaved={refetchBio}
+                    />
                   </dd>
                 </div>
               )}
@@ -202,7 +246,15 @@ function NarratorDetailPage() {
                     {t('hadith.narrator.laqab')}
                   </dt>
                   <dd className="mt-2 font-arabic text-base leading-relaxed text-ink-800" dir="rtl">
-                    {bio.laqab}
+                    <EditableField
+                      entityTable="hd_narrators"
+                      entityId={bio.id}
+                      fieldName="laqab"
+                      value={bio.laqab}
+                      kind="text"
+                      role={userRole}
+                      onSaved={refetchBio}
+                    />
                   </dd>
                 </div>
               )}
@@ -215,7 +267,15 @@ function NarratorDetailPage() {
                     {t('hadith.narrator.generation')}
                   </dt>
                   <dd className="mt-2 font-arabic text-base leading-relaxed text-ink-800" dir="auto">
-                    {bio.tabaqa}
+                    <EditableField
+                      entityTable="hd_narrators"
+                      entityId={bio.id}
+                      fieldName="tabaqa"
+                      value={bio.tabaqa}
+                      kind="text"
+                      role={userRole}
+                      onSaved={refetchBio}
+                    />
                   </dd>
                 </div>
               )}
@@ -262,7 +322,17 @@ function NarratorDetailPage() {
                   className="mb-8 rounded-md bg-sunken p-3 text-sm leading-relaxed text-ink-700"
                   dir="auto"
                 >
-                  {barText}
+                  {/* ADMIN-правка (курация 3.b) редактирует поле grade_text. */}
+                  <EditableField
+                    entityTable="hd_narrators"
+                    entityId={bio.id}
+                    fieldName="grade_text"
+                    value={bio.gradeText}
+                    kind="text"
+                    role={userRole}
+                    onSaved={refetchBio}
+                    label={<span dir="auto">{barText}</span>}
+                  />
                 </div>
               );
             })()}
