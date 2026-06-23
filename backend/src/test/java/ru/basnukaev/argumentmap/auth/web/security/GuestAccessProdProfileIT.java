@@ -1,5 +1,6 @@
 package ru.basnukaev.argumentmap.auth.web.security;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -65,6 +66,7 @@ class GuestAccessProdProfileIT {
     private UUID publicTopicId;
     private UUID privateTopicId;
     private UUID privateBookPageId;
+    private UUID publicBookId;
 
     @BeforeEach
     void setUp() {
@@ -95,6 +97,13 @@ class GuestAccessProdProfileIT {
                 "INSERT INTO lib_pages (id, book_id, page_number, text_content) "
                         + "VALUES (?, ?, 1, ?)",
                 privateBookPageId, privateBookId, "текст приватной страницы");
+
+        // PUBLIC книга — для проверки публичного инкремента просмотров (С64).
+        publicBookId = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO lib_books (id, book_type, title, language, created_by, visibility) "
+                        + "VALUES (?, 'BOOK', ?, 'ar', ?, 'PUBLIC')",
+                publicBookId, "Публичная книга", ownerId);
     }
 
     @Test
@@ -167,6 +176,19 @@ class GuestAccessProdProfileIT {
                         .content("{\"title\":\"T\",\"rootQuestion\":\"Q?\"}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.type").value(containsString("unauthorized")));
+    }
+
+    @Test
+    void anonymous_postBookView_returns204_publicCounter() throws Exception {
+        // С64: инкремент просмотров — ЕДИНСТВЕННАЯ мутация, открытая анониму в
+        // prod (публичный счётчик, контент не раскрывается). Контраст с
+        // createTopic → 401 выше. Проверяем, что POST доходит до контроллера
+        // (permitMatcher работает) и реально инкрементит счётчик.
+        mockMvc.perform(post("/api/v1/library/books/{id}/views", publicBookId))
+                .andExpect(status().isNoContent());
+        Integer views = jdbcTemplate.queryForObject(
+                "SELECT view_count FROM lib_books WHERE id = ?", Integer.class, publicBookId);
+        assertThat(views).isEqualTo(1);
     }
 
     @Test

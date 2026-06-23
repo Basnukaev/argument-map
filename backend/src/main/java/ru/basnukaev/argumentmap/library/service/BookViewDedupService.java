@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Component;
@@ -32,6 +33,13 @@ import ru.basnukaev.argumentmap.library.config.BookViewDedupProperties;
  *
  * <p>Паттерн идентичен {@code RateLimitFilter} — тот же {@link Clock}
  * inject (тесты fast-forward без sleep), то же lazy cleanup через счётчик.
+ *
+ * <p>ВАЖНО (доверие к XFF): clientIp берётся из X-Forwarded-For (первый токен).
+ * Целостность дедупа гарантирована только если reverse-proxy на краю
+ * перезаписывает XFF (та же модель доверия, что у rate-limit ADR-046). Без
+ * доверенного прокси XFF спуфится → дедуп обходится (каждый просмотр считается),
+ * а уникальные подделанные IP раздувают Map до следующего cleanup. Это
+ * осознанный trade-off, консистентный с rate-limiter'ом.
  */
 @Component
 @EnableConfigurationProperties(BookViewDedupProperties.class)
@@ -50,7 +58,11 @@ public class BookViewDedupService {
      */
     private final ConcurrentHashMap<String, Instant> lastSeen = new ConcurrentHashMap<>();
 
-    private volatile int callCount = 0;
+    // AtomicInteger (а не volatile int): ++ на volatile — не атомарный RMW,
+    // под нагрузкой инкременты гонятся и cleanup-порог срабатывает реже.
+    // На корректность дедупа не влияет (решение атомарно в compute), но
+    // делаем cadence eviction предсказуемым (ревью С64).
+    private final AtomicInteger callCount = new AtomicInteger(0);
 
     public BookViewDedupService(BookViewDedupProperties properties, Clock clock) {
         this.properties = properties;
@@ -99,11 +111,16 @@ public class BookViewDedupService {
      * iterator безопасен для concurrent remove.
      */
     private void maybeCleanup(Instant now) {
-        if (++callCount < CLEANUP_EVERY) {
+        if (callCount.incrementAndGet() < CLEANUP_EVERY) {
             return;
         }
-        callCount = 0;
+        callCount.set(0);
         Instant windowStart = now.minus(properties.dedupWindow());
+        // Инвариант: evict-им ТОЛЬКО уже истёкшие записи (isBefore(windowStart)).
+        // Гонка с compute() безопасна: если параллельный compute для того же
+        // ключа решит «increment» — он перезапишет mapping свежим now (окно
+        // уже истекло, пере-засчёт корректен). Поэтому remove без синхронизации
+        // не портит состояние (weakly-consistent iterator CHM).
         Iterator<Map.Entry<String, Instant>> it = lastSeen.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry<String, Instant> e = it.next();
@@ -115,7 +132,7 @@ public class BookViewDedupService {
 
     /** Для тестов: принудительная очистка без ожидания threshold. */
     void cleanupNow() {
-        callCount = CLEANUP_EVERY;
+        callCount.set(CLEANUP_EVERY - 1);
         maybeCleanup(clock.instant());
     }
 
@@ -127,6 +144,6 @@ public class BookViewDedupService {
     /** Для тестов: сброс состояния между тестами в одном Spring context. */
     void resetState() {
         lastSeen.clear();
-        callCount = 0;
+        callCount.set(0);
     }
 }

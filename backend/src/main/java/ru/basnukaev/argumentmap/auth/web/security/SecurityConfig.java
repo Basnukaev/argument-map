@@ -120,6 +120,16 @@ public class SecurityConfig {
                                          "/api/v1/library/pages/**",
                                          "/api/v1/questions/**")
                             .permitAll();
+                    // Исключение для мутации: инкремент счётчика просмотров
+                    // книги — публичный (гость, читающий книгу, и есть сигнал
+                    // просмотра). Контент НЕ раскрывается и НЕ мутируется —
+                    // только view_count++. Анти-инфляция — IP-дедуп
+                    // BookViewDedupService (ревью С64); без permitAll IP-ключ
+                    // дедупа видел бы только аутентифицированных. Endpoint
+                    // идемпотентен и безопасен для anonymous.
+                    auth.requestMatchers(HttpMethod.POST,
+                                         "/api/v1/library/books/*/views")
+                            .permitAll();
                     // ADR-040 transitional: в dev/local/test profile все
                     // /api/** endpoints публичные. Это покрывает 60+
                     // existing IT тестов которые до Этапа 21 не передавали

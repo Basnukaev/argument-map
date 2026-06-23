@@ -1915,6 +1915,18 @@ PATCH-семантика:
 - `404 book-not-found` - книга не существует
 - `403 forbidden-book-write` - не owner / EDITOR / ADMIN (ADR-043 Amendment)
 
+### POST /api/v1/library/books/{id}/views - инкремент счётчика просмотров
+
+Публичный счётчик просмотров книги. **Доступен анониму** (единственная
+открытая гостю мутация — контент не раскрывается, только `view_count++`;
+prod permitAll-matcher в `SecurityConfig`, С64). Ответ `204 No Content`.
+
+Анти-инфляция: in-memory дедуп по `(clientIp, bookId)` в окне
+`book.view-count.dedup-window` (default 30 мин, `BookViewDedupService`) —
+повторный просмотр той же пары в окне = тихий no-op (клиент всё равно 204).
+Дедуп доверяет `X-Forwarded-For` (нужен доверенный reverse-proxy на краю,
+как у rate-limit ADR-046).
+
 ### PATCH /api/v1/library/books/{id}/visibility - сменить visibility (22.c)
 
 Меняет уровень доступа книги (ADR-043 Amendment). **Только owner или
