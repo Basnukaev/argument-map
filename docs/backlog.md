@@ -287,10 +287,14 @@ node_votes**); Frontend pagination остальных list pages (Load More,
 `sn_staging_*`/AdminSunnahPage/полный корпус sunnah сняты как мёртвые.
 Единственный переживший (генерик, не sunnah):
 
-- [ ] **Расширенные формы хамзы/алифа** (Minor): `ArabicTextNormalizer` —
-  NFKC + текущие folds покрывают обычный текст и presentation forms; редкие
-  U+0672/0673/0675/0676/0677 (alef/waw with wavy hamza) пройдут verbatim.
-  Добавить в switch если встретятся в реальных alminasa-данных.
+- [ ] **Расширенные формы хамзы/алифа** (Minor, DEFER per YAGNI): `ArabicTextNormalizer` —
+  NFKC + текущие folds покрывают обычный текст и presentation forms. **Проверено С64
+  (NFKC-расчёт):** U+0672/0673 (alef wavy hamza above/below) NFKC НЕ декомпозирует —
+  проходят verbatim (ٲ/ٳ); U+0675/0676/0677 → base + U+0674 (HIGH HAMZA остаётся как
+  буква). Т.е. реально НЕ нормализуются (аудит С64 ошибочно пометил DONE — поправлено).
+  Когда понадобится: switch-кейсы U+0672/0673/0675→ا, U+0676→و, +снять U+0674 (как ء).
+  Это архаичные/тюркские формы — в стандартном арабском матне хадиса не встречаются,
+  поэтому держим отложенным до появления в реальных alminasa-данных.
 
 ### Code-review findings (Сессия 52, 2026-06-01) — ADR-043 sweep gaps
 
@@ -308,15 +312,15 @@ liveness (Сессия 55 Фаза 12). Детали в progress.md/git.
   только в `إعداد:` и не резолвится в shamela authorId → теряется. Либо
   парсить إعداد в authority/thesis, либо показывать raw когда есть
   непокрытые structured-полями строки.
-- [ ] **Repository round-trip IT для thesis-колонок** — есть только parser
-  unit-тесты; нет IT что `save()`/`updateThesisMetadata` реально
-  персистят/читают thesis_* через Postgres (защита от reorder/typo).
-- [ ] **HadithListPage test asymmetry** — debounce+пагинация добавлены в
-  HadithListPage и NarratorListPage идентично, но тесты только у Narrator.
-  Кандидат на извлечение общего `usePagedSearch` хука + один тест.
-- [ ] **Load More stale-append race** — `loadMore` без AbortController:
-  смена query во время in-flight page-N аппендит stale items на свежий
-  page-0. Тот же паттерн что в BookListPage. Fix: query-ref guard в .then.
+- [x] **Repository round-trip IT для thesis-колонок** — закрыто (аудит С64):
+  `BookRepositoryIT.save_withThesisMetadata_roundTrip` (+null-fields +
+  updateThesisMetadata) сохраняют/читают thesis_* через Testcontainers Postgres.
+- [x] **HadithListPage test asymmetry** — закрыто (аудит С64): общие хуки
+  `usePagedList`/`usePagedSearch` извлечены (commit ae41c98) + покрыты тестами
+  (`usePagedList.test.tsx`, `usePagedSearch.test.tsx`), `HadithListPage.test.tsx` есть.
+- [x] **Load More stale-append race** — закрыто (аудит С64): append-`loadMore`
+  живёт только в `usePagedSearch` с generation-guard (`:198`) + AbortController
+  (`:157`); list-страницы перешли на `usePagedList` (REPLACE+guard). Commit 43bb89f.
 
 ### Bug-hunt Tier-3 (Сессия 52, 2026-06-01) — 30 low-severity
 
@@ -343,10 +347,13 @@ assertive; QuestionDetailPage delete-gating Фаза 11; AnswersSection busyIds
 Остаются живыми:
 - [ ] **View-count inflation** — `POST /books/{id}/views` unauthenticated +
       unbounded (anti-spam dedup отложен Phase 2.b). `BookController.java:113`.
-- [ ] **MinimapCard drag/clamp** использует content bounds без padding →
-      drag snaps inconsistently. `MinimapCard.tsx:317`.
-- [ ] **PageView citation highlight** может теряться на AI-edited страницах
-      (async render race). `PageView.tsx:148`.
+- [x] **MinimapCard drag/clamp** — закрыто (commit `a890327`): `BOUNDS_PAD`
+      симметрично расширяет bounds, drag/click клампятся к `padMinX/padMinY`
+      (центрированный origin). Подтверждено С64.
+- [x] **PageView citation highlight** — закрыто (commit `1473bb9`, аудит С64):
+      флаг `richTextReady` (`PageView.tsx:109`) гейтит highlight-эффект
+      (`:152`, `if (hasFormattedContent && !richTextReady) return;`), сбрасывается
+      на смену страницы — async-гонка на AI-edited страницах закрыта.
 - [~] **PdfViewer initial page suffix-range / HttpClientPdfFetcher**
       negative Content-Length при upstream 206 без Content-Length.
       Content-Length-половина закрыта Сессия 55 Фаза 12: деривация длины
@@ -498,16 +505,10 @@ assertive; QuestionDetailPage delete-gating Фаза 11; AnswersSection busyIds
       ('confirm')` на `vi.mock(confirmStore)`. `common.confirm` +
       `common.confirm_title` i18n RU+AR
 
-- [ ] **Flaky test: `bulkActions.test.tsx` (d3-drag + jsdom)** — обнаружено
-      2026-05-31. В полном параллельном прогоне (`vitest run`) 3 теста
-      падают с unhandled-ошибками из `d3-drag/nodrag.js` (`document` style
-      mutation на `selectstart`/`pointerdown`, которую jsdom не реализует).
-      **В изоляции файл проходит 5/5** — это flakiness (async-ошибка teardown
-      одного теста прилетает в другой под параллельной нагрузкой), не
-      реальная регрессия. Фикс: подавить эти unhandled-ошибки в `test-setup.ts`
-      (filter по d3-drag stack) либо изолировать lasso-тесты. Non-blocking,
-      pre-existing на master. Объём ~1ч + итерации (flakiness
-      недетерминирована)
+- [x] **Flaky test: `bulkActions.test.tsx` (d3-drag + jsdom)** — закрыто
+      (аудит С64): `test-setup.ts:25-47` мокает `d3-drag` (no-op chainable +
+      no-op dragDisable/dragEnable), `bulkActions.test.tsx` зелёный 5/5. Полный
+      прогон С64 — 887/887, флака нет.
 
 - [ ] **Hadith Explorer — follow-ups из code-review Сессии 50** (3 parallel
       reviewers: backend / frontend / domain-accuracy). Critical: 0. Закрыто
@@ -531,22 +532,18 @@ assertive; QuestionDetailPage delete-gating Фаза 11; AnswersSection busyIds
     UUID). Для dev-seed ок; реальный ETL должен дедуплицировать по identity
     (name_ar_normalized + era), иначе `/narrators/{id}/transmitted` покажет
     неполный корпус раввия. Учесть в Phase 5 (ETL `NarratorMapper`).
-  - **Smoke-тесты для нового graph-chrome** (code-review Сессии 51, Reviewer 1
-    рекомендация): `ZoomControls` (preset open/Escape/disabled-at-limits),
-    `MinimapCard` (collapse↔expand, click-to-jump → onViewportChange, drag),
-    `HelpShortcuts` (hover/click open, pin stopPropagation). Остальной graph/
-    хорошо покрыт — это gap. Не блокер (build/tsc/lint green, токены проверены
-    визуально).
+  - **[x] Smoke-тесты для graph-chrome** — закрыто (аудит С64): есть
+    `ZoomControls.test.tsx`, `MinimapCard.test.tsx`, `HelpShortcuts.test.tsx`
+    (все в `apps/argument-map/components/graph/`), зелёные.
   - **v2→v3 token alias cleanup** (code-review Сессии 51, Minor): новый chrome
     использует `accent-*` алиасы вместо `brand-*`; `Badge`/`BookListPage`/
     `EdgeDetailsPanel`/`edgeRules` ещё на старых `type-*`/`edge-*-bg` именах.
     Всё резолвится через alias-блок (cross-cutting sweep подтвердил 0 unstyled),
     финальный шаг — мигрировать на v3 имена и удалить alias-блок в
     `index.css`/`tokens.css`.
-  - **NodeDetailsPanel «Опора» тесты падают** (pre-existing, НЕ регрессия
-    Сессии 51 — файл не тронут): 3 subtests citations/sources (MSW handler
-    `/sources` + изменённый формат label, семья 49d QA-sources). Флак вместе
-    с `bulkActions` d3-drag. Триаж отдельно.
+  - **[x] NodeDetailsPanel «Опора» тесты** — закрыто/устарело (аудит С64):
+    `NodeDetailsPanel.test.tsx` зелёный 28/28 (3 «падающих» subtests более не
+    воспроизводятся; MSW «unhandled request» stderr — нефатальный шум).
   - **Системная flakiness полного прогона (НЕ исправлено, требует выделенной
     работы):** корень — IT-классы делят один Testcontainers Postgres (context-
     cache), часть коммитит данные, часть ассертит «все строки». Каждый full
@@ -557,12 +554,10 @@ assertive; QuestionDetailPage delete-gating Фаза 11; AnswersSection busyIds
     тест-гигиена, вне Phase 5. До тех пор: упавший в full прогоне класс
     прогнать в изоляции прежде чем считать регрессией.
 
-- [ ] **GraphCanvas lastNodesRef comment fragility** (audit M-6) -
-      callback `handleNodeContextMenu` читает `lastNodesRef.current`
-      и не включает ref в deps (правильно для mutable ref). Комментарий
-      line 404 объясняет lastNodesRef vs `nodes` closure capture, но
-      не объясняет почему ref пропущена в deps array. Будет regress
-      если кто-то превратит ref в state. Quick comment-only fix
+- [x] **GraphCanvas lastNodesRef comment fragility** (audit M-6) — УЖЕ закрыто:
+      комментарий в `handleNodeContextMenu` (ныне ~L458-464) объясняет и почему
+      ref сознательно вне deps useCallback, и несёт РЕГРЕССИЯ-ГАРД («превратишь
+      ref в state → добавь в deps»). Ровно то, что просил аудит. Подтверждено С64.
 
 - [~] **Dark theme palette overhaul** (vision 49d Section 1.1) — **core
       адресован Сессией 51** token-миграцией v2→v3 (`a907218`): indigo accent
@@ -594,14 +589,10 @@ ADR-047); RefreshTokenCleanupJanitor (`@Scheduled` daily, 2026-05-19);
 Edge z-order persistence (миграция 48, Сессия 47 — дубликат пункта выше).
 Детали в progress.md/git.
 
-- [ ] **CreateQuestionPage raw-HTML render без sanitize**
-      (audit 2026-05-20 M-4) - `CreateQuestionPage.tsx:132` рендерит
-      `t('qa.create.hint_body')` через React raw-HTML escape hatch без
-      DOMPurify wrap. Risk теоретический - dictionary controlled by team.
-      Но прецедент нежелательный: если i18n loading перейдёт на remote
-      backend, эта точка станет реальной XSS дырой. Fix: либо разбить
-      на структурированный `<p>{t(..._p1)}<br/>{t(..._p2)}</p>`, либо
-      обернуть `sanitizePageHtml` (используется в reader path).
+- [x] **CreateQuestionPage raw-HTML render без sanitize** (audit M-4) — закрыто:
+      `CreateQuestionPage.tsx:133` уже оборачивает `t('qa.create.hint_body')` в
+      `sanitizePageHtml` (DOMPurify reader-path), ровно как предлагал аудит.
+      Подтверждено С64.
 
 ---
 
@@ -677,14 +668,13 @@ DecoratedHeading / PageNumber). Что осталось доделать в edit
   custom blocks из клавиатуры без mouse в toolbar.
   `@tiptap/extension-mention`-style approach
 
-## Turuq-граф: легенда «Цепи передачи» в режиме «Все пути» (найдено С60)
+## ✅ Turuq-граф: легенда «Цепи передачи» в режиме «Все пути» (найдено С60, ЗАКРЫТО С64)
 
-В merged-графе все 12 санадов приходят с `primaryChain=true` (каждый —
-основная цепь СВОЕГО хадиса), легенда показывает 12 одинаковых строк
-«основная» — шум без информации. Идея: в turuq-режиме либо скрывать
-легенду цепей, либо подписывать цепи сборником
-(`collectionRu`/`collectionAr` сейчас null в SanadDto turuq-ответа —
-заполнить в SanadGraphService.buildTuruqGraph).
+Обе половины закрыты: (1) badge «основная»-шум скрыт — `primaryBadgeMeaningful`
+в SanadGraph рисует ярлык только когда основная цепь ровно одна (не в turuq);
+(2) `collectionRu`/`collectionAr` теперь заполняются в
+`SanadGraphService.buildTuruqGraph` (commit `ec0521b`, аудит С64) — легенда
+подписывает цепи сборником, а не дублирует «основная».
 
 ## Нумерованная пагинация × client-side фильтр = недостижимые страницы (ревью С62, I-1/I-2)
 
