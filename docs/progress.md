@@ -9,6 +9,63 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
+## 2026-06-23 - Сессия 64 - ELK-граф иснада + автопилот/сверка бэклога
+
+Продолжение С63. Абдула: «продолжи фикс графа через elk», затем «на автопилоте все
+таски из беклога». Сделано 6 коммитов + сверка бэклога с кодом.
+
+### Граф иснада: ELK orthogonal routing (headline, `26d0054`)
+Замена dagre+smoothstep на ELK layered (Проблемы 1/2/3 Абдулы из С63):
+- `sanadElkLayout.ts` — layered DOWN, ORTHOGONAL, `edgeNodeBetweenLayers`=40 (зазор
+  ребро↔карточка, Проблема 1), `edgeEdgeBetweenLayers`=22 (развод параллельных, П.2).
+  Проще argument-map: БЕЗ инверсии direction (sanad source=ранний рави уже = ELK DOWN),
+  БЕЗ layerConstraint, БЕЗ radial.
+- `SanadCustomEdge.tsx` — рисует ELK bend-points через переиспользованный
+  `orthogonalPath.ts` (огибание карточек), подпись-формула в EdgeLabelRenderer на
+  середину сегмента (`pickLabelPosition`, не на узле — П.3).
+- `SanadGraph` — async-раскладка (dagre мгновенный fallback → ELK по готовности,
+  `cancelled`-guard), edge type 'smoothstep'→'sanad', dim подписей через `data.dimmed`
+  (сохраняет click-highlight `fcb6aaf`).
+- Верифицировано: single-chain (playwright + PNG — подписи-чипы читаемы, не чёрные),
+  fork (real-ELK юнит-тесты: ветви >100px + bend-points), 122/122 hadith-тестов.
+  Корпус строго одноцепочечный (каждый хадис=1 sanad) → branchy покрыт юнит-тестами.
+
+### Автопилот бэклога: 3 фикса + сверка с кодом
+- `8cb9d33` usePagedList M-1: убрана мёртвая `issuedPage`-ветка stale-guard.
+- `0e39d56` FB-2: detach-× опоры скрыт от гостя (`onDetach` optional во всём
+  citations-дереве) + тест. **Закрывает guest-view.**
+- `a2ebafa` (форк worktree, cherry-pick) v2→v3 token cleanup: Badge/BookListPage/
+  EdgeDetailsPanel/edgeRules на v3-имена, удалены `edge-*`/`type-*` alias-блоки;
+  визуально подтверждено (playwright: SUPPORTS зелёный, RESPONDS_TO серый).
+- `32d1fd8` **сверка бэклога**: subagent-аудит 16 пунктов bug-hunt/audit/code-review
+  → **11 фактически закрытых в С52–С63 отмечены [x]** с evidence (Load-More race,
+  PageView highlight, thesis IT, bulkActions flak, NodeDetailsPanel «Опора»,
+  graph-chrome smoke, turuq-легенда, MinimapCard clamp, CreateQuestionPage sanitize,
+  GraphCanvas comment, HadithListPage asymmetry). Аудит ошибочно пометил «формы
+  хамзы U+0672+» как DONE — поправлено (NFKC их НЕ нормализует, проверено расчётом;
+  остаётся отложенным YAGNI).
+
+### СЛЕДУЮЩИЙ ШАГ — без изменений: ЭПИК КУРАЦИИ (фазы 0→6)
+Эпик курации данных (P0-1 + FB-5) из С63 **остаётся главным приоритетом** (Абдула:
+делать в отдельной сессии). Спека: `docs/specs/2026-06-18-data-curation-overlay.md`,
+фазы 0→6 (см. запись С63 ниже). Граф-фикс С64 был отдельным треком.
+
+Остаток открытого бэклога (после сверки) — **genuinely open, но gated/deferred**:
+- view-count dedup (gated: anti-spam стратегия + новая таблица = решение Абдулы);
+- PageImageService S3-put-before-DB (prod-hardening; янитор сверяет library_files,
+  куда page-images не пишутся → сейчас log-only);
+- thesis `إعداد` author-loss (мелкое, но shamela book-ETL = деприоритизирован);
+- migration-69 guard (immutable changeset, только будущей миграцией);
+- 2 lint-ошибки (флаг «не трогать наобум», React-Compiler memo/effect риск);
+- z-index renormalize endpoint (low: overflow-гарды уже есть).
+
+### Инфра-стейт (без изменений с С63)
+Backend+frontend на :9090/:5173, docker postgres+minio. graphify глобально.
+Тест-данные: PUBLIC-темы `59ef9415` (Сигареты, 3 узла/2 ребра), `ceb9f28a`;
+одноцеп. хадис `b81d260c` (11 узлов, граф иснада). Dev-логин
+admin@argumentmap.local/admin12345. Полный прогон С64: 887/887 фронт-тестов,
+lint 2 pre-existing ошибки (не мои).
+
 ## 2026-06-23 - Сессия 63 - Фаза-2 фидбек Абдулы (7 пунктов) + дизайн курации данных
 
 После handoff С62 Абдула дал 7 пунктов фидбека (ручной тест) + запрос на прод-фазу.
