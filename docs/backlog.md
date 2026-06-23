@@ -535,12 +535,13 @@ assertive; QuestionDetailPage delete-gating Фаза 11; AnswersSection busyIds
   - **[x] Smoke-тесты для graph-chrome** — закрыто (аудит С64): есть
     `ZoomControls.test.tsx`, `MinimapCard.test.tsx`, `HelpShortcuts.test.tsx`
     (все в `apps/argument-map/components/graph/`), зелёные.
-  - **v2→v3 token alias cleanup** (code-review Сессии 51, Minor): новый chrome
-    использует `accent-*` алиасы вместо `brand-*`; `Badge`/`BookListPage`/
-    `EdgeDetailsPanel`/`edgeRules` ещё на старых `type-*`/`edge-*-bg` именах.
-    Всё резолвится через alias-блок (cross-cutting sweep подтвердил 0 unstyled),
-    финальный шаг — мигрировать на v3 имена и удалить alias-блок в
-    `index.css`/`tokens.css`.
+  - **[x] v2→v3 token alias cleanup** (Minor) — закрыто С64 (commit a2ebafa):
+    `Badge`/`BookListPage`/`EdgeDetailsPanel`/`edgeRules` мигрированы на v3-имена
+    (`bg-status-ok-bg`, `bg-node-thesis`, `text-edge-attacks` и т.д., ground truth —
+    `designTokens.ts EDGE_TYPE_TOKENS`); удалены `edge-*`/`type-*` alias-блоки в
+    `index.css` + `tokens.css`. Чистый rename (значения идентичны), tsc 0, build OK,
+    879 тестов. Широкий backward-compat слой (`accent-*`/`ink-*`/сотни consumers)
+    оставлен намеренно — вне scope этого минорного пункта.
   - **[x] NodeDetailsPanel «Опора» тесты** — закрыто/устарело (аудит С64):
     `NodeDetailsPanel.test.tsx` зелёный 28/28 (3 «падающих» subtests более не
     воспроизводятся; MSW «unhandled request» stderr — нефатальный шум).
