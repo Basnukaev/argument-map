@@ -25,9 +25,11 @@ function Field({ label, value }: { label: string; value: string | null }) {
 }
 
 /**
- * Боковая панель с биографией передатчика. Открывается по клику на узел
- * графа иснада. Абсолютно позиционируется внутри контейнера графа
- * (родитель должен быть relative); на mobile занимает всю ширину.
+ * Компактная карточка с биографией передатчика (С64-редизайн: была панель
+ * во всю высоту справа — «бандура», стала аккуратная плавающая карточка в
+ * верхнем углу). Открывается по ДВОЙНОМУ клику на узел графа иснада.
+ * Позиционируется абсолютно внутри контейнера графа (родитель relative);
+ * высота по контенту со скроллом, на узких экранах ужимается по ширине.
  */
 function NarratorPanel({ data, onClose, textForm }: NarratorPanelProps) {
   const t = useT();
@@ -46,10 +48,10 @@ function NarratorPanel({ data, onClose, textForm }: NarratorPanelProps) {
         : null;
 
   return (
-    <aside className="absolute inset-y-0 end-0 z-20 flex w-full max-w-sm flex-col border-s border-border-strong bg-elevated shadow-sh3">
+    <aside className="absolute end-3 top-3 z-20 flex max-h-[calc(100%-1.5rem)] w-[330px] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-xl border border-border-strong bg-elevated shadow-sh3">
       <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0">
-          <div className="font-arabic text-2xl leading-tight text-ink-900" dir="rtl">
+          <div className="font-arabic text-xl leading-tight text-ink-900" dir="rtl">
             {data.nameAr}
           </div>
           {data.nameRu && <div className="mt-0.5 text-sm text-ink-600">{data.nameRu}</div>}

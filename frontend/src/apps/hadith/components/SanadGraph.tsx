@@ -83,6 +83,58 @@ function collectChainThroughNode(
 }
 
 /**
+ * Цепочка, проходящая через РЕБРО source→target: вверх от source (к корню)
+ * и вниз от target (к сборникам), плюс само ребро. В отличие от
+ * collectChainThroughNode НЕ спускается к «сёстрам» source (другим его
+ * детям) — поэтому клик по ветке у madar'а подсвечивает только ЭТУ цепь,
+ * а не весь веер (Абдула С64: клик по стрелке выделял все стрелки).
+ */
+function collectChainThroughEdge(
+  source: string,
+  target: string,
+  edgeId: string,
+  edges: Edge[],
+): { nodeIds: Set<string>; edgeIds: Set<string> } {
+  const nodeIds = new Set<string>([source, target]);
+  const edgeIds = new Set<string>([edgeId]);
+  const byTarget = new Map<string, Edge[]>();
+  const bySource = new Map<string, Edge[]>();
+  for (const e of edges) {
+    const t = byTarget.get(e.target) ?? [];
+    t.push(e);
+    byTarget.set(e.target, t);
+    const s = bySource.get(e.source) ?? [];
+    s.push(e);
+    bySource.set(e.source, s);
+  }
+  // вверх от source (к корню/Пророку)
+  const up: string[] = [source];
+  while (up.length > 0) {
+    const cur = up.shift()!;
+    for (const e of byTarget.get(cur) ?? []) {
+      edgeIds.add(e.id);
+      if (!nodeIds.has(e.source)) {
+        nodeIds.add(e.source);
+        up.push(e.source);
+      }
+    }
+  }
+  // вниз от target (к сборникам)
+  const down: string[] = [target];
+  while (down.length > 0) {
+    const cur = down.shift()!;
+    for (const e of bySource.get(cur) ?? []) {
+      edgeIds.add(e.id);
+      if (!nodeIds.has(e.target)) {
+        nodeIds.add(e.target);
+        down.push(e.target);
+      }
+    }
+  }
+  return { nodeIds, edgeIds };
+}
+
+/**
  * Обходит граф в обратном направлении (от конечного узла к корню) и
  * возвращает множества id узлов и рёбер, принадлежащих пути этого санада.
  * Используется для подсветки цепи по клику в легенде.
@@ -125,6 +177,14 @@ function collectSanadPath(
 const nodeTypes = { sanad: SanadGraphNode };
 const edgeTypes = { sanad: SanadCustomEdge };
 
+/**
+ * Что подсвечено по клику: либо узел (вся цепь через него), либо ребро
+ * (только цепь, проходящая ИМЕННО через это ребро — без сестринских веток).
+ */
+type HighlightSeed =
+  | { kind: 'node'; nodeId: string }
+  | { kind: 'edge'; source: string; target: string; edgeId: string };
+
 // Подмножество степеней для компактной легенды (полный список — в панели).
 const LEGEND_GRADES: ReliabilityGrade[] = ['SAHABI', 'THIQA', 'SADUQ', 'DAIF'];
 
@@ -142,16 +202,27 @@ interface SanadGraphProps {
    */
   graph?: SanadGraphResponse | null;
   /**
-   * Controlled-режим выбора: страница владеет selected-state (единая панель
-   * для клика по графу И по тексту иснада). Если передан — клик по узлу
-   * пробрасывается наверх вместо открытия внутренней панели; внутренняя
-   * NarratorPanel не рендерится (панелью владеет родитель).
+   * Controlled-режим выбора: страница владеет selected-state (единая карточка
+   * для двойного клика по графу И клика по тексту иснада). При двойном клике по
+   * узлу графа вызывается этот колбэк; карточку (`selectedNarrator`) рендерит
+   * САМ граф внутри своего контейнера — чтобы она была видна в полноэкранном
+   * режиме (С64: раньше родитель рендерил панель снаружи fullscreen-элемента).
    */
   onNarratorSelect?: (data: SanadFlowNodeData) => void;
   /**
+   * Controlled-режим: содержимое карточки передатчика (родитель владеет
+   * состоянием — клик из текста ИЛИ двойной клик из графа). Рендерится внутри
+   * контейнера графа. Активен только вместе с `onNarratorSelect`.
+   */
+  selectedNarrator?: SanadFlowNodeData | null;
+  /** Форма имени из текста иснада (muted-строка «في الإسناد») — controlled. */
+  selectedTextForm?: string;
+  /** Закрыть карточку — controlled (родитель сбрасывает selectedNarrator). */
+  onNarratorClose?: () => void;
+  /**
    * hadithId текущей страницы — для version-узлов: совпадение с
-   * version.hadithId помечает узел «вы здесь» (не-кликабелен). Клик по чужому
-   * version-узлу навигирует на detail той передачи.
+   * version.hadithId помечает узел «вы здесь» (не-кликабелен). Двойной клик по
+   * чужому version-узлу навигирует на detail той передачи.
    */
   currentHadithId?: string;
 }
@@ -170,6 +241,9 @@ function SanadGraph({
   hadithId,
   graph: graphProp,
   onNarratorSelect,
+  selectedNarrator,
+  selectedTextForm,
+  onNarratorClose,
   currentHadithId,
 }: SanadGraphProps) {
   const t = useT();
@@ -182,10 +256,11 @@ function SanadGraph({
   const [fetchedGraph, setFetchedGraph] = useState<SanadGraphResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SanadFlowNodeData | null>(null);
-  // FB-7 граф: клик по узлу/ребру → подсветить ВСЮ цепочку через него (от корня
-  // к сборникам), приглушить остальное. Снимается кликом по пустому полю; клик
-  // по другому узлу/ребру переключает подсветку на него.
-  const [highlightedNode, setHighlightedNode] = useState<string | null>(null);
+  // FB-7/С64 граф: одиночный клик по узлу/ребру → подсветить цепь. Узел →
+  // вся цепь через него; ребро → только цепь, проходящая через ЭТО ребро (без
+  // сестринских веток madar'а). Снимается кликом по пустому полю; клик по
+  // другому элементу переключает подсветку.
+  const [highlight, setHighlight] = useState<HighlightSeed | null>(null);
   // id активного (подсвеченного) санада из легенды; null = нет подсветки.
   const [activeSanadId, setActiveSanadId] = useState<string | null>(null);
   // Панель легенды: свёрнута по умолчанию (развёрнутая перекрывает левые узлы
@@ -369,13 +444,59 @@ function SanadGraph({
   const baseNodes = elkLayout?.nodes ?? dagreNodes;
   const baseEdges = elkLayout?.edges ?? dagreEdges;
 
+  // Двойной клик по узлу → карточка передатчика. React Flow onNodeDoubleClick
+  // на наших кастомных узлах не срабатывает, а onNodeClick на dblclick зовётся
+  // лишь раз (второй клик RF проглатывает) — поэтому слушаем НАТИВНЫЙ dblclick
+  // на контейнере и находим узел по data-id (С64).
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    function onDblClick(e: MouseEvent) {
+      // DOM-таргет dblclick — `.react-flow__pane` (overlay поверх узлов), а слой
+      // узлов pointer-events:none → hit-тест по DOM не работает. Переводим курсор
+      // в координаты графа (screenToFlowPosition учитывает pan/zoom) и ищем узел,
+      // в чьи границы попали.
+      const inst = rfInstanceRef.current;
+      if (!inst) return;
+      const p = inst.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      const node = baseNodes.find((n) => {
+        const w = n.measured?.width ?? NODE_WIDTH;
+        const h = n.measured?.height ?? NODE_HEIGHT;
+        return (
+          p.x >= n.position.x && p.x <= n.position.x + w &&
+          p.y >= n.position.y && p.y <= n.position.y + h
+        );
+      });
+      const d = node?.data;
+      if (!d || d.role === 'PROPHET') return;
+      // Version-узел: навигация на detail той передачи (чужой узел; свой
+      // «вы здесь» — не-кликабелен).
+      if (d.role === 'VERSION') {
+        if (!d.isCurrent) navigate(`/hadith/hadiths/${d.hadithId}`);
+        return;
+      }
+      // Передатчик → карточка биографии. Controlled: наверх (родитель кладёт в
+      // selectedNarrator, карточку рендерит сам граф — видна в fullscreen);
+      // self-fetch: внутренняя карточка.
+      if (selectionControlled && onNarratorSelect) onNarratorSelect(d);
+      else setSelected(d);
+    }
+    // Capture-фаза: React Flow глушит dblclick на узле в bubble-фазе, поэтому
+    // ловим сверху вниз ДО него.
+    container.addEventListener('dblclick', onDblClick, true);
+    return () => container.removeEventListener('dblclick', onDblClick, true);
+  }, [baseNodes, navigate, selectionControlled, onNarratorSelect]);
+
   // Подсветка пути активного санада. Отдельный memo: пересчитывается только
   // при смене активного санада, не при pan/zoom (baseNodes/baseEdges стабильны).
   const { rfNodes, rfEdges } = useMemo(() => {
-    // Приоритет: подсветка узла (вся цепочка через него) > активная цепь
-    // (легенда) > база.
-    if (highlightedNode) {
-      const { nodeIds, edgeIds } = collectChainThroughNode(highlightedNode, baseEdges);
+    // Приоритет: клик-подсветка (узел=вся цепь через него; ребро=только цепь
+    // через ЭТО ребро) > активная цепь (легенда) > база.
+    if (highlight) {
+      const { nodeIds, edgeIds } =
+        highlight.kind === 'node'
+          ? collectChainThroughNode(highlight.nodeId, baseEdges)
+          : collectChainThroughEdge(highlight.source, highlight.target, highlight.edgeId, baseEdges);
       const nodes = baseNodes.map((n) => ({
         ...n,
         style: nodeIds.has(n.id)
@@ -425,7 +546,7 @@ function SanadGraph({
       return { ...e, data: { ...e.data, dimmed: false }, style: { ...e.style, opacity: 1, strokeWidth: Number(e.style?.strokeWidth ?? 1.6) + 1 } };
     });
     return { rfNodes: highlightedNodes, rfEdges: highlightedEdges };
-  }, [highlightedNode, activeSanadId, graph, baseNodes, baseEdges]);
+  }, [highlight, activeSanadId, graph, baseNodes, baseEdges]);
 
   if (error) {
     return (
@@ -499,28 +620,26 @@ function SanadGraph({
         nodesConnectable={false}
         edgesFocusable={false}
         elementsSelectable
+        // Двойной клик = открыть карточку передатчика, поэтому zoom-on-dblclick
+        // отключён (иначе зум сдвигает узел между кликами и onNodeDoubleClick
+        // не срабатывает на узле, С64).
+        zoomOnDoubleClick={false}
         proOptions={{ hideAttribution: true }}
         onNodeClick={(_, node) => {
-          const d = node.data;
-          if (d.role === 'PROPHET') return;
-          // Version-узел: навигация на detail той передачи (чужой узел);
-          // свой («вы здесь») — не-кликабелен.
-          if (d.role === 'VERSION') {
-            if (!d.isCurrent) navigate(`/hadith/hadiths/${d.hadithId}`);
-            return;
-          }
-          // FB-7: клик по узлу подсвечивает его цепь (переключает на кликнутый).
-          setHighlightedNode(node.id);
-          // Controlled-выбор: пробрасываем наверх (единая панель страницы);
-          // иначе открываем внутреннюю панель (self-fetch экраны / admin-превью).
-          if (selectionControlled) onNarratorSelect(d);
-          else setSelected(d);
+          // Одиночный клик = подсветить цепь через узел (карточка — по двойному,
+          // нативный dblclick-эффект ниже). Пророк — корень: подсветка = весь
+          // граф, поэтому пропускаем.
+          if (node.data.role === 'PROPHET') return;
+          setHighlight({ kind: 'node', nodeId: node.id });
         }}
-        onEdgeClick={(_, edge) => setHighlightedNode(edge.source)}
+        onEdgeClick={(_, edge) =>
+          setHighlight({ kind: 'edge', source: edge.source, target: edge.target, edgeId: edge.id })
+        }
         onPaneClick={() => {
-          // Клик по пустому полю снимает подсветку цепи + закрывает панель.
-          setHighlightedNode(null);
-          if (!selectionControlled) setSelected(null);
+          // Клик по пустому полю снимает подсветку цепи + закрывает карточку.
+          setHighlight(null);
+          if (selectionControlled) onNarratorClose?.();
+          else setSelected(null);
         }}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
@@ -642,15 +761,35 @@ function SanadGraph({
               <p className="text-[11px] leading-snug text-ink-500">
                 {t('hadith.graph.transmission_hint')}
               </p>
+
+              {/* Управление графом — что делают клик/двойной клик (С64). */}
+              <div className="mt-2 border-t border-border pt-2">
+                <div className="mb-1 font-semibold text-ink-700">
+                  {t('hadith.graph.controls_title')}
+                </div>
+                <ul className="space-y-0.5 text-[11px] leading-snug text-ink-500">
+                  <li>{t('hadith.graph.controls_click')}</li>
+                  <li>{t('hadith.graph.controls_dblclick')}</li>
+                  <li>{t('hadith.graph.controls_pane')}</li>
+                </ul>
+              </div>
             </div>
           </Panel>
         )}
       </ReactFlow>
 
-      {/* Внутренняя панель — только если выбором владеет сам граф (не controlled). */}
-      {!selectionControlled && selected && (
-        <NarratorPanel data={selected} onClose={() => setSelected(null)} />
-      )}
+      {/* Карточка передатчика — ВСЕГДА внутри контейнера графа (видна в
+          fullscreen, С64). Controlled: данные из родителя (selectedNarrator);
+          self-fetch: внутренний selected. */}
+      {selectionControlled
+        ? selectedNarrator && (
+            <NarratorPanel
+              data={selectedNarrator}
+              textForm={selectedTextForm}
+              onClose={() => onNarratorClose?.()}
+            />
+          )
+        : selected && <NarratorPanel data={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 }

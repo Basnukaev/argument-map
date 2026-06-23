@@ -6,10 +6,14 @@ import {
   type Edge,
   type EdgeProps,
 } from '@xyflow/react';
-import {
-  buildRoundedOrthogonalPath,
-  pickLabelPosition,
-} from '@/apps/argument-map/utils/orthogonalPath';
+import { pickLabelPosition, type Point } from '@/apps/argument-map/utils/orthogonalPath';
+
+/** Прямой ортогональный path (90°-углы без скругления) по точкам ELK. */
+function buildSharpOrthogonalPath(points: ReadonlyArray<Point>): string {
+  if (points.length < 2) return '';
+  const [first, ...rest] = points;
+  return `M ${first!.x} ${first!.y} ` + rest.map((p) => `L ${p.x} ${p.y}`).join(' ');
+}
 
 export type SanadEdgeData = {
   /** Арабская формула передачи (حدثنا / عن / أخبرنا …) — подпись на ребре. */
@@ -63,7 +67,9 @@ function SanadEdge(props: EdgeProps<SanadCustomEdgeType>) {
       ...bendPoints,
       { x: targetX, y: targetY },
     ];
-    edgePath = buildRoundedOrthogonalPath(points, 10);
+    // Прямые 90°-углы (Абдула: «верни прямые углы», скруглённые читались
+    // как зазубрины на крупном turuq-дереве).
+    edgePath = buildSharpOrthogonalPath(points);
     const pos = pickLabelPosition(points);
     labelX = pos.x;
     labelY = pos.y;
@@ -75,7 +81,7 @@ function SanadEdge(props: EdgeProps<SanadCustomEdgeType>) {
       targetX,
       targetY,
       targetPosition,
-      borderRadius: 10,
+      borderRadius: 0,
     });
   }
 

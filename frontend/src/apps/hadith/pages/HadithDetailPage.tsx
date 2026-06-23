@@ -5,7 +5,6 @@ import { apiGetRaw } from '@/shared/api/client';
 import Card from '@/shared/components/ui/Card';
 import Header from '@/shared/components/layout/Header';
 import SanadGraph from '@/apps/hadith/components/SanadGraph';
-import NarratorPanel from '@/apps/hadith/components/NarratorPanel';
 import IsnadText from '@/apps/hadith/components/IsnadText';
 import RulingsList from '@/apps/hadith/components/RulingsList';
 import ExplanationsList from '@/apps/hadith/components/ExplanationsList';
@@ -538,16 +537,14 @@ function HadithDetailPage() {
                         graph={displayGraph}
                         currentHadithId={id}
                         onNarratorSelect={handleGraphNarratorSelect}
+                        selectedNarrator={selectedNarrator}
+                        selectedTextForm={selectedTextForm}
+                        onNarratorClose={() => setSelectedNarrator(null)}
                       />
                     )}
-                    {/* Единая панель: клики из графа И из текста иснада. */}
-                    {selectedNarrator && (
-                      <NarratorPanel
-                        data={selectedNarrator}
-                        textForm={selectedTextForm}
-                        onClose={() => setSelectedNarrator(null)}
-                      />
-                    )}
+                    {/* Карточку передатчика (клики из графа И из текста иснада)
+                        рендерит сам SanadGraph внутри своего контейнера — чтобы
+                        она была видна в полноэкранном режиме (С64). */}
                   </div>
                 </section>
               )}
