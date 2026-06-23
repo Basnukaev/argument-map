@@ -68,6 +68,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/topics/{topicId}/renormalize-zindex": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["renormalizeZIndex"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/topics/{topicId}/members": {
         parameters: {
             query?: never;
@@ -1988,6 +2004,12 @@ export interface components {
             /** Format: int32 */
             userVote?: number;
         };
+        ZIndexRenormalizeResponse: {
+            /** Format: int32 */
+            nodesRenormalized?: number;
+            /** Format: int32 */
+            edgesRenormalized?: number;
+        };
         AddTopicMemberRequest: {
             /** Format: uuid */
             userId: string;
@@ -3824,6 +3846,31 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    renormalizeZIndex: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path: {
+                topicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ZIndexRenormalizeResponse"];
+                };
             };
         };
     };
