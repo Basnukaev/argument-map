@@ -131,6 +131,9 @@ function SanadGraph({
   const [fetchedGraph, setFetchedGraph] = useState<SanadGraphResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SanadFlowNodeData | null>(null);
+  // FB-7 граф: ховер ребра — подсветить связь + её узлы + подпись, приглушить
+  // остальное (проследить связь, однозначность подписи).
+  const [hoveredEdge, setHoveredEdge] = useState<string | null>(null);
   // id активного (подсвеченного) санада из легенды; null = нет подсветки.
   const [activeSanadId, setActiveSanadId] = useState<string | null>(null);
   // Панель легенды: развёрнута по умолчанию, сворачивается кнопкой.
@@ -294,6 +297,39 @@ function SanadGraph({
   // Подсветка пути активного санада. Отдельный memo: пересчитывается только
   // при смене активного санада, не при pan/zoom (baseNodes/baseEdges стабильны).
   const { rfNodes, rfEdges } = useMemo(() => {
+    // Приоритет: ховер ребра > активная цепь (легенда) > база.
+    if (hoveredEdge) {
+      const he = baseEdges.find((e) => e.id === hoveredEdge);
+      if (he) {
+        const keep = new Set([he.source, he.target]);
+        const nodes = baseNodes.map((n) => ({
+          ...n,
+          style: keep.has(n.id)
+            ? { opacity: 1 }
+            : { opacity: 0.18, filter: 'grayscale(0.6)' },
+        }));
+        const edges = baseEdges.map((e) =>
+          e.id === hoveredEdge
+            ? {
+                ...e,
+                style: {
+                  ...e.style,
+                  opacity: 1,
+                  strokeWidth: Number(e.style?.strokeWidth ?? 1.6) + 1.2,
+                },
+              }
+            : {
+                // Чужие рёбра И их подписи приглушаем — чтобы подпись
+                // hovered-ребра читалась однозначно.
+                ...e,
+                style: { ...e.style, opacity: 0.12 },
+                labelStyle: { ...e.labelStyle, opacity: 0.12 },
+                labelBgStyle: { ...e.labelBgStyle, fillOpacity: 0.1 },
+              },
+        );
+        return { rfNodes: nodes, rfEdges: edges };
+      }
+    }
     if (!activeSanadId || !graph) {
       return { rfNodes: baseNodes, rfEdges: baseEdges };
     }
@@ -317,7 +353,7 @@ function SanadGraph({
       return { ...e, style: { ...e.style, opacity: 1, strokeWidth: Number(e.style?.strokeWidth ?? 1.6) + 1 } };
     });
     return { rfNodes: highlightedNodes, rfEdges: highlightedEdges };
-  }, [activeSanadId, graph, baseNodes, baseEdges]);
+  }, [hoveredEdge, activeSanadId, graph, baseNodes, baseEdges]);
 
   if (error) {
     return (
@@ -391,6 +427,8 @@ function SanadGraph({
         edgesFocusable={false}
         elementsSelectable
         proOptions={{ hideAttribution: true }}
+        onEdgeMouseEnter={(_, edge) => setHoveredEdge(edge.id)}
+        onEdgeMouseLeave={() => setHoveredEdge(null)}
         onNodeClick={(_, node) => {
           const d = node.data;
           if (d.role === 'PROPHET') return;
