@@ -28,6 +28,24 @@
   print-to-PDF), приоритет low - PNG/SVG покрывает основной use case
 - [ ] Локализация (i18n) при появлении второй локали
 
+## Граф иснада — turuq «Все пути» (фаза-2 фидбек С63, FB-7)
+
+- [ ] **PNG-экспорт turuq: чёрные боксы на точках ветвления/слияния.** FB-7a
+  починил метки ОДИНОЧНОЙ цепи (формулы عن/حدثنا читаемы — CSS-vars резолвятся
+  через `withInlinedCssVars` в graphExport), но в turuq-экспорте (мульти-дерево,
+  напр. хадис `89c76e3f`, 10 цепей, 38 узлов) на branch/merge-точках остаются
+  чёрные боксы (Абдула, Image #11 С63). Это ДРУГОЙ элемент, не те labelBg, что
+  чинил FB-7a — вероятно edge с пустой `transmissionPhrase` (label='' → пустой
+  labelBg-rect) ЛИБО merge-коннектор с дефолтным fill. **Диагностировать зумом в
+  branch-точку turuq-PNG** (что за DOM-элемент), затем гейтить/стилизовать. Среднее.
+- [ ] **Глубокое распутывание turuq-графа** (FB-7b deep). nodesep/ranksep увеличены
+  (С63, 88/100), но пересечения рёбер в широком дереве остаются. Варианты:
+  orthogonal edge-routing (elkjs вместо dagre для turuq?), группировка узлов по
+  цепям, co-locating shared-рави. Среднее-крупное, нужна визуальная итерация.
+- [ ] **FB-2 detach-× гостю** через optional onDetach в CitationsList/HadithCite/
+  FreeformCite (сейчас hover-only, opacity-0, бэк отдаёт 403; primary edit/add уже
+  скрыты С63). Мелкое.
+
 ## Responsive / mobile-планшетная адаптация
 
 Фаза 1 (foundation: useIsMobile, Modal, NodeDetailsPanel, Header,

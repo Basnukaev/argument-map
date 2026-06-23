@@ -9,6 +9,56 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
+## 2026-06-23 - Сессия 63 - Фаза-2 фидбек Абдулы (7 пунктов) + дизайн курации данных
+
+После handoff С62 Абдула дал 7 пунктов фидбека (ручной тест) + запрос на прод-фазу.
+Спека фидбека: `docs/specs/2026-06-18-phase2-feedback.md`. Quick-wins исполнены +
+большой архитектурный трек «курация данных» спроектирован.
+
+### Quick-wins (8 коммитов)
+- **FB-2 guest-UI гейтинг** (недоделка guest-view ADR-064): ч.1 «Админ» из нав+палитры
+  (`hasRoleAtLeast ADMIN` в Header/CommandPalette); ч.2 edit-контента + add-цитат в
+  NodeDetailsPanel-секциях (`canWrite` TopicGraphPage→GraphCanvas→панель→
+  NodeContentEditor/NodeCitationsSection). Pane/node контекст-меню уже гейтились.
+  Follow-up: detach × (backlog).
+- **FB-4a** AR-клавиатура: алфавит → стандартная физ. раскладка (Arabic 101, dir=ltr).
+- **FB-6** ADMIN перегенерация перевода (force=true) в MatnTranslateControls.
+- **FB-7a** PNG edge-метки: html-to-image не резолвил CSS-vars в клоне → чёрные боксы;
+  `withInlinedCssVars` копирует `--*` инлайн на время toPng. Метки формул читаемы.
+- **FB-7b** turuq-граф «Все пути»: nodesep 56→88, ranksep 84→100 (узлы не наседают,
+  одноцеп. режим не затронут); глубокое распутывание — backlog.
+
+### Курация данных (P0-1 аудита + FB-5) — СПРОЕКТИРОВАНА, готова к билду
+Абдула выбрал **overlay-таблицу** `hd_field_overrides`. Детальная спека:
+`docs/specs/2026-06-18-data-curation-overlay.md` (801 стр, ADR-065 draft, фазы 0-6).
+Решения Абдулы (§10): matn-перевод ключуется `(hadith_id, is_primary)`; фасет-фильтр
+по **effective** (override-applied) значениям, не базовым; commentary verbatim = только
+скрытие записи. Механизм: импорт пишет hd_* как есть → `OverrideApplyService` на
+`findById/findPage` накладывает override+hidden на чтении; import-путь
+(`findByExternalId`) overrides НЕ применяет. Whitelist: правимо=метаданные/
+классификации (authenticity 2228 NULL, рави reliability/tabaqa), запрещено=
+первоисточник (full_text_ar/normalized/text_ar/commentary).
+
+### СЛЕДУЮЩИЙ ШАГ — ЭПИК КУРАЦИИ (фазы 0→6) по `data-curation-overlay.md`
+1. **Фаза 0 (P0-1a, быстро):** спасти перевод от реимпорта — `AlminasaHadithMapper.
+   insertMatn` upsert по природному ключу с сохранением text_ru/en (вместо
+   delete-recreate с новым UUID). Минимальная страховка до overlay.
+2. **Фаза 1:** миграция `20260618-78-hd-field-overrides` + repo + ADR-065 в decisions.md.
+3. **Фаза 2:** `OverrideApplyService` (apply на доменных records, батч-load, каст text→тип).
+4. **Фазы 3-6:** пилот (hadiths+narrators) → hide/show → сателлиты → миграция C9-перевода.
+Параллельно/после: прочие P0/P1 аудита (бэкап БД, env DB-креды, member-list анониму P1-4).
+
+### Остаток фазы-2 (нужны спеки/решения Абдулы)
+- **FB-1** student AI-format + docx/pdf экспорт (название вкладки 🟡, ADR+спека).
+- **FB-3** связь QA↔граф (модель дискуссии 🟡, ADR).
+- **FB-4b** подсветка участка совпадения поиска (бэк matched-field+ranges, спека).
+
+### Инфра-стейт
+Backend+frontend на :9090/:5173. graphify установлен глобально (uv tool, бар `graphify`).
+Тест-данные: PUBLIC-темы `59ef9415` (Сигареты, 3 узла), `ceb9f28a` (Тест); turuq-хадис
+`89c76e3f` (10 цепей, 38 узлов), одноцеп. `b81d260c` (9 рави). Dev-логин
+admin@argumentmap.local/admin12345.
+
 ## 2026-06-18 - Сессия 62 - Hadith Explorer UX-фидбек (22 пункта) + автопилот очереди + прод-аудит
 
 Продолжение С61-автопилота. Абдула прогнал Hadith Explorer руками → **22 пункта**
