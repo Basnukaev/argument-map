@@ -199,23 +199,57 @@ interface HighResExportOptions {
  *   именно к нему применяется transform; обёртку html-to-image кадрирует по
  *   width/height.
  */
+/**
+ * html-to-image клонирует поддерево БЕЗ `:root`/`[data-theme]`, поэтому
+ * CSS-переменные (`fill: var(--c-ink-700)` в SVG-метках формул рёбер,
+ * `var(--c-bg-elevated)` в их фоне) не резолвятся в клоне → fill падает в
+ * чёрный (FB-7a: edge-метки рендерились чёрными боксами без текста).
+ * Копируем все `--*` кастом-проперти с documentElement инлайн на
+ * экспортируемый элемент на время снимка (значения те же — без визуального
+ * флэша), затем восстанавливаем.
+ */
+async function withInlinedCssVars<T>(
+  element: HTMLElement,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const computed = getComputedStyle(document.documentElement);
+  const restore: Array<[string, string]> = [];
+  for (let i = 0; i < computed.length; i += 1) {
+    const prop = computed.item(i);
+    if (prop.startsWith('--')) {
+      restore.push([prop, element.style.getPropertyValue(prop)]);
+      element.style.setProperty(prop, computed.getPropertyValue(prop));
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    for (const [prop, prev] of restore) {
+      if (prev) element.style.setProperty(prop, prev);
+      else element.style.removeProperty(prop);
+    }
+  }
+}
+
 export async function exportGraphAsPngHighRes(
   viewportElement: HTMLElement,
   filename: string,
   options: HighResExportOptions,
 ): Promise<void> {
   const pixelRatio = options.pixelRatio ?? 2;
-  const dataUrl = await toPng(viewportElement, {
-    backgroundColor: options.backgroundColor ?? readThemeBackground(),
-    pixelRatio,
-    width: options.imageWidth,
-    height: options.imageHeight,
-    filter: (node) => !isExcludedFromExport(node),
-    style: {
-      width: `${options.imageWidth}px`,
-      height: `${options.imageHeight}px`,
-      transform: `translate(${options.transform.x}px, ${options.transform.y}px) scale(${options.transform.zoom})`,
-    },
-  });
+  const dataUrl = await withInlinedCssVars(viewportElement, () =>
+    toPng(viewportElement, {
+      backgroundColor: options.backgroundColor ?? readThemeBackground(),
+      pixelRatio,
+      width: options.imageWidth,
+      height: options.imageHeight,
+      filter: (node) => !isExcludedFromExport(node),
+      style: {
+        width: `${options.imageWidth}px`,
+        height: `${options.imageHeight}px`,
+        transform: `translate(${options.transform.x}px, ${options.transform.y}px) scale(${options.transform.zoom})`,
+      },
+    }),
+  );
   triggerDownload(dataUrl, filename);
 }
