@@ -162,11 +162,11 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange, canWrite = 
         count={state.kind === 'loaded' ? state.data.links.length : undefined}
         defaultOpen={false}
       >
-        {/* FB-2: detach (×) — hover-only, opacity-0, бэк отдаёт 403 гостю.
-            Полное скрытие требует optional onDetach через CitationsList/
-            HadithCite/FreeformCite — отдельный follow-up. Primary write-утечки
-            (edit контента, add-цитаты) уже скрыты для гостя. */}
-        <CitationsList state={state} onDetach={detachNodeSource} />
+        {/* FB-2: detach (×) скрыт для гостя/не-EDITOR — onDetach передаётся
+            только при canWrite. SourceCard/HadithCite/FreeformCite рисуют ×
+            лишь когда onDetach определён (бэк всё равно отдавал 403 — убираем
+            мёртвую кнопку из read-only UI). Primary write (edit/add) скрыты С63. */}
+        <CitationsList state={state} onDetach={canWrite ? detachNodeSource : undefined} />
         {/* Vertical stack - текст кнопки "Привести источник" длинный и не
             вмещается в side-by-side layout в узком detail panel (~360px) */}
         {canWrite && (
@@ -238,8 +238,11 @@ function NodeCitationsSection({ nodeId, nodeContent, onCountsChange, canWrite = 
 
 interface CitationsListProps {
   state: SourcesState;
-  /** Передаётся nodeSourceId (link.id) - FK variant A */
-  onDetach: (nodeSourceId: string) => void;
+  /**
+   * Передаётся nodeSourceId (link.id) - FK variant A. `undefined` =
+   * read-only (гость/не-EDITOR): detach-× не рендерится во всех карточках.
+   */
+  onDetach?: (nodeSourceId: string) => void;
 }
 
 function buildDeepLink(link: NodeSourceDto): string | null {
@@ -334,7 +337,7 @@ function CitationsList({ state, onDetach }: CitationsListProps) {
               key={key}
               link={link}
               titleLatin={titleLatin}
-              onDelete={link.id ? () => onDetach(link.id!) : undefined}
+              onDelete={onDetach && link.id ? () => onDetach(link.id!) : undefined}
               onPrimaryAction={deepLink ? () => navigate(deepLink) : undefined}
               onTitleClick={openPanel}
               sourceId={source?.id ?? link.sourceId}
@@ -375,8 +378,8 @@ function hadithStatusClass(status: string | undefined): string {
 
 interface HadithCiteProps {
   link: NodeSourceDto;
-  /** Передаётся nodeSourceId (link.id) - FK variant A */
-  onDetach: (nodeSourceId: string) => void;
+  /** nodeSourceId (link.id) - FK variant A. `undefined` = read-only: × скрыт. */
+  onDetach?: (nodeSourceId: string) => void;
   navigate: ReturnType<typeof useNavigate>;
 }
 
@@ -415,14 +418,16 @@ function HadithCite({ link, onDetach, navigate }: HadithCiteProps) {
             {h.status}
           </span>
         )}
-        <button
-          type="button"
-          aria-label={t('node.citation_detach_aria')}
-          onClick={() => link.id && onDetach(link.id)}
-          className="ms-auto rounded p-1 text-ink-400 opacity-0 transition-opacity hover:bg-err-100 hover:text-err-700 focus:opacity-100 group-hover/h:opacity-100"
-        >
-          <Trash2 size={13} aria-hidden="true" />
-        </button>
+        {onDetach && (
+          <button
+            type="button"
+            aria-label={t('node.citation_detach_aria')}
+            onClick={() => link.id && onDetach(link.id)}
+            className="ms-auto rounded p-1 text-ink-400 opacity-0 transition-opacity hover:bg-err-100 hover:text-err-700 focus:opacity-100 group-hover/h:opacity-100"
+          >
+            <Trash2 size={13} aria-hidden="true" />
+          </button>
+        )}
       </div>
 
       {h.previewMatn && (
@@ -448,8 +453,8 @@ interface FreeformCiteProps {
   link: NodeSourceDto;
   source: SourceDto | undefined;
   authority: AuthorityDto | undefined;
-  /** Передаётся nodeSourceId (link.id) - FK variant A */
-  onDetach: (nodeSourceId: string) => void;
+  /** nodeSourceId (link.id) - FK variant A. `undefined` = read-only: × скрыт. */
+  onDetach?: (nodeSourceId: string) => void;
 }
 
 /**
@@ -492,17 +497,19 @@ function FreeformCite({ link, source, authority, onDetach }: FreeformCiteProps) 
             <AlertCircle size={12} aria-hidden="true" />
           </span>
         )}
-        <button
-          type="button"
-          aria-label={t('node.citation_detach_aria')}
-          onClick={(e) => {
-            e.preventDefault();
-            if (link.id) onDetach(link.id);
-          }}
-          className="rounded p-1 text-ink-400 opacity-0 transition-opacity hover:bg-err-100 hover:text-err-700 focus:opacity-100 group-hover/c:opacity-100"
-        >
-          <Trash2 size={13} aria-hidden="true" />
-        </button>
+        {onDetach && (
+          <button
+            type="button"
+            aria-label={t('node.citation_detach_aria')}
+            onClick={(e) => {
+              e.preventDefault();
+              if (link.id) onDetach(link.id);
+            }}
+            className="rounded p-1 text-ink-400 opacity-0 transition-opacity hover:bg-err-100 hover:text-err-700 focus:opacity-100 group-hover/c:opacity-100"
+          >
+            <Trash2 size={13} aria-hidden="true" />
+          </button>
+        )}
         <ChevronDown
           size={14}
           className="text-ink-400 transition-transform group-open/c:rotate-180"

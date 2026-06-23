@@ -354,6 +354,30 @@ describe('NodeDetailsPanel', () => {
       expect(screen.getByText(/III в\.х\./)).toBeInTheDocument();
       // location в подписи
       expect(screen.getByText(/стр\. 12, изд\. Дар аль-кутуб/)).toBeInTheDocument();
+      // canWrite по умолчанию true → detach-× присутствует.
+      expect(screen.getByRole('button', { name: 'Отвязать опору' })).toBeInTheDocument();
+    });
+
+    it('canWrite=false (гость): карточка опоры есть, но detach-× скрыт (FB-2)', async () => {
+      server.use(
+        http.get(`${BASE}/api/v1/nodes/${NODE_ID}/sources`, () =>
+          HttpResponse.json([
+            { nodeId: NODE_ID, sourceId: SOURCE_ID, quote: 'цитата' },
+          ]),
+        ),
+        http.get(`${BASE}/api/v1/sources`, () =>
+          HttpResponse.json(
+            paged([{ id: SOURCE_ID, sourceType: 'HADITH', title: 'Сахих Муслим, №1162' }]),
+          ),
+        ),
+        http.get(`${BASE}/api/v1/authorities`, () => HttpResponse.json(paged([]))),
+      );
+      renderPanel({ canWrite: false });
+      await userEvent.click(screen.getByRole('button', { name: /Опора/ }));
+      // Карточка опоры читаема (гость видит источники)...
+      expect(await screen.findByText('Сахих Муслим, №1162')).toBeInTheDocument();
+      // ...но detach-кнопки нет (read-only, бэк всё равно отдал бы 403).
+      expect(screen.queryByRole('button', { name: 'Отвязать опору' })).not.toBeInTheDocument();
     });
 
     it('цитата без authorityId не показывает блок автора', async () => {

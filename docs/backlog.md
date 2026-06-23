@@ -46,9 +46,10 @@
   fork (real-ELK unit-тесты: разведение ветвей >100px + bend-points), click-highlight
   (data.dimmed), PNG-export (подписи-чипы читаемы, не чёрные боксы). Корпус
   одноцепочечный → branchy кейс покрыт юнит-тестами, не живыми данными.
-- [ ] **FB-2 detach-× гостю** через optional onDetach в CitationsList/HadithCite/
-  FreeformCite (сейчас hover-only, opacity-0, бэк отдаёт 403; primary edit/add уже
-  скрыты С63). Мелкое.
+- [x] **FB-2 detach-× гостю скрыт** (С64) — `onDetach` стал optional во всём дереве
+  citations (CitationsList → SourceCard/HadithCite/FreeformCite), передаётся только
+  при `canWrite`; гость больше не видит мёртвую кнопку (бэк отдавал 403). +тест
+  NodeDetailsPanel «canWrite=false: карточка есть, detach-× скрыт».
 
 ## Responsive / mobile-планшетная адаптация
 
