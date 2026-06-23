@@ -234,7 +234,13 @@ P0-1 (реимпорт затирает правки) + FB-5 (править/с�
       review: **APPROVE, 0 Critical/Important, 8 Minor** (дешёвые
       закрыты, остальное → §10/Фаза 5). Live-смоук + Playwright render.
       **← review-чекпоинт ПРОЙДЕН**
-- [ ] **Фаза 4** hide/show (запись + поле) + `HideToggle`
+- [x] **Фаза 4** (Сессия 65) record-level hide/reveal: backend
+      `OverrideApplyService.applyRecordHide` (читатель — запись вырезана,
+      ADMIN — `hiddenByAdmin`+reason для раскрытия, §4.3) на rulings/
+      explanations/commentaries; DTO +id/hiddenByAdmin/hideReason; frontend
+      `HideToggle` (EyeOff/Eye + reason-модалка + пилюля). Независимый
+      review: **APPROVE, 0 Crit/Imp, 4 Minor** (граница STUDENT-cut добавлена).
+      Live-смоук + Playwright. matns/sanads record-hide — Фаза 5
 - [ ] **Фаза 5** расширение на сателлиты (rulings/explanations/
       commentaries/matns/sanads)
 - [ ] **Фаза 6** миграция C9-перевода в overlay + снять P0-1a → review

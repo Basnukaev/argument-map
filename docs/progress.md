@@ -9,13 +9,14 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
-## 2026-06-24 - Сессия 65 - ЭПИК КУРАЦИИ Фазы 1-3 (overlay hd_field_overrides)
+## 2026-06-24 - Сессия 65 - ЭПИК КУРАЦИИ Фазы 1-4 (overlay hd_field_overrides)
 
 Автопилот: «посмотри прогресс/беклог, делай всё, на перепутье — best practice».
 Приоритет из С64 был однозначен — **эпик курации данных** (P0-1 + FB-5), спека
 `docs/specs/2026-06-18-data-curation-overlay.md` (фазы 0-6, ADR-065 заготовлен).
 Фаза 0 (P0-1a merge-страховка перевода) была закрыта в С64-cont. Эта сессия
-закрыла **Фазы 1-3 (пилот) + review-чекпоинт**. 6 коммитов.
+закрыла **Фазы 1-4 + 2 review-чекпоинта** (пилот + hide/show). 10 коммитов.
+После «далее» от Абдулы пилот (1-3) продолжен Фазой 4.
 
 ### Что построено (механизм)
 Overlay-таблица `hd_field_overrides` поверх импортного корпуса. Импорт alminasa
@@ -48,15 +49,32 @@ hd_* **не трогаем** — правки/скрытия живут в overl
   C9; non-admin → plain) в HadithDetailPage (status/authenticity/hadith_type/
   chapter_ar/sub_chapter_ar) + NarratorDetailPage (reliability_grade/tabaqa/
   grade_text/kunya/laqab). i18n ru+ar. types.ts регенерирован. 7+46 тестов.
+- **Фаза 4.a** (`8a63ba2`): record-level hide/reveal. `OverrideApplyService.
+  applyRecordHide(table, records, idOf, reveal, mapper)` — читатель/гость:
+  скрытая запись ВЫРЕЗАНА; ADMIN (по роли via SecurityContextUtils): приходит с
+  `hiddenByAdmin`+`hideReason` (reveal §4.3). HadithController.getDetail
+  (rulings/explanations) + NarratorController.getOne (commentaries). DTO +id/
+  hiddenByAdmin/hideReason (additive). matns/sanads record-hide → Фаза 5.
+  CurationHideIT. api-contract.
+- **Фаза 4 review-fix** (`8dc6916`): из ревью (APPROVE, 0 Crit/Imp, 4 Minor) —
+  +граница STUDENT-cut (reveal ТОЛЬКО ADMIN, не hasAtLeast), List.copyOf,
+  commentary hideReason-ассерт.
+- **Фаза 4.b** (`6cec418`): frontend `HideToggle` (EyeOff «Скрыть»→reason-модалка
+  →PUT __record__; Eye «Показать»→DELETE) в RulingsList/ExplanationsList/
+  NarratorCommentaryList; скрытая запись — затемнена+пилюля. i18n ru+ar. 5+51.
 
-### Review (Фаза 3 чекпоинт — ПРОЙДЕН)
-Независимый code-reviewer (Opus): **APPROVE, 0 Critical, 0 Important, 8 Minor.**
-Все «опасные» инварианты, которые просили опровергнуть, подтверждены: нет утечки
-override в импорт, позиционная корректность record-конструкторов, SQL-инъекция в
+### Review (2 чекпоинта — ОБА ПРОЙДЕНЫ)
+**Пилот (Фазы 1-3):** независимый code-reviewer (Opus) — **APPROVE, 0 Critical,
+0 Important, 8 Minor.** Опасные инварианты подтверждены: нет утечки override в
+импорт, позиционная корректность record-конструкторов, SQL-инъекция в
 assertEntityExists невозможна (table = всегда один из 8 hardcoded enum-литералов),
-первоисточник непробиваем, RBAC полон, аудит атомарен, нет N+1. Дешёвые Minor
-закрыты; остальные осознанно отложены (effective-facet JOIN → §10 backlog;
-applyBool strictness + сателлиты → Фаза 5).
+первоисточник непробиваем, RBAC полон, аудит атомарен, нет N+1.
+**Hide/show (Фаза 4):** независимый review — **APPROVE, 0 Critical, 0 Important,
+4 Minor.** Security-крус «не-ADMIN leak» опровергнут: роль из аутентифицированного
+principal (не форжабельна в prod), точное равенство `ADMIN`, cut-ветка вырезает
+запись целиком (не null-маска), `hideReason` только в reveal-ветке, scope только
+detail (list не отдаёт сателлиты). Дешёвые Minor закрыты; отложено: effective-facet
+JOIN → §10 backlog; field-hide на сателлитах + applyBool strictness → Фаза 5.
 
 ### Верификация
 - Backend: каждая фаза — таргетный прогон зелёный; регрессия (Hadith/Narrator
@@ -67,11 +85,15 @@ applyBool strictness + сателлиты → Фаза 5).
   рендерится без краша (аноним: бейджи plain, карандашей нет, матн цел).
 
 ### Инфра-стейт
-- **Backend ПЕРЕЗАПУЩЕН** на свежем master (pid сменился; :9090, JDWP :5005,
-  полный env ai.env+proxy). Миграция 78 применена. Старый pid 99696 убит.
+- **Backend перезапускался дважды** (после Фазы 3.a и после Фазы 4.a — новые
+  DTO/endpoint для generate-api). Сейчас на свежем master, :9090, JDWP :5005,
+  полный env ai.env+proxy. Миграция 78 применена. **Перед `generate-api`
+  бэкенд надо рестартить с новым кодом** (он отдаёт live OpenAPI).
 - Dev-Postgres: 2 ADMIN-юзера (`...001` И `...002` — оба ADMIN!), hd_field_
-  overrides пуста. Dev-логин admin@argumentmap.local/admin12345.
-- Frontend :5173 жив (HMR подхватил Фазу 3.b).
+  overrides пуста (live-смоуки подчищены). Dev-логин admin@argumentmap.local/
+  admin12345. **psql:** `docker exec argumentmap-postgres psql -U argmap -d
+  argumentmap` (юзер argmap, НЕ postgres).
+- Frontend :5173 жив (HMR подхватил Фазы 3.b/4.b).
 
 ### Известное / отложено
 - **Effective-facet**: `findPage` фильтрует authenticity/status по БАЗОВОМУ слою
@@ -79,26 +101,39 @@ applyBool strictness + сателлиты → Фаза 5).
   backlog (решение Абдулы: учитывать effective).
 - **name_ar normalized-sync**: правка `name_ar` через overlay не пересчитывает
   `name_ar_normalized` (search по базовому) — overrides редки, отложено.
-- 8 Minor ревью — все либо закрыты, либо привязаны к Фазе 5.
+- **field-level hide на сателлитах** (напр. ruler_name рулинга): сателлиты ещё
+  не в field-apply → field-hide пока без эффекта. Привязано к Фазе 5.
+- 12 Minor из 2 ревью — все либо закрыты, либо привязаны к Фазе 5.
 
-### Следующий шаг — Фаза 4 (hide/show)
-По спеке §9 Фаза 4: (4.a) backend — запись-уровень `__record__` hide + поле-
-уровень hide в apply (вырезание скрытых записей из списков сателлитов в
-контроллерах detail; `OverrideSet.isRecordHidden` уже есть, applyStr уже отдаёт
-null на hidden-поле) + **reveal-режим для ADMIN** (§4.3: hidden-записи приходят с
-флагом `hiddenByAdmin` вместо вырезания, чтобы ADMIN мог раскрыть). (4.b) frontend
-`HideToggle` (EyeOff/Eye + обязательная reason-модалка → PUT {hidden:true,reason})
-на скрываемых блоках rulings/explanations/commentaries + индикатор «скрыто
-администратором». Whitelist record-hide уже готов (hd_matns/sanads/rulings/
-explanations/commentaries). Затем Фаза 5 (сателлиты: rulings/explanations/
-commentaries/matns-meta/sanads — apply+DTO-интеграция) и Фаза 6 (миграция
-C9-перевода в overlay по ключу `(hadith_id,is_primary)` + снять P0-1a). Каждая
-фаза — review-чекпоинт.
+### Следующий шаг — Фаза 5 (расширение apply на сателлиты)
+По спеке §9 Фаза 5: apply+DTO-интеграция РЕДАКТИРОВАНИЯ полей сателлитов
+(не только record-hide, который уже есть): hd_rulings (ruler_name/ruling_text/
+book_name/page/volume), hd_explanations (book_name/author/text/...),
+hd_narrator_commentaries (commenter/book_name/...), hd_matns meta-поля
+(printed_number/page_no/volume/divergence_summary), hd_sanads (chain_grade/
+primary_chain), hd_sanad_narrators (transmission_phrase). Для каждого: завести
+apply-метод (как `apply(Hadith)`/`apply(Narrator)`) ИЛИ применять override на
+DTO-сборке в контроллере detail; добавить field-level hide (applyStr уже даёт
+null на hidden-поле — нужно прогнать сателлиты через apply); frontend
+`EditableField` на этих полях + `HideToggle` field-level. Тогда же:
+applyBool strictness (OverrideSet — пометка стоит), record-hide для matns/
+sanads (whitelist готов, контроллеры detail ещё не фильтруют их). Затем
+**Фаза 6** (миграция C9-перевода в overlay по стабильному ключу
+`(hadith_id, is_primary)` — НЕ matn.id, он меняется на реимпорте; переписать
+PATCH `/matns/{id}/translation` на overlay, сохранив URL; снять P0-1a merge-
+страховку в AlminasaHadithMapper/MatnRepository.findPrimaryByHadithId). Каждая
+фаза — review-чекпоинт. Эскалация Абдуле перед Фазой 6 (ключ перевода — §10 в.2).
 
-**Ручная проверка (Абдуле):** залогинься ADMIN, открой hadith/narrator detail —
-карандаши у бейджей/полей, клик → инлайн-правка → «Сохранено» + бейдж
-обновляется; обычный юзер/аноним — без карандашей; матн без карандаша. Глянь
-RTL-вёрстку инлайн-редактора глазами (Playwright headless ≠ реальный браузер).
+**Ручная проверка (Абдуле):** залогинься ADMIN.
+1. hadith/narrator detail — **карандаши** у бейджей/полей (status/authenticity/
+   reliability/tabaqa/...), клик → инлайн-правка → «Сохранено» + значение
+   обновляется; обычный юзер/аноним — без карандашей; матн без карандаша.
+2. Вкладки «Вердикты»/«Шарх»/«Иляль»/«Гариб» и «Оценки учёных» рави — у карточек
+   кнопка `EyeOff` «Скрыть» → reason-модалка → запись затемняется + пилюля
+   «Скрыто администратором: {причина}» + `Eye` «Показать снова». Выйди из ADMIN —
+   скрытые записи не приходят вовсе.
+3. Глянь **RTL-вёрстку** инлайн-редактора и пилюли с арабской причиной глазами
+   (Playwright headless ≠ реальный браузер).
 
 ## 2026-06-24 - Сессия 64 (cont.) - автопилот бэклога (OMC-оркестрация)
 
