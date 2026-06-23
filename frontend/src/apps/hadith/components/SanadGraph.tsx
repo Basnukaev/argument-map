@@ -33,6 +33,54 @@ import type {
 } from '@/apps/hadith/types';
 
 /**
+ * FB-7: полная цепочка через узел — обход ВВЕРХ (к корню/Пророку) И ВНИЗ
+ * (к сборникам) от любого узла. Возвращает все узлы/рёбра путей, проходящих
+ * через `nodeId` (node-hover подсветка «от а до я», а не только текущие 2 узла).
+ */
+function collectChainThroughNode(
+  nodeId: string,
+  edges: Edge[],
+): { nodeIds: Set<string>; edgeIds: Set<string> } {
+  const nodeIds = new Set<string>([nodeId]);
+  const edgeIds = new Set<string>();
+  const byTarget = new Map<string, Edge[]>();
+  const bySource = new Map<string, Edge[]>();
+  for (const e of edges) {
+    const t = byTarget.get(e.target) ?? [];
+    t.push(e);
+    byTarget.set(e.target, t);
+    const s = bySource.get(e.source) ?? [];
+    s.push(e);
+    bySource.set(e.source, s);
+  }
+  // вверх: target→source (к корню)
+  const up: string[] = [nodeId];
+  while (up.length > 0) {
+    const cur = up.shift()!;
+    for (const e of byTarget.get(cur) ?? []) {
+      edgeIds.add(e.id);
+      if (!nodeIds.has(e.source)) {
+        nodeIds.add(e.source);
+        up.push(e.source);
+      }
+    }
+  }
+  // вниз: source→target (к сборникам)
+  const down: string[] = [nodeId];
+  while (down.length > 0) {
+    const cur = down.shift()!;
+    for (const e of bySource.get(cur) ?? []) {
+      edgeIds.add(e.id);
+      if (!nodeIds.has(e.target)) {
+        nodeIds.add(e.target);
+        down.push(e.target);
+      }
+    }
+  }
+  return { nodeIds, edgeIds };
+}
+
+/**
  * Обходит граф в обратном направлении (от конечного узла к корню) и
  * возвращает множества id узлов и рёбер, принадлежащих пути этого санада.
  * Используется для подсветки цепи по клику в легенде.
@@ -131,9 +179,17 @@ function SanadGraph({
   const [fetchedGraph, setFetchedGraph] = useState<SanadGraphResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SanadFlowNodeData | null>(null);
-  // FB-7 граф: ховер ребра — подсветить связь + её узлы + подпись, приглушить
-  // остальное (проследить связь, однозначность подписи).
-  const [hoveredEdge, setHoveredEdge] = useState<string | null>(null);
+  // FB-7 граф: держать мышь на узле 1с → подсветить ВСЮ цепочку через него
+  // (от корня к сборникам), приглушить остальное. Тоггл: повторное удержание
+  // на том же узле снимает; уход мыши до 1с сбрасывает таймер.
+  const [highlightedNode, setHighlightedNode] = useState<string | null>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    },
+    [],
+  );
   // id активного (подсвеченного) санада из легенды; null = нет подсветки.
   const [activeSanadId, setActiveSanadId] = useState<string | null>(null);
   // Панель легенды: развёрнута по умолчанию, сворачивается кнопкой.
@@ -297,38 +353,35 @@ function SanadGraph({
   // Подсветка пути активного санада. Отдельный memo: пересчитывается только
   // при смене активного санада, не при pan/zoom (baseNodes/baseEdges стабильны).
   const { rfNodes, rfEdges } = useMemo(() => {
-    // Приоритет: ховер ребра > активная цепь (легенда) > база.
-    if (hoveredEdge) {
-      const he = baseEdges.find((e) => e.id === hoveredEdge);
-      if (he) {
-        const keep = new Set([he.source, he.target]);
-        const nodes = baseNodes.map((n) => ({
-          ...n,
-          style: keep.has(n.id)
-            ? { opacity: 1 }
-            : { opacity: 0.18, filter: 'grayscale(0.6)' },
-        }));
-        const edges = baseEdges.map((e) =>
-          e.id === hoveredEdge
-            ? {
-                ...e,
-                style: {
-                  ...e.style,
-                  opacity: 1,
-                  strokeWidth: Number(e.style?.strokeWidth ?? 1.6) + 1.2,
-                },
-              }
-            : {
-                // Чужие рёбра И их подписи приглушаем — чтобы подпись
-                // hovered-ребра читалась однозначно.
-                ...e,
-                style: { ...e.style, opacity: 0.12 },
-                labelStyle: { ...e.labelStyle, opacity: 0.12 },
-                labelBgStyle: { ...e.labelBgStyle, fillOpacity: 0.1 },
+    // Приоритет: подсветка узла (вся цепочка через него) > активная цепь
+    // (легенда) > база.
+    if (highlightedNode) {
+      const { nodeIds, edgeIds } = collectChainThroughNode(highlightedNode, baseEdges);
+      const nodes = baseNodes.map((n) => ({
+        ...n,
+        style: nodeIds.has(n.id)
+          ? { opacity: 1 }
+          : { opacity: 0.18, filter: 'grayscale(0.6)' },
+      }));
+      const edges = baseEdges.map((e) =>
+        edgeIds.has(e.id)
+          ? {
+              ...e,
+              style: {
+                ...e.style,
+                opacity: 1,
+                strokeWidth: Number(e.style?.strokeWidth ?? 1.6) + 1,
               },
-        );
-        return { rfNodes: nodes, rfEdges: edges };
-      }
+            }
+          : {
+              // Чужие рёбра И их подписи приглушаем — цепочка читается чисто.
+              ...e,
+              style: { ...e.style, opacity: 0.12 },
+              labelStyle: { ...e.labelStyle, opacity: 0.12 },
+              labelBgStyle: { ...e.labelBgStyle, fillOpacity: 0.1 },
+            },
+      );
+      return { rfNodes: nodes, rfEdges: edges };
     }
     if (!activeSanadId || !graph) {
       return { rfNodes: baseNodes, rfEdges: baseEdges };
@@ -353,7 +406,7 @@ function SanadGraph({
       return { ...e, style: { ...e.style, opacity: 1, strokeWidth: Number(e.style?.strokeWidth ?? 1.6) + 1 } };
     });
     return { rfNodes: highlightedNodes, rfEdges: highlightedEdges };
-  }, [hoveredEdge, activeSanadId, graph, baseNodes, baseEdges]);
+  }, [highlightedNode, activeSanadId, graph, baseNodes, baseEdges]);
 
   if (error) {
     return (
@@ -427,8 +480,19 @@ function SanadGraph({
         edgesFocusable={false}
         elementsSelectable
         proOptions={{ hideAttribution: true }}
-        onEdgeMouseEnter={(_, edge) => setHoveredEdge(edge.id)}
-        onEdgeMouseLeave={() => setHoveredEdge(null)}
+        onNodeMouseEnter={(_, node) => {
+          if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+          // Подсветка только после 1с удержания; уход мыши до 1с → таймер сброшен.
+          hoverTimerRef.current = setTimeout(() => {
+            setHighlightedNode((prev) => (prev === node.id ? null : node.id));
+          }, 1000);
+        }}
+        onNodeMouseLeave={() => {
+          if (hoverTimerRef.current) {
+            clearTimeout(hoverTimerRef.current);
+            hoverTimerRef.current = null;
+          }
+        }}
         onNodeClick={(_, node) => {
           const d = node.data;
           if (d.role === 'PROPHET') return;
