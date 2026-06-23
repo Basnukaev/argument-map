@@ -29,6 +29,7 @@ import ru.basnukaev.argumentmap.library.domain.Page;
 import ru.basnukaev.argumentmap.library.repository.ChapterRepository;
 import ru.basnukaev.argumentmap.library.repository.ImageRegionRepository;
 import ru.basnukaev.argumentmap.library.repository.MuhaqqiqRepository;
+import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.repository.PageRepository;
 import ru.basnukaev.argumentmap.library.repository.PublicationPlaceRepository;
 import ru.basnukaev.argumentmap.library.repository.PublisherRepository;
@@ -66,10 +67,17 @@ class BookServiceIT {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private BookViewDedupService bookViewDedupService;
+
+    @Autowired
+    private BookRepository bookRepository;
+
     private UUID userId;
 
     @BeforeEach
     void setUp() {
+        bookViewDedupService.resetState();
         userId = UUID.randomUUID();
         jdbcTemplate.update(
                 "INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
@@ -329,6 +337,62 @@ class BookServiceIT {
 
         assertThat(first.muhaqqiqId()).isNotNull();
         assertThat(second.muhaqqiqId()).isEqualTo(first.muhaqqiqId());
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Дедупликация просмотров (анти-инфляция)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Повторный incrementViewCount с тем же IP в пределах окна —
+     * view_count не растёт дважды.
+     */
+    @Test
+    void incrementViewCount_repeatSameIp_doesNotDoubleIncrement() {
+        Book book = bookService.createBook(BookType.BOOK, "Тест дедупа", null, "ar", null, null, userId);
+        String ip = "10.0.0.42";
+
+        bookService.incrementViewCount(book.id(), ip);
+        bookService.incrementViewCount(book.id(), ip);
+
+        long count = queryViewCount(book.id());
+        assertThat(count).isEqualTo(1);
+    }
+
+    /**
+     * Разные IP на одну книгу — каждый засчитывается, count растёт.
+     */
+    @Test
+    void incrementViewCount_differentIps_eachIncrements() {
+        Book book = bookService.createBook(BookType.BOOK, "Тест разных IP", null, "ar", null, null, userId);
+
+        bookService.incrementViewCount(book.id(), "1.1.1.1");
+        bookService.incrementViewCount(book.id(), "2.2.2.2");
+
+        long count = queryViewCount(book.id());
+        assertThat(count).isEqualTo(2);
+    }
+
+    /**
+     * Один IP на разные книги — каждая книга получает свой инкремент.
+     */
+    @Test
+    void incrementViewCount_sameIpDifferentBooks_eachBookIncrements() {
+        Book book1 = bookService.createBook(BookType.BOOK, "Книга A", null, "ar", null, null, userId);
+        Book book2 = bookService.createBook(BookType.BOOK, "Книга B", null, "ar", null, null, userId);
+        String ip = "5.5.5.5";
+
+        bookService.incrementViewCount(book1.id(), ip);
+        bookService.incrementViewCount(book2.id(), ip);
+
+        assertThat(queryViewCount(book1.id())).isEqualTo(1);
+        assertThat(queryViewCount(book2.id())).isEqualTo(1);
+    }
+
+    private long queryViewCount(UUID bookId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT view_count FROM lib_books WHERE id = ?", Long.class, bookId);
+        return count == null ? 0L : count;
     }
 
     private Authority saveAuthor(String name) {

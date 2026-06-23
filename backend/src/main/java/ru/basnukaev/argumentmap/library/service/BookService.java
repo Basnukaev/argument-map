@@ -49,6 +49,7 @@ public class BookService {
     private final PublicationPlaceRepository publicationPlaceRepository;
     private final PermissionService permissionService;
     private final AuditLogService auditLogService;
+    private final BookViewDedupService bookViewDedupService;
 
     public BookService(BookRepository bookRepository,
                        ChapterRepository chapterRepository,
@@ -59,7 +60,8 @@ public class BookService {
                        PublisherRepository publisherRepository,
                        PublicationPlaceRepository publicationPlaceRepository,
                        PermissionService permissionService,
-                       AuditLogService auditLogService) {
+                       AuditLogService auditLogService,
+                       BookViewDedupService bookViewDedupService) {
         this.bookRepository = bookRepository;
         this.chapterRepository = chapterRepository;
         this.pageRepository = pageRepository;
@@ -70,6 +72,7 @@ public class BookService {
         this.publicationPlaceRepository = publicationPlaceRepository;
         this.permissionService = permissionService;
         this.auditLogService = auditLogService;
+        this.bookViewDedupService = bookViewDedupService;
     }
 
     @Transactional
@@ -205,10 +208,22 @@ public class BookService {
                 limit, offset, null);
     }
 
-    /** Vision 49d Phase 2 - increment view counter. */
+    /**
+     * Vision 49d Phase 2 - increment view counter с анти-инфляционным дедупом.
+     *
+     * <p>Инкремент применяется только если (clientIp + bookId) не был виден
+     * в пределах sliding window (настраивается через
+     * {@code book.view-count.dedup-window}). Повторный вызов с того же IP
+     * в пределах окна — тихий no-op, ответ клиенту 204 как обычно.
+     *
+     * @param bookId   UUID книги
+     * @param clientIp нормализованный IP клиента (из X-Forwarded-For / X-Real-IP)
+     */
     @Transactional
-    public void incrementViewCount(UUID bookId) {
-        bookRepository.incrementViewCount(bookId);
+    public void incrementViewCount(UUID bookId, String clientIp) {
+        if (bookViewDedupService.shouldIncrement(clientIp, bookId)) {
+            bookRepository.incrementViewCount(bookId);
+        }
     }
 
     /**

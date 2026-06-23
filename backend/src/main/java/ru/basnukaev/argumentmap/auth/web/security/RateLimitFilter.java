@@ -184,7 +184,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
      * никогда не {@code null} - либо реальный IP, либо
      * {@code request.getRemoteAddr()} (никогда не null в servlet-API).
      */
-    static String resolveClientIp(HttpServletRequest request) {
+    public static String resolveClientIp(HttpServletRequest request) {
         String xff = request.getHeader("X-Forwarded-For");
         if (xff != null && !xff.isBlank()) {
             // X-Forwarded-For: client, proxy1, proxy2 - берём первый (origin)

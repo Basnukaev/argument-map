@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
+import ru.basnukaev.argumentmap.auth.web.security.RateLimitFilter;
 import ru.basnukaev.argumentmap.auth.web.security.SecurityContextUtils;
 import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.BookType;
@@ -112,10 +114,12 @@ public class BookController {
         return PagedResponse.of(mapped, pr.page(), pr.size(), total);
     }
 
-    /** Vision 49d Phase 2 - POST view increment endpoint */
+    /** Vision 49d Phase 2 - POST view increment endpoint с дедупом по IP */
     @PostMapping("/books/{bookId}/views")
-    public ResponseEntity<Void> incrementView(@PathVariable UUID bookId) {
-        bookService.incrementViewCount(bookId);
+    public ResponseEntity<Void> incrementView(@PathVariable UUID bookId,
+                                              HttpServletRequest request) {
+        String clientIp = RateLimitFilter.resolveClientIp(request);
+        bookService.incrementViewCount(bookId, clientIp);
         return ResponseEntity.noContent().build();
     }
 
