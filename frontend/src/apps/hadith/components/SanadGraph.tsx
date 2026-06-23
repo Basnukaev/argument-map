@@ -409,7 +409,10 @@ function SanadGraph({
         // Подпись-формула живёт в data: у кастомного ребра RF-встроенный label
         // не работает — SanadCustomEdge рендерит её сам (+ bend-points из ELK).
         data: { transmissionPhrase: e.data.transmissionPhrase ?? undefined },
-        style: { stroke, strokeWidth: e.data.onPrimaryChain ? 2.4 : 1.6 },
+        // Единая толщина: толщина значит ТОЛЬКО подсветку (+1 в highlight-memo),
+        // а не primaryChain — в turuq все цепи primary, разнотолщинность читалась
+        // как «почему это ребро жирное?» (С64).
+        style: { stroke, strokeWidth: 1.8 },
         markerEnd: { type: MarkerType.ArrowClosed, color: stroke, width: 16, height: 16 },
       };
     });

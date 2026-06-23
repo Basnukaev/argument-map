@@ -57,27 +57,24 @@ function SanadGraphNode({ data, selected }: NodeProps<SanadNode>) {
         }`}
       >
         <div className={`h-1 w-full ${ROLE_STRIP[data.role]}`} />
-        <div className="px-3 py-2">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="font-arabic text-lg leading-tight text-ink-900" dir="rtl">
-                {data.nameAr}
-              </div>
-              {data.nameRu && (
-                <div className="mt-0.5 truncate text-xs text-ink-600">{data.nameRu}</div>
-              )}
-            </div>
+        {/* Центрированная компоновка (С64): имя по центру, оценка надёжности +
+            поколение/смерть — в одной центрированной мета-строке. Раньше бейдж
+            ثقة в justify-between смещал имя влево. */}
+        <div className="px-3 py-2 text-center">
+          <div className="font-arabic text-lg leading-snug text-ink-900" dir="rtl">
+            {data.nameAr}
+          </div>
+          {data.nameRu && <div className="mt-0.5 text-xs text-ink-600">{data.nameRu}</div>}
+          <div className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] text-ink-500">
             {rel && data.reliabilityGrade && (
               <span
-                className={`shrink-0 rounded-sm px-1.5 py-0.5 font-arabic text-[12px] font-semibold ${rel.chip}`}
+                className={`rounded-sm px-1.5 py-0.5 font-arabic text-[12px] font-semibold ${rel.chip}`}
                 dir="rtl"
                 title={t(`hadith.reliability.${data.reliabilityGrade}` as DictKey)}
               >
                 {rel.ar}
               </span>
             )}
-          </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-ink-500">
             {data.generation && (
               <span className="inline-flex items-center gap-1">
                 {isCompanion && <Star size={10} className="text-violet-500" aria-hidden />}

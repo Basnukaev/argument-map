@@ -49,6 +49,9 @@ const SANAD_LAYOUT_OPTIONS: Record<string, string> = {
   'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
   // Срезает лишние изломы ортогональных рёбер — чище путь.
   'elk.layered.unnecessaryBendpoints': 'true',
+  // Веер из одного узла идёт общим стволом и ветвится один раз, а не «гребёнкой»
+  // вертикалей из разнесённых портов (С64: «убери отступы»).
+  'elk.layered.mergeEdges': 'true',
 };
 
 /**
