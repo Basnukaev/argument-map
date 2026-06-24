@@ -4511,10 +4511,61 @@ whitelist (`hd_matns.text_ar`/`text_ar_normalized`, commentary `comments` →
 (композитный ключ `sanad_id`+`position` требует особого field_name-кодирования
 `transmission_phrase@{position}`, §5).
 
+## Hadith Data Health Admin API (P1-2, PROD-READINESS-AUDIT §4/§7)
+
+Снапшот «здоровья» данных хадис-корпуса для курации: счётчики недозаполненных
+записей, чтобы ADMIN видел ЧТО чинить. ADMIN-only (паттерн прочих admin-эндпоинтов):
+нет principal → `401 invalid-token`, не-ADMIN → `403 forbidden-admin-only`.
+Только чтение (read-only COUNT), мутаций нет.
+
+### GET /api/v1/admin/hadith/health
+
+Счётчики «битых»/недозаполненных записей хадисов и рави. Все метрики считаются
+двумя аггрегатными запросами (`COUNT(*) FILTER (...)` по `hd_hadiths` и
+`hd_narrators`); «без иснада»/«без матна» — отсутствие строк в `hd_sanads`/
+`hd_matns` (`NOT EXISTS`). Считается по БАЗОВОМУ импортированному слою (без
+overlay-курации ADR-065).
+
+**Auth:** Bearer JWT / X-User-Id (dev), роль ADMIN
+
+**Responses:**
+- `200 OK` — снапшот счётчиков
+- `401 Unauthorized` — нет principal (`invalid-token`)
+- `403 Forbidden` — не ADMIN (`forbidden-admin-only`)
+
+**Response body (200) — `HadithDataHealthResponse`:**
+```json
+{
+  "totalHadiths": 31999,
+  "hadithsNullAuthenticity": 2228,
+  "hadithsWithoutSanad": 996,
+  "hadithsWithoutMatn": 0,
+  "hadithsNullCollection": 0,
+  "totalNarrators": 12000,
+  "narratorsNullTabaqa": 2404,
+  "narratorsUnknownReliability": 1500,
+  "narratorsNullGradeText": 1800
+}
+```
+
+Семантика метрик:
+- `hadithsNullAuthenticity` — `authenticity IS NULL` (ось достоверности не выведена);
+- `hadithsWithoutSanad` — нет ни одной цепи в `hd_sanads`;
+- `hadithsWithoutMatn` — нет ни одного текста в `hd_matns`;
+- `hadithsNullCollection` — `collection_id IS NULL` (хадис не привязан к сборнику);
+- `narratorsNullTabaqa` — `tabaqa IS NULL` (поколение не указано);
+- `narratorsUnknownReliability` — `reliability_grade IS NULL` ИЛИ `'UNKNOWN'`;
+- `narratorsNullGradeText` — `grade_text IS NULL` (нет verbatim джарх-таʿдиль).
+
+**Follow-up (не реализован):** фильтр `?category=&page=&size=` для постраничного
+ЛИСТИНГА конкретных id битых записей (чтобы прыгнуть на них) — счётчики P1-2
+закрывают сами по себе; листинг — отдельный пункт при потребности.
+
 ## История изменений контракта
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-06-24 | v1 | **Hadith Data Health Admin API (P1-2, PROD-READINESS-AUDIT §4/§7).** Новый ADMIN-only `GET /api/v1/admin/hadith/health` (`HadithHealthController` → `HadithHealthService` → `HadithHealthRepository`) → `HadithDataHealthResponse` со счётчиками недозаполненных записей: хадисы (`totalHadiths`, `hadithsNullAuthenticity`, `hadithsWithoutSanad`, `hadithsWithoutMatn`, `hadithsNullCollection`) + рави (`totalNarrators`, `narratorsNullTabaqa`, `narratorsUnknownReliability`=NULL-или-`'UNKNOWN'`, `narratorsNullGradeText`). Две аггрегации `COUNT(*) FILTER (...)` (по одной на сущность); «без иснада/матна» = `NOT EXISTS` в `hd_sanads`/`hd_matns`. Считается по базовому импортированному слою (без overlay ADR-065). Гейт как у прочих admin: анон→401 `invalid-token`, не-ADMIN→403 `forbidden-admin-only`. Листинг битых id (`?category=`) НЕ реализован (follow-up). IT: `HadithHealthControllerIT` (401/403/200-shape + дельта-счётчики недозаполненных хадисов и рави) | P1-2: до этого ADMIN не видел ЧТО курировать (2228 NULL authenticity, ~996 без иснада, 2404 рави без tabaqa и т.п.). Эндпоинт даёт счётчики дыр — точка входа в курацию (ADR-065) |
 | 2026-06-24 | v1 | **Курация Фаза 6 — миграция C9-перевода матна в overlay (ADR-065 §9/§10, трек закрыт).** `PATCH /api/v1/hadith/matns/{matnId}/translation` (C9, URL сохранён — фронт `MatnTranslateControls` не трогаем) теперь пишет правку перевода в overlay `hd_field_overrides`, а НЕ в колонку `hd_matns.text_{lang}` → переживает delete-recreate реимпорта нативно. Ключ (§10 вопрос 2, авторизовано): primary-матн → СТАБИЛЬНЫЙ синтетический `(entity_id=hadith_id, field_name='primary_text_ru'/'primary_text_en')`; не-primary матн → per-variation `(entity_id=matn.id, field_name='text_ru'/'text_en')`. На ЧТЕНИИ перевод накладывается `OverrideApplyService.applyMatns` на primary-матн `getDetail` (один батч-load HD_MATNS по matn.id+hadith_id). `editTranslation()` стал `@Transactional` (overlay upsert + audit `HD_FIELD_OVERRIDE` в одной транзакции). `CurationWhitelist` HD_MATNS +`primary_text_ru`/`primary_text_en` (синтетические). AI `POST /translate` без изменений — пишет в базовую колонку, human-правка C9 накладывается поверх. **Снят P0-1a-стопгап:** `AlminasaHadithMapper` больше не переносит `text_ru/en` через re-map, `MatnRepository.findPrimaryByHadithId` удалён. Data-миграция `20260618-79` (one-shot перенос накопленного перевода в overlay, edited_by=первый ADMIN). IT: `MatnTranslationOverlayIT` (PATCH→overlay→detail→симуляция реимпорта→перевод выживает), `MatnTranslationEditIT` (правка→overlay, колонка нетронута, upsert), `AlminasaMapperIT.mapHadith_реимпорт_сохраняет_перевод_матна_через_overlay` (overlay переживает реимпорт). Без изменений формы response (`MatnTranslationResponse` тот же) | Фаза 6 (финал эпика курации): C9-перевод — единственный накопленный курируемый контент; миграция в overlay снимает P0-1a-страховку, delete-recreate матна безопасен |
 | 2026-06-24 | v1 | **Курация Фаза 5 — расширение на сателлиты (ADR-065 §5).** Field-level edit + field-hide теперь применяются на detail и для сателлитов: `hd_rulings` (ruler_name[hide]/ruler_death_year/ruling_text/book_name/page/volume), `hd_explanations` (book_name/author[hide]/author_death_year/page/volume/text[hide]), `hd_narrator_commentaries` (commenter[hide]/commenter_death_year/book_name/author/page/volume; `comments` verbatim — первоисточник, 400), `hd_matns` (мета: printed_number/page_no/volume/divergence_summary/text_ru/text_en; `text_ar`/`text_ar_normalized` — первоисточник, 400), `hd_sanads` (chain_grade/primary_chain). Новые `apply(HadithRuling/HadithExplanation/NarratorCommentary/Matn/Sanad, OverrideSet)` (чистые, static). `OverrideApplyService.applyAndHide` — field-override + record-hide в ОДИН батч-load на тип (без N+1). Record-hide для `hd_matns`/`hd_sanads` добавлен в `getDetail` (был отложен из Фазы 4): `MatnDto`/`SanadDto` +`hiddenByAdmin`+`hideReason` (additive; вырезан для читателя, reveal для ADMIN). Отложено (Фаза 5.b): `hd_sanad_narrators.transmission_phrase` (композитный ключ). IT: `CurationSatelliteFieldEditIT` (edit ruling/explanation/matn-meta/sanad-grade/commentary → effective; field-hide ruler_name → null; matn/sanad record-hide cut/reveal; first-source text_ar/comments → 400) | Фаза 5 эпика курации (P0-1 + FB-5): править/скрывать вторичные данные сателлитов при защите первоисточника |
 | 2026-06-24 | v1 | **Курация Фаза 4 — record-level hide/reveal (ADR-065 §4).** Generic `PUT /admin/curation/overrides` с `fieldName='__record__'`+`hidden=true`+`reason` скрывает запись сателлита целиком (модерация заблудших/экстремистских вторичных данных). На чтении detail: гость/читатель — скрытая запись вырезана; ADMIN (по роли) — приходит с `hiddenByAdmin=true`+`hideReason` (reveal, §4.3), чтобы раскрыть. DTO `RulingDto`/`ExplanationDto`/`NarratorCommentaryDto` +`id`+`hiddenByAdmin`+`hideReason` (additive). `OverrideApplyService.applyRecordHide` — один батч-load на тип, без N+1. Пилот hide: hd_rulings/hd_explanations/hd_narrator_commentaries (hd_matns/hd_sanads record-hide — Фаза 5). IT: `CurationHideIT` (вырезан для гостя, reveal для ADMIN, record-hide на hd_hadiths → 400) | FB-5 (b): скрывать вторичные данные без удаления; reveal — чтобы ADMIN мог модерировать/раскрыть |

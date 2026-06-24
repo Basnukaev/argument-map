@@ -212,6 +212,32 @@
 
 ## Активные этапы
 
+### Этап 31. Прод-готовность (PROD-READINESS-AUDIT.md)
+
+Аудит `PROD-READINESS-AUDIT.md` (2026-06-18). **Контент наполняется на
+проде** (корпус — реимпорт на проде; курация overlay — `pg_dump
+hd_field_overrides` или правка на проде; темы — JSON-экспорт ADR-037);
+предусловие — бэкап/restore.
+
+- [x] **P0-1 / P0-1a / P1-1 / P1-3** — ЗАКРЫТЫ эпиком курации (С65): защита
+      правок от реимпорта, перевод, manual-edit API hd_*-полей, admin
+      record-editor UI. (Аудит писался ДО курации.)
+- [x] **P0-3** (С65, `5ede8f6`) env-плейсхолдеры DB-кредов: default-doc
+      datasource из `${SPRING_DATASOURCE_*}` без fallback (fail-fast) +
+      `DatasourceConfigValidator` (prod+localhost/argmap → IllegalStateException)
+      + required-env в auth-security.md. local boot verified.
+- [ ] **P1-2** data-health эндпоинт (`GET /admin/hadith/health` — counts
+      битых/недозаполненных: NULL authenticity/tabaqa, без цепей) — **в работе**
+- [ ] **P1-4** закрыть member-list анониму (PUBLIC-тема/книга раскрывает
+      user-UUID; `TopicMemberService`/`BookMemberService`/`VisibilityPolicy`)
+- [ ] **P1-5** проверить CORS в проде (`WebMvcConfig` — whitelist origin,
+      allowCredentials только с явными origin)
+- [ ] **P2-1/2/3/4** generic 500-handler, include-stacktrace, AI-translate
+      rate-limit, mark-as-reviewed/bulk
+- **🚚 remblo (деплой/ops, отдельный репо):** P0-2 бэкап/restore БД (pg_dump
+      по расписанию + restore-ранбук), CI, прод-env, имя prod-профиля
+      (валидатор P0-3 завязан на `prod`).
+
 ### Этап 30. Курация данных — overlay hd_field_overrides (ADR-065) ✅ ЗАКРЫТ (С65)
 
 P0-1 (реимпорт затирает правки) + FB-5 (править/скрывать вторичные
