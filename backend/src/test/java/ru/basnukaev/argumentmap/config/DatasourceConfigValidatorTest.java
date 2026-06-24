@@ -5,11 +5,14 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.mock.env.MockEnvironment;
 
 /**
  * Unit-тест fail-fast валидатора datasource-кредов (P0-3). Конструктор
  * проверяем напрямую с {@link MockEnvironment} - без Spring context.
+ * Условную регистрацию бина ({@code app.datasource.prod-guard}) проверяем
+ * через {@link ApplicationContextRunner}.
  */
 class DatasourceConfigValidatorTest {
 
@@ -62,5 +65,40 @@ class DatasourceConfigValidatorTest {
         test.setActiveProfiles("test");
         assertThatCode(() -> new DatasourceConfigValidator(test, "", ""))
                 .doesNotThrowAnyException();
+    }
+
+    // --- Условная регистрация бина (app.datasource.prod-guard) ---
+    // Гард включён по умолчанию (matchIfMissing) - реальный prod защищён.
+    // prod-profile IT'ы отключают его через app.datasource.prod-guard=false,
+    // т.к. датасорс там из Testcontainers @ServiceConnection (localhost:<port>).
+
+    private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+            .withUserConfiguration(DatasourceConfigValidator.class)
+            .withPropertyValues(
+                    "spring.datasource.url=jdbc:postgresql://localhost:5432/argumentmap",
+                    "spring.datasource.username=argmap");
+
+    @Test
+    void guardDisabled_beanNotCreated_noValidation() {
+        // app.datasource.prod-guard=false → бин не создаётся, валидация не
+        // запускается даже под prod profile с localhost-URL (так prod-profile
+        // IT'ы загружают контекст под @ServiceConnection).
+        contextRunner
+                .withPropertyValues("app.datasource.prod-guard=false")
+                .run(ctx -> assertThat(ctx).doesNotHaveBean(DatasourceConfigValidator.class));
+    }
+
+    @Test
+    void guardEnabledByDefault_prodProfile_localUrl_failsContext() {
+        // Без явного app.datasource.prod-guard (matchIfMissing=true) бин
+        // создаётся; под prod profile localhost-URL валится - реальный prod
+        // защищён от случайного коннекта к dev-БД.
+        contextRunner
+                .withPropertyValues("spring.profiles.active=prod")
+                .run(ctx -> assertThat(ctx)
+                        .hasFailed()
+                        .getFailure()
+                        .rootCause()
+                        .isInstanceOf(IllegalStateException.class));
     }
 }

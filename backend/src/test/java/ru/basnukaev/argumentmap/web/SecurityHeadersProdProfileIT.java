@@ -41,7 +41,12 @@ import ru.basnukaev.argumentmap.TestcontainersConfiguration;
         // actuator.security.username/password пусты. Тесты этого класса
         // про headers, не про actuator security - заглушаем placeholder
         "actuator.security.username=testactuator",
-        "actuator.security.password=testpass"
+        "actuator.security.password=testpass",
+        // P0-3: датасорс здесь из Testcontainers @ServiceConnection (localhost),
+        // а DatasourceConfigValidator под prod-profile отверг бы localhost / упал
+        // бы на неразрешённом ${SPRING_DATASOURCE_URL}. Гард покрыт своим
+        // DatasourceConfigValidatorTest, тут отключаем его.
+        "app.datasource.prod-guard=false"
 })
 class SecurityHeadersProdProfileIT {
 

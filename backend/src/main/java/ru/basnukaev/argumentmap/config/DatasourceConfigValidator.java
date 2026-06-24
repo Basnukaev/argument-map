@@ -3,6 +3,7 @@ package ru.basnukaev.argumentmap.config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 
@@ -23,8 +24,19 @@ import ru.basnukaev.argumentmap.auth.web.security.SecurityHeadersCustomizer;
  * <p>Зеркалит паттерн {@code ActuatorSecurityConfig} / {@code JwtService}:
  * проверка привязана к prod profile (явная safety boundary), в dev/test/local
  * ветка не активна.
+ *
+ * <p>Гард включён по умолчанию ({@code app.datasource.prod-guard=true},
+ * matchIfMissing) — реальный prod всегда защищён. Отключается через
+ * {@code app.datasource.prod-guard=false}: нужно prod-profile IT'ам, где
+ * датасорс приходит из Testcontainers {@code @ServiceConnection}
+ * (localhost:<port>) — иначе гард либо отверг бы localhost-URL, либо упал бы
+ * на неразрешённом placeholder {@code ${SPRING_DATASOURCE_URL}}. Когда bean
+ * не создаётся, {@code spring.datasource.url} из YAML вообще не читается, и
+ * resolution placeholder'а не форсится. Сам гард покрыт {@code
+ * DatasourceConfigValidatorTest} (конструктор напрямую, без Spring context).
  */
 @Configuration
+@ConditionalOnProperty(name = "app.datasource.prod-guard", havingValue = "true", matchIfMissing = true)
 public class DatasourceConfigValidator {
 
     private static final Logger log = LoggerFactory.getLogger(DatasourceConfigValidator.class);

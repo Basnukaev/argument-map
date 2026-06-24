@@ -41,7 +41,11 @@ import ru.basnukaev.argumentmap.TestcontainersConfiguration;
 @TestPropertySource(properties = {
         "auth.jwt.secret=test-prod-secret-32chars-or-more-for-hs256-validation",
         "actuator.security.username=testactuator",
-        "actuator.security.password=testpass"
+        "actuator.security.password=testpass",
+        // P0-3: датасорс из Testcontainers @ServiceConnection (localhost) под
+        // prod-profile споткнулся бы о DatasourceConfigValidator. Гард покрыт
+        // отдельным DatasourceConfigValidatorTest - здесь отключаем.
+        "app.datasource.prod-guard=false"
 })
 class ActuatorSecurityProdProfileIT {
 

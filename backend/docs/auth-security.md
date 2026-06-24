@@ -113,6 +113,18 @@ defense-in-depth: если prod-profile активен, но resolved URL ука
 `AUTH_JWT_SECRET` (`JwtService`) и `ACTUATOR_USERNAME/PASSWORD`
 (`ActuatorSecurityConfig`). Тесты — `DatasourceConfigValidatorTest`.
 
+Гард включён по умолчанию (`app.datasource.prod-guard=true`,
+`@ConditionalOnProperty matchIfMissing=true`) — реальный prod всегда
+защищён. Отключается через `app.datasource.prod-guard=false`: это нужно
+prod-profile IT'ам (`GuestAccessProdProfileIT`,
+`ActuatorSecurityProdProfileIT`, `SecurityHeadersProdProfileIT`), где
+датасорс приходит из Testcontainers `@ServiceConnection` (`localhost:<port>`)
+— иначе гард либо отверг бы localhost-URL, либо упал бы на неразрешённом
+placeholder `${SPRING_DATASOURCE_URL}` (env в тестах не задан). Эти ITы
+проверяют prod-*security*, а не datasource-гард, поэтому опт-аут безопасен
+(сам гард покрыт `DatasourceConfigValidatorTest`). В prod-деплое property
+не выставляется → гард активен.
+
 ### Сводный список required prod env
 
 `AUTH_JWT_SECRET` (≥256 бит, `openssl rand -hex 32`),

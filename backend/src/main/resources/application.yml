@@ -14,7 +14,9 @@ spring:
   # profile (ниже) переопределяет эти три значения захардкоженными dev-
   # кредами, поэтому `./mvnw spring-boot:run` (default profile=local)
   # работает без env. DatasourceConfigValidator дополнительно ловит
-  # случай "prod-profile активен, но URL указывает на localhost/dev-БД".
+  # случай "prod-profile активен, но URL указывает на localhost/dev-БД"
+  # (включён по умолчанию; prod-profile IT'ы отключают его через
+  # app.datasource.prod-guard=false — датасорс там из Testcontainers).
   datasource:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
