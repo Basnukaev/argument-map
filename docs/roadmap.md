@@ -212,11 +212,15 @@
 
 ## Активные этапы
 
-### Этап 30. Курация данных — overlay hd_field_overrides (ADR-065)
+### Этап 30. Курация данных — overlay hd_field_overrides (ADR-065) ✅ ЗАКРЫТ (С65)
 
 P0-1 (реимпорт затирает правки) + FB-5 (править/скрывать вторичные
 данные при защите первоисточника). Спека:
 `docs/specs/2026-06-18-data-curation-overlay.md` (фазы 0-6).
+**Весь эпик (фазы 0-6) закрыт в С65, 4 независимых review — все APPROVE.**
+Остаток (не блокеры): Фаза 5.b (sanad-UI, transmission_phrase),
+effective-facet JOIN (§10), пара Minor из ревью Фазы 6 — в backlog/коде.
+(детали фаз ниже — свернуть в строку при следующей доc-гигиене)
 
 - [x] **P0-1a** merge-страховка перевода матна (Сессия 64-cont, `f7b6fb5`)
 - [x] **Фаза 1** схема + repo + домен (Сессия 65) — миграция 78
@@ -249,7 +253,13 @@ P0-1 (реимпорт затирает правки) + FB-5 (править/с�
       (позиц. корректность 5 рекордов verified field-by-field). **5.b отложено:**
       sanad-UI (только в RF-графе) + `hd_sanad_narrators.transmission_phrase`
       (композитный ключ) + `ExplanationDto.author_death_year` не surface'ится
-- [ ] **Фаза 6** миграция C9-перевода в overlay + снять P0-1a → review
+- [x] **Фаза 6** (Сессия 65, `1d5017c`+`6a9e2eb`) C9-перевод матна → overlay
+      по СТАБИЛЬНОМУ ключу `(hadith_id, is_primary)` (синтетические
+      `primary_text_ru/en` на entity_id=hadith_id); migration 79 (idempotent,
+      non-destructive); C9 `editTranslation` пишет overlay; P0-1a снят
+      (`findPrimaryByHadithId` удалён). Review **APPROVE 0 Crit/Imp, 2 Minor**
+      (guard primary_text_* на generic-эндпоинте закрыт). HEADLINE-IT:
+      перевод выживает реимпорт. **ЭПИК ЗАКРЫТ.**
 
 ### Этап 18. Library frontend - оставшиеся подэтапы
 

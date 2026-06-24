@@ -9,14 +9,15 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
-## 2026-06-24 - Сессия 65 - ЭПИК КУРАЦИИ Фазы 1-5 + Tiptap-RTL-фикс
+## 2026-06-24 - Сессия 65 - ЭПИК КУРАЦИИ ЗАКРЫТ (фазы 0-6) + Tiptap RTL/polish
 
 Автопилот: «посмотри прогресс/беклог, делай всё, на перепутье — best practice».
 Приоритет из С64 был однозначен — **эпик курации данных** (P0-1 + FB-5), спека
 `docs/specs/2026-06-18-data-curation-overlay.md` (фазы 0-6, ADR-065 заготовлен).
 Фаза 0 (P0-1a merge-страховка перевода) была закрыта в С64-cont. Эта сессия
-закрыла **Фазы 1-5 + 3 review-чекпоинта** (пилот / hide-show / сателлиты) +
-**Tiptap-RTL-фикс** (отдельный баг Абдулы). ~17 коммитов. После «далее» пилот
+закрыла **ВЕСЬ ЭПИК (фазы 1-6) + 4 review-чекпоинта** (пилот / hide-show /
+сателлиты / C9-overlay — ВСЕ APPROVE) + **2 Tiptap-фикса** (RTL-рендеринг +
+AI-кнопка/ayah-box polish — баги Абдулы по скринам). ~22 коммита. После «далее» пилот
 (1-3) продолжен Фазами 4-5; затем по скринам Абдулы — Tiptap-Arabic-фикс.
 
 ### Что построено (механизм)
@@ -83,8 +84,23 @@ hd_* **не трогаем** — правки/скрытия живут в overl
   `dir="auto"` на каждый блок (parseHTML null → JSON не меняется) + dir=auto на
   кастом-нодах + `unicode-bidi: isolate` на ayah/hadith-box. Playwright RU+AR
   verified. tsc/lint 0, vitest 904.
+- **Фаза 6** (`1d5017c` + review-fix `6a9e2eb`): **C9-перевод матна → overlay,
+  ЭПИК ЗАКРЫТ.** Ключ СТАБИЛЬНЫЙ `(hadith_id, is_primary)` — синтетические
+  `primary_text_ru/en` на entity_id=hadith_id (НЕ matn.id, он меняется на
+  реимпорте). migration 79 (data-migration text_ru/en примарных матнов →
+  overlay; idempotent NOT EXISTS; non-destructive — колонки НЕ зануляет;
+  на dev мигрировал 3 перевода). `applyMatns`/`applyWithPrimaryTranslation`
+  (СОЗНАТЕЛЬНО не через applyAndHide — его empty-set early-return съел бы
+  hadith-keyed перевод). C9 `editTranslation` пишет overlay @Transactional+
+  audit (primary→hadith-key, non-primary→matn.id). P0-1a снят
+  (`findPrimaryByHadithId` удалён, AlminasaHadithMapper не переносит перевод).
+  Review APPROVE 0 Crit/Imp; guard primary_text_* на generic-эндпоинте.
+- **Tiptap-polish** (`f5405ab`): AI-кнопка из бледной → solid indigo;
+  ayah/hadith-box ornament'ы — корень: `﴿﴾` (U+FD3F/FD3E) НЕ в UI-шрифте →
+  тофу `(`; fix (font-verified): `font-family: var(--font-ar)` на pseudo +
+  перенос с углов на inline-края; hadith `«»`→ rose accent-bar + `◆`.
 
-### Review (3 чекпоинта — ВСЕ ПРОЙДЕНЫ)
+### Review (4 чекпоинта — ВСЕ APPROVE)
 **Пилот (Фазы 1-3):** независимый code-reviewer (Opus) — **APPROVE, 0 Critical,
 0 Important, 8 Minor.** Опасные инварианты подтверждены: нет утечки override в
 импорт, позиционная корректность record-конструкторов, SQL-инъекция в
@@ -102,6 +118,13 @@ record-конструкторов — проверен field-by-field проти
 + Liquibase-схемы (нет swap page/volume, первоисточник text_ar/comments
 passthrough). 2 Minor (мёртвый applyRecordHide + висячий javadoc) закрыты в
 `1de93a4`.
+**C9-overlay (Фаза 6):** независимый review — **APPROVE, 0 Critical, 0 Important,
+2 Minor + 2 Open (low).** Два высших риска — data-migration (idempotent NOT
+EXISTS / no-ADMIN-safe / non-destructive — колонки не зануляет / scoped rollback)
+и apply-корректность (решение НЕ через applyAndHide verified — иначе empty-set
+early-return съел бы hadith-keyed перевод) — выдержали adversarial. Minor #1
+(guard primary_text_* на generic-эндпоинте) закрыт `6a9e2eb`; остальное
+документировано (§10).
 
 ### Верификация
 - Backend: каждая фаза — таргетный прогон зелёный; регрессия (Hadith/Narrator
@@ -132,34 +155,38 @@ passthrough). 2 Minor (мёртвый applyRecordHide + висячий javadoc) 
   не в field-apply → field-hide пока без эффекта. Привязано к Фазе 5.
 - 12 Minor из 2 ревью — все либо закрыты, либо привязаны к Фазе 5.
 
-### Следующий шаг — Фаза 6 (миграция C9-перевода) + добор Фазы 5.b
-**Фаза 6 (нужна эскалация Абдуле, §10 в.2 — ключ перевода):** мигрировать C9
-matn-перевод в overlay по СТАБИЛЬНОМУ ключу `(hadith_id, is_primary)` — НЕ
-`matn.id` (он меняется на реимпорте). Liquibase data-migration существующих
-`hd_matns.text_ru/en != null` → override-строки; переписать PATCH
-`/hadith/matns/{id}/translation` (C9) на overlay внутри (URL сохранить, фронт
-MatnTranslateControls не трогать); снять P0-1a merge-страховку в
-`AlminasaHadithMapper`/`MatnRepository.findPrimaryByHadithId`. Review-чекпоинт.
+### Следующий шаг — ЭПИК КУРАЦИИ ЗАКРЫТ; остаток в backlog
+Эпик курации (фазы 0-6) завершён. Открытых блокеров нет. **Хвосты (backlog,
+не блокеры):**
+- **Фаза 5.b:** (1) `hd_sanad_narrators.transmission_phrase` (композ. ключ
+  `entity_id=sanad_id`, `field_name='transmission_phrase@{position}'`, спека §5);
+  (2) sanad field-edit/hide UI — sanad только в RF-графе, `SanadSummaryDto` без
+  `hiddenByAdmin`/`hideReason` (добавить + место под контролы вне графа);
+  (3) `ExplanationDto.author_death_year` не surface'ится (правка пишется, «—» на
+  показе — добавить в DTO или убрать из панели); (4) applyBool strictness.
+- **Из ревью Фазы 6 (Minor/Open, документированы):** AI-`translate` cache-check
+  по базовой колонке (после C9-overlay правки non-force translate может зря
+  дёрнуть LLM — override всё равно побеждает на чтении); cleanup-миграция
+  зануления `hd_matns.text_ru/en` (сейчас держим в обоих местах — безопасно).
+- **§10 backlog:** effective-facet JOIN (фасет-фильтр authenticity по
+  override-значению), фильтрация по всем версиям данных.
+- **Прод-готовность (PROD-READINESS-AUDIT.md, ещё открыто):** бэкап/restore БД,
+  env-плейсхолдеры DB-кредов, member-list анониму (P1-4 ADR-064).
 
-**Добор Фазы 5.b (мелкое, можно попутно):** (1) `hd_sanad_narrators.
-transmission_phrase` — композитный ключ `entity_id=sanad_id`,
-`field_name='transmission_phrase@{position}'` (см. спека §5); (2) sanad field-
-edit/hide UI — сейчас sanad только в RF-графе, `SanadSummaryDto` без
-`hiddenByAdmin`/`hideReason` (добавить + место под контролы вне графа);
-(3) `ExplanationDto.author_death_year` не surface'ится (правка пишется, но «—»
-на показе — либо добавить в DTO, либо убрать из editable-панели); (4) applyBool
-strictness (OverrideSet — пометка стоит).
+Новое направление — спросить Абдулу (курация дала инструменты; контент/прод/
+новая фича).
 
 **Ручная проверка (Абдуле) — залогинься ADMIN:**
-1. **Tiptap (приоритет — твой баг):** `/admin/library/pages/{id}/edit` в RU UI —
-   арабская пунктуация (`.`/`:`) на месте (конец предложения), ayah-box без
-   артефактных `(`; переключи на AR UI — без регресса. И read-only в ридере
-   книги. **Глянь RTL глазами** (headless ≠ реальный браузер).
-2. **Курация:** hadith/narrator detail — карандаши у бейджей/полей; вкладки
-   «Вердикты»/«Шарх»/«Иляль»/«Гариб» + «Параллельные тексты» (матны) — блок
-   «Правка полей» (карандаши) + `EyeOff` «Скрыть» (reason→пилюля); «Оценки
-   учёных» рави. Выйди из ADMIN — ни карандашей, ни «Скрыть», скрытые записи
-   не приходят. RTL-вёрстка сетки «Правка полей» с арабскими значениями.
+1. **Tiptap (2 фикса):** `/admin/library/pages/{id}/edit` в RU UI — арабская
+   пунктуация на месте; **AI-кнопка** теперь solid indigo (видна); **ayah-box**
+   с золотыми `﴿ ﴾` по краям (не `(` в углу), **hadith-box** с rose-баром+`◆`;
+   переключи AR UI + dark — без регресса. И ридер книги. RTL глазами.
+2. **Курация (весь эпик):** hadith/narrator detail — карандаши у бейджей/полей;
+   вкладки «Вердикты»/«Шарх»/«Иляль»/«Гариб» + «Параллельные тексты» (матны) —
+   «Правка полей» + `EyeOff` «Скрыть» (reason→пилюля); «Оценки учёных» рави.
+   **Перевод матна** (C9 «Перевод RU/EN») правится и теперь живёт в overlay
+   (переживёт реимпорт). Выйди из ADMIN — ни карандашей, ни «Скрыть», скрытые
+   записи не приходят. RTL-вёрстка сетки «Правка полей».
 
 ## 2026-06-24 - Сессия 64 (cont.) - автопилот бэклога (OMC-оркестрация)
 
