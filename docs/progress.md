@@ -99,6 +99,15 @@ hd_* **не трогаем** — правки/скрытия живут в overl
   ayah/hadith-box ornament'ы — корень: `﴿﴾` (U+FD3F/FD3E) НЕ в UI-шрифте →
   тофу `(`; fix (font-verified): `font-family: var(--font-ar)` на pseudo +
   перенос с углов на inline-края; hadith `«»`→ rose accent-bar + `◆`.
+- **Reading-font фикс** (`19517f0`): «Арабский шрифт» не менял текст книги,
+  «Шрифт интерфейса» — менял. Корень: FontPairEffect писал алиас `--font-arabic`,
+  контент читает базу `--font-ar`; формат-контент шёл через `.prose`/--font-serif
+  (unlayered бил `font-naskh`). Fix: контрол пишет `--font-ar`; reader-контент →
+  `.prose-arabic`. Декаплинг verified (computed font-family). 15 тестов.
+- **turuq-PNG gate** (`9305246`): чёрные боксы — не репро (FB-7a уже покрывал);
+  defensive `visibleTransmissionPhrase` гейтит whitespace-only chip'ы. + закрыт
+  стейл-пункт usePagedList M-1 (issuedPage уже убран). Остаток бэклога —
+  gated/ADR/эскалации/эпики (Абдуле выбрать направление).
 
 ### Review (4 чекпоинта — ВСЕ APPROVE)
 **Пилот (Фазы 1-3):** независимый code-reviewer (Opus) — **APPROVE, 0 Critical,
