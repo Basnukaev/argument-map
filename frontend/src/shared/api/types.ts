@@ -1748,6 +1748,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/hadith/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["health"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/archive-org/preview": {
         parameters: {
             query?: never;
@@ -3671,6 +3687,26 @@ export interface components {
             totalPages?: number;
             hasNext?: boolean;
             hasPrev?: boolean;
+        };
+        HadithDataHealthResponse: {
+            /** Format: int64 */
+            totalHadiths?: number;
+            /** Format: int64 */
+            hadithsNullAuthenticity?: number;
+            /** Format: int64 */
+            hadithsWithoutSanad?: number;
+            /** Format: int64 */
+            hadithsWithoutMatn?: number;
+            /** Format: int64 */
+            hadithsNullCollection?: number;
+            /** Format: int64 */
+            totalNarrators?: number;
+            /** Format: int64 */
+            narratorsNullTabaqa?: number;
+            /** Format: int64 */
+            narratorsUnknownReliability?: number;
+            /** Format: int64 */
+            narratorsNullGradeText?: number;
         };
         ArchiveOrgPreview: {
             archiveOrgId?: string;
@@ -7471,6 +7507,31 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["PagedResponseStagingBookSearchResponse"];
+                };
+            };
+        };
+    };
+    health: {
+        parameters: {
+            query: {
+                currentUserId: string;
+            };
+            header?: {
+                /** @description UUID пользователя (ADR-040 dev/test fallback). В prod использовать Authorization: Bearer <jwt> */
+                "X-User-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["HadithDataHealthResponse"];
                 };
             };
         };
