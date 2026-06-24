@@ -101,6 +101,22 @@ public class SecurityConfig {
                             .permitAll();
                     // CORS preflight - всегда permit
                     auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
+                    // ADR-064 follow-up (P1-4, PROD-READINESS-AUDIT §6.2):
+                    // member-list GET вынесен ИЗ guest permitAll обратно за
+                    // authenticated(). Под широким GET-глобом ниже список
+                    // участников ПУБЛИЧНОЙ темы/книги (username/UUID) утекал
+                    // анониму — это закрытый ADR-064 открытый вопрос. Matcher
+                    // стоит РАНЬШЕ guest-permitAll и dev /api/** permitAll
+                    // (Spring first-match-wins), поэтому правило действует и в
+                    // prod, и в dev/test. Аноним → 401; любой authenticated →
+                    // дальше работает per-entity RBAC (assertCanRead). Фронт
+                    // member-list анониму не зовёт, поломки UX нет. Только GET:
+                    // POST/PATCH/DELETE под /members и так падают в
+                    // anyRequest().authenticated().
+                    auth.requestMatchers(HttpMethod.GET,
+                                         "/api/v1/topics/*/members",
+                                         "/api/v1/library/books/*/members")
+                            .authenticated();
                     // Guest view (roadmap 49.G / Vision 49d Section 2.5):
                     // read-only GET публичного контента доступен анониму во
                     // ВСЕХ профилях (включая prod). Покрывает темы, хадисы

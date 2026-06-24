@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.TestcontainersConfiguration;
+import ru.basnukaev.argumentmap.auth.domain.User;
+import ru.basnukaev.argumentmap.auth.service.JwtService;
 
 /**
  * Guest view (roadmap 49.G / Vision 49d Section 2.5) - анонимный публичный
@@ -61,6 +64,9 @@ class GuestAccessProdProfileIT {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private JwtService jwtService;
 
     private UUID ownerId;
     private UUID publicTopicId;
@@ -104,6 +110,17 @@ class GuestAccessProdProfileIT {
                 "INSERT INTO lib_books (id, book_type, title, language, created_by, visibility) "
                         + "VALUES (?, 'BOOK', ?, 'ar', ?, 'PUBLIC')",
                 publicBookId, "Публичная книга", ownerId);
+
+        // Член ПУБЛИЧНОЙ темы и книги — для проверки P1-4 (ADR-064 follow-up):
+        // member-list НЕ должен утекать анониму, даже если тема/книга PUBLIC.
+        jdbcTemplate.update(
+                "INSERT INTO topic_members (id, topic_id, user_id, role, added_by) "
+                        + "VALUES (?, ?, ?, 'MEMBER', ?)",
+                UUID.randomUUID(), publicTopicId, ownerId, ownerId);
+        jdbcTemplate.update(
+                "INSERT INTO lib_book_members (id, book_id, user_id, role, added_by) "
+                        + "VALUES (?, ?, ?, 'MEMBER', ?)",
+                UUID.randomUUID(), publicBookId, ownerId, ownerId);
     }
 
     @Test
@@ -196,5 +213,56 @@ class GuestAccessProdProfileIT {
         // /auth/me всегда authenticated() - guest view его не трогает.
         mockMvc.perform(get("/api/v1/auth/me"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void anonymous_listPublicTopicMembers_returns401_notLeaked() throws Exception {
+        // P1-4 (ADR-064 follow-up): даже у PUBLIC темы member-list вынесен из
+        // guest permitAll за authenticated(). Аноним → 401 на Spring-гейте,
+        // username/UUID участников не утекают (раньше было 200).
+        mockMvc.perform(get("/api/v1/topics/{id}/members", publicTopicId))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.type").value(containsString("unauthorized")));
+    }
+
+    @Test
+    void authenticated_listPublicTopicMembers_returns200() throws Exception {
+        // С Bearer токеном правило authenticated() проходит; дальше per-entity
+        // RBAC (assertCanRead) пускает к PUBLIC-теме → список членов виден.
+        mockMvc.perform(get("/api/v1/topics/{id}/members", publicTopicId)
+                        .header("Authorization", "Bearer " + bearerFor(ownerId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].userId").value(ownerId.toString()));
+    }
+
+    @Test
+    void anonymous_listPublicBookMembers_returns401_notLeaked() throws Exception {
+        // Зеркало topics: member-list книги тоже за authenticated().
+        mockMvc.perform(get("/api/v1/library/books/{id}/members", publicBookId))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.type").value(containsString("unauthorized")));
+    }
+
+    @Test
+    void authenticated_listPublicBookMembers_returns200() throws Exception {
+        mockMvc.perform(get("/api/v1/library/books/{id}/members", publicBookId)
+                        .header("Authorization", "Bearer " + bearerFor(ownerId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].userId").value(ownerId.toString()));
+    }
+
+    /**
+     * Bearer access-токен для существующего пользователя. В prod profile нет
+     * XUserIdFilter, поэтому authenticated()-кейсы используют реальный JWT.
+     */
+    private String bearerFor(UUID userId) {
+        Instant now = Instant.now();
+        User user = new User(userId, "user-" + userId, userId + "@example.com",
+                null, "USER", true, now, now);
+        return jwtService.generateAccessToken(user);
     }
 }

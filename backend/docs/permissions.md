@@ -26,7 +26,12 @@ bypass всех visibility checks.
 - **Topic members** - `TopicMemberService` + REST endpoints
   `/api/v1/topics/{id}/members[/...]`. Только owner может add/update
   role/remove (EDITOR не может - privilege escalation). MEMBER может
-  удалить только себя (self-leave)
+  удалить только себя (self-leave). **`GET .../members` — authenticated-only**
+  (ADR-064 follow-up, P1-4): вынесен из guest-view permitAll в
+  `SecurityConfig` правилом `requestMatchers(GET, "/api/v1/topics/*/members")
+  .authenticated()` (раньше guest-глоба → действует в prod и dev/test). Аноним
+  → 401, иначе username/UUID участников PUBLIC темы утекали бы. За гейтом всё
+  ещё работает per-entity `assertCanRead`
 - **Audit log** (кто что менял когда + permission changes) - **отложен**.
   Сейчас trace только через `revisions` для контента и стандартный
   request log
@@ -50,7 +55,9 @@ ETL и старые user-uploads - open library. Новые user-uploads чер�
 - **Book members** - `BookMemberService` + REST
   `/api/v1/library/books/{id}/members[/...]`. Mirror TopicMember (owner
   add/update/remove, MEMBER self-leave). `BookMemberRepository` mirror
-  TopicMemberRepository
+  TopicMemberRepository. **`GET .../members` — authenticated-only** (зеркало
+  topics, ADR-064 follow-up P1-4): `requestMatchers(GET,
+  "/api/v1/library/books/*/members").authenticated()` раньше guest-глоба
 - **BookRepository** - `findVisibleToUserPage` / `countVisibleToUser`
   для visibility filter (PUBLIC OR created_by=? OR SHARED+EXISTS
   lib_book_members). Старый `findPage` без filter оставлен для

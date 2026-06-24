@@ -6775,6 +6775,20 @@ read-guard'а — любой authed читал страницы PRIVATE-книг
 (PRIVATE закрыт) выбран; если member-list нежелателен анониму — вернуть за
 `authenticated()` (фронт его анониму не зовёт), без риска.
 
+**Amendment (Сессия 65, P1-4, PROD-READINESS-AUDIT §6.2 / §7): member-list
+закрыт за `authenticated()`.** Открытый вопрос выше разрешён в сторону
+закрытия утечки. `SecurityConfig` выносит `GET /api/v1/topics/*/members` и
+`GET /api/v1/library/books/*/members` ИЗ guest permitAll правилом
+`requestMatchers(GET, ...).authenticated()`, поставленным РАНЬШЕ guest-глоба и
+dev `/api/** permitAll` (Spring first-match-wins → действует в prod и dev/test).
+Аноним → 401; любой authenticated → дальше per-entity RBAC (`assertCanRead`).
+Утечка username/UUID участников PUBLIC темы/книги анониму закрыта. Регресс —
+`GuestAccessProdProfileIT` (anonymous members→401, authenticated members→200,
+topics + books). Только GET: POST/PATCH/DELETE под `/members` и так были за
+`authenticated()`. Дальнейшее ужесточение (member-role-only вместо любого
+authenticated) — опциональная product-политика, не делаем: floor = закрытие
+утечки. Export PUBLIC-контента оставлен открытым (не leak участников).
+
 **Связанные:** ADR-040 (auth transitional), ADR-043 (RBAC visibility).
 
 ## ADR-065: Overlay-таблица hd_field_overrides для курации данных hadith-домена (миграция 78)
