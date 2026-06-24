@@ -119,6 +119,14 @@ public class CurationOverrideService {
 
     private void validateField(OverrideEntity entity, String field, boolean hidden,
                                boolean isNull, boolean hasValue, String value) {
+        // синтетические ключи перевода primary-матна (Фаза 6) пишутся ТОЛЬКО через
+        // C9 editTranslation по СТАБИЛЬНОМУ hadith_id-ключу. Generic-эндпоинт
+        // ключует override по entity_id из тела (= matn.id), создав мёртвую строку,
+        // которую applyWithPrimaryTranslation игнорирует (резолвит по hadith_id) →
+        // 400, чтобы не плодить молча-битые overrides.
+        if (FieldOverride.PRIMARY_TEXT_RU.equals(field) || FieldOverride.PRIMARY_TEXT_EN.equals(field)) {
+            throw CurationException.fieldNotEditable(field);
+        }
         if (hidden && !CurationWhitelist.isHideAllowed(entity, field)) {
             throw CurationException.fieldNotEditable(field);
         }

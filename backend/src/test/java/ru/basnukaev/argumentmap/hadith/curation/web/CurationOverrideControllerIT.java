@@ -161,6 +161,18 @@ class CurationOverrideControllerIT {
     }
 
     @Test
+    void PUT_syntheticPrimaryTranslationKey_returns400() throws Exception {
+        // primary_text_ru/en пишутся ТОЛЬКО через C9 (по hadith_id-ключу);
+        // generic-эндпоинт с ними → 400 (иначе мёртвый override по matn.id)
+        String synthetic = "{\"entityTable\":\"hd_matns\",\"entityId\":\"" + UUID.randomUUID()
+                + "\",\"fieldName\":\"primary_text_ru\",\"value\":\"перевод\"}";
+        mockMvc.perform(put(URL).header("X-User-Id", adminId.toString())
+                        .contentType("application/json").content(synthetic))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type", Matchers.containsString("curation-field-not-editable")));
+    }
+
+    @Test
     void GET_list_returnsOverridesOfEntity() throws Exception {
         mockMvc.perform(put(URL).header("X-User-Id", adminId.toString())
                 .contentType("application/json")
