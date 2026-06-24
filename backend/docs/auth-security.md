@@ -119,3 +119,64 @@ defense-in-depth: если prod-profile активен, но resolved URL ука
 `ACTUATOR_USERNAME` / `ACTUATOR_PASSWORD`, `SPRING_DATASOURCE_URL` /
 `SPRING_DATASOURCE_USERNAME` / `SPRING_DATASOURCE_PASSWORD`. Все три
 группы fail-fast на старте в prod profile, если не заданы.
+
+`APP_CORS_ALLOWED_ORIGINS` — **опционально** (см. «CORS (P1-5 verified)»
+ниже). Не задан → CORS отключён полностью, что безопасно для prod
+same-origin развёртывания (фронт и API за одним reverse proxy). Задаётся
+только если фронт обслуживается с отдельного домена.
+
+## CORS (P1-5 verified)
+
+CORS сконфигурирован в `config/WebMvcConfig.addCorsMappings` (Spring MVC
+`CorsRegistry`, не отдельный `CorsConfigurationSource`). Проверено прямым
+чтением — **дыры нет**, конфиг безопасен как есть. Никаких `@CrossOrigin`
+аннотаций в кодовой базе.
+
+### Источник origin'ов — env/property-driven, default закрыт
+
+`WebMvcConfig` читает `${app.cors.allowed-origins:}` (env
+`APP_CORS_ALLOWED_ORIGINS`), парсит как CSV в массив. **Default — пустая
+строка** → `addCorsMappings` делает early-return, не регистрируя ни одного
+mapping. То есть в prod без явно заданной env переменной **никакие
+cross-origin запросы не разрешены** (fail-closed, а не fail-open).
+
+| Profile | Источник | Origin'ы |
+|---|---|---|
+| default/prod | env `APP_CORS_ALLOWED_ORIGINS` | пусто (CORS off), либо явный whitelist |
+| `local` | `application.yml` | `http://localhost:5173,http://localhost:4173` |
+| `test` | `application.yml` | `http://localhost:5173` (для `CorsIT`) |
+
+Wildcard (`*`) **нигде не используется** — ни `allowedOrigins("*")`, ни
+`allowedOriginPatterns("*")`. Только явные origin'ы через CSV.
+
+### Credentials policy: `allowCredentials(false)` — корректно
+
+`allowCredentials(false)` выставлен явно и это **правильно** для текущей
+архитектуры, несмотря на HttpOnly refresh-cookie (ADR-040/047):
+
+- Prod-развёртывание **same-origin** — фронт-SPA и API за одним reverse
+  proxy на одном домене (см. `frontend/src/shared/api/client.ts`:
+  `API_BASE_URL = ''` → относительные пути, `VITE_API_URL` обычно пустой).
+- В dev тот же эффект через Vite proxy (`:5173 → :9090`), всё одно origin.
+- HttpOnly + `SameSite=Strict` refresh-cookie **по определению не шлётся
+  cross-origin** — same-origin доставляет cookie напрямую, CORS-credentials
+  для cookie-flow не нужны. Frontend шлёт `credentials: 'include'`, но это
+  работает именно потому что запросы same-origin.
+
+Поэтому опасный паттерн «`allowedOrigins("*")` + `allowCredentials(true)`»
+**не встречается и не может возникнуть** при текущей конфигурации.
+
+### Если фронт переедет на отдельный домен (будущее)
+
+Тогда (и только тогда) понадобится: задать `APP_CORS_ALLOWED_ORIGINS`
+явным whitelist (никогда `*`) **и** `allowCredentials(true)` —
+исключительно с явными origin'ами (Spring запрещает `*` + credentials на
+уровне рантайма). Сейчас это YAGNI — same-origin покрывает prod.
+
+### Тест
+
+`CorsIT` (`web/CorsIT.java`, profile `test`): allowed origin → CORS
+headers; disallowed origin → 403; same-origin/no-Origin → без CORS
+headers и работает. `allowedHeaders` включает `Range`, `exposedHeaders` —
+`Content-Range/Accept-Ranges/Content-Length` для react-pdf range
+requests.
