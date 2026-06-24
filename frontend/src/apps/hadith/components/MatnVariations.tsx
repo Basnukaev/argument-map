@@ -1,10 +1,15 @@
 import { useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, EyeOff } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import { useT } from '@/shared/i18n';
 import MatnDiff from '@/apps/hadith/components/MatnDiff';
 import MatnTranslateControls from '@/apps/hadith/components/MatnTranslateControls';
+import HideToggle from '@/apps/hadith/components/curation/HideToggle';
+import CurationFieldsPanel, {
+  type CurationFieldSpec,
+} from '@/apps/hadith/components/curation/CurationFieldsPanel';
 import { hasWordDiff } from '@/apps/hadith/utils/matnDiff';
+import type { AuthRole } from '@/shared/stores/authStore';
 import type { MatnDto } from '@/apps/hadith/types';
 
 /**
@@ -17,11 +22,17 @@ function MatnItem({
   matn,
   primary,
   hideTranslate,
+  role,
+  onChanged,
 }: {
   matn: MatnDto;
   primary: MatnDto | null;
   /** Контролы перевода уже показаны у hero-матна страницы — не дублируем. */
   hideTranslate?: boolean;
+  /** Роль зрителя — гейт ADMIN record-hide + правки полей (курация Фаза 5). */
+  role: string | undefined;
+  /** Рефетч detail после скрытия/правки записи. */
+  onChanged: () => void;
 }) {
   const t = useT();
   const [open, setOpen] = useState(matn.isPrimary);
@@ -33,8 +44,42 @@ function MatnItem({
   // Превью первой строки для свёрнутого состояния (быстрая идентификация).
   const preview = matn.textAr.slice(0, 80);
 
+  // §5-редактируемые поля вариации (ADMIN inline-правка, курация Фаза 5).
+  // text_ar НЕ редактируем (first-source); text_ru/text_en — через
+  // MatnTranslateControls (C9), не дублируем.
+  const editFields: CurationFieldSpec[] = [
+    { label: t('hadith.curation.field.printed_number'), fieldName: 'printed_number', value: matn.printedNumber, kind: 'number' },
+    { label: t('hadith.curation.field.page_no'), fieldName: 'page_no', value: matn.pageNo, kind: 'number' },
+    { label: t('hadith.curation.field.volume'), fieldName: 'volume', value: matn.volume, kind: 'number' },
+    { label: t('hadith.curation.field.divergence_summary'), fieldName: 'divergence_summary', value: matn.divergenceSummary, kind: 'text' },
+  ];
+
   return (
-    <Card className="overflow-hidden">
+    <Card className={`overflow-hidden ${matn.hiddenByAdmin ? 'opacity-50' : ''}`}>
+      {/* ADMIN record-hide (курация Фаза 5): пилюля причины + тогл показать/скрыть. */}
+      {(matn.hiddenByAdmin || role) && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-3">
+          {matn.hiddenByAdmin ? (
+            <div className="inline-flex items-center gap-1.5 rounded-sm bg-rose-50 px-1.5 py-0.5 text-xs text-rose-700">
+              <EyeOff size={12} aria-hidden />
+              <span dir="auto">
+                {t('hadith.curation.hidden_by_admin')}
+                {matn.hideReason ? `: ${matn.hideReason}` : ''}
+              </span>
+            </div>
+          ) : (
+            <span />
+          )}
+          <HideToggle
+            entityTable="hd_matns"
+            entityId={matn.id}
+            hiddenByAdmin={matn.hiddenByAdmin}
+            hideReason={matn.hideReason}
+            role={role}
+            onChanged={onChanged}
+          />
+        </div>
+      )}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -99,7 +144,12 @@ function MatnItem({
           )}
 
           {!hideTranslate && (
-            <MatnTranslateControls matnId={matn.id} textRu={matn.textRu} textEn={matn.textEn} />
+            <MatnTranslateControls
+              matnId={matn.id}
+              textRu={matn.textRu}
+              textEn={matn.textEn}
+              role={role as AuthRole | null | undefined}
+            />
           )}
           {matn.divergenceSummary && (
             <p className="mt-2 text-xs italic text-ink-500" dir="auto">
@@ -108,6 +158,15 @@ function MatnItem({
           )}
         </div>
       )}
+      <div className="px-4 pb-3">
+        <CurationFieldsPanel
+          entityTable="hd_matns"
+          entityId={matn.id}
+          fields={editFields}
+          role={role}
+          onChanged={onChanged}
+        />
+      </div>
     </Card>
   );
 }
@@ -120,10 +179,16 @@ function MatnItem({
 function MatnVariations({
   matns,
   translateInHeroForId,
+  role,
+  onChanged,
 }: {
   matns: MatnDto[];
   /** id матна, чьи переводы уже рендерит hero-секция страницы (без дубля). */
   translateInHeroForId?: string | null;
+  /** Роль зрителя — гейт ADMIN record-hide + правки полей (курация Фаза 5). */
+  role?: string | undefined;
+  /** Рефетч detail после скрытия/правки записи (no-op по умолчанию). */
+  onChanged?: () => void;
 }) {
   const t = useT();
   const primary = matns.find((m) => m.isPrimary) ?? null;
@@ -136,7 +201,13 @@ function MatnVariations({
     <ul className="space-y-3">
       {matns.map((m) => (
         <li key={m.id}>
-          <MatnItem matn={m} primary={primary} hideTranslate={m.id === translateInHeroForId} />
+          <MatnItem
+            matn={m}
+            primary={primary}
+            hideTranslate={m.id === translateInHeroForId}
+            role={role}
+            onChanged={onChanged ?? (() => {})}
+          />
         </li>
       ))}
     </ul>

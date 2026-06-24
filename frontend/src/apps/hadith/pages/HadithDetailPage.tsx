@@ -760,6 +760,8 @@ function HadithDetailPage() {
                   <MatnVariations
                     matns={detail.matns}
                     translateInHeroForId={primaryMatn?.id ?? null}
+                    role={userRole}
+                    onChanged={refetchDetail}
                   />
                 </section>
               )}

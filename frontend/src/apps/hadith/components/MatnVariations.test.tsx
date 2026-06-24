@@ -16,6 +16,8 @@ function matn(p: Partial<MatnDto>): MatnDto {
     volume: null,
     isPrimary: false,
     divergenceSummary: null,
+    hiddenByAdmin: false,
+    hideReason: null,
     ...p,
   };
 }

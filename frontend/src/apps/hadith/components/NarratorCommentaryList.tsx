@@ -2,6 +2,9 @@ import { EyeOff } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import { useT } from '@/shared/i18n';
 import HideToggle from '@/apps/hadith/components/curation/HideToggle';
+import CurationFieldsPanel, {
+  type CurationFieldSpec,
+} from '@/apps/hadith/components/curation/CurationFieldsPanel';
 import type { NarratorCommentaryDto } from '@/apps/hadith/types';
 
 /**
@@ -29,6 +32,17 @@ function NarratorCommentaryItem({
   ]
     .filter((p): p is string => Boolean(p))
     .join(' · ');
+
+  // §5-редактируемые поля оценки о передатчике (ADMIN inline-правка, курация
+  // Фаза 5). `comments` НЕ редактируем — first-source, бэкенд 400-ит.
+  const editFields: CurationFieldSpec[] = [
+    { label: t('hadith.curation.field.commenter'), fieldName: 'commenter', value: commentary.commenter, kind: 'text' },
+    { label: t('hadith.curation.field.commenter_death_year'), fieldName: 'commenter_death_year', value: commentary.commenterDeathYear, kind: 'number' },
+    { label: t('hadith.curation.field.book_name'), fieldName: 'book_name', value: commentary.bookName, kind: 'text' },
+    { label: t('hadith.curation.field.author'), fieldName: 'author', value: commentary.author, kind: 'text' },
+    { label: t('hadith.curation.field.page'), fieldName: 'page', value: commentary.page, kind: 'number' },
+    { label: t('hadith.curation.field.volume'), fieldName: 'volume', value: commentary.volume, kind: 'number' },
+  ];
 
   return (
     <Card className={`p-4 ${commentary.hiddenByAdmin ? 'opacity-50' : ''}`}>
@@ -91,6 +105,13 @@ function NarratorCommentaryItem({
           {cite}
         </div>
       )}
+      <CurationFieldsPanel
+        entityTable="hd_narrator_commentaries"
+        entityId={commentary.id}
+        fields={editFields}
+        role={role}
+        onChanged={onChanged}
+      />
     </Card>
   );
 }

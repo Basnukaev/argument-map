@@ -235,6 +235,10 @@ export interface MatnDto {
   volume: number | null;
   isPrimary: boolean;
   divergenceSummary: string | null;
+  /** ADMIN скрыл вариацию (курация Фаза 5) — обычный читатель её не получает. */
+  hiddenByAdmin: boolean;
+  /** Причина скрытия (видна только ADMIN). */
+  hideReason: string | null;
 }
 
 /** HadithResponse (thin) — для списка «передал хадисов». */

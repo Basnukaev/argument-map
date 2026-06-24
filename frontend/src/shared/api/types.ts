@@ -3525,6 +3525,8 @@ export interface components {
             volume?: number;
             isPrimary?: boolean;
             divergenceSummary?: string;
+            hiddenByAdmin?: boolean;
+            hideReason?: string;
         };
         NarratorLinkDto: {
             /** Format: int32 */
@@ -3563,6 +3565,8 @@ export interface components {
             compiledInBookId?: string;
             primaryChain?: boolean;
             narrators?: components["schemas"]["NarratorLinkDto"][];
+            hiddenByAdmin?: boolean;
+            hideReason?: string;
         };
         CollectionResponse: {
             /** Format: uuid */

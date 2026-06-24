@@ -3,6 +3,9 @@ import { ChevronDown, EyeOff } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import { useT } from '@/shared/i18n';
 import HideToggle from '@/apps/hadith/components/curation/HideToggle';
+import CurationFieldsPanel, {
+  type CurationFieldSpec,
+} from '@/apps/hadith/components/curation/CurationFieldsPanel';
 import type { ExplanationDto } from '@/apps/hadith/types';
 
 /** Вариант карточки = семантика секции. SHARH/ILAL делят раскладку «книга/автор
@@ -22,6 +25,19 @@ function HiddenPill({ reason }: { reason: string | null }) {
       </span>
     </div>
   );
+}
+
+/** §5-редактируемые поля толкования (ADMIN inline-правка, курация Фаза 5).
+ *  `text`/`author`/book/page/volume — общие для SHARH/ILAL/GHARIB. */
+function editFieldsFor(exp: ExplanationDto, t: ReturnType<typeof useT>): CurationFieldSpec[] {
+  return [
+    { label: t('hadith.curation.field.explanation_text'), fieldName: 'text', value: exp.text, kind: 'text' },
+    { label: t('hadith.curation.field.author'), fieldName: 'author', value: exp.author, kind: 'text' },
+    { label: t('hadith.curation.field.author_death_year'), fieldName: 'author_death_year', value: null, kind: 'number' },
+    { label: t('hadith.curation.field.book_name'), fieldName: 'book_name', value: exp.bookName, kind: 'text' },
+    { label: t('hadith.curation.field.page'), fieldName: 'page', value: exp.page, kind: 'number' },
+    { label: t('hadith.curation.field.volume'), fieldName: 'volume', value: exp.volume, kind: 'number' },
+  ];
 }
 
 /** Цитата «т.N · с.M» — общая для всех вариантов карточки. */
@@ -103,6 +119,15 @@ function BookHeadedItem({
         />
       </button>
       {exp.text && <CollapsibleText text={exp.text} open={open} />}
+      <div className="px-4 pb-3">
+        <CurationFieldsPanel
+          entityTable="hd_explanations"
+          entityId={exp.id}
+          fields={editFieldsFor(exp, t)}
+          role={role}
+          onChanged={onChanged}
+        />
+      </div>
     </Card>
   );
 }
@@ -169,6 +194,15 @@ function GharibItem({
         />
       </button>
       {exp.text && <CollapsibleText text={exp.text} open={open} />}
+      <div className="px-4 pb-3">
+        <CurationFieldsPanel
+          entityTable="hd_explanations"
+          entityId={exp.id}
+          fields={editFieldsFor(exp, t)}
+          role={role}
+          onChanged={onChanged}
+        />
+      </div>
     </Card>
   );
 }

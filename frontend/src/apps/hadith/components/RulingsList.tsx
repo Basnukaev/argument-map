@@ -3,6 +3,9 @@ import { ArrowRight, EyeOff } from 'lucide-react';
 import Card from '@/shared/components/ui/Card';
 import { useT } from '@/shared/i18n';
 import HideToggle from '@/apps/hadith/components/curation/HideToggle';
+import CurationFieldsPanel, {
+  type CurationFieldSpec,
+} from '@/apps/hadith/components/curation/CurationFieldsPanel';
 import type { RulingDto } from '@/apps/hadith/types';
 
 /**
@@ -34,6 +37,16 @@ function RulingItem({
   ]
     .filter((p): p is string => Boolean(p))
     .join(' · ');
+
+  // §5-редактируемые поля вердикта (ADMIN inline-правка, курация Фаза 5).
+  const editFields: CurationFieldSpec[] = [
+    { label: t('hadith.curation.field.ruling_text'), fieldName: 'ruling_text', value: ruling.rulingText, kind: 'text' },
+    { label: t('hadith.curation.field.ruler_name'), fieldName: 'ruler_name', value: ruling.rulerName, kind: 'text' },
+    { label: t('hadith.curation.field.ruler_death_year'), fieldName: 'ruler_death_year', value: ruling.rulerDeathYear, kind: 'number' },
+    { label: t('hadith.curation.field.book_name'), fieldName: 'book_name', value: ruling.bookName, kind: 'text' },
+    { label: t('hadith.curation.field.page'), fieldName: 'page', value: ruling.page, kind: 'number' },
+    { label: t('hadith.curation.field.volume'), fieldName: 'volume', value: ruling.volume, kind: 'number' },
+  ];
 
   // Вердикт на эту же запись (своя alminasa-id) — бейдж параллели не нужен.
   const selfRuling =
@@ -115,6 +128,13 @@ function RulingItem({
           />
         </span>
       </div>
+      <CurationFieldsPanel
+        entityTable="hd_rulings"
+        entityId={ruling.id}
+        fields={editFields}
+        role={role}
+        onChanged={onChanged}
+      />
     </Card>
   );
 }
