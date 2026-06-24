@@ -7,6 +7,7 @@ import {
   type EdgeProps,
 } from '@xyflow/react';
 import { pickLabelPosition, type Point } from '@/apps/argument-map/utils/orthogonalPath';
+import { visibleTransmissionPhrase } from '@/apps/hadith/utils/sanadEdge';
 
 /** Прямой ортогональный path (90°-углы без скругления) по точкам ELK. */
 function buildSharpOrthogonalPath(points: ReadonlyArray<Point>): string {
@@ -55,7 +56,9 @@ function SanadEdge(props: EdgeProps<SanadCustomEdgeType>) {
   } = props;
 
   const points = data?.points;
-  const phrase = data?.transmissionPhrase;
+  // Только НЕ-пустая (не-пробельная) формула рисует подпись-чип — см.
+  // visibleTransmissionPhrase (пустой чип → «чёрный квадратик» в PNG-экспорте).
+  const phrase = visibleTransmissionPhrase(data?.transmissionPhrase);
   const dimmed = data?.dimmed ?? false;
 
   let edgePath: string;

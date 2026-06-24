@@ -30,14 +30,15 @@
 
 ## Граф иснада — turuq «Все пути» (фаза-2 фидбек С63, FB-7)
 
-- [ ] **PNG-экспорт turuq: чёрные боксы на точках ветвления/слияния.** FB-7a
-  починил метки ОДИНОЧНОЙ цепи (формулы عن/حدثنا читаемы — CSS-vars резолвятся
-  через `withInlinedCssVars` в graphExport), но в turuq-экспорте (мульти-дерево,
-  напр. хадис `89c76e3f`, 10 цепей, 38 узлов) на branch/merge-точках остаются
-  чёрные боксы (Абдула, Image #11 С63). Это ДРУГОЙ элемент, не те labelBg, что
-  чинил FB-7a — вероятно edge с пустой `transmissionPhrase` (label='' → пустой
-  labelBg-rect) ЛИБО merge-коннектор с дефолтным fill. **Диагностировать зумом в
-  branch-точку turuq-PNG** (что за DOM-элемент), затем гейтить/стилизовать. Среднее.
+- [x] **PNG-экспорт turuq: чёрные боксы** ✅ С65 (defensive, не репро-able live).
+  Проверено С65: FB-7a `withInlinedCssVars` УЖЕ покрывает turuq-путь (общий
+  `exportGraphAsPngHighRes` для single+turuq); реальные branchy-экспорты
+  (`cbb31276` 29 узлов/6 веток, `723cd50a` 159 узлов/25 merge) чисты до и после,
+  0 near-black в DOM. Edge-strokes — hex-токены, не CSS-vars (merge-коннектор не
+  чёрный). Латентный gap (hypothesis a): `transmissionPhrase` whitespace-only
+  (`'  '`) был truthy → пустой chip = box-артефакт в PNG. Корпус: 0 whitespace-
+  phrases (потому не репро). Fix: `visibleTransmissionPhrase` предикат
+  (`utils/sanadEdge.ts`) гейтит blank → chip не рисуется. 5 unit + регрессия.
 - [x] **Граф иснада: ELK orthogonal routing** (С64) — `sanadElkLayout.ts` (layered
   DOWN, ORTHOGONAL, edgeNode/edgeEdge spacing) + `SanadCustomEdge.tsx` (рендер ELK
   bend-points через переиспользованный `orthogonalPath.ts`, подпись-формула в
@@ -703,9 +704,8 @@ DecoratedHeading / PageNumber). Что осталось доделать в edit
 пор НЕ прятать пагинацию молча, а плашка «фильтр применён к текущей странице»
 либо дизейбл с тултипом. Продуктовое решение Абдулы.
 
-## usePagedList: мёртвая проверка issuedPage в stale-guard (ревью С62, M-1, minor)
+## usePagedList: мёртвая проверка issuedPage в stale-guard ✅ ЗАКРЫТО (С65, уже убрано)
 
-В fetch-эффекте `issuedPage !== page` структурно всегда false (захваченная
-const = реактивный page, эффект пересоздаётся при смене page). Защита держится
-на `issuedGeneration` (тест зелёный). Ветка `issuedPage` вводит в заблуждение —
-убрать ИЛИ сравнивать с `pageRef.current`. Косметика, не баг.
+Проверено С65: `usePagedList.ts` stale-guard использует ТОЛЬКО
+`issuedGeneration !== generationRef.current` (ветка `issuedPage` отсутствует —
+убрана ранее). tsc 0, usePagedList 8/8, lint 0. Пункт устарел.
