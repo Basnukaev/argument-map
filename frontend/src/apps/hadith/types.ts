@@ -297,6 +297,9 @@ export interface ExplanationDto {
   kind: ExplanationKind | string | null;
   bookName: string | null;
   author: string | null;
+  /** Год смерти автора толкования (г.х., nullable) — атрибуция эпохи; курируемое
+   *  поле (whitelist author_death_year). Симметрично commenterDeathYear. */
+  authorDeathYear: number | null;
   page: number | null;
   volume: number | null;
   text: string | null;

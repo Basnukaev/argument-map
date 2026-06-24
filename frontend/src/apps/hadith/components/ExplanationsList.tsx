@@ -27,13 +27,24 @@ function HiddenPill({ reason }: { reason: string | null }) {
   );
 }
 
+/** Год смерти автора толкования — «ум. 852 г.х.» рядом с атрибуцией (Фаза 5.b).
+ *  Субтильная мета-подпись, как цитата; симметрично карточке оценки рави. */
+function AuthorDied({ year }: { year: number }) {
+  const t = useT();
+  return (
+    <span className="text-xs text-ink-400">
+      {t('hadith.detail.explanation.died').replace('{year}', String(year))}
+    </span>
+  );
+}
+
 /** §5-редактируемые поля толкования (ADMIN inline-правка, курация Фаза 5).
- *  `text`/`author`/book/page/volume — общие для SHARH/ILAL/GHARIB. */
+ *  `text`/`author`/death-year/book/page/volume — общие для SHARH/ILAL/GHARIB. */
 function editFieldsFor(exp: ExplanationDto, t: ReturnType<typeof useT>): CurationFieldSpec[] {
   return [
     { label: t('hadith.curation.field.explanation_text'), fieldName: 'text', value: exp.text, kind: 'text' },
     { label: t('hadith.curation.field.author'), fieldName: 'author', value: exp.author, kind: 'text' },
-    { label: t('hadith.curation.field.author_death_year'), fieldName: 'author_death_year', value: null, kind: 'number' },
+    { label: t('hadith.curation.field.author_death_year'), fieldName: 'author_death_year', value: exp.authorDeathYear, kind: 'number' },
     { label: t('hadith.curation.field.book_name'), fieldName: 'book_name', value: exp.bookName, kind: 'text' },
     { label: t('hadith.curation.field.page'), fieldName: 'page', value: exp.page, kind: 'number' },
     { label: t('hadith.curation.field.volume'), fieldName: 'volume', value: exp.volume, kind: 'number' },
@@ -110,6 +121,7 @@ function BookHeadedItem({
               {heading}
             </span>
           )}
+          {exp.authorDeathYear != null && <AuthorDied year={exp.authorDeathYear} />}
           {cite && <span className="text-xs text-ink-400">{cite}</span>}
         </span>
         <ChevronDown
@@ -185,6 +197,7 @@ function GharibItem({
               {dict}
             </span>
           )}
+          {exp.authorDeathYear != null && <AuthorDied year={exp.authorDeathYear} />}
           {cite && <span className="text-xs text-ink-400">{cite}</span>}
         </span>
         <ChevronDown

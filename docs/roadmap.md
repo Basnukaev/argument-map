@@ -286,9 +286,10 @@ effective-facet JOIN (§10), пара Minor из ревью Фазы 6 — в ba
       `applyAndHide` (field-edit+record-hide одним батч-load); matns/sanads
       теперь effective+hideable; frontend `CurationFieldsPanel` на rulings/
       explanations/commentaries/matns. Review: **APPROVE 0 Crit/Imp, 2 Minor**
-      (позиц. корректность 5 рекордов verified field-by-field). **5.b отложено:**
-      sanad-UI (только в RF-графе) + `hd_sanad_narrators.transmission_phrase`
-      (композитный ключ) + `ExplanationDto.author_death_year` не surface'ится
+      (позиц. корректность 5 рекордов verified field-by-field). **5.b:**
+      `ExplanationDto.author_death_year` теперь surface'ится (С66, «ум. {year} г.х.»
+      в `ExplanationsList` + проброс в `CurationFieldsPanel`); **отложено** — sanad-UI
+      (только в RF-графе) + `hd_sanad_narrators.transmission_phrase` (композитный ключ)
 - [x] **Фаза 6** (Сессия 65, `1d5017c`+`6a9e2eb`) C9-перевод матна → overlay
       по СТАБИЛЬНОМУ ключу `(hadith_id, is_primary)` (синтетические
       `primary_text_ru/en` на entity_id=hadith_id); migration 79 (idempotent,

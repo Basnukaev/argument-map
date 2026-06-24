@@ -358,8 +358,8 @@ public class HadithController {
             }
         }
         return new ExplanationDto(
-                e.id(), e.kind(), e.bookName(), e.author(), e.page(), e.volume(), e.text(),
-                reference, hiddenByAdmin, hideReason);
+                e.id(), e.kind(), e.bookName(), e.author(), e.authorDeathYear(), e.page(), e.volume(),
+                e.text(), reference, hiddenByAdmin, hideReason);
     }
 
     /**

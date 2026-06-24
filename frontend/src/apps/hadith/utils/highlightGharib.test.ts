@@ -8,6 +8,7 @@ function gharib(reference: string | null, text = 'تفسير', extra: Partial<Ex
     kind: 'GHARIB',
     bookName: 'النهاية',
     author: 'ابن الأثير',
+    authorDeathYear: null,
     page: null,
     volume: null,
     text,
