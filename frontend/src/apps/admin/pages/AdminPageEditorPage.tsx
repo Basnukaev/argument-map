@@ -688,9 +688,11 @@ function AdminPageEditorPage() {
             label={t('admin.page_editor.toolbar.page_number')}
           />
           <ToolbarDivider />
-          {/* AI editing pass (Этап 17.e.f, ADR-042). Indigo accent
-              чтобы визуально отличался от обычных format-кнопок -
-              это не markup-action, а вызов внешнего LLM */}
+          {/* AI editing pass (Этап 17.e.f, ADR-042). Primary action -
+              filled indigo с белым текстом, проминентность как у
+              «Сохранить» (это не markup-action, а вызов внешнего LLM).
+              Disabled/loading state - приглушённый indigo, но всё ещё
+              читаемый (не washed-out) */}
           <button
             type="button"
             onClick={handleAiEditClick}
@@ -698,10 +700,10 @@ function AdminPageEditorPage() {
             title={t('admin.page_editor.ai.button_tooltip')}
             aria-label={t('admin.page_editor.ai.button_label')}
             className={
-              'inline-flex h-7 items-center gap-1 rounded px-2 text-xs transition-colors ' +
+              'inline-flex h-7 items-center gap-1 rounded-md px-2.5 text-xs font-semibold shadow-sm transition-colors ' +
               (aiBusy
-                ? 'cursor-not-allowed bg-indigo-100 text-indigo-400 dark:bg-indigo-900/30 dark:text-indigo-500'
-                : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/40 dark:text-indigo-300 dark:hover:bg-indigo-900/60')
+                ? 'cursor-not-allowed bg-indigo-400 text-white dark:bg-indigo-500/70 dark:text-indigo-50'
+                : 'bg-indigo-600 text-white hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 dark:bg-indigo-500 dark:text-white dark:hover:bg-indigo-400')
             }
           >
             {aiBusy ? (

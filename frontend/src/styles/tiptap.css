@@ -11,100 +11,111 @@
  * стабилизируются - перевести на tokens.css custom properties.
  */
 
-/* HadithBox (Этап 17.0) - блочный node для цитаты хадиса с
-   peach/розовым background, dashed border, "«" ornament в углу.
-   Имитирует classical tahqiq стиль (Дар аль-Кутуб аль-Ильмия). */
+/* HadithBox (Этап 17.0) - блочный node для цитаты хадиса. Розовый
+   peach background + dashed рамка + плотная rose accent-полоса на
+   inline-start стороне с маленьким ◆ маркером сверху. Имитирует
+   classical tahqiq стиль (Дар аль-Кутуб аль-Ильмия).
+
+   ПОЧЕМУ НЕ «»-орнамент в углу (бывшая версия): Latin-гильеме «/»
+   отсутствуют в naskh-шрифтах контента и как «плавающий» угловой
+   стикер читались как ошибка форматирования, а не декор. Заменены на
+   надёжно рендерящийся ◆ + accent-полосу - чисто и направленно-нейтрально. */
 .hadith-box {
   background: rgb(254 226 226 / 0.5);
   border: 1px dashed rgb(252 165 165);
+  /* плотная rose accent-полоса на стороне начала чтения (RTL/LTR) -
+     логический border-inline-start, не зеркалится вручную */
+  border-inline-start: 4px solid rgb(244 114 182); /* rose-400 */
   border-radius: 8px;
   padding: 1rem 1.5rem;
   margin: 1rem 0;
   position: relative;
-  /* bidi: изолируем бокс - угловой орнамент «/» не уплывает при
-     LTR-локали UI, направление определяет dir="auto" в renderHTML */
+  /* bidi: изолируем бокс - его внутреннее направление (dir="auto" в
+     renderHTML) не влияет на внешний поток и наоборот */
   unicode-bidi: isolate;
 }
 
-/* "«" в углу - визуальный indicator quote-блока. По умолчанию слева
-   сверху (LTR), для RTL - справа. Используем left/right в этом
-   pseudo-element CSS, поскольку ::before внутри Tailwind logical
-   classes не поддерживается напрямую - dir-aware override ниже */
+/* ◆ маркер «цитата» - небольшой rose ромб у верхнего угла на стороне
+   начала чтения. ◆ (U+25C6) есть во всех шрифтах (включая UI Manrope),
+   рендерится надёжно. inset-inline-start = логический, зеркалится сам.
+   Геометрический символ → unicode-bidi: isolate держит его вне bidi-run */
 .hadith-box::before {
-  content: '«';
+  content: '◆';
   position: absolute;
   top: -0.5rem;
-  left: 0.5rem;
-  font-size: 2rem;
-  color: rgb(252 165 165);
+  inset-inline-start: 0.75rem;
+  font-size: 0.85rem;
+  color: rgb(244 114 182); /* rose-400 */
   background: rgb(255 255 255);
-  padding: 0 0.25rem;
+  padding: 0 0.3rem;
   line-height: 1;
+  unicode-bidi: isolate;
 }
 
-/* RTL mirror - "«" перемещается справа налево */
-[dir='rtl'] .hadith-box::before {
-  left: auto;
-  right: 0.5rem;
-  content: '»';
-}
-
-/* Dark mode adjustments - peach контрастнее на тёмном фоне */
+/* Dark mode adjustments - peach/rose контрастнее на тёмном фоне */
 [data-theme='dark'] {
   .hadith-box {
     background: rgb(127 29 29 / 0.2);
     border-color: rgb(185 28 28);
+    border-inline-start-color: rgb(236 72 153); /* rose-500 */
   }
   .hadith-box::before {
     background: rgb(31 41 55); /* gray-800 как elevated dark */
-    color: rgb(252 165 165);
+    color: rgb(244 114 182);
   }
 }
 
-/* AyahBox (Этап 17.0.b) - блочный node для аята Корана. Более
-   ornament-стильный чем HadithBox: gold accent border + subtle
-   gold background, орнаментальные арабские скобки `﴿ ﴾` в углах
-   имитируют классическую тахкик-вёрстку Кор'ана */
+/* AyahBox (Этап 17.0.b) - блочный node для аята Корана. Gold accent
+   border + subtle gold background. Орнаментальные коранические скобки
+   ﴿ ﴾ (U+FD3F/FD3E) фланкируют бокс по вертикали по центру inline-краёв,
+   образуя классическую тахкик-рамку Кор'ана.
+
+   КРИТИЧНО: эти глифы рендерятся как полноценные орнаменты ТОЛЬКО в
+   naskh-шрифтах (Scheherazade New / Amiri / Noto Naskh - проверено,
+   глифы присутствуют). В UI-шрифте (Manrope) их нет → раньше падало в
+   tofu/«(» в углу и выглядело как ошибка форматирования. Поэтому на
+   псевдоэлементы ОБЯЗАТЕЛЬНО навешен арабский font-family (var(--font-ar)).
+   Padding бокса увеличен по inline-оси, чтобы скобки не наезжали на текст. */
 .ayah-box {
   background: rgb(255 251 235 / 0.7); /* amber-50-ish */
   border: 1px solid rgb(251 191 36); /* amber-400 */
   border-radius: 8px;
-  padding: 1.25rem 1.75rem;
+  padding: 1.25rem 2.5rem;
   margin: 1rem 0;
   position: relative;
   /* bidi: изолируем бокс - его внутреннее направление (dir="auto" в
-     renderHTML) не влияет на внешний поток и наоборот. Без isolate
-     при LTR-локали UI орнаментальные ﴿ ﴾ «уплывали» в углы как
-     посторонние глифы (bidi base-direction mismatch) */
+     renderHTML) не влияет на внешний поток и наоборот */
   unicode-bidi: isolate;
 }
 
-/* Орнаментальные коранические скобки ﴿ ﴾ во flanking-углах бокса.
-   Позиционируются физически (left/right) и НЕ зеркалятся: ﴿ всегда
-   слева, ﴾ всегда справа - они симметричны и образуют визуальную
-   рамку независимо от направления текста аята внутри. unicode-bidi:
-   isolate на каждом псевдоэлементе не даёт глифу слиться с bidi-run
-   соседнего текста */
+/* Орнаментальные коранические скобки ﴿ ﴾ на inline-краях бокса,
+   вертикально по центру. Позиционируются ФИЗИЧЕСКИ (left/right) и НЕ
+   зеркалятся: ﴿ всегда слева, ﴾ всегда справа - они симметричны и
+   образуют визуальную рамку независимо от направления текста внутри.
+
+   font-family: var(--font-ar) ОБЯЗАТЕЛЕН - только naskh-шрифты содержат
+   эти глифы как орнамент; без него UI-шрифт даёт tofu/«(».
+   unicode-bidi: isolate держит глиф вне bidi-run соседнего текста */
 .ayah-box::before,
 .ayah-box::after {
   position: absolute;
-  font-size: 1.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-ar);
+  font-size: 2rem;
   line-height: 1;
   color: rgb(180 83 9); /* amber-700 */
-  background: rgb(255 255 255);
-  padding: 0 0.25rem;
-  top: -0.5rem;
   unicode-bidi: isolate;
 }
 
 .ayah-box::before {
-  content: '﴿';
-  left: 0.5rem;
+  content: '\FD3F'; /* ﴿ ornate left parenthesis */
+  left: 0.65rem;
 }
 
 .ayah-box::after {
-  content: '﴾';
-  right: 0.5rem;
+  content: '\FD3E'; /* ﴾ ornate right parenthesis */
+  right: 0.65rem;
 }
 
 [data-theme='dark'] {
@@ -114,7 +125,6 @@
   }
   .ayah-box::before,
   .ayah-box::after {
-    background: rgb(31 41 55);
     color: rgb(251 191 36);
   }
 }
