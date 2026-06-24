@@ -1,21 +1,29 @@
 package ru.basnukaev.argumentmap.hadith.service;
 
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import ru.basnukaev.argumentmap.ai.LlmApiException;
 import ru.basnukaev.argumentmap.ai.LlmClient;
 import ru.basnukaev.argumentmap.auth.domain.UserRole;
 import ru.basnukaev.argumentmap.exception.AdminOnlyException;
+import ru.basnukaev.argumentmap.hadith.curation.domain.FieldOverride;
+import ru.basnukaev.argumentmap.hadith.curation.domain.OverrideEntity;
+import ru.basnukaev.argumentmap.hadith.curation.repository.OverrideRepository;
 import ru.basnukaev.argumentmap.hadith.domain.Matn;
 import ru.basnukaev.argumentmap.hadith.repository.MatnRepository;
 import ru.basnukaev.argumentmap.hadith.web.InvalidMatnTextException;
 import ru.basnukaev.argumentmap.hadith.web.MatnNotFoundException;
 import ru.basnukaev.argumentmap.hadith.web.MatnTranslationNotConfiguredException;
 import ru.basnukaev.argumentmap.hadith.web.dto.MatnTranslationResponse;
+import ru.basnukaev.argumentmap.service.AuditLogService;
 
 /**
  * AI-перевод текста матна (text_ar) на ru/en через {@link LlmClient}
@@ -76,12 +84,20 @@ public class HadithTranslationService {
             only the translation of the text.
             Return ONLY the translation, without preambles or quotes.""";
 
+    private static final String AUDIT_ENTITY = "HD_FIELD_OVERRIDE";
+
     private final MatnRepository matnRepository;
     private final LlmClient llmClient;
+    private final OverrideRepository overrideRepository;
+    private final AuditLogService auditLogService;
 
-    public HadithTranslationService(MatnRepository matnRepository, LlmClient llmClient) {
+    public HadithTranslationService(MatnRepository matnRepository, LlmClient llmClient,
+                                    OverrideRepository overrideRepository,
+                                    AuditLogService auditLogService) {
         this.matnRepository = matnRepository;
         this.llmClient = llmClient;
+        this.overrideRepository = overrideRepository;
+        this.auditLogService = auditLogService;
     }
 
     /**
@@ -140,25 +156,42 @@ public class HadithTranslationService {
     }
 
     /**
-     * Ручная правка сохранённого перевода матна — ADMIN перезаписывает
-     * {@code text_ru}/{@code text_en} БЕЗ вызова LLM (правка, не генерация).
-     * Цепочка: ADMIN-guard (403) → findById (404) → lang/text guard (422) →
-     * {@link MatnRepository#updateTranslation} (только нужная колонка).
+     * Ручная правка сохранённого перевода матна — ADMIN перезаписывает перевод
+     * БЕЗ вызова LLM (правка, не генерация). Правка живёт в overlay-таблице
+     * {@code hd_field_overrides} (ADR-065 Фаза 6), НЕ в колонке {@code hd_matns},
+     * потому переживает delete-recreate реимпорта alminasa (P0-1a-страховка
+     * снята). Цепочка: ADMIN-guard (403) → findById (404) → text guard (422) →
+     * upsert override + audit (одна транзакция).
+     *
+     * <p><b>Ключ override (§10 вопрос 2):</b> для PRIMARY-матна ключуем по
+     * СТАБИЛЬНОМУ {@code (entity_id=hadith_id, field_name=primary_text_ru/en)} —
+     * matn.id меняется на реимпорте, hadith_id нет. Для не-primary матна —
+     * по {@code (entity_id=matn.id, field_name=text_ru/en)} (per-variation
+     * путь Фазы 5; на реимпорте такой перевод не переживёт, но это не
+     * накопленный C9-кейс). На ЧТЕНИИ перевод накладывается
+     * {@code OverrideApplyService.applyMatns}.
+     *
+     * <p>Пишем напрямую через {@link OverrideRepository} (не через generic
+     * {@code CurationOverrideService.upsert}), т.к. синтетический primary-ключ
+     * {@code entity_id=hadith_id} не проходит generic-проверку существования
+     * строки {@code hd_matns} по id (hadith_id — не matn.id). Аудит дублируем
+     * вручную тем же {@link AuditLogService} (ADR-043).
      *
      * <p>Возвращает {@code cached=true}: текст в ответе — сохранённое
-     * значение, не свежий LLM-результат (LLM здесь не звался). Семантика
-     * поля та же что у уже-закэшированного перевода в {@link #translate}.
+     * значение, не свежий LLM-результат. Семантика поля та же что у
+     * уже-закэшированного перевода в {@link #translate}.
      *
      * @param matnId матн
      * @param lang   'ru' либо 'en'
      * @param text   новый перевод
-     * @param userId текущий пользователь (для 403-detail)
+     * @param userId текущий пользователь (для 403-detail + edited_by)
      * @param role   роль текущего пользователя (UserRole.*)
      * @return обновлённый перевод, {@code cached=true}
      * @throws AdminOnlyException        403 — не ADMIN
      * @throws MatnNotFoundException     404 — матн не найден
      * @throws InvalidMatnTextException  422 — text пустой после trim
      */
+    @Transactional
     public MatnTranslationResponse editTranslation(UUID matnId, String lang,
                                                    String text, UUID userId, String role) {
         // Правка курируемого перевода — admin-операция (как force в translate).
@@ -166,9 +199,7 @@ public class HadithTranslationService {
             throw new AdminOnlyException(userId);
         }
 
-        // Существование матна — 404, как в translate (находим, но не используем
-        // поля: важен сам факт наличия строки перед UPDATE).
-        matnRepository.findById(matnId)
+        Matn matn = matnRepository.findById(matnId)
                 .orElseThrow(() -> new MatnNotFoundException(matnId));
 
         // @NotBlank ловит null/blank на уровне @Valid (400), но trim тут даёт
@@ -178,9 +209,49 @@ public class HadithTranslationService {
             throw new InvalidMatnTextException(matnId);
         }
 
-        matnRepository.updateTranslation(matnId, lang, trimmed);
-        log.info("Правка перевода матна {} на {} ({} симв.)", matnId, lang, trimmed.length());
+        // primary → стабильный hadith-keyed синтетический ключ; иначе per-matn.
+        UUID entityId = matn.isPrimary() ? matn.hadithId() : matnId;
+        String fieldName = fieldNameFor(matn.isPrimary(), lang);
+        upsertTranslationOverride(entityId, fieldName, trimmed, userId);
+
+        log.info("Правка перевода матна {} (hadith {}, primary={}) на {} → overlay {} ({} симв.)",
+                matnId, matn.hadithId(), matn.isPrimary(), lang, fieldName, trimmed.length());
 
         return new MatnTranslationResponse(matnId, lang, trimmed, true);
+    }
+
+    /** Синтетический primary-ключ для primary-матна, иначе реальная text-колонка. */
+    private static String fieldNameFor(boolean isPrimary, String lang) {
+        if (isPrimary) {
+            return "ru".equals(lang) ? FieldOverride.PRIMARY_TEXT_RU : FieldOverride.PRIMARY_TEXT_EN;
+        }
+        return "ru".equals(lang) ? "text_ru" : "text_en";
+    }
+
+    /**
+     * Upsert override перевода + audit_log в той же транзакции (ADR-043
+     * consistency). Override всегда на {@code hd_matns}; {@code edited_by}
+     * для audit — текущий ADMIN.
+     */
+    private void upsertTranslationOverride(UUID entityId, String fieldName,
+                                           String text, UUID userId) {
+        FieldOverride existing = overrideRepository
+                .findOne(OverrideEntity.HD_MATNS, entityId, fieldName).orElse(null);
+        FieldOverride toSave = new FieldOverride(
+                existing != null ? existing.id() : UUID.randomUUID(),
+                OverrideEntity.HD_MATNS.tableName(), entityId, fieldName,
+                text, false, false, userId, Instant.now(), null);
+        FieldOverride saved = overrideRepository.upsert(toSave);
+
+        if (existing == null) {
+            auditLogService.logCreate(AUDIT_ENTITY, saved.id(),
+                    OverrideEntity.HD_MATNS.tableName(), entityId, userId,
+                    Map.of("value", text, "field", fieldName));
+        } else {
+            Map<String, AuditLogService.FieldDiff> diff = new LinkedHashMap<>();
+            diff.put("value", new AuditLogService.FieldDiff(existing.overrideValue(), text));
+            auditLogService.logUpdate(AUDIT_ENTITY, saved.id(),
+                    OverrideEntity.HD_MATNS.tableName(), entityId, userId, diff);
+        }
     }
 }

@@ -8,6 +8,7 @@ import java.util.function.Function;
 
 import org.springframework.stereotype.Service;
 
+import ru.basnukaev.argumentmap.hadith.curation.domain.FieldOverride;
 import ru.basnukaev.argumentmap.hadith.curation.domain.OverrideEntity;
 import ru.basnukaev.argumentmap.hadith.curation.repository.OverrideRepository;
 import ru.basnukaev.argumentmap.hadith.domain.Hadith;
@@ -266,6 +267,76 @@ public class OverrideApplyService {
                 c.comments(),                                       // PROTECTED
                 c.metadata(),
                 c.createdAt());
+    }
+
+    /**
+     * Field-overrides матнов хадиса + наложение СТАБИЛЬНОГО перевода
+     * primary-матна (Фаза 6, §10 вопрос 2) в один проход с record-hide.
+     *
+     * <p>Два независимых набора overrides: (1) per-matn по {@code matn.id}
+     * (meta-поля + per-variation text_ru/en — нестабильны на реимпорте, но это
+     * не C9-кейс); (2) hadith-keyed по {@code hadith_id} с синтетическими
+     * {@code primary_text_ru/en} — перевод primary-матна, переживающий
+     * delete-recreate. На primary-матн перевод из (2) накладывается ПОВЕРХ (1):
+     * человеческая правка primary-перевода важнее per-matn значения.
+     *
+     * @param hadithId        хадис (ключ синтетического primary-перевода)
+     * @param matns           матны хадиса (один primary)
+     * @param reveal          ADMIN-режим — record-hidden вариация приходит с флагом
+     * @param mapper          маппер матна в DTO (с reveal-флагами)
+     */
+    public <D> List<D> applyMatns(UUID hadithId, List<Matn> matns, boolean reveal,
+                                  HideAwareMapper<Matn, D> mapper) {
+        if (matns.isEmpty()) {
+            return List.of();
+        }
+        // Один батч-load всех overrides таблицы hd_matns: и per-matn (ключ
+        // matn.id), и hadith-keyed primary-перевод (ключ hadith_id) — это разные
+        // entity_id в одной таблице. Грузим оба ключа разом, чтобы не делать два
+        // запроса (важно: НЕ через applyAndHide — его ранний выход при пустом
+        // per-matn наборе пропустил бы primary-перевод, который висит на hadithId).
+        List<UUID> ids = new ArrayList<>(matns.size() + 1);
+        matns.forEach(m -> ids.add(m.id()));
+        ids.add(hadithId);
+        OverrideSet ov = load(OverrideEntity.HD_MATNS, ids);
+        if (ov.isEmpty()) {
+            return matns.stream().map(m -> mapper.map(m, false, null)).toList();
+        }
+        List<D> out = new ArrayList<>(matns.size());
+        for (Matn m : matns) {
+            var hide = ov.recordHide(m.id());
+            if (hide.isEmpty()) {
+                out.add(mapper.map(applyWithPrimaryTranslation(m, ov, ov, hadithId), false, null));
+            } else if (reveal) {
+                out.add(mapper.map(applyWithPrimaryTranslation(m, ov, ov, hadithId),
+                        true, hide.get().reason()));
+            }
+            // non-reveal + record-hidden → вырезаем
+        }
+        return List.copyOf(out);
+    }
+
+    /**
+     * Per-matn field-overrides + (для primary-матна) синтетический
+     * primary_text_ru/en, ключованный {@code hadith_id}. Перевод из
+     * hadith-keyed набора имеет приоритет над per-matn text_ru/en.
+     */
+    static Matn applyWithPrimaryTranslation(Matn m, OverrideSet perMatn,
+                                            OverrideSet primaryTr, UUID hadithId) {
+        Matn base = apply(m, perMatn);
+        if (!m.isPrimary()) {
+            return base;
+        }
+        String ru = primaryTr.applyStr(hadithId, FieldOverride.PRIMARY_TEXT_RU, base.textRu());
+        String en = primaryTr.applyStr(hadithId, FieldOverride.PRIMARY_TEXT_EN, base.textEn());
+        if (ru == base.textRu() && en == base.textEn()) {
+            return base;                              // нет primary-override — без аллокации
+        }
+        return new Matn(
+                base.id(), base.hadithId(), base.textAr(), base.textArNormalized(),
+                ru, en, base.collectionId(), base.printedNumber(), base.pageNo(),
+                base.volume(), base.isPrimary(), base.divergenceSummary(),
+                base.metadata(), base.createdAt());
     }
 
     /**

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Курация Фаза 6 (ADR-065 §9/§10): one-shot перенос накопленного
+        C9-перевода primary-матна (hd_matns.text_ru/text_en) в overlay
+        hd_field_overrides под СТАБИЛЬНЫЙ ключ (§10 вопрос 2):
+        entity_table='hd_matns', entity_id=hadith_id (НЕ matn.id — тот меняется
+        на реимпорте), field_name='primary_text_ru'/'primary_text_en'.
+
+        После этого перевод живёт в overlay → переживает delete-recreate
+        реимпорта alminasa нативно, и P0-1a-страховку маппера можно снять
+        (перевод больше не на колонке матна).
+
+        edited_by — первый ADMIN (по created_at). CROSS JOIN с admin-подзапросом:
+        нет ADMIN'а в таблице → INSERT даёт ноль строк (безопасный no-op на
+        свежих/тестовых БД, где переведённых матнов всё равно нет). NOT EXISTS —
+        идемпотентность (повторный прогон не дублирует уже перенесённые правки;
+        UNIQUE(entity_table,entity_id,field_name) тоже защитил бы, но NOT EXISTS
+        не плодит конфликтов в логе).
+    -->
+    <changeSet id="20260618-79-migrate-matn-translation-overlay" author="Abdula Basnukaev">
+        <comment>Курация Фаза 6: перенос C9-перевода primary-матна в overlay (стабильный hadith-keyed ключ)</comment>
+        <sql>
+            INSERT INTO hd_field_overrides
+                (id, entity_table, entity_id, field_name, override_value,
+                 is_null_override, hidden, edited_by, edited_at, reason)
+            SELECT gen_random_uuid(), 'hd_matns', m.hadith_id, 'primary_text_ru',
+                   m.text_ru, false, false, adm.id, now(),
+                   'миграция Фаза 6: перенос C9-перевода в overlay'
+            FROM hd_matns m
+            CROSS JOIN (SELECT id FROM users WHERE role = 'ADMIN' ORDER BY created_at LIMIT 1) adm
+            WHERE m.is_primary = true AND m.text_ru IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM hd_field_overrides o
+                  WHERE o.entity_table = 'hd_matns' AND o.entity_id = m.hadith_id
+                    AND o.field_name = 'primary_text_ru');
+
+            INSERT INTO hd_field_overrides
+                (id, entity_table, entity_id, field_name, override_value,
+                 is_null_override, hidden, edited_by, edited_at, reason)
+            SELECT gen_random_uuid(), 'hd_matns', m.hadith_id, 'primary_text_en',
+                   m.text_en, false, false, adm.id, now(),
+                   'миграция Фаза 6: перенос C9-перевода в overlay'
+            FROM hd_matns m
+            CROSS JOIN (SELECT id FROM users WHERE role = 'ADMIN' ORDER BY created_at LIMIT 1) adm
+            WHERE m.is_primary = true AND m.text_en IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM hd_field_overrides o
+                  WHERE o.entity_table = 'hd_matns' AND o.entity_id = m.hadith_id
+                    AND o.field_name = 'primary_text_en');
+        </sql>
+
+        <rollback>
+            <sql>
+                DELETE FROM hd_field_overrides
+                WHERE entity_table = 'hd_matns'
+                  AND field_name IN ('primary_text_ru', 'primary_text_en')
+                  AND reason = 'миграция Фаза 6: перенос C9-перевода в overlay';
+            </sql>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

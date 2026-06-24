@@ -50,9 +50,15 @@ public final class CurationWhitelist {
 
             OverrideEntity.HD_MATNS, new EntityRules(
                     // перевод text_ru/en — наш контент, не первоисточник (§5);
-                    // text_ar / text_ar_normalized сознательно вне набора
+                    // text_ar / text_ar_normalized сознательно вне набора.
+                    // primary_text_ru/en (Фаза 6) — СИНТЕТИЧЕСКИЕ ключи (не
+                    // реальные колонки): override primary-матна ключуется по
+                    // entity_id=hadith_id (стабилен через delete-recreate
+                    // реимпорта), а не по matn.id (новый UUID на реимпорте).
+                    // Резолв и наложение — на apply primary-матна.
                     Set.of("printed_number", "page_no", "volume",
-                            "divergence_summary", "text_ru", "text_en"),
+                            "divergence_summary", "text_ru", "text_en",
+                            "primary_text_ru", "primary_text_en"),
                     Set.of(),
                     true,                     // скрыть вариацию матна целиком
                     Map.of()),

@@ -32,9 +32,10 @@ import ru.basnukaev.argumentmap.hadith.repository.MatnRepository;
  * Эндпоинт {@code PATCH /api/v1/hadith/matns/{matnId}/translation} БЕЗ
  * LLM-вызова — стаб {@link ru.basnukaev.argumentmap.ai.LlmClient} не нужен
  * (в этом тесте перевод никогда не генерируется). Покрывает: аноним → 401;
- * не-ADMIN (USER/SCHOLAR) → 403; ADMIN валидным текстом → 200 + реальная
- * запись в text_ru, вторая колонка text_en не затронута; matn-not-found →
- * 404; blank text → 400 (от @Valid @NotBlank).
+ * не-ADMIN (USER/SCHOLAR) → 403; ADMIN валидным текстом → 200 + запись в
+ * OVERLAY (ADR-065 Фаза 6: primary-матн → стабильный hadith-keyed
+ * primary_text_ru/en, колонка hd_matns НЕ трогается); matn-not-found → 404;
+ * blank text → 400 (от @Valid @NotBlank).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -47,6 +48,7 @@ class MatnTranslationEditIT {
     @Autowired private HadithRepository hadithRepository;
     @Autowired private MatnRepository matnRepository;
 
+    private UUID hadithId;
     private UUID matnId;
     private UUID userId;
     private UUID scholarId;
@@ -61,6 +63,7 @@ class MatnTranslationEditIT {
                 HadithStatus.CANONICAL, null, null, now
         );
         hadithRepository.save(hadith);
+        hadithId = hadith.id();
 
         Matn matn = new Matn(
                 UUID.randomUUID(), hadith.id(),
@@ -106,12 +109,9 @@ class MatnTranslationEditIT {
     }
 
     @Test
-    void PATCH_edit_admin_overwritesRuColumnOnly() throws Exception {
-        // префилл обеих колонок, чтобы убедиться: правка ru НЕ трогает en
-        jdbcTemplate.update(
-                "UPDATE hd_matns SET text_ru = 'старый ru', text_en = 'kept en' WHERE id = ?",
-                matnId);
-
+    void PATCH_edit_admin_writesOverlayRuOnly_matnColumnUntouched() throws Exception {
+        // ADR-065 Фаза 6: правка primary-матна пишется в overlay под стабильным
+        // ключом primary_text_ru (entity_id=hadith_id), а НЕ в колонку hd_matns.
         String newText = "Поистине, дела по намерениям (правка админа)";
         mockMvc.perform(patch("/api/v1/hadith/matns/{matnId}/translation", matnId)
                         .header("X-User-Id", adminId.toString())
@@ -124,16 +124,17 @@ class MatnTranslationEditIT {
                 // LLM не звался — отдаём сохранённое значение, cached=true
                 .andExpect(jsonPath("$.cached").value(true));
 
-        String persistedRu = jdbcTemplate.queryForObject(
+        // overlay-правка ключуется hadith_id + primary_text_ru; en-ключа нет
+        assertThat(overrideValue(hadithId, "primary_text_ru")).isEqualTo(newText);
+        assertThat(overrideValue(hadithId, "primary_text_en")).isNull();
+        // колонка матна первоисточника не тронута (перевод не пишется на неё)
+        String columnRu = jdbcTemplate.queryForObject(
                 "SELECT text_ru FROM hd_matns WHERE id = ?", String.class, matnId);
-        String persistedEn = jdbcTemplate.queryForObject(
-                "SELECT text_en FROM hd_matns WHERE id = ?", String.class, matnId);
-        assertThat(persistedRu).isEqualTo(newText);
-        assertThat(persistedEn).isEqualTo("kept en");
+        assertThat(columnRu).isNull();
     }
 
     @Test
-    void PATCH_edit_admin_trimsAndPersists() throws Exception {
+    void PATCH_edit_admin_trimsAndPersistsToOverlay() throws Exception {
         mockMvc.perform(patch("/api/v1/hadith/matns/{matnId}/translation", matnId)
                         .header("X-User-Id", adminId.toString())
                         .contentType("application/json")
@@ -142,9 +143,37 @@ class MatnTranslationEditIT {
                 .andExpect(jsonPath("$.lang").value("en"))
                 .andExpect(jsonPath("$.text").value("Verily deeds"));
 
-        String persistedEn = jdbcTemplate.queryForObject(
-                "SELECT text_en FROM hd_matns WHERE id = ?", String.class, matnId);
-        assertThat(persistedEn).isEqualTo("Verily deeds");
+        assertThat(overrideValue(hadithId, "primary_text_en")).isEqualTo("Verily deeds");
+    }
+
+    @Test
+    void PATCH_edit_admin_secondEdit_upsertsSameOverlayRow() throws Exception {
+        patchTranslation("ru", "первый");
+        patchTranslation("ru", "второй (правка)");
+
+        // upsert по UNIQUE(entity_table,entity_id,field_name) — одна строка
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM hd_field_overrides WHERE entity_table = 'hd_matns' "
+                        + "AND entity_id = ? AND field_name = 'primary_text_ru'",
+                Integer.class, hadithId);
+        assertThat(count).isEqualTo(1);
+        assertThat(overrideValue(hadithId, "primary_text_ru")).isEqualTo("второй (правка)");
+    }
+
+    private void patchTranslation(String lang, String text) throws Exception {
+        mockMvc.perform(patch("/api/v1/hadith/matns/{matnId}/translation", matnId)
+                        .header("X-User-Id", adminId.toString())
+                        .contentType("application/json")
+                        .content("{\"lang\":\"" + lang + "\",\"text\":\"" + text + "\"}"))
+                .andExpect(status().isOk());
+    }
+
+    private String overrideValue(UUID entityId, String field) {
+        return jdbcTemplate.query(
+                "SELECT override_value FROM hd_field_overrides WHERE entity_table = 'hd_matns' "
+                        + "AND entity_id = ? AND field_name = ?",
+                (rs, rn) -> rs.getString("override_value"), entityId, field)
+                .stream().findFirst().orElse(null);
     }
 
     @Test

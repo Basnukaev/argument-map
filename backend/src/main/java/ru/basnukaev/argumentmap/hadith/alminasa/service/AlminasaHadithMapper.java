@@ -202,15 +202,10 @@ public class AlminasaHadithMapper {
             hadithRepository.save(hadith);
         }
 
-        // P0-1a (страховка до overlay-курации, спека §P0-1a): спасаем
-        // накопленный ручной перевод primary-матна (text_ru/en) от delete-
-        // recreate — читаем ДО удаления, переносим в новую строку. Снять после
-        // фазы 6 (перевод уедет в overlay, delete-recreate станет безопасным).
-        Matn priorPrimaryMatn = existing.isPresent()
-                ? matnRepository.findPrimaryByHadithId(hadithId).orElse(null)
-                : null;
-
-        // delete-recreate ВСЕХ сателлитов (решение 9): порядок resolve → delete → insert
+        // delete-recreate ВСЕХ сателлитов (решение 9): порядок resolve → delete → insert.
+        // Перевод матна (text_ru/en) теперь живёт в overlay hd_field_overrides
+        // под стабильным hadith-keyed ключом (ADR-065 Фаза 6) → переживает
+        // delete-recreate нативно, P0-1a-страховка снята.
         matnRepository.deleteByHadithId(hadithId);
         editionRepository.deleteByHadithId(hadithId);
         sanadRepository.deleteByHadithId(hadithId);
@@ -218,7 +213,7 @@ public class AlminasaHadithMapper {
         rulingRepository.deleteByHadithId(hadithId);
         explanationRepository.deleteByHadithId(hadithId);
 
-        insertMatn(hadithId, collectionId, matnText, primaryNumber, raw, priorPrimaryMatn);
+        insertMatn(hadithId, collectionId, matnText, primaryNumber, raw);
         insertEditions(hadithId, raw);
         insertSanad(hadithId, raw, fullTextAr);
         insertCrossrefs(hadithId, externalId, raw);
@@ -311,16 +306,15 @@ public class AlminasaHadithMapper {
     // ── satellites ──────────────────────────────────────────────────────────────
 
     /**
-     * @param prior primary-matn ДО реимпорта (или null для нового хадиса) —
-     *              переносим его {@code text_ru/text_en}, чтобы delete-recreate
-     *              не терял накопленный ручной перевод (P0-1a, спека §P0-1a).
+     * Primary-матн хадиса. {@code text_ru/text_en} вставляются как {@code null}:
+     * курируемый перевод живёт в overlay (ADR-065 Фаза 6), на колонку матна не
+     * пишется — потому delete-recreate реимпорта его не теряет.
      */
     private void insertMatn(UUID hadithId, UUID collectionId, String matnText,
-                            Integer primaryNumber, JsonNode raw, Matn prior) {
+                            Integer primaryNumber, JsonNode raw) {
         matnRepository.save(new Matn(
                 UUID.randomUUID(), hadithId, matnText, ArabicTextNormalizer.normalize(matnText),
-                prior != null ? prior.textRu() : null,
-                prior != null ? prior.textEn() : null,
+                null, null,
                 collectionId, primaryNumber,
                 intOrNull(raw, "page"), intOrNull(raw, "volume"),
                 true, null, null, Instant.now()));

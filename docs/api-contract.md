@@ -3685,18 +3685,27 @@ AI-перевод текста матна (`text_ar`) на ru/en on-demand (Пл
 ### PATCH /api/v1/hadith/matns/{matnId}/translation
 
 Ручная правка сохранённого перевода матна, **ADMIN-only** (C9). Админ
-перезаписывает существующий `hd_matns.text_{lang}` новым текстом **БЕЗ
-вызова LLM** — это правка, а не генерация (в отличие от `translate`,
-который зовёт `LlmClient`). Body `MatnTranslationEditRequest {lang, text}`
-— `@Valid`: `lang` union-валидация `ru|en` через `@Pattern`, `text`
-`@NotBlank` + `@Size(max=50000)` (иное → 400 `validation`). `@CurrentUser`
-обязателен (anonymous → 401 `invalid-token`).
+перезаписывает перевод новым текстом **БЕЗ вызова LLM** — это правка, а не
+генерация (в отличие от `translate`, который зовёт `LlmClient`). Body
+`MatnTranslationEditRequest {lang, text}` — `@Valid`: `lang` union-валидация
+`ru|en` через `@Pattern`, `text` `@NotBlank` + `@Size(max=50000)` (иное →
+400 `validation`). `@CurrentUser` обязателен (anonymous → 401
+`invalid-token`).
 
-Поведение: пишется только колонка `text_{lang}` (через
-`MatnRepository.updateTranslation`, отдельный UPDATE по lang — вторая
-языковая колонка не затрагивается). Текст трогается `trim()` перед
-персистом. `HadithTranslationService.editTranslation()` БЕЗ
-@Transactional (короткий tx на репо-уровне, как у `translate`).
+Поведение (**ADR-065 Фаза 6 — overlay-backed**): правка живёт в
+overlay-таблице `hd_field_overrides`, НЕ в колонке `hd_matns` → переживает
+delete-recreate реимпорта alminasa нативно. Ключ override (§10 вопрос 2):
+для **primary**-матна — СТАБИЛЬНЫЙ `(entity_table='hd_matns',
+entity_id=hadith_id, field_name='primary_text_ru'/'primary_text_en')`
+(синтетические ключи, не реальные колонки; matn.id меняется на реимпорте,
+hadith_id нет); для **не-primary** матна — `(entity_id=matn.id,
+field_name='text_ru'/'text_en')` (per-variation путь). На ЧТЕНИИ перевод
+накладывается `OverrideApplyService.applyMatns` на primary-матн detail.
+URL эндпоинта сохранён (фронт `MatnTranslateControls` не трогаем). Текст
+трогается `trim()`. `editTranslation()` `@Transactional` (overlay upsert +
+audit_log `HD_FIELD_OVERRIDE` в одной транзакции). AI-перевод (`POST
+/translate`) по-прежнему пишет в **базовую** колонку `hd_matns.text_{lang}`
+— human-правка через C9 накладывается поверх (приоритет override).
 
 **200** `MatnTranslationResponse`:
 
@@ -4506,6 +4515,7 @@ whitelist (`hd_matns.text_ar`/`text_ar_normalized`, commentary `comments` →
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-06-24 | v1 | **Курация Фаза 6 — миграция C9-перевода матна в overlay (ADR-065 §9/§10, трек закрыт).** `PATCH /api/v1/hadith/matns/{matnId}/translation` (C9, URL сохранён — фронт `MatnTranslateControls` не трогаем) теперь пишет правку перевода в overlay `hd_field_overrides`, а НЕ в колонку `hd_matns.text_{lang}` → переживает delete-recreate реимпорта нативно. Ключ (§10 вопрос 2, авторизовано): primary-матн → СТАБИЛЬНЫЙ синтетический `(entity_id=hadith_id, field_name='primary_text_ru'/'primary_text_en')`; не-primary матн → per-variation `(entity_id=matn.id, field_name='text_ru'/'text_en')`. На ЧТЕНИИ перевод накладывается `OverrideApplyService.applyMatns` на primary-матн `getDetail` (один батч-load HD_MATNS по matn.id+hadith_id). `editTranslation()` стал `@Transactional` (overlay upsert + audit `HD_FIELD_OVERRIDE` в одной транзакции). `CurationWhitelist` HD_MATNS +`primary_text_ru`/`primary_text_en` (синтетические). AI `POST /translate` без изменений — пишет в базовую колонку, human-правка C9 накладывается поверх. **Снят P0-1a-стопгап:** `AlminasaHadithMapper` больше не переносит `text_ru/en` через re-map, `MatnRepository.findPrimaryByHadithId` удалён. Data-миграция `20260618-79` (one-shot перенос накопленного перевода в overlay, edited_by=первый ADMIN). IT: `MatnTranslationOverlayIT` (PATCH→overlay→detail→симуляция реимпорта→перевод выживает), `MatnTranslationEditIT` (правка→overlay, колонка нетронута, upsert), `AlminasaMapperIT.mapHadith_реимпорт_сохраняет_перевод_матна_через_overlay` (overlay переживает реимпорт). Без изменений формы response (`MatnTranslationResponse` тот же) | Фаза 6 (финал эпика курации): C9-перевод — единственный накопленный курируемый контент; миграция в overlay снимает P0-1a-страховку, delete-recreate матна безопасен |
 | 2026-06-24 | v1 | **Курация Фаза 5 — расширение на сателлиты (ADR-065 §5).** Field-level edit + field-hide теперь применяются на detail и для сателлитов: `hd_rulings` (ruler_name[hide]/ruler_death_year/ruling_text/book_name/page/volume), `hd_explanations` (book_name/author[hide]/author_death_year/page/volume/text[hide]), `hd_narrator_commentaries` (commenter[hide]/commenter_death_year/book_name/author/page/volume; `comments` verbatim — первоисточник, 400), `hd_matns` (мета: printed_number/page_no/volume/divergence_summary/text_ru/text_en; `text_ar`/`text_ar_normalized` — первоисточник, 400), `hd_sanads` (chain_grade/primary_chain). Новые `apply(HadithRuling/HadithExplanation/NarratorCommentary/Matn/Sanad, OverrideSet)` (чистые, static). `OverrideApplyService.applyAndHide` — field-override + record-hide в ОДИН батч-load на тип (без N+1). Record-hide для `hd_matns`/`hd_sanads` добавлен в `getDetail` (был отложен из Фазы 4): `MatnDto`/`SanadDto` +`hiddenByAdmin`+`hideReason` (additive; вырезан для читателя, reveal для ADMIN). Отложено (Фаза 5.b): `hd_sanad_narrators.transmission_phrase` (композитный ключ). IT: `CurationSatelliteFieldEditIT` (edit ruling/explanation/matn-meta/sanad-grade/commentary → effective; field-hide ruler_name → null; matn/sanad record-hide cut/reveal; first-source text_ar/comments → 400) | Фаза 5 эпика курации (P0-1 + FB-5): править/скрывать вторичные данные сателлитов при защите первоисточника |
 | 2026-06-24 | v1 | **Курация Фаза 4 — record-level hide/reveal (ADR-065 §4).** Generic `PUT /admin/curation/overrides` с `fieldName='__record__'`+`hidden=true`+`reason` скрывает запись сателлита целиком (модерация заблудших/экстремистских вторичных данных). На чтении detail: гость/читатель — скрытая запись вырезана; ADMIN (по роли) — приходит с `hiddenByAdmin=true`+`hideReason` (reveal, §4.3), чтобы раскрыть. DTO `RulingDto`/`ExplanationDto`/`NarratorCommentaryDto` +`id`+`hiddenByAdmin`+`hideReason` (additive). `OverrideApplyService.applyRecordHide` — один батч-load на тип, без N+1. Пилот hide: hd_rulings/hd_explanations/hd_narrator_commentaries (hd_matns/hd_sanads record-hide — Фаза 5). IT: `CurationHideIT` (вырезан для гостя, reveal для ADMIN, record-hide на hd_hadiths → 400) | FB-5 (b): скрывать вторичные данные без удаления; reveal — чтобы ADMIN мог модерировать/раскрыть |
 | 2026-06-24 | v1 | **Курация данных API (ADR-065), Фаза 3 пилот.** Generic `PUT/DELETE/GET /api/v1/admin/curation/overrides` (ADMIN-only) поверх миграции 78 `hd_field_overrides`. `CurationOverridePutRequest{entityTable,entityId,fieldName,value?,isNull?,hidden?,reason?}` → `CurationOverrideResponse`. Правки/скрытия живут в overlay, накладываются на ЧТЕНИИ (`OverrideApplyService` в `findById/findPage` хадиса/рави) → переживают delete-recreate реимпорта alminasa. Whitelist (`CurationWhitelist`) защищает первоисточник (`normalized_matn`/`full_text_ar`/`text_ar`/commentary `comments` → 400 `curation-field-not-editable`). Новые ошибки: `curation-invalid-entity-table`/`curation-field-not-editable`/`curation-invalid-enum-value`/`curation-reason-required`/`curation-empty-override` (400), `curation-entity-not-found`/`curation-override-not-found` (404). Аудит двойной (строка + `audit_log` `HD_FIELD_OVERRIDE`). Пилот-сущности: hd_hadiths (authenticity/status/…) + hd_narrators (reliability/tabaqa/…). IT: `CurationOverrideControllerIT` (RBAC, first-source 400, enum 400, reason-required, round-trip effective findById, DELETE-откат) | P0-1 (реимпорт затирал ручные правки) + FB-5 (править/скрывать вторичные данные при защите первоисточника). Overlay = один механизм на правку+hide+аудит, import-логику не трогаем |

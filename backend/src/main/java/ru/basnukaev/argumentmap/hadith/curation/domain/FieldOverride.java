@@ -33,6 +33,16 @@ public record FieldOverride(
     /** Синтетический {@code field_name} для скрытия всей записи целиком (§4.2). */
     public static final String RECORD_FIELD = "__record__";
 
+    /**
+     * Синтетические {@code field_name} перевода primary-матна (Фаза 6, §10
+     * вопрос 2). Хранятся на {@code entity_table='hd_matns'} с
+     * {@code entity_id=hadith_id} (СТАБИЛЬНЫЙ ключ — переживает delete-recreate
+     * реимпорта, в отличие от {@code matn.id}). Накладываются на ЧТЕНИИ на
+     * primary-матн хадиса в {@code OverrideApplyService}. Не реальные колонки.
+     */
+    public static final String PRIMARY_TEXT_RU = "primary_text_ru";
+    public static final String PRIMARY_TEXT_EN = "primary_text_en";
+
     /** {@code true} если правка переопределяет значение поля (или ставит NULL). */
     public boolean hasValueOverride() {
         return overrideValue != null || isNullOverride;

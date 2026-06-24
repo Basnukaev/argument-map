@@ -122,6 +122,64 @@ class OverrideApplyServiceTest {
     }
 
     @Test
+    void applyWithPrimaryTranslation_primaryMatn_overlaysHadithKeyedTranslation() {
+        // Фаза 6 (§10 вопрос 2): перевод primary-матна ключуется hadith_id
+        // (СИНТЕТИЧЕСКИЕ primary_text_ru/en), наложение на apply primary-матна.
+        UUID hadithId = UUID.randomUUID();
+        UUID matnId = UUID.randomUUID();
+        Matn primary = new Matn(matnId, hadithId, "نص", "نص", null, null,
+                null, 1, null, null, true, null, "{}", Instant.now());
+        OverrideSet primaryTr = OverrideSet.group(List.of(
+                ov(OverrideEntity.HD_MATNS, hadithId, "primary_text_ru", "ru-перевод", false),
+                ov(OverrideEntity.HD_MATNS, hadithId, "primary_text_en", "en-translation", false)));
+
+        Matn result = OverrideApplyService.applyWithPrimaryTranslation(
+                primary, OverrideSet.EMPTY, primaryTr, hadithId);
+
+        assertThat(result.textRu()).isEqualTo("ru-перевод");
+        assertThat(result.textEn()).isEqualTo("en-translation");
+        // первоисточник и флаг нетронуты
+        assertThat(result.textAr()).isEqualTo("نص");
+        assertThat(result.isPrimary()).isTrue();
+    }
+
+    @Test
+    void applyWithPrimaryTranslation_nonPrimaryMatn_ignoresHadithKeyedTranslation() {
+        // не-primary матн: hadith-keyed primary_text_* к нему НЕ применяется
+        UUID hadithId = UUID.randomUUID();
+        UUID matnId = UUID.randomUUID();
+        Matn variant = new Matn(matnId, hadithId, "نص-вариация", "نص", "ru-base", null,
+                null, 2, null, null, false, null, "{}", Instant.now());
+        OverrideSet primaryTr = OverrideSet.group(List.of(
+                ov(OverrideEntity.HD_MATNS, hadithId, "primary_text_ru", "не-применить", false)));
+
+        Matn result = OverrideApplyService.applyWithPrimaryTranslation(
+                variant, OverrideSet.EMPTY, primaryTr, hadithId);
+
+        // per-matn значение сохранено, primary-перевод не просочился
+        assertThat(result.textRu()).isEqualTo("ru-base");
+    }
+
+    @Test
+    void applyWithPrimaryTranslation_primaryOverridesPerMatnTranslation() {
+        // приоритет: human-правка primary-перевода (hadith-keyed) поверх
+        // per-matn text_ru (matn-keyed) на том же primary-матне
+        UUID hadithId = UUID.randomUUID();
+        UUID matnId = UUID.randomUUID();
+        Matn primary = new Matn(matnId, hadithId, "نص", "نص", "ru-стар", null,
+                null, 1, null, null, true, null, "{}", Instant.now());
+        OverrideSet perMatn = OverrideSet.group(List.of(
+                ov(OverrideEntity.HD_MATNS, matnId, "text_ru", "ru-per-matn", false)));
+        OverrideSet primaryTr = OverrideSet.group(List.of(
+                ov(OverrideEntity.HD_MATNS, hadithId, "primary_text_ru", "ru-primary", false)));
+
+        Matn result = OverrideApplyService.applyWithPrimaryTranslation(
+                primary, perMatn, primaryTr, hadithId);
+
+        assertThat(result.textRu()).isEqualTo("ru-primary");
+    }
+
+    @Test
     void applySanad_overridesChainGradeAndPrimaryChain() {
         UUID id = UUID.randomUUID();
         Sanad base = new Sanad(id, UUID.randomUUID(), "ضعيف", null, null, false, "{}", Instant.now());

@@ -207,11 +207,12 @@ public class HadithController {
                 OverrideApplyService::apply, reveal,
                 (s, hidden, reason) -> toSanadDto(s, linksBySanad, hidden, reason));
 
+        // Матны: per-matn field-overrides + СТАБИЛЬНЫЙ перевод primary-матна
+        // (Фаза 6, §10 вопрос 2) — синтетический primary_text_ru/en ключуется
+        // hadith_id, потому переживает delete-recreate реимпорта (matn.id новый).
         List<Matn> matns = matnRepository.findByHadithId(id);
-        List<HadithDetailResponse.MatnDto> matnDtos = overrideApply.applyAndHide(
-                OverrideEntity.HD_MATNS, matns, Matn::id,
-                OverrideApplyService::apply, reveal,
-                HadithController::toMatnDto);
+        List<HadithDetailResponse.MatnDto> matnDtos = overrideApply.applyMatns(
+                id, matns, reveal, HadithController::toMatnDto);
 
         // ADR-062 Option B: оценки учёных читаем из hadith_grades (JOIN через
         // source_id), а не из metadata.grades. У хадиса без source_id оценок

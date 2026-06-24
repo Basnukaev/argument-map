@@ -373,25 +373,58 @@ class AlminasaMapperIT {
     }
 
     @Test
-    void mapHadith_реимпорт_сохраняет_ручной_перевод_матна() {
-        // P0-1a (спека §P0-1a): delete-recreate реимпорта НЕ должен терять
-        // накопленный ручной/AI перевод (text_ru/en) primary-матна.
+    void mapHadith_реимпорт_сохраняет_перевод_матна_через_overlay() {
+        // ADR-065 Фаза 6 (P0-1a-страховка СНЯТА): перевод primary-матна живёт
+        // в overlay hd_field_overrides под СТАБИЛЬНЫМ ключом (entity_id=hadith_id,
+        // field_name=primary_text_ru/en). delete-recreate реимпорта обнуляет
+        // колонку матна, но overlay-правка переживает нативно — её маппер не
+        // трогает (она ключуется хадисом, не пересоздаваемой строкой матна).
         narratorMapper.mapNarrator(narratorStagingDao.findById(5719).orElseThrow());
         AmHadithRow row = hadithStagingDao.findById("146-1").orElseThrow();
         UUID hadithId = hadithMapper.mapHadith(row);
 
-        // Накапливаем перевод (как через C9-эндпоинт / AI-перевод).
-        Matn primary = matnRepository.findPrimaryByHadithId(hadithId).orElseThrow();
-        matnRepository.updateTranslation(primary.id(), "ru", "Дела — по намерениям");
-        matnRepository.updateTranslation(primary.id(), "en", "Actions are by intentions");
+        UUID adminId = insertAdmin();
+        // Накапливаем перевод как C9-эндпоинт (overlay, hadith-keyed).
+        upsertPrimaryTranslation(hadithId, "primary_text_ru", "Дела — по намерениям", adminId);
+        upsertPrimaryTranslation(hadithId, "primary_text_en", "Actions are by intentions", adminId);
+
+        Matn primaryBefore = matnRepository.findByHadithId(hadithId).get(0);
 
         // Реимпорт того же хадиса (delete-recreate матна — новая строка).
         hadithMapper.mapHadith(row);
 
-        Matn afterReimport = matnRepository.findPrimaryByHadithId(hadithId).orElseThrow();
-        assertThat(afterReimport.id()).isNotEqualTo(primary.id());      // строка пересоздана
-        assertThat(afterReimport.textRu()).isEqualTo("Дела — по намерениям"); // перевод спасён
-        assertThat(afterReimport.textEn()).isEqualTo("Actions are by intentions");
+        Matn primaryAfter = matnRepository.findByHadithId(hadithId).get(0);
+        assertThat(primaryAfter.id()).isNotEqualTo(primaryBefore.id());  // строка пересоздана
+        // колонка матна снова NULL (перевод на неё не пишется — ADR-065 Фаза 6)
+        assertThat(primaryAfter.textRu()).isNull();
+        assertThat(primaryAfter.textEn()).isNull();
+
+        // override-правка перевода — на месте после реимпорта (hadith-keyed)
+        String ru = jdbcTemplate.queryForObject(
+                "SELECT override_value FROM hd_field_overrides WHERE entity_table = 'hd_matns' "
+                        + "AND entity_id = ? AND field_name = 'primary_text_ru'",
+                String.class, hadithId);
+        String en = jdbcTemplate.queryForObject(
+                "SELECT override_value FROM hd_field_overrides WHERE entity_table = 'hd_matns' "
+                        + "AND entity_id = ? AND field_name = 'primary_text_en'",
+                String.class, hadithId);
+        assertThat(ru).isEqualTo("Дела — по намерениям");
+        assertThat(en).isEqualTo("Actions are by intentions");
+    }
+
+    private UUID insertAdmin() {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO users (id, username, email, role) VALUES (?, ?, ?, 'ADMIN')",
+                id, "admin-" + id, id + "@t.com");
+        return id;
+    }
+
+    private void upsertPrimaryTranslation(UUID hadithId, String field, String value, UUID adminId) {
+        jdbcTemplate.update(
+                "INSERT INTO hd_field_overrides (id, entity_table, entity_id, field_name, "
+                        + "override_value, is_null_override, hidden, edited_by) "
+                        + "VALUES (?, 'hd_matns', ?, ?, ?, false, false, ?)",
+                UUID.randomUUID(), hadithId, field, value, adminId);
     }
 
     @Test

@@ -83,5 +83,6 @@
     <include file="db/changelog/changes/20260616-76-alminasa-narrator-commentary.xml"/>
     <include file="db/changelog/changes/20260617-77-hd-hadiths-authenticity.xml"/>
     <include file="db/changelog/changes/20260618-78-hd-field-overrides.xml"/>
+    <include file="db/changelog/changes/20260618-79-migrate-matn-translation-overlay.xml"/>
 
 </databaseChangeLog>
