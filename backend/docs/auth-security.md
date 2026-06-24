@@ -86,3 +86,36 @@ header'ов что и API.
 Требуют `@TestPropertySource` с `actuator.security.username` +
 `password` — иначе fail-fast при loading ApplicationContext (ловится
 в `SecurityHeadersProdProfileIT`, `ActuatorSecurityProdProfileIT`).
+
+## Datasource creds в prod (P0-3)
+
+Default/prod датасорс читается **только из env**, без небезопасного
+fallback (`application.yml`, top-док):
+
+| Env | Назначение |
+|---|---|
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://<prod-host>:5432/<prod-db>` |
+| `SPRING_DATASOURCE_USERNAME` | прод-пользователь БД |
+| `SPRING_DATASOURCE_PASSWORD` | прод-пароль БД |
+
+Placeholder без default → если переменная не выставлена, Spring падает
+на старте (fail-fast), а не молча коннектится к dev-БД. `local` profile
+переопределяет эти три значения захардкоженными dev-кредами
+(`localhost:5432/argumentmap`, `argmap`/`argmap`) — `./mvnw
+spring-boot:run` (default profile=`local`) работает без env. `test`
+profile получает датасорс через Testcontainers `@ServiceConnection`.
+
+`DatasourceConfigValidator` (`config/DatasourceConfigValidator.java`) —
+defense-in-depth: если prod-profile активен, но resolved URL указывает на
+`localhost` / `127.0.0.1` / `/argumentmap` (или username = `argmap`),
+падает с `IllegalStateException`. Ловит сценарий «деплой случайно поднялся
+под default profile=local». Тот же fail-fast паттерн, что у
+`AUTH_JWT_SECRET` (`JwtService`) и `ACTUATOR_USERNAME/PASSWORD`
+(`ActuatorSecurityConfig`). Тесты — `DatasourceConfigValidatorTest`.
+
+### Сводный список required prod env
+
+`AUTH_JWT_SECRET` (≥256 бит, `openssl rand -hex 32`),
+`ACTUATOR_USERNAME` / `ACTUATOR_PASSWORD`, `SPRING_DATASOURCE_URL` /
+`SPRING_DATASOURCE_USERNAME` / `SPRING_DATASOURCE_PASSWORD`. Все три
+группы fail-fast на старте в prod profile, если не заданы.

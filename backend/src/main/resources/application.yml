@@ -7,6 +7,19 @@ spring:
   application:
     name: argument-map
 
+  # Datasource (P0-3). В default/prod НЕТ небезопасного fallback - креды
+  # ОБЯЗАТЕЛЬНО через env SPRING_DATASOURCE_URL / _USERNAME / _PASSWORD.
+  # Placeholder без default → если env-переменная не выставлена, Spring
+  # падает на старте (fail-fast) вместо тихого коннекта к dev-БД. Local
+  # profile (ниже) переопределяет эти три значения захардкоженными dev-
+  # кредами, поэтому `./mvnw spring-boot:run` (default profile=local)
+  # работает без env. DatasourceConfigValidator дополнительно ловит
+  # случай "prod-profile активен, но URL указывает на localhost/dev-БД".
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.xml
 
