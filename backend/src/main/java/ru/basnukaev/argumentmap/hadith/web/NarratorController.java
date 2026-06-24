@@ -87,12 +87,14 @@ public class NarratorController {
                 .map(NarratorController::toRelationDto)
                 .toList();
         // detail-путь: джарх/таʿдиль-цитаты учёных о рави (ADR-061) — один запрос.
-        // Курация (ADR-065 §4.3): record-hidden цитата заблудшего критика
-        // читателю не отдаётся; ADMIN видит с hiddenByAdmin+причиной (reveal).
+        // Курация (ADR-065): record-hidden цитата заблудшего критика читателю не
+        // отдаётся; ADMIN видит с hiddenByAdmin+причиной (reveal). Поверх —
+        // field-overrides атрибуции (Фаза 5; comments verbatim защищены whitelist).
         boolean reveal = UserRole.ADMIN.equals(SecurityContextUtils.currentRoleOrAnonymous());
-        List<NarratorCommentaryDto> commentaries = overrideApply.applyRecordHide(
+        List<NarratorCommentaryDto> commentaries = overrideApply.applyAndHide(
                 OverrideEntity.HD_NARRATOR_COMMENTARIES, commentaryRepository.findByNarratorId(id),
-                NarratorCommentary::id, reveal, NarratorController::toCommentaryDto);
+                NarratorCommentary::id, OverrideApplyService::apply, reveal,
+                NarratorController::toCommentaryDto);
         return toResponse(n, relations, commentaries);
     }
 

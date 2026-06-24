@@ -11,7 +11,10 @@ import org.junit.jupiter.api.Test;
 import ru.basnukaev.argumentmap.hadith.curation.domain.FieldOverride;
 import ru.basnukaev.argumentmap.hadith.curation.domain.OverrideEntity;
 import ru.basnukaev.argumentmap.hadith.domain.Hadith;
+import ru.basnukaev.argumentmap.hadith.domain.HadithRuling;
+import ru.basnukaev.argumentmap.hadith.domain.Matn;
 import ru.basnukaev.argumentmap.hadith.domain.Narrator;
+import ru.basnukaev.argumentmap.hadith.domain.Sanad;
 
 /** Unit-тесты чистого наложения overrides на доменные records (без БД). */
 class OverrideApplyServiceTest {
@@ -67,5 +70,68 @@ class OverrideApplyServiceTest {
         assertThat(result.nameAr()).isEqualTo("علقمة بن وقاص");
         // name_ar_normalized — производная, не трогается на apply
         assertThat(result.nameArNormalized()).isEqualTo("علقمه");
+    }
+
+    private static FieldOverride ov(OverrideEntity entity, UUID id, String field,
+                                    String value, boolean hidden) {
+        // позиционно: ..., overrideValue, isNullOverride, hidden, ...
+        return new FieldOverride(UUID.randomUUID(), entity.tableName(),
+                id, field, value, false, hidden, UUID.randomUUID(), Instant.now(), null);
+    }
+
+    @Test
+    void applyRuling_editsMetaAndHidesRulerName_keepsHadithIdAndMetadata() {
+        UUID id = UUID.randomUUID();
+        UUID hadithId = UUID.randomUUID();
+        HadithRuling base = new HadithRuling(id, hadithId, "البخاري", 256, "حسن",
+                "كتاب", 1, 2, "{\"k\":1}", Instant.now());
+        OverrideSet set = OverrideSet.group(List.of(
+                ov(OverrideEntity.HD_RULINGS, id, "ruling_text", "صحيح", false),
+                ov(OverrideEntity.HD_RULINGS, id, "ruler_name", null, true)));   // field-hide
+
+        HadithRuling result = OverrideApplyService.apply(base, set);
+
+        assertThat(result.rulingText()).isEqualTo("صحيح");
+        assertThat(result.rulerName()).isNull();                 // field-hide → null
+        // позиционная корректность: FK и метаданные не сдвинуты
+        assertThat(result.hadithId()).isEqualTo(hadithId);
+        assertThat(result.rulerDeathYear()).isEqualTo(256);
+        assertThat(result.bookName()).isEqualTo("كتاب");
+        assertThat(result.metadata()).isEqualTo("{\"k\":1}");
+    }
+
+    @Test
+    void applyMatn_editsTranslationAndMeta_firstSourceArabicUntouched() {
+        UUID id = UUID.randomUUID();
+        Matn base = new Matn(id, UUID.randomUUID(), "نص-عربي", "نص-منوّن", "ru-old", "en-old",
+                null, 5, 10, 1, true, "сводка", "{}", Instant.now());
+        OverrideSet set = OverrideSet.group(List.of(
+                ov(OverrideEntity.HD_MATNS, id, "text_ru", "ru-new", false),
+                ov(OverrideEntity.HD_MATNS, id, "page_no", "42", false)));
+
+        Matn result = OverrideApplyService.apply(base, set);
+
+        assertThat(result.textRu()).isEqualTo("ru-new");
+        assertThat(result.pageNo()).isEqualTo(42);
+        // первоисточник нетронут (apply его даже не читает)
+        assertThat(result.textAr()).isEqualTo("نص-عربي");
+        assertThat(result.textArNormalized()).isEqualTo("نص-منوّن");
+        // неперекрытые поля + флаг сохранены
+        assertThat(result.textEn()).isEqualTo("en-old");
+        assertThat(result.isPrimary()).isTrue();
+    }
+
+    @Test
+    void applySanad_overridesChainGradeAndPrimaryChain() {
+        UUID id = UUID.randomUUID();
+        Sanad base = new Sanad(id, UUID.randomUUID(), "ضعيف", null, null, false, "{}", Instant.now());
+        OverrideSet set = OverrideSet.group(List.of(
+                ov(OverrideEntity.HD_SANADS, id, "chain_grade", "صحيح", false),
+                ov(OverrideEntity.HD_SANADS, id, "primary_chain", "true", false)));
+
+        Sanad result = OverrideApplyService.apply(base, set);
+
+        assertThat(result.chainGrade()).isEqualTo("صحيح");
+        assertThat(result.primaryChain()).isTrue();
     }
 }

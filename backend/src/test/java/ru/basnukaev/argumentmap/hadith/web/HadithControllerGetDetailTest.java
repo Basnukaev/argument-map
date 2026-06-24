@@ -12,6 +12,8 @@ import java.util.UUID;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import ru.basnukaev.argumentmap.hadith.curation.repository.OverrideRepository;
+import ru.basnukaev.argumentmap.hadith.curation.service.OverrideApplyService;
 import ru.basnukaev.argumentmap.hadith.domain.Hadith;
 import ru.basnukaev.argumentmap.hadith.domain.Sanad;
 import ru.basnukaev.argumentmap.hadith.domain.SanadNarrator;
@@ -88,7 +90,9 @@ class HadithControllerGetDetailTest {
                 hadithRepository, sanadRepository, matnRepository,
                 editionRepository, rulingRepository, explanationRepository,
                 crossrefRepository, hadithGradeRepository, sanadGraphService,
-                hadithGradeBridgeService, new ObjectMapper());
+                hadithGradeBridgeService,
+                new OverrideApplyService(mock(OverrideRepository.class)),
+                new ObjectMapper());
 
         HadithDetailResponse resp = controller.getDetail(hadithId);
 

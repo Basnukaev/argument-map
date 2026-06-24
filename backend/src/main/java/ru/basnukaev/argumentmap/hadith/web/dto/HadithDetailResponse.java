@@ -57,13 +57,20 @@ public record HadithDetailResponse(
     ) {
     }
 
+    /**
+     * {@code hiddenByAdmin}/{@code hideReason} — reveal-режим курации (§4.3,
+     * Фаза 5): читателю record-hidden цепь не приходит (вырезана), ADMIN видит
+     * её с флагом + причиной, чтобы раскрыть.
+     */
     public record SanadDto(
             UUID id,
             String chainGrade,
             UUID compiledById,
             UUID compiledInBookId,
             boolean primaryChain,
-            List<NarratorLinkDto> narrators
+            List<NarratorLinkDto> narrators,
+            boolean hiddenByAdmin,
+            String hideReason
     ) {
     }
 
@@ -74,6 +81,11 @@ public record HadithDetailResponse(
     ) {
     }
 
+    /**
+     * {@code hiddenByAdmin}/{@code hideReason} — reveal-режим курации (§4.3,
+     * Фаза 5): читателю record-hidden вариация матна не приходит (вырезана),
+     * ADMIN видит её с флагом + причиной.
+     */
     public record MatnDto(
             UUID id,
             String textAr,
@@ -84,7 +96,9 @@ public record HadithDetailResponse(
             Integer pageNo,
             Integer volume,
             boolean isPrimary,
-            String divergenceSummary
+            String divergenceSummary,
+            boolean hiddenByAdmin,
+            String hideReason
     ) {
     }
 }

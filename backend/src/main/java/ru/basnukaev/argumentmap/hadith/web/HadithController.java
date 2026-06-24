@@ -183,6 +183,12 @@ public class HadithController {
         Hadith h = hadithRepository.findById(id)
                 .orElseThrow(() -> new HadithNotFoundException(id));
 
+        // Курация (ADR-065 §4.3): record-hidden сателлиты обычному читателю не
+        // отдаём (вырезаны); ADMIN видит их с hiddenByAdmin+причиной (reveal),
+        // чтобы раскрыть. Поверх — field-overrides (Фаза 5): один OverrideSet
+        // на тип (без N+1) накладывает правки полей до маппинга в DTO.
+        boolean reveal = UserRole.ADMIN.equals(SecurityContextUtils.currentRoleOrAnonymous());
+
         List<Sanad> sanads = sanadRepository.findByHadithId(id);
         List<UUID> sanadIds = sanads.stream().map(Sanad::id).toList();
         // Bulk fetch narrators avoiding N+1
@@ -196,27 +202,16 @@ public class HadithController {
         Map<UUID, List<SanadNarrator>> linksBySanad = allLinks.stream()
                 .collect(Collectors.groupingBy(SanadNarrator::sanadId));
 
-        List<HadithDetailResponse.SanadDto> sanadDtos = sanads.stream()
-                .map(s -> new HadithDetailResponse.SanadDto(
-                        s.id(), s.chainGrade(), s.compiledById(),
-                        s.compiledInBookId(), s.primaryChain(),
-                        linksBySanad.getOrDefault(s.id(), List.of()).stream()
-                                .sorted(Comparator.comparingInt(SanadNarrator::position))
-                                .map(l -> new HadithDetailResponse.NarratorLinkDto(
-                                        l.position(), l.narratorId(), l.transmissionPhrase()
-                                ))
-                                .toList()
-                ))
-                .toList();
+        List<HadithDetailResponse.SanadDto> sanadDtos = overrideApply.applyAndHide(
+                OverrideEntity.HD_SANADS, sanads, Sanad::id,
+                OverrideApplyService::apply, reveal,
+                (s, hidden, reason) -> toSanadDto(s, linksBySanad, hidden, reason));
 
         List<Matn> matns = matnRepository.findByHadithId(id);
-        List<HadithDetailResponse.MatnDto> matnDtos = matns.stream()
-                .map(m -> new HadithDetailResponse.MatnDto(
-                        m.id(), m.textAr(), m.textRu(), m.textEn(),
-                        m.collectionId(), m.printedNumber(), m.pageNo(),
-                        m.volume(), m.isPrimary(), m.divergenceSummary()
-                ))
-                .toList();
+        List<HadithDetailResponse.MatnDto> matnDtos = overrideApply.applyAndHide(
+                OverrideEntity.HD_MATNS, matns, Matn::id,
+                OverrideApplyService::apply, reveal,
+                HadithController::toMatnDto);
 
         // ADR-062 Option B: оценки учёных читаем из hadith_grades (JOIN через
         // source_id), а не из metadata.grades. У хадиса без source_id оценок
@@ -238,17 +233,16 @@ public class HadithController {
         // distinct-значений немного (~12), один lookup на уникальный id.
         Map<String, UUID> relatedIdCache = new HashMap<>();
 
-        // Курация (ADR-065 §4.3): record-hidden вердикты/шарх обычному читателю
-        // не отдаём (вырезаны); ADMIN видит их с hiddenByAdmin+причиной (reveal),
-        // чтобы раскрыть. Модерация заблудших/экстремистских вторичных данных.
-        boolean reveal = UserRole.ADMIN.equals(SecurityContextUtils.currentRoleOrAnonymous());
-        List<RulingDto> rulings = overrideApply.applyRecordHide(
+        // Курация вердиктов/шарх: field-overrides (Фаза 5) + record-hide (Фаза 4)
+        // в один проход на тип. Модерация заблудших/экстремистских вторичных
+        // данных; правка атрибуции/текста вердикта поверх импорта.
+        List<RulingDto> rulings = overrideApply.applyAndHide(
                 OverrideEntity.HD_RULINGS, rulingRepository.findByHadithId(id),
-                HadithRuling::id, reveal,
+                HadithRuling::id, OverrideApplyService::apply, reveal,
                 (r, hidden, reason) -> toRulingDto(r, objectMapper, relatedIdCache, hidden, reason));
-        List<ExplanationDto> explanations = overrideApply.applyRecordHide(
+        List<ExplanationDto> explanations = overrideApply.applyAndHide(
                 OverrideEntity.HD_EXPLANATIONS, explanationRepository.findByHadithId(id),
-                HadithExplanation::id, reveal,
+                HadithExplanation::id, OverrideApplyService::apply, reveal,
                 (e, hidden, reason) -> toExplanationDto(e, objectMapper, hidden, reason));
         List<CrossrefDto> crossrefs = crossrefRepository.findByHadithId(id).stream()
                 .map(c -> toCrossrefDto(c, objectMapper, relatedIdCache))
@@ -281,6 +275,34 @@ public class HadithController {
 
     private static EditionDto toEditionDto(HadithEdition e) {
         return new EditionDto(e.editionName(), e.page(), e.volume());
+    }
+
+    /**
+     * Маппинг цепи в DTO с её narrator-звеньями (сгруппированы заранее,
+     * отсортированы по position — порядок звеньев иснада значим) +
+     * reveal-флагами курации (§4.3).
+     */
+    private static HadithDetailResponse.SanadDto toSanadDto(
+            Sanad s, Map<UUID, List<SanadNarrator>> linksBySanad,
+            boolean hiddenByAdmin, String hideReason) {
+        return new HadithDetailResponse.SanadDto(
+                s.id(), s.chainGrade(), s.compiledById(),
+                s.compiledInBookId(), s.primaryChain(),
+                linksBySanad.getOrDefault(s.id(), List.of()).stream()
+                        .sorted(Comparator.comparingInt(SanadNarrator::position))
+                        .map(l -> new HadithDetailResponse.NarratorLinkDto(
+                                l.position(), l.narratorId(), l.transmissionPhrase()))
+                        .toList(),
+                hiddenByAdmin, hideReason);
+    }
+
+    private static HadithDetailResponse.MatnDto toMatnDto(
+            Matn m, boolean hiddenByAdmin, String hideReason) {
+        return new HadithDetailResponse.MatnDto(
+                m.id(), m.textAr(), m.textRu(), m.textEn(),
+                m.collectionId(), m.printedNumber(), m.pageNo(),
+                m.volume(), m.isPrimary(), m.divergenceSummary(),
+                hiddenByAdmin, hideReason);
     }
 
     /**
