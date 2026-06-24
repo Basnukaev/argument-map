@@ -62,11 +62,11 @@ public class OverrideApplyService {
 
     /**
      * Field-override + record-hide для списка сателлитов в ОДИН проход (Фаза 5).
-     * Один батч-{@code load} на тип ({@link #applyRecordHide}, но c
-     * предварительным {@code fieldApply}): сначала накладываем правки полей
-     * (field-hide включается автоматически — null из {@code applyStr/Int}),
-     * затем фильтруем record-hidden. Пустой OverrideSet → records как есть,
-     * без флагов (общий случай).
+     * Один батч-{@code load} на тип, без N+1: сначала накладываем правки полей
+     * через {@code fieldApply} (field-hide включается автоматически — null из
+     * {@code applyStr/Int}), затем фильтруем record-hidden (читатель — запись
+     * вырезана; ADMIN при {@code reveal=true} — с {@code hiddenByAdmin}+reason).
+     * Пустой OverrideSet → records как есть, без флагов (общий случай).
      */
     public <T, D> List<D> applyAndHide(OverrideEntity table, List<T> records,
                                        Function<T, UUID> idOf, FieldApply<T> fieldApply,
@@ -91,36 +91,6 @@ public class OverrideApplyService {
             // non-reveal + record-hidden → вырезаем
         }
         return List.copyOf(out);
-    }
-
-    /**
-     * Record-level hide для списка сателлитов (Фаза 4, §4.2/§4.3). Обычному
-     * читателю ({@code reveal=false}) скрытая запись НЕ отдаётся (вырезана);
-     * ADMIN ({@code reveal=true}) получает её с {@code hiddenByAdmin=true} +
-     * причиной, чтобы раскрыть. Один батч-{@code load} на тип (без N+1);
-     * пустой OverrideSet → все видимы без флагов (общий случай, без аллокаций).
-     */
-    public <T, D> List<D> applyRecordHide(OverrideEntity table, List<T> records,
-                                          Function<T, UUID> idOf, boolean reveal,
-                                          HideAwareMapper<T, D> mapper) {
-        if (records.isEmpty()) {
-            return List.of();
-        }
-        OverrideSet ov = load(table, records.stream().map(idOf).toList());
-        if (ov.isEmpty()) {
-            return records.stream().map(r -> mapper.map(r, false, null)).toList();
-        }
-        List<D> out = new ArrayList<>(records.size());
-        for (T r : records) {
-            var hide = ov.recordHide(idOf.apply(r));
-            if (hide.isEmpty()) {
-                out.add(mapper.map(r, false, null));
-            } else if (reveal) {
-                out.add(mapper.map(r, true, hide.get().reason()));
-            }
-            // non-reveal + hidden → вырезаем (не добавляем в out)
-        }
-        return List.copyOf(out);   // immutable, как и остальные ветки
     }
 
     // ── Hadith ────────────────────────────────────────────────────────────────
