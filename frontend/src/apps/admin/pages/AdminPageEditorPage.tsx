@@ -62,6 +62,7 @@ import {
   type DecoratedHeadingOrnament,
 } from '@/shared/components/editor/extensions/DecoratedHeading';
 import { PageNumber } from '@/shared/components/editor/extensions/PageNumber';
+import { BlockDir } from '@/shared/components/editor/extensions/BlockDir';
 import { apiGetRaw, apiPatchRaw, ApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
 import { useT } from '@/shared/i18n';
@@ -88,6 +89,9 @@ const EDITOR_EXTENSIONS = [
   ColorHighlight,
   DecoratedHeading,
   PageNumber,
+  // bidi: dir="auto" на StarterKit-блоках (paragraph/heading/blockquote/
+  // listItem) - арабский контент рендерится верно при любой локали UI
+  BlockDir,
 ];
 
 // Glyph preview для DecoratedHeading ornament selector в модалке

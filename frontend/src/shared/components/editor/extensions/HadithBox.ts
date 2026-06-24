@@ -97,6 +97,9 @@ export const HadithBox = Node.create<Record<string, never>>({
       mergeAttributes(HTMLAttributes, {
         'data-type': 'hadith-box',
         class: 'hadith-box',
+        // bidi-фикс: бокс сам определяет направление по тексту внутри,
+        // не наследуя LTR-локаль UI (unicode-bidi: isolate в CSS)
+        dir: 'auto',
       }),
       0, // content hole - Tiptap кладёт сюда вложенные блоки
     ];

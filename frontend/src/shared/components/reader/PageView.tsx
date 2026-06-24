@@ -17,11 +17,13 @@ import { Footnote } from '@/shared/components/editor/extensions/Footnote';
 import { ColorHighlight } from '@/shared/components/editor/extensions/ColorHighlight';
 import { DecoratedHeading } from '@/shared/components/editor/extensions/DecoratedHeading';
 import { PageNumber } from '@/shared/components/editor/extensions/PageNumber';
+import { BlockDir } from '@/shared/components/editor/extensions/BlockDir';
 
 // Custom Tiptap extensions для read-only render. Список должен совпадать
 // с extensions в AdminPageEditorPage - иначе пользовательский HadithBox
 // упадёт на «unknown node type»: HadithBox / AyahBox / Marginalia /
-// Footnote / ColorHighlight / DecoratedHeading / PageNumber
+// Footnote / ColorHighlight / DecoratedHeading / PageNumber + BlockDir
+// (dir="auto" на блоках для корректного bidi при любой локали UI)
 const READER_EXTENSIONS = [
   HadithBox,
   AyahBox,
@@ -30,6 +32,7 @@ const READER_EXTENSIONS = [
   ColorHighlight,
   DecoratedHeading,
   PageNumber,
+  BlockDir,
 ];
 
 // Source-first поля (миграция 19, ADR-021) - в runtime есть, но types.ts

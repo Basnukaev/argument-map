@@ -21,6 +21,9 @@
   padding: 1rem 1.5rem;
   margin: 1rem 0;
   position: relative;
+  /* bidi: изолируем бокс - угловой орнамент «/» не уплывает при
+     LTR-локали UI, направление определяет dir="auto" в renderHTML */
+  unicode-bidi: isolate;
 }
 
 /* "«" в углу - визуальный indicator quote-блока. По умолчанию слева
@@ -69,8 +72,19 @@
   padding: 1.25rem 1.75rem;
   margin: 1rem 0;
   position: relative;
+  /* bidi: изолируем бокс - его внутреннее направление (dir="auto" в
+     renderHTML) не влияет на внешний поток и наоборот. Без isolate
+     при LTR-локали UI орнаментальные ﴿ ﴾ «уплывали» в углы как
+     посторонние глифы (bidi base-direction mismatch) */
+  unicode-bidi: isolate;
 }
 
+/* Орнаментальные коранические скобки ﴿ ﴾ во flanking-углах бокса.
+   Позиционируются физически (left/right) и НЕ зеркалятся: ﴿ всегда
+   слева, ﴾ всегда справа - они симметричны и образуют визуальную
+   рамку независимо от направления текста аята внутри. unicode-bidi:
+   isolate на каждом псевдоэлементе не даёт глифу слиться с bidi-run
+   соседнего текста */
 .ayah-box::before,
 .ayah-box::after {
   position: absolute;
@@ -80,6 +94,7 @@
   background: rgb(255 255 255);
   padding: 0 0.25rem;
   top: -0.5rem;
+  unicode-bidi: isolate;
 }
 
 .ayah-box::before {
@@ -91,9 +106,6 @@
   content: '﴾';
   right: 0.5rem;
 }
-
-/* В RTL ornament-скобки тоже выглядят корректно - они симметричны
-   арабской письменности, специальный mirror не нужен */
 
 [data-theme='dark'] {
   .ayah-box {
@@ -226,6 +238,9 @@
   color: rgb(31 41 55); /* gray-800 */
   margin: 1.5rem 0 1rem;
   display: block;
+  /* bidi: симметричные орнаменты ◆/❀ по обе стороны центрированного
+     заголовка - isolate держит их вне bidi-run текста заголовка */
+  unicode-bidi: isolate;
 }
 
 .decorated-heading::before,

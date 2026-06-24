@@ -126,6 +126,10 @@ export const DecoratedHeading = Node.create<Record<string, never>>({
       mergeAttributes(HTMLAttributes, {
         'data-type': 'decorated-heading',
         class: 'decorated-heading',
+        // bidi-фикс: заголовок сам определяет направление по тексту внутри,
+        // не наследуя LTR-локаль UI. Орнаменты ◆/❀ симметричны и читаются
+        // одинаково в обоих направлениях
+        dir: 'auto',
       }),
       0,
     ];

@@ -83,6 +83,9 @@ export const Marginalia = Node.create<Record<string, never>>({
       mergeAttributes(HTMLAttributes, {
         'data-type': 'marginalia',
         class: 'marginalia',
+        // bidi-фикс: заметка сама определяет направление по тексту внутри,
+        // не наследуя LTR-локаль UI
+        dir: 'auto',
       }),
       0,
     ];

@@ -103,6 +103,10 @@ export const AyahBox = Node.create<Record<string, never>>({
       mergeAttributes(HTMLAttributes, {
         'data-type': 'ayah-box',
         class: 'ayah-box',
+        // bidi-фикс: бокс сам определяет направление по арабскому тексту
+        // внутри, не наследуя LTR-локаль UI. unicode-bidi: isolate в CSS
+        // изолирует орнаментальные скобки ﴿ ﴾ от внешнего контекста
+        dir: 'auto',
       }),
       0,
     ];
