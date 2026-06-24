@@ -6,9 +6,12 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -35,6 +38,7 @@ import ru.basnukaev.argumentmap.library.shamela.etl.ShamelaArchiveException;
 import ru.basnukaev.argumentmap.library.shamela.etl.ShamelaReaderException;
 import ru.basnukaev.argumentmap.library.shamela.service.ShamelaImportException;
 import ru.basnukaev.argumentmap.library.shamela.service.ShamelaNotFoundException;
+import ru.basnukaev.argumentmap.web.RequestContextLogFilter;
 
 /**
  * Глобальный обработчик исключений → Problem Details (RFC 7807).
@@ -470,6 +474,19 @@ public class GlobalExceptionHandler {
                 "AI-перевод не настроен", "llm-not-configured", ex.getMessage());
     }
 
+    @ExceptionHandler(ru.basnukaev.argumentmap.hadith.web.MatnTranslateRateLimitExceededException.class)
+    public ResponseEntity<ProblemDetail> handleMatnTranslateRateLimit(
+            ru.basnukaev.argumentmap.hadith.web.MatnTranslateRateLimitExceededException ex) {
+        // 429 cost-guard (P2-3): тот же type-slug "too-many-requests", что у
+        // inline-ответа RateLimitFilter для auth. Retry-After header + property.
+        ProblemDetail pd = problem(HttpStatus.TOO_MANY_REQUESTS,
+                "Слишком много запросов AI-перевода", "too-many-requests", ex.getMessage());
+        pd.setProperty("retryAfterSeconds", ex.getRetryAfterSeconds());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+                .body(pd);
+    }
+
     @ExceptionHandler(InvalidHadithGradeException.class)
     public ProblemDetail handleInvalidHadithGrade(InvalidHadithGradeException ex) {
         return problem(HttpStatus.BAD_REQUEST,
@@ -685,6 +702,33 @@ public class GlobalExceptionHandler {
                 "payload-too-large",
                 "Размер загружаемого файла превышает лимит "
                         + ex.getMaxUploadSize() + " bytes");
+    }
+
+    // ---- last-resort fallback (PROD-READINESS P2-1) ----
+    // Spring выбирает САМЫЙ специфичный @ExceptionHandler по иерархии типов,
+    // поэтому этот обработчик ловит ТОЛЬКО исключения, для которых нет своего
+    // handler'а выше (MethodArgumentNotValidException, IllegalArgumentException,
+    // доменные *NotFoundException и т.д. имеют приоритет). Без него
+    // неожиданное исключение проваливалось бы в дефолтный Spring-500 - другая,
+    // не RFC-7807 форма ответа. Здесь форма унифицирована.
+    //
+    // Контракт безопасности: НЕ leak'аем message/stack trace клиенту (может
+    // содержать SQL, пути, внутренние детали). Полный trace пишется в лог на
+    // ERROR с requestId, наружу отдаётся только этот requestId (= X-Request-Id
+    // header) - support по нему грепает лог. Клиент цитирует id в bug report.
+    @ExceptionHandler(Exception.class)
+    public ProblemDetail handleUnexpected(Exception ex) {
+        String requestId = MDC.get(RequestContextLogFilter.MDC_REQUEST_ID);
+        log.error("Необработанное исключение [requestId={}]", requestId, ex);
+        ProblemDetail pd = problem(HttpStatus.INTERNAL_SERVER_ERROR,
+                "Внутренняя ошибка",
+                "internal-error",
+                "Произошла внутренняя ошибка сервера. Если она повторяется, "
+                        + "сообщите requestId в поддержку.");
+        if (requestId != null) {
+            pd.setProperty("requestId", requestId);
+        }
+        return pd;
     }
 
     private ProblemDetail problem(HttpStatus status, String title, String typeSlug, String detail) {

@@ -237,8 +237,13 @@ hd_field_overrides` или правка на проде; темы — JSON-эк�
 - [x] **P0-3 regression fix** (`23328f8`): DatasourceConfigValidator gated
       `app.datasource.prod-guard` (matchIfMissing=true; opt-out в 3 prod-profile
       IT) — ломал их context-load. Прод-safety сохранён (тест доказывает throws).
-- [ ] **P2-1/2/3/4** generic 500-handler, include-stacktrace, AI-translate
-      rate-limit, mark-as-reviewed/bulk
+- [x] **P2-1/2/3** (С65) generic `@ExceptionHandler(Exception.class)` → 500
+      RFC-7807 + requestId (трейс в лог, не в ответ) + explicit `include-
+      stacktrace/message/binding-errors: never`; AI-translate cost-guard
+      (per-user sliding-window 20/ч, `hadith.translate.rate-limit.*`, ADMIN-
+      exempt, 429 `too-many-requests`, cached не тратит бюджет).
+- [ ] **P2-4** mark-as-reviewed / bulk-операции дата-опс (поверх overlay —
+      проставить authenticity батчу по фильтру, отметить рави проверенным)
 - **🚚 remblo (деплой/ops, отдельный репо):** P0-2 бэкап/restore БД (pg_dump
       по расписанию + restore-ранбук), CI, прод-env, имя prod-профиля
       (валидатор P0-3 завязан на `prod`).

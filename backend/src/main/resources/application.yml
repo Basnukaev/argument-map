@@ -1,5 +1,14 @@
 server:
   port: 9090
+  # Error response posture (PROD-READINESS P2-2). Явно, а не на дефолте Boot:
+  # никаких stack trace / exception message / binding errors в HTTP-ответе -
+  # они могут утечь SQL, пути и внутренние детали. RFC-7807 ProblemDetail
+  # (GlobalExceptionHandler) отдаёт безопасный detail + requestId; полный
+  # trace пишется server-side в лог по этому requestId.
+  error:
+    include-stacktrace: never
+    include-message: never
+    include-binding-errors: never
 
 spring:
   profiles:
@@ -74,6 +83,18 @@ auth:
 book:
   view-count:
     dedup-window: ${BOOK_VIEW_DEDUP_WINDOW:PT30M}
+
+# Cost-guard на AI-перевод матна (P2-3). Per-user sliding-window лимит на
+# LLM-вызывающие POST /hadith/matns/{id}/translate — защита от раскрутки
+# платного AI-счёта залогиненным пользователем. В отличие от auth.rate-limit
+# (opt-in в prod) — enabled=true по умолчанию: cost-guard имеет смысл всегда.
+# ADMIN освобождён, cached/403/404/422/503 бюджет не тратят.
+hadith:
+  translate:
+    rate-limit:
+      enabled: ${HADITH_TRANSLATE_RATE_LIMIT_ENABLED:true}
+      requests-per-window: ${HADITH_TRANSLATE_RATE_LIMIT_REQUESTS:20}
+      window: ${HADITH_TRANSLATE_RATE_LIMIT_WINDOW:PT1H}
 
 app:
   cors:

@@ -32,8 +32,11 @@ import ru.basnukaev.argumentmap.service.AuditLogService;
  * <p>Цепочка translate(): findById → 404 guard → text_ar null/blank
  * guard (422) → кэш-чек (уже переведён и !force → existing, cached=true)
  * → force-only-ADMIN guard (403) → isEnabled guard (503) →
- * {@link LlmClient#complete} (5-15с) → {@link MatnRepository#updateTranslation}
- * → MatnTranslationResponse(cached=false).
+ * per-user cost-guard ({@link MatnTranslateRateLimiter}, 429, ADMIN exempt)
+ * → {@link LlmClient#complete} (5-15с) → {@link MatnRepository#updateTranslation}
+ * → MatnTranslationResponse(cached=false). Cost-guard стоит ПОСЛЕ всех
+ * guard'ов — бюджет тратят только запросы, реально идущие в LLM (cached /
+ * 403 / 404 / 422 / 503 лимит не расходуют).
  *
  * <p><b>БЕЗ @Transactional на методе (нормативно, План 7 решение 6):</b>
  * иначе DB-коннект держался бы все 5-15с LLM-вызова, впустую занимая
@@ -90,14 +93,17 @@ public class HadithTranslationService {
     private final LlmClient llmClient;
     private final OverrideRepository overrideRepository;
     private final AuditLogService auditLogService;
+    private final MatnTranslateRateLimiter rateLimiter;
 
     public HadithTranslationService(MatnRepository matnRepository, LlmClient llmClient,
                                     OverrideRepository overrideRepository,
-                                    AuditLogService auditLogService) {
+                                    AuditLogService auditLogService,
+                                    MatnTranslateRateLimiter rateLimiter) {
         this.matnRepository = matnRepository;
         this.llmClient = llmClient;
         this.overrideRepository = overrideRepository;
         this.auditLogService = auditLogService;
+        this.rateLimiter = rateLimiter;
     }
 
     /**
@@ -114,6 +120,8 @@ public class HadithTranslationService {
      * @throws InvalidMatnTextException            422 — text_ar пустой
      * @throws AdminOnlyException                  403 — force без ADMIN
      * @throws MatnTranslationNotConfiguredException 503 — LLM disabled
+     * @throws ru.basnukaev.argumentmap.hadith.web.MatnTranslateRateLimitExceededException
+     *                                             429 — превышен per-user лимит (не-ADMIN)
      */
     public MatnTranslationResponse translate(UUID matnId, String lang,
                                              boolean force, UUID userId, String role) {
@@ -138,6 +146,14 @@ public class HadithTranslationService {
 
         if (!llmClient.isEnabled()) {
             throw new MatnTranslationNotConfiguredException();
+        }
+
+        // Cost-guard (P2-3): тратим бюджет ТОЛЬКО когда реально идём в LLM —
+        // после cache/403/422/503 guard'ов, прямо перед платным вызовом.
+        // ADMIN освобождён: force-регенерация уже его прерогатива, лимит
+        // не должен мешать курации.
+        if (!UserRole.ADMIN.equals(role)) {
+            rateLimiter.acquire(userId);
         }
 
         // LLM-вызов вне любой транзакции (см. Javadoc класса).
