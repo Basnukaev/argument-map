@@ -241,8 +241,14 @@ P0-1 (реимпорт затирает правки) + FB-5 (править/с�
       `HideToggle` (EyeOff/Eye + reason-модалка + пилюля). Независимый
       review: **APPROVE, 0 Crit/Imp, 4 Minor** (граница STUDENT-cut добавлена).
       Live-смоук + Playwright. matns/sanads record-hide — Фаза 5
-- [ ] **Фаза 5** расширение на сателлиты (rulings/explanations/
-      commentaries/matns/sanads)
+- [x] **Фаза 5** (Сессия 65) field-edit + hide на сателлитах: backend
+      5 apply()-методов (ruling/explanation/commentary/matn/sanad) +
+      `applyAndHide` (field-edit+record-hide одним батч-load); matns/sanads
+      теперь effective+hideable; frontend `CurationFieldsPanel` на rulings/
+      explanations/commentaries/matns. Review: **APPROVE 0 Crit/Imp, 2 Minor**
+      (позиц. корректность 5 рекордов verified field-by-field). **5.b отложено:**
+      sanad-UI (только в RF-графе) + `hd_sanad_narrators.transmission_phrase`
+      (композитный ключ) + `ExplanationDto.author_death_year` не surface'ится
 - [ ] **Фаза 6** миграция C9-перевода в overlay + снять P0-1a → review
 
 ### Этап 18. Library frontend - оставшиеся подэтапы

@@ -9,14 +9,15 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
-## 2026-06-24 - Сессия 65 - ЭПИК КУРАЦИИ Фазы 1-4 (overlay hd_field_overrides)
+## 2026-06-24 - Сессия 65 - ЭПИК КУРАЦИИ Фазы 1-5 + Tiptap-RTL-фикс
 
 Автопилот: «посмотри прогресс/беклог, делай всё, на перепутье — best practice».
 Приоритет из С64 был однозначен — **эпик курации данных** (P0-1 + FB-5), спека
 `docs/specs/2026-06-18-data-curation-overlay.md` (фазы 0-6, ADR-065 заготовлен).
 Фаза 0 (P0-1a merge-страховка перевода) была закрыта в С64-cont. Эта сессия
-закрыла **Фазы 1-4 + 2 review-чекпоинта** (пилот + hide/show). 10 коммитов.
-После «далее» от Абдулы пилот (1-3) продолжен Фазой 4.
+закрыла **Фазы 1-5 + 3 review-чекпоинта** (пилот / hide-show / сателлиты) +
+**Tiptap-RTL-фикс** (отдельный баг Абдулы). ~17 коммитов. После «далее» пилот
+(1-3) продолжен Фазами 4-5; затем по скринам Абдулы — Tiptap-Arabic-фикс.
 
 ### Что построено (механизм)
 Overlay-таблица `hd_field_overrides` поверх импортного корпуса. Импорт alminasa
@@ -62,8 +63,28 @@ hd_* **не трогаем** — правки/скрытия живут в overl
 - **Фаза 4.b** (`6cec418`): frontend `HideToggle` (EyeOff «Скрыть»→reason-модалка
   →PUT __record__; Eye «Показать»→DELETE) в RulingsList/ExplanationsList/
   NarratorCommentaryList; скрытая запись — затемнена+пилюля. i18n ru+ar. 5+51.
+- **Фаза 5.a** (`28ac6fb` + review-fix `1de93a4`): field-edit + hide на
+  сателлитах. 5 чистых static `apply(<Satellite>, OverrideSet)` (HadithRuling/
+  Explanation/NarratorCommentary/Matn/Sanad — правят §5-editable, первоисточник
+  passthrough) + `applyAndHide` (field-edit + record-hide одним батч-load).
+  matns/sanads теперь EFFECTIVE+record-hide (были raw). MatnDto/SanadDto
+  +hiddenByAdmin/hideReason. CurationSatelliteFieldEditIT 10. Review APPROVE
+  (позиц. корректность 5 рекордов verified field-by-field); удалён мёртвый
+  applyRecordHide.
+- **Фаза 5.b** (`4c7bf40`): frontend `CurationFieldsPanel` (ADMIN-only сетка
+  EditableField) в RulingsList/ExplanationsList/NarratorCommentaryList +
+  MatnVariations (поля + HideToggle matns). i18n field.* ru+ar. 139+4 теста.
+  **Отложено:** sanad-UI (только в RF-графе, SanadSummaryDto без reveal-полей)
+  + hd_sanad_narrators.transmission_phrase + ExplanationDto.author_death_year
+  не surface'ится.
+- **Tiptap-RTL-фикс** (`510d982`): арабский текст всегда RTL-корректен
+  НЕЗАВИСИМО от языка UI. Баг: блоки наследовали base-direction от `<html dir>`
+  (по локали UI) → в RU(LTR) пунктуация уезжала. Фикс: `BlockDir`-extension
+  `dir="auto"` на каждый блок (parseHTML null → JSON не меняется) + dir=auto на
+  кастом-нодах + `unicode-bidi: isolate` на ayah/hadith-box. Playwright RU+AR
+  verified. tsc/lint 0, vitest 904.
 
-### Review (2 чекпоинта — ОБА ПРОЙДЕНЫ)
+### Review (3 чекпоинта — ВСЕ ПРОЙДЕНЫ)
 **Пилот (Фазы 1-3):** независимый code-reviewer (Opus) — **APPROVE, 0 Critical,
 0 Important, 8 Minor.** Опасные инварианты подтверждены: нет утечки override в
 импорт, позиционная корректность record-конструкторов, SQL-инъекция в
@@ -74,7 +95,13 @@ assertEntityExists невозможна (table = всегда один из 8 ha
 principal (не форжабельна в prod), точное равенство `ADMIN`, cut-ветка вырезает
 запись целиком (не null-маска), `hideReason` только в reveal-ветке, scope только
 detail (list не отдаёт сателлиты). Дешёвые Minor закрыты; отложено: effective-facet
-JOIN → §10 backlog; field-hide на сателлитах + applyBool strictness → Фаза 5.
+JOIN → §10 backlog; applyBool strictness → Фаза 5.
+**Сателлиты (Фаза 5):** независимый review — **APPROVE, 0 Critical, 0 Important,
+2 Minor.** Главный риск — позиционная корректность 5 `apply(<Satellite>)`
+record-конструкторов — проверен field-by-field против domain-records + whitelist
++ Liquibase-схемы (нет swap page/volume, первоисточник text_ar/comments
+passthrough). 2 Minor (мёртвый applyRecordHide + висячий javadoc) закрыты в
+`1de93a4`.
 
 ### Верификация
 - Backend: каждая фаза — таргетный прогон зелёный; регрессия (Hadith/Narrator
@@ -105,35 +132,34 @@ JOIN → §10 backlog; field-hide на сателлитах + applyBool strictne
   не в field-apply → field-hide пока без эффекта. Привязано к Фазе 5.
 - 12 Minor из 2 ревью — все либо закрыты, либо привязаны к Фазе 5.
 
-### Следующий шаг — Фаза 5 (расширение apply на сателлиты)
-По спеке §9 Фаза 5: apply+DTO-интеграция РЕДАКТИРОВАНИЯ полей сателлитов
-(не только record-hide, который уже есть): hd_rulings (ruler_name/ruling_text/
-book_name/page/volume), hd_explanations (book_name/author/text/...),
-hd_narrator_commentaries (commenter/book_name/...), hd_matns meta-поля
-(printed_number/page_no/volume/divergence_summary), hd_sanads (chain_grade/
-primary_chain), hd_sanad_narrators (transmission_phrase). Для каждого: завести
-apply-метод (как `apply(Hadith)`/`apply(Narrator)`) ИЛИ применять override на
-DTO-сборке в контроллере detail; добавить field-level hide (applyStr уже даёт
-null на hidden-поле — нужно прогнать сателлиты через apply); frontend
-`EditableField` на этих полях + `HideToggle` field-level. Тогда же:
-applyBool strictness (OverrideSet — пометка стоит), record-hide для matns/
-sanads (whitelist готов, контроллеры detail ещё не фильтруют их). Затем
-**Фаза 6** (миграция C9-перевода в overlay по стабильному ключу
-`(hadith_id, is_primary)` — НЕ matn.id, он меняется на реимпорте; переписать
-PATCH `/matns/{id}/translation` на overlay, сохранив URL; снять P0-1a merge-
-страховку в AlminasaHadithMapper/MatnRepository.findPrimaryByHadithId). Каждая
-фаза — review-чекпоинт. Эскалация Абдуле перед Фазой 6 (ключ перевода — §10 в.2).
+### Следующий шаг — Фаза 6 (миграция C9-перевода) + добор Фазы 5.b
+**Фаза 6 (нужна эскалация Абдуле, §10 в.2 — ключ перевода):** мигрировать C9
+matn-перевод в overlay по СТАБИЛЬНОМУ ключу `(hadith_id, is_primary)` — НЕ
+`matn.id` (он меняется на реимпорте). Liquibase data-migration существующих
+`hd_matns.text_ru/en != null` → override-строки; переписать PATCH
+`/hadith/matns/{id}/translation` (C9) на overlay внутри (URL сохранить, фронт
+MatnTranslateControls не трогать); снять P0-1a merge-страховку в
+`AlminasaHadithMapper`/`MatnRepository.findPrimaryByHadithId`. Review-чекпоинт.
 
-**Ручная проверка (Абдуле):** залогинься ADMIN.
-1. hadith/narrator detail — **карандаши** у бейджей/полей (status/authenticity/
-   reliability/tabaqa/...), клик → инлайн-правка → «Сохранено» + значение
-   обновляется; обычный юзер/аноним — без карандашей; матн без карандаша.
-2. Вкладки «Вердикты»/«Шарх»/«Иляль»/«Гариб» и «Оценки учёных» рави — у карточек
-   кнопка `EyeOff` «Скрыть» → reason-модалка → запись затемняется + пилюля
-   «Скрыто администратором: {причина}» + `Eye` «Показать снова». Выйди из ADMIN —
-   скрытые записи не приходят вовсе.
-3. Глянь **RTL-вёрстку** инлайн-редактора и пилюли с арабской причиной глазами
-   (Playwright headless ≠ реальный браузер).
+**Добор Фазы 5.b (мелкое, можно попутно):** (1) `hd_sanad_narrators.
+transmission_phrase` — композитный ключ `entity_id=sanad_id`,
+`field_name='transmission_phrase@{position}'` (см. спека §5); (2) sanad field-
+edit/hide UI — сейчас sanad только в RF-графе, `SanadSummaryDto` без
+`hiddenByAdmin`/`hideReason` (добавить + место под контролы вне графа);
+(3) `ExplanationDto.author_death_year` не surface'ится (правка пишется, но «—»
+на показе — либо добавить в DTO, либо убрать из editable-панели); (4) applyBool
+strictness (OverrideSet — пометка стоит).
+
+**Ручная проверка (Абдуле) — залогинься ADMIN:**
+1. **Tiptap (приоритет — твой баг):** `/admin/library/pages/{id}/edit` в RU UI —
+   арабская пунктуация (`.`/`:`) на месте (конец предложения), ayah-box без
+   артефактных `(`; переключи на AR UI — без регресса. И read-only в ридере
+   книги. **Глянь RTL глазами** (headless ≠ реальный браузер).
+2. **Курация:** hadith/narrator detail — карандаши у бейджей/полей; вкладки
+   «Вердикты»/«Шарх»/«Иляль»/«Гариб» + «Параллельные тексты» (матны) — блок
+   «Правка полей» (карандаши) + `EyeOff` «Скрыть» (reason→пилюля); «Оценки
+   учёных» рави. Выйди из ADMIN — ни карандашей, ни «Скрыть», скрытые записи
+   не приходят. RTL-вёрстка сетки «Правка полей» с арабскими значениями.
 
 ## 2026-06-24 - Сессия 64 (cont.) - автопилот бэклога (OMC-оркестрация)
 
