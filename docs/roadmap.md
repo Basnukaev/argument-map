@@ -226,12 +226,17 @@ hd_field_overrides` или правка на проде; темы — JSON-эк�
       datasource из `${SPRING_DATASOURCE_*}` без fallback (fail-fast) +
       `DatasourceConfigValidator` (prod+localhost/argmap → IllegalStateException)
       + required-env в auth-security.md. local boot verified.
-- [ ] **P1-2** data-health эндпоинт (`GET /admin/hadith/health` — counts
-      битых/недозаполненных: NULL authenticity/tabaqa, без цепей) — **в работе**
-- [ ] **P1-4** закрыть member-list анониму (PUBLIC-тема/книга раскрывает
-      user-UUID; `TopicMemberService`/`BookMemberService`/`VisibilityPolicy`)
-- [ ] **P1-5** проверить CORS в проде (`WebMvcConfig` — whitelist origin,
-      allowCredentials только с явными origin)
+- [x] **P1-2** (С65, `f0a6cee`) data-health `GET /admin/hadith/health`
+      (ADMIN, 9 counts: nullAuthenticity 2228, withoutSanad 996, nullTabaqa
+      2404, unknownReliability 2913, ...; 2 FILTER-запроса). Live verified.
+- [x] **P1-4** (С65, `4ef4253`) member-list только authenticated: carve-out
+      `/{topics,books}/{id}/members` из guest-permitAll (был leak user-UUID
+      PUBLIC-темы анониму). ADR-064 amendment. GuestAccessProdProfileIT 14/14.
+- [x] **P1-5** (С65, `77a3a4d`) CORS verified SAFE (doc-only): env-origins
+      fail-closed, no wildcard, allowCredentials(false) т.к. same-origin.
+- [x] **P0-3 regression fix** (`23328f8`): DatasourceConfigValidator gated
+      `app.datasource.prod-guard` (matchIfMissing=true; opt-out в 3 prod-profile
+      IT) — ломал их context-load. Прод-safety сохранён (тест доказывает throws).
 - [ ] **P2-1/2/3/4** generic 500-handler, include-stacktrace, AI-translate
       rate-limit, mark-as-reviewed/bulk
 - **🚚 remblo (деплой/ops, отдельный репо):** P0-2 бэкап/restore БД (pg_dump
