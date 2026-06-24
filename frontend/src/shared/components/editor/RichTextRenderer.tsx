@@ -79,13 +79,18 @@ function RichTextRenderer({
   dir,
   onReady,
 }: Props) {
+  // className передаётся вызывающим (PageView) чтобы переопределить
+  // дефолтный `.prose` editor-wrapper. `.prose` тянет font-family:
+  // var(--font-serif) — для арабского контента это НЕправильно (его
+  // шрифт = «Арабский шрифт» / var(--font-ar)). Если className не
+  // задан — RichTextEditor применяет свой prose-дефолт.
   return (
     <div dir={dir}>
       <RichTextEditor
         content={content}
         editable={false}
         extensions={extensions}
-        className={className}
+        {...(className !== undefined ? { className } : {})}
         onEditorReady={onReady}
       />
     </div>

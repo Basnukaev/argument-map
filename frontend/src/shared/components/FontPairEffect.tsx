@@ -51,7 +51,13 @@ export function FontPairEffect() {
 
   useEffect(() => {
     const af = findArabicFont(arabicFontId);
-    document.documentElement.style.setProperty('--font-arabic', af.value);
+    // Выставляем БАЗОВУЮ переменную --font-ar (не алиас --font-arabic):
+    // tokens.css определяет `--font-arabic: var(--font-ar)`, поэтому
+    // одной записью каскадим во ВСЁ, что читает арабский шрифт —
+    // --font-arabic / font-naskh utility, .prose-arabic, орнаменты
+    // ayah-box (tiptap.css). Это делает контрол «Арабский шрифт»
+    // единственным источником истины для арабского контента книги.
+    document.documentElement.style.setProperty('--font-ar', af.value);
   }, [arabicFontId]);
 
   return null;

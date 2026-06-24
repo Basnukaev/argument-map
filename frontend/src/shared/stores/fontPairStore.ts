@@ -3,8 +3,9 @@ import { create } from 'zustand';
 /**
  * Парирование шрифтов для всего UI. Каждая пара переопределяет
  * CSS-переменные --font-ui (sans / UI body) и --font-serif (serif /
- * заголовки книг и prose). --font-arabic не трогаем - Amiri ставится
- * unconditional.
+ * заголовки и латинская prose). Арабский контент шрифтом пары НЕ
+ * управляется - его задаёт отдельный контрол «Арабский шрифт» через
+ * базовую переменную --font-ar (см. FontPairEffect).
  *
  * Все шрифты загружены upfront через @fontsource-variable импорты
  * в index.css, поэтому переключение пары в runtime - instant без FOUT.
@@ -143,7 +144,7 @@ export const DEFAULT_PAIR_ID = FONT_PAIRS[0]!.id;
 export interface ArabicFont {
   id: string;
   name: string;
-  /** CSS value для --font-arabic */
+  /** CSS value для --font-ar (базовый арабский шрифт; --font-arabic — алиас) */
   value: string;
   hint?: string;
 }

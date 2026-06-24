@@ -198,6 +198,16 @@ function PageView({
     ? 'book-content font-naskh text-md leading-[2] text-ink-900'
     : 'book-content text-base leading-relaxed text-ink-900';
 
+  // className для Tiptap editor-wrapper (formattedContent path). Дефолт
+  // RichTextEditor — `.prose ...`, а `.prose { font-family: var(--font-serif) }`
+  // (tokens.css) — это шрифт контрола «Шрифт интерфейса», НЕ арабский.
+  // Для арабского контента используем `.prose-arabic`, который читает
+  // var(--font-ar) (= «Арабский шрифт»). undefined → RichTextEditor
+  // применяет свой латинский prose-дефолт.
+  const richTextClass = isArabic
+    ? 'prose-arabic max-w-none focus:outline-none'
+    : undefined;
+
   return (
     <Card className="relative px-8 pb-8 pt-14">
       <div className="absolute end-4 top-3 inline-flex items-center gap-2">
@@ -234,6 +244,7 @@ function PageView({
           <RichTextRenderer
             content={page.formattedContent}
             extensions={READER_EXTENSIONS}
+            className={richTextClass}
             onReady={onRichTextReady}
           />
         </article>
