@@ -460,6 +460,23 @@ class AnswerCitationServiceIT {
                 .hasMessageContaining("Ровно один");
     }
 
+    @Test
+    void dbCheckConstraint_rejectsDirectInsertWithTwoModes() {
+        // Прямой JDBC insert минуя сервис: pdf_file_index + page_id одновременно
+        // должны быть отвергнуты CHECK chk_answer_sources_one_mode.
+        UUID srcId = service.createCitation(answerId,
+                new CitationRequest(bookId, pageId, 0, 10, null, null, null, null, null, null, null))
+                .sourceId();
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "INSERT INTO answer_sources (id, answer_id, source_id, page_id, range_start, range_end, "
+                        + "pdf_file_index, pdf_page_number, pdf_bbox, created_at) "
+                        + "VALUES (?, ?, ?, ?, 0, 10, 0, 5, ?::jsonb, now())",
+                UUID.randomUUID(), answerId, srcId, pageId,
+                "{\"x\":0,\"y\":0,\"width\":0.5,\"height\":0.5}"))
+                .hasMessageContaining("chk_answer_sources_one_mode");
+    }
+
     /**
      * FILE_ONLY книга: PDF в metadata.pdf_links.files[], НЕТ library_files-строки.
      */

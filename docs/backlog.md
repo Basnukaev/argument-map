@@ -293,6 +293,28 @@ node_votes**); Frontend pagination остальных list pages (Load More,
   конструкторе. Blast radius — все endpoint'ы (GlobalExceptionHandler), поэтому
   отдельная задача, не drive-by. Не блокер FILE_ONLY-цитат (тот путь не задет).
 
+### Code-review findings (С66, ADR-067 PDF_LINK) — deferred Minor
+
+Ревью бэкенда PDF_LINK = **APPROVE, 0 Crit/0 Imp, 4 Minor**. #1 (тесты DB-CHECK
+для question/answer) закрыт в С66. Остальные отложены (нит-уровень):
+
+- [ ] **Двойной `getMetadata` на create PDF_LINK-цитаты** — happy-path зовёт
+  `PdfService.getMetadata(bookId)` дважды: для bounds-валидации и внутри
+  `pdfVolumeLabelSuffix` (snapshot-метка). Лишний book-load + permission-check +
+  JSON-parse `pd_links`. Не баг (snapshot в try/catch), эндпоинт холодный. Fix:
+  тянуть `PdfMetadata` один раз в `isPdfLink`-ветке и прокинуть `files()`/label
+  в `buildLocationSnapshot` (во всех 3 сервисах).
+- [ ] **TEXT_ONLY-книга → 404 вместо 400 на PDF_LINK-запрос** — `getMetadata`
+  для книги без `pdf_links` бросает `PdfNotAvailableException` → 404, хотя
+  семантически это невалидная цитата (клиент дал `pdfFileIndex` книге без PDF)
+  = 400 `invalid-citation`, как прочие PDF_LINK-ошибки. Без 500/NPE. Fix: обернуть
+  bounds-check `getMetadata` и перебросить как `InvalidCitationException`.
+- [ ] **Rollback миграции 80 молча деградирует PDF_LINK-строки в LEGACY** —
+  восстановленный 4-ветковый CHECK не падает на PDF_LINK-строках (они проходят
+  LEGACY-ветку, та не ограничивала `pdf_file_index`), затем `DROP COLUMN` теряет
+  ordinal. Rollback НЕ падает (хорошо), но lossy. Dev-only, информативно. Fix:
+  комментарий в `<rollback>` про lossy-деградацию (как уже в TopicImport/ADR).
+
 ### Code-review findings (Сессия 55, 2026-06-03) — deferred Minor
 
 - [ ] **migration 69 (content_kind) HAS_FILE предикат** использует
