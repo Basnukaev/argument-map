@@ -288,8 +288,12 @@ node_votes**); Frontend pagination остальных list pages (Load More,
 
 ## Tech debt / performance optimization
 
-- [ ] **Невалидный `PdfBbox` в citation-запросе → 500 вместо 400** (найдено С66,
-  pre-existing, `NodeCitationControllerIT.post_invalidBbox_returns400`).
+- [x] **Невалидный `PdfBbox` в citation-запросе → 500 вместо 400** ✅ С66 — добавлен
+  `@ExceptionHandler(HttpMessageNotReadableException)` → 400 RFC-7807
+  (`malformed-request-body`, generic detail без утечки payload). Покрывает все
+  битые/нечитаемые тела (битый JSON, type-mismatch, record-конструктор). Repro
+  `NodeCitationControllerIT.post_invalidBbox_returns400` зелёный + 2 теста
+  GlobalExceptionHandlerTest (no-leak). Историческое описание ниже.
   `PdfBbox` валидирует в compact-конструкторе record'а — `IllegalArgumentException`
   бросается во время Jackson-десериализации тела → оборачивается в
   `HttpMessageNotReadableException`, но `GlobalExceptionHandler` отдаёт generic

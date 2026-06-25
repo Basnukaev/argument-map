@@ -35,7 +35,11 @@ OpenAPI-спецификация: `/v3/api-docs` (JSON), Swagger UI: `/swagger-u
 - **Даты:** ISO 8601 с таймзоной (`2026-04-13T10:30:00Z`)
 - **ID:** UUID v4 как строки
 - **Ошибки:** RFC 7807 Problem Details (`Content-Type:
-  application/problem+json`)
+  application/problem+json`). Cross-cutting `400 malformed-request-body` -
+  нечитаемое тело запроса (битый JSON, несовпадение типа поля, или
+  невалидное значение, отвергнутое конструктором record'а на этапе
+  десериализации, напр. `PdfBbox` с координатами вне `[0,1]`); detail
+  generic, без эха payload
 - **Аутентификация:** Bearer JWT через `Authorization: Bearer <token>`
   (ADR-040, Этап 21.a). Получение токена - `POST /api/v1/auth/login`
   (см. секцию Auth ниже). Refresh token - HttpOnly cookie. В dev/test/local

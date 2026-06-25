@@ -1,6 +1,7 @@
 package ru.basnukaev.argumentmap.exception;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -9,9 +10,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import ru.basnukaev.argumentmap.web.RequestContextLogFilter;
@@ -68,6 +72,40 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.status").value(400));
     }
 
+    @Test
+    void malformedBody_returns400ProblemDetail_noLeak() throws Exception {
+        // IllegalArgumentException из compact-конструктора record'а на этапе
+        // десериализации → HttpMessageNotReadableException → 400 (не 500).
+        // value=999 с "секретом" в сообщении конструктора - проверяем что
+        // фрагмент payload не утекает наружу.
+        mockMvc.perform(post("/test-fixture/parse-body")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"value\":999}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.type").value(
+                        org.hamcrest.Matchers.containsString("malformed-request-body")))
+                .andExpect(jsonPath("$.title").value("Некорректное тело запроса"))
+                .andExpect(jsonPath("$.status").value(400))
+                // НЕ leak'аем фрагменты payload / сообщение конструктора в тело
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("SECRET_LEAK_TOKEN"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("999"))));
+    }
+
+    @Test
+    void malformedJson_returns400ProblemDetail() throws Exception {
+        // битый JSON (не закрытая скобка) → HttpMessageNotReadableException → 400
+        mockMvc.perform(post("/test-fixture/parse-body")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{not valid json"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value(
+                        org.hamcrest.Matchers.containsString("malformed-request-body")))
+                .andExpect(jsonPath("$.status").value(400));
+    }
+
     @RestController
     static class ThrowingController {
 
@@ -80,6 +118,25 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/test-fixture/bad-arg")
         String badArg() {
             throw new IllegalArgumentException("плохой аргумент");
+        }
+
+        @PostMapping("/test-fixture/parse-body")
+        String parseBody(@RequestBody ValidatingBody body) {
+            return "ok";
+        }
+    }
+
+    /**
+     * Record с валидацией в compact-конструкторе - имитирует PdfBbox:
+     * IllegalArgumentException бросается во время Jackson-десериализации,
+     * Spring оборачивает в HttpMessageNotReadableException.
+     */
+    record ValidatingBody(int value) {
+        ValidatingBody {
+            if (value < 0 || value > 100) {
+                throw new IllegalArgumentException(
+                        "SECRET_LEAK_TOKEN: value вне диапазона, получено value=" + value);
+            }
         }
     }
 }

@@ -12,6 +12,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -590,6 +591,25 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleIllegalArgument(IllegalArgumentException ex) {
         return problem(HttpStatus.BAD_REQUEST,
                 "Некорректный аргумент", "illegal-argument", ex.getMessage());
+    }
+
+    // Тело запроса не читается: битый JSON, несовпадение типа поля, или
+    // IllegalArgumentException из compact-конструктора record'а (например
+    // PdfBbox с координатами вне [0,1]) - Jackson оборачивает его в
+    // HttpMessageNotReadableException на этапе десериализации, до того как
+    // запрос дойдёт до @Valid/контроллера. Это клиентская ошибка → 400, а не
+    // 500 (без этого handler'а проваливалось в generic Exception → 500).
+    //
+    // Контракт безопасности: ex.getMessage() может содержать фрагменты payload
+    // (значения полей, путь до битого токена в JSON) - наружу отдаём только
+    // generic detail, как в handleUnexpected.
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ProblemDetail handleNotReadable(HttpMessageNotReadableException ex) {
+        log.warn("Нечитаемое тело запроса: {}", ex.getMessage());
+        return problem(HttpStatus.BAD_REQUEST,
+                "Некорректное тело запроса",
+                "malformed-request-body",
+                "Тело запроса не может быть прочитано (битый JSON или невалидные значения полей).");
     }
 
     // ---- shamela ETL ----
