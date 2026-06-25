@@ -208,21 +208,25 @@ floating action bar (graphSelectionStore). Детали в progress.md/git.
   бэковый ArabicTextNormalizer, пословный матчинг + фразы-reference ~5%),
   click-поповер толкование+словарь. 10 unit + 2 HadithDetailPage теста,
   playwright 44 слова. metadata.referenceId использован как ключ.
-- [ ] **Admin-форма «Оценка учёного» (hadith_grades)** ⚠️ ЭСКАЛИРОВАНО
-  (Сессия 61, инвестигация в git/progress): механизм `hadith_grades`
-  (миграция 43, `POST /api/v1/sources/{id}/grades`, таблица + enum
-  `HadithGradeValue`, FK на `sources`+`authorities`) **НЕ сведён** с
-  alminasa `hd_hadiths`. Detail-секция «Оценки учёных» читает
-  `hd_hadiths.metadata.grades` jsonb (freeform scholar/grade/note,
-  **READ-ONLY**, нет POST). id-mismatch (`sources.id` vs `hd_hadiths.id`) +
-  schema-mismatch: даже при совпадении id форма писала бы в таблицу, которую
-  detail НИКОГДА не читает → секция осталась бы пустой. **Нужен ADR Абдулы:**
-  (A) POST в `hd_hadiths.metadata.grades` jsonb (просто, но freeform, без
-  authorities-FK/enum/дедупа); (B) связать `hd_hadiths`↔`sources` + detail
-  читает из `hadith_grades` JOIN (дороже, настоящая модель: authorities, enum,
-  дедуп, permission SCHOLAR); (C) новая таблица `hd_hadith_grades(hadith_id
-  FK, authority_id, grade, citation, note)` + endpoint + чтение в detail.
-  Код НЕ писан (guard: архитектура → стоп).
+- [x] **Admin-форма «Оценка учёного» (hadith_grades)** ✅ ЗАКРЫТО как УСТАРЕВШЕЕ
+  (аудит С66, архитектор-агент): пункт описывал pre-ADR-062 состояние. Решение
+  было принято и **уже отгружено end-to-end в Сессии 62 — ADR-062 «Мост
+  hd_hadiths↔sources», Вариант B**: lazy-резолв `SourceType.HADITH`-source на
+  хадис (`HadithGradeBridgeService.addGradeForHadith`), `POST /api/v1/hadith/
+  hadiths/{id}/grades`, detail читает оценки из `hadith_grades` JOIN (НЕ из
+  `metadata.grades` jsonb — тот путь удалён), фронт `AddHadithGradeModal` +
+  `HadithGradesList`, api-contract, IT. id-mismatch снят мостом. **Reimport-safe
+  уже сейчас:** `AlminasaHadithMapper.mapHadith` делает in-place UPDATE,
+  сохраняя `hd_hadiths.source_id` (`:187`), хадис не удаляется → оценки
+  переживают реимпорт (вариант C переизобрёл бы cascade-риск — отвергнут). Роли
+  `USER<STUDENT<SCHOLAR<ADMIN` → ADMIN проходит SCHOLAR-гейт, фича рабочая для
+  админа сегодня. **Остаточные мелочи (НЕ блокеры, в backlog ниже):** (1) edit/
+  delete оценки на detail-странице через существующие `/api/v1/sources/grades/
+  {gradeId}` PATCH/DELETE (бэк готов, фронт `HadithGradesList` без кнопок);
+  (2) reimport-survival regression-IT (зафиксировать `:187`); (3) SCHOLAR-vs-ADMIN
+  гейт грейдинга vs ADR-065 ADMIN-only курации — решать при 49.A (роли STUDENT/
+  SCHOLAR); сейчас не жмёт (только админ). (4) seed SCHOLAR-authority для непустого
+  пикера.
 - [x] **Pre-existing lint errors (2)** — закрыто С64 (lint 0 ошибок): (1)
   `HadithDetailPage` `preserve-manual-memoization` — `detail?.fullTextAr`
   захойстен в const `fullTextAr` (deps без optional-chaining → компилятор
