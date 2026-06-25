@@ -100,8 +100,11 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
 - [ ] **Source picker для книг** - таб «Книги» с навигацией том /
       страница, интеграция с shamela.ws. Самая большая работа
       из source pickers _(SourcePickerBooks)_
-- [ ] **FILE_ONLY bbox-citation CREATION (roadmap 25.f, region
-      selection)** — `CitationPicker` сейчас цитирует только
+- [x] **FILE_ONLY bbox-citation CREATION (roadmap 25.f, region
+      selection)** ✅ С66 — ADR-067, режим **PDF_LINK** (backend `4660d61` +
+      независимое ревью APPROVE; фронт `6e27153b`). Live-смоук: POST region-цитаты
+      → 201 mode=PDF_LINK + fileIndex round-trip, DELETE 204. Визуал рисования —
+      на ручную проверку (react-pdf headless ограничен). — `CitationPicker` раньше цитировал только
       text-страницы (`bookState.pages`); для FILE_ONLY книг
       (archive.org сканы, 0 текстовых страниц) нужен PDF-режим
       выбора: показать PDF-страницу + нарисовать bbox
@@ -111,7 +114,10 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
       overlay поверх PDF-страницы в `PdfViewer`) **сделана в
       Сессии 55**; остаётся CREATION (рисование/выбор области)
       _(CitationPickerPdfRegion)_.
-      **⚠️ АРХИТЕКТУРНЫЙ БЛОКЕР (найдено Сессией 55):** `CitationRequest.pdfFileId`
+      **✅ БЛОКЕР РЕШЁН (С66, ADR-067, выбран вариант a):** новый режим PDF_LINK
+      адресует PDF по `(pdf_file_index, page, bbox)` в `pdf_links.files[]` —
+      НЕ регистрируем archive.org в `library_files` (та требует blob). Историческая
+      формулировка блокера ниже. `CitationRequest.pdfFileId`
       — это UUID FK на `library_files(file_id)`. Но archive.org FILE_ONLY книги
       хранят PDF в `metadata.pdf_links`, а НЕ в `library_files` (там только
       USER_UPLOAD). → для archive.org книг нет `pdfFileId`, pdf-локационную

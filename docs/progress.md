@@ -47,21 +47,26 @@ argument-map НЕ задеплоен нигде (прода нет), а remblo �
 code-ревью (BASE/HEAD) → закрыть Minor #1 / backlog остальное. Делегирование
 сберегло контекст в длинной сессии.
 
-**Следующий шаг — FILE_ONLY PDF_LINK фронт (бэкенд готов+ревью):**
-ПРЕДУСЛОВИЕ: рестарт бэка с новым кодом (env-команда из CLAUDE.md +JDWP) →
-`npm run generate-api` (типы `PdfRef.fileIndex` + `mode:PDF_LINK` ещё не в
-`shared/api/types.ts`; running :9090 предшествует правке). Затем:
-(a) `CitationPicker` FILE_ONLY-таб (сейчас placeholder `:380-385`) → POST
-`{bookId, pdfFileIndex, pdfPageNumber, pdfBbox, quote, context}` — начать с
-manual page+bbox-ввода (тестируемо без рисования); (b) deep-link builders ×3
-(`NodeCitationsSection.tsx:265` + Question/Answer) +`&fileIndex=` (латентный
-multi-volume баг — сейчас fileId/fileIndex не шлются); (c) `BookReaderPage`
-читает `?fileIndex=` → прокидывает в `PdfViewer` (проп уже есть); Vitest+MSW.
-(d) **bbox-drawing UX** (`CitationPickerPdfRegion`, react-image-crop поверх
-react-pdf `<Page>`, rect→нормализ. PdfBbox) — НУЖНЫ ГЛАЗА АБДУЛЫ, playwright
-env-ограничен. Спека-детали в ADR-067 + backlog roadmap 25.f.
+**FILE_ONLY PDF_LINK фронт — СДЕЛАН В ЭТОЙ ЖЕ СЕССИИ** (`6e27153b`): рестарт
+бэка на новом коде + `npm run generate-api`; `CitationPickerPdfRegion`
+(react-pdf + pointer-drag rect → нормализ. bbox, селектор тома, навигация
+страниц); `CitationPicker` FILE_ONLY-ветка вместо заглушки (lazy+Suspense);
+deep-link builders ×3 +`&fileIndex=`; `BookReaderPage` читает `?fileIndex=` →
+`PdfViewer.initialFileIndex`; pdfRegion.ts чистые хелперы; i18n RU+AR; tsc 0,
+926 тестов. **Live-смоук на стенде:** POST region-цитаты (Том 1/стр.5/bbox) →
+201 mode=PDF_LINK + fileIndex round-trip → DELETE 204.
+
+**Следующий шаг — РУЧНАЯ визуальная проверка Абдулы (фича рабочая, нужны глаза):**
+открыть тему → узел → «Привести источник» → выбрать FILE_ONLY-книгу (напр.
+«الفقه المنهجي», multi-volume Том 1/2/3) → ДОЛЖНО показать PDF + селектор тома +
+навигацию + рисование прямоугольника мышью (раньше была заглушка). Нарисовать
+область → «Привести» → открыть цитату (deep-link `?fileIndex=&pdfPageNumber=&bbox=`)
+и сверить, что подсветка совпала с нарисованным. react-pdf headless ограничен —
+поэтому именно ручная проверка. Если рисование/выравнивание кривое — точечная
+итерация по `CitationPickerPdfRegion`.
 Опц. хвосты: курация 5.b sanad-UI + transmission_phrase (композ. ключ);
-ревью-Minor #2-4 (двойной getMetadata, 404→400, rollback-комментарий).
+ревью-Minor #2-4 (двойной getMetadata, 404→400, rollback-комментарий);
+pre-existing bbox→500 (GlobalExceptionHandler).
 
 ## 2026-06-24 - Сессия 65 - ЭПИК КУРАЦИИ ЗАКРЫТ (фазы 0-6) + Tiptap RTL/polish
 
