@@ -56,7 +56,7 @@ deep-link builders ×3 +`&fileIndex=`; `BookReaderPage` читает `?fileIndex
 926 тестов. **Live-смоук на стенде:** POST region-цитаты (Том 1/стр.5/bbox) →
 201 mode=PDF_LINK + fileIndex round-trip → DELETE 204.
 
-**Фидбэк Абдулы по ручному тесту → 2 фикса:** (1) `0e992f7b` — region-цитаты
+**Фидбэк Абдулы по ручному тесту → 4 фикса:** (1) `0e992f7b` — region-цитаты
 рисовались как «Свободная» без локации/навигации: `isLibraryMode` не включал
 'PDF_LINK' (→ FreeformCite) + SourceCard брал локатор из `c.location` (у pdf-
 режимов null, локация в `c.pdf`). Фикс: 'PDF_LINK' в isLibraryMode + локатор из
@@ -64,6 +64,12 @@ deep-link builders ×3 +`&fileIndex=`; `BookReaderPage` читает `?fileIndex
 (2) `a7dade53` — список опор при нескольких источниках нечитаем → выбор Абдулы:
 группировка по типу (Хадисы/Книги/Свободные + counts) + компактные
 раскрывающиеся строки (`CompactRow`, SourceCard не тронут → Q/A не задеты).
+(3) `be67269f` — в КНИГИ-строке было «(книга)» вместо названия: `pickLatinTitle`
+прячет арабские title; свёрнутая строка теперь берёт реальное `source.title||
+book.title` (dir=auto, font-naskh). (4) `390677eb` — pre-existing: невалидное
+тело citation-запроса → 500 вместо 400 (`PdfBbox` в compact-конструкторе →
+HttpMessageNotReadableException не ловился) → добавлен handler → 400
+`malformed-request-body` (no-leak).
 
 **Следующий шаг — РУЧНАЯ визуальная проверка Абдулы (всё рабочее, нужны глаза):**
 (a) FILE_ONLY-цитата: тема→узел→«Привести»→FILE_ONLY-книга → PDF + селектор тома +
@@ -72,9 +78,14 @@ deep-link builders ×3 +`&fileIndex=`; `BookReaderPage` читает `?fileIndex
 (b) Сгруппированный список опор: узел с разнотипными опорами → секции
 Хадисы/Книги/Свободные, компактные строки, раскрытие по клику — читаемо. react-pdf
 headless ограничен → именно ручная. Кривизна рисования/RTL/плотности — точечная итерация.
-Опц. хвосты: курация 5.b sanad-UI + transmission_phrase (композ. ключ);
-ревью-Minor #2-4 (двойной getMetadata, 404→400, rollback-комментарий);
-pre-existing bbox→500 (GlobalExceptionHandler).
+**Backlog-автопилот: быстрые/средние non-gated пункты ВЫЧЕРПАНЫ за С66.** Остаток —
+fresh-session-масштаб (нужны спека/решение или сложные): **курация 5.b sanad-UI**
+(reveal-поля рави в RF-графе + `transmission_phrase` композ. ключ — главный реальный
+инженерный), source-pickers (Коран/Хадисы/Книги — крупные фичи), edge-routing
+distribution (граф), cross-references drawer (нужен backend-аггрегат). Тривиальные
+нит-хвосты (низкий приоритет): ревью-Minor #2 (двойной getMetadata), #3 (404→400 для
+TEXT_ONLY в PDF_LINK-запросе), #4 (rollback-комментарий миграции 80). Деплой —
+по-прежнему в последнюю очередь (решение Абдулы).
 
 ## 2026-06-24 - Сессия 65 - ЭПИК КУРАЦИИ ЗАКРЫТ (фазы 0-6) + Tiptap RTL/polish
 
