@@ -173,6 +173,19 @@ class CurationOverrideControllerIT {
     }
 
     @Test
+    void PUT_syntheticTransmissionPhraseKey_returns400() throws Exception {
+        // transmission_phrase@{position} пишется ТОЛЬКО через выделенный
+        // SanadTransmissionPhraseService (по стабильному hadith_id+position);
+        // generic-эндпоинт с ним → 400 (иначе мёртвый override по sanad_id)
+        String synthetic = "{\"entityTable\":\"hd_sanad_narrators\",\"entityId\":\"" + UUID.randomUUID()
+                + "\",\"fieldName\":\"transmission_phrase@2\",\"value\":\"أخبرنا\"}";
+        mockMvc.perform(put(URL).header("X-User-Id", adminId.toString())
+                        .contentType("application/json").content(synthetic))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type", Matchers.containsString("curation-field-not-editable")));
+    }
+
+    @Test
     void GET_list_returnsOverridesOfEntity() throws Exception {
         mockMvc.perform(put(URL).header("X-User-Id", adminId.toString())
                 .contentType("application/json")

@@ -86,6 +86,17 @@ export interface SanadGraphEdgeDto {
     chainGrade: string | null;
     onPrimaryChain: boolean;
     sanadCount: number;
+    /**
+     * Позиция звена-приёмника в цепи (0 = сподвижник). ADMIN адресует
+     * override формулы по нему (transmission_phrase@{position}). null —
+     * version-/merge-ребро без звена иснада (курация Фаза 5.b).
+     */
+    position: number | null;
+    /**
+     * admin-индикатор «формула отредактирована» — заполнен только для ADMIN
+     * (reveal); зеркало NarratorData.overriddenFields (курация Фаза 5.b).
+     */
+    transmissionPhraseOverridden?: boolean;
   };
 }
 

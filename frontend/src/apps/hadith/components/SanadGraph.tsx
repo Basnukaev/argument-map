@@ -232,11 +232,12 @@ interface SanadGraphProps {
    */
   role?: string;
   /**
-   * Курация Фаза 5.b — рефетч графа после ADMIN-правки поля рави в панели.
-   * Граф пересобирается с EFFECTIVE-значениями (узлы отражают правку).
-   * Родитель владеет fetch'ем графа (lifted), потому рефетч — его колбэк.
+   * Курация Фаза 5.b — рефетч графа после ADMIN-правки в графе: поля рави в
+   * панели ИЛИ формулы передачи звена на чипе ребра. Граф пересобирается с
+   * EFFECTIVE-значениями (узлы/рёбра отражают правку). Родитель владеет fetch'ем
+   * графа (lifted), потому рефетч — его колбэк.
    */
-  onNarratorEdited?: () => void;
+  onGraphEdited?: () => void;
 }
 
 /**
@@ -258,7 +259,7 @@ function SanadGraph({
   onNarratorClose,
   currentHadithId,
   role,
-  onNarratorEdited,
+  onGraphEdited,
 }: SanadGraphProps) {
   const t = useT();
   const navigate = useNavigate();
@@ -422,7 +423,16 @@ function SanadGraph({
         type: 'sanad',
         // Подпись-формула живёт в data: у кастомного ребра RF-встроенный label
         // не работает — SanadCustomEdge рендерит её сам (+ bend-points из ELK).
-        data: { transmissionPhrase: e.data.transmissionPhrase ?? undefined },
+        // Курация Фаза 5.b: hadithId/position/role/onGraphEdited прокидываем для
+        // ADMIN inline-правки формулы передачи звена прямо на чипе ребра.
+        data: {
+          transmissionPhrase: e.data.transmissionPhrase ?? undefined,
+          hadithId: graph.hadithId,
+          position: e.data.position,
+          overridden: e.data.transmissionPhraseOverridden ?? false,
+          role,
+          onGraphEdited,
+        },
         // Единая толщина: толщина значит ТОЛЬКО подсветку (+1 в highlight-memo),
         // а не primaryChain — в turuq все цепи primary, разнотолщинность читалась
         // как «почему это ребро жирное?» (С64).
@@ -431,7 +441,7 @@ function SanadGraph({
       };
     });
     return { rfNodes: layoutSanad(nodes, edges), rfEdges: edges };
-  }, [graph, currentHadithId]);
+  }, [graph, currentHadithId, role, onGraphEdited]);
 
   // ELK ортогональная раскладка (async): рёбра огибают карточки (Проблема 1),
   // параллельные рёбра разводятся (Проблема 2), подписи-формулы садятся на
@@ -805,7 +815,7 @@ function SanadGraph({
               textForm={selectedTextForm}
               onClose={() => onNarratorClose?.()}
               role={role}
-              onEdited={onNarratorEdited}
+              onEdited={onGraphEdited}
             />
           )
         : selected && (
@@ -813,7 +823,7 @@ function SanadGraph({
               data={selected}
               onClose={() => setSelected(null)}
               role={role}
-              onEdited={onNarratorEdited}
+              onEdited={onGraphEdited}
             />
           )}
     </div>

@@ -2,7 +2,9 @@ package ru.basnukaev.argumentmap.hadith.curation.service;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 
@@ -18,6 +20,7 @@ import ru.basnukaev.argumentmap.hadith.domain.Matn;
 import ru.basnukaev.argumentmap.hadith.domain.Narrator;
 import ru.basnukaev.argumentmap.hadith.domain.NarratorCommentary;
 import ru.basnukaev.argumentmap.hadith.domain.Sanad;
+import ru.basnukaev.argumentmap.hadith.domain.SanadNarrator;
 
 /**
  * Apply-слой курации (ADR-065 §3): накладывает overrides на доменные records
@@ -388,5 +391,54 @@ public class OverrideApplyService {
                 primary != null ? primary : s.primaryChain(),
                 s.metadata(),
                 s.createdAt());
+    }
+
+    // ── Формула передачи звена иснада (Фаза 5.b) ────────────────────────────────
+
+    /**
+     * Батч-load overrides формул передачи звеньев хадиса под СТАБИЛЬНЫМ
+     * hadith-keyed ключом (Фаза 5.b, ADR-065 amendment). Один {@code IN}-запрос
+     * по {@code entity_id=hadithId} в таблице {@code hd_sanad_narrators}; ключ
+     * стабилен через delete-recreate реимпорта (sanad_id пересоздаётся, hadith_id
+     * нет). Накладывается на звенья через
+     * {@link #effectiveTransmissionPhrase(OverrideSet, UUID, int, String)}.
+     */
+    public OverrideSet loadTransmissionPhrases(UUID hadithId) {
+        return load(OverrideEntity.HD_SANAD_NARRATORS, List.of(hadithId));
+    }
+
+    /**
+     * EFFECTIVE-формула передачи звена на позиции {@code position}: при наличии
+     * override (синтетический {@code transmission_phrase@{position}} на
+     * {@code hadith_id}) — переопределённое значение, иначе {@code rawPhrase}
+     * (нормализованный {@code receivedVia} из импорта). Field-hide на формуле НЕ
+     * предусмотрен (whitelist edit-only — пустая риваят-формула путает),
+     * потому {@code applyStr} тут возвращает либо override, либо base.
+     */
+    public static String effectiveTransmissionPhrase(OverrideSet ov, UUID hadithId,
+                                                     int position, String rawPhrase) {
+        return ov.applyStr(hadithId, FieldOverride.transmissionPhraseField(position), rawPhrase);
+    }
+
+    /**
+     * EFFECTIVE-формулы передачи всех звеньев хадиса за один батч-load (Фаза 5.b).
+     * Возвращает {@code position → effective phrase} (только звенья, у которых
+     * формула не {@code null}). Удобный одно-вызовный путь для read-сборки DTO/графа
+     * по списку {@link SanadNarrator}. Пустой набор overrides → значения как в импорте.
+     *
+     * @param hadithId стабильный ключ overrides формул
+     * @param links    звенья цепей хадиса (несут position + raw transmissionPhrase)
+     */
+    public Map<Integer, String> transmissionPhrasesByPosition(UUID hadithId,
+                                                              Collection<SanadNarrator> links) {
+        OverrideSet ov = loadTransmissionPhrases(hadithId);
+        Map<Integer, String> out = new HashMap<>();
+        for (SanadNarrator l : links) {
+            String effective = effectiveTransmissionPhrase(ov, hadithId, l.position(), l.transmissionPhrase());
+            if (effective != null) {
+                out.put(l.position(), effective);
+            }
+        }
+        return out;
     }
 }

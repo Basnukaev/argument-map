@@ -94,11 +94,24 @@ public record SanadGraphResponse(
     ) {
     }
 
+    /**
+     * {@code transmissionPhrase} — EFFECTIVE формула передачи звена (с
+     * наложенным курация-override §5, Фаза 5.b) для ВСЕХ читателей.
+     * {@code position} — позиция звена-приёмника в цепи (0 = сподвижник);
+     * фронт адресует override по нему ({@code transmission_phrase@{position}}).
+     * version-/merge-рёбра не несут звена → {@code position=null}.
+     * {@code transmissionPhraseOverridden} — admin-индикатор «формула
+     * отредактирована», заполняется ТОЛЬКО при {@code reveal=true} (ADMIN),
+     * иначе {@code false} (курируемое значение видно всем, признак правки — лишь
+     * ADMIN'у, зеркало {@code NarratorData.overriddenFields}).
+     */
     public record EdgeData(
             String transmissionPhrase,
             String chainGrade,
             boolean onPrimaryChain,
-            int sanadCount
+            int sanadCount,
+            Integer position,
+            boolean transmissionPhraseOverridden
     ) {
     }
 

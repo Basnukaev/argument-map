@@ -127,6 +127,14 @@ public class CurationOverrideService {
         if (FieldOverride.PRIMARY_TEXT_RU.equals(field) || FieldOverride.PRIMARY_TEXT_EN.equals(field)) {
             throw CurationException.fieldNotEditable(field);
         }
+        // синтетические ключи формул передачи звена (Фаза 5.b) пишутся ТОЛЬКО через
+        // SanadTransmissionPhraseService по СТАБИЛЬНОМУ (hadith_id, position)-ключу.
+        // Generic-эндпоинт ключевал бы по entity_id из тела (= sanad_id, нестабилен
+        // на реимпорте) → мёртвая строка, игнорируемая apply (резолв по hadith_id) →
+        // 400, чтобы не плодить молча-битые overrides.
+        if (FieldOverride.isTransmissionPhraseField(field)) {
+            throw CurationException.fieldNotEditable(field);
+        }
         if (hidden && !CurationWhitelist.isHideAllowed(entity, field)) {
             throw CurationException.fieldNotEditable(field);
         }
@@ -148,13 +156,16 @@ public class CurationOverrideService {
      * Существование целевой записи. {@code entity.tableName()} интерполируется
      * в SQL, но это БЕЗОПАСНО: значение всегда — один из 8 hardcoded enum-
      * литералов (raw-строка запроса прошла whitelist {@link #resolve}), а не
-     * пользовательский ввод. hd_sanad_narrators — композитный PK, существование
-     * проверяем по {@code sanad_id} (позицию валидирует Фаза 5).
+     * пользовательский ввод. Все сущности, доступные generic-эндпоинту, имеют
+     * суррогатный {@code id}-PK; {@code hd_sanad_narrators} (композитный PK без
+     * суррогата) правится ТОЛЬКО через выделенный
+     * {@code SanadTransmissionPhraseService} по стабильному {@code (hadith_id,
+     * position)}-ключу — в whitelist generic-полей его не осталось (Фаза 5.b),
+     * потому сюда он не доходит.
      */
     private void assertEntityExists(OverrideEntity entity, UUID id) {
-        String idColumn = entity == OverrideEntity.HD_SANAD_NARRATORS ? "sanad_id" : "id";
         Integer found = jdbcTemplate.query(
-                "SELECT 1 FROM " + entity.tableName() + " WHERE " + idColumn + " = ? LIMIT 1",
+                "SELECT 1 FROM " + entity.tableName() + " WHERE id = ? LIMIT 1",
                 (rs, rn) -> 1, id).stream().findFirst().orElse(null);
         if (found == null) {
             throw CurationException.entityNotFound(entity.tableName(), id);

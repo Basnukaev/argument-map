@@ -668,7 +668,7 @@ function HadithDetailPage() {
                         selectedTextForm={selectedTextForm}
                         onNarratorClose={() => setSelectedNarrator(null)}
                         role={userRole}
-                        onNarratorEdited={refetchGraph}
+                        onGraphEdited={refetchGraph}
                       />
                     )}
                     {/* Карточку передатчика (клики из графа И из текста иснада)

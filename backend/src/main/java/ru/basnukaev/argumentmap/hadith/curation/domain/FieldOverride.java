@@ -43,6 +43,50 @@ public record FieldOverride(
     public static final String PRIMARY_TEXT_RU = "primary_text_ru";
     public static final String PRIMARY_TEXT_EN = "primary_text_en";
 
+    /**
+     * Префикс синтетического {@code field_name} формулы передачи звена иснада
+     * (Фаза 5.b, ADR-065 amendment). Хранится на
+     * {@code entity_table='hd_sanad_narrators'} с {@code entity_id=hadith_id}
+     * (СТАБИЛЬНЫЙ ключ) и {@code field_name='transmission_phrase@'+position}.
+     *
+     * <p>Композитный PK {@code hd_sanad_narrators (sanad_id, position)} НЕ имеет
+     * суррогатного UUID, а {@code sanad_id} пересоздаётся на реимпорте
+     * ({@code UUID.randomUUID()} после {@code deleteByHadithId}) → прямой ключ
+     * по {@code sanad_id} стёрся бы. {@code hadith_id} стабилен (upsert по
+     * {@code (source, external_id)}), {@code position} детерминирован
+     * (реверс-индекс цепи, 0 = сподвижник). alminasa = ровно 1 sanad на хадис,
+     * потому {@code @{position}} однозначно адресует звено (YAGNI vs
+     * {@code @{position}:{narratorExternalId}}). Накладывается на ЧТЕНИИ
+     * ({@code OverrideApplyService.applyTransmissionPhrase}). Не реальная колонка.
+     */
+    public static final String TRANSMISSION_PHRASE_PREFIX = "transmission_phrase@";
+
+    /** Синтетический {@code field_name} формулы передачи звена на позиции {@code position}. */
+    public static String transmissionPhraseField(int position) {
+        return TRANSMISSION_PHRASE_PREFIX + position;
+    }
+
+    /** {@code true} если {@code field} — синтетический ключ формулы передачи звена. */
+    public static boolean isTransmissionPhraseField(String field) {
+        return field != null && field.startsWith(TRANSMISSION_PHRASE_PREFIX);
+    }
+
+    /**
+     * Позиция звена из синтетического {@code field_name} формулы передачи, или
+     * {@code null} если не {@code transmission_phrase@N} с целочисленным суффиксом.
+     * Защитный парсинг — мис-keyed правка не роняет read (как {@code applyInt}).
+     */
+    public static Integer transmissionPhrasePosition(String field) {
+        if (!isTransmissionPhraseField(field)) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(field.substring(TRANSMISSION_PHRASE_PREFIX.length()));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     /** {@code true} если правка переопределяет значение поля (или ставит NULL). */
     public boolean hasValueOverride() {
         return overrideValue != null || isNullOverride;

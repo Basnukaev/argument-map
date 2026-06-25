@@ -202,10 +202,16 @@ public class HadithController {
         Map<UUID, List<SanadNarrator>> linksBySanad = allLinks.stream()
                 .collect(Collectors.groupingBy(SanadNarrator::sanadId));
 
+        // Курация формул передачи (Фаза 5.b): EFFECTIVE transmission_phrase звена
+        // под СТАБИЛЬНЫМ hadith-keyed ключом (transmission_phrase@{position}) —
+        // один батч-load, переживает delete-recreate реимпорта (sanad_id новый).
+        Map<Integer, String> phrasesByPosition =
+                overrideApply.transmissionPhrasesByPosition(id, allLinks);
+
         List<HadithDetailResponse.SanadDto> sanadDtos = overrideApply.applyAndHide(
                 OverrideEntity.HD_SANADS, sanads, Sanad::id,
                 OverrideApplyService::apply, reveal,
-                (s, hidden, reason) -> toSanadDto(s, linksBySanad, hidden, reason));
+                (s, hidden, reason) -> toSanadDto(s, linksBySanad, phrasesByPosition, hidden, reason));
 
         // Матны: per-matn field-overrides + СТАБИЛЬНЫЙ перевод primary-матна
         // (Фаза 6, §10 вопрос 2) — синтетический primary_text_ru/en ключуется
@@ -282,9 +288,15 @@ public class HadithController {
      * Маппинг цепи в DTO с её narrator-звеньями (сгруппированы заранее,
      * отсортированы по position — порядок звеньев иснада значим) +
      * reveal-флагами курации (§4.3).
+     *
+     * <p>{@code phrasesByPosition} — EFFECTIVE-формулы передачи (Фаза 5.b):
+     * курируемый {@code transmission_phrase} переопределяет нормализованный
+     * импортный {@code receivedVia} по {@code (hadith_id, position)}. alminasa =
+     * 1 sanad на хадис, потому позиция однозначно адресует звено.
      */
     private static HadithDetailResponse.SanadDto toSanadDto(
             Sanad s, Map<UUID, List<SanadNarrator>> linksBySanad,
+            Map<Integer, String> phrasesByPosition,
             boolean hiddenByAdmin, String hideReason) {
         return new HadithDetailResponse.SanadDto(
                 s.id(), s.chainGrade(), s.compiledById(),
@@ -292,7 +304,8 @@ public class HadithController {
                 linksBySanad.getOrDefault(s.id(), List.of()).stream()
                         .sorted(Comparator.comparingInt(SanadNarrator::position))
                         .map(l -> new HadithDetailResponse.NarratorLinkDto(
-                                l.position(), l.narratorId(), l.transmissionPhrase()))
+                                l.position(), l.narratorId(),
+                                phrasesByPosition.getOrDefault(l.position(), l.transmissionPhrase())))
                         .toList(),
                 hiddenByAdmin, hideReason);
     }

@@ -3627,11 +3627,13 @@ PATCH/DELETE. У хадиса без `source_id` (оценок ещё не бы�
   "edges": [
     { "id": "edge-0", "source": "prophet", "target": "narrator-{uuid}",
       "data": { "transmissionPhrase": "سَمِعْتُ", "chainGrade": "SAHIH",
-                "onPrimaryChain": true, "sanadCount": 3 } },
+                "onPrimaryChain": true, "sanadCount": 3,
+                "position": 0, "transmissionPhraseOverridden": false } },
     { "id": "edge-version-0", "source": "narrator-{uuid}",
       "target": "version-{uuid}",
       "data": { "transmissionPhrase": null, "chainGrade": null,
-                "onPrimaryChain": true, "sanadCount": 1 } }
+                "onPrimaryChain": true, "sanadCount": 1,
+                "position": null, "transmissionPhraseOverridden": false } }
   ],
   "sanads": [
     { "id": "uuid", "collectionRu": "Сахих аль-Бухари",
@@ -3660,6 +3662,17 @@ PATCH/DELETE. У хадиса без `source_id` (оценок ещё не бы�
   SecurityContext, зеркало reveal у `/detail`), у гостя/USER — пустой
   массив. Рави НЕ record-hideable (whitelist `recordHideAllowed=false`) —
   узел никогда не исчезает, field-hide лишь зануляет значение.
+- `edges[].data.transmissionPhrase` — **EFFECTIVE** формула передачи звена
+  (Фаза 5.b курации, ADR-065 amendment): курируемое значение видно **всем**
+  читателям (наложено на чтении по стабильному синтетическому ключу
+  `transmission_phrase@{position}` на `hadith_id`, переживает реимпорт).
+- `edges[].data.position` (Фаза 5.b) — позиция звена-приёмника в цепи
+  (0 = сподвижник); фронт адресует override по нему. `null` у
+  version-/merge-рёбер (нет звена иснада).
+- `edges[].data.transmissionPhraseOverridden` (Фаза 5.b) — admin-индикатор
+  «формула отредактирована», `true` **только для ADMIN** (reveal по роли,
+  зеркало `overriddenFields`), у гостя/USER — `false`. Правка формулы — через
+  выделенный `PATCH /hadith/sanad-narrators/transmission-phrase` (ниже).
 - 404 `hadith-not-found` если хадиса нет.
 
 Эндпоинт **role-aware** (Фаза 5.b): значения курируются для всех,
@@ -4546,9 +4559,38 @@ whitelist (`hd_matns.text_ar`/`text_ar_normalized`, commentary `comments` →
 проход, без N+1). `MatnDto`/`SanadDto` получили `hiddenByAdmin`/`hideReason`
 (record-hide вариации матна/слабой цепи теперь применяется в `getDetail`:
 вырезан для читателя, reveal для ADMIN — как rulings/explanations в Фазе 4).
-**Отложено (Фаза 5.b):** `hd_sanad_narrators.transmission_phrase`
-(композитный ключ `sanad_id`+`position` требует особого field_name-кодирования
-`transmission_phrase@{position}`, §5).
+### PATCH /api/v1/hadith/sanad-narrators/transmission-phrase (Фаза 5.b)
+
+Правка формулы передачи (риваят-глагол حدثنا/عن) звена иснада. **ADMIN-only.**
+Выделенный эндпоинт (не generic `/admin/curation/overrides`), т.к. композитный
+PK `hd_sanad_narrators (sanad_id, position)` **не имеет суррогатного UUID**, а
+`sanad_id` пересоздаётся на реимпорте (`UUID.randomUUID()` после
+`deleteByHadithId`) → прямой ключ по `sanad_id` стёрся бы. Override ключуется
+**СТАБИЛЬНО**: `entity_table='hd_sanad_narrators'`, `entity_id=hadith_id`,
+`field_name='transmission_phrase@'+position` — переживает delete-recreate
+реимпорта (alminasa = 1 sanad на хадис, потому `position` однозначно адресует
+звено; YAGNI vs `@{position}:{narratorExternalId}`). 3-й синтетически-ключуемый
+overlay-кейс после `primary_text_ru`/`primary_text_en` матна.
+
+Тело: `{ "hadithId": "uuid", "position": 0, "phrase": "أخبرنا" }`
+(`hadithId`/`position`/`phrase` обязательны; `position ≥ 0`; `phrase` не пустой,
+≤200 симв.). Ответ: `{ "hadithId", "position", "phrase" }` (сохранённое
+EFFECTIVE-значение; фронт рефетчит граф/detail).
+
+- `403 forbidden-admin-only` — не-ADMIN.
+- `404 curation-entity-not-found` — нет звена `(hadithId, position)` (JOIN
+  `hd_sanad_narrators` ⋈ `hd_sanads` по `sanad_id`).
+- `400` — невалидное тело (`@Valid`: null поля, отрицательный `position`,
+  пустой/слишком длинный `phrase`).
+
+EDIT-only: скрытие формулы НЕ поддержано (пустой риваят-глагол путает). Generic
+`PUT /admin/curation/overrides` с `fieldName='transmission_phrase@N'` → `400
+curation-field-not-editable` (синтетический ключ пишется только этим эндпоинтом,
+иначе мёртвый override по нестабильному `sanad_id`). На ЧТЕНИИ EFFECTIVE-формула
+накладывается в `getDetail` (звено `NarratorLinkDto`) и `sanad-graph`/`turuq-graph`
+(подпись ребра + `edges[].data.transmissionPhraseOverridden` для ADMIN).
+Аудит — `audit_log` `HD_FIELD_OVERRIDE` в той же транзакции. Фронт: чип формулы
+на ребре графа для ADMIN кликабелен → инлайн-редактор → PATCH → рефетч графа.
 
 ## Hadith Data Health Admin API (P1-2, PROD-READINESS-AUDIT §4/§7)
 
@@ -4604,6 +4646,7 @@ overlay-курации ADR-065).
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-06-25 | v1 | **Курация Фаза 5.b (часть B) — правка формулы передачи звена иснада (ADR-065 amendment).** Новый ADMIN-only `PATCH /api/v1/hadith/sanad-narrators/transmission-phrase` (`SanadNarratorController`→`SanadTransmissionPhraseService`): тело `{hadithId, position, phrase}` → `TransmissionPhraseResponse`. Override `hd_sanad_narrators.transmission_phrase` ключуется СТАБИЛЬНЫМ синтетическим `(entity_id=hadith_id, field_name='transmission_phrase@'+position)` — `sanad_id` пересоздаётся на реимпорте (нет суррогатного PK у `hd_sanad_narrators`), `hadith_id`+`position` стабильны → правка переживает delete-recreate (alminasa=1 sanad/хадис). 3-й синтетически-ключуемый кейс после `primary_text_ru/en`. На ЧТЕНИИ EFFECTIVE-формула накладывается в `getDetail` (`NarratorLinkDto.transmissionPhrase` через `OverrideApplyService.transmissionPhrasesByPosition`) и `sanad-graph`/`turuq-graph` (подпись ребра). `SanadGraphResponse.EdgeData` +`position` (Integer, nullable у version-рёбер) +`transmissionPhraseOverridden` (boolean, admin-индикатор, reveal по роли — зеркало `overriddenFields`). Generic `PUT /admin/curation/overrides` с `transmission_phrase@N` → 400 `curation-field-not-editable` (whitelist HD_SANAD_NARRATORS очищен; убран мёртвый `sanad_id`-спецслучай в `assertEntityExists`). Ошибки PATCH: 403 `forbidden-admin-only` (не-ADMIN), 404 `curation-entity-not-found` (нет звена `(hadithId,position)`), 400 `@Valid`. EDIT-only (скрытие формулы не поддержано). Аудит `HD_FIELD_OVERRIDE`. Frontend: `SanadGraphEdgeDto.data` +`position`/`transmissionPhraseOverridden`; чип формулы на ребре (`SanadCustomEdge.TransmissionPhraseChip`) для ADMIN кликабелен → инлайн-редактор → PATCH → рефетч графа (`onGraphEdited`, обобщён из `onNarratorEdited`). IT: `TransmissionPhraseOverlayIT` (PATCH→overlay→detail+graph→симуляция реимпорта→формула выживает; overridden-индикатор ADMIN-only; 403/404), `CurationOverrideControllerIT` (generic-reject `transmission_phrase@2`); фронт `SanadCustomEdge.test` (ADMIN-гейт + PATCH body) | Фаза 5.b часть B эпика курации (ADR-065): риваят-глагол звена — последнее редактируемое поле сателлита; композитный ключ требовал особого синтетического кодирования (зеркало matn primary-перевода) |
 | 2026-06-25 | v1 | **Курация Фаза 5.b — narrator-overlay в графе иснада (ADR-065 §5).** `GET /hadith/hadiths/{id}/sanad-graph` и `/turuq-graph` теперь накладывают курация-overrides рави на узлы графа (раньше игнорировались — граф показывал RAW-данные). `SanadGraphResponse.NarratorData` +`overriddenFields` (`List<String>`, additive): имена переопределённых ADMIN'ом полей рави (admin-индикатор «отредактировано»). ЗНАЧЕНИЯ полей узла — EFFECTIVE (правка → новое значение, field-hide → null) для **всех** читателей (один батч-load `OverrideSet` по `HD_NARRATORS`, без N+1, через `OverrideApplyService.apply(Narrator,..)`); `overriddenFields` заполнен **только для ADMIN** (оба эндпоинта стали role-aware — `reveal` по роли в SecurityContext, зеркало `/detail`), у гостя/USER — пустой массив. Рави НЕ record-hideable (whitelist) — узел не исчезает. `buildGraph`/`buildTuruqGraph` получили параметр `reveal`. Frontend: `NarratorData` +`overriddenFields`; узел графа (`SanadGraphNode`) рисует admin-индикатор-карандаш; `NarratorPanel` (двойной клик по узлу) для ADMIN — inline-правка §5-полей рави (reliability_grade[enum]/kunya/laqab/tabaqa) через существующий `EditableField`/`CurationFieldsPanel` → PUT `/admin/curation/overrides` → рефетч графа. IT: `SanadGraphNarratorOverlayIT` (правка reliability_grade EFFECTIVE гостю + overriddenFields ADMIN'у + field-hide → null, узел на месте); фронт `NarratorPanel.test`/`SanadGraphNode.test` (индикатор + панель-правка) | Фаза 5.b эпика курации (ADR-065): механизм narrator-overlay существовал (`applyNarrators`, используется `NarratorController`), но не применялся на graph-DTO пути — правки рави видны на странице рави, но НЕ в графе иснада; ADMIN курирует рави прямо из визуализации цепи |
 | 2026-06-25 | v1 | **Режим citation PDF_LINK для FILE_ONLY книг (ADR-067, миграция 80).** Positional-citation на 3 эндпоинтах (`POST /api/v1/nodes/{nodeId}/citations`, `POST /api/v1/questions/{questionId}/citations`, `POST /api/v1/answers/{answerId}/citations`) получил **5-й режим** `PDF_LINK` для FILE_ONLY книг (archive.org-сканы), которые хранят PDF в `lib_books.metadata.pdf_links.files[]` и НЕ имеют строки в `library_files` (нет blob'а → FK-режим PDF недоступен). `CitationRequest` +`pdfFileIndex` (Integer, 0-based ordinal в `pdf_links.files[]`); адресует PDF через `(pdfFileIndex, pdfPageNumber, pdfBbox)` параллельно FK-режиму PDF (тот без изменений, для user-upload). `mode` discriminator теперь `TEXT\|PDF\|PDF_LINK\|REGION\|LEGACY`. Response `pdf`-ref расширен `fileIndex` (Integer, nullable) — ровно одно из `fileId`/`fileIndex` не-null (display-путь и так адресует PDF по fileIndex+page+bbox). Валидация на сервисе: `0 <= pdfFileIndex < pdfService.getMetadata(bookId).files().size()` (out-of-range / отрицательный / page<1 / отсутствует bbox → 400 `invalid-citation`); взаимоисключаемость режимов на сервисе (exactly-one-mode) и на БД (CHECK `chk_*_sources_one_mode` расширен 5-й веткой). Миграция 80 ADD COLUMN `pdf_file_index INTEGER` в node_sources/question_sources/answer_sources. Frontend-wiring + перенос `pdf_file_index` в topic export/import — НЕ реализованы (follow-up; PDF_LINK при реимпорте темы деградирует в LEGACY). IT: `NodeCitationServiceIT` (PDF_LINK happy-path/persist/snapshot/bounds±/exclusivity×3/direct-JDBC-CHECK-reject/FK-регрессия), `QuestionCitationServiceIT`+`AnswerCitationServiceIT` (happy-path + exclusivity), `NodeSourceRepositoryPositionalIT` | FILE_ONLY archive.org-сканы были нецитируемы: их PDF живёт в metadata, а `library_files` требует сохранённого blob'а (ADR-024 §4) — регистрация тома форсировала бы eager-download 10-100 MB. PDF_LINK адресует PDF тем же ordinal'ом, что потребляет display |
 | 2026-06-25 | v1 | **Курация Фаза 5.b — `ExplanationDto.authorDeathYear` (additive).** `GET /hadith/hadiths/{id}/detail` → `explanations[]` теперь несёт `authorDeathYear` (Integer, г.х., nullable) — год смерти автора толкования; `toExplanationDto` пробрасывает уже читаемое `HadithExplanation.authorDeathYear` (колонка `hd_explanations.author_death_year`, ETL/overlay-apply были готовы — DTO его молча терял). Курируемое поле (`CurationWhitelist` HD_EXPLANATIONS `author_death_year` уже был editable); фронт `ExplanationsList` рисует «ум. {year} г.х.» рядом с атрибуцией (симметрия с `NarratorCommentaryDto.commenterDeathYear`) и наконец передаёт текущее значение в `CurationFieldsPanel` (раньше слал `null`). Без изменений формы запроса/прочих DTO. Тесты: `ExplanationsList.test.tsx` (рендер/скрытие по null, GHARIB-вариант) | Фаза 5.b эпика курации (ADR-065): год смерти автора шарха/иляля/гариба собран в БД и курируем, но не доходил до UI — атрибуция эпохи учёного для академического читателя |

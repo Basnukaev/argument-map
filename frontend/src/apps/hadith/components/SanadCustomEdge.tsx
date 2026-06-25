@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -6,8 +6,13 @@ import {
   type Edge,
   type EdgeProps,
 } from '@xyflow/react';
+import { Loader2, Pencil } from 'lucide-react';
 import { pickLabelPosition, type Point } from '@/apps/argument-map/utils/orthogonalPath';
 import { visibleTransmissionPhrase } from '@/apps/hadith/utils/sanadEdge';
+import { apiPatchRaw, formatApiError } from '@/shared/api/client';
+import { toast } from '@/shared/stores/toastStore';
+import { useT } from '@/shared/i18n';
+import { hasRoleAtLeast, type AuthRole } from '@/shared/stores/authStore';
 
 /** Прямой ортогональный path (90°-углы без скругления) по точкам ELK. */
 function buildSharpOrthogonalPath(points: ReadonlyArray<Point>): string {
@@ -28,7 +33,157 @@ export type SanadEdgeData = {
   points?: Array<{ x: number; y: number }>;
   /** Подсветка цепи по клику: приглушить чужие подписи (линия — через style.opacity). */
   dimmed?: boolean;
+  /**
+   * Курация Фаза 5.b — ADMIN inline-правка формулы передачи звена. Чип становится
+   * кликабельным при наличии hadithId + position (звено иснада, не version-ребро)
+   * + ADMIN-роли. Save → PATCH /sanad-narrators/transmission-phrase → onGraphEdited
+   * рефетчит граф. Прокидываются страницей в data при сборке рёбер (SanadGraph).
+   */
+  hadithId?: string;
+  /** Позиция звена-приёмника (0 = сподвижник); null/undefined у version-рёбер. */
+  position?: number | null;
+  /** admin-индикатор «формула отредактирована» (reveal, только ADMIN). */
+  overridden?: boolean;
+  /** Роль пользователя — гейт ADMIN-правки чипа. undefined = аноним. */
+  role?: string;
+  /** Рефетч графа после правки формулы (родитель владеет fetch'ем). */
+  onGraphEdited?: () => void;
 };
+
+/**
+ * Курация Фаза 5.b — подпись-чип формулы передачи. Не-ADMIN (или version-ребро
+ * без звена) — read-only текст. ADMIN на звене — карандаш → инлайн-редактор
+ * (input + Сохранить/Отмена) → PATCH {hadithId, position, phrase} →
+ * onGraphEdited() рефетчит граф. Индикатор «отредактировано» — точка-маркер.
+ *
+ * Вынесен из SanadEdge отдельным компонентом: рендерится в EdgeLabelRenderer
+ * (RF-портал), который не меряется в jsdom — тестируем чип в изоляции.
+ */
+export function TransmissionPhraseChip({
+  phrase,
+  dimmed,
+  hadithId,
+  position,
+  overridden,
+  role,
+  onGraphEdited,
+}: {
+  phrase: string;
+  dimmed: boolean;
+  hadithId?: string;
+  position?: number | null;
+  overridden?: boolean;
+  role?: string;
+  onGraphEdited?: () => void;
+}) {
+  const t = useT();
+  const isAdmin = hasRoleAtLeast(role as AuthRole | undefined, 'ADMIN');
+  // Правка доступна лишь у звена иснада (есть hadithId + position) для ADMIN
+  // с колбэком рефетча. version-/merge-рёбра (position null) не редактируются.
+  const canEdit =
+    isAdmin && hadithId != null && position != null && onGraphEdited != null;
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  function startEdit(): void {
+    setDraft(phrase);
+    setEditing(true);
+  }
+
+  function cancelEdit(): void {
+    setEditing(false);
+    setDraft('');
+  }
+
+  async function save(): Promise<void> {
+    if (saving || hadithId == null || position == null) return;
+    const next = draft.trim();
+    if (next === '') {
+      toast.error(t('hadith.curation.save_failed'));
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiPatchRaw('/api/v1/hadith/sanad-narrators/transmission-phrase', {
+        hadithId,
+        position,
+        phrase: next,
+      });
+      setEditing(false);
+      setDraft('');
+      toast.success(t('hadith.curation.saved'));
+      onGraphEdited?.();
+    } catch (error) {
+      toast.error(formatApiError(error, t('hadith.curation.save_failed')));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="pointer-events-auto inline-flex items-center gap-1 rounded-[4px] border border-accent-500 bg-elevated px-1 py-0.5 shadow-sh1">
+        <input
+          dir="rtl"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          aria-label={t('hadith.curation.edit_field')}
+          className="w-20 rounded-sm border border-border bg-bg px-1 py-0.5 font-arabic text-[13px] text-ink-800 focus:border-accent-500 focus:outline-none focus:ring-1 focus:ring-accent-500"
+        />
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => void save()}
+          className="inline-flex items-center gap-0.5 rounded-sm border border-accent-500 bg-accent-50 px-1 py-0.5 text-[11px] font-medium text-accent-700 hover:bg-accent-100 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {saving && <Loader2 size={10} className="animate-spin" aria-hidden />}
+          {t('common.save')}
+        </button>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={cancelEdit}
+          className="inline-flex items-center rounded-sm border border-border px-1 py-0.5 text-[11px] font-medium text-ink-600 hover:bg-ink-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {t('common.cancel')}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      dir="rtl"
+      className={`inline-flex items-center gap-1 rounded-[4px] border border-border-strong bg-elevated px-1 font-arabic text-[13px] font-semibold leading-tight text-ink-700 shadow-sh1 ${
+        canEdit ? 'pointer-events-auto' : 'pointer-events-none'
+      }`}
+      style={{ opacity: dimmed ? 0.12 : 1 }}
+    >
+      <span>{phrase}</span>
+      {/* §5.b admin-индикатор «отредактировано» — точка-маркер. */}
+      {overridden && (
+        <span
+          className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-accent-500"
+          title={t('hadith.curation.fields_title')}
+          aria-label={t('hadith.curation.fields_title')}
+        />
+      )}
+      {canEdit && (
+        <button
+          type="button"
+          onClick={startEdit}
+          aria-label={t('hadith.curation.edit_field')}
+          title={t('hadith.curation.edit_field')}
+          className="rounded-sm p-0.5 text-ink-400 hover:bg-ink-50 hover:text-ink-600"
+        >
+          <Pencil size={11} aria-hidden />
+        </button>
+      )}
+    </div>
+  );
+}
 
 export type SanadCustomEdgeType = Edge<SanadEdgeData, 'sanad'>;
 
@@ -100,14 +255,20 @@ function SanadEdge(props: EdgeProps<SanadCustomEdgeType>) {
       {phrase && (
         <EdgeLabelRenderer>
           <div
-            dir="rtl"
-            className="pointer-events-none absolute rounded-[4px] border border-border-strong bg-elevated px-1 font-arabic text-[13px] font-semibold leading-tight text-ink-700 shadow-sh1"
+            className="absolute"
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-              opacity: dimmed ? 0.12 : 1,
             }}
           >
-            {phrase}
+            <TransmissionPhraseChip
+              phrase={phrase}
+              dimmed={dimmed}
+              hadithId={data?.hadithId}
+              position={data?.position}
+              overridden={data?.overridden}
+              role={data?.role}
+              onGraphEdited={data?.onGraphEdited}
+            />
           </div>
         </EdgeLabelRenderer>
       )}

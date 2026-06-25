@@ -6880,6 +6880,51 @@ exhaustiveness для apply-диспетчеризации.
   (`AlminasaHadithMapper` перенос перевода + `MatnRepository.findPrimaryByHadithId`
   удалены) — delete-recreate матна теперь безопасен.
 
+### ADR-065 amendment: синтетический ключ `transmission_phrase@{position}` для формулы передачи звена иснада (Фаза 5.b)
+
+**Статус:** ✅ Принято (2026-06-25, Фаза 5.b часть B).
+
+**Контекст.** `transmission_phrase` (риваят-глагол حدثنا/عن на РЕБРЕ между двумя
+рави в иснаде) — последнее редактируемое вторичное поле сателлита (§5),
+оставшееся вне overlay. Сложность: PK `hd_sanad_narrators (sanad_id, position)`
+**не имеет суррогатного UUID** (миграция `20260520-54`), а `sanad_id`
+**пересоздаётся на каждом реимпорте** (`AlminasaHadithMapper.insertSanad` делает
+`UUID.randomUUID()` после `sanadRepository.deleteByHadithId`). Прямой overlay-ключ
+по `sanad_id` был бы стёрт реимпортом — ровно та же болезнь, что у `matn.id` в
+Фазе 6.
+
+**Решение.** Тот же приём, что у matn primary-перевода: **синтетический
+СТАБИЛЬНЫЙ ключ** `entity_table='hd_sanad_narrators'`, `entity_id=hadith_id`,
+`field_name='transmission_phrase@'+position`. `hadith_id` стабилен (upsert по
+`(source, external_id)`), `position` детерминирован (реверс-индекс цепи, 0 =
+сподвижник). `transmission_phrase` редактируемо (это наш нормализованный парс
+`receivedVia`, `truncate(40)` в `AlminasaHadithMapper`, НЕ verbatim-первоисточник).
+3-й синтетически-ключуемый overlay-кейс после `primary_text_ru`/`primary_text_en`.
+Накладывается на ЧТЕНИИ (`OverrideApplyService.effectiveTransmissionPhrase`/
+`transmissionPhrasesByPosition`) в `getDetail` (звено `NarratorLinkDto`) и
+`sanad-graph`/`turuq-graph` (подпись ребра).
+
+**Почему `@{position}`, а не `@{position}:{narratorExternalId}`.** alminasa = ровно
+**1 sanad на хадис** (ADR-060: единственный источник), потому `(hadith_id,
+position)` однозначно адресует звено — добавлять `narratorExternalId` в ключ
+незачем (YAGNI). Если когда-нибудь появится >1 sanad на хадис из другого
+источника, ключ расширяется аддитивно (старые правки читаются по префиксу).
+
+**EDIT-only (без field-hide).** Скрытие формулы НЕ поддержано — пустой
+риваят-глагол на ребре путает (в отличие от скрытия verbatim-джарха рави).
+Whitelist `HD_SANAD_NARRATORS` очищен от generic-editable/hideable полей;
+правка идёт ТОЛЬКО через выделенный
+`PATCH /hadith/sanad-narrators/transmission-phrase` (резолв звена по
+`hadith_id`+`position` своим JOIN'ом). Generic `PUT /admin/curation/overrides` с
+`transmission_phrase@N` → 400 (как `primary_text_*`): иначе мёртвый override по
+нестабильному `sanad_id`. Убран дохлый `sanad_id`-спецслучай в
+`CurationOverrideService.assertEntityExists`.
+
+**Реимпорт-выживание** доказано `TransmissionPhraseOverlayIT`: PATCH формулы →
+overlay-row + нетронутая колонка → detail/graph показывают курируемую формулу →
+симуляция реимпорта (delete-recreate sanad'а с новым id, импортная формула в
+колонке) → detail/graph СНОВА показывают курируемую формулу.
+
 ## ADR-066: Page-image сканы регистрируются в library_files как SCAN
 
 **Контекст.** `PageImageService.uploadPageImage` — единственный blob-writing

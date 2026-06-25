@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import ru.basnukaev.argumentmap.hadith.curation.domain.FieldOverride;
 import ru.basnukaev.argumentmap.hadith.curation.domain.OverrideEntity;
 import ru.basnukaev.argumentmap.hadith.curation.service.OverrideApplyService;
 import ru.basnukaev.argumentmap.hadith.curation.service.OverrideSet;
@@ -227,8 +228,14 @@ public class SanadGraphService {
                     narratorData(n, tier, collectionByCollector.get(nid), narratorOv, reveal));
         }
 
+        // Курация формул передачи (Фаза 5.b): EFFECTIVE transmission_phrase
+        // звена под СТАБИЛЬНЫМ hadith-keyed ключом (transmission_phrase@{position})
+        // — один батч-load, переживает delete-recreate реимпорта (sanad_id новый).
+        // reveal гейтит только admin-индикатор «отредактировано» на ребре.
+        OverrideSet phraseOv = overrideApply.loadTransmissionPhrases(hadithId);
+
         // Рёбра внутри цепей (prophet→companion→…→collector) с дедупом.
-        accumulateChainEdges(acc, sanads, links, hasProphetRoot, isMain);
+        accumulateChainEdges(acc, sanads, links, hasProphetRoot, isMain, hadithId, phraseOv, reveal);
 
         // Сборник хадиса (авторитетный источник имени для легенды цепей). В
         // turuq-режиме metadata sanad'а обычно пуст — имя сборника лежит на
@@ -263,10 +270,16 @@ public class SanadGraphService {
      * Рёбра передачи внутри цепей хадиса: prophet→companion (position 0) и
      * звено→звено далее. Дедуп по {@code source->target}; {@code onPrimaryChain}
      * накапливается только если цепь primary И хадис — главный.
+     *
+     * <p>Курация (Фаза 5.b): формула передачи звена-приёмника берётся EFFECTIVE
+     * (override {@code transmission_phrase@{position}} по {@code hadithId} поверх
+     * импортной), {@code position} ребра = позиция звена-приёмника. Индикатор
+     * «отредактировано» ({@code overridden}) — лишь при {@code reveal} (ADMIN).
      */
     private void accumulateChainEdges(GraphAccumulator acc, List<Sanad> sanads,
                                       List<SanadNarrator> links,
-                                      boolean hasProphetRoot, boolean isMain) {
+                                      boolean hasProphetRoot, boolean isMain,
+                                      UUID hadithId, OverrideSet phraseOv, boolean reveal) {
         Map<UUID, List<SanadNarrator>> linksBySanad = links.stream()
                 .collect(Collectors.groupingBy(SanadNarrator::sanadId));
 
@@ -287,7 +300,12 @@ public class SanadGraphService {
                     source = "narrator-" + chain.get(i - 1).narratorId();
                 }
                 String target = "narrator-" + cur.narratorId();
-                acc.addEdge(source, target, cur.transmissionPhrase(), s.chainGrade(), primary);
+                int position = cur.position();
+                String phrase = OverrideApplyService.effectiveTransmissionPhrase(
+                        phraseOv, hadithId, position, cur.transmissionPhrase());
+                boolean overridden = reveal && phraseOv.overriddenFields(hadithId)
+                        .contains(FieldOverride.transmissionPhraseField(position));
+                acc.addEdge(source, target, phrase, s.chainGrade(), primary, position, overridden);
             }
         }
     }
@@ -450,12 +468,16 @@ public class SanadGraphService {
         }
 
         void addEdge(String source, String target, String transmissionPhrase,
-                     String chainGrade, boolean onPrimaryChain) {
+                     String chainGrade, boolean onPrimaryChain,
+                     Integer position, boolean transmissionPhraseOverridden) {
             String key = source + "->" + target;
             EdgeAccumulator existing = edges.get(key);
             if (existing == null) {
+                // Видимая подпись/позиция/индикатор берутся из ПЕРВОЙ цепи
+                // (primary идёт первой) — как и transmissionPhrase (С64-дедуп).
                 edges.put(key, new EdgeAccumulator(
-                        source, target, transmissionPhrase, chainGrade, onPrimaryChain));
+                        source, target, transmissionPhrase, chainGrade, onPrimaryChain,
+                        position, transmissionPhraseOverridden));
             } else {
                 existing.sanadCount++;
                 existing.onPrimaryChain = existing.onPrimaryChain || onPrimaryChain;
@@ -485,15 +507,18 @@ public class SanadGraphService {
                         "edge-" + (idx++),
                         e.source, e.target,
                         new EdgeData(e.transmissionPhrase, e.chainGrade,
-                                e.onPrimaryChain, e.sanadCount)
+                                e.onPrimaryChain, e.sanadCount,
+                                e.position, e.transmissionPhraseOverridden)
                 ));
             }
             int vIdx = 0;
             for (VersionEdge ve : versionEdges) {
+                // version-/merge-ребро не несёт звена иснада → position=null,
+                // формула не редактируется (overridden=false).
                 edgeList.add(new GraphEdge(
                         "edge-version-" + (vIdx++),
                         ve.source, ve.target,
-                        new EdgeData(null, null, ve.onPrimaryChain, ve.sanadCount)
+                        new EdgeData(null, null, ve.onPrimaryChain, ve.sanadCount, null, false)
                 ));
             }
 
@@ -509,14 +534,19 @@ public class SanadGraphService {
         final String chainGrade;
         boolean onPrimaryChain;
         int sanadCount = 1;
+        final Integer position;
+        final boolean transmissionPhraseOverridden;
 
         EdgeAccumulator(String source, String target, String transmissionPhrase,
-                        String chainGrade, boolean onPrimaryChain) {
+                        String chainGrade, boolean onPrimaryChain,
+                        Integer position, boolean transmissionPhraseOverridden) {
             this.source = source;
             this.target = target;
             this.transmissionPhrase = transmissionPhrase;
             this.chainGrade = chainGrade;
             this.onPrimaryChain = onPrimaryChain;
+            this.position = position;
+            this.transmissionPhraseOverridden = transmissionPhraseOverridden;
         }
     }
 

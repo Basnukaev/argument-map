@@ -79,9 +79,15 @@ public final class CurationWhitelist {
                     Map.of()),
 
             OverrideEntity.HD_SANAD_NARRATORS, new EntityRules(
-                    // структуру цепи (narrator_id/position) overlay не меняет (§5)
-                    Set.of("transmission_phrase"),
-                    Set.of("transmission_phrase"),
+                    // структуру цепи (narrator_id/position) overlay не меняет (§5).
+                    // transmission_phrase правится ТОЛЬКО через выделенный
+                    // SanadTransmissionPhraseService по СТАБИЛЬНОМУ синтетическому
+                    // ключу transmission_phrase@{position} (entity_id=hadith_id),
+                    // а не по нестабильному sanad_id (Фаза 5.b). Generic-эндпоинту
+                    // редактируемых/скрываемых полей у звена не остаётся (EDIT-only:
+                    // пустой риваят-глагол путает → field-hide не поддержан).
+                    Set.of(),
+                    Set.of(),
                     false,
                     Map.of()),
 
