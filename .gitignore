@@ -67,3 +67,6 @@ frontend/playwright-report/
 
 # OMC state (локальный эфемерный стейт оркестратора)
 .omc/
+
+# graphify — сгенерированный граф знаний (CLI глобально через uv tool install)
+graphify-out/

@@ -1,0 +1,26 @@
+# graphify scan excludes — keep the corpus to real source + docs.
+# Heavy non-source dirs that would bloat the graph and waste tokens.
+
+# Node / build / compiled output
+node_modules/
+target/
+dist/
+build/
+*.min.js
+
+# VCS + tooling state
+.git/
+.omc/
+.playwright-mcp/
+.idea/
+.vscode/
+
+# Data / artifacts
+postgres-data/
+frontend/e2e-report/
+frontend/test-results/
+frontend/playwright-report/
+graphify-out/
+
+# Generated API types (regenerated from OpenAPI, not hand-authored source)
+frontend/src/shared/api/types.ts

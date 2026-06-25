@@ -254,8 +254,9 @@ P0-1 (реимпорт затирает правки) + FB-5 (править/с�
 данные при защите первоисточника). Спека:
 `docs/specs/2026-06-18-data-curation-overlay.md` (фазы 0-6).
 **Весь эпик (фазы 0-6) закрыт в С65, 4 независимых review — все APPROVE.**
-Остаток (не блокеры): Фаза 5.b (sanad-UI, transmission_phrase),
-effective-facet JOIN (§10), пара Minor из ревью Фазы 6 — в backlog/коде.
+**Фаза 5.b ЗАКРЫТА ЦЕЛИКОМ в С66** (sanad-overlay в графе + transmission_phrase
+синтет-ключ + ревью-fix). Остаток (не блокеры): effective-facet JOIN (§10),
+пара Minor из ревью Фазы 6 + 5.b — в backlog/коде.
 (детали фаз ниже — свернуть в строку при следующей доc-гигиене)
 
 - [x] **P0-1a** merge-страховка перевода матна (Сессия 64-cont, `f7b6fb5`)
@@ -286,10 +287,12 @@ effective-facet JOIN (§10), пара Minor из ревью Фазы 6 — в ba
       `applyAndHide` (field-edit+record-hide одним батч-load); matns/sanads
       теперь effective+hideable; frontend `CurationFieldsPanel` на rulings/
       explanations/commentaries/matns. Review: **APPROVE 0 Crit/Imp, 2 Minor**
-      (позиц. корректность 5 рекордов verified field-by-field). **5.b:**
-      `ExplanationDto.author_death_year` теперь surface'ится (С66, «ум. {year} г.х.»
-      в `ExplanationsList` + проброс в `CurationFieldsPanel`); **отложено** — sanad-UI
-      (только в RF-графе) + `hd_sanad_narrators.transmission_phrase` (композитный ключ)
+      (позиц. корректность 5 рекордов verified field-by-field). **5.b ЗАКРЫТА
+      ЦЕЛИКОМ (С66):** `ExplanationDto.author_death_year` surface (`5dd7a5c`) +
+      sanad-overlay рави в RF-графе + правка в NarratorPanel (5.b-A `57acbfec`) +
+      `hd_sanad_narrators.transmission_phrase` через синтет-ключ
+      `transmission_phrase@{position}` (5.b-B `a8ffb1de`, ADR-065 amendment) +
+      ревью-fix turuq-edge-gate (`ead55734`). Независимое ревью 5.b-B: 0 Crit/1 Imp(fixed)
 - [x] **Фаза 6** (Сессия 65, `1d5017c`+`6a9e2eb`) C9-перевод матна → overlay
       по СТАБИЛЬНОМУ ключу `(hadith_id, is_primary)` (синтетические
       `primary_text_ru/en` на entity_id=hadith_id); migration 79 (idempotent,
