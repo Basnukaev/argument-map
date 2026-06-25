@@ -33,6 +33,8 @@ export const DICTIONARY = {
 
     // page/year suffixes (in mono numerals row)
     'cite.page.short': 'стр.',
+    'cite.volume.short': 'Том',
+    'cite.region.label': 'область',
     'cite.year.gregorian_suffix': 'г.',
     'cite.edition.suffix': '-е изд.',
 
@@ -1676,6 +1678,8 @@ export const DICTIONARY = {
     'cite.action.detach': 'فصل الاستناد',
 
     'cite.page.short': 'ص.',
+    'cite.volume.short': 'الجزء',
+    'cite.region.label': 'منطقة',
     'cite.year.gregorian_suffix': 'م.',
     'cite.edition.suffix': ' (طبعة)',
 

@@ -67,9 +67,27 @@ export function SourceCard({
 }: Props) {
   const t = useT();
   const c = link.citation ?? {};
-  const { authority, book, muhaqqiq, publisher, publicationPlace, location } = c;
+  const { authority, book, muhaqqiq, publisher, publicationPlace, location, pdf } = c;
 
   const headerTitle = titleLatin ?? book?.title ?? '—';
+
+  // LocationRef заполнен только для TEXT-цитат (pageId). Для PDF/PDF_LINK
+  // (ADR-067, FILE_ONLY книги archive.org) локатор живёт в PdfRef — страница
+  // в pdf.pageNumber, том в pdf.fileIndex (0-based ordinal), bbox = выделенная
+  // область. См. DtoMappers.toLocationRef/toPdfRef.
+  const page =
+    location?.printedPage ??
+    (location?.pageNumber != null
+      ? String(location.pageNumber)
+      : pdf?.pageNumber != null
+        ? String(pdf.pageNumber)
+        : null);
+  // ВНИМАНИЕ: pdf.fileIndex — сырой 0-based ordinal файла в книге (cover может
+  // быть index 0). PdfViewer пересчитывает «Том N» по filename-like файлам без
+  // cover, поэтому здесь показываем индекс как есть. Точная навигация — через
+  // deep-link (onPrimaryAction), он передаёт fileIndex напрямую.
+  const volume = !location && pdf?.fileIndex != null ? String(pdf.fileIndex) : null;
+  const hasRegion = !location && pdf?.bbox != null;
 
   return (
     <div className={CARD_SHELL}>
@@ -77,7 +95,9 @@ export function SourceCard({
 
       <QuoteBlock
         part={location?.part ?? null}
-        page={location?.printedPage ?? (location?.pageNumber != null ? String(location.pageNumber) : null)}
+        page={page}
+        volume={volume}
+        hasRegion={hasRegion}
         quote={link.quote ?? null}
         context={link.context ?? null}
       />

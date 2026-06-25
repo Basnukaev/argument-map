@@ -272,7 +272,7 @@ function buildDeepLink(link: NodeSourceDto): string | null {
 }
 
 function isLibraryMode(mode: NodeSourceDto['mode']): boolean {
-  return mode === 'TEXT' || mode === 'PDF' || mode === 'REGION';
+  return mode === 'TEXT' || mode === 'PDF' || mode === 'PDF_LINK' || mode === 'REGION';
 }
 
 function computeCounts(links: NodeSourceDto[]): { lib: number; free: number } {
