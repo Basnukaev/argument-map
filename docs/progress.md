@@ -78,14 +78,33 @@ HttpMessageNotReadableException не ловился) → добавлен handle
 (b) Сгруппированный список опор: узел с разнотипными опорами → секции
 Хадисы/Книги/Свободные, компактные строки, раскрытие по клику — читаемо. react-pdf
 headless ограничен → именно ручная. Кривизна рисования/RTL/плотности — точечная итерация.
-**Backlog-автопилот: быстрые/средние non-gated пункты ВЫЧЕРПАНЫ за С66.** Остаток —
-fresh-session-масштаб (нужны спека/решение или сложные): **курация 5.b sanad-UI**
-(reveal-поля рави в RF-графе + `transmission_phrase` композ. ключ — главный реальный
-инженерный), source-pickers (Коран/Хадисы/Книги — крупные фичи), edge-routing
-distribution (граф), cross-references drawer (нужен backend-аггрегат). Тривиальные
-нит-хвосты (низкий приоритет): ревью-Minor #2 (двойной getMetadata), #3 (404→400 для
-TEXT_ONLY в PDF_LINK-запросе), #4 (rollback-комментарий миграции 80). Деплой —
-по-прежнему в последнюю очередь (решение Абдулы).
+**Backlog-автопилот (С66):** быстрые/средние non-gated пункты вычерпаны.
+**Курация 5.b-A ЗАКРЫТА** (`57acbfec`): overlay рави в графе иснада + правка в
+NarratorPanel. **Курация 5.b-B (transmission_phrase) — СПРОЕКТИРОВАНА архитектором,
+готова к исполнению (fresh-session, contract-level):**
+- Проблема: `hd_sanad_narrators` PK `(sanad_id, position)`, `sanad_id` = randomUUID()
+  на реимпорте (`AlminasaHadithMapper.insertSanad:363` после `deleteByHadithId:211`).
+  Прямой overlay-ключ на sanad_id → стирается. `hadith_id` стабилен, `position`
+  детерминирован (0=сподвижник).
+- Решение (зеркало Фазы 6 matn-перевода): СИНТЕТИЧЕСКИЙ ключ
+  `entity_table='hd_sanad_narrators', entity_id=hadith_id, field_name='transmission_phrase@'+position`.
+  transmission_phrase РЕДАКТИРУЕМ (наш нормализованный receivedVia-парс, не
+  первоисточник). Решения (best-practice, как Фаза 6): `@{position}` без
+  narratorExternalId (alminasa=1 sanad/hadith, YAGNI); edit-only (снять field-hide);
+  выделенный PATCH-эндпоинт (как C9 `editTranslation`).
+- Файлы: `FieldOverride` +TRANSMISSION_PHRASE_PREFIX+helper; `OverrideApplyService.
+  applyTransmissionPhrase` (зеркало applyMatns); apply в 2 read-путях
+  (`HadithController.toSanadDto:294` + `SanadGraphService.accumulateChainEdges:277`);
+  `EdgeData` +position; `CurationOverrideService.validateField` reject `transmission_phrase@*`
+  (как PRIMARY_TEXT_*) + убрать sanad_id-спецслучай; новый PATCH `/hadith/sanad-narrators/
+  transmission-phrase {hadithId,position,phrase}` ADMIN; фронт `SanadCustomEdge` clickable.
+  Миграции НЕ нужно (greenfield, 0 строк overlay). api-contract + ADR-065 amendment.
+- IT (headline): клон `MatnTranslationOverlayIT` — PATCH→overlay→detail/graph→
+  симуляция реимпорта (новый sanad_id, те же positions)→фраза выживает.
+  (Полный анализ архитектора — в транскрипте сессии С66.)
+
+Прочий остаток: source-pickers (крупные), edge-routing, cross-references drawer;
+нит-хвосты ревью-Minor #2/#3/#4. Деплой — в последнюю очередь (решение Абдулы).
 
 ## 2026-06-24 - Сессия 65 - ЭПИК КУРАЦИИ ЗАКРЫТ (фазы 0-6) + Tiptap RTL/polish
 
