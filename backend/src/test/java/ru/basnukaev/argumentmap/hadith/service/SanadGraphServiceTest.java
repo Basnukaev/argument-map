@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -29,6 +31,9 @@ import ru.basnukaev.argumentmap.hadith.repository.CollectionRepository;
 import ru.basnukaev.argumentmap.hadith.repository.HadithCrossrefRepository;
 import ru.basnukaev.argumentmap.hadith.repository.HadithRepository;
 import ru.basnukaev.argumentmap.hadith.repository.MatnRepository;
+import ru.basnukaev.argumentmap.hadith.curation.domain.OverrideEntity;
+import ru.basnukaev.argumentmap.hadith.curation.service.OverrideApplyService;
+import ru.basnukaev.argumentmap.hadith.curation.service.OverrideSet;
 import ru.basnukaev.argumentmap.hadith.repository.NarratorRepository;
 import ru.basnukaev.argumentmap.hadith.repository.SanadRepository;
 import ru.basnukaev.argumentmap.hadith.web.dto.SanadGraphResponse;
@@ -51,9 +56,16 @@ class SanadGraphServiceTest {
     private final MatnRepository matnRepository = mock(MatnRepository.class);
     private final CollectionRepository collectionRepository = mock(CollectionRepository.class);
     private final HadithCrossrefRepository crossrefRepository = mock(HadithCrossrefRepository.class);
+    private final OverrideApplyService overrideApply = mock(OverrideApplyService.class);
     private final SanadGraphService service = new SanadGraphService(
             sanadRepository, narratorRepository, hadithRepository, matnRepository,
-            collectionRepository, crossrefRepository, new ObjectMapper());
+            collectionRepository, crossrefRepository, overrideApply, new ObjectMapper());
+
+    {
+        // Без курация-overrides рави в этих unit-кейсах: load → EMPTY (apply NO_OP).
+        when(overrideApply.load(eq(OverrideEntity.HD_NARRATORS), anyCollection()))
+                .thenReturn(OverrideSet.EMPTY);
+    }
 
     private static Narrator narrator(UUID id, String name, String grade, String metadata) {
         return new Narrator(id, null, name, name, null, null, null, 100,
@@ -108,7 +120,7 @@ class SanadGraphServiceTest {
                 narrator(d, "مسلم", NarratorReliability.THIQA, null)
         ));
 
-        SanadGraphResponse graph = service.buildGraph(hadithId);
+        SanadGraphResponse graph = service.buildGraph(hadithId, false);
 
         // Узлы: Пророк ﷺ + A + B + C + D + version = 6 (A,B общие, дедуп)
         assertEquals(6, graph.nodes().size());
@@ -211,7 +223,7 @@ class SanadGraphServiceTest {
                     id.equals(a) ? NarratorReliability.SAHABI : NarratorReliability.THIQA, null)).toList();
         });
 
-        SanadGraphResponse graph = service.buildTuruqGraph(mainId);
+        SanadGraphResponse graph = service.buildTuruqGraph(mainId, false);
 
         assertEquals(mainId, graph.hadithId());
 

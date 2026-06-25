@@ -3614,7 +3614,8 @@ PATCH/DELETE. У хадиса без `source_id` (оценок ещё не бы�
         "reliabilityComment": "...", "generation": "...",
         "tabaqa": "الطبقة الأولى", "gradeText": "ثقة حافظ",
         "externalId": "rawy-59",
-        "collection": "Сахих аль-Бухари (только COLLECTOR)", "tier": 4
+        "collection": "Сахих аль-Бухари (только COLLECTOR)", "tier": 4,
+        "overriddenFields": ["reliability_grade"]
       } },
     { "id": "version-{uuid}", "role": "VERSION", "data": null,
       "version": {
@@ -3651,9 +3652,23 @@ PATCH/DELETE. У хадиса без `source_id` (оценок ещё не бы�
   графа). null для синтетического узла `prophet` и не-alminasa рави.
 - `version` (Сессия 58) заполнен только у `VERSION`-узлов (`data=null`);
   поля сборника null, если коллекция хадиса не найдена.
+- `data.overriddenFields` (Фаза 5.b курации, ADR-065 §5) — имена
+  переопределённых ADMIN'ом полей рави (admin-индикатор «отредактировано»).
+  ЗНАЧЕНИЯ полей узла — EFFECTIVE (с наложенными overrides: правка → новое
+  значение, field-hide → null) для **всех** читателей; список
+  `overriddenFields` заполнен **только для ADMIN** (по роли в
+  SecurityContext, зеркало reveal у `/detail`), у гостя/USER — пустой
+  массив. Рави НЕ record-hideable (whitelist `recordHideAllowed=false`) —
+  узел никогда не исчезает, field-hide лишь зануляет значение.
 - 404 `hadith-not-found` если хадиса нет.
 
-Питает компонент `SanadGraph` (React Flow, dagre TB layout, read-only).
+Эндпоинт **role-aware** (Фаза 5.b): значения курируются для всех,
+admin-индикатор `overriddenFields` — только ADMIN. То же у `turuq-graph`.
+
+Питает компонент `SanadGraph` (React Flow, dagre TB layout). Двойной клик по
+узлу открывает `NarratorPanel` с биографией; для ADMIN — inline-правка
+§5-полей рави (reliability_grade/kunya/laqab/tabaqa) → PUT
+`/admin/curation/overrides` → рефетч графа.
 
 ### GET /api/v1/hadith/hadiths/{id}/turuq-graph
 
@@ -4589,6 +4604,7 @@ overlay-курации ADR-065).
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-06-25 | v1 | **Курация Фаза 5.b — narrator-overlay в графе иснада (ADR-065 §5).** `GET /hadith/hadiths/{id}/sanad-graph` и `/turuq-graph` теперь накладывают курация-overrides рави на узлы графа (раньше игнорировались — граф показывал RAW-данные). `SanadGraphResponse.NarratorData` +`overriddenFields` (`List<String>`, additive): имена переопределённых ADMIN'ом полей рави (admin-индикатор «отредактировано»). ЗНАЧЕНИЯ полей узла — EFFECTIVE (правка → новое значение, field-hide → null) для **всех** читателей (один батч-load `OverrideSet` по `HD_NARRATORS`, без N+1, через `OverrideApplyService.apply(Narrator,..)`); `overriddenFields` заполнен **только для ADMIN** (оба эндпоинта стали role-aware — `reveal` по роли в SecurityContext, зеркало `/detail`), у гостя/USER — пустой массив. Рави НЕ record-hideable (whitelist) — узел не исчезает. `buildGraph`/`buildTuruqGraph` получили параметр `reveal`. Frontend: `NarratorData` +`overriddenFields`; узел графа (`SanadGraphNode`) рисует admin-индикатор-карандаш; `NarratorPanel` (двойной клик по узлу) для ADMIN — inline-правка §5-полей рави (reliability_grade[enum]/kunya/laqab/tabaqa) через существующий `EditableField`/`CurationFieldsPanel` → PUT `/admin/curation/overrides` → рефетч графа. IT: `SanadGraphNarratorOverlayIT` (правка reliability_grade EFFECTIVE гостю + overriddenFields ADMIN'у + field-hide → null, узел на месте); фронт `NarratorPanel.test`/`SanadGraphNode.test` (индикатор + панель-правка) | Фаза 5.b эпика курации (ADR-065): механизм narrator-overlay существовал (`applyNarrators`, используется `NarratorController`), но не применялся на graph-DTO пути — правки рави видны на странице рави, но НЕ в графе иснада; ADMIN курирует рави прямо из визуализации цепи |
 | 2026-06-25 | v1 | **Режим citation PDF_LINK для FILE_ONLY книг (ADR-067, миграция 80).** Positional-citation на 3 эндпоинтах (`POST /api/v1/nodes/{nodeId}/citations`, `POST /api/v1/questions/{questionId}/citations`, `POST /api/v1/answers/{answerId}/citations`) получил **5-й режим** `PDF_LINK` для FILE_ONLY книг (archive.org-сканы), которые хранят PDF в `lib_books.metadata.pdf_links.files[]` и НЕ имеют строки в `library_files` (нет blob'а → FK-режим PDF недоступен). `CitationRequest` +`pdfFileIndex` (Integer, 0-based ordinal в `pdf_links.files[]`); адресует PDF через `(pdfFileIndex, pdfPageNumber, pdfBbox)` параллельно FK-режиму PDF (тот без изменений, для user-upload). `mode` discriminator теперь `TEXT\|PDF\|PDF_LINK\|REGION\|LEGACY`. Response `pdf`-ref расширен `fileIndex` (Integer, nullable) — ровно одно из `fileId`/`fileIndex` не-null (display-путь и так адресует PDF по fileIndex+page+bbox). Валидация на сервисе: `0 <= pdfFileIndex < pdfService.getMetadata(bookId).files().size()` (out-of-range / отрицательный / page<1 / отсутствует bbox → 400 `invalid-citation`); взаимоисключаемость режимов на сервисе (exactly-one-mode) и на БД (CHECK `chk_*_sources_one_mode` расширен 5-й веткой). Миграция 80 ADD COLUMN `pdf_file_index INTEGER` в node_sources/question_sources/answer_sources. Frontend-wiring + перенос `pdf_file_index` в topic export/import — НЕ реализованы (follow-up; PDF_LINK при реимпорте темы деградирует в LEGACY). IT: `NodeCitationServiceIT` (PDF_LINK happy-path/persist/snapshot/bounds±/exclusivity×3/direct-JDBC-CHECK-reject/FK-регрессия), `QuestionCitationServiceIT`+`AnswerCitationServiceIT` (happy-path + exclusivity), `NodeSourceRepositoryPositionalIT` | FILE_ONLY archive.org-сканы были нецитируемы: их PDF живёт в metadata, а `library_files` требует сохранённого blob'а (ADR-024 §4) — регистрация тома форсировала бы eager-download 10-100 MB. PDF_LINK адресует PDF тем же ordinal'ом, что потребляет display |
 | 2026-06-25 | v1 | **Курация Фаза 5.b — `ExplanationDto.authorDeathYear` (additive).** `GET /hadith/hadiths/{id}/detail` → `explanations[]` теперь несёт `authorDeathYear` (Integer, г.х., nullable) — год смерти автора толкования; `toExplanationDto` пробрасывает уже читаемое `HadithExplanation.authorDeathYear` (колонка `hd_explanations.author_death_year`, ETL/overlay-apply были готовы — DTO его молча терял). Курируемое поле (`CurationWhitelist` HD_EXPLANATIONS `author_death_year` уже был editable); фронт `ExplanationsList` рисует «ум. {year} г.х.» рядом с атрибуцией (симметрия с `NarratorCommentaryDto.commenterDeathYear`) и наконец передаёт текущее значение в `CurationFieldsPanel` (раньше слал `null`). Без изменений формы запроса/прочих DTO. Тесты: `ExplanationsList.test.tsx` (рендер/скрытие по null, GHARIB-вариант) | Фаза 5.b эпика курации (ADR-065): год смерти автора шарха/иляля/гариба собран в БД и курируем, но не доходил до UI — атрибуция эпохи учёного для академического читателя |
 | 2026-06-24 | v1 | **Прод-готовность P2-1/P2-3 — error-handling + AI-translate cost-guard.** (P2-1) Generic `@ExceptionHandler(Exception.class)` в `GlobalExceptionHandler` → единый **500** ProblemDetail (`type=internal-error`, generic detail, БЕЗ message/трейса в теле) + `requestId`-property (из MDC, = `X-Request-Id` header) для grep'а логов; полный трейс — только в ERROR-лог. `application.yml`: `server.error.include-stacktrace/message/binding-errors: never` (явно). Специфичные хендлеры по-прежнему приоритетнее. (P2-3) `POST /api/v1/hadith/matns/{matnId}/translate` — per-user cost-guard (sliding-window `hadith.translate.rate-limit.*`, дефолт 20/ч, env-overridable, ADMIN-exempt, `enabled=true` by default): превышение → **429** `too-many-requests` ProblemDetail + `Retry-After` header + `retryAfterSeconds`. `cached=true` (перевод уже есть) бюджет НЕ тратит — лимитятся только LLM-bound вызовы. IT: `GlobalExceptionHandlerTest` (no-leak + спец-хендлер не регрессит), `MatnTranslateRateLimiterTest` (7) + `MatnTranslateRateLimitIT` (3) | P2-1: непокрытое исключение давало не-RFC-7807 Spring-500 (неединообразно) + явная no-leak-политика. P2-3: первый перевод доступен любому залогиненному → платный LLM-вызов; гард от fan-out стоимости (паттерн RateLimitFilter/BookViewDedupService ADR-046) |

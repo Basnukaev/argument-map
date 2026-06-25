@@ -76,4 +76,15 @@ describe('SanadGraphNode', () => {
     expect(screen.getByText('النبي محمد ﷺ')).toBeInTheDocument();
     expect(screen.queryByText('ثقة')).not.toBeInTheDocument();
   });
+
+  // Курация Фаза 5.b: admin-индикатор «отредактировано» на узле графа.
+  it('узел с overriddenFields → индикатор «отредактировано»', () => {
+    renderNode({ ...BASE, overriddenFields: ['reliability_grade'] });
+    expect(screen.getByLabelText('Правка полей')).toBeInTheDocument();
+  });
+
+  it('узел без overriddenFields → индикатора нет', () => {
+    renderNode(BASE);
+    expect(screen.queryByLabelText('Правка полей')).not.toBeInTheDocument();
+  });
 });

@@ -434,7 +434,11 @@ public class HadithController {
         // 404 если хадиса нет - граф несуществующего хадиса бессмыслен
         hadithRepository.findById(id)
                 .orElseThrow(() -> new HadithNotFoundException(id));
-        return sanadGraphService.buildGraph(id);
+        // Курация (ADR-065 §5.b): EFFECTIVE narrator-overrides видны всем; admin
+        // reveal гейтит только индикатор «отредактировано» (overriddenFields) —
+        // зеркало getDetail.
+        boolean reveal = UserRole.ADMIN.equals(SecurityContextUtils.currentRoleOrAnonymous());
+        return sanadGraphService.buildGraph(id, reveal);
     }
 
     /**
@@ -447,7 +451,8 @@ public class HadithController {
     public SanadGraphResponse getTuruqGraph(@PathVariable UUID id) {
         hadithRepository.findById(id)
                 .orElseThrow(() -> new HadithNotFoundException(id));
-        return sanadGraphService.buildTuruqGraph(id);
+        boolean reveal = UserRole.ADMIN.equals(SecurityContextUtils.currentRoleOrAnonymous());
+        return sanadGraphService.buildTuruqGraph(id, reveal);
     }
 
     /**

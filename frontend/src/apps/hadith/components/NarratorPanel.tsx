@@ -1,7 +1,24 @@
 import { X, ArrowRight } from 'lucide-react';
 import { useT, type DictKey } from '@/shared/i18n';
+import { hasRoleAtLeast, type AuthRole } from '@/shared/stores/authStore';
 import { RELIABILITY_TOKENS } from '@/apps/hadith/sanadTokens';
+import EditableField from '@/apps/hadith/components/curation/EditableField';
+import CurationFieldsPanel, {
+  type CurationFieldSpec,
+} from '@/apps/hadith/components/curation/CurationFieldsPanel';
 import type { SanadFlowNodeData } from '@/apps/hadith/types';
+
+/** Курация Фаза 5.b — enum-опции ADMIN-правки степени надёжности рави
+ *  (зеркало NarratorDetailPage.RELIABILITY_OPTIONS). */
+const RELIABILITY_OPTIONS: { value: string; label: string }[] = [
+  { value: 'THIQA', label: 'THIQA' },
+  { value: 'SADUQ', label: 'SADUQ' },
+  { value: 'MAQBUL', label: 'MAQBUL' },
+  { value: 'DAIF', label: 'DAIF' },
+  { value: 'MATRUK', label: 'MATRUK' },
+  { value: 'SAHABI', label: 'SAHABI' },
+  { value: 'UNKNOWN', label: 'UNKNOWN' },
+];
 
 interface NarratorPanelProps {
   data: SanadFlowNodeData;
@@ -12,6 +29,16 @@ interface NarratorPanelProps {
    * снимает путаницу الفاكهي vs الخزاعي. undefined при клике из графа.
    */
   textForm?: string;
+  /**
+   * Роль пользователя — гейт ADMIN inline-правки полей рави (курация Фаза 5.b).
+   * не-ADMIN: панель правки скрыта (карточка read-only как прежде).
+   */
+  role?: string;
+  /**
+   * Сохранение поля рави → рефетч графа (родитель пересобирает с EFFECTIVE-
+   * значениями). undefined — правка недоступна (нет колбэка рефетча).
+   */
+  onEdited?: () => void;
 }
 
 function Field({ label, value }: { label: string; value: string | null }) {
@@ -31,9 +58,24 @@ function Field({ label, value }: { label: string; value: string | null }) {
  * Позиционируется абсолютно внутри контейнера графа (родитель relative);
  * высота по контенту со скроллом, на узких экранах ужимается по ширине.
  */
-function NarratorPanel({ data, onClose, textForm }: NarratorPanelProps) {
+function NarratorPanel({ data, onClose, textForm, role, onEdited }: NarratorPanelProps) {
   const t = useT();
   const rel = data.reliabilityGrade ? RELIABILITY_TOKENS[data.reliabilityGrade] : null;
+
+  // Курация Фаза 5.b: ADMIN-правка полей рави доступна только при наличии
+  // narratorId (синтетический Пророк ﷺ его не имеет) И колбэка рефетча графа.
+  const isAdmin = hasRoleAtLeast(role as AuthRole | undefined, 'ADMIN');
+  const canEdit = isAdmin && data.narratorId != null && onEdited != null;
+  const handleEdited = onEdited ?? (() => {});
+  // §5.b: admin-индикатор «отредактировано» — непустой overriddenFields.
+  const isEdited = isAdmin && (data.overriddenFields?.length ?? 0) > 0;
+
+  // §5-редактируемые текстовые поля рави (reliability_grade — enum, отдельно).
+  const editableTextFields: CurationFieldSpec[] = [
+    { label: t('hadith.narrator.kunya'), fieldName: 'kunya', value: data.kunya, kind: 'text' },
+    { label: t('hadith.narrator.laqab'), fieldName: 'laqab', value: data.laqab, kind: 'text' },
+    { label: t('hadith.narrator.generation'), fieldName: 'tabaqa', value: data.tabaqa, kind: 'text' },
+  ];
 
   const lifePath = [data.birthplace, data.primaryResidence, data.deathPlace]
     .filter((p): p is string => Boolean(p));
@@ -51,8 +93,18 @@ function NarratorPanel({ data, onClose, textForm }: NarratorPanelProps) {
     <aside className="absolute end-3 top-3 z-20 flex max-h-[calc(100%-1.5rem)] w-[330px] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-xl border border-border-strong bg-elevated shadow-sh3">
       <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0">
-          <div className="font-arabic text-xl leading-tight text-ink-900" dir="rtl">
-            {data.nameAr}
+          <div className="flex items-center gap-1.5">
+            <span className="font-arabic text-xl leading-tight text-ink-900" dir="rtl">
+              {data.nameAr}
+            </span>
+            {/* §5.b admin-индикатор «отредактировано» — тонкая точка-маркер. */}
+            {isEdited && (
+              <span
+                className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-accent-500"
+                title={t('hadith.curation.fields_title')}
+                aria-label={t('hadith.curation.fields_title')}
+              />
+            )}
           </div>
           {data.nameRu && <div className="mt-0.5 text-sm text-ink-600">{data.nameRu}</div>}
           {/* Форма имени как в иснаде (клик из текста) — снимает путаницу
@@ -120,6 +172,39 @@ function NarratorPanel({ data, onClose, textForm }: NarratorPanelProps) {
           >
             {data.gradeText ?? data.reliabilityComment}
           </div>
+        )}
+
+        {/* Курация Фаза 5.b — ADMIN inline-правка полей рави прямо из графа.
+            reliability_grade (enum) отдельной строкой; прочие текстовые поля —
+            переиспользуем CurationFieldsPanel (та же сетка, что у сателлитов).
+            Save → PUT overrides → onEdited() рефетчит граф (EFFECTIVE-значения). */}
+        {canEdit && data.narratorId != null && (
+          <>
+            <div className="mt-4 border-t border-dashed border-border pt-2">
+              <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1 text-xs">
+                <dt className="text-ink-500">{t('hadith.graph.legend_reliability')}</dt>
+                <dd className="min-w-0 text-ink-700">
+                  <EditableField
+                    entityTable="hd_narrators"
+                    entityId={data.narratorId}
+                    fieldName="reliability_grade"
+                    value={data.reliabilityGrade}
+                    kind="enum"
+                    options={RELIABILITY_OPTIONS}
+                    role={role}
+                    onSaved={handleEdited}
+                  />
+                </dd>
+              </dl>
+            </div>
+            <CurationFieldsPanel
+              entityTable="hd_narrators"
+              entityId={data.narratorId}
+              fields={editableTextFields}
+              role={role}
+              onChanged={handleEdited}
+            />
+          </>
         )}
       </div>
     </aside>

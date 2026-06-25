@@ -212,7 +212,7 @@ class AlminasaMapperIT {
                 .containsExactly("5913", "5719", "6796", "8272", "3443", "4698");
 
         // ── round-trip SanadGraphService.buildGraph ────────────────────────────────
-        SanadGraphResponse graph = sanadGraphService.buildGraph(hadithId);
+        SanadGraphResponse graph = sanadGraphService.buildGraph(hadithId, false);
         // присутствие Prophet-узла + 6 narrator-узлов
         assertThat(graph.nodes()).anySatisfy(n -> assertThat(n.role()).isEqualTo("PROPHET"));
         assertThat(graph.nodes()).filteredOn(n -> n.role().equals("COMPANION")).hasSize(1);

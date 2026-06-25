@@ -225,6 +225,18 @@ interface SanadGraphProps {
    * чужому version-узлу навигирует на detail той передачи.
    */
   currentHadithId?: string;
+  /**
+   * Роль пользователя — гейт ADMIN inline-правки полей рави в NarratorPanel
+   * (курация Фаза 5.b) + индикатор «отредактировано» на узле. undefined =
+   * аноним (правка скрыта). Только в controlled-режиме выбора (panel наверху).
+   */
+  role?: string;
+  /**
+   * Курация Фаза 5.b — рефетч графа после ADMIN-правки поля рави в панели.
+   * Граф пересобирается с EFFECTIVE-значениями (узлы отражают правку).
+   * Родитель владеет fetch'ем графа (lifted), потому рефетч — его колбэк.
+   */
+  onNarratorEdited?: () => void;
 }
 
 /**
@@ -245,6 +257,8 @@ function SanadGraph({
   selectedTextForm,
   onNarratorClose,
   currentHadithId,
+  role,
+  onNarratorEdited,
 }: SanadGraphProps) {
   const t = useT();
   const navigate = useNavigate();
@@ -790,9 +804,18 @@ function SanadGraph({
               data={selectedNarrator}
               textForm={selectedTextForm}
               onClose={() => onNarratorClose?.()}
+              role={role}
+              onEdited={onNarratorEdited}
             />
           )
-        : selected && <NarratorPanel data={selected} onClose={() => setSelected(null)} />}
+        : selected && (
+            <NarratorPanel
+              data={selected}
+              onClose={() => setSelected(null)}
+              role={role}
+              onEdited={onNarratorEdited}
+            />
+          )}
     </div>
   );
 }

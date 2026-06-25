@@ -19,6 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import ru.basnukaev.argumentmap.hadith.curation.domain.OverrideEntity;
+import ru.basnukaev.argumentmap.hadith.curation.service.OverrideApplyService;
+import ru.basnukaev.argumentmap.hadith.curation.service.OverrideSet;
 import ru.basnukaev.argumentmap.hadith.domain.Collection;
 import ru.basnukaev.argumentmap.hadith.domain.Hadith;
 import ru.basnukaev.argumentmap.hadith.domain.Narrator;
@@ -85,6 +88,7 @@ public class SanadGraphService {
     private final MatnRepository matnRepository;
     private final CollectionRepository collectionRepository;
     private final HadithCrossrefRepository crossrefRepository;
+    private final OverrideApplyService overrideApply;
     private final ObjectMapper objectMapper;
 
     public SanadGraphService(SanadRepository sanadRepository,
@@ -93,6 +97,7 @@ public class SanadGraphService {
                              MatnRepository matnRepository,
                              CollectionRepository collectionRepository,
                              HadithCrossrefRepository crossrefRepository,
+                             OverrideApplyService overrideApply,
                              ObjectMapper objectMapper) {
         this.sanadRepository = sanadRepository;
         this.narratorRepository = narratorRepository;
@@ -100,6 +105,7 @@ public class SanadGraphService {
         this.matnRepository = matnRepository;
         this.collectionRepository = collectionRepository;
         this.crossrefRepository = crossrefRepository;
+        this.overrideApply = overrideApply;
         this.objectMapper = objectMapper;
     }
 
@@ -110,11 +116,11 @@ public class SanadGraphService {
      * {@code onPrimaryChain}.
      */
     @Transactional(readOnly = true)
-    public SanadGraphResponse buildGraph(UUID hadithId) {
+    public SanadGraphResponse buildGraph(UUID hadithId, boolean reveal) {
         Hadith main = hadithRepository.findById(hadithId).orElse(null);
         GraphAccumulator acc = new GraphAccumulator(hadithId);
         if (main != null) {
-            addHadith(acc, main);
+            addHadith(acc, main, reveal);
         }
         return acc.toResponse(hadithId);
     }
@@ -127,12 +133,12 @@ public class SanadGraphService {
      * рёбер primary-цепи ГЛАВНОГО хадиса. {@code hadithId} ответа = главный.
      */
     @Transactional(readOnly = true)
-    public SanadGraphResponse buildTuruqGraph(UUID hadithId) {
+    public SanadGraphResponse buildTuruqGraph(UUID hadithId, boolean reveal) {
         GraphAccumulator acc = new GraphAccumulator(hadithId);
 
         Hadith main = hadithRepository.findById(hadithId).orElse(null);
         if (main != null) {
-            addHadith(acc, main);
+            addHadith(acc, main, reveal);
         }
 
         // Резолвленные сиблинги (distinct related_hadith_id), исключая сам хадис.
@@ -143,7 +149,7 @@ public class SanadGraphService {
                 .distinct()
                 .toList();
         for (UUID siblingId : siblingIds) {
-            hadithRepository.findById(siblingId).ifPresent(sib -> addHadith(acc, sib));
+            hadithRepository.findById(siblingId).ifPresent(sib -> addHadith(acc, sib, reveal));
         }
 
         return acc.toResponse(hadithId);
@@ -154,7 +160,7 @@ public class SanadGraphService {
      * аккумулятор. Рави/Пророк дедуплицируются между хадисами; для каждой
      * цепи добавляется ребро от её коллекторного конца в version-узел.
      */
-    private void addHadith(GraphAccumulator acc, Hadith hadith) {
+    private void addHadith(GraphAccumulator acc, Hadith hadith, boolean reveal) {
         UUID hadithId = hadith.id();
         boolean isMain = hadithId.equals(acc.mainHadithId);
 
@@ -164,7 +170,13 @@ public class SanadGraphService {
 
         List<UUID> narratorIds = links.stream()
                 .map(SanadNarrator::narratorId).distinct().toList();
+        // Курация (ADR-065 §5): один батч-load overrides всех рави этого хадиса
+        // (без N+1). EFFECTIVE-значения накладываются на доменный Narrator до
+        // маппинга в DTO — правка видна всем, field-hide → null. Рави НЕ
+        // record-hideable (whitelist recordHideAllowed=false), узел не исчезает.
+        OverrideSet narratorOv = overrideApply.load(OverrideEntity.HD_NARRATORS, narratorIds);
         Map<UUID, Narrator> narratorById = narratorRepository.findByIds(narratorIds).stream()
+                .map(n -> OverrideApplyService.apply(n, narratorOv))
                 .collect(Collectors.toMap(Narrator::id, n -> n));
 
         Set<UUID> companionIds = links.stream()
@@ -211,7 +223,8 @@ public class SanadGraphService {
                     : companionIds.contains(nid) ? "COMPANION"
                     : "NARRATOR";
             int tier = positionByNarrator.getOrDefault(nid, 0) + 1;
-            acc.addNarratorNode(nid, role, narratorData(n, tier, collectionByCollector.get(nid)));
+            acc.addNarratorNode(nid, role,
+                    narratorData(n, tier, collectionByCollector.get(nid), narratorOv, reveal));
         }
 
         // Рёбра внутри цепей (prophet→companion→…→collector) с дедупом.
@@ -343,20 +356,31 @@ public class SanadGraphService {
                 new NarratorData(
                         null, "النَّبِيُّ مُحَمَّدٌ ﷺ", "Prophet Muhammad", "Пророк Мухаммад ﷺ",
                         null, null, null, null, null, null, null,
-                        null, null, null, null, null, null, null, 0
+                        null, null, null, null, null, null, null, 0,
+                        List.of()                                     // синтетический узел — overrides нет
                 ),
                 null
         );
     }
 
-    private NarratorData narratorData(Narrator n, int tier, String collection) {
+    /**
+     * Маппинг доменного рави (уже EFFECTIVE — overrides наложены вызывающим) в
+     * DTO. {@code overriddenFields} (admin-индикатор «отредактировано») берётся
+     * из {@code ov} только при {@code reveal=true}, иначе пустой список —
+     * курируемые ЗНАЧЕНИЯ видны всем, признак правки — лишь ADMIN'у (§5.b).
+     */
+    private NarratorData narratorData(Narrator n, int tier, String collection,
+                                      OverrideSet ov, boolean reveal) {
+        List<String> overriddenFields = reveal
+                ? List.copyOf(ov.overriddenFields(n.id()))
+                : List.of();
         return new NarratorData(
                 n.id(), n.nameAr(), n.nameArNormalized(), metaText(n.metadata(), "nameRu"),
                 n.kunya(), n.laqab(), n.yearBirthHijri(), n.yearDeathHijri(),
                 n.birthplace(), n.primaryResidence(), n.deathPlace(),
                 n.reliabilityGrade(), n.reliabilityComment(), metaText(n.metadata(), "generation"),
                 n.tabaqa(), n.gradeText(), n.externalId(),
-                collection, tier
+                collection, tier, overriddenFields
         );
     }
 

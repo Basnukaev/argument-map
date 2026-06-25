@@ -42,6 +42,12 @@ export type NarratorData = {
   /** Название сборника — только для узлов-составителей (COLLECTOR). */
   collection: string | null;
   tier: number;
+  /**
+   * Курация Фаза 5.b — имена переопределённых ADMIN'ом полей рави
+   * (индикатор «отредактировано»). Заполнен ТОЛЬКО для ADMIN (reveal),
+   * у гостя/USER — пустой массив. Значения полей уже EFFECTIVE для всех.
+   */
+  overriddenFields?: string[] | null;
 };
 
 /**

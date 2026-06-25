@@ -159,15 +159,21 @@ function HadithDetailPage() {
   // при смене path); при 0 — path без суффикса (existing-поведение / тесты).
   const [detailNonce, setDetailNonce] = useState(0);
 
+  // Nonce рефетча графа после ADMIN-правки поля рави (курация Фаза 5.b): граф
+  // пересобирается с EFFECTIVE-значениями. Вшит в path (useApiQuery рефетчит
+  // при смене path); при 0 — path без суффикса (existing-поведение / тесты).
+  const [graphNonce, setGraphNonce] = useState(0);
+
   const detailPath = id
     ? `/api/v1/hadith/hadiths/${id}/detail${detailNonce > 0 ? `?r=${detailNonce}` : ''}`
     : null;
   const state = useApiQuery<HadithDetailDto>(detailPath);
   const collectionsState = useApiQuery<CollectionItem[]>('/api/v1/hadith/collections');
   // Lifted sanad-graph fetch: страница владеет графом (для клик-резолва иснада).
-  const graphState = useApiQuery<SanadGraphResponse>(
-    id ? `/api/v1/hadith/hadiths/${id}/sanad-graph` : null,
-  );
+  const graphPath = id
+    ? `/api/v1/hadith/hadiths/${id}/sanad-graph${graphNonce > 0 ? `?r=${graphNonce}` : ''}`
+    : null;
+  const graphState = useApiQuery<SanadGraphResponse>(graphPath);
 
   // Единая панель передатчика: и граф-клики, и текст-клики ставят сюда.
   const [selectedNarrator, setSelectedNarrator] = useState<SanadFlowNodeData | null>(null);
@@ -213,6 +219,23 @@ function HadithDetailPage() {
   const refetchDetail = () => {
     if (detailPath) invalidateCache((k) => k === detailPath);
     setDetailNonce((n) => n + 1);
+  };
+
+  // Рефетч графа после ADMIN-правки поля рави в NarratorPanel (курация Фаза
+  // 5.b): инвалидируем кэш текущего graph-path + бампаем nonce (sanad-graph
+  // пересобирается с EFFECTIVE-значениями). Turuq-граф кэшируется отдельно в
+  // state — сбрасываем его, чтобы при активном «Все пути» он перезапросился.
+  const refetchGraph = () => {
+    if (graphPath) invalidateCache((k) => k === graphPath);
+    setGraphNonce((n) => n + 1);
+    setTuruqGraph(null);
+    if (viewMode === 'turuq' && id) {
+      setTuruqLoading(true);
+      apiGetRaw<SanadGraphResponse>(`/api/v1/hadith/hadiths/${id}/turuq-graph?r=${Date.now()}`)
+        .then(setTuruqGraph)
+        .catch(() => setViewMode('main'))
+        .finally(() => setTuruqLoading(false));
+    }
   };
 
   // Толкования разбиты на три независимые секции по kind: شروح (SHARH),
@@ -261,6 +284,24 @@ function HadithDetailPage() {
 
   // Граф для рендера: основная цепь либо объединённый turuq (controlled).
   const displayGraph = viewMode === 'turuq' ? turuqGraph : graph;
+
+  // Курация Фаза 5.b: после рефетча графа (правка поля рави) переоткрытая
+  // NarratorPanel держит stale-снимок узла (reliabilityGrade/overriddenFields).
+  // Пере-синхронизируем открытую панель с актуальным узлом графа по narratorId,
+  // чтобы значения и admin-индикатор «отредактировано» обновились без переклика.
+  useEffect(() => {
+    if (!selectedNarrator?.narratorId || !displayGraph) return;
+    const fresh = displayGraph.nodes.find(
+      (n) => n.data?.narratorId === selectedNarrator.narratorId,
+    );
+    if (!fresh?.data || fresh.role === 'VERSION') return;
+    const next: SanadFlowNodeData = { ...fresh.data, role: fresh.role };
+    // Обновляем только при реальном изменении содержимого (иначе бесконечный
+    // ре-рендер — объект пересоздаётся каждый раз). Сравниваем по JSON-снимку.
+    if (JSON.stringify(next) !== JSON.stringify(selectedNarrator)) {
+      setSelectedNarrator(next);
+    }
+  }, [displayGraph, selectedNarrator]);
 
   // Вкладки переключателя зависят от наличия данных (graceful hide пустых).
   // «Текст» (огласованный full_text_ar ИЛИ legacy normalizedMatn) и «Граф»
@@ -626,6 +667,8 @@ function HadithDetailPage() {
                         selectedNarrator={selectedNarrator}
                         selectedTextForm={selectedTextForm}
                         onNarratorClose={() => setSelectedNarrator(null)}
+                        role={userRole}
+                        onNarratorEdited={refetchGraph}
                       />
                     )}
                     {/* Карточку передатчика (клики из графа И из текста иснада)

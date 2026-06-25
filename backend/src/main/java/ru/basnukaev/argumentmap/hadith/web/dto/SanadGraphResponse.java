@@ -55,6 +55,13 @@ public record SanadGraphResponse(
     ) {
     }
 
+    /**
+     * Данные narrator-узла. Значения полей — EFFECTIVE (с наложенными
+     * курация-overrides ADR-065 §5: правка → новое значение, field-hide → null)
+     * для ВСЕХ читателей. {@code overriddenFields} (Фаза 5.b) — admin-индикатор
+     * «поле отредактировано»: имена переопределённых колонок, заполняется ТОЛЬКО
+     * при {@code reveal=true} (ADMIN), иначе пустой список.
+     */
     public record NarratorData(
             UUID narratorId,
             String nameAr,
@@ -74,7 +81,8 @@ public record SanadGraphResponse(
             String gradeText,
             String externalId,
             String collection,
-            int tier
+            int tier,
+            List<String> overriddenFields
     ) {
     }
 

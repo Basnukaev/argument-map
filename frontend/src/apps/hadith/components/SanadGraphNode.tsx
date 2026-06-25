@@ -1,5 +1,5 @@
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
-import { BookOpen, Star } from 'lucide-react';
+import { BookOpen, Pencil, Star } from 'lucide-react';
 import { useT, type DictKey } from '@/shared/i18n';
 import { RELIABILITY_TOKENS, ROLE_STRIP } from '@/apps/hadith/sanadTokens';
 import type { SanadGraphNodeData } from '@/apps/hadith/types';
@@ -50,15 +50,27 @@ function SanadGraphNode({ data, selected }: NodeProps<SanadNode>) {
 
   const isCollector = data.role === 'COLLECTOR';
   const isCompanion = data.role === 'COMPANION';
+  // Курация Фаза 5.b: admin-индикатор «отредактировано» — узел несёт непустой
+  // overriddenFields (заполнен бэком только для ADMIN). Тонкий карандаш в углу.
+  const isEdited = (data.overriddenFields?.length ?? 0) > 0;
 
   return (
     <>
       <Handle type="target" position={Position.Top} className="!h-2 !w-2 !border-0 !bg-ink-300" />
       <div
-        className={`w-[240px] overflow-hidden rounded-lg border bg-elevated shadow-sh1 ${
+        className={`relative w-[240px] overflow-hidden rounded-lg border bg-elevated shadow-sh1 ${
           selected ? 'border-accent-500 ring-2 ring-accent-300' : 'border-border-strong'
         }`}
       >
+        {isEdited && (
+          <span
+            className="absolute end-1 top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-accent-50 text-accent-600"
+            title={t('hadith.curation.fields_title')}
+            aria-label={t('hadith.curation.fields_title')}
+          >
+            <Pencil size={9} aria-hidden />
+          </span>
+        )}
         <div className={`h-1 w-full ${ROLE_STRIP[data.role]}`} />
         {/* Центрированная компоновка (С64): имя по центру, оценка надёжности +
             поколение/смерть — в одной центрированной мета-строке. Раньше бейдж
