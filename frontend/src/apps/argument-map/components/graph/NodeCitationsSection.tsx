@@ -392,7 +392,12 @@ function CompactRow({
             aria-hidden="true"
             className={`shrink-0 text-ink-400 transition-transform ${open ? 'rotate-180' : ''}`}
           />
-          <span className="truncate text-xs font-medium text-ink-800" dir="auto">
+          <span
+            className={`truncate text-xs text-ink-800 ${
+              hasArabicScript(title) ? 'font-naskh' : 'font-medium'
+            }`}
+            dir="auto"
+          >
             {title}
           </span>
           {locator && (
@@ -501,6 +506,9 @@ function LibraryRow({ link, sourceLookup, onDetach, navigate, openSourceDetail }
   const source = link.sourceId ? sourceLookup.get(link.sourceId) : undefined;
   const deepLink = buildDeepLink(link);
   const titleLatin = pickLatinTitle(source, link.citation?.book?.title);
+  // Свёрнутая строка показывает РЕАЛЬНОЕ название книги (часто арабское) —
+  // pickLatinTitle/«(книга)» оставляем только для LTR-заголовка SourceCard.
+  const displayTitle = source?.title || link.citation?.book?.title || titleLatin;
   const locator = buildLibraryLocator(link, t);
   const openPanel = link.sourceId
     ? () =>
@@ -513,7 +521,7 @@ function LibraryRow({ link, sourceLookup, onDetach, navigate, openSourceDetail }
     : undefined;
   return (
     <CompactRow
-      title={titleLatin}
+      title={displayTitle}
       locator={locator}
       primaryAriaLabel={t('cite.action.gotoSource')}
       onPrimaryAction={deepLink ? () => navigate(deepLink) : undefined}
