@@ -92,6 +92,9 @@
 - ADR-062: Мост hd_hadiths↔sources для ручных оценок учёных (Option B, lazy-resolve)
 - ADR-063: Двух-осевая таксономия хадиса — провенанс (status) + аутентичность (миграция 77, выводимая)
 - ADR-064: Guest view — публичный read-only доступ (permitAll GET + RBAC service-фильтр, 49.G)
+- ADR-065: Overlay-таблица hd_field_overrides для курации данных hadith-домена (миграция 78)
+- ADR-066: Page-image сканы регистрируются в library_files как SCAN
+- ADR-067: Режим citation PDF_LINK для FILE_ONLY книг (archive.org-сканы, миграция 80)
 
 ---
 
@@ -6917,3 +6920,78 @@ orphan blob в pageImages bucket (нет catalog row, нет указателя 
 
 **Связанные:** ADR-024 (object storage catalog), ADR-041 (page image upload),
 ADR-057 (OCR removal, scan как субстрат).
+
+## ADR-067: Режим citation PDF_LINK для FILE_ONLY книг (archive.org-сканы)
+
+**Дата:** 2026-06-25
+**Статус:** принято
+**Реализовано:** Сессия 66, миграция 80 (бэкенд; фронт-wiring + drawing UX — следом)
+**Связь:** ADR-024 (object storage / library_files blob-coupling), ADR-027
+(positional citation fields)
+
+**Контекст.** Positional PDF-citation сейчас кодирует локацию через
+`pdf_file_id UUID → library_files(file_id)` (ADR-027, режим PDF). Но
+FILE_ONLY книги (archive.org-сканы) хранят PDF в
+`lib_books.metadata.pdf_links.files[]` и **никогда не получают
+library_files-строку**: эта таблица требует сохранённого blob'а
+(`content_hash`/`size_bytes` NOT NULL, миграция 21; ADR-024 §4 трактует
+blob-less строку как алярм потери данных, а `OrphanDetectionJanitor`
+флажит её как orphan). Поэтому такие книги невозможно процитировать через
+FK-режим - нет валидного `pdf_file_id`. При этом display-путь уже
+адресует PDF по `fileIndex + page + bbox` (`PdfService.getMetadata`,
+`PdfController`) и `pdfFileId` для рендера выделения не использует.
+
+**Решение.** Добавить **5-й режим citation PDF_LINK**, адресуемый
+`(pdf_file_index, pdf_page_number, pdf_bbox)`, где `pdf_file_index` -
+0-based ordinal в `pdf_links.files[]`. Параллельно существующему
+FK-режиму PDF (тот остаётся для user-upload книг с реальным blob'ом в
+`library-user-uploads`). Миграция 80 добавляет колонку `pdf_file_index`
+во все три параллельные таблицы citations (node_sources /
+question_sources / answer_sources) и расширяет one-mode CHECK 5-й веткой
+(+ `pdf_file_index IS NULL` в каждую из 4 прежних веток - режимы остаются
+взаимоисключающими и на уровне БД). Bounds-валидация
+(`pdf_file_index < files().size()`) на сервисе через
+`PdfService.getMetadata` (читает только `lib_books.metadata`, без
+blob-download). PDF_LINK совпадает с тем, что фронт уже потребляет для
+display.
+
+**Отклонённая альтернатива (b) - регистрировать archive.org-тома в
+library_files на импорте.** Чтобы дать FILE_ONLY книгам валидный
+`pdf_file_id`, можно было бы заранее регистрировать каждый том в
+`library_files`. Отклонено: это форсирует eager-download каждого тома
+(10-100 MB на том, книга из десятков томов) только ради возможности
+процитировать - даже если том никто не откроет. Альтернатива - вставлять
+blob-less строки в `library_files` - прямо нарушает blob-coupling
+инвариант ADR-024 (`content_hash`/`size_bytes` NOT NULL) и фабрикует
+ложные orphan-алярмы janitor'а. И в любом случае внутри
+`pdf_links.files[]` всё равно нужен `file_index` для выбора тома, так что
+FK-путь не устранил бы ordinal-адресацию, а лишь добавил бы дорогой
+побочный эффект.
+
+**Последствия.**
+- (+) FILE_ONLY книги наконец цитируемы; citation совпадает с display-путём.
+- (+) Никакого eager-download; FK-режим PDF не тронут (zero-risk для
+  user-upload).
+- (+) Взаимоисключаемость режимов гарантируется и на БД (CHECK), и на
+  сервисе (exactly-one-mode counter).
+- (−) Два PDF-режима вместо одного - чуть больше веток в валидации и
+  snapshot. Приемлемо: семантически это разные адресации (durable FK vs
+  ordinal в metadata).
+- (−) `pdf_file_index` ссылается на позицию в `pdf_links.files[]`, а не на
+  durable FK - устойчивость зависит от стабильности порядка массива (см.
+  триггеры).
+
+**Триггеры пересмотра.** Устойчивость `pdf_links` ordinal при реимпорте:
+`PdfLinksSourceProvider.getMetadata` трактует порядок `files[]` как
+**стабильный by-design** (cover в `files[0]`, тома по порядку - так кладёт
+archive.org-импорт). Snapshot-строка location денормализует label тома
+(`"... PDF т.2 (Том 2), стр.5"`), так что если порядок `files[]` когда-нибудь
+дрейфанёт при реимпорте, рассинхрон станет человеко-обнаружимым (label в
+snapshot перестанет соответствовать тому по индексу). Если такой дрейф
+начнёт наблюдаться массово - пересмотреть: ввести durable per-volume
+идентификатор (например `name` файла) вместо ordinal.
+
+> **Не реализовано в этом ADR (follow-up):** (1) фронт-wiring PDF_LINK
+> (CitationPicker отправляет `pdfFileIndex`, reader потребляет `fileIndex`);
+> (2) перенос `pdf_file_index` в topic export/import (сейчас PDF_LINK-citation
+> при реимпорте темы деградирует в LEGACY, как и нерезолвимые PDF/page refs).

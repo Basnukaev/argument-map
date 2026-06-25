@@ -307,8 +307,10 @@ public final class DtoMappers {
     }
 
     private static PdfRef toPdfRef(CitationDetail c) {
-        if (c.pdfFileId() == null) return null;
-        return new PdfRef(c.pdfFileId(), c.pdfPageNumber(), jsonFromString(c.pdfBbox()));
+        // PDF (FK) либо PDF_LINK (ordinal в pdf_links.files[], ADR-067) -
+        // ровно одно из fileId/fileIndex не-null
+        if (c.pdfFileId() == null && c.pdfFileIndex() == null) return null;
+        return new PdfRef(c.pdfFileId(), c.pdfFileIndex(), c.pdfPageNumber(), jsonFromString(c.pdfBbox()));
     }
 
     private static RegionRef toRegionRef(CitationDetail c) {

@@ -282,6 +282,17 @@ node_votes**); Frontend pagination остальных list pages (Load More,
 
 ## Tech debt / performance optimization
 
+- [ ] **Невалидный `PdfBbox` в citation-запросе → 500 вместо 400** (найдено С66,
+  pre-existing, `NodeCitationControllerIT.post_invalidBbox_returns400`).
+  `PdfBbox` валидирует в compact-конструкторе record'а — `IllegalArgumentException`
+  бросается во время Jackson-десериализации тела → оборачивается в
+  `HttpMessageNotReadableException`, но `GlobalExceptionHandler` отдаёт generic
+  500 вместо 400. Фикс: маппить `HttpMessageNotReadableException` с
+  cause=`IllegalArgumentException`/`ValueInstantiationException` на 400 (RFC-7807),
+  ЛИБО валидировать bbox-диапазоны через Bean Validation (`@Valid`), а не в
+  конструкторе. Blast radius — все endpoint'ы (GlobalExceptionHandler), поэтому
+  отдельная задача, не drive-by. Не блокер FILE_ONLY-цитат (тот путь не задет).
+
 ### Code-review findings (Сессия 55, 2026-06-03) — deferred Minor
 
 - [ ] **migration 69 (content_kind) HAS_FILE предикат** использует

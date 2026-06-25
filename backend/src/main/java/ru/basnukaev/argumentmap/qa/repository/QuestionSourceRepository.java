@@ -27,6 +27,7 @@ public class QuestionSourceRepository {
             "id, question_id, source_id, quote, context, location, "
             + "page_id, range_start, range_end, "
             + "pdf_file_id, pdf_page_number, pdf_bbox, "
+            + "pdf_file_index, "
             + "image_region_id, "
             + "created_at";
 
@@ -37,6 +38,8 @@ public class QuestionSourceRepository {
         Integer rangeEndOrNull = rs.wasNull() ? null : rangeEnd;
         int pdfPage = rs.getInt("pdf_page_number");
         Integer pdfPageOrNull = rs.wasNull() ? null : pdfPage;
+        int pdfFileIndex = rs.getInt("pdf_file_index");
+        Integer pdfFileIndexOrNull = rs.wasNull() ? null : pdfFileIndex;
 
         return new QuestionSource(
                 rs.getObject("id", UUID.class),
@@ -51,6 +54,7 @@ public class QuestionSourceRepository {
                 rs.getObject("pdf_file_id", UUID.class),
                 pdfPageOrNull,
                 rs.getString("pdf_bbox"),
+                pdfFileIndexOrNull,
                 rs.getObject("image_region_id", UUID.class),
                 instant(rs, "created_at")
         );
@@ -65,7 +69,7 @@ public class QuestionSourceRepository {
     public QuestionSource save(QuestionSource link) {
         jdbcTemplate.update(
                 "INSERT INTO question_sources (" + COLUMNS + ") "
-                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?)",
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?)",
                 link.id(),
                 link.questionId(),
                 link.sourceId(),
@@ -78,6 +82,7 @@ public class QuestionSourceRepository {
                 link.pdfFileId(),
                 link.pdfPageNumber(),
                 link.pdfBbox(),
+                link.pdfFileIndex(),
                 link.imageRegionId(),
                 odt(link.createdAt())
         );

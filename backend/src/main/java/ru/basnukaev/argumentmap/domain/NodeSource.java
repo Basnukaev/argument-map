@@ -25,6 +25,7 @@ public record NodeSource(
         UUID pdfFileId,
         Integer pdfPageNumber,
         String pdfBbox,
+        Integer pdfFileIndex,
         UUID imageRegionId,
         Instant createdAt
 ) {
@@ -35,6 +36,7 @@ public record NodeSource(
         return new NodeSource(UUID.randomUUID(), nodeId, sourceId, quote, context, location,
                 pageId, rangeStart, rangeEnd,
                 null, null, null,
+                null,
                 null,
                 createdAt);
     }
@@ -47,6 +49,24 @@ public record NodeSource(
                 null, null, null,
                 pdfFileId, pdfPageNumber, pdfBboxJson,
                 null,
+                null,
+                createdAt);
+    }
+
+    /**
+     * Citation на PDF-том FILE_ONLY книги (archive.org-скан) по 0-based
+     * ordinal'у в pdf_links.files[] - ADR-067. Параллельно
+     * {@link #pdfMode} (FK-вариант для user-upload).
+     */
+    public static NodeSource pdfLinkMode(UUID nodeId, UUID sourceId,
+                                         String quote, String context, String location,
+                                         int pdfFileIndex, int pdfPageNumber, String pdfBboxJson,
+                                         Instant createdAt) {
+        return new NodeSource(UUID.randomUUID(), nodeId, sourceId, quote, context, location,
+                null, null, null,
+                null, pdfPageNumber, pdfBboxJson,
+                pdfFileIndex,
+                null,
                 createdAt);
     }
 
@@ -56,6 +76,7 @@ public record NodeSource(
         return new NodeSource(UUID.randomUUID(), nodeId, sourceId, quote, context, location,
                 null, null, null,
                 null, null, null,
+                null,
                 imageRegionId,
                 createdAt);
     }
@@ -67,10 +88,12 @@ public record NodeSource(
                 null, null, null,
                 null, null, null,
                 null,
+                null,
                 createdAt);
     }
 
     public CitationMode mode() {
-        return CitationMode.derive(pageId != null, pdfFileId != null, imageRegionId != null);
+        return CitationMode.derive(pageId != null, pdfFileId != null,
+                pdfFileIndex != null, imageRegionId != null);
     }
 }

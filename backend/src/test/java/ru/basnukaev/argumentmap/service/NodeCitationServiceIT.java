@@ -84,7 +84,7 @@ class NodeCitationServiceIT {
     void createCitation_textMode_creates_source_and_node_source_with_computed_location() {
         CitationRequest req = new CitationRequest(bookId,
                 pageId, 0, 87,
-                null, null, null,
+                null, null, null, null,
                 null,
                 "وأرى أن لا تكون...", "Ибн Касир признаёт");
 
@@ -112,7 +112,7 @@ class NodeCitationServiceIT {
 
         CitationRequest req = new CitationRequest(bookId,
                 null, null, null,
-                pdfFileId, 47, bbox,
+                pdfFileId, 47, bbox, null,
                 null,
                 null, "PDF citation");
 
@@ -120,6 +120,8 @@ class NodeCitationServiceIT {
 
         assertThat(response.mode()).isEqualTo(CitationMode.PDF);
         assertThat(response.citation().pdf().fileId()).isEqualTo(pdfFileId);
+        // Регрессия (ADR-067): FK-режим PDF не несёт fileIndex
+        assertThat(response.citation().pdf().fileIndex()).isNull();
         assertThat(response.citation().pdf().pageNumber()).isEqualTo(47);
         assertThat(response.citation().pdf().bbox()).isNotNull();
     }
@@ -130,7 +132,7 @@ class NodeCitationServiceIT {
 
         CitationRequest req = new CitationRequest(bookId,
                 null, null, null,
-                null, null, null,
+                null, null, null, null,
                 imageRegionId,
                 null, "region citation");
 
@@ -143,9 +145,9 @@ class NodeCitationServiceIT {
     @Test
     void createCitation_ensureOrCreate_reusesSourceOnSecondCitation() {
         CitationRequest req1 = new CitationRequest(bookId,
-                pageId, 0, 10, null, null, null, null, "q1", null);
+                pageId, 0, 10, null, null, null, null, null, "q1", null);
         CitationRequest req2 = new CitationRequest(bookId,
-                pageId, 20, 30, null, null, null, null, "q2", null);
+                pageId, 20, 30, null, null, null, null, null, "q2", null);
 
         NodeSourceResponse r1 = service.createCitation(nodeId, req1);
         UUID node2 = createSecondNode();
@@ -162,7 +164,7 @@ class NodeCitationServiceIT {
     void createCitation_nodeNotFound_throws404() {
         UUID missing = UUID.randomUUID();
         CitationRequest req = new CitationRequest(bookId,
-                pageId, 0, 10, null, null, null, null, null, null);
+                pageId, 0, 10, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.createCitation(missing, req))
                 .isInstanceOf(NodeNotFoundException.class);
@@ -172,7 +174,7 @@ class NodeCitationServiceIT {
     void createCitation_bookNotFound_throws404() {
         UUID missingBook = UUID.randomUUID();
         CitationRequest req = new CitationRequest(missingBook,
-                pageId, 0, 10, null, null, null, null, null, null);
+                pageId, 0, 10, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.createCitation(nodeId, req))
                 .isInstanceOf(BookNotFoundException.class);
@@ -182,7 +184,7 @@ class NodeCitationServiceIT {
     void createCitation_pageNotFound_throws404() {
         UUID missingPage = UUID.randomUUID();
         CitationRequest req = new CitationRequest(bookId,
-                missingPage, 0, 10, null, null, null, null, null, null);
+                missingPage, 0, 10, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.createCitation(nodeId, req))
                 .isInstanceOf(PageNotFoundException.class);
@@ -196,7 +198,7 @@ class NodeCitationServiceIT {
                 null, null, null, null, null, null, BookVisibility.PUBLIC));
 
         CitationRequest req = new CitationRequest(otherBookId,
-                pageId, 0, 10, null, null, null, null, null, null);
+                pageId, 0, 10, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.createCitation(nodeId, req))
                 .isInstanceOf(InvalidCitationException.class)
@@ -207,7 +209,7 @@ class NodeCitationServiceIT {
     void createCitation_imageRegionNotFound_throws404() {
         UUID missingRegion = UUID.randomUUID();
         CitationRequest req = new CitationRequest(bookId,
-                null, null, null, null, null, null, missingRegion, null, null);
+                null, null, null, null, null, null, null, missingRegion, null, null);
 
         assertThatThrownBy(() -> service.createCitation(nodeId, req))
                 .isInstanceOf(ImageRegionNotFoundException.class);
@@ -220,7 +222,7 @@ class NodeCitationServiceIT {
 
         CitationRequest req = new CitationRequest(bookId,
                 null, null, null,
-                pdfFileId, 1, new PdfBbox(0, 0, 0.5, 0.5),
+                pdfFileId, 1, new PdfBbox(0, 0, 0.5, 0.5), null,
                 null, null, null);
 
         assertThatThrownBy(() -> service.createCitation(nodeId, req))
@@ -230,7 +232,7 @@ class NodeCitationServiceIT {
     @Test
     void createCitation_invalidMode_noPositionalFields_throws400() {
         CitationRequest req = new CitationRequest(bookId,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.createCitation(nodeId, req))
                 .isInstanceOf(InvalidCitationException.class)
@@ -242,7 +244,7 @@ class NodeCitationServiceIT {
         UUID pdfFileId = createLibraryFile();
         CitationRequest req = new CitationRequest(bookId,
                 pageId, 0, 10,
-                pdfFileId, 1, new PdfBbox(0, 0, 0.5, 0.5),
+                pdfFileId, 1, new PdfBbox(0, 0, 0.5, 0.5), null,
                 null, null, null);
 
         assertThatThrownBy(() -> service.createCitation(nodeId, req))
@@ -253,7 +255,7 @@ class NodeCitationServiceIT {
     @Test
     void createCitation_invalidRange_endLteStart_throws400() {
         CitationRequest req = new CitationRequest(bookId,
-                pageId, 100, 50, null, null, null, null, null, null);
+                pageId, 100, 50, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.createCitation(nodeId, req))
                 .isInstanceOf(InvalidCitationException.class)
@@ -265,7 +267,7 @@ class NodeCitationServiceIT {
         UUID pdfFileId = createLibraryFile();
         CitationRequest req = new CitationRequest(bookId,
                 null, null, null,
-                pdfFileId, 0, new PdfBbox(0, 0, 0.5, 0.5),
+                pdfFileId, 0, new PdfBbox(0, 0, 0.5, 0.5), null,
                 null, null, null);
 
         assertThatThrownBy(() -> service.createCitation(nodeId, req))
@@ -275,11 +277,193 @@ class NodeCitationServiceIT {
     @Test
     void createCitation_missingBookId_throws400() {
         CitationRequest req = new CitationRequest(null,
-                pageId, 0, 10, null, null, null, null, null, null);
+                pageId, 0, 10, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.createCitation(nodeId, req))
                 .isInstanceOf(InvalidCitationException.class)
                 .hasMessageContaining("bookId");
+    }
+
+    // ---- PDF_LINK mode (ADR-067): FILE_ONLY archive.org-сканы ----
+
+    @Test
+    void createCitation_pdfLinkMode_fileOnlyBook_persistsIndexAndComputedLocation() {
+        UUID fileOnlyBookId = createFileOnlyBook();
+        PdfBbox bbox = new PdfBbox(0.1, 0.2, 0.5, 0.04);
+
+        CitationRequest req = new CitationRequest(fileOnlyBookId,
+                null, null, null,
+                null, 5, bbox,
+                0,
+                null,
+                null, "PDF_LINK citation");
+
+        NodeSourceResponse response = service.createCitation(nodeId, req);
+
+        assertThat(response.mode()).isEqualTo(CitationMode.PDF_LINK);
+        assertThat(response.citation().pdf().fileIndex()).isEqualTo(0);
+        assertThat(response.citation().pdf().fileId()).isNull();
+        assertThat(response.citation().pdf().pageNumber()).isEqualTo(5);
+        assertThat(response.citation().pdf().bbox()).isNotNull();
+
+        // FILE_ONLY книга НЕ имеет library_files-строки - PDF_LINK не зависит от неё
+        Long fileRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM library_files WHERE book_id = ?", Long.class, fileOnlyBookId);
+        assertThat(fileRows).isEqualTo(0L);
+
+        // Персист: index/page/bbox в БД, остальные mode-поля NULL
+        java.util.Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT pdf_file_index, pdf_page_number, pdf_file_id, image_region_id, page_id "
+                        + "FROM node_sources WHERE id = ?", response.id());
+        assertThat(((Number) row.get("pdf_file_index")).intValue()).isEqualTo(0);
+        assertThat(((Number) row.get("pdf_page_number")).intValue()).isEqualTo(5);
+        assertThat(row.get("pdf_file_id")).isNull();
+        assertThat(row.get("image_region_id")).isNull();
+        assertThat(row.get("page_id")).isNull();
+    }
+
+    @Test
+    void createCitation_pdfLinkMode_snapshotLocation_hasVolumeAndPage() {
+        UUID fileOnlyBookId = createFileOnlyBook();
+        CitationRequest req = new CitationRequest(fileOnlyBookId,
+                null, null, null,
+                null, 5, new PdfBbox(0.1, 0.2, 0.5, 0.04),
+                1,
+                null,
+                null, null);
+
+        NodeSourceResponse response = service.createCitation(nodeId, req);
+
+        String snapshot = jdbcTemplate.queryForObject(
+                "SELECT location FROM node_sources WHERE id = ?", String.class, response.id());
+        // fileIndex=1 → "т.2", стр.5; label второго тома денормализован (ADR-067)
+        assertThat(snapshot).contains("PDF т.2");
+        assertThat(snapshot).contains("стр.5");
+        assertThat(snapshot).contains("Том 2");
+    }
+
+    @Test
+    void createCitation_pdfLinkMode_indexOutOfRange_throws400() {
+        UUID fileOnlyBookId = createFileOnlyBook(); // 2 файла → valid 0..1
+        CitationRequest req = new CitationRequest(fileOnlyBookId,
+                null, null, null,
+                null, 5, new PdfBbox(0.1, 0.2, 0.5, 0.04),
+                2,
+                null,
+                null, null);
+
+        assertThatThrownBy(() -> service.createCitation(nodeId, req))
+                .isInstanceOf(InvalidCitationException.class)
+                .hasMessageContaining("вне диапазона");
+    }
+
+    @Test
+    void createCitation_pdfLinkMode_negativeIndex_throws400() {
+        UUID fileOnlyBookId = createFileOnlyBook();
+        CitationRequest req = new CitationRequest(fileOnlyBookId,
+                null, null, null,
+                null, 5, new PdfBbox(0.1, 0.2, 0.5, 0.04),
+                -1,
+                null,
+                null, null);
+
+        assertThatThrownBy(() -> service.createCitation(nodeId, req))
+                .isInstanceOf(InvalidCitationException.class)
+                .hasMessageContaining("pdfFileIndex >= 0");
+    }
+
+    @Test
+    void createCitation_pdfLinkMode_invalidPage_zero_throws400() {
+        UUID fileOnlyBookId = createFileOnlyBook();
+        CitationRequest req = new CitationRequest(fileOnlyBookId,
+                null, null, null,
+                null, 0, new PdfBbox(0.1, 0.2, 0.5, 0.04),
+                0,
+                null,
+                null, null);
+
+        assertThatThrownBy(() -> service.createCitation(nodeId, req))
+                .isInstanceOf(InvalidCitationException.class)
+                .hasMessageContaining("pdfPageNumber");
+    }
+
+    @Test
+    void createCitation_modeExclusivity_pdfLinkPlusPageId_throws400() {
+        CitationRequest req = new CitationRequest(bookId,
+                pageId, 0, 10,
+                null, 5, new PdfBbox(0, 0, 0.5, 0.5),
+                0,
+                null,
+                null, null);
+
+        assertThatThrownBy(() -> service.createCitation(nodeId, req))
+                .isInstanceOf(InvalidCitationException.class)
+                .hasMessageContaining("Ровно один");
+    }
+
+    @Test
+    void createCitation_modeExclusivity_pdfLinkPlusPdfFileId_throws400() {
+        UUID pdfFileId = createLibraryFile();
+        CitationRequest req = new CitationRequest(bookId,
+                null, null, null,
+                pdfFileId, 5, new PdfBbox(0, 0, 0.5, 0.5),
+                0,
+                null,
+                null, null);
+
+        assertThatThrownBy(() -> service.createCitation(nodeId, req))
+                .isInstanceOf(InvalidCitationException.class)
+                .hasMessageContaining("Ровно один");
+    }
+
+    @Test
+    void createCitation_modeExclusivity_pdfLinkPlusImageRegionId_throws400() {
+        UUID imageRegionId = createImageRegion(pageId);
+        CitationRequest req = new CitationRequest(bookId,
+                null, null, null,
+                null, 5, new PdfBbox(0, 0, 0.5, 0.5),
+                0,
+                imageRegionId,
+                null, null);
+
+        assertThatThrownBy(() -> service.createCitation(nodeId, req))
+                .isInstanceOf(InvalidCitationException.class)
+                .hasMessageContaining("Ровно один");
+    }
+
+    @Test
+    void dbCheckConstraint_rejectsDirectInsertWithTwoModes() {
+        // Прямой JDBC insert минуя сервис: pdf_file_index + page_id одновременно
+        // должны быть отвергнуты CHECK chk_node_sources_one_mode.
+        UUID srcId = service.createCitation(nodeId,
+                new CitationRequest(bookId, pageId, 0, 10, null, null, null, null, null, null, null))
+                .sourceId();
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "INSERT INTO node_sources (id, node_id, source_id, page_id, range_start, range_end, "
+                        + "pdf_file_index, pdf_page_number, pdf_bbox, created_at) "
+                        + "VALUES (?, ?, ?, ?, 0, 10, 0, 5, ?::jsonb, now())",
+                UUID.randomUUID(), nodeId, srcId, pageId,
+                "{\"x\":0,\"y\":0,\"width\":0.5,\"height\":0.5}"))
+                .hasMessageContaining("chk_node_sources_one_mode");
+    }
+
+    /**
+     * FILE_ONLY книга (archive.org-скан): PDF в metadata.pdf_links.files[],
+     * НЕТ library_files-строки. 2 тома (object-form ADR-056 с label).
+     */
+    private UUID createFileOnlyBook() {
+        UUID id = UUID.randomUUID();
+        String metadata = "{\"pdf_links\":{"
+                + "\"root\":\"https://archive.org/download/test-scan/\","
+                + "\"files\":["
+                + "{\"name\":\"vol1.pdf\",\"label\":\"Том 1\"},"
+                + "{\"name\":\"vol2.pdf\",\"label\":\"Том 2\"}"
+                + "]}}";
+        bookRepository.save(new Book(id, BookType.BOOK, "Скан архива", null, "ar",
+                null, metadata, userId, Instant.now(), Instant.now(),
+                null, null, null, null, null, null, BookVisibility.PUBLIC));
+        return id;
     }
 
     private UUID createSecondNode() {

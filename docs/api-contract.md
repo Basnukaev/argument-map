@@ -2911,9 +2911,9 @@ citation flow с привязкой к book/page/PDF. Используется C
 
 ### POST /api/v1/nodes/{nodeId}/citations
 
-Создаёт citation с positional pointer в одном из трёх режимов
-(TEXT/PDF/REGION). Ensure-or-create Source для (sourceType=BOOK, bookId),
-insert в node_sources с positional полями.
+Создаёт citation с positional pointer в одном из режимов
+(TEXT/PDF/PDF_LINK/REGION). Ensure-or-create Source для
+(sourceType=BOOK, bookId), insert в node_sources с positional полями.
 
 **Request (TEXT mode):**
 ```json
@@ -2927,7 +2927,7 @@ insert в node_sources с positional полями.
 }
 ```
 
-**Request (PDF mode):**
+**Request (PDF mode — user-upload книги, FK на library_files):**
 ```json
 {
   "bookId": "uuid",
@@ -2940,6 +2940,24 @@ insert в node_sources с positional полями.
 ```
 
 `pdfBbox` нормализован 0-1 относительно page viewport (zoom-invariant).
+
+**Request (PDF_LINK mode — FILE_ONLY archive.org-сканы, ADR-067):**
+```json
+{
+  "bookId": "uuid",
+  "pdfFileIndex": 0,
+  "pdfPageNumber": 5,
+  "pdfBbox": {"x": 0.12, "y": 0.23, "width": 0.65, "height": 0.05},
+  "quote": "...",
+  "context": "..."
+}
+```
+
+`pdfFileIndex` — 0-based ordinal в `lib_books.metadata.pdf_links.files[]`.
+Для FILE_ONLY книг, у которых нет строки в `library_files` (нет
+сохранённого blob'а), и потому FK-режим PDF недоступен. Валидируется
+`0 <= pdfFileIndex < pdfService.getMetadata(bookId).files().size()`.
+Display-путь адресует PDF тем же `fileIndex + page + bbox`.
 
 **Request (REGION mode, future):**
 ```json
@@ -2967,7 +2985,7 @@ insert в node_sources с positional полями.
   "sourceId": "uuid",
   "quote": "string|null",
   "context": "string|null",
-  "mode": "TEXT|PDF|REGION|LEGACY",
+  "mode": "TEXT|PDF|PDF_LINK|REGION|LEGACY",
   "citation": {
     "authority": {
       "id": "uuid",
@@ -3005,7 +3023,8 @@ insert в node_sources с positional полями.
       "rangeEnd": 200
     } | null,
     "pdf": {
-      "fileId": "uuid",
+      "fileId": "uuid | null",
+      "fileIndex": "integer | null",
       "pageNumber": 47,
       "bbox": {...}
     } | null,
@@ -3172,7 +3191,7 @@ Hard delete (MVP без soft delete + audit).
 
 ### POST /api/v1/questions/{questionId}/citations - привязать positional citation (19.b)
 
-Создаёт citation в одном из трёх режимов (TEXT/PDF/REGION). Структура
+Создаёт citation в одном из режимов (TEXT/PDF/PDF_LINK/REGION). Структура
 запроса и ошибки **идентичны** `POST /api/v1/nodes/{nodeId}/citations`
 (ADR-027) - reuse того же `CitationRequest` DTO + `NodeCitationService`-
 аналог `QuestionCitationService` с identical валидацией.
@@ -3185,7 +3204,8 @@ Request body (`CitationRequest`):
   "pageId":   "uuid (TEXT mode)",
   "rangeStart": 0,
   "rangeEnd":   87,
-  "pdfFileId":  "uuid (PDF mode)",
+  "pdfFileId":  "uuid (PDF mode, FK на library_files)",
+  "pdfFileIndex": "integer (PDF_LINK mode, 0-based ordinal в pdf_links.files[], ADR-067)",
   "pdfPageNumber": 47,
   "pdfBbox":   { "x": 0.1, "y": 0.2, "width": 0.5, "height": 0.04 },
   "imageRegionId": "uuid (REGION mode)",
@@ -3194,7 +3214,7 @@ Request body (`CitationRequest`):
 }
 ```
 
-Ровно один из (`pageId`/`pdfFileId`/`imageRegionId`) обязателен.
+Ровно один из (`pageId`/`pdfFileId`/`pdfFileIndex`/`imageRegionId`) обязателен.
 Response `201 Created` с `QuestionSourceResponse` (структура аналогична
 `NodeSourceResponse`, но с `questionId` вместо `nodeId`, без поля
 `legacySnapshot` - freeform mode для questions не реализован).
@@ -3378,7 +3398,7 @@ Citation на ответы - параллельная иерархия `answer_s
 
 ### POST /api/v1/answers/{answerId}/citations - привязать positional citation
 
-Создаёт citation в одном из трёх режимов (TEXT/PDF/REGION). Request
+Создаёт citation в одном из режимов (TEXT/PDF/PDF_LINK/REGION). Request
 body, валидация и ошибки идентичны
 `POST /api/v1/questions/{id}/citations` и
 `POST /api/v1/nodes/{id}/citations` (ADR-027) - reuse того же
@@ -3395,7 +3415,7 @@ Response `201 Created` с `AnswerSourceResponse` (структура анало�
   "sourceId": "uuid",
   "quote": "...",
   "context": "...",
-  "mode": "TEXT|PDF|REGION",
+  "mode": "TEXT|PDF|PDF_LINK|REGION",
   "citation": { "...": "9-полевая structured citation (ADR-028)" },
   "createdAt": "iso-instant"
 }
@@ -4565,6 +4585,7 @@ overlay-курации ADR-065).
 
 | Дата | Версия API | Что изменилось | Причина |
 |------|------------|----------------|---------|
+| 2026-06-25 | v1 | **Режим citation PDF_LINK для FILE_ONLY книг (ADR-067, миграция 80).** Positional-citation на 3 эндпоинтах (`POST /api/v1/nodes/{nodeId}/citations`, `POST /api/v1/questions/{questionId}/citations`, `POST /api/v1/answers/{answerId}/citations`) получил **5-й режим** `PDF_LINK` для FILE_ONLY книг (archive.org-сканы), которые хранят PDF в `lib_books.metadata.pdf_links.files[]` и НЕ имеют строки в `library_files` (нет blob'а → FK-режим PDF недоступен). `CitationRequest` +`pdfFileIndex` (Integer, 0-based ordinal в `pdf_links.files[]`); адресует PDF через `(pdfFileIndex, pdfPageNumber, pdfBbox)` параллельно FK-режиму PDF (тот без изменений, для user-upload). `mode` discriminator теперь `TEXT\|PDF\|PDF_LINK\|REGION\|LEGACY`. Response `pdf`-ref расширен `fileIndex` (Integer, nullable) — ровно одно из `fileId`/`fileIndex` не-null (display-путь и так адресует PDF по fileIndex+page+bbox). Валидация на сервисе: `0 <= pdfFileIndex < pdfService.getMetadata(bookId).files().size()` (out-of-range / отрицательный / page<1 / отсутствует bbox → 400 `invalid-citation`); взаимоисключаемость режимов на сервисе (exactly-one-mode) и на БД (CHECK `chk_*_sources_one_mode` расширен 5-й веткой). Миграция 80 ADD COLUMN `pdf_file_index INTEGER` в node_sources/question_sources/answer_sources. Frontend-wiring + перенос `pdf_file_index` в topic export/import — НЕ реализованы (follow-up; PDF_LINK при реимпорте темы деградирует в LEGACY). IT: `NodeCitationServiceIT` (PDF_LINK happy-path/persist/snapshot/bounds±/exclusivity×3/direct-JDBC-CHECK-reject/FK-регрессия), `QuestionCitationServiceIT`+`AnswerCitationServiceIT` (happy-path + exclusivity), `NodeSourceRepositoryPositionalIT` | FILE_ONLY archive.org-сканы были нецитируемы: их PDF живёт в metadata, а `library_files` требует сохранённого blob'а (ADR-024 §4) — регистрация тома форсировала бы eager-download 10-100 MB. PDF_LINK адресует PDF тем же ordinal'ом, что потребляет display |
 | 2026-06-25 | v1 | **Курация Фаза 5.b — `ExplanationDto.authorDeathYear` (additive).** `GET /hadith/hadiths/{id}/detail` → `explanations[]` теперь несёт `authorDeathYear` (Integer, г.х., nullable) — год смерти автора толкования; `toExplanationDto` пробрасывает уже читаемое `HadithExplanation.authorDeathYear` (колонка `hd_explanations.author_death_year`, ETL/overlay-apply были готовы — DTO его молча терял). Курируемое поле (`CurationWhitelist` HD_EXPLANATIONS `author_death_year` уже был editable); фронт `ExplanationsList` рисует «ум. {year} г.х.» рядом с атрибуцией (симметрия с `NarratorCommentaryDto.commenterDeathYear`) и наконец передаёт текущее значение в `CurationFieldsPanel` (раньше слал `null`). Без изменений формы запроса/прочих DTO. Тесты: `ExplanationsList.test.tsx` (рендер/скрытие по null, GHARIB-вариант) | Фаза 5.b эпика курации (ADR-065): год смерти автора шарха/иляля/гариба собран в БД и курируем, но не доходил до UI — атрибуция эпохи учёного для академического читателя |
 | 2026-06-24 | v1 | **Прод-готовность P2-1/P2-3 — error-handling + AI-translate cost-guard.** (P2-1) Generic `@ExceptionHandler(Exception.class)` в `GlobalExceptionHandler` → единый **500** ProblemDetail (`type=internal-error`, generic detail, БЕЗ message/трейса в теле) + `requestId`-property (из MDC, = `X-Request-Id` header) для grep'а логов; полный трейс — только в ERROR-лог. `application.yml`: `server.error.include-stacktrace/message/binding-errors: never` (явно). Специфичные хендлеры по-прежнему приоритетнее. (P2-3) `POST /api/v1/hadith/matns/{matnId}/translate` — per-user cost-guard (sliding-window `hadith.translate.rate-limit.*`, дефолт 20/ч, env-overridable, ADMIN-exempt, `enabled=true` by default): превышение → **429** `too-many-requests` ProblemDetail + `Retry-After` header + `retryAfterSeconds`. `cached=true` (перевод уже есть) бюджет НЕ тратит — лимитятся только LLM-bound вызовы. IT: `GlobalExceptionHandlerTest` (no-leak + спец-хендлер не регрессит), `MatnTranslateRateLimiterTest` (7) + `MatnTranslateRateLimitIT` (3) | P2-1: непокрытое исключение давало не-RFC-7807 Spring-500 (неединообразно) + явная no-leak-политика. P2-3: первый перевод доступен любому залогиненному → платный LLM-вызов; гард от fan-out стоимости (паттерн RateLimitFilter/BookViewDedupService ADR-046) |
 | 2026-06-24 | v1 | **Hadith Data Health Admin API (P1-2, PROD-READINESS-AUDIT §4/§7).** Новый ADMIN-only `GET /api/v1/admin/hadith/health` (`HadithHealthController` → `HadithHealthService` → `HadithHealthRepository`) → `HadithDataHealthResponse` со счётчиками недозаполненных записей: хадисы (`totalHadiths`, `hadithsNullAuthenticity`, `hadithsWithoutSanad`, `hadithsWithoutMatn`, `hadithsNullCollection`) + рави (`totalNarrators`, `narratorsNullTabaqa`, `narratorsUnknownReliability`=NULL-или-`'UNKNOWN'`, `narratorsNullGradeText`). Две аггрегации `COUNT(*) FILTER (...)` (по одной на сущность); «без иснада/матна» = `NOT EXISTS` в `hd_sanads`/`hd_matns`. Считается по базовому импортированному слою (без overlay ADR-065). Гейт как у прочих admin: анон→401 `invalid-token`, не-ADMIN→403 `forbidden-admin-only`. Листинг битых id (`?category=`) НЕ реализован (follow-up). IT: `HadithHealthControllerIT` (401/403/200-shape + дельта-счётчики недозаполненных хадисов и рави) | P1-2: до этого ADMIN не видел ЧТО курировать (2228 NULL authenticity, ~996 без иснада, 2404 рави без tabaqa и т.п.). Эндпоинт даёт счётчики дыр — точка входа в курацию (ADR-065) |

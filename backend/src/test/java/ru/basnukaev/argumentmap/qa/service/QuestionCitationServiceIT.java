@@ -82,7 +82,7 @@ class QuestionCitationServiceIT {
     void createCitation_textMode_creates_source_and_question_source_with_computed_location() {
         CitationRequest req = new CitationRequest(bookId,
                 pageId, 0, 87,
-                null, null, null,
+                null, null, null, null,
                 null,
                 "وأرى أن لا تكون...", "Ибн Касир признаёт");
 
@@ -110,7 +110,7 @@ class QuestionCitationServiceIT {
 
         CitationRequest req = new CitationRequest(bookId,
                 null, null, null,
-                pdfFileId, 47, bbox,
+                pdfFileId, 47, bbox, null,
                 null,
                 null, "PDF citation");
 
@@ -128,7 +128,7 @@ class QuestionCitationServiceIT {
 
         CitationRequest req = new CitationRequest(bookId,
                 null, null, null,
-                null, null, null,
+                null, null, null, null,
                 imageRegionId,
                 null, "region citation");
 
@@ -148,7 +148,7 @@ class QuestionCitationServiceIT {
                 existingSourceId, "preexisting", bookId);
 
         CitationRequest req = new CitationRequest(bookId,
-                pageId, 0, 10, null, null, null, null, null, null);
+                pageId, 0, 10, null, null, null, null, null, null, null);
 
         QuestionSourceResponse response = service.createCitation(questionId, req);
 
@@ -162,7 +162,7 @@ class QuestionCitationServiceIT {
     void createCitation_questionNotFound_throws404() {
         UUID missing = UUID.randomUUID();
         CitationRequest req = new CitationRequest(bookId,
-                pageId, 0, 10, null, null, null, null, null, null);
+                pageId, 0, 10, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.createCitation(missing, req))
                 .isInstanceOf(QuestionNotFoundException.class);
@@ -172,7 +172,7 @@ class QuestionCitationServiceIT {
     void createCitation_bookNotFound_throws404() {
         UUID missingBook = UUID.randomUUID();
         CitationRequest req = new CitationRequest(missingBook,
-                pageId, 0, 10, null, null, null, null, null, null);
+                pageId, 0, 10, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.createCitation(questionId, req))
                 .isInstanceOf(BookNotFoundException.class);
@@ -182,7 +182,7 @@ class QuestionCitationServiceIT {
     void createCitation_pageNotFound_throws404() {
         UUID missingPage = UUID.randomUUID();
         CitationRequest req = new CitationRequest(bookId,
-                missingPage, 0, 10, null, null, null, null, null, null);
+                missingPage, 0, 10, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.createCitation(questionId, req))
                 .isInstanceOf(PageNotFoundException.class);
@@ -196,7 +196,7 @@ class QuestionCitationServiceIT {
                 null, null, null, null, null, null, BookVisibility.PUBLIC));
 
         CitationRequest req = new CitationRequest(otherBookId,
-                pageId, 0, 10, null, null, null, null, null, null);
+                pageId, 0, 10, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.createCitation(questionId, req))
                 .isInstanceOf(InvalidCitationException.class)
@@ -207,7 +207,7 @@ class QuestionCitationServiceIT {
     void createCitation_imageRegionNotFound_throws404() {
         UUID missingRegion = UUID.randomUUID();
         CitationRequest req = new CitationRequest(bookId,
-                null, null, null, null, null, null, missingRegion, null, null);
+                null, null, null, null, null, null, null, missingRegion, null, null);
 
         assertThatThrownBy(() -> service.createCitation(questionId, req))
                 .isInstanceOf(ImageRegionNotFoundException.class);
@@ -220,7 +220,7 @@ class QuestionCitationServiceIT {
 
         CitationRequest req = new CitationRequest(bookId,
                 null, null, null,
-                pdfFileId, 1, new PdfBbox(0, 0, 0.5, 0.5),
+                pdfFileId, 1, new PdfBbox(0, 0, 0.5, 0.5), null,
                 null, null, null);
 
         assertThatThrownBy(() -> service.createCitation(questionId, req))
@@ -230,7 +230,7 @@ class QuestionCitationServiceIT {
     @Test
     void createCitation_invalidMode_noPositionalFields_throws400() {
         CitationRequest req = new CitationRequest(bookId,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.createCitation(questionId, req))
                 .isInstanceOf(InvalidCitationException.class)
@@ -240,7 +240,7 @@ class QuestionCitationServiceIT {
     @Test
     void createCitation_invalidRange_endLteStart_throws400() {
         CitationRequest req = new CitationRequest(bookId,
-                pageId, 100, 50, null, null, null, null, null, null);
+                pageId, 100, 50, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.createCitation(questionId, req))
                 .isInstanceOf(InvalidCitationException.class)
@@ -250,7 +250,7 @@ class QuestionCitationServiceIT {
     @Test
     void createCitation_missingBookId_throws400() {
         CitationRequest req = new CitationRequest(null,
-                pageId, 0, 10, null, null, null, null, null, null);
+                pageId, 0, 10, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.createCitation(questionId, req))
                 .isInstanceOf(InvalidCitationException.class)
@@ -260,9 +260,9 @@ class QuestionCitationServiceIT {
     @Test
     void getQuestionSourcesWithLocation_returnsAllCitations_orderedByCreatedAt() {
         CitationRequest req1 = new CitationRequest(bookId,
-                pageId, 0, 10, null, null, null, null, "first", null);
+                pageId, 0, 10, null, null, null, null, null, "first", null);
         CitationRequest req2 = new CitationRequest(bookId,
-                pageId, 20, 30, null, null, null, null, "second", null);
+                pageId, 20, 30, null, null, null, null, null, "second", null);
 
         service.createCitation(questionId, req1);
         service.createCitation(questionId, req2);
@@ -288,9 +288,9 @@ class QuestionCitationServiceIT {
     @Test
     void detachById_removesSpecificCitation_leavesOthers() {
         CitationRequest req1 = new CitationRequest(bookId,
-                pageId, 0, 10, null, null, null, null, "keep", null);
+                pageId, 0, 10, null, null, null, null, null, "keep", null);
         CitationRequest req2 = new CitationRequest(bookId,
-                pageId, 20, 30, null, null, null, null, "remove", null);
+                pageId, 20, 30, null, null, null, null, null, "remove", null);
 
         QuestionSourceResponse first = service.createCitation(questionId, req1);
         QuestionSourceResponse second = service.createCitation(questionId, req2);
@@ -315,7 +315,7 @@ class QuestionCitationServiceIT {
     void createCitation_roleAware_nonAuthor_throws403() {
         UUID stranger = UUID.randomUUID();
         CitationRequest req = new CitationRequest(bookId,
-                pageId, 0, 10, null, null, null, null, null, null);
+                pageId, 0, 10, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.createCitation(questionId, req, stranger, UserRole.USER))
                 .isInstanceOf(QuestionWriteAccessDeniedException.class);
@@ -326,7 +326,7 @@ class QuestionCitationServiceIT {
     @Test
     void createCitation_roleAware_author_succeeds() {
         CitationRequest req = new CitationRequest(bookId,
-                pageId, 0, 10, null, null, null, null, null, null);
+                pageId, 0, 10, null, null, null, null, null, null, null);
 
         QuestionSourceResponse response = service.createCitation(questionId, req, userId, UserRole.USER);
 
@@ -338,7 +338,7 @@ class QuestionCitationServiceIT {
     void createCitation_roleAware_admin_succeeds() {
         UUID admin = UUID.randomUUID();
         CitationRequest req = new CitationRequest(bookId,
-                pageId, 0, 10, null, null, null, null, null, null);
+                pageId, 0, 10, null, null, null, null, null, null, null);
 
         QuestionSourceResponse response = service.createCitation(questionId, req, admin, UserRole.ADMIN);
 
@@ -348,7 +348,7 @@ class QuestionCitationServiceIT {
     @Test
     void detachById_roleAware_nonAuthor_throws403_keepsCitation() {
         QuestionSourceResponse created = service.createCitation(questionId,
-                new CitationRequest(bookId, pageId, 0, 10, null, null, null, null, null, null));
+                new CitationRequest(bookId, pageId, 0, 10, null, null, null, null, null, null, null));
         UUID stranger = UUID.randomUUID();
 
         assertThatThrownBy(() -> service.detachById(questionId, created.id(), stranger, UserRole.USER))
@@ -360,7 +360,7 @@ class QuestionCitationServiceIT {
     @Test
     void detachById_roleAware_author_removesCitation() {
         QuestionSourceResponse created = service.createCitation(questionId,
-                new CitationRequest(bookId, pageId, 0, 10, null, null, null, null, null, null));
+                new CitationRequest(bookId, pageId, 0, 10, null, null, null, null, null, null, null));
 
         service.detachById(questionId, created.id(), userId, UserRole.USER);
 
@@ -379,7 +379,7 @@ class QuestionCitationServiceIT {
                 questionB, "Другой вопрос", null, userId);
 
         QuestionSourceResponse created = service.createCitation(questionId,
-                new CitationRequest(bookId, pageId, 0, 10, null, null, null, null, null, null));
+                new CitationRequest(bookId, pageId, 0, 10, null, null, null, null, null, null, null));
 
         assertThatThrownBy(() -> service.detachById(questionB, created.id(), userId, UserRole.USER))
                 .isInstanceOf(SourceNotFoundException.class);
@@ -390,7 +390,7 @@ class QuestionCitationServiceIT {
     @Test
     void cascadeDelete_removesQuestionSources_whenQuestionDeleted() {
         CitationRequest req = new CitationRequest(bookId,
-                pageId, 0, 10, null, null, null, null, null, null);
+                pageId, 0, 10, null, null, null, null, null, null, null);
         service.createCitation(questionId, req);
 
         Long before = jdbcTemplate.queryForObject(
@@ -402,6 +402,59 @@ class QuestionCitationServiceIT {
         Long after = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM question_sources WHERE question_id = ?", Long.class, questionId);
         assertThat(after).isEqualTo(0L);
+    }
+
+    // ---- PDF_LINK mode (ADR-067): FILE_ONLY archive.org-сканы ----
+
+    @Test
+    void createCitation_pdfLinkMode_fileOnlyBook_persistsIndex() {
+        UUID fileOnlyBookId = createFileOnlyBook();
+        CitationRequest req = new CitationRequest(fileOnlyBookId,
+                null, null, null,
+                null, 5, new PdfBbox(0.1, 0.2, 0.5, 0.04),
+                0,
+                null,
+                null, "PDF_LINK citation");
+
+        QuestionSourceResponse response = service.createCitation(questionId, req);
+
+        assertThat(response.mode()).isEqualTo(CitationMode.PDF_LINK);
+        assertThat(response.citation().pdf().fileIndex()).isEqualTo(0);
+        assertThat(response.citation().pdf().fileId()).isNull();
+        assertThat(response.citation().pdf().pageNumber()).isEqualTo(5);
+
+        Long fileRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM library_files WHERE book_id = ?", Long.class, fileOnlyBookId);
+        assertThat(fileRows).isEqualTo(0L);
+    }
+
+    @Test
+    void createCitation_modeExclusivity_pdfLinkPlusPageId_throws400() {
+        CitationRequest req = new CitationRequest(bookId,
+                pageId, 0, 10,
+                null, 5, new PdfBbox(0, 0, 0.5, 0.5),
+                0,
+                null,
+                null, null);
+
+        assertThatThrownBy(() -> service.createCitation(questionId, req))
+                .isInstanceOf(InvalidCitationException.class)
+                .hasMessageContaining("Ровно один");
+    }
+
+    /**
+     * FILE_ONLY книга: PDF в metadata.pdf_links.files[], НЕТ library_files-строки.
+     */
+    private UUID createFileOnlyBook() {
+        UUID id = UUID.randomUUID();
+        String metadata = "{\"pdf_links\":{"
+                + "\"root\":\"https://archive.org/download/test-scan/\","
+                + "\"files\":[{\"name\":\"vol1.pdf\",\"label\":\"Том 1\"},"
+                + "{\"name\":\"vol2.pdf\",\"label\":\"Том 2\"}]}}";
+        bookRepository.save(new Book(id, BookType.BOOK, "Скан архива", null, "ar",
+                null, metadata, userId, Instant.now(), Instant.now(),
+                null, null, null, null, null, null, BookVisibility.PUBLIC));
+        return id;
     }
 
     private UUID createLibraryFile() {

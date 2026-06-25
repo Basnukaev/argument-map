@@ -170,6 +170,7 @@ class NodeSourceRepositoryPositionalIT {
                 pageId, 0, 50,
                 pdfFileId, 1, bboxJson,
                 null,
+                null,
                 Instant.now());
 
         assertThatThrownBy(() -> nodeSourceRepository.save(bad))
@@ -182,6 +183,7 @@ class NodeSourceRepositoryPositionalIT {
                 pageId, 100, 50,
                 null, null, null,
                 null,
+                null,
                 Instant.now());
 
         assertThatThrownBy(() -> nodeSourceRepository.save(bad))
@@ -193,6 +195,7 @@ class NodeSourceRepositoryPositionalIT {
         NodeSource bad = new NodeSource(UUID.randomUUID(), nodeId, sourceId, "q", "c", "loc",
                 pageId, null, null,
                 null, null, null,
+                null,
                 null,
                 Instant.now());
 

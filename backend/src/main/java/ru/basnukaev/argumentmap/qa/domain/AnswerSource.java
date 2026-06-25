@@ -26,6 +26,7 @@ public record AnswerSource(
         UUID pdfFileId,
         Integer pdfPageNumber,
         String pdfBbox,
+        Integer pdfFileIndex,
         UUID imageRegionId,
         Instant createdAt
 ) {
@@ -36,6 +37,7 @@ public record AnswerSource(
         return new AnswerSource(UUID.randomUUID(), answerId, sourceId, quote, context, location,
                 pageId, rangeStart, rangeEnd,
                 null, null, null,
+                null,
                 null,
                 createdAt);
     }
@@ -48,6 +50,23 @@ public record AnswerSource(
                 null, null, null,
                 pdfFileId, pdfPageNumber, pdfBboxJson,
                 null,
+                null,
+                createdAt);
+    }
+
+    /**
+     * Citation на PDF-том FILE_ONLY книги по 0-based ordinal'у в
+     * pdf_links.files[] - ADR-067. Параллельно {@link #pdfMode}.
+     */
+    public static AnswerSource pdfLinkMode(UUID answerId, UUID sourceId,
+                                           String quote, String context, String location,
+                                           int pdfFileIndex, int pdfPageNumber, String pdfBboxJson,
+                                           Instant createdAt) {
+        return new AnswerSource(UUID.randomUUID(), answerId, sourceId, quote, context, location,
+                null, null, null,
+                null, pdfPageNumber, pdfBboxJson,
+                pdfFileIndex,
+                null,
                 createdAt);
     }
 
@@ -57,11 +76,13 @@ public record AnswerSource(
         return new AnswerSource(UUID.randomUUID(), answerId, sourceId, quote, context, location,
                 null, null, null,
                 null, null, null,
+                null,
                 imageRegionId,
                 createdAt);
     }
 
     public CitationMode mode() {
-        return CitationMode.derive(pageId != null, pdfFileId != null, imageRegionId != null);
+        return CitationMode.derive(pageId != null, pdfFileId != null,
+                pdfFileIndex != null, imageRegionId != null);
     }
 }

@@ -47,6 +47,8 @@ public final class CitationDetailRowMapper {
         Integer rangeEndOrNull = rs.wasNull() ? null : rangeEnd;
         int pdfPage = rs.getInt("pdf_page_number");
         Integer pdfPageOrNull = rs.wasNull() ? null : pdfPage;
+        int pdfFileIndex = rs.getInt("pdf_file_index");
+        Integer pdfFileIndexOrNull = rs.wasNull() ? null : pdfFileIndex;
         int regPage = rs.getInt("region_page_number");
         Integer regPageOrNull = rs.wasNull() ? null : regPage;
 
@@ -82,6 +84,7 @@ public final class CitationDetailRowMapper {
                 rs.getObject("pdf_file_id", UUID.class),
                 pdfPageOrNull,
                 rs.getString("pdf_bbox"),
+                pdfFileIndexOrNull,
 
                 rs.getObject("image_region_id", UUID.class),
                 rs.getString("region_printed_page"),

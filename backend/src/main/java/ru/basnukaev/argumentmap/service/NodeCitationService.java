@@ -23,6 +23,7 @@ import ru.basnukaev.argumentmap.library.domain.Book;
 import ru.basnukaev.argumentmap.library.domain.LibraryFile;
 import ru.basnukaev.argumentmap.library.domain.Page;
 import ru.basnukaev.argumentmap.library.pdf.service.PdfNotAvailableException;
+import ru.basnukaev.argumentmap.library.pdf.service.PdfService;
 import ru.basnukaev.argumentmap.library.repository.BookRepository;
 import ru.basnukaev.argumentmap.library.repository.LibraryFileRepository;
 import ru.basnukaev.argumentmap.library.repository.PageRepository;
@@ -51,6 +52,7 @@ public class NodeCitationService {
     private final SourceRepository sourceRepository;
     private final NodeSourceRepository nodeSourceRepository;
     private final LibraryFileRepository libraryFileRepository;
+    private final PdfService pdfService;
     private final PermissionService permissionService;
     private final JdbcTemplate jdbcTemplate;
 
@@ -60,6 +62,7 @@ public class NodeCitationService {
                                SourceRepository sourceRepository,
                                NodeSourceRepository nodeSourceRepository,
                                LibraryFileRepository libraryFileRepository,
+                               PdfService pdfService,
                                PermissionService permissionService,
                                JdbcTemplate jdbcTemplate) {
         this.nodeRepository = nodeRepository;
@@ -68,6 +71,7 @@ public class NodeCitationService {
         this.sourceRepository = sourceRepository;
         this.nodeSourceRepository = nodeSourceRepository;
         this.libraryFileRepository = libraryFileRepository;
+        this.pdfService = pdfService;
         this.permissionService = permissionService;
         this.jdbcTemplate = jdbcTemplate;
     }
@@ -111,11 +115,12 @@ public class NodeCitationService {
 
         boolean isText = req.pageId() != null;
         boolean isPdf = req.pdfFileId() != null;
+        boolean isPdfLink = req.pdfFileIndex() != null;
         boolean isRegion = req.imageRegionId() != null;
-        int activeModes = (isText ? 1 : 0) + (isPdf ? 1 : 0) + (isRegion ? 1 : 0);
+        int activeModes = (isText ? 1 : 0) + (isPdf ? 1 : 0) + (isPdfLink ? 1 : 0) + (isRegion ? 1 : 0);
         if (activeModes != 1) {
             throw new InvalidCitationException(
-                    "Ровно один из (pageId / pdfFileId / imageRegionId) должен быть указан, получено: "
+                    "Ровно один из (pageId / pdfFileId / pdfFileIndex / imageRegionId) должен быть указан, получено: "
                             + activeModes);
         }
 
@@ -148,6 +153,27 @@ public class NodeCitationService {
             pdfFile = libraryFileRepository.findById(req.pdfFileId())
                     .filter(f -> f.deletedAt() == null)
                     .orElseThrow(() -> new PdfNotAvailableException(req.pdfFileId()));
+        }
+        if (isPdfLink) {
+            // PDF_LINK (ADR-067): FILE_ONLY archive.org-скан без library_files.
+            // Адресуется 0-based ordinal'ом в pdf_links.files[]. Валидируем
+            // bounds против PdfService.getMetadata (читает только
+            // lib_books.metadata, без blob-download).
+            if (req.pdfFileIndex() < 0) {
+                throw new InvalidCitationException("pdfFileIndex >= 0 обязателен для PDF_LINK mode");
+            }
+            if (req.pdfPageNumber() == null || req.pdfPageNumber() < 1) {
+                throw new InvalidCitationException("pdfPageNumber >= 1 обязателен для PDF_LINK mode");
+            }
+            if (req.pdfBbox() == null) {
+                throw new InvalidCitationException("pdfBbox обязателен для PDF_LINK mode");
+            }
+            int fileCount = pdfService.getMetadata(req.bookId()).files().size();
+            if (req.pdfFileIndex() >= fileCount) {
+                throw new InvalidCitationException(
+                        "pdfFileIndex=" + req.pdfFileIndex() + " вне диапазона: книга bookId="
+                                + req.bookId() + " имеет " + fileCount + " PDF-файлов");
+            }
         }
         if (isRegion) {
             // FK ON DELETE RESTRICT на lib_image_regions гарантирует валидность
@@ -187,6 +213,10 @@ public class NodeCitationService {
             ns = NodeSource.pdfMode(
                     nodeId, source.id(), req.quote(), req.context(), snapshotLocation,
                     req.pdfFileId(), req.pdfPageNumber(), pdfBboxToJson(req.pdfBbox()), now);
+        } else if (isPdfLink) {
+            ns = NodeSource.pdfLinkMode(
+                    nodeId, source.id(), req.quote(), req.context(), snapshotLocation,
+                    req.pdfFileIndex(), req.pdfPageNumber(), pdfBboxToJson(req.pdfBbox()), now);
         } else {
             ns = NodeSource.regionMode(
                     nodeId, source.id(), req.quote(), req.context(), snapshotLocation,
@@ -217,7 +247,36 @@ public class NodeCitationService {
         if (pdfFile != null) {
             return title + ", PDF стр." + req.pdfPageNumber();
         }
+        if (req.pdfFileIndex() != null) {
+            // PDF_LINK (ADR-067): денормализуем 1-based номер тома + label
+            // в snapshot, чтобы дрейф порядка pdf_links.files[] при реимпорте
+            // был человеко-обнаружим (ordinal стабилен by-design, но
+            // snapshot - страховка).
+            return title + ", PDF т." + (req.pdfFileIndex() + 1)
+                    + pdfVolumeLabelSuffix(req.bookId(), req.pdfFileIndex())
+                    + ", стр." + req.pdfPageNumber();
+        }
         return title + ", скан";
+    }
+
+    /**
+     * Суффикс с label тома из pdf_links.files[] для денормализации в
+     * snapshot (ADR-067). Best-effort: при любой ошибке metadata -
+     * пустая строка (snapshot не критичен для целостности).
+     */
+    private String pdfVolumeLabelSuffix(UUID bookId, int fileIndex) {
+        try {
+            var files = pdfService.getMetadata(bookId).files();
+            if (fileIndex >= 0 && fileIndex < files.size()) {
+                String label = files.get(fileIndex).label();
+                if (label != null && !label.isBlank()) {
+                    return " (" + label + ")";
+                }
+            }
+        } catch (RuntimeException ignored) {
+            // snapshot best-effort - не блокируем citation из-за metadata
+        }
+        return "";
     }
 
     private String pdfBboxToJson(PdfBbox bbox) {

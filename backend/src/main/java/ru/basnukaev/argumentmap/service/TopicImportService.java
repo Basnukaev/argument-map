@@ -353,6 +353,10 @@ public class TopicImportService {
                     refs.pdfFileId(),
                     refs.pdfFileId() == null ? null : ns.pdfPageNumber(),
                     refs.pdfFileId() == null ? null : ns.pdfBbox(),
+                    // PDF_LINK (ADR-067): topic export/import пока не переносит
+                    // pdf_file_index - PDF_LINK-citation импортируется как LEGACY
+                    // (как и нерезолвимые PDF/page refs). Wiring экспорта - follow-up.
+                    null,
                     refs.imageRegionId(),
                     Instant.now()
             );

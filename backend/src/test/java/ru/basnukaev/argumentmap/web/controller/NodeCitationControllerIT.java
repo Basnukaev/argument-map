@@ -74,7 +74,7 @@ class NodeCitationControllerIT {
     @Test
     void post_textMode_returns201() throws Exception {
         var req = new CitationRequest(bookId,
-                pageId, 0, 87, null, null, null, null,
+                pageId, 0, 87, null, null, null, null, null,
                 "quote", "context");
 
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/citations", nodeId)
@@ -95,7 +95,7 @@ class NodeCitationControllerIT {
         UUID pdfFileId = createLibraryFile();
         var req = new CitationRequest(bookId,
                 null, null, null,
-                pdfFileId, 47, new PdfBbox(0.1, 0.1, 0.5, 0.05),
+                pdfFileId, 47, new PdfBbox(0.1, 0.1, 0.5, 0.05), null,
                 null, null, "ctx");
 
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/citations", nodeId)
@@ -112,7 +112,7 @@ class NodeCitationControllerIT {
     @Test
     void post_invalidMode_noPositional_returns400() throws Exception {
         var req = new CitationRequest(bookId,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/citations", nodeId)
                         .header("X-User-Id", userId.toString())
@@ -126,7 +126,7 @@ class NodeCitationControllerIT {
     void post_nodeNotFound_returns404() throws Exception {
         UUID missing = UUID.randomUUID();
         var req = new CitationRequest(bookId,
-                pageId, 0, 10, null, null, null, null, null, null);
+                pageId, 0, 10, null, null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/citations", missing)
                         .header("X-User-Id", userId.toString())
@@ -144,7 +144,7 @@ class NodeCitationControllerIT {
         jdbcTemplate.update("INSERT INTO users (id, username, email) VALUES (?, ?, ?)",
                 otherUserId, "other-" + otherUserId, otherUserId + "@e.com");
         var req = new CitationRequest(bookId,
-                pageId, 0, 10, null, null, null, null, null, null);
+                pageId, 0, 10, null, null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/citations", nodeId)
                         .header("X-User-Id", otherUserId.toString())
@@ -158,7 +158,7 @@ class NodeCitationControllerIT {
     void post_bookNotFound_returns404() throws Exception {
         UUID missing = UUID.randomUUID();
         var req = new CitationRequest(missing,
-                pageId, 0, 10, null, null, null, null, null, null);
+                pageId, 0, 10, null, null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/nodes/{nodeId}/citations", nodeId)
                         .header("X-User-Id", userId.toString())

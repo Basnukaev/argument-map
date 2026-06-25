@@ -40,6 +40,7 @@ public record CitationDetail(
         UUID pdfFileId,
         Integer pdfPageNumber,
         String pdfBbox,
+        Integer pdfFileIndex,
 
         UUID imageRegionId,
         String regionPrintedPage,

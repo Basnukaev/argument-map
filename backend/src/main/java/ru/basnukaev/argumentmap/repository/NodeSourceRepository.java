@@ -31,6 +31,7 @@ public class NodeSourceRepository {
             "id, node_id, source_id, quote, context, location, "
             + "page_id, range_start, range_end, "
             + "pdf_file_id, pdf_page_number, pdf_bbox, "
+            + "pdf_file_index, "
             + "image_region_id, "
             + "created_at";
 
@@ -41,6 +42,8 @@ public class NodeSourceRepository {
         Integer rangeEndOrNull = rs.wasNull() ? null : rangeEnd;
         int pdfPage = rs.getInt("pdf_page_number");
         Integer pdfPageOrNull = rs.wasNull() ? null : pdfPage;
+        int pdfFileIndex = rs.getInt("pdf_file_index");
+        Integer pdfFileIndexOrNull = rs.wasNull() ? null : pdfFileIndex;
 
         return new NodeSource(
                 rs.getObject("id", UUID.class),
@@ -55,6 +58,7 @@ public class NodeSourceRepository {
                 rs.getObject("pdf_file_id", UUID.class),
                 pdfPageOrNull,
                 rs.getString("pdf_bbox"),
+                pdfFileIndexOrNull,
                 rs.getObject("image_region_id", UUID.class),
                 instant(rs, "created_at")
         );
@@ -69,7 +73,7 @@ public class NodeSourceRepository {
     public NodeSource save(NodeSource link) {
         jdbcTemplate.update(
                 "INSERT INTO node_sources (" + COLUMNS + ") "
-                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?)",
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?)",
                 link.id(),
                 link.nodeId(),
                 link.sourceId(),
@@ -82,6 +86,7 @@ public class NodeSourceRepository {
                 link.pdfFileId(),
                 link.pdfPageNumber(),
                 link.pdfBbox(),
+                link.pdfFileIndex(),
                 link.imageRegionId(),
                 odt(link.createdAt())
         );

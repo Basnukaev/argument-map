@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260625-80-add-pdf-link-citation-mode" author="Abdula Basnukaev">
+        <comment>
+            Реализация ADR-067: 5-й режим citation PDF_LINK для FILE_ONLY
+            книг (archive.org-сканы). Эти книги хранят PDF в
+            metadata.pdf_links.files[] и НЕ получают library_files-строку
+            (та требует blob: content_hash/size_bytes NOT NULL, ADR-024 §4) -
+            значит существующий FK-режим PDF (pdf_file_id) их не покрывает.
+
+            PDF_LINK адресует PDF через (pdf_file_index, pdf_page_number,
+            pdf_bbox) - 0-based ordinal в pdf_links.files[], параллельно
+            FK-режиму PDF (тот остаётся для user-upload книг). Display-путь
+            и так адресует PDF по fileIndex+page+bbox (PdfService.getMetadata),
+            так что PDF_LINK совпадает с тем, что фронт потребляет.
+
+            Для каждой из трёх параллельных таблиц citations
+            (node_sources / question_sources / answer_sources):
+              - ADD COLUMN pdf_file_index INTEGER
+              - DROP + RECREATE one-mode CHECK с 5-й веткой (PDF_LINK),
+                и добавлен `pdf_file_index IS NULL` в каждую из 4 прежних
+                веток - режимы остаются взаимоисключающими.
+
+            Откат: drop колонки + восстановление исходного 4-веткового CHECK.
+        </comment>
+        <sql>
+            <![CDATA[
+            ALTER TABLE node_sources     ADD COLUMN pdf_file_index INTEGER;
+            ALTER TABLE question_sources ADD COLUMN pdf_file_index INTEGER;
+            ALTER TABLE answer_sources   ADD COLUMN pdf_file_index INTEGER;
+
+            ALTER TABLE node_sources DROP CONSTRAINT chk_node_sources_one_mode;
+            ALTER TABLE node_sources
+                ADD CONSTRAINT chk_node_sources_one_mode
+                CHECK (
+                  (page_id IS NOT NULL AND range_start IS NOT NULL AND range_end IS NOT NULL
+                   AND range_start >= 0 AND range_end > range_start
+                   AND pdf_file_id IS NULL AND pdf_file_index IS NULL AND image_region_id IS NULL)
+                  OR
+                  (pdf_file_id IS NOT NULL AND pdf_page_number IS NOT NULL AND pdf_bbox IS NOT NULL
+                   AND pdf_page_number >= 1
+                   AND page_id IS NULL AND pdf_file_index IS NULL AND image_region_id IS NULL)
+                  OR
+                  (pdf_file_index IS NOT NULL AND pdf_page_number IS NOT NULL AND pdf_bbox IS NOT NULL
+                   AND pdf_file_index >= 0 AND pdf_page_number >= 1
+                   AND page_id IS NULL AND pdf_file_id IS NULL AND image_region_id IS NULL)
+                  OR
+                  (image_region_id IS NOT NULL AND page_id IS NULL AND pdf_file_id IS NULL AND pdf_file_index IS NULL)
+                  OR
+                  (page_id IS NULL AND pdf_file_id IS NULL AND pdf_file_index IS NULL AND image_region_id IS NULL)
+                );
+
+            ALTER TABLE question_sources DROP CONSTRAINT chk_question_sources_one_mode;
+            ALTER TABLE question_sources
+                ADD CONSTRAINT chk_question_sources_one_mode
+                CHECK (
+                  (page_id IS NOT NULL AND range_start IS NOT NULL AND range_end IS NOT NULL
+                   AND range_start >= 0 AND range_end > range_start
+                   AND pdf_file_id IS NULL AND pdf_file_index IS NULL AND image_region_id IS NULL)
+                  OR
+                  (pdf_file_id IS NOT NULL AND pdf_page_number IS NOT NULL AND pdf_bbox IS NOT NULL
+                   AND pdf_page_number >= 1
+                   AND page_id IS NULL AND pdf_file_index IS NULL AND image_region_id IS NULL)
+                  OR
+                  (pdf_file_index IS NOT NULL AND pdf_page_number IS NOT NULL AND pdf_bbox IS NOT NULL
+                   AND pdf_file_index >= 0 AND pdf_page_number >= 1
+                   AND page_id IS NULL AND pdf_file_id IS NULL AND image_region_id IS NULL)
+                  OR
+                  (image_region_id IS NOT NULL AND page_id IS NULL AND pdf_file_id IS NULL AND pdf_file_index IS NULL)
+                  OR
+                  (page_id IS NULL AND pdf_file_id IS NULL AND pdf_file_index IS NULL AND image_region_id IS NULL)
+                );
+
+            ALTER TABLE answer_sources DROP CONSTRAINT chk_answer_sources_one_mode;
+            ALTER TABLE answer_sources
+                ADD CONSTRAINT chk_answer_sources_one_mode
+                CHECK (
+                  (page_id IS NOT NULL AND range_start IS NOT NULL AND range_end IS NOT NULL
+                   AND range_start >= 0 AND range_end > range_start
+                   AND pdf_file_id IS NULL AND pdf_file_index IS NULL AND image_region_id IS NULL)
+                  OR
+                  (pdf_file_id IS NOT NULL AND pdf_page_number IS NOT NULL AND pdf_bbox IS NOT NULL
+                   AND pdf_page_number >= 1
+                   AND page_id IS NULL AND pdf_file_index IS NULL AND image_region_id IS NULL)
+                  OR
+                  (pdf_file_index IS NOT NULL AND pdf_page_number IS NOT NULL AND pdf_bbox IS NOT NULL
+                   AND pdf_file_index >= 0 AND pdf_page_number >= 1
+                   AND page_id IS NULL AND pdf_file_id IS NULL AND image_region_id IS NULL)
+                  OR
+                  (image_region_id IS NOT NULL AND page_id IS NULL AND pdf_file_id IS NULL AND pdf_file_index IS NULL)
+                  OR
+                  (page_id IS NULL AND pdf_file_id IS NULL AND pdf_file_index IS NULL AND image_region_id IS NULL)
+                );
+            ]]>
+        </sql>
+        <rollback>
+            <sql>
+                <![CDATA[
+                ALTER TABLE answer_sources DROP CONSTRAINT chk_answer_sources_one_mode;
+                ALTER TABLE answer_sources
+                    ADD CONSTRAINT chk_answer_sources_one_mode
+                    CHECK (
+                      (page_id IS NOT NULL AND range_start IS NOT NULL AND range_end IS NOT NULL
+                       AND range_start >= 0 AND range_end > range_start
+                       AND pdf_file_id IS NULL AND image_region_id IS NULL)
+                      OR
+                      (pdf_file_id IS NOT NULL AND pdf_page_number IS NOT NULL AND pdf_bbox IS NOT NULL
+                       AND pdf_page_number >= 1
+                       AND page_id IS NULL AND image_region_id IS NULL)
+                      OR
+                      (image_region_id IS NOT NULL AND page_id IS NULL AND pdf_file_id IS NULL)
+                      OR
+                      (page_id IS NULL AND pdf_file_id IS NULL AND image_region_id IS NULL)
+                    );
+
+                ALTER TABLE question_sources DROP CONSTRAINT chk_question_sources_one_mode;
+                ALTER TABLE question_sources
+                    ADD CONSTRAINT chk_question_sources_one_mode
+                    CHECK (
+                      (page_id IS NOT NULL AND range_start IS NOT NULL AND range_end IS NOT NULL
+                       AND range_start >= 0 AND range_end > range_start
+                       AND pdf_file_id IS NULL AND image_region_id IS NULL)
+                      OR
+                      (pdf_file_id IS NOT NULL AND pdf_page_number IS NOT NULL AND pdf_bbox IS NOT NULL
+                       AND pdf_page_number >= 1
+                       AND page_id IS NULL AND image_region_id IS NULL)
+                      OR
+                      (image_region_id IS NOT NULL AND page_id IS NULL AND pdf_file_id IS NULL)
+                      OR
+                      (page_id IS NULL AND pdf_file_id IS NULL AND image_region_id IS NULL)
+                    );
+
+                ALTER TABLE node_sources DROP CONSTRAINT chk_node_sources_one_mode;
+                ALTER TABLE node_sources
+                    ADD CONSTRAINT chk_node_sources_one_mode
+                    CHECK (
+                      (page_id IS NOT NULL AND range_start IS NOT NULL AND range_end IS NOT NULL
+                       AND range_start >= 0 AND range_end > range_start
+                       AND pdf_file_id IS NULL AND image_region_id IS NULL)
+                      OR
+                      (pdf_file_id IS NOT NULL AND pdf_page_number IS NOT NULL AND pdf_bbox IS NOT NULL
+                       AND pdf_page_number >= 1
+                       AND page_id IS NULL AND image_region_id IS NULL)
+                      OR
+                      (image_region_id IS NOT NULL AND page_id IS NULL AND pdf_file_id IS NULL)
+                      OR
+                      (page_id IS NULL AND pdf_file_id IS NULL AND image_region_id IS NULL)
+                    );
+
+                ALTER TABLE answer_sources   DROP COLUMN pdf_file_index;
+                ALTER TABLE question_sources DROP COLUMN pdf_file_index;
+                ALTER TABLE node_sources     DROP COLUMN pdf_file_index;
+                ]]>
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
