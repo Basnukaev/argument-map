@@ -346,7 +346,10 @@ describe('NodeDetailsPanel', () => {
       );
       renderPanel();
       await userEvent.click(screen.getByRole('button', { name: /Опора/ }));
-      expect(await screen.findByText('Сахих Муслим, №1162')).toBeInTheDocument();
+      // Заголовок виден в свёрнутой строке (группа «Свободные» — нет library-mode)
+      const rowTitle = await screen.findByText('Сахих Муслим, №1162');
+      // Раскрываем строку — внутренняя карточка FreeformCite появляется
+      await userEvent.click(rowTitle);
       expect(screen.getByText('хадис')).toBeInTheDocument();
       expect(screen.getByText(/В этот день я был рождён/)).toBeInTheDocument();
       // автор резолвится через Source.authorityId → Authority.name
@@ -354,7 +357,7 @@ describe('NodeDetailsPanel', () => {
       expect(screen.getByText(/III в\.х\./)).toBeInTheDocument();
       // location в подписи
       expect(screen.getByText(/стр\. 12, изд\. Дар аль-кутуб/)).toBeInTheDocument();
-      // canWrite по умолчанию true → detach-× присутствует.
+      // canWrite по умолчанию true → detach-× присутствует (в раскрытой карточке).
       expect(screen.getByRole('button', { name: 'Отвязать опору' })).toBeInTheDocument();
     });
 
@@ -417,6 +420,8 @@ describe('NodeDetailsPanel', () => {
       );
       renderPanel();
       await userEvent.click(screen.getByRole('button', { name: /Опора/ }));
+      // Раскрываем свёрнутую строку — quote живёт во внутренней карточке
+      await userEvent.click(await screen.findByText('Бухари 1'));
       const quoteEl = await screen.findByText(/إنما الأعمال بالنيات/);
       // dir="auto" - UA сам резолвит direction по первому strong char (arabic → rtl)
       // Это правильнее explicit dir="rtl" - работает на любых mixed-script quotes
@@ -456,7 +461,8 @@ describe('NodeDetailsPanel', () => {
       );
       renderPanel();
       await userEvent.click(screen.getByRole('button', { name: /Опора/ }));
-      await screen.findByText('Какая-то книга');
+      // Раскрываем свёрнутую строку — detach-× живёт во внутренней карточке
+      await userEvent.click(await screen.findByText('Какая-то книга'));
       await userEvent.click(screen.getByRole('button', { name: 'Отвязать опору' }));
       await waitForApi(() => expect(deleteCalledFor).toBe(NODE_SOURCE_ID));
       expect(screen.queryByText('Какая-то книга')).not.toBeInTheDocument();

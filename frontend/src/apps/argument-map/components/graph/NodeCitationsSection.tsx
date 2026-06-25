@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Anchor,
@@ -21,7 +21,10 @@ import { buildPdfDeepLinkQuery } from '@/shared/components/citation/pdfRegion';
 import { SourceCard } from '@/shared/components/citation/sourceCard';
 import { apiGetRaw, apiPostRaw, apiDeleteRaw, formatApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
-import { useSourceDetailPanelStore } from '@/shared/stores/sourceDetailPanelStore';
+import {
+  useSourceDetailPanelStore,
+  type SourceDetailCitation,
+} from '@/shared/stores/sourceDetailPanelStore';
 import { SOURCE_TYPE_LABEL } from '@/apps/argument-map/utils/attachmentTokens';
 import { hasArabicScript, useT } from '@/shared/i18n';
 import type { components } from '@/shared/api/types';
@@ -300,6 +303,133 @@ function pickLatinTitle(source: SourceDto | undefined, bookTitle?: string | null
   return '(книга)';
 }
 
+/**
+ * Локатор для свёрнутой строки библиотечной цитаты: «Том N · стр. M · ▢ область».
+ * Зеркалит логику QuoteBlock (page из printedPage/pageNumber/pdf.pageNumber,
+ * том из pdf.fileIndex когда LocationRef пуст, область при наличии bbox), но
+ * собирает плоскую строку для compact-summary вместо infobox-разметки.
+ */
+function buildLibraryLocator(link: NodeSourceDto, t: ReturnType<typeof useT>): string | null {
+  const c = link.citation;
+  if (!c) return null;
+  const { location, pdf } = c;
+  const parts: string[] = [];
+  const volume = !location && pdf?.fileIndex != null ? String(pdf.fileIndex) : null;
+  if (volume != null) parts.push(`${t('cite.volume.short')} ${volume}`);
+  const page =
+    location?.printedPage ??
+    (location?.pageNumber != null
+      ? String(location.pageNumber)
+      : pdf?.pageNumber != null
+        ? String(pdf.pageNumber)
+        : null);
+  if (page != null) parts.push(`${t('cite.page.short')} ${page}`);
+  if (!location && pdf?.bbox != null) parts.push(`▢ ${t('cite.region.label')}`);
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+interface GroupHeaderProps {
+  title: string;
+  count: number;
+}
+
+/** Маленький uppercase-заголовок группы с counter'ом («ХАДИСЫ (2)»). */
+function GroupHeader({ title, count }: GroupHeaderProps) {
+  return (
+    <div className="flex items-center gap-1.5 px-0.5 pt-1 text-xs font-semibold uppercase tracking-wide text-ink-400">
+      <span>{title}</span>
+      <span className="font-mono tracking-normal text-ink-400">
+        (<bdi dir="ltr">{count}</bdi>)
+      </span>
+    </div>
+  );
+}
+
+interface CompactRowProps {
+  /** Краткий заголовок (latin/cyrillic предпочтительно, arabic — dir="auto"). */
+  title: string;
+  /** Локатор справа: «стр. 3», «Том 2 · стр. 5 · ▢ область», коллекция+№. */
+  locator?: string | null;
+  /** Видимый текст основного действия (свёрнутая строка). Если нет —
+   *  кнопка icon-only, доступное имя берётся из primaryAriaLabel. */
+  primaryLabel?: string;
+  /** Доступное имя кнопки основного действия (для icon-only — [→]). */
+  primaryAriaLabel?: string;
+  /** Основное действие из свёрнутой строки ([открыть] / [→]). */
+  onPrimaryAction?: () => void;
+  /** Полное содержимое, раскрывается по клику на строку. Detach × живёт
+   *  внутри развёрнутой карточки (SourceCard / HadithCite / FreeformCite). */
+  children: ReactNode;
+}
+
+/**
+ * Компактная свёрнутая строка опоры. Единый shape для всех 3 типов (хадис /
+ * книга / свободная) — в этом весь смысл редизайна: вместо трёх разных
+ * карточек один сканируемый ряд. Click по строке раскрывает полную карточку
+ * (matn / quote / метаданные + detach ×) внутри. Primary action в свёрнутом
+ * ряду не триггерит раскрытие (stopPropagation).
+ */
+function CompactRow({
+  title,
+  locator,
+  primaryLabel,
+  primaryAriaLabel,
+  onPrimaryAction,
+  children,
+}: CompactRowProps) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="group/row rounded-md border border-border bg-ink-50/60">
+      <div className="flex items-center gap-2 px-2.5 py-2">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="flex min-w-0 flex-1 items-center gap-2 text-start focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+        >
+          <ChevronDown
+            size={13}
+            aria-hidden="true"
+            className={`shrink-0 text-ink-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          />
+          <span className="truncate text-xs font-medium text-ink-800" dir="auto">
+            {title}
+          </span>
+          {locator && (
+            <span className="shrink-0 truncate font-mono text-xs text-ink-500" dir="auto">
+              {locator}
+            </span>
+          )}
+        </button>
+        {onPrimaryAction && (
+          <button
+            type="button"
+            aria-label={primaryLabel ? undefined : primaryAriaLabel}
+            onClick={(e) => {
+              e.stopPropagation();
+              onPrimaryAction();
+            }}
+            className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-accent-700 transition-colors hover:bg-accent-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+          >
+            <ExternalLink size={12} aria-hidden="true" />
+            {primaryLabel && <span>{primaryLabel}</span>}
+          </button>
+        )}
+      </div>
+      {open && <div className="border-t border-border p-2.5">{children}</div>}
+    </div>
+  );
+}
+
+/** Общие пропсы, прокидываемые из CitationsList в каждый Row. */
+interface CitationGroupProps {
+  sourceLookup: Map<string, SourceDto>;
+  authorityLookup: Map<string, AuthorityDto>;
+  onDetach?: (nodeSourceId: string) => void;
+  navigate: ReturnType<typeof useNavigate>;
+  openSourceDetail: (citation: SourceDetailCitation) => void;
+}
+
 function CitationsList({ state, onDetach }: CitationsListProps) {
   const t = useT();
   const navigate = useNavigate();
@@ -316,53 +446,125 @@ function CitationsList({ state, onDetach }: CitationsListProps) {
       <p className="text-xs italic text-ink-500">{t('node.citations_empty')}</p>
     );
   }
+
+  // Группировка по типу источника. Хадис проверяем первым (его mode не
+  // библиотечный, но семантически это отдельная группа). Порядок внутри
+  // группы — исходный порядок links.
+  const hadiths: NodeSourceDto[] = [];
+  const library: NodeSourceDto[] = [];
+  const freeform: NodeSourceDto[] = [];
+  for (const link of links) {
+    if (link.hadith) hadiths.push(link);
+    else if (isLibraryMode(link.mode)) library.push(link);
+    else freeform.push(link);
+  }
+
+  const groupProps = { sourceLookup, authorityLookup, onDetach, navigate, openSourceDetail };
+
   return (
-    <div className="space-y-2">
-      {links.map((link, idx) => {
-        const source = link.sourceId ? sourceLookup.get(link.sourceId) : undefined;
-        const authorityFallback = source?.authorityId
-          ? authorityLookup.get(source.authorityId)
-          : undefined;
-        const key = link.sourceId ?? `${link.nodeId}-${idx}`;
-        if (isLibraryMode(link.mode)) {
-          const deepLink = buildDeepLink(link);
-          const titleLatin = pickLatinTitle(source, link.citation?.book?.title);
-          const openPanel = link.sourceId
-            ? () =>
-                openSourceDetail({
-                  sourceId: link.sourceId!,
-                  nodeSourceId: link.id,
-                  quote: link.quote ?? undefined,
-                  context: link.context ?? undefined,
-                })
-            : undefined;
-          return (
-            <SourceCard
-              key={key}
-              link={link}
-              titleLatin={titleLatin}
-              onDelete={onDetach && link.id ? () => onDetach(link.id!) : undefined}
-              onPrimaryAction={deepLink ? () => navigate(deepLink) : undefined}
-              onTitleClick={openPanel}
-              sourceId={source?.id ?? link.sourceId}
-              sourceType={source?.sourceType}
-            />
-          );
-        }
-        if (link.hadith) {
-          return <HadithCite key={key} link={link} onDetach={onDetach} navigate={navigate} />;
-        }
-        return (
-          <FreeformCite
-            key={key}
-            link={link}
-            source={source}
-            authority={authorityFallback}
-            onDetach={onDetach}
-          />
-        );
-      })}
+    <div className="space-y-3">
+      {hadiths.length > 0 && (
+        <section className="space-y-1.5">
+          <GroupHeader title={t('cite.group.hadith')} count={hadiths.length} />
+          {hadiths.map((link, idx) => (
+            <HadithRow key={link.id ?? `h-${idx}`} link={link} {...groupProps} />
+          ))}
+        </section>
+      )}
+      {library.length > 0 && (
+        <section className="space-y-1.5">
+          <GroupHeader title={t('cite.group.library')} count={library.length} />
+          {library.map((link, idx) => (
+            <LibraryRow key={link.id ?? link.sourceId ?? `l-${idx}`} link={link} {...groupProps} />
+          ))}
+        </section>
+      )}
+      {freeform.length > 0 && (
+        <section className="space-y-1.5">
+          <GroupHeader title={t('cite.group.freeform')} count={freeform.length} />
+          {freeform.map((link, idx) => (
+            <FreeformRow key={link.id ?? link.sourceId ?? `f-${idx}`} link={link} {...groupProps} />
+          ))}
+        </section>
+      )}
     </div>
+  );
+}
+
+interface RowProps extends CitationGroupProps {
+  link: NodeSourceDto;
+}
+
+/** Свёрнутая строка библиотечной опоры → разворачивается в полный SourceCard. */
+function LibraryRow({ link, sourceLookup, onDetach, navigate, openSourceDetail }: RowProps) {
+  const t = useT();
+  const source = link.sourceId ? sourceLookup.get(link.sourceId) : undefined;
+  const deepLink = buildDeepLink(link);
+  const titleLatin = pickLatinTitle(source, link.citation?.book?.title);
+  const locator = buildLibraryLocator(link, t);
+  const openPanel = link.sourceId
+    ? () =>
+        openSourceDetail({
+          sourceId: link.sourceId!,
+          nodeSourceId: link.id,
+          quote: link.quote ?? undefined,
+          context: link.context ?? undefined,
+        })
+    : undefined;
+  return (
+    <CompactRow
+      title={titleLatin}
+      locator={locator}
+      primaryAriaLabel={t('cite.action.gotoSource')}
+      onPrimaryAction={deepLink ? () => navigate(deepLink) : undefined}
+    >
+      <SourceCard
+        link={link}
+        titleLatin={titleLatin}
+        onDelete={onDetach && link.id ? () => onDetach(link.id!) : undefined}
+        onPrimaryAction={deepLink ? () => navigate(deepLink) : undefined}
+        onTitleClick={openPanel}
+        sourceId={source?.id ?? link.sourceId}
+        sourceType={source?.sourceType}
+      />
+    </CompactRow>
+  );
+}
+
+/** Свёрнутая строка хадис-опоры → разворачивается в полную карточку HadithCite. */
+function HadithRow({ link, onDetach, navigate }: RowProps) {
+  const t = useT();
+  const h = link.hadith;
+  const title = h?.collectionName ?? t('node.citation_hadith_label');
+  const locator = h?.primaryNumber != null ? `№${h.primaryNumber}` : null;
+  return (
+    <CompactRow
+      title={title}
+      locator={locator}
+      primaryLabel={t('node.citation_hadith_open')}
+      onPrimaryAction={h?.hadithId ? () => navigate(`/hadith/hadiths/${h.hadithId}`) : undefined}
+    >
+      <HadithCite link={link} onDetach={onDetach} navigate={navigate} />
+    </CompactRow>
+  );
+}
+
+/** Свёрнутая строка свободной опоры → разворачивается в полную карточку FreeformCite. */
+function FreeformRow({ link, sourceLookup, authorityLookup, onDetach }: RowProps) {
+  const source = link.sourceId ? sourceLookup.get(link.sourceId) : undefined;
+  const authorityFallback = source?.authorityId
+    ? authorityLookup.get(source.authorityId)
+    : undefined;
+  const title = source?.title ?? '(удалён из справочника)';
+  return (
+    <CompactRow title={title}>
+      <FreeformCite
+        link={link}
+        source={source}
+        authority={authorityFallback}
+        onDetach={onDetach}
+      />
+    </CompactRow>
   );
 }
 

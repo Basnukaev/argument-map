@@ -14,6 +14,11 @@ export const DICTIONARY = {
     'cite.chip.library': 'из библиотеки',
     'cite.chip.free': 'свободная',
 
+    // citation group headers (NodeCitationsSection — группировка по типу)
+    'cite.group.hadith': 'Хадисы',
+    'cite.group.library': 'Книги',
+    'cite.group.freeform': 'Свободные',
+
     // citation field labels (in metadata accordion)
     'cite.label.author': 'Автор',
     'cite.label.death_year': 'Год смерти',
@@ -1661,6 +1666,10 @@ export const DICTIONARY = {
   ar: {
     'cite.chip.library': 'من المكتبة',
     'cite.chip.free': 'حرّة',
+
+    'cite.group.hadith': 'الأحاديث',
+    'cite.group.library': 'الكتب',
+    'cite.group.freeform': 'مصادر حرّة',
 
     'cite.label.author': 'المؤلف',
     'cite.label.death_year': 'سنة الوفاة',
