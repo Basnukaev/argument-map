@@ -226,6 +226,18 @@ function BookReaderPage() {
     return [x, y, w, h];
   }, [searchParams]);
 
+  // Том PDF из ?fileIndex=N (REGION deep-link, ADR-067). 0-based ordinal в
+  // pdf_links книги. FILE_ONLY книги не имеют shamela `part`, поэтому том
+  // адресуется напрямую. Невалидное / отсутствующее значение → null
+  // (PdfViewer дефолтит на первый не-cover файл, single-volume не задеты).
+  const initialFileIndex = useMemo<number | null>(() => {
+    const param = searchParams.get('fileIndex');
+    if (param == null) return null;
+    const n = parseInt(param, 10);
+    if (!Number.isFinite(n) || n < 0) return null;
+    return n;
+  }, [searchParams]);
+
   // Загрузка контента текущей страницы. Loading state выставляется в
   // event handlers (goPrev/goNext) и initial useState, не в effect - это
   // правило react-hooks/set-state-in-effect (см. gotchas)
@@ -663,9 +675,10 @@ function BookReaderPage() {
                     }
                   >
                     <PdfViewer
-                key={`${currentPart ?? ''}-${pdfDeepLinkPage ?? currentPrintedPage ?? ''}`}
+                key={`${currentPart ?? ''}-${initialFileIndex ?? ''}-${pdfDeepLinkPage ?? currentPrintedPage ?? ''}`}
                 bookId={bookId}
                 initialPart={currentPart}
+                initialFileIndex={initialFileIndex}
                 initialPrintedPage={pdfDeepLinkPage ?? currentPrintedPage}
                 initialBbox={initialBbox}
               />

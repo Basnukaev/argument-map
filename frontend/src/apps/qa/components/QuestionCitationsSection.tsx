@@ -4,6 +4,7 @@ import { BookOpen, Loader2, AlertCircle } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
 import CitationPicker from '@/shared/components/citation/CitationPicker';
+import { buildPdfDeepLinkQuery } from '@/shared/components/citation/pdfRegion';
 import { SourceCard } from '@/shared/components/citation/sourceCard';
 import { apiGetRaw, apiDeleteRaw, formatApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
@@ -102,15 +103,17 @@ function QuestionCitationsSection({ questionId, questionTitle }: Props) {
       const range = rangeStart != null && rangeEnd != null ? `&highlight=${rangeStart}-${rangeEnd}` : '';
       return `/books/${c.book.id}?pageId=${c.location.pageId}${range}`;
     }
-    if (link.mode === 'PDF' && c.pdf?.fileId && c.pdf.pageNumber != null) {
+    // PDF + PDF_LINK (REGION, ADR-067) — общий deep-link формат. fileIndex
+    // включаем когда задан (multi-volume иначе откроется на 1-м томе).
+    if ((link.mode === 'PDF' || link.mode === 'PDF_LINK') && c.pdf?.pageNumber != null) {
       const bbox = c.pdf.bbox as
         | { x?: number; y?: number; width?: number; height?: number }
         | undefined;
-      const bboxStr =
-        bbox && bbox.x != null
-          ? `&bbox=${bbox.x},${bbox.y},${bbox.width},${bbox.height}`
-          : '';
-      return `/books/${c.book.id}?pdf=1&pdfPageNumber=${c.pdf.pageNumber}${bboxStr}`;
+      return `/books/${c.book.id}${buildPdfDeepLinkQuery({
+        pageNumber: c.pdf.pageNumber,
+        fileIndex: c.pdf.fileIndex,
+        bbox,
+      })}`;
     }
     return null;
   }

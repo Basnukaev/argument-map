@@ -13,8 +13,18 @@ const BASE = 'http://test.local';
 // а не реальный рендеринг страниц. initialBbox сериализуем в data-атрибут,
 // чтобы тест мог проверить что deep-link ?bbox распарсился и долетел до prop.
 vi.mock('@/shared/components/reader/PdfViewer', () => ({
-  default: ({ initialBbox }: { initialBbox?: [number, number, number, number] | null }) => (
-    <div data-testid="pdf-viewer" data-bbox={initialBbox ? initialBbox.join(',') : ''}>
+  default: ({
+    initialBbox,
+    initialFileIndex,
+  }: {
+    initialBbox?: [number, number, number, number] | null;
+    initialFileIndex?: number | null;
+  }) => (
+    <div
+      data-testid="pdf-viewer"
+      data-bbox={initialBbox ? initialBbox.join(',') : ''}
+      data-file-index={initialFileIndex != null ? String(initialFileIndex) : ''}
+    >
       PDF VIEWER
     </div>
   ),
@@ -151,6 +161,22 @@ describe('BookReaderPage / content_kind режимы reader', () => {
 
     const viewer = await screen.findByTestId('pdf-viewer');
     expect(viewer).toHaveAttribute('data-bbox', '');
+  });
+
+  it('deep-link ?fileIndex=2 парсится и передаётся в PdfViewer как initialFileIndex', async () => {
+    mockBook({ contentKind: 'FILE_ONLY', pageCount: 0 });
+    renderReader('/books/bk-1?pdf=1&pdfPageNumber=3&fileIndex=2&bbox=0.1,0.2,0.3,0.4');
+
+    const viewer = await screen.findByTestId('pdf-viewer');
+    expect(viewer).toHaveAttribute('data-file-index', '2');
+  });
+
+  it('без ?fileIndex - initialFileIndex в PdfViewer пустой (null, single-volume дефолт)', async () => {
+    mockBook({ contentKind: 'FILE_ONLY', pageCount: 0 });
+    renderReader('/books/bk-1?pdf=1&pdfPageNumber=3');
+
+    const viewer = await screen.findByTestId('pdf-viewer');
+    expect(viewer).toHaveAttribute('data-file-index', '');
   });
 
   it('TEXT_ONLY с 0 страниц - показывает пустое состояние «Нет страниц», а не вечный спиннер', async () => {

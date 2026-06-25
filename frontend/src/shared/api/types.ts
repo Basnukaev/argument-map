@@ -2337,6 +2337,8 @@ export interface components {
             /** Format: int32 */
             pdfPageNumber?: number;
             pdfBbox?: components["schemas"]["PdfBbox"];
+            /** Format: int32 */
+            pdfFileIndex?: number;
             /** Format: uuid */
             imageRegionId?: string;
             quote?: string;
@@ -2404,6 +2406,8 @@ export interface components {
             /** Format: uuid */
             fileId?: string;
             /** Format: int32 */
+            fileIndex?: number;
+            /** Format: int32 */
             pageNumber?: number;
             bbox?: components["schemas"]["JsonNode"];
         };
@@ -2427,7 +2431,7 @@ export interface components {
             quote?: string;
             context?: string;
             /** @enum {string} */
-            mode?: "TEXT" | "PDF" | "REGION" | "LEGACY";
+            mode?: "TEXT" | "PDF" | "PDF_LINK" | "REGION" | "LEGACY";
             citation?: components["schemas"]["CitationResponse"];
             /** Format: date-time */
             createdAt?: string;
@@ -2549,7 +2553,7 @@ export interface components {
             quote?: string;
             context?: string;
             /** @enum {string} */
-            mode?: "TEXT" | "PDF" | "REGION" | "LEGACY";
+            mode?: "TEXT" | "PDF" | "PDF_LINK" | "REGION" | "LEGACY";
             citation?: components["schemas"]["CitationResponse"];
             legacySnapshot?: string;
             /** Format: date-time */
@@ -2833,7 +2837,7 @@ export interface components {
             quote?: string;
             context?: string;
             /** @enum {string} */
-            mode?: "TEXT" | "PDF" | "REGION" | "LEGACY";
+            mode?: "TEXT" | "PDF" | "PDF_LINK" | "REGION" | "LEGACY";
             citation?: components["schemas"]["CitationResponse"];
             /** Format: date-time */
             createdAt?: string;
@@ -3476,6 +3480,8 @@ export interface components {
             kind?: string;
             bookName?: string;
             author?: string;
+            /** Format: int32 */
+            authorDeathYear?: number;
             /** Format: int32 */
             page?: number;
             /** Format: int32 */

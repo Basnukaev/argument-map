@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { BookOpen, ChevronLeft, ChevronRight, Loader2, Search, X } from 'lucide-react';
 import Button from '@/shared/components/ui/Button';
 import Card from '@/shared/components/ui/Card';
@@ -8,6 +8,7 @@ import PageView, {
   type PageDetail,
   type TextSelection,
 } from '@/shared/components/reader/PageView';
+import { type PdfRegion } from './pdfRegion';
 import { apiGetRaw, apiPostRaw, formatApiError, ApiError } from '@/shared/api/client';
 import type { components } from '@/shared/api/types';
 import { hasArabicScript, useT } from '@/shared/i18n';
@@ -27,6 +28,11 @@ type PageSummaryDto = components['schemas']['PageSummaryResponse'] & {
 // библиотеке окажется >100 книг - добавить search-by-title или
 // pagination control внутри picker'а (backlog)
 const PICKER_PAGE_SIZE = 100;
+
+// Lazy-load — react-pdf + pdfjs-dist тяжёлые (~600KB) и не работают в jsdom
+// (нет DOMMatrix). Подгружается только когда выбрана FILE_ONLY книга, чтобы
+// не тянуть pdfjs в module graph всех тестов рендерящих CitationPicker.
+const CitationPickerPdfRegion = lazy(() => import('./CitationPickerPdfRegion'));
 
 interface Props {
   /** Тип сущности к которой привязывается citation - влияет на URL */
@@ -75,6 +81,10 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
   const [pageNumber, setPageNumber] = useState(1);
   const [pageContent, setPageContent] = useState<PageContentState>({ kind: 'loading' });
   const [selection, setSelection] = useState<TextSelection | null>(null);
+  // REGION-цитата для FILE_ONLY книг (PDF-only): обведённая курсором
+  // область PDF-страницы. Параллелен `selection` для TEXT-режима —
+  // активна ровно одна из двух веток (по contentKind книги).
+  const [region, setRegion] = useState<PdfRegion | null>(null);
   const [context, setContext] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -174,6 +184,7 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
   function handleSelectBook(bookId: string) {
     setBookState({ kind: 'loading' });
     setSelection(null);
+    setRegion(null);
     setPageContent({ kind: 'loading' });
     setSelectedBookId(bookId);
     // На mobile - после выбора книги сразу перевести юзера в reader tab,
@@ -216,18 +227,31 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
   }
 
   async function handleSubmit() {
-    if (!selection || !selectedBookId) return;
+    if (!selectedBookId) return;
+    // Region (PDF_LINK) vs text-selection (TEXT) — ровно одна ветка активна.
+    const payload: components['schemas']['CitationRequest'] | null = region
+      ? {
+          bookId: selectedBookId,
+          pdfFileIndex: region.fileIndex,
+          pdfPageNumber: region.pageNumber,
+          pdfBbox: region.bbox,
+          context: context.trim() || undefined,
+        }
+      : selection
+        ? {
+            bookId: selectedBookId,
+            pageId: selection.pageId,
+            rangeStart: selection.rangeStart,
+            rangeEnd: selection.rangeEnd,
+            quote: selection.quote,
+            context: context.trim() || undefined,
+          }
+        : null;
+    if (!payload) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await apiPostRaw(`/api/v1/${targetType}/${targetId}/citations`, {
-        bookId: selectedBookId,
-        pageId: selection.pageId,
-        rangeStart: selection.rangeStart,
-        rangeEnd: selection.rangeEnd,
-        quote: selection.quote,
-        context: context.trim() || undefined,
-      });
+      await apiPostRaw(`/api/v1/${targetType}/${targetId}/citations`, payload);
       onCreated();
       onClose();
     } catch (e: unknown) {
@@ -242,6 +266,13 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
 
   const truncatedTargetLabel =
     targetLabel.length > 80 ? targetLabel.substring(0, 77) + '...' : targetLabel;
+
+  // FILE_ONLY (archive.org-скан без текстового слоя) → REGION-режим:
+  // обводим область PDF вместо выделения текста.
+  const isFileOnly =
+    bookState.kind === 'success' && bookState.book.contentKind === 'FILE_ONLY';
+  // «Привести» активна когда есть либо текстовое выделение, либо область.
+  const canSubmit = isFileOnly ? region != null : selection != null;
 
   return (
     <div
@@ -300,7 +331,7 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
           <MobileTabButton
             label={t('citation_picker.tab_selection')}
             active={mobileTab === 'selection'}
-            badge={selection ? '•' : undefined}
+            badge={selection || region ? '•' : undefined}
             onClick={() => setMobileTab('selection')}
           />
         </div>
@@ -377,13 +408,27 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
                 <p className="text-sm text-err-700">{bookState.message}</p>
               </Card>
             )}
-            {bookState.kind === 'success' && bookState.book.contentKind === 'FILE_ONLY' && (
-              <Card className="flex flex-1 items-center justify-center p-6">
-                <p className="max-w-sm text-center text-sm text-ink-600">
-                  {t('citation_picker.file_only_unavailable')}
-                </p>
-              </Card>
-            )}
+            {bookState.kind === 'success' &&
+              bookState.book.contentKind === 'FILE_ONLY' &&
+              selectedBookId && (
+                <Suspense
+                  fallback={
+                    <Card className="flex flex-1 items-center justify-center">
+                      <Loader2 size={20} className="animate-spin text-ink-400" />
+                    </Card>
+                  }
+                >
+                  <CitationPickerPdfRegion
+                    key={selectedBookId}
+                    bookId={selectedBookId}
+                    region={region}
+                    onRegionChange={(r) => {
+                      setRegion(r);
+                      if (r && isMobile) setMobileTab('selection');
+                    }}
+                  />
+                </Suspense>
+              )}
             {bookState.kind === 'success' && bookState.book.contentKind !== 'FILE_ONLY' && (
               <>
                 <BookHeader book={bookState.book} pagesCount={bookState.pages.length} />
@@ -446,7 +491,19 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
               <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-500">
                 {t('citation_picker.selected_fragment')}
               </h3>
-              {selection ? (
+              {isFileOnly ? (
+                region ? (
+                  <p className="mt-2 text-sm text-ink-700">
+                    {t('citation_picker.region_summary')
+                      .replace('{volume}', String(region.fileIndex + 1))
+                      .replace('{page}', String(region.pageNumber))}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-xs italic text-ink-400">
+                    {t('citation_picker.region_select_hint')}
+                  </p>
+                )
+              ) : selection ? (
                 <blockquote
                   className="mt-2 max-h-[200px] overflow-y-auto border-s-2 border-accent-100 ps-2 text-sm italic text-ink-700"
                   dir={hasArabicScript(selection.quote) ? 'rtl' : 'ltr'}
@@ -458,9 +515,15 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
                   {t('citation_picker.select_hint')}
                 </p>
               )}
-              {selection && (
+              {!isFileOnly && selection && (
                 <p className="mt-2 font-mono text-xs text-ink-500">
                   {t('citation_picker.chars_label')} {selection.rangeStart}-{selection.rangeEnd}
+                </p>
+              )}
+              {isFileOnly && region && (
+                <p className="mt-2 font-mono text-xs text-ink-500">
+                  {Math.round(region.bbox.x * 100)},{Math.round(region.bbox.y * 100)} ·{' '}
+                  {Math.round(region.bbox.width * 100)}×{Math.round(region.bbox.height * 100)}%
                 </p>
               )}
             </Card>
@@ -492,7 +555,7 @@ function CitationPicker({ targetType, targetId, targetLabel, onClose, onCreated 
               type="button"
               icon={BookOpen}
               onClick={handleSubmit}
-              disabled={!selection || submitting}
+              disabled={!canSubmit || submitting}
               className="w-full justify-center"
             >
               {submitting ? t('common.saving') : t('citation_picker.submit')}

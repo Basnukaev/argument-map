@@ -17,6 +17,7 @@ import PanelSection from '@/apps/argument-map/components/graph/PanelSection';
 import AddSourceModal from '@/apps/argument-map/components/graph/AddSourceModal';
 import HadithPickerModal from '@/apps/argument-map/components/graph/HadithPickerModal';
 import CitationPicker from '@/shared/components/citation/CitationPicker';
+import { buildPdfDeepLinkQuery } from '@/shared/components/citation/pdfRegion';
 import { SourceCard } from '@/shared/components/citation/sourceCard';
 import { apiGetRaw, apiPostRaw, apiDeleteRaw, formatApiError } from '@/shared/api/client';
 import { toast } from '@/shared/stores/toastStore';
@@ -254,15 +255,18 @@ function buildDeepLink(link: NodeSourceDto): string | null {
     const range = rangeStart != null && rangeEnd != null ? `&highlight=${rangeStart}-${rangeEnd}` : '';
     return `/books/${c.book.id}?pageId=${c.location.pageId}${range}`;
   }
-  if (link.mode === 'PDF' && c.pdf?.fileId && c.pdf.pageNumber != null) {
+  // PDF (старый bbox-on-page) + PDF_LINK (REGION-цитата по PDF_LINK, ADR-067)
+  // используют один deep-link формат. fileIndex включаем когда задан —
+  // multi-volume книги иначе открываются на первом томе (latent bug).
+  if ((link.mode === 'PDF' || link.mode === 'PDF_LINK') && c.pdf?.pageNumber != null) {
     const bbox = c.pdf.bbox as
       | { x?: number; y?: number; width?: number; height?: number }
       | undefined;
-    const bboxStr =
-      bbox && bbox.x != null
-        ? `&bbox=${bbox.x},${bbox.y},${bbox.width},${bbox.height}`
-        : '';
-    return `/books/${c.book.id}?pdf=1&pdfPageNumber=${c.pdf.pageNumber}${bboxStr}`;
+    return `/books/${c.book.id}${buildPdfDeepLinkQuery({
+      pageNumber: c.pdf.pageNumber,
+      fileIndex: c.pdf.fileIndex,
+      bbox,
+    })}`;
   }
   return null;
 }

@@ -1073,6 +1073,9 @@ export const DICTIONARY = {
     'citation_picker.tab_selection': 'Выделение',
     'citation_picker.file_only_unavailable':
       'Эта книга — только PDF (без текстового слоя). Цитирование по фрагменту текста пока недоступно для таких книг.',
+    'citation_picker.region_draw_hint': 'Обведите курсором область на странице PDF',
+    'citation_picker.region_select_hint': 'Обведите область PDF, которую хотите процитировать',
+    'citation_picker.region_summary': 'Том {volume} · стр. {page} · область выделена',
 
     // AddSourceModal (полная миграция)
     'add_source.title': 'Свободный источник',
@@ -2669,6 +2672,9 @@ export const DICTIONARY = {
     'citation_picker.tab_selection': 'التحديد',
     'citation_picker.file_only_unavailable':
       'هذا الكتاب بصيغة PDF فقط (بدون طبقة نصية). الاستشهاد بمقطع نصي غير متاح بعد لهذا النوع من الكتب.',
+    'citation_picker.region_draw_hint': 'حدِّد منطقة على صفحة PDF بالمؤشر',
+    'citation_picker.region_select_hint': 'حدِّد منطقة من PDF تريد الاستشهاد بها',
+    'citation_picker.region_summary': 'الجزء {volume} · ص {page} · تم تحديد المنطقة',
 
     'add_source.title': 'مصدر حر',
     'add_source.field.kind': 'النوع',

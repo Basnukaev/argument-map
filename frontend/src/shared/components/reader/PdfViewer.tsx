@@ -55,6 +55,13 @@ interface PdfViewerProps {
    */
   initialPart?: string | null;
   /**
+   * Явный 0-based fileIndex тома. Используется deep-link'ами REGION-цитат
+   * (`?fileIndex=N`, ADR-067) — у FILE_ONLY книг нет shamela `part`, том
+   * адресуется напрямую ordinal'ом. Имеет приоритет над `initialPart`.
+   * null → fallback на part-matching / первый не-cover файл.
+   */
+  initialFileIndex?: number | null;
+  /**
    * Печатная страница из shamela mapping (`lib_pages.printed_page`).
    * Используется как pageNumber внутри выбранного PDF-файла. TEXT поле
    * в БД (может быть "39", "أ", roman) - принимаем number здесь (parsed
@@ -157,6 +164,7 @@ function findFileIndexForPart(
 function PdfViewer({
   bookId,
   initialPart,
+  initialFileIndex = null,
   initialPrintedPage,
   stickyToolbar = true,
   initialBbox = null,
@@ -192,13 +200,19 @@ function PdfViewer({
       .then((info) => {
         setState({ kind: 'ready', info });
         const files = info.files ?? [];
-        // 1. Если родитель передал shamela part - matching на правильный том
+        // 1. Явный fileIndex из deep-link (REGION-цитата ?fileIndex=N) — высший
+        // приоритет. Сверяем что такой файл существует, иначе падаем дальше.
+        if (initialFileIndex != null && files.some((f) => f.index === initialFileIndex)) {
+          setFileIndex(initialFileIndex);
+          return;
+        }
+        // 2. Если родитель передал shamela part - matching на правильный том
         const partMatch = findFileIndexForPart(initialPart, files);
         if (partMatch != null) {
           setFileIndex(partMatch);
           return;
         }
-        // 2. Иначе - первый не-cover файл по дефолту
+        // 3. Иначе - первый не-cover файл по дефолту
         const firstContentFile = files.find((f) => f.isCover === false);
         const fallback = files[0];
         setFileIndex(firstContentFile?.index ?? fallback?.index ?? 0);
@@ -218,7 +232,7 @@ function PdfViewer({
         setState({ kind: 'error', message });
       });
     return () => controller.abort();
-  }, [bookId, initialPart, t]);
+  }, [bookId, initialPart, initialFileIndex, t]);
 
   // Multi-volume - dropdown показываем когда есть >1 не-cover файла.
   // Labels: арабские шамеловские (المقدمة) показываем как есть, а

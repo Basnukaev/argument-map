@@ -5,6 +5,36 @@ import { server } from '@/test/server';
 import { waitForApi } from '@/test/asyncHelpers';
 import CitationPicker from './CitationPicker';
 
+// CitationPickerPdfRegion грузит react-pdf (тяжёлый, рисование не работает в
+// jsdom — нет layout). Мокаем компонент кнопкой «set region», которая через
+// onRegionChange отдаёт фиксированный регион — так тестируем submit-логику
+// (PDF_LINK payload), а не сам pointer-drag (он покрыт unit-тестом pdfRegion).
+vi.mock('./CitationPickerPdfRegion', () => ({
+  default: ({
+    onRegionChange,
+  }: {
+    onRegionChange: (r: {
+      fileIndex: number;
+      pageNumber: number;
+      bbox: { x: number; y: number; width: number; height: number };
+    } | null) => void;
+  }) => (
+    <button
+      type="button"
+      data-testid="mock-set-region"
+      onClick={() =>
+        onRegionChange({
+          fileIndex: 2,
+          pageNumber: 7,
+          bbox: { x: 0.1, y: 0.2, width: 0.3, height: 0.4 },
+        })
+      }
+    >
+      set region
+    </button>
+  ),
+}));
+
 const BASE = 'http://test.local';
 
 const BOOKS_EMPTY_RESPONSE = { items: [], total: 0, page: 0, size: 100 };
@@ -53,7 +83,7 @@ describe('CitationPicker', () => {
     vi.unstubAllGlobals();
   });
 
-  it('для FILE_ONLY книги показывает сообщение о недоступности, не спиннер «Загрузка страницы»', async () => {
+  function mockFileOnlyBook() {
     server.use(
       http.get(`${BASE}/api/v1/library/books`, () =>
         HttpResponse.json({
@@ -70,25 +100,74 @@ describe('CitationPicker', () => {
         HttpResponse.json([]),
       ),
     );
+  }
 
+  it('для FILE_ONLY книги показывает REGION-режим (рисование области), не спиннер «Загрузка страницы»', async () => {
+    mockFileOnlyBook();
     renderPicker();
 
-    // Дождаться загрузки списка книг и клик по книге
     const bookButton = await screen.findByRole('button', { name: 'Скан без текста' });
     bookButton.click();
 
-    // Должно появиться сообщение о недоступности для FILE_ONLY
+    // Вместо старого placeholder'а — компонент рисования области (мок).
+    // CitationPickerPdfRegion lazy-загружается → findBy* с дефолтным
+    // timeout'ом (Suspense fallback успевает смениться на мок).
+    expect(await screen.findByTestId('mock-set-region')).toBeInTheDocument();
+    // Старый текст недоступности больше не показывается
+    expect(
+      screen.queryByText(/Цитирование по фрагменту текста пока недоступно/),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Загрузка страницы')).not.toBeInTheDocument();
+  });
+
+  it('для FILE_ONLY книги «Привести» disabled пока область не нарисована, затем POST шлёт PDF_LINK payload', async () => {
+    mockFileOnlyBook();
+    let captured: unknown = null;
+    server.use(
+      http.post(`${BASE}/api/v1/nodes/node-1/citations`, async ({ request }) => {
+        captured = await request.json();
+        return HttpResponse.json({}, { status: 201 });
+      }),
+    );
+
+    const onCreated = vi.fn();
+    render(
+      <CitationPicker
+        targetType="nodes"
+        targetId="node-1"
+        targetLabel="Тестовый узел"
+        onClose={vi.fn()}
+        onCreated={onCreated}
+      />,
+    );
+
+    const bookButton = await screen.findByRole('button', { name: 'Скан без текста' });
+    bookButton.click();
+
+    const setRegionBtn = await screen.findByTestId('mock-set-region');
+
+    // До рисования области «Привести» disabled
+    const submitBtn = screen.getByRole('button', { name: 'Привести' });
+    expect(submitBtn).toBeDisabled();
+
+    // Рисуем область (мок отдаёт fileIndex=2, page=7, bbox)
+    setRegionBtn.click();
+
     await waitForApi(() => {
-      expect(
-        screen.getByText(
-          /Эта книга — только PDF.*Цитирование по фрагменту текста пока недоступно/,
-        ),
-      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Привести' })).toBeEnabled();
     });
 
-    // Спиннер «Загрузка страницы» (reader.page_loading) НЕ должен быть виден
-    // (нет бесконечной крутилки ожидания страниц)
-    expect(screen.queryByText('Загрузка страницы')).not.toBeInTheDocument();
+    screen.getByRole('button', { name: 'Привести' }).click();
+
+    await waitForApi(() => {
+      expect(captured).toEqual({
+        bookId: 'book-file-only',
+        pdfFileIndex: 2,
+        pdfPageNumber: 7,
+        pdfBbox: { x: 0.1, y: 0.2, width: 0.3, height: 0.4 },
+      });
+    });
+    expect(onCreated).toHaveBeenCalled();
   });
 
   it('для книги без contentKind (TEXT_ONLY) показывает reader, не сообщение о FILE_ONLY', async () => {
