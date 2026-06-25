@@ -344,12 +344,15 @@ function TopicCard({ topic }: TopicCardProps) {
             <Network size={10} aria-hidden />
             {nodeCount} · {edgeCount}
           </div>
+          {/* Hover-reveal на десктопе (чище карточка), но на touch hover не
+              срабатывает → `pointer-coarse:opacity-100` всегда показывает кнопку
+              там, где :hover недоступен (клавиатуре уже помогает focus:opacity-100). */}
           <button
             type="button"
             onClick={handleExport}
             title={t('topic.export.button')}
             aria-label={t('topic.export.button')}
-            className="absolute start-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-sm border border-border bg-elevated/90 text-ink-600 opacity-0 transition-opacity hover:bg-ink-50 hover:text-ink-900 focus:opacity-100 group-hover:opacity-100 backdrop-blur"
+            className="absolute start-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-sm border border-border bg-elevated/90 text-ink-600 opacity-0 transition-opacity hover:bg-ink-50 hover:text-ink-900 focus:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100 backdrop-blur"
           >
             <Download size={12} aria-hidden />
           </button>

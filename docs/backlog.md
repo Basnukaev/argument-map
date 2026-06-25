@@ -62,10 +62,17 @@ chips overflow) - Сессия 40. Обе сжаты в roadmap closed-stages
 
 ### Фаза 3 - возможные улучшения (когда понадобится)
 
-- [ ] **Hover-only действия имеют tap-альтернативу** - аудит,
-  где в проекте есть `group-hover:opacity-100` для кнопок без
-  альтернативного tap (например `TopicCard` export button).
-  Mobile = touch, hover не работает - кнопки невидимы
+- [x] **Hover-only действия имеют tap-альтернативу** ✅ С66 — аудит всего
+  фронта: ровно 2 hover-reveal места. (1) `TopicListPage` export-кнопка карточки
+  (`opacity-0 group-hover:opacity-100`) — была невидима на touch (focus уже
+  покрывал клавиатуру) → добавлен `pointer-coarse:opacity-100` (Tailwind v4
+  `@media (pointer: coarse)`, верифицировано в build-CSS): на устройствах без
+  hover кнопка всегда видна. Выбран pointer-coarse, НЕ `useIsMobile` (ширина —
+  proxy; pointer-coarse = реальное «нет hover»). (2) `NodeCard` connection-handles
+  (`opacity-0 group-hover`) — **оставлены намеренно**: десктоп-first RF-канва
+  (не зеркалится), touch-создание рёбер идёт через контекст-меню/AddEdgeModal,
+  4 крестика на каждом узле захламили бы граф. BookListPage Download — обычные
+  всегда-видимые `<Button>`, не задеты.
 - [ ] **Replay design-reference responsive prototypes** - в
   `design-reference/project/responsive.jsx` есть варианты mobile
   navigation которые не имплементированы (bottom-tabs?
