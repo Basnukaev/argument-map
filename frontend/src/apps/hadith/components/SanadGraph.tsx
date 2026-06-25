@@ -238,6 +238,15 @@ interface SanadGraphProps {
    * графа (lifted), потому рефетч — его колбэк.
    */
   onGraphEdited?: () => void;
+  /**
+   * Курация 5.b: можно ли править формулу передачи (transmission_phrase) на чипе
+   * ребра. ТОЛЬКО в одноцепочечном (main) виде — там `graph.hadithId` однозначен.
+   * В turuq («Все пути») граф объединяет цепи разных хадисов: ребро sibling-цепи
+   * несёт чужой position, а стемпится hadithId страницы → правка ушла бы НЕ В ТОТ
+   * хадис (ревью 5.b-B). Плюс «какой цепи формулу я правлю?» в merged-виде
+   * неоднозначно. Правка рави (по стабильному narratorId) работает в обоих видах.
+   */
+  edgesEditable?: boolean;
 }
 
 /**
@@ -260,6 +269,7 @@ function SanadGraph({
   currentHadithId,
   role,
   onGraphEdited,
+  edgesEditable = false,
 }: SanadGraphProps) {
   const t = useT();
   const navigate = useNavigate();
@@ -427,11 +437,14 @@ function SanadGraph({
         // ADMIN inline-правки формулы передачи звена прямо на чипе ребра.
         data: {
           transmissionPhrase: e.data.transmissionPhrase ?? undefined,
+          // hadithId страницы валиден как ключ правки ТОЛЬКО в main (одноцепочечном)
+          // виде — потому onGraphEdited гейтится edgesEditable (см. проп). overridden-
+          // индикатор показываем всегда (он reveal-gated на бэке).
           hadithId: graph.hadithId,
           position: e.data.position,
           overridden: e.data.transmissionPhraseOverridden ?? false,
           role,
-          onGraphEdited,
+          onGraphEdited: edgesEditable ? onGraphEdited : undefined,
         },
         // Единая толщина: толщина значит ТОЛЬКО подсветку (+1 в highlight-memo),
         // а не primaryChain — в turuq все цепи primary, разнотолщинность читалась
@@ -441,7 +454,7 @@ function SanadGraph({
       };
     });
     return { rfNodes: layoutSanad(nodes, edges), rfEdges: edges };
-  }, [graph, currentHadithId, role, onGraphEdited]);
+  }, [graph, currentHadithId, role, onGraphEdited, edgesEditable]);
 
   // ELK ортогональная раскладка (async): рёбра огибают карточки (Проблема 1),
   // параллельные рёбра разводятся (Проблема 2), подписи-формулы садятся на

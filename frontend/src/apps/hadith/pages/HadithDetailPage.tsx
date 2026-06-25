@@ -669,6 +669,9 @@ function HadithDetailPage() {
                         onNarratorClose={() => setSelectedNarrator(null)}
                         role={userRole}
                         onGraphEdited={refetchGraph}
+                        // Правка формулы передачи на ребре — только в одноцепочечном
+                        // main-виде (в turuq hadithId ребра неоднозначен, ревью 5.b-B).
+                        edgesEditable={viewMode === 'main'}
                       />
                     )}
                     {/* Карточку передатчика (клики из графа И из текста иснада)

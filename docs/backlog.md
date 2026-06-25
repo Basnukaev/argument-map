@@ -303,6 +303,27 @@ node_votes**); Frontend pagination остальных list pages (Load More,
   конструкторе. Blast radius — все endpoint'ы (GlobalExceptionHandler), поэтому
   отдельная задача, не drive-by. Не блокер FILE_ONLY-цитат (тот путь не задет).
 
+### Code-review findings (С66, курация 5.b-B transmission_phrase) — deferred Minor
+
+Ревью = **REQUEST CHANGES, 0 Crit, 1 Imp, 5 Minor**. **Imp ЗАКРЫТ С66:**
+turuq-граф стемпил все рёбра hadithId страницы → правка sibling-ребра ушла бы не в
+тот хадис; правка ребра загейчена на `viewMode==='main'` (`SanadGraph.edgesEditable`),
+решение в ADR-065-amendment. Остальные Minor отложены (нит/латентные):
+- [ ] **assertEntityExists хардкодит `WHERE id=?`** — `hd_sanad_narrators` без колонки
+  `id` (композ. PK). Путь мёртв сегодня (whitelist пуст + synthetic-guard), но если
+  будущий мейнтейнер вернёт поле в generic-whitelist → SQL «column id does not exist»
+  (500). Defensive: assert/коммент «generic-whitelisted сущность обязана иметь `id`».
+- [ ] **`@NotBlank` на TransmissionPhraseEditRequest.phrase** — сейчас `@Size(max=200)`
+  пропускает whitespace-only, ловит сервисный `trimmed.isBlank()` (load-bearing, но
+  коммент вводит в заблуждение «@Valid ловит»). Добавить @NotBlank или поправить коммент.
+- [ ] **`@Size(max=200)` overlay vs VARCHAR(40) колонка** — намеренно (overlay в TEXT,
+  не пишется в колонку), но молча. Однострочный коммент в ADR/Javadoc.
+- [ ] **effectiveTransmissionPhrase: EDIT-only enforced только на записи** — если
+  hidden=true override появится (ручной DB / будущий код), applyStr вернёт null.
+  Опц. hardening: игнорить hidden/isNull для этого синтет-ключа на чтении.
+- [ ] **Unit-тест `transmissionPhrasePosition`** (malformed/overflow/negative) — защитный
+  контракт реален, blast-radius ~0 (read-path не парсит хранимый ключ). Опц.
+
 ### Code-review findings (С66, ADR-067 PDF_LINK) — deferred Minor
 
 Ревью бэкенда PDF_LINK = **APPROVE, 0 Crit/0 Imp, 4 Minor**. #1 (тесты DB-CHECK
