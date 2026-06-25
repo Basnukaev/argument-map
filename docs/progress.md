@@ -9,6 +9,60 @@
 
 <!-- NEWEST-ENTRY-ANCHOR -->
 
+## 2026-06-25 - Сессия 66 - backlog-автопилот: курация 5.b, mobile-аудит, ADR-067 PDF_LINK (бэкенд)
+
+Продолжение автопилота после С65. **Развилка деплоя:** разобрался, что
+argument-map НЕ задеплоен нигде (прода нет), а remblo — отдельный продукт со
+своим бэкапом только его БД; «P0-2 backup (в remblo)» = «когда со-задеплоим на
+тот же VPS», это first-time prod bring-up = ADR-уровень. Абдула: **деплой —
+в последнюю очередь**, пока backlog-задачи. (memory `project_session_state`,
+`project_remblo_deploy_setup`.)
+
+**Сделано (6 коммитов):**
+1. `5dd7a5c` **курация 5.b** — `ExplanationDto.authorDeathYear` теперь surface'ится
+   (`toExplanationDto` терял уже собранное `hd_explanations.author_death_year`);
+   `ExplanationsList` рисует «ум. {year} г.х.», `CurationFieldsPanel` получил
+   текущее значение (был latent `value:null`). Component-тест. Каверза: dev-корпус
+   = 0 explanations с author_death_year (приходит только через curation-override).
+2. `0b3ba6a` **mobile hover-аудит** — весь фронт = 2 hover-reveal места; export-кнопка
+   `TopicListPage` получила `pointer-coarse:opacity-100` (touch-видимость, верифиц.
+   в build-CSS `@media (pointer:coarse)`); NodeCard handles оставлены (десктоп-first RF).
+3. `4928fa7` **hadith_grades** — аудит (архитектор-агент) показал: backlog-пункт
+   STALE, фича отгружена end-to-end в С62 (ADR-062 Вариант B, мост hd_hadiths↔sources).
+   Закрыт как устаревший. Reimport-safe уже (mapper сохраняет source_id).
+4. `4660d61` **ADR-067 PDF_LINK бэкенд** (главное) — FILE_ONLY (archive.org-сканы)
+   нельзя было цитировать: PDF в `metadata.pdf_links`, не в `library_files` (та
+   требует blob). Решение (архитектор-агент, выбран из 2): 5-й режим citation
+   PDF_LINK по `(pdf_file_index,page,bbox)`, НЕ регистрировать archive.org в
+   library_files. Миграция 80 (+pdf_file_index в 3 таблицы, 5-ветковый
+   взаимоисключающий CHECK), CitationMode/Request/3 домена/3 сервиса (валидация
+   index<files().size() через getMetadata без скачивания)/3 репо/PdfRef.fileIndex,
+   85 IT. **Независимое ревью = APPROVE, 0 Crit/0 Imp, 4 Minor** (truth-table CHECK).
+5. `70e3b50` **ревью-Minor #1** — DB-CHECK тесты для question/answer (был только node).
+   Остальные 3 Minor + pre-existing баг (невалидный bbox→500 вместо 400: PdfBbox
+   валидирует в compact-конструкторе → Jackson, не @Valid) — в backlog с обоснованием.
+
+**Процесс:** 2 параллельных архитектор-агента (read-only) для развилок →
+синтез в ADR/решение → executor (opus) для бэкенд-реализации → независимое
+code-ревью (BASE/HEAD) → закрыть Minor #1 / backlog остальное. Делегирование
+сберегло контекст в длинной сессии.
+
+**Следующий шаг — FILE_ONLY PDF_LINK фронт (бэкенд готов+ревью):**
+ПРЕДУСЛОВИЕ: рестарт бэка с новым кодом (env-команда из CLAUDE.md +JDWP) →
+`npm run generate-api` (типы `PdfRef.fileIndex` + `mode:PDF_LINK` ещё не в
+`shared/api/types.ts`; running :9090 предшествует правке). Затем:
+(a) `CitationPicker` FILE_ONLY-таб (сейчас placeholder `:380-385`) → POST
+`{bookId, pdfFileIndex, pdfPageNumber, pdfBbox, quote, context}` — начать с
+manual page+bbox-ввода (тестируемо без рисования); (b) deep-link builders ×3
+(`NodeCitationsSection.tsx:265` + Question/Answer) +`&fileIndex=` (латентный
+multi-volume баг — сейчас fileId/fileIndex не шлются); (c) `BookReaderPage`
+читает `?fileIndex=` → прокидывает в `PdfViewer` (проп уже есть); Vitest+MSW.
+(d) **bbox-drawing UX** (`CitationPickerPdfRegion`, react-image-crop поверх
+react-pdf `<Page>`, rect→нормализ. PdfBbox) — НУЖНЫ ГЛАЗА АБДУЛЫ, playwright
+env-ограничен. Спека-детали в ADR-067 + backlog roadmap 25.f.
+Опц. хвосты: курация 5.b sanad-UI + transmission_phrase (композ. ключ);
+ревью-Minor #2-4 (двойной getMetadata, 404→400, rollback-комментарий).
+
 ## 2026-06-24 - Сессия 65 - ЭПИК КУРАЦИИ ЗАКРЫТ (фазы 0-6) + Tiptap RTL/polish
 
 Автопилот: «посмотри прогресс/беклог, делай всё, на перепутье — best practice».
