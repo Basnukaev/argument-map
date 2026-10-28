@@ -1,14 +1,13 @@
-# Платформа для исламской науки
+# Argument Map
 
-> Внутреннее техническое имя репозитория - `argument-map` (по
-> историческим причинам), но это **платформа** цифровых инструментов
-> для исламских учёных и студентов. Argument-map - первое приложение
-> на этом фундаменте, не центральный продукт. См. [`docs/vision.md`](docs/vision.md)
-> для целевого видения
+> Платформа для споров и разбора аргументов в виде графа: тезисы,
+> связи между ними и опора на источники. Argument-map - первое
+> приложение на этом фундаменте, рядом библиотека источников с точным
+> цитированием. См. [`docs/vision.md`](docs/vision.md) для целевого видения
 
 ## Что это
 
-Платформа цифровых инструментов для **исламских учёных и студентов**.
+Платформа для споров и разбора аргументов в виде графа.
 Главный принцип - **точная атрибуция**: любая цитата в любом
 приложении имеет автора (`Authority`), труд (`Source`/`Book`), точное
 место (`location`), степень достоверности
@@ -30,12 +29,12 @@
 ## Текущее состояние
 
 - **Argument-map**: рабочее приложение с CRUD узлов/связей,
-  drag-create, reconnect edges, секцией «Опора» (mustanad - то на
-  что опирается тезис) с library + freeform citation, structured
+  drag-create, reconnect edges, секцией «Опора» (то, на что
+  опирается тезис) с library + freeform citation, structured
   academic citation готов на бэке (ADR-028), frontend блочный
   рендер - в работе (Этап 20.f)
-- **Library**: рабочая - shamela import, BookListPage, BookReader с
-  RTL/naskh, PDF Viewer source-agnostic с MinIO storage, CitationPicker
+- **Library**: рабочая - импорт книг (shamela), BookListPage, BookReader с
+  RTL, PDF Viewer source-agnostic с MinIO storage, CitationPicker
 - **Q&A**: в roadmap (Этап 19), валидация платформенного фундамента
   после library
 
